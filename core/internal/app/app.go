@@ -155,6 +155,10 @@ type Song struct {
 	BandID    string    `json:"bandId"`
 	Title     string    `json:"title"`
 	Artist    string    `json:"artist,omitempty"`
+	Key       string    `json:"key,omitempty"`
+	Tempo     int       `json:"tempo,omitempty"` // BPM; 0 = unset
+	Tags      []string  `json:"tags,omitempty"`
+	Notes     string    `json:"notes,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -163,15 +167,40 @@ type Song struct {
 // BlobHash; this record is the relational pointer to them. BandID is denormalized
 // from the song so download authorization (members-only) needs no song lookup.
 type SongFile struct {
-	ID          string    `json:"id"`
-	SongID      string    `json:"songId"`
-	BandID      string    `json:"bandId"`
-	Filename    string    `json:"filename"`
-	ContentType string    `json:"contentType"`
-	Size        int64     `json:"size"`
-	BlobHash    string    `json:"blobHash"`
-	UploadedBy  string    `json:"uploadedBy"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	SongID       string    `json:"songId"`
+	BandID       string    `json:"bandId"`
+	Filename     string    `json:"filename"`
+	ContentType  string    `json:"contentType"`
+	Size         int64     `json:"size"`
+	BlobHash     string    `json:"blobHash"`
+	DisplayOrder int       `json:"displayOrder"`
+	UploadedBy   string    `json:"uploadedBy"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// Setlist is a band-scoped, ordered program of songs for an event. Items hold the
+// ordering and per-performance overrides; the songs themselves live independently.
+type Setlist struct {
+	ID        string    `json:"id"`
+	BandID    string    `json:"bandId"`
+	Name      string    `json:"name"`
+	EventDate string    `json:"eventDate,omitempty"` // optional ISO yyyy-mm-dd
+	Venue     string    `json:"venue,omitempty"`
+	Notes     string    `json:"notes,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// SetlistItem places a song at a position within a setlist, with optional per-item
+// overrides (a different key/tempo for this performance) and notes.
+type SetlistItem struct {
+	ID            string `json:"id"`
+	SetlistID     string `json:"setlistId"`
+	SongID        string `json:"songId"`
+	Position      int    `json:"position"`
+	KeyOverride   string `json:"keyOverride,omitempty"`
+	TempoOverride int    `json:"tempoOverride,omitempty"`
+	Notes         string `json:"notes,omitempty"`
 }
 
 // Repo is the swappable persistence contract for the relational domain. It mirrors
@@ -192,15 +221,20 @@ type Repo interface {
 	// Bands + memberships.
 	CreateBand(b Band) error
 	GetBand(id string) (Band, error)
+	UpdateBand(b Band) error
+	DeleteBand(id string) error
 	BandsForUser(userID string) ([]Band, error)
 	AddMembership(m Membership) error
 	GetMembership(bandID, userID string) (Membership, error)
+	UpdateMembership(m Membership) error
+	DeleteMembership(bandID, userID string) error
 	MembersOfBand(bandID string) ([]Membership, error)
 
 	// Invites.
 	CreateInvite(i Invite) error
 	GetInvite(id string) (Invite, error)
 	UpdateInvite(i Invite) error
+	DeleteInvite(id string) error
 	InvitesForBand(bandID string) ([]Invite, error)
 	// PendingInvitesForIdentifiers returns pending invites whose (kind,identifier)
 	// matches any of the supplied pairs (the invitee's own username/email/uuid).
@@ -209,12 +243,31 @@ type Repo interface {
 	// Songs.
 	CreateSong(s Song) error
 	GetSong(id string) (Song, error)
+	UpdateSong(s Song) error
+	DeleteSong(id string) error
 	SongsOfBand(bandID string) ([]Song, error)
 
 	// Song files (metadata only; bytes live in a blob.Store).
 	CreateSongFile(f SongFile) error
 	GetSongFile(id string) (SongFile, error)
+	UpdateSongFile(f SongFile) error
+	DeleteSongFile(id string) error
 	FilesOfSong(songID string) ([]SongFile, error)
+	// FilesWithBlob returns every SongFile pointing at blobHash (used to decide
+	// whether a blob is still referenced before dereferencing it on delete).
+	FilesWithBlob(blobHash string) ([]SongFile, error)
+
+	// Setlists + items.
+	CreateSetlist(sl Setlist) error
+	GetSetlist(id string) (Setlist, error)
+	UpdateSetlist(sl Setlist) error
+	DeleteSetlist(id string) error
+	SetlistsOfBand(bandID string) ([]Setlist, error)
+	CreateSetlistItem(it SetlistItem) error
+	GetSetlistItem(id string) (SetlistItem, error)
+	UpdateSetlistItem(it SetlistItem) error
+	DeleteSetlistItem(id string) error
+	ItemsOfSetlist(setlistID string) ([]SetlistItem, error)
 }
 
 // IdentifierMatch is one (kind, identifier) pair used to resolve an invite to a

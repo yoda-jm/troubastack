@@ -29,6 +29,9 @@ var ErrNotFound = errors.New("blob: not found")
 type Store interface {
 	Put(data []byte) (hash string, err error)
 	Get(hash string) ([]byte, error)
+	// Delete removes the bytes for hash. It is idempotent — deleting an absent
+	// hash is not an error (the caller only deletes once a blob is unreferenced).
+	Delete(hash string) error
 }
 
 // HashOf returns the lowercase hex sha256 of data (the address used as the key).
@@ -74,6 +77,14 @@ func (m *Mem) Get(hash string) ([]byte, error) {
 	cp := make([]byte, len(b))
 	copy(cp, b)
 	return cp, nil
+}
+
+// Delete removes the bytes for hash (idempotent).
+func (m *Mem) Delete(hash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, hash)
+	return nil
 }
 
 // ---- file-backed ----
@@ -127,4 +138,14 @@ func (f *File) Get(hash string) ([]byte, error) {
 		return nil, fmt.Errorf("blob: read: %w", err)
 	}
 	return b, nil
+}
+
+// Delete removes the file for hash (idempotent — an absent file is not an error).
+func (f *File) Delete(hash string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := os.Remove(f.path(hash)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("blob: remove: %w", err)
+	}
+	return nil
 }

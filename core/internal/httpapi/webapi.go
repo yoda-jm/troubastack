@@ -42,13 +42,33 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bands", a.auth(a.listBands))
 	mux.HandleFunc("POST /api/bands", a.auth(a.createBand))
 	mux.HandleFunc("GET /api/bands/{bandId}", a.auth(a.getBand))
+	mux.HandleFunc("PATCH /api/bands/{bandId}", a.auth(a.updateBand))
+	mux.HandleFunc("DELETE /api/bands/{bandId}", a.auth(a.deleteBand))
 	mux.HandleFunc("GET /api/bands/{bandId}/members", a.auth(a.listMembers))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/members/{userId}", a.auth(a.updateMember))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/members/{userId}", a.auth(a.removeMember))
+	mux.HandleFunc("POST /api/bands/{bandId}/leave", a.auth(a.leaveBand))
 	mux.HandleFunc("POST /api/bands/{bandId}/invites", a.auth(a.createInvite))
+	mux.HandleFunc("GET /api/bands/{bandId}/invites", a.auth(a.listBandInvites))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/invites/{inviteId}", a.auth(a.revokeInvite))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs", a.auth(a.listSongs))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs", a.auth(a.createSong))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}", a.auth(a.updateSong))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}", a.auth(a.deleteSong))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files", a.auth(a.uploadFile))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files", a.auth(a.listFiles))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.updateFile))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.deleteFile))
 	mux.HandleFunc("GET /api/files/{fileId}", a.auth(a.downloadFile))
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists", a.auth(a.listSetlists))
+	mux.HandleFunc("POST /api/bands/{bandId}/setlists", a.auth(a.createSetlist))
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}", a.auth(a.getSetlist))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/setlists/{setlistId}", a.auth(a.updateSetlist))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}", a.auth(a.deleteSetlist))
+	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/items", a.auth(a.addSetlistItem))
+	mux.HandleFunc("PATCH /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.updateSetlistItem))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.removeSetlistItem))
+	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/reorder", a.auth(a.reorderSetlist))
 	mux.HandleFunc("GET /api/invites", a.auth(a.listInvites))
 	mux.HandleFunc("POST /api/invites/{inviteId}/accept", a.auth(a.acceptInvite))
 	mux.HandleFunc("POST /api/invites/{inviteId}/decline", a.auth(a.declineInvite))
@@ -193,6 +213,60 @@ func (a *WebAPI) listMembers(w http.ResponseWriter, r *http.Request, u app.User)
 	writeJSON(w, http.StatusOK, map[string]any{"members": members})
 }
 
+func (a *WebAPI) updateBand(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	b, err := a.svc.UpdateBand(u, r.PathValue("bandId"), in.Name)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"band": b})
+}
+
+func (a *WebAPI) deleteBand(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.DeleteBand(u, r.PathValue("bandId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *WebAPI) updateMember(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Role string `json:"role"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	m, err := a.svc.SetMemberRole(u, r.PathValue("bandId"), r.PathValue("userId"), app.Role(in.Role))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"member": m})
+}
+
+func (a *WebAPI) removeMember(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.RemoveMember(u, r.PathValue("bandId"), r.PathValue("userId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *WebAPI) leaveBand(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.LeaveBand(u, r.PathValue("bandId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ---- invite handlers ----
 
 func (a *WebAPI) createInvite(w http.ResponseWriter, r *http.Request, u app.User) {
@@ -209,6 +283,26 @@ func (a *WebAPI) createInvite(w http.ResponseWriter, r *http.Request, u app.User
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"invite": inv})
+}
+
+func (a *WebAPI) listBandInvites(w http.ResponseWriter, r *http.Request, u app.User) {
+	invites, err := a.svc.BandInvites(u, r.PathValue("bandId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if invites == nil {
+		invites = []app.Invite{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"invites": invites})
+}
+
+func (a *WebAPI) revokeInvite(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.RevokeInvite(u, r.PathValue("bandId"), r.PathValue("inviteId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *WebAPI) listInvites(w http.ResponseWriter, _ *http.Request, u app.User) {
@@ -270,6 +364,41 @@ func (a *WebAPI) createSong(w http.ResponseWriter, r *http.Request, u app.User) 
 	writeJSON(w, http.StatusCreated, map[string]any{"song": song})
 }
 
+func (a *WebAPI) updateSong(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Title  *string   `json:"title"`
+		Artist *string   `json:"artist"`
+		Key    *string   `json:"key"`
+		Tempo  *int      `json:"tempo"`
+		Tags   *[]string `json:"tags"`
+		Notes  *string   `json:"notes"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	song, err := a.svc.UpdateSong(u, r.PathValue("bandId"), r.PathValue("songId"), app.SongPatch{
+		Title:  in.Title,
+		Artist: in.Artist,
+		Key:    in.Key,
+		Tempo:  in.Tempo,
+		Tags:   in.Tags,
+		Notes:  in.Notes,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"song": song})
+}
+
+func (a *WebAPI) deleteSong(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.DeleteSong(u, r.PathValue("bandId"), r.PathValue("songId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ---- song file handlers ----
 
 // maxUploadBytes caps a single song-file upload (sheet music PDFs are small).
@@ -319,6 +448,33 @@ func (a *WebAPI) listFiles(w http.ResponseWriter, r *http.Request, u app.User) {
 	writeJSON(w, http.StatusOK, map[string]any{"files": files})
 }
 
+func (a *WebAPI) updateFile(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Filename     *string `json:"filename"`
+		DisplayOrder *int    `json:"displayOrder"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	f, err := a.svc.UpdateSongFile(u, r.PathValue("bandId"), r.PathValue("songId"), r.PathValue("fileId"), app.SongFilePatch{
+		Filename:     in.Filename,
+		DisplayOrder: in.DisplayOrder,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"file": f})
+}
+
+func (a *WebAPI) deleteFile(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.DeleteSongFile(u, r.PathValue("bandId"), r.PathValue("songId"), r.PathValue("fileId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // downloadFile streams a blob with its stored Content-Type. Members of the owning
 // band only (Service enforces 403/404).
 func (a *WebAPI) downloadFile(w http.ResponseWriter, r *http.Request, u app.User) {
@@ -332,6 +488,143 @@ func (a *WebAPI) downloadFile(w http.ResponseWriter, r *http.Request, u app.User
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", f.Filename))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+// ---- setlist handlers ----
+
+func (a *WebAPI) listSetlists(w http.ResponseWriter, r *http.Request, u app.User) {
+	setlists, err := a.svc.Setlists(u, r.PathValue("bandId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if setlists == nil {
+		setlists = []app.Setlist{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"setlists": setlists})
+}
+
+func (a *WebAPI) createSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Name      string `json:"name"`
+		EventDate string `json:"eventDate"`
+		Venue     string `json:"venue"`
+		Notes     string `json:"notes"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	sl, err := a.svc.CreateSetlist(u, r.PathValue("bandId"), in.Name, in.EventDate, in.Venue, in.Notes)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"setlist": sl})
+}
+
+func (a *WebAPI) getSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
+	detail, err := a.svc.Setlist(u, r.PathValue("bandId"), r.PathValue("setlistId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if detail.Items == nil {
+		detail.Items = []app.SetlistItemView{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"setlist": detail.Setlist, "items": detail.Items})
+}
+
+func (a *WebAPI) updateSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Name      *string `json:"name"`
+		EventDate *string `json:"eventDate"`
+		Venue     *string `json:"venue"`
+		Notes     *string `json:"notes"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	sl, err := a.svc.UpdateSetlist(u, r.PathValue("bandId"), r.PathValue("setlistId"), app.SetlistInput{
+		Name:      in.Name,
+		EventDate: in.EventDate,
+		Venue:     in.Venue,
+		Notes:     in.Notes,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"setlist": sl})
+}
+
+func (a *WebAPI) deleteSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.DeleteSetlist(u, r.PathValue("bandId"), r.PathValue("setlistId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *WebAPI) addSetlistItem(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		SongID string `json:"songId"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	item, err := a.svc.AddSetlistItem(u, r.PathValue("bandId"), r.PathValue("setlistId"), in.SongID)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"item": item})
+}
+
+func (a *WebAPI) updateSetlistItem(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		KeyOverride   *string `json:"keyOverride"`
+		TempoOverride *int    `json:"tempoOverride"`
+		Notes         *string `json:"notes"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	item, err := a.svc.UpdateSetlistItem(u, r.PathValue("bandId"), r.PathValue("setlistId"), r.PathValue("itemId"), app.SetlistItemPatch{
+		KeyOverride:   in.KeyOverride,
+		TempoOverride: in.TempoOverride,
+		Notes:         in.Notes,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"item": item})
+}
+
+func (a *WebAPI) removeSetlistItem(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.RemoveSetlistItem(u, r.PathValue("bandId"), r.PathValue("setlistId"), r.PathValue("itemId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *WebAPI) reorderSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		OrderedItemIDs []string `json:"orderedItemIds"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	items, err := a.svc.ReorderSetlist(u, r.PathValue("bandId"), r.PathValue("setlistId"), in.OrderedItemIDs)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if items == nil {
+		items = []app.SetlistItem{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 // ---- JSON / error plumbing ----

@@ -17,25 +17,29 @@ import (
 type Repo struct {
 	mu sync.RWMutex
 
-	users    map[string]app.User       // id -> user
-	sessions map[string]app.Session    // token -> session
-	bands    map[string]app.Band       // id -> band
-	members  map[string]app.Membership // bandID|userID -> membership
-	invites  map[string]app.Invite     // id -> invite
-	songs    map[string]app.Song       // id -> song
-	files    map[string]app.SongFile   // id -> song file
+	users        map[string]app.User        // id -> user
+	sessions     map[string]app.Session     // token -> session
+	bands        map[string]app.Band        // id -> band
+	members      map[string]app.Membership  // bandID|userID -> membership
+	invites      map[string]app.Invite      // id -> invite
+	songs        map[string]app.Song        // id -> song
+	files        map[string]app.SongFile    // id -> song file
+	setlists     map[string]app.Setlist     // id -> setlist
+	setlistItems map[string]app.SetlistItem // id -> setlist item
 }
 
 // New returns an empty in-memory Repo.
 func New() *Repo {
 	return &Repo{
-		users:    map[string]app.User{},
-		sessions: map[string]app.Session{},
-		bands:    map[string]app.Band{},
-		members:  map[string]app.Membership{},
-		invites:  map[string]app.Invite{},
-		songs:    map[string]app.Song{},
-		files:    map[string]app.SongFile{},
+		users:        map[string]app.User{},
+		sessions:     map[string]app.Session{},
+		bands:        map[string]app.Band{},
+		members:      map[string]app.Membership{},
+		invites:      map[string]app.Invite{},
+		songs:        map[string]app.Song{},
+		files:        map[string]app.SongFile{},
+		setlists:     map[string]app.Setlist{},
+		setlistItems: map[string]app.SetlistItem{},
 	}
 }
 
@@ -143,6 +147,26 @@ func (r *Repo) GetBand(id string) (app.Band, error) {
 	return b, nil
 }
 
+func (r *Repo) UpdateBand(b app.Band) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.bands[b.ID]; !ok {
+		return app.ErrNotFound
+	}
+	r.bands[b.ID] = b
+	return nil
+}
+
+func (r *Repo) DeleteBand(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.bands[id]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.bands, id)
+	return nil
+}
+
 func (r *Repo) BandsForUser(userID string) ([]app.Band, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -176,6 +200,28 @@ func (r *Repo) GetMembership(bandID, userID string) (app.Membership, error) {
 		return app.Membership{}, app.ErrNotFound
 	}
 	return m, nil
+}
+
+func (r *Repo) UpdateMembership(m app.Membership) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	k := memberKey(m.BandID, m.UserID)
+	if _, ok := r.members[k]; !ok {
+		return app.ErrNotFound
+	}
+	r.members[k] = m
+	return nil
+}
+
+func (r *Repo) DeleteMembership(bandID, userID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	k := memberKey(bandID, userID)
+	if _, ok := r.members[k]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.members, k)
+	return nil
 }
 
 func (r *Repo) MembersOfBand(bandID string) ([]app.Membership, error) {
@@ -216,6 +262,16 @@ func (r *Repo) UpdateInvite(i app.Invite) error {
 		return app.ErrNotFound
 	}
 	r.invites[i.ID] = i
+	return nil
+}
+
+func (r *Repo) DeleteInvite(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.invites[id]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.invites, id)
 	return nil
 }
 
@@ -268,6 +324,26 @@ func (r *Repo) GetSong(id string) (app.Song, error) {
 	return s, nil
 }
 
+func (r *Repo) UpdateSong(s app.Song) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.songs[s.ID]; !ok {
+		return app.ErrNotFound
+	}
+	r.songs[s.ID] = s
+	return nil
+}
+
+func (r *Repo) DeleteSong(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.songs[id]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.songs, id)
+	return nil
+}
+
 func (r *Repo) SongsOfBand(bandID string) ([]app.Song, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -299,6 +375,26 @@ func (r *Repo) GetSongFile(id string) (app.SongFile, error) {
 	return f, nil
 }
 
+func (r *Repo) UpdateSongFile(f app.SongFile) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.files[f.ID]; !ok {
+		return app.ErrNotFound
+	}
+	r.files[f.ID] = f
+	return nil
+}
+
+func (r *Repo) DeleteSongFile(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.files[id]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.files, id)
+	return nil
+}
+
 func (r *Repo) FilesOfSong(songID string) ([]app.SongFile, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -306,6 +402,118 @@ func (r *Repo) FilesOfSong(songID string) ([]app.SongFile, error) {
 	for _, f := range r.files {
 		if f.SongID == songID {
 			out = append(out, f)
+		}
+	}
+	return out, nil
+}
+
+func (r *Repo) FilesWithBlob(blobHash string) ([]app.SongFile, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []app.SongFile
+	for _, f := range r.files {
+		if f.BlobHash == blobHash {
+			out = append(out, f)
+		}
+	}
+	return out, nil
+}
+
+// ---- setlists ----
+
+func (r *Repo) CreateSetlist(sl app.Setlist) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.setlists[sl.ID] = sl
+	return nil
+}
+
+func (r *Repo) GetSetlist(id string) (app.Setlist, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	sl, ok := r.setlists[id]
+	if !ok {
+		return app.Setlist{}, app.ErrNotFound
+	}
+	return sl, nil
+}
+
+func (r *Repo) UpdateSetlist(sl app.Setlist) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.setlists[sl.ID]; !ok {
+		return app.ErrNotFound
+	}
+	r.setlists[sl.ID] = sl
+	return nil
+}
+
+func (r *Repo) DeleteSetlist(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.setlists[id]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.setlists, id)
+	return nil
+}
+
+func (r *Repo) SetlistsOfBand(bandID string) ([]app.Setlist, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []app.Setlist
+	for _, sl := range r.setlists {
+		if sl.BandID == bandID {
+			out = append(out, sl)
+		}
+	}
+	return out, nil
+}
+
+func (r *Repo) CreateSetlistItem(it app.SetlistItem) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.setlistItems[it.ID] = it
+	return nil
+}
+
+func (r *Repo) GetSetlistItem(id string) (app.SetlistItem, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	it, ok := r.setlistItems[id]
+	if !ok {
+		return app.SetlistItem{}, app.ErrNotFound
+	}
+	return it, nil
+}
+
+func (r *Repo) UpdateSetlistItem(it app.SetlistItem) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.setlistItems[it.ID]; !ok {
+		return app.ErrNotFound
+	}
+	r.setlistItems[it.ID] = it
+	return nil
+}
+
+func (r *Repo) DeleteSetlistItem(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.setlistItems[id]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.setlistItems, id)
+	return nil
+}
+
+func (r *Repo) ItemsOfSetlist(setlistID string) ([]app.SetlistItem, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []app.SetlistItem
+	for _, it := range r.setlistItems {
+		if it.SetlistID == setlistID {
+			out = append(out, it)
 		}
 	}
 	return out, nil
