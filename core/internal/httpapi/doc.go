@@ -31,8 +31,10 @@ import (
 // The relational ("normal web") API — auth, bands, members, invites, songs —
 // is mounted from svc via WebAPI under /api/*. The per-song annotation engine
 // (eng) backs the view-only annotation routes under .../songs/{songId}/annotations.
-// secureCookies should be true behind TLS. The realtime /ws upgrade to the
-// sync.Hub remains a TODO.
+// secureCookies should be true behind TLS. The realtime /ws upgrade is wired here
+// over a sync.Hub built on the SAME engine instance, so the live HEAD the hub mutates
+// is exactly the one GET …/annotations reads. The injected *syncpkg.Hub is ignored
+// (it is a dependency-less placeholder); the wired hub is constructed below.
 func Router(svc *app.Service, eng *engine.Engine, secureCookies bool, _ *syncpkg.Hub, _ *session.Manager, _ *bake.Baker) (http.Handler, error) {
 	mux := http.NewServeMux()
 
@@ -49,6 +51,10 @@ func Router(svc *app.Service, eng *engine.Engine, secureCookies bool, _ *syncpkg
 	// Annotation API (view-only): read a song's materialized HEAD, import layers
 	// + objects. Reuses the relational auth middleware so it shares one auth path.
 	NewAnnotationsAPI(svc, eng).Mount(mux, web.auth)
+
+	// Realtime annotation sync: a per-song WebSocket over the SAME engine, so live
+	// edits and the REST read see one consistent HEAD (I6).
+	mountWS(mux, svc, eng)
 
 	// Serve the embedded Studio SPA (I10) with HTML5-history fallback so client-side
 	// routes (e.g. /bands) resolve to index.html. The catch-all "/" pattern has lower

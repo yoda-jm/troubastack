@@ -19,17 +19,11 @@
 //     authority calm, keep reactive state in Studio).
 package sync
 
-// Hub fans realtime traffic across clients and drives one apply engine (a serial
-// owning goroutine/actor) PER SONG that holds HEAD and the WAL.
+// The Hub, its rooms, the per-connection read/write pumps, the wire protocol, and the
+// apply path live in sync.go / conn.go / apply.go / mapping.go.
 //
-// TODO: rooms keyed by songID; register/unregister. On an inbound mutation the song's
-// actor → apply to HEAD + LWW (I5) + assign seq → WAL append (durable) → echo to the
-// room (I6) → RELEASE; then persist to the store ASYNC, draining the WAL (one action
-// per revision). Apply is idempotent by UUID (I2). A mutation for a tombstoned UUID is
-// rejected ("deleted-remotely") so the client rolls back (I5).
-type Hub struct {
-	// TODO: per-song actors (HEAD + WAL), rooms map, store handle, session checker.
-}
-
-// New returns a placeholder Hub. TODO: wire store + session dependencies.
-func New() *Hub { return &Hub{} }
+// On an inbound mutation the hub stamps the authoritative authorId, derives the
+// server object version, then drives the shared engine: apply → LWW (I5) → assign seq
+// → persist → echo to the room (I6). Apply is idempotent by UUID (I2). A mutation for
+// a tombstoned UUID is rejected ("deleted-remotely") so the client rolls back (I5);
+// a lost LWW race is rejected ("stale").
