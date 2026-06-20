@@ -235,8 +235,22 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   const toggles = page.getByTestId("layer-toggle");
   await expect(toggles).toHaveCount(2);
 
-  // Screenshot 1: everything at 100%.
-  await expect(page.getByTestId("zoom-level")).toHaveText("100%");
+  // Default zoom is Fit width — the PDF fills the column.
+  await expect(page.getByTestId("zoom-level")).toHaveText("Fit width");
+  await expect(page.getByTestId("zoom-mode")).toHaveValue("fit-width");
+
+  // The file picker is present and defaults to the uploaded PDF.
+  await expect(page.getByTestId("file-picker")).toBeVisible();
+
+  // At Fit width the first page canvas is wider than its intrinsic size would
+  // be at 100% (proving it scaled up to fill the column).
+  const fitWidthCanvasW = await page
+    .getByTestId("pdf-page")
+    .first()
+    .locator("canvas.pdf-canvas")
+    .evaluate(canvasWidth);
+  expect(fitWidthCanvasW).toBeGreaterThan(0);
+
   await page.screenshot({ path: "/tmp/view-100.png", fullPage: true });
 
   // Capture overlay pixels before toggling, to prove the toggle re-renders.
@@ -267,19 +281,35 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   // Screenshot 2: a layer hidden.
   await page.screenshot({ path: "/tmp/view-toggle.png", fullPage: true });
 
-  // Re-enable, then zoom in (re-rasterizes the PDF at a larger scale).
+  // Re-enable, then select an explicit zoom % (re-rasterizes the PDF).
   await mineToggle.check();
   await expect(mineToggle).toBeChecked();
 
-  await page.getByTestId("zoom-in").click();
-  await expect(page.getByTestId("zoom-level")).toHaveText("150%");
-  // The first page canvas grows on zoom.
+  // Select Actual size (100%) via the zoom-mode select.
+  await page.getByTestId("zoom-mode").selectOption("100");
+  await expect(page.getByTestId("zoom-level")).toHaveText("100%");
   await expect
     .poll(async () =>
       page.getByTestId("pdf-page").first().locator("canvas.pdf-canvas").evaluate(canvasWidth),
     )
     .toBeGreaterThan(0);
 
-  // Screenshot 3: zoomed in.
+  // The −/+ buttons step through the percentage stops.
+  await page.getByTestId("zoom-in").click();
+  await expect(page.getByTestId("zoom-level")).toHaveText("125%");
+  await page.getByTestId("zoom-out").click();
+  await expect(page.getByTestId("zoom-level")).toHaveText("100%");
+
+  // Switch to Fit page mode.
+  await page.getByTestId("zoom-mode").selectOption("fit-page");
+  await expect(page.getByTestId("zoom-level")).toHaveText("Fit page");
+
+  // Screenshot 3: zoomed.
   await page.screenshot({ path: "/tmp/view-zoom.png", fullPage: true });
+
+  // Collapse the layers sidebar → PDF gets the full width; panel disappears.
+  await page.getByTestId("sidebar-toggle").click();
+  await expect(page.getByTestId("layers-panel")).toHaveCount(0);
+  await page.getByTestId("sidebar-toggle").click();
+  await expect(page.getByTestId("layers-panel")).toBeVisible();
 });

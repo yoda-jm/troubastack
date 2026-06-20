@@ -29,7 +29,11 @@ import { ErrorBanner } from "../components/ErrorBanner";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-const ZOOM_LEVELS = [0.5, 1, 1.5, 2];
+// Discrete percentage stops the −/+ buttons step through.
+const ZOOM_PERCENTS = [50, 75, 100, 125, 150, 200, 300];
+
+/** A zoom selection is either a fit mode or an explicit percentage. */
+type ZoomMode = "fit-width" | "fit-page" | number;
 
 export function SongEditor() {
   const { bandId, songId } = useParams<{ bandId: string; songId: string }>();
@@ -134,6 +138,18 @@ function sortLayers(layers: AnnotationLayer[], myUserId: string | null): Annotat
   });
 }
 
+/** Is this file something we can render in the viewer (PDF or image)? */
+function isViewable(f: SongFile): boolean {
+  return f.contentType === "application/pdf" || f.contentType.startsWith("image/");
+}
+
+/** Format the zoom selection for the zoom-level readout. */
+function formatZoom(mode: ZoomMode): string {
+  if (mode === "fit-width") return "Fit width";
+  if (mode === "fit-page") return "Fit page";
+  return `${mode}%`;
+}
+
 function Viewer({
   bandId,
   songId,
@@ -143,50 +159,109 @@ function Viewer({
   songId: string;
   myUserId: string | null;
 }) {
-  const [pdfFile, setPdfFile] = useState<SongFile | null>(null);
+  const [files, setFiles] = useState<SongFile[]>([]);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [doc, setDoc] = useState<AnnotationDoc>({ layers: [], objects: [] });
   const [visible, setVisible] = useState<LayerVisibility>({});
-  const [zoom, setZoom] = useState(1);
+  // Zoom: a fit mode (default Fit width) or an explicit percentage.
+  const [zoomMode, setZoomMode] = useState<ZoomMode>("fit-width");
   const [numPages, setNumPages] = useState(0);
-  const [status, setStatus] = useState<"loading" | "no-pdf" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "no-file" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Measured available width of the PDF column's content box (CSS px). Drives
+  // Fit width and Fit page. Updated by a ResizeObserver.
+  const [columnWidth, setColumnWidth] = useState(0);
 
-  // Loaded PDF.js document + cached page viewports (at scale 1) so overlays
-  // can size themselves without re-asking PDF.js.
+  const selectedFile = useMemo(
+    () => files.find((f) => f.id === selectedFileId) ?? null,
+    [files, selectedFileId],
+  );
+  const isPdf = selectedFile?.contentType === "application/pdf";
+  const isImage = selectedFile?.contentType.startsWith("image/") ?? false;
+
+  // Loaded PDF.js document. Page/overlay canvases are indexed by page number.
   const pdfDocRef = useRef<pdfjs.PDFDocumentProxy | null>(null);
   const pageCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const overlayRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+  // Intrinsic (scale-1) page sizes in CSS px, used to compute fit scales.
+  const pageSizesRef = useRef<{ w: number; h: number }[]>([]);
+  // The scroll column we measure for Fit width / Fit page.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Image element box (for image-overlay sizing).
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const imgOverlayRef = useRef<HTMLCanvasElement | null>(null);
 
-  // ---- load PDF bytes + annotations ----
+  // ---- list files + annotations once ----
   useEffect(() => {
     let cancelled = false;
-    const task = { current: null as pdfjs.PDFDocumentLoadingTask | null };
     (async () => {
       setStatus("loading");
       setError(null);
       try {
-        const [files, annotations] = await Promise.all([
+        const [list, annotations] = await Promise.all([
           api.listFiles(bandId, songId),
           api.getAnnotations(bandId, songId),
         ]);
         if (cancelled) return;
+        list.sort((a, b) => a.displayOrder - b.displayOrder);
+        setFiles(list);
         setDoc(annotations);
         setVisible(defaultVisibility(annotations.layers, myUserId));
 
-        const pdf = files.find((f) => f.contentType === "application/pdf");
-        if (!pdf) {
-          setStatus("no-pdf");
+        // Default selection: first PDF, else first viewable file.
+        const firstPdf = list.find((f) => f.contentType === "application/pdf");
+        const first = firstPdf ?? list.find(isViewable) ?? null;
+        if (!first) {
+          setStatus("no-file");
           return;
         }
-        setPdfFile(pdf);
+        setSelectedFileId(first.id);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load files");
+        setStatus("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bandId, songId, myUserId]);
 
-        const res = await fetch(api.fileUrl(pdf.id), { credentials: "include" });
+  // ---- load the selected file (PDF bytes via PDF.js, or just mark image) ----
+  useEffect(() => {
+    if (!selectedFile) return;
+    let cancelled = false;
+    setError(null);
+
+    // Tear down any previous PDF doc.
+    const prev = pdfDocRef.current;
+    pdfDocRef.current = null;
+    if (prev) void prev.destroy();
+    pageCanvasRefs.current = [];
+    overlayRefs.current = [];
+    pageSizesRef.current = [];
+    setNumPages(0);
+
+    if (selectedFile.contentType.startsWith("image/")) {
+      // Image: nothing to rasterize; <img> + overlay handle it.
+      setStatus("ready");
+      return;
+    }
+    if (selectedFile.contentType !== "application/pdf") {
+      setStatus("no-file");
+      return;
+    }
+
+    setStatus("loading");
+    (async () => {
+      try {
+        const res = await fetch(api.fileUrl(selectedFile.id), { credentials: "include" });
         if (!res.ok) throw new Error(`Failed to fetch PDF (${res.status})`);
         const bytes = new Uint8Array(await res.arrayBuffer());
         if (cancelled) return;
 
         const loadingTask = pdfjs.getDocument({ data: bytes });
-        task.current = loadingTask;
         const pdfDoc = await loadingTask.promise;
         if (cancelled) {
           void pdfDoc.destroy();
@@ -195,6 +270,16 @@ function Viewer({
         pdfDocRef.current = pdfDoc;
         pageCanvasRefs.current = new Array(pdfDoc.numPages).fill(null);
         overlayRefs.current = new Array(pdfDoc.numPages).fill(null);
+
+        // Cache intrinsic page sizes (scale 1) for fit math.
+        const sizes: { w: number; h: number }[] = [];
+        for (let i = 0; i < pdfDoc.numPages; i++) {
+          const page = await pdfDoc.getPage(i + 1);
+          if (cancelled) return;
+          const vp = page.getViewport({ scale: 1 });
+          sizes.push({ w: vp.width, h: vp.height });
+        }
+        pageSizesRef.current = sizes;
         setNumPages(pdfDoc.numPages);
         setStatus("ready");
       } catch (err) {
@@ -205,16 +290,102 @@ function Viewer({
     })();
     return () => {
       cancelled = true;
+    };
+  }, [selectedFile]);
+
+  // Tear down the PDF doc on unmount.
+  useEffect(() => {
+    return () => {
       const d = pdfDocRef.current;
       pdfDocRef.current = null;
       if (d) void d.destroy();
     };
-  }, [bandId, songId, myUserId]);
+  }, []);
 
-  // ---- render PDF pages whenever the document or zoom changes ----
+  // ---- measure the scroll column (Fit width / Fit page, resize-aware) ----
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      setColumnWidth(Math.max(0, el.clientWidth - padX));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // Re-bind when the scroll element appears (status change mounts it) or the
+    // sidebar toggles (the column resizes, which ResizeObserver also catches).
+  }, [status, sidebarOpen]);
+
+  // ---- effective scale (CSS px per PDF unit) for the current zoom mode ----
+  const scale = useMemo(() => {
+    if (typeof zoomMode === "number") return zoomMode / 100;
+    const first = pageSizesRef.current[0];
+    if (!first || columnWidth <= 0) return 1; // not measured yet
+    if (zoomMode === "fit-width") return columnWidth / first.w;
+    // fit-page: whole first page fits the viewport height too.
+    const el = scrollRef.current;
+    const viewportH = el ? el.clientHeight - 32 /* approx padding */ : 0;
+    const byW = columnWidth / first.w;
+    if (viewportH <= 0) return byW;
+    const byH = viewportH / first.h;
+    return Math.min(byW, byH);
+  }, [zoomMode, columnWidth, numPages]);
+
+  const layersById = useMemo(() => {
+    const m = new Map<string, AnnotationLayer>();
+    for (const l of doc.layers) m.set(l.id, l);
+    return m;
+  }, [doc.layers]);
+
+  const sortedLayers = useMemo(
+    () => sortLayers(doc.layers, myUserId),
+    [doc.layers, myUserId],
+  );
+
+  // ---- overlay rendering: object coords [0,1] → page box. ----
+  // We scale the ctx by DPR and draw using the LOGICAL (CSS-px) page box, so a
+  // rect at {0.1..0.9} maps to exactly 10%..90% of the rendered page. The
+  // backing store is at scale × DPR for crispness; the DPR ctx-scale undoes it.
+  const renderOverlays = useCallback(() => {
+    const orderIndex = new Map<string, number>();
+    sortedLayers.forEach((l, idx) => orderIndex.set(l.id, idx));
+
+    const paint = (overlay: HTMLCanvasElement, page: number, dpr: number) => {
+      const ctx = overlay.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+      const objs = doc.objects
+        .filter((o) => o.page === page)
+        .filter((o) => {
+          const l = layersById.get(o.layerId);
+          return l && visible[l.id];
+        })
+        .sort((a, b) => (orderIndex.get(a.layerId) ?? 0) - (orderIndex.get(b.layerId) ?? 0));
+      // Logical page box (CSS px) fills the whole overlay.
+      const pageRect = { x: 0, y: 0, w: overlay.width / dpr, h: overlay.height / dpr };
+      renderObjects(ctx, objs.map(toInkObject) as InkObject[], pageRect);
+    };
+
+    const dpr = window.devicePixelRatio || 1;
+    if (isImage) {
+      const o = imgOverlayRef.current;
+      if (o) paint(o, 0, dpr);
+      return;
+    }
+    for (let p = 0; p < overlayRefs.current.length; p++) {
+      const overlay = overlayRefs.current[p];
+      if (overlay) paint(overlay, p, dpr);
+    }
+  }, [doc.objects, layersById, visible, sortedLayers, isImage]);
+
+  // ---- render PDF pages on scale/document change, then overlays ----
   useEffect(() => {
     const pdfDoc = pdfDocRef.current;
-    if (status !== "ready" || !pdfDoc) return;
+    if (status !== "ready" || !pdfDoc || !isPdf) return;
     let cancelled = false;
 
     (async () => {
@@ -223,22 +394,21 @@ function Viewer({
         if (cancelled) return;
         const page = await pdfDoc.getPage(i + 1);
         if (cancelled) return;
-        const viewport = page.getViewport({ scale: zoom });
+        // Backing store at scale × DPR; CSS size at logical scale.
+        const viewport = page.getViewport({ scale: scale * dpr });
+        const cssW = viewport.width / dpr;
+        const cssH = viewport.height / dpr;
         const canvas = pageCanvasRefs.current[i];
         const overlay = overlayRefs.current[i];
         if (!canvas) continue;
 
-        // Crisp raster: backing store at devicePixelRatio, CSS size = viewport.
-        const cssW = Math.floor(viewport.width);
-        const cssH = Math.floor(viewport.height);
-        canvas.width = Math.floor(viewport.width * dpr);
-        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
         canvas.style.width = `${cssW}px`;
         canvas.style.height = `${cssH}px`;
 
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         await page.render({ canvasContext: ctx, viewport }).promise;
         if (cancelled) return;
 
@@ -255,110 +425,140 @@ function Viewer({
     return () => {
       cancelled = true;
     };
-    // renderOverlays is stable enough via the deps it reads; we intentionally
-    // re-run on zoom/status/doc. (eslint-disable would go here in a linted repo.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, zoom, numPages]);
+  }, [status, scale, numPages, isPdf]);
 
-  // ---- overlay rendering (cheap; re-run on visibility/doc/zoom changes) ----
-  const layersById = useMemo(() => {
-    const m = new Map<string, AnnotationLayer>();
-    for (const l of doc.layers) m.set(l.id, l);
-    return m;
-  }, [doc.layers]);
-
-  const sortedLayers = useMemo(
-    () => sortLayers(doc.layers, myUserId),
-    [doc.layers, myUserId],
-  );
-
-  const renderOverlays = useCallback(() => {
+  // ---- size + render the image overlay (image mode) ----
+  const layoutImageOverlay = useCallback(() => {
+    if (!isImage) return;
+    const img = imgRef.current;
+    const overlay = imgOverlayRef.current;
+    if (!img || !overlay) return;
     const dpr = window.devicePixelRatio || 1;
-    // Objects grouped by page, in layer z-order.
-    const orderIndex = new Map<string, number>();
-    sortedLayers.forEach((l, idx) => orderIndex.set(l.id, idx));
+    const w = img.clientWidth;
+    const h = img.clientHeight;
+    overlay.width = Math.round(w * dpr);
+    overlay.height = Math.round(h * dpr);
+    overlay.style.width = `${w}px`;
+    overlay.style.height = `${h}px`;
+    renderOverlays();
+  }, [isImage, renderOverlays]);
 
-    for (let p = 0; p < overlayRefs.current.length; p++) {
-      const overlay = overlayRefs.current[p];
-      if (!overlay) continue;
-      const ctx = overlay.getContext("2d");
-      if (!ctx) continue;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, overlay.width, overlay.height);
-
-      const objs = doc.objects
-        .filter((o) => o.page === p)
-        .filter((o) => {
-          const l = layersById.get(o.layerId);
-          return l && visible[l.id];
-        })
-        .sort((a, b) => {
-          const la = orderIndex.get(a.layerId) ?? 0;
-          const lb = orderIndex.get(b.layerId) ?? 0;
-          return la - lb;
-        });
-
-      // Page rect fills the whole overlay (backing-store pixels).
-      const pageRect = { x: 0, y: 0, w: overlay.width, h: overlay.height };
-      renderObjects(ctx, objs.map(toInkObject) as InkObject[], pageRect);
-      // dpr is already baked into the backing-store size, so width/height are
-      // device px and fractions map directly. (No extra dpr scale needed.)
-      void dpr;
-    }
-  }, [doc.objects, layersById, visible, sortedLayers]);
-
-  // Re-render overlays when visibility (or sorted layers / objects) change,
-  // without re-rasterizing the PDF.
+  // Re-render overlays when visibility / sorted layers / objects change.
   useEffect(() => {
     if (status === "ready") renderOverlays();
   }, [status, renderOverlays]);
+
+  // Re-layout the image overlay when the column resizes (image fills width).
+  useEffect(() => {
+    if (status === "ready" && isImage) layoutImageOverlay();
+  }, [status, isImage, columnWidth, layoutImageOverlay]);
 
   function toggle(layerId: string) {
     setVisible((v) => ({ ...v, [layerId]: !v[layerId] }));
   }
 
-  const zoomIdx = ZOOM_LEVELS.indexOf(zoom);
-  function zoomOut() {
-    const i = zoomIdx <= 0 ? 0 : zoomIdx - 1;
-    setZoom(ZOOM_LEVELS[i]);
+  // −/+ step through the percentage stops. When in a fit mode, snap to the
+  // nearest percentage to the currently-rendered scale, then step from there.
+  function currentPercent(): number {
+    if (typeof zoomMode === "number") return zoomMode;
+    return Math.round(scale * 100);
   }
-  function zoomIn() {
-    const i = zoomIdx < 0 ? 1 : Math.min(ZOOM_LEVELS.length - 1, zoomIdx + 1);
-    setZoom(ZOOM_LEVELS[i]);
+  function stepZoom(dir: -1 | 1) {
+    const cur = currentPercent();
+    // Find the first stop strictly above (for +) or below (for −) current.
+    if (dir === 1) {
+      const next = ZOOM_PERCENTS.find((p) => p > cur);
+      setZoomMode(next ?? ZOOM_PERCENTS[ZOOM_PERCENTS.length - 1]);
+    } else {
+      const below = [...ZOOM_PERCENTS].reverse().find((p) => p < cur);
+      setZoomMode(below ?? ZOOM_PERCENTS[0]);
+    }
   }
 
+  function onZoomSelect(value: string) {
+    if (value === "fit-width" || value === "fit-page") setZoomMode(value);
+    else setZoomMode(Number(value));
+  }
+
+  const zoomSelectValue =
+    typeof zoomMode === "number" ? String(zoomMode) : zoomMode;
+
   return (
-    <section className="card viewer" data-testid="song-viewer">
+    <section
+      className={`card viewer${sidebarOpen ? "" : " sidebar-collapsed"}`}
+      data-testid="song-viewer"
+    >
       <div className="viewer-toolbar">
         <div className="zoom-controls" data-testid="zoom-controls">
-          <button type="button" data-testid="zoom-out" onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}>
+          <button type="button" data-testid="zoom-out" onClick={() => stepZoom(-1)}>
             −
           </button>
-          <span className="pill" data-testid="zoom-level">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            type="button"
-            data-testid="zoom-in"
-            onClick={zoomIn}
-            disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+          <select
+            data-testid="zoom-mode"
+            className="zoom-select"
+            value={zoomSelectValue}
+            onChange={(e) => onZoomSelect(e.target.value)}
+            aria-label="Zoom"
           >
+            <option value="fit-width">Fit width</option>
+            <option value="fit-page">Fit page</option>
+            {ZOOM_PERCENTS.map((p) => (
+              <option key={p} value={p}>
+                {p === 100 ? "Actual size (100%)" : `${p}%`}
+              </option>
+            ))}
+          </select>
+          <button type="button" data-testid="zoom-in" onClick={() => stepZoom(1)}>
             +
           </button>
+          <span className="pill" data-testid="zoom-level">
+            {formatZoom(zoomMode)}
+          </span>
         </div>
-        {pdfFile && <span className="muted">{pdfFile.filename}</span>}
+
+        {files.length >= 1 && (
+          <label className="file-picker-label">
+            <span className="muted">File</span>
+            <select
+              data-testid="file-picker"
+              className="file-picker"
+              value={selectedFileId ?? ""}
+              onChange={(e) => setSelectedFileId(e.target.value)}
+              aria-label="File"
+            >
+              {files.map((f) => (
+                <option key={f.id} value={f.id} disabled={!isViewable(f)}>
+                  {f.filename}
+                  {isViewable(f) ? "" : " (not viewable)"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <button
+          type="button"
+          className="sidebar-toggle"
+          data-testid="sidebar-toggle"
+          aria-expanded={sidebarOpen}
+          onClick={() => setSidebarOpen((o) => !o)}
+        >
+          {sidebarOpen ? "Hide layers ▸" : "◂ Show layers"}
+        </button>
       </div>
 
       <div className="viewer-body">
-        <div className="viewer-scroll" data-testid="viewer-scroll">
+        <div className="viewer-scroll" data-testid="viewer-scroll" ref={scrollRef}>
           {status === "loading" && <p className="muted">Loading…</p>}
-          {status === "no-pdf" && (
+          {status === "no-file" && (
             <p className="muted" data-testid="viewer-no-pdf">
-              No PDF attached. Upload a PDF in “Details &amp; files” below to view it here.
+              No viewable file. Upload a PDF or image in “Details &amp; files” below.
             </p>
           )}
           {status === "error" && <ErrorBanner message={error} />}
-          {status === "ready" &&
+
+          {status === "ready" && isPdf &&
             Array.from({ length: numPages }, (_, i) => (
               <div className="pdf-page" data-testid="pdf-page" key={i}>
                 <canvas
@@ -376,9 +576,33 @@ function Viewer({
                 />
               </div>
             ))}
+
+          {status === "ready" && isImage && selectedFile && (
+            <div className="pdf-page" data-testid="pdf-page">
+              <img
+                ref={imgRef}
+                className="pdf-canvas image-page"
+                src={api.fileUrl(selectedFile.id)}
+                alt={selectedFile.filename}
+                onLoad={layoutImageOverlay}
+              />
+              <canvas
+                ref={imgOverlayRef}
+                className="annotation-overlay"
+                data-testid="annotation-overlay"
+              />
+            </div>
+          )}
         </div>
 
-        <LayersPanel layers={sortedLayers} visible={visible} myUserId={myUserId} onToggle={toggle} />
+        {sidebarOpen && (
+          <LayersPanel
+            layers={sortedLayers}
+            visible={visible}
+            myUserId={myUserId}
+            onToggle={toggle}
+          />
+        )}
       </div>
     </section>
   );
