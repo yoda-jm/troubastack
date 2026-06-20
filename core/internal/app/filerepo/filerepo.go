@@ -20,15 +20,16 @@ import (
 
 // dataset is the on-disk shape. Maps mirror memrepo's keys.
 type dataset struct {
-	Users        map[string]app.User        `json:"users"`
-	Sessions     map[string]app.Session     `json:"sessions"`
-	Bands        map[string]app.Band        `json:"bands"`
-	Members      map[string]app.Membership  `json:"members"`
-	Invites      map[string]app.Invite      `json:"invites"`
-	Songs        map[string]app.Song        `json:"songs"`
-	Files        map[string]app.SongFile    `json:"files"`
-	Setlists     map[string]app.Setlist     `json:"setlists"`
-	SetlistItems map[string]app.SetlistItem `json:"setlistItems"`
+	Users        map[string]app.User          `json:"users"`
+	Sessions     map[string]app.Session       `json:"sessions"`
+	Bands        map[string]app.Band          `json:"bands"`
+	Members      map[string]app.Membership    `json:"members"`
+	Invites      map[string]app.Invite        `json:"invites"`
+	Songs        map[string]app.Song          `json:"songs"`
+	Files        map[string]app.SongFile      `json:"files"`
+	Selections   map[string]app.FileSelection `json:"selections"`
+	Setlists     map[string]app.Setlist       `json:"setlists"`
+	SetlistItems map[string]app.SetlistItem   `json:"setlistItems"`
 }
 
 // Repo persists the dataset to <dir>/app.json on every write.
@@ -65,6 +66,7 @@ func emptyDataset() dataset {
 		Invites:      map[string]app.Invite{},
 		Songs:        map[string]app.Song{},
 		Files:        map[string]app.SongFile{},
+		Selections:   map[string]app.FileSelection{},
 		Setlists:     map[string]app.Setlist{},
 		SetlistItems: map[string]app.SetlistItem{},
 	}
@@ -100,6 +102,10 @@ func (r *Repo) load() error {
 	if r.d.SetlistItems == nil {
 		r.d.SetlistItems = map[string]app.SetlistItem{}
 	}
+	// Per-member file selections were added later still; nil-guard for older files.
+	if r.d.Selections == nil {
+		r.d.Selections = map[string]app.FileSelection{}
+	}
 	return nil
 }
 
@@ -120,6 +126,8 @@ func (r *Repo) flush() error {
 }
 
 func memberKey(bandID, userID string) string { return bandID + "|" + userID }
+
+func selectionKey(userID, songID string) string { return userID + "|" + songID }
 
 // ---- users ----
 
@@ -491,6 +499,36 @@ func (r *Repo) FilesWithBlob(blobHash string) ([]app.SongFile, error) {
 		}
 	}
 	return out, nil
+}
+
+// ---- file selections (per-member, per-song) ----
+
+func (r *Repo) GetFileSelection(userID, songID string) (app.FileSelection, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	sel, ok := r.d.Selections[selectionKey(userID, songID)]
+	if !ok {
+		return app.FileSelection{}, app.ErrNotFound
+	}
+	return sel, nil
+}
+
+func (r *Repo) SetFileSelection(sel app.FileSelection) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.Selections[selectionKey(sel.UserID, sel.SongID)] = sel
+	return r.flush()
+}
+
+func (r *Repo) DeleteFileSelection(userID, songID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	k := selectionKey(userID, songID)
+	if _, ok := r.d.Selections[k]; !ok {
+		return nil // idempotent: clearing an unset selection is a no-op
+	}
+	delete(r.d.Selections, k)
+	return r.flush()
 }
 
 // ---- setlists ----

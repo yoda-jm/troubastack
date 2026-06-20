@@ -59,6 +59,9 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files", a.auth(a.listFiles))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.updateFile))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.deleteFile))
+	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.getMyFiles))
+	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.putMyFiles))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.clearMyFiles))
 	mux.HandleFunc("GET /api/files/{fileId}", a.auth(a.downloadFile))
 	mux.HandleFunc("GET /api/bands/{bandId}/setlists", a.auth(a.listSetlists))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists", a.auth(a.createSetlist))
@@ -469,6 +472,53 @@ func (a *WebAPI) updateFile(w http.ResponseWriter, r *http.Request, u app.User) 
 
 func (a *WebAPI) deleteFile(w http.ResponseWriter, r *http.Request, u app.User) {
 	if err := a.svc.DeleteSongFile(u, r.PathValue("bandId"), r.PathValue("songId"), r.PathValue("fileId")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- per-member file selection handlers ----
+
+// writeMyFiles emits the shared {files, customized} shape used by all three
+// my-files endpoints, normalizing a nil slice to [].
+func writeMyFiles(w http.ResponseWriter, files []app.SongFile, customized bool) {
+	if files == nil {
+		files = []app.SongFile{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"files": files, "customized": customized})
+}
+
+// getMyFiles returns the caller's personal ordered view of a song's file pool. If
+// they have no saved selection it defaults to all pool files in displayOrder.
+func (a *WebAPI) getMyFiles(w http.ResponseWriter, r *http.Request, u app.User) {
+	files, customized, err := a.svc.MyFileSelection(u, r.PathValue("bandId"), r.PathValue("songId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeMyFiles(w, files, customized)
+}
+
+// putMyFiles replaces the caller's ordered selection. Returns the same shape as GET.
+func (a *WebAPI) putMyFiles(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		FileIDs []string `json:"fileIds"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	files, err := a.svc.SetMyFileSelection(u, r.PathValue("bandId"), r.PathValue("songId"), in.FileIDs)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeMyFiles(w, files, true)
+}
+
+// clearMyFiles removes the caller's customization (revert to default-all).
+func (a *WebAPI) clearMyFiles(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.ClearMyFileSelection(u, r.PathValue("bandId"), r.PathValue("songId")); err != nil {
 		writeErr(w, err)
 		return
 	}

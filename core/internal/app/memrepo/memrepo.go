@@ -17,15 +17,16 @@ import (
 type Repo struct {
 	mu sync.RWMutex
 
-	users        map[string]app.User        // id -> user
-	sessions     map[string]app.Session     // token -> session
-	bands        map[string]app.Band        // id -> band
-	members      map[string]app.Membership  // bandID|userID -> membership
-	invites      map[string]app.Invite      // id -> invite
-	songs        map[string]app.Song        // id -> song
-	files        map[string]app.SongFile    // id -> song file
-	setlists     map[string]app.Setlist     // id -> setlist
-	setlistItems map[string]app.SetlistItem // id -> setlist item
+	users        map[string]app.User          // id -> user
+	sessions     map[string]app.Session       // token -> session
+	bands        map[string]app.Band          // id -> band
+	members      map[string]app.Membership    // bandID|userID -> membership
+	invites      map[string]app.Invite        // id -> invite
+	songs        map[string]app.Song          // id -> song
+	files        map[string]app.SongFile      // id -> song file
+	selections   map[string]app.FileSelection // userID|songID -> personal selection
+	setlists     map[string]app.Setlist       // id -> setlist
+	setlistItems map[string]app.SetlistItem   // id -> setlist item
 }
 
 // New returns an empty in-memory Repo.
@@ -38,6 +39,7 @@ func New() *Repo {
 		invites:      map[string]app.Invite{},
 		songs:        map[string]app.Song{},
 		files:        map[string]app.SongFile{},
+		selections:   map[string]app.FileSelection{},
 		setlists:     map[string]app.Setlist{},
 		setlistItems: map[string]app.SetlistItem{},
 	}
@@ -46,6 +48,8 @@ func New() *Repo {
 var _ app.Repo = (*Repo)(nil)
 
 func memberKey(bandID, userID string) string { return bandID + "|" + userID }
+
+func selectionKey(userID, songID string) string { return userID + "|" + songID }
 
 // ---- users ----
 
@@ -417,6 +421,32 @@ func (r *Repo) FilesWithBlob(blobHash string) ([]app.SongFile, error) {
 		}
 	}
 	return out, nil
+}
+
+// ---- file selections (per-member, per-song) ----
+
+func (r *Repo) GetFileSelection(userID, songID string) (app.FileSelection, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	sel, ok := r.selections[selectionKey(userID, songID)]
+	if !ok {
+		return app.FileSelection{}, app.ErrNotFound
+	}
+	return sel, nil
+}
+
+func (r *Repo) SetFileSelection(sel app.FileSelection) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.selections[selectionKey(sel.UserID, sel.SongID)] = sel
+	return nil
+}
+
+func (r *Repo) DeleteFileSelection(userID, songID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.selections, selectionKey(userID, songID))
+	return nil
 }
 
 // ---- setlists ----

@@ -778,6 +778,92 @@ func (s *Service) DownloadSongFile(caller User, fileID string) (SongFile, []byte
 	return f, data, nil
 }
 
+// ---- per-member file selection ----
+
+// MyFileSelection resolves the caller's personal, ordered view of a song's file
+// pool (member-only; the selection is always the CALLER's own). Customized reports
+// whether the member has a saved selection:
+//   - customized=true: the pool files matching the member's saved fileIds, in the
+//     saved order, skipping any fileId no longer in the pool (deleted files drop
+//     out gracefully).
+//   - customized=false (member never set one): ALL pool files in DisplayOrder, so
+//     a new member sees everything by default.
+func (s *Service) MyFileSelection(caller User, bandID, songID string) ([]SongFile, bool, error) {
+	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
+		return nil, false, err
+	}
+	pool, err := s.repo.FilesOfSong(songID)
+	if err != nil {
+		return nil, false, err
+	}
+	sel, err := s.repo.GetFileSelection(caller.ID, songID)
+	if err != nil {
+		// No saved selection → default to all pool files in DisplayOrder.
+		sort.Slice(pool, func(i, j int) bool { return pool[i].DisplayOrder < pool[j].DisplayOrder })
+		return pool, false, nil
+	}
+	return resolveSelection(pool, sel.FileIDs), true, nil
+}
+
+// SetMyFileSelection replaces the caller's ordered selection for a song. Every
+// fileId must belong to this song's pool (ErrInvalidInput otherwise). An empty
+// list is allowed (the member chose to show nothing). Returns the resolved+ordered
+// files (always customized=true on success).
+func (s *Service) SetMyFileSelection(caller User, bandID, songID string, fileIDs []string) ([]SongFile, error) {
+	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
+		return nil, err
+	}
+	pool, err := s.repo.FilesOfSong(songID)
+	if err != nil {
+		return nil, err
+	}
+	inPool := make(map[string]bool, len(pool))
+	for _, f := range pool {
+		inPool[f.ID] = true
+	}
+	seen := make(map[string]bool, len(fileIDs))
+	clean := make([]string, 0, len(fileIDs))
+	for _, id := range fileIDs {
+		if !inPool[id] {
+			return nil, fmt.Errorf("%w: file %q does not belong to this song", ErrInvalidInput, id)
+		}
+		if seen[id] {
+			return nil, fmt.Errorf("%w: duplicate file id %q", ErrInvalidInput, id)
+		}
+		seen[id] = true
+		clean = append(clean, id)
+	}
+	if err := s.repo.SetFileSelection(FileSelection{UserID: caller.ID, SongID: songID, FileIDs: clean}); err != nil {
+		return nil, err
+	}
+	return resolveSelection(pool, clean), nil
+}
+
+// ClearMyFileSelection removes the caller's customization, reverting to the
+// default (all pool files). Idempotent.
+func (s *Service) ClearMyFileSelection(caller User, bandID, songID string) error {
+	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
+		return err
+	}
+	return s.repo.DeleteFileSelection(caller.ID, songID)
+}
+
+// resolveSelection maps an ordered list of fileIds to their SongFile records from
+// the pool, in that order, silently dropping ids no longer present in the pool.
+func resolveSelection(pool []SongFile, fileIDs []string) []SongFile {
+	byID := make(map[string]SongFile, len(pool))
+	for _, f := range pool {
+		byID[f.ID] = f
+	}
+	out := make([]SongFile, 0, len(fileIDs))
+	for _, id := range fileIDs {
+		if f, ok := byID[id]; ok {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 // ---- setlists ----
 
 // Setlists lists a band's setlists (member-only).

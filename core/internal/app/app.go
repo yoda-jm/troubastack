@@ -179,6 +179,17 @@ type SongFile struct {
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
+// FileSelection is a member's PERSONAL, ordered choice of which of a song's pool
+// files to display, in their chosen order. It is keyed by (UserID, SongID) and is
+// private to that user — it never affects what another member sees. FileIDs is a
+// subset of the song's shared file pool; entries whose file has since left the pool
+// are skipped on read (deleted files drop out gracefully).
+type FileSelection struct {
+	UserID  string   `json:"userId"`
+	SongID  string   `json:"songId"`
+	FileIDs []string `json:"fileIds"`
+}
+
 // Setlist is a band-scoped, ordered program of songs for an event. Items hold the
 // ordering and per-performance overrides; the songs themselves live independently.
 type Setlist struct {
@@ -256,6 +267,16 @@ type Repo interface {
 	// FilesWithBlob returns every SongFile pointing at blobHash (used to decide
 	// whether a blob is still referenced before dereferencing it on delete).
 	FilesWithBlob(blobHash string) ([]SongFile, error)
+
+	// Per-member, per-song file selections (personal, not shared).
+	// GetFileSelection returns the caller's saved selection; ErrNotFound if the
+	// member never customized this song (the service then falls back to default).
+	GetFileSelection(userID, songID string) (FileSelection, error)
+	// SetFileSelection stores (creates or replaces) a member's selection.
+	SetFileSelection(sel FileSelection) error
+	// DeleteFileSelection clears a member's customization (reverts to default).
+	// Idempotent: clearing an unset selection is not an error.
+	DeleteFileSelection(userID, songID string) error
 
 	// Setlists + items.
 	CreateSetlist(sl Setlist) error
