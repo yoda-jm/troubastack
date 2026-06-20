@@ -89,7 +89,7 @@ test("3. invite a second user; they accept and gain access", async ({ browser })
   await inviteeCtx.close();
 });
 
-test("4. create a song; clicking it shows the editor placeholder", async ({ page }) => {
+test("4. create a song; clicking it opens the annotation editor", async ({ page }) => {
   await register(page, `songwriter_${stamp()}`);
   const bandName = `Songs ${stamp()}`;
   const songTitle = `Tune ${stamp()}`;
@@ -107,8 +107,9 @@ test("4. create a song; clicking it shows the editor placeholder", async ({ page
   await songLink.click();
 
   await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
-  await expect(page.getByTestId("editor-placeholder")).toBeVisible();
-  await expect(page.getByTestId("editor-placeholder")).toContainText("Editor coming soon");
+  // The song page is the annotation editor: the tools palette is present.
+  await expect(page.getByTestId("song-viewer")).toBeVisible();
+  await expect(page.getByTestId("tool-rect")).toBeVisible();
 });
 
 test("5. logout redirects to /login; guarded routes redirect when logged out", async ({ page }) => {

@@ -1,8 +1,14 @@
 /**
- * Song page — now primarily a VIEW-ONLY annotation viewer. It renders the
- * song's first PDF (PDF.js) page-by-page, with annotation layers drawn on top
- * via the one renderer (@troubastack/ink, I8). Per-viewer layer visibility and
- * zoom are local view state — there is no annotation editing here.
+ * Song page — a live, multi-user annotation EDITOR built on top of the existing
+ * viewer. It renders the song's PDF (PDF.js) page-by-page with annotation layers
+ * drawn via the one renderer (@troubastack/ink, I8), AND lets you draw/select/
+ * move/delete annotations that sync in realtime over a per-song WebSocket
+ * (src/sync.ts). Per-viewer layer visibility + zoom remain local view state.
+ *
+ * The live document (layers + objects) is driven by the WS snapshot + echoes; an
+ * initial REST GET still seeds it so the first paint is correct even before the
+ * socket opens. Drawing emits optimistic mutations reconciled by uuid on echo
+ * (or rolled back on reject).
  *
  * The song Details (metadata edit), Files (upload/rename/reorder/delete), and
  * admin Delete still live below the viewer in a collapsible section; their
@@ -28,12 +34,26 @@ import {
   type AnnotationDoc,
   type AnnotationLayer,
   type AnnotationObject,
+  type AnnotationStyle,
   type Role,
   type Song,
   type SongFile,
 } from "../api";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { SyncClient, type SyncState } from "../sync";
+import {
+  COLOR_SWATCHES,
+  DEFAULT_STYLE,
+  buildObject,
+  hitTest,
+  isMeaningfulGesture,
+  pointerToPageXY,
+  pointsForTool,
+  translateObject,
+  type DrawTool,
+  type Tool,
+} from "../editor";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -96,9 +116,9 @@ export function SongEditor() {
             )}
           </Details>
 
-          {/* Retained for the existing e2e #4 (data-testid + copy unchanged). */}
-          <p className="muted editor-note" data-testid="editor-placeholder">
-            View-only. Editor coming soon — annotation editing is deferred.
+          <p className="muted editor-note" data-testid="editor-note">
+            Pick a tool above and draw on the page. Edits sync live to everyone in the band;
+            history/revert is the next step.
           </p>
         </>
       )}
@@ -151,6 +171,15 @@ function isViewable(f: SongFile): boolean {
   return f.contentType === "application/pdf" || f.contentType.startsWith("image/");
 }
 
+/** May the current user draw into this layer? My own personal layers, or any
+ *  shared read-write layer. (Conductor/mandatory/read-only stay view-only.) */
+function isEditableLayer(l: AnnotationLayer, myUserId: string | null): boolean {
+  if (l.access === "ro") return false;
+  if (l.zone === "personal") return myUserId != null && l.ownerId === myUserId;
+  if (l.zone === "shared") return true;
+  return false;
+}
+
 /** Format the zoom selection for the zoom-level readout. */
 function formatZoom(mode: ZoomMode): string {
   if (mode === "fit-width") return "Fit width";
@@ -174,6 +203,17 @@ function Viewer({
   const [editorOpen, setEditorOpen] = useState(false);
   const [doc, setDoc] = useState<AnnotationDoc>({ layers: [], objects: [] });
   const [visible, setVisible] = useState<LayerVisibility>({});
+
+  // ---- live editing state ----
+  const [tool, setTool] = useState<Tool>("select");
+  const [style, setStyle] = useState(DEFAULT_STYLE);
+  const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
+  const [connStatus, setConnStatus] = useState<"connecting" | "open" | "closed">("connecting");
+  // The realtime client for this song; null until a connection is opened.
+  const syncRef = useRef<SyncClient | null>(null);
+  // Latest visibility/sortedLayers/style/tool — referenced inside pointer
+  // handlers that are bound once per page canvas (avoids stale closures).
   // Zoom: a fit mode (default Fit width) or an explicit percentage.
   const [zoomMode, setZoomMode] = useState<ZoomMode>("fit-width");
   const [numPages, setNumPages] = useState(0);
@@ -262,6 +302,39 @@ function Viewer({
       setStatus("no-file");
     }
   }, [files.length, status]);
+
+  // ---- realtime sync: one WebSocket per open song ----
+  // The live document is driven by the WS (snapshot + echoes). The REST GET
+  // above seeds the first paint; once the snapshot lands it becomes authoritative.
+  // New layers arriving over the wire default to visible (defaultVisibility).
+  useEffect(() => {
+    const client = new SyncClient(bandId, songId, {
+      onState: (s: SyncState) => {
+        setDoc({ layers: s.layers, objects: s.objects });
+        // Ensure any layer we don't yet have a visibility entry for gets a sane
+        // default (so my new personal layer shows immediately, etc.).
+        setVisible((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          const defaults = defaultVisibility(s.layers, myUserId);
+          for (const l of s.layers) {
+            if (!(l.id in next)) {
+              next[l.id] = defaults[l.id];
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      },
+      onStatus: setConnStatus,
+    });
+    syncRef.current = client;
+    client.connect();
+    return () => {
+      client.close();
+      syncRef.current = null;
+    };
+  }, [bandId, songId, myUserId]);
 
   // ---- load the selected file (PDF bytes via PDF.js, or just mark image) ----
   useEffect(() => {
@@ -402,6 +475,124 @@ function Viewer({
     () => sortLayers(doc.layers, myUserId),
     [doc.layers, myUserId],
   );
+
+  // ---- editable layers (for the active-layer selector) ----
+  // Layers I may draw into, scoped to the currently selected file: my own
+  // personal layers + any shared RW layer for this file.
+  const editableLayers = useMemo(
+    () =>
+      doc.layers.filter(
+        (l) =>
+          (selectedFileId == null || l.fileId === selectedFileId) &&
+          isEditableLayer(l, myUserId),
+      ),
+    [doc.layers, myUserId, selectedFileId],
+  );
+
+  // Keep a valid active layer: prefer the current one if it's still editable,
+  // else fall back to the first editable layer (or null → "New layer" offered).
+  useEffect(() => {
+    setActiveLayerId((cur) => {
+      if (cur && editableLayers.some((l) => l.id === cur)) return cur;
+      return editableLayers[0]?.id ?? null;
+    });
+  }, [editableLayers]);
+
+  // Create a personal RW layer ("My notes") for the current file and make it
+  // active. zone "personal", ownerId = me, access rw — a layer I may edit.
+  const createPersonalLayer = useCallback(
+    (name = "My notes"): string | null => {
+      if (!myUserId || !selectedFileId || !syncRef.current) return null;
+      const id = crypto.randomUUID();
+      const order = doc.layers.filter((l) => l.fileId === selectedFileId).length;
+      syncRef.current.createLayer({
+        id,
+        fileId: selectedFileId,
+        name,
+        ownerId: myUserId,
+        zone: "personal",
+        order,
+        access: "rw",
+        mandatory: false,
+        roleTag: "",
+      });
+      setActiveLayerId(id);
+      // A brand-new personal layer should be visible to me immediately.
+      setVisible((v) => ({ ...v, [id]: true }));
+      return id;
+    },
+    [myUserId, selectedFileId, doc.layers],
+  );
+
+  // Ensure there's a layer to draw into, creating "My notes" on demand. Returns
+  // the layer id to draw into, or null if we can't (no file / not signed in).
+  const ensureActiveLayer = useCallback((): string | null => {
+    if (activeLayerId && editableLayers.some((l) => l.id === activeLayerId)) {
+      return activeLayerId;
+    }
+    if (editableLayers[0]) {
+      setActiveLayerId(editableLayers[0].id);
+      return editableLayers[0].id;
+    }
+    return createPersonalLayer();
+  }, [activeLayerId, editableLayers, createPersonalLayer]);
+
+  // Commit a finished draw gesture: build the wire object on the active layer
+  // and send a create (optimistically added by the sync client).
+  const commitDraw = useCallback(
+    (tool: DrawTool, page: number, path: { x: number; y: number }[], text?: string) => {
+      if (!isMeaningfulGesture(tool, path)) return;
+      const layerId = ensureActiveLayer();
+      if (!layerId || !syncRef.current) return;
+      const obj = buildObject({
+        tool,
+        points: pointsForTool(tool, path),
+        page,
+        layerId,
+        style,
+        text,
+      });
+      if (tool === "text" && !obj.text) return; // empty text → nothing to create
+      syncRef.current.createObject(obj);
+      setSelectedUuid(obj.uuid);
+    },
+    [ensureActiveLayer, style],
+  );
+
+  // Commit a move: send the translated object (move mutation).
+  const commitMove = useCallback((obj: AnnotationObject) => {
+    if (!syncRef.current) return;
+    syncRef.current.updateObject("move", obj);
+  }, []);
+
+  // Delete the selected object.
+  const deleteSelected = useCallback(() => {
+    if (!selectedUuid || !syncRef.current) return;
+    syncRef.current.deleteObject(selectedUuid);
+    setSelectedUuid(null);
+  }, [selectedUuid]);
+
+  // Delete/Backspace removes the current selection (ignored while typing in a
+  // form field, so the Details inputs below keep working normally).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (!selectedUuid) return;
+      e.preventDefault();
+      deleteSelected();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedUuid, deleteSelected]);
+
+  // Clear a stale selection if the selected object disappears (deleted remotely).
+  useEffect(() => {
+    if (selectedUuid && !doc.objects.some((o) => o.uuid === selectedUuid)) {
+      setSelectedUuid(null);
+    }
+  }, [doc.objects, selectedUuid]);
 
   // ---- overlay rendering: object coords [0,1] → page box. ----
   // We scale the ctx by DPR and draw using the LOGICAL (CSS-px) page box, so a
@@ -572,6 +763,25 @@ function Viewer({
       className={`card viewer${sidebarOpen ? "" : " sidebar-collapsed"}`}
       data-testid="song-viewer"
     >
+      <EditorToolbar
+        tool={tool}
+        onTool={(t) => {
+          setTool(t);
+          if (t !== "select") setSelectedUuid(null);
+        }}
+        style={style}
+        onStyle={setStyle}
+        editableLayers={editableLayers}
+        activeLayerId={activeLayerId}
+        onActiveLayer={setActiveLayerId}
+        onNewLayer={() => createPersonalLayer()}
+        canDraw={myUserId != null && selectedFileId != null}
+        objectCount={doc.objects.length}
+        selectedUuid={selectedUuid}
+        onDelete={deleteSelected}
+        connStatus={connStatus}
+      />
+
       <div className="viewer-toolbar">
         <div className="zoom-controls" data-testid="zoom-controls">
           <button type="button" data-testid="zoom-out" onClick={() => stepZoom(-1)}>
@@ -715,6 +925,18 @@ function Viewer({
                   className="annotation-overlay"
                   data-testid="annotation-overlay"
                 />
+                <EditCanvas
+                  page={i}
+                  tool={tool}
+                  style={style}
+                  objects={doc.objects}
+                  layersById={layersById}
+                  visible={visible}
+                  selectedUuid={selectedUuid}
+                  onSelect={setSelectedUuid}
+                  onCommitDraw={commitDraw}
+                  onCommitMove={commitMove}
+                />
               </div>
             ))}
 
@@ -731,6 +953,18 @@ function Viewer({
                 ref={imgOverlayRef}
                 className="annotation-overlay"
                 data-testid="annotation-overlay"
+              />
+              <EditCanvas
+                page={0}
+                tool={tool}
+                style={style}
+                objects={doc.objects}
+                layersById={layersById}
+                visible={visible}
+                selectedUuid={selectedUuid}
+                onSelect={setSelectedUuid}
+                onCommitDraw={commitDraw}
+                onCommitMove={commitMove}
               />
             </div>
           )}
@@ -972,6 +1206,411 @@ function LayersPanel({
       )}
     </aside>
   );
+}
+
+// ===========================================================================
+// Editor toolbar — tools palette, style controls, active layer, object count
+// ===========================================================================
+
+const TOOLS: { tool: Tool; label: string; testid: string }[] = [
+  { tool: "select", label: "Select", testid: "tool-select" },
+  { tool: "freehand", label: "Pen", testid: "tool-freehand" },
+  { tool: "line", label: "Line", testid: "tool-line" },
+  { tool: "rect", label: "Rect", testid: "tool-rect" },
+  { tool: "ellipse", label: "Ellipse", testid: "tool-ellipse" },
+  { tool: "highlight", label: "Highlight", testid: "tool-highlight" },
+  { tool: "text", label: "Text", testid: "tool-text" },
+];
+
+function EditorToolbar({
+  tool,
+  onTool,
+  style,
+  onStyle,
+  editableLayers,
+  activeLayerId,
+  onActiveLayer,
+  onNewLayer,
+  canDraw,
+  objectCount,
+  selectedUuid,
+  onDelete,
+  connStatus,
+}: {
+  tool: Tool;
+  onTool: (t: Tool) => void;
+  style: AnnotationStyle;
+  onStyle: (s: AnnotationStyle) => void;
+  editableLayers: AnnotationLayer[];
+  activeLayerId: string | null;
+  onActiveLayer: (id: string) => void;
+  onNewLayer: () => void;
+  canDraw: boolean;
+  objectCount: number;
+  selectedUuid: string | null;
+  onDelete: () => void;
+  connStatus: "connecting" | "open" | "closed";
+}) {
+  return (
+    <div className="editor-toolbar" data-testid="editor-toolbar">
+      <div className="tool-palette" role="toolbar" aria-label="Annotation tools">
+        {TOOLS.map((t) => (
+          <button
+            key={t.tool}
+            type="button"
+            data-testid={t.testid}
+            className={`tool-btn${tool === t.tool ? " active" : ""}`}
+            aria-pressed={tool === t.tool}
+            disabled={!canDraw && t.tool !== "select"}
+            onClick={() => onTool(t.tool)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="style-controls">
+        <span className="swatches">
+          {COLOR_SWATCHES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`swatch${style.color === c ? " active" : ""}`}
+              style={{ background: c }}
+              aria-label={`Color ${c}`}
+              onClick={() => onStyle({ ...style, color: c })}
+            />
+          ))}
+        </span>
+        <label className="style-field">
+          <span>Color</span>
+          <input
+            type="color"
+            data-testid="style-color"
+            value={style.color}
+            onChange={(e) => onStyle({ ...style, color: e.target.value })}
+          />
+        </label>
+        <label className="style-field">
+          <span>Opacity</span>
+          <input
+            type="range"
+            data-testid="style-opacity"
+            min={0.1}
+            max={1}
+            step={0.05}
+            value={style.opacity}
+            onChange={(e) => onStyle({ ...style, opacity: Number(e.target.value) })}
+          />
+        </label>
+        <label className="style-field">
+          <span>Width</span>
+          <input
+            type="range"
+            data-testid="style-width"
+            min={0.001}
+            max={0.02}
+            step={0.001}
+            value={style.width}
+            onChange={(e) => onStyle({ ...style, width: Number(e.target.value) })}
+          />
+        </label>
+        <label className="style-field">
+          <span>Text size</span>
+          <input
+            type="range"
+            data-testid="style-font"
+            min={0.015}
+            max={0.08}
+            step={0.005}
+            value={style.fontSize}
+            onChange={(e) => onStyle({ ...style, fontSize: Number(e.target.value) })}
+          />
+        </label>
+      </div>
+
+      <div className="layer-controls">
+        <label className="style-field">
+          <span>Active layer</span>
+          <select
+            data-testid="active-layer"
+            value={activeLayerId ?? ""}
+            disabled={editableLayers.length === 0}
+            onChange={(e) => onActiveLayer(e.target.value)}
+          >
+            {editableLayers.length === 0 && <option value="">No editable layer</option>}
+            {editableLayers.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          data-testid="new-layer"
+          className="new-layer-btn"
+          disabled={!canDraw}
+          onClick={onNewLayer}
+        >
+          + New layer
+        </button>
+        <button
+          type="button"
+          data-testid="delete-object"
+          className="delete-object-btn"
+          disabled={!selectedUuid}
+          onClick={onDelete}
+        >
+          Delete
+        </button>
+        <span className="pill" data-testid="object-count" title="Live annotation count">
+          {objectCount} objects
+        </span>
+        <span
+          className={`pill conn-pill conn-${connStatus}`}
+          data-testid="conn-status"
+          title="Realtime connection"
+        >
+          {connStatus === "open" ? "live" : connStatus}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// Edit canvas — per-page pointer capture + wet-object rendering
+// ===========================================================================
+
+/** A page-relative point captured during a gesture. */
+type PRPoint = { x: number; y: number };
+
+/**
+ * The editing surface that sits ABOVE a page's dry annotation overlay. It is an
+ * absolutely-positioned canvas filling the page wrapper; it captures pointer
+ * events and renders the in-progress "wet" object via @troubastack/ink.
+ *
+ * Coordinate mapping: pointer clientX/Y → page-relative [0,1] via the page
+ * canvas's bounding rect (pointerToPageXY). Because getBoundingClientRect is in
+ * CSS px after layout, the mapping is correct under any zoom/scroll. The canvas
+ * backing store is sized to the page box × DPR so the wet preview is crisp and
+ * matches the dry overlay exactly.
+ */
+function EditCanvas({
+  page,
+  tool,
+  style,
+  objects,
+  layersById,
+  visible,
+  selectedUuid,
+  onSelect,
+  onCommitDraw,
+  onCommitMove,
+}: {
+  page: number;
+  tool: Tool;
+  style: AnnotationStyle;
+  objects: AnnotationObject[];
+  layersById: Map<string, AnnotationLayer>;
+  visible: LayerVisibility;
+  selectedUuid: string | null;
+  onSelect: (uuid: string | null) => void;
+  onCommitDraw: (tool: DrawTool, page: number, path: PRPoint[], text?: string) => void;
+  onCommitMove: (obj: AnnotationObject) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The active gesture: a draw path, a move drag, or none. Kept in a ref so the
+  // pointer handlers (bound via React props) read the latest without re-binding.
+  const gestureRef = useRef<
+    | { mode: "draw"; path: PRPoint[] }
+    | { mode: "move"; obj: AnnotationObject; start: PRPoint; preview: AnnotationObject }
+    | null
+  >(null);
+  const [, forceRepaint] = useState(0);
+
+  // Objects on THIS page that are currently visible (for hit-testing on select).
+  const pageObjects = useMemo(
+    () =>
+      objects
+        .filter((o) => o.page === page)
+        .filter((o) => {
+          const l = layersById.get(o.layerId);
+          return l && visible[l.id];
+        }),
+    [objects, page, layersById, visible],
+  );
+
+  // Match the edit canvas's backing store + CSS box to the page box (the sibling
+  // .pdf-canvas), so [0,1] maps identically to the dry overlay. Re-measure on
+  // layout changes (zoom/resize) via a ResizeObserver on the page wrapper.
+  const sizeToPage = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const wrapper = canvas.parentElement;
+    const pageCanvas = wrapper?.querySelector<HTMLElement>(".pdf-canvas");
+    if (!pageCanvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = pageCanvas.clientWidth;
+    const h = pageCanvas.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    repaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Paint the wet object (and a selection box) onto the edit canvas.
+  const repaint = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    const box = { x: 0, y: 0, w: canvas.width / dpr, h: canvas.height / dpr };
+
+    const g = gestureRef.current;
+    if (g?.mode === "draw" && g.path.length > 0 && tool !== "select") {
+      const wet = buildWet(tool as DrawTool, g.path, style);
+      if (wet) renderObjects(ctx, [toInkObject(wet) as InkObject], box);
+    } else if (g?.mode === "move") {
+      renderObjects(ctx, [toInkObject(g.preview) as InkObject], box);
+    }
+
+    // Selection outline (page-relative bbox → px).
+    if (selectedUuid) {
+      const sel = pageObjects.find((o) => o.uuid === selectedUuid);
+      if (sel) {
+        const xs = sel.points.map((p) => p.x);
+        const ys = sel.points.map((p) => p.y);
+        const minX = Math.min(...xs) * box.w;
+        const minY = Math.min(...ys) * box.h;
+        const maxX = Math.max(...xs) * box.w;
+        const maxY = Math.max(...ys) * box.h;
+        ctx.save();
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = "#2563eb";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(minX - 4, minY - 4, maxX - minX + 8, maxY - minY + 8);
+        ctx.restore();
+      }
+    }
+  }, [tool, style, selectedUuid, pageObjects]);
+
+  // Keep the canvas sized to its page; observe the page wrapper for zoom/resize.
+  useLayoutEffect(() => {
+    sizeToPage();
+    const canvas = canvasRef.current;
+    const wrapper = canvas?.parentElement;
+    if (!wrapper) return;
+    const ro = new ResizeObserver(() => sizeToPage());
+    ro.observe(wrapper);
+    return () => ro.disconnect();
+  }, [sizeToPage]);
+
+  // Repaint when the selection / page objects / tool / style change.
+  useEffect(() => {
+    repaint();
+  }, [repaint]);
+
+  function pageRelative(e: React.PointerEvent): PRPoint {
+    const canvas = canvasRef.current!;
+    return pointerToPageXY(e.clientX, e.clientY, canvas);
+  }
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const pt = pageRelative(e);
+
+    if (tool === "select") {
+      // Hit-test topmost (last drawn) visible object on this page.
+      const hit = [...pageObjects].reverse().find((o) => hitTest(o, pt.x, pt.y));
+      if (hit) {
+        onSelect(hit.uuid);
+        canvas.setPointerCapture(e.pointerId);
+        gestureRef.current = { mode: "move", obj: hit, start: pt, preview: hit };
+      } else {
+        onSelect(null);
+      }
+      return;
+    }
+
+    if (tool === "text") {
+      // Click → inline prompt → text object at the anchor.
+      const text = window.prompt("Text annotation");
+      if (text && text.trim()) onCommitDraw("text", page, [pt], text.trim());
+      return;
+    }
+
+    canvas.setPointerCapture(e.pointerId);
+    gestureRef.current = { mode: "draw", path: [pt] };
+    forceRepaint((n) => n + 1);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const g = gestureRef.current;
+    if (!g) return;
+    const pt = pageRelative(e);
+    if (g.mode === "draw") {
+      g.path.push(pt);
+      repaint();
+    } else if (g.mode === "move") {
+      const dx = pt.x - g.start.x;
+      const dy = pt.y - g.start.y;
+      g.preview = translateObject(g.obj, dx, dy);
+      repaint();
+    }
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    const g = gestureRef.current;
+    gestureRef.current = null;
+    const canvas = canvasRef.current;
+    if (canvas?.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    if (!g) return;
+    if (g.mode === "draw" && tool !== "select") {
+      onCommitDraw(tool as DrawTool, page, g.path);
+    } else if (g.mode === "move") {
+      // Only commit if it actually moved.
+      const moved =
+        g.preview.points.some((p, i) => p.x !== g.obj.points[i].x || p.y !== g.obj.points[i].y);
+      if (moved) onCommitMove(g.preview);
+    }
+    repaint();
+  }
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={`edit-canvas tool-${tool}`}
+      data-testid="edit-canvas"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    />
+  );
+}
+
+/** Build a wet preview object from an in-progress gesture (no uuid needed). */
+function buildWet(tool: DrawTool, path: PRPoint[], style: AnnotationStyle): AnnotationObject | null {
+  if (path.length === 0) return null;
+  return {
+    uuid: "wet",
+    layerId: "wet",
+    type: tool,
+    points: pointsForTool(tool, path),
+    page: 0,
+    text: "",
+    style,
+  };
 }
 
 /** Map an API annotation object to the renderer's InkObject view (same shape). */

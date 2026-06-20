@@ -33,6 +33,9 @@ export default defineConfig({
       "/api": {
         target: API_TARGET,
         changeOrigin: true,
+        // The realtime editor opens a WebSocket at …/songs/:id/ws; let the
+        // HTTP→WS upgrade pass through to the Go core in dev/e2e.
+        ws: true,
       },
     },
   },
@@ -43,6 +46,7 @@ export default defineConfig({
       "/api": {
         target: API_TARGET,
         changeOrigin: true,
+        ws: true,
       },
     },
   },
