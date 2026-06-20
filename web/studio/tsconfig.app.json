@@ -15,7 +15,11 @@
     "noEmit": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "composite": true
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@troubastack/ink": ["../ink/src/index.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../ink/src"]
 }

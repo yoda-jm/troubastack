@@ -198,6 +198,72 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   text-align: center; color: var(--muted); padding: 2.5rem 1.5rem;
 }
 
+/* ---- song viewer ------------------------------------------------------- */
+/* The viewer wants more width than the default reading column. */
+.viewer-page { max-width: 1200px; }
+
+.viewer { gap: .75rem; }
+
+.viewer-toolbar {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding-bottom: .5rem; border-bottom: 1px solid var(--border);
+}
+.zoom-controls { display: flex; align-items: center; gap: .5rem; }
+.zoom-controls button { min-width: 2.2rem; padding: .4rem .6rem; font-size: 1.1rem; line-height: 1; }
+.zoom-controls .pill { min-width: 3.2rem; text-align: center; text-transform: none; }
+
+.viewer-body { display: flex; gap: 1rem; align-items: flex-start; }
+@media (max-width: 760px) { .viewer-body { flex-direction: column-reverse; } }
+
+.viewer-scroll {
+  flex: 1 1 auto; min-width: 0;
+  max-height: 75vh; overflow: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 1rem;
+  padding: 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.pdf-page {
+  position: relative;
+  box-shadow: var(--shadow);
+  background: #fff;
+  line-height: 0;
+}
+.pdf-canvas { display: block; }
+.annotation-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+
+.layers-panel {
+  flex: 0 0 14rem; align-self: stretch;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: .8rem 1rem;
+  display: flex; flex-direction: column; gap: .6rem;
+}
+@media (max-width: 760px) { .layers-panel { flex-basis: auto; width: 100%; } }
+.layers-list { gap: .3rem; }
+.layers-list li { flex-wrap: wrap; gap: .4rem; padding: .45rem .6rem; }
+.layer-row { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.layer-row input { width: auto; }
+.layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mandatory-pill { background: var(--ok-bg); color: var(--ok-fg); }
+
+.details-section { padding: 0; overflow: hidden; }
+.details-toggle {
+  width: 100%; text-align: left; border: none; border-radius: 0;
+  background: transparent; padding: 1rem 1.25rem; font-size: 1.05rem;
+}
+.details-toggle:hover:not(:disabled) { border-color: transparent; background: var(--surface-2); }
+.details-body { padding: 0 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0; }
+.details-body .card { margin: .6rem 0; }
+
+.editor-note { text-align: center; font-size: .85rem; }
+
 /* ---- small screens ----------------------------------------------------- */
 @media (max-width: 640px) {
   .topbar { gap: .75rem; flex-wrap: wrap; padding: .6rem 1rem; }

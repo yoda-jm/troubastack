@@ -103,6 +103,46 @@ export type SetlistItemPatch = {
   notes?: string;
 };
 
+// ---- annotations (view-only) ----
+
+export type AnnotationZone = "conductor" | "shared" | "personal";
+
+export type AnnotationLayer = {
+  id: string;
+  fileId: string;
+  name: string;
+  ownerId: string;
+  zone: AnnotationZone;
+  order: number;
+  access: "rw" | "ro";
+  mandatory: boolean;
+  roleTag: string;
+};
+
+export type AnnotationPoint = { x: number; y: number };
+
+export type AnnotationStyle = {
+  color: string;
+  opacity: number;
+  width: number;
+  fontSize: number;
+};
+
+export type AnnotationObject = {
+  uuid: string;
+  layerId: string;
+  type: "freehand" | "rect" | "ellipse" | "line" | "text" | "highlight";
+  points: AnnotationPoint[];
+  page: number;
+  text: string;
+  style: AnnotationStyle;
+};
+
+export type AnnotationDoc = {
+  layers: AnnotationLayer[];
+  objects: AnnotationObject[];
+};
+
 /** ApiError carries the HTTP status and the server's {error} message. */
 export class ApiError extends Error {
   status: number;
@@ -238,6 +278,17 @@ export const api = {
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/files/${fileId}`),
 
   fileUrl: (fileId: string) => `/api/files/${fileId}`,
+
+  // ---- annotations (view-only) ----
+  getAnnotations: (bandId: string, songId: string) =>
+    request<AnnotationDoc>("GET", `/api/bands/${bandId}/songs/${songId}/annotations`),
+
+  importAnnotations: (bandId: string, songId: string, doc: AnnotationDoc) =>
+    request<AnnotationDoc>(
+      "POST",
+      `/api/bands/${bandId}/songs/${songId}/annotations/import`,
+      doc,
+    ),
 
   // ---- bands (admin) ----
   updateBand: (bandId: string, name: string) =>

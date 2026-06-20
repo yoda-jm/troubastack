@@ -14,6 +14,8 @@
   },
   "//deps": "react-router for the non-canvas pages. @troubastack/ink (the one renderer, I8) returns when the deferred canvas editor lands at /bands/:bandId/songs/:songId.",
   "dependencies": {
+    "pdfjs-dist": "^4.10.38",
+    "perfect-freehand": "^1.2.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2"

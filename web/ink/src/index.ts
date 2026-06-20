@@ -1,124 +1,282 @@
 /**
- * @troubastack/ink — THE single stroke renderer (ARCHITECTURE.md I8).
+ * @troubastack/ink — THE single annotation renderer (ARCHITECTURE.md I8).
  *
- * Stroke geometry + rasterization lives here ONCE and is consumed by both
- * `@troubastack/studio` (browser: dry layer + in-browser wet ink) and
- * `@troubastack/bake` (Node: server-side transparent overlays). The mobile
- * app's native ink overlay is the ONLY sanctioned re-implementation and must
- * match this output pixel-for-pixel under a golden-image parity test (I8).
- * There is no third copy — Go never draws strokes.
+ * Object geometry + rasterization lives here ONCE and is consumed by both
+ * `@troubastack/studio` (browser viewer/editor) and `@troubastack/bake`
+ * (Node: server-side transparent overlays). The mobile app's native ink
+ * overlay is the ONLY sanctioned re-implementation and must match this output
+ * under a golden-image parity test (I8). There is no third copy — Go never
+ * draws strokes.
  *
- * Why it must be one renderer: the editor, the baked image, and the wet
- * overlay all draw the same stroke. If any two disagree, strokes visibly jump
- * on commit (wet→dry) or on bake (studio→bake). See
- * ../../docs/design/03-rendering-and-ink.md.
+ * This module is framework-free: it only touches a Canvas2D context. It draws
+ * one annotation object (freehand / rect / ellipse / line / text / highlight)
+ * onto a context given the page's pixel rectangle. All persisted coordinates
+ * are PAGE-RELATIVE in [0,1] (I3); pixels are produced only here at draw time.
  *
- * perfect-freehand is the intended geometry library for buildStrokeGeometry()
- * (variable-width pressure outline). It is NOT installed yet — this is a
- * scaffold.
+ * perfect-freehand provides the variable-width freehand outline.
  */
 
+import { getStroke } from "perfect-freehand";
+
 // ---------------------------------------------------------------------------
-// Types
+// Render-facing types
 //
-// The CANONICAL wire/domain types are generated from ../proto into
-// web/proto-gen (I1) and are never hand-written. The types below are
-// render-facing VIEWS of that data — the minimal shape this renderer needs to
-// turn an annotation into pixels. When proto-gen exists, these should be
-// derived from / assignable to the generated stroke + style messages, not
-// duplicated as a parallel source of truth.
+// These are the minimal shape this renderer needs to turn an annotation into
+// pixels — a VIEW of the canonical wire/domain types (the annotation API in
+// core/internal/httpapi/annotations.go). They are intentionally a structural
+// match for that wire object so callers can pass API objects directly.
 // ---------------------------------------------------------------------------
 
-/**
- * A single sampled stroke point in PDF-relative coordinates (I3).
- * x and y are normalized to the page in [0, 1] — NEVER pixels. Pixels never
- * enter persistence or the wire; they are produced only at draw time by
- * applying a {@link ViewportTransform}.
- */
-export interface NormPoint {
-  /** Page-relative X in [0, 1] (I3). */
+/** A single point in PAGE-RELATIVE coordinates: x,y in [0,1] (I3). */
+export interface InkPoint {
+  /** Page-relative X in [0,1]. */
   x: number;
-  /** Page-relative Y in [0, 1] (I3). */
+  /** Page-relative Y in [0,1]. */
   y: number;
-  /** Optional stylus pressure in [0, 1]; drives variable stroke width. */
+  /** Optional stylus pressure in [0,1]; drives variable freehand width. */
   pressure?: number;
 }
 
-/** Visual style of a stroke. A render-facing view of the proto style message (I1). */
-export interface Style {
-  /** CSS color string (e.g. "#101010" or "rgba(...)"). */
+/** Visual style of an object. A render-facing view of the proto style (I1). */
+export interface InkStyle {
+  /** CSS color string, e.g. "#RRGGBB". */
   color: string;
-  /**
-   * Base stroke width, also PDF-relative (fraction of page) so width tracks
-   * zoom for free (I3). Scaled into pixels by the ViewportTransform at draw time.
-   */
+  /** Opacity in [0,1]. */
+  opacity: number;
+  /** Stroke width as a FRACTION OF PAGE WIDTH (I3) — scales with zoom for free. */
   width: number;
-  /** Optional opacity in [0, 1]. */
-  opacity?: number;
+  /** Font size as a FRACTION OF PAGE HEIGHT (text only). */
+  fontSize: number;
+}
+
+/** The kinds of object this renderer can draw. */
+export type InkObjectType =
+  | "freehand"
+  | "rect"
+  | "ellipse"
+  | "line"
+  | "text"
+  | "highlight";
+
+/**
+ * One annotation object. `points` are page-relative [0,1]:
+ *  - freehand  : the full sampled path
+ *  - rect      : [topLeft, bottomRight]
+ *  - ellipse   : [topLeft, bottomRight] (bbox)
+ *  - highlight : [topLeft, bottomRight] (filled translucent marker)
+ *  - line      : [a, b]
+ *  - text      : [anchorTopLeft]
+ */
+export interface InkObject {
+  uuid?: string;
+  layerId?: string;
+  type: InkObjectType;
+  points: InkPoint[];
+  /** 0-based page index this object belongs to. */
+  page?: number;
+  /** Text content (text objects). */
+  text?: string;
+  style: InkStyle;
 }
 
 /**
- * Maps PDF-relative [0,1] coordinates to device pixels: screen = clamp01(coord)
- * × transform (../../docs/design/03-rendering-and-ink.md). The web layer owns
- * this; it is static for the lifetime of a single stroke (you don't zoom
- * mid-stroke), so the wet layer only needs it at stroke-start.
+ * Pixel rectangle of the page on the target canvas. The renderer maps
+ * page-relative [0,1] coordinates into this rect:
+ *   px = x + p.x * w ;  py = y + p.y * h
  */
-export interface ViewportTransform {
-  /** Pixel width the page [0,1] maps onto. */
-  scaleX: number;
-  /** Pixel height the page [0,1] maps onto. */
-  scaleY: number;
-  /** Pixel X offset of the page origin. */
-  offsetX: number;
-  /** Pixel Y offset of the page origin. */
-  offsetY: number;
+export interface PageRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
-/**
- * Resolution-independent geometry of a stroke: the outline polygon (and any
- * derived data) computed from the input points + style, still expressed in
- * PDF-relative [0,1] space (I3). Computed once, then drawn at any transform.
- * The exact shape is owned by this package (it is an internal render artifact,
- * not a wire type).
- */
-export interface StrokeGeometry {
-  /** Closed outline of the variable-width stroke, in PDF-relative [0,1] coords. */
-  outline: NormPoint[];
-  /** The style carried through so renderStroke needs only the geometry. */
-  style: Style;
+/** Either canvas context flavor — the drawing path never branches on it (I8). */
+type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+// ---------------------------------------------------------------------------
+// Coordinate helpers
+// ---------------------------------------------------------------------------
+
+function toPx(p: InkPoint, page: PageRect): [number, number] {
+  return [page.x + p.x * page.w, page.y + p.y * page.h];
+}
+
+/** Stroke width in device px: style.width is a fraction of the page width. */
+function strokePx(style: InkStyle, page: PageRect): number {
+  // Guard a sane minimum so a hairline never disappears.
+  return Math.max(0.5, style.width * page.w);
+}
+
+/** Font size in device px: style.fontSize is a fraction of the page height. */
+function fontPx(style: InkStyle, page: PageRect): number {
+  return Math.max(1, style.fontSize * page.h);
+}
+
+function clamp01(n: number): number {
+  if (Number.isNaN(n)) return 1;
+  return n < 0 ? 0 : n > 1 ? 1 : n;
 }
 
 // ---------------------------------------------------------------------------
-// The renderer surface (the entire public contract of web/ink)
+// The public render surface
 // ---------------------------------------------------------------------------
 
 /**
- * Build resolution-independent stroke geometry from sampled points + style.
+ * Draw a single annotation object onto a Canvas2D context, mapping its
+ * page-relative [0,1] geometry into the supplied page pixel rect.
  *
- * Pure and deterministic: same inputs → same outline, on browser and Node
- * alike. This determinism is what lets studio, bake, and the native overlay
- * agree to the pixel (I8). Input points are PDF-relative [0,1] (I3); output is
- * also [0,1] — no pixels here.
- *
- * Intended implementation: perfect-freehand (not yet installed).
+ * Always brackets its drawing in ctx.save()/ctx.restore(); honors opacity via
+ * globalAlpha; uses round joins/caps for strokes.
  */
-export function buildStrokeGeometry(_points: NormPoint[], _style: Style): StrokeGeometry {
-  throw new Error("TODO");
+export function renderObject(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  if (!obj || !obj.points || obj.points.length === 0) return;
+
+  ctx.save();
+  try {
+    ctx.globalAlpha = clamp01(obj.style.opacity ?? 1);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    switch (obj.type) {
+      case "freehand":
+        drawFreehand(ctx, obj, page);
+        break;
+      case "line":
+        drawLine(ctx, obj, page);
+        break;
+      case "rect":
+        drawRect(ctx, obj, page);
+        break;
+      case "ellipse":
+        drawEllipse(ctx, obj, page);
+        break;
+      case "highlight":
+        drawHighlight(ctx, obj, page);
+        break;
+      case "text":
+        drawText(ctx, obj, page);
+        break;
+      default:
+        break;
+    }
+  } finally {
+    ctx.restore();
+  }
 }
 
-/**
- * Draw pre-built geometry onto a 2D canvas context, applying the viewport
- * transform to convert PDF-relative [0,1] geometry into device pixels (I3).
- *
- * Accepts both the browser `CanvasRenderingContext2D` and the worker
- * `OffscreenCanvasRenderingContext2D` so the IDENTICAL routine serves studio's
- * live canvas and bake's offscreen raster (I8). The drawing path must not
- * branch on environment — only the supplied context differs.
- */
-export function renderStroke(
-  _ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  _geom: StrokeGeometry,
-  _transform: ViewportTransform,
-): void {
-  throw new Error("TODO");
+/** Convenience: render many objects in array order onto the same page rect. */
+export function renderObjects(ctx: Ctx2D, objs: InkObject[], page: PageRect): void {
+  for (const o of objs) renderObject(ctx, o, page);
+}
+
+// ---------------------------------------------------------------------------
+// Per-type drawing
+// ---------------------------------------------------------------------------
+
+function drawFreehand(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  const w = strokePx(obj.style, page);
+  // perfect-freehand wants pixel-space input points; feed pressure if present.
+  const input: number[][] = obj.points.map((p) => {
+    const [px, py] = toPx(p, page);
+    return p.pressure != null ? [px, py, p.pressure] : [px, py];
+  });
+
+  const outline = getStroke(input, {
+    size: w,
+    thinning: 0.5,
+    smoothing: 0.5,
+    streamline: 0.5,
+    simulatePressure: obj.points.every((p) => p.pressure == null),
+    last: true,
+  });
+
+  if (outline.length === 0) {
+    // Degenerate (e.g. single point with no outline) — draw a dot.
+    const [px, py] = toPx(obj.points[0], page);
+    ctx.beginPath();
+    ctx.arc(px, py, Math.max(0.5, w / 2), 0, Math.PI * 2);
+    ctx.fillStyle = obj.style.color;
+    ctx.fill();
+    return;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(outline[0][0], outline[0][1]);
+  for (let i = 1; i < outline.length; i++) {
+    ctx.lineTo(outline[i][0], outline[i][1]);
+  }
+  ctx.closePath();
+  ctx.fillStyle = obj.style.color;
+  ctx.fill();
+}
+
+function drawLine(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  const [a, b] = obj.points;
+  if (!a || !b) return;
+  const [ax, ay] = toPx(a, page);
+  const [bx, by] = toPx(b, page);
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.lineWidth = strokePx(obj.style, page);
+  ctx.strokeStyle = obj.style.color;
+  ctx.stroke();
+}
+
+/** Normalize a two-point bbox into top-left + width/height (handles any order). */
+function bbox(obj: InkObject, page: PageRect): { x: number; y: number; w: number; h: number } {
+  const [a, b] = obj.points;
+  const [ax, ay] = toPx(a, page);
+  const [bx, by] = toPx(b, page);
+  return {
+    x: Math.min(ax, bx),
+    y: Math.min(ay, by),
+    w: Math.abs(bx - ax),
+    h: Math.abs(by - ay),
+  };
+}
+
+function drawRect(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  const [a, b] = obj.points;
+  if (!a || !b) return;
+  const r = bbox(obj, page);
+  ctx.lineWidth = strokePx(obj.style, page);
+  ctx.strokeStyle = obj.style.color;
+  ctx.strokeRect(r.x, r.y, r.w, r.h);
+}
+
+function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  const [a, b] = obj.points;
+  if (!a || !b) return;
+  const r = bbox(obj, page);
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
+  ctx.lineWidth = strokePx(obj.style, page);
+  ctx.strokeStyle = obj.style.color;
+  ctx.stroke();
+}
+
+function drawHighlight(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  const [a, b] = obj.points;
+  if (!a || !b) return;
+  const r = bbox(obj, page);
+  // Translucent marker look: FILL the rect with the color at the given opacity.
+  // "multiply" blends like a real highlighter over the page beneath.
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = obj.style.color;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+}
+
+function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  const anchor = obj.points[0];
+  if (!anchor || !obj.text) return;
+  const [px, py] = toPx(anchor, page);
+  const fpx = fontPx(obj.style, page);
+  ctx.font = `${fpx}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  ctx.textBaseline = "top";
+  ctx.fillStyle = obj.style.color;
+  ctx.fillText(obj.text, px, py);
 }
