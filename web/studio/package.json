@@ -5,15 +5,27 @@
   "description": "TroubaStudio — the canonical TroubaStack editor SPA (I10). Builds to static assets embedded & served by core (I14). Embedded by the mobile app in a webview.",
   "type": "module",
   "scripts": {
-    "//build": "Vite build → static SPA in dist/, which core embeds via embed.FS (I10, I14). Vite not installed yet (scaffold).",
-    "build": "vite build",
-    "dev": "vite"
+    "//build": "Vite build → static SPA in dist/, which core embeds via embed.FS (I10, I14).",
+    "build": "tsc -b && vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "e2e": "playwright test"
   },
+  "//deps": "react-router for the non-canvas pages. @troubastack/ink (the one renderer, I8) returns when the deferred canvas editor lands at /bands/:bandId/songs/:songId.",
   "dependencies": {
-    "@troubastack/ink": "*"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
   },
-  "//devDeps": "pdfjs-dist is the intended PDF rasterizer for the dry layer (re-render per zoom level, never CSS-scale — see 03-rendering-and-ink.md). NOT installed yet (scaffold, no network).",
+  "//devDeps": "pdfjs-dist is the intended PDF rasterizer for the deferred canvas editor. NOT installed yet.",
   "devDependencies": {
-    "vite": "*"
+    "@playwright/test": "^1.47.2",
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.6"
   }
 }

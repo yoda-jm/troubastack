@@ -1,0 +1,16 @@
+{
+  "//": "Node-side config files (vite.config.ts, playwright.config.ts). Has Node types for process etc.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "composite": true
+  },
+  "include": ["vite.config.ts", "playwright.config.ts", "e2e"]
+}
