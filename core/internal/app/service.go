@@ -683,16 +683,19 @@ func (s *Service) UploadSongFile(caller User, bandID, songID, filename, declared
 	if filename == "" {
 		filename = "file"
 	}
+	// Append at the end of the pool: stable, deterministic order across uploads.
+	existing, _ := s.repo.FilesOfSong(songID)
 	f := SongFile{
-		ID:          s.newID(),
-		SongID:      songID,
-		BandID:      bandID,
-		Filename:    filename,
-		ContentType: ct,
-		Size:        int64(len(data)),
-		BlobHash:    hash,
-		UploadedBy:  caller.ID,
-		CreatedAt:   s.now().UTC(),
+		ID:           s.newID(),
+		SongID:       songID,
+		BandID:       bandID,
+		Filename:     filename,
+		ContentType:  ct,
+		Size:         int64(len(data)),
+		BlobHash:     hash,
+		UploadedBy:   caller.ID,
+		DisplayOrder: len(existing),
+		CreatedAt:    s.now().UTC(),
 	}
 	if err := s.repo.CreateSongFile(f); err != nil {
 		return SongFile{}, err
