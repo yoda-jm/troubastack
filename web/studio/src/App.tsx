@@ -8,7 +8,10 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Bands } from "./pages/Bands";
 import { BandDetail } from "./pages/BandDetail";
+import { BandSettings } from "./pages/BandSettings";
 import { SongEditor } from "./pages/SongEditor";
+import { Setlists } from "./pages/Setlists";
+import { SetlistDetail } from "./pages/SetlistDetail";
 import { Invites } from "./pages/Invites";
 
 export function App() {
@@ -21,6 +24,9 @@ export function App() {
       <Route element={<Shell />}>
         <Route path="/bands" element={<Bands />} />
         <Route path="/bands/:bandId" element={<BandDetail />} />
+        <Route path="/bands/:bandId/settings" element={<BandSettings />} />
+        <Route path="/bands/:bandId/setlists" element={<Setlists />} />
+        <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />
         <Route path="/bands/:bandId/songs/:songId" element={<SongEditor />} />
         <Route path="/invites" element={<Invites />} />
       </Route>

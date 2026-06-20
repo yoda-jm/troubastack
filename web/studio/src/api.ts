@@ -41,7 +41,66 @@ export type Song = {
   bandId: string;
   title: string;
   artist?: string;
+  key?: string;
+  tempo?: number;
+  tags?: string[];
+  notes?: string;
   createdAt: string;
+};
+
+export type SongFile = {
+  id: string;
+  songId?: string;
+  bandId?: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  displayOrder: number;
+  createdAt: string;
+};
+
+export type SongPatch = {
+  title?: string;
+  artist?: string;
+  key?: string;
+  tempo?: number;
+  tags?: string[];
+  notes?: string;
+};
+
+export type Setlist = {
+  id: string;
+  bandId: string;
+  name: string;
+  eventDate?: string;
+  venue?: string;
+  notes?: string;
+  createdAt: string;
+};
+
+export type SetlistPatch = {
+  name?: string;
+  eventDate?: string;
+  venue?: string;
+  notes?: string;
+};
+
+export type SetlistItem = {
+  id: string;
+  setlistId?: string;
+  songId: string;
+  position: number;
+  keyOverride?: string;
+  tempoOverride?: number;
+  notes?: string;
+  songTitle?: string;
+  songArtist?: string;
+};
+
+export type SetlistItemPatch = {
+  keyOverride?: string;
+  tempoOverride?: number;
+  notes?: string;
 };
 
 /** ApiError carries the HTTP status and the server's {error} message. */
@@ -54,7 +113,7 @@ export class ApiError extends Error {
   }
 }
 
-type Method = "GET" | "POST";
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -63,7 +122,16 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
     headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  return decode<T>(res);
+}
 
+/** Multipart upload (FormData) — the browser sets the Content-Type boundary. */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(path, { method: "POST", credentials: "include", body: form });
+  return decode<T>(res);
+}
+
+async function decode<T>(res: Response): Promise<T> {
   if (res.status === 204) {
     return undefined as T;
   }
@@ -126,6 +194,128 @@ export const api = {
     request<{ song: Song }>("POST", `/api/bands/${bandId}/songs`, { title, artist }).then(
       (r) => r.song,
     ),
+
+  getSong: (bandId: string, songId: string) =>
+    request<{ songs: Song[] }>("GET", `/api/bands/${bandId}/songs`).then(
+      (r) => r.songs.find((s) => s.id === songId) ?? null,
+    ),
+
+  updateSong: (bandId: string, songId: string, patch: SongPatch) =>
+    request<{ song: Song }>("PATCH", `/api/bands/${bandId}/songs/${songId}`, patch).then(
+      (r) => r.song,
+    ),
+
+  deleteSong: (bandId: string, songId: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}`),
+
+  // ---- song files ----
+  listFiles: (bandId: string, songId: string) =>
+    request<{ files: SongFile[] }>("GET", `/api/bands/${bandId}/songs/${songId}/files`).then(
+      (r) => r.files,
+    ),
+
+  uploadFile: (bandId: string, songId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<{ file: SongFile }>(`/api/bands/${bandId}/songs/${songId}/files`, form).then(
+      (r) => r.file,
+    );
+  },
+
+  updateFile: (
+    bandId: string,
+    songId: string,
+    fileId: string,
+    patch: { filename?: string; displayOrder?: number },
+  ) =>
+    request<{ file: SongFile }>(
+      "PATCH",
+      `/api/bands/${bandId}/songs/${songId}/files/${fileId}`,
+      patch,
+    ).then((r) => r.file),
+
+  deleteFile: (bandId: string, songId: string, fileId: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/files/${fileId}`),
+
+  fileUrl: (fileId: string) => `/api/files/${fileId}`,
+
+  // ---- bands (admin) ----
+  updateBand: (bandId: string, name: string) =>
+    request<{ band: Band }>("PATCH", `/api/bands/${bandId}`, { name }).then((r) => r.band),
+
+  deleteBand: (bandId: string) => request<void>("DELETE", `/api/bands/${bandId}`),
+
+  updateMemberRole: (bandId: string, userId: string, role: Role) =>
+    request<{ member: MemberView }>("PATCH", `/api/bands/${bandId}/members/${userId}`, {
+      role,
+    }).then((r) => r.member),
+
+  removeMember: (bandId: string, userId: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/members/${userId}`),
+
+  leaveBand: (bandId: string) => request<void>("POST", `/api/bands/${bandId}/leave`),
+
+  listBandInvites: (bandId: string) =>
+    request<{ invites: Invite[] }>("GET", `/api/bands/${bandId}/invites`).then((r) => r.invites),
+
+  revokeInvite: (bandId: string, inviteId: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/invites/${inviteId}`),
+
+  // ---- setlists ----
+  listSetlists: (bandId: string) =>
+    request<{ setlists: Setlist[] }>("GET", `/api/bands/${bandId}/setlists`).then(
+      (r) => r.setlists,
+    ),
+
+  createSetlist: (bandId: string, input: { name: string } & SetlistPatch) =>
+    request<{ setlist: Setlist }>("POST", `/api/bands/${bandId}/setlists`, input).then(
+      (r) => r.setlist,
+    ),
+
+  getSetlist: (bandId: string, setlistId: string) =>
+    request<{ setlist: Setlist; items: SetlistItem[] }>(
+      "GET",
+      `/api/bands/${bandId}/setlists/${setlistId}`,
+    ),
+
+  updateSetlist: (bandId: string, setlistId: string, patch: SetlistPatch) =>
+    request<{ setlist: Setlist }>(
+      "PATCH",
+      `/api/bands/${bandId}/setlists/${setlistId}`,
+      patch,
+    ).then((r) => r.setlist),
+
+  deleteSetlist: (bandId: string, setlistId: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/setlists/${setlistId}`),
+
+  addSetlistItem: (bandId: string, setlistId: string, songId: string) =>
+    request<{ item: SetlistItem }>(
+      "POST",
+      `/api/bands/${bandId}/setlists/${setlistId}/items`,
+      { songId },
+    ).then((r) => r.item),
+
+  updateSetlistItem: (
+    bandId: string,
+    setlistId: string,
+    itemId: string,
+    patch: SetlistItemPatch,
+  ) =>
+    request<{ item: SetlistItem }>(
+      "PATCH",
+      `/api/bands/${bandId}/setlists/${setlistId}/items/${itemId}`,
+      patch,
+    ).then((r) => r.item),
+
+  removeSetlistItem: (bandId: string, setlistId: string, itemId: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/setlists/${setlistId}/items/${itemId}`),
+
+  reorderSetlist: (bandId: string, setlistId: string, orderedItemIds: string[]) =>
+    request<{ items: SetlistItem[] }>(
+      "POST",
+      `/api/bands/${bandId}/setlists/${setlistId}/reorder`,
+      { orderedItemIds },
+    ).then((r) => r.items),
 
   // ---- invites ----
   listInvites: () => request<{ invites: Invite[] }>("GET", "/api/invites").then((r) => r.invites),

@@ -90,7 +90,7 @@ button[type="submit"] {
 }
 button[type="submit"]:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
 
-input, select {
+input, select, textarea {
   font: inherit;
   font-size: .95rem;
   padding: .55rem .7rem;
@@ -100,7 +100,8 @@ input, select {
   border-radius: var(--r-sm);
   transition: border-color .15s, box-shadow .15s;
 }
-input:focus, select:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
 input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 
 /* ---- layout ------------------------------------------------------------ */

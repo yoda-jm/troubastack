@@ -121,3 +121,147 @@ test("5. logout redirects to /login; guarded routes redirect when logged out", a
   await page.goto("/bands");
   await expect(page).toHaveURL(/\/login$/);
 });
+
+// ---- new backend features (non-canvas) ----------------------------------
+
+/** Register, create a band, open it. Returns the band's detail URL. */
+async function createBandAndOpen(page: Page, bandName: string) {
+  await page.getByTestId("band-name").fill(bandName);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
+  await expect(page.getByTestId("band-title")).toHaveText(bandName);
+}
+
+async function createSong(page: Page, title: string) {
+  await page.getByTestId("song-title").fill(title);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").filter({ hasText: title }).click();
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+}
+
+test("6. edit song metadata persists across reload", async ({ page }) => {
+  await register(page, `meta_${stamp()}`);
+  await createBandAndOpen(page, `MetaBand ${stamp()}`);
+  await createSong(page, `MetaSong ${stamp()}`);
+
+  await page.getByTestId("meta-key").fill("G#m");
+  await page.getByTestId("meta-tempo").fill("128");
+  await page.getByTestId("meta-tags").fill("rock, encore");
+  await page.getByTestId("meta-notes").fill("Capo 2");
+  await page.getByTestId("meta-save").click();
+  await expect(page.getByTestId("meta-notice")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByTestId("meta-key")).toHaveValue("G#m");
+  await expect(page.getByTestId("meta-tempo")).toHaveValue("128");
+  await expect(page.getByTestId("meta-tags")).toHaveValue("rock, encore");
+  await expect(page.getByTestId("meta-notes")).toHaveValue("Capo 2");
+});
+
+test("7. files list renders (empty) on the song page", async ({ page }) => {
+  await register(page, `files_${stamp()}`);
+  await createBandAndOpen(page, `FilesBand ${stamp()}`);
+  await createSong(page, `FilesSong ${stamp()}`);
+  await expect(page.getByTestId("files-empty")).toBeVisible();
+  await expect(page.getByTestId("file-upload-form")).toBeVisible();
+});
+
+test("8. setlist: create, add two songs, reorder, key override persists", async ({ page }) => {
+  await register(page, `setlist_${stamp()}`);
+  await createBandAndOpen(page, `SetBand ${stamp()}`);
+  const bandUrl = page.url();
+
+  const songA = `Alpha ${stamp()}`;
+  const songB = `Bravo ${stamp()}`;
+  for (const t of [songA, songB]) {
+    await page.goto(bandUrl);
+    await page.getByTestId("song-title").fill(t);
+    await page.getByTestId("create-song").click();
+    await expect(page.getByTestId("song-link").filter({ hasText: t })).toBeVisible();
+  }
+
+  // Go to setlists, create one, open it.
+  await page.goto(bandUrl);
+  await page.getByTestId("nav-setlists").click();
+  await expect(page).toHaveURL(/\/setlists$/);
+  await page.getByTestId("setlist-name").fill(`Gig ${stamp()}`);
+  await page.getByTestId("create-setlist").click();
+  await page.getByTestId("setlist-link").first().click();
+  await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
+
+  // Add both songs.
+  await page.getByTestId("add-item-song").selectOption({ label: songA });
+  await page.getByTestId("add-item").click();
+  await expect(page.getByTestId("item-row")).toHaveCount(1);
+  await page.getByTestId("add-item-song").selectOption({ label: songB });
+  await page.getByTestId("add-item").click();
+  await expect(page.getByTestId("item-row")).toHaveCount(2);
+
+  // Order is A, B. Reorder → B first.
+  await expect(page.getByTestId("item-title").first()).toContainText(songA);
+  await page.getByTestId("item-down").first().click();
+  await expect(page.getByTestId("item-title").first()).toContainText(songB);
+
+  // Set a key override on the now-first item (songB).
+  await page.getByTestId("item-key").first().fill("Eb");
+  await page.getByTestId("item-save").first().click();
+
+  // Reload: order and override persist.
+  await page.reload();
+  await expect(page.getByTestId("item-title").first()).toContainText(songB);
+  await expect(page.getByTestId("item-key").first()).toHaveValue("Eb");
+});
+
+test("9. band settings: admin changes a member's role; non-admin sees no controls", async ({
+  browser,
+}) => {
+  const adminCtx = await browser.newContext();
+  const memberCtx = await browser.newContext();
+  const adminPage = await adminCtx.newPage();
+  const memberPage = await memberCtx.newPage();
+
+  const memberName = `member_${stamp()}`;
+  const bandName = `RoleBand ${stamp()}`;
+
+  await register(adminPage, `roleadmin_${stamp()}`);
+  await createBandAndOpen(adminPage, bandName);
+  const bandUrl = adminPage.url();
+
+  // Invite the second user, they accept.
+  await adminPage.getByTestId("invite-identifier").fill(memberName);
+  await adminPage.getByTestId("invite-kind").selectOption("username");
+  await adminPage.getByTestId("invite-submit").click();
+  await expect(adminPage.getByTestId("invite-notice")).toBeVisible();
+
+  await register(memberPage, memberName);
+  await memberPage.getByTestId("nav-invites").click();
+  await memberPage.getByTestId("invite-accept").click();
+  await expect(memberPage.getByTestId("invites-empty")).toBeVisible();
+
+  // Admin opens settings, promotes the member to conductor.
+  await adminPage.goto(bandUrl);
+  await adminPage.getByTestId("nav-settings").click();
+  await expect(adminPage).toHaveURL(/\/settings$/);
+  const memberRow = adminPage
+    .getByTestId("settings-member-row")
+    .filter({ hasText: `@${memberName}` });
+  await memberRow.getByTestId("member-role-select").selectOption("conductor");
+
+  // Reload: role persisted.
+  await adminPage.reload();
+  const memberRowAfter = adminPage
+    .getByTestId("settings-member-row")
+    .filter({ hasText: `@${memberName}` });
+  await expect(memberRowAfter.getByTestId("member-role-select")).toHaveValue("conductor");
+
+  // The member (non-admin) sees no settings link and no role controls.
+  await memberPage.goto(bandUrl);
+  await expect(memberPage.getByTestId("nav-settings")).toHaveCount(0);
+  // Visiting settings directly: no role selects (non-admin).
+  await memberPage.goto(bandUrl + "/settings");
+  await expect(memberPage.getByTestId("settings-title")).toBeVisible();
+  await expect(memberPage.getByTestId("member-role-select")).toHaveCount(0);
+
+  await adminCtx.close();
+  await memberCtx.close();
+});

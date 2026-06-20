@@ -46,6 +46,17 @@ export function BandDetail() {
         Your role: <strong data-testid="my-role">{myRole}</strong>
       </p>
 
+      <nav className="inline-form">
+        <Link to={`/bands/${bandId}/setlists`} data-testid="nav-setlists">
+          Setlists
+        </Link>
+        {myRole === "admin" && (
+          <Link to={`/bands/${bandId}/settings`} data-testid="nav-settings">
+            Settings
+          </Link>
+        )}
+      </nav>
+
       <Members bandId={bandId} myRole={myRole} />
       <Songs bandId={bandId} />
     </div>
