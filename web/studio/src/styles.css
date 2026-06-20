@@ -220,11 +220,40 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .zoom-controls { display: flex; align-items: center; gap: .5rem; }
 .zoom-controls button { min-width: 2.2rem; padding: .4rem .6rem; font-size: 1.1rem; line-height: 1; }
 .zoom-controls .pill { min-width: 5rem; text-align: center; text-transform: none; }
-.zoom-select, .file-picker { padding: .35rem .5rem; font-size: .9rem; }
+.zoom-select { padding: .35rem .5rem; font-size: .9rem; }
 
-.file-picker-label { display: flex; align-items: center; gap: .4rem; font-size: .82rem; font-weight: 600; }
-.file-picker { max-width: 18rem; }
-.file-picker-label .muted { font-weight: 600; }
+/* ---- file selector: a horizontal strip of file "cards"/tabs ------------- */
+.file-picker {
+  display: flex; align-items: stretch; gap: .5rem; flex-wrap: wrap;
+  flex: 1 1 auto; min-width: 0;
+}
+.file-tab {
+  /* override the global button look — these are flat cards, not buttons */
+  display: inline-flex; align-items: center; gap: .5rem;
+  max-width: 16rem; min-width: 0;
+  margin: 0; padding: .4rem .65rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: none;
+  font-weight: 600; font-size: .85rem; color: var(--fg);
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s, color .15s;
+}
+.file-tab:hover:not(:disabled) { border-color: var(--brand); background: var(--surface); }
+.file-tab.active {
+  border-color: var(--brand);
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+  box-shadow: var(--ring);
+}
+.file-tab:disabled { opacity: .5; cursor: default; }
+.file-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-tab-badge {
+  flex: 0 0 auto; padding: .1rem .4rem; font-size: .62rem; letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.file-tab-badge.badge-img { background: var(--ok-bg); color: var(--ok-fg); }
 
 .sidebar-toggle { margin-left: auto; font-size: .85rem; padding: .4rem .8rem; }
 
@@ -234,7 +263,9 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .viewer-scroll {
   flex: 1 1 auto; min-width: 0;
   max-height: 80vh; overflow: auto;
-  display: flex; flex-direction: column; align-items: center; gap: 1rem;
+  /* `safe center`: center pages that fit, but fall back to start-alignment when a
+     page is wider than the column so its left edge stays scrollable (not clipped). */
+  display: flex; flex-direction: column; align-items: safe center; gap: 1rem;
   padding: 1rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -246,9 +277,11 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   box-shadow: var(--shadow);
   background: #fff;
   line-height: 0;
-  max-width: 100%;
+  /* No max-width: at >100% zoom the page is legitimately wider than the column
+     and must keep its true size (the column scrolls). Clamping width here would
+     distort the aspect ratio and break overlay alignment. */
 }
-.pdf-canvas { display: block; max-width: 100%; }
+.pdf-canvas { display: block; }
 .image-page { width: 100%; height: auto; }
 .annotation-overlay {
   position: absolute; inset: 0;

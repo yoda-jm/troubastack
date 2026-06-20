@@ -239,8 +239,11 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   await expect(page.getByTestId("zoom-level")).toHaveText("Fit width");
   await expect(page.getByTestId("zoom-mode")).toHaveValue("fit-width");
 
-  // The file picker is present and defaults to the uploaded PDF.
+  // The file picker is present (the new card/tab strip) with one tab per file,
+  // the active one selected.
   await expect(page.getByTestId("file-picker")).toBeVisible();
+  await expect(page.getByTestId("file-tab")).toHaveCount(1);
+  await expect(page.getByTestId("file-tab").first()).toHaveAttribute("aria-selected", "true");
 
   // At Fit width the first page canvas is wider than its intrinsic size would
   // be at 100% (proving it scaled up to fill the column).

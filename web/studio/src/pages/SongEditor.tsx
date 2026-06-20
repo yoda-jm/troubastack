@@ -8,7 +8,15 @@
  * admin Delete still live below the viewer in a collapsible section; their
  * data-testids are unchanged.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import * as pdfjs from "pdfjs-dist";
 // Vite resolves ?url to the emitted asset path; PDF.js needs its worker URL.
@@ -303,13 +311,20 @@ function Viewer({
   }, []);
 
   // ---- measure the scroll column (Fit width / Fit page, resize-aware) ----
-  useEffect(() => {
+  // useLayoutEffect so the width is measured synchronously after the scroll
+  // column mounts and BEFORE the browser paints — this is what lets the first
+  // render compute the correct fit-width scale without any interaction/resize.
+  // The ResizeObserver then keeps it current (sidebar toggle, window resize),
+  // and crucially fires its first callback if the column wasn't laid out yet.
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const measure = () => {
       const cs = getComputedStyle(el);
       const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-      setColumnWidth(Math.max(0, el.clientWidth - padX));
+      const w = Math.max(0, el.clientWidth - padX);
+      // Only update on a real change to avoid extra render passes.
+      setColumnWidth((prev) => (Math.abs(prev - w) > 0.5 ? w : prev));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -319,20 +334,36 @@ function Viewer({
     // sidebar toggles (the column resizes, which ResizeObserver also catches).
   }, [status, sidebarOpen]);
 
-  // ---- effective scale (CSS px per PDF unit) for the current zoom mode ----
-  const scale = useMemo(() => {
-    if (typeof zoomMode === "number") return zoomMode / 100;
-    const first = pageSizesRef.current[0];
-    if (!first || columnWidth <= 0) return 1; // not measured yet
-    if (zoomMode === "fit-width") return columnWidth / first.w;
-    // fit-page: whole first page fits the viewport height too.
-    const el = scrollRef.current;
-    const viewportH = el ? el.clientHeight - 32 /* approx padding */ : 0;
-    const byW = columnWidth / first.w;
-    if (viewportH <= 0) return byW;
-    const byH = viewportH / first.h;
-    return Math.min(byW, byH);
-  }, [zoomMode, columnWidth, numPages]);
+  // ---- effective scale (CSS px per PDF unit) for a given page + zoom mode ----
+  // PER-PAGE: pages may have different intrinsic sizes, so fit modes are sized
+  // to THAT page's own dimensions (page 0's size is never assumed for others).
+  // For an explicit % the scale is constant. Returns 0 when a fit scale cannot
+  // be computed yet (width not measured), which gates the render pass.
+  const pageScale = useCallback(
+    (pageIndex: number): number => {
+      if (typeof zoomMode === "number") return zoomMode / 100;
+      const sz = pageSizesRef.current[pageIndex];
+      if (!sz || columnWidth <= 0) return 0; // not measured yet → wait
+      const byW = columnWidth / sz.w;
+      if (zoomMode === "fit-width") return byW;
+      // fit-page: the page fits the viewport height too.
+      const el = scrollRef.current;
+      const viewportH = el ? el.clientHeight - 32 /* approx padding */ : 0;
+      if (viewportH <= 0) return byW;
+      const byH = viewportH / sz.h;
+      return Math.min(byW, byH);
+    },
+    [zoomMode, columnWidth],
+  );
+
+  // A representative scale (page 0) for the zoom readout / − + stepping and for
+  // gating: 0 means "fit scale not measured yet".
+  const scale = useMemo(
+    () => pageScale(0),
+    // numPages is included so this recomputes once page sizes are cached.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pageScale, numPages],
+  );
 
   const layersById = useMemo(() => {
     const m = new Map<string, AnnotationLayer>();
@@ -349,13 +380,16 @@ function Viewer({
   // We scale the ctx by DPR and draw using the LOGICAL (CSS-px) page box, so a
   // rect at {0.1..0.9} maps to exactly 10%..90% of the rendered page. The
   // backing store is at scale × DPR for crispness; the DPR ctx-scale undoes it.
-  const renderOverlays = useCallback(() => {
-    const orderIndex = new Map<string, number>();
-    sortedLayers.forEach((l, idx) => orderIndex.set(l.id, idx));
-
-    const paint = (overlay: HTMLCanvasElement, page: number, dpr: number) => {
+  // Paint ONE page's overlay: clears it, then draws only that page's visible
+  // objects into the logical (CSS-px) page box derived from the overlay's OWN
+  // backing-store size. The ctx is scaled by DPR so [0,1] coords map to the box.
+  const paintOverlay = useCallback(
+    (overlay: HTMLCanvasElement, page: number, dpr: number) => {
       const ctx = overlay.getContext("2d");
       if (!ctx) return;
+      const orderIndex = new Map<string, number>();
+      sortedLayers.forEach((l, idx) => orderIndex.set(l.id, idx));
+
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
       const objs = doc.objects
@@ -365,42 +399,61 @@ function Viewer({
           return l && visible[l.id];
         })
         .sort((a, b) => (orderIndex.get(a.layerId) ?? 0) - (orderIndex.get(b.layerId) ?? 0));
-      // Logical page box (CSS px) fills the whole overlay.
+      // Logical page box (CSS px) fills the whole overlay — sized from THIS
+      // page's actual canvas dimensions, not page 0's.
       const pageRect = { x: 0, y: 0, w: overlay.width / dpr, h: overlay.height / dpr };
       renderObjects(ctx, objs.map(toInkObject) as InkObject[], pageRect);
-    };
+    },
+    [doc.objects, layersById, visible, sortedLayers],
+  );
 
+  // Repaint every mounted overlay (used when only visibility/objects change and
+  // the canvases keep their current size — no re-rasterization needed).
+  const renderOverlays = useCallback(() => {
     const dpr = window.devicePixelRatio || 1;
     if (isImage) {
       const o = imgOverlayRef.current;
-      if (o) paint(o, 0, dpr);
+      if (o) paintOverlay(o, 0, dpr);
       return;
     }
     for (let p = 0; p < overlayRefs.current.length; p++) {
       const overlay = overlayRefs.current[p];
-      if (overlay) paint(overlay, p, dpr);
+      if (overlay) paintOverlay(overlay, p, dpr);
     }
-  }, [doc.objects, layersById, visible, sortedLayers, isImage]);
+  }, [isImage, paintOverlay]);
 
   // ---- render PDF pages on scale/document change, then overlays ----
+  // Robust per-page flow: for each page p, render PDF.js page → canvas C_p at
+  // (pageScale(p) × dpr), then size overlay O_p to C_p's ACTUAL backing-store
+  // and CSS dimensions, scale O_p's ctx by dpr, and draw that page's objects
+  // into the logical page box derived from C_p (never page 0's dims or a stale
+  // scale). The pass is keyed on scale/numPages/file so it re-runs on zoom,
+  // file switch, and (via columnWidth → scale) once the column is measured.
   useEffect(() => {
     const pdfDoc = pdfDocRef.current;
     if (status !== "ready" || !pdfDoc || !isPdf) return;
+    // For fit modes, wait until the column width has been measured. pageScale
+    // returns 0 until then; the ResizeObserver's first callback bumps
+    // columnWidth → scale, which re-runs this effect with a real scale.
+    if (typeof zoomMode !== "number" && scale <= 0) return;
+
     let cancelled = false;
 
     (async () => {
       const dpr = window.devicePixelRatio || 1;
       for (let i = 0; i < pdfDoc.numPages; i++) {
         if (cancelled) return;
+        const s = pageScale(i);
+        if (s <= 0) continue; // page size not cached yet; skip until measured
         const page = await pdfDoc.getPage(i + 1);
         if (cancelled) return;
-        // Backing store at scale × DPR; CSS size at logical scale.
-        const viewport = page.getViewport({ scale: scale * dpr });
+
+        const canvas = pageCanvasRefs.current[i];
+        if (!canvas) continue;
+        // Backing store at this page's scale × DPR; CSS size at logical scale.
+        const viewport = page.getViewport({ scale: s * dpr });
         const cssW = viewport.width / dpr;
         const cssH = viewport.height / dpr;
-        const canvas = pageCanvasRefs.current[i];
-        const overlay = overlayRefs.current[i];
-        if (!canvas) continue;
 
         canvas.width = Math.round(viewport.width);
         canvas.height = Math.round(viewport.height);
@@ -412,21 +465,24 @@ function Viewer({
         await page.render({ canvasContext: ctx, viewport }).promise;
         if (cancelled) return;
 
+        // Size the overlay to the canvas's ACTUAL rendered dimensions, then
+        // paint THIS page's objects off those dims.
+        const overlay = overlayRefs.current[i];
         if (overlay) {
           overlay.width = canvas.width;
           overlay.height = canvas.height;
-          overlay.style.width = `${cssW}px`;
-          overlay.style.height = `${cssH}px`;
+          overlay.style.width = `${canvas.style.width}`;
+          overlay.style.height = `${canvas.style.height}`;
+          paintOverlay(overlay, i, dpr);
         }
       }
-      if (!cancelled) renderOverlays();
     })();
 
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, scale, numPages, isPdf]);
+  }, [status, scale, numPages, isPdf, zoomMode, paintOverlay]);
 
   // ---- size + render the image overlay (image mode) ----
   const layoutImageOverlay = useCallback(() => {
@@ -518,23 +574,41 @@ function Viewer({
         </div>
 
         {files.length >= 1 && (
-          <label className="file-picker-label">
-            <span className="muted">File</span>
-            <select
-              data-testid="file-picker"
-              className="file-picker"
-              value={selectedFileId ?? ""}
-              onChange={(e) => setSelectedFileId(e.target.value)}
-              aria-label="File"
-            >
-              {files.map((f) => (
-                <option key={f.id} value={f.id} disabled={!isViewable(f)}>
-                  {f.filename}
-                  {isViewable(f) ? "" : " (not viewable)"}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div
+            className="file-picker"
+            data-testid="file-picker"
+            role="tablist"
+            aria-label="Files"
+          >
+            {files.map((f) => {
+              const viewable = isViewable(f);
+              const active = f.id === selectedFileId;
+              const badge =
+                f.contentType === "application/pdf"
+                  ? "PDF"
+                  : f.contentType.startsWith("image/")
+                    ? "IMG"
+                    : "—";
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  className={`file-tab card${active ? " active" : ""}`}
+                  data-testid="file-tab"
+                  role="tab"
+                  aria-selected={active}
+                  disabled={!viewable}
+                  title={viewable ? f.filename : `${f.filename} (not viewable)`}
+                  onClick={() => viewable && setSelectedFileId(f.id)}
+                >
+                  <span className={`pill file-tab-badge badge-${badge.toLowerCase()}`}>
+                    {badge}
+                  </span>
+                  <span className="file-tab-name">{f.filename}</span>
+                </button>
+              );
+            })}
+          </div>
         )}
 
         <button
