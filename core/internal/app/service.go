@@ -499,6 +499,21 @@ func (s *Service) Songs(caller User, bandID string) ([]Song, error) {
 	return s.repo.SongsOfBand(bandID)
 }
 
+// SongForMember resolves a song scoped to a band the caller belongs to. It enforces
+// member-only access (ErrForbidden for non-members) and that the song belongs to the
+// band (ErrNotFound otherwise). It is the gate the annotation API uses before reading
+// or importing a song's annotation layers/objects (which live in the separate engine).
+func (s *Service) SongForMember(caller User, bandID, songID string) (Song, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return Song{}, err
+	}
+	song, err := s.repo.GetSong(songID)
+	if err != nil || song.BandID != bandID {
+		return Song{}, ErrNotFound
+	}
+	return song, nil
+}
+
 // CreateSong adds a song to a band (any member may create).
 func (s *Service) CreateSong(caller User, bandID, title, artist string) (Song, error) {
 	if _, _, err := s.GetBand(caller, bandID); err != nil {

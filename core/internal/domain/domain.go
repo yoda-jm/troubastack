@@ -25,6 +25,7 @@ const (
 	TypeRect
 	TypeEllipse
 	TypeText
+	TypeHighlight
 )
 
 // Scope is who may see an object (proto Scope). Largely subsumed by layer role_tag.
@@ -95,11 +96,13 @@ type Point struct {
 	X, Y, Pressure float64
 }
 
-// Style is the visual style of an object. Width is a fraction of page width (I3).
+// Style is the visual style of an object. Color is "#RRGGBB". Width is a fraction
+// of page width and FontSize a fraction of page height (text only), both [0,1] (I3).
 type Style struct {
-	ColorARGB uint32
-	Width     float64
-	Opacity   float64
+	Color    string
+	Opacity  float64
+	Width    float64
+	FontSize float64
 }
 
 // Object is an annotation identified by a client-generated UUID (I2). Applying the
@@ -108,6 +111,7 @@ type Object struct {
 	UUID      string
 	Type      ObjectType
 	Points    []Point
+	Page      int // 0-based page index this object is on
 	Text      string
 	Style     Style
 	OwnerID   string

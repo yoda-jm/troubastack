@@ -38,7 +38,7 @@ func obj(uuid, layer, owner string, version uint64) domain.Object {
 	return domain.Object{
 		UUID: uuid, Type: domain.TypeFreehand, LayerID: layer, OwnerID: owner,
 		Version: version, Points: []domain.Point{{X: 0.1, Y: 0.1}},
-		Style: domain.Style{ColorARGB: 0xff112233, Width: 0.01, Opacity: 1},
+		Style: domain.Style{Color: "#112233", Width: 0.01, Opacity: 1},
 	}
 }
 

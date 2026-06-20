@@ -12,7 +12,10 @@ import (
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/app/filerepo"
 	"troubastack/core/internal/app/memrepo"
+	"troubastack/core/internal/engine"
 	"troubastack/core/internal/httpapi"
+	"troubastack/core/internal/store"
+	"troubastack/core/internal/store/memstore"
 )
 
 // repoBackend names a Repo impl + a constructor (file backend gets a temp dir).
@@ -44,7 +47,8 @@ type client struct {
 func newClient(t *testing.T, repo app.Repo) *client {
 	t.Helper()
 	svc := app.NewService(repo)
-	h, err := httpapi.Router(svc, false, nil, nil, nil)
+	eng := engine.New(memstore.New().(store.HistoryAware))
+	h, err := httpapi.Router(svc, eng, false, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Router: %v", err)
 	}

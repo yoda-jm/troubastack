@@ -23,6 +23,7 @@ import (
 	"troubastack/core/internal/app/filerepo"
 	"troubastack/core/internal/app/memrepo"
 	"troubastack/core/internal/bake"
+	"troubastack/core/internal/engine"
 	"troubastack/core/internal/httpapi"
 	"troubastack/core/internal/session"
 	"troubastack/core/internal/store"
@@ -39,7 +40,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("troubacore: open store: %v", err)
 	}
-	_ = st                    // TODO: pass the store into hub/bake/session.
+	// The apply engine is the per-song annotation authority over the store (design/07).
+	// Every shipped backend is at least HistoryAware (store doc), so this holds.
+	ha, ok := st.(store.HistoryAware)
+	if !ok {
+		log.Fatalf("troubacore: store backend is not history-aware")
+	}
+	eng := engine.New(ha)     // per-song annotation apply engine (I4, I5, I6)
 	hub := syncpkg.New()      // realtime WebSocket hub (I6, I2)
 	sessions := session.New() // auth + roles (I6, I11)
 	baker := bake.New()       // bake orchestration; delegates rendering to web/bake (I8, I11)
@@ -62,7 +69,7 @@ func main() {
 	// Secure cookies only when explicitly told we're behind TLS (TROUBA_SECURE_COOKIES=1).
 	secureCookies := os.Getenv("TROUBA_SECURE_COOKIES") == "1"
 
-	handler, err := httpapi.Router(svc, secureCookies, hub, sessions, baker)
+	handler, err := httpapi.Router(svc, eng, secureCookies, hub, sessions, baker)
 	if err != nil {
 		log.Fatalf("troubacore: build router: %v", err)
 	}

@@ -18,6 +18,7 @@ import (
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/bake"
+	"troubastack/core/internal/engine"
 	"troubastack/core/internal/session"
 	syncpkg "troubastack/core/internal/sync"
 	"troubastack/core/internal/webassets"
@@ -28,9 +29,11 @@ import (
 // seam with no logic of its own.
 //
 // The relational ("normal web") API — auth, bands, members, invites, songs —
-// is mounted from svc via WebAPI under /api/*. secureCookies should be true
-// behind TLS. The realtime /ws upgrade to the sync.Hub remains a TODO.
-func Router(svc *app.Service, secureCookies bool, _ *syncpkg.Hub, _ *session.Manager, _ *bake.Baker) (http.Handler, error) {
+// is mounted from svc via WebAPI under /api/*. The per-song annotation engine
+// (eng) backs the view-only annotation routes under .../songs/{songId}/annotations.
+// secureCookies should be true behind TLS. The realtime /ws upgrade to the
+// sync.Hub remains a TODO.
+func Router(svc *app.Service, eng *engine.Engine, secureCookies bool, _ *syncpkg.Hub, _ *session.Manager, _ *bake.Baker) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Liveness probe.
@@ -40,7 +43,12 @@ func Router(svc *app.Service, secureCookies bool, _ *syncpkg.Hub, _ *session.Man
 	})
 
 	// Relational JSON API (auth/identity, bands, members, invites, songs).
-	NewWebAPI(svc, secureCookies).Mount(mux)
+	web := NewWebAPI(svc, secureCookies)
+	web.Mount(mux)
+
+	// Annotation API (view-only): read a song's materialized HEAD, import layers
+	// + objects. Reuses the relational auth middleware so it shares one auth path.
+	NewAnnotationsAPI(svc, eng).Mount(mux, web.auth)
 
 	// Serve the embedded Studio SPA (I10) with HTML5-history fallback so client-side
 	// routes (e.g. /bands) resolve to index.html. The catch-all "/" pattern has lower
