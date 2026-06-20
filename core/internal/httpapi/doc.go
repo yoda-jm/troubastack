@@ -42,14 +42,15 @@ func Router(svc *app.Service, secureCookies bool, _ *syncpkg.Hub, _ *session.Man
 	// Relational JSON API (auth/identity, bands, members, invites, songs).
 	NewWebAPI(svc, secureCookies).Mount(mux)
 
-	// Serve the embedded Studio SPA (I10). The catch-all "/" pattern has lower
-	// precedence than the explicit /api/* and /healthz patterns under the Go
-	// 1.22 router, so API routes are matched first.
+	// Serve the embedded Studio SPA (I10) with HTML5-history fallback so client-side
+	// routes (e.g. /bands) resolve to index.html. The catch-all "/" pattern has lower
+	// precedence than the explicit /api/* and /healthz patterns under the Go 1.22
+	// router, so API routes are matched first.
 	assets, err := webassets.FS()
 	if err != nil {
 		return nil, err
 	}
-	mux.Handle("/", http.FileServer(http.FS(assets)))
+	mux.Handle("/", spaHandler(assets))
 
 	return mux, nil
 }
