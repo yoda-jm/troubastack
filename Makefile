@@ -6,15 +6,15 @@ help:
 	@echo "  setup    install web deps + the Playwright browser (run once)"
 	@echo "  dev      run the full app for development: core API + Vite hot-reload"
 	@echo "           -> open http://localhost:5173 (Vite proxies /api -> :8080)"
-	@echo "  run      build everything and run the SINGLE binary (SPA + API on :8080)"
-	@echo "  run-api  run core from source, API only (serves the SPA placeholder) — backend dev"
+	@echo "  run      single binary: real SPA + API on :8080 (empty, in-memory)"
+	@echo "  run-api  API only from source (serves the SPA placeholder) — backend dev"
 	@echo "  test     run Go tests (engine + stores + http API)"
 	@echo "  e2e      Playwright end-to-end (boots core + vite + chromium)"
 	@echo "  dist     build SPA -> embed -> core/bin/troubacore"
 	@echo "  check    go vet + gofmt"
 	@echo "  seed     populate a RUNNING server with the demo dataset (cd core && go run ./cmd/seed)"
-	@echo "  demo     start a file-backed server, seed it, print the guide, keep it running"
-	@echo "           -> reset with: rm -rf core/troubadata"
+	@echo "  demo     single binary: real SPA + API on :8080 with SEEDED data (file-backed)"
+	@echo "           -> login marie/demo or maestro/demo; reset: rm -rf core/troubadata"
 	@echo "  proto / app : deferred (buf codegen / KMP mobile)"
 
 setup:
@@ -72,13 +72,13 @@ check:
 seed:
 	cd core && go run ./cmd/seed
 
-# One-shot demo: start core with the FILE backends (relational + blobs persist
-# under core/troubadata/) in the BACKGROUND, wait for /healthz, seed it, print the
-# guide, then hand the server to the FOREGROUND so you can browse immediately.
-# Ctrl-C stops the server. Reset all demo data with: rm -rf core/troubadata
-demo:
+# One-shot demo: builds + EMBEDS the SPA (via dist), then runs the single binary
+# with the FILE backends (data persists under core/troubadata/) in the BACKGROUND,
+# seeds it, and hands the server to the FOREGROUND so you can browse the REAL SPA +
+# seeded data on http://localhost:8080. Ctrl-C stops it. Reset: rm -rf core/troubadata
+demo: dist
 	@cd core && TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata \
-		go run ./cmd/troubacore & \
+		./bin/troubacore & \
 	CORE_PID=$$!; \
 	trap 'kill $$CORE_PID 2>/dev/null' EXIT INT TERM; \
 	echo ">>> waiting for core on http://localhost:8080 …"; \
@@ -87,7 +87,7 @@ demo:
 		sleep 0.2; \
 	done; \
 	cd core && go run ./cmd/seed -addr http://localhost:8080 -password demo; \
-	echo ">>> server still running on http://localhost:8080 — Ctrl-C to stop (reset: rm -rf core/troubadata)"; \
+	echo ">>> READY: open http://localhost:8080 (real SPA + seeded data). Ctrl-C to stop; reset: rm -rf core/troubadata"; \
 	wait $$CORE_PID
 
 # Deferred until the contract is codegen'd / mobile resumes.
