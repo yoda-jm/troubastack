@@ -1,0 +1,18 @@
+# Codegen config (ARCHITECTURE.md I1). Generated output is git-ignored and
+# regenerated in CI; never hand-edited. Plugin versions are pinned when codegen
+# is first wired up (derived later).
+version: v2
+plugins:
+  # Go → core/
+  - remote: buf.build/protocolbuffers/go
+    out: ../core/internal/gen
+    opt: paths=source_relative
+
+  # TypeScript → web/ (shared types for studio, ink, bake)
+  - remote: buf.build/bufbuild/es
+    out: ../web/proto-gen
+    opt: target=ts
+
+  # Kotlin → app/
+  - remote: buf.build/protocolbuffers/kotlin
+    out: ../app/shared/src/commonMain/kotlin/gen

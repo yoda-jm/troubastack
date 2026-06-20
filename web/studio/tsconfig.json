@@ -1,0 +1,17 @@
+{
+  "//": "Browser SPA. Strict, bundler resolution (Vite). Pulls @troubastack/ink as the one renderer (I8); shared wire types come from web/proto-gen (I1).",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@troubastack/ink": ["../ink/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package troubastack.v1;
+
+// Songs, linear revisions, setlists and pins.
+// See docs/design/01-data-model.md, 04-publish-pipeline.md, ARCHITECTURE.md (I4, I7).
+
+// A point on a song's LINEAR, append-only history (I4). `parent` is always the
+// immediately preceding revision (no branching). A revert appends a new revision
+// whose content equals an older one (git revert, never reset).
+message Revision {
+  uint64 number = 1;          // monotonically increasing; head = max
+  string parent = 2;          // previous revision id (linear)
+  string author_id = 3;
+  int64 created_at = 4;       // unix ms
+  bool is_revert = 5;         // true if this revision was produced by a revert
+  uint64 reverted_to = 6;     // if is_revert: the revision number whose content this equals
+}
+
+message Song {
+  string id = 1;
+  string group_id = 2;
+  string title = 3;
+  uint64 head = 4;            // latest revision number (always retained, I7)
+}
+
+// A setlist holds PINS — one per song. Its only moves are fast-forward-to-head
+// or keep-current (I4). Freezing holds pins + mutes update notifications.
+message SetlistPin {
+  string song_id = 1;
+  uint64 pinned_revision = 2;
+}
+
+message Setlist {
+  string id = 1;
+  string group_id = 2;
+  string name = 3;
+  repeated string ordered_song_ids = 4; // structure (order)
+  repeated SetlistPin pins = 5;
+  bool frozen = 6;                       // hold pins + mute notifications
+}

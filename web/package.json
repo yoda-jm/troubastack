@@ -1,0 +1,20 @@
+{
+  "name": "@troubastack/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TroubaStack web workspace — all browser/JS code (ink, studio, bake). See ../docs/ARCHITECTURE.md.",
+  "type": "module",
+  "workspaces": [
+    "ink",
+    "studio",
+    "bake"
+  ],
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "//build": "Builds every workspace. studio emits the static SPA that core embeds & serves (I10, I14); ink/bake build their TS. No deps are installed yet — this is a scaffold.",
+    "build": "npm run build --workspaces --if-present"
+  }
+}

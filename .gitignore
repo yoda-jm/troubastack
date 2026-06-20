@@ -1,0 +1,34 @@
+# Generated protobuf code (regenerated from proto/ in CI — I1)
+core/internal/gen/
+web/proto-gen/
+app/shared/src/commonMain/kotlin/gen/
+
+# Go
+/core/bin/
+*.test
+*.out
+
+# Local dev store data (TROUBA_STORE=file|git)
+core/troubadata/
+*.troubadata/
+
+# Node / web
+node_modules/
+web/**/dist/
+web/**/.vite/
+*.tsbuildinfo
+
+# Kotlin / Gradle / Android
+.gradle/
+app/**/build/
+local.properties
+*.iml
+
+# Bake artifacts / scratch
+*.local
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+.kotlin/

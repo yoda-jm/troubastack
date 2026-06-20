@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package troubastack.v1;
+
+// Common scalar/value types shared across the contract.
+// See docs/design/01-data-model.md and ARCHITECTURE.md (I2, I3).
+
+// A point in PDF-relative coordinates. INVARIANT I3: values are normalized to
+// the page in [0,1]; pixels never appear on the wire or in persistence.
+message NormPoint {
+  double x = 1;        // [0,1]
+  double y = 2;        // [0,1]
+  double pressure = 3; // [0,1], optional (0 = unknown)
+}
+
+// Visual style for an object.
+message Style {
+  uint32 color_argb = 1;
+  double width = 2;     // stroke width, fraction of page width (stays I3-normalized)
+  double opacity = 3;   // [0,1]
+}
+
+// Who may see an object.
+enum Scope {
+  SCOPE_UNSPECIFIED = 0;
+  SCOPE_PERSONAL = 1; // author only
+  SCOPE_PART = 2;     // all members of a part
+  SCOPE_ALL = 3;      // everyone in the group
+}

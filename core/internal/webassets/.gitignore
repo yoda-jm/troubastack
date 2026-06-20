@@ -1,0 +1,5 @@
+# The built TroubaStudio SPA is copied here before `go build` and embedded (I10).
+# Keep the directory + the placeholder index.html (go:embed needs an embeddable,
+# non-dot file), but ignore any real built output dropped in here.
+dist/*
+!dist/index.html

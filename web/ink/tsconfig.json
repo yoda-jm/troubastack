@@ -1,0 +1,18 @@
+{
+  "//": "ink targets BOTH the browser (studio) and Node (bake), so it stays library-only: no DOM-app assumptions beyond the canvas 2D context types it is handed. (I8)",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

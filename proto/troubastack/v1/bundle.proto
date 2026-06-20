@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package troubastack.v1;
+
+// Baked concert bundles + the "what's available to me" manifest.
+// See docs/design/05-distribution.md, ARCHITECTURE.md (I11, I12, I13).
+//
+// A bundle is SELF-CONTAINED flattened images (I12). These messages describe the
+// manifest/metadata; the page rasters + transparent overlays are referenced blobs.
+
+message PageImages {
+  string page_raster_ref = 1;       // PDF page raster (WebP), ~2-3x DPI
+  string raster_hash = 2;           // content hash → viewport-preserving swap on change (R10)
+  repeated LayerImage overlays = 3; // one transparent overlay PER LAYER, in z-order (R4/R7)
+}
+
+// One layer's transparent overlay on one page. The presenter composites PDF + these in
+// `order`, toggling optional layers by the viewer's role (R2/R7/R10). Self-contained.
+message LayerImage {
+  string layer_id = 1;
+  string image_ref = 2;     // transparent WebP for this layer on this page
+  string content_hash = 3;  // change detection for viewport-preserving auto-update (R10)
+  int32 order = 4;          // z-order (mirrors Layer.order)
+  bool mandatory = 5;       // viewer cannot hide (mirrors Layer.mandatory)
+  string role_tag = 6;      // default-visibility targeting
+}
+
+message BakedSong {
+  string song_id = 1;
+  uint64 source_revision = 2;            // the song revision this was baked from
+  uint64 song_rev = 3;                   // bundle-local song revision (for granular apply)
+  repeated PageImages pages = 4;
+}
+
+// Minted ONLY by an explicit admin bake (I11). `concert_rev` is a function of the
+// song revs + structure; it is what performers compare against (I13).
+message ConcertBundle {
+  string concert_id = 1;
+  string name = 2;
+  uint64 concert_rev = 3;
+  int64 baked_at = 4;
+  string baked_by = 5;
+  bool final_locked = 6;                 // admin band-wide lock (I13)
+  repeated BakedSong songs = 7;
+}
+
+// Cheap metadata-only response for "what's available to me" (I13). A few KB.
+message AvailableConcert {
+  string concert_id = 1;
+  string name = 2;
+  uint64 current_rev = 3;
+  int64 updated_at = 4;
+  bool final_locked = 5;
+  message SongRev { string song_id = 1; uint64 rev = 2; }
+  repeated SongRev songs = 6;            // for per-song "Song A changed — apply?"
+}
+
+message AvailableConcerts {
+  repeated AvailableConcert concerts = 1;
+}

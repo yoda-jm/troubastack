@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package troubastack.v1;
+
+import "troubastack/v1/common.proto";
+
+// Annotation objects. See docs/design/01-data-model.md, ARCHITECTURE.md (I2, I3, I5).
+
+enum ObjectType {
+  OBJECT_TYPE_UNSPECIFIED = 0;
+  OBJECT_TYPE_FREEHAND = 1; // the only type the native wet layer renders (I9)
+  OBJECT_TYPE_LINE = 2;
+  OBJECT_TYPE_RECT = 3;
+  OBJECT_TYPE_ELLIPSE = 4;
+  OBJECT_TYPE_TEXT = 5;
+}
+
+// Access controls who may add/edit objects in a Layer. NOTE (risks.md R2): the BAND
+// is the privacy boundary — every band member receives all band data — so this is
+// about roles/ownership, NOT cross-band privacy.
+enum Access {
+  ACCESS_UNSPECIFIED = 0;
+  ACCESS_RW = 1; // any band member may add/edit objects in this layer
+  ACCESS_RO = 2; // only the owner may add/edit; other members read it
+}
+
+// LayerZone is the fixed Z-BAND a layer lives in. The viewer's stack is computed
+// PER-VIEWER as: PDF < CONDUCTOR < SHARED < PERSONAL — and within PERSONAL the
+// VIEWER's own layers float above other members' (activated) layers. This removes all
+// global z-order contention: each owner orders only WITHIN their own zone (R7).
+// Server-gated: only admin/conductor may create CONDUCTOR-zone layers.
+enum LayerZone {
+  LAYER_ZONE_UNSPECIFIED = 0;
+  LAYER_ZONE_CONDUCTOR = 1; // admin/conductor space, just above the PDF (mandatory or optional)
+  LAYER_ZONE_SHARED = 2;    // band-shared space
+  LAYER_ZONE_PERSONAL = 3;  // a member's own space; your own float on top in your view
+}
+
+// A Layer stacks annotation objects above the PDF. Band-wide visible (R2); the
+// per-viewer Z-stack is zone-major (LayerZone), `order`-minor within owner. Layers are
+// created/reordered/changed via the same per-action mutation + commit model.
+// See docs/design/01-data-model.md (R2/R7).
+message Layer {
+  string id = 1;
+  string file_id = 2;
+  string name = 3;
+  string owner_id = 4;   // member UUID; or "_shared_" for a band-shared layer
+  LayerZone zone = 5;    // which fixed z-band this layer lives in (per-viewer stacking)
+  int32 order = 6;       // ordering WITHIN the owner's layers in that zone (owner-controlled)
+  Access access = 7;     // who may add/edit objects. DELETE is OWNER-ONLY, always.
+  bool mandatory = 8;    // true = viewers cannot hide it (admin/conductor cues/changes);
+                         // false = optional → any viewer may hide it LOCALLY (a per-viewer
+                         // presentation toggle, not a shared mutation).
+  string role_tag = 9;   // optional target role/part for default visibility (e.g. "flute");
+                         // subsumes the old per-object PART scope.
+}
+
+// An annotation object. INVARIANT I2: `uuid` is client-generated and is the
+// idempotency + addressing key — applying the same uuid twice is a no-op.
+message Object {
+  string uuid = 1;            // client-generated (I2)
+  ObjectType type = 2;
+  repeated NormPoint points = 3; // freehand path / shape handles, all [0,1] (I3)
+  string text = 4;            // for OBJECT_TYPE_TEXT
+  Style style = 5;
+  string owner_id = 6;
+  Scope scope = 7;
+  string layer_id = 8;
+  uint64 version = 9;         // for LWW (I5)
+  int64 created_at = 10;      // unix ms (stamped by author; server is tiebreak authority)
+}

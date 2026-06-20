@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package troubastack.v1;
+
+import "troubastack/v1/object.proto";
+
+// Realtime sync protocol. See docs/design/02-sync-protocol.md, ARCHITECTURE.md (I2, I5, I6).
+//
+// Model: optimistic local render + server reconciliation. Clients send mutations;
+// the server (authority, I6) accepts and echoes; clients apply echoes idempotently
+// by uuid (I2). The same apply path handles own-echoes and peers' mutations.
+
+// A change to an object. `create` carries the full object; the rest carry the
+// uuid plus the changed fields.
+message Mutation {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_CREATE = 1;
+    KIND_MOVE = 2;
+    KIND_RESIZE = 3;
+    KIND_SET_STYLE = 4;
+    KIND_SET_TEXT = 5;
+    KIND_DELETE = 6;   // terminal tombstone (I5)
+    KIND_RESTORE = 7;  // the ONLY revive (I5)
+  }
+  Kind kind = 1;
+  string uuid = 2;          // target object (I2)
+  Object object = 3;        // present for CREATE (and as needed)
+  uint64 base_version = 4;  // client's known version, for LWW (I5)
+  int64 client_ts = 5;      // unix ms (client clock)
+  // Audit fields — the append-only mutation log is the audit source of truth, and
+  // is NEVER amended/rewritten (see docs/design/02-sync-protocol.md).
+  string author_id = 6;     // the ACTOR performing this mutation (may differ from object.owner_id)
+  uint64 seq = 7;           // server-assigned total order within the song (the audit spine); 0 until accepted
+  bool checkpoint = 8;      // tag a notable MILESTONE in the history (see docs/design/01)
+  // Human-readable change summary for the history browser — auto-generated
+  // ("Marie: +4 strokes · Chords") or user-set for a milestone. With the git backend
+  // this IS the commit message, so `git log` is the history feed (docs/design/01).
+  string summary = 9;
+}
+
+// Client → server.
+message ClientMessage {
+  oneof payload {
+    Mutation mutation = 1;
+    string subscribe_song_id = 2; // join a song's realtime room
+  }
+}
+
+// Server → client.
+message ServerMessage {
+  oneof payload {
+    Mutation echo = 1;          // accepted mutation, broadcast to the room
+    Rejection rejection = 2;
+    Snapshot snapshot = 3;      // initial state on subscribe
+  }
+}
+
+// e.g. a mutation hit a tombstoned object → client rolls back (I5).
+message Rejection {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_DELETED_REMOTELY = 1;
+    REASON_STALE_VERSION = 2;
+  }
+  Reason reason = 1;
+  string uuid = 2;
+}
+
+message Snapshot {
+  string song_id = 1;
+  uint64 revision = 2;
+  repeated Object objects = 3; // live (non-tombstoned) objects at this revision
+}

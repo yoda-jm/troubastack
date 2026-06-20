@@ -1,0 +1,19 @@
+{
+  "name": "@troubastack/studio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TroubaStudio — the canonical TroubaStack editor SPA (I10). Builds to static assets embedded & served by core (I14). Embedded by the mobile app in a webview.",
+  "type": "module",
+  "scripts": {
+    "//build": "Vite build → static SPA in dist/, which core embeds via embed.FS (I10, I14). Vite not installed yet (scaffold).",
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@troubastack/ink": "*"
+  },
+  "//devDeps": "pdfjs-dist is the intended PDF rasterizer for the dry layer (re-render per zoom level, never CSS-scale — see 03-rendering-and-ink.md). NOT installed yet (scaffold, no network).",
+  "devDependencies": {
+    "vite": "*"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "//": "Node worker. No DOM app; uses @troubastack/ink against a node canvas 2D context. Shared wire types come from web/proto-gen (I1).",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "declaration": true,
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@troubastack/ink": ["../ink/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

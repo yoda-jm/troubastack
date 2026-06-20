@@ -1,0 +1,15 @@
+{
+  "name": "@troubastack/bake",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TroubaStack bake worker (Node). The ONLY legitimate server-side JS runtime: core invokes it to render annotation overlays via @troubastack/ink for pixel-parity (I8). Emits self-contained flattened WebP (I12).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@troubastack/ink": "*"
+  },
+  "//deps": "Intended (NOT installed — scaffold, no network): a Node canvas lib such as @napi-rs/canvas to give @troubastack/ink an OffscreenCanvas-like 2D context; a PDF rasterizer (MuPDF/pdfium/poppler) is invoked by CORE (06-tech-stack.md), which may run it as a sidecar — bake handles the overlay, core handles the page raster."
+}
