@@ -16,6 +16,7 @@ package httpapi
 import (
 	"net/http"
 
+	"troubastack/core/internal/app"
 	"troubastack/core/internal/bake"
 	"troubastack/core/internal/session"
 	syncpkg "troubastack/core/internal/sync"
@@ -26,9 +27,10 @@ import (
 // SPA file server (I10). Subsystems are injected so this layer stays a wiring
 // seam with no logic of its own.
 //
-// TODO: mount REST routes (auth, songs, bundles, POST bake → bake.Baker), and
-// upgrade /ws to the sync.Hub. For now it serves /healthz and the embedded SPA.
-func Router(_ *syncpkg.Hub, _ *session.Manager, _ *bake.Baker) (http.Handler, error) {
+// The relational ("normal web") API — auth, bands, members, invites, songs —
+// is mounted from svc via WebAPI under /api/*. secureCookies should be true
+// behind TLS. The realtime /ws upgrade to the sync.Hub remains a TODO.
+func Router(svc *app.Service, secureCookies bool, _ *syncpkg.Hub, _ *session.Manager, _ *bake.Baker) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Liveness probe.
@@ -37,8 +39,12 @@ func Router(_ *syncpkg.Hub, _ *session.Manager, _ *bake.Baker) (http.Handler, er
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	// Serve the embedded Studio SPA (I10). TODO: SPA fallback to index.html for
-	// client-side routes; mount the REST API and the /ws sync upgrade above it.
+	// Relational JSON API (auth/identity, bands, members, invites, songs).
+	NewWebAPI(svc, secureCookies).Mount(mux)
+
+	// Serve the embedded Studio SPA (I10). The catch-all "/" pattern has lower
+	// precedence than the explicit /api/* and /healthz patterns under the Go
+	// 1.22 router, so API routes are matched first.
 	assets, err := webassets.FS()
 	if err != nil {
 		return nil, err

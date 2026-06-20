@@ -17,6 +17,9 @@ import (
 	"os"
 	"time"
 
+	"troubastack/core/internal/app"
+	"troubastack/core/internal/app/filerepo"
+	"troubastack/core/internal/app/memrepo"
 	"troubastack/core/internal/bake"
 	"troubastack/core/internal/httpapi"
 	"troubastack/core/internal/session"
@@ -39,7 +42,18 @@ func main() {
 	sessions := session.New() // auth + roles (I6, I11)
 	baker := bake.New()       // bake orchestration; delegates rendering to web/bake (I8, I11)
 
-	handler, err := httpapi.Router(hub, sessions, baker)
+	// Relational ("normal web") domain: users/sessions, bands, members, invites,
+	// songs. Backend is swappable behind app.Repo (R8, ADR 0002).
+	appRepo, err := openAppRepo()
+	if err != nil {
+		log.Fatalf("troubacore: open app repo: %v", err)
+	}
+	svc := app.NewService(appRepo)
+
+	// Secure cookies only when explicitly told we're behind TLS (TROUBA_SECURE_COOKIES=1).
+	secureCookies := os.Getenv("TROUBA_SECURE_COOKIES") == "1"
+
+	handler, err := httpapi.Router(svc, secureCookies, hub, sessions, baker)
 	if err != nil {
 		log.Fatalf("troubacore: build router: %v", err)
 	}
@@ -85,5 +99,29 @@ func openStore() (store.Store, error) {
 		return pgstore.New(os.Getenv("TROUBA_DATABASE_URL"))
 	default:
 		return nil, fmt.Errorf("unknown TROUBA_STORE %q (want mem|file|git|pg)", kind)
+	}
+}
+
+// openAppRepo picks the relational backend from TROUBA_APP_STORE (mem|file,
+// default mem for now). file persists to <TROUBA_DATA_DIR>/app.json (zero infra).
+// Postgres is a later step. Swapping backends touches only this function; the
+// rest of core depends on app.Repo alone (I14).
+func openAppRepo() (app.Repo, error) {
+	kind := os.Getenv("TROUBA_APP_STORE")
+	if kind == "" {
+		kind = "mem"
+	}
+	dir := os.Getenv("TROUBA_DATA_DIR")
+	if dir == "" {
+		dir = "./troubadata"
+	}
+	log.Printf("troubacore: app store backend = %s", kind)
+	switch kind {
+	case "mem":
+		return memrepo.New(), nil
+	case "file":
+		return filerepo.New(dir)
+	default:
+		return nil, fmt.Errorf("unknown TROUBA_APP_STORE %q (want mem|file)", kind)
 	}
 }
