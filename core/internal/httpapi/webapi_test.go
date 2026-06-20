@@ -3,6 +3,8 @@ package httpapi_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -105,6 +107,74 @@ func (c *client) storeCookies(cks []*http.Cookie) {
 }
 
 func (c *client) clearCookies() { c.jar = nil }
+
+// upload posts a multipart file (field "file") to path, carrying the session jar.
+func (c *client) upload(path, filename, contentType string, data []byte) (*http.Response, map[string]json.RawMessage) {
+	c.t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	hdr := make(map[string][]string)
+	hdr["Content-Disposition"] = []string{`form-data; name="file"; filename="` + filename + `"`}
+	if contentType != "" {
+		hdr["Content-Type"] = []string{contentType}
+	}
+	part, err := mw.CreatePart(hdr)
+	if err != nil {
+		c.t.Fatalf("create part: %v", err)
+	}
+	if _, err := part.Write(data); err != nil {
+		c.t.Fatalf("write part: %v", err)
+	}
+	if err := mw.Close(); err != nil {
+		c.t.Fatalf("close mw: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, c.srv.URL+path, &buf)
+	if err != nil {
+		c.t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	for _, ck := range c.jar {
+		req.AddCookie(ck)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		c.t.Fatalf("upload %s: %v", path, err)
+	}
+	if cks := resp.Cookies(); len(cks) > 0 {
+		c.storeCookies(cks)
+	}
+	var decoded map[string]json.RawMessage
+	defer resp.Body.Close()
+	_ = json.NewDecoder(resp.Body).Decode(&decoded)
+	return resp, decoded
+}
+
+// getRaw performs a GET and returns the response plus the raw body bytes (for
+// binary downloads), carrying the session jar.
+func (c *client) getRaw(path string) (*http.Response, []byte) {
+	c.t.Helper()
+	req, err := http.NewRequest(http.MethodGet, c.srv.URL+path, nil)
+	if err != nil {
+		c.t.Fatalf("new request: %v", err)
+	}
+	for _, ck := range c.jar {
+		req.AddCookie(ck)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		c.t.Fatalf("get %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	return resp, body
+}
+
+// smallPDF is a minimal but valid one-page PDF (starts with %PDF- so it sniffs
+// as application/pdf).
+var smallPDF = []byte("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+	"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+	"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n" +
+	"trailer<</Root 1 0 R>>\n%%EOF\n")
 
 func mustStatus(t *testing.T, resp *http.Response, want int) {
 	t.Helper()
@@ -438,6 +508,77 @@ func TestSongs(t *testing.T) {
 			// non-member list → 403
 			resp, _ = outsider.do(http.MethodGet, "/api/bands/"+band.ID+"/songs", nil)
 			mustStatus(t, resp, http.StatusForbidden)
+		})
+	}
+}
+
+func TestSongFiles(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			member := newClient(t, repo)
+			member.registerLogin("alice", "pw")
+			_, body := member.do(http.MethodPost, "/api/bands", map[string]string{"name": "Band"})
+			var band app.Band
+			unmarshalField(t, body, "band", &band)
+			_, body = member.do(http.MethodPost, "/api/bands/"+band.ID+"/songs",
+				map[string]string{"title": "Wonderwall"})
+			var song app.Song
+			unmarshalField(t, body, "song", &song)
+
+			base := "/api/bands/" + band.ID + "/songs/" + song.ID + "/files"
+
+			// upload a small PDF → 201
+			resp, body := member.upload(base, "wonderwall.pdf", "application/pdf", smallPDF)
+			mustStatus(t, resp, http.StatusCreated)
+			var f app.SongFile
+			unmarshalField(t, body, "file", &f)
+			if f.ID == "" || f.SongID != song.ID || f.BandID != band.ID {
+				t.Fatalf("bad file: %+v", f)
+			}
+			if f.ContentType != "application/pdf" {
+				t.Fatalf("content type = %q, want application/pdf", f.ContentType)
+			}
+			if f.Size != int64(len(smallPDF)) {
+				t.Fatalf("size = %d, want %d", f.Size, len(smallPDF))
+			}
+
+			// list shows it
+			resp, body = member.do(http.MethodGet, base, nil)
+			mustStatus(t, resp, http.StatusOK)
+			var files []app.SongFile
+			unmarshalField(t, body, "files", &files)
+			if len(files) != 1 || files[0].ID != f.ID {
+				t.Fatalf("files list wrong: %+v", files)
+			}
+
+			// download returns identical bytes with correct content type
+			resp, raw := member.getRaw("/api/files/" + f.ID)
+			mustStatus(t, resp, http.StatusOK)
+			if ct := resp.Header.Get("Content-Type"); ct != "application/pdf" {
+				t.Fatalf("download content type = %q, want application/pdf", ct)
+			}
+			if !bytes.Equal(raw, smallPDF) {
+				t.Fatalf("downloaded bytes differ from uploaded (%d vs %d)", len(raw), len(smallPDF))
+			}
+
+			// non-PDF / non-image → 400
+			resp, _ = member.upload(base, "notes.txt", "text/plain", []byte("just some plain text, definitely not a pdf or image"))
+			mustStatus(t, resp, http.StatusBadRequest)
+
+			// non-member upload → 403
+			outsider := newClient(t, repo)
+			outsider.registerLogin("mallory", "pw")
+			resp, _ = outsider.upload(base, "x.pdf", "application/pdf", smallPDF)
+			mustStatus(t, resp, http.StatusForbidden)
+
+			// non-member download → 403 (the file exists, but they're not in the band)
+			resp, _ = outsider.getRaw("/api/files/" + f.ID)
+			mustStatus(t, resp, http.StatusForbidden)
+
+			// unknown file id → 404
+			resp, _ = member.getRaw("/api/files/does-not-exist")
+			mustStatus(t, resp, http.StatusNotFound)
 		})
 	}
 }

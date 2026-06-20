@@ -158,6 +158,22 @@ type Song struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// SongFile is metadata for a binary file (sheet music PDF / image) attached to a
+// song. The bytes themselves live in a content-addressed blob.Store keyed by
+// BlobHash; this record is the relational pointer to them. BandID is denormalized
+// from the song so download authorization (members-only) needs no song lookup.
+type SongFile struct {
+	ID          string    `json:"id"`
+	SongID      string    `json:"songId"`
+	BandID      string    `json:"bandId"`
+	Filename    string    `json:"filename"`
+	ContentType string    `json:"contentType"`
+	Size        int64     `json:"size"`
+	BlobHash    string    `json:"blobHash"`
+	UploadedBy  string    `json:"uploadedBy"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
 // Repo is the swappable persistence contract for the relational domain. It mirrors
 // the annotation store's "interface + multiple backends" pattern but is a plain
 // CRUD store — no history, no LWW. Implementations must be safe for concurrent use.
@@ -194,6 +210,11 @@ type Repo interface {
 	CreateSong(s Song) error
 	GetSong(id string) (Song, error)
 	SongsOfBand(bandID string) ([]Song, error)
+
+	// Song files (metadata only; bytes live in a blob.Store).
+	CreateSongFile(f SongFile) error
+	GetSongFile(id string) (SongFile, error)
+	FilesOfSong(songID string) ([]SongFile, error)
 }
 
 // IdentifierMatch is one (kind, identifier) pair used to resolve an invite to a

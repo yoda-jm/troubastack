@@ -23,6 +23,7 @@ type Repo struct {
 	members  map[string]app.Membership // bandID|userID -> membership
 	invites  map[string]app.Invite     // id -> invite
 	songs    map[string]app.Song       // id -> song
+	files    map[string]app.SongFile   // id -> song file
 }
 
 // New returns an empty in-memory Repo.
@@ -34,6 +35,7 @@ func New() *Repo {
 		members:  map[string]app.Membership{},
 		invites:  map[string]app.Invite{},
 		songs:    map[string]app.Song{},
+		files:    map[string]app.SongFile{},
 	}
 }
 
@@ -273,6 +275,37 @@ func (r *Repo) SongsOfBand(bandID string) ([]app.Song, error) {
 	for _, s := range r.songs {
 		if s.BandID == bandID {
 			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+// ---- song files ----
+
+func (r *Repo) CreateSongFile(f app.SongFile) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.files[f.ID] = f
+	return nil
+}
+
+func (r *Repo) GetSongFile(id string) (app.SongFile, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	f, ok := r.files[id]
+	if !ok {
+		return app.SongFile{}, app.ErrNotFound
+	}
+	return f, nil
+}
+
+func (r *Repo) FilesOfSong(songID string) ([]app.SongFile, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []app.SongFile
+	for _, f := range r.files {
+		if f.SongID == songID {
+			out = append(out, f)
 		}
 	}
 	return out, nil

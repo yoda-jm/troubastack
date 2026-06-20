@@ -1,5 +1,5 @@
 # TroubaStack top-level dev tasks. See docs/ARCHITECTURE.md for the rules these serve.
-.PHONY: help setup dev run run-api core test studio embed dist e2e check proto app
+.PHONY: help setup dev run run-api core test studio embed dist e2e check proto app seed demo
 
 help:
 	@echo "TroubaStack — targets:"
@@ -12,6 +12,9 @@ help:
 	@echo "  e2e      Playwright end-to-end (boots core + vite + chromium)"
 	@echo "  dist     build SPA -> embed -> core/bin/troubacore"
 	@echo "  check    go vet + gofmt"
+	@echo "  seed     populate a RUNNING server with the demo dataset (cd core && go run ./cmd/seed)"
+	@echo "  demo     start a file-backed server, seed it, print the guide, keep it running"
+	@echo "           -> reset with: rm -rf core/troubadata"
 	@echo "  proto / app : deferred (buf codegen / KMP mobile)"
 
 setup:
@@ -63,6 +66,29 @@ e2e:
 
 check:
 	cd core && go vet ./... && gofmt -l .
+
+# Populate an ALREADY-RUNNING server (e.g. `make run-api` in another shell) with
+# the demo dataset over HTTP, then print the browse guide.
+seed:
+	cd core && go run ./cmd/seed
+
+# One-shot demo: start core with the FILE backends (relational + blobs persist
+# under core/troubadata/) in the BACKGROUND, wait for /healthz, seed it, print the
+# guide, then hand the server to the FOREGROUND so you can browse immediately.
+# Ctrl-C stops the server. Reset all demo data with: rm -rf core/troubadata
+demo:
+	@cd core && TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata \
+		go run ./cmd/troubacore & \
+	CORE_PID=$$!; \
+	trap 'kill $$CORE_PID 2>/dev/null' EXIT INT TERM; \
+	echo ">>> waiting for core on http://localhost:8080 …"; \
+	for i in $$(seq 1 50); do \
+		curl -sf http://localhost:8080/healthz >/dev/null 2>&1 && break; \
+		sleep 0.2; \
+	done; \
+	cd core && go run ./cmd/seed -addr http://localhost:8080 -password demo; \
+	echo ">>> server still running on http://localhost:8080 — Ctrl-C to stop (reset: rm -rf core/troubadata)"; \
+	wait $$CORE_PID
 
 # Deferred until the contract is codegen'd / mobile resumes.
 proto:

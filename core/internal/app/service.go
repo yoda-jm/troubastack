@@ -4,10 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"troubastack/core/internal/app/blob"
 )
 
 // Service is the business layer: it enforces the membership/consent/RBAC policy
@@ -16,13 +19,22 @@ import (
 // enforcement path.
 type Service struct {
 	repo  Repo
+	blobs blob.Store       // content-addressed bytes for song files
 	now   func() time.Time // injectable clock (tests)
 	newID func() string    // injectable id generator (tests)
 }
 
-// NewService wires a Service over a Repo with production defaults.
+// NewService wires a Service over a Repo with production defaults. The blob store
+// defaults to in-memory; call WithBlobStore to use a persistent backend.
 func NewService(repo Repo) *Service {
-	return &Service{repo: repo, now: time.Now, newID: newUUID}
+	return &Service{repo: repo, blobs: blob.NewMem(), now: time.Now, newID: newUUID}
+}
+
+// WithBlobStore swaps the blob backend (file-backed for persistent deployments)
+// and returns the Service for chaining.
+func (s *Service) WithBlobStore(b blob.Store) *Service {
+	s.blobs = b
+	return s
 }
 
 // ---- identity ----
@@ -306,6 +318,97 @@ func (s *Service) CreateSong(caller User, bandID, title, artist string) (Song, e
 		return Song{}, err
 	}
 	return song, nil
+}
+
+// ---- song files ----
+
+// allowedFileType reports whether ct is an accepted upload content type: a PDF or
+// any image. It tolerates parameters (e.g. "image/png; charset=...").
+func allowedFileType(ct string) bool {
+	ct = strings.ToLower(strings.TrimSpace(ct))
+	if i := strings.IndexByte(ct, ';'); i >= 0 {
+		ct = strings.TrimSpace(ct[:i])
+	}
+	return ct == "application/pdf" || strings.HasPrefix(ct, "image/")
+}
+
+// UploadSongFile stores an uploaded file for a song (any band member may upload).
+// It validates the content by sniffing the bytes (declaredType is only a fallback),
+// rejecting anything that is not a PDF or image with ErrInvalidInput. The bytes go
+// to the content-addressed blob store; a SongFile metadata record is returned.
+func (s *Service) UploadSongFile(caller User, bandID, songID, filename, declaredType string, data []byte) (SongFile, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return SongFile{}, err
+	}
+	song, err := s.repo.GetSong(songID)
+	if err != nil || song.BandID != bandID {
+		return SongFile{}, ErrNotFound
+	}
+	if len(data) == 0 {
+		return SongFile{}, fmt.Errorf("%w: empty file", ErrInvalidInput)
+	}
+	// Sniff the real type from the bytes; fall back to the declared type only when
+	// the sniff is inconclusive (http.DetectContentType returns octet-stream).
+	ct := http.DetectContentType(data)
+	if ct == "application/octet-stream" && allowedFileType(declaredType) {
+		ct = strings.ToLower(strings.TrimSpace(declaredType))
+	}
+	if !allowedFileType(ct) {
+		return SongFile{}, fmt.Errorf("%w: only PDF or image files are allowed (got %q)", ErrInvalidInput, ct)
+	}
+	hash, err := s.blobs.Put(data)
+	if err != nil {
+		return SongFile{}, err
+	}
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		filename = "file"
+	}
+	f := SongFile{
+		ID:          s.newID(),
+		SongID:      songID,
+		BandID:      bandID,
+		Filename:    filename,
+		ContentType: ct,
+		Size:        int64(len(data)),
+		BlobHash:    hash,
+		UploadedBy:  caller.ID,
+		CreatedAt:   s.now().UTC(),
+	}
+	if err := s.repo.CreateSongFile(f); err != nil {
+		return SongFile{}, err
+	}
+	return f, nil
+}
+
+// SongFiles lists the files attached to a song (member-only).
+func (s *Service) SongFiles(caller User, bandID, songID string) ([]SongFile, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return nil, err
+	}
+	song, err := s.repo.GetSong(songID)
+	if err != nil || song.BandID != bandID {
+		return nil, ErrNotFound
+	}
+	return s.repo.FilesOfSong(songID)
+}
+
+// DownloadSongFile returns a file's metadata and bytes, enforcing that the caller
+// is a member of the owning band. Non-members get ErrForbidden (the file exists)
+// or ErrNotFound (it does not) — never the bytes.
+func (s *Service) DownloadSongFile(caller User, fileID string) (SongFile, []byte, error) {
+	f, err := s.repo.GetSongFile(fileID)
+	if err != nil {
+		return SongFile{}, nil, ErrNotFound
+	}
+	if _, err := s.repo.GetMembership(f.BandID, caller.ID); err != nil {
+		return SongFile{}, nil, ErrForbidden
+	}
+	data, err := s.blobs.Get(f.BlobHash)
+	if err != nil {
+		return SongFile{}, nil, ErrNotFound
+	}
+	return f, data, nil
 }
 
 // ---- helpers ----

@@ -15,9 +15,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/app/blob"
 	"troubastack/core/internal/app/filerepo"
 	"troubastack/core/internal/app/memrepo"
 	"troubastack/core/internal/bake"
@@ -49,6 +51,13 @@ func main() {
 		log.Fatalf("troubacore: open app repo: %v", err)
 	}
 	svc := app.NewService(appRepo)
+	// Song-file bytes live in a content-addressed blob store. The file backend
+	// persists under <TROUBA_DATA_DIR>/blobs/; otherwise it is in-memory.
+	blobs, err := openBlobStore()
+	if err != nil {
+		log.Fatalf("troubacore: open blob store: %v", err)
+	}
+	svc.WithBlobStore(blobs)
 
 	// Secure cookies only when explicitly told we're behind TLS (TROUBA_SECURE_COOKIES=1).
 	secureCookies := os.Getenv("TROUBA_SECURE_COOKIES") == "1"
@@ -124,4 +133,18 @@ func openAppRepo() (app.Repo, error) {
 	default:
 		return nil, fmt.Errorf("unknown TROUBA_APP_STORE %q (want mem|file)", kind)
 	}
+}
+
+// openBlobStore picks the song-file blob backend, matching the app repo backend:
+// TROUBA_APP_STORE=file persists blobs under <TROUBA_DATA_DIR>/blobs/; anything
+// else (mem/default) keeps them in memory. Swapping touches only this function.
+func openBlobStore() (blob.Store, error) {
+	if os.Getenv("TROUBA_APP_STORE") != "file" {
+		return blob.NewMem(), nil
+	}
+	dir := os.Getenv("TROUBA_DATA_DIR")
+	if dir == "" {
+		dir = "./troubadata"
+	}
+	return blob.NewFile(filepath.Join(dir, "blobs"))
 }

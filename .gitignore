@@ -12,6 +12,9 @@ app/shared/src/commonMain/kotlin/gen/
 core/troubadata/
 *.troubadata/
 
+# Demo seed PDF cache (fetched/generated at seed time)
+core/cmd/seed/assets/
+
 # Node / web
 node_modules/
 web/**/dist/

@@ -26,6 +26,7 @@ type dataset struct {
 	Members  map[string]app.Membership `json:"members"`
 	Invites  map[string]app.Invite     `json:"invites"`
 	Songs    map[string]app.Song       `json:"songs"`
+	Files    map[string]app.SongFile   `json:"files"`
 }
 
 // Repo persists the dataset to <dir>/app.json on every write.
@@ -61,6 +62,7 @@ func emptyDataset() dataset {
 		Members:  map[string]app.Membership{},
 		Invites:  map[string]app.Invite{},
 		Songs:    map[string]app.Song{},
+		Files:    map[string]app.SongFile{},
 	}
 }
 
@@ -81,6 +83,10 @@ func (r *Repo) load() error {
 	// Guard against nil maps from a partial file.
 	if r.d.Users == nil {
 		r.d = emptyDataset()
+	}
+	// Files was added after the first releases; an older file lacks the key.
+	if r.d.Files == nil {
+		r.d.Files = map[string]app.SongFile{}
 	}
 	return nil
 }
@@ -335,6 +341,37 @@ func (r *Repo) SongsOfBand(bandID string) ([]app.Song, error) {
 	for _, s := range r.d.Songs {
 		if s.BandID == bandID {
 			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+// ---- song files ----
+
+func (r *Repo) CreateSongFile(f app.SongFile) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.Files[f.ID] = f
+	return r.flush()
+}
+
+func (r *Repo) GetSongFile(id string) (app.SongFile, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	f, ok := r.d.Files[id]
+	if !ok {
+		return app.SongFile{}, app.ErrNotFound
+	}
+	return f, nil
+}
+
+func (r *Repo) FilesOfSong(songID string) ([]app.SongFile, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []app.SongFile
+	for _, f := range r.d.Files {
+		if f.SongID == songID {
+			out = append(out, f)
 		}
 	}
 	return out, nil

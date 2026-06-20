@@ -3,8 +3,10 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"troubastack/core/internal/app"
@@ -44,6 +46,9 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/bands/{bandId}/invites", a.auth(a.createInvite))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs", a.auth(a.listSongs))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs", a.auth(a.createSong))
+	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files", a.auth(a.uploadFile))
+	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files", a.auth(a.listFiles))
+	mux.HandleFunc("GET /api/files/{fileId}", a.auth(a.downloadFile))
 	mux.HandleFunc("GET /api/invites", a.auth(a.listInvites))
 	mux.HandleFunc("POST /api/invites/{inviteId}/accept", a.auth(a.acceptInvite))
 	mux.HandleFunc("POST /api/invites/{inviteId}/decline", a.auth(a.declineInvite))
@@ -263,6 +268,70 @@ func (a *WebAPI) createSong(w http.ResponseWriter, r *http.Request, u app.User) 
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"song": song})
+}
+
+// ---- song file handlers ----
+
+// maxUploadBytes caps a single song-file upload (sheet music PDFs are small).
+const maxUploadBytes = 32 << 20 // 32 MiB
+
+// uploadFile handles multipart upload of a song file (field "file"). Member-only;
+// Service validates the content type.
+func (a *WebAPI) uploadFile(w http.ResponseWriter, r *http.Request, u app.User) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes+(1<<20))
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		writeErr(w, app.ErrInvalidInput)
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeErr(w, app.ErrInvalidInput)
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxUploadBytes+1))
+	if err != nil {
+		writeErr(w, app.ErrInvalidInput)
+		return
+	}
+	if len(data) > maxUploadBytes {
+		writeErr(w, fmt.Errorf("%w: file too large", app.ErrInvalidInput))
+		return
+	}
+	declared := header.Header.Get("Content-Type")
+	f, err := a.svc.UploadSongFile(u, r.PathValue("bandId"), r.PathValue("songId"), header.Filename, declared, data)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"file": f})
+}
+
+func (a *WebAPI) listFiles(w http.ResponseWriter, r *http.Request, u app.User) {
+	files, err := a.svc.SongFiles(u, r.PathValue("bandId"), r.PathValue("songId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if files == nil {
+		files = []app.SongFile{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"files": files})
+}
+
+// downloadFile streams a blob with its stored Content-Type. Members of the owning
+// band only (Service enforces 403/404).
+func (a *WebAPI) downloadFile(w http.ResponseWriter, r *http.Request, u app.User) {
+	f, data, err := a.svc.DownloadSongFile(u, r.PathValue("fileId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", f.ContentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(f.Size, 10))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", f.Filename))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 // ---- JSON / error plumbing ----

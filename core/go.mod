@@ -13,6 +13,7 @@ go 1.26
 
 require (
 	github.com/go-git/go-git/v5 v5.19.1
+	github.com/go-pdf/fpdf v0.9.0
 	golang.org/x/crypto v0.50.0
 )
 
