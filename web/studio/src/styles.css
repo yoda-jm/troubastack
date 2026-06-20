@@ -257,6 +257,30 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 
 .sidebar-toggle { margin-left: auto; font-size: .85rem; padding: .4rem .8rem; }
 
+/* ---- my files: toolbar control + editor panel -------------------------- */
+.my-files-controls { display: flex; align-items: center; gap: .4rem; }
+.my-files-edit-btn { font-size: .85rem; padding: .4rem .8rem; }
+.my-files-custom-pill { background: var(--ok-bg); color: var(--ok-fg); text-transform: none; }
+
+.my-files-panel { margin: 0; gap: .6rem; background: var(--surface-2); }
+.my-files-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.my-files-reset-btn { font-size: .82rem; padding: .35rem .7rem; }
+.my-files-hint { font-size: .82rem; margin: 0; }
+.my-files-list { gap: .35rem; }
+.my-files-row { gap: .6rem; }
+.my-files-row-main { display: flex; align-items: center; gap: .55rem; flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.my-files-row-main input { width: auto; flex: 0 0 auto; }
+.my-files-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-files-row.excluded .my-files-name { font-weight: 400; }
+
+/* A button that reads like an inline link (used in empty-state copy). */
+.link-button {
+  display: inline; margin: 0; padding: 0; border: none; background: none;
+  box-shadow: none; color: var(--brand); font: inherit; font-weight: 600;
+  text-decoration: underline; cursor: pointer;
+}
+.link-button:hover:not(:disabled) { border: none; color: var(--brand-strong); }
+
 .viewer-body { display: flex; gap: 1rem; align-items: flex-start; }
 @media (max-width: 760px) { .viewer-body { flex-direction: column-reverse; } }
 

@@ -316,3 +316,120 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   await page.getByTestId("sidebar-toggle").click();
   await expect(page.getByTestId("layers-panel")).toBeVisible();
 });
+
+/** Create a band + song and return their ids (logged-in page assumed). */
+async function makeBandAndSong(page: Page): Promise<{ bandId: string; songId: string }> {
+  const bandName = `MyFilesBand ${stamp()}`;
+  await page.getByTestId("band-name").fill(bandName);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
+  await expect(page.getByTestId("band-title")).toHaveText(bandName);
+  const bandId = page.url().split("/bands/")[1];
+
+  const songTitle = `MyFilesSong ${stamp()}`;
+  await page.getByTestId("song-title").fill(songTitle);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").filter({ hasText: songTitle }).click();
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+  const songId = page.url().split("/songs/")[1];
+  return { bandId, songId };
+}
+
+test("my-files: per-member selection drives the strip (exclude, reorder, persist, reset)", async ({
+  page,
+}) => {
+  await register(page, `myfiles_${stamp()}`);
+  const { bandId, songId } = await makeBandAndSong(page);
+
+  // Upload the same fixture 3 times → 3 distinct pool files, then rename each via
+  // the API so the file-tab labels are distinguishable (A, B, C in pool order).
+  for (let i = 0; i < 3; i++) {
+    await page.getByTestId("file-input").setInputFiles(PDF_PATH);
+    await page.getByTestId("file-upload").click();
+    await expect(page.getByTestId("file-row")).toHaveCount(i + 1);
+  }
+
+  // Fresh uploads all share displayOrder 0, so the default order is otherwise
+  // unstable. Assign each a distinct displayOrder (0,1,2) AND a distinct name
+  // (A,B,C) so the default my-files view is deterministically A, B, C.
+  const fileIds = await page.evaluate(
+    async ([b, s]): Promise<string[]> => {
+      const r = await fetch(`/api/bands/${b}/songs/${s}/files`, { credentials: "include" });
+      const j = (await r.json()) as { files: { id: string }[] };
+      return j.files.map((f) => f.id);
+    },
+    [bandId, songId],
+  );
+  expect(fileIds.length).toBe(3);
+  const names = ["fileA.pdf", "fileB.pdf", "fileC.pdf"];
+  await page.evaluate(
+    async ([b, s, ids, ns]) => {
+      for (let i = 0; i < ids.length; i++) {
+        await fetch(`/api/bands/${b}/songs/${s}/files/${ids[i]}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: ns[i], displayOrder: i }),
+        });
+      }
+    },
+    [bandId, songId, fileIds, names] as const,
+  );
+
+  // Open the viewer: default selection = all 3 pool files, customized=false.
+  await page.reload();
+  await expect(page.getByTestId("file-tab")).toHaveCount(3);
+  await expect(page.getByTestId("my-files-custom")).toHaveCount(0);
+  // Default order matches the pool order A, B, C.
+  await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileA.pdf");
+  await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
+  await expect(page.getByTestId("file-tab").nth(2)).toContainText("fileC.pdf");
+
+  // Open the my-files editor; it lists the whole pool (3 rows).
+  await page.getByTestId("my-files-edit").click();
+  await expect(page.getByTestId("my-files-panel")).toBeVisible();
+  await expect(page.getByTestId("my-files-row")).toHaveCount(3);
+
+  // Screenshot 1: editor open showing the pool with includes/reorder.
+  // Exclude fileA (click its include checkbox — controlled, applies via PUT).
+  const rowA = page.getByTestId("my-files-row").filter({ hasText: "fileA.pdf" });
+  await rowA.getByTestId("my-files-include").click();
+
+  // The strip now shows 2 tabs (B, C) and the custom pill appears.
+  await expect(page.getByTestId("file-tab")).toHaveCount(2);
+  await expect(page.getByTestId("my-files-custom")).toBeVisible();
+
+  // Reorder the remaining two: move fileC up so the order becomes C, B.
+  const rowC = page.getByTestId("my-files-row").filter({ hasText: "fileC.pdf" });
+  await rowC.getByTestId("my-files-up").click();
+  await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileC.pdf");
+  await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
+
+  await page.screenshot({ path: "/tmp/myfiles-editor.png", fullPage: true });
+
+  // Close the editor and screenshot the customized 2-tab strip.
+  await page.getByTestId("my-files-edit").click();
+  await expect(page.getByTestId("my-files-panel")).toHaveCount(0);
+  await page.screenshot({ path: "/tmp/myfiles-strip.png", fullPage: true });
+
+  // Persistence: reload → still 2 tabs in C, B order, still customized.
+  await page.reload();
+  await expect(page.getByTestId("file-tab")).toHaveCount(2);
+  await expect(page.getByTestId("my-files-custom")).toBeVisible();
+  await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileC.pdf");
+  await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
+
+  // Reset to all → back to 3 tabs, custom pill gone, default A, B, C order.
+  await page.getByTestId("my-files-edit").click();
+  await page.getByTestId("my-files-reset").click();
+  await expect(page.getByTestId("file-tab")).toHaveCount(3);
+  await expect(page.getByTestId("my-files-custom")).toHaveCount(0);
+  await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileA.pdf");
+  await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
+  await expect(page.getByTestId("file-tab").nth(2)).toContainText("fileC.pdf");
+
+  // Persists across reload as default (not customized).
+  await page.reload();
+  await expect(page.getByTestId("file-tab")).toHaveCount(3);
+  await expect(page.getByTestId("my-files-custom")).toHaveCount(0);
+});

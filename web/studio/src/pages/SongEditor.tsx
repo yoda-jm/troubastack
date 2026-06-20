@@ -167,8 +167,11 @@ function Viewer({
   songId: string;
   myUserId: string | null;
 }) {
+  // The file strip is MY ordered selection (getMyFiles), not the whole pool.
   const [files, setFiles] = useState<SongFile[]>([]);
+  const [customized, setCustomized] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [doc, setDoc] = useState<AnnotationDoc>({ layers: [], objects: [] });
   const [visible, setVisible] = useState<LayerVisibility>({});
   // Zoom: a fit mode (default Fit width) or an explicit percentage.
@@ -200,26 +203,43 @@ function Viewer({
   const imgRef = useRef<HTMLImageElement | null>(null);
   const imgOverlayRef = useRef<HTMLCanvasElement | null>(null);
 
-  // ---- list files + annotations once ----
+  // ---- refresh MY file strip (getMyFiles) — also after editor changes ----
+  // Keeps a sensible selected file: preserves the current one if it survives,
+  // otherwise falls back to the first viewable (PDF-preferred) entry.
+  const refreshMyFiles = useCallback(async () => {
+    const { files: mine, customized: custom } = await api.getMyFiles(bandId, songId);
+    // getMyFiles returns my order; honour it (don't re-sort by displayOrder).
+    setFiles(mine);
+    setCustomized(custom);
+    setSelectedFileId((cur) => {
+      if (cur && mine.some((f) => f.id === cur && isViewable(f))) return cur;
+      const firstPdf = mine.find((f) => f.contentType === "application/pdf");
+      const first = firstPdf ?? mine.find(isViewable) ?? null;
+      return first ? first.id : null;
+    });
+    return mine;
+  }, [bandId, songId]);
+
+  // ---- load my files + annotations once ----
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setStatus("loading");
       setError(null);
       try {
-        const [list, annotations] = await Promise.all([
-          api.listFiles(bandId, songId),
+        const [mine, annotations] = await Promise.all([
+          api.getMyFiles(bandId, songId),
           api.getAnnotations(bandId, songId),
         ]);
         if (cancelled) return;
-        list.sort((a, b) => a.displayOrder - b.displayOrder);
-        setFiles(list);
+        setFiles(mine.files);
+        setCustomized(mine.customized);
         setDoc(annotations);
         setVisible(defaultVisibility(annotations.layers, myUserId));
 
         // Default selection: first PDF, else first viewable file.
-        const firstPdf = list.find((f) => f.contentType === "application/pdf");
-        const first = firstPdf ?? list.find(isViewable) ?? null;
+        const firstPdf = mine.files.find((f) => f.contentType === "application/pdf");
+        const first = firstPdf ?? mine.files.find(isViewable) ?? null;
         if (!first) {
           setStatus("no-file");
           return;
@@ -235,6 +255,13 @@ function Viewer({
       cancelled = true;
     };
   }, [bandId, songId, myUserId]);
+
+  // When my selection is empty, there is nothing to render.
+  useEffect(() => {
+    if (files.length === 0 && status !== "loading" && status !== "error") {
+      setStatus("no-file");
+    }
+  }, [files.length, status]);
 
   // ---- load the selected file (PDF bytes via PDF.js, or just mark image) ----
   useEffect(() => {
@@ -573,6 +600,23 @@ function Viewer({
           </span>
         </div>
 
+        <div className="my-files-controls">
+          <button
+            type="button"
+            className="my-files-edit-btn"
+            data-testid="my-files-edit"
+            aria-expanded={editorOpen}
+            onClick={() => setEditorOpen((o) => !o)}
+          >
+            Choose files
+          </button>
+          {customized && (
+            <span className="pill my-files-custom-pill" data-testid="my-files-custom">
+              custom
+            </span>
+          )}
+        </div>
+
         {files.length >= 1 && (
           <div
             className="file-picker"
@@ -622,10 +666,33 @@ function Viewer({
         </button>
       </div>
 
+      {editorOpen && (
+        <MyFilesEditor
+          bandId={bandId}
+          songId={songId}
+          selected={files}
+          onChanged={refreshMyFiles}
+          onError={setError}
+        />
+      )}
+
       <div className="viewer-body">
         <div className="viewer-scroll" data-testid="viewer-scroll" ref={scrollRef}>
           {status === "loading" && <p className="muted">Loading…</p>}
-          {status === "no-file" && (
+          {status === "no-file" && files.length === 0 && (
+            <p className="muted" data-testid="viewer-no-pdf">
+              No files selected —{" "}
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => setEditorOpen(true)}
+              >
+                choose some
+              </button>
+              , or upload a PDF or image in “Details &amp; files” below.
+            </p>
+          )}
+          {status === "no-file" && files.length > 0 && (
             <p className="muted" data-testid="viewer-no-pdf">
               No viewable file. Upload a PDF or image in “Details &amp; files” below.
             </p>
@@ -678,6 +745,183 @@ function Viewer({
           />
         )}
       </div>
+    </section>
+  );
+}
+
+// ===========================================================================
+// My files editor
+// ===========================================================================
+
+/** Editor over the shared file POOL (listFiles): include/exclude each pool file
+ *  in my selection, reorder my included files, or reset to default-all. Changes
+ *  apply immediately (PUT the resulting ordered fileIds, or DELETE on reset),
+ *  then ask the viewer to refresh the strip via onChanged. */
+function MyFilesEditor({
+  bandId,
+  songId,
+  selected,
+  onChanged,
+  onError,
+}: {
+  bandId: string;
+  songId: string;
+  selected: SongFile[];
+  onChanged: () => Promise<SongFile[]>;
+  onError: (msg: string | null) => void;
+}) {
+  const [pool, setPool] = useState<SongFile[]>([]);
+  // My ordered selection of fileIds — seeded from the current strip, then kept
+  // in sync after each apply (onChanged returns the server's canonical order).
+  const [order, setOrder] = useState<string[]>(selected.map((f) => f.id));
+  const [busy, setBusy] = useState(false);
+
+  // Load the whole pool once.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await api.listFiles(bandId, songId);
+        if (cancelled) return;
+        list.sort((a, b) => a.displayOrder - b.displayOrder);
+        setPool(list);
+      } catch (err) {
+        if (cancelled) return;
+        onError(err instanceof Error ? err.message : "Failed to load files");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bandId, songId, onError]);
+
+  const poolById = useMemo(() => {
+    const m = new Map<string, SongFile>();
+    for (const f of pool) m.set(f.id, f);
+    return m;
+  }, [pool]);
+
+  // Apply an ordered selection: PUT, then refresh the strip and re-seed order
+  // from the server's canonical response (drops any files removed from the pool).
+  const apply = useCallback(
+    async (nextOrder: string[]) => {
+      setBusy(true);
+      onError(null);
+      try {
+        await api.setMyFiles(bandId, songId, nextOrder);
+        const mine = await onChanged();
+        setOrder(mine.map((f) => f.id));
+      } catch (err) {
+        onError(err instanceof Error ? err.message : "Failed to update selection");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [bandId, songId, onChanged, onError],
+  );
+
+  function toggleInclude(id: string) {
+    const next = order.includes(id) ? order.filter((x) => x !== id) : [...order, id];
+    void apply(next);
+  }
+
+  function moveIncluded(index: number, dir: -1 | 1) {
+    const other = index + dir;
+    if (other < 0 || other >= order.length) return;
+    const next = [...order];
+    [next[index], next[other]] = [next[other], next[index]];
+    void apply(next);
+  }
+
+  async function reset() {
+    setBusy(true);
+    onError(null);
+    try {
+      await api.clearMyFiles(bandId, songId);
+      const mine = await onChanged();
+      setOrder(mine.map((f) => f.id));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to reset");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Included files (in MY order) first, then the rest of the pool.
+  const includedFiles = order.map((id) => poolById.get(id)).filter((f): f is SongFile => !!f);
+  const excludedFiles = pool.filter((f) => !order.includes(f.id));
+
+  return (
+    <section className="my-files-panel card" data-testid="my-files-panel">
+      <div className="my-files-panel-head">
+        <h2>My files</h2>
+        <button
+          type="button"
+          className="my-files-reset-btn"
+          data-testid="my-files-reset"
+          disabled={busy}
+          onClick={() => void reset()}
+        >
+          Reset to all
+        </button>
+      </div>
+      <p className="muted my-files-hint">
+        Pick which files appear in your strip and in what order. Everyone shares the same
+        pool (managed in “Details &amp; files”).
+      </p>
+
+      {pool.length === 0 ? (
+        <p className="muted">No files in the pool yet.</p>
+      ) : (
+        <ul className="list my-files-list">
+          {includedFiles.map((f, i) => (
+            <li key={f.id} data-testid="my-files-row" className="my-files-row included">
+              <label className="my-files-row-main">
+                <input
+                  type="checkbox"
+                  data-testid="my-files-include"
+                  checked
+                  disabled={busy}
+                  onChange={() => toggleInclude(f.id)}
+                />
+                <span className="my-files-name">{f.filename}</span>
+              </label>
+              <span className="actions">
+                <button
+                  type="button"
+                  data-testid="my-files-up"
+                  disabled={busy || i === 0}
+                  onClick={() => moveIncluded(i, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  data-testid="my-files-down"
+                  disabled={busy || i === includedFiles.length - 1}
+                  onClick={() => moveIncluded(i, 1)}
+                >
+                  ↓
+                </button>
+              </span>
+            </li>
+          ))}
+          {excludedFiles.map((f) => (
+            <li key={f.id} data-testid="my-files-row" className="my-files-row excluded">
+              <label className="my-files-row-main">
+                <input
+                  type="checkbox"
+                  data-testid="my-files-include"
+                  checked={false}
+                  disabled={busy}
+                  onChange={() => toggleInclude(f.id)}
+                />
+                <span className="my-files-name muted">{f.filename}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

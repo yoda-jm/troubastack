@@ -153,7 +153,15 @@ export class ApiError extends Error {
   }
 }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+/** The caller's personal ordered file view: `files` is MY selection (or, when
+ *  unset, all pool files in displayOrder) and `customized` flags whether I've
+ *  saved an explicit selection. */
+export type MyFiles = {
+  files: SongFile[];
+  customized: boolean;
+};
+
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -278,6 +286,18 @@ export const api = {
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/files/${fileId}`),
 
   fileUrl: (fileId: string) => `/api/files/${fileId}`,
+
+  // ---- per-member file selection ("my files") ----
+  // The pool stays shared (listFiles); these endpoints are the caller's own
+  // ordered view over it. Default (unset) returns all pool files, customized=false.
+  getMyFiles: (bandId: string, songId: string) =>
+    request<MyFiles>("GET", `/api/bands/${bandId}/songs/${songId}/my-files`),
+
+  setMyFiles: (bandId: string, songId: string, fileIds: string[]) =>
+    request<MyFiles>("PUT", `/api/bands/${bandId}/songs/${songId}/my-files`, { fileIds }),
+
+  clearMyFiles: (bandId: string, songId: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/my-files`),
 
   // ---- annotations (view-only) ----
   getAnnotations: (bandId: string, songId: string) =>
