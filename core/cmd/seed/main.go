@@ -257,8 +257,9 @@ type songsResp struct {
 
 type filesResp struct {
 	Files []struct {
-		ID       string `json:"id"`
-		Filename string `json:"filename"`
+		ID          string `json:"id"`
+		Filename    string `json:"filename"`
+		ContentType string `json:"contentType"`
 	} `json:"files"`
 }
 
@@ -292,6 +293,15 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 	}
 	var titles []string
 	songIDByTitle := map[string]string{}
+	// Collect what each song needs for the annotation-import step (run after the
+	// loop so we have every song id + its PDF fileId).
+	type songAnn struct {
+		songID    string
+		title     string
+		generated bool
+		pages     int
+	}
+	var anns []songAnn
 	for _, s := range g.songs {
 		titles = append(titles, s.title)
 		songID, ok := existing[s.title]
@@ -324,6 +334,9 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		}
 		if len(fr.Files) > 0 {
 			fmt.Printf("     = already has %d file(s)\n", len(fr.Files))
+			// Re-runs reuse the existing PDF; learn its origin from the cache meta
+			// so annotation coords match (generated layout vs fetched/unknown).
+			anns = append(anns, songAnn{songID: songID, title: s.title, generated: !cachedFetched(s.src), pages: s.src.pages})
 			continue
 		}
 		res, err := resolvePDF(s.src)
@@ -340,6 +353,29 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			return seededGroup{}, 0, 0, fmt.Errorf("upload pdf for %q: %w", s.title, err)
 		}
 		fmt.Printf("     + PDF %s (%s, %d bytes)\n", s.src.cacheName, res.origin, len(res.data))
+		anns = append(anns, songAnn{songID: songID, title: s.title, generated: !res.fetched, pages: s.src.pages})
+	}
+
+	// Annotation layers + objects on each song's PDF (idempotent import). Needs the
+	// member username→id map (layer ownerId) and the admin id (conductor layer).
+	userID, adminID, err := memberIDs(admin, bandID, g.admin)
+	if err != nil {
+		return seededGroup{}, 0, 0, err
+	}
+	for _, a := range anns {
+		fileID, err := firstPDFFileID(admin, bandID, a.songID)
+		if err != nil {
+			return seededGroup{}, 0, 0, err
+		}
+		if fileID == "" {
+			continue
+		}
+		im := buildSongAnnotations(a.songID, fileID, a.title, g.kind, userID, adminID, a.generated, a.pages)
+		var got annotationsImport
+		if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", im, &got); err != nil {
+			return seededGroup{}, 0, 0, fmt.Errorf("import annotations for %q: %w", a.title, err)
+		}
+		fmt.Printf("     + annotations %q: %d layers, %d objects\n", a.title, len(got.Layers), len(got.Objects))
 	}
 
 	// Promote a member to the conductor role (showcases role management).
@@ -357,6 +393,42 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 	}
 
 	return seededGroup{def: g, songs: titles}, fetched, generated, nil
+}
+
+// memberIDs returns a username→userId map for the band plus the admin's user id
+// (used as the conductor layer's ownerId).
+func memberIDs(admin *apiClient, bandID, adminUsername string) (map[string]string, string, error) {
+	var mr membersResp
+	if err := admin.getJSON("/api/bands/"+bandID+"/members", &mr); err != nil {
+		return nil, "", err
+	}
+	out := map[string]string{}
+	adminID := ""
+	for _, m := range mr.Members {
+		out[m.User.Username] = m.User.ID
+		if m.User.Username == adminUsername {
+			adminID = m.User.ID
+		}
+	}
+	return out, adminID, nil
+}
+
+// firstPDFFileID returns the id of the song's first application/pdf file (the
+// annotation layers attach to it), or "" if none.
+func firstPDFFileID(admin *apiClient, bandID, songID string) (string, error) {
+	var fr filesResp
+	if err := admin.getJSON("/api/bands/"+bandID+"/songs/"+songID+"/files", &fr); err != nil {
+		return "", err
+	}
+	for _, f := range fr.Files {
+		if f.ContentType == "application/pdf" {
+			return f.ID, nil
+		}
+	}
+	if len(fr.Files) > 0 {
+		return fr.Files[0].ID, nil
+	}
+	return "", nil
 }
 
 func findOrCreateBand(admin *apiClient, name string) (string, error) {
@@ -613,7 +685,7 @@ func printGuide(addr, password string, people []person, groups []seededGroup, fe
 			if len(meta) > 0 {
 				suffix = "  (" + strings.Join(meta, ", ") + ")"
 			}
-			fmt.Fprintf(w, "      - %s%s  [PDF]\n", s.title, suffix)
+			fmt.Fprintf(w, "      - %s%s  [PDF + annotations]\n", s.title, suffix)
 		}
 		if sl := g.def.setlist; sl.name != "" {
 			when := sl.eventDate
@@ -637,10 +709,14 @@ func printGuide(addr, password string, people []person, groups []seededGroup, fe
 	fmt.Fprintln(w, "       • dev/hot-reload SPA :  http://localhost:5173   (make dev)")
 	fmt.Fprintf(w, "       • single binary      :  %s   (make run / make demo)\n", addr)
 	fmt.Fprintln(w, "  2. Log in as  marie / "+password+"  →  The Troubadours")
-	fmt.Fprintln(w, "       open 'Wonderwall' (editor placeholder for now); the PDF is")
-	fmt.Fprintln(w, "       attached and downloadable via GET /api/files/{id}.")
+	fmt.Fprintln(w, "       OPEN a song (e.g. 'Wonderwall') in the Studio viewer to see its")
+	fmt.Fprintln(w, "       LAYERED ANNOTATIONS on the PDF: conductor cues (red, mandatory),")
+	fmt.Fprintln(w, "       shared section markings (amber Verse/Chorus/Bridge highlights),")
+	fmt.Fprintln(w, "       and a guitarist's 'Chords' layer (blue chord names + Capo).")
+	fmt.Fprintln(w, "       Toggle layers on/off, page to p.2 (Outro / D.C.), and zoom in.")
 	fmt.Fprintln(w, "  3. Log in as  maestro / "+password+"  →  City Chamber Orchestra")
-	fmt.Fprintln(w, "       for the public-domain classical pieces.")
+	fmt.Fprintln(w, "       open a piece for the same layered view — plus a player's green")
+	fmt.Fprintln(w, "       'Bowing/Breath marks' personal layer instead of chords.")
 	fmt.Fprintln(w, "  4. Other members (leo, sasha / flora, cory) already accepted their")
 	fmt.Fprintln(w, "       invites — log in as any of them to see the shared band + songs.")
 	fmt.Fprintln(w)
@@ -649,7 +725,10 @@ func printGuide(addr, password string, people []person, groups []seededGroup, fe
 	fmt.Fprintln(w, "   • Band page  : rename, change member roles (admin/conductor/member), remove / leave,")
 	fmt.Fprintln(w, "                  list & revoke pending invites.")
 	fmt.Fprintln(w, "   • Setlists   : create, add / remove / reorder songs, override key / tempo / notes per song.")
-	fmt.Fprintln(w, "   (The seed has already set song metadata, promoted a conductor, and built a setlist per group.)")
+	fmt.Fprintln(w, "   • Viewer     : open any song to see ~3 layered annotation layers (conductor / shared / part);")
+	fmt.Fprintln(w, "                  toggle layer visibility and zoom — view-only for now.")
+	fmt.Fprintln(w, "   (The seed has already set song metadata, promoted a conductor, built a setlist, and")
+	fmt.Fprintln(w, "    imported conductor cues + section markings + a part layer onto each song's PDF.)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "  RESET:  stop the server and  rm -rf troubadata  (wipes users/bands/blobs).")
 	fmt.Fprintln(w, line)

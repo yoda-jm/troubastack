@@ -72,6 +72,14 @@ func resolvePDF(src pdfSource) (pdfResult, error) {
 	return pdfResult{data: b, origin: "generated", fetched: false}, nil
 }
 
+// cachedFetched reports whether the cached PDF for a source is a real fetched
+// public-domain file (unknown layout) vs a generated placeholder (known layout).
+// Used on idempotent re-runs to place annotations with the right coordinates.
+func cachedFetched(src pdfSource) bool {
+	o, err := os.ReadFile(filepath.Join(assetsDir, src.cacheName) + ".origin")
+	return err == nil && string(o) == "fetched"
+}
+
 // tryFetchPDF downloads url with a short timeout and validates it looks like a PDF.
 func tryFetchPDF(url string) ([]byte, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
