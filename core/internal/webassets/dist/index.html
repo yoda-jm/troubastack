@@ -1,10 +1,19 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>TroubaCore</title>
+<title>TroubaCore — SPA not embedded</title>
 <!--
-  Placeholder. The real TroubaStudio SPA build (web/studio dist/) is copied
-  over this directory before `go build` and embedded by ../embed.go (I10).
-  This file exists only so //go:embed has an embeddable file in a fresh
-  checkout — go:embed skips dotfiles, so a .gitkeep alone would not compile.
+  Placeholder. The real TroubaStudio SPA (web/studio/dist/) is copied over this
+  directory and embedded by ../embed.go (I10) when you build with `make embed`/
+  `make dist`/`make run`. This file exists only so //go:embed has an embeddable
+  file in a fresh checkout (go:embed skips dotfiles, so a .gitkeep won't compile).
+  NOTE: a build overwrites this file locally — don't commit the built index.html.
 -->
-<p>TroubaCore is running. The TroubaStudio SPA has not been built into this binary yet.</p>
+<body style="font:16px system-ui;max-width:40rem;margin:4rem auto;padding:0 1rem">
+<h1>TroubaCore is running</h1>
+<p>The API is up (try <code>/healthz</code> and <code>/api/me</code>), but the
+TroubaStudio SPA has not been embedded into this binary yet.</p>
+<ul>
+<li>Whole app on one origin: <code>make dist</code>, then <code>cd core &amp;&amp; ./bin/troubacore</code></li>
+<li>Frontend dev (hot reload): <code>make dev</code> → open <code>http://localhost:5173</code></li>
+</ul>
+</body>
