@@ -56,6 +56,20 @@ func (c *apiClient) postJSON(path string, body, out any) error {
 	return c.do(req, out)
 }
 
+// patchJSON sends a PATCH with a JSON body and decodes the response into out.
+func (c *apiClient) patchJSON(path string, body, out any) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPatch, c.base+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.do(req, out)
+}
+
 // getJSON GETs path and decodes into out.
 func (c *apiClient) getJSON(path string, out any) error {
 	req, err := http.NewRequest(http.MethodGet, c.base+path, nil)
