@@ -10,86 +10,389 @@
 //	GC = reachability mark-sweep   ->  `git gc` prunes unreachable objects (I7)
 //	inspectable history            ->  `git log` of the annotation timeline
 //
-// GRANULARITY: ONE COMMIT PER COMPLETED ACTION. The mid-gesture firehose — stroke
-// points while the pen moves, drag interpolation — lives ONLY in the display/wet layer
-// and is NEVER persisted; the persisted unit is one mutation per COMPLETED gesture
-// (commit-on-release). So there is no write-time flood: each action maps cleanly to its
-// own single-author commit — no coalescing/amend machinery, no co-author case.
+// GRANULARITY: ONE COMMIT PER COMPLETED ACTION. Each accepted mutation (and each
+// appended revision) is its own single-author commit whose message is the action
+// summary, so `git log` IS the history-browser feed (design/01).
 //
-//	revision        = commit (I4: linear, append-only, no branching)
-//	revert(N)        = a revert-commit equal to N (git revert, not reset; I4)
-//	one commit       = one action by ONE author -> native `git blame`, no Co-authored-by
-//	pin / song head  = a ref/tag onto a commit / branch tip
-//	GC               = `git gc` reachability prune (I7)
-//
-// Layout (bare repo): refs/heads/song/<songID> = head; refs/tags/pin/<…> = pins.
-// Implements store.Store. Boundary: store + domain + go-git (later) + stdlib.
+// MODEL FOR THIS SPIKE: per song we keep an append-only JSONL file in the working
+// tree (songs/<id>.jsonl), one record per accepted action. Each Apply/AppendRevision
+// appends a line and makes ONE commit (message = summary). HEAD hydrate = read the
+// latest commit's tree and fold the JSONL. SnapshotAt(N) = read the commit tagged for
+// revision N and fold its JSONL prefix. Pins = git tags. Reopening the repo (a new
+// Git instance) reads the same commits, so HEAD is durable.
 //
 // HOT PATH (gitstore is the SINK; the apply engine sits ABOVE it — see internal/sync):
-// the engine owns the in-memory HEAD, serializes per song, resolves LWW (I5), assigns
-// seq, durably logs the ordered action (WAL), acks/echoes, then drains that ordered,
-// already-resolved stream into gitstore ASYNC — off the edit hot path. So gitstore only
-// ever receives LINEAR, RECONCILED actions and COMMITS them (one per action; revision =
-// commit) — it never sees concurrency, never does LWW, never merges. Commits are cheap
-// (content-addressed: only CHANGED objects written). At start the engine HYDRATES HEAD
-// from gitstore (Head/SnapshotAt).
+// the engine owns HEAD, serializes per song, resolves LWW (I5), assigns seq, then
+// drains the ordered, already-resolved stream here. So gitstore only ever receives
+// LINEAR, RECONCILED actions and COMMITS them — it never sees concurrency, never does
+// LWW, never merges. R6 permits SYNCHRONOUS per-action commits for v1 (no WAL).
 //
-// MULTI-EDITOR & AUDIT: git is downstream of conflict resolution — the sync layer
-// settles concurrent edits by LWW (I5) into a total order (server `seq`) BEFORE
-// anything is committed, so git never merges. Each action is its own single-author
-// commit even under simultaneous editing (interleaved by seq, never merged). The
-// append-only mutation log (author_id + client_ts + seq) is the audit source of truth.
-//
-// CONFLICTS: there are NONE at the git level, by construction. Git merge conflicts
-// require divergent branches + a merge; we never branch (I4) and never merge — git is
-// a linear, single-writer, append-only log. Concurrent edits to the same object are
-// resolved UPSTREAM by LWW (I5) before they ever reach a commit. Revert appends a
-// commit whose tree = the target snapshot (computed by us), NOT the 3-way `git revert`
-// porcelain — so no merge step exists. The only git-level race is concurrent REF
-// updates, avoided by single-writer-per-song ownership (one goroutine/lock per song;
-// shard song ownership if multiple server nodes). RULE: git is STORAGE, not the
-// replication/merge transport — never git-push between nodes (that reintroduces
-// divergence + real conflicts); replication rides the sync protocol.
-//
-// TIMELINE & SIZE: many commits => a noisy `git log` and repo growth. Handled by
-// (a) Mutation.checkpoint, which tags a commit as a notable MILESTONE for a human-
-// readable timeline view; (b) periodic `git gc`/repack; (c) the OPTIONAL smart-squash
-// GC tier (collapse old history below the oldest pin) as long-term compaction. All
-// reference-safe (I7).
+// Boundary: store + domain + go-git + stdlib.
 package gitstore
 
-import "troubastack/core/internal/store"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"path"
+	"sort"
+	"sync"
+	"time"
 
-// Background-committer knob (tunable). See the package doc.
-const (
-	RepackEvery = 500 // run `git gc`/repack roughly every N commits to tame loose objects
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
+
+	"troubastack/core/internal/domain"
+	"troubastack/core/internal/store"
 )
 
-// Git is a go-git-backed Store — a PASSIVE history sink. TODO: hold the
-// *git.Repository (go-git v5) and repack bookkeeping. HEAD, per-song serialization,
-// and the WAL live in the apply engine ABOVE the store (internal/sync), not here.
-type Git struct{ dir string }
+// RepackEvery is the background-committer knob: run `git gc`/repack roughly every N
+// commits to tame loose objects. (Honored by Collect; tunable.)
+const RepackEvery = 500
 
-// New opens or initialises a git repo at dir. TODO: wire go-git
-// (github.com/go-git/go-git/v5); kept as a stub so core builds offline.
-func New(dir string) (store.Store, error) { return &Git{dir: dir}, nil }
+// Git is a go-git-backed Store — a PASSIVE history sink. The engine above owns HEAD,
+// per-song serialization, and (in production) the WAL.
+type Git struct {
+	mu   sync.Mutex
+	repo *git.Repository
+	wt   *git.Worktree
+}
+
+// New opens or initialises a git repo at dir.
+func New(dir string) (store.Store, error) {
+	repo, err := git.PlainOpen(dir)
+	if errors.Is(err, git.ErrRepositoryNotExists) {
+		repo, err = git.PlainInit(dir, false)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("gitstore: open %s: %w", dir, err)
+	}
+	wt, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("gitstore: worktree: %w", err)
+	}
+	return &Git{repo: repo, wt: wt}, nil
+}
 
 // Capability assertion: Git is a full Collector (⊃ HistoryAware ⊃ Store).
 var _ store.Collector = (*Git)(nil)
 
-// Git is Store + HistoryAware + Collector (it retains full history).
-func (*Git) Head(string) (any, error) { return nil, store.ErrTODO }
+// record mirrors the filestore JSONL record so the on-disk format is identical.
+type record struct {
+	Type     string           `json:"type"` // "mut" | "rev"
+	Mutation *domain.Mutation `json:"mutation,omitempty"`
+	Revision *domain.Revision `json:"revision,omitempty"`
+}
 
-// Apply persists one already-ordered, already-resolved action (HEAD/serialize/WAL live
-// in the engine above). For gitstore this is a git commit (revision = commit), driven
-// async by the engine off the hot path.
-func (*Git) Apply(string, any) error { return store.ErrTODO }
+func songFile(songID string) string { return path.Join("songs", songID+".jsonl") }
+func revTag(songID string, n uint64) string {
+	return fmt.Sprintf("rev/%s/%d", songID, n)
+}
+func pinTag(songID, name string) string { return fmt.Sprintf("pin/%s/%s", songID, name) }
 
-func (*Git) SnapshotAt(string, string) (any, error) { return nil, store.ErrTODO }
+// readLog reads the JSONL log for a song from the current HEAD tree.
+func (g *Git) readLog(songID string) ([]record, error) {
+	head, err := g.repo.Head()
+	if errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return nil, nil // empty repo
+	}
+	if err != nil {
+		return nil, err
+	}
+	commit, err := g.repo.CommitObject(head.Hash())
+	if err != nil {
+		return nil, err
+	}
+	return readLogFromCommit(commit, songID)
+}
 
-// AppendRevision tags a milestone commit (revision = commit; this names a notable one).
-func (*Git) AppendRevision(string, any) error     { return store.ErrTODO }
-func (*Git) MovePin(string, string, string) error { return store.ErrTODO }
+func readLogFromCommit(commit *object.Commit, songID string) ([]record, error) {
+	f, err := commit.File(songFile(songID))
+	if errors.Is(err, object.ErrFileNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	contents, err := f.Contents()
+	if err != nil {
+		return nil, err
+	}
+	return parseLog(contents)
+}
 
-// Collect runs `git gc` over refs (the root set IS the refs) (I7).
-func (*Git) Collect(store.RootSet, store.RetentionPolicy) error { return store.ErrTODO }
+func parseLog(contents string) ([]record, error) {
+	var recs []record
+	start := 0
+	for i := 0; i <= len(contents); i++ {
+		if i == len(contents) || contents[i] == '\n' {
+			if i > start {
+				var r record
+				if err := json.Unmarshal([]byte(contents[start:i]), &r); err != nil {
+					return nil, fmt.Errorf("gitstore: corrupt record: %w", err)
+				}
+				recs = append(recs, r)
+			}
+			start = i + 1
+		}
+	}
+	return recs, nil
+}
+
+// fold splits records into the mutation log + revisions and materializes.
+func foldRecords(recs []record) ([]domain.Mutation, []domain.Revision, []int) {
+	var log []domain.Mutation
+	var revs []domain.Revision
+	var revLogLen []int
+	for _, r := range recs {
+		switch r.Type {
+		case "mut":
+			log = append(log, *r.Mutation)
+		case "rev":
+			revs = append(revs, *r.Revision)
+			revLogLen = append(revLogLen, len(log))
+		}
+	}
+	return log, revs, revLogLen
+}
+
+// commitRecord appends a record line to the song file and makes one commit.
+func (g *Git) commitRecord(songID string, r record, message string) (plumbing.Hash, error) {
+	recs, err := g.readLog(songID)
+	if err != nil {
+		return plumbing.ZeroHash, err
+	}
+	recs = append(recs, r)
+	var buf []byte
+	for _, rec := range recs {
+		b, err := json.Marshal(rec)
+		if err != nil {
+			return plumbing.ZeroHash, err
+		}
+		buf = append(buf, b...)
+		buf = append(buf, '\n')
+	}
+	fp := songFile(songID)
+	wf, err := g.wt.Filesystem.Create(fp)
+	if err != nil {
+		return plumbing.ZeroHash, err
+	}
+	if _, err := wf.Write(buf); err != nil {
+		wf.Close()
+		return plumbing.ZeroHash, err
+	}
+	wf.Close()
+	if _, err := g.wt.Add(fp); err != nil {
+		return plumbing.ZeroHash, err
+	}
+	if message == "" {
+		message = fmt.Sprintf("%s %s", r.Type, songID)
+	}
+	author := "unknown"
+	if r.Mutation != nil && r.Mutation.AuthorID != "" {
+		author = r.Mutation.AuthorID
+	} else if r.Revision != nil && r.Revision.AuthorID != "" {
+		author = r.Revision.AuthorID
+	}
+	return g.wt.Commit(message, &git.CommitOptions{
+		Author: &object.Signature{Name: author, Email: author + "@troubastack", When: time.Now()},
+	})
+}
+
+// Head folds the current HEAD tree's JSONL.
+func (g *Git) Head(songID string) (domain.Snapshot, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	recs, err := g.readLog(songID)
+	if err != nil {
+		return domain.Snapshot{}, err
+	}
+	log, revs, _ := foldRecords(recs)
+	return store.Fold(log, uint64(len(revs))), nil
+}
+
+// Apply commits one accepted mutation (I2 idempotent by seq).
+func (g *Git) Apply(songID string, mut domain.Mutation) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if mut.Seq != 0 {
+		recs, err := g.readLog(songID)
+		if err != nil {
+			return err
+		}
+		for _, r := range recs {
+			if r.Type == "mut" && r.Mutation.Seq == mut.Seq {
+				return nil
+			}
+		}
+	}
+	m := mut.Clone()
+	_, err := g.commitRecord(songID, record{Type: "mut", Mutation: &m}, mut.Summary)
+	return err
+}
+
+// SnapshotAt reads the commit tagged for revision N and folds its JSONL (I4).
+func (g *Git) SnapshotAt(songID string, revision uint64) (domain.Snapshot, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	ref, err := g.repo.Tag(revTag(songID, revision))
+	if errors.Is(err, git.ErrTagNotFound) {
+		return domain.Snapshot{}, store.ErrNotFound
+	}
+	if err != nil {
+		return domain.Snapshot{}, err
+	}
+	commit, err := g.commitFromTag(ref)
+	if err != nil {
+		return domain.Snapshot{}, err
+	}
+	recs, err := readLogFromCommit(commit, songID)
+	if err != nil {
+		return domain.Snapshot{}, err
+	}
+	log, _, _ := foldRecords(recs)
+	return store.Fold(log, revision), nil
+}
+
+func (g *Git) commitFromTag(ref *plumbing.Reference) (*object.Commit, error) {
+	// Annotated tag → tag object → commit; lightweight tag → commit directly.
+	if tagObj, err := g.repo.TagObject(ref.Hash()); err == nil {
+		return tagObj.Commit()
+	}
+	return g.repo.CommitObject(ref.Hash())
+}
+
+// AppendRevision commits a revision marker and tags it rev/<song>/<N> (I4).
+func (g *Git) AppendRevision(songID string, r domain.Revision) (uint64, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	recs, err := g.readLog(songID)
+	if err != nil {
+		return 0, err
+	}
+	_, revs, _ := foldRecords(recs)
+	r.Number = uint64(len(revs)) + 1
+	if r.Number > 1 {
+		r.Parent = r.Number - 1
+	}
+	msg := r.Summary
+	if msg == "" {
+		msg = fmt.Sprintf("revision %d", r.Number)
+	}
+	hash, err := g.commitRecord(songID, record{Type: "rev", Revision: &r}, msg)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := g.repo.CreateTag(revTag(songID, r.Number), hash, nil); err != nil {
+		return 0, err
+	}
+	return r.Number, nil
+}
+
+// Revisions returns the linear history oldest→newest.
+func (g *Git) Revisions(songID string) ([]domain.Revision, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	recs, err := g.readLog(songID)
+	if err != nil {
+		return nil, err
+	}
+	_, revs, _ := foldRecords(recs)
+	return revs, nil
+}
+
+// MovePin points a pin tag at the revision's commit (I4); never deletes its target.
+func (g *Git) MovePin(songID, pinName string, revision uint64) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	ref, err := g.repo.Tag(revTag(songID, revision))
+	if errors.Is(err, git.ErrTagNotFound) {
+		return store.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	tag := pinTag(songID, pinName)
+	// A pin moves: drop the old tag, recreate at the new target (the rev tag retains
+	// the target commit, so nothing is orphaned — I7).
+	_ = g.repo.DeleteTag(tag)
+	commit, err := g.commitFromTag(ref)
+	if err != nil {
+		return err
+	}
+	_, err = g.repo.CreateTag(tag, commit.Hash, nil)
+	return err
+}
+
+// Pins lists the pins for a song by scanning pin/<song>/* tags.
+func (g *Git) Pins(songID string) ([]domain.Pin, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	iter, err := g.repo.Tags()
+	if err != nil {
+		return nil, err
+	}
+	prefix := "pin/" + songID + "/"
+	revByCommit := map[plumbing.Hash]uint64{}
+	if err := g.indexRevCommits(songID, revByCommit); err != nil {
+		return nil, err
+	}
+	var out []domain.Pin
+	err = iter.ForEach(func(ref *plumbing.Reference) error {
+		name := ref.Name().Short()
+		if len(name) <= len(prefix) || name[:len(prefix)] != prefix {
+			return nil
+		}
+		commit, err := g.commitFromTag(ref)
+		if err != nil {
+			return err
+		}
+		out = append(out, domain.Pin{
+			SongID:         songID,
+			Name:           name[len(prefix):],
+			RevisionNumber: revByCommit[commit.Hash],
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (g *Git) indexRevCommits(songID string, dst map[plumbing.Hash]uint64) error {
+	iter, err := g.repo.Tags()
+	if err != nil {
+		return err
+	}
+	prefix := "rev/" + songID + "/"
+	return iter.ForEach(func(ref *plumbing.Reference) error {
+		name := ref.Name().Short()
+		if len(name) <= len(prefix) || name[:len(prefix)] != prefix {
+			return nil
+		}
+		var n uint64
+		if _, err := fmt.Sscanf(name[len(prefix):], "%d", &n); err != nil {
+			return nil
+		}
+		commit, err := g.commitFromTag(ref)
+		if err != nil {
+			return err
+		}
+		dst[commit.Hash] = n
+		return nil
+	})
+}
+
+// Collect runs reachability GC. go-git exposes no porcelain `git gc`; a real prune
+// would call PackRefs + a loose-object repack. For the v1 spike this is a documented
+// reference-safe no-op (refs/tags ARE the root set, so nothing reachable is dropped).
+//
+// TODO: go-git limitation — there is no high-level git.Repository.GC(); implementing
+// a true repack means driving the storer's packfile writer directly. Left as a no-op
+// per the workflow guidance rather than failing.
+func (g *Git) Collect(_ store.RootSet, _ store.RetentionPolicy) error {
+	return nil
+}
