@@ -47,11 +47,17 @@ import {
   DEFAULT_STYLE,
   buildObject,
   hitTest,
+  intersectsRect,
+  isMarquee,
   isMeaningfulGesture,
+  normalizeRect,
+  objectBBox,
+  objectLabel,
   pointerToPageXY,
   pointsForTool,
   translateObject,
   type DrawTool,
+  type SelectRect,
   type Tool,
 } from "../editor";
 
@@ -208,7 +214,10 @@ function Viewer({
   const [tool, setTool] = useState<Tool>("select");
   const [style, setStyle] = useState(DEFAULT_STYLE);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
-  const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
+  // The current selection (single click or rubber-band marquee). Empty = none.
+  const [selectedUuids, setSelectedUuids] = useState<string[]>([]);
+  // A brief inline notice when the server rejects one of our writes.
+  const [rejectNotice, setRejectNotice] = useState<string | null>(null);
   const [connStatus, setConnStatus] = useState<"connecting" | "open" | "closed">("connecting");
   // The realtime client for this song; null until a connection is opened.
   const syncRef = useRef<SyncClient | null>(null);
@@ -327,6 +336,19 @@ function Viewer({
         });
       },
       onStatus: setConnStatus,
+      onReject: (_uuid, reason) => {
+        // The editable-layer model should prevent forbidden writes, but if the
+        // server still rejects (e.g. a stale layer), roll back is already done —
+        // show a brief inline notice so the user knows the edit didn't stick.
+        setRejectNotice(
+          reason === "forbidden"
+            ? "That layer is read-only — your edit wasn't saved."
+            : reason === "deleted-remotely"
+              ? "That object was deleted by someone else."
+              : "Your edit couldn't be saved (out of date).",
+        );
+        window.setTimeout(() => setRejectNotice(null), 4000);
+      },
     });
     syncRef.current = client;
     client.connect();
@@ -489,8 +511,16 @@ function Viewer({
     [doc.layers, myUserId, selectedFileId],
   );
 
+  // The layer ink currently lands on (only ever an editable layer, never a
+  // conductor/other-member RO layer — those are filtered out of editableLayers).
+  const activeLayer = useMemo(
+    () => editableLayers.find((l) => l.id === activeLayerId) ?? null,
+    [editableLayers, activeLayerId],
+  );
+
   // Keep a valid active layer: prefer the current one if it's still editable,
   // else fall back to the first editable layer (or null → "New layer" offered).
+  // Never let activeLayerId point at a non-editable layer.
   useEffect(() => {
     setActiveLayerId((cur) => {
       if (cur && editableLayers.some((l) => l.id === cur)) return cur;
@@ -553,10 +583,15 @@ function Viewer({
         text,
       });
       if (tool === "text" && !obj.text) return; // empty text → nothing to create
+      // Defense in depth: never commit onto a layer we may not write. ensureActiveLayer
+      // only ever returns an editable layer (or a freshly-created personal one), so
+      // we only reject a layer that is KNOWN to be non-editable in the current doc.
+      const target = doc.layers.find((l) => l.id === layerId);
+      if (target && !isEditableLayer(target, myUserId)) return;
       syncRef.current.createObject(obj);
-      setSelectedUuid(obj.uuid);
+      setSelectedUuids([obj.uuid]);
     },
-    [ensureActiveLayer, style],
+    [ensureActiveLayer, doc.layers, myUserId, style],
   );
 
   // Commit a move: send the translated object (move mutation).
@@ -565,12 +600,25 @@ function Viewer({
     syncRef.current.updateObject("move", obj);
   }, []);
 
-  // Delete the selected object.
+  // Scroll the page that contains an object into view (objects live on canvas,
+  // so "scroll into view" means bringing its page wrapper on-screen).
+  const scrollObjectIntoView = useCallback(
+    (uuid: string) => {
+      const obj = doc.objects.find((o) => o.uuid === uuid);
+      if (!obj) return;
+      const pageEls = scrollRef.current?.querySelectorAll<HTMLElement>(".pdf-page");
+      const el = pageEls?.[obj.page] ?? pageEls?.[0];
+      el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    },
+    [doc.objects],
+  );
+
+  // Delete the current selection (one or many objects).
   const deleteSelected = useCallback(() => {
-    if (!selectedUuid || !syncRef.current) return;
-    syncRef.current.deleteObject(selectedUuid);
-    setSelectedUuid(null);
-  }, [selectedUuid]);
+    if (selectedUuids.length === 0 || !syncRef.current) return;
+    for (const uuid of selectedUuids) syncRef.current.deleteObject(uuid);
+    setSelectedUuids([]);
+  }, [selectedUuids]);
 
   // Delete/Backspace removes the current selection (ignored while typing in a
   // form field, so the Details inputs below keep working normally).
@@ -579,20 +627,21 @@ function Viewer({
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      if (!selectedUuid) return;
+      if (selectedUuids.length === 0) return;
       e.preventDefault();
       deleteSelected();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedUuid, deleteSelected]);
+  }, [selectedUuids, deleteSelected]);
 
-  // Clear a stale selection if the selected object disappears (deleted remotely).
+  // Drop any selected uuids whose objects have disappeared (deleted remotely).
   useEffect(() => {
-    if (selectedUuid && !doc.objects.some((o) => o.uuid === selectedUuid)) {
-      setSelectedUuid(null);
-    }
-  }, [doc.objects, selectedUuid]);
+    setSelectedUuids((cur) => {
+      const next = cur.filter((u) => doc.objects.some((o) => o.uuid === u));
+      return next.length === cur.length ? cur : next;
+    });
+  }, [doc.objects]);
 
   // ---- overlay rendering: object coords [0,1] → page box. ----
   // We scale the ctx by DPR and draw using the LOGICAL (CSS-px) page box, so a
@@ -767,20 +816,27 @@ function Viewer({
         tool={tool}
         onTool={(t) => {
           setTool(t);
-          if (t !== "select") setSelectedUuid(null);
+          if (t !== "select") setSelectedUuids([]);
         }}
         style={style}
         onStyle={setStyle}
         editableLayers={editableLayers}
         activeLayerId={activeLayerId}
+        activeLayer={activeLayer}
         onActiveLayer={setActiveLayerId}
         onNewLayer={() => createPersonalLayer()}
         canDraw={myUserId != null && selectedFileId != null}
         objectCount={doc.objects.length}
-        selectedUuid={selectedUuid}
+        selectionCount={selectedUuids.length}
         onDelete={deleteSelected}
         connStatus={connStatus}
       />
+
+      {rejectNotice && (
+        <p className="notice editor-reject-notice" data-testid="reject-notice" role="alert">
+          {rejectNotice}
+        </p>
+      )}
 
       <div className="viewer-toolbar">
         <div className="zoom-controls" data-testid="zoom-controls">
@@ -932,8 +988,8 @@ function Viewer({
                   objects={doc.objects}
                   layersById={layersById}
                   visible={visible}
-                  selectedUuid={selectedUuid}
-                  onSelect={setSelectedUuid}
+                  selectedUuids={selectedUuids}
+                  onSelect={setSelectedUuids}
                   onCommitDraw={commitDraw}
                   onCommitMove={commitMove}
                 />
@@ -961,8 +1017,8 @@ function Viewer({
                 objects={doc.objects}
                 layersById={layersById}
                 visible={visible}
-                selectedUuid={selectedUuid}
-                onSelect={setSelectedUuid}
+                selectedUuids={selectedUuids}
+                onSelect={setSelectedUuids}
                 onCommitDraw={commitDraw}
                 onCommitMove={commitMove}
               />
@@ -971,12 +1027,25 @@ function Viewer({
         </div>
 
         {sidebarOpen && (
-          <LayersPanel
-            layers={sortedLayers}
-            visible={visible}
-            myUserId={myUserId}
-            onToggle={toggle}
-          />
+          <div className="viewer-sidebar">
+            <AnnotationList
+              objects={doc.objects}
+              activeLayerId={activeLayerId}
+              activeLayer={activeLayer}
+              selectedUuids={selectedUuids}
+              onSelect={(uuid) => {
+                setSelectedUuids([uuid]);
+                scrollObjectIntoView(uuid);
+              }}
+            />
+            <LayersPanel
+              layers={sortedLayers}
+              visible={visible}
+              myUserId={myUserId}
+              activeLayerId={activeLayerId}
+              onToggle={toggle}
+            />
+          </div>
         )}
       </div>
     </section>
@@ -1164,11 +1233,13 @@ function LayersPanel({
   layers,
   visible,
   myUserId,
+  activeLayerId,
   onToggle,
 }: {
   layers: AnnotationLayer[];
   visible: LayerVisibility;
   myUserId: string | null;
+  activeLayerId: string | null;
   onToggle: (id: string) => void;
 }) {
   return (
@@ -1185,8 +1256,16 @@ function LayersPanel({
               l.zone === "personal" && myUserId != null && l.ownerId === myUserId
                 ? "personal · mine"
                 : l.zone;
+            // Non-editable = a layer I may not write (RO, or someone else's
+            // personal layer). Shown with a lock; never the active draw target.
+            const locked = !isEditableLayer(l, myUserId);
+            const isActive = l.id === activeLayerId;
             return (
-              <li key={l.id} data-testid="layer-item">
+              <li
+                key={l.id}
+                data-testid="layer-item"
+                className={`layer-item${isActive ? " active-layer" : ""}${locked ? " locked" : ""}`}
+              >
                 <label className="layer-row">
                   <input
                     type="checkbox"
@@ -1199,9 +1278,82 @@ function LayersPanel({
                 </label>
                 <span className="pill">{tag}</span>
                 {l.mandatory && <span className="pill mandatory-pill">required</span>}
+                {isActive && (
+                  <span className="pill active-pill" data-testid="layer-active">
+                    drawing
+                  </span>
+                )}
+                {locked && (
+                  <span
+                    className="pill lock-pill"
+                    data-testid="layer-lock"
+                    title="Read-only — you can't draw on this layer"
+                    aria-label="Read-only layer"
+                  >
+                    🔒 locked
+                  </span>
+                )}
               </li>
             );
           })}
+        </ul>
+      )}
+    </aside>
+  );
+}
+
+// ===========================================================================
+// Annotation list — objects on the current editing (active) layer
+// ===========================================================================
+
+/** A list of the objects on the ACTIVE editing layer. Each row shows the type
+ *  + a short label; clicking selects + highlights that object (and the caller
+ *  scrolls it into view). */
+function AnnotationList({
+  objects,
+  activeLayerId,
+  activeLayer,
+  selectedUuids,
+  onSelect,
+}: {
+  objects: AnnotationObject[];
+  activeLayerId: string | null;
+  activeLayer: AnnotationLayer | null;
+  selectedUuids: string[];
+  onSelect: (uuid: string) => void;
+}) {
+  const items = useMemo(
+    () => objects.filter((o) => o.layerId === activeLayerId),
+    [objects, activeLayerId],
+  );
+  const selected = new Set(selectedUuids);
+  return (
+    <aside className="annotation-list-panel" data-testid="annotation-list">
+      <h2>Annotations{activeLayer ? ` · ${activeLayer.name}` : ""}</h2>
+      {!activeLayer ? (
+        <p className="muted" data-testid="annotation-list-empty">
+          No editable layer yet — draw to create one.
+        </p>
+      ) : items.length === 0 ? (
+        <p className="muted" data-testid="annotation-list-empty">
+          No annotations on this layer.
+        </p>
+      ) : (
+        <ul className="list annotation-items">
+          {items.map((o) => (
+            <li key={o.uuid}>
+              <button
+                type="button"
+                data-testid="annotation-item"
+                className={`annotation-item${selected.has(o.uuid) ? " selected" : ""}`}
+                aria-pressed={selected.has(o.uuid)}
+                onClick={() => onSelect(o.uuid)}
+              >
+                <span className={`pill ann-type ann-type-${o.type}`}>{o.type}</span>
+                <span className="ann-label">{objectLabel(o)}</span>
+              </button>
+            </li>
+          ))}
         </ul>
       )}
     </aside>
@@ -1229,11 +1381,12 @@ function EditorToolbar({
   onStyle,
   editableLayers,
   activeLayerId,
+  activeLayer,
   onActiveLayer,
   onNewLayer,
   canDraw,
   objectCount,
-  selectedUuid,
+  selectionCount,
   onDelete,
   connStatus,
 }: {
@@ -1243,11 +1396,12 @@ function EditorToolbar({
   onStyle: (s: AnnotationStyle) => void;
   editableLayers: AnnotationLayer[];
   activeLayerId: string | null;
+  activeLayer: AnnotationLayer | null;
   onActiveLayer: (id: string) => void;
   onNewLayer: () => void;
   canDraw: boolean;
   objectCount: number;
-  selectedUuid: string | null;
+  selectionCount: number;
   onDelete: () => void;
   connStatus: "connecting" | "open" | "closed";
 }) {
@@ -1330,6 +1484,14 @@ function EditorToolbar({
       </div>
 
       <div className="layer-controls">
+        {/* Prominent, brand-colored chip: always shows where ink will land. */}
+        <span
+          className="pill active-layer-indicator"
+          data-testid="active-layer-indicator"
+          title="New annotations are drawn on this layer"
+        >
+          Drawing on: {activeLayer ? activeLayer.name : "no editable layer — draw to create one"}
+        </span>
         <label className="style-field">
           <span>Active layer</span>
           <select
@@ -1359,10 +1521,10 @@ function EditorToolbar({
           type="button"
           data-testid="delete-object"
           className="delete-object-btn"
-          disabled={!selectedUuid}
+          disabled={selectionCount === 0}
           onClick={onDelete}
         >
-          Delete
+          Delete{selectionCount > 1 ? ` (${selectionCount})` : ""}
         </button>
         <span className="pill" data-testid="object-count" title="Live annotation count">
           {objectCount} objects
@@ -1404,7 +1566,7 @@ function EditCanvas({
   objects,
   layersById,
   visible,
-  selectedUuid,
+  selectedUuids,
   onSelect,
   onCommitDraw,
   onCommitMove,
@@ -1415,20 +1577,24 @@ function EditCanvas({
   objects: AnnotationObject[];
   layersById: Map<string, AnnotationLayer>;
   visible: LayerVisibility;
-  selectedUuid: string | null;
-  onSelect: (uuid: string | null) => void;
+  selectedUuids: string[];
+  onSelect: (uuids: string[]) => void;
   onCommitDraw: (tool: DrawTool, page: number, path: PRPoint[], text?: string) => void;
   onCommitMove: (obj: AnnotationObject) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  // The active gesture: a draw path, a move drag, or none. Kept in a ref so the
-  // pointer handlers (bound via React props) read the latest without re-binding.
+  // The active gesture: a draw path, a move drag, a rubber-band marquee, or
+  // none. Kept in a ref so pointer handlers read the latest without re-binding.
   const gestureRef = useRef<
     | { mode: "draw"; path: PRPoint[] }
     | { mode: "move"; obj: AnnotationObject; start: PRPoint; preview: AnnotationObject }
+    | { mode: "marquee"; start: PRPoint }
     | null
   >(null);
   const [, forceRepaint] = useState(0);
+  // The live rubber-band rect (page-relative [0,1]) while marqueeing, for the
+  // DOM selection-box overlay. null when not marqueeing.
+  const [marquee, setMarquee] = useState<SelectRect | null>(null);
 
   // Objects on THIS page that are currently visible (for hit-testing on select).
   const pageObjects = useMemo(
@@ -1440,6 +1606,13 @@ function EditCanvas({
           return l && visible[l.id];
         }),
     [objects, page, layersById, visible],
+  );
+
+  // Selected objects on THIS page (for the DOM bbox highlights).
+  const selectedSet = useMemo(() => new Set(selectedUuids), [selectedUuids]);
+  const selectedOnPage = useMemo(
+    () => pageObjects.filter((o) => selectedSet.has(o.uuid)),
+    [pageObjects, selectedSet],
   );
 
   // Match the edit canvas's backing store + CSS box to the page box (the sibling
@@ -1463,7 +1636,9 @@ function EditCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Paint the wet object (and a selection box) onto the edit canvas.
+  // Paint the wet object / move preview onto the edit canvas. (Selection boxes
+  // and per-object bbox highlights are DOM overlays, not canvas — so e2e can
+  // query them and they stay crisp at any zoom.)
   const repaint = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1481,26 +1656,7 @@ function EditCanvas({
     } else if (g?.mode === "move") {
       renderObjects(ctx, [toInkObject(g.preview) as InkObject], box);
     }
-
-    // Selection outline (page-relative bbox → px).
-    if (selectedUuid) {
-      const sel = pageObjects.find((o) => o.uuid === selectedUuid);
-      if (sel) {
-        const xs = sel.points.map((p) => p.x);
-        const ys = sel.points.map((p) => p.y);
-        const minX = Math.min(...xs) * box.w;
-        const minY = Math.min(...ys) * box.h;
-        const maxX = Math.max(...xs) * box.w;
-        const maxY = Math.max(...ys) * box.h;
-        ctx.save();
-        ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = "#2563eb";
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(minX - 4, minY - 4, maxX - minX + 8, maxY - minY + 8);
-        ctx.restore();
-      }
-    }
-  }, [tool, style, selectedUuid, pageObjects]);
+  }, [tool, style]);
 
   // Keep the canvas sized to its page; observe the page wrapper for zoom/resize.
   useLayoutEffect(() => {
@@ -1513,7 +1669,7 @@ function EditCanvas({
     return () => ro.disconnect();
   }, [sizeToPage]);
 
-  // Repaint when the selection / page objects / tool / style change.
+  // Repaint when the page objects / tool / style change.
   useEffect(() => {
     repaint();
   }, [repaint]);
@@ -1533,11 +1689,15 @@ function EditCanvas({
       // Hit-test topmost (last drawn) visible object on this page.
       const hit = [...pageObjects].reverse().find((o) => hitTest(o, pt.x, pt.y));
       if (hit) {
-        onSelect(hit.uuid);
+        onSelect([hit.uuid]);
         canvas.setPointerCapture(e.pointerId);
         gestureRef.current = { mode: "move", obj: hit, start: pt, preview: hit };
       } else {
-        onSelect(null);
+        // Empty space → start a rubber-band marquee.
+        onSelect([]);
+        canvas.setPointerCapture(e.pointerId);
+        gestureRef.current = { mode: "marquee", start: pt };
+        setMarquee(normalizeRect(pt, pt));
       }
       return;
     }
@@ -1566,6 +1726,8 @@ function EditCanvas({
       const dy = pt.y - g.start.y;
       g.preview = translateObject(g.obj, dx, dy);
       repaint();
+    } else if (g.mode === "marquee") {
+      setMarquee(normalizeRect(g.start, pt));
     }
   }
 
@@ -1582,20 +1744,62 @@ function EditCanvas({
       const moved =
         g.preview.points.some((p, i) => p.x !== g.obj.points[i].x || p.y !== g.obj.points[i].y);
       if (moved) onCommitMove(g.preview);
+    } else if (g.mode === "marquee") {
+      const pt = pageRelative(e);
+      const rect = normalizeRect(g.start, pt);
+      setMarquee(null);
+      if (isMarquee(rect)) {
+        const hits = pageObjects.filter((o) => intersectsRect(o, rect)).map((o) => o.uuid);
+        onSelect(hits);
+      }
     }
     repaint();
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={`edit-canvas tool-${tool}`}
-      data-testid="edit-canvas"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`edit-canvas tool-${tool}`}
+        data-testid="edit-canvas"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      />
+      {/* Selection overlays: DOM elements positioned in % of the page box, so
+          they track the page under any zoom AND are queryable in e2e. */}
+      <div className="selection-overlay" aria-hidden="true">
+        {selectedOnPage.map((o) => {
+          const b = objectBBox(o);
+          return (
+            <div
+              key={o.uuid}
+              className="selected-bbox"
+              data-testid="selected-bbox"
+              style={{
+                left: `${b.minX * 100}%`,
+                top: `${b.minY * 100}%`,
+                width: `${(b.maxX - b.minX) * 100}%`,
+                height: `${(b.maxY - b.minY) * 100}%`,
+              }}
+            />
+          );
+        })}
+        {marquee && (
+          <div
+            className="selection-box"
+            data-testid="selection-box"
+            style={{
+              left: `${marquee.x0 * 100}%`,
+              top: `${marquee.y0 * 100}%`,
+              width: `${(marquee.x1 - marquee.x0) * 100}%`,
+              height: `${(marquee.y1 - marquee.y0) * 100}%`,
+            }}
+          />
+        )}
+      </div>
+    </>
   );
 }
 

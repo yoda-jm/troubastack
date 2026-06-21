@@ -169,3 +169,36 @@ export function hitTest(
     y <= b.maxY + pad
   );
 }
+
+/** A page-relative [0,1] rectangle (rubber-band selection box). */
+export type SelectRect = { x0: number; y0: number; x1: number; y1: number };
+
+/** Normalize a drag (start→end) into a min/max rect. */
+export function normalizeRect(a: { x: number; y: number }, b: { x: number; y: number }): SelectRect {
+  return {
+    x0: Math.min(a.x, b.x),
+    y0: Math.min(a.y, b.y),
+    x1: Math.max(a.x, b.x),
+    y1: Math.max(a.y, b.y),
+  };
+}
+
+/** Does an object's bounding box intersect the selection rect? */
+export function intersectsRect(obj: AnnotationObject, r: SelectRect): boolean {
+  const b = objectBBox(obj);
+  return !(b.maxX < r.x0 || b.minX > r.x1 || b.maxY < r.y0 || b.minY > r.y1);
+}
+
+/** Is a rubber-band drag big enough to count as a marquee (vs. a stray click)? */
+export function isMarquee(r: SelectRect): boolean {
+  return Math.hypot(r.x1 - r.x0, r.y1 - r.y0) > 0.01;
+}
+
+/** A short human label for an annotation, for the per-layer annotation list. */
+export function objectLabel(obj: AnnotationObject): string {
+  if (obj.type === "text") {
+    const t = obj.text.trim();
+    return t ? `text: "${t.length > 20 ? `${t.slice(0, 20)}…` : t}"` : "text";
+  }
+  return obj.type;
+}

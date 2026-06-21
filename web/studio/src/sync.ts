@@ -55,10 +55,11 @@ type SnapshotFrame = {
   seq: number;
 };
 type EchoFrame = { type: "echo"; mutation: Mutation };
+export type RejectReason = "deleted-remotely" | "stale" | "forbidden";
 type RejectFrame = {
   type: "reject";
   uuid: string;
-  reason: "deleted-remotely" | "stale";
+  reason: RejectReason;
 };
 type ServerFrame = SnapshotFrame | EchoFrame | RejectFrame;
 
@@ -73,6 +74,9 @@ export type SyncEvents = {
   onState: (state: SyncState) => void;
   /** Connection status, for a UI dot / reconnect note. */
   onStatus?: (status: "connecting" | "open" | "closed") => void;
+  /** Called when the server rejects one of OUR optimistic ops (after rollback),
+   *  so the UI can surface a brief inline notice (e.g. a forbidden write). */
+  onReject?: (uuid: string, reason: RejectReason) => void;
 };
 
 /** Snapshot of one optimistic op, kept until its echo lands (so a reject can
@@ -242,6 +246,7 @@ export class SyncClient {
     if (p.prev) this.objects.set(r.uuid, p.prev);
     else this.objects.delete(r.uuid);
     this.emit();
+    this.events.onReject?.(r.uuid, r.reason);
   }
 
   // ---- outgoing mutations ----------------------------------------------

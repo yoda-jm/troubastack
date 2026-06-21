@@ -312,21 +312,77 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   pointer-events: none;
 }
 
+.viewer-sidebar {
+  flex: 0 0 260px; width: 260px; align-self: stretch;
+  display: flex; flex-direction: column; gap: .8rem;
+  min-width: 0;
+}
+@media (max-width: 760px) { .viewer-sidebar { flex-basis: auto; width: 100%; } }
+
 .layers-panel {
-  flex: 0 0 240px; width: 240px; align-self: stretch;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   padding: .8rem 1rem;
   display: flex; flex-direction: column; gap: .6rem;
 }
-@media (max-width: 760px) { .layers-panel { flex-basis: auto; width: 100%; } }
 .layers-list { gap: .3rem; }
 .layers-list li { flex-wrap: wrap; gap: .4rem; padding: .45rem .6rem; }
+.layers-list li.active-layer { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; border-radius: var(--r-sm); }
+.layers-list li.locked .layer-name { color: var(--muted, #6b7280); }
 .layer-row { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; font-weight: 600; }
 .layer-row input { width: auto; }
 .layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mandatory-pill { background: var(--ok-bg); color: var(--ok-fg); }
+.lock-pill { background: #e5e7eb; color: #374151; text-transform: none; }
+.active-pill { background: var(--accent, #2563eb); color: #fff; text-transform: none; }
+
+/* Annotation list for the active layer. */
+.annotation-list-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: .8rem 1rem;
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.annotation-items { gap: .25rem; }
+.annotation-items li { padding: 0; }
+.annotation-item {
+  display: flex; align-items: center; gap: .5rem; width: 100%;
+  text-align: left; padding: .35rem .5rem; font-size: .85rem;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.annotation-item:hover { background: var(--surface, #fff); border-color: var(--border); }
+.annotation-item.selected { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; }
+.annotation-item .ann-type { text-transform: uppercase; }
+.annotation-item .ann-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The "Drawing on: <layer>" chip — always shows where new ink lands. */
+.active-layer-indicator {
+  background: var(--accent, #2563eb); color: #fff; text-transform: none;
+  font-weight: 600; max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.editor-reject-notice {
+  background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;
+  padding: .5rem .75rem; border-radius: var(--r-sm); margin: 0 0 .6rem;
+}
+
+/* Selection overlays (rubber-band box + per-object bbox highlights). DOM, not
+   canvas, so they are queryable and crisp at any zoom; positioned in % of the
+   page box (inset:0 fills the .pdf-page wrapper, which hugs the page canvas). */
+.selection-overlay { position: absolute; inset: 0; pointer-events: none; }
+.selected-bbox {
+  position: absolute; box-sizing: border-box;
+  border: 1.5px dashed var(--accent, #2563eb);
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 2px;
+}
+.selection-box {
+  position: absolute; box-sizing: border-box;
+  border: 1.5px solid var(--accent, #2563eb);
+  background: rgba(37, 99, 235, 0.12);
+}
 
 .details-section { padding: 0; overflow: hidden; }
 .details-toggle {

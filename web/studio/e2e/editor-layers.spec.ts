@@ -1,0 +1,348 @@
+/**
+ * Live annotation EDITOR — layer-access & editing-UX e2e.
+ *
+ * These specs target the editable-layer model and the selection / annotation-
+ * list UX added on top of the realtime editor (see editor.spec.ts for the core
+ * draw/realtime/delete coverage).
+ *
+ * Setup pattern: register, make a band + song, upload the PDF fixture, then
+ * import (via the REST /annotations/import path, which is permissive and does
+ * not enforce the live-edit write gate) a layer set that mimics the real-world
+ * problem cases:
+ *
+ *   - A CONDUCTOR layer the current member does NOT own (ownerId = someone
+ *     else), access "ro", mandatory: true. The member must never be able to
+ *     draw into it (the live WS path rejects "forbidden"), and it must not be
+ *     selectable as the active drawing layer.
+ *
+ * Screenshots land at /tmp/ed-active-layer.png, /tmp/ed-selection.png,
+ * /tmp/ed-annlist.png.
+ */
+import { test, expect, type Page } from "@playwright/test";
+import { fileURLToPath } from "node:url";
+
+const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
+
+async function register(page: Page, username: string, password = "secret123") {
+  await page.goto("/register");
+  await page.getByTestId("username").fill(username);
+  await page.getByTestId("displayName").fill(`Display ${username}`);
+  await page.getByTestId("password").fill(password);
+  await page.getByTestId("submit").click();
+  await expect(page).toHaveURL(/\/bands$/);
+}
+
+async function myUserId(page: Page): Promise<string> {
+  return page.evaluate(async (): Promise<string> => {
+    const r = await fetch("/api/me", { credentials: "include" });
+    const j = (await r.json()) as { user: { id: string } };
+    return j.user.id;
+  });
+}
+
+async function createBandAndOpen(page: Page, bandName: string): Promise<{ url: string; id: string }> {
+  await page.getByTestId("band-name").fill(bandName);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
+  await expect(page.getByTestId("band-title")).toHaveText(bandName);
+  const url = page.url();
+  return { url, id: url.split("/bands/")[1] };
+}
+
+async function createSongAndOpen(page: Page, title: string): Promise<string> {
+  await page.getByTestId("song-title").fill(title);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").filter({ hasText: title }).click();
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+  return page.url().split("/songs/")[1];
+}
+
+async function uploadPdf(page: Page) {
+  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
+  await page.getByTestId("file-upload").click();
+  await expect(page.getByTestId("file-row")).toHaveCount(1);
+}
+
+async function firstFileId(page: Page, bandId: string, songId: string): Promise<string> {
+  return page.evaluate(
+    async ([b, s]): Promise<string> => {
+      const r = await fetch(`/api/bands/${b}/songs/${s}/files`, { credentials: "include" });
+      const j = (await r.json()) as { files: { id: string }[] };
+      return j.files[0].id;
+    },
+    [bandId, songId],
+  );
+}
+
+async function importDoc(
+  page: Page,
+  bandId: string,
+  songId: string,
+  doc: unknown,
+): Promise<{ ok: boolean; status: number }> {
+  return page.evaluate(
+    async ([b, s, body]) => {
+      const r = await fetch(`/api/bands/${b}/songs/${s}/annotations/import`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return { ok: r.ok, status: r.status };
+    },
+    [bandId, songId, doc] as const,
+  );
+}
+
+async function getAnnotations(
+  page: Page,
+  bandId: string,
+  songId: string,
+): Promise<{ layers: { id: string }[]; objects: { uuid: string; type: string; layerId: string }[] }> {
+  return page.evaluate(
+    async ([b, s]) => {
+      const r = await fetch(`/api/bands/${b}/songs/${s}/annotations`, { credentials: "include" });
+      return (await r.json()) as {
+        layers: { id: string }[];
+        objects: { uuid: string; type: string; layerId: string }[];
+      };
+    },
+    [bandId, songId],
+  );
+}
+
+/** A doc whose ONLY layer is a conductor read-only layer owned by someone else,
+ *  mandatory. The current member owns nothing editable here. */
+function conductorOnlyDoc(fileId: string) {
+  return {
+    layers: [
+      {
+        id: "layer-conductor",
+        fileId,
+        name: "Conductor cues",
+        ownerId: "conductor-user",
+        zone: "conductor",
+        order: 0,
+        access: "ro",
+        mandatory: true,
+        roleTag: "conductor",
+      },
+    ],
+    objects: [],
+  };
+}
+
+async function dragOnPage(
+  page: Page,
+  fx: number,
+  fy: number,
+  tx: number,
+  ty: number,
+  steps = 8,
+) {
+  const pageEl = page.getByTestId("pdf-page").first();
+  await pageEl.scrollIntoViewIfNeeded();
+  const box = (await pageEl.boundingBox())!;
+  const vh = page.viewportSize()?.height ?? 720;
+  const top = Math.max(box.y, 0);
+  const bottom = Math.min(box.y + box.height, vh);
+  const bandH = Math.max(0, bottom - top) * 0.9;
+  const px = (f: number) => box.x + box.width * f;
+  const py = (f: number) => top + bandH * f;
+  await page.mouse.move(px(fx), py(fy));
+  await page.mouse.down();
+  await page.mouse.move(px(tx), py(ty), { steps });
+  await page.mouse.up();
+}
+
+async function clickOnPage(page: Page, fx: number, fy: number) {
+  const pageEl = page.getByTestId("pdf-page").first();
+  await pageEl.scrollIntoViewIfNeeded();
+  const box = (await pageEl.boundingBox())!;
+  const vh = page.viewportSize()?.height ?? 720;
+  const top = Math.max(box.y, 0);
+  const bottom = Math.min(box.y + box.height, vh);
+  const bandH = Math.max(0, bottom - top) * 0.9;
+  await page.mouse.click(box.x + box.width * fx, top + bandH * fy);
+}
+
+const objectCount = (page: Page) =>
+  page
+    .getByTestId("object-count")
+    .innerText()
+    .then((t) => parseInt(t, 10));
+
+async function openEditorReady(page: Page) {
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+  await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
+  await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+}
+
+/** Shared setup: a song with a single conductor RO layer owned by someone else. */
+async function openConductorOnlySong(page: Page): Promise<{ bandId: string; songId: string }> {
+  await register(page, `lyr_${stamp()}`);
+  const band = await createBandAndOpen(page, `LyrBand ${stamp()}`);
+  const songId = await createSongAndOpen(page, `LyrSong ${stamp()}`);
+  await uploadPdf(page);
+  const fileId = await firstFileId(page, band.id, songId);
+  const res = await importDoc(page, band.id, songId, conductorOnlyDoc(fileId));
+  expect(res.ok).toBeTruthy();
+  await page.reload();
+  await openEditorReady(page);
+  return { bandId: band.id, songId };
+}
+
+// ===========================================================================
+// Bug 1 — wet ink must commit to an editable layer and persist, even when the
+// song only has a non-writable (conductor RO) layer to begin with.
+// ===========================================================================
+test("editor: drawing persists even when only a non-writable layer exists", async ({ page }) => {
+  const { bandId, songId } = await openConductorOnlySong(page);
+
+  // Draw a rectangle WITHOUT first creating a layer — the editor must provision
+  // a writable personal layer on demand so the object commits and persists.
+  await page.getByTestId("tool-rect").click();
+  await dragOnPage(page, 0.2, 0.25, 0.6, 0.55);
+
+  // Live count rises and stays (no forbidden rollback).
+  await expect.poll(() => objectCount(page)).toBe(1);
+
+  // Persisted: GET annotations has the rect, and it is NOT on the conductor layer.
+  await expect
+    .poll(async () => {
+      const doc = await getAnnotations(page, bandId, songId);
+      const rect = doc.objects.find((o) => o.type === "rect");
+      return rect ? rect.layerId !== "layer-conductor" : false;
+    })
+    .toBeTruthy();
+});
+
+// ===========================================================================
+// Bug 2 — the conductor RO layer must NOT be selectable as the active layer,
+// and drawing must never land on / persist to it.
+// ===========================================================================
+test("editor: conductor RO layer is not selectable and cannot be edited", async ({ page }) => {
+  const { bandId, songId } = await openConductorOnlySong(page);
+
+  // The active-layer selector must NOT offer the conductor RO layer.
+  const optionValues = await page
+    .getByTestId("active-layer")
+    .locator("option")
+    .evaluateAll((opts) => opts.map((o) => o.getAttribute("value") ?? ""));
+  expect(optionValues).not.toContain("layer-conductor");
+
+  // Draw something; whatever it commits to, it must never be the conductor layer.
+  await page.getByTestId("tool-rect").click();
+  await dragOnPage(page, 0.2, 0.25, 0.6, 0.55);
+  await expect.poll(() => objectCount(page)).toBe(1);
+
+  await expect
+    .poll(async () => {
+      const doc = await getAnnotations(page, bandId, songId);
+      return doc.objects.some((o) => o.layerId === "layer-conductor");
+    })
+    .toBeFalsy();
+
+  // Active-layer indicator shows where ink goes (and not the conductor layer).
+  await expect(page.getByTestId("active-layer-indicator")).toBeVisible();
+  await expect(page.getByTestId("active-layer-indicator")).not.toContainText("Conductor cues");
+});
+
+// ===========================================================================
+// Editable-layer filtering — RO layer is shown LOCKED in the panel, absent from
+// the selector; the active layer is marked.
+// ===========================================================================
+test("editor: layers panel locks the RO layer; selector omits it", async ({ page }) => {
+  await openConductorOnlySong(page);
+
+  // Create a personal editable layer so we have a clear active selection.
+  await page.getByTestId("new-layer").click();
+  await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+
+  // The conductor layer item is marked locked.
+  const conductorItem = page.getByTestId("layer-item").filter({ hasText: "Conductor cues" });
+  await expect(conductorItem.getByTestId("layer-lock")).toBeVisible();
+
+  // The selector lists only editable layers (no conductor layer).
+  const labels = await page
+    .getByTestId("active-layer")
+    .locator("option")
+    .allInnerTexts();
+  expect(labels.join("|")).not.toContain("Conductor cues");
+
+  await page.screenshot({ path: "/tmp/ed-active-layer.png", fullPage: true });
+});
+
+// ===========================================================================
+// Rubber-band selection — drag a box over 2 objects, both selected (bboxes
+// highlighted), Delete removes both.
+// ===========================================================================
+test("editor: rubber-band selects two objects and Delete removes both", async ({ page }) => {
+  const { bandId, songId } = await openConductorOnlySong(page);
+
+  await page.getByTestId("new-layer").click();
+  await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+
+  // Two rectangles in the upper region, side by side.
+  await page.getByTestId("tool-rect").click();
+  await dragOnPage(page, 0.1, 0.15, 0.35, 0.4);
+  await expect.poll(() => objectCount(page)).toBe(1);
+  await page.getByTestId("tool-rect").click();
+  await dragOnPage(page, 0.5, 0.15, 0.75, 0.4);
+  await expect.poll(() => objectCount(page)).toBe(2);
+
+  // Rubber-band: with Select, drag a box that encloses both.
+  await page.getByTestId("tool-select").click();
+  await dragOnPage(page, 0.05, 0.1, 0.85, 0.5, 12);
+
+  // Both bounding boxes are highlighted.
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+
+  await page.screenshot({ path: "/tmp/ed-selection.png", fullPage: true });
+
+  // Delete via keyboard removes both.
+  await page.keyboard.press("Delete");
+  await expect.poll(() => objectCount(page)).toBe(0);
+
+  await expect
+    .poll(async () => {
+      const doc = await getAnnotations(page, bandId, songId);
+      return doc.objects.length;
+    })
+    .toBe(0);
+});
+
+// ===========================================================================
+// Annotation list — lists objects on the active layer; clicking selects one.
+// ===========================================================================
+test("editor: annotation list selects an object on the active layer", async ({ page }) => {
+  await openConductorOnlySong(page);
+
+  await page.getByTestId("new-layer").click();
+  await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+
+  // Draw a rect and a text so the list has labelled entries.
+  await page.getByTestId("tool-rect").click();
+  await dragOnPage(page, 0.15, 0.2, 0.45, 0.45);
+  await expect.poll(() => objectCount(page)).toBe(1);
+
+  page.once("dialog", (d) => d.accept("Cue!"));
+  await page.getByTestId("tool-text").click();
+  await clickOnPage(page, 0.6, 0.3);
+  await expect.poll(() => objectCount(page)).toBe(2);
+
+  // The annotation list shows both objects (one labelled with the text).
+  await expect(page.getByTestId("annotation-list")).toBeVisible();
+  await expect(page.getByTestId("annotation-item")).toHaveCount(2);
+  const textItem = page.getByTestId("annotation-item").filter({ hasText: "Cue!" });
+  await expect(textItem).toHaveCount(1);
+
+  // Clicking the text item selects it (Delete becomes enabled / bbox shows).
+  await page.getByTestId("tool-select").click();
+  await textItem.click();
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
+  await expect(page.getByTestId("delete-object")).toBeEnabled();
+
+  await page.screenshot({ path: "/tmp/ed-annlist.png", fullPage: true });
+});
