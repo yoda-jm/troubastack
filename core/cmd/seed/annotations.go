@@ -165,17 +165,19 @@ func vertBracket(x, yTop, yBot float64) []wirePoint {
 // buildSongAnnotations assembles ~3 layers (conductor / shared / personal) of
 // meaningful objects for one song, shaped by song title + group kind.
 //
-// userID maps username → user id (for layer ownerId), adminID is the group
-// admin/conductor user id, generated says whether the PDF is a generated placeholder
-// (precise layout) vs a fetched real PDF (generic placement).
-func buildSongAnnotations(songID, fileID, title, groupKind string, userID map[string]string, adminID string, generated bool, pages int) annotationsImport {
+// userID maps username → user id (for layer ownerId), conductorID is the group's
+// conductor-role user id (owns the conductor-zone cues; write access to that zone is
+// governed by the conductor ROLE, not ownership — #3), generated says whether the PDF
+// is a generated placeholder (precise layout) vs a fetched real PDF (generic placement).
+func buildSongAnnotations(songID, fileID, title, groupKind string, userID map[string]string, conductorID string, generated bool, pages int) annotationsImport {
 	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
 	b := &builderCtx{songID: songID, fileID: fileID, im: im}
 
-	// ---- conductor zone: "Conductor cues" (mandatory, red) ----
+	// ---- conductor zone: "Conductor cues" (mandatory, red) — owned/authored by the
+	// promoted conductor so the conductor role (not the band admin) can edit it (#3). ----
 	cond := b.layer(wireLayer{
 		ID: layerID(songID, "conductor"), Name: "Conductor cues",
-		OwnerID: adminID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true,
+		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true,
 		RoleTag: "conductor",
 	})
 	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.022}

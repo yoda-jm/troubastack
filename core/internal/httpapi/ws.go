@@ -23,15 +23,22 @@ func (a wsAuth) UserForToken(token string) (string, error) {
 }
 
 // SongForMember enforces membership + song/band ownership and returns the engine
-// songID (the relational Song.ID). It is the same gate getAnnotations uses.
-func (a wsAuth) SongForMember(userID, bandID, songID string) (string, error) {
+// songID (the relational Song.ID) plus the caller's band role string. It is the same
+// gate getAnnotations uses; the role lets the hub enforce conductor-zone and
+// layer-access write rules without importing the app layer.
+func (a wsAuth) SongForMember(userID, bandID, songID string) (string, string, error) {
 	// SongForMember takes the full user; we only hold the id here, so re-resolve via a
 	// lightweight User carrying just the id (the policy keys on caller.ID).
 	song, err := a.svc.SongForMember(app.User{ID: userID}, bandID, songID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return song.ID, nil
+	// Resolve the caller's band role (membership is already proven by SongForMember).
+	_, role, err := a.svc.GetBand(app.User{ID: userID}, bandID)
+	if err != nil {
+		return "", "", err
+	}
+	return song.ID, string(role), nil
 }
 
 // mountWS builds the realtime hub over the SHARED apply engine (same instance backing

@@ -144,6 +144,9 @@ func objectToJSON(o domain.Object) objectJSON {
 			Opacity:  o.Style.Opacity,
 			Width:    o.Style.Width,
 			FontSize: o.Style.FontSize,
+			Fill:     o.Style.Fill,
+			Stroke:   o.Style.Stroke,
+			Blend:    o.Style.Blend,
 		},
 	}
 }
@@ -165,6 +168,9 @@ func objectFromJSON(j objectJSON) domain.Object {
 			Opacity:  j.Style.Opacity,
 			Width:    j.Style.Width,
 			FontSize: j.Style.FontSize,
+			Fill:     j.Style.Fill,
+			Stroke:   j.Style.Stroke,
+			Blend:    j.Style.Blend,
 		},
 	}
 }

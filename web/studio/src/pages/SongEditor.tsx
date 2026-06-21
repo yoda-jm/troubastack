@@ -47,12 +47,15 @@ import {
   COLOR_SWATCHES,
   CORNER_HANDLES,
   DEFAULT_STYLE,
+  applyPreset,
   buildObject,
-  handlePoint,
+  handleAtPx,
+  handlesVisible,
   hitTest,
   intersectsRect,
   isMarquee,
   isMeaningfulGesture,
+  matchPreset,
   normalizeRect,
   objectBBox,
   objectLabel,
@@ -62,6 +65,7 @@ import {
   translateObject,
   type DrawTool,
   type HandleId,
+  type PresetId,
   type SelectRect,
   type TextMeasure,
   type Tool,
@@ -114,7 +118,12 @@ export function SongEditor() {
         <>
           <h1 data-testid="song-title">{song.title}</h1>
 
-          <Viewer bandId={bandId} songId={songId} myUserId={user?.id ?? null} />
+          <Viewer
+            bandId={bandId}
+            songId={songId}
+            myUserId={user?.id ?? null}
+            myRole={myRole}
+          />
 
           <Details title="Details & files">
             <Metadata bandId={bandId} song={song} onSaved={setSong} />
@@ -183,12 +192,18 @@ function isViewable(f: SongFile): boolean {
   return f.contentType === "application/pdf" || f.contentType.startsWith("image/");
 }
 
-/** May the current user draw into this layer? Purely: I OWN it, or it is RW —
- *  regardless of zone/mandatory. Owning a mandatory conductor layer still makes
- *  it editable (mandatory governs VISIBILITY, not editability). A RW layer is
- *  open to anyone (e.g. the shared band layer); a RO layer is editable only by
- *  its owner. */
-function isEditableLayer(l: AnnotationLayer, myUserId: string | null): boolean {
+/** May the current user draw into this layer? Mirrors the server gate (apply.go
+ *  canWriteLayer):
+ *   - CONDUCTOR zone (#3): editable ONLY by a conductor-role viewer, regardless of
+ *     ownership/access — members and plain admins see it read-only;
+ *   - any other zone: I OWN it, or it is RW.
+ *  mandatory governs VISIBILITY, not editability. */
+function isEditableLayer(
+  l: AnnotationLayer,
+  myUserId: string | null,
+  myRole: Role | null,
+): boolean {
+  if (l.zone === "conductor") return myRole === "conductor";
   return (myUserId != null && l.ownerId === myUserId) || l.access === "rw";
 }
 
@@ -203,10 +218,12 @@ function Viewer({
   bandId,
   songId,
   myUserId,
+  myRole,
 }: {
   bandId: string;
   songId: string;
   myUserId: string | null;
+  myRole: Role | null;
 }) {
   // The file strip is MY ordered selection (getMyFiles), not the whole pool.
   const [files, setFiles] = useState<SongFile[]>([]);
@@ -522,7 +539,7 @@ function Viewer({
       doc.layers.filter(
         (l) =>
           (selectedFileId == null || l.fileId === selectedFileId) &&
-          isEditableLayer(l, myUserId),
+          isEditableLayer(l, myUserId, myRole),
       ),
     [doc.layers, myUserId, selectedFileId],
   );
@@ -560,13 +577,13 @@ function Viewer({
 
   // Is the focused layer one we may NOT draw on (read-only for us)? Drawing is
   // disabled while a locked layer is focused — its objects stay browsable.
-  const focusLocked = focusedLayer != null && !isEditableLayer(focusedLayer, myUserId);
+  const focusLocked = focusedLayer != null && !isEditableLayer(focusedLayer, myUserId, myRole);
 
   // Can the focused layer be turned into the active edit target? True when it is
   // editable for me AND not already active — drives the "Edit this layer" CTA.
   const canEditFocusedLayer =
     focusedLayer != null &&
-    isEditableLayer(focusedLayer, myUserId) &&
+    isEditableLayer(focusedLayer, myUserId, myRole) &&
     focusedLayerId !== activeLayerId;
 
   // Keep a valid focused layer for the current file. Default to the active
@@ -588,7 +605,7 @@ function Viewer({
     (id: string) => {
       setFocusedLayerId(id);
       const l = doc.layers.find((x) => x.id === id);
-      if (l && isEditableLayer(l, myUserId)) setActiveLayerId(id);
+      if (l && isEditableLayer(l, myUserId, myRole)) setActiveLayerId(id);
     },
     [doc.layers, myUserId],
   );
@@ -615,7 +632,7 @@ function Viewer({
   const editFocusedLayer = useCallback(() => {
     if (focusedLayerId == null) return;
     const l = doc.layers.find((x) => x.id === focusedLayerId);
-    if (l && isEditableLayer(l, myUserId)) setActiveLayerId(focusedLayerId);
+    if (l && isEditableLayer(l, myUserId, myRole)) setActiveLayerId(focusedLayerId);
   }, [focusedLayerId, doc.layers, myUserId]);
 
   // Create a personal RW layer ("My notes") for the current file and make it
@@ -643,6 +660,30 @@ function Viewer({
       return id;
     },
     [myUserId, selectedFileId, doc.layers],
+  );
+
+  // Toggle a layer's access (#4): locked = "ro" (others view-only), unlocked = "rw".
+  // Sends a layerUpdate carrying the layer with the new access; the server authorizes
+  // it to the layer OWNER or a band ADMIN and broadcasts the change.
+  const setLayerAccess = useCallback(
+    (layerId: string, access: "rw" | "ro") => {
+      if (!syncRef.current) return;
+      const l = doc.layers.find((x) => x.id === layerId);
+      if (!l || l.access === access) return;
+      syncRef.current.updateLayer({ ...l, access });
+    },
+    [doc.layers],
+  );
+
+  // May the viewer toggle THIS layer's lock? Only SHARED-zone layers the viewer owns
+  // or (as a band admin) administers. Personal layers are inherently private; the
+  // conductor zone is role-governed (#3), so no per-layer lock there.
+  const canToggleLayerAccess = useCallback(
+    (l: AnnotationLayer): boolean => {
+      if (l.zone !== "shared") return false;
+      return (myUserId != null && l.ownerId === myUserId) || myRole === "admin";
+    },
+    [myUserId, myRole],
   );
 
   // Ensure there's a layer to draw into, creating "My notes" on demand. Returns
@@ -678,7 +719,7 @@ function Viewer({
       // only ever returns an editable layer (or a freshly-created personal one), so
       // we only reject a layer that is KNOWN to be non-editable in the current doc.
       const target = doc.layers.find((l) => l.id === layerId);
-      if (target && !isEditableLayer(target, myUserId)) return;
+      if (target && !isEditableLayer(target, myUserId, myRole)) return;
       syncRef.current.createObject(obj);
       setSelectedUuids([obj.uuid]);
     },
@@ -690,7 +731,7 @@ function Viewer({
   const isEditableObject = useCallback(
     (obj: AnnotationObject): boolean => {
       const l = layersById.get(obj.layerId);
-      return l != null && isEditableLayer(l, myUserId);
+      return l != null && isEditableLayer(l, myUserId, myRole);
     },
     [layersById, myUserId],
   );
@@ -705,7 +746,7 @@ function Viewer({
     (obj: AnnotationObject): boolean => {
       if (obj.layerId !== activeLayerId) return false;
       const l = layersById.get(obj.layerId);
-      return l != null && isEditableLayer(l, myUserId);
+      return l != null && isEditableLayer(l, myUserId, myRole);
     },
     [activeLayerId, layersById, myUserId],
   );
@@ -1289,10 +1330,13 @@ function Viewer({
               layers={sortedLayers}
               visible={visible}
               myUserId={myUserId}
+              myRole={myRole}
               activeLayerId={activeLayerId}
               focusedLayerId={focusedLayerId}
               onToggle={toggle}
               onFocus={focusLayer}
+              canToggleAccess={canToggleLayerAccess}
+              onSetAccess={setLayerAccess}
             />
           </div>
         )}
@@ -1482,18 +1526,25 @@ function LayersPanel({
   layers,
   visible,
   myUserId,
+  myRole,
   activeLayerId,
   focusedLayerId,
   onToggle,
   onFocus,
+  canToggleAccess,
+  onSetAccess,
 }: {
   layers: AnnotationLayer[];
   visible: LayerVisibility;
   myUserId: string | null;
+  myRole: Role | null;
   activeLayerId: string | null;
   focusedLayerId: string | null;
   onToggle: (id: string) => void;
   onFocus: (id: string) => void;
+  // Whether the viewer may flip THIS layer's lock (shared-zone owner/admin only).
+  canToggleAccess: (l: AnnotationLayer) => boolean;
+  onSetAccess: (id: string, access: "rw" | "ro") => void;
 }) {
   return (
     <aside className="layers-panel" data-testid="layers-panel">
@@ -1511,7 +1562,7 @@ function LayersPanel({
                 : l.zone;
             // Non-editable = a layer I may not write (RO, or someone else's
             // personal layer). Shown with a lock; never the active draw target.
-            const locked = !isEditableLayer(l, myUserId);
+            const locked = !isEditableLayer(l, myUserId, myRole);
             const isActive = l.id === activeLayerId;
             const isFocused = l.id === focusedLayerId;
             return (
@@ -1568,6 +1619,25 @@ function LayersPanel({
                   >
                     🔒 locked
                   </span>
+                )}
+                {/* #4: lock/unlock toggle for shared-zone layers I own or admin.
+                    locked(ro) = others view-only; unlocked(rw) = others can edit. */}
+                {canToggleAccess(l) && (
+                  <button
+                    type="button"
+                    data-testid="layer-access-toggle"
+                    className={`layer-access-btn${l.access === "ro" ? " is-locked" : ""}`}
+                    aria-pressed={l.access === "ro"}
+                    title={
+                      l.access === "ro"
+                        ? "Locked — others can only view. Click to unlock (allow edits)."
+                        : "Unlocked — others can edit. Click to lock (view-only)."
+                    }
+                    aria-label={l.access === "ro" ? "Unlock layer" : "Lock layer"}
+                    onClick={() => onSetAccess(l.id, l.access === "ro" ? "rw" : "ro")}
+                  >
+                    {l.access === "ro" ? "🔒" : "🔓"}
+                  </button>
                 )}
               </li>
             );
@@ -1651,15 +1721,30 @@ function AnnotationList({
 // Editor toolbar — tools palette, style controls, active layer, object count
 // ===========================================================================
 
+// The Highlight tool is gone (#5) — it is now a STYLE PRESET on rect/ellipse.
 const TOOLS: { tool: Tool; label: string; testid: string }[] = [
   { tool: "select", label: "Select", testid: "tool-select" },
   { tool: "freehand", label: "Pen", testid: "tool-freehand" },
   { tool: "line", label: "Line", testid: "tool-line" },
   { tool: "rect", label: "Rect", testid: "tool-rect" },
   { tool: "ellipse", label: "Ellipse", testid: "tool-ellipse" },
-  { tool: "highlight", label: "Highlight", testid: "tool-highlight" },
   { tool: "text", label: "Text", testid: "tool-text" },
 ];
+
+// The shape-style presets shown as one-click buttons (#5).
+const PRESET_BUTTONS: { id: PresetId; label: string; testid: string }[] = [
+  { id: "outline", label: "Outline", testid: "preset-outline" },
+  { id: "box", label: "Box", testid: "preset-box" },
+  { id: "highlight", label: "Highlight", testid: "preset-highlight" },
+];
+
+/** Do the style controls (fill/stroke/blend/presets) apply to the current target?
+ *  Only for shape tools (rect/ellipse) when drawing, or a selected rect/ellipse/
+ *  legacy-highlight object. */
+function isShapeTarget(tool: Tool, selectedType: AnnotationObject["type"] | null): boolean {
+  if (selectedType) return selectedType === "rect" || selectedType === "ellipse" || selectedType === "highlight";
+  return tool === "rect" || tool === "ellipse";
+}
 
 function EditorToolbar({
   tool,
@@ -1803,6 +1888,62 @@ function EditorToolbar({
             {(style.width * 1000).toFixed(1)}
           </span>
         </label>
+        {/* Shape style (#5): fill / border(stroke) / blend + presets. Shown for shape
+            tools (rect/ellipse) or a selected shape; disabled when controls are locked. */}
+        {isShapeTarget(tool, selectedType) && (
+          <div className="shape-style" data-testid="shape-style">
+            <span className="preset-buttons" role="group" aria-label="Shape presets">
+              {PRESET_BUTTONS.map((p) => {
+                const active = matchPreset(style) === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    data-testid={p.testid}
+                    className={`preset-btn${active ? " active" : ""}`}
+                    aria-pressed={active}
+                    disabled={controlsLocked}
+                    onClick={() => onStyle(applyPreset(style, p.id))}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </span>
+            <label className="style-field shape-toggle">
+              <input
+                type="checkbox"
+                data-testid="style-fill"
+                checked={style.fill ?? false}
+                disabled={controlsLocked}
+                onChange={(e) => onStyle({ ...style, fill: e.target.checked })}
+              />
+              <span>Fill</span>
+            </label>
+            <label className="style-field shape-toggle">
+              <input
+                type="checkbox"
+                data-testid="style-stroke"
+                checked={style.stroke ?? true}
+                disabled={controlsLocked}
+                onChange={(e) => onStyle({ ...style, stroke: e.target.checked })}
+              />
+              <span>Border</span>
+            </label>
+            <label className="style-field">
+              <span>Blend</span>
+              <select
+                data-testid="style-blend"
+                value={style.blend ?? "normal"}
+                disabled={controlsLocked}
+                onChange={(e) => onStyle({ ...style, blend: e.target.value as "normal" | "multiply" })}
+              >
+                <option value="normal">Normal</option>
+                <option value="multiply">Multiply</option>
+              </select>
+            </label>
+          </div>
+        )}
         <label className="style-field">
           <span>Text size</span>
           <input
@@ -2079,6 +2220,15 @@ function EditCanvas({
     };
   }, []);
 
+  // The page box size in CSS px (for px↔[0,1] handle math). null until laid out.
+  const pageDims = useCallback((): { w: number; h: number } | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const w = parseFloat(canvas.style.width) || canvas.clientWidth;
+    const h = parseFloat(canvas.style.height) || canvas.clientHeight;
+    return w > 0 && h > 0 ? { w, h } : null;
+  }, []);
+
   // The bbox of the single selected object on this page (drives resize handles).
   const selectedSingle = selectedOnPage.length === 1 ? selectedOnPage[0] : null;
 
@@ -2094,11 +2244,14 @@ function EditCanvas({
 
     if (tool === "select") {
       const measure = textMeasure();
-      // If a single editable-NOW object is selected, a press near one of its
-      // corner handles starts a RESIZE gesture (takes priority over re-hit).
-      if (selectedSingle && isObjectEditableNow(selectedSingle)) {
+      const dims = pageDims();
+      // If a single editable-NOW object is selected, a press within a small corner
+      // handle zone starts a RESIZE — but ONLY when the bbox is big enough to show
+      // handles (handleAtPx returns null for a small object, so its body stays a
+      // MOVE zone). Otherwise the press falls through to the move/select path (Bug #2).
+      if (selectedSingle && isObjectEditableNow(selectedSingle) && dims) {
         const b = objectBBox(selectedSingle, measure);
-        const handle = handleAt(b, pt, HANDLE_HIT);
+        const handle = handleAtPx(b, pt, dims.w, dims.h);
         if (handle) {
           canvas.setPointerCapture(e.pointerId);
           gestureRef.current = {
@@ -2238,7 +2391,10 @@ function EditCanvas({
           const editableNow = isObjectEditableNow(o);
           // Editable layer but NOT the active one → inspect-only, distinct cue.
           const inactiveEditable = everEditable && !editableNow;
-          const showHandles = editableNow && selectedOnPage.length === 1;
+          // Bug #2: suppress handles when the on-screen bbox is too small to show them
+          // safely — the object is then move-only (handles would overlap the body).
+          const bigEnough = pageBoxPx ? handlesVisible(b, pageBoxPx.w, pageBoxPx.h) : false;
+          const showHandles = editableNow && selectedOnPage.length === 1 && bigEnough;
           return (
             <div
               key={o.uuid}
@@ -2311,22 +2467,6 @@ function measureTextWidth(text: string, fontPx: number): number {
   if (!measureCtx) return text.length * fontPx * 0.5; // crude fallback
   measureCtx.font = `${fontPx}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
   return measureCtx.measureText(text).width;
-}
-
-// How close (page-relative [0,1]) a pointer must be to a corner handle to grab it.
-const HANDLE_HIT = 0.03;
-
-/** Which corner handle (if any) the point is within HANDLE_HIT of, for a bbox. */
-function handleAt(
-  b: { minX: number; minY: number; maxX: number; maxY: number },
-  pt: { x: number; y: number },
-  tol: number,
-): HandleId | null {
-  for (const h of CORNER_HANDLES) {
-    const hp = handlePoint(b, h);
-    if (Math.abs(pt.x - hp.x) <= tol && Math.abs(pt.y - hp.y) <= tol) return h;
-  }
-  return null;
 }
 
 /** Build a wet preview object from an in-progress gesture (no uuid needed). */

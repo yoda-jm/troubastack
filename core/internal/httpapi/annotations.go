@@ -42,10 +42,13 @@ type pointJSON struct {
 }
 
 type styleJSON struct {
-	Color    string  `json:"color"`    // "#RRGGBB"
-	Opacity  float64 `json:"opacity"`  // 0..1
-	Width    float64 `json:"width"`    // stroke width as fraction of page width
-	FontSize float64 `json:"fontSize"` // fraction of page height (text)
+	Color    string  `json:"color"`            // "#RRGGBB"
+	Opacity  float64 `json:"opacity"`          // 0..1
+	Width    float64 `json:"width"`            // stroke width as fraction of page width
+	FontSize float64 `json:"fontSize"`         // fraction of page height (text)
+	Fill     *bool   `json:"fill,omitempty"`   // rect/ellipse interior; absent = infer
+	Stroke   *bool   `json:"stroke,omitempty"` // rect/ellipse border; absent = infer
+	Blend    string  `json:"blend,omitempty"`  // ""|"normal"|"multiply"
 }
 
 type layerJSON struct {
@@ -231,6 +234,9 @@ func objectToJSON(o domain.Object) objectJSON {
 			Opacity:  o.Style.Opacity,
 			Width:    o.Style.Width,
 			FontSize: o.Style.FontSize,
+			Fill:     o.Style.Fill,
+			Stroke:   o.Style.Stroke,
+			Blend:    o.Style.Blend,
 		},
 	}
 }
@@ -252,6 +258,9 @@ func objectFromJSON(j objectJSON) domain.Object {
 			Opacity:  j.Style.Opacity,
 			Width:    j.Style.Width,
 			FontSize: j.Style.FontSize,
+			Fill:     j.Style.Fill,
+			Stroke:   j.Style.Stroke,
+			Blend:    j.Style.Blend,
 		},
 	}
 }

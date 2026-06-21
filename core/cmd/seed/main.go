@@ -90,10 +90,11 @@ func run(addr, password string) error {
 
 	groups := []groupDef{
 		{
-			name:    "The Troubadours",
-			kind:    "Band",
-			admin:   "marie",
-			members: []string{"leo", "sasha"},
+			name:      "The Troubadours",
+			kind:      "Band",
+			admin:     "marie",
+			members:   []string{"leo", "sasha"},
+			conductor: "leo", // promoted to the conductor role; owns the conductor cues
 			songs: []songDef{
 				{title: "Wonderwall", artist: "Oasis", key: "F#m", tempo: 87, tags: []string{"britpop", "singalong"}, notes: "Capo 2; everyone in on the last chorus.",
 					src: pdfSource{cacheName: "wonderwall.pdf", title: "Wonderwall", subtitle: "Oasis", pages: 3}},
@@ -356,11 +357,27 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		anns = append(anns, songAnn{songID: songID, title: s.title, generated: !res.fetched, pages: s.src.pages})
 	}
 
+	// Promote a member to the conductor role BEFORE importing annotations, so the
+	// conductor-zone "cues" layer can be owned/authored by that conductor (#3). The
+	// conductor ROLE — not the band admin — governs write access to the cues.
+	if g.conductor != "" {
+		if err := promoteConductor(admin, bandID, g.conductor); err != nil {
+			return seededGroup{}, 0, 0, err
+		}
+	}
+
 	// Annotation layers + objects on each song's PDF (idempotent import). Needs the
-	// member username→id map (layer ownerId) and the admin id (conductor layer).
+	// member username→id map (layer ownerId). The conductor-zone cues are owned by the
+	// promoted conductor (g.conductor); if none, they fall back to the admin id.
 	userID, adminID, err := memberIDs(admin, bandID, g.admin)
 	if err != nil {
 		return seededGroup{}, 0, 0, err
+	}
+	conductorID := adminID
+	if g.conductor != "" {
+		if id, ok := userID[g.conductor]; ok {
+			conductorID = id
+		}
 	}
 	for _, a := range anns {
 		fileID, err := firstPDFFileID(admin, bandID, a.songID)
@@ -370,19 +387,12 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		if fileID == "" {
 			continue
 		}
-		im := buildSongAnnotations(a.songID, fileID, a.title, g.kind, userID, adminID, a.generated, a.pages)
+		im := buildSongAnnotations(a.songID, fileID, a.title, g.kind, userID, conductorID, a.generated, a.pages)
 		var got annotationsImport
 		if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", im, &got); err != nil {
 			return seededGroup{}, 0, 0, fmt.Errorf("import annotations for %q: %w", a.title, err)
 		}
 		fmt.Printf("     + annotations %q: %d layers, %d objects\n", a.title, len(got.Layers), len(got.Objects))
-	}
-
-	// Promote a member to the conductor role (showcases role management).
-	if g.conductor != "" {
-		if err := promoteConductor(admin, bandID, g.conductor); err != nil {
-			return seededGroup{}, 0, 0, err
-		}
 	}
 
 	// Build a setlist (showcases setlists + per-item overrides).

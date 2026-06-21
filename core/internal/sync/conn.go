@@ -66,6 +66,9 @@ type styleJSON struct {
 	Opacity  float64 `json:"opacity"`
 	Width    float64 `json:"width"`
 	FontSize float64 `json:"fontSize"`
+	Fill     *bool   `json:"fill,omitempty"`
+	Stroke   *bool   `json:"stroke,omitempty"`
+	Blend    string  `json:"blend,omitempty"`
 }
 
 type layerJSON struct {
@@ -105,6 +108,13 @@ const (
 	maxMessage = 1 << 20
 )
 
+// Band-role strings the hub gates on (mirror app.Role; kept as plain strings so the
+// sync package never imports the app/httpapi layers — the role arrives as data).
+const (
+	roleAdmin     = "admin"
+	roleConductor = "conductor"
+)
+
 // conn is one client's socket plus its outbound queue. The read pump owns reads; the
 // write pump owns writes (gorilla requires at most one concurrent reader and writer).
 type conn struct {
@@ -113,8 +123,11 @@ type conn struct {
 	room     *room
 	songID   string
 	authorID string
-	send     chan []byte
-	dropped  bool
+	// role is the author's band role ("admin"|"conductor"|"member"), resolved at
+	// upgrade time. It gates the conductor zone (#3) and layer-access changes (#4).
+	role    string
+	send    chan []byte
+	dropped bool
 }
 
 // upgrader accepts same-origin upgrades. CheckOrigin is permissive here because the
@@ -142,7 +155,7 @@ func (h *Hub) Serve(w http.ResponseWriter, r *http.Request, token, bandID, songI
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	engineSongID, err := h.auth.SongForMember(userID, bandID, songID)
+	engineSongID, role, err := h.auth.SongForMember(userID, bandID, songID)
 	if err != nil {
 		// Non-member (or song/band mismatch) → forbidden; mirrors the REST gate.
 		http.Error(w, "forbidden", http.StatusForbidden)
@@ -159,6 +172,7 @@ func (h *Hub) Serve(w http.ResponseWriter, r *http.Request, token, bandID, songI
 		ws:       ws,
 		songID:   engineSongID,
 		authorID: userID,
+		role:     role,
 		send:     make(chan []byte, sendBuffer),
 	}
 	h.register(c)

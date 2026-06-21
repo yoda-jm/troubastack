@@ -98,11 +98,21 @@ type Point struct {
 
 // Style is the visual style of an object. Color is "#RRGGBB". Width is a fraction
 // of page width and FontSize a fraction of page height (text only), both [0,1] (I3).
+//
+// Fill/Stroke/Blend extend rect/ellipse into the unified shape model (replacing the
+// separate "highlight" type): Fill paints the interior with Color@Opacity, Stroke
+// draws the border with Color+Width, and Blend "multiply" composites like a marker.
+// They are pointers so an ABSENT value (nil) is distinguishable from an explicit
+// false — letting the renderer infer legacy defaults for objects seeded before the
+// flags existed (legacy highlight → fill+multiply; legacy rect/ellipse → stroke).
 type Style struct {
 	Color    string
 	Opacity  float64
 	Width    float64
 	FontSize float64
+	Fill     *bool  // paint interior (rect/ellipse); nil = infer from type
+	Stroke   *bool  // draw border (rect/ellipse); nil = infer from type
+	Blend    string // "" | "normal" | "multiply"
 }
 
 // Object is an annotation identified by a client-generated UUID (I2). Applying the

@@ -151,6 +151,11 @@ export type AnnotationStyle = {
   opacity: number;
   width: number;
   fontSize: number;
+  // Unified shape model (rect/ellipse): paint interior / draw border / blend mode.
+  // Absent flags mean "infer legacy default" in the renderer (back-compat).
+  fill?: boolean;
+  stroke?: boolean;
+  blend?: "normal" | "multiply";
 };
 
 export type AnnotationObject = {

@@ -32,7 +32,8 @@ export type MutationKind =
   | "setText"
   | "delete"
   | "restore"
-  | "layerCreate";
+  | "layerCreate"
+  | "layerUpdate";
 
 /** The wire mutation. version/authorId/seq are server-derived; never sent. */
 export type Mutation = {
@@ -213,7 +214,7 @@ export class SyncClient {
 
   private applyEcho(m: Mutation): void {
     // The echo is authoritative; its arrival reconciles any matching optimistic op.
-    if (m.kind === "layerCreate") {
+    if (m.kind === "layerCreate" || m.kind === "layerUpdate") {
       if (m.layer) this.layers.set(m.layer.id, m.layer);
       this.emit();
       return;
@@ -292,5 +293,14 @@ export class SyncClient {
     this.layers.set(layer.id, layer);
     this.emit();
     this.sendMutation({ kind: "layerCreate", uuid: "", layer, clientTs: Date.now() });
+  }
+
+  /** Optimistically replace a layer and send a layerUpdate (e.g. the lock/unlock
+   *  access toggle, #4). A server reject reconciles on the next snapshot (layer ops
+   *  aren't in the per-object pending/rollback set). */
+  updateLayer(layer: AnnotationLayer): void {
+    this.layers.set(layer.id, layer);
+    this.emit();
+    this.sendMutation({ kind: "layerUpdate", uuid: "", layer, clientTs: Date.now() });
   }
 }

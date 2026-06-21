@@ -133,11 +133,15 @@ function conductorOnlyDoc(fileId: string) {
   };
 }
 
-/** A doc that mimics the band owner/admin: they OWN a mandatory conductor RO
- *  layer (still editable — they own it), have a shared RW layer, and a personal
- *  layer of their own. `me` is the current member's user id. Plus a conductor
- *  layer owned by SOMEONE ELSE (locked) and a shared layer with conductor cues
- *  to verify the scoped annotation list. */
+/** A doc that mimics a member with MULTIPLE editable layers: a mandatory RO layer
+ *  they OWN (still editable — they own it), a shared RW layer, and a personal layer
+ *  of their own. `me` is the current member's user id. Plus a CONDUCTOR-zone layer
+ *  owned by SOMEONE ELSE (locked — conductor zone is role-governed, #3) to verify it
+ *  is never editable by a non-conductor.
+ *
+ *  Note (#3): the owned mandatory layer lives in the PERSONAL zone, not conductor —
+ *  conductor-zone write access now requires the conductor ROLE, not ownership, so an
+ *  owned conductor layer would NOT be editable by this plain member. */
 function ownerMultiLayerDoc(fileId: string, me: string) {
   return {
     layers: [
@@ -146,7 +150,7 @@ function ownerMultiLayerDoc(fileId: string, me: string) {
         fileId,
         name: "My conductor cues",
         ownerId: me,
-        zone: "conductor",
+        zone: "personal",
         order: 0,
         access: "ro",
         mandatory: true,

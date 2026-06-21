@@ -519,6 +519,195 @@ func TestImportNotBlockedByWriteAccess(t *testing.T) {
 	}
 }
 
+// ---- #3 CONDUCTOR ZONE (role-governed write access) ----
+
+// setRole has the band admin set a member's role ("conductor"|"admin"|"member").
+func setRole(t *testing.T, admin *client, bandID, userID, role string) {
+	t.Helper()
+	resp, _ := admin.do(http.MethodPatch, "/api/bands/"+bandID+"/members/"+userID,
+		map[string]string{"role": role})
+	mustStatus(t, resp, http.StatusOK)
+}
+
+// conductorBand sets up a band with admin "alice" plus members "carol" (promoted to
+// the conductor role) and "bob" (plain member). It imports a conductor-zone layer
+// owned by _shared_. Returns (band, song, alice, carol, bob).
+func conductorBand(t *testing.T) (band, song string, alice, carol, bob *client) {
+	t.Helper()
+	repo := backends()[0].make(t)
+	alice = newClient(t, repo)
+	band, song = alice.makeBandSong("alice")
+
+	inviteMember(t, alice, band, "carol")
+	carol = alice.sharingClient()
+	carol.registerLogin("carol", "pw-carol")
+	acceptOnlyInvite(t, carol)
+	setRole(t, alice, band, carol.meID(), "conductor")
+
+	inviteMember(t, alice, band, "bob")
+	bob = alice.sharingClient()
+	bob.registerLogin("bob", "pw-bob")
+	acceptOnlyInvite(t, bob)
+
+	// A conductor-zone layer (owned by _shared_, RO). Write is role-governed.
+	alice.importLayers(band, song,
+		annLayer{ID: "L-cond", FileID: "f1", Name: "Cues", OwnerID: "_shared_", Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor"})
+	return band, song, alice, carol, bob
+}
+
+// TestWSConductorZoneWritableByConductorRole: a conductor-role author may create into
+// the conductor zone (accepted echo).
+func TestWSConductorZoneWritableByConductorRole(t *testing.T) {
+	band, song, _, carol, _ := conductorBand(t)
+	ws, _, err := carol.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("carol dial: %v", err)
+	}
+	defer ws.Close()
+	expectSnapshot(t, ws)
+
+	sendMut(t, ws, wsMutation{Kind: "create", UUID: "c-1", Object: objOn("c-1", "L-cond")})
+	m := readMsg(t, ws)
+	if m.Type != "echo" || m.Mutation.UUID != "c-1" {
+		t.Fatalf("conductor create into conductor zone: type=%q uuid=%q, want echo/c-1", m.Type, m.Mutation.UUID)
+	}
+}
+
+// TestWSConductorZoneForbiddenForMemberAndAdmin: a plain member AND a plain admin
+// (who is NOT a conductor) are both rejected "forbidden" writing the conductor zone.
+func TestWSConductorZoneForbiddenForMemberAndAdmin(t *testing.T) {
+	band, song, alice, _, bob := conductorBand(t)
+
+	for _, tc := range []struct {
+		name string
+		c    *client
+		uuid string
+	}{
+		{"member-bob", bob, "m-1"},
+		{"admin-alice", alice, "a-1"},
+	} {
+		ws, _, err := tc.c.dialWS(band, song)
+		if err != nil {
+			t.Fatalf("%s dial: %v", tc.name, err)
+		}
+		expectSnapshot(t, ws)
+		sendMut(t, ws, wsMutation{Kind: "create", UUID: tc.uuid, Object: objOn(tc.uuid, "L-cond")})
+		rej := readMsg(t, ws)
+		if rej.Type != "reject" || rej.Reason != "forbidden" {
+			t.Fatalf("%s create into conductor zone: type=%q reason=%q, want reject/forbidden", tc.name, rej.Type, rej.Reason)
+		}
+		ws.Close()
+	}
+}
+
+// ---- #4 LAYER ACCESS (lock/unlock) ----
+
+// layerUpdateAccess sends a layerUpdate mutation that flips a layer's access. The
+// layer fields must match the existing layer except for the new access value.
+func layerUpdateAccess(layer annLayer, access string) wsMutation {
+	layer.Access = access
+	return wsMutation{Kind: "layerUpdate", Layer: &layer}
+}
+
+// TestWSLayerLockBlocksOthersThenUnlock: a shared layer Alice owns is RW; Bob can edit
+// an object on it. Alice locks it (access=ro) → Bob's edit is rejected forbidden;
+// Alice unlocks it (access=rw) → Bob's edit is accepted again.
+func TestWSLayerLockBlocksOthersThenUnlock(t *testing.T) {
+	band, song, alice, bob, _ := twoMemberBand(t)
+	sharedLayer := annLayer{ID: "L-shared", FileID: "f1", Name: "Shared", OwnerID: alice.meID(), Zone: "shared", Order: 0, Access: "rw"}
+	// Seed the shared layer + an object on it (permissive import).
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{Layers: []annLayer{sharedLayer}, Objects: []annObject{*objOn("o-sh", "L-shared")}})
+	mustStatus(t, resp, http.StatusOK)
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+	wsB, _, err := bob.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("bob dial: %v", err)
+	}
+	defer wsB.Close()
+	expectSnapshot(t, wsB)
+
+	// While RW, Bob can move the object.
+	sendMut(t, wsB, wsMutation{Kind: "move", UUID: "o-sh", Object: objOn("o-sh", "L-shared")})
+	if m := readMsg(t, wsB); m.Type != "echo" {
+		t.Fatalf("bob move on RW shared layer: type=%q, want echo", m.Type)
+	}
+	readMsg(t, wsA) // drain Alice's echo of the move
+
+	// Alice (owner) locks the layer → access ro.
+	sendMut(t, wsA, layerUpdateAccess(sharedLayer, "ro"))
+	if m := readMsg(t, wsA); m.Type != "echo" || m.Mutation.Kind != "layerUpdate" {
+		t.Fatalf("alice lock layer: type=%q kind=%q, want echo/layerUpdate", m.Type, m.Mutation.Kind)
+	}
+	readMsg(t, wsB) // bob also sees the layerUpdate echo
+
+	// Now Bob's edit is rejected forbidden.
+	sendMut(t, wsB, wsMutation{Kind: "move", UUID: "o-sh", Object: objOn("o-sh", "L-shared")})
+	if rej := readMsg(t, wsB); rej.Type != "reject" || rej.Reason != "forbidden" {
+		t.Fatalf("bob move on locked layer: type=%q reason=%q, want reject/forbidden", rej.Type, rej.Reason)
+	}
+
+	// Alice unlocks → access rw.
+	sendMut(t, wsA, layerUpdateAccess(sharedLayer, "rw"))
+	if m := readMsg(t, wsA); m.Type != "echo" {
+		t.Fatalf("alice unlock layer: type=%q, want echo", m.Type)
+	}
+	readMsg(t, wsB)
+
+	// Bob can edit again.
+	sendMut(t, wsB, wsMutation{Kind: "move", UUID: "o-sh", Object: objOn("o-sh", "L-shared")})
+	if m := readMsg(t, wsB); m.Type != "echo" {
+		t.Fatalf("bob move after unlock: type=%q, want echo", m.Type)
+	}
+}
+
+// TestWSLayerAccessForbiddenForNonOwnerNonAdmin: a plain member (not owner, not admin)
+// cannot change a shared layer's access.
+func TestWSLayerAccessForbiddenForNonOwnerNonAdmin(t *testing.T) {
+	band, song, alice, bob, _ := twoMemberBand(t)
+	sharedLayer := annLayer{ID: "L-shared", FileID: "f1", Name: "Shared", OwnerID: alice.meID(), Zone: "shared", Order: 0, Access: "rw"}
+	alice.importLayers(band, song, sharedLayer)
+
+	wsB, _, err := bob.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("bob dial: %v", err)
+	}
+	defer wsB.Close()
+	expectSnapshot(t, wsB)
+
+	sendMut(t, wsB, layerUpdateAccess(sharedLayer, "ro"))
+	if rej := readMsg(t, wsB); rej.Type != "reject" || rej.Reason != "forbidden" {
+		t.Fatalf("bob change layer access: type=%q reason=%q, want reject/forbidden", rej.Type, rej.Reason)
+	}
+}
+
+// TestWSLayerAccessAllowedForAdmin: a band admin (not the layer owner) MAY change a
+// shared layer's access.
+func TestWSLayerAccessAllowedForAdmin(t *testing.T) {
+	band, song, alice, _, bobID := twoMemberBand(t)
+	// Bob owns the shared layer; Alice is the band admin (band creator).
+	sharedLayer := annLayer{ID: "L-shared", FileID: "f1", Name: "Shared", OwnerID: bobID, Zone: "shared", Order: 0, Access: "rw"}
+	alice.importLayers(band, song, sharedLayer)
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+
+	sendMut(t, wsA, layerUpdateAccess(sharedLayer, "ro"))
+	if m := readMsg(t, wsA); m.Type != "echo" || m.Mutation.Kind != "layerUpdate" {
+		t.Fatalf("admin change layer access: type=%q kind=%q, want echo/layerUpdate", m.Type, m.Mutation.Kind)
+	}
+}
+
 // ---- membership helpers (invite + accept) ----
 
 // inviteMember has the band admin invite username by username (pending invite).

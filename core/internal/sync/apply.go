@@ -120,19 +120,25 @@ func (c *conn) handleMutation(in mutationJSON) {
 // (reason, false) to REJECT, or ("", true) to allow. It is called under the per-song
 // apply mutex, so the HEAD it reads is the same HEAD Apply will fold into.
 //
-// Rule: the authenticated author may write the TARGET LAYER iff the layer is theirs
-// (layer.OwnerID == authorId) OR it is shared read-write (layer.Access == RW). A
-// conductor's read-only layer is otherwise writable only by its owner.
+// Rule: the authenticated author may write the TARGET LAYER iff (canWriteLayer):
+//   - the layer is in the CONDUCTOR zone → only a band-role conductor may write it
+//     (#3); everyone else (members AND plain admins who are not conductors) is RO; or
+//   - the layer is theirs (layer.OwnerID == authorId); or
+//   - it is shared read-write (layer.Access == RW).
+//
+// A read-only non-conductor-zone layer is otherwise writable only by its owner.
 //
 // Target-layer resolution:
 //   - create:                  the mutation's object.layerId (the layer it lands on).
 //   - move/resize/setStyle/
 //     setText/delete/restore:   the layer of the EXISTING object (by uuid) in HEAD.
-//   - layerCreate:              a PERSONAL-zone layer must be owned by the author
-//     (a member may only create their own personal layer); other zones are left to a
-//     separate band-role gate, so they pass here.
-//   - layerUpdate/reorder/
-//     delete:                   not object-affecting and not gated here (left as-is).
+//   - layerCreate:              a PERSONAL-zone layer must be owned by the author; a
+//     CONDUCTOR-zone layer may only be created by a conductor-role author (#3); other
+//     zones (shared) pass.
+//   - layerUpdate:              authorized to the layer OWNER or a band ADMIN (#4) —
+//     this is the lock/unlock (access) toggle. The conductor zone is role-governed,
+//     so a conductor-zone layerUpdate additionally requires the conductor role.
+//   - reorder/delete:           not object-affecting and not gated here (left as-is).
 //
 // A target layer that does not exist rejects "stale" (matching today's unknown-target
 // handling), EXCEPT create, whose layer may legitimately be brand-new and unknown to
@@ -140,14 +146,42 @@ func (c *conn) handleMutation(in mutationJSON) {
 func (c *conn) authorizeWrite(kind domain.Kind, in mutationJSON) (string, bool) {
 	switch kind {
 	case domain.KindLayerCreate:
-		// Personal-zone layers must be owned by their creator; leave shared/conductor
-		// zone creation to the band-role gate (a separate concern).
-		if in.Layer != nil && zoneFromString(in.Layer.Zone) == domain.ZonePersonal && in.Layer.OwnerID != c.authorID {
+		if in.Layer == nil {
+			return "", true
+		}
+		zone := zoneFromString(in.Layer.Zone)
+		// Personal-zone layers must be owned by their creator.
+		if zone == domain.ZonePersonal && in.Layer.OwnerID != c.authorID {
+			return "forbidden", false
+		}
+		// Conductor-zone layers may only be created by a conductor-role author (#3).
+		if zone == domain.ZoneConductor && c.role != roleConductor {
 			return "forbidden", false
 		}
 		return "", true
 
-	case domain.KindLayerUpdate, domain.KindLayerReorder, domain.KindLayerDelete:
+	case domain.KindLayerUpdate:
+		// Lock/unlock (access) toggle (#4): authorized to the layer OWNER or a band
+		// ADMIN. Resolve the EXISTING layer in HEAD by id; an unknown layer is stale.
+		layerID := ""
+		if in.Layer != nil {
+			layerID = in.Layer.ID
+		}
+		layer, ok := c.hub.eng.Layer(c.songID, layerID)
+		if !ok {
+			return "stale", false
+		}
+		// A conductor-zone layer's access is role-governed: only a conductor may change
+		// it (a plain admin who is not a conductor cannot touch the conductor zone).
+		if layer.Zone == domain.ZoneConductor && c.role != roleConductor {
+			return "forbidden", false
+		}
+		if layer.OwnerID != c.authorID && c.role != roleAdmin {
+			return "forbidden", false
+		}
+		return "", true
+
+	case domain.KindLayerReorder, domain.KindLayerDelete:
 		// Not object-affecting; not gated by this write-access rule.
 		return "", true
 
@@ -192,9 +226,15 @@ func (c *conn) authorizeWrite(kind domain.Kind, in mutationJSON) (string, bool) 
 	}
 }
 
-// canWriteLayer reports whether this connection's authenticated author may write the
-// given layer: they own it, or it is shared read-write.
+// canWriteLayer reports whether this connection's authenticated author may write
+// objects into the given layer:
+//   - conductor zone (#3): ONLY a band-role conductor, regardless of ownership/access
+//     (members and plain admins see it read-only);
+//   - any other zone: they own it, or it is shared read-write.
 func (c *conn) canWriteLayer(layer domain.Layer) bool {
+	if layer.Zone == domain.ZoneConductor {
+		return c.role == roleConductor
+	}
 	return layer.OwnerID == c.authorID || layer.Access == domain.AccessRW
 }
 

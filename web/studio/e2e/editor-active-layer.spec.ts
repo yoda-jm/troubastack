@@ -131,8 +131,12 @@ async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: nu
 
 const STYLE = { color: "#e11d48", opacity: 1, width: 0.004, fontSize: 0.03 };
 
-/** Two layers, BOTH editable for `me`: a personal RW layer (A) and a conductor
- *  layer I own (C, ro+mandatory but editable since I own it). C holds a rect. */
+/** Two layers, BOTH editable for `me`: a personal RW layer (A) and a personal RO
+ *  layer I own (C, ro+mandatory but editable since I own it). C holds a rect.
+ *  (C is a personal layer, not conductor: conductor-zone write now needs the
+ *  conductor ROLE not ownership, #3 — so an owned conductor layer wouldn't be
+ *  editable by this plain member; the active-layer-scoping rule under test is
+ *  orthogonal to the zone.) */
 function twoEditableLayersDoc(fileId: string, me: string) {
   return {
     layers: [
@@ -152,7 +156,7 @@ function twoEditableLayersDoc(fileId: string, me: string) {
         fileId,
         name: "My conductor C",
         ownerId: me,
-        zone: "conductor",
+        zone: "personal",
         order: 1,
         access: "ro",
         mandatory: true,

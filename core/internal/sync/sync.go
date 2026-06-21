@@ -14,11 +14,14 @@ import (
 //   - UserForToken resolves the session-cookie token to the authoritative user id
 //     (the authorId of every mutation that connection sends). Empty/invalid → error.
 //   - SongForMember enforces that user is a member of the band AND that the song
-//     belongs to that band, returning the engine songID (the relational Song.ID).
-//     A non-member or a song/band mismatch returns an error → the upgrade is rejected.
+//     belongs to that band, returning the engine songID (the relational Song.ID) AND
+//     the caller's band role ("admin"|"conductor"|"member"). A non-member or a
+//     song/band mismatch returns an error → the upgrade is rejected. The role is
+//     passed in as plain data so the sync package keeps its import boundary (it never
+//     imports httpapi/app); the hub consults it for zone/admin write-access.
 type Auth interface {
 	UserForToken(token string) (userID string, err error)
-	SongForMember(userID, bandID, songID string) (songID2 string, err error)
+	SongForMember(userID, bandID, songID string) (songID2, role string, err error)
 }
 
 // Engine is the apply authority the Hub drives (internal/engine satisfies it).

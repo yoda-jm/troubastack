@@ -12,13 +12,15 @@
  */
 import type { AnnotationObject, AnnotationStyle } from "./api";
 
+// The Highlight TOOL is gone (#5): highlighting is now a STYLE preset on rect/ellipse.
+// Tools map 1:1 to object types; the editor never creates a "highlight" object anymore
+// (legacy "highlight" objects still render, see web/ink).
 export type Tool =
   | "select"
   | "freehand"
   | "line"
   | "rect"
   | "ellipse"
-  | "highlight"
   | "text";
 
 /** Tools that draw a new object (everything but select). */
@@ -29,6 +31,44 @@ export function toolObjectType(tool: DrawTool): AnnotationObject["type"] {
   return tool; // tool names line up 1:1 with object types
 }
 
+// ---------------------------------------------------------------------------
+// Shape style presets (#5) — fill/stroke/blend combos for rect/ellipse
+// ---------------------------------------------------------------------------
+
+/** The shape-style flags a preset sets (merged onto the current color/width/opacity). */
+export type ShapeStyleFlags = {
+  fill: boolean;
+  stroke: boolean;
+  blend: "normal" | "multiply";
+};
+
+export type PresetId = "outline" | "box" | "highlight";
+
+/** The three one-click presets: Outline (stroke only), Box (stroke + fill), Highlight
+ *  (fill only, multiply, no stroke — the old highlighter look as a rect/ellipse). */
+export const SHAPE_PRESETS: Record<PresetId, ShapeStyleFlags> = {
+  outline: { fill: false, stroke: true, blend: "normal" },
+  box: { fill: true, stroke: true, blend: "normal" },
+  highlight: { fill: true, stroke: false, blend: "multiply" },
+};
+
+/** Apply a preset's flags onto a style, preserving color/opacity/width/fontSize. */
+export function applyPreset(style: AnnotationStyle, preset: PresetId): AnnotationStyle {
+  return { ...style, ...SHAPE_PRESETS[preset] };
+}
+
+/** Which preset (if any) a style currently matches — drives the active preset button. */
+export function matchPreset(style: AnnotationStyle): PresetId | null {
+  for (const id of Object.keys(SHAPE_PRESETS) as PresetId[]) {
+    const p = SHAPE_PRESETS[id];
+    const fill = style.fill ?? false;
+    const stroke = style.stroke ?? true;
+    const blend = style.blend ?? "normal";
+    if (fill === p.fill && stroke === p.stroke && blend === p.blend) return id;
+  }
+  return null;
+}
+
 export const DEFAULT_STYLE: AnnotationStyle = {
   color: "#e11d48",
   opacity: 1,
@@ -36,6 +76,10 @@ export const DEFAULT_STYLE: AnnotationStyle = {
   width: 0.004,
   // fontSize is a FRACTION OF PAGE HEIGHT (text only).
   fontSize: 0.03,
+  // Shape defaults (rect/ellipse): the Outline preset — stroke only, normal blend.
+  fill: false,
+  stroke: true,
+  blend: "normal",
 };
 
 /** Swatches offered in the palette. */
@@ -208,10 +252,33 @@ export function textBBox(
   return { minX, minY, maxX, maxY };
 }
 
+// Bug #1: text is hard to click. A text object's GLYPH box is small, so we pad its
+// hit area generously: a minimum of MIN_TEXT_HIT_PX CSS px AND a small fraction of the
+// page on every side, so clicking on OR just around the glyphs selects it. The padding
+// is per-axis (px→fraction differs by page width vs height).
+const MIN_TEXT_HIT_PX = 14; // CSS px of grab slop around glyphs (a few px, generous)
+const TEXT_HIT_FRAC = 0.03; // ...or this fraction of the page, whichever is larger
+
+/** Per-axis generous hit pad (page-relative [0,1]) for a TEXT object: max(min px as a
+ *  fraction of the page on that axis, a small page fraction). Falls back to the flat
+ *  fraction when no measure (page dims) is available. */
+export function textHitPad(measure?: TextMeasure): { padX: number; padY: number } {
+  if (!measure || measure.pageW <= 0 || measure.pageH <= 0) {
+    return { padX: TEXT_HIT_FRAC, padY: TEXT_HIT_FRAC };
+  }
+  return {
+    padX: Math.max(MIN_TEXT_HIT_PX / measure.pageW, TEXT_HIT_FRAC),
+    padY: Math.max(MIN_TEXT_HIT_PX / measure.pageH, TEXT_HIT_FRAC),
+  };
+}
+
 /**
  * Hit-test a page-relative point against an object. Uses a padded bounding box
  * — the pad (in [0,1]) gives thin lines/strokes a grabbable tolerance and makes
  * a text anchor clickable. Good enough for select/move/delete.
+ *
+ * Bug #1: TEXT objects get an extra-generous per-axis pad (textHitPad) ON TOP of the
+ * caller's base pad, so a click slightly outside the glyph extents still selects them.
  */
 export function hitTest(
   obj: AnnotationObject,
@@ -221,11 +288,18 @@ export function hitTest(
   measure?: TextMeasure,
 ): boolean {
   const b = objectBBox(obj, measure);
+  let padX = pad;
+  let padY = pad;
+  if (obj.type === "text") {
+    const tp = textHitPad(measure);
+    padX = Math.max(pad, tp.padX);
+    padY = Math.max(pad, tp.padY);
+  }
   return (
-    x >= b.minX - pad &&
-    x <= b.maxX + pad &&
-    y >= b.minY - pad &&
-    y <= b.maxY + pad
+    x >= b.minX - padX &&
+    x <= b.maxX + padX &&
+    y >= b.minY - padY &&
+    y <= b.maxY + padY
   );
 }
 
@@ -277,6 +351,51 @@ export function handlePoint(
   return { x, y };
 }
 
+// Bug #2: move vs resize. A body-drag must MOVE; a resize starts ONLY when the press
+// is within a small handle zone AT a corner, and handles are SUPPRESSED entirely when
+// the object's on-screen bbox is too small to show them safely.
+//
+// The on-screen handle is 10px (styles.css .resize-handle); the grab zone is a touch
+// larger. Handles are hidden unless the bbox is at least ~3× the handle size on BOTH
+// axes — below that the corner zones would overlap the body and a move-drag would grab
+// a handle (the exact bug). All px values convert to page-relative via the page dims.
+export const HANDLE_PX = 10; // on-screen handle square
+export const HANDLE_GRAB_PX = 12; // pointer must be within this of a corner to resize
+export const HANDLE_MIN_BBOX_FACTOR = 3; // bbox must exceed this × handle to show handles
+
+/** Are the corner resize handles safe to show for a bbox of this on-screen size?
+ *  False for a small object → it becomes MOVE-ONLY (handles suppressed). */
+export function handlesVisible(
+  b: { minX: number; minY: number; maxX: number; maxY: number },
+  pageW: number,
+  pageH: number,
+): boolean {
+  if (pageW <= 0 || pageH <= 0) return false;
+  const wPx = (b.maxX - b.minX) * pageW;
+  const hPx = (b.maxY - b.minY) * pageH;
+  const min = HANDLE_PX * HANDLE_MIN_BBOX_FACTOR;
+  return wPx >= min && hPx >= min;
+}
+
+/** Which corner handle (if any) a press grabs, using a px grab zone — but ONLY when the
+ *  bbox is large enough to show handles. Returns null for a small object so its whole
+ *  body is a move zone (Bug #2). pageW/pageH convert the px tolerance to [0,1]. */
+export function handleAtPx(
+  b: { minX: number; minY: number; maxX: number; maxY: number },
+  pt: { x: number; y: number },
+  pageW: number,
+  pageH: number,
+): HandleId | null {
+  if (!handlesVisible(b, pageW, pageH)) return null;
+  const tolX = HANDLE_GRAB_PX / pageW;
+  const tolY = HANDLE_GRAB_PX / pageH;
+  for (const h of CORNER_HANDLES) {
+    const hp = handlePoint(b, h);
+    if (Math.abs(pt.x - hp.x) <= tolX && Math.abs(pt.y - hp.y) <= tolY) return h;
+  }
+  return null;
+}
+
 /** The corner diagonally opposite a handle (the fixed anchor during a resize). */
 function oppositeCorner(
   b: { minX: number; minY: number; maxX: number; maxY: number },
@@ -296,6 +415,10 @@ function oppositeCorner(
  *   - text → its anchor follows and fontSize scales by the height ratio.
  * Guards against a degenerate (zero/near-zero) box so points don't collapse.
  */
+/** Minimum on-screen size (page-relative [0,1]) a resize may shrink an object to, so a
+ *  tiny/overshooting drag can never collapse it to a point (Bug #2). */
+export const MIN_OBJECT_SIZE = 0.01;
+
 export function resizeObject(
   obj: AnnotationObject,
   handle: HandleId,
@@ -310,10 +433,20 @@ export function resizeObject(
 
   const oldW = b.maxX - b.minX;
   const oldH = b.maxY - b.minY;
-  const newMinX = Math.min(fixed.x, newDragged.x);
-  const newMaxX = Math.max(fixed.x, newDragged.x);
-  const newMinY = Math.min(fixed.y, newDragged.y);
-  const newMaxY = Math.max(fixed.y, newDragged.y);
+  let newMinX = Math.min(fixed.x, newDragged.x);
+  let newMaxX = Math.max(fixed.x, newDragged.x);
+  let newMinY = Math.min(fixed.y, newDragged.y);
+  let newMaxY = Math.max(fixed.y, newDragged.y);
+  // Clamp to a minimum size, growing AWAY from the fixed (opposite) corner so the
+  // anchor stays put — the drag maps to the bbox EDGE additively, never a multiplier.
+  if (newMaxX - newMinX < MIN_OBJECT_SIZE) {
+    if (fixed.x <= newMinX) newMaxX = clamp01(fixed.x + MIN_OBJECT_SIZE), (newMinX = fixed.x);
+    else newMinX = clamp01(fixed.x - MIN_OBJECT_SIZE), (newMaxX = fixed.x);
+  }
+  if (newMaxY - newMinY < MIN_OBJECT_SIZE) {
+    if (fixed.y <= newMinY) newMaxY = clamp01(fixed.y + MIN_OBJECT_SIZE), (newMinY = fixed.y);
+    else newMinY = clamp01(fixed.y - MIN_OBJECT_SIZE), (newMaxY = fixed.y);
+  }
   const newW = newMaxX - newMinX;
   const newH = newMaxY - newMinY;
 

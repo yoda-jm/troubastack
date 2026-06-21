@@ -47,6 +47,12 @@ export interface InkStyle {
   width: number;
   /** Font size as a FRACTION OF PAGE HEIGHT (text only). */
   fontSize: number;
+  /** Paint the interior (rect/ellipse). Absent → inferred from the object type. */
+  fill?: boolean;
+  /** Draw the border (rect/ellipse). Absent → inferred from the object type. */
+  stroke?: boolean;
+  /** Compositing for the fill: "multiply" blends like a highlighter. */
+  blend?: "normal" | "multiply";
 }
 
 /** The kinds of object this renderer can draw. */
@@ -237,13 +243,59 @@ function bbox(obj: InkObject, page: PageRect): { x: number; y: number; w: number
   };
 }
 
+/**
+ * Resolve the effective fill/stroke/blend for a shape, applying BACK-COMPAT defaults
+ * so objects seeded before these flags existed render identically:
+ *   - legacy type "highlight"           → fill, multiply, no stroke;
+ *   - rect/ellipse with flags ABSENT    → stroke only, normal (the old outline look);
+ *   - rect/ellipse with flags present   → honor them verbatim.
+ * `fill` and `stroke` are only treated as defaulted when BOTH are absent (a caller
+ * that sets just one — e.g. fill:true — implies the other is false).
+ */
+function shapeStyle(obj: InkObject): { fill: boolean; stroke: boolean; multiply: boolean } {
+  const s = obj.style;
+  if (obj.type === "highlight") {
+    // Legacy highlighter: filled + multiply + no stroke, unless explicitly overridden.
+    return {
+      fill: s.fill ?? true,
+      stroke: s.stroke ?? false,
+      multiply: (s.blend ?? "multiply") === "multiply",
+    };
+  }
+  const hasFlags = s.fill != null || s.stroke != null;
+  if (!hasFlags) return { fill: false, stroke: true, multiply: false }; // legacy rect/ellipse
+  return { fill: s.fill ?? false, stroke: s.stroke ?? false, multiply: s.blend === "multiply" };
+}
+
+/** Paint a shape's interior + border per its resolved fill/stroke/blend. `pathFn`
+ *  builds the path (rect or ellipse); fill uses globalAlpha, stroke is always opaque-
+ *  for-its-color (alpha already set on the context by renderObject). */
+function paintShape(ctx: Ctx2D, obj: InkObject, page: PageRect, pathFn: () => void): void {
+  const { fill, stroke, multiply } = shapeStyle(obj);
+  if (fill) {
+    ctx.save();
+    if (multiply) ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = obj.style.color;
+    pathFn();
+    ctx.fill();
+    ctx.restore();
+  }
+  if (stroke) {
+    ctx.lineWidth = strokePx(obj.style, page);
+    ctx.strokeStyle = obj.style.color;
+    pathFn();
+    ctx.stroke();
+  }
+}
+
 function drawRect(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
   const r = bbox(obj, page);
-  ctx.lineWidth = strokePx(obj.style, page);
-  ctx.strokeStyle = obj.style.color;
-  ctx.strokeRect(r.x, r.y, r.w, r.h);
+  paintShape(ctx, obj, page, () => {
+    ctx.beginPath();
+    ctx.rect(r.x, r.y, r.w, r.h);
+  });
 }
 
 function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
@@ -252,22 +304,22 @@ function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const r = bbox(obj, page);
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
-  ctx.lineWidth = strokePx(obj.style, page);
-  ctx.strokeStyle = obj.style.color;
-  ctx.stroke();
+  paintShape(ctx, obj, page, () => {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
+  });
 }
 
+// Legacy "highlight" objects route through the same shape painter (shapeStyle infers
+// fill+multiply+no-stroke for them), so old seeded data renders exactly as before.
 function drawHighlight(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
   const r = bbox(obj, page);
-  // Translucent marker look: FILL the rect with the color at the given opacity.
-  // "multiply" blends like a real highlighter over the page beneath.
-  ctx.globalCompositeOperation = "multiply";
-  ctx.fillStyle = obj.style.color;
-  ctx.fillRect(r.x, r.y, r.w, r.h);
+  paintShape(ctx, obj, page, () => {
+    ctx.beginPath();
+    ctx.rect(r.x, r.y, r.w, r.h);
+  });
 }
 
 function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
