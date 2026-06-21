@@ -44,8 +44,10 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { SyncClient, type SyncState } from "../sync";
 import {
   COLOR_SWATCHES,
+  CORNER_HANDLES,
   DEFAULT_STYLE,
   buildObject,
+  handlePoint,
   hitTest,
   intersectsRect,
   isMarquee,
@@ -55,9 +57,12 @@ import {
   objectLabel,
   pointerToPageXY,
   pointsForTool,
+  resizeObject,
   translateObject,
   type DrawTool,
+  type HandleId,
   type SelectRect,
+  type TextMeasure,
   type Tool,
 } from "../editor";
 
@@ -256,6 +261,11 @@ function Viewer({
   // Image element box (for image-overlay sizing).
   const imgRef = useRef<HTMLImageElement | null>(null);
   const imgOverlayRef = useRef<HTMLCanvasElement | null>(null);
+  // How many times the PDF pages have actually been RASTERIZED (PDF.js page
+  // render). The PDF render effect bumps this; an annotation edit must NOT.
+  // Surfaced via a hidden data-testid so e2e can assert no re-raster on edit.
+  const pdfRenderCountRef = useRef(0);
+  const [pdfRenderCount, setPdfRenderCount] = useState(0);
 
   // ---- refresh MY file strip (getMyFiles) — also after editor changes ----
   // Keeps a sensible selected file: preserves the current one if it survives,
@@ -551,6 +561,13 @@ function Viewer({
   // disabled while a locked layer is focused — its objects stay browsable.
   const focusLocked = focusedLayer != null && !isEditableLayer(focusedLayer, myUserId);
 
+  // Can the focused layer be turned into the active edit target? True when it is
+  // editable for me AND not already active — drives the "Edit this layer" CTA.
+  const canEditFocusedLayer =
+    focusedLayer != null &&
+    isEditableLayer(focusedLayer, myUserId) &&
+    focusedLayerId !== activeLayerId;
+
   // Keep a valid focused layer for the current file. Default to the active
   // (editable) layer so drawing stays enabled out of the box; only an explicit
   // click on a locked row focuses (and locks) it. When there is NO editable
@@ -581,6 +598,24 @@ function Viewer({
     setActiveLayerId(id);
     setFocusedLayerId(id);
   }, []);
+
+  // Focus a layer WITHOUT activating it (used when clicking an OBJECT on the
+  // canvas). This is the heart of Bug #2: clicking an annotation must let you
+  // SEE which layer it's on (focus + scoped list) without silently making that
+  // layer the edit target. Editing only ever happens on the ACTIVE layer, which
+  // is changed explicitly (the active-layer selector or "Edit this layer").
+  const focusLayerOnly = useCallback((id: string) => {
+    setFocusedLayerId(id);
+  }, []);
+
+  // Make the currently-focused layer the active edit target ("Edit this layer").
+  // Only ever activates an editable layer (a non-owned RO layer can never become
+  // active — the access enforcement is preserved).
+  const editFocusedLayer = useCallback(() => {
+    if (focusedLayerId == null) return;
+    const l = doc.layers.find((x) => x.id === focusedLayerId);
+    if (l && isEditableLayer(l, myUserId)) setActiveLayerId(focusedLayerId);
+  }, [focusedLayerId, doc.layers, myUserId]);
 
   // Create a personal RW layer ("My notes") for the current file and make it
   // active. zone "personal", ownerId = me, access rw — a layer I may edit.
@@ -649,9 +684,8 @@ function Viewer({
     [ensureActiveLayer, doc.layers, myUserId, style],
   );
 
-  // May the current user edit (move/delete/restyle) THIS object? Purely a
-  // function of the object's layer being editable for me. Defense in depth
-  // alongside the server `forbidden` backstop.
+  // Is THIS object on a layer I may ever edit (owner / rw)? Drives the lock cue
+  // (a truly read-only object shows a 🔒). NOT the mutation gate — see below.
   const isEditableObject = useCallback(
     (obj: AnnotationObject): boolean => {
       const l = layersById.get(obj.layerId);
@@ -660,55 +694,88 @@ function Viewer({
     [layersById, myUserId],
   );
 
-  // Commit a move: send the translated object (move mutation). Guarded so a
-  // locked-layer object never produces a mutation (the client fully prevents).
+  // May the current user edit (move/resize/delete/restyle) THIS object RIGHT
+  // NOW? Bug #2's rule: editing happens ONLY on the ACTIVE layer. So an object
+  // is mutable iff it lives on the active layer AND that layer is editable for
+  // me. An object on a DIFFERENT editable layer is select/inspect-only until the
+  // user explicitly activates its layer ("Edit this layer"). Defense in depth
+  // alongside the server `forbidden` backstop.
+  const isObjectEditableNow = useCallback(
+    (obj: AnnotationObject): boolean => {
+      if (obj.layerId !== activeLayerId) return false;
+      const l = layersById.get(obj.layerId);
+      return l != null && isEditableLayer(l, myUserId);
+    },
+    [activeLayerId, layersById, myUserId],
+  );
+
+  // Commit a move: send the translated object (move mutation). Guarded so an
+  // object that is not on the active editable layer never produces a mutation.
   const commitMove = useCallback(
     (obj: AnnotationObject) => {
       if (!syncRef.current) return;
-      if (!isEditableObject(obj)) return;
+      if (!isObjectEditableNow(obj)) return;
       syncRef.current.updateObject("move", obj);
     },
-    [isEditableObject],
+    [isObjectEditableNow],
+  );
+
+  // Commit a resize: send the resized object (resize mutation). Same gate.
+  const commitResize = useCallback(
+    (obj: AnnotationObject) => {
+      if (!syncRef.current) return;
+      if (!isObjectEditableNow(obj)) return;
+      syncRef.current.updateObject("resize", obj);
+    },
+    [isObjectEditableNow],
   );
 
   // Live restyle: send a setStyle mutation with the object carrying the new
-  // style. Guarded: never restyle an object on a locked layer.
+  // style. Guarded: only the active layer's objects can be restyled.
   const restyleObject = useCallback(
     (uuid: string, nextStyle: AnnotationStyle) => {
       if (!syncRef.current) return;
       const obj = doc.objects.find((o) => o.uuid === uuid);
-      if (!obj || !isEditableObject(obj)) return;
+      if (!obj || !isObjectEditableNow(obj)) return;
       syncRef.current.updateObject("setStyle", { ...obj, style: { ...nextStyle } });
     },
-    [doc.objects, isEditableObject],
+    [doc.objects, isObjectEditableNow],
   );
 
   // Scroll the page that contains an object into view (objects live on canvas,
-  // so "scroll into view" means bringing its page wrapper on-screen).
+  // so "scroll into view" means bringing its page WRAPPER on-screen). The viewer
+  // renders ALL pages in one scroll column, so this works cross-page: clicking a
+  // list item for an object on page N brings page N into view even when a
+  // different page is currently scrolled to (Feature #4). We scroll the column
+  // itself (offsetTop is relative to it) so it also works in the embedded webview.
   const scrollObjectIntoView = useCallback(
     (uuid: string) => {
       const obj = doc.objects.find((o) => o.uuid === uuid);
       if (!obj) return;
-      const pageEls = scrollRef.current?.querySelectorAll<HTMLElement>(".pdf-page");
+      const scroll = scrollRef.current;
+      const pageEls = scroll?.querySelectorAll<HTMLElement>(".pdf-page");
       const el = pageEls?.[obj.page] ?? pageEls?.[0];
-      el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      if (!el || !scroll) return;
+      const target = el.offsetTop - scroll.clientHeight / 2 + el.clientHeight / 2;
+      scroll.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
     },
     [doc.objects],
   );
 
-  // Delete the current selection (one or many objects). Only objects on layers
-  // I may edit are deleted; locked-layer objects are skipped (no mutation sent).
+  // Delete the current selection (one or many objects). Only objects on the
+  // ACTIVE editable layer are deleted; everything else (locked OR on a non-active
+  // layer) is skipped — no mutation sent.
   const deleteSelected = useCallback(() => {
     if (selectedUuids.length === 0 || !syncRef.current) return;
     let deletedAny = false;
     for (const uuid of selectedUuids) {
       const obj = doc.objects.find((o) => o.uuid === uuid);
-      if (!obj || !isEditableObject(obj)) continue;
+      if (!obj || !isObjectEditableNow(obj)) continue;
       syncRef.current.deleteObject(uuid);
       deletedAny = true;
     }
     if (deletedAny) setSelectedUuids([]);
-  }, [selectedUuids, doc.objects, isEditableObject]);
+  }, [selectedUuids, doc.objects, isObjectEditableNow]);
 
   // Delete/Backspace removes the current selection (ignored while typing in a
   // form field, so the Details inputs below keep working normally).
@@ -740,20 +807,29 @@ function Viewer({
     () => (selectedUuids.length === 1 ? doc.objects.find((o) => o.uuid === selectedUuids[0]) ?? null : null),
     [selectedUuids, doc.objects],
   );
-  // Is the (single) selection on a layer I may edit? Locked → controls disabled.
-  const selectionEditable = selectedObject != null && isEditableObject(selectedObject);
-  // Are the style controls locked? Only when a single locked object is selected.
+  // Is the (single) selection editable RIGHT NOW (on the active editable layer)?
+  // Drives whether the style controls are live. An object on a locked layer OR
+  // on a non-active editable layer is inspect-only → controls disabled.
+  const selectionEditable = selectedObject != null && isObjectEditableNow(selectedObject);
+  // Are the style controls locked? Whenever a single non-active/locked object is
+  // selected (it can be inspected but not restyled until its layer is active).
   const controlsLocked = selectedObject != null && !selectionEditable;
+  // Is the single selection on an editable layer that just isn't ACTIVE yet?
+  // (As opposed to a truly read-only layer.) Drives the "Edit this layer" CTA.
+  const selectionOnInactiveEditable =
+    selectedObject != null &&
+    isEditableObject(selectedObject) &&
+    selectedObject.layerId !== activeLayerId;
   // The style the controls REFLECT: the selected object's style, else the draw
   // default. When nothing is selected, controls set the next-drawn-object style.
   const effectiveStyle = selectedObject ? selectedObject.style : style;
-  // Applying a style change: restyle the selected (editable) object live, else
-  // update the draw default for the next object.
+  // Applying a style change: restyle the selected (active-editable) object live,
+  // else update the draw default for the next object.
   const applyStyle = useCallback(
     (next: AnnotationStyle) => {
       if (selectedObject) {
         if (selectionEditable) restyleObject(selectedObject.uuid, next);
-        return; // locked selection: controls are disabled, nothing to apply
+        return; // inspect-only selection: controls are disabled, nothing to apply
       }
       setStyle(next);
     },
@@ -790,6 +866,17 @@ function Viewer({
     },
     [doc.objects, layersById, visible, sortedLayers],
   );
+
+  // Latest paintOverlay, referenced by the PDF rasterization effect WITHOUT
+  // making that effect depend on it. This is the crux of the no-flicker fix:
+  // the PDF render pass must depend ONLY on [selectedFile, scale, numPages,
+  // zoomMode], never on objects/visibility/paintOverlay — otherwise every draw/
+  // move/restyle re-rasterizes every page (visible flicker). Overlay repaint on
+  // object/visibility change is a SEPARATE effect (renderOverlays).
+  const paintOverlayRef = useRef(paintOverlay);
+  useEffect(() => {
+    paintOverlayRef.current = paintOverlay;
+  }, [paintOverlay]);
 
   // Repaint every mounted overlay (used when only visibility/objects change and
   // the canvases keep their current size — no re-rasterization needed).
@@ -848,16 +935,22 @@ function Viewer({
         if (!ctx) continue;
         await page.render({ canvasContext: ctx, viewport }).promise;
         if (cancelled) return;
+        // Count an actual rasterization (one per page render). Editing an
+        // annotation must never reach here, so this stays put on edits.
+        pdfRenderCountRef.current += 1;
+        setPdfRenderCount(pdfRenderCountRef.current);
 
         // Size the overlay to the canvas's ACTUAL rendered dimensions, then
-        // paint THIS page's objects off those dims.
+        // paint THIS page's objects off those dims. We call the LATEST paint via
+        // a ref so this effect does not depend on paintOverlay (which changes on
+        // every object/visibility change and would otherwise re-rasterize).
         const overlay = overlayRefs.current[i];
         if (overlay) {
           overlay.width = canvas.width;
           overlay.height = canvas.height;
           overlay.style.width = `${canvas.style.width}`;
           overlay.style.height = `${canvas.style.height}`;
-          paintOverlay(overlay, i, dpr);
+          paintOverlayRef.current(overlay, i, dpr);
         }
       }
     })();
@@ -865,8 +958,11 @@ function Viewer({
     return () => {
       cancelled = true;
     };
+    // Depends ONLY on what changes the rasterized pixels: the file, the scale,
+    // the page count, and the zoom mode. NOT objects/visibility/paintOverlay —
+    // those repaint the overlay canvases via renderOverlays without re-raster.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, scale, numPages, isPdf, zoomMode, paintOverlay]);
+  }, [selectedFile, status, scale, numPages, zoomMode]);
 
   // ---- size + render the image overlay (image mode) ----
   const layoutImageOverlay = useCallback(() => {
@@ -946,11 +1042,15 @@ function Viewer({
         onNewLayer={() => createPersonalLayer()}
         canDraw={myUserId != null && selectedFileId != null}
         drawLocked={focusLocked}
+        canEditFocusedLayer={canEditFocusedLayer}
+        focusedLayerName={focusedLayer?.name ?? null}
+        onEditLayer={editFocusedLayer}
+        showEditLayerHint={selectionOnInactiveEditable}
         objectCount={doc.objects.length}
         selectionCount={selectedUuids.length}
         canDeleteSelection={selectedUuids.some((u) => {
           const o = doc.objects.find((x) => x.uuid === u);
-          return o != null && isEditableObject(o);
+          return o != null && isObjectEditableNow(o);
         })}
         onDelete={deleteSelected}
         connStatus={connStatus}
@@ -961,6 +1061,17 @@ function Viewer({
           {rejectNotice}
         </p>
       )}
+
+      {/* Hidden render-count probe: how many times PDF pages have actually been
+          rasterized. e2e asserts this does NOT change across an annotation edit
+          (no re-raster = no flicker). */}
+      <span
+        data-testid="pdf-render-count"
+        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}
+        aria-hidden="true"
+      >
+        {pdfRenderCount}
+      </span>
 
       <div className="viewer-toolbar">
         <div className="zoom-controls" data-testid="zoom-controls">
@@ -1115,10 +1226,12 @@ function Viewer({
                   visible={visible}
                   selectedUuids={selectedUuids}
                   isObjectEditable={isEditableObject}
+                  isObjectEditableNow={isObjectEditableNow}
                   onSelect={setSelectedUuids}
-                  onFocusLayer={focusLayer}
+                  onFocusLayer={focusLayerOnly}
                   onCommitDraw={commitDraw}
                   onCommitMove={commitMove}
+                  onCommitResize={commitResize}
                 />
               </div>
             ))}
@@ -1147,10 +1260,12 @@ function Viewer({
                 visible={visible}
                 selectedUuids={selectedUuids}
                 isObjectEditable={isEditableObject}
+                isObjectEditableNow={isObjectEditableNow}
                 onSelect={setSelectedUuids}
-                onFocusLayer={focusLayer}
+                onFocusLayer={focusLayerOnly}
                 onCommitDraw={commitDraw}
                 onCommitMove={commitMove}
+                onCommitResize={commitResize}
               />
             </div>
           )}
@@ -1556,6 +1671,10 @@ function EditorToolbar({
   onNewLayer,
   canDraw,
   drawLocked,
+  canEditFocusedLayer,
+  focusedLayerName,
+  onEditLayer,
+  showEditLayerHint,
   objectCount,
   selectionCount,
   canDeleteSelection,
@@ -1577,6 +1696,12 @@ function EditorToolbar({
   onNewLayer: () => void;
   canDraw: boolean;
   drawLocked: boolean;
+  // The focused layer is editable but not active → offer "Edit this layer".
+  canEditFocusedLayer: boolean;
+  focusedLayerName: string | null;
+  onEditLayer: () => void;
+  // A non-active editable object is selected → show the inline "edit this layer" hint.
+  showEditLayerHint: boolean;
   objectCount: number;
   selectionCount: number;
   canDeleteSelection: boolean;
@@ -1726,6 +1851,29 @@ function EditorToolbar({
         >
           + New layer
         </button>
+        {/* "Edit this layer": activates the focused (editable, non-active) layer
+            so its objects become editable. The active layer is the ONLY edit
+            target (Bug #2), changed explicitly here or via the selector. */}
+        {canEditFocusedLayer && (
+          <button
+            type="button"
+            data-testid="edit-this-layer"
+            className="edit-layer-btn"
+            onClick={onEditLayer}
+            title="Make this layer the active edit target"
+          >
+            Edit this layer{focusedLayerName ? `: ${focusedLayerName}` : ""}
+          </button>
+        )}
+        {showEditLayerHint && (
+          <span
+            className="edit-layer-hint"
+            data-testid="edit-layer-hint"
+            role="status"
+          >
+            Editing happens on the active layer — Edit this layer?
+          </span>
+        )}
         <button
           type="button"
           data-testid="delete-object"
@@ -1778,10 +1926,12 @@ function EditCanvas({
   visible,
   selectedUuids,
   isObjectEditable,
+  isObjectEditableNow,
   onSelect,
   onFocusLayer,
   onCommitDraw,
   onCommitMove,
+  onCommitResize,
 }: {
   page: number;
   tool: Tool;
@@ -1791,20 +1941,27 @@ function EditCanvas({
   layersById: Map<string, AnnotationLayer>;
   visible: LayerVisibility;
   selectedUuids: string[];
-  // Whether an object may be moved/deleted/restyled by me (its layer is editable).
+  // Whether an object's layer is editable at all (owner/rw) — drives the lock cue.
   isObjectEditable: (obj: AnnotationObject) => boolean;
+  // Whether an object may be moved/resized/deleted/restyled RIGHT NOW: it is on
+  // the ACTIVE editable layer. Gates the move/resize gestures (Bug #2).
+  isObjectEditableNow: (obj: AnnotationObject) => boolean;
   onSelect: (uuids: string[]) => void;
-  // Focus an object's layer when it is single-click selected (cross-layer focus).
+  // Focus an object's layer when it is single-click selected (cross-layer focus,
+  // WITHOUT activating it — editing stays scoped to the active layer).
   onFocusLayer: (layerId: string) => void;
   onCommitDraw: (tool: DrawTool, page: number, path: PRPoint[], text?: string) => void;
   onCommitMove: (obj: AnnotationObject) => void;
+  onCommitResize: (obj: AnnotationObject) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  // The active gesture: a draw path, a move drag, a rubber-band marquee, or
-  // none. Kept in a ref so pointer handlers read the latest without re-binding.
+  // The active gesture: a draw path, a move drag, a resize-handle drag, a
+  // rubber-band marquee, or none. Kept in a ref so pointer handlers read the
+  // latest without re-binding.
   const gestureRef = useRef<
     | { mode: "draw"; path: PRPoint[] }
     | { mode: "move"; obj: AnnotationObject; start: PRPoint; preview: AnnotationObject }
+    | { mode: "resize"; obj: AnnotationObject; handle: HandleId; start: PRPoint; preview: AnnotationObject }
     | { mode: "marquee"; start: PRPoint }
     | null
   >(null);
@@ -1812,6 +1969,11 @@ function EditCanvas({
   // The live rubber-band rect (page-relative [0,1]) while marqueeing, for the
   // DOM selection-box overlay. null when not marqueeing.
   const [marquee, setMarquee] = useState<SelectRect | null>(null);
+  // The page box size in CSS px (set by sizeToPage). Drives the render-time
+  // TextMeasure so text bboxes / handles position correctly in the DOM overlay.
+  const [pageBoxPx, setPageBoxPx] = useState<{ w: number; h: number } | null>(null);
+  // Bumped on each resize-preview tick so the DOM handles follow the drag.
+  const [, forceHandles] = useState(0);
 
   // Objects on THIS page that are currently visible (for hit-testing on select).
   const pageObjects = useMemo(
@@ -1849,6 +2011,7 @@ function EditCanvas({
     canvas.height = Math.round(h * dpr);
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
+    setPageBoxPx((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
     repaint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1870,7 +2033,7 @@ function EditCanvas({
     if (g?.mode === "draw" && g.path.length > 0 && tool !== "select") {
       const wet = buildWet(tool as DrawTool, g.path, style);
       if (wet) renderObjects(ctx, [toInkObject(wet) as InkObject], box);
-    } else if (g?.mode === "move") {
+    } else if (g?.mode === "move" || g?.mode === "resize") {
       renderObjects(ctx, [toInkObject(g.preview) as InkObject], box);
     }
   }, [tool, style]);
@@ -1896,6 +2059,25 @@ function EditCanvas({
     return pointerToPageXY(e.clientX, e.clientY, canvas);
   }
 
+  // Build a TextMeasure for the CURRENT page box (CSS px). measureText runs on a
+  // shared offscreen ctx with the SAME font the renderer uses, so a text bbox
+  // matches the painted glyphs. The page box is the edit canvas's CSS size.
+  const textMeasure = useCallback((): TextMeasure | undefined => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const pageW = parseFloat(canvas.style.width) || canvas.clientWidth;
+    const pageH = parseFloat(canvas.style.height) || canvas.clientHeight;
+    if (pageW <= 0 || pageH <= 0) return undefined;
+    return {
+      pageW,
+      pageH,
+      widthPx: (text, fontPx) => measureTextWidth(text, fontPx),
+    };
+  }, []);
+
+  // The bbox of the single selected object on this page (drives resize handles).
+  const selectedSingle = selectedOnPage.length === 1 ? selectedOnPage[0] : null;
+
   function onPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     const canvas = canvasRef.current;
@@ -1907,18 +2089,38 @@ function EditCanvas({
     if (drawLocked && tool !== "select") return;
 
     if (tool === "select") {
+      const measure = textMeasure();
+      // If a single editable-NOW object is selected, a press near one of its
+      // corner handles starts a RESIZE gesture (takes priority over re-hit).
+      if (selectedSingle && isObjectEditableNow(selectedSingle)) {
+        const b = objectBBox(selectedSingle, measure);
+        const handle = handleAt(b, pt, HANDLE_HIT);
+        if (handle) {
+          canvas.setPointerCapture(e.pointerId);
+          gestureRef.current = {
+            mode: "resize",
+            obj: selectedSingle,
+            handle,
+            start: pt,
+            preview: selectedSingle,
+          };
+          return;
+        }
+      }
       // Hit-test topmost (last drawn) visible object on this page — across ALL
       // visible layers, not just the focused one.
-      const hit = [...pageObjects].reverse().find((o) => hitTest(o, pt.x, pt.y));
+      const hit = [...pageObjects].reverse().find((o) => hitTest(o, pt.x, pt.y, 0.02, measure));
       if (hit) {
         onSelect([hit.uuid]);
         // Cross-layer focus: clicking an object focuses its layer (so the scoped
-        // annotation list shows it and the user can see which layer it's on).
+        // annotation list shows it and the user can see which layer it's on) —
+        // WITHOUT activating it. Editing stays scoped to the active layer (Bug #2).
         onFocusLayer(hit.layerId);
-        // Only start a MOVE gesture for objects I may edit. A locked-layer object
-        // is selectable (to show its lock cue) but never movable — no transient
-        // move, no mutation. The server `forbidden` reject is only a backstop.
-        if (isObjectEditable(hit)) {
+        // Only start a MOVE gesture for objects editable RIGHT NOW (on the active
+        // editable layer). An object on a locked OR non-active layer is selectable
+        // (to inspect / show its cue) but never movable — no transient move, no
+        // mutation. The server `forbidden` reject is only a backstop.
+        if (isObjectEditableNow(hit)) {
           canvas.setPointerCapture(e.pointerId);
           gestureRef.current = { mode: "move", obj: hit, start: pt, preview: hit };
         }
@@ -1956,6 +2158,12 @@ function EditCanvas({
       const dy = pt.y - g.start.y;
       g.preview = translateObject(g.obj, dx, dy);
       repaint();
+    } else if (g.mode === "resize") {
+      const dx = pt.x - g.start.x;
+      const dy = pt.y - g.start.y;
+      g.preview = resizeObject(g.obj, g.handle, dx, dy, textMeasure());
+      repaint();
+      forceHandles((n) => n + 1); // move the DOM handles + bbox with the drag
     } else if (g.mode === "marquee") {
       setMarquee(normalizeRect(g.start, pt));
     }
@@ -1974,12 +2182,21 @@ function EditCanvas({
       const moved =
         g.preview.points.some((p, i) => p.x !== g.obj.points[i].x || p.y !== g.obj.points[i].y);
       if (moved) onCommitMove(g.preview);
+    } else if (g.mode === "resize") {
+      // Commit if the geometry (points) or the text fontSize actually changed.
+      const changed =
+        g.preview.points.some((p, i) => p.x !== g.obj.points[i].x || p.y !== g.obj.points[i].y) ||
+        g.preview.style.fontSize !== g.obj.style.fontSize;
+      if (changed) onCommitResize(g.preview);
     } else if (g.mode === "marquee") {
       const pt = pageRelative(e);
       const rect = normalizeRect(g.start, pt);
       setMarquee(null);
       if (isMarquee(rect)) {
-        const hits = pageObjects.filter((o) => intersectsRect(o, rect)).map((o) => o.uuid);
+        const measure = textMeasure();
+        const hits = pageObjects
+          .filter((o) => intersectsRect(o, rect, measure))
+          .map((o) => o.uuid);
         onSelect(hits);
       }
     }
@@ -2001,12 +2218,29 @@ function EditCanvas({
           they track the page under any zoom AND are queryable in e2e. */}
       <div className="selection-overlay" aria-hidden="true">
         {selectedOnPage.map((o) => {
-          const b = objectBBox(o);
-          const locked = !isObjectEditable(o);
+          // While resizing THIS object, draw the live preview box so the bbox +
+          // handles follow the drag.
+          const g = gestureRef.current;
+          const previewing =
+            g && (g.mode === "resize" || g.mode === "move") && g.obj.uuid === o.uuid
+              ? g.preview
+              : o;
+          const renderMeasure: TextMeasure | undefined = pageBoxPx
+            ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth }
+            : undefined;
+          const b = objectBBox(previewing, renderMeasure);
+          const everEditable = isObjectEditable(o);
+          const locked = !everEditable; // truly read-only layer
+          const editableNow = isObjectEditableNow(o);
+          // Editable layer but NOT the active one → inspect-only, distinct cue.
+          const inactiveEditable = everEditable && !editableNow;
+          const showHandles = editableNow && selectedOnPage.length === 1;
           return (
             <div
               key={o.uuid}
-              className={`selected-bbox${locked ? " readonly" : ""}`}
+              className={`selected-bbox${locked ? " readonly" : ""}${
+                inactiveEditable ? " inactive" : ""
+              }`}
               data-testid="selected-bbox"
               style={{
                 left: `${b.minX * 100}%`,
@@ -2026,6 +2260,23 @@ function EditCanvas({
                   🔒
                 </span>
               )}
+              {/* Resize handles: only for the single, active-editable selection. */}
+              {showHandles &&
+                CORNER_HANDLES.map((h) => {
+                  // Handle position relative to THIS bbox (the box is the parent,
+                  // so 0%/100% are its own corners).
+                  const left = h === "nw" || h === "sw" ? 0 : 100;
+                  const top = h === "nw" || h === "ne" ? 0 : 100;
+                  return (
+                    <span
+                      key={h}
+                      className={`resize-handle handle-${h}`}
+                      data-testid="resize-handle"
+                      data-handle={h}
+                      style={{ left: `${left}%`, top: `${top}%` }}
+                    />
+                  );
+                })}
             </div>
           );
         })}
@@ -2044,6 +2295,34 @@ function EditCanvas({
       </div>
     </>
   );
+}
+
+// A shared offscreen 2D context for text measurement (font matches web/ink).
+let measureCtx: CanvasRenderingContext2D | null = null;
+function measureTextWidth(text: string, fontPx: number): number {
+  if (!measureCtx) {
+    const c = document.createElement("canvas");
+    measureCtx = c.getContext("2d");
+  }
+  if (!measureCtx) return text.length * fontPx * 0.5; // crude fallback
+  measureCtx.font = `${fontPx}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  return measureCtx.measureText(text).width;
+}
+
+// How close (page-relative [0,1]) a pointer must be to a corner handle to grab it.
+const HANDLE_HIT = 0.03;
+
+/** Which corner handle (if any) the point is within HANDLE_HIT of, for a bbox. */
+function handleAt(
+  b: { minX: number; minY: number; maxX: number; maxY: number },
+  pt: { x: number; y: number },
+  tol: number,
+): HandleId | null {
+  for (const h of CORNER_HANDLES) {
+    const hp = handlePoint(b, h);
+    if (Math.abs(pt.x - hp.x) <= tol && Math.abs(pt.y - hp.y) <= tol) return h;
+  }
+  return null;
 }
 
 /** Build a wet preview object from an in-progress gesture (no uuid needed). */

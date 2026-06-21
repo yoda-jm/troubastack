@@ -285,6 +285,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 @media (max-width: 760px) { .viewer-body { flex-direction: column-reverse; } }
 
 .viewer-scroll {
+  position: relative;
   flex: 1 1 auto; min-width: 0;
   max-height: 80vh; overflow: auto;
   /* `safe center`: center pages that fit, but fall back to start-alignment when a
@@ -407,6 +408,32 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   filter: grayscale(1);
   opacity: 0.85;
 }
+/* Editable layer but NOT the active one: amber dashed, inspect-only cue. */
+.selected-bbox.inactive {
+  border: 1.5px dashed #d97706;
+  background: rgba(217, 119, 6, 0.10);
+}
+/* Resize handles: small squares pinned at the bbox corners. They are the only
+   pointer-interactive selection chrome; the press is captured by the edit
+   canvas underneath (the handle just marks the grab zone + cursor). */
+.resize-handle {
+  position: absolute; box-sizing: border-box;
+  width: 10px; height: 10px;
+  margin-left: -5px; margin-top: -5px;
+  background: #fff;
+  border: 1.5px solid var(--accent, #2563eb);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.resize-handle.handle-nw { cursor: nwse-resize; }
+.resize-handle.handle-se { cursor: nwse-resize; }
+.resize-handle.handle-ne { cursor: nesw-resize; }
+.resize-handle.handle-sw { cursor: nesw-resize; }
+.edit-layer-btn {
+  padding: .35rem .6rem; font-size: .85rem;
+  background: #fffbeb; border-color: #f59e0b; color: #b45309;
+}
+.edit-layer-hint { font-size: .8rem; color: #b45309; align-self: center; }
 
 .details-section { padding: 0; overflow: hidden; }
 .details-toggle {
