@@ -330,12 +330,21 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .layers-list li { flex-wrap: wrap; gap: .4rem; padding: .45rem .6rem; }
 .layers-list li.active-layer { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; border-radius: var(--r-sm); }
 .layers-list li.locked .layer-name { color: var(--muted, #6b7280); }
-.layer-row { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; font-weight: 600; }
-.layer-row input { width: auto; }
+.layers-list li.focused-layer { background: var(--surface, #fff); }
+.layer-row-wrap { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; }
+.layer-row-wrap input { width: auto; }
+.layer-row {
+  display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0;
+  font-weight: 600; text-align: left; background: transparent; border: 1px solid transparent;
+  border-radius: var(--r-sm); padding: .15rem .3rem; cursor: pointer; color: inherit; font: inherit;
+}
+.layer-row:hover { background: var(--surface, #fff); border-color: var(--border); }
+.layer-row[aria-pressed="true"] { border-color: var(--accent, #2563eb); }
 .layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mandatory-pill { background: var(--ok-bg); color: var(--ok-fg); }
 .lock-pill { background: #e5e7eb; color: #374151; text-transform: none; }
 .active-pill { background: var(--accent, #2563eb); color: #fff; text-transform: none; }
+.focused-pill { background: #ddd6fe; color: #5b21b6; text-transform: none; }
 
 /* Annotation list for the active layer. */
 .annotation-list-panel {
@@ -448,6 +457,14 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .style-field input[type="color"] { width: 32px; height: 26px; padding: 0; }
 .style-field input[type="range"] { width: 90px; }
 .style-field select { font-size: .85rem; }
+/* Live value readout next to each style control (hex / % / number). */
+.style-value {
+  font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg, #111827);
+  min-width: 3.2ch; text-align: right;
+}
+/* Inline hint when a read-only (locked) layer is focused. */
+.draw-locked-hint { font-size: .8rem; color: #b45309; align-self: center; }
+.annotation-list-locked-hint { color: #b45309; font-size: .8rem; margin: 0; }
 
 .layer-controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .new-layer-btn, .delete-object-btn { padding: .35rem .6rem; font-size: .85rem; }

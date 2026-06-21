@@ -177,13 +177,13 @@ function isViewable(f: SongFile): boolean {
   return f.contentType === "application/pdf" || f.contentType.startsWith("image/");
 }
 
-/** May the current user draw into this layer? My own personal layers, or any
- *  shared read-write layer. (Conductor/mandatory/read-only stay view-only.) */
+/** May the current user draw into this layer? Purely: I OWN it, or it is RW —
+ *  regardless of zone/mandatory. Owning a mandatory conductor layer still makes
+ *  it editable (mandatory governs VISIBILITY, not editability). A RW layer is
+ *  open to anyone (e.g. the shared band layer); a RO layer is editable only by
+ *  its owner. */
 function isEditableLayer(l: AnnotationLayer, myUserId: string | null): boolean {
-  if (l.access === "ro") return false;
-  if (l.zone === "personal") return myUserId != null && l.ownerId === myUserId;
-  if (l.zone === "shared") return true;
-  return false;
+  return (myUserId != null && l.ownerId === myUserId) || l.access === "rw";
 }
 
 /** Format the zoom selection for the zoom-level readout. */
@@ -214,6 +214,11 @@ function Viewer({
   const [tool, setTool] = useState<Tool>("select");
   const [style, setStyle] = useState(DEFAULT_STYLE);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+  // The layer the user is "focusing": drives which layer's objects the
+  // annotation list shows (works for ANY layer, editable or locked). When the
+  // focused layer is editable it also becomes the active DRAW layer; when it's
+  // locked, drawing is disabled but its annotations stay browsable.
+  const [focusedLayerId, setFocusedLayerId] = useState<string | null>(null);
   // The current selection (single click or rubber-band marquee). Empty = none.
   const [selectedUuids, setSelectedUuids] = useState<string[]>([]);
   // A brief inline notice when the server rejects one of our writes.
@@ -528,6 +533,55 @@ function Viewer({
     });
   }, [editableLayers]);
 
+  // ---- focused layer (drives the scoped annotation list) ----
+  // The layer whose annotations the list shows. Any layer for the current file
+  // may be focused; the focused layer is independent of editability.
+  const fileLayers = useMemo(
+    () =>
+      doc.layers.filter((l) => selectedFileId == null || l.fileId === selectedFileId),
+    [doc.layers, selectedFileId],
+  );
+
+  const focusedLayer = useMemo(
+    () => fileLayers.find((l) => l.id === focusedLayerId) ?? null,
+    [fileLayers, focusedLayerId],
+  );
+
+  // Is the focused layer one we may NOT draw on (read-only for us)? Drawing is
+  // disabled while a locked layer is focused — its objects stay browsable.
+  const focusLocked = focusedLayer != null && !isEditableLayer(focusedLayer, myUserId);
+
+  // Keep a valid focused layer for the current file. Default to the active
+  // (editable) layer so drawing stays enabled out of the box; only an explicit
+  // click on a locked row focuses (and locks) it. When there is NO editable
+  // layer, leave focus null rather than auto-focusing a locked layer — drawing
+  // then provisions a personal layer on demand (Bug 1 flow).
+  useEffect(() => {
+    setFocusedLayerId((cur) => {
+      if (cur && fileLayers.some((l) => l.id === cur)) return cur;
+      return activeLayerId;
+    });
+  }, [fileLayers, activeLayerId]);
+
+  // Focus a layer (click in the Layers panel). If it's editable it also becomes
+  // the active DRAW layer; if locked, drawing is disabled but the list scopes
+  // to it. Keeps the active-layer selector in sync via activeLayerId.
+  const focusLayer = useCallback(
+    (id: string) => {
+      setFocusedLayerId(id);
+      const l = doc.layers.find((x) => x.id === id);
+      if (l && isEditableLayer(l, myUserId)) setActiveLayerId(id);
+    },
+    [doc.layers, myUserId],
+  );
+
+  // The active-layer selector and the focused layer stay in sync: choosing an
+  // active layer also focuses it (it is editable, so this is safe).
+  const selectActiveLayer = useCallback((id: string) => {
+    setActiveLayerId(id);
+    setFocusedLayerId(id);
+  }, []);
+
   // Create a personal RW layer ("My notes") for the current file and make it
   // active. zone "personal", ownerId = me, access rw — a layer I may edit.
   const createPersonalLayer = useCallback(
@@ -547,6 +601,7 @@ function Viewer({
         roleTag: "",
       });
       setActiveLayerId(id);
+      setFocusedLayerId(id);
       // A brand-new personal layer should be visible to me immediately.
       setVisible((v) => ({ ...v, [id]: true }));
       return id;
@@ -823,9 +878,10 @@ function Viewer({
         editableLayers={editableLayers}
         activeLayerId={activeLayerId}
         activeLayer={activeLayer}
-        onActiveLayer={setActiveLayerId}
+        onActiveLayer={selectActiveLayer}
         onNewLayer={() => createPersonalLayer()}
         canDraw={myUserId != null && selectedFileId != null}
+        drawLocked={focusLocked}
         objectCount={doc.objects.length}
         selectionCount={selectedUuids.length}
         onDelete={deleteSelected}
@@ -985,6 +1041,7 @@ function Viewer({
                   page={i}
                   tool={tool}
                   style={style}
+                  drawLocked={focusLocked}
                   objects={doc.objects}
                   layersById={layersById}
                   visible={visible}
@@ -1014,6 +1071,7 @@ function Viewer({
                 page={0}
                 tool={tool}
                 style={style}
+                drawLocked={focusLocked}
                 objects={doc.objects}
                 layersById={layersById}
                 visible={visible}
@@ -1030,8 +1088,9 @@ function Viewer({
           <div className="viewer-sidebar">
             <AnnotationList
               objects={doc.objects}
-              activeLayerId={activeLayerId}
-              activeLayer={activeLayer}
+              focusedLayerId={focusedLayerId}
+              focusedLayer={focusedLayer}
+              focusLocked={focusLocked}
               selectedUuids={selectedUuids}
               onSelect={(uuid) => {
                 setSelectedUuids([uuid]);
@@ -1043,7 +1102,9 @@ function Viewer({
               visible={visible}
               myUserId={myUserId}
               activeLayerId={activeLayerId}
+              focusedLayerId={focusedLayerId}
               onToggle={toggle}
+              onFocus={focusLayer}
             />
           </div>
         )}
@@ -1234,13 +1295,17 @@ function LayersPanel({
   visible,
   myUserId,
   activeLayerId,
+  focusedLayerId,
   onToggle,
+  onFocus,
 }: {
   layers: AnnotationLayer[];
   visible: LayerVisibility;
   myUserId: string | null;
   activeLayerId: string | null;
+  focusedLayerId: string | null;
   onToggle: (id: string) => void;
+  onFocus: (id: string) => void;
 }) {
   return (
     <aside className="layers-panel" data-testid="layers-panel">
@@ -1260,27 +1325,47 @@ function LayersPanel({
             // personal layer). Shown with a lock; never the active draw target.
             const locked = !isEditableLayer(l, myUserId);
             const isActive = l.id === activeLayerId;
+            const isFocused = l.id === focusedLayerId;
             return (
               <li
                 key={l.id}
                 data-testid="layer-item"
-                className={`layer-item${isActive ? " active-layer" : ""}${locked ? " locked" : ""}`}
+                className={`layer-item${isActive ? " active-layer" : ""}${
+                  isFocused ? " focused-layer" : ""
+                }${locked ? " locked" : ""}`}
               >
-                <label className="layer-row">
+                <div className="layer-row-wrap">
                   <input
                     type="checkbox"
                     data-testid="layer-toggle"
+                    aria-label={`Show ${l.name}`}
                     checked={!!visible[l.id]}
                     disabled={l.mandatory}
                     onChange={() => onToggle(l.id)}
                   />
-                  <span className="layer-name">{l.name}</span>
-                </label>
+                  {/* Click focuses the layer: scopes the annotation list to it,
+                      and (if editable) makes it the active draw layer. */}
+                  <button
+                    type="button"
+                    data-testid="layer-row"
+                    className="layer-row"
+                    aria-pressed={isFocused}
+                    title="Show this layer's annotations"
+                    onClick={() => onFocus(l.id)}
+                  >
+                    <span className="layer-name">{l.name}</span>
+                  </button>
+                </div>
                 <span className="pill">{tag}</span>
                 {l.mandatory && <span className="pill mandatory-pill">required</span>}
                 {isActive && (
                   <span className="pill active-pill" data-testid="layer-active">
                     drawing
+                  </span>
+                )}
+                {isFocused && (
+                  <span className="pill focused-pill" data-testid="layer-focused">
+                    viewing
                   </span>
                 )}
                 {locked && (
@@ -1306,33 +1391,44 @@ function LayersPanel({
 // Annotation list — objects on the current editing (active) layer
 // ===========================================================================
 
-/** A list of the objects on the ACTIVE editing layer. Each row shows the type
- *  + a short label; clicking selects + highlights that object (and the caller
- *  scrolls it into view). */
+/** A list of the objects on the FOCUSED layer (the layer the user clicked in
+ *  the Layers panel — editable or locked). Each row shows the type + a short
+ *  label; clicking selects + highlights that object (and the caller scrolls it
+ *  into view). When the focused layer is locked, an inline hint explains that
+ *  drawing is disabled while you can still browse/select its annotations. */
 function AnnotationList({
   objects,
-  activeLayerId,
-  activeLayer,
+  focusedLayerId,
+  focusedLayer,
+  focusLocked,
   selectedUuids,
   onSelect,
 }: {
   objects: AnnotationObject[];
-  activeLayerId: string | null;
-  activeLayer: AnnotationLayer | null;
+  focusedLayerId: string | null;
+  focusedLayer: AnnotationLayer | null;
+  focusLocked: boolean;
   selectedUuids: string[];
   onSelect: (uuid: string) => void;
 }) {
   const items = useMemo(
-    () => objects.filter((o) => o.layerId === activeLayerId),
-    [objects, activeLayerId],
+    () => objects.filter((o) => o.layerId === focusedLayerId),
+    [objects, focusedLayerId],
   );
   const selected = new Set(selectedUuids);
   return (
     <aside className="annotation-list-panel" data-testid="annotation-list">
-      <h2>Annotations{activeLayer ? ` · ${activeLayer.name}` : ""}</h2>
-      {!activeLayer ? (
+      <h2 data-testid="annotation-list-title">
+        Annotations{focusedLayer ? ` · ${focusedLayer.name}` : ""}
+      </h2>
+      {focusLocked && (
+        <p className="muted annotation-list-locked-hint" data-testid="annotation-list-locked">
+          read-only layer — pick an editable layer to draw
+        </p>
+      )}
+      {!focusedLayer ? (
         <p className="muted" data-testid="annotation-list-empty">
-          No editable layer yet — draw to create one.
+          No layer selected — pick a layer to see its annotations.
         </p>
       ) : items.length === 0 ? (
         <p className="muted" data-testid="annotation-list-empty">
@@ -1385,6 +1481,7 @@ function EditorToolbar({
   onActiveLayer,
   onNewLayer,
   canDraw,
+  drawLocked,
   objectCount,
   selectionCount,
   onDelete,
@@ -1400,6 +1497,7 @@ function EditorToolbar({
   onActiveLayer: (id: string) => void;
   onNewLayer: () => void;
   canDraw: boolean;
+  drawLocked: boolean;
   objectCount: number;
   selectionCount: number;
   onDelete: () => void;
@@ -1415,12 +1513,17 @@ function EditorToolbar({
             data-testid={t.testid}
             className={`tool-btn${tool === t.tool ? " active" : ""}`}
             aria-pressed={tool === t.tool}
-            disabled={!canDraw && t.tool !== "select"}
+            disabled={(!canDraw || drawLocked) && t.tool !== "select"}
             onClick={() => onTool(t.tool)}
           >
             {t.label}
           </button>
         ))}
+        {drawLocked && (
+          <span className="draw-locked-hint" data-testid="draw-locked-hint" role="status">
+            read-only layer — pick an editable layer to draw
+          </span>
+        )}
       </div>
 
       <div className="style-controls">
@@ -1444,6 +1547,9 @@ function EditorToolbar({
             value={style.color}
             onChange={(e) => onStyle({ ...style, color: e.target.value })}
           />
+          <span className="style-value" data-testid="style-color-value">
+            {style.color.toUpperCase()}
+          </span>
         </label>
         <label className="style-field">
           <span>Opacity</span>
@@ -1456,6 +1562,9 @@ function EditorToolbar({
             value={style.opacity}
             onChange={(e) => onStyle({ ...style, opacity: Number(e.target.value) })}
           />
+          <span className="style-value" data-testid="style-opacity-value">
+            {Math.round(style.opacity * 100)}%
+          </span>
         </label>
         <label className="style-field">
           <span>Width</span>
@@ -1468,6 +1577,9 @@ function EditorToolbar({
             value={style.width}
             onChange={(e) => onStyle({ ...style, width: Number(e.target.value) })}
           />
+          <span className="style-value" data-testid="style-width-value">
+            {(style.width * 1000).toFixed(1)}
+          </span>
         </label>
         <label className="style-field">
           <span>Text size</span>
@@ -1480,6 +1592,9 @@ function EditorToolbar({
             value={style.fontSize}
             onChange={(e) => onStyle({ ...style, fontSize: Number(e.target.value) })}
           />
+          <span className="style-value" data-testid="style-font-value">
+            {(style.fontSize * 1000).toFixed(0)}
+          </span>
         </label>
       </div>
 
@@ -1563,6 +1678,7 @@ function EditCanvas({
   page,
   tool,
   style,
+  drawLocked,
   objects,
   layersById,
   visible,
@@ -1574,6 +1690,7 @@ function EditCanvas({
   page: number;
   tool: Tool;
   style: AnnotationStyle;
+  drawLocked: boolean;
   objects: AnnotationObject[];
   layersById: Map<string, AnnotationLayer>;
   visible: LayerVisibility;
@@ -1684,6 +1801,10 @@ function EditCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const pt = pageRelative(e);
+
+    // A read-only (locked) focused layer blocks all drawing gestures; selecting
+    // is still allowed so the user can browse/select the layer's annotations.
+    if (drawLocked && tool !== "select") return;
 
     if (tool === "select") {
       // Hit-test topmost (last drawn) visible object on this page.

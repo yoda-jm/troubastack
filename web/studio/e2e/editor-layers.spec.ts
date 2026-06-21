@@ -133,6 +133,63 @@ function conductorOnlyDoc(fileId: string) {
   };
 }
 
+/** A doc that mimics the band owner/admin: they OWN a mandatory conductor RO
+ *  layer (still editable — they own it), have a shared RW layer, and a personal
+ *  layer of their own. `me` is the current member's user id. Plus a conductor
+ *  layer owned by SOMEONE ELSE (locked) and a shared layer with conductor cues
+ *  to verify the scoped annotation list. */
+function ownerMultiLayerDoc(fileId: string, me: string) {
+  return {
+    layers: [
+      {
+        id: "layer-mine-conductor",
+        fileId,
+        name: "My conductor cues",
+        ownerId: me,
+        zone: "conductor",
+        order: 0,
+        access: "ro",
+        mandatory: true,
+        roleTag: "conductor",
+      },
+      {
+        id: "layer-shared",
+        fileId,
+        name: "Shared band notes",
+        ownerId: "_shared_",
+        zone: "shared",
+        order: 1,
+        access: "rw",
+        mandatory: false,
+        roleTag: "",
+      },
+      {
+        id: "layer-mine-personal",
+        fileId,
+        name: "My personal notes",
+        ownerId: me,
+        zone: "personal",
+        order: 2,
+        access: "rw",
+        mandatory: false,
+        roleTag: "",
+      },
+      {
+        id: "layer-other-conductor",
+        fileId,
+        name: "Other conductor cues",
+        ownerId: "someone-else",
+        zone: "conductor",
+        order: 3,
+        access: "ro",
+        mandatory: true,
+        roleTag: "conductor",
+      },
+    ],
+    objects: [],
+  };
+}
+
 async function dragOnPage(
   page: Page,
   fx: number,
@@ -192,6 +249,82 @@ async function openConductorOnlySong(page: Page): Promise<{ bandId: string; song
   await openEditorReady(page);
   return { bandId: band.id, songId };
 }
+
+/** Shared setup: a song where the current member is the band owner who owns a
+ *  mandatory conductor layer AND has a shared RW layer (plus other layers). */
+async function openOwnerMultiLayerSong(
+  page: Page,
+): Promise<{ bandId: string; songId: string; me: string }> {
+  await register(page, `own_${stamp()}`);
+  const band = await createBandAndOpen(page, `OwnBand ${stamp()}`);
+  const songId = await createSongAndOpen(page, `OwnSong ${stamp()}`);
+  await uploadPdf(page);
+  const fileId = await firstFileId(page, band.id, songId);
+  const me = await myUserId(page);
+  const res = await importDoc(page, band.id, songId, ownerMultiLayerDoc(fileId, me));
+  expect(res.ok).toBeTruthy();
+  await page.reload();
+  await openEditorReady(page);
+  return { bandId: band.id, songId, me };
+}
+
+// ===========================================================================
+// Active-layer switching (reproduce-then-fix) — the owner of MULTIPLE editable
+// layers (incl. a mandatory conductor layer they own) must be able to switch
+// the active draw layer. Editability is purely owner===me || access==="rw".
+// ===========================================================================
+test("editor: owner of multiple editable layers can switch the active draw layer", async ({
+  page,
+}) => {
+  const { bandId, songId } = await openOwnerMultiLayerSong(page);
+
+  // The selector must list ALL layers I may edit: the conductor layer I OWN
+  // (even though it's ro + mandatory), the shared RW layer, and my personal one.
+  const selector = page.getByTestId("active-layer");
+  const optionValues = await selector
+    .locator("option")
+    .evaluateAll((opts) => opts.map((o) => o.getAttribute("value") ?? ""));
+  expect(optionValues).toContain("layer-mine-conductor");
+  expect(optionValues).toContain("layer-shared");
+  expect(optionValues).toContain("layer-mine-personal");
+  // The conductor layer owned by SOMEONE ELSE must NOT be editable.
+  expect(optionValues).not.toContain("layer-other-conductor");
+  // At least two editable layers → switching is meaningful.
+  expect(optionValues.filter((v) => v).length).toBeGreaterThanOrEqual(2);
+
+  // Switch the active layer to my shared layer and confirm the indicator updates.
+  await selector.selectOption("layer-shared");
+  await expect(page.getByTestId("active-layer-indicator")).toContainText("Shared band notes");
+
+  await page.screenshot({ path: "/tmp/ed2-layers.png", fullPage: true });
+
+  // Draw after switching → the object persists to the SELECTED layer.
+  await page.getByTestId("tool-rect").click();
+  await dragOnPage(page, 0.2, 0.25, 0.6, 0.55);
+  await expect.poll(() => objectCount(page)).toBe(1);
+  await expect
+    .poll(async () => {
+      const doc = await getAnnotations(page, bandId, songId);
+      const rect = doc.objects.find((o) => o.type === "rect");
+      return rect?.layerId ?? null;
+    })
+    .toBe("layer-shared");
+
+  // Switch to the conductor layer I OWN and draw again → lands there too.
+  await page.getByTestId("tool-select").click();
+  await selector.selectOption("layer-mine-conductor");
+  await expect(page.getByTestId("active-layer-indicator")).toContainText("My conductor cues");
+  await page.getByTestId("tool-line").click();
+  await dragOnPage(page, 0.2, 0.7, 0.6, 0.8);
+  await expect.poll(() => objectCount(page)).toBe(2);
+  await expect
+    .poll(async () => {
+      const doc = await getAnnotations(page, bandId, songId);
+      const line = doc.objects.find((o) => o.type === "line");
+      return line?.layerId ?? null;
+    })
+    .toBe("layer-mine-conductor");
+});
 
 // ===========================================================================
 // Bug 1 — wet ink must commit to an editable layer and persist, even when the
@@ -345,4 +478,134 @@ test("editor: annotation list selects an object on the active layer", async ({ p
   await expect(page.getByTestId("delete-object")).toBeEnabled();
 
   await page.screenshot({ path: "/tmp/ed-annlist.png", fullPage: true });
+});
+
+// ===========================================================================
+// Scoped annotation list — clicking a layer row focuses it; the list shows ONLY
+// that layer's objects and names it. A locked (RO) layer can be focused too:
+// drawing is disabled with a hint, but its annotations stay browsable.
+// ===========================================================================
+test("editor: focused layer scopes the annotation list (editable and locked)", async ({
+  page,
+}) => {
+  const { bandId, songId, me } = await openOwnerMultiLayerSong(page);
+
+  // Seed one object per layer so each focus shows a distinct, single item.
+  const style = { color: "#e11d48", opacity: 1, width: 0.004, fontSize: 0.03 };
+  const base = ownerMultiLayerDoc(await firstFileId(page, bandId, songId), me);
+  const seeded = {
+    layers: base.layers,
+    objects: [
+      {
+        uuid: "obj-shared",
+        layerId: "layer-shared",
+        type: "rect",
+        points: [{ x: 0.1, y: 0.1 }, { x: 0.3, y: 0.3 }],
+        page: 0,
+        text: "",
+        style,
+      },
+      {
+        uuid: "obj-personal",
+        layerId: "layer-mine-personal",
+        type: "line",
+        points: [{ x: 0.4, y: 0.4 }, { x: 0.6, y: 0.6 }],
+        page: 0,
+        text: "",
+        style,
+      },
+      {
+        uuid: "obj-locked",
+        layerId: "layer-other-conductor",
+        type: "text",
+        points: [{ x: 0.5, y: 0.2 }],
+        page: 0,
+        text: "LockedCue",
+        style,
+      },
+    ],
+  };
+  expect((await importDoc(page, bandId, songId, seeded)).ok).toBeTruthy();
+  await page.reload();
+  await openEditorReady(page);
+
+  const row = (name: string) =>
+    page.getByTestId("layer-item").filter({ hasText: name }).getByTestId("layer-row");
+
+  // Focus the shared (editable) layer → list names it and shows only its rect.
+  await row("Shared band notes").click();
+  await expect(page.getByTestId("annotation-list-title")).toContainText("Shared band notes");
+  await expect(page.getByTestId("annotation-item")).toHaveCount(1);
+  await expect(page.getByTestId("annotation-item")).toContainText("rect");
+  // Editable focus also drives the active draw layer + indicator.
+  await expect(page.getByTestId("active-layer-indicator")).toContainText("Shared band notes");
+  await expect(page.getByTestId("active-layer")).toHaveValue("layer-shared");
+
+  await page.screenshot({ path: "/tmp/ed2-scoped-list.png", fullPage: true });
+
+  // Focus my personal layer → list re-scopes to only its line.
+  await row("My personal notes").click();
+  await expect(page.getByTestId("annotation-list-title")).toContainText("My personal notes");
+  await expect(page.getByTestId("annotation-item")).toHaveCount(1);
+  await expect(page.getByTestId("annotation-item")).toContainText("line");
+
+  // Focus the LOCKED (someone else's conductor) layer → drawing disabled with a
+  // hint, but its annotation is still listed and selectable.
+  await row("Other conductor cues").click();
+  await expect(page.getByTestId("annotation-list-title")).toContainText("Other conductor cues");
+  await expect(page.getByTestId("annotation-list-locked")).toContainText("read-only layer");
+  await expect(page.getByTestId("draw-locked-hint")).toBeVisible();
+  // Draw tools are disabled while a locked layer is focused.
+  await expect(page.getByTestId("tool-rect")).toBeDisabled();
+  // The locked layer's annotation is browsable + selectable from the list.
+  const lockedItem = page.getByTestId("annotation-item").filter({ hasText: "LockedCue" });
+  await expect(lockedItem).toHaveCount(1);
+  await page.getByTestId("tool-select").click();
+  await lockedItem.click();
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
+
+  // No write happened to the locked layer.
+  const after = await getAnnotations(page, bandId, songId);
+  expect(after.objects.filter((o) => o.layerId === "layer-other-conductor")).toHaveLength(1);
+});
+
+// ===========================================================================
+// Style value readouts — each control shows its current value (hex / % / number)
+// and updates live as the control changes.
+// ===========================================================================
+test("editor: style controls show live value readouts", async ({ page }) => {
+  await openConductorOnlySong(page);
+
+  // Readouts are present with the default style values.
+  await expect(page.getByTestId("style-color-value")).toBeVisible();
+  await expect(page.getByTestId("style-opacity-value")).toHaveText(/%$/);
+  await expect(page.getByTestId("style-width-value")).toBeVisible();
+  await expect(page.getByTestId("style-font-value")).toBeVisible();
+
+  // Default opacity is 1 → 100%.
+  await expect(page.getByTestId("style-opacity-value")).toHaveText("100%");
+
+  // Picking a swatch updates the color hex readout live (#e11d48 → #E11D48).
+  await page.getByLabel("Color #2563eb").click();
+  await expect(page.getByTestId("style-color-value")).toHaveText("#2563EB");
+
+  // Set the inputs via React's native value setter so the controlled onChange
+  // fires, then confirm the readouts follow live. (Runs in the browser; uses
+  // the element's own prototype to avoid naming DOM globals in node-typed e2e.)
+  const setInput = (testid: string, value: string) =>
+    page.getByTestId(testid).evaluate((el, v) => {
+      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")!.set!;
+      setter.call(el, v);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }, value);
+
+  await setInput("style-color", "#e53935");
+  await expect(page.getByTestId("style-color-value")).toHaveText("#E53935");
+
+  // Drag opacity down and confirm the % readout changes off 100%.
+  await setInput("style-opacity", "0.5");
+  await expect(page.getByTestId("style-opacity-value")).toHaveText("50%");
+
+  await page.screenshot({ path: "/tmp/ed2-readouts.png", fullPage: true });
 });
