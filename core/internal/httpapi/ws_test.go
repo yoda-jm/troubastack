@@ -332,6 +332,193 @@ func TestWSNonMemberRejected(t *testing.T) {
 	}
 }
 
+// ---- LAYER WRITE-ACCESS (hub-only) ----
+
+// twoMemberBand sets up a band with admin "alice" and member "bob" who both share one
+// server (one hub + engine). It returns (bandID, songID, alice, bob, bobID).
+func twoMemberBand(t *testing.T) (string, string, *client, *client, string) {
+	t.Helper()
+	repo := backends()[0].make(t)
+	alice := newClient(t, repo)
+	band, song := alice.makeBandSong("alice")
+	inviteMember(t, alice, band, "bob")
+	bob := alice.sharingClient()
+	bob.registerLogin("bob", "pw-bob")
+	acceptOnlyInvite(t, bob)
+	return band, song, alice, bob, bob.meID()
+}
+
+// importLayers bulk-imports just the given layers (no objects) via the REST seed path,
+// which is intentionally permissive about layer ownership.
+func (c *client) importLayers(band, song string, layers ...annLayer) {
+	c.t.Helper()
+	resp, _ := c.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{Layers: layers, Objects: []annObject{}})
+	mustStatus(c.t, resp, http.StatusOK)
+}
+
+// objOn is a minimal freehand object pinned to a specific layer.
+func objOn(uuid, layerID string) *annObject {
+	o := sampleObject(uuid)
+	o.LayerID = layerID
+	return o
+}
+
+// TestWSCreateForbiddenOnForeignROLayer: a RO layer owned by Bob; Alice (a member who
+// is NOT the owner) creates into it → Alice gets reject "forbidden", HEAD unchanged,
+// nothing broadcast (Bob, also connected, sees no echo).
+func TestWSCreateForbiddenOnForeignROLayer(t *testing.T) {
+	band, song, alice, bob, bobID := twoMemberBand(t)
+	// Bob owns a read-only personal layer; the import path provisions it for him.
+	alice.importLayers(band, song,
+		annLayer{ID: "L-bob-ro", FileID: "f1", Name: "Bob RO", OwnerID: bobID, Zone: "personal", Order: 0, Access: "ro"})
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+
+	wsB, _, err := bob.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("bob dial: %v", err)
+	}
+	defer wsB.Close()
+	expectSnapshot(t, wsB)
+
+	sendMut(t, wsA, wsMutation{Kind: "create", UUID: "o-x", Object: objOn("o-x", "L-bob-ro")})
+	rej := readMsg(t, wsA)
+	if rej.Type != "reject" || rej.Reason != "forbidden" {
+		t.Fatalf("alice create into bob's RO layer: type=%q reason=%q, want reject/forbidden", rej.Type, rej.Reason)
+	}
+	if rej.UUID != "o-x" {
+		t.Fatalf("reject uuid = %q, want o-x", rej.UUID)
+	}
+
+	// Nothing broadcast: Bob (owner, connected) must NOT see an echo.
+	_ = wsB.SetReadDeadline(time.Now().Add(400 * time.Millisecond))
+	if _, _, err := wsB.ReadMessage(); err == nil {
+		t.Fatal("forbidden create must not broadcast (bob received a frame)")
+	}
+
+	// HEAD unchanged: REST GET shows no objects.
+	resp, body := alice.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var got annDoc
+	unmarshalField2(t, body, &got)
+	if len(got.Objects) != 0 {
+		t.Fatalf("forbidden create must not change HEAD: %+v", got.Objects)
+	}
+}
+
+// TestWSOwnerCreateOnOwnROLayer: the OWNER (Bob) creating into his own RO layer is
+// accepted and broadcast.
+func TestWSOwnerCreateOnOwnROLayer(t *testing.T) {
+	band, song, alice, bob, bobID := twoMemberBand(t)
+	alice.importLayers(band, song,
+		annLayer{ID: "L-bob-ro", FileID: "f1", Name: "Bob RO", OwnerID: bobID, Zone: "personal", Order: 0, Access: "ro"})
+
+	wsB, _, err := bob.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("bob dial: %v", err)
+	}
+	defer wsB.Close()
+	expectSnapshot(t, wsB)
+
+	sendMut(t, wsB, wsMutation{Kind: "create", UUID: "o-own", Object: objOn("o-own", "L-bob-ro")})
+	m := readMsg(t, wsB)
+	if m.Type != "echo" || m.Mutation.UUID != "o-own" {
+		t.Fatalf("owner create into own RO layer: type=%q uuid=%q, want echo/o-own", m.Type, m.Mutation.UUID)
+	}
+}
+
+// TestWSCreateAllowedOnSharedRWLayer: any member may create into a shared RW layer.
+func TestWSCreateAllowedOnSharedRWLayer(t *testing.T) {
+	band, song, alice, _, _ := twoMemberBand(t)
+	alice.importLayers(band, song,
+		annLayer{ID: "L-shared", FileID: "f1", Name: "Shared", OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw"})
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+
+	sendMut(t, wsA, wsMutation{Kind: "create", UUID: "o-rw", Object: objOn("o-rw", "L-shared")})
+	m := readMsg(t, wsA)
+	if m.Type != "echo" || m.Mutation.UUID != "o-rw" {
+		t.Fatalf("create into shared RW layer: type=%q uuid=%q, want echo/o-rw", m.Type, m.Mutation.UUID)
+	}
+}
+
+// TestWSEditForbiddenOnForeignROLayer: an object already living in Bob's RO layer;
+// Alice (non-owner) moves it, then deletes it → both rejected "forbidden".
+func TestWSEditForbiddenOnForeignROLayer(t *testing.T) {
+	band, song, alice, _, bobID := twoMemberBand(t)
+	// Seed both the RO layer AND an object on it via the (permissive) import path, so
+	// the target object exists in HEAD before Alice tries to edit it.
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{
+			Layers:  []annLayer{{ID: "L-bob-ro", FileID: "f1", Name: "Bob RO", OwnerID: bobID, Zone: "personal", Order: 0, Access: "ro"}},
+			Objects: []annObject{*objOn("o-bob", "L-bob-ro")},
+		})
+	mustStatus(t, resp, http.StatusOK)
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+
+	// Move (non-owner) → forbidden.
+	sendMut(t, wsA, wsMutation{Kind: "move", UUID: "o-bob", Object: objOn("o-bob", "L-bob-ro")})
+	if rej := readMsg(t, wsA); rej.Type != "reject" || rej.Reason != "forbidden" {
+		t.Fatalf("alice move in bob's RO layer: type=%q reason=%q, want reject/forbidden", rej.Type, rej.Reason)
+	}
+	// Delete (non-owner) → forbidden.
+	sendMut(t, wsA, wsMutation{Kind: "delete", UUID: "o-bob"})
+	if rej := readMsg(t, wsA); rej.Type != "reject" || rej.Reason != "forbidden" {
+		t.Fatalf("alice delete in bob's RO layer: type=%q reason=%q, want reject/forbidden", rej.Type, rej.Reason)
+	}
+
+	// HEAD unchanged: the object is still live and on its layer.
+	resp, body := alice.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var got annDoc
+	unmarshalField2(t, body, &got)
+	if len(got.Objects) != 1 || got.Objects[0].UUID != "o-bob" {
+		t.Fatalf("forbidden edits must not change HEAD: %+v", got.Objects)
+	}
+}
+
+// TestImportNotBlockedByWriteAccess: the seed/import REST path remains permissive — it
+// provisions layers AND objects for an arbitrary owner (Bob) even though the caller
+// (Alice) is not that owner and the layer is read-only. Import bypasses the hub gate.
+func TestImportNotBlockedByWriteAccess(t *testing.T) {
+	band, song, alice, _, bobID := twoMemberBand(t)
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{
+			Layers:  []annLayer{{ID: "L-bob-ro", FileID: "f1", Name: "Bob RO", OwnerID: bobID, Zone: "personal", Order: 0, Access: "ro"}},
+			Objects: []annObject{*objOn("o-seed", "L-bob-ro")},
+		})
+	mustStatus(t, resp, http.StatusOK)
+
+	// The object landed on Bob's RO layer despite Alice being a non-owner.
+	resp, body := alice.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var got annDoc
+	unmarshalField2(t, body, &got)
+	if len(got.Layers) != 1 || got.Layers[0].OwnerID != bobID {
+		t.Fatalf("import should provision bob's layer: %+v", got.Layers)
+	}
+	if len(got.Objects) != 1 || got.Objects[0].LayerID != "L-bob-ro" {
+		t.Fatalf("import should provision the object on bob's RO layer: %+v", got.Objects)
+	}
+}
+
 // ---- membership helpers (invite + accept) ----
 
 // inviteMember has the band admin invite username by username (pending invite).

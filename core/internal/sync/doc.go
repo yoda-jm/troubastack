@@ -27,3 +27,12 @@ package sync
 // → persist → echo to the room (I6). Apply is idempotent by UUID (I2). A mutation for
 // a tombstoned UUID is rejected ("deleted-remotely") so the client rolls back (I5);
 // a lost LWW race is rejected ("stale").
+//
+// LAYER WRITE-ACCESS (apply.go authorizeWrite): an object-affecting mutation
+// (create/move/resize/setStyle/setText/delete/restore) is admitted only if its TARGET
+// layer is owned by the author OR is shared read-write (Access == RW). A non-owner
+// editing another member's read-only layer (e.g. a conductor's RO cue layer) is
+// rejected "forbidden" — not applied, not broadcast. A personal-zone layerCreate must
+// name the author as owner (a member creates only their own personal layer). This gate
+// is HUB-ONLY: the bulk import REST path drives the engine directly and stays
+// permissive (it legitimately provisions other members' layers for the seed).

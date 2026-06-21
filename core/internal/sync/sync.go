@@ -31,6 +31,15 @@ type Engine interface {
 	Apply(songID string, m domain.Mutation) (domain.Mutation, error)
 	// Head returns the materialized HEAD for the snapshot sent on join.
 	Head(songID string) (domain.Snapshot, error)
+	// Layer resolves a layer by id in the current HEAD (and whether it exists). The
+	// hub uses it to find a `create` mutation's TARGET layer for the write-access gate.
+	Layer(songID, layerID string) (domain.Layer, bool)
+	// ObjectLayer resolves the layer of an existing object (by uuid) in the current
+	// HEAD. layerFound reports whether the object's layer is materialized; objExists
+	// reports whether the object is in HEAD at all. The hub uses it to find an
+	// edit/move/delete's TARGET layer for the gate and to tell unknown-object (stale)
+	// from known-object-with-unmaterialized-layer (ungated).
+	ObjectLayer(songID, uuid string) (layer domain.Layer, layerFound, objExists bool)
 }
 
 // Hub fans realtime annotation traffic across clients and drives ONE apply engine

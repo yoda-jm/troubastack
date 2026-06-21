@@ -39,6 +39,15 @@ func (c *conn) handleMutation(in mutationJSON) {
 		m.Layer = &l
 	}
 
+	// LAYER WRITE-ACCESS gate (hub-only; the import REST path stays permissive because
+	// it drives the engine directly, never this code). Reject BEFORE Apply so a
+	// forbidden mutation is neither folded into HEAD nor broadcast. The engine stays
+	// mechanical — authority lives here, at the transport edge.
+	if reason, ok := c.authorizeWrite(kind, in); !ok {
+		c.reject(targetUUID(in), reason)
+		return
+	}
+
 	// For object kinds, derive the version server-side from the current HEAD so the
 	// engine's LWW (higher Version wins) accepts a legitimate sequential edit without
 	// trusting a client-supplied version (the wire Object carries none).
@@ -105,6 +114,88 @@ func (c *conn) handleMutation(in mutationJSON) {
 		return
 	}
 	c.room.broadcast(frame)
+}
+
+// authorizeWrite enforces LAYER WRITE-ACCESS for the live editing path. It returns
+// (reason, false) to REJECT, or ("", true) to allow. It is called under the per-song
+// apply mutex, so the HEAD it reads is the same HEAD Apply will fold into.
+//
+// Rule: the authenticated author may write the TARGET LAYER iff the layer is theirs
+// (layer.OwnerID == authorId) OR it is shared read-write (layer.Access == RW). A
+// conductor's read-only layer is otherwise writable only by its owner.
+//
+// Target-layer resolution:
+//   - create:                  the mutation's object.layerId (the layer it lands on).
+//   - move/resize/setStyle/
+//     setText/delete/restore:   the layer of the EXISTING object (by uuid) in HEAD.
+//   - layerCreate:              a PERSONAL-zone layer must be owned by the author
+//     (a member may only create their own personal layer); other zones are left to a
+//     separate band-role gate, so they pass here.
+//   - layerUpdate/reorder/
+//     delete:                   not object-affecting and not gated here (left as-is).
+//
+// A target layer that does not exist rejects "stale" (matching today's unknown-target
+// handling), EXCEPT create, whose layer may legitimately be brand-new and unknown to
+// HEAD — an unknown create target is allowed (the layer is provisioned out of band).
+func (c *conn) authorizeWrite(kind domain.Kind, in mutationJSON) (string, bool) {
+	switch kind {
+	case domain.KindLayerCreate:
+		// Personal-zone layers must be owned by their creator; leave shared/conductor
+		// zone creation to the band-role gate (a separate concern).
+		if in.Layer != nil && zoneFromString(in.Layer.Zone) == domain.ZonePersonal && in.Layer.OwnerID != c.authorID {
+			return "forbidden", false
+		}
+		return "", true
+
+	case domain.KindLayerUpdate, domain.KindLayerReorder, domain.KindLayerDelete:
+		// Not object-affecting; not gated by this write-access rule.
+		return "", true
+
+	case domain.KindCreate:
+		layerID := ""
+		if in.Object != nil {
+			layerID = in.Object.LayerID
+		}
+		layer, ok := c.hub.eng.Layer(c.songID, layerID)
+		if !ok {
+			// The target layer is not (yet) in HEAD; a create may land on a freshly
+			// provisioned layer, so we do not block it on absence (the engine still
+			// validates the mutation itself).
+			return "", true
+		}
+		if !c.canWriteLayer(layer) {
+			return "forbidden", false
+		}
+		return "", true
+
+	default: // move, resize, setStyle, setText, delete, restore
+		uuid := in.UUID
+		if uuid == "" && in.Object != nil {
+			uuid = in.Object.UUID
+		}
+		layer, layerFound, objExists := c.hub.eng.ObjectLayer(c.songID, uuid)
+		if !objExists {
+			// Unknown object → stale, mirroring today's handling of an edit against a
+			// UUID the engine has never seen (the engine would also reject it).
+			return "stale", false
+		}
+		if !layerFound {
+			// The object exists but its layer is not materialized in HEAD (objects and
+			// layers are provisioned independently). There is no layer to gate against,
+			// so defer to the engine's own validity checks.
+			return "", true
+		}
+		if !c.canWriteLayer(layer) {
+			return "forbidden", false
+		}
+		return "", true
+	}
+}
+
+// canWriteLayer reports whether this connection's authenticated author may write the
+// given layer: they own it, or it is shared read-write.
+func (c *conn) canWriteLayer(layer domain.Layer) bool {
+	return layer.OwnerID == c.authorID || layer.Access == domain.AccessRW
 }
 
 // currentVersion returns the live version of an object in HEAD (and whether it exists,

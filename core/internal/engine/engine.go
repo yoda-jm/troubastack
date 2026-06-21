@@ -287,6 +287,45 @@ func (e *Engine) Head(songID string) (domain.Snapshot, error) {
 	return se.snapshot(), nil
 }
 
+// Layer returns the layer with id layerID from the song's current HEAD (and whether it
+// exists). It reads under the song's single-writer lock so callers see a consistent
+// HEAD without bypassing the engine's serialization (design/07). It is the access-check
+// helper the realtime hub uses to resolve a mutation's target layer before Apply.
+func (e *Engine) Layer(songID, layerID string) (domain.Layer, bool) {
+	se, err := e.song(songID)
+	if err != nil {
+		return domain.Layer{}, false
+	}
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	l, ok := se.layers[layerID]
+	return l, ok
+}
+
+// ObjectLayer resolves the layer of the object identified by uuid in the song's current
+// HEAD. It returns:
+//   - objExists: whether the object (live or tombstoned) is in HEAD at all;
+//   - layer/layerFound: the object's layer and whether that layer is itself in HEAD.
+//
+// The two flags are distinct because objects and layers are provisioned independently:
+// an object can exist while its layer is not (yet) materialized. The access gate uses
+// objExists to tell "unknown object" (stale) from "known object, layer absent". Read
+// under the song's single-writer lock.
+func (e *Engine) ObjectLayer(songID, uuid string) (layer domain.Layer, layerFound, objExists bool) {
+	se, err := e.song(songID)
+	if err != nil {
+		return domain.Layer{}, false, false
+	}
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	o, ok := se.objects[uuid]
+	if !ok {
+		return domain.Layer{}, false, false
+	}
+	l, lok := se.layers[o.LayerID]
+	return l, lok, true
+}
+
 // SnapshotAt returns a past revision from the store (read-only view; design/01).
 func (e *Engine) SnapshotAt(songID string, revision uint64) (domain.Snapshot, error) {
 	return e.st.SnapshotAt(songID, revision)
