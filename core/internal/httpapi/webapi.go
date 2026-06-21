@@ -39,6 +39,8 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 
 	// Authenticated.
 	mux.HandleFunc("GET /api/me", a.auth(a.me))
+	mux.HandleFunc("PATCH /api/me", a.auth(a.updateMe))
+	mux.HandleFunc("POST /api/me/password", a.auth(a.changePassword))
 	mux.HandleFunc("GET /api/bands", a.auth(a.listBands))
 	mux.HandleFunc("POST /api/bands", a.auth(a.createBand))
 	mux.HandleFunc("GET /api/bands/{bandId}", a.auth(a.getBand))
@@ -51,6 +53,9 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/bands/{bandId}/invites", a.auth(a.createInvite))
 	mux.HandleFunc("GET /api/bands/{bandId}/invites", a.auth(a.listBandInvites))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/invites/{inviteId}", a.auth(a.revokeInvite))
+	mux.HandleFunc("POST /api/bands/{bandId}/invite-links", a.auth(a.createInviteLink))
+	mux.HandleFunc("GET /api/bands/{bandId}/invite-links", a.auth(a.listInviteLinks))
+	mux.HandleFunc("DELETE /api/bands/{bandId}/invite-links/{id}", a.auth(a.revokeInviteLink))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs", a.auth(a.listSongs))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs", a.auth(a.createSong))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}", a.auth(a.updateSong))
@@ -75,6 +80,8 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/invites", a.auth(a.listInvites))
 	mux.HandleFunc("POST /api/invites/{inviteId}/accept", a.auth(a.acceptInvite))
 	mux.HandleFunc("POST /api/invites/{inviteId}/decline", a.auth(a.declineInvite))
+	mux.HandleFunc("GET /api/invite-links/{token}", a.auth(a.previewInviteLink))
+	mux.HandleFunc("POST /api/invite-links/{token}/accept", a.auth(a.acceptInviteLink))
 }
 
 // ---- middleware ----
@@ -164,6 +171,43 @@ func (a *WebAPI) logout(w http.ResponseWriter, r *http.Request) {
 
 func (a *WebAPI) me(w http.ResponseWriter, _ *http.Request, u app.User) {
 	writeJSON(w, http.StatusOK, map[string]any{"user": u.Public()})
+}
+
+func (a *WebAPI) updateMe(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		DisplayName *string `json:"displayName"`
+		Email       *string `json:"email"`
+		AvatarKind  *string `json:"avatarKind"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	patch := app.ProfilePatch{DisplayName: in.DisplayName, Email: in.Email}
+	if in.AvatarKind != nil {
+		ak := app.AvatarKind(*in.AvatarKind)
+		patch.AvatarKind = &ak
+	}
+	updated, err := a.svc.UpdateProfile(u.ID, patch)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": updated.Public()})
+}
+
+func (a *WebAPI) changePassword(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := a.svc.ChangePassword(u.ID, in.CurrentPassword, in.NewPassword); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ---- band handlers ----
@@ -306,6 +350,122 @@ func (a *WebAPI) revokeInvite(w http.ResponseWriter, r *http.Request, u app.User
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- invite-link handlers ----
+
+// requestOrigin derives the absolute scheme://host for building invite-link URLs,
+// honoring reverse-proxy headers when present.
+func requestOrigin(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if xf := r.Header.Get("X-Forwarded-Proto"); xf != "" {
+		scheme = xf
+	}
+	host := r.Host
+	if xf := r.Header.Get("X-Forwarded-Host"); xf != "" {
+		host = xf
+	}
+	return scheme + "://" + host
+}
+
+// inviteLinkJSON shapes an InviteLink for the client, adding the computed `valid`
+// bool, optional `reason`, and the absolute join `url`.
+func (a *WebAPI) inviteLinkJSON(l app.InviteLink, origin string) map[string]any {
+	valid, reason := a.svc.InviteLinkValid(l)
+	out := map[string]any{
+		"id":        l.ID,
+		"bandId":    l.BandID,
+		"token":     l.Token,
+		"url":       origin + "/join/" + l.Token,
+		"role":      l.Role,
+		"maxUses":   l.MaxUses,
+		"uses":      l.Uses,
+		"createdAt": l.CreatedAt,
+		"revoked":   l.RevokedAt != nil,
+		"valid":     valid,
+	}
+	if l.ExpiresAt != nil {
+		out["expiresAt"] = *l.ExpiresAt
+	}
+	if reason != "" {
+		out["reason"] = reason
+	}
+	return out
+}
+
+func (a *WebAPI) createInviteLink(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Role           string `json:"role"`
+		ExpiresInHours int    `json:"expiresInHours"`
+		MaxUses        int    `json:"maxUses"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	l, err := a.svc.CreateInviteLink(u, r.PathValue("bandId"), app.Role(in.Role), in.ExpiresInHours, in.MaxUses)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, a.inviteLinkJSON(l, requestOrigin(r)))
+}
+
+func (a *WebAPI) listInviteLinks(w http.ResponseWriter, r *http.Request, u app.User) {
+	links, err := a.svc.BandInviteLinks(u, r.PathValue("bandId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	origin := requestOrigin(r)
+	out := make([]map[string]any, 0, len(links))
+	for _, l := range links {
+		out = append(out, a.inviteLinkJSON(l, origin))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"links": out})
+}
+
+func (a *WebAPI) revokeInviteLink(w http.ResponseWriter, r *http.Request, u app.User) {
+	if err := a.svc.RevokeInviteLink(u, r.PathValue("bandId"), r.PathValue("id")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *WebAPI) previewInviteLink(w http.ResponseWriter, r *http.Request, _ app.User) {
+	l, b, err := a.svc.InviteLinkPreview(r.PathValue("token"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	valid, reason := a.svc.InviteLinkValid(l)
+	out := map[string]any{
+		"band":  map[string]any{"id": b.ID, "name": b.Name},
+		"role":  l.Role,
+		"valid": valid,
+	}
+	if reason != "" {
+		out["reason"] = reason
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (a *WebAPI) acceptInviteLink(w http.ResponseWriter, r *http.Request, u app.User) {
+	b, err := a.svc.AcceptInviteLink(u, r.PathValue("token"))
+	if err != nil {
+		// An unusable (expired/revoked/exhausted) link is a 410 Gone, distinct from
+		// a missing token (404) or other errors.
+		if errors.Is(err, app.ErrInviteResolved) {
+			writeJSON(w, http.StatusGone, map[string]string{"error": err.Error()})
+			return
+		}
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"band": b})
 }
 
 func (a *WebAPI) listInvites(w http.ResponseWriter, _ *http.Request, u app.User) {

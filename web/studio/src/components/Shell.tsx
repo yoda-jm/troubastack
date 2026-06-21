@@ -5,20 +5,25 @@
  * /login (the GET /api/me 401 path).
  */
 import { useEffect, useState } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
+import { Avatar } from "./Avatar";
 
 export function Shell() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/login", { replace: true });
+      // Preserve the destination so the user returns here after authenticating.
+      const next = location.pathname + location.search;
+      const suffix = next && next !== "/bands" ? `?next=${encodeURIComponent(next)}` : "";
+      navigate(`/login${suffix}`, { replace: true });
     }
-  }, [loading, user, navigate]);
+  }, [loading, user, navigate, location]);
 
   useEffect(() => {
     if (!user) return;
@@ -50,7 +55,10 @@ export function Shell() {
           </Link>
         </nav>
         <div className="user">
-          <span data-testid="current-user">{user.displayName}</span>
+          <Link to="/me" className="profile-link" data-testid="nav-profile">
+            <Avatar user={user} size={26} />
+            <span data-testid="current-user">{user.displayName}</span>
+          </Link>
           <button
             type="button"
             data-testid="logout"

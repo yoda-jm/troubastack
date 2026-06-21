@@ -1,12 +1,21 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
 
+// safeNext returns a same-origin in-app path from the ?next= param, or /bands.
+// Guards against open-redirects (must be a single leading slash, not //).
+function safeNext(raw: string | null): string {
+  if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  return "/bands";
+}
+
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = safeNext(params.get("next"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +27,7 @@ export function Login() {
     setBusy(true);
     try {
       await login(username, password);
-      navigate("/bands", { replace: true });
+      navigate(next, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login failed");
     } finally {
@@ -57,7 +66,10 @@ export function Login() {
         </button>
       </form>
       <p>
-        No account? <Link to="/register">Register</Link>
+        No account?{" "}
+        <Link to={params.get("next") ? `/register?next=${encodeURIComponent(params.get("next")!)}` : "/register"}>
+          Register
+        </Link>
       </p>
     </div>
   );

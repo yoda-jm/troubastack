@@ -41,6 +41,7 @@ import {
 } from "../api";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { Avatar } from "../components/Avatar";
 import { SyncClient, type SyncState } from "../sync";
 import {
   COLOR_SWATCHES,
@@ -1540,6 +1541,9 @@ function LayersPanel({
                     title="Show this layer's annotations"
                     onClick={() => onFocus(l.id)}
                   >
+                    <span data-testid="layer-owner" title={l.ownerId === myUserId ? "Your layer" : "Another member's layer"}>
+                      <Avatar user={{ displayName: l.name, avatarKind: "neutral" }} size={20} />
+                    </span>
                     <span className="layer-name">{l.name}</span>
                   </button>
                 </div>

@@ -2,9 +2,11 @@ package app
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -125,6 +127,82 @@ func (s *Service) UserForToken(token string) (User, error) {
 		return User{}, ErrUnauthorized
 	}
 	return u, nil
+}
+
+// ---- profile ----
+
+// minPasswordLen is the minimum password length. Register today enforces only
+// non-empty (historical), so this is the shared floor used at registration and
+// for ChangePassword's new password.
+const minPasswordLen = 1
+
+// ProfilePatch carries optional profile updates. A nil pointer leaves the field
+// unchanged.
+type ProfilePatch struct {
+	DisplayName *string
+	Email       *string
+	AvatarKind  *AvatarKind
+}
+
+// UpdateProfile updates the caller's own displayName, email, and/or avatarKind.
+// Email must be unique (keeping your own is allowed); displayName (if supplied)
+// must be non-empty; avatarKind (if supplied) must be in the allowed set.
+func (s *Service) UpdateProfile(userID string, p ProfilePatch) (User, error) {
+	u, err := s.repo.GetUser(userID)
+	if err != nil {
+		return User{}, ErrNotFound
+	}
+	if p.DisplayName != nil {
+		dn := strings.TrimSpace(*p.DisplayName)
+		if dn == "" {
+			return User{}, fmt.Errorf("%w: display name cannot be empty", ErrInvalidInput)
+		}
+		u.DisplayName = dn
+	}
+	if p.Email != nil {
+		email := strings.TrimSpace(strings.ToLower(*p.Email))
+		if email != "" {
+			if !validEmail(email) {
+				return User{}, fmt.Errorf("%w: invalid email", ErrInvalidInput)
+			}
+			if existing, err := s.repo.GetUserByEmail(email); err == nil && existing.ID != u.ID {
+				return User{}, fmt.Errorf("%w: email taken", ErrConflict)
+			}
+		}
+		u.Email = email
+	}
+	if p.AvatarKind != nil {
+		if !ValidAvatarKind(*p.AvatarKind) {
+			return User{}, fmt.Errorf("%w: invalid avatar kind", ErrInvalidInput)
+		}
+		u.AvatarKind = *p.AvatarKind
+	}
+	if err := s.repo.UpdateUser(u); err != nil {
+		return User{}, err
+	}
+	return u, nil
+}
+
+// ChangePassword changes the caller's password after verifying the current one.
+// ErrForbidden if currentPassword is wrong; ErrInvalidInput if newPassword is
+// shorter than the minimum.
+func (s *Service) ChangePassword(userID, currentPassword, newPassword string) error {
+	u, err := s.repo.GetUser(userID)
+	if err != nil {
+		return ErrNotFound
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(currentPassword)); err != nil {
+		return ErrForbidden
+	}
+	if len(newPassword) < minPasswordLen {
+		return fmt.Errorf("%w: password too short", ErrInvalidInput)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	u.PasswordHash = string(hash)
+	return s.repo.UpdateUser(u)
 }
 
 // ---- bands & membership ----
@@ -269,6 +347,18 @@ func (s *Service) DeleteBand(caller User, bandID string) error {
 	}
 	for _, inv := range invites {
 		_ = s.repo.DeleteInvite(inv.ID)
+	}
+	// Invite links for the band: revoke (mark) so dangling tokens stop working.
+	links, err := s.repo.InviteLinksForBand(bandID)
+	if err != nil {
+		return err
+	}
+	for _, l := range links {
+		if l.RevokedAt == nil {
+			now := s.now().UTC()
+			l.RevokedAt = &now
+			_ = s.repo.UpdateInviteLink(l)
+		}
 	}
 	return s.repo.DeleteBand(bandID)
 }
@@ -487,6 +577,141 @@ func (s *Service) DeclineInvite(caller User, inviteID string) error {
 	}
 	inv.Status = InviteDeclined
 	return s.repo.UpdateInvite(inv)
+}
+
+// ---- invite links (tokenized join links) ----
+
+// CreateInviteLink mints a tokenized join link for a band (admin-only). role is
+// restricted to member|conductor (never admin via a link). expiresInHours of 0
+// means no expiry; maxUses of 0 means unlimited.
+func (s *Service) CreateInviteLink(caller User, bandID string, role Role, expiresInHours, maxUses int) (InviteLink, error) {
+	if _, err := s.repo.GetBand(bandID); err != nil {
+		return InviteLink{}, ErrNotFound
+	}
+	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+		return InviteLink{}, err
+	}
+	if role == "" {
+		role = RoleMember
+	}
+	if role != RoleMember && role != RoleConductor {
+		return InviteLink{}, fmt.Errorf("%w: invite-link role must be member or conductor", ErrInvalidInput)
+	}
+	if maxUses < 0 {
+		return InviteLink{}, fmt.Errorf("%w: maxUses cannot be negative", ErrInvalidInput)
+	}
+	if expiresInHours < 0 {
+		return InviteLink{}, fmt.Errorf("%w: expiresInHours cannot be negative", ErrInvalidInput)
+	}
+	l := InviteLink{
+		ID:        s.newID(),
+		BandID:    bandID,
+		Token:     newInviteToken(),
+		Role:      role,
+		MaxUses:   maxUses,
+		Uses:      0,
+		CreatedBy: caller.ID,
+		CreatedAt: s.now().UTC(),
+	}
+	if expiresInHours > 0 {
+		exp := s.now().UTC().Add(time.Duration(expiresInHours) * time.Hour)
+		l.ExpiresAt = &exp
+	}
+	if err := s.repo.CreateInviteLink(l); err != nil {
+		return InviteLink{}, err
+	}
+	return l, nil
+}
+
+// InviteLinkValid reports whether a link is currently usable, and if not, a
+// machine-readable reason ("expired"|"revoked"|"exhausted").
+func (s *Service) InviteLinkValid(l InviteLink) (bool, string) {
+	if l.RevokedAt != nil {
+		return false, "revoked"
+	}
+	if l.ExpiresAt != nil && !s.now().UTC().Before(*l.ExpiresAt) {
+		return false, "expired"
+	}
+	if l.MaxUses > 0 && l.Uses >= l.MaxUses {
+		return false, "exhausted"
+	}
+	return true, ""
+}
+
+// BandInviteLinks lists a band's invite links (admin-only).
+func (s *Service) BandInviteLinks(caller User, bandID string) ([]InviteLink, error) {
+	if _, err := s.repo.GetBand(bandID); err != nil {
+		return nil, ErrNotFound
+	}
+	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+		return nil, err
+	}
+	return s.repo.InviteLinksForBand(bandID)
+}
+
+// RevokeInviteLink revokes a band's invite link (admin-only); idempotent.
+func (s *Service) RevokeInviteLink(caller User, bandID, linkID string) error {
+	if _, err := s.repo.GetBand(bandID); err != nil {
+		return ErrNotFound
+	}
+	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+		return err
+	}
+	l, err := s.repo.GetInviteLink(linkID)
+	if err != nil || l.BandID != bandID {
+		return ErrNotFound
+	}
+	if l.RevokedAt == nil {
+		now := s.now().UTC()
+		l.RevokedAt = &now
+		return s.repo.UpdateInviteLink(l)
+	}
+	return nil
+}
+
+// InviteLinkPreview resolves a token to its link + band for the join page. Any
+// authenticated user may preview; invalid links still return the band so the page
+// can explain why joining is unavailable.
+func (s *Service) InviteLinkPreview(token string) (InviteLink, Band, error) {
+	l, err := s.repo.GetInviteLinkByToken(token)
+	if err != nil {
+		return InviteLink{}, Band{}, ErrNotFound
+	}
+	b, err := s.repo.GetBand(l.BandID)
+	if err != nil {
+		return InviteLink{}, Band{}, ErrNotFound
+	}
+	return l, b, nil
+}
+
+// AcceptInviteLink joins the caller to the link's band as the link's role. The
+// click IS consent. Idempotent: an existing member rejoins without incrementing
+// Uses. ErrInviteResolved (410-class) if the link is expired/revoked/exhausted.
+func (s *Service) AcceptInviteLink(caller User, token string) (Band, error) {
+	l, err := s.repo.GetInviteLinkByToken(token)
+	if err != nil {
+		return Band{}, ErrNotFound
+	}
+	b, err := s.repo.GetBand(l.BandID)
+	if err != nil {
+		return Band{}, ErrNotFound
+	}
+	// Already a member? Idempotent: do not increment Uses.
+	if _, err := s.repo.GetMembership(l.BandID, caller.ID); err == nil {
+		return b, nil
+	}
+	if ok, _ := s.InviteLinkValid(l); !ok {
+		return Band{}, ErrInviteResolved
+	}
+	m := Membership{BandID: l.BandID, UserID: caller.ID, Role: l.Role, CreatedAt: s.now().UTC()}
+	if err := s.repo.AddMembership(m); err != nil {
+		return Band{}, err
+	}
+	l.Uses++
+	if err := s.repo.UpdateInviteLink(l); err != nil {
+		return Band{}, err
+	}
+	return b, nil
 }
 
 // ---- songs ----
@@ -1202,4 +1427,20 @@ func newToken() string {
 	var b [32]byte
 	_, _ = rand.Read(b[:])
 	return hex.EncodeToString(b[:])
+}
+
+// newInviteToken returns an unguessable URL-safe token (~24 random bytes,
+// base64url, no padding) for tokenized invite links.
+func newInviteToken() string {
+	var b [24]byte
+	_, _ = rand.Read(b[:])
+	return base64.RawURLEncoding.EncodeToString(b[:])
+}
+
+// emailRe is a deliberately lenient "looks like an email" check (the app does not
+// verify deliverability): something@something.tld with no whitespace.
+var emailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
+
+func validEmail(email string) bool {
+	return emailRe.MatchString(email)
 }

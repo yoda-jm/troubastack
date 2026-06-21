@@ -22,6 +22,7 @@ type Repo struct {
 	bands        map[string]app.Band          // id -> band
 	members      map[string]app.Membership    // bandID|userID -> membership
 	invites      map[string]app.Invite        // id -> invite
+	inviteLinks  map[string]app.InviteLink    // id -> invite link
 	songs        map[string]app.Song          // id -> song
 	files        map[string]app.SongFile      // id -> song file
 	selections   map[string]app.FileSelection // userID|songID -> personal selection
@@ -37,6 +38,7 @@ func New() *Repo {
 		bands:        map[string]app.Band{},
 		members:      map[string]app.Membership{},
 		invites:      map[string]app.Invite{},
+		inviteLinks:  map[string]app.InviteLink{},
 		songs:        map[string]app.Song{},
 		files:        map[string]app.SongFile{},
 		selections:   map[string]app.FileSelection{},
@@ -101,6 +103,28 @@ func (r *Repo) GetUserByEmail(email string) (app.User, error) {
 		}
 	}
 	return app.User{}, app.ErrNotFound
+}
+
+func (r *Repo) UpdateUser(u app.User) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.users[u.ID]; !ok {
+		return app.ErrNotFound
+	}
+	// Enforce uniqueness against OTHER users.
+	for id, e := range r.users {
+		if id == u.ID {
+			continue
+		}
+		if strings.EqualFold(e.Username, u.Username) {
+			return app.ErrConflict
+		}
+		if u.Email != "" && strings.EqualFold(e.Email, u.Email) {
+			return app.ErrConflict
+		}
+	}
+	r.users[u.ID] = u
+	return nil
 }
 
 // ---- sessions ----
@@ -304,6 +328,61 @@ func (r *Repo) PendingInvitesForIdentifiers(pairs []app.IdentifierMatch) ([]app.
 				out = append(out, i)
 				break
 			}
+		}
+	}
+	return out, nil
+}
+
+// ---- invite links ----
+
+func (r *Repo) CreateInviteLink(l app.InviteLink) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.inviteLinks[l.ID] = l
+	return nil
+}
+
+func (r *Repo) GetInviteLink(id string) (app.InviteLink, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	l, ok := r.inviteLinks[id]
+	if !ok {
+		return app.InviteLink{}, app.ErrNotFound
+	}
+	return l, nil
+}
+
+func (r *Repo) GetInviteLinkByToken(token string) (app.InviteLink, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if token == "" {
+		return app.InviteLink{}, app.ErrNotFound
+	}
+	for _, l := range r.inviteLinks {
+		if l.Token == token {
+			return l, nil
+		}
+	}
+	return app.InviteLink{}, app.ErrNotFound
+}
+
+func (r *Repo) UpdateInviteLink(l app.InviteLink) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.inviteLinks[l.ID]; !ok {
+		return app.ErrNotFound
+	}
+	r.inviteLinks[l.ID] = l
+	return nil
+}
+
+func (r *Repo) InviteLinksForBand(bandID string) ([]app.InviteLink, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []app.InviteLink
+	for _, l := range r.inviteLinks {
+		if l.BandID == bandID {
+			out = append(out, l)
 		}
 	}
 	return out, nil

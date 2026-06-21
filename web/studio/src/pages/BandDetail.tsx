@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api, type Band, type Invite, type MemberView, type Role, type Song } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { Avatar } from "../components/Avatar";
 
 export function BandDetail() {
   const { bandId } = useParams<{ bandId: string }>();
@@ -104,7 +105,8 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
       <h2>Members</h2>
       <ul className="list" data-testid="members-list">
         {members.map((m) => (
-          <li key={m.user.id}>
+          <li key={m.user.id} data-testid="member-row">
+            <Avatar user={m.user} size={26} />{" "}
             <span>{m.user.displayName}</span> <span className="muted">@{m.user.username}</span>{" "}
             <span className="pill">{m.role}</span>
           </li>

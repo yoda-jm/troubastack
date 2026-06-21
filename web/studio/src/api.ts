@@ -5,12 +5,37 @@
  * owns all policy, I6); this just decodes JSON and surfaces {error} as ApiError.
  */
 
+export type AvatarKind = "man" | "woman" | "neutral" | "";
+
 export type User = {
   id: string;
   username: string;
   displayName: string;
   email?: string;
+  avatarKind?: AvatarKind;
   createdAt: string;
+};
+
+export type InviteLink = {
+  id: string;
+  bandId: string;
+  token: string;
+  url: string;
+  role: "member" | "conductor";
+  expiresAt?: string;
+  maxUses: number;
+  uses: number;
+  createdAt: string;
+  revoked: boolean;
+  valid: boolean;
+  reason?: string;
+};
+
+export type InviteLinkPreview = {
+  band: { id: string; name: string };
+  role: "member" | "conductor";
+  valid: boolean;
+  reason?: string;
 };
 
 export type Role = "admin" | "conductor" | "member";
@@ -217,6 +242,12 @@ export const api = {
 
   me: () => request<{ user: User }>("GET", "/api/me").then((r) => r.user),
 
+  updateProfile: (patch: { displayName?: string; email?: string; avatarKind?: AvatarKind }) =>
+    request<{ user: User }>("PATCH", "/api/me", patch).then((r) => r.user),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("POST", "/api/me/password", { currentPassword, newPassword }),
+
   // ---- bands ----
   listBands: () => request<{ bands: Band[] }>("GET", "/api/bands").then((r) => r.bands),
 
@@ -331,6 +362,27 @@ export const api = {
 
   revokeInvite: (bandId: string, inviteId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/invites/${inviteId}`),
+
+  // ---- band invite links (tokenized join links; admin) ----
+  listInviteLinks: (bandId: string) =>
+    request<{ links: InviteLink[] }>("GET", `/api/bands/${bandId}/invite-links`).then(
+      (r) => r.links,
+    ),
+
+  createInviteLink: (
+    bandId: string,
+    input: { role?: "member" | "conductor"; expiresInHours?: number; maxUses?: number },
+  ) => request<InviteLink>("POST", `/api/bands/${bandId}/invite-links`, input),
+
+  revokeInviteLink: (bandId: string, id: string) =>
+    request<void>("DELETE", `/api/bands/${bandId}/invite-links/${id}`),
+
+  // ---- join links (any authenticated user) ----
+  previewInviteLink: (token: string) =>
+    request<InviteLinkPreview>("GET", `/api/invite-links/${token}`),
+
+  acceptInviteLink: (token: string) =>
+    request<{ band: Band }>("POST", `/api/invite-links/${token}/accept`).then((r) => r.band),
 
   // ---- setlists ----
   listSetlists: (bandId: string) =>

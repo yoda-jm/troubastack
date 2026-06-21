@@ -13,6 +13,8 @@ import { SongEditor } from "./pages/SongEditor";
 import { Setlists } from "./pages/Setlists";
 import { SetlistDetail } from "./pages/SetlistDetail";
 import { Invites } from "./pages/Invites";
+import { Profile } from "./pages/Profile";
+import { Join } from "./pages/Join";
 
 export function App() {
   return (
@@ -29,6 +31,8 @@ export function App() {
         <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />
         <Route path="/bands/:bandId/songs/:songId" element={<SongEditor />} />
         <Route path="/invites" element={<Invites />} />
+        <Route path="/me" element={<Profile />} />
+        <Route path="/join/:token" element={<Join />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/bands" replace />} />

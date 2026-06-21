@@ -1,12 +1,20 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
 
+function safeNext(raw: string | null): string {
+  if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  return "/bands";
+}
+
 export function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const nextRaw = params.get("next");
+  const next = safeNext(nextRaw);
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -25,7 +33,7 @@ export function Register() {
         password,
         email: email || undefined,
       });
-      navigate("/bands", { replace: true });
+      navigate(next, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Registration failed");
     } finally {
@@ -82,7 +90,8 @@ export function Register() {
         </button>
       </form>
       <p>
-        Already have an account? <Link to="/login">Log in</Link>
+        Already have an account?{" "}
+        <Link to={nextRaw ? `/login?next=${encodeURIComponent(nextRaw)}` : "/login"}>Log in</Link>
       </p>
     </div>
   );

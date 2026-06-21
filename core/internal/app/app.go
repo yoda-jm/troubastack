@@ -78,25 +78,46 @@ const (
 	InviteDeclined InviteStatus = "declined"
 )
 
+// AvatarKind selects which silhouette avatar a user displays. "" is treated as
+// neutral when rendering.
+type AvatarKind string
+
+const (
+	AvatarMan     AvatarKind = "man"
+	AvatarWoman   AvatarKind = "woman"
+	AvatarNeutral AvatarKind = "neutral"
+)
+
+// ValidAvatarKind reports whether k is an allowed avatar kind ("" allowed).
+func ValidAvatarKind(k AvatarKind) bool {
+	switch k {
+	case "", AvatarMan, AvatarWoman, AvatarNeutral:
+		return true
+	}
+	return false
+}
+
 // User is a registered account. PasswordHash is a bcrypt hash; it is NEVER
 // serialized to clients (see PublicUser).
 type User struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	DisplayName  string    `json:"displayName"`
-	Email        string    `json:"email,omitempty"`
-	PasswordHash string    `json:"-"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID           string     `json:"id"`
+	Username     string     `json:"username"`
+	DisplayName  string     `json:"displayName"`
+	Email        string     `json:"email,omitempty"`
+	AvatarKind   AvatarKind `json:"avatarKind,omitempty"`
+	PasswordHash string     `json:"-"`
+	CreatedAt    time.Time  `json:"createdAt"`
 }
 
 // PublicUser is the client-safe projection of a User (no password hash, no email
 // of others is leaked beyond what the API intends).
 type PublicUser struct {
-	ID          string    `json:"id"`
-	Username    string    `json:"username"`
-	DisplayName string    `json:"displayName"`
-	Email       string    `json:"email,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID          string     `json:"id"`
+	Username    string     `json:"username"`
+	DisplayName string     `json:"displayName"`
+	Email       string     `json:"email,omitempty"`
+	AvatarKind  AvatarKind `json:"avatarKind,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
 }
 
 // Public returns the client-safe projection.
@@ -106,6 +127,7 @@ func (u User) Public() PublicUser {
 		Username:    u.Username,
 		DisplayName: u.DisplayName,
 		Email:       u.Email,
+		AvatarKind:  u.AvatarKind,
 		CreatedAt:   u.CreatedAt,
 	}
 }
@@ -146,6 +168,23 @@ type Invite struct {
 	InvitedBy      string         `json:"invitedBy"`
 	Status         InviteStatus   `json:"status"`
 	CreatedAt      time.Time      `json:"createdAt"`
+}
+
+// InviteLink is a tokenized, shareable join link for a band. Unlike an Invite
+// (addressed to a specific identifier), an InviteLink is an open door: anyone who
+// holds the unguessable Token may join the band as Role. Clicking accept IS the
+// consent. Links can carry an expiry, a max-use cap, and may be revoked.
+type InviteLink struct {
+	ID        string     `json:"id"`
+	BandID    string     `json:"bandId"`
+	Token     string     `json:"token"`
+	Role      Role       `json:"role"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	MaxUses   int        `json:"maxUses"` // 0 = unlimited
+	Uses      int        `json:"uses"`
+	CreatedBy string     `json:"createdBy"`
+	CreatedAt time.Time  `json:"createdAt"`
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 }
 
 // Song is band-scoped metadata only. The annotation history lives in the separate
@@ -223,6 +262,7 @@ type Repo interface {
 	GetUser(id string) (User, error)
 	GetUserByUsername(username string) (User, error)
 	GetUserByEmail(email string) (User, error)
+	UpdateUser(u User) error
 
 	// Sessions.
 	CreateSession(s Session) error
@@ -250,6 +290,13 @@ type Repo interface {
 	// PendingInvitesForIdentifiers returns pending invites whose (kind,identifier)
 	// matches any of the supplied pairs (the invitee's own username/email/uuid).
 	PendingInvitesForIdentifiers(pairs []IdentifierMatch) ([]Invite, error)
+
+	// Invite links (tokenized join links).
+	CreateInviteLink(l InviteLink) error
+	GetInviteLink(id string) (InviteLink, error)
+	GetInviteLinkByToken(token string) (InviteLink, error)
+	UpdateInviteLink(l InviteLink) error
+	InviteLinksForBand(bandID string) ([]InviteLink, error)
 
 	// Songs.
 	CreateSong(s Song) error

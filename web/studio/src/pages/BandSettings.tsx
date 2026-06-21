@@ -14,6 +14,8 @@ import {
 } from "../api";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { Avatar } from "../components/Avatar";
+import { InviteLinks } from "../components/InviteLinks";
 
 export function BandSettings() {
   const { bandId } = useParams<{ bandId: string }>();
@@ -59,6 +61,7 @@ export function BandSettings() {
       {myRole === "admin" && <Rename bandId={bandId} band={band} onRenamed={setBand} />}
       <MembersAdmin bandId={bandId} myRole={myRole} />
       {myRole === "admin" && <PendingInvites bandId={bandId} />}
+      {myRole === "admin" && <InviteLinks bandId={bandId} />}
       {myRole === "admin" && <DeleteBand bandId={bandId} />}
     </div>
   );
@@ -184,7 +187,8 @@ function MembersAdmin({ bandId, myRole }: { bandId: string; myRole: Role | null 
         {members.map((m) => (
           <li key={m.user.id} data-testid="settings-member-row">
             <span>
-              {m.user.displayName} <span className="muted">@{m.user.username}</span>
+              <Avatar user={m.user} size={24} /> {m.user.displayName}{" "}
+              <span className="muted">@{m.user.username}</span>
             </span>
             <span className="actions">
               {myRole === "admin" ? (

@@ -25,6 +25,7 @@ type dataset struct {
 	Bands        map[string]app.Band          `json:"bands"`
 	Members      map[string]app.Membership    `json:"members"`
 	Invites      map[string]app.Invite        `json:"invites"`
+	InviteLinks  map[string]app.InviteLink    `json:"inviteLinks"`
 	Songs        map[string]app.Song          `json:"songs"`
 	Files        map[string]app.SongFile      `json:"files"`
 	Selections   map[string]app.FileSelection `json:"selections"`
@@ -64,6 +65,7 @@ func emptyDataset() dataset {
 		Bands:        map[string]app.Band{},
 		Members:      map[string]app.Membership{},
 		Invites:      map[string]app.Invite{},
+		InviteLinks:  map[string]app.InviteLink{},
 		Songs:        map[string]app.Song{},
 		Files:        map[string]app.SongFile{},
 		Selections:   map[string]app.FileSelection{},
@@ -105,6 +107,10 @@ func (r *Repo) load() error {
 	// Per-member file selections were added later still; nil-guard for older files.
 	if r.d.Selections == nil {
 		r.d.Selections = map[string]app.FileSelection{}
+	}
+	// Invite links were added later still; nil-guard for older files.
+	if r.d.InviteLinks == nil {
+		r.d.InviteLinks = map[string]app.InviteLink{}
 	}
 	return nil
 }
@@ -179,6 +185,27 @@ func (r *Repo) GetUserByEmail(email string) (app.User, error) {
 		}
 	}
 	return app.User{}, app.ErrNotFound
+}
+
+func (r *Repo) UpdateUser(u app.User) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.d.Users[u.ID]; !ok {
+		return app.ErrNotFound
+	}
+	for id, e := range r.d.Users {
+		if id == u.ID {
+			continue
+		}
+		if strings.EqualFold(e.Username, u.Username) {
+			return app.ErrConflict
+		}
+		if u.Email != "" && strings.EqualFold(e.Email, u.Email) {
+			return app.ErrConflict
+		}
+	}
+	r.d.Users[u.ID] = u
+	return r.flush()
 }
 
 // ---- sessions ----
@@ -382,6 +409,61 @@ func (r *Repo) PendingInvitesForIdentifiers(pairs []app.IdentifierMatch) ([]app.
 				out = append(out, i)
 				break
 			}
+		}
+	}
+	return out, nil
+}
+
+// ---- invite links ----
+
+func (r *Repo) CreateInviteLink(l app.InviteLink) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.InviteLinks[l.ID] = l
+	return r.flush()
+}
+
+func (r *Repo) GetInviteLink(id string) (app.InviteLink, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	l, ok := r.d.InviteLinks[id]
+	if !ok {
+		return app.InviteLink{}, app.ErrNotFound
+	}
+	return l, nil
+}
+
+func (r *Repo) GetInviteLinkByToken(token string) (app.InviteLink, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if token == "" {
+		return app.InviteLink{}, app.ErrNotFound
+	}
+	for _, l := range r.d.InviteLinks {
+		if l.Token == token {
+			return l, nil
+		}
+	}
+	return app.InviteLink{}, app.ErrNotFound
+}
+
+func (r *Repo) UpdateInviteLink(l app.InviteLink) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.d.InviteLinks[l.ID]; !ok {
+		return app.ErrNotFound
+	}
+	r.d.InviteLinks[l.ID] = l
+	return r.flush()
+}
+
+func (r *Repo) InviteLinksForBand(bandID string) ([]app.InviteLink, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []app.InviteLink
+	for _, l := range r.d.InviteLinks {
+		if l.BandID == bandID {
+			out = append(out, l)
 		}
 	}
 	return out, nil
