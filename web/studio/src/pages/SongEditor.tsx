@@ -649,11 +649,39 @@ function Viewer({
     [ensureActiveLayer, doc.layers, myUserId, style],
   );
 
-  // Commit a move: send the translated object (move mutation).
-  const commitMove = useCallback((obj: AnnotationObject) => {
-    if (!syncRef.current) return;
-    syncRef.current.updateObject("move", obj);
-  }, []);
+  // May the current user edit (move/delete/restyle) THIS object? Purely a
+  // function of the object's layer being editable for me. Defense in depth
+  // alongside the server `forbidden` backstop.
+  const isEditableObject = useCallback(
+    (obj: AnnotationObject): boolean => {
+      const l = layersById.get(obj.layerId);
+      return l != null && isEditableLayer(l, myUserId);
+    },
+    [layersById, myUserId],
+  );
+
+  // Commit a move: send the translated object (move mutation). Guarded so a
+  // locked-layer object never produces a mutation (the client fully prevents).
+  const commitMove = useCallback(
+    (obj: AnnotationObject) => {
+      if (!syncRef.current) return;
+      if (!isEditableObject(obj)) return;
+      syncRef.current.updateObject("move", obj);
+    },
+    [isEditableObject],
+  );
+
+  // Live restyle: send a setStyle mutation with the object carrying the new
+  // style. Guarded: never restyle an object on a locked layer.
+  const restyleObject = useCallback(
+    (uuid: string, nextStyle: AnnotationStyle) => {
+      if (!syncRef.current) return;
+      const obj = doc.objects.find((o) => o.uuid === uuid);
+      if (!obj || !isEditableObject(obj)) return;
+      syncRef.current.updateObject("setStyle", { ...obj, style: { ...nextStyle } });
+    },
+    [doc.objects, isEditableObject],
+  );
 
   // Scroll the page that contains an object into view (objects live on canvas,
   // so "scroll into view" means bringing its page wrapper on-screen).
@@ -668,12 +696,19 @@ function Viewer({
     [doc.objects],
   );
 
-  // Delete the current selection (one or many objects).
+  // Delete the current selection (one or many objects). Only objects on layers
+  // I may edit are deleted; locked-layer objects are skipped (no mutation sent).
   const deleteSelected = useCallback(() => {
     if (selectedUuids.length === 0 || !syncRef.current) return;
-    for (const uuid of selectedUuids) syncRef.current.deleteObject(uuid);
-    setSelectedUuids([]);
-  }, [selectedUuids]);
+    let deletedAny = false;
+    for (const uuid of selectedUuids) {
+      const obj = doc.objects.find((o) => o.uuid === uuid);
+      if (!obj || !isEditableObject(obj)) continue;
+      syncRef.current.deleteObject(uuid);
+      deletedAny = true;
+    }
+    if (deletedAny) setSelectedUuids([]);
+  }, [selectedUuids, doc.objects, isEditableObject]);
 
   // Delete/Backspace removes the current selection (ignored while typing in a
   // form field, so the Details inputs below keep working normally).
@@ -697,6 +732,33 @@ function Viewer({
       return next.length === cur.length ? cur : next;
     });
   }, [doc.objects]);
+
+  // ---- selection ↔ style controls ----
+  // The single selected object (only when exactly one is selected). Drives the
+  // style controls (reflect its style) and live restyle.
+  const selectedObject = useMemo(
+    () => (selectedUuids.length === 1 ? doc.objects.find((o) => o.uuid === selectedUuids[0]) ?? null : null),
+    [selectedUuids, doc.objects],
+  );
+  // Is the (single) selection on a layer I may edit? Locked → controls disabled.
+  const selectionEditable = selectedObject != null && isEditableObject(selectedObject);
+  // Are the style controls locked? Only when a single locked object is selected.
+  const controlsLocked = selectedObject != null && !selectionEditable;
+  // The style the controls REFLECT: the selected object's style, else the draw
+  // default. When nothing is selected, controls set the next-drawn-object style.
+  const effectiveStyle = selectedObject ? selectedObject.style : style;
+  // Applying a style change: restyle the selected (editable) object live, else
+  // update the draw default for the next object.
+  const applyStyle = useCallback(
+    (next: AnnotationStyle) => {
+      if (selectedObject) {
+        if (selectionEditable) restyleObject(selectedObject.uuid, next);
+        return; // locked selection: controls are disabled, nothing to apply
+      }
+      setStyle(next);
+    },
+    [selectedObject, selectionEditable, restyleObject],
+  );
 
   // ---- overlay rendering: object coords [0,1] → page box. ----
   // We scale the ctx by DPR and draw using the LOGICAL (CSS-px) page box, so a
@@ -873,8 +935,10 @@ function Viewer({
           setTool(t);
           if (t !== "select") setSelectedUuids([]);
         }}
-        style={style}
-        onStyle={setStyle}
+        style={effectiveStyle}
+        onStyle={applyStyle}
+        controlsLocked={controlsLocked}
+        selectedType={selectedObject?.type ?? null}
         editableLayers={editableLayers}
         activeLayerId={activeLayerId}
         activeLayer={activeLayer}
@@ -884,6 +948,10 @@ function Viewer({
         drawLocked={focusLocked}
         objectCount={doc.objects.length}
         selectionCount={selectedUuids.length}
+        canDeleteSelection={selectedUuids.some((u) => {
+          const o = doc.objects.find((x) => x.uuid === u);
+          return o != null && isEditableObject(o);
+        })}
         onDelete={deleteSelected}
         connStatus={connStatus}
       />
@@ -1046,7 +1114,9 @@ function Viewer({
                   layersById={layersById}
                   visible={visible}
                   selectedUuids={selectedUuids}
+                  isObjectEditable={isEditableObject}
                   onSelect={setSelectedUuids}
+                  onFocusLayer={focusLayer}
                   onCommitDraw={commitDraw}
                   onCommitMove={commitMove}
                 />
@@ -1076,7 +1146,9 @@ function Viewer({
                 layersById={layersById}
                 visible={visible}
                 selectedUuids={selectedUuids}
+                isObjectEditable={isEditableObject}
                 onSelect={setSelectedUuids}
+                onFocusLayer={focusLayer}
                 onCommitDraw={commitDraw}
                 onCommitMove={commitMove}
               />
@@ -1475,6 +1547,8 @@ function EditorToolbar({
   onTool,
   style,
   onStyle,
+  controlsLocked,
+  selectedType,
   editableLayers,
   activeLayerId,
   activeLayer,
@@ -1484,6 +1558,7 @@ function EditorToolbar({
   drawLocked,
   objectCount,
   selectionCount,
+  canDeleteSelection,
   onDelete,
   connStatus,
 }: {
@@ -1491,6 +1566,10 @@ function EditorToolbar({
   onTool: (t: Tool) => void;
   style: AnnotationStyle;
   onStyle: (s: AnnotationStyle) => void;
+  // The selected object is on a locked layer → style controls reflect but are disabled.
+  controlsLocked: boolean;
+  // The selected object's type (drives the tool/shape indicator), or null.
+  selectedType: AnnotationObject["type"] | null;
   editableLayers: AnnotationLayer[];
   activeLayerId: string | null;
   activeLayer: AnnotationLayer | null;
@@ -1500,6 +1579,7 @@ function EditorToolbar({
   drawLocked: boolean;
   objectCount: number;
   selectionCount: number;
+  canDeleteSelection: boolean;
   onDelete: () => void;
   connStatus: "connecting" | "open" | "closed";
 }) {
@@ -1526,7 +1606,16 @@ function EditorToolbar({
         )}
       </div>
 
-      <div className="style-controls">
+      <div
+        className={`style-controls${selectedType ? " editing-selection" : ""}${
+          controlsLocked ? " controls-locked" : ""
+        }`}
+        data-testid="style-controls"
+      >
+        {/* Shape/type indicator: the selected object's type, else the draw tool. */}
+        <span className="pill style-target" data-testid="style-target">
+          {selectedType ? `Editing: ${selectedType}` : `Draw: ${tool}`}
+        </span>
         <span className="swatches">
           {COLOR_SWATCHES.map((c) => (
             <button
@@ -1535,6 +1624,7 @@ function EditorToolbar({
               className={`swatch${style.color === c ? " active" : ""}`}
               style={{ background: c }}
               aria-label={`Color ${c}`}
+              disabled={controlsLocked}
               onClick={() => onStyle({ ...style, color: c })}
             />
           ))}
@@ -1545,6 +1635,7 @@ function EditorToolbar({
             type="color"
             data-testid="style-color"
             value={style.color}
+            disabled={controlsLocked}
             onChange={(e) => onStyle({ ...style, color: e.target.value })}
           />
           <span className="style-value" data-testid="style-color-value">
@@ -1560,6 +1651,7 @@ function EditorToolbar({
             max={1}
             step={0.05}
             value={style.opacity}
+            disabled={controlsLocked}
             onChange={(e) => onStyle({ ...style, opacity: Number(e.target.value) })}
           />
           <span className="style-value" data-testid="style-opacity-value">
@@ -1575,6 +1667,7 @@ function EditorToolbar({
             max={0.02}
             step={0.001}
             value={style.width}
+            disabled={controlsLocked}
             onChange={(e) => onStyle({ ...style, width: Number(e.target.value) })}
           />
           <span className="style-value" data-testid="style-width-value">
@@ -1590,6 +1683,7 @@ function EditorToolbar({
             max={0.08}
             step={0.005}
             value={style.fontSize}
+            disabled={controlsLocked}
             onChange={(e) => onStyle({ ...style, fontSize: Number(e.target.value) })}
           />
           <span className="style-value" data-testid="style-font-value">
@@ -1636,7 +1730,7 @@ function EditorToolbar({
           type="button"
           data-testid="delete-object"
           className="delete-object-btn"
-          disabled={selectionCount === 0}
+          disabled={selectionCount === 0 || !canDeleteSelection}
           onClick={onDelete}
         >
           Delete{selectionCount > 1 ? ` (${selectionCount})` : ""}
@@ -1683,7 +1777,9 @@ function EditCanvas({
   layersById,
   visible,
   selectedUuids,
+  isObjectEditable,
   onSelect,
+  onFocusLayer,
   onCommitDraw,
   onCommitMove,
 }: {
@@ -1695,7 +1791,11 @@ function EditCanvas({
   layersById: Map<string, AnnotationLayer>;
   visible: LayerVisibility;
   selectedUuids: string[];
+  // Whether an object may be moved/deleted/restyled by me (its layer is editable).
+  isObjectEditable: (obj: AnnotationObject) => boolean;
   onSelect: (uuids: string[]) => void;
+  // Focus an object's layer when it is single-click selected (cross-layer focus).
+  onFocusLayer: (layerId: string) => void;
   onCommitDraw: (tool: DrawTool, page: number, path: PRPoint[], text?: string) => void;
   onCommitMove: (obj: AnnotationObject) => void;
 }) {
@@ -1807,12 +1907,21 @@ function EditCanvas({
     if (drawLocked && tool !== "select") return;
 
     if (tool === "select") {
-      // Hit-test topmost (last drawn) visible object on this page.
+      // Hit-test topmost (last drawn) visible object on this page — across ALL
+      // visible layers, not just the focused one.
       const hit = [...pageObjects].reverse().find((o) => hitTest(o, pt.x, pt.y));
       if (hit) {
         onSelect([hit.uuid]);
-        canvas.setPointerCapture(e.pointerId);
-        gestureRef.current = { mode: "move", obj: hit, start: pt, preview: hit };
+        // Cross-layer focus: clicking an object focuses its layer (so the scoped
+        // annotation list shows it and the user can see which layer it's on).
+        onFocusLayer(hit.layerId);
+        // Only start a MOVE gesture for objects I may edit. A locked-layer object
+        // is selectable (to show its lock cue) but never movable — no transient
+        // move, no mutation. The server `forbidden` reject is only a backstop.
+        if (isObjectEditable(hit)) {
+          canvas.setPointerCapture(e.pointerId);
+          gestureRef.current = { mode: "move", obj: hit, start: pt, preview: hit };
+        }
       } else {
         // Empty space → start a rubber-band marquee.
         onSelect([]);
@@ -1893,10 +2002,11 @@ function EditCanvas({
       <div className="selection-overlay" aria-hidden="true">
         {selectedOnPage.map((o) => {
           const b = objectBBox(o);
+          const locked = !isObjectEditable(o);
           return (
             <div
               key={o.uuid}
-              className="selected-bbox"
+              className={`selected-bbox${locked ? " readonly" : ""}`}
               data-testid="selected-bbox"
               style={{
                 left: `${b.minX * 100}%`,
@@ -1904,7 +2014,19 @@ function EditCanvas({
                 width: `${(b.maxX - b.minX) * 100}%`,
                 height: `${(b.maxY - b.minY) * 100}%`,
               }}
-            />
+            >
+              {/* Locked cue: a small greyed lock pinned at the bbox corner. */}
+              {locked && (
+                <span
+                  className="bbox-lock"
+                  data-testid="bbox-lock"
+                  title="Read-only layer — this annotation can't be edited"
+                  aria-label="Read-only annotation"
+                >
+                  🔒
+                </span>
+              )}
+            </div>
           );
         })}
         {marquee && (

@@ -392,6 +392,21 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   border: 1.5px solid var(--accent, #2563eb);
   background: rgba(37, 99, 235, 0.12);
 }
+/* Read-only selection: greyed + dashed, with a small lock pinned at the corner. */
+.selected-bbox.readonly {
+  border: 1.5px dashed #9ca3af;
+  background: rgba(156, 163, 175, 0.12);
+}
+.bbox-lock {
+  position: absolute; top: -10px; left: -10px;
+  width: 18px; height: 18px; line-height: 18px;
+  font-size: 11px; text-align: center;
+  border-radius: 50%;
+  background: #e5e7eb; color: #6b7280;
+  border: 1px solid #9ca3af;
+  filter: grayscale(1);
+  opacity: 0.85;
+}
 
 .details-section { padding: 0; overflow: hidden; }
 .details-toggle {
@@ -446,6 +461,13 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .tool-btn:disabled { opacity: .5; }
 
 .style-controls { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+/* When editing a selected object, tint the control strip so it reads as "this
+   object's style", not the draw default. Locked selection greys it out. */
+.style-controls.editing-selection { background: rgba(37, 99, 235, 0.06); border-radius: 6px; padding: .2rem .4rem; }
+.style-controls.controls-locked { background: rgba(156, 163, 175, 0.12); opacity: .85; }
+.style-target { font-size: .72rem; }
+.style-field input:disabled { opacity: .5; cursor: not-allowed; }
+.swatch:disabled { opacity: .5; cursor: not-allowed; }
 .swatches { display: inline-flex; gap: .2rem; }
 .swatch {
   width: 18px; height: 18px; border-radius: 50%; padding: 0;
