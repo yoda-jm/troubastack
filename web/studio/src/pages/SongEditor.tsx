@@ -49,9 +49,8 @@ import {
   DEFAULT_STYLE,
   applyPreset,
   buildObject,
-  handleAtPx,
+  cursorForPick,
   handlesVisible,
-  hitTest,
   intersectsRect,
   isMarquee,
   isMeaningfulGesture,
@@ -59,12 +58,14 @@ import {
   normalizeRect,
   objectBBox,
   objectLabel,
+  pickAt,
   pointerToPageXY,
   pointsForTool,
   resizeObject,
   translateObject,
   type DrawTool,
   type HandleId,
+  type PickContext,
   type PresetId,
   type SelectRect,
   type TextMeasure,
@@ -2232,6 +2233,42 @@ function EditCanvas({
   // The bbox of the single selected object on this page (drives resize handles).
   const selectedSingle = selectedOnPage.length === 1 ? selectedOnPage[0] : null;
 
+  // Assemble the PickContext used by BOTH the pointer-down gesture and the hover
+  // cursor, so the cursor always predicts what the next drag will do. pageObjects
+  // is in z-order (earliest first → last is topmost), exactly what pickAt wants.
+  function buildPickContext(): PickContext | null {
+    const dims = pageDims();
+    if (!dims) return null;
+    return {
+      objects: pageObjects,
+      pageW: dims.w,
+      pageH: dims.h,
+      measure: textMeasure(),
+      selected: selectedSingle,
+      isEditableNow: isObjectEditableNow,
+    };
+  }
+
+  // Set the EditCanvas cursor from a hover pick. Cheap: just the existing hit
+  // math + an inline-style write, no re-render. For mode "none" (or any non-select
+  // tool) we clear the inline cursor so the CSS `.tool-*` default (crosshair for a
+  // draw tool, default for select) applies. Resize→directional, move→move,
+  // select→pointer.
+  function updateHoverCursor(e: React.PointerEvent) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (tool !== "select") {
+      // Draw tools keep their CSS crosshair; nothing to predict on hover.
+      if (canvas.style.cursor) canvas.style.cursor = "";
+      return;
+    }
+    const ctx = buildPickContext();
+    const pick = ctx ? pickAt(pageRelative(e), ctx) : { object: null, mode: "none" as const };
+    // mode "none" → "" sentinel from cursorForPick, which clears to the CSS default.
+    const next = cursorForPick(pick, "");
+    if (canvas.style.cursor !== next) canvas.style.cursor = next;
+  }
+
   function onPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     const canvas = canvasRef.current;
@@ -2243,43 +2280,37 @@ function EditCanvas({
     if (drawLocked && tool !== "select") return;
 
     if (tool === "select") {
-      const measure = textMeasure();
-      const dims = pageDims();
-      // If a single editable-NOW object is selected, a press within a small corner
-      // handle zone starts a RESIZE — but ONLY when the bbox is big enough to show
-      // handles (handleAtPx returns null for a small object, so its body stays a
-      // MOVE zone). Otherwise the press falls through to the move/select path (Bug #2).
-      if (selectedSingle && isObjectEditableNow(selectedSingle) && dims) {
-        const b = objectBBox(selectedSingle, measure);
-        const handle = handleAtPx(b, pt, dims.w, dims.h);
-        if (handle) {
-          canvas.setPointerCapture(e.pointerId);
-          gestureRef.current = {
-            mode: "resize",
-            obj: selectedSingle,
-            handle,
-            start: pt,
-            preview: selectedSingle,
-          };
-          return;
-        }
+      // ONE shared pick drives both this gesture and the hover cursor, so they
+      // never disagree. pickAt resolves resize-handle > move > select > none.
+      const ctx = buildPickContext();
+      const pick = ctx ? pickAt(pt, ctx) : { object: null, mode: "none" as const };
+
+      if (pick.mode === "resize" && pick.object && pick.handle) {
+        // Press on a visible resize handle of the current selection → RESIZE.
+        canvas.setPointerCapture(e.pointerId);
+        gestureRef.current = {
+          mode: "resize",
+          obj: pick.object,
+          handle: pick.handle,
+          start: pt,
+          preview: pick.object,
+        };
+        return;
       }
-      // Hit-test topmost (last drawn) visible object on this page — across ALL
-      // visible layers, not just the focused one.
-      const hit = [...pageObjects].reverse().find((o) => hitTest(o, pt.x, pt.y, 0.02, measure));
-      if (hit) {
-        onSelect([hit.uuid]);
+
+      if (pick.object) {
+        onSelect([pick.object.uuid]);
         // Cross-layer focus: clicking an object focuses its layer (so the scoped
         // annotation list shows it and the user can see which layer it's on) —
         // WITHOUT activating it. Editing stays scoped to the active layer (Bug #2).
-        onFocusLayer(hit.layerId);
-        // Only start a MOVE gesture for objects editable RIGHT NOW (on the active
-        // editable layer). An object on a locked OR non-active layer is selectable
-        // (to inspect / show its cue) but never movable — no transient move, no
-        // mutation. The server `forbidden` reject is only a backstop.
-        if (isObjectEditableNow(hit)) {
+        onFocusLayer(pick.object.layerId);
+        // Only start a MOVE gesture for objects editable RIGHT NOW (mode "move").
+        // A "select"-mode object (locked OR non-active layer) is selectable to
+        // inspect but never movable — the cursor already showed `pointer`, so no
+        // surprise. The server `forbidden` reject is only a backstop.
+        if (pick.mode === "move") {
           canvas.setPointerCapture(e.pointerId);
-          gestureRef.current = { mode: "move", obj: hit, start: pt, preview: hit };
+          gestureRef.current = { mode: "move", obj: pick.object, start: pt, preview: pick.object };
         }
       } else {
         // Empty space → start a rubber-band marquee.
@@ -2305,7 +2336,12 @@ function EditCanvas({
 
   function onPointerMove(e: React.PointerEvent) {
     const g = gestureRef.current;
-    if (!g) return;
+    if (!g) {
+      // No active gesture → this is a HOVER. Set an action-reflecting cursor from
+      // the SAME pickAt the press will use, so the cursor predicts the next drag.
+      updateHoverCursor(e);
+      return;
+    }
     const pt = pageRelative(e);
     if (g.mode === "draw") {
       g.path.push(pt);
@@ -2370,6 +2406,12 @@ function EditCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onPointerLeave={() => {
+          // Clear the action cursor when leaving the canvas so a stale move/resize
+          // cursor doesn't linger; CSS `.tool-*` default takes over.
+          const c = canvasRef.current;
+          if (c && c.style.cursor) c.style.cursor = "";
+        }}
       />
       {/* Selection overlays: DOM elements positioned in % of the page box, so
           they track the page under any zoom AND are queryable in e2e. */}
@@ -2402,6 +2444,7 @@ function EditCanvas({
                 inactiveEditable ? " inactive" : ""
               }`}
               data-testid="selected-bbox"
+              data-uuid={o.uuid}
               style={{
                 left: `${b.minX * 100}%`,
                 top: `${b.minY * 100}%`,

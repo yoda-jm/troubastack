@@ -303,6 +303,225 @@ export function hitTest(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Unified pick (#refine) — one function decides what's under the pointer AND
+// what the next gesture would do, so the hover cursor always predicts the drag.
+// ---------------------------------------------------------------------------
+
+/** Distance (page-relative [0,1]) from point p to segment a→b. */
+function distToSegment(
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  const vx = b.x - a.x;
+  const vy = b.y - a.y;
+  const len2 = vx * vx + vy * vy;
+  if (len2 <= 1e-12) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const cx = a.x + t * vx;
+  const cy = a.y + t * vy;
+  return Math.hypot(p.x - cx, p.y - cy);
+}
+
+/** Min distance ([0,1]) from a point to a polyline (sequence of points). */
+function distToPolyline(p: { x: number; y: number }, pts: { x: number; y: number }[]): number {
+  if (pts.length === 0) return Infinity;
+  if (pts.length === 1) return Math.hypot(p.x - pts[0].x, p.y - pts[0].y);
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const d = distToSegment(p, pts[i - 1], pts[i]);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** Is a point inside an axis-aligned box (with a per-axis pad)? */
+function insideBox(
+  b: { minX: number; minY: number; maxX: number; maxY: number },
+  x: number,
+  y: number,
+  padX = 0,
+  padY = 0,
+): boolean {
+  return x >= b.minX - padX && x <= b.maxX + padX && y >= b.minY - padY && y <= b.maxY + padY;
+}
+
+/**
+ * The on-line tolerance (page-relative [0,1]) for a stroke object — at least the
+ * stroke half-width, but never less than ~6px so a hairline is still grabbable.
+ * style.width is a fraction of PAGE WIDTH; we convert to px via pageW.
+ */
+const MIN_STROKE_HIT_PX = 6;
+function strokeHitFrac(
+  obj: AnnotationObject,
+  axis: "x" | "y",
+  pageW: number,
+  pageH: number,
+): number {
+  const px = axis === "x" ? pageW : pageH;
+  if (px <= 0) return 0.01;
+  const halfWidthPx = (obj.style.width * pageW) / 2; // width is a page-WIDTH fraction
+  const tolPx = Math.max(halfWidthPx, MIN_STROKE_HIT_PX);
+  return tolPx / px;
+}
+
+/** What `pickAt` decides should happen on the next press at a point. */
+export type PickMode = "resize" | "move" | "select" | "none";
+
+export type PickResult = {
+  object: AnnotationObject | null;
+  mode: PickMode;
+  handle?: HandleId;
+};
+
+/** Context `pickAt` needs: the visible objects on the page (in z-order, earliest
+ *  first → last is topmost), the page box px size, a text measurer, the current
+ *  single selection (drives resize handles), and the "editable now" predicate. */
+export type PickContext = {
+  objects: AnnotationObject[];
+  pageW: number;
+  pageH: number;
+  measure?: TextMeasure;
+  /** The single selected object (or null) — only it shows resize handles. */
+  selected: AnnotationObject | null;
+  isEditableNow: (obj: AnnotationObject) => boolean;
+};
+
+/** A "strong" hit = the point is inside the object's TRUE shape (small tol);
+ *  a "weak" hit = only within the generous proximity pad just outside it. */
+type HitStrength = "strong" | "weak" | "none";
+
+/** Classify a point against ONE object's true geometry vs. its proximity pad. */
+function classifyHit(
+  obj: AnnotationObject,
+  x: number,
+  y: number,
+  pageW: number,
+  pageH: number,
+  measure?: TextMeasure,
+): HitStrength {
+  const b = objectBBox(obj, measure);
+
+  if (obj.type === "text") {
+    // Text: inside the GLYPH box is strong; within the generous pad is weak.
+    const tp = textHitPad(measure);
+    if (insideBox(b, x, y, 0.002, 0.002)) return "strong";
+    if (insideBox(b, x, y, tp.padX, tp.padY)) return "weak";
+    return "none";
+  }
+
+  if (obj.type === "line") {
+    const a = obj.points[0];
+    const c = obj.points[obj.points.length - 1];
+    if (!a || !c) return "none";
+    // Distance to the SEGMENT, in [0,1]; compare against the stroke tolerance.
+    // (Use the larger per-axis frac so a near-vertical/horizontal hairline still
+    // grabs symmetrically.) Strong = on the stroke; weak = within a small pad.
+    const tol = Math.max(strokeHitFrac(obj, "x", pageW, pageH), strokeHitFrac(obj, "y", pageW, pageH));
+    const d = distToSegment({ x, y }, a, c);
+    if (d <= tol) return "strong";
+    const weakPad = pageW > 0 ? (MIN_STROKE_HIT_PX + 6) / Math.min(pageW, pageH) : 0.02;
+    if (d <= tol + weakPad) return "weak";
+    return "none";
+  }
+
+  if (obj.type === "freehand") {
+    const tol = Math.max(strokeHitFrac(obj, "x", pageW, pageH), strokeHitFrac(obj, "y", pageW, pageH));
+    const d = distToPolyline({ x, y }, obj.points);
+    if (d <= tol) return "strong";
+    const weakPad = pageW > 0 ? (MIN_STROKE_HIT_PX + 6) / Math.min(pageW, pageH) : 0.02;
+    if (d <= tol + weakPad) return "weak";
+    return "none";
+  }
+
+  if (obj.type === "ellipse") {
+    // Inside the ellipse equation (NOT the bbox corners). Centre + radii from bbox.
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
+    const rx = (b.maxX - b.minX) / 2;
+    const ry = (b.maxY - b.minY) / 2;
+    if (rx > 1e-6 && ry > 1e-6) {
+      const nx = (x - cx) / rx;
+      const ny = (y - cy) / ry;
+      if (nx * nx + ny * ny <= 1.0) return "strong";
+    }
+    // Weak: within a small proximity pad of the bbox (so near-edge clicks grab).
+    if (insideBox(b, x, y, 0.012, 0.012)) return "weak";
+    return "none";
+  }
+
+  // rect / highlight / any filled shape: inside the rectangle (small tol) = strong;
+  // within the generous proximity pad just outside = weak.
+  if (insideBox(b, x, y, 0.004, 0.004)) return "strong";
+  if (insideBox(b, x, y, 0.02, 0.02)) return "weak";
+  return "none";
+}
+
+/** The effective area (for the smallest-wins tie-break) of an object's bbox. */
+function bboxArea(obj: AnnotationObject, measure?: TextMeasure): number {
+  const b = objectBBox(obj, measure);
+  return Math.max(0, b.maxX - b.minX) * Math.max(0, b.maxY - b.minY);
+}
+
+/**
+ * The unified pick: decide what's under `pt` and what the next press would do.
+ *
+ * Priority:
+ *  1. RESIZE — over a visible resize handle of the CURRENT single selection
+ *     (handles sit on top of the selection, so this wins outright).
+ *  2. Among visible objects whose hit-region covers the point, rank by:
+ *       a. containment tier — a STRONG hit (inside the true shape) beats a WEAK
+ *          hit (only within the proximity pad just outside it);
+ *       b. within a tier, the SMALLEST bbox area wins; tie → topmost in z-order.
+ *     The winner's mode is "move" if it's editable-now, else "select".
+ *  3. Nothing under the point → "none".
+ */
+export function pickAt(pt: { x: number; y: number }, ctx: PickContext): PickResult {
+  // 1) Resize handles of the current selection take precedence.
+  if (ctx.selected && ctx.isEditableNow(ctx.selected) && ctx.pageW > 0 && ctx.pageH > 0) {
+    const b = objectBBox(ctx.selected, ctx.measure);
+    const handle = handleAtPx(b, pt, ctx.pageW, ctx.pageH);
+    if (handle) return { object: ctx.selected, mode: "resize", handle };
+  }
+
+  // 2) Candidate set: visible objects whose hit-region (strong OR weak) covers pt.
+  type Cand = { obj: AnnotationObject; strong: boolean; area: number; z: number };
+  const cands: Cand[] = [];
+  for (let z = 0; z < ctx.objects.length; z++) {
+    const obj = ctx.objects[z];
+    const s = classifyHit(obj, pt.x, pt.y, ctx.pageW, ctx.pageH, ctx.measure);
+    if (s === "none") continue;
+    cands.push({ obj, strong: s === "strong", area: bboxArea(obj, ctx.measure), z });
+  }
+  if (cands.length === 0) return { object: null, mode: "none" };
+
+  cands.sort((a, b) => {
+    // Strong beats weak.
+    if (a.strong !== b.strong) return a.strong ? -1 : 1;
+    // Smallest effective area wins.
+    if (a.area !== b.area) return a.area - b.area;
+    // Tie → topmost (highest z) wins.
+    return b.z - a.z;
+  });
+
+  const winner = cands[0].obj;
+  return { object: winner, mode: ctx.isEditableNow(winner) ? "move" : "select" };
+}
+
+/** The CSS cursor for a pick result + the active tool's default fallback. */
+export function cursorForPick(pick: PickResult, toolDefault: string): string {
+  if (pick.mode === "resize" && pick.handle) {
+    return pick.handle === "nw" || pick.handle === "se" ? "nwse-resize" : "nesw-resize";
+  }
+  if (pick.mode === "move") return "move";
+  // A selectable-but-not-editable object (locked / non-active layer): you can
+  // still click to inspect it, but the disabled cursor signals you can't edit here.
+  if (pick.mode === "select") return "not-allowed";
+  return toolDefault;
+}
+
 /** A page-relative [0,1] rectangle (rubber-band selection box). */
 export type SelectRect = { x0: number; y0: number; x1: number; y1: number };
 
