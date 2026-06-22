@@ -33,6 +33,51 @@ type dataset struct {
 	SetlistItems map[string]app.SetlistItem   `json:"setlistItems"`
 }
 
+// storedUser is the on-disk user record: app.User's API-visible fields PLUS the
+// password hash. app.User tags PasswordHash json:"-" to keep it out of API
+// responses — which ALSO kept it out of persistence, so a file-backed restart
+// silently dropped every password and all logins then 401'd. We persist it
+// explicitly. Embedding app.User means future user fields persist automatically.
+type storedUser struct {
+	app.User
+	Hash string `json:"passwordHash"`
+}
+
+func toStored(u app.User) storedUser  { return storedUser{User: u, Hash: u.PasswordHash} }
+func (s storedUser) toUser() app.User { u := s.User; u.PasswordHash = s.Hash; return u }
+
+// MarshalJSON / UnmarshalJSON persist Users via storedUser so the password hash
+// survives a flush/load round-trip; every other map serializes as-is. Without
+// these, app.User.PasswordHash (json:"-") is dropped on write.
+func (d dataset) MarshalJSON() ([]byte, error) {
+	type plain dataset // a methodless alias → no recursion into MarshalJSON
+	users := make(map[string]storedUser, len(d.Users))
+	for id, u := range d.Users {
+		users[id] = toStored(u)
+	}
+	return json.Marshal(struct {
+		Users map[string]storedUser `json:"users"`
+		plain
+	}{Users: users, plain: plain(d)})
+}
+
+func (d *dataset) UnmarshalJSON(b []byte) error {
+	*d = emptyDataset() // all maps non-nil, even for a partial/old file
+	type plain dataset
+	aux := struct {
+		Users map[string]storedUser `json:"users"`
+		*plain
+	}{plain: (*plain)(d)}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	d.Users = make(map[string]app.User, len(aux.Users))
+	for id, su := range aux.Users {
+		d.Users[id] = su.toUser()
+	}
+	return nil
+}
+
 // Repo persists the dataset to <dir>/app.json on every write.
 type Repo struct {
 	mu   sync.Mutex
