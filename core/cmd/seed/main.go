@@ -35,15 +35,27 @@ type person struct {
 	role     string // human-readable role label for the guide (instrument/part)
 }
 
-// songDef pairs a song title/artist + settable metadata with its PDF source.
+// songDef pairs a song title/artist + settable metadata with its PDF source(s).
+//
+// A song normally has one shared PDF (src). To showcase the multi-file /
+// per-member "my files" feature, a song may instead define several pool files
+// (files): each is uploaded to the shared pool with a distinct human title
+// (pdfSource.docTitle). When files is set it takes precedence over src.
+//
+// myFilesFor curates a specific member's PERSONAL ordered selection over those
+// pool files: keyed by username, the value is a list of indices into files in
+// the exact order that member should see them (a non-default subset+order). The
+// seeder PUTs this via the my-files endpoint as that user.
 type songDef struct {
-	title  string
-	artist string
-	key    string // musical key (settable on the song page)
-	tempo  int    // BPM
-	tags   []string
-	notes  string
-	src    pdfSource
+	title      string
+	artist     string
+	key        string // musical key (settable on the song page)
+	tempo      int    // BPM
+	tags       []string
+	notes      string
+	src        pdfSource
+	files      []pdfSource    // optional multi-file shared pool (overrides src)
+	myFilesFor map[string][]int // username -> ordered indices into files (custom my-files)
 }
 
 // overrideDef is a per-setlist-item override (settable on the setlist page).
@@ -97,7 +109,19 @@ func run(addr, password string) error {
 			conductor: "leo", // promoted to the conductor role; owns the conductor cues
 			songs: []songDef{
 				{title: "Wonderwall", artist: "Oasis", key: "F#m", tempo: 87, tags: []string{"britpop", "singalong"}, notes: "Capo 2; everyone in on the last chorus.",
-					src: pdfSource{cacheName: "wonderwall.pdf", title: "Wonderwall", subtitle: "Oasis", pages: 3}},
+					// Multi-file shared pool: a full score plus per-instrument parts.
+					// Showcases the per-member "my files" feature below.
+					files: []pdfSource{
+						{cacheName: "wonderwall-score.pdf", docTitle: "Score", title: "Wonderwall — Score", subtitle: "Oasis (full score)", pages: 3},
+						{cacheName: "wonderwall-vocals.pdf", docTitle: "Part - Vocals", title: "Wonderwall — Vocals", subtitle: "Oasis (lead vocal)", pages: 2},
+						{cacheName: "wonderwall-guitar.pdf", docTitle: "Part - Guitar", title: "Wonderwall — Guitar", subtitle: "Oasis (rhythm guitar, capo 2)", pages: 2},
+						{cacheName: "wonderwall-bass.pdf", docTitle: "Part - Bass", title: "Wonderwall — Bass", subtitle: "Oasis (bass guitar)", pages: 1},
+					},
+					// Marie (the singer/admin) curates her own view: vocals first, then
+					// the full score, then the guitar part — a non-default subset+order.
+					myFilesFor: map[string][]int{
+						"marie": {1, 0, 2},
+					}},
 				{title: "Hallelujah", artist: "Leonard Cohen", key: "C", tempo: 60, tags: []string{"ballad"}, notes: "Slow 6/8; watch the dynamics.",
 					src: pdfSource{cacheName: "hallelujah.pdf", title: "Hallelujah", subtitle: "Leonard Cohen", pages: 4}},
 				{title: "Black Hole Sun", artist: "Soundgarden", key: "G", tempo: 105, tags: []string{"grunge", "encore"},
@@ -328,7 +352,15 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			}
 		}
 
-		// Skip the PDF upload if the song already has files (idempotency).
+		// Effective shared-pool sources: the multi-file pool if defined, else the
+		// single src. The first source drives the song's annotation layout.
+		sources := s.files
+		if len(sources) == 0 {
+			sources = []pdfSource{s.src}
+		}
+		primary := sources[0]
+
+		// Skip the PDF upload(s) if the song already has files (idempotency).
 		var fr filesResp
 		if err := admin.getJSON("/api/bands/"+bandID+"/songs/"+songID+"/files", &fr); err != nil {
 			return seededGroup{}, 0, 0, err
@@ -337,24 +369,67 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			fmt.Printf("     = already has %d file(s)\n", len(fr.Files))
 			// Re-runs reuse the existing PDF; learn its origin from the cache meta
 			// so annotation coords match (generated layout vs fetched/unknown).
-			anns = append(anns, songAnn{songID: songID, title: s.title, generated: !cachedFetched(s.src), pages: s.src.pages})
+			anns = append(anns, songAnn{songID: songID, title: s.title, generated: !cachedFetched(primary), pages: primary.pages})
 			continue
 		}
-		res, err := resolvePDF(s.src)
-		if err != nil {
-			return seededGroup{}, 0, 0, err
+		// Upload every pool file in order, assigning a matching displayOrder so the
+		// default ordering is deterministic.
+		uploaded := make([]string, 0, len(sources))
+		for i, src := range sources {
+			res, err := resolvePDF(src)
+			if err != nil {
+				return seededGroup{}, 0, 0, err
+			}
+			if res.fetched {
+				fetched++
+			} else {
+				generated++
+			}
+			var fileOut struct {
+				File struct {
+					ID string `json:"id"`
+				} `json:"file"`
+			}
+			if err := admin.uploadFile("/api/bands/"+bandID+"/songs/"+songID+"/files",
+				src.filename(), "application/pdf", res.data, &fileOut); err != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("upload pdf %q for %q: %w", src.filename(), s.title, err)
+			}
+			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+fileOut.File.ID,
+				map[string]any{"displayOrder": i}, nil); err != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for %q: %w", src.filename(), err)
+			}
+			uploaded = append(uploaded, fileOut.File.ID)
+			fmt.Printf("     + file %q (%s, %s, %d bytes)\n", src.filename(), src.cacheName, res.origin, len(res.data))
 		}
-		if res.fetched {
-			fetched++
-		} else {
-			generated++
+
+		// Curate per-member personal file selections via the my-files endpoint.
+		for username, order := range s.myFilesFor {
+			ids := make([]string, 0, len(order))
+			for _, idx := range order {
+				if idx >= 0 && idx < len(uploaded) {
+					ids = append(ids, uploaded[idx])
+				}
+			}
+			member := admin
+			if username != g.admin {
+				member, err = login(addr, username, password)
+				if err != nil {
+					return seededGroup{}, 0, 0, err
+				}
+			}
+			if err := member.putJSON("/api/bands/"+bandID+"/songs/"+songID+"/my-files",
+				map[string]any{"fileIds": ids}, nil); err != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("set my-files for %s on %q: %w", username, s.title, err)
+			}
+			titles := make([]string, len(order))
+			for i, idx := range order {
+				if idx >= 0 && idx < len(sources) {
+					titles[i] = sources[idx].filename()
+				}
+			}
+			fmt.Printf("     + %s my-files: [%s]\n", username, strings.Join(titles, ", "))
 		}
-		if err := admin.uploadFile("/api/bands/"+bandID+"/songs/"+songID+"/files",
-			s.src.cacheName, "application/pdf", res.data, nil); err != nil {
-			return seededGroup{}, 0, 0, fmt.Errorf("upload pdf for %q: %w", s.title, err)
-		}
-		fmt.Printf("     + PDF %s (%s, %d bytes)\n", s.src.cacheName, res.origin, len(res.data))
-		anns = append(anns, songAnn{songID: songID, title: s.title, generated: !res.fetched, pages: s.src.pages})
+		anns = append(anns, songAnn{songID: songID, title: s.title, generated: !cachedFetched(primary), pages: primary.pages})
 	}
 
 	// Promote a member to the conductor role BEFORE importing annotations, so the
@@ -695,7 +770,21 @@ func printGuide(addr, password string, people []person, groups []seededGroup, fe
 			if len(meta) > 0 {
 				suffix = "  (" + strings.Join(meta, ", ") + ")"
 			}
-			fmt.Fprintf(w, "      - %s%s  [PDF + annotations]\n", s.title, suffix)
+			files := "[PDF + annotations]"
+			if len(s.files) > 1 {
+				files = fmt.Sprintf("[%d files + annotations]", len(s.files))
+			}
+			fmt.Fprintf(w, "      - %s%s  %s\n", s.title, suffix, files)
+			// Spell out any curated per-member file selections (my-files).
+			for username, order := range s.myFilesFor {
+				titles := make([]string, 0, len(order))
+				for _, idx := range order {
+					if idx >= 0 && idx < len(s.files) {
+						titles = append(titles, s.files[idx].filename())
+					}
+				}
+				fmt.Fprintf(w, "          • %s's \"my files\": %s\n", username, strings.Join(titles, " → "))
+			}
 		}
 		if sl := g.def.setlist; sl.name != "" {
 			when := sl.eventDate
@@ -719,10 +808,15 @@ func printGuide(addr, password string, people []person, groups []seededGroup, fe
 	fmt.Fprintln(w, "       • dev/hot-reload SPA :  http://localhost:5173   (make dev)")
 	fmt.Fprintf(w, "       • single binary      :  %s   (make run / make demo)\n", addr)
 	fmt.Fprintln(w, "  2. Log in as  marie / "+password+"  →  The Troubadours")
-	fmt.Fprintln(w, "       OPEN a song (e.g. 'Wonderwall') in the Studio viewer to see its")
-	fmt.Fprintln(w, "       LAYERED ANNOTATIONS on the PDF: conductor cues (red, mandatory),")
-	fmt.Fprintln(w, "       shared section markings (amber Verse/Chorus/Bridge highlights),")
-	fmt.Fprintln(w, "       and a guitarist's 'Chords' layer (blue chord names + Capo).")
+	fmt.Fprintln(w, "       'Wonderwall' is a MULTI-FILE song: its shared pool has 4 files")
+	fmt.Fprintln(w, "       (Score, Part - Vocals, Part - Guitar, Part - Bass). Marie has a")
+	fmt.Fprintln(w, "       curated personal 'my files' selection — Part - Vocals → Score →")
+	fmt.Fprintln(w, "       Part - Guitar (a custom subset+order), so her viewer opens to")
+	fmt.Fprintln(w, "       exactly those, in that order, while bandmates see the default all.")
+	fmt.Fprintln(w, "       OPEN a song in the Studio viewer to see its LAYERED ANNOTATIONS")
+	fmt.Fprintln(w, "       on the PDF: conductor cues (red, mandatory), shared section")
+	fmt.Fprintln(w, "       markings (amber Verse/Chorus/Bridge highlights), and a guitarist's")
+	fmt.Fprintln(w, "       'Chords' layer (blue chord names + Capo).")
 	fmt.Fprintln(w, "       Toggle layers on/off, page to p.2 (Outro / D.C.), and zoom in.")
 	fmt.Fprintln(w, "  3. Log in as  maestro / "+password+"  →  City Chamber Orchestra")
 	fmt.Fprintln(w, "       open a piece for the same layered view — plus a player's green")

@@ -25,6 +25,16 @@ type pdfSource struct {
 	title     string   // used in the generated fallback
 	subtitle  string   // e.g. composer/artist
 	pages     int      // generated fallback page count
+	docTitle  string   // human file title stored as the pool file's filename (defaults to cacheName)
+}
+
+// filename is the title stored for the uploaded pool file: docTitle if set,
+// else the cache file name.
+func (s pdfSource) filename() string {
+	if s.docTitle != "" {
+		return s.docTitle
+	}
+	return s.cacheName
 }
 
 // pdfResult is the outcome of resolving one source: the bytes plus how we got them.
