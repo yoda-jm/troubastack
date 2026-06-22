@@ -267,23 +267,175 @@ function shapeStyle(obj: InkObject): { fill: boolean; stroke: boolean; multiply:
   return { fill: s.fill ?? false, stroke: s.stroke ?? false, multiply: s.blend === "multiply" };
 }
 
-/** Paint a shape's interior + border per its resolved fill/stroke/blend. `pathFn`
- *  builds the path (rect or ellipse); fill uses globalAlpha, stroke is always opaque-
- *  for-its-color (alpha already set on the context by renderObject). */
-function paintShape(ctx: Ctx2D, obj: InkObject, page: PageRect, pathFn: () => void): void {
+/**
+ * Build the FILL path for a shape — the full bbox interior. Used both for the
+ * direct fill and, on the composite path, the offscreen fill.
+ */
+type ShapeGeom = {
+  /** Append the interior (full bbox) path to `c`'s current sub-path list. */
+  fillPath: (c: Ctx2D) => void;
+  /** Append the INSET border path (shrunk by half the line width) to `c`. */
+  strokePath: (c: Ctx2D, lineWidth: number) => void;
+};
+
+function rectGeom(r: { x: number; y: number; w: number; h: number }): ShapeGeom {
+  return {
+    fillPath: (c) => {
+      c.beginPath();
+      c.rect(r.x, r.y, r.w, r.h);
+    },
+    // Canvas strokes are CENTERED on the path, so half the line width spills
+    // each way. Shrink the rect by half the line width per side so the border
+    // grows INWARD and never leaks past the object's bbox. Clamp the inset so a
+    // very large width can't invert the rectangle (size stays ≥ 0).
+    strokePath: (c, lineWidth) => {
+      const inset = lineWidth / 2;
+      const x = r.x + inset;
+      const y = r.y + inset;
+      const w = Math.max(0, r.w - lineWidth);
+      const h = Math.max(0, r.h - lineWidth);
+      c.beginPath();
+      c.rect(x, y, w, h);
+    },
+  };
+}
+
+function ellipseGeom(r: { x: number; y: number; w: number; h: number }): ShapeGeom {
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  return {
+    fillPath: (c) => {
+      c.beginPath();
+      c.ellipse(cx, cy, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
+    },
+    // Same inset reasoning as rect: pull the radii in by half the line width so
+    // the centered stroke stays inside the bbox. Clamp radii ≥ 0.
+    strokePath: (c, lineWidth) => {
+      const inset = lineWidth / 2;
+      const rx = Math.max(0, r.w / 2 - inset);
+      const ry = Math.max(0, r.h / 2 - inset);
+      c.beginPath();
+      c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    },
+  };
+}
+
+/** The target ctx's current transform (for matching scale in the offscreen),
+ *  or null if unavailable. We only read the axis scales (a, d). */
+function getCtxTransform(ctx: Ctx2D): { a: number; d: number } | null {
+  const g = ctx as { getTransform?: () => DOMMatrix };
+  if (typeof g.getTransform !== "function") return null;
+  try {
+    const m = g.getTransform();
+    return { a: m.a, d: m.d };
+  } catch {
+    return null;
+  }
+}
+
+/** Allocate an OffscreenCanvas/HTMLCanvas-agnostic 2D context for compositing. */
+function makeOffscreen(w: number, h: number): { ctx: Ctx2D; canvas: CanvasImageSource } | null {
+  const iw = Math.max(1, Math.ceil(w));
+  const ih = Math.max(1, Math.ceil(h));
+  if (typeof OffscreenCanvas !== "undefined") {
+    const oc = new OffscreenCanvas(iw, ih);
+    const c = oc.getContext("2d");
+    if (!c) return null;
+    return { ctx: c, canvas: oc };
+  }
+  if (typeof document !== "undefined") {
+    const el = document.createElement("canvas");
+    el.width = iw;
+    el.height = ih;
+    const c = el.getContext("2d");
+    if (!c) return null;
+    return { ctx: c, canvas: el };
+  }
+  return null;
+}
+
+/**
+ * Paint a shape's interior + border per its resolved fill/stroke/blend.
+ *
+ * Two paths:
+ *  - FILL-ONLY or STROKE-ONLY (incl. Highlight): the simple direct path — paint
+ *    straight onto `ctx` at the opacity/blend already set by renderObject. This
+ *    keeps every legacy look (outline rect/ellipse, Highlight multiply) byte-for-byte.
+ *  - FILL **and** STROKE (the "Box"): render the OPAQUE fill + OPAQUE inset stroke
+ *    onto an offscreen canvas first, then blit the result onto `ctx` ONCE at the
+ *    object's opacity (and blend). The shape then reads as a single uniform-opacity
+ *    mark — no double-blended (darker) rim where fill and stroke overlap.
+ */
+function paintShape(ctx: Ctx2D, obj: InkObject, page: PageRect, geom: ShapeGeom): void {
   const { fill, stroke, multiply } = shapeStyle(obj);
+  const color = obj.style.color;
+  const lineWidth = strokePx(obj.style, page);
+
+  // --- Combined fill+stroke: single-opacity offscreen composite. ----------
+  if (fill && stroke) {
+    const opacity = clamp01(obj.style.opacity ?? 1);
+    // The target ctx may carry a scale transform (callers scale by devicePixel-
+    // Ratio so [0,1] coords map to logical CSS px while the backing store is at
+    // device resolution). Allocate the offscreen at DEVICE resolution and apply
+    // the SAME scale, so the composite is as crisp as a direct draw, then blit it
+    // back at the matching device pixels. Only the shape's bbox is composited, so
+    // the (multiply) blend touches only the shape — never the whole page.
+    const m = getCtxTransform(ctx);
+    const sx = m ? m.a : 1;
+    const sy = m ? m.d : 1;
+    const r = bbox(obj, page);
+    // Offscreen origin in LOGICAL space (floor for a stable integer device map).
+    const ox = Math.floor(r.x);
+    const oy = Math.floor(r.y);
+    // Device-pixel offscreen size, padded by 1 logical px each side for AA.
+    const dox = Math.floor(ox * sx);
+    const doy = Math.floor(oy * sy);
+    const off = makeOffscreen((r.w + 2) * sx, (r.h + 2) * sy);
+    if (off) {
+      const o = off.ctx;
+      o.save();
+      // Replicate the target's scale; map logical (ox,oy) → offscreen (0,0).
+      o.setTransform(sx, 0, 0, sy, -dox, -doy);
+      o.lineJoin = "round";
+      o.lineCap = "round";
+      // Paint OPAQUE onto the offscreen; opacity is applied once on the blit.
+      o.fillStyle = color;
+      geom.fillPath(o);
+      o.fill();
+      o.lineWidth = lineWidth;
+      o.strokeStyle = color;
+      geom.strokePath(o, lineWidth);
+      o.stroke();
+      o.restore();
+
+      ctx.save();
+      // Blit in DEVICE space (identity) so the offscreen's device pixels land
+      // 1:1 on the target's backing store — no resampling, no edge spread.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = opacity;
+      if (multiply) ctx.globalCompositeOperation = "multiply";
+      (ctx as CanvasRenderingContext2D).drawImage(off.canvas as CanvasImageSource, dox, doy);
+      ctx.restore();
+      return;
+    }
+    // Offscreen unavailable (no OffscreenCanvas/document): fall through to the
+    // direct path below so the shape still renders (with the old double-blend).
+  }
+
+  // --- Direct path: fill-only, stroke-only, or composite fallback. --------
   if (fill) {
     ctx.save();
     if (multiply) ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = obj.style.color;
-    pathFn();
+    ctx.fillStyle = color;
+    geom.fillPath(ctx);
     ctx.fill();
     ctx.restore();
   }
   if (stroke) {
-    ctx.lineWidth = strokePx(obj.style, page);
-    ctx.strokeStyle = obj.style.color;
-    pathFn();
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = color;
+    // Inset the border so the centered stroke stays inside the bbox.
+    geom.strokePath(ctx, lineWidth);
     ctx.stroke();
   }
 }
@@ -291,23 +443,13 @@ function paintShape(ctx: Ctx2D, obj: InkObject, page: PageRect, pathFn: () => vo
 function drawRect(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
-  const r = bbox(obj, page);
-  paintShape(ctx, obj, page, () => {
-    ctx.beginPath();
-    ctx.rect(r.x, r.y, r.w, r.h);
-  });
+  paintShape(ctx, obj, page, rectGeom(bbox(obj, page)));
 }
 
 function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
-  const r = bbox(obj, page);
-  const cx = r.x + r.w / 2;
-  const cy = r.y + r.h / 2;
-  paintShape(ctx, obj, page, () => {
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, r.w / 2, r.h / 2, 0, 0, Math.PI * 2);
-  });
+  paintShape(ctx, obj, page, ellipseGeom(bbox(obj, page)));
 }
 
 // Legacy "highlight" objects route through the same shape painter (shapeStyle infers
@@ -315,11 +457,7 @@ function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
 function drawHighlight(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
-  const r = bbox(obj, page);
-  paintShape(ctx, obj, page, () => {
-    ctx.beginPath();
-    ctx.rect(r.x, r.y, r.w, r.h);
-  });
+  paintShape(ctx, obj, page, rectGeom(bbox(obj, page)));
 }
 
 function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
