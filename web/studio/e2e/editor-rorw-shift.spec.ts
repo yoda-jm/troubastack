@@ -1,0 +1,206 @@
+/**
+ * BUG (reproduce-first): focusing a READ-ONLY layer shifts the editor layout.
+ *
+ * Same class as the style-toolbar stability fix (ec8dd3f): controls/hints that
+ * appear in only ONE state change the toolbar's footprint. Here the offenders
+ * are the inline `draw-locked-hint` (renders only when a RO/locked layer is
+ * focused) and the active-layer-indicator / "Edit this layer" CTA region (its
+ * content/line-count changes with focus + editability). When the RO layer is
+ * focused the toolbar grows taller and the viewer (`pdf-page`) is pushed down.
+ *
+ * Reproduce-first: seed a song with BOTH a RW personal layer (mine, editable)
+ * and a RO shared layer (someone else's, with an object). With the Select tool,
+ * measure (a) `editor-toolbar` boundingBox height and (b) the `pdf-page` top
+ * offset at a fixed scroll position, in two states:
+ *   (a) RW layer active   (b) RO layer focused (click its object/row)
+ * Assert both measurements are EQUAL across the two states.
+ *
+ * Screenshots: /tmp/ro-rw-rw.png (RW active), /tmp/ro-rw-ro.png (RO focused).
+ */
+import { test, expect, type Page } from "@playwright/test";
+import { fileURLToPath } from "node:url";
+
+const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
+
+async function register(page: Page, username: string, password = "secret123") {
+  await page.goto("/register");
+  await page.getByTestId("username").fill(username);
+  await page.getByTestId("displayName").fill(`Display ${username}`);
+  await page.getByTestId("password").fill(password);
+  await page.getByTestId("submit").click();
+  await expect(page).toHaveURL(/\/bands$/);
+}
+
+async function myUserId(page: Page): Promise<string> {
+  return page.evaluate(async (): Promise<string> => {
+    const r = await fetch("/api/me", { credentials: "include" });
+    const j = (await r.json()) as { user: { id: string } };
+    return j.user.id;
+  });
+}
+
+async function createBandAndOpen(page: Page, bandName: string): Promise<{ url: string; id: string }> {
+  await page.getByTestId("band-name").fill(bandName);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
+  await expect(page.getByTestId("band-title")).toHaveText(bandName);
+  const url = page.url();
+  return { url, id: url.split("/bands/")[1] };
+}
+
+async function createSongAndOpen(page: Page, title: string): Promise<string> {
+  await page.getByTestId("song-title").fill(title);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").filter({ hasText: title }).click();
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+  return page.url().split("/songs/")[1];
+}
+
+async function uploadPdf(page: Page) {
+  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
+  await page.getByTestId("file-upload").click();
+  await expect(page.getByTestId("file-row")).toHaveCount(1);
+}
+
+async function firstFileId(page: Page, bandId: string, songId: string): Promise<string> {
+  return page.evaluate(
+    async ([b, s]): Promise<string> => {
+      const r = await fetch(`/api/bands/${b}/songs/${s}/files`, { credentials: "include" });
+      const j = (await r.json()) as { files: { id: string }[] };
+      return j.files[0].id;
+    },
+    [bandId, songId],
+  );
+}
+
+async function importDoc(page: Page, bandId: string, songId: string, doc: unknown) {
+  return page.evaluate(
+    async ([b, s, body]) => {
+      const r = await fetch(`/api/bands/${b}/songs/${s}/annotations/import`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return { ok: r.ok, status: r.status };
+    },
+    [bandId, songId, doc] as const,
+  );
+}
+
+const STYLE = { color: "#e11d48", opacity: 1, width: 0.004, fontSize: 0.04 };
+
+async function openEditorReady(page: Page) {
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+  await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
+  await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+}
+
+async function setup(page: Page, prefix: string) {
+  await register(page, `${prefix}_${stamp()}`);
+  const band = await createBandAndOpen(page, `${prefix}Band ${stamp()}`);
+  const songId = await createSongAndOpen(page, `${prefix}Song ${stamp()}`);
+  await uploadPdf(page);
+  const fileId = await firstFileId(page, band.id, songId);
+  const me = await myUserId(page);
+  return { bandId: band.id, songId, fileId, me };
+}
+
+/** Toolbar height + viewer top offset at a FIXED scroll position (top). */
+async function measure(page: Page): Promise<{ toolbarH: number; pageTop: number }> {
+  // Pin scroll to the top so the pdf-page's viewport-relative top is comparable
+  // across states. (globalThis avoids a DOM-lib dep in the e2e tsconfig.)
+  await page.evaluate(() =>
+    (globalThis as unknown as { scrollTo: (x: number, y: number) => void }).scrollTo(0, 0),
+  );
+  const tb = (await page.getByTestId("editor-toolbar").boundingBox())!;
+  const pg = (await page.getByTestId("pdf-page").first().boundingBox())!;
+  return { toolbarH: tb.height, pageTop: pg.y };
+}
+
+test("editor: focusing a read-only layer does NOT shift the layout (RO vs RW footprint identical)", async ({
+  page,
+}) => {
+  // A narrowed viewport puts the tool-palette near its wrap boundary, so the
+  // extra width of the inline `draw-locked-hint` is what tips the row into an
+  // additional line (the layout shift). At the default 1280px width there is
+  // slack and the hint fits on the existing line, hiding the regression.
+  await page.setViewportSize({ width: 560, height: 900 });
+
+  const { bandId, songId, fileId, me } = await setup(page, "RoRw");
+  const doc = {
+    layers: [
+      // RW personal layer owned by ME → editable; will be the active edit target.
+      {
+        id: "layer-mine",
+        fileId,
+        name: "My notes",
+        ownerId: me,
+        zone: "personal",
+        order: 0,
+        access: "rw",
+        mandatory: false,
+        roleTag: "",
+      },
+      // RO shared layer owned by SOMEONE ELSE → visible but not editable by me.
+      {
+        id: "layer-ro",
+        fileId,
+        name: "Shared (locked)",
+        ownerId: "someone-else",
+        zone: "shared",
+        order: 1,
+        access: "ro",
+        mandatory: false,
+        roleTag: "",
+      },
+    ],
+    objects: [
+      // An object on MY (RW) layer.
+      {
+        uuid: "mine-box",
+        layerId: "layer-mine",
+        type: "rect",
+        points: [{ x: 0.2, y: 0.12 }, { x: 0.45, y: 0.3 }],
+        page: 0,
+        text: "",
+        style: STYLE,
+      },
+      // An object on the RO layer (so focusing it is meaningful / clickable).
+      {
+        uuid: "ro-box",
+        layerId: "layer-ro",
+        type: "rect",
+        points: [{ x: 0.55, y: 0.12 }, { x: 0.8, y: 0.3 }],
+        page: 0,
+        text: "",
+        style: STYLE,
+      },
+    ],
+  };
+  expect((await importDoc(page, bandId, songId, doc)).ok).toBeTruthy();
+  await page.reload();
+  await openEditorReady(page);
+  await page.getByTestId("tool-select").click();
+
+  // ---- State (a): the RW layer is the active/focused target. ----
+  await page.getByTestId("layer-row").filter({ hasText: "My notes" }).click();
+  // The RW layer is active/focused → the locked hint is NOT shown (its space is
+  // reserved by the fix, but it is not visible).
+  await expect(page.getByTestId("draw-locked-hint")).toBeHidden();
+  const rw = await measure(page);
+  await page.screenshot({ path: "/tmp/ro-rw-rw.png", fullPage: true });
+
+  // ---- State (b): focus the RO layer (click its row). ----
+  await page.getByTestId("layer-row").filter({ hasText: "Shared (locked)" }).click();
+  // Focusing the RO layer surfaces the locked hint (the shift trigger).
+  await expect(page.getByTestId("draw-locked-hint")).toBeVisible();
+  const ro = await measure(page);
+  await page.screenshot({ path: "/tmp/ro-rw-ro.png", fullPage: true });
+
+  // The toolbar footprint and the viewer position must be IDENTICAL across the
+  // two states — focusing a read-only layer must not move anything.
+  expect(ro.toolbarH).toBe(rw.toolbarH);
+  expect(ro.pageTop).toBe(rw.pageTop);
+});

@@ -1685,11 +1685,17 @@ function AnnotationList({
       <h2 data-testid="annotation-list-title">
         Annotations{focusedLayer ? ` · ${focusedLayer.name}` : ""}
       </h2>
-      {focusLocked && (
-        <p className="muted annotation-list-locked-hint" data-testid="annotation-list-locked">
-          read-only layer — pick an editable layer to draw
-        </p>
-      )}
+      {/* Always mounted so the panel's height (and, when the layout stacks the
+          sidebar above the viewer at narrow widths, the viewer's top offset) is
+          identical whether or not a locked layer is focused — only visibility
+          flips, the line's space is always reserved. */}
+      <p
+        className={`muted annotation-list-locked-hint${focusLocked ? "" : " annotation-list-locked-off"}`}
+        data-testid="annotation-list-locked"
+        aria-hidden={!focusLocked}
+      >
+        read-only layer — pick an editable layer to draw
+      </p>
       {!focusedLayer ? (
         <p className="muted" data-testid="annotation-list-empty">
           No layer selected — pick a layer to see its annotations.
@@ -1820,11 +1826,20 @@ function EditorToolbar({
             {t.label}
           </button>
         ))}
-        {drawLocked && (
-          <span className="draw-locked-hint" data-testid="draw-locked-hint" role="status">
-            read-only layer — pick an editable layer to draw
-          </span>
-        )}
+        {/* Locked hint lives in its OWN reserved slot (NOT inline among the tool
+            buttons): it is ALWAYS mounted so its row never appears/disappears,
+            and only its visibility flips with `drawLocked`. Mounting it inline
+            (or display-toggling it) changed the palette's wrapped width/height
+            and pushed the whole viewer down — same footprint-stability rule as
+            the .style-slot-off control slots. */}
+        <span
+          className={`draw-locked-hint${drawLocked ? "" : " draw-hint-off"}`}
+          data-testid="draw-locked-hint"
+          role="status"
+          aria-hidden={!drawLocked}
+        >
+          read-only layer — pick an editable layer to draw
+        </span>
       </div>
 
       {(() => {

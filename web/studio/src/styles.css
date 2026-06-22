@@ -540,9 +540,17 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg, #111827);
   min-width: 3.2ch; text-align: right;
 }
-/* Inline hint when a read-only (locked) layer is focused. */
+/* Hint shown when a read-only (locked) layer is focused. It is ALWAYS mounted
+   so the tool-palette's wrapped width/height (and thus the viewer position) is
+   identical whether or not a locked layer is focused — `.draw-hint-off` only
+   hides it (visibility, space reserved), mirroring `.style-slot-off`. */
 .draw-locked-hint { font-size: .8rem; color: #b45309; align-self: center; }
+.draw-hint-off { visibility: hidden; pointer-events: none; }
 .annotation-list-locked-hint { color: #b45309; font-size: .8rem; margin: 0; }
+/* Reserve the locked-hint line in the annotation panel even when not locked,
+   so focusing a read-only layer never shifts the panel (or, at narrow widths
+   where the sidebar stacks above the viewer, the viewer's top). */
+.annotation-list-locked-off { visibility: hidden; }
 
 .layer-controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .new-layer-btn, .delete-object-btn { padding: .35rem .6rem; font-size: .85rem; }
