@@ -389,9 +389,22 @@ export type PickContext = {
   isEditableNow: (obj: AnnotationObject) => boolean;
 };
 
-/** A "strong" hit = the point is inside the object's TRUE shape (small tol);
- *  a "weak" hit = only within the generous proximity pad just outside it. */
+/** A "strong" hit = the point is inside the object's TRUE shape, OR within only a
+ *  SMALL fixed margin of it (a few px) — this is the MOVABLE region (Bug #3). A
+ *  "weak" hit = only within the generous proximity pad beyond that, which stays
+ *  SELECTABLE (so thin lines / text are easy to click) but never starts a move. */
 type HitStrength = "strong" | "weak" | "none";
+
+/** The small fixed margin (px) added around a containment shape's true body that
+ *  still counts as a MOVE-eligible (strong) hit. A few px so a press right at the
+ *  edge still grabs to move, without the generous select pad's overreach (#3). */
+const MOVE_MARGIN_PX = 6;
+
+/** The MOVE_MARGIN_PX margin as a page-relative [0,1] fraction on the given axis. */
+function moveMarginFrac(axis: "x" | "y", pageW: number, pageH: number): number {
+  const dim = axis === "x" ? pageW : pageH;
+  return dim > 0 ? MOVE_MARGIN_PX / dim : 0.004;
+}
 
 /** Classify a point against ONE object's true geometry vs. its proximity pad. */
 function classifyHit(
@@ -405,9 +418,13 @@ function classifyHit(
   const b = objectBBox(obj, measure);
 
   if (obj.type === "text") {
-    // Text: inside the GLYPH box is strong; within the generous pad is weak.
+    // Text: inside the GLYPH box (+ a small fixed px move-margin) is strong
+    // (movable, #3); within the generous text pad beyond that is weak (select
+    // only — so clicking just around the glyphs still selects, never moves).
     const tp = textHitPad(measure);
-    if (insideBox(b, x, y, 0.002, 0.002)) return "strong";
+    const mX = moveMarginFrac("x", pageW, pageH);
+    const mY = moveMarginFrac("y", pageW, pageH);
+    if (insideBox(b, x, y, mX, mY)) return "strong";
     if (insideBox(b, x, y, tp.padX, tp.padY)) return "weak";
     return "none";
   }
@@ -442,9 +459,13 @@ function classifyHit(
     const cy = (b.minY + b.maxY) / 2;
     const rx = (b.maxX - b.minX) / 2;
     const ry = (b.maxY - b.minY) / 2;
+    // Strong (movable): inside the ellipse equation grown by the small fixed
+    // px move-margin on each axis (so a press right at the edge still grabs).
     if (rx > 1e-6 && ry > 1e-6) {
-      const nx = (x - cx) / rx;
-      const ny = (y - cy) / ry;
+      const mX = moveMarginFrac("x", pageW, pageH);
+      const mY = moveMarginFrac("y", pageW, pageH);
+      const nx = (x - cx) / (rx + mX);
+      const ny = (y - cy) / (ry + mY);
       if (nx * nx + ny * ny <= 1.0) return "strong";
     }
     // Weak: within a small proximity pad of the bbox (so near-edge clicks grab).
@@ -452,9 +473,12 @@ function classifyHit(
     return "none";
   }
 
-  // rect / highlight / any filled shape: inside the rectangle (small tol) = strong;
-  // within the generous proximity pad just outside = weak.
-  if (insideBox(b, x, y, 0.004, 0.004)) return "strong";
+  // rect / highlight / any filled shape: inside the rectangle + a SMALL fixed
+  // px margin = strong (movable, #3); within the generous proximity pad beyond
+  // that = weak (selectable only).
+  const mX = moveMarginFrac("x", pageW, pageH);
+  const mY = moveMarginFrac("y", pageW, pageH);
+  if (insideBox(b, x, y, mX, mY)) return "strong";
   if (insideBox(b, x, y, 0.02, 0.02)) return "weak";
   return "none";
 }
@@ -506,8 +530,15 @@ export function pickAt(pt: { x: number; y: number }, ctx: PickContext): PickResu
     return b.z - a.z;
   });
 
-  const winner = cands[0].obj;
-  return { object: winner, mode: ctx.isEditableNow(winner) ? "move" : "select" };
+  const top = cands[0];
+  const winner = top.obj;
+  // Bug #3: MOVE requires a STRONG (containment) hit — the pointer inside the
+  // object's true shape (or within only a tiny margin baked into `classifyHit`'s
+  // strong test), NOT the generous proximity pad. A WEAK (pad-only) hit still
+  // SELECTS (so thin lines / text stay easy to click), but never starts a move.
+  // Rectangles use a tight strong tol, so they keep their exact feel.
+  const mode: PickMode = ctx.isEditableNow(winner) && top.strong ? "move" : "select";
+  return { object: winner, mode };
 }
 
 /** The CSS cursor for a pick result + the active tool's default fallback. */
@@ -548,6 +579,51 @@ export function intersectsRect(
 /** Is a rubber-band drag big enough to count as a marquee (vs. a stray click)? */
 export function isMarquee(r: SelectRect): boolean {
   return Math.hypot(r.x1 - r.x0, r.y1 - r.y0) > 0.01;
+}
+
+/** The combined [0,1] bbox of several objects (the union of their bboxes). Returns
+ *  null for an empty set. Used by the multi-select group MOVE: a press anywhere
+ *  inside this box (or on any one selected object) begins dragging the whole set. */
+export function combinedBBox(
+  objs: AnnotationObject[],
+  measure?: TextMeasure,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  if (objs.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const o of objs) {
+    const b = objectBBox(o, measure);
+    if (b.minX < minX) minX = b.minX;
+    if (b.minY < minY) minY = b.minY;
+    if (b.maxX > maxX) maxX = b.maxX;
+    if (b.maxY > maxY) maxY = b.maxY;
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+/** Would a press at `pt` grab a multi-selection for a group move? True when the
+ *  point lands inside the combined bbox (small pad) OR on any one selected
+ *  object's hit-region. Independent of per-object editability — the move itself
+ *  only translates the editable-now members (the caller enforces that). */
+export function hitsMultiSelection(
+  pt: { x: number; y: number },
+  selected: AnnotationObject[],
+  pageW: number,
+  pageH: number,
+  measure?: TextMeasure,
+): boolean {
+  if (selected.length < 2) return false;
+  // On any individual selected object (strong OR weak) → grab.
+  for (const o of selected) {
+    if (classifyHit(o, pt.x, pt.y, pageW, pageH, measure) !== "none") return true;
+  }
+  // Otherwise inside the combined bbox (with a small pad) → grab.
+  const b = combinedBBox(selected, measure);
+  if (!b) return false;
+  return insideBox(b, pt.x, pt.y, 0.004, 0.004);
 }
 
 // ---------------------------------------------------------------------------

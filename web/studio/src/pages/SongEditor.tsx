@@ -51,6 +51,7 @@ import {
   buildObject,
   cursorForPick,
   handlesVisible,
+  hitsMultiSelection,
   intersectsRect,
   isMarquee,
   isMeaningfulGesture,
@@ -1077,6 +1078,7 @@ function Viewer({
         style={effectiveStyle}
         onStyle={applyStyle}
         controlsLocked={controlsLocked}
+        multiSelected={selectedUuids.length > 1}
         selectedType={selectedObject?.type ?? null}
         editableLayers={editableLayers}
         activeLayerId={activeLayerId}
@@ -1753,6 +1755,7 @@ function EditorToolbar({
   style,
   onStyle,
   controlsLocked,
+  multiSelected,
   selectedType,
   editableLayers,
   activeLayerId,
@@ -1777,6 +1780,9 @@ function EditorToolbar({
   onStyle: (s: AnnotationStyle) => void;
   // The selected object is on a locked layer → style controls reflect but are disabled.
   controlsLocked: boolean;
+  // More than one object is selected (#4): style/restyle controls are disabled,
+  // since one set of controls can't sanely restyle a heterogeneous selection.
+  multiSelected: boolean;
   // The selected object's type (drives the tool/shape indicator), or null.
   selectedType: AnnotationObject["type"] | null;
   editableLayers: AnnotationLayer[];
@@ -1821,15 +1827,44 @@ function EditorToolbar({
         )}
       </div>
 
+      {(() => {
+      // ---- per-type control relevance (#1+#2) ----------------------------
+      // The bar's FOOTPRINT never changes with selection: every control slot is
+      // ALWAYS rendered; irrelevant slots are hidden via `visibility:hidden`
+      // (the .style-slot-off modifier) so they reserve their space and the page
+      // never reflows. Relevance only flips which slots are VISIBLE:
+      //   - TEXT target  → color, opacity, SIZE (fontSize). Width + shape hidden.
+      //   - SHAPE/draw   → color, opacity, WIDTH, border/fill/blend + presets.
+      //                    Text size hidden.
+      //   - nothing selected + Select tool → the neutral baseline: show all
+      //     slots (stable, maximal footprint) so picking up a selection only
+      //     ever HIDES slots, never adds them.
+      // `disabled` greys + locks the inputs (locked single OR multi-selection).
+      const disabled = controlsLocked || multiSelected;
+      const isTextTarget = selectedType === "text" || (selectedType == null && tool === "text");
+      const isShapeTgt =
+        isShapeTarget(tool, selectedType) ||
+        (selectedType == null && (tool === "line" || tool === "freehand"));
+      // Neutral baseline (no selection, Select tool): show every slot.
+      const neutral = selectedType == null && tool === "select";
+      const showWidth = neutral || isShapeTgt || (selectedType != null && selectedType !== "text");
+      const showShape = neutral || isShapeTgt;
+      const showFont = neutral || isTextTarget;
+      const slot = (on: boolean) => `style-field${on ? "" : " style-slot-off"}`;
+      return (
       <div
         className={`style-controls${selectedType ? " editing-selection" : ""}${
-          controlsLocked ? " controls-locked" : ""
+          disabled ? " controls-locked" : ""
         }`}
         data-testid="style-controls"
       >
-        {/* Shape/type indicator: the selected object's type, else the draw tool. */}
+        {/* Shape/type indicator: the selection's type/count, else the draw tool. */}
         <span className="pill style-target" data-testid="style-target">
-          {selectedType ? `Editing: ${selectedType}` : `Draw: ${tool}`}
+          {multiSelected
+            ? `${selectionCount} selected`
+            : selectedType
+              ? `Editing: ${selectedType}`
+              : `Draw: ${tool}`}
         </span>
         <span className="swatches">
           {COLOR_SWATCHES.map((c) => (
@@ -1839,7 +1874,7 @@ function EditorToolbar({
               className={`swatch${style.color === c ? " active" : ""}`}
               style={{ background: c }}
               aria-label={`Color ${c}`}
-              disabled={controlsLocked}
+              disabled={disabled}
               onClick={() => onStyle({ ...style, color: c })}
             />
           ))}
@@ -1850,7 +1885,7 @@ function EditorToolbar({
             type="color"
             data-testid="style-color"
             value={style.color}
-            disabled={controlsLocked}
+            disabled={disabled}
             onChange={(e) => onStyle({ ...style, color: e.target.value })}
           />
           <span className="style-value" data-testid="style-color-value">
@@ -1866,14 +1901,15 @@ function EditorToolbar({
             max={1}
             step={0.05}
             value={style.opacity}
-            disabled={controlsLocked}
+            disabled={disabled}
             onChange={(e) => onStyle({ ...style, opacity: Number(e.target.value) })}
           />
           <span className="style-value" data-testid="style-opacity-value">
             {Math.round(style.opacity * 100)}%
           </span>
         </label>
-        <label className="style-field">
+        {/* WIDTH — stroke width. Relevant for shapes/strokes, not text. */}
+        <label className={slot(showWidth)} aria-hidden={!showWidth}>
           <span>Width</span>
           <input
             type="range"
@@ -1882,70 +1918,79 @@ function EditorToolbar({
             max={0.02}
             step={0.001}
             value={style.width}
-            disabled={controlsLocked}
+            disabled={disabled || !showWidth}
+            tabIndex={showWidth ? undefined : -1}
             onChange={(e) => onStyle({ ...style, width: Number(e.target.value) })}
           />
           <span className="style-value" data-testid="style-width-value">
             {(style.width * 1000).toFixed(1)}
           </span>
         </label>
-        {/* Shape style (#5): fill / border(stroke) / blend + presets. Shown for shape
-            tools (rect/ellipse) or a selected shape; disabled when controls are locked. */}
-        {isShapeTarget(tool, selectedType) && (
-          <div className="shape-style" data-testid="shape-style">
-            <span className="preset-buttons" role="group" aria-label="Shape presets">
-              {PRESET_BUTTONS.map((p) => {
-                const active = matchPreset(style) === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    data-testid={p.testid}
-                    className={`preset-btn${active ? " active" : ""}`}
-                    aria-pressed={active}
-                    disabled={controlsLocked}
-                    onClick={() => onStyle(applyPreset(style, p.id))}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
-            </span>
-            <label className="style-field shape-toggle">
-              <input
-                type="checkbox"
-                data-testid="style-fill"
-                checked={style.fill ?? false}
-                disabled={controlsLocked}
-                onChange={(e) => onStyle({ ...style, fill: e.target.checked })}
-              />
-              <span>Fill</span>
-            </label>
-            <label className="style-field shape-toggle">
-              <input
-                type="checkbox"
-                data-testid="style-stroke"
-                checked={style.stroke ?? true}
-                disabled={controlsLocked}
-                onChange={(e) => onStyle({ ...style, stroke: e.target.checked })}
-              />
-              <span>Border</span>
-            </label>
-            <label className="style-field">
-              <span>Blend</span>
-              <select
-                data-testid="style-blend"
-                value={style.blend ?? "normal"}
-                disabled={controlsLocked}
-                onChange={(e) => onStyle({ ...style, blend: e.target.value as "normal" | "multiply" })}
-              >
-                <option value="normal">Normal</option>
-                <option value="multiply">Multiply</option>
-              </select>
-            </label>
-          </div>
-        )}
-        <label className="style-field">
+        {/* Shape style (#5): fill / border(stroke) / blend + presets. Relevant for
+            shape/draw targets; hidden (space reserved) for text/none. */}
+        <div
+          className={`shape-style${showShape ? "" : " style-slot-off"}`}
+          data-testid="shape-style"
+          aria-hidden={!showShape}
+        >
+          <span className="preset-buttons" role="group" aria-label="Shape presets">
+            {PRESET_BUTTONS.map((p) => {
+              const active = matchPreset(style) === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-testid={p.testid}
+                  className={`preset-btn${active ? " active" : ""}`}
+                  aria-pressed={active}
+                  disabled={disabled || !showShape}
+                  tabIndex={showShape ? undefined : -1}
+                  onClick={() => onStyle(applyPreset(style, p.id))}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </span>
+          <label className="style-field shape-toggle">
+            <input
+              type="checkbox"
+              data-testid="style-fill"
+              checked={style.fill ?? false}
+              disabled={disabled || !showShape}
+              tabIndex={showShape ? undefined : -1}
+              onChange={(e) => onStyle({ ...style, fill: e.target.checked })}
+            />
+            <span>Fill</span>
+          </label>
+          <label className="style-field shape-toggle">
+            <input
+              type="checkbox"
+              data-testid="style-stroke"
+              checked={style.stroke ?? true}
+              disabled={disabled || !showShape}
+              tabIndex={showShape ? undefined : -1}
+              onChange={(e) => onStyle({ ...style, stroke: e.target.checked })}
+            />
+            <span>Border</span>
+          </label>
+          <label className="style-field">
+            <span>Blend</span>
+            <select
+              data-testid="style-blend"
+              value={style.blend ?? "normal"}
+              disabled={disabled || !showShape}
+              tabIndex={showShape ? undefined : -1}
+              onChange={(e) => onStyle({ ...style, blend: e.target.value as "normal" | "multiply" })}
+            >
+              <option value="normal">Normal</option>
+              <option value="multiply">Multiply</option>
+            </select>
+          </label>
+        </div>
+        {/* TEXT SIZE — relevant only for a text target; hidden (space reserved)
+            for shapes/strokes. */}
+        <label className={slot(showFont)} aria-hidden={!showFont}>
           <span>Text size</span>
           <input
             type="range"
@@ -1954,7 +1999,8 @@ function EditorToolbar({
             max={0.08}
             step={0.005}
             value={style.fontSize}
-            disabled={controlsLocked}
+            disabled={disabled || !showFont}
+            tabIndex={showFont ? undefined : -1}
             onChange={(e) => onStyle({ ...style, fontSize: Number(e.target.value) })}
           />
           <span className="style-value" data-testid="style-font-value">
@@ -1962,6 +2008,8 @@ function EditorToolbar({
           </span>
         </label>
       </div>
+      );
+      })()}
 
       <div className="layer-controls">
         {/* Prominent, brand-colored chip: always shows where ink will land. */}
@@ -2108,6 +2156,9 @@ function EditCanvas({
     | { mode: "draw"; path: PRPoint[] }
     | { mode: "move"; obj: AnnotationObject; start: PRPoint; preview: AnnotationObject }
     | { mode: "resize"; obj: AnnotationObject; handle: HandleId; start: PRPoint; preview: AnnotationObject }
+    // Group move of a multi-selection: each editable-now member carries its own
+    // original + live preview; all translate by the same delta (Bug #4).
+    | { mode: "multi-move"; start: PRPoint; items: { obj: AnnotationObject; preview: AnnotationObject }[] }
     | { mode: "marquee"; start: PRPoint }
     | null
   >(null);
@@ -2181,6 +2232,8 @@ function EditCanvas({
       if (wet) renderObjects(ctx, [toInkObject(wet) as InkObject], box);
     } else if (g?.mode === "move" || g?.mode === "resize") {
       renderObjects(ctx, [toInkObject(g.preview) as InkObject], box);
+    } else if (g?.mode === "multi-move") {
+      renderObjects(ctx, g.items.map((it) => toInkObject(it.preview) as InkObject), box);
     }
   }, [tool, style]);
 
@@ -2262,8 +2315,22 @@ function EditCanvas({
       if (canvas.style.cursor) canvas.style.cursor = "";
       return;
     }
+    const pt = pageRelative(e);
+    // A multi-selection grab predicts a group move (Bug #4): hovering inside the
+    // selection shows `move` when at least one member is editable-now.
+    const dims = pageDims();
+    if (selectedOnPage.length > 1 && dims) {
+      const measure = textMeasure();
+      if (
+        hitsMultiSelection(pt, selectedOnPage, dims.w, dims.h, measure) &&
+        selectedOnPage.some((o) => isObjectEditableNow(o))
+      ) {
+        if (canvas.style.cursor !== "move") canvas.style.cursor = "move";
+        return;
+      }
+    }
     const ctx = buildPickContext();
-    const pick = ctx ? pickAt(pageRelative(e), ctx) : { object: null, mode: "none" as const };
+    const pick = ctx ? pickAt(pt, ctx) : { object: null, mode: "none" as const };
     // mode "none" → "" sentinel from cursorForPick, which clears to the CSS default.
     const next = cursorForPick(pick, "");
     if (canvas.style.cursor !== next) canvas.style.cursor = next;
@@ -2280,6 +2347,26 @@ function EditCanvas({
     if (drawLocked && tool !== "select") return;
 
     if (tool === "select") {
+      // Bug #4: a multi-selection group MOVE. If more than one object is
+      // selected and the press lands inside the selection (on any selected
+      // object or within the combined bbox), drag them ALL by one delta. Only
+      // the editable-now members actually translate (others stay put); if none
+      // are editable-now, fall through to a normal pick (no group move).
+      const dims = pageDims();
+      if (selectedOnPage.length > 1 && dims) {
+        const measure = textMeasure();
+        if (hitsMultiSelection(pt, selectedOnPage, dims.w, dims.h, measure)) {
+          const items = selectedOnPage
+            .filter((o) => isObjectEditableNow(o))
+            .map((o) => ({ obj: o, preview: o }));
+          if (items.length > 0) {
+            canvas.setPointerCapture(e.pointerId);
+            gestureRef.current = { mode: "multi-move", start: pt, items };
+            return;
+          }
+        }
+      }
+
       // ONE shared pick drives both this gesture and the hover cursor, so they
       // never disagree. pickAt resolves resize-handle > move > select > none.
       const ctx = buildPickContext();
@@ -2351,6 +2438,12 @@ function EditCanvas({
       const dy = pt.y - g.start.y;
       g.preview = translateObject(g.obj, dx, dy);
       repaint();
+    } else if (g.mode === "multi-move") {
+      const dx = pt.x - g.start.x;
+      const dy = pt.y - g.start.y;
+      for (const it of g.items) it.preview = translateObject(it.obj, dx, dy);
+      repaint();
+      forceHandles((n) => n + 1); // move the DOM bboxes with the drag
     } else if (g.mode === "resize") {
       const dx = pt.x - g.start.x;
       const dy = pt.y - g.start.y;
@@ -2375,6 +2468,14 @@ function EditCanvas({
       const moved =
         g.preview.points.some((p, i) => p.x !== g.obj.points[i].x || p.y !== g.obj.points[i].y);
       if (moved) onCommitMove(g.preview);
+    } else if (g.mode === "multi-move") {
+      // Commit a move mutation for each member that actually moved (Bug #4).
+      for (const it of g.items) {
+        const moved = it.preview.points.some(
+          (p, i) => p.x !== it.obj.points[i].x || p.y !== it.obj.points[i].y,
+        );
+        if (moved) onCommitMove(it.preview);
+      }
     } else if (g.mode === "resize") {
       // Commit if the geometry (points) or the text fontSize actually changed.
       const changed =
@@ -2420,10 +2521,13 @@ function EditCanvas({
           // While resizing THIS object, draw the live preview box so the bbox +
           // handles follow the drag.
           const g = gestureRef.current;
-          const previewing =
-            g && (g.mode === "resize" || g.mode === "move") && g.obj.uuid === o.uuid
-              ? g.preview
-              : o;
+          let previewing = o;
+          if (g && (g.mode === "resize" || g.mode === "move") && g.obj.uuid === o.uuid) {
+            previewing = g.preview;
+          } else if (g && g.mode === "multi-move") {
+            const it = g.items.find((x) => x.obj.uuid === o.uuid);
+            if (it) previewing = it.preview;
+          }
           const renderMeasure: TextMeasure | undefined = pageBoxPx
             ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth }
             : undefined;

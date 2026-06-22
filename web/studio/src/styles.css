@@ -487,10 +487,22 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .tool-btn.active { background: var(--accent, #2563eb); color: #fff; border-color: var(--accent, #2563eb); }
 .tool-btn:disabled { opacity: .5; }
 
-.style-controls { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+/* #1+#2: a STABLE footprint — constant padding/min-height so the bar never
+   changes size when the selection changes between none / text / a shape. The
+   editing/locked variants only re-tint (no box-size change → no reflow). */
+.style-controls {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  min-height: 30px; padding: .2rem .4rem; border-radius: 6px;
+  border: 1px solid transparent;
+}
+/* Hidden control slots reserve their space (no reflow on selection change).
+   visibility:hidden keeps layout; pointer-events:none + the input's own
+   disabled/tabIndex make it non-interactive while hidden. */
+.style-slot-off { visibility: hidden; pointer-events: none; }
 /* When editing a selected object, tint the control strip so it reads as "this
-   object's style", not the draw default. Locked selection greys it out. */
-.style-controls.editing-selection { background: rgba(37, 99, 235, 0.06); border-radius: 6px; padding: .2rem .4rem; }
+   object's style", not the draw default. Locked/multi selection greys it out.
+   Tint/border only — the base padding above keeps the footprint constant. */
+.style-controls.editing-selection { background: rgba(37, 99, 235, 0.06); }
 .style-controls.controls-locked { background: rgba(156, 163, 175, 0.12); opacity: .85; }
 .style-target { font-size: .72rem; }
 .style-field input:disabled { opacity: .5; cursor: not-allowed; }
