@@ -246,6 +246,10 @@ func (s *Service) GetBand(caller User, bandID string) (Band, Role, error) {
 type MemberView struct {
 	User PublicUser `json:"user"`
 	Role Role       `json:"role"`
+	// joinedAt is the membership CreatedAt, used only to sort the list
+	// deterministically (oldest first). Unexported so it is not serialized — the
+	// API response shape is unchanged.
+	joinedAt time.Time
 }
 
 // Members lists a band's members (member-only).
@@ -257,14 +261,23 @@ func (s *Service) Members(caller User, bandID string) ([]MemberView, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Deterministic, role-independent order: oldest join first, then username as a
+	// tie-breaker. The repo returns members in map (nondeterministic) order, so a
+	// role change (which rewrites a membership) must never reorder this list (#6).
 	out := make([]MemberView, 0, len(ms))
 	for _, m := range ms {
 		u, err := s.repo.GetUser(m.UserID)
 		if err != nil {
 			continue
 		}
-		out = append(out, MemberView{User: u.Public(), Role: m.Role})
+		out = append(out, MemberView{User: u.Public(), Role: m.Role, joinedAt: m.CreatedAt})
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].joinedAt.Equal(out[j].joinedAt) {
+			return out[i].joinedAt.Before(out[j].joinedAt)
+		}
+		return out[i].User.Username < out[j].User.Username
+	})
 	return out, nil
 }
 

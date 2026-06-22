@@ -266,3 +266,89 @@ test("9. band settings: admin changes a member's role; non-admin sees no control
   await adminCtx.close();
   await memberCtx.close();
 });
+
+test("10. admin changes a conductor's role; member-list order stays stable", async ({
+  browser,
+}) => {
+  const adminCtx = await browser.newContext();
+  const adminPage = await adminCtx.newPage();
+
+  const bandName = `OrderBand ${stamp()}`;
+  await register(adminPage, `orderadmin_${stamp()}`);
+  await createBandAndOpen(adminPage, bandName);
+  const bandUrl = adminPage.url();
+
+  // Invite three members, each accepts (separate contexts).
+  const names = [`leo_${stamp()}`, `anya_${stamp()}`, `bob_${stamp()}`];
+  const ctxs = [];
+  for (const name of names) {
+    await adminPage.goto(bandUrl);
+    await adminPage.getByTestId("invite-identifier").fill(name);
+    await adminPage.getByTestId("invite-kind").selectOption("username");
+    await adminPage.getByTestId("invite-submit").click();
+    await expect(adminPage.getByTestId("invite-notice")).toBeVisible();
+
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await register(page, name);
+    await page.getByTestId("nav-invites").click();
+    await page.getByTestId("invite-accept").click();
+    await expect(page.getByTestId("invites-empty")).toBeVisible();
+    ctxs.push(ctx);
+  }
+
+  await adminPage.goto(bandUrl);
+  await adminPage.getByTestId("nav-settings").click();
+  await expect(adminPage).toHaveURL(/\/settings$/);
+
+  // Capture the rendered member order (by @username), then read it again after
+  // each role change — it must never reorder (#6).
+  // Wait for the full members list (admin + 3) to render before reading order.
+  await expect(adminPage.getByTestId("settings-member-row")).toHaveCount(4);
+
+  const orderUsernames = async () => {
+    const rows = adminPage.getByTestId("settings-member-row");
+    const count = await rows.count();
+    const out: string[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push((await rows.nth(i).innerText()).match(/@\S+/)?.[0] ?? "");
+    }
+    return out;
+  };
+
+  const before = await orderUsernames();
+  expect(before.length).toBe(4); // admin + 3 members
+
+  const leoRow = adminPage
+    .getByTestId("settings-member-row")
+    .filter({ hasText: `@${names[0]}` });
+
+  // Promote Leo TO conductor, then change him AGAIN while he IS conductor (the
+  // seeded-Leo "failed to change role" case — must succeed, no error banner).
+  await leoRow.getByTestId("member-role-select").selectOption("conductor");
+  await expect(leoRow.getByTestId("member-role-select")).toHaveValue("conductor");
+  expect(await orderUsernames()).toEqual(before);
+
+  // FROM conductor -> admin (this is the transition the bug report hits).
+  await leoRow.getByTestId("member-role-select").selectOption("admin");
+  await expect(leoRow.getByTestId("member-role-select")).toHaveValue("admin");
+  expect(await orderUsernames()).toEqual(before);
+
+  // FROM admin -> member, then back to conductor: still no reorder, no error.
+  await leoRow.getByTestId("member-role-select").selectOption("member");
+  await expect(leoRow.getByTestId("member-role-select")).toHaveValue("member");
+  await leoRow.getByTestId("member-role-select").selectOption("conductor");
+  await expect(leoRow.getByTestId("member-role-select")).toHaveValue("conductor");
+  expect(await orderUsernames()).toEqual(before);
+
+  // No error banner ever appeared.
+  await expect(adminPage.getByText("Failed to change role")).toHaveCount(0);
+
+  // Persists across reload, order still stable.
+  await adminPage.reload();
+  await expect(adminPage.getByTestId("settings-member-row")).toHaveCount(4);
+  expect(await orderUsernames()).toEqual(before);
+
+  await adminCtx.close();
+  for (const ctx of ctxs) await ctx.close();
+});

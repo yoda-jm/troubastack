@@ -587,6 +587,169 @@ func TestSongFiles(t *testing.T) {
 	}
 }
 
+// addMember registers a second user, has the admin invite them by username, and
+// the new user accepts — leaving them a "member" of the band. Returns the new
+// user's id and their own client.
+func (c *client) addMember(t *testing.T, repo app.Repo, admin *client, bandID, username string) (string, *client) {
+	t.Helper()
+	member := newClient(t, repo)
+	member.registerLogin(username, "pw")
+	resp, body := member.do(http.MethodGet, "/api/me", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var me app.PublicUser
+	unmarshalField(t, body, "user", &me)
+
+	resp, _ = admin.do(http.MethodPost, "/api/bands/"+bandID+"/invites",
+		map[string]string{"identifier": username, "kind": "username"})
+	mustStatus(t, resp, http.StatusCreated)
+	resp, body = member.do(http.MethodGet, "/api/invites", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var invites []app.Invite
+	unmarshalField(t, body, "invites", &invites)
+	if len(invites) != 1 {
+		t.Fatalf("%s should have 1 invite, got %d", username, len(invites))
+	}
+	resp, _ = member.do(http.MethodPost, "/api/invites/"+invites[0].ID+"/accept", nil)
+	mustStatus(t, resp, http.StatusOK)
+	return me.ID, member
+}
+
+// roleOf fetches the band's members and returns the role for userID.
+func (c *client) roleOf(t *testing.T, bandID, userID string) app.Role {
+	t.Helper()
+	resp, body := c.do(http.MethodGet, "/api/bands/"+bandID+"/members", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var members []app.MemberView
+	unmarshalField(t, body, "members", &members)
+	for _, m := range members {
+		if m.User.ID == userID {
+			return m.Role
+		}
+	}
+	t.Fatalf("user %q not found among members", userID)
+	return ""
+}
+
+// TestAdminChangesMemberRole reproduces bug #5: an admin (Marie) changes another
+// member's (Leo's) role across the full valid set, including TO and FROM
+// "conductor" (the seeded Leo case). Each transition must succeed (200) and
+// persist.
+func TestAdminChangesMemberRole(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			admin := newClient(t, repo)
+			admin.registerLogin("marie", "pw")
+			_, body := admin.do(http.MethodPost, "/api/bands", map[string]string{"name": "The Troubadours"})
+			var band app.Band
+			unmarshalField(t, body, "band", &band)
+
+			leoID, _ := admin.addMember(t, repo, admin, band.ID, "leo")
+
+			// Walk the full valid transition set, paying attention to conductor.
+			transitions := []app.Role{
+				app.RoleConductor, // member -> conductor (the promote-to-conductor path)
+				app.RoleAdmin,     // conductor -> admin
+				app.RoleMember,    // admin -> member
+				app.RoleConductor, // member -> conductor again
+				app.RoleMember,    // conductor -> member (the seeded-Leo FROM-conductor case)
+				app.RoleAdmin,     // member -> admin
+				app.RoleConductor, // admin -> conductor
+			}
+			for i, role := range transitions {
+				resp, rb := admin.do(http.MethodPatch,
+					"/api/bands/"+band.ID+"/members/"+leoID,
+					map[string]string{"role": string(role)})
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("transition %d -> %q: got status %d (body %v)", i, role, resp.StatusCode, rb)
+				}
+				if got := admin.roleOf(t, band.ID, leoID); got != role {
+					t.Fatalf("transition %d: role persisted as %q, want %q", i, got, role)
+				}
+			}
+
+			// Last-admin protection stays intact: with Leo as conductor, Marie is the
+			// only admin and cannot be demoted (would orphan the band).
+			marieResp, mb := admin.do(http.MethodGet, "/api/me", nil)
+			mustStatus(t, marieResp, http.StatusOK)
+			var marie app.PublicUser
+			unmarshalField(t, mb, "user", &marie)
+			resp, _ := admin.do(http.MethodPatch,
+				"/api/bands/"+band.ID+"/members/"+marie.ID,
+				map[string]string{"role": string(app.RoleMember)})
+			mustStatus(t, resp, http.StatusConflict)
+		})
+	}
+}
+
+// TestMemberListOrderStableAcrossRoleChange reproduces bug #6: changing a
+// member's role must NOT reorder the members list. The order must be
+// deterministic and independent of role.
+func TestMemberListOrderStableAcrossRoleChange(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			admin := newClient(t, repo)
+			admin.registerLogin("marie", "pw")
+			_, body := admin.do(http.MethodPost, "/api/bands", map[string]string{"name": "The Troubadours"})
+			var band app.Band
+			unmarshalField(t, body, "band", &band)
+
+			// Add several members so a reorder is observable.
+			ids := map[string]string{}
+			for _, name := range []string{"leo", "anya", "bob", "carol"} {
+				id, _ := admin.addMember(t, repo, admin, band.ID, name)
+				ids[name] = id
+			}
+
+			order := func() []string {
+				resp, b := admin.do(http.MethodGet, "/api/bands/"+band.ID+"/members", nil)
+				mustStatus(t, resp, http.StatusOK)
+				var members []app.MemberView
+				unmarshalField(t, b, "members", &members)
+				out := make([]string, len(members))
+				for i, m := range members {
+					out[i] = m.User.ID
+				}
+				return out
+			}
+
+			before := order()
+			// The order must be deterministic across repeated reads too.
+			for i := 0; i < 5; i++ {
+				if got := order(); !equalStr(got, before) {
+					t.Fatalf("repeated list reads differ: %v vs %v", got, before)
+				}
+			}
+
+			// Change roles for several members; order must be unchanged each time.
+			for _, name := range []string{"leo", "carol", "anya"} {
+				resp, rb := admin.do(http.MethodPatch,
+					"/api/bands/"+band.ID+"/members/"+ids[name],
+					map[string]string{"role": string(app.RoleConductor)})
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("change %s role: status %d (%v)", name, resp.StatusCode, rb)
+				}
+				if got := order(); !equalStr(got, before) {
+					t.Fatalf("after changing %s role, order changed:\n got  %v\n want %v", name, got, before)
+				}
+			}
+		})
+	}
+}
+
+func equalStr(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestMissingFieldsAndUnauthenticated(t *testing.T) {
 	for _, be := range backends() {
 		t.Run(be.name, func(t *testing.T) {
