@@ -485,6 +485,33 @@ test("editor: annotation list selects an object on the active layer", async ({ p
 });
 
 // ===========================================================================
+// Sidebar order — the Layers panel must render ABOVE the annotation list in the
+// DOM so its position stays stable; only the variable-length annotation list
+// (below it) grows/shrinks as the layer/selection changes.
+// ===========================================================================
+test("editor: Layers panel renders ABOVE the annotation list in the DOM", async ({ page }) => {
+  await openConductorOnlySong(page);
+
+  await page.getByTestId("new-layer").click();
+  await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+
+  const layers = page.getByTestId("layers-panel");
+  const annlist = page.getByTestId("annotation-list");
+  await expect(layers).toBeVisible();
+  await expect(annlist).toBeVisible();
+
+  // DOCUMENT_POSITION_FOLLOWING (4) → annotation list comes AFTER the layers
+  // panel: the Layers panel is first in source order, so it sits on top.
+  const layersIsFirst = await layers.evaluate(
+    (l, a) => (l.compareDocumentPosition(a) & 4) !== 0,
+    await annlist.elementHandle(),
+  );
+  expect(layersIsFirst).toBeTruthy();
+
+  await page.screenshot({ path: "/tmp/sidebar-order.png", fullPage: true });
+});
+
+// ===========================================================================
 // Scoped annotation list — clicking a layer row focuses it; the list shows ONLY
 // that layer's objects and names it. A locked (RO) layer can be focused too:
 // drawing is disabled with a hint, but its annotations stay browsable.

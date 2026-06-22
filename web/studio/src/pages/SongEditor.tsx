@@ -1318,17 +1318,9 @@ function Viewer({
 
         {sidebarOpen && (
           <div className="viewer-sidebar">
-            <AnnotationList
-              objects={doc.objects}
-              focusedLayerId={focusedLayerId}
-              focusedLayer={focusedLayer}
-              focusLocked={focusLocked}
-              selectedUuids={selectedUuids}
-              onSelect={(uuid) => {
-                setSelectedUuids([uuid]);
-                scrollObjectIntoView(uuid);
-              }}
-            />
+            {/* Layers panel ABOVE the annotation list so its position stays
+                stable; only the variable-length annotation list (below) grows
+                or shrinks as the layer/selection changes. */}
             <LayersPanel
               layers={sortedLayers}
               visible={visible}
@@ -1340,6 +1332,17 @@ function Viewer({
               onFocus={focusLayer}
               canToggleAccess={canToggleLayerAccess}
               onSetAccess={setLayerAccess}
+            />
+            <AnnotationList
+              objects={doc.objects}
+              focusedLayerId={focusedLayerId}
+              focusedLayer={focusedLayer}
+              focusLocked={focusLocked}
+              selectedUuids={selectedUuids}
+              onSelect={(uuid) => {
+                setSelectedUuids([uuid]);
+                scrollObjectIntoView(uuid);
+              }}
             />
           </div>
         )}

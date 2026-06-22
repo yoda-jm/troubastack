@@ -344,6 +344,47 @@ test("cursor: hover over a movable body → move; over a resize handle → *-res
   await expect.poll(() => canvasCursor(page)).toBe("");
 });
 
+test("cursor: hover JUST OUTSIDE an editable rect (select-pad) → NOT not-allowed", async ({
+  page,
+}) => {
+  const { bandId, songId, fileId, me } = await setup(page, "CursorPad");
+  // An editable rect on MY active layer, kept in the upper part of the page so
+  // its body and the surrounding select-pad stay within the viewport.
+  const doc = {
+    layers: [personalLayer(fileId, me)],
+    objects: [
+      {
+        uuid: "box",
+        layerId: "layer-mine",
+        type: "rect",
+        points: [{ x: 0.2, y: 0.12 }, { x: 0.5, y: 0.36 }],
+        page: 0,
+        text: "",
+        style: STYLE,
+      },
+    ],
+  };
+  expect((await importDoc(page, bandId, songId, doc)).ok).toBeTruthy();
+  await page.reload();
+  await openEditorReady(page);
+  await page.getByTestId("tool-select").click();
+
+  // Hover just OUTSIDE the right edge (x=0.515 vs maxX=0.50), beyond the small
+  // move-margin but inside the generous select-pad → a WEAK hit on an EDITABLE
+  // object. This must NOT show the disabled `not-allowed` halo; it's "pointer"
+  // (click to select, then move from inside). Bug: ee4ab55 (not-allowed) +
+  // ec8dd3f (strong-only move) made this ring read as a disabled area.
+  await hoverPageFrac(page, 0.515, 0.24);
+  const padCursor = await canvasCursor(page);
+  expect(padCursor).not.toBe("not-allowed");
+  expect(["pointer", "move", ""]).toContain(padCursor);
+  await page.screenshot({ path: "/tmp/cursor-ring-editable.png", fullPage: true });
+
+  // INSIDE the body → "move" (editable strong hit), unchanged.
+  await hoverPageFrac(page, 0.35, 0.24);
+  await expect.poll(() => canvasCursor(page)).toBe("move");
+});
+
 test("cursor: hover a non-editable (locked) object in select mode → not-allowed", async ({
   page,
 }) => {

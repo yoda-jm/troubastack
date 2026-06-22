@@ -374,6 +374,10 @@ export type PickResult = {
   object: AnnotationObject | null;
   mode: PickMode;
   handle?: HandleId;
+  /** Is the picked object editable-now (active, unlocked layer)? Drives the
+   *  cursor: an editable object never shows `not-allowed`, even on a weak
+   *  (select-pad) hit — only genuinely non-editable objects do. */
+  editable?: boolean;
 };
 
 /** Context `pickAt` needs: the visible objects on the page (in z-order, earliest
@@ -532,13 +536,14 @@ export function pickAt(pt: { x: number; y: number }, ctx: PickContext): PickResu
 
   const top = cands[0];
   const winner = top.obj;
+  const editable = ctx.isEditableNow(winner);
   // Bug #3: MOVE requires a STRONG (containment) hit — the pointer inside the
   // object's true shape (or within only a tiny margin baked into `classifyHit`'s
   // strong test), NOT the generous proximity pad. A WEAK (pad-only) hit still
   // SELECTS (so thin lines / text stay easy to click), but never starts a move.
   // Rectangles use a tight strong tol, so they keep their exact feel.
-  const mode: PickMode = ctx.isEditableNow(winner) && top.strong ? "move" : "select";
-  return { object: winner, mode };
+  const mode: PickMode = editable && top.strong ? "move" : "select";
+  return { object: winner, mode, editable };
 }
 
 /** The CSS cursor for a pick result + the active tool's default fallback. */
@@ -547,9 +552,13 @@ export function cursorForPick(pick: PickResult, toolDefault: string): string {
     return pick.handle === "nw" || pick.handle === "se" ? "nwse-resize" : "nesw-resize";
   }
   if (pick.mode === "move") return "move";
-  // A selectable-but-not-editable object (locked / non-active layer): you can
-  // still click to inspect it, but the disabled cursor signals you can't edit here.
-  if (pick.mode === "select") return "not-allowed";
+  if (pick.mode === "select") {
+    // `not-allowed` must signal genuinely non-editable objects ONLY (locked /
+    // non-active layer). An EDITABLE object on a weak (select-pad) hit just
+    // outside its body is still clickable-then-movable → `pointer`, NOT a
+    // disabled halo around the shape (Bug: stray not-allowed ring, ee4ab55+ec8dd3f).
+    return pick.editable ? "pointer" : "not-allowed";
+  }
   return toolDefault;
 }
 
