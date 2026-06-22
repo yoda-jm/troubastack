@@ -85,10 +85,39 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	// Dev convenience: when launched by `make dev/run/demo` (which set
+	// TROUBA_DIE_WITH_PARENT=1 and exec us as a direct child), exit if our parent
+	// goes away. This guarantees the server never outlives `make` even when the
+	// terminal/runner delivers the interrupt to make ALONE (a non-tty / IDE
+	// terminal sends SIGINT to make, not the whole process group), which would
+	// otherwise orphan us holding the port. Off by default (prod parent is
+	// init/systemd). Portable getppid poll — no PR_SET_PDEATHSIG thread caveats.
+	if os.Getenv("TROUBA_DIE_WITH_PARENT") == "1" {
+		watchParent()
+	}
+
 	log.Printf("troubacore: listening on %s", addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("troubacore: server error: %v", err)
 	}
+}
+
+// watchParent exits the process once our original parent dies (PPID changes as
+// we get reparented to init/a subreaper). Polling is cheap and avoids the
+// per-thread semantics of PR_SET_PDEATHSIG under the Go runtime.
+func watchParent() {
+	orig := os.Getppid()
+	if orig <= 1 {
+		return // already orphaned (or no real parent) — nothing to watch
+	}
+	go func() {
+		for range time.Tick(time.Second) {
+			if os.Getppid() != orig {
+				log.Printf("troubacore: parent %d exited — shutting down", orig)
+				os.Exit(0)
+			}
+		}
+	}()
 }
 
 // openStore picks a persistence backend from TROUBA_STORE (default: file — zero

@@ -24,7 +24,7 @@ setup:
 # foreground (SPA on :5173 with hot reload, proxying /api -> :8080). Vite serves
 # the real SPA, so you do NOT need to embed anything. Ctrl-C stops both.
 dev:
-	@cd core && TROUBA_APP_STORE=mem go run ./cmd/troubacore & \
+	@( cd core && exec env TROUBA_APP_STORE=mem TROUBA_DIE_WITH_PARENT=1 go run ./cmd/troubacore ) & \
 	CORE_PID=$$!; \
 	trap 'kill $$CORE_PID 2>/dev/null' EXIT INT TERM; \
 	echo ">>> core (API) on :8080, pid $$CORE_PID — open http://localhost:5173" ; \
@@ -33,7 +33,7 @@ dev:
 # Run the production single binary: builds + embeds the SPA, then serves SPA + API
 # together on :8080 (one origin). This is what gets deployed.
 run: dist
-	cd core && TROUBA_APP_STORE=mem ./bin/troubacore
+	cd core && exec env TROUBA_APP_STORE=mem TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
 # Backend-only: fast `go run` with NO SPA build, so you get the placeholder page at
 # :8080. Use this when iterating on the API and driving the SPA via `make dev`/Vite.
@@ -77,18 +77,20 @@ seed:
 # seeds it, and hands the server to the FOREGROUND so you can browse the REAL SPA +
 # seeded data on http://localhost:8080. Ctrl-C stops it. Reset: rm -rf core/troubadata
 demo: dist
-	@cd core && TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata \
-		./bin/troubacore & \
-	CORE_PID=$$!; \
-	trap 'kill $$CORE_PID 2>/dev/null' EXIT INT TERM; \
-	echo ">>> waiting for core on http://localhost:8080 …"; \
+	@cd core; \
+	echo ">>> seeding demo data …"; \
+	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata ./bin/troubacore & \
+	SEED_CORE=$$!; \
+	trap 'kill $$SEED_CORE 2>/dev/null' EXIT INT TERM; \
 	for i in $$(seq 1 50); do \
 		curl -sf http://localhost:8080/healthz >/dev/null 2>&1 && break; \
 		sleep 0.2; \
 	done; \
-	cd core && go run ./cmd/seed -addr http://localhost:8080 -password demo; \
+	go run ./cmd/seed -addr http://localhost:8080 -password demo || true; \
+	kill $$SEED_CORE 2>/dev/null; wait $$SEED_CORE 2>/dev/null; \
+	trap - EXIT INT TERM; \
 	echo ">>> READY: open http://localhost:8080 (real SPA + seeded data). Ctrl-C to stop; reset: rm -rf core/troubadata"; \
-	wait $$CORE_PID
+	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
 # Deferred until the contract is codegen'd / mobile resumes.
 proto:
