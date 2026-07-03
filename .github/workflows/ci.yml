@@ -97,11 +97,10 @@ jobs:
     # Cap it so a broken app (e.g. an unresolved import) fails fast instead of
     # letting every test grind through its 30s timeout.
     timeout-minutes: 20
-    # Non-blocking for now: editor-rorw-shift.spec.ts fails only in CI headless
-    # with a real ~27px RO-vs-RW pageTop shift (green locally; likely a web-font
-    # metric difference). Tracked in docs/tasks/T13; remove once T13 lands so
-    # e2e hard-gates again. The job still runs and reports.
-    continue-on-error: true
+    # This job HARD-GATES. The one CI-only failure (editor-rorw-shift.spec.ts,
+    # a real ~27px RO/RW pageTop shift — green locally) is quarantined at the
+    # spec level via `test.skip(!!process.env.CI, ...)`, tracked in T13, so the
+    # rest of the suite still blocks regressions. Do NOT add continue-on-error.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
