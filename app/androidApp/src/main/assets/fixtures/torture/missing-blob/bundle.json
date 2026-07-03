@@ -1,0 +1,35 @@
+{
+  "concertId": "demo-concert",
+  "name": "Demo Concert",
+  "concertRev": "1",
+  "bakedAt": "1700000000",
+  "bakedBy": "mkbundle",
+  "songs": [
+    {
+      "songId": "song-1",
+      "sourceRevision": "1",
+      "songRev": "1",
+      "pages": [
+        {
+          "pageRasterRef": "blobs/s1-p1-raster.png",
+          "rasterHash": "6b6dac69e07169f9",
+          "overlays": [
+            {
+              "layerId": "marks",
+              "imageRef": "blobs/s1-p1-L0.png",
+              "contentHash": "0de31c5bc276b8df",
+              "mandatory": true
+            },
+            {
+              "layerId": "conductor",
+              "imageRef": "blobs/s1-p1-L1.png",
+              "contentHash": "6f9ef0a9a417be82",
+              "order": 1,
+              "roleTag": "conductor"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

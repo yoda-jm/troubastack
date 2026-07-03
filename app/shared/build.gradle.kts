@@ -24,6 +24,8 @@ kotlin {
             // THE SHARED MOBILE LIBRARY (I15): presenter, downloader, sync, navigation.
             implementation(compose.runtime)
             implementation(compose.foundation)
+            implementation(compose.material3)  // Stage UI controls (bottom bar, dialogs)
+            implementation(compose.ui)
             implementation(libs.kotlinx.coroutines.core)     // sync client + downloader are coroutine-based (I6)
             implementation(libs.kotlinx.serialization.json)  // JSON on the Studio bridge / manifest diff (I1)
             // generated proto types are consumed from src/commonMain/kotlin/gen (I1, git-ignored)
