@@ -1,0 +1,177 @@
+# Agent handoff — "Mobile App Agent" (TroubaStack A-track)
+
+> **You are the Mobile App Agent.** Your lane is the **A-track** — the Kotlin/Compose Multiplatform
+> mobile app in `app/` (plus the thin studio/core touchpoints an app task needs). A separate agent
+> owns the **T-track** (web/core/infra); stay out of its way (see §2, §7).
+>
+> Point a fresh Claude Code session at this file to continue seamlessly. It captures **how we work**
+> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-04.
+
+---
+
+## 1. What TroubaStack is
+
+A monorepo for a band sheet-music app. Four parts, one contract:
+
+- **`proto/`** — the single source of truth for every domain type + wire message (invariant **I1**).
+  Clients carry **hand-written mirrors** until Kotlin/TS codegen is adopted (see T09).
+- **`core/`** — Go server (TroubaCore): REST + realtime sync + serves the embedded SPA. `go 1.26`.
+- **`web/studio/`** — the **canonical** React/Vite editor SPA (TroubaStudio). `web/ink` is the one
+  stroke renderer; `web/bake` flattens pages server-side. Never reimplement the editor (**I10**).
+- **`app/`** — Kotlin Multiplatform / Compose Multiplatform mobile app (**Android now, iOS later**).
+  A thin shell (**I15**): all shared logic in `:shared` commonMain; platform code confined to
+  **exactly six seam files** (3 `expect` in commonMain + 3 Android `actual`s; iOS actuals are
+  compiling TODO stubs) **plus** the thin `:androidApp`.
+
+**Read first:** `docs/ARCHITECTURE.md` (numbered invariants I1–I15, normative) and
+`docs/tasks/README.md` (the task pack + ground rules). `docs/design/01..08` are the design notes.
+
+## 2. How we work (the operating model — this is the important part)
+
+- **Task pack.** Work is pre-specified in `docs/tasks/{A,T}NN-*.md`, priority-ordered. **A-track** =
+  the mobile app; **T-track** = web/core/infra. Each file is self-contained and executable.
+- **One task = one branch = one PR**, branched from `main`, named `task/ANN-short-name`.
+- **A concurrent agent runs the T-track** in the primary worktree. To avoid collisions, **do every
+  task in an isolated git worktree**, not the shared checkout:
+  ```
+  git worktree add -b task/A0X-name ../troubastack-A0X main
+  ```
+  All edits/builds happen there. This has kept the two agents from ever stepping on each other.
+- **Review gate.** After implementing + verifying, open a PR and **stop for review**. A reviewer
+  (referred to as "Fable") re-verifies independently and says "approve — land it." **Do not
+  self-merge before that.**
+- **Linear history — no merge commits.** Land by fast-forwarding `main` to the branch commit.
+  See the exact procedure in §5. (Memory: `git-linear-history.md`.)
+- **CI must be green before landing.** GitHub Actions runs jobs: `go`, `web`, `proto`, `android`,
+  `e2e`. `main` moves fast (the T-agent lands often), so **expect to rebase almost every time**.
+- **Verify for real.** App tasks whose contract has runtime behavior get **emulator verification**
+  (screenshots + logcat), not just build+tests. "Assemble-only" was acceptable for A01; A04/A05
+  required driving the app; A06 required a running core.
+- **Report honestly.** State what was verified vs. assumed; flag gaps and follow-ups rather than
+  smuggling them. File follow-ups as their own PRs (e.g. the mkbundle color fix).
+
+## 3. GitHub / PR mechanics
+
+- `gh` is **not installed**. Use the GitHub REST API via `curl` with a token.
+- **The `origin` remote URL has an embedded PAT.** NEVER print it. Extract into a var without
+  echoing, e.g.:
+  ```bash
+  TOKEN=$(git remote get-url origin | sed -nE 's#https://([^@]+)@.*#\1#p')
+  curl -s -H "Authorization: token $TOKEN" https://api.github.com/repos/yoda-jm/troubastack/...
+  ```
+  When pushing, pipe through `grep -v "ghp_"` so the token never lands in visible output.
+- Open a PR: `POST /repos/yoda-jm/troubastack/pulls` with `{title,head,base:"main",body}`.
+- Watch CI: `GET /repos/yoda-jm/troubastack/commits/<sha>/check-runs`.
+
+## 4. Environment & toolchain (hard-won specifics)
+
+- **JDK 25** is the only installed JDK (Temurin, at `/opt/openjdk-bin-*`). A **JDK 21** is also
+  present (`/opt/openjdk-bin-21.0.7*`) and Gradle auto-detects it.
+- **Gradle wrapper is pinned to 9.5.1** — NOT 9.6.x. AGP 8.13.2 uses a Gradle internal API removed
+  in 9.6.0; the build fails on 9.6. 9.5.1 runs fine on JDK 25.
+- **Compile toolchain is JDK 21**, not the installed 25: Kotlin 2.2.20 caps its JVM target at 24, so
+  a JDK-25 toolchain trips AGP's Java/Kotlin target-consistency check. The Gradle daemon still runs
+  on JDK 25. (`jvmToolchain(21)`; the catalog header documents it.)
+- Versions (in `app/gradle/libs.versions.toml`): AGP 8.13.2, Kotlin 2.2.20, Compose MP 1.9.0,
+  compileSdk 36, minSdk 26. `androidx.core-ktx` pinned to **1.15.0** (newer needs compileSdk 37 / AGP 9.1).
+- **Android SDK** at `~/Android/Sdk` (android-36 platform, build-tools 36). Each worktree needs a
+  **`app/local.properties`** with `sdk.dir=/home/yoda/Android/Sdk` — it's **gitignored**, so create
+  it in every new worktree. CI uses the runner's preinstalled SDK (`android` job, Temurin 21).
+- **Emulator:** AVD **`Pixel_7`** (android-36 x86_64). `/dev/kvm` is usable (user in `kvm` group).
+  Boot headless:
+  ```
+  ANDROID_HOME=/home/yoda/Android/Sdk HOME=/home/yoda \
+    ~/Android/Sdk/emulator/emulator -avd Pixel_7 -no-window -no-audio -no-snapshot -no-boot-anim \
+    -gpu swiftshader_indirect [-read-only]
+  ```
+  Quirks: on cold boot the emulator's own SystemUI/Files processes throw **"… isn't responding"
+  ANRs** under software GL — tap **Wait** (≈ `input tap 320 1368`) and let it settle ~20 s. The app
+  also shows a splash for ~15–20 s on first launch. If boot fails with "multiple emulators same AVD",
+  remove `~/.android/avd/Pixel_7.avd/*.lock`. Drive via `adb shell input tap/text`, read UI with
+  `uiautomator dump`, capture with `adb exec-out screencap -p > file.png`.
+
+## 5. Landing procedure (linear, no merge commit, verify-before-delete)
+
+`main` is **not** checked out in a worktree, so push to remote `main` directly. Order matters
+(mistakes here left PR #6 and PR #7 cosmetically "closed-not-merged" — the commits landed fine, but
+the PR didn't associate). Correct sequence:
+
+```bash
+cd <worktree>
+git fetch -q origin main
+git rebase origin/main                              # expect this most times
+git push --force-with-lease origin <branch>         # 1) update the PR head to the rebased commit
+git fetch -q origin main                            # 2) re-check for concurrent movement
+git push origin <branch>:main                       # 3) fast-forward main
+git fetch -q origin main
+[ "$(git rev-parse origin/main)" = "$(git rev-parse HEAD)" ] && echo LANDED   # 4) VERIFY before deleting
+# only now:
+cd /home/yoda/dev/git/troubastack
+git worktree remove --force <worktree>
+git branch -D <branch>
+git push origin --delete <branch>                   # PR auto-closes as merged
+```
+Skipping step 1 (force-push branch) when you rebased → PR shows closed-not-merged. Deleting before
+step 4 → risk losing the branch if the push was rejected.
+
+## 6. What's done — the A-track (all merged to `main`)
+
+| Task | Commit | Summary |
+|---|---|---|
+| A01 | `db9bf8e` | Wire the KMP/CMP Gradle build (wrapper, version catalog, `:shared`+`:androidApp`, `make app`, CI `android` job). |
+| A02 | `a3aff02` | Concert-bundle model (`bundle/BundleModel.kt`, proto3-canonical-JSON mirror) + resilient **never-throw** `BundleLoader` + `docs/design/08-bundle-container.md`. |
+| A03 | `5b2f755` | `core/cmd/mkbundle` deterministic fixture generator + committed demo/torture fixtures + `make fixtures`. |
+| fix | `be7c2c7` | mkbundle → `color.NRGBA` (Go `color.RGBA` is alpha-premultiplied → hue-shifted overlays). |
+| A04 | `1e18aa4` | **TroubaStage presenter** — `stage/` (StageModel/ViewModel/Screen): resilient, read-only, offline compositor + pager. Emulator-verified incl. torture fixtures, keep-screen-on, immersive. |
+| A05 | `21a991d` | Android **Storage seam** actual + atomic `.tstage` **import** (zip-slip + zip-bomb guards, atomic swap, `BundleImporter`). Emulator-verified import + bad-bundle rejection. |
+| A06 | `6927793` | Host **TroubaStudio in a WebView** (WebViewHost actual) + feature-detected `bridge.ts` handshake + Edit screen/server config. Emulator-verified login as marie/demo + handshake in logcat. |
+
+Net: the app **performs baked concerts offline (Stage)**, **imports `.tstage` bundles**, and **hosts
+the live web editor (Edit)**. Six seam files only (I15 held throughout). Commit hashes are the
+as-landed values; they may have been rebased since — grep the subject line if a hash goes missing.
+
+## 7. Current state & concurrency
+
+- Re-run `git log main --oneline -15` on session start — `main` moves fast.
+- The **T-track agent** works in the primary worktree `/home/yoda/dev/git/troubastack` and lands
+  frequently. Don't edit there; use your own worktree.
+- There may be extra worktrees you didn't create (`git worktree list`) — leave them alone.
+- **Memory** (`/home/yoda/.claude/projects/-home-yoda-dev-git-troubastack/memory/`): `MEMORY.md`
+  index, `mobile-app-agent.md`, `task-pack-workflow.md`, `git-linear-history.md`. Read on start.
+
+## 8. Remaining work
+
+- **A07 — native wet-ink overlay: BLOCKED.** Needs a **real-tablet stylus latency spike** (input→
+  photon latency + pen parity vs `web/ink`) that decides whether the optimized web path suffices. The
+  emulator can't measure this. Everything A07 needs is on `main`. This is the highest-value next
+  action but requires the user + hardware; it may close **unbuilt**.
+- **T-track** is the other agent's lane; don't duplicate. Check `docs/tasks/` + `git log` for status.
+- Follow-ups noted in-code / PRs: none outstanding for the A-track.
+
+## 9. Do-NOTs / gotchas
+
+- **Never edit** `core/internal/webassets/dist/` (build artifact — a committed placeholder
+  regenerated by `make embed`) or anything under a `gen/` dir. `make demo`/`make dist` overwrite the
+  dist placeholder — if you run them, `git checkout -- core/internal/webassets/dist && git clean -fdq
+  core/internal/webassets/dist` before committing.
+- **`:8080` is used by the T-track agent's dev core.** Don't bind it and don't `make demo` (its seed
+  step targets `localhost:8080` and would seed *their* server). To run a core for A-track WebView
+  testing, use an **isolated port + data dir**:
+  ```
+  TROUBACORE_ADDR=:8091 TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata-a06 \
+    core/bin/troubacore     # then: go run ./cmd/seed -addr http://localhost:8091 -password demo
+  ```
+  Kill it with `fuser -k 8091/tcp`. The emulator reaches the host at `10.0.2.2:<port>`.
+- **Airplane mode:** Stage (A04/A05) is offline — verify in airplane mode. Edit (A06) needs the
+  network — airplane OFF.
+- Studio deps aren't installed in a fresh worktree; `cd web/studio && npm ci --no-workspaces` (and
+  same in `web/ink`) if you need to build the SPA.
+
+## 10. Verification commands (from repo root)
+
+```
+make test                                   # Go suite
+cd app && ./gradlew :shared:check :androidApp:assembleDebug   # app build + KMP tests (needs local.properties)
+make fixtures                               # regenerate committed TroubaStage fixtures (deterministic)
+# web typecheck: cd web && studio/node_modules/.bin/tsc -b studio  (after per-pkg npm ci --no-workspaces)
+```
