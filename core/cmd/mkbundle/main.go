@@ -272,53 +272,57 @@ func writeTstage(dst, srcDir string, seed int64) error {
 
 // --- synthetic image drawing (deterministic, flat colors so PNGs stay tiny) --------------------
 
+// NRGBA (non-premultiplied) is used throughout: Go's color.RGBA is ALPHA-PREMULTIPLIED, so passing
+// straight color components at partial alpha (e.g. {200,40,40,90}) encodes a hue-shifted PNG. NRGBA
+// stores the components as-is, so the translucent overlays render in their true colors.
+
 // pageRaster draws a visually distinct A4-ish page: white bg, a per-song colored header band, a
 // border, and the page number rendered as a row of blocks. Not typography — just distinct pages.
-func pageRaster(songIdx, pageIdx int) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, rasterW, rasterH))
-	fill(img, img.Bounds(), color.RGBA{255, 255, 255, 255})
+func pageRaster(songIdx, pageIdx int) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, rasterW, rasterH))
+	fill(img, img.Bounds(), color.NRGBA{255, 255, 255, 255})
 	// Border.
-	border(img, 6, color.RGBA{40, 40, 40, 255})
+	border(img, 6, color.NRGBA{40, 40, 40, 255})
 	// Song header band (distinct hue per song).
 	fill(img, image.Rect(20, 20, rasterW-20, 120), songColor(songIdx))
 	// Page number as (pageIdx+1) black blocks below the band.
 	for i := 0; i <= pageIdx; i++ {
 		x := 40 + i*70
-		fill(img, image.Rect(x, 160, x+50, 260), color.RGBA{30, 30, 30, 255})
+		fill(img, image.Rect(x, 160, x+50, 260), color.NRGBA{30, 30, 30, 255})
 	}
 	return img
 }
 
 // overlay draws a mostly-transparent test pattern for one layer (translucent shape).
-func overlay(songIdx, pageIdx, layer int) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, rasterW, rasterH))
+func overlay(songIdx, pageIdx, layer int) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, rasterW, rasterH))
 	if layer == 0 {
 		// "marks" — translucent red rectangle mid-page.
-		fill(img, image.Rect(120, 400, rasterW-120, 520), color.RGBA{200, 40, 40, 90})
+		fill(img, image.Rect(120, 400, rasterW-120, 520), color.NRGBA{200, 40, 40, 90})
 	} else {
 		// "conductor" — translucent blue band lower-page.
-		fill(img, image.Rect(80, 700, rasterW-80, 760), color.RGBA{40, 60, 200, 90})
+		fill(img, image.Rect(80, 700, rasterW-80, 760), color.NRGBA{40, 60, 200, 90})
 	}
 	return img
 }
 
-func songColor(i int) color.RGBA {
-	palette := []color.RGBA{
+func songColor(i int) color.NRGBA {
+	palette := []color.NRGBA{
 		{70, 130, 180, 255}, {180, 120, 60, 255}, {90, 160, 90, 255}, {150, 90, 160, 255},
 	}
 	return palette[i%len(palette)]
 }
 
-func fill(img *image.RGBA, r image.Rectangle, c color.RGBA) {
+func fill(img *image.NRGBA, r image.Rectangle, c color.NRGBA) {
 	r = r.Intersect(img.Bounds())
 	for y := r.Min.Y; y < r.Max.Y; y++ {
 		for x := r.Min.X; x < r.Max.X; x++ {
-			img.SetRGBA(x, y, c)
+			img.SetNRGBA(x, y, c)
 		}
 	}
 }
 
-func border(img *image.RGBA, w int, c color.RGBA) {
+func border(img *image.NRGBA, w int, c color.NRGBA) {
 	b := img.Bounds()
 	fill(img, image.Rect(b.Min.X, b.Min.Y, b.Max.X, b.Min.Y+w), c)
 	fill(img, image.Rect(b.Min.X, b.Max.Y-w, b.Max.X, b.Max.Y), c)
