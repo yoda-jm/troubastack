@@ -1,0 +1,381 @@
+/**
+ * Editor toolbar (T10 extraction — moved verbatim from SongEditor.tsx): tool
+ * palette (registry-driven), style controls with contextual visibility, shape
+ * presets, and the layer picker. Behavior + data-testids unchanged.
+ */
+import { type ReactNode } from "react";
+import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
+import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset } from "../../editor";
+import { descriptorFor, toolsInOrder } from "../../annotations/registry";
+
+const SELECT_ICON = (
+  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+    <path d="M3 2l9 4.2-3.7 1.1 2 3.7-1.6.8-2-3.7-2.7 2.6z" fill="currentColor" />
+  </svg>
+);
+
+type ToolButton = { tool: Tool; label: string; testid: string; icon: ReactNode };
+const TOOLS: ToolButton[] = [
+  { tool: "select", label: "Select", testid: "tool-select", icon: SELECT_ICON },
+  ...toolsInOrder().map((t) => ({
+    tool: t.id as Tool,
+    label: t.label,
+    testid: `tool-${t.id}`,
+    icon: t.icon,
+  })),
+];
+
+// The shape-style presets shown as one-click buttons (#5).
+const PRESET_BUTTONS: { id: PresetId; label: string; testid: string }[] = [
+  { id: "outline", label: "Outline", testid: "preset-outline" },
+  { id: "box", label: "Box", testid: "preset-box" },
+  { id: "highlight", label: "Highlight", testid: "preset-highlight" },
+];
+
+export function EditorToolbar({
+  tool,
+  onTool,
+  style,
+  onStyle,
+  controlsLocked,
+  multiSelected,
+  selectedType,
+  editableLayers,
+  activeLayerId,
+  activeLayer,
+  onActiveLayer,
+  onNewLayer,
+  canDraw,
+  drawLocked,
+  canEditFocusedLayer,
+  focusedLayerName,
+  onEditLayer,
+  showEditLayerHint,
+  selectionCount,
+  canDeleteSelection,
+  onDelete,
+}: {
+  tool: Tool;
+  onTool: (t: Tool) => void;
+  style: AnnotationStyle;
+  onStyle: (s: AnnotationStyle) => void;
+  // The selected object is on a locked layer → style controls reflect but are disabled.
+  controlsLocked: boolean;
+  // More than one object is selected (#4): style/restyle controls are disabled,
+  // since one set of controls can't sanely restyle a heterogeneous selection.
+  multiSelected: boolean;
+  // The selected object's type (drives the tool/shape indicator), or null.
+  selectedType: AnnotationObject["type"] | null;
+  editableLayers: AnnotationLayer[];
+  activeLayerId: string | null;
+  activeLayer: AnnotationLayer | null;
+  onActiveLayer: (id: string) => void;
+  onNewLayer: () => void;
+  canDraw: boolean;
+  drawLocked: boolean;
+  // The focused layer is editable but not active → offer "Edit this layer".
+  canEditFocusedLayer: boolean;
+  focusedLayerName: string | null;
+  onEditLayer: () => void;
+  // A non-active editable object is selected → show the inline "edit this layer" hint.
+  showEditLayerHint: boolean;
+  selectionCount: number;
+  canDeleteSelection: boolean;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="editor-toolbar" data-testid="editor-toolbar">
+      <div className="tool-palette" role="toolbar" aria-label="Annotation tools">
+        {TOOLS.map((t) => (
+          <button
+            key={t.tool}
+            type="button"
+            data-testid={t.testid}
+            className={`tool-btn tool-icon-btn${tool === t.tool ? " active" : ""}`}
+            aria-pressed={tool === t.tool}
+            aria-label={t.label}
+            title={t.label}
+            disabled={(!canDraw || drawLocked) && t.tool !== "select"}
+            onClick={() => onTool(t.tool)}
+          >
+            {t.icon}
+          </button>
+        ))}
+        {/* Locked hint lives in its OWN reserved slot (NOT inline among the tool
+            buttons): it is ALWAYS mounted so its row never appears/disappears,
+            and only its visibility flips with `drawLocked`. Mounting it inline
+            (or display-toggling it) changed the palette's wrapped width/height
+            and pushed the whole viewer down — same footprint-stability rule as
+            the .style-slot-off control slots. */}
+        <span
+          className={`draw-locked-hint${drawLocked ? "" : " draw-hint-off"}`}
+          data-testid="draw-locked-hint"
+          role="status"
+          aria-hidden={!drawLocked}
+        >
+          read-only layer — pick an editable layer to draw
+        </span>
+      </div>
+
+      {(() => {
+      // ---- per-type control relevance (#1+#2) ----------------------------
+      // The bar's FOOTPRINT never changes with selection: every control slot is
+      // ALWAYS rendered; irrelevant slots are hidden via `visibility:hidden`
+      // (the .style-slot-off modifier) so they reserve their space and the page
+      // never reflows. Relevance only flips which slots are VISIBLE:
+      //   - TEXT target  → color, opacity, SIZE (fontSize). Width + shape hidden.
+      //   - SHAPE/draw   → color, opacity, WIDTH, border/fill/blend + presets.
+      //                    Text size hidden.
+      //   - nothing selected + Select tool → the neutral baseline: show all
+      //     slots (stable, maximal footprint) so picking up a selection only
+      //     ever HIDES slots, never adds them.
+      // `disabled` greys + locks the inputs (locked single OR multi-selection).
+      const disabled = controlsLocked || multiSelected;
+      // Which style controls apply to the current target (selection, else the draw
+      // tool) — read from the annotation registry (T07). Neutral baseline (Select
+      // tool, nothing selected) shows every slot, so picking up a selection only
+      // ever HIDES slots (never adds), preserving the stable footprint.
+      const neutral = selectedType == null && tool === "select";
+      const targetType =
+        selectedType ?? (tool !== "select" ? (tool as AnnotationObject["type"]) : null);
+      const controls = targetType ? (descriptorFor(targetType)?.styleControls ?? []) : [];
+      const showWidth = neutral || controls.includes("width");
+      const showShape = neutral || controls.includes("shapePreset");
+      const showFont = neutral || controls.includes("textSize");
+      const slot = (on: boolean) => `style-field${on ? "" : " style-slot-off"}`;
+      return (
+      <div
+        className={`style-controls${selectedType ? " editing-selection" : ""}${
+          disabled ? " controls-locked" : ""
+        }`}
+        data-testid="style-controls"
+      >
+        {/* Shape/type indicator: the selection's type/count, else the draw tool. */}
+        <span className="pill style-target" data-testid="style-target">
+          {multiSelected
+            ? `${selectionCount} selected`
+            : selectedType
+              ? `Editing: ${selectedType}`
+              : `Draw: ${tool}`}
+        </span>
+        <span className="swatches">
+          {COLOR_SWATCHES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`swatch${style.color === c ? " active" : ""}`}
+              style={{ background: c }}
+              aria-label={`Color ${c}`}
+              disabled={disabled}
+              onClick={() => onStyle({ ...style, color: c })}
+            />
+          ))}
+        </span>
+        <label className="style-field">
+          <span>Color</span>
+          <input
+            type="color"
+            data-testid="style-color"
+            value={style.color}
+            disabled={disabled}
+            onChange={(e) => onStyle({ ...style, color: e.target.value })}
+          />
+          <span className="style-value" data-testid="style-color-value">
+            {style.color.toUpperCase()}
+          </span>
+        </label>
+        <label className="style-field">
+          <span>Opacity</span>
+          <input
+            type="range"
+            data-testid="style-opacity"
+            min={0.1}
+            max={1}
+            step={0.05}
+            value={style.opacity}
+            disabled={disabled}
+            onChange={(e) => onStyle({ ...style, opacity: Number(e.target.value) })}
+          />
+          <span className="style-value" data-testid="style-opacity-value">
+            {Math.round(style.opacity * 100)}%
+          </span>
+        </label>
+        {/* WIDTH — stroke width. Relevant for shapes/strokes, not text. */}
+        <label className={slot(showWidth)} aria-hidden={!showWidth}>
+          <span>Width</span>
+          <input
+            type="range"
+            data-testid="style-width"
+            min={0.001}
+            max={0.02}
+            step={0.001}
+            value={style.width}
+            disabled={disabled || !showWidth}
+            tabIndex={showWidth ? undefined : -1}
+            onChange={(e) => onStyle({ ...style, width: Number(e.target.value) })}
+          />
+          <span className="style-value" data-testid="style-width-value">
+            {(style.width * 1000).toFixed(1)}
+          </span>
+        </label>
+        {/* Shape style (#5): fill / border(stroke) / blend + presets. Relevant for
+            shape/draw targets; hidden (space reserved) for text/none. */}
+        <div
+          className={`shape-style${showShape ? "" : " style-slot-off"}`}
+          data-testid="shape-style"
+          aria-hidden={!showShape}
+        >
+          <span className="preset-buttons" role="group" aria-label="Shape presets">
+            {PRESET_BUTTONS.map((p) => {
+              const active = matchPreset(style) === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-testid={p.testid}
+                  className={`preset-btn${active ? " active" : ""}`}
+                  aria-pressed={active}
+                  disabled={disabled || !showShape}
+                  tabIndex={showShape ? undefined : -1}
+                  onClick={() => onStyle(applyPreset(style, p.id))}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </span>
+          <label className="style-field shape-toggle">
+            <input
+              type="checkbox"
+              data-testid="style-fill"
+              checked={style.fill ?? false}
+              disabled={disabled || !showShape}
+              tabIndex={showShape ? undefined : -1}
+              onChange={(e) => onStyle({ ...style, fill: e.target.checked })}
+            />
+            <span>Fill</span>
+          </label>
+          <label className="style-field shape-toggle">
+            <input
+              type="checkbox"
+              data-testid="style-stroke"
+              checked={style.stroke ?? true}
+              disabled={disabled || !showShape}
+              tabIndex={showShape ? undefined : -1}
+              onChange={(e) => onStyle({ ...style, stroke: e.target.checked })}
+            />
+            <span>Border</span>
+          </label>
+          <label className="style-field">
+            <span>Blend</span>
+            <select
+              data-testid="style-blend"
+              value={style.blend ?? "normal"}
+              disabled={disabled || !showShape}
+              tabIndex={showShape ? undefined : -1}
+              onChange={(e) => onStyle({ ...style, blend: e.target.value as "normal" | "multiply" })}
+            >
+              <option value="normal">Normal</option>
+              <option value="multiply">Multiply</option>
+            </select>
+          </label>
+        </div>
+        {/* TEXT SIZE — relevant only for a text target; hidden (space reserved)
+            for shapes/strokes. */}
+        <label className={slot(showFont)} aria-hidden={!showFont}>
+          <span>Text size</span>
+          <input
+            type="range"
+            data-testid="style-font"
+            min={0.015}
+            max={0.08}
+            step={0.005}
+            value={style.fontSize}
+            disabled={disabled || !showFont}
+            tabIndex={showFont ? undefined : -1}
+            onChange={(e) => onStyle({ ...style, fontSize: Number(e.target.value) })}
+          />
+          <span className="style-value" data-testid="style-font-value">
+            {(style.fontSize * 1000).toFixed(0)}
+          </span>
+        </label>
+      </div>
+      );
+      })()}
+
+      <div className="layer-controls">
+        {/* Prominent, brand-colored chip: always shows where ink will land. */}
+        <span
+          className="pill active-layer-indicator"
+          data-testid="active-layer-indicator"
+          title="New annotations are drawn on this layer"
+        >
+          Drawing on: {activeLayer ? activeLayer.name : "no editable layer — draw to create one"}
+        </span>
+        <label className="style-field">
+          <span>Active layer</span>
+          <select
+            data-testid="active-layer"
+            value={activeLayerId ?? ""}
+            disabled={editableLayers.length === 0}
+            onChange={(e) => onActiveLayer(e.target.value)}
+          >
+            {editableLayers.length === 0 && <option value="">No editable layer</option>}
+            {editableLayers.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          data-testid="new-layer"
+          className="new-layer-btn"
+          disabled={!canDraw}
+          onClick={onNewLayer}
+        >
+          + New layer
+        </button>
+        {/* "Edit this layer": activates the focused (editable, non-active) layer
+            so its objects become editable. The active layer is the ONLY edit
+            target (Bug #2), changed explicitly here or via the selector. */}
+        {canEditFocusedLayer && (
+          <button
+            type="button"
+            data-testid="edit-this-layer"
+            className="edit-layer-btn"
+            onClick={onEditLayer}
+            title="Make this layer the active edit target"
+          >
+            Edit this layer{focusedLayerName ? `: ${focusedLayerName}` : ""}
+          </button>
+        )}
+        {showEditLayerHint && (
+          <span
+            className="edit-layer-hint"
+            data-testid="edit-layer-hint"
+            role="status"
+          >
+            Editing happens on the active layer — Edit this layer?
+          </span>
+        )}
+        <button
+          type="button"
+          data-testid="delete-object"
+          className="delete-object-btn"
+          disabled={selectionCount === 0 || !canDeleteSelection}
+          onClick={onDelete}
+        >
+          Delete{selectionCount > 1 ? ` (${selectionCount})` : ""}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// Edit canvas — per-page pointer capture + wet-object rendering
+// ===========================================================================
+
+/** A page-relative point captured during a gesture. */

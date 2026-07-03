@@ -1,0 +1,689 @@
+/**
+ * Wet edit canvas (T10 extraction — moved verbatim from SongEditor.tsx): the
+ * pointer gesture state machine (draw/move/resize/multi-move/marquee), the T06
+ * low-latency freehand path, and the DOM selection/handle overlays. Behavior +
+ * data-testids unchanged. Committed rendering still goes through @troubastack/ink.
+ */
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
+import { renderObjects, type InkObject } from "@troubastack/ink";
+import {
+  CORNER_HANDLES,
+  cursorForPick,
+  handlesVisible,
+  hitsMultiSelection,
+  intersectsRect,
+  isMarquee,
+  normalizeRect,
+  objectBBox,
+  pickAt,
+  pointerToPageXY,
+  resizeObject,
+  translateObject,
+  type DrawTool,
+  type HandleId,
+  type PickContext,
+  type SelectRect,
+  type TextMeasure,
+  type Tool,
+} from "../../editor";
+import { buildWet, measureTextWidth, toInkObject, type PRPoint, type LayerVisibility } from "./helpers";
+
+export function EditCanvas({
+  page,
+  tool,
+  style,
+  drawLocked,
+  objects,
+  layersById,
+  visible,
+  selectedUuids,
+  isObjectEditable,
+  isObjectEditableNow,
+  onSelect,
+  onFocusLayer,
+  onCommitDraw,
+  onCommitMove,
+  onCommitResize,
+}: {
+  page: number;
+  tool: Tool;
+  style: AnnotationStyle;
+  drawLocked: boolean;
+  objects: AnnotationObject[];
+  layersById: Map<string, AnnotationLayer>;
+  visible: LayerVisibility;
+  selectedUuids: string[];
+  // Whether an object's layer is editable at all (owner/rw) — drives the lock cue.
+  isObjectEditable: (obj: AnnotationObject) => boolean;
+  // Whether an object may be moved/resized/deleted/restyled RIGHT NOW: it is on
+  // the ACTIVE editable layer. Gates the move/resize gestures (Bug #2).
+  isObjectEditableNow: (obj: AnnotationObject) => boolean;
+  onSelect: (uuids: string[]) => void;
+  // Focus an object's layer when it is single-click selected (cross-layer focus,
+  // WITHOUT activating it — editing stays scoped to the active layer).
+  onFocusLayer: (layerId: string) => void;
+  onCommitDraw: (tool: DrawTool, page: number, path: PRPoint[], text?: string) => void;
+  onCommitMove: (obj: AnnotationObject) => void;
+  onCommitResize: (obj: AnnotationObject) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The active gesture: a draw path, a move drag, a resize-handle drag, a
+  // rubber-band marquee, or none. Kept in a ref so pointer handlers read the
+  // latest without re-binding.
+  const gestureRef = useRef<
+    | { mode: "draw"; path: PRPoint[] }
+    | { mode: "move"; obj: AnnotationObject; start: PRPoint; preview: AnnotationObject }
+    | { mode: "resize"; obj: AnnotationObject; handle: HandleId; start: PRPoint; preview: AnnotationObject }
+    // Group move of a multi-selection: each editable-now member carries its own
+    // original + live preview; all translate by the same delta (Bug #4).
+    | { mode: "multi-move"; start: PRPoint; items: { obj: AnnotationObject; preview: AnnotationObject }[] }
+    | { mode: "marquee"; start: PRPoint }
+    | null
+  >(null);
+  const [, forceRepaint] = useState(0);
+  // The live rubber-band rect (page-relative [0,1]) while marqueeing, for the
+  // DOM selection-box overlay. null when not marqueeing.
+  const [marquee, setMarquee] = useState<SelectRect | null>(null);
+  // The page box size in CSS px (set by sizeToPage). Drives the render-time
+  // TextMeasure so text bboxes / handles position correctly in the DOM overlay.
+  const [pageBoxPx, setPageBoxPx] = useState<{ w: number; h: number } | null>(null);
+  // Bumped on each resize-preview tick so the DOM handles follow the drag.
+  const [, forceHandles] = useState(0);
+
+  // ---- T06 low-latency wet-ink path (freehand only) ----------------------
+  // Cached 2D context requested with { desynchronized: true } for lower latency
+  // (harmless where unsupported). getContext returns the same context on repeat
+  // calls, so the attribute must be set on the FIRST call — hence the cache.
+  const wetCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // Offscreen cache holding the freehand outline for path[0..cachedUpTo], so each
+  // frame only blits the cache + re-strokes the short live tail (bounded work per
+  // frame instead of getStroke over the whole, growing path).
+  const wetCacheRef = useRef<HTMLCanvasElement | null>(null);
+  const cachedUpToRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  // Dev perf hook (localStorage.inkPerf === "1"): points received + mean
+  // pointer-event→paint latency, so the tablet spike has numbers.
+  const perfRef = useRef<{
+    points: number;
+    frames: number;
+    sumLatency: number;
+    last: number;
+    t0: number;
+    renderFirst: number;
+    renderLast: number;
+    renderMax: number;
+  } | null>(null);
+  // Bake a stable segment into the cache once the live tail exceeds this; the
+  // small overlap keeps the join between cached prefix and live tail continuous.
+  const WET_SEG = 24;
+  const WET_OVERLAP = 3;
+
+  // Objects on THIS page that are currently visible (for hit-testing on select).
+  const pageObjects = useMemo(
+    () =>
+      objects
+        .filter((o) => o.page === page)
+        .filter((o) => {
+          const l = layersById.get(o.layerId);
+          return l && visible[l.id];
+        }),
+    [objects, page, layersById, visible],
+  );
+
+  // Selected objects on THIS page (for the DOM bbox highlights).
+  const selectedSet = useMemo(() => new Set(selectedUuids), [selectedUuids]);
+  const selectedOnPage = useMemo(
+    () => pageObjects.filter((o) => selectedSet.has(o.uuid)),
+    [pageObjects, selectedSet],
+  );
+
+  // Match the edit canvas's backing store + CSS box to the page box (the sibling
+  // .pdf-canvas), so [0,1] maps identically to the dry overlay. Re-measure on
+  // layout changes (zoom/resize) via a ResizeObserver on the page wrapper.
+  const sizeToPage = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const wrapper = canvas.parentElement;
+    const pageCanvas = wrapper?.querySelector<HTMLElement>(".pdf-canvas");
+    if (!pageCanvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = pageCanvas.clientWidth;
+    const h = pageCanvas.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    setPageBoxPx((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
+    repaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Paint the wet object / move preview onto the edit canvas. (Selection boxes
+  // and per-object bbox highlights are DOM overlays, not canvas — so e2e can
+  // query them and they stay crisp at any zoom.)
+  const getWetCtx = useCallback((): CanvasRenderingContext2D | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    if (wetCtxRef.current && wetCtxRef.current.canvas === canvas) return wetCtxRef.current;
+    const ctx = canvas.getContext("2d", { desynchronized: true }) as CanvasRenderingContext2D | null;
+    wetCtxRef.current = ctx;
+    return ctx;
+  }, []);
+
+  const repaint = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = getWetCtx();
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    const box = { x: 0, y: 0, w: canvas.width / dpr, h: canvas.height / dpr };
+
+    const g = gestureRef.current;
+    if (g?.mode === "draw" && g.path.length > 0 && tool !== "select") {
+      const wet = buildWet(tool as DrawTool, g.path, style);
+      if (wet) renderObjects(ctx, [toInkObject(wet) as InkObject], box);
+    } else if (g?.mode === "move" || g?.mode === "resize") {
+      renderObjects(ctx, [toInkObject(g.preview) as InkObject], box);
+    } else if (g?.mode === "multi-move") {
+      renderObjects(ctx, g.items.map((it) => toInkObject(it.preview) as InkObject), box);
+    }
+  }, [tool, style, getWetCtx]);
+
+  // Incremental freehand wet render (T06). Blits the cached prefix outline and
+  // re-strokes only the short live tail, so per-frame cost stays bounded as the
+  // stroke grows. Segment joins are approximate; pointer-up does one authoritative
+  // renderObjects pass (below) so the committed preview matches the dry render (I8).
+  const drawWetFrame = useCallback(() => {
+    rafRef.current = null;
+    const g = gestureRef.current;
+    const canvas = canvasRef.current;
+    const ctx = getWetCtx();
+    if (!canvas || !ctx || g?.mode !== "draw") return;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.width / dpr;
+    const cssH = canvas.height / dpr;
+    const box = { x: 0, y: 0, w: cssW, h: cssH };
+    const path = g.path;
+
+    let cache = wetCacheRef.current;
+    if (!cache) {
+      cache = document.createElement("canvas");
+      wetCacheRef.current = cache;
+    }
+    if (cache.width !== canvas.width || cache.height !== canvas.height) {
+      cache.width = canvas.width;
+      cache.height = canvas.height;
+      cachedUpToRef.current = 0;
+    }
+
+    // Bake the newly-stable segment into the cache when the tail grows past WET_SEG.
+    if (path.length - cachedUpToRef.current > WET_SEG) {
+      const cctx = cache.getContext("2d");
+      if (cctx) {
+        cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const seg = path.slice(Math.max(0, cachedUpToRef.current - WET_OVERLAP));
+        const wet = buildWet("freehand", seg, style);
+        if (wet) renderObjects(cctx, [toInkObject(wet) as InkObject], box);
+        cachedUpToRef.current = path.length;
+      }
+    }
+
+    // Per-frame: clear, blit the cached prefix (device px, identity transform),
+    // then stroke the live tail (bounded length) in CSS coords.
+    const renderStart = performance.now();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (cachedUpToRef.current > 0) ctx.drawImage(cache, 0, 0);
+    const tail = path.slice(Math.max(0, cachedUpToRef.current - WET_OVERLAP));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wetTail = buildWet("freehand", tail, style);
+    if (wetTail) renderObjects(ctx, [toInkObject(wetTail) as InkObject], box);
+
+    const perf = perfRef.current;
+    if (perf) {
+      const renderMs = performance.now() - renderStart;
+      perf.sumLatency += performance.now() - perf.last;
+      if (perf.frames === 0) perf.renderFirst = renderMs;
+      perf.renderLast = renderMs;
+      if (renderMs > perf.renderMax) perf.renderMax = renderMs;
+      perf.frames += 1;
+    }
+  }, [style, getWetCtx]);
+
+  const scheduleWetFrame = useCallback(() => {
+    if (rafRef.current == null) rafRef.current = requestAnimationFrame(drawWetFrame);
+  }, [drawWetFrame]);
+
+  // Cancel any pending frame + drop the cached prefix (start of a fresh stroke,
+  // or teardown). The wet canvas itself is cleared by repaint().
+  const resetWetCache = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    cachedUpToRef.current = 0;
+  }, []);
+
+  // Cancel a pending frame on unmount.
+  useEffect(() => () => resetWetCache(), [resetWetCache]);
+
+  // Keep the canvas sized to its page; observe the page wrapper for zoom/resize.
+  useLayoutEffect(() => {
+    sizeToPage();
+    const canvas = canvasRef.current;
+    const wrapper = canvas?.parentElement;
+    if (!wrapper) return;
+    const ro = new ResizeObserver(() => sizeToPage());
+    ro.observe(wrapper);
+    return () => ro.disconnect();
+  }, [sizeToPage]);
+
+  // Repaint when the page objects / tool / style change.
+  useEffect(() => {
+    repaint();
+  }, [repaint]);
+
+  function pageRelative(e: React.PointerEvent): PRPoint {
+    const canvas = canvasRef.current!;
+    return pointerToPageXY(e.clientX, e.clientY, canvas);
+  }
+
+  // All samples in this move, not just the latest — fast styluses batch several
+  // positions per event (T06). Falls back to the single event where unsupported.
+  function coalescedPoints(e: React.PointerEvent): PRPoint[] {
+    const canvas = canvasRef.current!;
+    const ne = e.nativeEvent as PointerEvent;
+    const evs = typeof ne.getCoalescedEvents === "function" ? ne.getCoalescedEvents() : null;
+    if (evs && evs.length > 0) return evs.map((ev) => pointerToPageXY(ev.clientX, ev.clientY, canvas));
+    return [pageRelative(e)];
+  }
+
+  // Build a TextMeasure for the CURRENT page box (CSS px). measureText runs on a
+  // shared offscreen ctx with the SAME font the renderer uses, so a text bbox
+  // matches the painted glyphs. The page box is the edit canvas's CSS size.
+  const textMeasure = useCallback((): TextMeasure | undefined => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const pageW = parseFloat(canvas.style.width) || canvas.clientWidth;
+    const pageH = parseFloat(canvas.style.height) || canvas.clientHeight;
+    if (pageW <= 0 || pageH <= 0) return undefined;
+    return {
+      pageW,
+      pageH,
+      widthPx: (text, fontPx) => measureTextWidth(text, fontPx),
+    };
+  }, []);
+
+  // The page box size in CSS px (for px↔[0,1] handle math). null until laid out.
+  const pageDims = useCallback((): { w: number; h: number } | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const w = parseFloat(canvas.style.width) || canvas.clientWidth;
+    const h = parseFloat(canvas.style.height) || canvas.clientHeight;
+    return w > 0 && h > 0 ? { w, h } : null;
+  }, []);
+
+  // The bbox of the single selected object on this page (drives resize handles).
+  const selectedSingle = selectedOnPage.length === 1 ? selectedOnPage[0] : null;
+
+  // Assemble the PickContext used by BOTH the pointer-down gesture and the hover
+  // cursor, so the cursor always predicts what the next drag will do. pageObjects
+  // is in z-order (earliest first → last is topmost), exactly what pickAt wants.
+  function buildPickContext(): PickContext | null {
+    const dims = pageDims();
+    if (!dims) return null;
+    return {
+      objects: pageObjects,
+      pageW: dims.w,
+      pageH: dims.h,
+      measure: textMeasure(),
+      selected: selectedSingle,
+      isEditableNow: isObjectEditableNow,
+    };
+  }
+
+  // Set the EditCanvas cursor from a hover pick. Cheap: just the existing hit
+  // math + an inline-style write, no re-render. For mode "none" (or any non-select
+  // tool) we clear the inline cursor so the CSS `.tool-*` default (crosshair for a
+  // draw tool, default for select) applies. Resize→directional, move→move,
+  // select→pointer.
+  function updateHoverCursor(e: React.PointerEvent) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (tool !== "select") {
+      // Draw tools keep their CSS crosshair; nothing to predict on hover.
+      if (canvas.style.cursor) canvas.style.cursor = "";
+      return;
+    }
+    const pt = pageRelative(e);
+    // A multi-selection grab predicts a group move (Bug #4): hovering inside the
+    // selection shows `move` when at least one member is editable-now.
+    const dims = pageDims();
+    if (selectedOnPage.length > 1 && dims) {
+      const measure = textMeasure();
+      if (
+        hitsMultiSelection(pt, selectedOnPage, dims.w, dims.h, measure) &&
+        selectedOnPage.some((o) => isObjectEditableNow(o))
+      ) {
+        if (canvas.style.cursor !== "move") canvas.style.cursor = "move";
+        return;
+      }
+    }
+    const ctx = buildPickContext();
+    const pick = ctx ? pickAt(pt, ctx) : { object: null, mode: "none" as const };
+    // mode "none" → "" sentinel from cursorForPick, which clears to the CSS default.
+    const next = cursorForPick(pick, "");
+    if (canvas.style.cursor !== next) canvas.style.cursor = next;
+  }
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const pt = pageRelative(e);
+
+    // A read-only (locked) focused layer blocks all drawing gestures; selecting
+    // is still allowed so the user can browse/select the layer's annotations.
+    if (drawLocked && tool !== "select") return;
+
+    if (tool === "select") {
+      // Bug #4: a multi-selection group MOVE. If more than one object is
+      // selected and the press lands inside the selection (on any selected
+      // object or within the combined bbox), drag them ALL by one delta. Only
+      // the editable-now members actually translate (others stay put); if none
+      // are editable-now, fall through to a normal pick (no group move).
+      const dims = pageDims();
+      if (selectedOnPage.length > 1 && dims) {
+        const measure = textMeasure();
+        if (hitsMultiSelection(pt, selectedOnPage, dims.w, dims.h, measure)) {
+          const items = selectedOnPage
+            .filter((o) => isObjectEditableNow(o))
+            .map((o) => ({ obj: o, preview: o }));
+          if (items.length > 0) {
+            canvas.setPointerCapture(e.pointerId);
+            gestureRef.current = { mode: "multi-move", start: pt, items };
+            return;
+          }
+        }
+      }
+
+      // ONE shared pick drives both this gesture and the hover cursor, so they
+      // never disagree. pickAt resolves resize-handle > move > select > none.
+      const ctx = buildPickContext();
+      const pick = ctx ? pickAt(pt, ctx) : { object: null, mode: "none" as const };
+
+      if (pick.mode === "resize" && pick.object && pick.handle) {
+        // Press on a visible resize handle of the current selection → RESIZE.
+        canvas.setPointerCapture(e.pointerId);
+        gestureRef.current = {
+          mode: "resize",
+          obj: pick.object,
+          handle: pick.handle,
+          start: pt,
+          preview: pick.object,
+        };
+        return;
+      }
+
+      if (pick.object) {
+        onSelect([pick.object.uuid]);
+        // Cross-layer focus: clicking an object focuses its layer (so the scoped
+        // annotation list shows it and the user can see which layer it's on) —
+        // WITHOUT activating it. Editing stays scoped to the active layer (Bug #2).
+        onFocusLayer(pick.object.layerId);
+        // Only start a MOVE gesture for objects editable RIGHT NOW (mode "move").
+        // A "select"-mode object (locked OR non-active layer) is selectable to
+        // inspect but never movable — the cursor already showed `pointer`, so no
+        // surprise. The server `forbidden` reject is only a backstop.
+        if (pick.mode === "move") {
+          canvas.setPointerCapture(e.pointerId);
+          gestureRef.current = { mode: "move", obj: pick.object, start: pt, preview: pick.object };
+        }
+      } else {
+        // Empty space → start a rubber-band marquee.
+        onSelect([]);
+        canvas.setPointerCapture(e.pointerId);
+        gestureRef.current = { mode: "marquee", start: pt };
+        setMarquee(normalizeRect(pt, pt));
+      }
+      return;
+    }
+
+    if (tool === "text") {
+      // Click → inline prompt → text object at the anchor.
+      const text = window.prompt("Text annotation");
+      if (text && text.trim()) onCommitDraw("text", page, [pt], text.trim());
+      return;
+    }
+
+    canvas.setPointerCapture(e.pointerId);
+    gestureRef.current = { mode: "draw", path: [pt] };
+    resetWetCache();
+    perfRef.current =
+      tool === "freehand" && typeof localStorage !== "undefined" && localStorage.inkPerf === "1"
+        ? {
+            points: 1,
+            frames: 0,
+            sumLatency: 0,
+            last: performance.now(),
+            t0: performance.now(),
+            renderFirst: 0,
+            renderLast: 0,
+            renderMax: 0,
+          }
+        : null;
+    forceRepaint((n) => n + 1);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const g = gestureRef.current;
+    if (!g) {
+      // No active gesture → this is a HOVER. Set an action-reflecting cursor from
+      // the SAME pickAt the press will use, so the cursor predicts the next drag.
+      updateHoverCursor(e);
+      return;
+    }
+    const pt = pageRelative(e);
+    if (g.mode === "draw") {
+      if (tool === "freehand") {
+        // Out of React, coalesced, one paint per frame (T06).
+        const pts = coalescedPoints(e);
+        for (const p of pts) g.path.push(p);
+        const perf = perfRef.current;
+        if (perf) {
+          perf.points += pts.length;
+          perf.last = performance.now();
+        }
+        scheduleWetFrame();
+      } else {
+        // line/rect/ellipse previews are O(1) geometry — the simple full repaint
+        // is already cheap and exact.
+        g.path.push(pt);
+        repaint();
+      }
+    } else if (g.mode === "move") {
+      const dx = pt.x - g.start.x;
+      const dy = pt.y - g.start.y;
+      g.preview = translateObject(g.obj, dx, dy);
+      repaint();
+    } else if (g.mode === "multi-move") {
+      const dx = pt.x - g.start.x;
+      const dy = pt.y - g.start.y;
+      for (const it of g.items) it.preview = translateObject(it.obj, dx, dy);
+      repaint();
+      forceHandles((n) => n + 1); // move the DOM bboxes with the drag
+    } else if (g.mode === "resize") {
+      const dx = pt.x - g.start.x;
+      const dy = pt.y - g.start.y;
+      g.preview = resizeObject(g.obj, g.handle, dx, dy, textMeasure());
+      repaint();
+      forceHandles((n) => n + 1); // move the DOM handles + bbox with the drag
+    } else if (g.mode === "marquee") {
+      setMarquee(normalizeRect(g.start, pt));
+    }
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    const g = gestureRef.current;
+    gestureRef.current = null;
+    const canvas = canvasRef.current;
+    if (canvas?.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    if (!g) return;
+    if (g.mode === "draw" && tool !== "select") {
+      resetWetCache(); // drop any queued frame; commit re-renders authoritatively
+      const perf = perfRef.current;
+      if (perf) {
+        const secs = (performance.now() - perf.t0) / 1000 || 1;
+        const mean = perf.frames ? (perf.sumLatency / perf.frames).toFixed(1) : "?";
+        // eslint-disable-next-line no-console
+        console.log(
+          `[inkPerf] ${perf.points} pts / ${secs.toFixed(2)}s = ${Math.round(perf.points / secs)} pts/s · ${perf.frames} frames · ` +
+            `mean event→paint ${mean}ms · per-frame render first ${perf.renderFirst.toFixed(2)}ms → last ${perf.renderLast.toFixed(2)}ms (max ${perf.renderMax.toFixed(2)}ms)`,
+        );
+        perfRef.current = null;
+      }
+      onCommitDraw(tool as DrawTool, page, g.path);
+    } else if (g.mode === "move") {
+      // Only commit if it actually moved.
+      const moved =
+        g.preview.points.some((p, i) => p.x !== g.obj.points[i].x || p.y !== g.obj.points[i].y);
+      if (moved) onCommitMove(g.preview);
+    } else if (g.mode === "multi-move") {
+      // Commit a move mutation for each member that actually moved (Bug #4).
+      for (const it of g.items) {
+        const moved = it.preview.points.some(
+          (p, i) => p.x !== it.obj.points[i].x || p.y !== it.obj.points[i].y,
+        );
+        if (moved) onCommitMove(it.preview);
+      }
+    } else if (g.mode === "resize") {
+      // Commit if the geometry (points) or the text fontSize actually changed.
+      const changed =
+        g.preview.points.some((p, i) => p.x !== g.obj.points[i].x || p.y !== g.obj.points[i].y) ||
+        g.preview.style.fontSize !== g.obj.style.fontSize;
+      if (changed) onCommitResize(g.preview);
+    } else if (g.mode === "marquee") {
+      const pt = pageRelative(e);
+      const rect = normalizeRect(g.start, pt);
+      setMarquee(null);
+      if (isMarquee(rect)) {
+        const measure = textMeasure();
+        const hits = pageObjects
+          .filter((o) => intersectsRect(o, rect, measure))
+          .map((o) => o.uuid);
+        onSelect(hits);
+      }
+    }
+    repaint();
+  }
+
+  return (
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`edit-canvas tool-${tool}`}
+        data-testid="edit-canvas"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onPointerLeave={() => {
+          // Clear the action cursor when leaving the canvas so a stale move/resize
+          // cursor doesn't linger; CSS `.tool-*` default takes over.
+          const c = canvasRef.current;
+          if (c && c.style.cursor) c.style.cursor = "";
+        }}
+      />
+      {/* Selection overlays: DOM elements positioned in % of the page box, so
+          they track the page under any zoom AND are queryable in e2e. */}
+      <div className="selection-overlay" aria-hidden="true">
+        {selectedOnPage.map((o) => {
+          // While resizing THIS object, draw the live preview box so the bbox +
+          // handles follow the drag.
+          const g = gestureRef.current;
+          let previewing = o;
+          if (g && (g.mode === "resize" || g.mode === "move") && g.obj.uuid === o.uuid) {
+            previewing = g.preview;
+          } else if (g && g.mode === "multi-move") {
+            const it = g.items.find((x) => x.obj.uuid === o.uuid);
+            if (it) previewing = it.preview;
+          }
+          const renderMeasure: TextMeasure | undefined = pageBoxPx
+            ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth }
+            : undefined;
+          const b = objectBBox(previewing, renderMeasure);
+          const everEditable = isObjectEditable(o);
+          const locked = !everEditable; // truly read-only layer
+          const editableNow = isObjectEditableNow(o);
+          // Editable layer but NOT the active one → inspect-only, distinct cue.
+          const inactiveEditable = everEditable && !editableNow;
+          // Bug #2: suppress handles when the on-screen bbox is too small to show them
+          // safely — the object is then move-only (handles would overlap the body).
+          const bigEnough = pageBoxPx ? handlesVisible(b, pageBoxPx.w, pageBoxPx.h) : false;
+          const showHandles = editableNow && selectedOnPage.length === 1 && bigEnough;
+          return (
+            <div
+              key={o.uuid}
+              className={`selected-bbox${locked ? " readonly" : ""}${
+                inactiveEditable ? " inactive" : ""
+              }`}
+              data-testid="selected-bbox"
+              data-uuid={o.uuid}
+              style={{
+                left: `${b.minX * 100}%`,
+                top: `${b.minY * 100}%`,
+                width: `${(b.maxX - b.minX) * 100}%`,
+                height: `${(b.maxY - b.minY) * 100}%`,
+              }}
+            >
+              {/* Locked cue: a small greyed lock pinned at the bbox corner. */}
+              {locked && (
+                <span
+                  className="bbox-lock"
+                  data-testid="bbox-lock"
+                  title="Read-only layer — this annotation can't be edited"
+                  aria-label="Read-only annotation"
+                >
+                  🔒
+                </span>
+              )}
+              {/* Resize handles: only for the single, active-editable selection. */}
+              {showHandles &&
+                CORNER_HANDLES.map((h) => {
+                  // Handle position relative to THIS bbox (the box is the parent,
+                  // so 0%/100% are its own corners).
+                  const left = h === "nw" || h === "sw" ? 0 : 100;
+                  const top = h === "nw" || h === "ne" ? 0 : 100;
+                  return (
+                    <span
+                      key={h}
+                      className={`resize-handle handle-${h}`}
+                      data-testid="resize-handle"
+                      data-handle={h}
+                      style={{ left: `${left}%`, top: `${top}%` }}
+                    />
+                  );
+                })}
+            </div>
+          );
+        })}
+        {marquee && (
+          <div
+            className="selection-box"
+            data-testid="selection-box"
+            style={{
+              left: `${marquee.x0 * 100}%`,
+              top: `${marquee.y0 * 100}%`,
+              width: `${(marquee.x1 - marquee.x0) * 100}%`,
+              height: `${(marquee.y1 - marquee.y0) * 100}%`,
+            }}
+          />
+        )}
+      </div>
+    </>
+  );
+}
