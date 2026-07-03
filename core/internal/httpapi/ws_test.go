@@ -494,29 +494,41 @@ func TestWSEditForbiddenOnForeignROLayer(t *testing.T) {
 	}
 }
 
-// TestImportNotBlockedByWriteAccess: the seed/import REST path remains permissive — it
-// provisions layers AND objects for an arbitrary owner (Bob) even though the caller
-// (Alice) is not that owner and the layer is read-only. Import bypasses the hub gate.
-func TestImportNotBlockedByWriteAccess(t *testing.T) {
-	band, song, alice, _, bobID := twoMemberBand(t)
-	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
-		annDoc{
-			Layers:  []annLayer{{ID: "L-bob-ro", FileID: "f1", Name: "Bob RO", OwnerID: bobID, Zone: "personal", Order: 0, Access: "ro"}},
-			Objects: []annObject{*objOn("o-seed", "L-bob-ro")},
-		})
+// TestImportRequiresAdmin (T08): import is an admin-only bulk/seed tool. A band
+// ADMIN may provision layers+objects for an arbitrary owner (Bob) even into a
+// read-only layer — that permissive seeding is intentional. But a non-admin
+// MEMBER can no longer use import to bypass the live-editing write gate: their
+// import is rejected 403, so it cannot write a locked/foreign layer the WS path
+// would reject for them.
+func TestImportRequiresAdmin(t *testing.T) {
+	band, song, alice, bob, bobID := twoMemberBand(t)
+
+	// Admin (Alice) import is permissive: provisions Bob's RO layer + an object.
+	doc := annDoc{
+		Layers:  []annLayer{{ID: "L-bob-ro", FileID: "f1", Name: "Bob RO", OwnerID: bobID, Zone: "personal", Order: 0, Access: "ro"}},
+		Objects: []annObject{*objOn("o-seed", "L-bob-ro")},
+	}
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import", doc)
 	mustStatus(t, resp, http.StatusOK)
 
-	// The object landed on Bob's RO layer despite Alice being a non-owner.
 	resp, body := alice.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
 	mustStatus(t, resp, http.StatusOK)
 	var got annDoc
 	unmarshalField2(t, body, &got)
 	if len(got.Layers) != 1 || got.Layers[0].OwnerID != bobID {
-		t.Fatalf("import should provision bob's layer: %+v", got.Layers)
+		t.Fatalf("admin import should provision bob's layer: %+v", got.Layers)
 	}
 	if len(got.Objects) != 1 || got.Objects[0].LayerID != "L-bob-ro" {
-		t.Fatalf("import should provision the object on bob's RO layer: %+v", got.Objects)
+		t.Fatalf("admin import should provision the object on bob's RO layer: %+v", got.Objects)
 	}
+
+	// Non-admin member (Bob) import is forbidden — closes the escalation gap.
+	resp, _ = bob.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{
+			Layers:  []annLayer{{ID: "L-bob2", FileID: "f1", Name: "Bob 2", OwnerID: bobID, Zone: "personal", Order: 1, Access: "rw"}},
+			Objects: []annObject{*objOn("o-bob", "L-bob2")},
+		})
+	mustStatus(t, resp, http.StatusForbidden)
 }
 
 // ---- #3 CONDUCTOR ZONE (role-governed write access) ----

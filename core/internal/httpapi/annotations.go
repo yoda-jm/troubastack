@@ -102,9 +102,24 @@ func (a *AnnotationsAPI) getAnnotations(w http.ResponseWriter, r *http.Request, 
 // idempotent: layers are keyed by id and objects by uuid, so re-import does not
 // duplicate (the engine's create is a no-op for an already-present uuid/version).
 func (a *AnnotationsAPI) importAnnotations(w http.ResponseWriter, r *http.Request, u app.User) {
-	song, err := a.svc.SongForMember(u, r.PathValue("bandId"), r.PathValue("songId"))
+	bandID := r.PathValue("bandId")
+	song, err := a.svc.SongForMember(u, bandID, r.PathValue("songId"))
 	if err != nil {
 		writeErr(w, err)
+		return
+	}
+	// Import is a bulk/seed tool: it provisions layers+objects on behalf of ANY
+	// owner (see cmd/seed), which necessarily bypasses the per-layer write gate
+	// applied to the live editing path (sync/apply.go authorizeWrite). To stop a
+	// non-admin member using it to write layers that gate would reject (locked,
+	// foreign, or conductor-zone), restrict it to band admins. Regular members
+	// edit through the gated WebSocket path, not this endpoint (the studio UI
+	// never calls import). Policy: admin-only route (T08 option b).
+	if _, role, err := a.svc.GetBand(u, bandID); err != nil {
+		writeErr(w, err)
+		return
+	} else if role != app.RoleAdmin {
+		writeErr(w, app.ErrForbidden)
 		return
 	}
 	var in annotationsJSON
