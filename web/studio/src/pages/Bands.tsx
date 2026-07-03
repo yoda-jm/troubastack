@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, api, type Band } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { NewItem } from "../components/NewItem";
 
 export function Bands() {
   const [bands, setBands] = useState<Band[]>([]);
@@ -21,7 +22,7 @@ export function Bands() {
     void load();
   }, []);
 
-  async function onCreate(e: FormEvent) {
+  async function onCreate(e: FormEvent): Promise<boolean> {
     e.preventDefault();
     setError(null);
     setBusy(true);
@@ -29,8 +30,10 @@ export function Bands() {
       await api.createBand(name);
       setName("");
       await load();
+      return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create band");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -38,20 +41,31 @@ export function Bands() {
 
   return (
     <div className="page">
-      <h1>My bands</h1>
-
-      <form onSubmit={onCreate} className="inline-form">
-        <input
-          data-testid="band-name"
-          placeholder="New band name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <button type="submit" data-testid="create-band" disabled={busy}>
-          Create band
-        </button>
-      </form>
+      <div className="page-head">
+        <h1>My bands</h1>
+        <NewItem label="New band" testId="new-band-btn">
+          {(close) => (
+            <form
+              onSubmit={(e) => void onCreate(e).then((ok) => ok && close())}
+              className="inline-form"
+            >
+              <input
+                data-testid="band-name"
+                placeholder="New band name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+              <button type="submit" data-testid="create-band" disabled={busy}>
+                Create band
+              </button>
+              <button type="button" className="ghost-btn" onClick={close}>
+                Cancel
+              </button>
+            </form>
+          )}
+        </NewItem>
+      </div>
 
       <ErrorBanner message={error} />
 

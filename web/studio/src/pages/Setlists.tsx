@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api, type Setlist } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { SectionTabs } from "../components/SectionTabs";
 
 export function Setlists() {
   const { bandId } = useParams<{ bandId: string }>();
@@ -28,6 +29,16 @@ export function Setlists() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Role drives whether the admin-only Settings tab shows in the section strip.
+  const [showSettings, setShowSettings] = useState(false);
+  useEffect(() => {
+    if (!bandId) return;
+    api
+      .getBand(bandId)
+      .then(({ myRole }) => setShowSettings(myRole === "admin"))
+      .catch(() => {});
+  }, [bandId]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -57,6 +68,7 @@ export function Setlists() {
     <div className="page">
       <Link to={`/bands/${bandId}`}>&larr; Back to band</Link>
       <h1 data-testid="setlists-title">Setlists</h1>
+      <SectionTabs bandId={bandId} active="setlists" showSettings={showSettings} />
 
       <section className="card">
         <h2>New setlist</h2>

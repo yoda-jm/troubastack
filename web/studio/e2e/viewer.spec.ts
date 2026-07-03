@@ -162,6 +162,7 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
 
   // Band + song.
   const bandName = `ViewBand ${stamp()}`;
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
   await page.getByTestId("band-link").filter({ hasText: bandName }).click();
@@ -170,6 +171,7 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   const bandId = bandUrl.split("/bands/")[1];
 
   const songTitle = `ViewSong ${stamp()}`;
+  await page.getByTestId("new-song-btn").click();
   await page.getByTestId("song-title").fill(songTitle);
   await page.getByTestId("create-song").click();
   await page.getByTestId("song-link").filter({ hasText: songTitle }).click();
@@ -320,6 +322,7 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
 /** Create a band + song and return their ids (logged-in page assumed). */
 async function makeBandAndSong(page: Page): Promise<{ bandId: string; songId: string }> {
   const bandName = `MyFilesBand ${stamp()}`;
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
   await page.getByTestId("band-link").filter({ hasText: bandName }).click();
@@ -327,6 +330,7 @@ async function makeBandAndSong(page: Page): Promise<{ bandId: string; songId: st
   const bandId = page.url().split("/bands/")[1];
 
   const songTitle = `MyFilesSong ${stamp()}`;
+  await page.getByTestId("new-song-btn").click();
   await page.getByTestId("song-title").fill(songTitle);
   await page.getByTestId("create-song").click();
   await page.getByTestId("song-link").filter({ hasText: songTitle }).click();

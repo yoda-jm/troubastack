@@ -3,6 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError, api, type Band, type Invite, type MemberView, type Role, type Song } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
+import { NewItem } from "../components/NewItem";
+import { SectionTabs } from "../components/SectionTabs";
+
+/** Sentence-case a short enum label (role, zone) for display. */
+function label(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export function BandDetail() {
   const { bandId } = useParams<{ bandId: string }>();
@@ -47,16 +54,7 @@ export function BandDetail() {
         Your role: <strong data-testid="my-role">{myRole}</strong>
       </p>
 
-      <nav className="inline-form">
-        <Link to={`/bands/${bandId}/setlists`} data-testid="nav-setlists">
-          Setlists
-        </Link>
-        {myRole === "admin" && (
-          <Link to={`/bands/${bandId}/settings`} data-testid="nav-settings">
-            Settings
-          </Link>
-        )}
-      </nav>
+      <SectionTabs bandId={bandId} active="overview" showSettings={myRole === "admin"} />
 
       <Members bandId={bandId} myRole={myRole} />
       <Songs bandId={bandId} />
@@ -67,7 +65,6 @@ export function BandDetail() {
 function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
   const [members, setMembers] = useState<MemberView[]>([]);
   const [identifier, setIdentifier] = useState("");
-  const [kind, setKind] = useState<Invite["kind"]>("username");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,17 +81,22 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
     void load();
   }, [load]);
 
-  async function onInvite(e: FormEvent) {
+  async function onInvite(e: FormEvent): Promise<boolean> {
     e.preventDefault();
     setError(null);
     setNotice(null);
     setBusy(true);
+    // Auto-detect the identifier kind: an "@" means email, otherwise a username.
+    // (The server still accepts a raw uuid; we just never surface it in the UI.)
+    const kind: Invite["kind"] = identifier.includes("@") ? "email" : "username";
     try {
       await api.invite(bandId, identifier, kind);
       setIdentifier("");
-      setNotice(`Invited ${kind} "${identifier}".`);
+      setNotice(`Invited "${identifier}".`);
+      return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to invite");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -105,36 +107,41 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
       <h2>Members</h2>
       <ul className="list" data-testid="members-list">
         {members.map((m) => (
-          <li key={m.user.id} data-testid="member-row">
-            <Avatar user={m.user} size={26} />{" "}
-            <span>{m.user.displayName}</span> <span className="muted">@{m.user.username}</span>{" "}
-            <span className="pill">{m.role}</span>
+          <li key={m.user.id} data-testid="member-row" className="member-row">
+            <span className="member-identity">
+              <Avatar user={m.user} size={28} />
+              <span className="member-name">{m.user.displayName}</span>
+              <span className="muted member-handle">@{m.user.username}</span>
+            </span>
+            <span className="chip member-role">{label(m.role)}</span>
           </li>
         ))}
       </ul>
 
       {myRole === "admin" && (
-        <form onSubmit={onInvite} className="inline-form" data-testid="invite-form">
-          <input
-            data-testid="invite-identifier"
-            placeholder="username / email / uuid"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            required
-          />
-          <select
-            data-testid="invite-kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as Invite["kind"])}
-          >
-            <option value="username">username</option>
-            <option value="email">email</option>
-            <option value="uuid">uuid</option>
-          </select>
-          <button type="submit" data-testid="invite-submit" disabled={busy}>
-            Invite
-          </button>
-        </form>
+        <NewItem label="Invite member" testId="invite-toggle">
+          {(close) => (
+            <form
+              onSubmit={(e) => void onInvite(e).then((ok) => ok && close())}
+              className="inline-form"
+              data-testid="invite-form"
+            >
+              <input
+                data-testid="invite-identifier"
+                placeholder="Username or email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                required
+              />
+              <button type="submit" data-testid="invite-submit" disabled={busy}>
+                Invite
+              </button>
+              <button type="button" className="ghost-btn" onClick={close}>
+                Cancel
+              </button>
+            </form>
+          )}
+        </NewItem>
       )}
 
       {notice && (
@@ -166,7 +173,7 @@ function Songs({ bandId }: { bandId: string }) {
     void load();
   }, [load]);
 
-  async function onCreate(e: FormEvent) {
+  async function onCreate(e: FormEvent): Promise<boolean> {
     e.preventDefault();
     setError(null);
     setBusy(true);
@@ -175,8 +182,10 @@ function Songs({ bandId }: { bandId: string }) {
       setTitle("");
       setArtist("");
       await load();
+      return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create song");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -184,26 +193,37 @@ function Songs({ bandId }: { bandId: string }) {
 
   return (
     <section className="card">
-      <h2>Songs</h2>
-
-      <form onSubmit={onCreate} className="inline-form">
-        <input
-          data-testid="song-title"
-          placeholder="Song title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-        />
-        <input
-          data-testid="song-artist"
-          placeholder="Artist (optional)"
-          value={artist}
-          onChange={(e) => setArtist(e.target.value)}
-        />
-        <button type="submit" data-testid="create-song" disabled={busy}>
-          Add song
-        </button>
-      </form>
+      <div className="card-head">
+        <h2>Songs</h2>
+        <NewItem label="Add song" testId="new-song-btn">
+          {(close) => (
+            <form
+              onSubmit={(e) => void onCreate(e).then((ok) => ok && close())}
+              className="inline-form"
+            >
+              <input
+                data-testid="song-title"
+                placeholder="Song title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+              />
+              <input
+                data-testid="song-artist"
+                placeholder="Artist (optional)"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+              />
+              <button type="submit" data-testid="create-song" disabled={busy}>
+                Add song
+              </button>
+              <button type="button" className="ghost-btn" onClick={close}>
+                Cancel
+              </button>
+            </form>
+          )}
+        </NewItem>
+      </div>
 
       <ErrorBanner message={error} />
 

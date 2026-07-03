@@ -32,6 +32,7 @@ test("2. create a band, open it, I am admin", async ({ page }) => {
   await register(page, `owner_${stamp()}`);
   const bandName = `Band ${stamp()}`;
 
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
 
@@ -54,14 +55,15 @@ test("3. invite a second user; they accept and gain access", async ({ browser })
 
   // Admin registers, creates a band, opens it.
   await register(adminPage, `admin_${stamp()}`);
+  await adminPage.getByTestId("new-band-btn").click();
   await adminPage.getByTestId("band-name").fill(bandName);
   await adminPage.getByTestId("create-band").click();
   await adminPage.getByTestId("band-link").filter({ hasText: bandName }).click();
   await expect(adminPage.getByTestId("my-role")).toHaveText("admin");
 
   // Admin invites the second user by username.
+  await adminPage.getByTestId("invite-toggle").click();
   await adminPage.getByTestId("invite-identifier").fill(inviteeName);
-  await adminPage.getByTestId("invite-kind").selectOption("username");
   await adminPage.getByTestId("invite-submit").click();
   await expect(adminPage.getByTestId("invite-notice")).toBeVisible();
 
@@ -94,10 +96,12 @@ test("4. create a song; clicking it opens the annotation editor", async ({ page 
   const bandName = `Songs ${stamp()}`;
   const songTitle = `Tune ${stamp()}`;
 
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
   await page.getByTestId("band-link").filter({ hasText: bandName }).click();
 
+  await page.getByTestId("new-song-btn").click();
   await page.getByTestId("song-title").fill(songTitle);
   await page.getByTestId("song-artist").fill("The Authors");
   await page.getByTestId("create-song").click();
@@ -127,6 +131,7 @@ test("5. logout redirects to /login; guarded routes redirect when logged out", a
 
 /** Register, create a band, open it. Returns the band's detail URL. */
 async function createBandAndOpen(page: Page, bandName: string) {
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
   await page.getByTestId("band-link").filter({ hasText: bandName }).click();
@@ -134,6 +139,7 @@ async function createBandAndOpen(page: Page, bandName: string) {
 }
 
 async function createSong(page: Page, title: string) {
+  await page.getByTestId("new-song-btn").click();
   await page.getByTestId("song-title").fill(title);
   await page.getByTestId("create-song").click();
   await page.getByTestId("song-link").filter({ hasText: title }).click();
@@ -176,6 +182,7 @@ test("8. setlist: create, add two songs, reorder, key override persists", async 
   const songB = `Bravo ${stamp()}`;
   for (const t of [songA, songB]) {
     await page.goto(bandUrl);
+    await page.getByTestId("new-song-btn").click();
     await page.getByTestId("song-title").fill(t);
     await page.getByTestId("create-song").click();
     await expect(page.getByTestId("song-link").filter({ hasText: t })).toBeVisible();
@@ -229,8 +236,8 @@ test("9. band settings: admin changes a member's role; non-admin sees no control
   const bandUrl = adminPage.url();
 
   // Invite the second user, they accept.
+  await adminPage.getByTestId("invite-toggle").click();
   await adminPage.getByTestId("invite-identifier").fill(memberName);
-  await adminPage.getByTestId("invite-kind").selectOption("username");
   await adminPage.getByTestId("invite-submit").click();
   await expect(adminPage.getByTestId("invite-notice")).toBeVisible();
 
@@ -283,8 +290,8 @@ test("10. admin changes a conductor's role; member-list order stays stable", asy
   const ctxs = [];
   for (const name of names) {
     await adminPage.goto(bandUrl);
+    await adminPage.getByTestId("invite-toggle").click();
     await adminPage.getByTestId("invite-identifier").fill(name);
-    await adminPage.getByTestId("invite-kind").selectOption("username");
     await adminPage.getByTestId("invite-submit").click();
     await expect(adminPage.getByTestId("invite-notice")).toBeVisible();
 

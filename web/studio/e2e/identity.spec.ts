@@ -18,6 +18,7 @@ async function register(page: Page, username: string, password = "secret123") {
 }
 
 async function createBandAndOpen(page: Page, bandName: string) {
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
   await page.getByTestId("band-link").filter({ hasText: bandName }).click();

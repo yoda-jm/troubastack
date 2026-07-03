@@ -16,6 +16,7 @@ import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { InviteLinks } from "../components/InviteLinks";
+import { SectionTabs } from "../components/SectionTabs";
 
 export function BandSettings() {
   const { bandId } = useParams<{ bandId: string }>();
@@ -54,6 +55,7 @@ export function BandSettings() {
     <div className="page">
       <Link to={`/bands/${bandId}`}>&larr; Back to band</Link>
       <h1 data-testid="settings-title">{band.name} — Settings</h1>
+      <SectionTabs bandId={bandId} active="settings" showSettings={myRole === "admin"} />
       <p className="muted">
         Your role: <strong data-testid="settings-my-role">{myRole}</strong>
       </p>

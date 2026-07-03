@@ -33,6 +33,7 @@ async function myUserId(page: Page): Promise<string> {
 }
 
 async function createBandAndOpen(page: Page, bandName: string): Promise<{ url: string; id: string }> {
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
   await page.getByTestId("band-link").filter({ hasText: bandName }).click();
@@ -42,6 +43,7 @@ async function createBandAndOpen(page: Page, bandName: string): Promise<{ url: s
 }
 
 async function createSongAndOpen(page: Page, title: string): Promise<string> {
+  await page.getByTestId("new-song-btn").click();
   await page.getByTestId("song-title").fill(title);
   await page.getByTestId("create-song").click();
   await page.getByTestId("song-link").filter({ hasText: title }).click();

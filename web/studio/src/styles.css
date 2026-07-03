@@ -6,6 +6,7 @@
   --brand-strong: #4338ca;
   --brand-tint: #eef2ff;
   --accent: var(--brand);        /* THE single accent — everything derives from the brand */
+  accent-color: var(--accent);   /* unify native widgets (sliders, checkboxes) with the brand, both themes */
 
   --bg: #f4f5fb;
   --surface: #ffffff;
@@ -584,3 +585,48 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .invite-link-row .qr svg { width: 110px; height: 110px; }
 .invite-link-meta { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 0; }
 .invite-link-meta input[data-testid="invite-link-url"] { width: 100%; font-family: monospace; font-size: .8rem; }
+
+/* ---- T04: headers, progressive-disclosure creation, tabs, member rows --- */
+/* Content-first headers: title on the left, a single "+ New" action on the right. */
+.page-head, .card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+}
+.page-head h1, .card-head h2 { margin: 0; }
+.card-head { margin-bottom: .25rem; }
+/* When the disclosure form is revealed it drops to its own full-width row below
+   the heading (rather than squeezing into the header line). */
+.new-item-open { flex: 1 1 100%; }
+
+.new-item-btn {
+  padding: .4rem .85rem; font-size: .9rem;
+  background: var(--brand); border-color: var(--brand); color: #fff;
+}
+.new-item-btn:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
+/* Subtle secondary (Cancel) that collapses the disclosure. */
+.ghost-btn { background: transparent; border-color: var(--border); color: var(--muted); }
+.ghost-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--fg); }
+
+/* Neutral, sentence-cased chip for informational state (e.g. member role). */
+.chip {
+  display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .02em;
+  padding: .15rem .55rem; border-radius: 999px;
+  background: var(--chip-bg); color: var(--chip-fg);
+}
+
+/* Member row: one left-aligned identity block, role chip pinned right. */
+.member-row { gap: .75rem; }
+.member-identity { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1 1 auto; }
+.member-name { font-weight: 600; }
+.member-handle { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-role { flex: 0 0 auto; }
+
+/* Band section navigation as a tab strip (Overview / Setlists / Settings). */
+.section-tabs { display: flex; gap: .25rem; margin: .3rem 0 1.1rem; border-bottom: 1px solid var(--border); }
+.section-tab {
+  padding: .45rem .9rem; font-weight: 600; font-size: .92rem;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+.section-tab:hover { text-decoration: none; color: var(--fg); background: var(--surface-2); }
+.section-tab.active { color: var(--accent); border-bottom-color: var(--accent); }

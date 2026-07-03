@@ -29,6 +29,7 @@ async function register(page: Page, username: string, password = "secret123") {
 
 /** Create a band, open it, return its detail URL + id. */
 async function createBandAndOpen(page: Page, bandName: string): Promise<{ url: string; id: string }> {
+  await page.getByTestId("new-band-btn").click();
   await page.getByTestId("band-name").fill(bandName);
   await page.getByTestId("create-band").click();
   await page.getByTestId("band-link").filter({ hasText: bandName }).click();
@@ -38,6 +39,7 @@ async function createBandAndOpen(page: Page, bandName: string): Promise<{ url: s
 }
 
 async function createSongAndOpen(page: Page, title: string): Promise<string> {
+  await page.getByTestId("new-song-btn").click();
   await page.getByTestId("song-title").fill(title);
   await page.getByTestId("create-song").click();
   await page.getByTestId("song-link").filter({ hasText: title }).click();
@@ -181,8 +183,8 @@ test("editor realtime: user A draws → user B sees it without reload", async ({
 
   // A invites B by username.
   await a.goto(band.url);
+  await a.getByTestId("invite-toggle").click();
   await a.getByTestId("invite-identifier").fill(userB);
-  await a.getByTestId("invite-kind").selectOption("username");
   await a.getByTestId("invite-submit").click();
   await expect(a.getByTestId("invite-notice")).toBeVisible();
 
