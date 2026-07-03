@@ -113,16 +113,19 @@ export function SongEditor() {
 
   return (
     <div className="page viewer-page">
-      <Link to={`/bands/${bandId}`}>&larr; Back to band</Link>
-      {error && !song ? <ErrorBanner message={error} /> : null}
+      {error && !song ? (
+        <>
+          <Link to={`/bands/${bandId}`}>&larr; Back to band</Link>
+          <ErrorBanner message={error} />
+        </>
+      ) : null}
 
       {song && (
         <>
-          <h1 data-testid="song-title">{song.title}</h1>
-
           <Viewer
             bandId={bandId}
             songId={songId}
+            songTitle={song.title}
             myUserId={user?.id ?? null}
             myRole={myRole}
           />
@@ -209,21 +212,16 @@ function isEditableLayer(
   return (myUserId != null && l.ownerId === myUserId) || l.access === "rw";
 }
 
-/** Format the zoom selection for the zoom-level readout. */
-function formatZoom(mode: ZoomMode): string {
-  if (mode === "fit-width") return "Fit width";
-  if (mode === "fit-page") return "Fit page";
-  return `${mode}%`;
-}
-
 function Viewer({
   bandId,
   songId,
+  songTitle,
   myUserId,
   myRole,
 }: {
   bandId: string;
   songId: string;
+  songTitle: string;
   myUserId: string | null;
   myRole: Role | null;
 }) {
@@ -1069,6 +1067,35 @@ function Viewer({
       className={`card viewer${sidebarOpen ? "" : " sidebar-collapsed"}`}
       data-testid="song-viewer"
     >
+      {/* Compact single-row header (T05): back · title · status. Replaces the
+          old centered back-link + big <h1>, and hosts the status pills that used
+          to sit between the toolbar's action buttons. */}
+      <div className="editor-header" data-testid="editor-header">
+        <Link
+          className="editor-back"
+          to={`/bands/${bandId}`}
+          aria-label="Back to band"
+          title="Back to band"
+        >
+          &larr;
+        </Link>
+        <span className="editor-song-title" data-testid="song-title">
+          {songTitle}
+        </span>
+        <span className="editor-status">
+          <span className="pill" data-testid="object-count" title="Live annotation count">
+            {doc.objects.length} objects
+          </span>
+          <span
+            className={`pill conn-pill conn-${connStatus}`}
+            data-testid="conn-status"
+            title="Realtime connection"
+          >
+            {connStatus === "open" ? "live" : connStatus}
+          </span>
+        </span>
+      </div>
+
       <EditorToolbar
         tool={tool}
         onTool={(t) => {
@@ -1091,14 +1118,12 @@ function Viewer({
         focusedLayerName={focusedLayer?.name ?? null}
         onEditLayer={editFocusedLayer}
         showEditLayerHint={selectionOnInactiveEditable}
-        objectCount={doc.objects.length}
         selectionCount={selectedUuids.length}
         canDeleteSelection={selectedUuids.some((u) => {
           const o = doc.objects.find((x) => x.uuid === u);
           return o != null && isObjectEditableNow(o);
         })}
         onDelete={deleteSelected}
-        connStatus={connStatus}
       />
 
       {rejectNotice && (
@@ -1141,9 +1166,6 @@ function Viewer({
           <button type="button" data-testid="zoom-in" onClick={() => stepZoom(1)}>
             +
           </button>
-          <span className="pill" data-testid="zoom-level">
-            {formatZoom(zoomMode)}
-          </span>
         </div>
 
         <div className="my-files-controls">
@@ -1734,13 +1756,49 @@ function AnnotationList({
 // ===========================================================================
 
 // The Highlight tool is gone (#5) — it is now a STYLE PRESET on rect/ellipse.
-const TOOLS: { tool: Tool; label: string; testid: string }[] = [
-  { tool: "select", label: "Select", testid: "tool-select" },
-  { tool: "freehand", label: "Pen", testid: "tool-freehand" },
-  { tool: "line", label: "Line", testid: "tool-line" },
-  { tool: "rect", label: "Rect", testid: "tool-rect" },
-  { tool: "ellipse", label: "Ellipse", testid: "tool-ellipse" },
-  { tool: "text", label: "Text", testid: "tool-text" },
+/** Inline tool icons (no icon-font dependency). Constant-size so the palette's
+ *  footprint never changes when the active tool switches (zero-shift guarantee). */
+const TOOL_ICONS: Record<Tool, JSX.Element> = {
+  select: (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path d="M3 2l9 4.2-3.7 1.1 2 3.7-1.6.8-2-3.7-2.7 2.6z" fill="currentColor" />
+    </svg>
+  ),
+  freehand: (
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+      <path d="M10.5 2.5l3 3-8 8-3.5.6.6-3.5z" />
+      <path d="M9.5 3.5l3 3" />
+    </svg>
+  ),
+  line: (
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <path d="M3 13L13 3" />
+    </svg>
+  ),
+  rect: (
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="2.5" y="4" width="11" height="8" rx="1" />
+    </svg>
+  ),
+  ellipse: (
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <ellipse cx="8" cy="8" rx="6" ry="4.5" />
+    </svg>
+  ),
+  text: (
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <path d="M3.5 4h9M8 4v9M6 13h4" />
+    </svg>
+  ),
+};
+
+const TOOLS: { tool: Tool; label: string; testid: string; icon: JSX.Element }[] = [
+  { tool: "select", label: "Select", testid: "tool-select", icon: TOOL_ICONS.select },
+  { tool: "freehand", label: "Pen", testid: "tool-freehand", icon: TOOL_ICONS.freehand },
+  { tool: "line", label: "Line", testid: "tool-line", icon: TOOL_ICONS.line },
+  { tool: "rect", label: "Rect", testid: "tool-rect", icon: TOOL_ICONS.rect },
+  { tool: "ellipse", label: "Ellipse", testid: "tool-ellipse", icon: TOOL_ICONS.ellipse },
+  { tool: "text", label: "Text", testid: "tool-text", icon: TOOL_ICONS.text },
 ];
 
 // The shape-style presets shown as one-click buttons (#5).
@@ -1777,11 +1835,9 @@ function EditorToolbar({
   focusedLayerName,
   onEditLayer,
   showEditLayerHint,
-  objectCount,
   selectionCount,
   canDeleteSelection,
   onDelete,
-  connStatus,
 }: {
   tool: Tool;
   onTool: (t: Tool) => void;
@@ -1807,11 +1863,9 @@ function EditorToolbar({
   onEditLayer: () => void;
   // A non-active editable object is selected → show the inline "edit this layer" hint.
   showEditLayerHint: boolean;
-  objectCount: number;
   selectionCount: number;
   canDeleteSelection: boolean;
   onDelete: () => void;
-  connStatus: "connecting" | "open" | "closed";
 }) {
   return (
     <div className="editor-toolbar" data-testid="editor-toolbar">
@@ -1821,12 +1875,14 @@ function EditorToolbar({
             key={t.tool}
             type="button"
             data-testid={t.testid}
-            className={`tool-btn${tool === t.tool ? " active" : ""}`}
+            className={`tool-btn tool-icon-btn${tool === t.tool ? " active" : ""}`}
             aria-pressed={tool === t.tool}
+            aria-label={t.label}
+            title={t.label}
             disabled={(!canDraw || drawLocked) && t.tool !== "select"}
             onClick={() => onTool(t.tool)}
           >
-            {t.label}
+            {t.icon}
           </button>
         ))}
         {/* Locked hint lives in its OWN reserved slot (NOT inline among the tool
@@ -2095,16 +2151,6 @@ function EditorToolbar({
         >
           Delete{selectionCount > 1 ? ` (${selectionCount})` : ""}
         </button>
-        <span className="pill" data-testid="object-count" title="Live annotation count">
-          {objectCount} objects
-        </span>
-        <span
-          className={`pill conn-pill conn-${connStatus}`}
-          data-testid="conn-status"
-          title="Realtime connection"
-        >
-          {connStatus === "open" ? "live" : connStatus}
-        </span>
       </div>
     </div>
   );

@@ -238,7 +238,6 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   await expect(toggles).toHaveCount(2);
 
   // Default zoom is Fit width — the PDF fills the column.
-  await expect(page.getByTestId("zoom-level")).toHaveText("Fit width");
   await expect(page.getByTestId("zoom-mode")).toHaveValue("fit-width");
 
   // The file picker is present (the new card/tab strip) with one tab per file,
@@ -292,7 +291,7 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
 
   // Select Actual size (100%) via the zoom-mode select.
   await page.getByTestId("zoom-mode").selectOption("100");
-  await expect(page.getByTestId("zoom-level")).toHaveText("100%");
+  await expect(page.getByTestId("zoom-mode")).toHaveValue("100");
   await expect
     .poll(async () =>
       page.getByTestId("pdf-page").first().locator("canvas.pdf-canvas").evaluate(canvasWidth),
@@ -301,13 +300,13 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
 
   // The −/+ buttons step through the percentage stops.
   await page.getByTestId("zoom-in").click();
-  await expect(page.getByTestId("zoom-level")).toHaveText("125%");
+  await expect(page.getByTestId("zoom-mode")).toHaveValue("125");
   await page.getByTestId("zoom-out").click();
-  await expect(page.getByTestId("zoom-level")).toHaveText("100%");
+  await expect(page.getByTestId("zoom-mode")).toHaveValue("100");
 
   // Switch to Fit page mode.
   await page.getByTestId("zoom-mode").selectOption("fit-page");
-  await expect(page.getByTestId("zoom-level")).toHaveText("Fit page");
+  await expect(page.getByTestId("zoom-mode")).toHaveValue("fit-page");
 
   // Screenshot 3: zoomed.
   await page.screenshot({ path: "/tmp/view-zoom.png", fullPage: true });

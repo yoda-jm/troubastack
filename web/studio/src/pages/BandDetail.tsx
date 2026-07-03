@@ -104,7 +104,34 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
 
   return (
     <section className="card">
-      <h2>Members</h2>
+      <div className="card-head">
+        <h2>Members</h2>
+        {myRole === "admin" && (
+          <NewItem label="Invite member" testId="invite-toggle">
+            {(close) => (
+              <form
+                onSubmit={(e) => void onInvite(e).then((ok) => ok && close())}
+                className="inline-form"
+                data-testid="invite-form"
+              >
+                <input
+                  data-testid="invite-identifier"
+                  placeholder="Username or email"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  required
+                />
+                <button type="submit" data-testid="invite-submit" disabled={busy}>
+                  Invite
+                </button>
+                <button type="button" className="ghost-btn" onClick={close}>
+                  Cancel
+                </button>
+              </form>
+            )}
+          </NewItem>
+        )}
+      </div>
       <ul className="list" data-testid="members-list">
         {members.map((m) => (
           <li key={m.user.id} data-testid="member-row" className="member-row">
@@ -117,32 +144,6 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
           </li>
         ))}
       </ul>
-
-      {myRole === "admin" && (
-        <NewItem label="Invite member" testId="invite-toggle">
-          {(close) => (
-            <form
-              onSubmit={(e) => void onInvite(e).then((ok) => ok && close())}
-              className="inline-form"
-              data-testid="invite-form"
-            >
-              <input
-                data-testid="invite-identifier"
-                placeholder="Username or email"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                required
-              />
-              <button type="submit" data-testid="invite-submit" disabled={busy}>
-                Invite
-              </button>
-              <button type="button" className="ghost-btn" onClick={close}>
-                Cancel
-              </button>
-            </form>
-          )}
-        </NewItem>
-      )}
 
       {notice && (
         <p className="notice" data-testid="invite-notice">

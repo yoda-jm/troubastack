@@ -630,3 +630,63 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 }
 .section-tab:hover { text-decoration: none; color: var(--fg); background: var(--surface-2); }
 .section-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---- T05: compact song-editor chrome ----------------------------------- */
+/* One-row header directly under the top bar: back · title · status. Replaces
+   the old centered back-link + big <h1> so the score starts far higher. */
+.editor-header {
+  display: flex; align-items: center; gap: .75rem;
+  margin-bottom: .5rem; min-width: 0;
+}
+.editor-back {
+  flex: 0 0 auto; font-size: 1.1rem; font-weight: 700; line-height: 1;
+  padding: .2rem .5rem; border-radius: var(--r-sm); color: var(--muted);
+}
+.editor-back:hover { text-decoration: none; color: var(--fg); background: var(--surface-2); }
+.editor-song-title {
+  font-size: 1.1rem; font-weight: 600; letter-spacing: -.01em; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.editor-status { margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; }
+
+/* Tighter toolbar so tools + style + layers fit in a shallow band. Groups are
+   separated by thin dividers; the reserved-slot no-reflow mechanism is intact. */
+.editor-toolbar { gap: .4rem .6rem; padding: .5rem .7rem; }
+.tool-palette,
+.editor-toolbar .style-controls,
+.editor-toolbar .layer-controls { align-items: center; }
+/* Thin dividers between the major toolbar groups. */
+.editor-toolbar .style-controls,
+.editor-toolbar .layer-controls {
+  border-left: 1px solid var(--border);
+  padding-left: .6rem;
+}
+
+/* Icon tool buttons: constant square footprint (no label → palette never reflows). */
+.tool-icon-btn {
+  display: inline-grid; place-items: center;
+  width: 30px; height: 30px; padding: 0;
+}
+.tool-icon-btn svg { display: block; }
+
+/* Reclaim the vertical space above the score so the document leads (target
+   ~220px of chrome at 1440x900). Editor-scoped so other pages keep their airier
+   spacing. The no-reflow reserved-slot mechanism is untouched — only paddings,
+   gaps and control widths shrink, all constant across tool/selection changes. */
+.viewer-page { padding-top: .5rem; padding-bottom: .6rem; }
+/* NOTE: only top/bottom margin here — the `margin` shorthand would reset the
+   margin-left:50% + translateX(-50%) breakout centering and shove the editor
+   off-screen. */
+.viewer-page .viewer { margin-top: .2rem; margin-bottom: .2rem; padding: .55rem .7rem; gap: .45rem; }
+.editor-toolbar { padding: .3rem .5rem; gap: .2rem .5rem; }
+.viewer-page .viewer-toolbar { padding-bottom: .3rem; gap: .35rem .6rem; }
+.viewer-page .file-tab { padding: .25rem .55rem; }
+.viewer-page .file-tab-badge { display: none; }
+.editor-toolbar .style-controls { padding: .1rem .3rem; gap: .35rem; }
+.editor-toolbar .shape-style { padding: .1rem .3rem; gap: .35rem; }
+.editor-toolbar .layer-controls { gap: .35rem; }
+.editor-toolbar .style-field { font-size: .74rem; gap: .25rem; }
+.editor-toolbar .style-field input[type="range"] { width: 68px; }
+.editor-toolbar .style-field input[type="color"] { width: 26px; height: 22px; }
+.viewer-toolbar { padding-bottom: .35rem; gap: .4rem .7rem; }
+.viewer-scroll { padding: .6rem; }

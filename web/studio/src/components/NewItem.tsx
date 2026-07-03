@@ -7,8 +7,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * submit flow — this only gates when it is shown.
  *
  * `children` is a render-prop receiving `close`, so the form can offer a Cancel
- * button. The form is NOT auto-closed on submit (the caller clears its own inputs),
- * so several items can be added in one sitting; the user collapses explicitly.
+ * button and collapse itself on a successful submit — every caller does
+ * `onSubmit -> onCreate().then((ok) => ok && close())`. Escape also collapses.
  */
 export function NewItem({
   label,
