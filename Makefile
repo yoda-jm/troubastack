@@ -15,7 +15,8 @@ help:
 	@echo "  seed     populate a RUNNING server with the demo dataset (cd core && go run ./cmd/seed)"
 	@echo "  demo     single binary: real SPA + API on :8080 with SEEDED data (file-backed)"
 	@echo "           -> login marie/demo or maestro/demo; reset: rm -rf core/troubadata"
-	@echo "  proto / app : deferred (buf codegen / KMP mobile)"
+	@echo "  app      build the KMP mobile app: shared checks + debug APK (needs a JDK + Android SDK)"
+	@echo "  proto    deferred (buf codegen)"
 
 setup:
 	cd web/studio && npm install --no-workspaces && npx playwright install chromium
@@ -98,8 +99,11 @@ demo: dist
 	echo ">>> READY: open http://localhost:8080 (real SPA + seeded data). Ctrl-C to stop; reset: rm -rf core/troubadata"; \
 	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
-# Deferred until the contract is codegen'd / mobile resumes.
+# Deferred until the contract is codegen'd.
 proto:
 	cd proto && buf lint && buf generate
+
+# The KMP/CMP mobile app (A01): compile + check the shared "mobile library" and assemble the
+# Android debug APK. Uses the committed Gradle wrapper, so only a JDK (+ Android SDK) is assumed.
 app:
-	cd app && ./gradlew build
+	cd app && ./gradlew :shared:check :androidApp:assembleDebug

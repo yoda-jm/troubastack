@@ -15,11 +15,12 @@ It does exactly two jobs on a device:
 
 See the constitution: [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 
-> **This is a structural scaffold, not a wired build.** The directory layout, the
-> `expect`/`actual` seam signatures, and the commented Gradle stubs exist to make the
-> architecture (especially **I15**) legible. There is no buildable Gradle project here yet;
-> `build.gradle.kts` / `settings.gradle.kts` are commented outlines, and Kotlin bodies are
-> `TODO()`. A real, derived build comes later. **Do not run `gradle` against this tree.**
+> **The Gradle build is wired (A01).** `:shared` compiles and `:androidApp` assembles a debug APK
+> via the committed wrapper: `cd app && ./gradlew :shared:check :androidApp:assembleDebug` (needs a
+> JDK; Android SDK via `local.properties`/`ANDROID_HOME`). What's still scaffold is the *code* — the
+> three `expect`/`actual` seam bodies and most shared logic are `TODO()`, filled in by later
+> A-tasks. The directory layout and the seams exist to make the architecture (especially **I15**)
+> legible. iOS stays "later": the iOS target is commented out and its actuals remain `TODO()` stubs.
 
 ---
 
@@ -74,8 +75,11 @@ layer (**I8**, **I10**).
 ```
 app/
 ├── README.md                 ← you are here
-├── settings.gradle.kts       ← COMMENTED stub: module graph (shared, androidApp, iosApp)
-├── build.gradle.kts          ← COMMENTED stub: KMP/CMP plugin + target outline
+├── settings.gradle.kts       ← module graph: include(shared, androidApp); iosApp commented (iOS-later)
+├── build.gradle.kts          ← root build: declares the KMP/CMP/AGP plugins (apply false)
+├── gradle.properties         ← Gradle/AndroidX flags
+├── gradle/libs.versions.toml ← version catalog: pinned tool + library versions
+├── gradlew / gradle/wrapper/ ← committed Gradle wrapper (reproducible builds)
 ├── shared/                   ← the "mobile library": all shared Kotlin
 │   └── src/
 │       ├── commonMain/kotlin/
@@ -90,8 +94,8 @@ app/
 │       │       └── sync/SyncClient.kt            ← shared optimistic client (I6)
 │       ├── androidMain/kotlin/com/troubashare/shared/seams/   ← the three Android actuals
 │       └── iosMain/kotlin/com/troubashare/shared/seams/       ← the three iOS actuals (TODO, iOS-later)
-├── androidApp/               ← thin Android entrypoint (derived later)
-└── iosApp/                   ← thin iOS entrypoint (derived later)
+├── androidApp/               ← thin Android entrypoint: MainActivity + Compose placeholder screen
+└── iosApp/                   ← thin iOS entrypoint (iOS-later; not yet a Gradle module)
 ```
 
 ## On generated types (I1)

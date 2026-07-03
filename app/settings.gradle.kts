@@ -1,34 +1,37 @@
-// TroubaShare — Gradle settings (COMMENTED STUB).
+// TroubaShare — Gradle settings.
 //
-// This is a STRUCTURAL scaffold, not a wired build (see README.md). The lines below
-// outline the intended Kotlin/Compose Multiplatform module graph (I15: app is a thin
-// shell). They are commented out deliberately so that `gradle` will not attempt — and
-// fail — a real configuration. Uncomment + pin versions when the build is derived later.
-//
-// rootProject.name = "TroubaShare"
-//
-// pluginManagement {
-//     repositories {
-//         google()
-//         gradlePluginPortal()
-//         mavenCentral()
-//     }
-// }
-//
-// dependencyResolutionManagement {
-//     repositories {
-//         google()
-//         mavenCentral()
-//     }
-// }
-//
-// // The module graph. Dependencies point only toward the contract (I14):
-// //   :shared      → the "mobile library" — all shared Kotlin (commonMain) + the 3 actual seams
-// //   :androidApp  → thin Android entrypoint; depends on :shared
-// //   :iosApp      → thin iOS entrypoint (CMP iOS, derived later); depends on :shared
-// // No client imports another client; :shared embeds the BUILT Studio SPA, never its source (I10/I14).
-// include(":shared")
-// include(":androidApp")
-// // include(":iosApp")   // iOS-later: enable once the iOS actuals are filled in (I15)
+// The app is a THIN SHELL (I15). The module graph below points only toward the contract (I14):
+//   :shared      → the "mobile library" — all shared Kotlin (commonMain) + the 3 Android actual seams
+//   :androidApp  → thin Android entrypoint; depends on :shared
+//   :iosApp      → thin iOS entrypoint (CMP iOS), enabled LATER once the iOS actuals are filled in
+// No client imports another client; :shared embeds the BUILT Studio SPA, never its source (I10/I14).
 
-// TODO(scaffold): replace this file with a real settings.gradle.kts when wiring the build.
+pluginManagement {
+    repositories {
+        google()
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+plugins {
+    // Auto-provisions the compile JDK (see jvmToolchain(21) in shared/build.gradle.kts) so a clean
+    // checkout with only the launcher JDK installed can still build reproducibly — no global tool
+    // assumption beyond a JDK. Downloads from Adoptium via the Foojay Disco API on first use.
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.10.0"
+}
+
+dependencyResolutionManagement {
+    // Fail if a subproject declares its own repositories — one place decides where artifacts come from.
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "TroubaShare"
+
+include(":shared")
+include(":androidApp")
+// include(":iosApp")   // iOS-later: enable once the iOS seam actuals are real (currently TODO() stubs, I15)

@@ -7,8 +7,9 @@
 #            lockfile; studio installs --no-workspaces, ink resolves from
 #            source via a Vite alias + tsconfig paths), then tsc for all
 #            three packages using studio's compiler, then the studio build
-#   - proto: buf lint (no codegen yet — T09 decides generated-code policy)
-#   - e2e  : the Playwright suite against a live core+vite stack (slower)
+#   - proto  : buf lint (no codegen yet — T09 decides generated-code policy)
+#   - android: the KMP mobile app — :shared checks + the Android debug APK (A01)
+#   - e2e    : the Playwright suite against a live core+vite stack (slower)
 name: CI
 
 on:
@@ -90,6 +91,24 @@ jobs:
       - name: buf lint
         working-directory: proto
         run: buf lint
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # JDK 21 = the Kotlin/AGP compile toolchain pinned in app/gradle/libs.versions.toml, so the
+      # daemon and the jvmToolchain resolve to the SAME JDK here — no toolchain auto-provisioning.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # Caches Gradle (~/.gradle) and the wrapper distribution across runs.
+      - uses: gradle/actions/setup-gradle@v4
+      # ubuntu-latest ships the Android SDK preinstalled with ANDROID_HOME set, so AGP finds it
+      # without a local.properties or an explicit sdkmanager step. Add SDK setup only if this fails.
+      - name: shared check + assemble debug APK
+        working-directory: app
+        run: ./gradlew :shared:check :androidApp:assembleDebug
 
   e2e:
     runs-on: ubuntu-latest
