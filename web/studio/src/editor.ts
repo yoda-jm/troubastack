@@ -11,24 +11,25 @@
  * backing-store DPR scaling never enters because getBoundingClientRect is CSS px).
  */
 import type { AnnotationObject, AnnotationStyle } from "./api";
+// Per-type behavior lives in the annotation registry (T07); the functions below
+// are thin dispatchers. (Cycle-safe: the registry's descriptors import only this
+// module's leaf helpers, never these dispatchers.)
+import { descriptorFor } from "./annotations/registry";
 
 // The Highlight TOOL is gone (#5): highlighting is now a STYLE preset on rect/ellipse.
 // Tools map 1:1 to object types; the editor never creates a "highlight" object anymore
 // (legacy "highlight" objects still render, see web/ink).
-export type Tool =
-  | "select"
-  | "freehand"
-  | "line"
-  | "rect"
-  | "ellipse"
-  | "text";
+// Built-in tools kept as literals for autocomplete; `(string & {})` lets the
+// annotation registry add drawable tools (e.g. the T07 dev arrow) WITHOUT editing
+// this union — so adding a type stays a registry-only change.
+export type Tool = "select" | "freehand" | "line" | "rect" | "ellipse" | "text" | (string & {});
 
 /** Tools that draw a new object (everything but select). */
 export type DrawTool = Exclude<Tool, "select">;
 
-/** The annotation object type a draw tool produces. */
+/** The annotation object type a draw tool produces (names line up 1:1). */
 export function toolObjectType(tool: DrawTool): AnnotationObject["type"] {
-  return tool; // tool names line up 1:1 with object types
+  return tool as AnnotationObject["type"];
 }
 
 // ---------------------------------------------------------------------------
@@ -123,11 +124,9 @@ export function pointsForTool(
   path: { x: number; y: number }[],
 ): { x: number; y: number }[] {
   if (path.length === 0) return [];
-  if (tool === "freehand") return path;
-  if (tool === "text") return [path[0]];
-  const start = path[0];
-  const end = path[path.length - 1];
-  return [start, end];
+  const d = descriptorFor(toolObjectType(tool));
+  if (d) return d.pointsForGesture(path);
+  return [path[0], path[path.length - 1]];
 }
 
 /** Assemble a complete wire object for a finished gesture. */
@@ -152,13 +151,9 @@ export function buildObject(args: {
 
 /** Is a gesture big enough to be a real object (avoids stray click artifacts)? */
 export function isMeaningfulGesture(tool: DrawTool, path: { x: number; y: number }[]): boolean {
-  if (tool === "text") return path.length >= 1;
-  if (path.length < 2) return false;
-  if (tool === "freehand") return path.length >= 2;
-  const a = path[0];
-  const b = path[path.length - 1];
-  const span = Math.hypot(b.x - a.x, b.y - a.y);
-  return span > 0.005; // ~0.5% of the page — a deliberate drag
+  const d = descriptorFor(toolObjectType(tool));
+  if (d) return d.isMeaningfulGesture(path);
+  return path.length >= 2;
 }
 
 /** Translate every point of an object by a page-relative delta (for move). */
@@ -188,9 +183,9 @@ export function objectBBox(
   maxX: number;
   maxY: number;
 } {
-  if (obj.type === "text" && measure) {
-    return textBBox(obj, measure);
-  }
+  const d = descriptorFor(obj.type);
+  if (d) return d.bbox(obj, measure);
+  // Unknown type fallback: point-extent.
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -309,7 +304,7 @@ export function hitTest(
 // ---------------------------------------------------------------------------
 
 /** Distance (page-relative [0,1]) from point p to segment a→b. */
-function distToSegment(
+export function distToSegment(
   p: { x: number; y: number },
   a: { x: number; y: number },
   b: { x: number; y: number },
@@ -326,7 +321,7 @@ function distToSegment(
 }
 
 /** Min distance ([0,1]) from a point to a polyline (sequence of points). */
-function distToPolyline(p: { x: number; y: number }, pts: { x: number; y: number }[]): number {
+export function distToPolyline(p: { x: number; y: number }, pts: { x: number; y: number }[]): number {
   if (pts.length === 0) return Infinity;
   if (pts.length === 1) return Math.hypot(p.x - pts[0].x, p.y - pts[0].y);
   let best = Infinity;
@@ -338,7 +333,7 @@ function distToPolyline(p: { x: number; y: number }, pts: { x: number; y: number
 }
 
 /** Is a point inside an axis-aligned box (with a per-axis pad)? */
-function insideBox(
+export function insideBox(
   b: { minX: number; minY: number; maxX: number; maxY: number },
   x: number,
   y: number,
@@ -353,8 +348,8 @@ function insideBox(
  * stroke half-width, but never less than ~6px so a hairline is still grabbable.
  * style.width is a fraction of PAGE WIDTH; we convert to px via pageW.
  */
-const MIN_STROKE_HIT_PX = 6;
-function strokeHitFrac(
+export const MIN_STROKE_HIT_PX = 6;
+export function strokeHitFrac(
   obj: AnnotationObject,
   axis: "x" | "y",
   pageW: number,
@@ -397,7 +392,7 @@ export type PickContext = {
  *  SMALL fixed margin of it (a few px) — this is the MOVABLE region (Bug #3). A
  *  "weak" hit = only within the generous proximity pad beyond that, which stays
  *  SELECTABLE (so thin lines / text are easy to click) but never starts a move. */
-type HitStrength = "strong" | "weak" | "none";
+export type HitStrength = "strong" | "weak" | "none";
 
 /** The small fixed margin (px) added around a containment shape's true body that
  *  still counts as a MOVE-eligible (strong) hit. A few px so a press right at the
@@ -405,7 +400,7 @@ type HitStrength = "strong" | "weak" | "none";
 const MOVE_MARGIN_PX = 6;
 
 /** The MOVE_MARGIN_PX margin as a page-relative [0,1] fraction on the given axis. */
-function moveMarginFrac(axis: "x" | "y", pageW: number, pageH: number): number {
+export function moveMarginFrac(axis: "x" | "y", pageW: number, pageH: number): number {
   const dim = axis === "x" ? pageW : pageH;
   return dim > 0 ? MOVE_MARGIN_PX / dim : 0.004;
 }
@@ -419,76 +414,12 @@ function classifyHit(
   pageH: number,
   measure?: TextMeasure,
 ): HitStrength {
-  const b = objectBBox(obj, measure);
-
-  if (obj.type === "text") {
-    // Text: inside the GLYPH box (+ a small fixed px move-margin) is strong
-    // (movable, #3); within the generous text pad beyond that is weak (select
-    // only — so clicking just around the glyphs still selects, never moves).
-    const tp = textHitPad(measure);
-    const mX = moveMarginFrac("x", pageW, pageH);
-    const mY = moveMarginFrac("y", pageW, pageH);
-    if (insideBox(b, x, y, mX, mY)) return "strong";
-    if (insideBox(b, x, y, tp.padX, tp.padY)) return "weak";
-    return "none";
-  }
-
-  if (obj.type === "line") {
-    const a = obj.points[0];
-    const c = obj.points[obj.points.length - 1];
-    if (!a || !c) return "none";
-    // Distance to the SEGMENT, in [0,1]; compare against the stroke tolerance.
-    // (Use the larger per-axis frac so a near-vertical/horizontal hairline still
-    // grabs symmetrically.) Strong = on the stroke; weak = within a small pad.
-    const tol = Math.max(strokeHitFrac(obj, "x", pageW, pageH), strokeHitFrac(obj, "y", pageW, pageH));
-    const d = distToSegment({ x, y }, a, c);
-    if (d <= tol) return "strong";
-    const weakPad = pageW > 0 ? (MIN_STROKE_HIT_PX + 6) / Math.min(pageW, pageH) : 0.02;
-    if (d <= tol + weakPad) return "weak";
-    return "none";
-  }
-
-  if (obj.type === "freehand") {
-    const tol = Math.max(strokeHitFrac(obj, "x", pageW, pageH), strokeHitFrac(obj, "y", pageW, pageH));
-    const d = distToPolyline({ x, y }, obj.points);
-    if (d <= tol) return "strong";
-    const weakPad = pageW > 0 ? (MIN_STROKE_HIT_PX + 6) / Math.min(pageW, pageH) : 0.02;
-    if (d <= tol + weakPad) return "weak";
-    return "none";
-  }
-
-  if (obj.type === "ellipse") {
-    // Inside the ellipse equation (NOT the bbox corners). Centre + radii from bbox.
-    const cx = (b.minX + b.maxX) / 2;
-    const cy = (b.minY + b.maxY) / 2;
-    const rx = (b.maxX - b.minX) / 2;
-    const ry = (b.maxY - b.minY) / 2;
-    // Strong (movable): inside the ellipse equation grown by the small fixed
-    // px move-margin on each axis (so a press right at the edge still grabs).
-    if (rx > 1e-6 && ry > 1e-6) {
-      const mX = moveMarginFrac("x", pageW, pageH);
-      const mY = moveMarginFrac("y", pageW, pageH);
-      const nx = (x - cx) / (rx + mX);
-      const ny = (y - cy) / (ry + mY);
-      if (nx * nx + ny * ny <= 1.0) return "strong";
-    }
-    // Weak: within a small proximity pad of the bbox (so near-edge clicks grab).
-    if (insideBox(b, x, y, 0.012, 0.012)) return "weak";
-    return "none";
-  }
-
-  // rect / highlight / any filled shape: inside the rectangle + a SMALL fixed
-  // px margin = strong (movable, #3); within the generous proximity pad beyond
-  // that = weak (selectable only).
-  const mX = moveMarginFrac("x", pageW, pageH);
-  const mY = moveMarginFrac("y", pageW, pageH);
-  if (insideBox(b, x, y, mX, mY)) return "strong";
-  if (insideBox(b, x, y, 0.02, 0.02)) return "weak";
-  return "none";
+  const d = descriptorFor(obj.type);
+  return d ? d.classifyHit(obj, x, y, pageW, pageH, measure) : "none";
 }
 
 /** The effective area (for the smallest-wins tie-break) of an object's bbox. */
-function bboxArea(obj: AnnotationObject, measure?: TextMeasure): number {
+export function bboxArea(obj: AnnotationObject, measure?: TextMeasure): number {
   const b = objectBBox(obj, measure);
   return Math.max(0, b.maxX - b.minX) * Math.max(0, b.maxY - b.minY);
 }
@@ -701,7 +632,7 @@ export function handleAtPx(
 }
 
 /** The corner diagonally opposite a handle (the fixed anchor during a resize). */
-function oppositeCorner(
+export function oppositeCorner(
   b: { minX: number; minY: number; maxX: number; maxY: number },
   h: HandleId,
 ): { x: number; y: number } {
@@ -730,49 +661,8 @@ export function resizeObject(
   dy: number,
   measure?: TextMeasure,
 ): AnnotationObject {
-  const b = objectBBox(obj, measure);
-  const fixed = oppositeCorner(b, handle);
-  const dragged = handlePoint(b, handle);
-  const newDragged = { x: clamp01(dragged.x + dx), y: clamp01(dragged.y + dy) };
-
-  const oldW = b.maxX - b.minX;
-  const oldH = b.maxY - b.minY;
-  let newMinX = Math.min(fixed.x, newDragged.x);
-  let newMaxX = Math.max(fixed.x, newDragged.x);
-  let newMinY = Math.min(fixed.y, newDragged.y);
-  let newMaxY = Math.max(fixed.y, newDragged.y);
-  // Clamp to a minimum size, growing AWAY from the fixed (opposite) corner so the
-  // anchor stays put — the drag maps to the bbox EDGE additively, never a multiplier.
-  if (newMaxX - newMinX < MIN_OBJECT_SIZE) {
-    if (fixed.x <= newMinX) newMaxX = clamp01(fixed.x + MIN_OBJECT_SIZE), (newMinX = fixed.x);
-    else newMinX = clamp01(fixed.x - MIN_OBJECT_SIZE), (newMaxX = fixed.x);
-  }
-  if (newMaxY - newMinY < MIN_OBJECT_SIZE) {
-    if (fixed.y <= newMinY) newMaxY = clamp01(fixed.y + MIN_OBJECT_SIZE), (newMinY = fixed.y);
-    else newMinY = clamp01(fixed.y - MIN_OBJECT_SIZE), (newMaxY = fixed.y);
-  }
-  const newW = newMaxX - newMinX;
-  const newH = newMaxY - newMinY;
-
-  const sx = oldW > 1e-6 ? newW / oldW : 1;
-  const sy = oldH > 1e-6 ? newH / oldH : 1;
-
-  if (obj.type === "text") {
-    // Text: move the anchor to the new top-left and scale fontSize by the
-    // height ratio (so the box drag visibly resizes the glyphs).
-    const nextFont = Math.max(0.005, obj.style.fontSize * (sy > 0 ? sy : 1));
-    return {
-      ...obj,
-      points: [{ x: clamp01(newMinX), y: clamp01(newMinY) }],
-      style: { ...obj.style, fontSize: nextFont },
-    };
-  }
-
-  const points = obj.points.map((p) => ({
-    x: clamp01(newMinX + (p.x - b.minX) * sx),
-    y: clamp01(newMinY + (p.y - b.minY) * sy),
-  }));
-  return { ...obj, points };
+  const d = descriptorFor(obj.type);
+  return d ? d.resize(obj, handle, dx, dy, measure) : obj;
 }
 
 /** A short human label for an annotation, for the per-layer annotation list. */

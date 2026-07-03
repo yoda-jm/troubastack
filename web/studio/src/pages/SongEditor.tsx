@@ -22,6 +22,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import * as pdfjs from "pdfjs-dist";
@@ -39,6 +40,7 @@ import {
   type Song,
   type SongFile,
 } from "../api";
+import { descriptorFor, toolsInOrder } from "../annotations/registry";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
@@ -1755,50 +1757,25 @@ function AnnotationList({
 // Editor toolbar — tools palette, style controls, active layer, object count
 // ===========================================================================
 
-// The Highlight tool is gone (#5) — it is now a STYLE PRESET on rect/ellipse.
-/** Inline tool icons (no icon-font dependency). Constant-size so the palette's
- *  footprint never changes when the active tool switches (zero-shift guarantee). */
-const TOOL_ICONS: Record<Tool, JSX.Element> = {
-  select: (
-    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      <path d="M3 2l9 4.2-3.7 1.1 2 3.7-1.6.8-2-3.7-2.7 2.6z" fill="currentColor" />
-    </svg>
-  ),
-  freehand: (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
-      <path d="M10.5 2.5l3 3-8 8-3.5.6.6-3.5z" />
-      <path d="M9.5 3.5l3 3" />
-    </svg>
-  ),
-  line: (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-      <path d="M3 13L13 3" />
-    </svg>
-  ),
-  rect: (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="2.5" y="4" width="11" height="8" rx="1" />
-    </svg>
-  ),
-  ellipse: (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <ellipse cx="8" cy="8" rx="6" ry="4.5" />
-    </svg>
-  ),
-  text: (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-      <path d="M3.5 4h9M8 4v9M6 13h4" />
-    </svg>
-  ),
-};
+// Select is not an annotation type, so its icon lives here; the drawable tools
+// (and their icons) come from the annotation registry via toolsInOrder() (T07),
+// so adding a type adds its tool with no edit here. Icons are constant-size so
+// the palette footprint never changes when the active tool switches.
+const SELECT_ICON = (
+  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+    <path d="M3 2l9 4.2-3.7 1.1 2 3.7-1.6.8-2-3.7-2.7 2.6z" fill="currentColor" />
+  </svg>
+);
 
-const TOOLS: { tool: Tool; label: string; testid: string; icon: JSX.Element }[] = [
-  { tool: "select", label: "Select", testid: "tool-select", icon: TOOL_ICONS.select },
-  { tool: "freehand", label: "Pen", testid: "tool-freehand", icon: TOOL_ICONS.freehand },
-  { tool: "line", label: "Line", testid: "tool-line", icon: TOOL_ICONS.line },
-  { tool: "rect", label: "Rect", testid: "tool-rect", icon: TOOL_ICONS.rect },
-  { tool: "ellipse", label: "Ellipse", testid: "tool-ellipse", icon: TOOL_ICONS.ellipse },
-  { tool: "text", label: "Text", testid: "tool-text", icon: TOOL_ICONS.text },
+type ToolButton = { tool: Tool; label: string; testid: string; icon: ReactNode };
+const TOOLS: ToolButton[] = [
+  { tool: "select", label: "Select", testid: "tool-select", icon: SELECT_ICON },
+  ...toolsInOrder().map((t) => ({
+    tool: t.id as Tool,
+    label: t.label,
+    testid: `tool-${t.id}`,
+    icon: t.icon,
+  })),
 ];
 
 // The shape-style presets shown as one-click buttons (#5).
@@ -1807,14 +1784,6 @@ const PRESET_BUTTONS: { id: PresetId; label: string; testid: string }[] = [
   { id: "box", label: "Box", testid: "preset-box" },
   { id: "highlight", label: "Highlight", testid: "preset-highlight" },
 ];
-
-/** Do the style controls (fill/stroke/blend/presets) apply to the current target?
- *  Only for shape tools (rect/ellipse) when drawing, or a selected rect/ellipse/
- *  legacy-highlight object. */
-function isShapeTarget(tool: Tool, selectedType: AnnotationObject["type"] | null): boolean {
-  if (selectedType) return selectedType === "rect" || selectedType === "ellipse" || selectedType === "highlight";
-  return tool === "rect" || tool === "ellipse";
-}
 
 function EditorToolbar({
   tool,
@@ -1915,15 +1884,17 @@ function EditorToolbar({
       //     ever HIDES slots, never adds them.
       // `disabled` greys + locks the inputs (locked single OR multi-selection).
       const disabled = controlsLocked || multiSelected;
-      const isTextTarget = selectedType === "text" || (selectedType == null && tool === "text");
-      const isShapeTgt =
-        isShapeTarget(tool, selectedType) ||
-        (selectedType == null && (tool === "line" || tool === "freehand"));
-      // Neutral baseline (no selection, Select tool): show every slot.
+      // Which style controls apply to the current target (selection, else the draw
+      // tool) — read from the annotation registry (T07). Neutral baseline (Select
+      // tool, nothing selected) shows every slot, so picking up a selection only
+      // ever HIDES slots (never adds), preserving the stable footprint.
       const neutral = selectedType == null && tool === "select";
-      const showWidth = neutral || isShapeTgt || (selectedType != null && selectedType !== "text");
-      const showShape = neutral || isShapeTgt;
-      const showFont = neutral || isTextTarget;
+      const targetType =
+        selectedType ?? (tool !== "select" ? (tool as AnnotationObject["type"]) : null);
+      const controls = targetType ? (descriptorFor(targetType)?.styleControls ?? []) : [];
+      const showWidth = neutral || controls.includes("width");
+      const showShape = neutral || controls.includes("shapePreset");
+      const showFont = neutral || controls.includes("textSize");
       const slot = (on: boolean) => `style-field${on ? "" : " style-slot-off"}`;
       return (
       <div
@@ -2851,7 +2822,7 @@ function buildWet(tool: DrawTool, path: PRPoint[], style: AnnotationStyle): Anno
   return {
     uuid: "wet",
     layerId: "wet",
-    type: tool,
+    type: tool as AnnotationObject["type"],
     points: pointsForTool(tool, path),
     page: 0,
     text: "",

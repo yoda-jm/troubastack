@@ -62,7 +62,10 @@ export type InkObjectType =
   | "ellipse"
   | "line"
   | "text"
-  | "highlight";
+  | "highlight"
+  // Dev demo type (T07): registered/drawn only when studio's arrow descriptor is
+  // active (localStorage.devArrow). Wire/proto support is deferred to T09.
+  | "arrow";
 
 /**
  * One annotation object. `points` are page-relative [0,1]:
@@ -98,7 +101,7 @@ export interface PageRect {
 }
 
 /** Either canvas context flavor — the drawing path never branches on it (I8). */
-type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+export type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 // ---------------------------------------------------------------------------
 // Coordinate helpers
@@ -135,37 +138,32 @@ function clamp01(n: number): number {
  * Always brackets its drawing in ctx.save()/ctx.restore(); honors opacity via
  * globalAlpha; uses round joins/caps for strokes.
  */
+/** A per-type draw function. */
+export type InkDrawFn = (ctx: Ctx2D, obj: InkObject, page: PageRect) => void;
+
+// The ONE dispatch point: type → draw function. ink registers its built-ins at
+// module load (below); studio may register extra types (e.g. the T07 arrow demo)
+// via registerInkDraw at startup, so a new type needs NO edit here and ink stays
+// dependency-free (it never imports studio). Replaces the old switch — there is
+// no `switch (obj.type)` anywhere now.
+const drawRegistry = new Map<string, InkDrawFn>();
+
+/** Register (or override) the draw function for an object type. */
+export function registerInkDraw(type: string, fn: InkDrawFn): void {
+  drawRegistry.set(type, fn);
+}
+
 export function renderObject(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   if (!obj || !obj.points || obj.points.length === 0) return;
+  const draw = drawRegistry.get(obj.type);
+  if (!draw) return;
 
   ctx.save();
   try {
     ctx.globalAlpha = clamp01(obj.style.opacity ?? 1);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-
-    switch (obj.type) {
-      case "freehand":
-        drawFreehand(ctx, obj, page);
-        break;
-      case "line":
-        drawLine(ctx, obj, page);
-        break;
-      case "rect":
-        drawRect(ctx, obj, page);
-        break;
-      case "ellipse":
-        drawEllipse(ctx, obj, page);
-        break;
-      case "highlight":
-        drawHighlight(ctx, obj, page);
-        break;
-      case "text":
-        drawText(ctx, obj, page);
-        break;
-      default:
-        break;
-    }
+    draw(ctx, obj, page);
   } finally {
     ctx.restore();
   }
@@ -180,7 +178,7 @@ export function renderObjects(ctx: Ctx2D, objs: InkObject[], page: PageRect): vo
 // Per-type drawing
 // ---------------------------------------------------------------------------
 
-function drawFreehand(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+export function drawFreehand(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const w = strokePx(obj.style, page);
   // perfect-freehand wants pixel-space input points; feed pressure if present.
   const input: number[][] = obj.points.map((p) => {
@@ -217,7 +215,7 @@ function drawFreehand(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   ctx.fill();
 }
 
-function drawLine(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+export function drawLine(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
   const [ax, ay] = toPx(a, page);
@@ -440,13 +438,13 @@ function paintShape(ctx: Ctx2D, obj: InkObject, page: PageRect, geom: ShapeGeom)
   }
 }
 
-function drawRect(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+export function drawRect(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
   paintShape(ctx, obj, page, rectGeom(bbox(obj, page)));
 }
 
-function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+export function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
   paintShape(ctx, obj, page, ellipseGeom(bbox(obj, page)));
@@ -454,13 +452,13 @@ function drawEllipse(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
 
 // Legacy "highlight" objects route through the same shape painter (shapeStyle infers
 // fill+multiply+no-stroke for them), so old seeded data renders exactly as before.
-function drawHighlight(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+export function drawHighlight(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const [a, b] = obj.points;
   if (!a || !b) return;
   paintShape(ctx, obj, page, rectGeom(bbox(obj, page)));
 }
 
-function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+export function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const anchor = obj.points[0];
   if (!anchor || !obj.text) return;
   const [px, py] = toPx(anchor, page);
@@ -470,3 +468,13 @@ function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   ctx.fillStyle = obj.style.color;
   ctx.fillText(obj.text, px, py);
 }
+
+// ---------------------------------------------------------------------------
+// Built-in dispatch registration — ink & bake render these standalone.
+// ---------------------------------------------------------------------------
+registerInkDraw("freehand", drawFreehand);
+registerInkDraw("line", drawLine);
+registerInkDraw("rect", drawRect);
+registerInkDraw("ellipse", drawEllipse);
+registerInkDraw("highlight", drawHighlight);
+registerInkDraw("text", drawText);
