@@ -53,12 +53,17 @@ numbered in **priority order** — do them top-down unless a task says otherwise
 | T11 | [Remove dead wiring in core](T11-core-dead-wiring.md) | core | S |
 | T12 | [Make ARCHITECTURE.md enforcement claims honest](T12-docs-honesty.md) | docs | S |
 | T13 | [e2e: RO-vs-RW footprint shifts ~27px in CI headless](T13-e2e-rorw-footprint-ci.md) | studio | S/M |
+| T14 | [Editor chrome: reach the ≤220px target (panelize)](T14-editor-chrome-panelize.md) | studio | M |
+| T15 | [Split Viewer.tsx into pdf/overlay/sync hooks (T10 part 2)](T15-viewer-hooks-split.md) | studio | M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come
 after T05/T06 have landed. T13 fell out of T02 (the e2e job is `continue-on-error`
-until T13 fixes the CI-only layout shift and re-enables hard gating). Everything else
-is independent.
+until T13 fixes the CI-only layout shift and re-enables hard gating). T14 fell out of
+T05 (the remaining chrome height) and T15 out of T10 (the deferred sync-sensitive
+Viewer split — run it attended, on an unloaded machine, since its safety net is a full
+e2e pass). T14/T15 both live in the song editor — don't run them in parallel. Everything
+else is independent.
 
 ## App track (A-series) — the Kotlin/Compose mobile app
 
