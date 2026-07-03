@@ -4,6 +4,9 @@ Each `Txx-*.md` file in this directory is a **self-contained task** written so a
 coding agent (or human) can execute it without reading the whole repo history. Files are
 numbered in **priority order** — do them top-down unless a task says otherwise.
 
+`docs/ARCHITECTURE.md` now tags each invariant **✅ enforced today** or **🎯 target**; this
+queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity test).
+
 ## Ground rules (apply to every task)
 
 1. **Read `docs/ARCHITECTURE.md` first.** The numbered invariants (I1…I15) are normative.

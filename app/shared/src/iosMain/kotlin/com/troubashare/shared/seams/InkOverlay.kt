@@ -5,8 +5,9 @@ package com.troubashare.shared.seams
  * SEAM 2 `actual` (iOS) — low-latency wet ink overlay (I15, I9, I8). ⚠️ iOS-LATER: TODO.
  * Concrete API: PencilKit (`PKCanvasView`) or a custom Metal front buffer.
  *
- * Renders ONLY the in-progress freehand stroke; MUST match `web/ink` pixel-for-pixel (golden
- * parity test, I8). On pen-up, hand the stroke to web and clear (I9).
+ * Renders ONLY the in-progress freehand stroke; MUST match `web/ink` pixel-for-pixel — to be
+ * guarded by a golden-image parity test (not yet written), I8. On pen-up, hand the stroke to
+ * web and clear (I9).
  */
 actual class InkOverlay {
     actual fun beginStroke() { TODO("iOS-later: PencilKit / Metal stroke begin; capture viewport") }

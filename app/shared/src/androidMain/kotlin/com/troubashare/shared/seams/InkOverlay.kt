@@ -6,8 +6,9 @@ package com.troubashare.shared.seams
  * Concrete API: Jetpack Ink (`androidx.ink`: `InProgressStrokesView` / `androidx.ink.rendering`)
  * over a `GLFrontBufferedRenderer` front buffer for lowest input→photon latency.
  *
- * Renders ONLY the in-progress freehand stroke; must match `web/ink` PIXEL-FOR-PIXEL (golden
- * parity test, I8). On pen-up, hand the stroke to web and clear (I9).
+ * Renders ONLY the in-progress freehand stroke; must match `web/ink` PIXEL-FOR-PIXEL — to be
+ * guarded by a golden-image parity test (not yet written), I8. On pen-up, hand the stroke to
+ * web and clear (I9).
  */
 actual class InkOverlay {
     actual fun beginStroke() { TODO("Android: androidx.ink InProgressStrokesView.startStroke; capture viewport") }

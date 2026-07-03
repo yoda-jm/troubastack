@@ -64,8 +64,8 @@ in the three `actual`s** — nothing else should need a second implementation.
 ### The one sanctioned duplication (I8)
 
 Seam 2 (the ink overlay) is the **only** permitted re-implementation of stroke rendering.
-The single stroke renderer is `web/ink`; the native overlay must match it **pixel-for-pixel**
-and that parity is golden-image-tested. The overlay renders **only the in-progress (wet)
+The single stroke renderer is `web/ink`; the native overlay must match it **pixel-for-pixel**,
+and that parity must be guarded by a golden-image parity test (not yet written). The overlay renders **only the in-progress (wet)
 freehand stroke** (**I9**); on commit the stroke migrates native → web and the native layer
 clears. There is **no third copy** — everything dry, and every other tool, renders in the web
 layer (**I8**, **I10**).
