@@ -5,10 +5,9 @@
   --brand: #4f46e5;
   --brand-strong: #4338ca;
   --brand-tint: #eef2ff;
+  --accent: var(--brand);        /* THE single accent — everything derives from the brand */
 
   --bg: #f4f5fb;
-  --bg-grad: radial-gradient(1200px 600px at 100% -10%, #e9e9ff 0%, transparent 60%),
-             radial-gradient(900px 500px at -10% 0%, #eafaf4 0%, transparent 55%);
   --surface: #ffffff;
   --surface-2: #fafafe;
   --fg: #14151a;
@@ -19,10 +18,20 @@
   --ok-bg: #ecfdf5; --ok-fg: #066b4d;
   --error-bg: #fef2f2; --error-fg: #b42318;
 
+  /* Amber "locked layer / edit-anyway" family. */
+  --warn-bg: #fffbeb; --warn-fg: #b45309; --warn-border: #f59e0b;
+  /* Neutral chips (lock pill, corner lock). */
+  --chip-bg: #e5e7eb; --chip-fg: #374151;
+  /* Translucent washes — derived from the tokens above, so they auto-adapt to
+     dark mode: --accent/--muted/--warn-border change there and these follow. */
+  --selection-fill: color-mix(in srgb, var(--accent) 10%, transparent);
+  --muted-fill: color-mix(in srgb, var(--muted) 14%, transparent);
+  --warn-fill: color-mix(in srgb, var(--warn-border) 12%, transparent);
+
   --r-sm: 8px; --r: 12px; --r-lg: 18px;
   --shadow: 0 1px 2px rgba(20,21,26,.04), 0 6px 20px rgba(20,21,26,.06);
   --shadow-sm: 0 1px 2px rgba(20,21,26,.06);
-  --ring: 0 0 0 3px color-mix(in srgb, var(--brand) 30%, transparent);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 
   --maxw: 880px;
 }
@@ -31,13 +40,13 @@
   :root {
     --brand: #818cf8; --brand-strong: #a5b4fc; --brand-tint: #1e2030;
     --bg: #0e0f15;
-    --bg-grad: radial-gradient(1200px 600px at 100% -10%, #1a1b33 0%, transparent 60%),
-               radial-gradient(900px 500px at -10% 0%, #102420 0%, transparent 55%);
     --surface: #181a22; --surface-2: #1f2230;
     --fg: #e9eaf2; --muted: #9aa1b4;
     --border: #2a2d3a; --border-strong: #383c4d;
     --ok-bg: #0f2a22; --ok-fg: #4ade80;
     --error-bg: #2a1414; --error-fg: #fca5a5;
+    --warn-bg: #2e2611; --warn-fg: #fcd34d; --warn-border: #a16207;
+    --chip-bg: #2a2d3a; --chip-fg: #c7ccda;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.4);
   }
 }
@@ -53,8 +62,7 @@ body {
   font-size: 16px;
   line-height: 1.55;
   color: var(--fg);
-  background: var(--bg-grad), var(--bg);
-  background-attachment: fixed;
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -119,8 +127,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 }
 .brand {
   font-weight: 800; font-size: 1.15rem; letter-spacing: -.02em;
-  background: linear-gradient(90deg, var(--brand), #0ea5a0);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  color: var(--brand);
 }
 .nav { display: flex; gap: .35rem; }
 .nav a {
@@ -304,7 +311,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .pdf-page {
   position: relative;
   box-shadow: var(--shadow);
-  background: #fff;
+  background: #fff;  /* the rendered score is white in BOTH themes — intentional one-off */
   line-height: 0;
   /* No max-width: at >100% zoom the page is legitimately wider than the column
      and must keep its true size (the column scrolls). Clamping width here would
@@ -333,9 +340,9 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 }
 .layers-list { gap: .3rem; }
 .layers-list li { flex-wrap: wrap; gap: .4rem; padding: .45rem .6rem; }
-.layers-list li.active-layer { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; border-radius: var(--r-sm); }
-.layers-list li.locked .layer-name { color: var(--muted, #6b7280); }
-.layers-list li.focused-layer { background: var(--surface, #fff); }
+.layers-list li.active-layer { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-sm); }
+.layers-list li.locked .layer-name { color: var(--muted); }
+.layers-list li.focused-layer { background: var(--surface); }
 .layer-row-wrap { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; }
 .layer-row-wrap input { width: auto; }
 .layer-row {
@@ -343,13 +350,13 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   font-weight: 600; text-align: left; background: transparent; border: 1px solid transparent;
   border-radius: var(--r-sm); padding: .15rem .3rem; cursor: pointer; color: inherit; font: inherit;
 }
-.layer-row:hover { background: var(--surface, #fff); border-color: var(--border); }
-.layer-row[aria-pressed="true"] { border-color: var(--accent, #2563eb); }
+.layer-row:hover { background: var(--surface); border-color: var(--border); }
+.layer-row[aria-pressed="true"] { border-color: var(--accent); }
 .layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mandatory-pill { background: var(--ok-bg); color: var(--ok-fg); }
-.lock-pill { background: #e5e7eb; color: #374151; text-transform: none; }
-.active-pill { background: var(--accent, #2563eb); color: #fff; text-transform: none; }
-.focused-pill { background: #ddd6fe; color: #5b21b6; text-transform: none; }
+.lock-pill { background: var(--chip-bg); color: var(--chip-fg); text-transform: none; }
+.active-pill { background: var(--accent); color: #fff; text-transform: none; }
+.focused-pill { background: var(--brand-tint); color: var(--brand-strong); text-transform: none; }
 
 /* Annotation list for the active layer. */
 .annotation-list-panel {
@@ -367,18 +374,19 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   background: transparent; border: 1px solid transparent; border-radius: var(--r-sm);
   cursor: pointer;
 }
-.annotation-item:hover { background: var(--surface, #fff); border-color: var(--border); }
-.annotation-item.selected { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; }
+.annotation-item:hover { background: var(--surface); border-color: var(--border); }
+.annotation-item.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
 .annotation-item .ann-type { text-transform: uppercase; }
 .annotation-item .ann-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The "Drawing on: <layer>" chip — always shows where new ink lands. */
 .active-layer-indicator {
-  background: var(--accent, #2563eb); color: #fff; text-transform: none;
+  background: var(--accent); color: #fff; text-transform: none;
   font-weight: 600; max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .editor-reject-notice {
-  background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;
+  background: var(--error-bg); color: var(--error-fg);
+  border: 1px solid color-mix(in srgb, var(--error-fg) 25%, transparent);
   padding: .5rem .75rem; border-radius: var(--r-sm); margin: 0 0 .6rem;
 }
 
@@ -388,34 +396,34 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .selection-overlay { position: absolute; inset: 0; pointer-events: none; }
 .selected-bbox {
   position: absolute; box-sizing: border-box;
-  border: 1.5px dashed var(--accent, #2563eb);
-  background: rgba(37, 99, 235, 0.08);
+  border: 1.5px dashed var(--accent);
+  background: var(--selection-fill);
   border-radius: 2px;
 }
 .selection-box {
   position: absolute; box-sizing: border-box;
-  border: 1.5px solid var(--accent, #2563eb);
-  background: rgba(37, 99, 235, 0.12);
+  border: 1.5px solid var(--accent);
+  background: var(--selection-fill);
 }
 /* Read-only selection: greyed + dashed, with a small lock pinned at the corner. */
 .selected-bbox.readonly {
-  border: 1.5px dashed #9ca3af;
-  background: rgba(156, 163, 175, 0.12);
+  border: 1.5px dashed var(--muted);
+  background: var(--muted-fill);
 }
 .bbox-lock {
   position: absolute; top: -10px; left: -10px;
   width: 18px; height: 18px; line-height: 18px;
   font-size: 11px; text-align: center;
   border-radius: 50%;
-  background: #e5e7eb; color: #6b7280;
-  border: 1px solid #9ca3af;
+  background: var(--chip-bg); color: var(--muted);
+  border: 1px solid var(--border-strong);
   filter: grayscale(1);
   opacity: 0.85;
 }
 /* Editable layer but NOT the active one: amber dashed, inspect-only cue. */
 .selected-bbox.inactive {
-  border: 1.5px dashed #d97706;
-  background: rgba(217, 119, 6, 0.10);
+  border: 1.5px dashed var(--warn-border);
+  background: var(--warn-fill);
 }
 /* Resize handles: small squares pinned at the bbox corners. They are the only
    pointer-interactive selection chrome; the press is captured by the edit
@@ -424,8 +432,8 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   position: absolute; box-sizing: border-box;
   width: 10px; height: 10px;
   margin-left: -5px; margin-top: -5px;
-  background: #fff;
-  border: 1.5px solid var(--accent, #2563eb);
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
   border-radius: 2px;
   pointer-events: none;
 }
@@ -435,9 +443,9 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .resize-handle.handle-sw { cursor: nesw-resize; }
 .edit-layer-btn {
   padding: .35rem .6rem; font-size: .85rem;
-  background: #fffbeb; border-color: #f59e0b; color: #b45309;
+  background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg);
 }
-.edit-layer-hint { font-size: .8rem; color: #b45309; align-self: center; }
+.edit-layer-hint { font-size: .8rem; color: var(--warn-fg); align-self: center; }
 
 .details-section { padding: 0; overflow: hidden; }
 .details-toggle {
@@ -488,7 +496,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .tool-btn {
   padding: .35rem .6rem; font-size: .85rem; border-radius: var(--r-sm);
 }
-.tool-btn.active { background: var(--accent, #2563eb); color: #fff; border-color: var(--accent, #2563eb); }
+.tool-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .tool-btn:disabled { opacity: .5; }
 
 /* #1+#2: a STABLE footprint — constant padding/min-height so the bar never
@@ -506,8 +514,8 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 /* When editing a selected object, tint the control strip so it reads as "this
    object's style", not the draw default. Locked/multi selection greys it out.
    Tint/border only — the base padding above keeps the footprint constant. */
-.style-controls.editing-selection { background: rgba(37, 99, 235, 0.06); }
-.style-controls.controls-locked { background: rgba(156, 163, 175, 0.12); opacity: .85; }
+.style-controls.editing-selection { background: var(--selection-fill); }
+.style-controls.controls-locked { background: var(--muted-fill); opacity: .85; }
 .style-target { font-size: .72rem; }
 .style-field input:disabled { opacity: .5; cursor: not-allowed; }
 .swatch:disabled { opacity: .5; cursor: not-allowed; }
@@ -516,41 +524,41 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   width: 18px; height: 18px; border-radius: 50%; padding: 0;
   border: 2px solid var(--border); cursor: pointer;
 }
-.swatch.active { outline: 2px solid var(--accent, #2563eb); outline-offset: 1px; }
-.style-field { display: flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--muted, #555); }
+.swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.style-field { display: flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--muted); }
 /* #5 shape style: preset buttons + fill/border toggles + blend select. */
 .shape-style { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap;
-  padding: .15rem .4rem; border-radius: 6px; background: rgba(245, 158, 11, 0.08); }
+  padding: .15rem .4rem; border-radius: 6px; background: var(--warn-fill); }
 .preset-buttons { display: inline-flex; gap: .25rem; }
 .preset-btn {
   padding: .25rem .5rem; font-size: .78rem; border: 1px solid var(--border);
-  border-radius: 5px; background: #fff; cursor: pointer;
+  border-radius: 5px; background: var(--surface); cursor: pointer;
 }
-.preset-btn.active { background: var(--accent, #2563eb); color: #fff; border-color: var(--accent, #2563eb); }
+.preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .preset-btn:disabled { opacity: .5; cursor: not-allowed; }
 .shape-toggle { gap: .2rem; }
 /* #4 lock/unlock toggle in the layer list. */
 .layer-access-btn {
   padding: .1rem .35rem; font-size: .95rem; line-height: 1; cursor: pointer;
-  border: 1px solid var(--border); border-radius: 5px; background: #fff;
+  border: 1px solid var(--border); border-radius: 5px; background: var(--surface);
 }
-.layer-access-btn.is-locked { background: rgba(156, 163, 175, 0.18); border-color: #9ca3af; }
+.layer-access-btn.is-locked { background: var(--muted-fill); border-color: var(--border-strong); }
 .style-field span { white-space: nowrap; }
 .style-field input[type="color"] { width: 32px; height: 26px; padding: 0; }
 .style-field input[type="range"] { width: 90px; }
 .style-field select { font-size: .85rem; }
 /* Live value readout next to each style control (hex / % / number). */
 .style-value {
-  font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg, #111827);
+  font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg);
   min-width: 3.2ch; text-align: right;
 }
 /* Hint shown when a read-only (locked) layer is focused. It is ALWAYS mounted
    so the tool-palette's wrapped width/height (and thus the viewer position) is
    identical whether or not a locked layer is focused — `.draw-hint-off` only
    hides it (visibility, space reserved), mirroring `.style-slot-off`. */
-.draw-locked-hint { font-size: .8rem; color: #b45309; align-self: center; }
+.draw-locked-hint { font-size: .8rem; color: var(--warn-fg); align-self: center; }
 .draw-hint-off { visibility: hidden; pointer-events: none; }
-.annotation-list-locked-hint { color: #b45309; font-size: .8rem; margin: 0; }
+.annotation-list-locked-hint { color: var(--warn-fg); font-size: .8rem; margin: 0; }
 /* Reserve the locked-hint line in the annotation panel even when not locked,
    so focusing a read-only layer never shifts the panel (or, at narrow widths
    where the sidebar stacks above the viewer, the viewer's top). */
@@ -558,19 +566,19 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 
 .layer-controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .new-layer-btn, .delete-object-btn { padding: .35rem .6rem; font-size: .85rem; }
-.conn-pill.conn-open { background: var(--ok-bg, #dcfce7); color: var(--ok-fg, #166534); }
-.conn-pill.conn-connecting { background: #fef9c3; color: #854d0e; }
-.conn-pill.conn-closed { background: #fee2e2; color: #991b1b; }
+.conn-pill.conn-open { background: var(--ok-bg); color: var(--ok-fg); }
+.conn-pill.conn-connecting { background: var(--warn-bg); color: var(--warn-fg); }
+.conn-pill.conn-closed { background: var(--error-bg); color: var(--error-fg); }
 
 /* ---- avatars & identity/onboarding ---- */
 .avatar svg { display: block; }
 .profile-link { display: inline-flex; align-items: center; gap: .4rem; text-decoration: none; color: inherit; }
-.avatar-picker { border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: .5rem .75rem; margin: .5rem 0; }
-.avatar-picker legend { font-size: .85rem; color: var(--muted, #555); padding: 0 .35rem; }
+.avatar-picker { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .75rem; margin: .5rem 0; }
+.avatar-picker legend { font-size: .85rem; color: var(--muted); padding: 0 .35rem; }
 .avatar-option { display: inline-flex; flex-direction: column; align-items: center; gap: .25rem; font-size: .8rem; cursor: pointer; padding: .4rem; border-radius: 8px; border: 2px solid transparent; }
-.avatar-option.selected { border-color: var(--accent, #2563eb); background: rgba(37,99,235,0.06); }
+.avatar-option.selected { border-color: var(--accent); background: var(--selection-fill); }
 .avatar-option input { margin: 0; width: 16px; height: 16px; flex: 0 0 auto; }
-.qr { display: inline-block; background: #fff; padding: 6px; border-radius: 8px; }
+.qr { display: inline-block; background: #fff; padding: 6px; border-radius: 8px; }  /* QR needs a white quiet zone in both themes */
 .qr svg { display: block; width: 160px; height: 160px; }
 .invite-link-row { display: flex; gap: .75rem; align-items: flex-start; padding: .6rem 0; }
 .invite-link-row .qr svg { width: 110px; height: 110px; }
