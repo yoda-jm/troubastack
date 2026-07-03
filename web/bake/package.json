@@ -5,8 +5,9 @@
   "description": "TroubaStack bake worker (Node). The ONLY legitimate server-side JS runtime: core invokes it to render annotation overlays via @troubastack/ink for pixel-parity (I8). Emits self-contained flattened WebP (I12).",
   "type": "module",
   "main": "./src/index.ts",
+  "//build": "Typecheck only while bake is a stub. bake compiles @troubastack/ink from source (see tsconfig paths), so an emitting build would also write a second compiled copy of ink into dist/ — a trap and an I8 smell. Switch to a real emit (project references, or a bundler) when bake() is implemented.",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@troubastack/ink": "*"
