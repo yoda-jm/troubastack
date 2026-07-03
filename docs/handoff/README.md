@@ -8,7 +8,7 @@ not the code (read the code + `docs/` for that).
 |---|---|---|
 | **Architect / Reviewer** | [`architect-reviewer.md`](architect-reviewer.md) | writes the task specs in `docs/tasks/`, reviews every task commit/PR by re-verifying acceptance criteria with tools, makes design decisions inside specs, owns README/docs |
 | **Mobile-app developer** | [`mobile-app-agent.md`](mobile-app-agent.md) | the **A/IOS tracks** (Kotlin/Compose Multiplatform app in `app/`) |
-| **Core / webservice developer** | *(adds their file here)* | the **T/B/OPS tracks** (Go core, web studio/ink/bake, CI) |
+| **Core / webservice developer** | [`web-core-agent.md`](web-core-agent.md) | the **T/B/OPS tracks** (Go core, web studio/ink/bake, CI) |
 
 Shared ground rules live in [`../tasks/README.md`](../tasks/README.md) — read that first
 regardless of role. These are living docs: keep the "what's done / remaining" sections current
