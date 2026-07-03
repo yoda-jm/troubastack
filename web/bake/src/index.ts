@@ -14,7 +14,7 @@
  *     PDF rasterizer (MuPDF/pdfium/poppler) is invoked by CORE; bake composes
  *     against those page rasters.
  *  3. Render the TRANSPARENT annotation overlay for each page by calling
- *     @troubastack/ink (buildStrokeGeometry → renderStroke) onto an offscreen
+ *     @troubastack/ink (renderObjects) onto an offscreen
  *     node canvas — PIXEL-IDENTICAL to studio's dry layer (I8 parity). One
  *     overlay per layer-group if performance-time toggles are wanted, else one.
  *  4. Flatten to self-contained WebP images (page raster + overlay) — the
@@ -28,11 +28,10 @@
  * NOT installed yet — scaffold.
  */
 
-import { buildStrokeGeometry, renderStroke } from "@troubastack/ink";
+import { renderObjects } from "@troubastack/ink";
 
 // Encode the I8 boundary: bake renders strokes ONLY through @troubastack/ink.
-void buildStrokeGeometry;
-void renderStroke;
+void renderObjects;
 
 /** A bake request: the pinned songs of one setlist (I11). View of a proto message (I1). */
 export interface BakeRequest {

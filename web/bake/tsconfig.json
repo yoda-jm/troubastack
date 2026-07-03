@@ -1,15 +1,14 @@
 {
-  "//": "Node worker. No DOM app; uses @troubastack/ink against a node canvas 2D context. Shared wire types come from web/proto-gen (I1).",
+  "//": "Node worker. Runs server-side against a node canvas, but @troubastack/ink is compiled from source here (see paths), so bake needs the DOM lib to typecheck the canvas 2D types ink's API exposes — DOM is a compile-time type surface only, not a browser runtime. No rootDir: the ink source pulled in via paths lives outside src. Shared wire types come from web/proto-gen (I1).",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "declaration": true,
     "noEmit": false,
     "outDir": "dist",
-    "rootDir": "src",
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "paths": {

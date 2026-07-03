@@ -12,7 +12,7 @@
     "typecheck": "tsc -b",
     "e2e": "playwright test"
   },
-  "//deps": "react-router for the non-canvas pages. @troubastack/ink (the one renderer, I8) returns when the deferred canvas editor lands at /bands/:bandId/songs/:songId.",
+  "//deps": "react-router for the non-canvas pages. @troubastack/ink (the one renderer, I8) IS used by the song editor now — but is intentionally NOT listed here: studio installs with --no-workspaces (make setup), so ink is resolved from source via the Vite alias + the tsconfig `paths` entry to ../ink, never fetched from the registry. perfect-freehand is ink's transitive dep, installed here so the aliased source bundles.",
   "dependencies": {
     "pdfjs-dist": "^4.10.38",
     "perfect-freehand": "^1.2.3",
