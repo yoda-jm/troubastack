@@ -65,7 +65,13 @@ e2e:
 	cd web/studio && npx playwright test
 
 check:
-	cd core && go vet ./... && gofmt -l .
+	cd core && go vet ./...
+	@unformatted=$$(cd core && gofmt -l .); \
+	if [ -n "$$unformatted" ]; then \
+	  echo "gofmt needs these files (run: cd core && gofmt -w .):"; \
+	  echo "$$unformatted"; \
+	  exit 1; \
+	fi
 
 # Populate an ALREADY-RUNNING server (e.g. `make run-api` in another shell) with
 # the demo dataset over HTTP, then print the browse guide.

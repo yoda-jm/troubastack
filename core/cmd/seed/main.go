@@ -54,7 +54,7 @@ type songDef struct {
 	tags       []string
 	notes      string
 	src        pdfSource
-	files      []pdfSource    // optional multi-file shared pool (overrides src)
+	files      []pdfSource      // optional multi-file shared pool (overrides src)
 	myFilesFor map[string][]int // username -> ordered indices into files (custom my-files)
 }
 
