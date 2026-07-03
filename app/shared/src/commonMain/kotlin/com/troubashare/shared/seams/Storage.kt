@@ -25,6 +25,22 @@ expect class Storage {
 
     /** Write a small secure value. */
     fun putSecret(key: String, value: String)
-
-    // TODO(scaffold): signatures only — no bodies. Real file ops land with the build.
 }
+
+/** Result of unpacking a `.tstage` archive (docs/design/08-bundle-container.md). Never thrown — a value. */
+sealed interface UnpackResult {
+    /** Archive extracted into [dir] (the destination passed in). */
+    data class Ok(val dir: String) : UnpackResult
+    /** Extraction refused/failed; [reason] is human-readable (bad zip, too big, unsafe entry). */
+    data class Failed(val reason: String) : UnpackResult
+}
+
+/**
+ * Extract a `.tstage` zip at [zipPath] into [destDir] (part of seam 3 — the where/how of bytes on
+ * disk). Total: returns [UnpackResult.Failed] rather than throwing. Implementations MUST guard
+ * against zip-slip (entries escaping [destDir]) and zip bombs (oversized archive/entries).
+ *
+ *  - Android `actual` → `java.util.zip.ZipInputStream`.
+ *  - iOS `actual`     → `FileManager`/`NSFileManager` unzip.  // iOS-later
+ */
+expect fun unpackBundle(zipPath: String, destDir: String): UnpackResult

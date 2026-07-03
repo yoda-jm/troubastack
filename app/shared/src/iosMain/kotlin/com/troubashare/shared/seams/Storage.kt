@@ -12,3 +12,7 @@ actual class Storage {
     actual fun getSecret(key: String): String? { TODO("iOS-later: Keychain read") }
     actual fun putSecret(key: String, value: String) { TODO("iOS-later: Keychain write") }
 }
+
+actual fun unpackBundle(zipPath: String, destDir: String): UnpackResult {
+    TODO("iOS-later: unzip .tstage via FileManager/NSFileManager with zip-slip + size guards")
+}
