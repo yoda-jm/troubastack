@@ -29,6 +29,10 @@ kotlin {
             // generated proto types are consumed from src/commonMain/kotlin/gen (I1, git-ignored)
         }
 
+        commonTest.dependencies {
+            implementation(kotlin("test"))  // shared unit tests (bundle loader, …); run on androidUnitTest
+        }
+
         androidMain.dependencies {
             // SEAM ACTUALS ONLY (I15) — nothing here that could be shared:
             //   implementation(libs.androidx.webkit)          // seam 1: WebView host (I10)      [A06]
