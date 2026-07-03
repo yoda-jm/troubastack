@@ -20,10 +20,5 @@ message Style {
   double opacity = 3;   // [0,1]
 }
 
-// Who may see an object.
-enum Scope {
-  SCOPE_UNSPECIFIED = 0;
-  SCOPE_PERSONAL = 1; // author only
-  SCOPE_PART = 2;     // all members of a part
-  SCOPE_ALL = 3;      // everyone in the group
-}
+// (Removed) enum Scope — per-object visibility was subsumed by Layer.role_tag;
+// its only reference (Object.scope) is gone and its tag is reserved there.

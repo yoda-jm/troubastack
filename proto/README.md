@@ -8,7 +8,7 @@ files. Hand-writing a duplicate of any wire type is forbidden.
 
 | File | Covers | Invariants |
 |---|---|---|
-| `common.proto` | normalized points, style, scope | I3 |
+| `common.proto` | normalized points, style | I3 |
 | `object.proto` | annotation objects | I2, I3, I5 |
 | `sync.proto`   | realtime mutation/echo protocol | I2, I5, I6 |
 | `song.proto`   | linear revisions, setlists, pins | I4, I7 |

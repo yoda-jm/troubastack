@@ -13,6 +13,9 @@ enum ObjectType {
   OBJECT_TYPE_RECT = 3;
   OBJECT_TYPE_ELLIPSE = 4;
   OBJECT_TYPE_TEXT = 5;
+  // Legacy: highlighting is now a rect/ellipse style preset (fill+multiply), not a
+  // distinct tool — kept so persisted "highlight" objects stay representable.
+  OBJECT_TYPE_HIGHLIGHT = 6;
 }
 
 // Access controls who may add/edit objects in a Layer. NOTE (risks.md R2): the BAND
@@ -64,7 +67,10 @@ message Object {
   string text = 4;            // for OBJECT_TYPE_TEXT
   Style style = 5;
   string owner_id = 6;
-  Scope scope = 7;
+  // Removed: per-object visibility scope — subsumed by Layer.role_tag (see Layer).
+  // Reserved so the tag/name can never be reused.
+  reserved 7;
+  reserved "scope";
   string layer_id = 8;
   uint64 version = 9;         // for LWW (I5)
   int64 created_at = 10;      // unix ms (stamped by author; server is tiebreak authority)

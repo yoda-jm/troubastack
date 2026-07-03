@@ -161,6 +161,8 @@ export type AnnotationStyle = {
 export type AnnotationObject = {
   uuid: string;
   layerId: string;
+  // AUTHORITY: proto/troubastack/v1/object.proto ObjectType (mirror the same set
+  // as core's domain.ObjectType): freehand, line, rect, ellipse, text, highlight.
   type: "freehand" | "rect" | "ellipse" | "line" | "text" | "highlight";
   points: AnnotationPoint[];
   page: number;

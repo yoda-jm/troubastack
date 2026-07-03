@@ -221,6 +221,9 @@ func accessFromString(s string) domain.Access {
 	}
 }
 
+// objectTypeToString/objectTypeFromString mirror domain.ObjectType ↔ the wire
+// string set. AUTHORITY: proto/troubastack/v1/object.proto ObjectType —
+// freehand, line, rect, ellipse, text, highlight.
 func objectTypeToString(t domain.ObjectType) string {
 	switch t {
 	case domain.TypeFreehand:

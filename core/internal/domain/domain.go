@@ -15,7 +15,9 @@ package domain
 
 // ----- enums (typed Go constants mirroring the proto enums) -----
 
-// ObjectType is the kind of annotation object (proto ObjectType).
+// ObjectType is the kind of annotation object. AUTHORITY: proto/troubastack/v1/
+// object.proto ObjectType — keep this set in sync with it (and the TS union in
+// web/studio/src/api.ts): freehand, line, rect, ellipse, text, highlight.
 type ObjectType int
 
 const (
