@@ -2236,6 +2236,34 @@ function EditCanvas({
   // Bumped on each resize-preview tick so the DOM handles follow the drag.
   const [, forceHandles] = useState(0);
 
+  // ---- T06 low-latency wet-ink path (freehand only) ----------------------
+  // Cached 2D context requested with { desynchronized: true } for lower latency
+  // (harmless where unsupported). getContext returns the same context on repeat
+  // calls, so the attribute must be set on the FIRST call — hence the cache.
+  const wetCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // Offscreen cache holding the freehand outline for path[0..cachedUpTo], so each
+  // frame only blits the cache + re-strokes the short live tail (bounded work per
+  // frame instead of getStroke over the whole, growing path).
+  const wetCacheRef = useRef<HTMLCanvasElement | null>(null);
+  const cachedUpToRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  // Dev perf hook (localStorage.inkPerf === "1"): points received + mean
+  // pointer-event→paint latency, so the tablet spike has numbers.
+  const perfRef = useRef<{
+    points: number;
+    frames: number;
+    sumLatency: number;
+    last: number;
+    t0: number;
+    renderFirst: number;
+    renderLast: number;
+    renderMax: number;
+  } | null>(null);
+  // Bake a stable segment into the cache once the live tail exceeds this; the
+  // small overlap keeps the join between cached prefix and live tail continuous.
+  const WET_SEG = 24;
+  const WET_OVERLAP = 3;
+
   // Objects on THIS page that are currently visible (for hit-testing on select).
   const pageObjects = useMemo(
     () =>
@@ -2280,10 +2308,19 @@ function EditCanvas({
   // Paint the wet object / move preview onto the edit canvas. (Selection boxes
   // and per-object bbox highlights are DOM overlays, not canvas — so e2e can
   // query them and they stay crisp at any zoom.)
+  const getWetCtx = useCallback((): CanvasRenderingContext2D | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    if (wetCtxRef.current && wetCtxRef.current.canvas === canvas) return wetCtxRef.current;
+    const ctx = canvas.getContext("2d", { desynchronized: true }) as CanvasRenderingContext2D | null;
+    wetCtxRef.current = ctx;
+    return ctx;
+  }, []);
+
   const repaint = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = getWetCtx();
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -2299,7 +2336,85 @@ function EditCanvas({
     } else if (g?.mode === "multi-move") {
       renderObjects(ctx, g.items.map((it) => toInkObject(it.preview) as InkObject), box);
     }
-  }, [tool, style]);
+  }, [tool, style, getWetCtx]);
+
+  // Incremental freehand wet render (T06). Blits the cached prefix outline and
+  // re-strokes only the short live tail, so per-frame cost stays bounded as the
+  // stroke grows. Segment joins are approximate; pointer-up does one authoritative
+  // renderObjects pass (below) so the committed preview matches the dry render (I8).
+  const drawWetFrame = useCallback(() => {
+    rafRef.current = null;
+    const g = gestureRef.current;
+    const canvas = canvasRef.current;
+    const ctx = getWetCtx();
+    if (!canvas || !ctx || g?.mode !== "draw") return;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.width / dpr;
+    const cssH = canvas.height / dpr;
+    const box = { x: 0, y: 0, w: cssW, h: cssH };
+    const path = g.path;
+
+    let cache = wetCacheRef.current;
+    if (!cache) {
+      cache = document.createElement("canvas");
+      wetCacheRef.current = cache;
+    }
+    if (cache.width !== canvas.width || cache.height !== canvas.height) {
+      cache.width = canvas.width;
+      cache.height = canvas.height;
+      cachedUpToRef.current = 0;
+    }
+
+    // Bake the newly-stable segment into the cache when the tail grows past WET_SEG.
+    if (path.length - cachedUpToRef.current > WET_SEG) {
+      const cctx = cache.getContext("2d");
+      if (cctx) {
+        cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const seg = path.slice(Math.max(0, cachedUpToRef.current - WET_OVERLAP));
+        const wet = buildWet("freehand", seg, style);
+        if (wet) renderObjects(cctx, [toInkObject(wet) as InkObject], box);
+        cachedUpToRef.current = path.length;
+      }
+    }
+
+    // Per-frame: clear, blit the cached prefix (device px, identity transform),
+    // then stroke the live tail (bounded length) in CSS coords.
+    const renderStart = performance.now();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (cachedUpToRef.current > 0) ctx.drawImage(cache, 0, 0);
+    const tail = path.slice(Math.max(0, cachedUpToRef.current - WET_OVERLAP));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wetTail = buildWet("freehand", tail, style);
+    if (wetTail) renderObjects(ctx, [toInkObject(wetTail) as InkObject], box);
+
+    const perf = perfRef.current;
+    if (perf) {
+      const renderMs = performance.now() - renderStart;
+      perf.sumLatency += performance.now() - perf.last;
+      if (perf.frames === 0) perf.renderFirst = renderMs;
+      perf.renderLast = renderMs;
+      if (renderMs > perf.renderMax) perf.renderMax = renderMs;
+      perf.frames += 1;
+    }
+  }, [style, getWetCtx]);
+
+  const scheduleWetFrame = useCallback(() => {
+    if (rafRef.current == null) rafRef.current = requestAnimationFrame(drawWetFrame);
+  }, [drawWetFrame]);
+
+  // Cancel any pending frame + drop the cached prefix (start of a fresh stroke,
+  // or teardown). The wet canvas itself is cleared by repaint().
+  const resetWetCache = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    cachedUpToRef.current = 0;
+  }, []);
+
+  // Cancel a pending frame on unmount.
+  useEffect(() => () => resetWetCache(), [resetWetCache]);
 
   // Keep the canvas sized to its page; observe the page wrapper for zoom/resize.
   useLayoutEffect(() => {
@@ -2320,6 +2435,16 @@ function EditCanvas({
   function pageRelative(e: React.PointerEvent): PRPoint {
     const canvas = canvasRef.current!;
     return pointerToPageXY(e.clientX, e.clientY, canvas);
+  }
+
+  // All samples in this move, not just the latest — fast styluses batch several
+  // positions per event (T06). Falls back to the single event where unsupported.
+  function coalescedPoints(e: React.PointerEvent): PRPoint[] {
+    const canvas = canvasRef.current!;
+    const ne = e.nativeEvent as PointerEvent;
+    const evs = typeof ne.getCoalescedEvents === "function" ? ne.getCoalescedEvents() : null;
+    if (evs && evs.length > 0) return evs.map((ev) => pointerToPageXY(ev.clientX, ev.clientY, canvas));
+    return [pageRelative(e)];
   }
 
   // Build a TextMeasure for the CURRENT page box (CSS px). measureText runs on a
@@ -2482,6 +2607,20 @@ function EditCanvas({
 
     canvas.setPointerCapture(e.pointerId);
     gestureRef.current = { mode: "draw", path: [pt] };
+    resetWetCache();
+    perfRef.current =
+      tool === "freehand" && typeof localStorage !== "undefined" && localStorage.inkPerf === "1"
+        ? {
+            points: 1,
+            frames: 0,
+            sumLatency: 0,
+            last: performance.now(),
+            t0: performance.now(),
+            renderFirst: 0,
+            renderLast: 0,
+            renderMax: 0,
+          }
+        : null;
     forceRepaint((n) => n + 1);
   }
 
@@ -2495,8 +2634,22 @@ function EditCanvas({
     }
     const pt = pageRelative(e);
     if (g.mode === "draw") {
-      g.path.push(pt);
-      repaint();
+      if (tool === "freehand") {
+        // Out of React, coalesced, one paint per frame (T06).
+        const pts = coalescedPoints(e);
+        for (const p of pts) g.path.push(p);
+        const perf = perfRef.current;
+        if (perf) {
+          perf.points += pts.length;
+          perf.last = performance.now();
+        }
+        scheduleWetFrame();
+      } else {
+        // line/rect/ellipse previews are O(1) geometry — the simple full repaint
+        // is already cheap and exact.
+        g.path.push(pt);
+        repaint();
+      }
     } else if (g.mode === "move") {
       const dx = pt.x - g.start.x;
       const dy = pt.y - g.start.y;
@@ -2526,6 +2679,18 @@ function EditCanvas({
     if (canvas?.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
     if (!g) return;
     if (g.mode === "draw" && tool !== "select") {
+      resetWetCache(); // drop any queued frame; commit re-renders authoritatively
+      const perf = perfRef.current;
+      if (perf) {
+        const secs = (performance.now() - perf.t0) / 1000 || 1;
+        const mean = perf.frames ? (perf.sumLatency / perf.frames).toFixed(1) : "?";
+        // eslint-disable-next-line no-console
+        console.log(
+          `[inkPerf] ${perf.points} pts / ${secs.toFixed(2)}s = ${Math.round(perf.points / secs)} pts/s · ${perf.frames} frames · ` +
+            `mean event→paint ${mean}ms · per-frame render first ${perf.renderFirst.toFixed(2)}ms → last ${perf.renderLast.toFixed(2)}ms (max ${perf.renderMax.toFixed(2)}ms)`,
+        );
+        perfRef.current = null;
+      }
       onCommitDraw(tool as DrawTool, page, g.path);
     } else if (g.mode === "move") {
       // Only commit if it actually moved.
