@@ -15,12 +15,14 @@ It does exactly two jobs on a device:
 
 See the constitution: [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 
-> **The Gradle build is wired (A01).** `:shared` compiles and `:androidApp` assembles a debug APK
-> via the committed wrapper: `cd app && ./gradlew :shared:check :androidApp:assembleDebug` (needs a
-> JDK; Android SDK via `local.properties`/`ANDROID_HOME`). What's still scaffold is the *code* — the
-> three `expect`/`actual` seam bodies and most shared logic are `TODO()`, filled in by later
-> A-tasks. The directory layout and the seams exist to make the architecture (especially **I15**)
-> legible. iOS stays "later": the iOS target is commented out and its actuals remain `TODO()` stubs.
+> **Status (through A05).** The build is wired (committed wrapper; needs a JDK + Android SDK via
+> `ANDROID_HOME` or `app/local.properties`): `cd app && ./gradlew :shared:check :androidApp:assembleDebug`,
+> or `make app` from the repo root. **Working today:** the TroubaStage presenter (offline, resilient,
+> read-only — A04), the bundle model/loader (A02) and atomic `.tstage` import via the Storage seam
+> (A05). To try it on a device with zero servers, see the root README's "The mobile app" section and
+> the committed demo bundle `docs/demo/demo-concert.tstage`. **Still `TODO()`:** the WebViewHost seam
+> (Studio in the app — A06), the native ink overlay (A07, blocked on the tablet spike), the sync
+> client and the downloader/updates. iOS stays "later": the target is commented out, its actuals are stubs.
 
 ---
 
@@ -89,12 +91,13 @@ app/
 │       │       │   ├── WebViewHost.kt            ← seam 1 (I10)
 │       │       │   ├── InkOverlay.kt             ← seam 2 (I9, I8)
 │       │       │   └── Storage.kt                ← seam 3
-│       │       ├── stage/Presenter.kt            ← shared presenter (I12)
+│       │       ├── stage/                        ← shared presenter: StageModel/ViewModel/Screen (I12)
+│       │       ├── bundle/                       ← bundle model + loader + atomic importer (A02/A05)
 │       │       ├── distribution/Updates.kt       ← shared downloader / revisions (I13)
 │       │       └── sync/SyncClient.kt            ← shared optimistic client (I6)
 │       ├── androidMain/kotlin/com/troubashare/shared/seams/   ← the three Android actuals
 │       └── iosMain/kotlin/com/troubashare/shared/seams/       ← the three iOS actuals (TODO, iOS-later)
-├── androidApp/               ← thin Android entrypoint: MainActivity + Compose placeholder screen
+├── androidApp/               ← thin Android entrypoint: concerts list, Stage host, import wiring
 └── iosApp/                   ← thin iOS entrypoint (iOS-later; not yet a Gradle module)
 ```
 
