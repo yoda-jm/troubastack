@@ -6,6 +6,12 @@
 >
 > Point a fresh Claude Code session at this file to continue seamlessly. It captures **how we work**
 > and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-04.
+>
+> **To resume:** open this repo in a new session and say — *"Read `docs/handoff/mobile-app-agent.md`;
+> you are the Mobile App Agent — let's continue."* Then read §2 (how we work) and §5 (landing) before
+> touching anything, and `git log main --oneline -15` for current state. **Immediate next action:**
+> A07 (native wet-ink) is the only remaining app task and is **blocked** on a real-tablet stylus
+> spike (§8) — confirm with the user before assuming it's unblocked.
 
 ---
 
