@@ -17,13 +17,13 @@
             {
               "layerId": "marks",
               "imageRef": "blobs/s1-p1-L0.png",
-              "contentHash": "0de31c5bc276b8df",
+              "contentHash": "8d124dde5e0f144c",
               "mandatory": true
             },
             {
               "layerId": "conductor",
               "imageRef": "blobs/s1-p1-L1.png",
-              "contentHash": "6f9ef0a9a417be82",
+              "contentHash": "30f4cbb6de59a1e3",
               "order": 1,
               "roleTag": "conductor"
             }
@@ -36,13 +36,13 @@
             {
               "layerId": "marks",
               "imageRef": "blobs/s1-p2-L0.png",
-              "contentHash": "0de31c5bc276b8df",
+              "contentHash": "8d124dde5e0f144c",
               "mandatory": true
             },
             {
               "layerId": "conductor",
               "imageRef": "blobs/s1-p2-L1.png",
-              "contentHash": "6f9ef0a9a417be82",
+              "contentHash": "30f4cbb6de59a1e3",
               "order": 1,
               "roleTag": "conductor"
             }
@@ -55,13 +55,13 @@
             {
               "layerId": "marks",
               "imageRef": "blobs/s1-p3-L0.png",
-              "contentHash": "0de31c5bc276b8df",
+              "contentHash": "8d124dde5e0f144c",
               "mandatory": true
             },
             {
               "layerId": "conductor",
               "imageRef": "blobs/s1-p3-L1.png",
-              "contentHash": "6f9ef0a9a417be82",
+              "contentHash": "30f4cbb6de59a1e3",
               "order": 1,
               "roleTag": "conductor"
             }
@@ -81,13 +81,13 @@
             {
               "layerId": "marks",
               "imageRef": "blobs/s2-p1-L0.png",
-              "contentHash": "0de31c5bc276b8df",
+              "contentHash": "8d124dde5e0f144c",
               "mandatory": true
             },
             {
               "layerId": "conductor",
               "imageRef": "blobs/s2-p1-L1.png",
-              "contentHash": "6f9ef0a9a417be82",
+              "contentHash": "30f4cbb6de59a1e3",
               "order": 1,
               "roleTag": "conductor"
             }
@@ -100,13 +100,13 @@
             {
               "layerId": "marks",
               "imageRef": "blobs/s2-p2-L0.png",
-              "contentHash": "0de31c5bc276b8df",
+              "contentHash": "8d124dde5e0f144c",
               "mandatory": true
             },
             {
               "layerId": "conductor",
               "imageRef": "blobs/s2-p2-L1.png",
-              "contentHash": "6f9ef0a9a417be82",
+              "contentHash": "30f4cbb6de59a1e3",
               "order": 1,
               "roleTag": "conductor"
             }
@@ -119,13 +119,13 @@
             {
               "layerId": "marks",
               "imageRef": "blobs/s2-p3-L0.png",
-              "contentHash": "0de31c5bc276b8df",
+              "contentHash": "8d124dde5e0f144c",
               "mandatory": true
             },
             {
               "layerId": "conductor",
               "imageRef": "blobs/s2-p3-L1.png",
-              "contentHash": "6f9ef0a9a417be82",
+              "contentHash": "30f4cbb6de59a1e3",
               "order": 1,
               "roleTag": "conductor"
             }
