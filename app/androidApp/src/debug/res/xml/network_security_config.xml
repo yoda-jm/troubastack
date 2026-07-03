@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DEBUG builds only (see src/debug/AndroidManifest.xml). Allows cleartext HTTP for local dev
+     against a core server on the host machine or LAN. NOT present in release builds. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

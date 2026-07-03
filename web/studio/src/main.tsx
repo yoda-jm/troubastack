@@ -8,10 +8,14 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { AuthProvider } from "./auth";
+import { initShellBridge } from "./bridge";
 import "./styles.css";
 
 const el = document.getElementById("app");
 if (!el) throw new Error("missing #app mount point");
+
+// Wire the native-shell bridge if hosted in the app; a no-op in a plain browser (I10).
+initShellBridge();
 
 createRoot(el).render(
   <StrictMode>

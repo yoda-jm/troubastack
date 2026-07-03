@@ -64,10 +64,16 @@ private fun App() {
     val context = LocalContext.current.applicationContext
     val storage = remember { Storage(context) }
     var selectedDir by remember { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf(false) }
+
+    if (editing) {
+        EditScreen(storage, onBack = { editing = false })
+        return
+    }
 
     val dir = selectedDir
     if (dir == null) {
-        ConcertsScreen(context, storage, onOpen = { selectedDir = it })
+        ConcertsScreen(context, storage, onOpen = { selectedDir = it }, onEdit = { editing = true })
         return
     }
 
@@ -84,7 +90,7 @@ private fun App() {
 }
 
 @Composable
-private fun ConcertsScreen(context: Context, storage: Storage, onOpen: (String) -> Unit) {
+private fun ConcertsScreen(context: Context, storage: Storage, onOpen: (String) -> Unit, onEdit: () -> Unit) {
     var refresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
 
@@ -106,6 +112,7 @@ private fun ConcertsScreen(context: Context, storage: Storage, onOpen: (String) 
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Concerts", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = onEdit) { Text("Edit") }
                 // ".tstage" has no registered MIME type, so accept zip + anything and validate on import.
                 Button(onClick = { picker.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
                     Text("Import")
