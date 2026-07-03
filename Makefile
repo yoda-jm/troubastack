@@ -1,5 +1,5 @@
 # TroubaStack top-level dev tasks. See docs/ARCHITECTURE.md for the rules these serve.
-.PHONY: help setup dev run run-api core test studio embed dist e2e check proto app seed demo
+.PHONY: help setup dev run run-api core test studio embed dist e2e check proto app fixtures seed demo
 
 help:
 	@echo "TroubaStack — targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  demo     single binary: real SPA + API on :8080 with SEEDED data (file-backed)"
 	@echo "           -> login marie/demo or maestro/demo; reset: rm -rf core/troubadata"
 	@echo "  app      build the KMP mobile app: shared checks + debug APK (needs a JDK + Android SDK)"
+	@echo "  fixtures regenerate the committed TroubaStage bundle fixtures (dev tool cmd/mkbundle)"
 	@echo "  proto    deferred (buf codegen)"
 
 setup:
@@ -107,3 +108,10 @@ proto:
 # Android debug APK. Uses the committed Gradle wrapper, so only a JDK (+ Android SDK) is assumed.
 app:
 	cd app && ./gradlew :shared:check :androidApp:assembleDebug
+
+# Regenerate the committed TroubaStage test fixtures with the dev bundle generator (A03). Output is
+# deterministic, so this should produce no diff unless the format or generator changed.
+fixtures:
+	cd core && go run ./cmd/mkbundle \
+	  -out ../app/shared/src/commonTest/resources/fixtures/demo \
+	  -torture ../app/shared/src/commonTest/resources/fixtures/torture
