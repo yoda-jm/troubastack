@@ -8,7 +8,8 @@
 // docs/design/02-sync-protocol.md.
 //
 // Boundary:
-//   - MAY import: domain, store, session, sync, bake, webassets, proto types, stdlib.
+//   - MAY import: domain, store, sync, bake, webassets, proto types, stdlib.
+//     (Sessions/auth are owned by app.Service; there is no core/internal/session.)
 //   - MUST NOT import: any client (web/app) source. It wires subsystems behind
 //     HTTP; it holds no business logic of its own.
 package httpapi
@@ -17,10 +18,7 @@ import (
 	"net/http"
 
 	"troubastack/core/internal/app"
-	"troubastack/core/internal/bake"
 	"troubastack/core/internal/engine"
-	"troubastack/core/internal/session"
-	syncpkg "troubastack/core/internal/sync"
 	"troubastack/core/internal/webassets"
 )
 
@@ -32,10 +30,9 @@ import (
 // is mounted from svc via WebAPI under /api/*. The per-song annotation engine
 // (eng) backs the view-only annotation routes under .../songs/{songId}/annotations.
 // secureCookies should be true behind TLS. The realtime /ws upgrade is wired here
-// over a sync.Hub built on the SAME engine instance, so the live HEAD the hub mutates
-// is exactly the one GET …/annotations reads. The injected *syncpkg.Hub is ignored
-// (it is a dependency-less placeholder); the wired hub is constructed below.
-func Router(svc *app.Service, eng *engine.Engine, secureCookies bool, _ *syncpkg.Hub, _ *session.Manager, _ *bake.Baker) (http.Handler, error) {
+// over a sync.Hub built on the SAME engine instance (in mountWS), so the live HEAD
+// the hub mutates is exactly the one GET …/annotations reads.
+func Router(svc *app.Service, eng *engine.Engine, secureCookies bool) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Liveness probe.

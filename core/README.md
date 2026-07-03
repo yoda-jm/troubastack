@@ -18,7 +18,7 @@ See the constitution: [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 | `internal/domain` | Pure model + logic: objects (UUID), linear revisions, pins, LWW, tombstones. No I/O. | I2 I4 I5 I7 |
 | `internal/store` | Persistence + the retention/GC policy ladder. GC never breaks a reference. | I4 I5 I7 |
 | `internal/sync` | WebSocket hub: rooms per song, optimistic echo, idempotent apply by UUID. | I6 I2 |
-| `internal/session` | Auth, group membership, roles (ADMIN/PERFORMER/CONDUCTOR). | I6 I11 |
+| `internal/app` | Relational domain + auth: users/sessions (bcrypt), bands, members, invites, roles (admin/conductor/member), songs/files. | I6 |
 | `internal/bake` | Bake orchestration: resolve role/scope, invoke `web/bake`, mint ConcertBundle revisions. | I11 I12 |
 | `internal/httpapi` | REST handlers + serving the embedded Studio SPA. | I10 I14 |
 | `internal/webassets` | `//go:embed` of the built Studio `dist/`. | I10 I14 |

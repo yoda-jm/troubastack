@@ -168,7 +168,7 @@ revision logic) is shared. iOS = fill in the three `actual`s.
 |---|---|
 | I1 | `proto/` |
 | I2 I3 I4 I5 I7 | `proto/`, `core/internal/{domain,store}` |
-| I6 | `core/internal/{sync,session}`, client outboxes |
+| I6 | `core/internal/sync`, `core/internal/app` (sessions/auth), client outboxes |
 | I8 | `web/ink`, native overlay parity test (not yet written) |
 | I9 I10 | `web/studio`, `app/.../ink-overlay` |
 | I11 | `core/internal/bake` |
