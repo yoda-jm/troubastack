@@ -91,6 +91,7 @@ jobs:
           test -n "$APP" || { echo "iosApp.app not found"; exit 1; }
           xcrun simctl install "$UDID" "$APP"
 
+          mkdir -p diag
           # Inject the committed demo bundle into the app's Documents/bundles (mirrors Android run-as).
           CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
           DEST="$CONTAINER/Documents/bundles/wonderwall-demo"
@@ -99,19 +100,25 @@ jobs:
 
           echo "CONTAINER=$CONTAINER" >> "$GITHUB_ENV"
 
-          # Launch 1: Concerts list. Then terminate WITHOUT `|| true`: if the app already crashed
-          # (before/at first frame — the screenshot would be the springboard), `terminate` finds
-          # nothing to kill and fails the job. The marker alone is NOT proof the UI rendered.
-          xcrun simctl launch "$UDID" "$BUNDLE_ID"
-          sleep 8
+          # Launch 1: Concerts list, CONSOLE-CAPTURED. Kotlin/Native uncaught-exception text prints to
+          # the app's stderr (invisible to `log show`); --console-pty relays it. It blocks while the
+          # app runs, so background it and screenshot after a beat.
+          xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" > diag/app-console-concerts.txt 2>&1 &
+          C1=$!
+          sleep 12
           xcrun simctl io "$UDID" screenshot concerts.png
+          kill "$C1" 2>/dev/null || true
+          # terminate WITHOUT `|| true`: if the app already crashed at first frame, this finds nothing
+          # to kill and fails the job. The marker alone is NOT proof the UI rendered.
           xcrun simctl terminate "$UDID" "$BUNDLE_ID"
 
-          # Launch 2: auto-open the first concert → a Stage page. TROUBA_AUTOPEN is read by the app
-          # (via SIMCTL_CHILD_ passthrough) so we don't have to drive Compose taps.
-          SIMCTL_CHILD_TROUBA_AUTOPEN=1 xcrun simctl launch "$UDID" "$BUNDLE_ID"
-          sleep 10
+          # Launch 2: auto-open the first concert → a Stage page (also console-captured). TROUBA_AUTOPEN
+          # is read by the app (via SIMCTL_CHILD_ passthrough) so we don't drive Compose taps.
+          SIMCTL_CHILD_TROUBA_AUTOPEN=1 xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" > diag/app-console-stage.txt 2>&1 &
+          C2=$!
+          sleep 12
           xcrun simctl io "$UDID" screenshot stage.png
+          kill "$C2" 2>/dev/null || true
 
           # Marker: the app writes this only after a bundle actually loads (LoadResult.Loaded).
           MARKER="$CONTAINER/Documents/stage-loaded.marker"
@@ -133,9 +140,13 @@ jobs:
         run: |
           set +e
           mkdir -p diag
+          sleep 20   # ReportCrash lags an abort by seconds — give the .ips time to land
           [ -n "${UDID:-}" ] && xcrun simctl spawn "$UDID" log show --last 5m --style syslog \
             --predicate 'processImagePath CONTAINS "iosApp"' > diag/app-log.txt 2>&1
-          cp ~/Library/Logs/DiagnosticReports/iosApp* diag/ 2>/dev/null
+          # Match by CONTENT, not name prefix — sim crash reports aren't always "iosApp*".
+          for f in $(grep -l iosApp ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null); do cp "$f" diag/; done
+          echo "==== app console (Concerts) ===="; cat diag/app-console-concerts.txt 2>/dev/null
+          echo "==== app console (Stage) ===="; cat diag/app-console-stage.txt 2>/dev/null
           echo "==== diag dir ===="; ls -la diag
           for f in diag/*.ips diag/*.crash; do
             [ -f "$f" ] && { echo "===== $f ====="; cat "$f"; }
