@@ -87,16 +87,30 @@ export function LayersPanel({
                 </div>
                 <span className="pill">{tag}</span>
                 {l.mandatory && <span className="pill mandatory-pill">required</span>}
-                {isActive && (
-                  <span className="pill active-pill" data-testid="layer-active">
-                    drawing
-                  </span>
-                )}
-                {isFocused && (
-                  <span className="pill focused-pill" data-testid="layer-focused">
-                    viewing
-                  </span>
-                )}
+                {/* The `drawing` (active) and `viewing` (focused) pills are the ONLY
+                    per-row content that changes when focus/active moves between layers.
+                    If they were mounted conditionally, focusing a layer would change
+                    that row's width and — at narrow widths with a wide font — tip its
+                    pills onto an extra wrapped line, shifting the panel height (and the
+                    viewer top when the sidebar stacks above it). That is the T13 CI-only
+                    ~27px RO/RW shift. So they are ALWAYS mounted with visibility toggled
+                    (space reserved), mirroring the toolbar/annotation-hint fix (772be41):
+                    every row's footprint is now independent of which layer is
+                    active/focused, so focus never moves the layout. */}
+                <span
+                  className={`pill active-pill${isActive ? "" : " layer-pill-off"}`}
+                  data-testid="layer-active"
+                  aria-hidden={!isActive}
+                >
+                  drawing
+                </span>
+                <span
+                  className={`pill focused-pill${isFocused ? "" : " layer-pill-off"}`}
+                  data-testid="layer-focused"
+                  aria-hidden={!isFocused}
+                >
+                  viewing
+                </span>
                 {locked && (
                   <span
                     className="pill lock-pill"

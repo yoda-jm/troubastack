@@ -1,12 +1,15 @@
 /**
  * BUG (reproduce-first): focusing a READ-ONLY layer shifts the editor layout.
  *
- * Same class as the style-toolbar stability fix (ec8dd3f): controls/hints that
- * appear in only ONE state change the toolbar's footprint. Here the offenders
- * are the inline `draw-locked-hint` (renders only when a RO/locked layer is
- * focused) and the active-layer-indicator / "Edit this layer" CTA region (its
- * content/line-count changes with focus + editability). When the RO layer is
- * focused the toolbar grows taller and the viewer (`pdf-page`) is pushed down.
+ * Same class as the style-toolbar stability fix (ec8dd3f) and the toolbar/annotation
+ * hint reservations (772be41): content that appears in only ONE state changes a
+ * footprint. The confirmed offender (T13) is the Layers-panel row pills — the
+ * `drawing` (active) and `viewing` (focused) pills move between rows as focus/active
+ * changes; when mounted conditionally, focusing the RO layer added a pill to its
+ * (longer-named) row, which wrapped onto an extra line under CI's wider fallback
+ * font, growing the sidebar and — since it stacks above the viewer at narrow widths
+ * — pushing `pdf-page` down ~27px. Fixed by always mounting those pills with space
+ * reserved, so every row's footprint is focus-independent.
  *
  * Reproduce-first: seed a song with BOTH a RW personal layer (mine, editable)
  * and a RO shared layer (someone else's, with an object). With the Select tool,
@@ -124,17 +127,17 @@ async function measure(page: Page): Promise<{ toolbarH: number; pageTop: number 
 test("editor: focusing a read-only layer does NOT shift the layout (RO vs RW footprint identical)", async ({
   page,
 }) => {
-  // QUARANTINED IN CI (T13) — NOT a flake and NOT license to ignore: this exact
-  // RO-vs-RW footprint assertion fails ONLY in CI headless (~27px pageTop shift;
-  // green locally), suspected font/asset metric difference below the toolbar.
-  // Skipped when CI is set so the other e2e specs still HARD-GATE; delete this
-  // skip the moment T13 fixes the layout. See docs/tasks/T13.
-  test.skip(!!process.env.CI, "T13: RO/RW pageTop shift only reproduces in CI headless");
+  // Fixed in T13 (was CI-headless-only): the shift was the Layers-panel row pills.
+  // The `drawing`/`viewing` pills are the only per-row content that moves with
+  // focus/active state; when they were mounted conditionally, focusing the RO layer
+  // put an extra pill on its (longer-named) row, tipping its pills onto a wrapped
+  // line under CI's wider fallback font — growing the panel ~27px and pushing the
+  // viewer down. Both pills are now always mounted with space reserved (SidePanels
+  // + .layer-pill-off), so every row's footprint is focus-independent.
 
-  // A narrowed viewport puts the tool-palette near its wrap boundary, so the
-  // extra width of the inline `draw-locked-hint` is what tips the row into an
-  // additional line (the layout shift). At the default 1280px width there is
-  // slack and the hint fits on the existing line, hiding the regression.
+  // A narrowed viewport (sidebar stacks above the viewer; tool-palette near its
+  // wrap boundary) is where the shift showed — reproduced locally by forcing a
+  // wide font. At default width there is slack that hides the regression.
   await page.setViewportSize({ width: 560, height: 900 });
 
   const { bandId, songId, fileId, me } = await setup(page, "RoRw");

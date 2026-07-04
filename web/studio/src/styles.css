@@ -564,6 +564,10 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
    so focusing a read-only layer never shifts the panel (or, at narrow widths
    where the sidebar stacks above the viewer, the viewer's top). */
 .annotation-list-locked-off { visibility: hidden; }
+/* Reserve the space of the per-row `drawing`/`viewing` pills on EVERY layer row
+   even when off, so moving focus/active between layers never changes a row's width
+   (and thus never wraps its pills onto an extra line / shifts the panel). See T13. */
+.layer-pill-off { visibility: hidden; }
 
 .layer-controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .new-layer-btn, .delete-object-btn { padding: .35rem .6rem; font-size: .85rem; }
