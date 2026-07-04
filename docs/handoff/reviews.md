@@ -348,6 +348,16 @@ Cleanest fix (mobile lane's call): xcodegen's `info:` block on the target —
 end up true). Then land + dispatch; run #7 is the close-out candidate: green + Wonderwall
 pixels in `stage.png`, which this reviewer will verify from the artifact.
 
+## 2026-07-04 — `fix/ios02-plist` (`48bbc1f`): ✅ APPROVED — land + dispatch run #7
+
+The right shape: `GENERATE_INFOPLIST_FILE`/`INFOPLIST_KEY_*` replaced by xcodegen's
+`info:` block (which supports arbitrary keys), `CADisableMinimumFrameDurationOnPhone:
+true` present, the display-name/launch-screen/orientation keys faithfully migrated
+(`UILaunchScreen: {}` is the generated-launch-screen equivalent), generated plist
+git-ignored. Rebase before landing (the branch was cut before the latest reviews.md
+entries — a plain rebase keeps them). Run #7 is the close-out candidate; the reviewer
+will verify the artifact pixels.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
