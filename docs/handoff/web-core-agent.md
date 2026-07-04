@@ -110,11 +110,16 @@ A monorepo for a band sheet-music app. Four parts, one contract:
 
 ## 5. Landing procedure (primary worktree, linear, no merge commit)
 
-`main` **is** checked out here, so you fast-forward it locally and push it directly.
+**CHANGED (2026-07-04):** `main` is **no longer checked out in your primary worktree** — a
+`troubastack-review` worktree now holds it (the reviewer's), and the A-agent uses
+`troubastack-IOS01`. `git worktree list` shows all three; leave the others alone. Because `main`
+is checked out elsewhere, you **cannot** `git checkout main` / `git merge --ff-only` here — git
+refuses (and `git branch -f main` too). **Land by pushing your branch straight to `main`:**
+`git push origin HEAD:main` — a clean fast-forward once you've rebased onto `origin/main`.
 
 ```bash
 cd /home/yoda/dev/git/troubastack
-git checkout -b task/TNN-name            # (or you're already on it)
+git checkout -b task/TNN-name origin/main   # branch from the freshest main
 git add <files>
 git commit -F - <<'EOF'
 <subject: area: what changed (TNN)>
@@ -124,13 +129,11 @@ git commit -F - <<'EOF'
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 EOF
 
-git fetch origin                          # A-agent lands often
-git rebase origin/main                    # expect this most times
-git checkout main
-git merge --ff-only task/TNN-name
-git push origin main 2>&1 | sed -E "s/${TOKEN}/<TOKEN>/g"
-git branch -d task/TNN-name
-# then poll CI to green (§3)
+git fetch origin                          # A-agent lands often — main moves under you
+git rebase origin/main                    # expect this ~every time; re-fetch+rebase if push rejects
+git merge-base --is-ancestor origin/main HEAD && echo ff-safe   # sanity: exactly your commits ahead
+git push origin HEAD:main 2>&1 | sed -E "s/${TOKEN}/<TOKEN>/g"   # ff push; NO local checkout of main
+# then poll CI to green (§3). Your worktree stays on the task branch (== origin/main); that's fine.
 ```
 
 **Gotchas that already bit here:**
@@ -144,10 +147,11 @@ git branch -d task/TNN-name
 - Transient `docs/*.md` files may briefly appear/vanish — that's the A-agent relocating handoffs in a
   parallel worktree. Not yours; leave them.
 
-## 6. What's done — the T-track (all landed on `main`)
+## 6. What's done — the T/B-track (all landed on `main`)
 
 | Task | Commit | Summary |
 |---|---|---|
+| B01 | `00a7da5` | **`web/bake` overlay renderer + the I8 golden parity test.** `renderOverlays`/`troubabake` CLI draw per-layer transparent PNGs via `@troubastack/ink` (Node Skia, `@napi-rs/canvas`); esbuild bundles ink from source (no 2nd copy). Parity test = bake vs. ink-in-headless-Chromium, per-pixel within an AA tolerance (spec's literal "100% transparent" relaxed to ≥99.9% — flagged at the gate). Added `setTextFontFamily` to ink (default UNCHANGED → studio byte-identical); bake pins bundled Roboto + `textRendering=geometricPrecision`. CI step in the web job. Overlays only — PDF rasters + bundle assembly are B02. |
 | T01 | `4ebdb3e` (+`243a92e`) | Fix workspace typecheck breakage; discover `tsc -b` (solution file). Follow-up: `web/bake` typecheck-only build. |
 | T02 | `5ed1fe5` (+`5fe5da0`) | GitHub Actions CI + strict gofmt gate. Follow-up: quarantine `editor-rorw-shift` in CI while e2e keeps hard-gating (→ T13). |
 | T03 | `d33b3b7` | Studio: one accent color + dark-mode token fixes. (before/after screenshots) |
@@ -175,7 +179,13 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
   index on start — `task-pack-workflow.md` (repo quirks + review model), `git-linear-history.md`,
   `mobile-app-agent.md` (the other lane's role).
 
-## 8. Remaining work (T-track)
+## 8. Remaining work (T/B-track)
+
+**Queue (per the review-gate standing steer while the human is OoO):** B01 ✅ landed → **T13 next,
+then T14** (fillers) → T15 stays **held** for an attended window. B02 (bake orchestration in core +
+Studio "Bake" button, L, cross-lane) is the next big B-track piece but was **not** queued as
+immediate by the steer — confirm scope/spec-readiness (or get a fresh steer) before starting it.
+Nothing merges without a verdict in `reviews.md` or from the human.
 
 - **T13 — RO/RW pageTop shift.** `web/studio/e2e/editor-rorw-shift.spec.ts:132` is `test.skip`'d
   under CI (`!!process.env.CI`) because a read-only↔read-write page-top layout shift reproduces
