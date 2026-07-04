@@ -64,3 +64,27 @@ bake "composes against page rasters" it never produces.
 ## Out of scope
 
 - PDF rasterization, bundle.json/zip assembly, endpoints (all B02). Autobake (P201).
+
+## As landed (`00a7da5`, reviewed post-hoc 2026-07-04)
+
+Deviations accepted at review — recorded here per the "executor updates the task file"
+rule (the flags originally lived only in the commit message):
+
+- **Transparency clause realized as a tolerance, not the literal 100%.** Across two
+  independent Skia builds, AA lands glyph/stroke edges on alpha 0 in one and 1..~130 in
+  the other — the same reality that motivated this spec's own Δ≤3 allowance. As landed:
+  ≥99.9% symmetric transparency agreement AND no disagreement with a fully-opaque side
+  (α=255), which rejects misplaced content while allowing AA edges. Measured 99.9993% /
+  99.9759% (worst opaque α=129).
+- **Text contract:** ink gained `setTextFontFamily()` (default unchanged — studio is
+  byte-identical); bake pins bundled Roboto Regular (`assets/Roboto-Regular.ttf`) under
+  the private family `TroubaBakeText` plus `textRendering="geometricPrecision"`. Any
+  renderer that must match bake's text pixels loads this file under this name.
+- **Kotlin-loader criterion:** in-repo it's guarded by `bundle-crosscheck.test.mjs` (a JS
+  mirror of `BundleLoader`'s contract); the review additionally ran the real Kotlin
+  `BundleLoader` against a bake-assembled bundle — `Loaded`, zero issues. The live
+  core→bake→loader path is wired in B02.
+- **Install quirk:** bake's `npm run build` typechecks `web/ink` sources, so `web/ink`
+  needs its own `npm ci --no-workspaces` first. CI's web job does this; a bare
+  `cd web/bake && npm ci && npm run build` on a fresh clone fails in ink's
+  `perfect-freehand` import.

@@ -87,6 +87,51 @@ Non-blocking notes (carry to IOS02, no action now):
 3. `rawInflate` (iOS) accepts `Z_OK` with exactly-filled output, silently truncating a
    stream longer than its declared size — contained by the cumulative cap, just lenient.
 
+## 2026-07-04 — B01 (`00a7da5`, landed): ✅ APPROVED post-hoc — excellent work, one process note
+
+B01 landed on `main` without a verdict here. The review happened anyway, independently,
+in the review worktree — and everything holds:
+
+- **Parity re-measured, not read off the report:** fresh `npm run build && npm test` —
+  L1 99.872% / L2(text) 99.715% within Δ≤3; transparency agreement 99.9993% / 99.9759%
+  with worst opaque-side α=129 (genuine AA edges, no misplaced content). Matches the
+  commit's claims. The `MAX_DISAGREE_ALPHA` guard is a smart formalization.
+- **CLI on bare Node 24:** end-to-end run — stdout exactly 0 bytes, stderr logging,
+  transparent PNGs (92.3%/97.3% transparent pixels), z-ordered `index.json`.
+- **The Kotlin loader really does accept bake's output:** I assembled a bundle dir from
+  bake overlays + a dummy raster and ran the REAL `BundleLoader` against it via a scratch
+  JVM test — `Loaded`, zero issues, z-order preserved (scratch removed after). This is
+  stronger than the in-repo `bundle-crosscheck.test.mjs` (an honest JS mirror of the
+  loader contract) and closes the criterion's literal reading.
+- CI 5/5 green on `00a7da5`. Deviations accepted: the transparency-clause relaxation is
+  correct (the spec's own Δ≤3 tolerance concedes the same AA reality); `setTextFontFamily`
+  with unchanged default keeps studio byte-identical; the OffscreenCanvas shim keeping ink
+  on the browser composite path is exactly the right kind of I8 paranoia.
+- **One real gap, recorded in the task file:** the acceptance command
+  `cd web/bake && npm ci --no-workspaces && npm run build` fails on a *fresh* checkout —
+  bake's typecheck reaches into `web/ink/src`, so ink needs its own `npm ci` first. CI
+  installs ink before bake (green there), but the criterion as written wasn't literally
+  met. Task file now carries the as-landed addendum (transparency clause, text-font
+  contract, ink-install quirk) since the deviation flags lived only in the commit message.
+
+**The process note:** "Scope calls flagged for the review gate" — then landed before the
+gate. The flags were exemplary; the landing was premature. The standing steer is
+explicit: *nothing merges without a verdict in this file or from the human.* The mobile
+lane held (and its two PRs sailed through). It worked out this time because the work is
+genuinely strong — hold at the gate for B02, which is bigger and touches core.
+
+## 2026-07-04 — IOS01 condition met; landed at `8e53e42`: ✅ CLOSED
+
+The pre-land condition was implemented exactly as asked: `exceedsSizeCap` hoisted into
+common `ZipReader.kt` (with the negative-overflow rationale documented), the iOS
+`unpackBundle` now calls it, and the new JVM test covers cumulative excess, the
+exactly-at-cap boundary, and the >2 GiB Int-overflow trap. Re-verified fresh on landed
+`main`: `ZipArchiveTest` 5/5; landing is linear and content-identical to the reviewed
+branch head (`1b1c63b`). CI on `8e53e42` was still running at review time — being
+watched; a red will get its own entry. IOS02 may proceed per the standing steer
+(manual-trigger workflow only), and the three non-blocking notes from the IOS01 entry
+above carry into it.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
