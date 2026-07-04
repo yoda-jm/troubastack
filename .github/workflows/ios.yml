@@ -38,31 +38,40 @@ jobs:
       - name: generate xcodeproj
         working-directory: app/iosApp
         run: xcodegen generate
-      - name: build (unsigned, simulator)
-        working-directory: app/iosApp
-        run: |
-          xcodebuild \
-            -project iosApp.xcodeproj \
-            -scheme iosApp \
-            -sdk iphonesimulator \
-            -configuration Debug \
-            -derivedDataPath DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
-      # 3) Boot a simulator, install, inject the demo bundle, launch twice (list + Stage), assert.
-      - name: simulator smoke (inject demo, screenshot, assert load)
-        working-directory: app/iosApp
+      # 2b) Boot the target simulator BEFORE building so xcodebuild can target it by id — that pins
+      # the build to the simulator's native arch (arm64 on the Apple-silicon runner), matching the
+      # arm64-only Kotlin framework. Without a -destination, xcodebuild also builds an x86_64 slice
+      # and fails to link the arm64 framework.
+      - name: boot simulator
         run: |
           set -euo pipefail
-          BUNDLE_ID=com.troubashare.app
-
           DEVTYPE=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys;d=json.load(sys.stdin)['devicetypes'];print([x for x in d if 'iPhone' in x['name']][-1]['identifier'])")
           RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "import json,sys;r=[x for x in json.load(sys.stdin)['runtimes'] if x.get('isAvailable') and 'iOS' in x['name']];print(r[-1]['identifier'])")
           echo "device=$DEVTYPE runtime=$RUNTIME"
           UDID=$(xcrun simctl create trouba-sim "$DEVTYPE" "$RUNTIME")
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+
+      - name: build (unsigned, simulator)
+        working-directory: app/iosApp
+        run: |
+          xcodebuild \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Debug \
+            -destination "id=$UDID" \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            build
+
+      # 3) Install, inject the demo bundle, launch twice (list + Stage), assert. Reuses $UDID.
+      - name: simulator smoke (inject demo, screenshot, assert load)
+        working-directory: app/iosApp
+        run: |
+          set -euo pipefail
+          BUNDLE_ID=com.troubashare.app
 
           APP=$(find DerivedData -name "iosApp.app" -type d | head -1)
           test -n "$APP" || { echo "iosApp.app not found"; exit 1; }
