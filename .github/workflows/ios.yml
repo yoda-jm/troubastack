@@ -100,25 +100,20 @@ jobs:
 
           echo "CONTAINER=$CONTAINER" >> "$GITHUB_ENV"
 
-          # Launch 1: Concerts list, CONSOLE-CAPTURED. Kotlin/Native uncaught-exception text prints to
-          # the app's stderr (invisible to `log show`); --console-pty relays it. It blocks while the
-          # app runs, so background it and screenshot after a beat.
-          xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" > diag/app-console-concerts.txt 2>&1 &
-          C1=$!
-          sleep 12
+          # Launch 1: Concerts list. Plain launch (the first-frame crash is fixed) — `--console-pty`
+          # was diagnostic only; killing that relay tore the app down via the pty and made the
+          # liveness check give a false negative. Terminate WITHOUT `|| true`: a first-frame crash
+          # leaves nothing to kill and fails the job. The marker alone is NOT proof the UI rendered.
+          xcrun simctl launch "$UDID" "$BUNDLE_ID"
+          sleep 10
           xcrun simctl io "$UDID" screenshot concerts.png
-          kill "$C1" 2>/dev/null || true
-          # terminate WITHOUT `|| true`: if the app already crashed at first frame, this finds nothing
-          # to kill and fails the job. The marker alone is NOT proof the UI rendered.
           xcrun simctl terminate "$UDID" "$BUNDLE_ID"
 
-          # Launch 2: auto-open the first concert → a Stage page (also console-captured). TROUBA_AUTOPEN
-          # is read by the app (via SIMCTL_CHILD_ passthrough) so we don't drive Compose taps.
-          SIMCTL_CHILD_TROUBA_AUTOPEN=1 xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" > diag/app-console-stage.txt 2>&1 &
-          C2=$!
+          # Launch 2: auto-open the first concert → a Stage page. TROUBA_AUTOPEN is read by the app
+          # (via SIMCTL_CHILD_ passthrough) so we don't drive Compose taps.
+          SIMCTL_CHILD_TROUBA_AUTOPEN=1 xcrun simctl launch "$UDID" "$BUNDLE_ID"
           sleep 12
           xcrun simctl io "$UDID" screenshot stage.png
-          kill "$C2" 2>/dev/null || true
 
           # Marker: the app writes this only after a bundle actually loads (LoadResult.Loaded).
           MARKER="$CONTAINER/Documents/stage-loaded.marker"
