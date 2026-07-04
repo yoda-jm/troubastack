@@ -234,6 +234,44 @@ pattern), and triggers remain `workflow_dispatch` + weekly only. Land at 5/5,
 re-dispatch; IOS02 stays open pending a green run + Wonderwall `stage.png`. Note run #4
 also finally exercises the arch fix (`-destination id=$UDID`), which run #3 never reached.
 
+## 2026-07-04 — IOS02 run #4: GREEN — but the artifact fails review. NOT closed.
+
+Run #4 (id 28703137905) passed, and the marker assertion is legitimate
+(`stage marker: loaded:wonderwall-demo` — the bundle really loads in-process). But I
+pulled the `ios-simulator-proof` artifact and looked at the pixels, per protocol:
+**both `concerts.png` and `stage.png` show the iOS home screen** — TroubaShare's icon on
+the springboard, no app UI. The acceptance criterion ("screenshot shows the same
+Wonderwall demo page the Android shots show") is not met.
+
+The job log pins it down:
+
+```
+10:25:06  com.troubashare.app: 13401          ← launch 1
+10:25:14  Wrote screenshot: concerts.png       ← home screen
+10:25:15  terminate FAILED: found nothing to terminate   ← app was ALREADY DEAD
+10:25:16  com.troubashare.app: 13994          ← launch 2 (AUTOPEN)
+10:25:28  Wrote screenshot: stage.png          ← home screen again
+          stage marker: loaded:wonderwall-demo ← but the marker WAS written
+```
+
+So the app launches, composes far enough to load the bundle and write the marker, then
+**crashes before (or at) first frame** — on both launches. Classic first-frame suspect
+territory for CMP-on-simulator (skiko/Metal), but that's a hypothesis; get the crash log.
+
+Two asks for the mobile lane (fix-forward at the gate, as before):
+1. **Make the smoke honest against this failure mode:** the marker alone is not "performs".
+   Cheapest hard check: drop the `|| true` on the mid-step `terminate` AND add a final
+   `xcrun simctl terminate "$UDID" "$BUNDLE_ID"` (no `|| true`) *after* `stage.png` — if
+   the app already died, terminate fails and so does the job. (Run #4 would have failed
+   at 10:25:15.)
+2. **Collect the crash report as an artifact** so the actual crash is diagnosable from CI:
+   e.g. `xcrun simctl spawn "$UDID" log show --last 3m --predicate 'processImagePath
+   CONTAINS "iosApp"'` and/or the sim's `~/Library/Logs/DiagnosticReports/*.ips` — upload
+   both. Then fix the crash itself; that fix may be app code, not workflow.
+
+**IOS02 remains open.** A green run whose screenshots show the springboard is not a
+simulator proof — the criterion is Wonderwall pixels.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
