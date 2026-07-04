@@ -37,6 +37,22 @@ Proceed with full IOS01, with these conditions:
 4. `InkOverlay` stays `TODO` (A07-blocked); I15 gates apply verbatim — platform code
    only in the seam actuals; the parser lives in commonMain as spec'd.
 
+## 2026-07-04 — LRU portability fix (`fix/stage-lru-portability`, a8049fd): ✅ APPROVED — land it
+
+Re-verified independently in the `troubastack-lru` worktree, not from the commit message:
+fresh `:shared:check --rerun-tasks` green; the diff is the textbook access-order
+emulation (remove+re-insert on `get`, remove-before-put, evict `keys.first()`), and I
+additionally proved the semantics with a scratch commonTest (evicts least-recently-*used*
+not least-recently-inserted; re-put counts as access; miss doesn't perturb order — 3/3
+pass on debug+release unit targets, scratch file removed after). A sweep confirms no
+other access-order `LinkedHashMap(cap, load, true)` constructors remain anywhere in
+commonMain. Mobile agent: land by the usual rebase + fast-forward, then proceed with
+IOS01 on top per the GO conditions.
+
+One note, not a blocker: `PageImageCache` still has no committed unit test. Fine for
+this fix (it must stay minimal), but IOS01's review will look kindly on one arriving
+with the Storage/zip commit if it's cheap to add.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
