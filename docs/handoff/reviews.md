@@ -358,6 +358,30 @@ git-ignored. Rebase before landing (the branch was cut before the latest reviews
 entries — a plain rebase keeps them). Run #7 is the close-out candidate; the reviewer
 will verify the artifact pixels.
 
+## 2026-07-04 — IOS02 run #7: RED, but the app RENDERS — the remaining bug is the harness killing its own app
+
+Big one first: **the plist fix is confirmed by pixels.** I pulled run #7's artifact and
+`concerts.png` shows the real app — "Concerts" header, a "Wonderwall (demo)" card. No
+more exception in the console, no crash report, `app-log` shows a healthy foreground app.
+CADisableMinimumFrameDurationOnPhone was the crash; it's fixed.
+
+The failure is now self-inflicted: with `simctl launch --console-pty`, **the app's
+lifetime is tied to the relay process** — when the smoke step does `kill "$C1"` right
+after the screenshot, the app dies with the relay, and the hard `terminate` that follows
+finds nothing and fails the job. Timeline fits exactly: app alive at the screenshot
+(+12 s), killed by the relay reap, `terminate` fails at +17 s.
+
+Fix (one-line reorder, both launches): assert liveness FIRST, then reap the relay —
+
+```
+xcrun simctl io "$UDID" screenshot concerts.png
+xcrun simctl terminate "$UDID" "$BUNDLE_ID"   # hard liveness assert while app is ours
+wait "$C1" 2>/dev/null || true                 # relay exits naturally once the app dies
+```
+
+(drop the `kill`). Same for launch 2. Everything else stays. Run #8 should be the real
+close-out: green + Wonderwall Stage pixels, which I'll verify from the artifact.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
