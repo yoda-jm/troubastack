@@ -63,16 +63,21 @@ fun interface ImageDecoder {
  * back here on the main thread.
  */
 class PageImageCache(private val maxEntries: Int = 12) {
-    private val lru = LinkedHashMap<String, ImageBitmap>(16, 0.75f, true)
+    // Insertion-ordered map; we emulate access-order by re-inserting on get (the access-order
+    // LinkedHashMap constructor is JVM-only and doesn't exist in Kotlin/Native's common stdlib).
+    private val lru = LinkedHashMap<String, ImageBitmap>()
 
-    fun get(key: String): ImageBitmap? = lru[key]
+    fun get(key: String): ImageBitmap? {
+        val value = lru.remove(key) ?: return null
+        lru[key] = value // move to most-recently-used
+        return value
+    }
 
     fun put(key: String, bmp: ImageBitmap) {
+        lru.remove(key)
         lru[key] = bmp
         while (lru.size > maxEntries) {
-            val eldest = lru.keys.iterator()
-            eldest.next()
-            eldest.remove()
+            lru.remove(lru.keys.first()) // evict least-recently-used
         }
     }
 }
