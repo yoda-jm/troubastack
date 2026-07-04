@@ -324,6 +324,30 @@ parses; triggers untouched. Expectation: run #6 is still red (the exception is u
 but `app-console-concerts.txt` should contain the literal `Uncaught Kotlin exception`
 + stack — then fix the actual bug.
 
+## 2026-07-04 — IOS02 run #6: the crash is NAMED. One plist key from green.
+
+The console capture worked on the first try. From `app-console-concerts.txt` (printed in
+the run #6 job log):
+
+```
+Uncaught Kotlin exception: kotlin.IllegalStateException: Error: `Info.plist` doesn't
+have a valid `CADisableMinimumFrameDurationOnPhone` entry, or has it set to `false`.
+```
+
+That's Compose Multiplatform's hard iOS requirement (its display link needs the
+high-refresh opt-out declared). Our `project.yml` synthesizes the Info.plist
+(`GENERATE_INFOPLIST_FILE: YES` + `INFOPLIST_KEY_*`) and there is no `INFOPLIST_KEY_`
+form for arbitrary booleans — so the key is simply absent, and CMP throws ~2 s after
+launch, on any screen. Explains everything: composition succeeded (marker written),
+death shortly after, no Stage-specificity.
+
+Cleanest fix (mobile lane's call): xcodegen's `info:` block on the target —
+`info: { path: Info.plist, properties: { CADisableMinimumFrameDurationOnPhone: true, … } }`
+(move the display-name/launch-screen/orientation keys in there too, or keep the
+`INFOPLIST_KEY_*` settings and just commit the generated plist — either way the key must
+end up true). Then land + dispatch; run #7 is the close-out candidate: green + Wonderwall
+pixels in `stage.png`, which this reviewer will verify from the artifact.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
