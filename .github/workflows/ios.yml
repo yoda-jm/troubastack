@@ -97,29 +97,52 @@ jobs:
           mkdir -p "$DEST"
           unzip -o "$GITHUB_WORKSPACE/docs/demo/demo-concert.tstage" -d "$DEST"
 
-          # Screenshot 1: the Concerts list.
-          xcrun simctl launch "$UDID" "$BUNDLE_ID"
-          sleep 6
-          xcrun simctl io "$UDID" screenshot concerts.png
+          echo "CONTAINER=$CONTAINER" >> "$GITHUB_ENV"
 
-          # Screenshot 2: auto-open the first concert → a Stage page. TROUBA_AUTOPEN is read by the
-          # app (via SIMCTL_CHILD_ passthrough) so we don't have to drive Compose taps.
-          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
-          SIMCTL_CHILD_TROUBA_AUTOPEN=1 xcrun simctl launch "$UDID" "$BUNDLE_ID"
+          # Launch 1: Concerts list. Then terminate WITHOUT `|| true`: if the app already crashed
+          # (before/at first frame — the screenshot would be the springboard), `terminate` finds
+          # nothing to kill and fails the job. The marker alone is NOT proof the UI rendered.
+          xcrun simctl launch "$UDID" "$BUNDLE_ID"
           sleep 8
+          xcrun simctl io "$UDID" screenshot concerts.png
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID"
+
+          # Launch 2: auto-open the first concert → a Stage page. TROUBA_AUTOPEN is read by the app
+          # (via SIMCTL_CHILD_ passthrough) so we don't have to drive Compose taps.
+          SIMCTL_CHILD_TROUBA_AUTOPEN=1 xcrun simctl launch "$UDID" "$BUNDLE_ID"
+          sleep 10
           xcrun simctl io "$UDID" screenshot stage.png
 
-          # HARD assertion: the app writes this marker only after a bundle actually loads on Stage.
-          # A crash or a failed load leaves no marker → the job fails (a crash screenshot cannot pass).
+          # Marker: the app writes this only after a bundle actually loads (LoadResult.Loaded).
           MARKER="$CONTAINER/Documents/stage-loaded.marker"
           if [ ! -f "$MARKER" ]; then
             echo "::error::Stage did not load a bundle — no stage-loaded.marker written"
             exit 1
           fi
           echo "stage marker: $(cat "$MARKER")"
-          xcrun simctl shutdown "$UDID" || true
 
-      - name: upload app + screenshots
+          # Final liveness assertion: the app must STILL be alive (rendered, didn't crash at first
+          # frame). No `|| true` — a dead app => terminate fails => job fails.
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID"
+
+      # Always collect the crash report + app log so a first-frame crash is diagnosable from CI
+      # (printed to the job log too, so no artifact download is needed to read it).
+      - name: collect crash diagnostics
+        if: always()
+        working-directory: app/iosApp
+        run: |
+          set +e
+          mkdir -p diag
+          [ -n "${UDID:-}" ] && xcrun simctl spawn "$UDID" log show --last 5m --style syslog \
+            --predicate 'processImagePath CONTAINS "iosApp"' > diag/app-log.txt 2>&1
+          cp ~/Library/Logs/DiagnosticReports/iosApp* diag/ 2>/dev/null
+          echo "==== diag dir ===="; ls -la diag
+          for f in diag/*.ips diag/*.crash; do
+            [ -f "$f" ] && { echo "===== $f ====="; cat "$f"; }
+          done
+          echo "==== app-log.txt (tail) ===="; tail -150 diag/app-log.txt 2>/dev/null
+
+      - name: upload app + screenshots + diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -128,4 +151,5 @@ jobs:
             app/iosApp/DerivedData/Build/Products/Debug-iphonesimulator/iosApp.app
             app/iosApp/concerts.png
             app/iosApp/stage.png
+            app/iosApp/diag
           if-no-files-found: warn
