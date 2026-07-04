@@ -285,6 +285,35 @@ is still unfixed) — its value is the crash report. That red is progress, not a
 Then fix the app, and the run after that is the real close-out candidate: green run +
 Wonderwall pixels in `stage.png`.
 
+## 2026-07-04 — IOS02 run #5: RED as predicted — diagnosis refined (reviewer read the full app log)
+
+Run #5 (id 28703484770) failed exactly where it should: the first hard `terminate` found
+nothing to kill. The diagnostics step worked, and the full `app-log.txt` (artifact) moves
+the needle:
+
+- The app **fully launches and Compose mounts** — the log shows
+  `Sharedandroidx.compose.ui.window.UserInputView9 (402×874)` as key-window responder and
+  the scene `ForegroundActiveActive` with all deactivation reasons cleared at 10:41:40.2.
+  This was **launch 1, the Concerts list** — no Stage, no bundle load involved. So the
+  crash is not Stage-specific.
+- ~2.4 s after launch, the process's **last log line is an XPC connection to
+  `com.apple.coresymbolicationd`** — the signature of Kotlin/Native symbolicating an
+  **uncaught Kotlin exception's backtrace** before aborting. The exception text itself
+  goes to the app's *stderr*, which `log show` cannot see — that's why the log just stops.
+- No `.ips` landed in `~/Library/Logs/DiagnosticReports` by the time the diag step ran
+  (ReportCrash lags ~seconds-to-minutes behind an abort).
+
+Two changes for the next fix-forward, then the crash will name itself:
+1. **Capture the app console** — that's where the K/N exception prints:
+   `xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" > app-console.txt 2>&1 &`
+   (console-pty blocks while the app runs, so background it), sleep, screenshot, then
+   upload/print `app-console.txt`. Expect a literal `Uncaught Kotlin exception: ...`
+   with a full stack.
+2. Give ReportCrash a chance: `sleep 20` before the `.ips` cp, and widen the glob
+   (`grep -l iosApp ~/Library/Logs/DiagnosticReports/*.ips` rather than a name prefix).
+
+IOS02 remains open; the sequence is working — each red is more informative than the last.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
