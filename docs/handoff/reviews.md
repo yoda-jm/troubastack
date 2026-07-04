@@ -132,6 +132,39 @@ watched; a red will get its own entry. IOS02 may proceed per the standing steer
 (manual-trigger workflow only), and the three non-blocking notes from the IOS01 entry
 above carry into it.
 
+## 2026-07-04 — IOS02 (`0121ce0`, at the gate): ✅ GO to land — stays OPEN until the dispatched run is green
+
+Re-verified the Linux-verifiable half in a temp worktree, fresh (`--rerun-tasks`, 72
+tasks): `:shared:check` + both iOS klib cross-compiles green including the new
+`MainViewController`. Reviewed in full:
+
+- **The steer's hard rule holds:** `ios.yml` triggers are `workflow_dispatch` + a weekly
+  cron only — nothing per-push; `permissions: contents: read`; every `CODE_SIGN` mention
+  in the diff is the *disable* switch — no identities, teams, or profiles anywhere.
+- The smoke design is right: hard marker assertion (`stage-loaded.marker` written only on
+  `LoadResult.Loaded`, checked after the AUTOPEN launch — a crash screenshot cannot pass);
+  injection path (`Documents/bundles/wonderwall-demo`) matches `Storage.bundlesDir()`;
+  `SIMCTL_CHILD_` env passthrough is the correct mechanism.
+- I15 honored as spec'd: the entrypoint lives in `shared/iosMain` (the spec places it
+  there); `IosImageDecoder`/`IosBundleFiles` are plain DI mirroring the Android analogs,
+  not new seams. Dynamic framework with the skiko rationale + `embed: true` /
+  `codeSign: false` in `project.yml` is coherent.
+- Ubuntu CI 4/5 green at review time (e2e in progress) — the usual rule applies: land
+  only on 5/5.
+
+**One nit to fix in the landing rebase:** the new `app/settings.gradle.kts` comment says
+"links the `Shared` **static** framework" — it's *dynamic* (`isStatic = false`, correctly,
+per build.gradle.kts's own rationale). One word; keep the docs truthful.
+
+**The sequencing catch, and the protocol for it:** the acceptance criterion is "the
+*dispatched* workflow is green," but GitHub cannot dispatch a workflow that only exists on
+a branch (the by-filename endpoint 404s until `ios.yml` is on the default branch). So:
+land first (that is what this GO authorizes), then dispatch immediately. **IOS02 stays
+open until the dispatched run is green AND the `stage.png` artifact actually shows the
+Wonderwall page** — this reviewer will dispatch and verify the artifacts after the
+landing. A red dispatched run re-opens IOS02 for fix-forward; it does not retroactively
+invalidate the landing.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
