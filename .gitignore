@@ -27,6 +27,10 @@ app/**/build/
 local.properties
 *.iml
 
+# iOS — the .xcodeproj is generated from app/iosApp/project.yml by xcodegen (IOS02)
+app/iosApp/*.xcodeproj/
+app/iosApp/DerivedData/
+
 # Bake artifacts / scratch
 *.local
 .DS_Store

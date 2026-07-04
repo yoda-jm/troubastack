@@ -1,9 +1,11 @@
 // TroubaShare — Gradle settings.
 //
 // The app is a THIN SHELL (I15). The module graph below points only toward the contract (I14):
-//   :shared      → the "mobile library" — all shared Kotlin (commonMain) + the 3 Android actual seams
+//   :shared      → the "mobile library" — all shared Kotlin (commonMain) + the Android & iOS seams
 //   :androidApp  → thin Android entrypoint; depends on :shared
-//   :iosApp      → thin iOS entrypoint (CMP iOS), enabled LATER once the iOS actuals are filled in
+// The iOS entrypoint (app/iosApp) is an Xcode project, NOT a Gradle module: it links the `Shared`
+// dynamic framework that :shared exports (IOS02). So there is no `:iosApp` Gradle subproject to
+// include — Xcode consumes the framework Gradle links.
 // No client imports another client; :shared embeds the BUILT Studio SPA, never its source (I10/I14).
 
 pluginManagement {
@@ -34,4 +36,4 @@ rootProject.name = "TroubaShare"
 
 include(":shared")
 include(":androidApp")
-// include(":iosApp")   // iOS-later: enable once the iOS seam actuals are real (currently TODO() stubs, I15)
+// No include(":iosApp") — iosApp is an Xcode project consuming the :shared framework (see above).

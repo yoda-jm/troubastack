@@ -17,11 +17,20 @@ kotlin {
     jvmToolchain(libs.versions.jdk.get().toInt())
 
     androidTarget()                         // Android NOW
-    iosArm64()                              // iOS — device
-    iosSimulatorArm64()                     // iOS — Apple-silicon simulator
-    // The default hierarchy template creates the shared `iosMain`/`iosTest` source sets over the two
-    // iOS targets; the three seam actuals (I15) live in iosMain. On Linux we compile klibs only
-    // (cross-compilation); linking a framework + running a simulator is IOS02's macOS job.
+    // iOS targets. The default hierarchy template creates the shared `iosMain`/`iosTest` source sets
+    // over the two targets; the three seam actuals (I15) live in iosMain. On Linux we compile klibs
+    // only (cross-compilation); linking the framework + running a simulator is IOS02's macOS job.
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
+        // Export :shared as a framework the Xcode `iosApp` links + embeds (IOS02). `baseName` is the
+        // Swift module name (`import Shared`); the entrypoint wrapper is `MainViewControllerKt`.
+        // DYNAMIC (not static): Kotlin/Native resolves skiko's heavy transitive system-framework deps
+        // (Metal, CoreText, …) into the framework binary at link time, so the app just embeds it —
+        // a static framework would force the app to re-declare every one of those linker flags.
+        iosTarget.binaries.framework {
+            baseName = "Shared"
+            isStatic = false
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {

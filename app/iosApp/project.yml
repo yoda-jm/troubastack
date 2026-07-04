@@ -1,0 +1,45 @@
+# xcodegen spec for the thin iOS shell (I15). We commit this YAML, not a .xcodeproj — it diffs
+# cleanly and the .xcodeproj is generated in CI (`xcodegen generate`). The app holds no logic beyond
+# mounting the shared Compose UI exported by the `Shared` framework (IOS02).
+#
+# The `Shared.framework` referenced below is produced by Gradle
+# (`./gradlew :shared:linkDebugFrameworkIosSimulatorArm64`) BEFORE `xcodegen generate` runs — see
+# .github/workflows/ios.yml. Simulator/Debug/arm64 only; device + Release are IOS03.
+name: iosApp
+options:
+  bundleIdPrefix: com.troubashare
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    dependencies:
+      # Dynamic Kotlin framework: link AND embed it into the .app (dynamic frameworks must ship in
+      # the bundle). codeSign:false — simulator builds are unsigned (CODE_SIGNING_ALLOWED=NO).
+      - framework: ../shared/build/bin/iosSimulatorArm64/debugFramework/Shared.framework
+        embed: true
+        codeSign: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.troubashare.app
+        # Xcode 13+ synthesises Info.plist from these keys — no committed plist to drift.
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: TroubaShare
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework
+
+schemes:
+  iosApp:
+    build:
+      targets:
+        iosApp: all
+    run:
+      config: Debug

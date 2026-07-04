@@ -115,6 +115,18 @@ for everyone else, and the mandatory section-markings layer can never be hidden)
 the container format is specified in
 [`docs/design/08-bundle-container.md`](docs/design/08-bundle-container.md).
 
+### iOS (simulator)
+
+TroubaStage runs on iOS too — the shared Compose UI mounts in a thin SwiftUI shell
+([`app/iosApp`](app/iosApp/README.md)) via the `Shared` framework `:shared` exports. There is no Mac
+in the dev loop, so iOS is **proven on GitHub's macOS runners**, not built locally: the
+[`iOS (simulator)`](.github/workflows/ios.yml) workflow links the framework, builds the app
+**unsigned** (`CODE_SIGNING_ALLOWED=NO` — no Apple ID or provisioning), boots a simulator, injects
+the same `demo-concert.tstage`, and screenshots the Concerts list + a Stage page (uploaded as the
+`ios-simulator-proof` artifact). It's **manual** (`workflow_dispatch` + a weekly cron), never
+per-push — macOS runner minutes bill 10×. Physical devices / TestFlight are the next step
+([`docs/tasks/IOS03`](docs/tasks/IOS03-ios-device-and-store.md)).
+
 ---
 
 ## Monorepo map
