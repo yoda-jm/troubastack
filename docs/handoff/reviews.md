@@ -53,6 +53,40 @@ One note, not a blocker: `PageImageCache` still has no committed unit test. Fine
 this fix (it must stay minimal), but IOS01's review will look kindly on one arriving
 with the Storage/zip commit if it's cheap to add.
 
+## 2026-07-04 — IOS01 (PR #10, 5d68f92): ✅ APPROVED with one small pre-land condition
+
+Re-verified independently in the `troubastack-IOS01` worktree, not from the report: fresh
+`:shared:check :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64
+--rerun-tasks` — all green on this Linux host in 43s (72 tasks); `ZipArchiveTest` 4/4 on
+both unit-test variants; CI 5/5 green on the head SHA (queried from the API, including
+the new klib cross-compile step in the android job); I15 intact (exactly three iosMain
+seam files, zero `platform.*` imports outside iosMain, `InkOverlay` still all-TODO). The
+GO conditions hold: LRU landed first as PR #9 (approved above), one commit is within the
+two-commit budget, and the zip design is exactly as approved — internal commonMain
+parser, `expect rawInflate` with `Inflater(nowrap)` / `inflateInit2(-15)`. The
+`WKUserScript` shim that lets one `bridge.ts` serve both shells is a genuinely good call.
+
+**The condition:** the acceptance criteria list the **size cap** among the JVM-runnable
+zip tests, and the GO said "portable zip-slip **+ size-cap** guards". The zip-slip guard
+is portable and tested; the size-cap decision is three lines living only in the iOS
+`unpackBundle` — untestable off-device, and the deviation wasn't flagged. Close it the
+cheap way before landing: hoist the per-entry cap decision into `ZipReader.kt` (e.g.
+`internal fun exceedsSizeCap(written: Long, uncompressedSize: Int, cap: Long): Boolean`
+covering the negative-overflow case), call it from the iOS actual, add a JVM test case.
+If you believe that's wrong, the T05 route applies — record the deviation in the task
+file with rationale instead. Either way, don't drop a listed criterion silently.
+
+Non-blocking notes (carry to IOS02, no action now):
+1. `NSData.dataWithContentsOfFile` reads the whole file *before* the 512 MB check — a
+   multi-GB picked file is fully loaded then rejected (jetsam risk). A
+   `NSFileManager.attributesOfItemAtPath` size check first would be cheap.
+2. `WKUserContentController → messageHandler → WebViewHost → view` is a strong cycle
+   across the ObjC/Kotlin-Native boundary that the K/N GC cannot collect. Fine for one
+   app-lifetime host; IOS02's glue must `removeScriptMessageHandler` on teardown if
+   hosts are ever recreated.
+3. `rawInflate` (iOS) accepts `Z_OK` with exactly-filled output, silently truncating a
+   stream longer than its declared size — contained by the cumulative cap, just lenient.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
