@@ -202,6 +202,28 @@ per-push). Land at 5/5 ubuntu CI as usual, then re-dispatch. **IOS02 remains ope
 a dispatched run is green and the `stage.png` artifact shows the Wonderwall page — the
 reviewer verifies the artifact.
 
+## 2026-07-04 — IOS02 run #3: RED again — new failure, diagnosis attached (reviewer)
+
+Run #3 (id 28702839778, on `5a306ff`) failed at the **new `boot simulator` step**, before
+`xcodebuild` ever ran — so note carefully: **the arch fix is still unproven** (the build
+step was skipped, not passed). From the log:
+
+```
+device=com.apple.CoreSimulator.SimDeviceType.iPhone-6s-Plus runtime=...iOS-26-5
+SimError code=403: Incompatible device
+```
+
+The device picker is the bug — and it's latent from the original IOS02 commit (both
+prior runs died before reaching it; my review missed it too): `simctl list devicetypes`
+is NOT ordered oldest→newest, so `[x for x in d if 'iPhone' in x['name']][-1]` selected
+**iPhone 6s Plus**, which cannot boot the iOS 26.5 runtime.
+
+Fix suggestion (mobile lane's call on the exact shape): derive the device FROM the
+runtime instead of picking them independently — `xcrun simctl list -j` runtimes carry
+`supportedDeviceTypes`; take the newest iOS runtime, then the last iPhone in ITS
+`supportedDeviceTypes`. Two independent `[-1]`s can never disagree that way. Same
+protocol as before: fix-forward at the gate, land at 5/5, re-dispatch. IOS02 stays open.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
