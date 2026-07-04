@@ -314,6 +314,16 @@ Two changes for the next fix-forward, then the crash will name itself:
 
 IOS02 remains open; the sequence is working — each red is more informative than the last.
 
+## 2026-07-04 — `fix/ios02-console` (`a4309b3`): ✅ APPROVED — land + dispatch; run #6 should NAME the crash
+
+Implements the capture recipe exactly, including the two details that make it work: the
+pty relay is `kill`ed before the hard `terminate` (so liveness is still asserted against
+the app, not the relay), and `.ips` collection now greps by content after a 20 s
+ReportCrash grace. Both launches captured, consoles printed into the job log. YAML
+parses; triggers untouched. Expectation: run #6 is still red (the exception is unfixed)
+but `app-console-concerts.txt` should contain the literal `Uncaught Kotlin exception`
++ stack — then fix the actual bug.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
