@@ -224,6 +224,16 @@ runtime instead of picking them independently — `xcrun simctl list -j` runtime
 `supportedDeviceTypes`. Two independent `[-1]`s can never disagree that way. Same
 protocol as before: fix-forward at the gate, land at 5/5, re-dispatch. IOS02 stays open.
 
+## 2026-07-04 — `fix/ios02-sim-device` (`d0d4b1b`): ✅ APPROVED — land + re-dispatch
+
+Exactly the suggested shape: device type chosen from the runtime's own
+`supportedDeviceTypes` (compatible by construction), preferring the highest-numbered
+iPhone. Verified mechanically, not by eye: the YAML parses, the inline python payload
+compiles at column 0 after block-scalar stripping (the classic failure mode for this
+pattern), and triggers remain `workflow_dispatch` + weekly only. Land at 5/5,
+re-dispatch; IOS02 stays open pending a green run + Wonderwall `stage.png`. Note run #4
+also finally exercises the arch fix (`-destination id=$UDID`), which run #3 never reached.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
