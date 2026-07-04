@@ -272,6 +272,19 @@ Two asks for the mobile lane (fix-forward at the gate, as before):
 **IOS02 remains open.** A green run whose screenshots show the springboard is not a
 simulator proof — the criterion is Wonderwall pixels.
 
+## 2026-07-04 — `fix/ios02-smoke-diag` (`be00a8d`): ✅ APPROVED — land + dispatch; expect a diagnostic RED
+
+Implements both asks exactly: hard `terminate`s mid and end (no `|| true` — run #4's
+springboard pass is now impossible), and an always-on diagnostics step (`log show` for the
+app process + DiagnosticReports `.ips`, printed into the job log and uploaded). Dropping
+the old `shutdown` also keeps the sim alive for log collection — good. YAML parses;
+triggers still `workflow_dispatch` + weekly only.
+
+To be explicit about expectations: **run #5 SHOULD fail** (the app-side first-frame crash
+is still unfixed) — its value is the crash report. That red is progress, not a regression.
+Then fix the app, and the run after that is the real close-out candidate: green run +
+Wonderwall pixels in `stage.png`.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
