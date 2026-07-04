@@ -458,12 +458,36 @@ export function drawHighlight(ctx: Ctx2D, obj: InkObject, page: PageRect): void 
   paintShape(ctx, obj, page, rectGeom(bbox(obj, page)));
 }
 
+// Text font family. The DEFAULT is studio's on-screen stack (unchanged) — browsers
+// resolve `system-ui` to the OS UI font, which is right for the editor. But that
+// makes text NON-DETERMINISTIC across renderers: the bake worker (Node/Skia) and a
+// headless browser resolve `system-ui` to different fonts, so the I8 parity test
+// could never converge on text. So the family is configurable: bake registers a
+// BUNDLED font and calls setTextFontFamily() with it, and the parity harness loads
+// that same font in the browser and does likewise — identical glyph outlines on both
+// Skia builds. Studio never calls it, so its rendering is byte-for-byte as before.
+let textFontFamily = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+
+/**
+ * Override the CSS font-family used for text objects (the part after the size in
+ * `ctx.font`). Pass a family that resolves to the SAME font file on every renderer
+ * you need to match under I8 (see the note above). Studio leaves this at its default.
+ */
+export function setTextFontFamily(family: string): void {
+  textFontFamily = family;
+}
+
+/** The font-family currently used for text draws (for callers that mirror it). */
+export function getTextFontFamily(): string {
+  return textFontFamily;
+}
+
 export function drawText(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   const anchor = obj.points[0];
   if (!anchor || !obj.text) return;
   const [px, py] = toPx(anchor, page);
   const fpx = fontPx(obj.style, page);
-  ctx.font = `${fpx}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  ctx.font = `${fpx}px ${textFontFamily}`;
   ctx.textBaseline = "top";
   ctx.fillStyle = obj.style.color;
   ctx.fillText(obj.text, px, py);

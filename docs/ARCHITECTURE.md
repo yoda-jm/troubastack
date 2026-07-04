@@ -96,7 +96,7 @@ and freehand-only**, is replaced by the authoritative dry render on commit, and 
 **Why.** Sharing *geometry* alone never guarantees identical *pixels* (anti-aliasing, text, sub-pixel
 differ per canvas backend). So we don't rely on it where it must match (editor vs bake → *same*
 renderer), and we don't require it where a sub-second pop at pen-up is harmless (wet → dry).
-**Enforced.** 🎯 target — studio does use the one `@troubastack/ink` renderer, but the bake is still a stub and **no golden pixel-parity test exists** anywhere (including the native overlay's). See [design/03](design/03-rendering-and-ink.md).
+**Enforced.** ✅ for the web bake / 🎯 for native — studio uses the one `@troubastack/ink` renderer, and `web/bake` now renders baked **overlays** through that same renderer, guarded by the **golden pixel-parity test** promised since the audit (`web/bake/test/parity.test.mjs`, in CI: bake vs. the studio dry path in headless Chromium, within a small AA tolerance — B01). Still 🎯: the **native** wet-overlay parity test (A07, blocked), and full-page bake (PDF rasters + bundle assembly = B02; bake composes overlays only). See [design/03](design/03-rendering-and-ink.md).
 
 ### I9 — Native renders only the wet (in-progress freehand) layer
 **Rule.** The native overlay renders **only the in-progress freehand stroke**. Everything
@@ -169,7 +169,7 @@ revision logic) is shared. iOS = fill in the three `actual`s.
 | I1 | `proto/` |
 | I2 I3 I4 I5 I7 | `proto/`, `core/internal/{domain,store}` |
 | I6 | `core/internal/sync`, `core/internal/app` (sessions/auth), client outboxes |
-| I8 | `web/ink`, native overlay parity test (not yet written) |
+| I8 | `web/ink`, `web/bake` (bake↔dry parity test); native overlay parity test (not yet written) |
 | I9 I10 | `web/studio`, `app/.../ink-overlay` |
 | I11 | `core/internal/bake` |
 | I12 I13 | `core/internal/bake`, `app/.../stage` |

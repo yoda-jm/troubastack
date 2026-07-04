@@ -31,9 +31,19 @@ Sharing *geometry* (`web/ink`: points → outline) does **not** guarantee identi
 rasterization (anti-aliasing, line joins, text, sub-pixel) differs across canvas backends (browser /
 node-canvas / native). So parity is handled by *what must match*, not by geometry tricks:
 
-- **Editor (dry) vs. bake — MUST match** → the **bake reuses studio's dry renderer** (headless
-  studio): the *same* code+canvas, so the baked images are **pixel-identical by construction**. No
-  separate bake renderer, no parity test needed here.
+- **Editor (dry) vs. bake — MUST match** → the **bake reuses the dry renderer's code**: `web/bake`
+  calls the *same* `@troubastack/ink` `renderObjects` studio's dry layer uses (B01). But it runs on a
+  **Node Skia canvas** (`@napi-rs/canvas`), a *different canvas backend* than the browser — so
+  identity is **not** free "by construction" (per the backend caveat two lines up). It is guaranteed
+  by the **I8 golden pixel-parity test** (`web/bake/test/parity.test.mjs`, in CI): the same ink code
+  on two Skia builds (bake vs. the studio dry path in headless Chromium), asserted equal within a
+  small anti-aliasing tolerance — **≥99% of pixels within Δ≤3/255 per channel** and **≥99.9%
+  agreement on transparency**, every disagreement an AA-boundary pixel. Text can only converge when
+  both sides use the same font + hinting, so it is part of the **bake contract**: text renders in the
+  bundled **Roboto Regular** (`web/bake/assets/`, family `TroubaBakeText`) with
+  `textRendering="geometricPrecision"` (hinting off); any renderer that must match bake's text loads
+  that same font under that name. Bake renders annotation **overlays only** — PDF page rasters are
+  core's job (B02).
 - **Native wet vs. dry — needn't match exactly** → the wet overlay renders only the *in-progress*
   freehand stroke and is replaced by the authoritative dry render on commit. Share `web/ink`
   geometry so it's *visually close*; accept a sub-second pop at pen-up. (The pure-web wet path

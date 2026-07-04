@@ -2,15 +2,28 @@
   "name": "@troubastack/bake",
   "version": "0.0.0",
   "private": true,
-  "description": "TroubaStack bake worker (Node). The ONLY legitimate server-side JS runtime: core invokes it to render annotation overlays via @troubastack/ink for pixel-parity (I8). Emits self-contained flattened WebP (I12).",
+  "description": "TroubaStack bake worker (Node). The ONLY legitimate server-side JS runtime: core invokes it to render annotation overlays via @troubastack/ink for pixel-parity (I8). Emits transparent per-layer PNG overlays + an index.json manifest (I12).",
   "type": "module",
-  "main": "./src/index.ts",
-  "//build": "Typecheck only while bake is a stub. bake compiles @troubastack/ink from source (see tsconfig paths), so an emitting build would also write a second compiled copy of ink into dist/ — a trap and an I8 smell. Switch to a real emit (project references, or a bundler) when bake() is implemented.",
+  "main": "./dist/index.js",
+  "bin": {
+    "troubabake": "./dist/cli.js"
+  },
+  "//build": "esbuild BUNDLES @troubastack/ink from source into a single dist file (ink alias in esbuild.mjs), so there is no second compiled copy of ink on disk — the old --noEmit stub trap is gone. @napi-rs/canvas stays external (native prebuilt binary, resolved from node_modules at runtime). tsc runs --noEmit purely as the typecheck gate.",
   "scripts": {
-    "build": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "npm run typecheck && node esbuild.mjs",
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@troubastack/ink": "*"
+    "@napi-rs/canvas": "^1.0.2",
+    "perfect-freehand": "^1.2.2"
   },
-  "//deps": "Intended (NOT installed — scaffold, no network): a Node canvas lib such as @napi-rs/canvas to give @troubastack/ink an OffscreenCanvas-like 2D context; a PDF rasterizer (MuPDF/pdfium/poppler) is invoked by CORE (06-tech-stack.md), which may run it as a sidecar — bake handles the overlay, core handles the page raster."
+  "//deps": "@napi-rs/canvas gives @troubastack/ink an OffscreenCanvas-like Skia 2D context server-side (prebuilt binaries, no node-gyp). Like studio, bake does NOT list @troubastack/ink as an npm dep — it installs with --no-workspaces so ink is resolved from source via the esbuild alias + tsconfig `paths` to ../ink, never fetched from the registry. perfect-freehand is ink's transitive dep, listed here so the aliased source bundles and tsc typechecks it. The PDF rasterizer stays in CORE (06-tech-stack.md) — bake renders overlays only.",
+  "devDependencies": {
+    "@playwright/test": "^1.47.2",
+    "@types/node": "^20.19.43",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.4"
+  }
 }

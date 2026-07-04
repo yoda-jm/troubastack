@@ -55,6 +55,7 @@ jobs:
           cache-dependency-path: |
             web/studio/package-lock.json
             web/ink/package-lock.json
+            web/bake/package-lock.json
       # web/ is a workspace root (workspaces: ink, studio, bake) but has no root
       # lockfile, so per-package installs MUST pass --no-workspaces — otherwise
       # npm reparents to the root and `npm ci` fails (no root package-lock.json).
@@ -64,6 +65,11 @@ jobs:
         run: npm ci --no-workspaces
       - name: install ink
         working-directory: web/ink
+        run: npm ci --no-workspaces
+      # bake imports node builtins + @napi-rs/canvas, so it must be installed
+      # before the typecheck below resolves its `-p bake` project.
+      - name: install bake
+        working-directory: web/bake
         run: npm ci --no-workspaces
       # ink and bake are plain projects (-p checks their `include`). studio's
       # tsconfig.json is a SOLUTION file (files:[] + references), so `-p studio`
@@ -78,6 +84,14 @@ jobs:
       - name: build studio
         working-directory: web/studio
         run: npm run build
+      # bake worker: build the CLI bundle + run the I8 parity test (bake overlays
+      # vs the studio dry path in headless Chromium). Needs Playwright's chromium.
+      - name: install playwright chromium (bake parity)
+        working-directory: web/bake
+        run: npx playwright install --with-deps chromium
+      - name: build + test bake
+        working-directory: web/bake
+        run: npm test
 
   proto:
     runs-on: ubuntu-latest

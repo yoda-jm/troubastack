@@ -1,19 +1,18 @@
 {
-  "//": "Node worker. Runs server-side against a node canvas, but @troubastack/ink is compiled from source here (see paths), so bake needs the DOM lib to typecheck the canvas 2D types ink's API exposes — DOM is a compile-time type surface only, not a browser runtime. No rootDir: the ink source pulled in via paths lives outside src. Shared wire types come from web/proto-gen (I1).",
+  "//": "Node worker. @troubastack/ink is compiled from source here (see paths), so bake needs the DOM lib to typecheck the Canvas2D types ink's API exposes — DOM is a compile-time type surface only, not a browser runtime. esbuild does the real emit (see esbuild.mjs); tsc runs --noEmit as the typecheck gate. test/browser-entry.ts is the parity page's browser bundle — type-only here, esbuild bundles it for Chromium. Shared wire types come from web/proto-gen (I1).",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM"],
     "strict": true,
-    "declaration": true,
-    "noEmit": false,
-    "outDir": "dist",
+    "noEmit": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "paths": {
       "@troubastack/ink": ["../ink/src/index.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "test/browser-entry.ts"]
 }
