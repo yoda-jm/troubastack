@@ -10,6 +10,9 @@ not the code (read the code + `docs/` for that).
 | **Mobile-app developer** | [`mobile-app-agent.md`](mobile-app-agent.md) | the **A/IOS tracks** (Kotlin/Compose Multiplatform app in `app/`) |
 | **Core / webservice developer** | [`web-core-agent.md`](web-core-agent.md) | the **T/B/OPS tracks** (Go core, web studio/ink/bake, CI) |
 
+Review verdicts land in [`reviews.md`](reviews.md) when the human relay is offline —
+executing agents treat entries there as pasted reviews.
+
 Shared ground rules live in [`../tasks/README.md`](../tasks/README.md) — read that first
 regardless of role. These are living docs: keep the "what's done / remaining" sections current
 as tasks land. No secrets in these files, ever.
