@@ -3,6 +3,7 @@ package com.troubashare.shared.seams
 
 import android.content.Context
 import java.io.File
+import java.util.zip.Inflater
 import java.util.zip.ZipInputStream
 
 /**
@@ -67,5 +68,29 @@ actual fun unpackBundle(zipPath: String, destDir: String): UnpackResult {
         UnpackResult.Ok(destDir)
     } catch (e: Exception) {
         UnpackResult.Failed("that file isn't a valid concert archive")
+    }
+}
+
+/**
+ * Android/JVM `actual` for the [rawInflate] seam — raw DEFLATE (nowrap) via `java.util.zip.Inflater`.
+ * Android's own [unpackBundle] above uses `ZipInputStream` directly; this actual exists so the common
+ * [ZipArchive] parser (which ships on iOS) is exercisable by the JVM unit tests.
+ */
+internal actual fun rawInflate(deflated: ByteArray, expectedSize: Int): ByteArray {
+    if (expectedSize == 0) return ByteArray(0)
+    val inflater = Inflater(/* nowrap = */ true)
+    try {
+        inflater.setInput(deflated)
+        val out = ByteArray(expectedSize)
+        var off = 0
+        while (off < expectedSize && !inflater.finished()) {
+            val n = inflater.inflate(out, off, expectedSize - off)
+            if (n == 0 && (inflater.finished() || inflater.needsInput() || inflater.needsDictionary())) break
+            off += n
+        }
+        if (off != expectedSize) throw ZipFormatException("deflate stream shorter than declared size")
+        return out
+    } finally {
+        inflater.end()
     }
 }
