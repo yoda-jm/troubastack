@@ -22,5 +22,8 @@ transparent annotation-overlay canvases were extracted per layer from TroubaStud
 `bundle.json`. So the images are genuine studio renders, but the *packaging* is manual —
 when the real bake lands, regenerate this file with it and delete this caveat.
 
-Known cosmetic issue inherited from the seed data: the seeded PDFs render an em-dash as
-`â€"` in page titles (an encoding bug in `core/cmd/seed`'s PDF text — worth a small fix).
+Known cosmetic issue inherited from the seed data: this bundle's page-title raster shows
+an em-dash rendered as `â€"`. The underlying seed bug (`core/cmd/seed` wrote UTF-8 into a
+cp1252 PDF font) is **fixed** as of T16 — fresh `make demo` seeds now render `—`
+correctly — but this file was hand-baked from the *old* seeds, so its raster keeps the
+mojibake until the real bake (B02) regenerates it. Do not hand-rebake it for this.

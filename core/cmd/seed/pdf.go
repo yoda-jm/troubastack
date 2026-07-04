@@ -123,18 +123,23 @@ func generatePlaceholderPDF(src pdfSource) ([]byte, error) {
 		pages = 2
 	}
 	pdf := fpdf.New("P", "mm", "A4", "")
-	pdf.SetTitle(src.title, false)
+	// Core PDF fonts (Helvetica) are single-byte cp1252; passing raw UTF-8 makes a
+	// multi-byte rune like the em-dash render as mojibake (the "—" → "â€"" bug).
+	// tr maps UTF-8 → cp1252 (em-dash U+2014 → 0x97) using fpdf's embedded map; wrap
+	// every drawn string in it. SetTitle uses its own UTF-8 flag for the info dict.
+	tr := pdf.UnicodeTranslatorFromDescriptor("")
+	pdf.SetTitle(src.title, true)
 	pageW, _ := pdf.GetPageSize()
 	left, right := 20.0, pageW-20.0
 	for n := 1; n <= pages; n++ {
 		pdf.AddPage()
 		pdf.SetFont("Helvetica", "B", 24)
 		pdf.SetXY(left, 25)
-		pdf.Cell(0, 12, src.title)
+		pdf.Cell(0, 12, tr(src.title))
 		if src.subtitle != "" {
 			pdf.SetFont("Helvetica", "I", 14)
 			pdf.SetXY(left, 38)
-			pdf.Cell(0, 10, src.subtitle)
+			pdf.Cell(0, 10, tr(src.subtitle))
 		}
 		pdf.SetFont("Helvetica", "", 12)
 		pdf.SetXY(right-40, 25)
@@ -155,7 +160,7 @@ func generatePlaceholderPDF(src pdfSource) ([]byte, error) {
 		}
 		pdf.SetFont("Helvetica", "I", 9)
 		pdf.SetXY(left, 285)
-		pdf.Cell(0, 6, "TroubaStack demo placeholder — public-domain fetch unavailable, generated locally.")
+		pdf.Cell(0, 6, tr("TroubaStack demo placeholder — public-domain fetch unavailable, generated locally."))
 	}
 	var buf writerSink
 	if err := pdf.Output(&buf); err != nil {
