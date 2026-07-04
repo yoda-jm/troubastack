@@ -24,14 +24,25 @@ targets:
       - framework: ../shared/build/bin/iosSimulatorArm64/debugFramework/Shared.framework
         embed: true
         codeSign: false
+    # xcodegen generates Info.plist from these properties (merged with its defaults) at
+    # `xcodegen generate` time — the file is git-ignored, regenerated in CI. We can't use
+    # GENERATE_INFOPLIST_FILE because that only supports a fixed allowlist of keys, and Compose
+    # Multiplatform iOS REQUIRES a custom one:
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: TroubaShare
+        # REQUIRED by Compose Multiplatform iOS — its PlistSanityCheck throws a
+        # kotlin.IllegalStateException on the first frame if this key is missing or false.
+        CADisableMinimumFrameDurationOnPhone: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.troubashare.app
-        # Xcode 13+ synthesises Info.plist from these keys — no committed plist to drift.
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: TroubaShare
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         FRAMEWORK_SEARCH_PATHS:
           - $(inherited)
           - $(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework
