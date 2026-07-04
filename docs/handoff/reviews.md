@@ -165,6 +165,27 @@ Wonderwall page** — this reviewer will dispatch and verify the artifacts after
 landing. A red dispatched run re-opens IOS02 for fix-forward; it does not retroactively
 invalidate the landing.
 
+## 2026-07-04 — T13 (`66fcb19`, landed): ✅ APPROVED post-hoc
+
+The acceptance criterion for this one lives in CI by construction (the shift only ever
+reproduced in CI headless), and CI delivered: **5/5 green on the landing SHA with the
+quarantine removed** — the `editor-rorw-shift` spec ran in the exact environment that
+failed and passed. Verified by reading, not trusting: the spec's footprint assertions are
+untouched (the diff only rewrites comments and deletes the `test.skip`); the fix is the
+repo's established reserve-space pattern (`drawing`/`viewing` pills always mounted,
+`.layer-pill-off` = `visibility: hidden`, mirroring 772be41) rather than a loosened test;
+and the newly always-present `layer-active`/`layer-focused` testids have zero other
+usages, so no assertion anywhere changes meaning. The root-cause narrative (pill wrap
+under CI's wider fallback font on the longer-named RO row, at the ≤760px stacked layout)
+is consistent with every observed symptom, including why `toolbarH` matched while
+`pageTop` didn't.
+
+Process, once more and then I'll stop repeating it: this is the core lane's second direct
+landing without a verdict here. Both were sound — but if the human is approving these
+in-chat, note it in the commit message ("landed per VLL" suffices) so this log stays a
+truthful record of who authorized what; if he isn't, hold at the gate. B02 especially:
+it's the critical path AND touches core.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
