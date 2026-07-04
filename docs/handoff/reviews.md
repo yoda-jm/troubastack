@@ -186,6 +186,22 @@ in-chat, note it in the commit message ("landed per VLL" suffices) so this log s
 truthful record of who authorized what; if he isn't, hold at the gate. B02 especially:
 it's the critical path AND touches core.
 
+## 2026-07-04 — IOS02 status: landed at `e786418`; first dispatched runs RED (arch); fix-forward `1bfcdae`: ✅ APPROVED — land + re-dispatch
+
+IOS02 landed exactly as GO'd (fast-forward, the reviewed commit + the one-word doc fix).
+Both dispatched `ios.yml` runs (#1/#2 — the reviewer and the executor each dispatched
+one; harmless) failed at the `xcodebuild` step. Confirmed from the run log directly, not
+the report: `ld: … Shared.framework/Shared: found architecture 'arm64', required
+architecture 'x86_64'` — xcodebuild without a `-destination` built the x86_64 simulator
+slice, which cannot link the arm64-only Kotlin framework.
+
+`fix/ios02-simulator-arch` (`1bfcdae`) is the standard cure and is approved: boot the
+simulator *before* building, pin with `-destination "id=$UDID"` + `ONLY_ACTIVE_ARCH=YES`,
+reuse `$UDID` via `$GITHUB_ENV`; workflow-only, triggers untouched (manual + weekly, never
+per-push). Land at 5/5 ubuntu CI as usual, then re-dispatch. **IOS02 remains open** until
+a dispatched run is green and the `stage.png` artifact shows the Wonderwall page — the
+reviewer verifies the artifact.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
