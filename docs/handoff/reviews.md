@@ -391,6 +391,29 @@ step (log show + .ips) is retained for future regressions. YAML parses; triggers
 untouched. Run #8: green + Wonderwall `stage.png` (reviewer verifies the artifact) closes
 IOS02.
 
+## 2026-07-04 — IOS02: ✅ CLOSED — run #8 green, Wonderwall pixels verified
+
+Run #8 (id 28704701943, on `3bb2777`) is green with the honest assertions in place (hard
+`terminate` liveness checks on both launches + the load marker), and I verified the
+artifact pixels, not just the status:
+
+- `concerts.png`: the real Concerts screen, "Wonderwall (demo)" card.
+- `stage.png`: the real Stage — "Wonderwall — Vocals" title, "Oasis (lead vocal)", staff
+  systems, **the orange section overlays (Verse 1 / Chorus / Bridge) rendering on top of
+  the raster**, page 1/2 chrome with Back/Fit/Layers/Role. This is the same demo page the
+  Android shots show, modulo platform chrome — the acceptance criterion verbatim.
+- The `â€"` mojibake in the title is the T16-documented state of the *committed* demo
+  bundle (fixed at the seed generator; the bundle regenerates in B02) — Android shows the
+  same. Expected, not a regression.
+- All criteria met: dispatched workflow green; unsigned end to end (no identities/
+  profiles/Apple IDs); simulator boots; demo bundle performs with a liveness-asserted
+  app; screenshots + .app uploaded; ubuntu CI unaffected throughout.
+
+The road here (8 runs, 5 reviewed fix-forwards) is exactly what IOS02 was for — the
+macOS job now encodes all of it: arch pinning, runtime-derived device choice, honest
+liveness assertions, crash diagnostics. **Mobile lane is drained**: IOS03 is a decision
+stub blocked on Vincent (Mac + Apple ID); A07/InkOverlay blocked on the tablet spike.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
