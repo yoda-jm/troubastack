@@ -382,6 +382,15 @@ wait "$C1" 2>/dev/null || true                 # relay exits naturally once the 
 (drop the `kill`). Same for launch 2. Everything else stays. Run #8 should be the real
 close-out: green + Wonderwall Stage pixels, which I'll verify from the artifact.
 
+## 2026-07-04 — `fix/ios02-plainlaunch` (`6159eb4`): ✅ APPROVED — land + dispatch run #8
+
+Better than my suggested reorder: the console capture was diagnostic-only and has done
+its job, so plain `simctl launch` removes the pty-lifetime hazard entirely instead of
+working around it. The hard `terminate` asserts and the marker stay; the crash-diagnostics
+step (log show + .ips) is retained for future regressions. YAML parses; triggers
+untouched. Run #8: green + Wonderwall `stage.png` (reviewer verifies the artifact) closes
+IOS02.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
