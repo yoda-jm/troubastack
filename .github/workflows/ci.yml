@@ -112,6 +112,12 @@ jobs:
       - name: shared check + assemble debug APK
         working-directory: app
         run: ./gradlew :shared:check :androidApp:assembleDebug
+      # iOS klibs cross-compile on Linux (no Mac needed) — type-checks the iosMain seam actuals
+      # (Storage/WebViewHost + the zip reader) on every push. Linking a framework + running a
+      # simulator still needs macOS; that's IOS02's job (manual-trigger macOS runner).
+      - name: compile iOS klibs (cross-compile, no linking)
+        working-directory: app
+        run: ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64
       # Publish the debug APK so anyone can sideload TroubaShare without a local
       # toolchain (README → "The mobile app"). Debug-signed — not a store release.
       - name: upload debug APK

@@ -17,7 +17,11 @@ kotlin {
     jvmToolchain(libs.versions.jdk.get().toInt())
 
     androidTarget()                         // Android NOW
-    // iosArm64(); iosSimulatorArm64()      // iOS LATER — just fill in the actuals (I15)
+    iosArm64()                              // iOS — device
+    iosSimulatorArm64()                     // iOS — Apple-silicon simulator
+    // The default hierarchy template creates the shared `iosMain`/`iosTest` source sets over the two
+    // iOS targets; the three seam actuals (I15) live in iosMain. On Linux we compile klibs only
+    // (cross-compilation); linking a framework + running a simulator is IOS02's macOS job.
 
     sourceSets {
         commonMain.dependencies {
