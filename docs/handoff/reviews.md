@@ -510,6 +510,31 @@ framing is correct, and the "how to re-prove iOS" pointer (manual dispatch + Won
 pixels) matches the close-out criterion this log used. Keeps the docs truthful — land
 the usual way.
 
+## 2026-07-05 — B02 part 2/2 (`552c516`, landed): ✅ APPROVED pending e2e green · B04 filed · loop-close deferred honestly
+
+The client half is right-sized: one admin-only card (UI-gated for display, server gate
+authoritative per part 1), busy/error states, download link with rev, e2e spec using an
+empty setlist so the hard-gating e2e job needs no toolchain — while the real
+song→raster→overlay path stays covered by the Go tests AND was live-verified twice (the
+executor's manual run and my part-1 end-to-end, independently). `tsc`/build claims are
+covered by the web CI job. CI was 4/5 at review time with **e2e in progress — that job
+runs the new `bake.spec.ts` and is the acceptance environment; a red gets its own entry.**
+
+Three notes:
+1. **The Android loop-close criterion is deferred, honestly** (emulator needs an
+   attended run per the standing steer). It stays OPEN as B02's close-out item: next
+   attended session bakes via Studio, imports the .tstage on the emulator, screenshots
+   Stage. The bytes being loader-shaped is already proven (my part-1 Kotlin-loader run).
+2. **The two part-1 findings were not included** (the diff is web-only). Filed as
+   **`B04` (XS/S): atomic rev publication + concurrency guard** — spec written with
+   acceptance tests; slot it before/with B03.
+3. Nit, recorded in B04's out-of-scope: `ListConcerts` returns latest-per-concert, so
+   the card's "history" list is latest-only today. Fine for v1.
+
+**B-track status: the compose→bake→download loop is DONE and reviewed** (B01+B02).
+Remaining to full product loop: B03 (in-app distribution) + the attended loop-close
+screenshot + B04 robustness.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as

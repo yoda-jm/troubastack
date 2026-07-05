@@ -125,6 +125,7 @@ real pipeline; after B03, no manual file transfer is needed at all.
 | B01 | [web/bake: headless overlay renderer + the I8 parity test](B01-bake-worker.md) | web/bake | M/L |
 | B02 | [Core bake orchestration + Studio "Bake" button](B02-bake-orchestration.md) | core + studio + proto | L |
 | B03 | [Distribution: in-app downloads, offers, freeze](B03-distribution-and-updates.md) | app + core | L |
+| B04 | [Bake robustness: atomic rev publication + concurrency guard](B04-bake-write-atomicity.md) | core | XS/S |
 | OPS01 | [Production serving: TLS, service, backup, release APK](OPS01-production-serving.md) | deploy | M |
 
 Two design decisions are resolved *inside* the specs (don't relitigate without cause):
