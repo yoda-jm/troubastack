@@ -22,6 +22,7 @@ import (
 	"troubastack/core/internal/app/blob"
 	"troubastack/core/internal/app/filerepo"
 	"troubastack/core/internal/app/memrepo"
+	"troubastack/core/internal/bake"
 	"troubastack/core/internal/engine"
 	"troubastack/core/internal/httpapi"
 	"troubastack/core/internal/store"
@@ -63,7 +64,13 @@ func main() {
 	// Secure cookies only when explicitly told we're behind TLS (TROUBA_SECURE_COOKIES=1).
 	secureCookies := os.Getenv("TROUBA_SECURE_COOKIES") == "1"
 
-	handler, err := httpapi.Router(svc, eng, secureCookies)
+	// Bake orchestration (I11): resolves a setlist and shells out to poppler
+	// (pdftoppm) + the web/bake worker (Node) to flatten a .tstage under the data
+	// dir. A missing binary fails the individual bake, not the server — so this is
+	// safe to wire even where the toolchain isn't installed.
+	baker := bake.New(svc, eng, bakeConfig())
+
+	handler, err := httpapi.Router(svc, eng, baker, secureCookies)
 	if err != nil {
 		log.Fatalf("troubacore: build router: %v", err)
 	}
@@ -162,6 +169,35 @@ func openAppRepo() (app.Repo, error) {
 		return filerepo.New(dir)
 	default:
 		return nil, fmt.Errorf("unknown TROUBA_APP_STORE %q (want mem|file)", kind)
+	}
+}
+
+// bakeConfig resolves the bake toolchain from env with dev-friendly defaults.
+// Binaries default to bare names (found on PATH); the web/bake worker defaults to
+// the repo-relative path that works when core runs from core/ (make dev/run/e2e).
+// Bundles are written under <data>/bakes. Swapping paths touches only this fn.
+func bakeConfig() bake.Config {
+	dir := os.Getenv("TROUBA_DATA_DIR")
+	if dir == "" {
+		dir = "./troubadata"
+	}
+	pdftoppm := os.Getenv("TROUBA_PDFTOPPM")
+	if pdftoppm == "" {
+		pdftoppm = "pdftoppm"
+	}
+	node := os.Getenv("TROUBA_NODE")
+	if node == "" {
+		node = "node"
+	}
+	cli := os.Getenv("TROUBA_BAKE_CLI")
+	if cli == "" {
+		cli = filepath.FromSlash("../web/bake/dist/cli.js")
+	}
+	return bake.Config{
+		BakesDir: filepath.Join(dir, "bakes"),
+		Pdftoppm: pdftoppm,
+		Node:     node,
+		BakeCLI:  cli,
 	}
 }
 

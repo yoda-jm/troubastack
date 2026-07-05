@@ -36,6 +36,8 @@ them. If code and an invariant disagree, the code is wrong.
 ## Quick start — run the whole thing locally
 
 Prerequisites: **Go 1.26+** and **Node 24+ / npm 11+** (that's all for the server + web editor).
+Baking a setlist to a `.tstage` (B02) additionally needs **`pdftoppm`** (from `poppler-utils`)
+on `PATH` for PDF page rasters — override its location with `TROUBA_PDFTOPPM` if needed.
 
 ```sh
 make setup   # once: installs web/studio deps + the Playwright browser

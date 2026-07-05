@@ -13,20 +13,13 @@
 // Studio. A second Go renderer here would be drift — forbidden.
 //
 // Boundary:
-//   - MAY import: domain, store, session, stdlib (os/exec to invoke the worker).
+//   - MAY import: domain, engine, app (the relational facade, for setlist/song/
+//     file resolution scoped to the admin actor), stdlib (os/exec to invoke the
+//     poppler + web/bake subprocesses).
 //   - MUST NOT import: httpapi, sync, web/app source, or any stroke-rendering
-//     code. Orchestration only — the pixels come from web/bake.
-package bake
-
-// Baker drives a bake: authorize (ADMIN, I11) → resolve scope → invoke the
-// web/bake worker (subprocess) → mint a ConcertBundle revision (I4) → persist.
+//     code. Orchestration only — the pixels come from poppler + web/bake (B02).
 //
-// TODO: hold store + session; locate the web/bake worker; run it via os/exec
-// passing the resolved scope; collect flattened page images (I12); append the
-// bundle revision. Never render strokes in Go (I8).
-type Baker struct {
-	// TODO: store handle, session handle, path to web/bake worker.
-}
-
-// New returns a placeholder Baker. TODO: wire dependencies + worker path.
-func New() *Baker { return &Baker{} }
+// Baker (baker.go) is the real orchestrator; bundle.go is the ConcertBundle Go
+// mirror + .tstage writer; render.go holds the poppler/web-bake shell-out steps
+// (interfaces, so the orchestrator is unit-testable with fakes).
+package bake

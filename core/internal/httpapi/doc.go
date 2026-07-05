@@ -18,6 +18,7 @@ import (
 	"net/http"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/bake"
 	"troubastack/core/internal/engine"
 	"troubastack/core/internal/webassets"
 )
@@ -32,7 +33,7 @@ import (
 // secureCookies should be true behind TLS. The realtime /ws upgrade is wired here
 // over a sync.Hub built on the SAME engine instance (in mountWS), so the live HEAD
 // the hub mutates is exactly the one GET …/annotations reads.
-func Router(svc *app.Service, eng *engine.Engine, secureCookies bool) (http.Handler, error) {
+func Router(svc *app.Service, eng *engine.Engine, baker *bake.Baker, secureCookies bool) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Liveness probe.
@@ -48,6 +49,10 @@ func Router(svc *app.Service, eng *engine.Engine, secureCookies bool) (http.Hand
 	// Annotation API (view-only): read a song's materialized HEAD, import layers
 	// + objects. Reuses the relational auth middleware so it shares one auth path.
 	NewAnnotationsAPI(svc, eng).Mount(mux, web.auth)
+
+	// Bake orchestration (I11): admin bakes a setlist → .tstage; members list +
+	// download baked concerts. baker may be nil in tests that don't exercise bake.
+	NewBakeAPI(svc, baker).Mount(mux, web.auth)
 
 	// Realtime annotation sync: a per-song WebSocket over the SAME engine, so live
 	// edits and the REST read see one consistent HEAD (I6).

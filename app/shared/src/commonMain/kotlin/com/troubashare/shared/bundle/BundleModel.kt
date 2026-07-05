@@ -45,6 +45,11 @@ data class BakedSong(
     @Serializable(with = ProtoUInt64Serializer::class) val sourceRevision: ULong = 0uL, // proto source_revision
     @Serializable(with = ProtoUInt64Serializer::class) val songRev: ULong = 0uL,        // proto song_rev
     val pages: List<PageImages> = emptyList(),                                  // proto pages
+    // Setlist overrides carried as metadata (B02); absent → proto default. The
+    // presenter may display these; the loader tolerates their absence.
+    val displayNotes: String = "",                                              // proto display_notes
+    val key: String = "",                                                       // proto key
+    val tempo: Int = 0,                                                         // proto tempo
 )
 
 /** proto `troubastack.v1.ConcertBundle` — the self-contained, performable baked concert (I11/I12). */

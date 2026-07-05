@@ -30,6 +30,13 @@ message BakedSong {
   uint64 source_revision = 2;            // the song revision this was baked from
   uint64 song_rev = 3;                   // bundle-local song revision (for granular apply)
   repeated PageImages pages = 4;
+  // Setlist overrides ride as manifest METADATA, not burned into the page pixels
+  // (B02 decision): the presenter may display them, and the pixels stay a pure
+  // render of the song's annotations. Absent fields take the proto default —
+  // loaders already ignore unknowns, so older bundles/loaders are unaffected.
+  string display_notes = 5;              // setlist item Notes
+  string key = 6;                        // setlist KeyOverride ("" = song default)
+  int32 tempo = 7;                       // setlist TempoOverride (0 = song default)
 }
 
 // Minted ONLY by an explicit admin bake (I11). `concert_rev` is a function of the

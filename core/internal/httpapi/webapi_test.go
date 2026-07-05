@@ -48,7 +48,7 @@ func newClient(t *testing.T, repo app.Repo) *client {
 	t.Helper()
 	svc := app.NewService(repo)
 	eng := engine.New(memstore.New().(store.HistoryAware))
-	h, err := httpapi.Router(svc, eng, false)
+	h, err := httpapi.Router(svc, eng, nil, false)
 	if err != nil {
 		t.Fatalf("Router: %v", err)
 	}

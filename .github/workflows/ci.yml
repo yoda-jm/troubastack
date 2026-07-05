@@ -28,6 +28,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
+      # poppler-utils provides pdftoppm, which the bake orchestrator (B02) shells
+      # out to for PDF page rasters; the bake rasterizer test runs it.
+      - name: install poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - name: go vet
         working-directory: core
         run: go vet ./...
