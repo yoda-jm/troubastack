@@ -151,6 +151,7 @@ git push origin HEAD:main 2>&1 | sed -E "s/${TOKEN}/<TOKEN>/g"   # ff push; NO l
 
 | Task | Commit | Summary |
 |---|---|---|
+| B02 | `869d900` + `552c516` | **Bake orchestration: setlist → downloadable `.tstage`** (2-commit split, T10-style). Backend (`869d900`): proto `BakedSong` +`display_notes`/`key`/`tempo` (overrides = metadata, not pixels) + Kotlin mirror; `internal/bake` = Go `ConcertBundle` mirror + `.tstage` writer + `Baker` shelling to **pdftoppm** (rasters) and **B01's web/bake CLI** (overlays — core draws NOTHING, I8); endpoints `POST …/setlists/{s}/bake` (admin), `GET …/concerts` + `…/{c}/bundle` (member); Go tests (fakes + real-pdftoppm w/ skip) + endpoint auth; poppler-utils in the CI go job. UI (`552c516`): admin Bake card on the Setlist page (bake · download · history) + `bake.spec.ts`. `source_revision` = song's current engine head (no per-setlist pin exists). **Verified the real pipeline by unzipping an actual bake** (2 pdftoppm rasters + a same-size web/ink overlay). **Deferred (needs emulator):** the Android import+perform loop-close screenshot. |
 | B01 | `00a7da5` | **`web/bake` overlay renderer + the I8 golden parity test.** `renderOverlays`/`troubabake` CLI draw per-layer transparent PNGs via `@troubastack/ink` (Node Skia, `@napi-rs/canvas`); esbuild bundles ink from source (no 2nd copy). Parity test = bake vs. ink-in-headless-Chromium, per-pixel within an AA tolerance (spec's literal "100% transparent" relaxed to ≥99.9% — flagged at the gate). Added `setTextFontFamily` to ink (default UNCHANGED → studio byte-identical); bake pins bundled Roboto + `textRendering=geometricPrecision`. CI step in the web job. Overlays only — PDF rasters + bundle assembly are B02. |
 | T01 | `4ebdb3e` (+`243a92e`) | Fix workspace typecheck breakage; discover `tsc -b` (solution file). Follow-up: `web/bake` typecheck-only build. |
 | T02 | `5ed1fe5` (+`5fe5da0`) | GitHub Actions CI + strict gofmt gate. Follow-up: quarantine `editor-rorw-shift` in CI while e2e keeps hard-gating (→ T13). |
@@ -181,17 +182,22 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
 
 ## 8. Remaining work (T/B-track)
 
-**Queue (per the review-gate standing steer while the human is OoO):** B01 ✅ landed → **T13 next,
-then T14** (fillers) → T15 stays **held** for an attended window. B02 (bake orchestration in core +
-Studio "Bake" button, L, cross-lane) is the next big B-track piece but was **not** queued as
-immediate by the steer — confirm scope/spec-readiness (or get a fresh steer) before starting it.
-Nothing merges without a verdict in `reviews.md` or from the human.
+**Queue status (updated 2026-07-06):** B01 ✅, T13 ✅, B02 ✅ all landed this session.
+**Remaining:** T14/T17 (editor chrome — **paused for an attended redesign**, see below), T15
+(**held**), the B02 **Android loop-close** screenshot (needs an emulator), and **B03** (the next big
+B-track piece — distribution/in-app downloads; not yet queued as immediate). Nothing merges without a
+verdict in `reviews.md` or from the human.
 
-- **T13 — RO/RW pageTop shift.** `web/studio/e2e/editor-rorw-shift.spec.ts:132` is `test.skip`'d
-  under CI (`!!process.env.CI`) because a read-only↔read-write page-top layout shift reproduces
-  **only in CI headless**. Fix the shift, then delete the skip guard so the spec hard-gates again.
-- **T14 — finish the song-editor chrome compaction.** T05 landed the redesign but didn't fully hit
-  the ≤220-LOC target; T14 closes that gap. Small, visual — do the before/after screenshots.
+- **T13 ✅ done** (`66fcb19`) — the CI-only RO/RW shift was the Layers-panel row pills (`drawing`/
+  `viewing` moving between rows tipped a wrap under CI's font); fixed by always-mounting them with
+  reserved space; quarantine removed, `editor-rorw-shift` hard-gates again.
+- **T14 → superseded by T17 (both paused for attended).** The "panelize" approach was measured at
+  only ~10px (372→~363) and reverted; the disclosure attempt (T17) regressed (broke zero-shift, no
+  height win). Chrome is dominated by the always-reserved style bar + the ~160px sticky app-shell,
+  not the layer/zoom controls. Reaching ≤~240 needs a **deliberate single-row toolbar redesign**
+  (attended, visual judgment) — full findings + guidance in `docs/tasks/T17-editor-style-disclosure.md`.
+- **B02 Android loop-close** — bake→download works + verified by unzip; importing/performing the
+  `.tstage` in the Android app (emulator/device + screenshot) is the one deferred acceptance item.
 - **T15 — split `Viewer.tsx` (part 2 of T10).** Extract `usePdfDocument` / `useDryOverlay` /
   `useSongSync` hooks to bring `web/studio/src/pages/song-editor/Viewer.tsx` (~1262 LOC) under 600.
   **HELD** by the user for an **attended window on a quiet machine** — it's the one risky unattended
