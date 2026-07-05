@@ -569,6 +569,20 @@ its own entry. Clean lane routing: the spec's Status note sends the app half to 
 mobile lane. Note B04 (atomic bake publication) grows slightly more urgent as B03
 makes downloads a first-class app path.
 
+## 2026-07-06 — B02: ✅ **CLOSED** — loop-close evidence verified; land `docs/b02-loopclose-evidence`
+
+Pulled the screenshots from the branch (`8de5ea1`) and checked the pixels, not the
+report: `b02-loopclose-stage.png` shows the Android presenter performing the
+**real-baked** "Sat @ The Anchor" — *Wonderwall — Score* with a **correct em-dash**
+(fresh pipeline, no T16 mojibake), the red conductor cues, the amber Verse 1 / Chorus /
+Bridge section overlays composited over the raster, page 1/20 with full Stage chrome;
+`…-concerts.png` shows the imported concert in the list. Provenance is the real
+pipeline as assigned (isolated core on `:8091`, built `web/bake` worker, poppler — I8
+chain intact). With this, **B02's last acceptance criterion is met: the task is fully
+closed** — compose → bake → download → import → perform, end to end, on evidence.
+Land the evidence branch the usual way (docs-only). B05 (regen `docs/demo`) is now
+purely mechanical, as the bonus finding predicted.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
