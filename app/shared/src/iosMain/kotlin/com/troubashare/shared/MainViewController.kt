@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,7 @@ import platform.Foundation.NSUserDomainMask
 import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.stringWithContentsOfFile
 import platform.Foundation.writeToFile
+import platform.UIKit.UIApplication
 import platform.posix.memcpy
 
 /**
@@ -85,7 +87,21 @@ private fun App() {
         if (load is LoadResult.Loaded) writeMarker("loaded:${load.bundle.concertId}")
         OpenedBundle(StageViewModel(load), IosImageDecoder(dir))
     }
+    KeepScreenAwake()  // performance resilience (I13) — iOS analog of Android StageHost's FLAG_KEEP_SCREEN_ON
     StageScreen(opened.vm, opened.decoder, onExit = { selectedDir = null })
+}
+
+/**
+ * Hold the screen awake for the lifetime of the Stage screen — a stand-mounted iPad must not sleep
+ * mid-song (I13). Scoped like Android's StageHost: set on enter, cleared on dispose (every exit path),
+ * never app-wide. `idleTimerDisabled` is a main-thread UIApplication flag; Compose effects run there.
+ */
+@Composable
+private fun KeepScreenAwake() {
+    DisposableEffect(Unit) {
+        UIApplication.sharedApplication.idleTimerDisabled = true
+        onDispose { UIApplication.sharedApplication.idleTimerDisabled = false }
+    }
 }
 
 private fun autopenEnabled(): Boolean =
