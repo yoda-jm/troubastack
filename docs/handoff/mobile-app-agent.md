@@ -5,13 +5,17 @@
 > owns the **T-track** (web/core/infra); stay out of its way (see §2, §7).
 >
 > Point a fresh Claude Code session at this file to continue seamlessly. It captures **how we work**
-> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-04.
+> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-05.
 >
 > **To resume:** open this repo in a new session and say — *"Read `docs/handoff/mobile-app-agent.md`;
 > you are the Mobile App Agent — let's continue."* Then read §2 (how we work) and §5 (landing) before
 > touching anything, and `git log main --oneline -15` for current state. **Immediate next action:**
-> A07 (native wet-ink) is the only remaining app task and is **blocked** on a real-tablet stylus
-> spike (§8) — confirm with the user before assuming it's unblocked.
+> the actionable iOS + Android queue is **drained** (A01–A06, IOS01–IOS04 all merged — §6). The only
+> remaining app tasks are **both blocked**: **A07** (native wet-ink — real-tablet stylus spike) and
+> **IOS03 impl** (device/TestFlight/Store — needs a Mac + Apple credentials; the runbook is §11).
+> Don't start either without the user unblocking hardware/credentials. Otherwise there's nothing to
+> pick up unless a new `docs/tasks/*` is filed — check `git log` + `docs/tasks/` + the review-gate log
+> (`docs/handoff/reviews.md`) on start.
 
 ---
 
@@ -24,10 +28,13 @@ A monorepo for a band sheet-music app. Four parts, one contract:
 - **`core/`** — Go server (TroubaCore): REST + realtime sync + serves the embedded SPA. `go 1.26`.
 - **`web/studio/`** — the **canonical** React/Vite editor SPA (TroubaStudio). `web/ink` is the one
   stroke renderer; `web/bake` flattens pages server-side. Never reimplement the editor (**I10**).
-- **`app/`** — Kotlin Multiplatform / Compose Multiplatform mobile app (**Android now, iOS later**).
-  A thin shell (**I15**): all shared logic in `:shared` commonMain; platform code confined to
-  **exactly six seam files** (3 `expect` in commonMain + 3 Android `actual`s; iOS actuals are
-  compiling TODO stubs) **plus** the thin `:androidApp`.
+- **`app/`** — Kotlin Multiplatform / Compose Multiplatform mobile app (**Android + iOS**, both real
+  as of IOS01–IOS02). A thin shell (**I15**): all shared logic in `:shared` commonMain; platform code
+  confined to the seam `actual`s (3 `expect` in commonMain + 3 Android + 3 iOS `actual`s — iOS
+  `Storage`/`WebViewHost` are implemented, `InkOverlay` stays `TODO` behind A07) **plus** the thin
+  `:androidApp` and the `:iosApp` **Xcode** entrypoint (xcodegen; links the `Shared` framework —
+  it's not a Gradle module). The iOS Concerts/Stage entrypoint lives in `shared/iosMain`
+  (`MainViewController.kt`), the analog of `:androidApp`'s `MainActivity`.
 
 **Read first:** `docs/ARCHITECTURE.md` (numbered invariants I1–I15, normative) and
 `docs/tasks/README.md` (the task pack + ground rules). `docs/design/01..08` are the design notes.
@@ -131,10 +138,15 @@ step 4 → risk losing the branch if the push was rejected.
 | A04 | `1e18aa4` | **TroubaStage presenter** — `stage/` (StageModel/ViewModel/Screen): resilient, read-only, offline compositor + pager. Emulator-verified incl. torture fixtures, keep-screen-on, immersive. |
 | A05 | `21a991d` | Android **Storage seam** actual + atomic `.tstage` **import** (zip-slip + zip-bomb guards, atomic swap, `BundleImporter`). Emulator-verified import + bad-bundle rejection. |
 | A06 | `6927793` | Host **TroubaStudio in a WebView** (WebViewHost actual) + feature-detected `bridge.ts` handshake + Edit screen/server config. Emulator-verified login as marie/demo + handshake in logcat. |
+| IOS01 | `8e53e42` | Enable `iosArm64`/`iosSimulatorArm64`; fill **iOS Storage** (NSFileManager + Keychain + `unpackBundle`) & **WebViewHost** (WKWebView) actuals; portable commonMain **zip reader** (`ZipReader.kt`: EOCD→central dir, `exceedsSizeCap`/`isSafeZipEntryName`, `expect rawInflate`) with JVM tests; CI `android` job now cross-compiles iOS klibs on Linux. (LRU fix `b146356` landed first.) |
+| IOS02 | `e786418` (+`3bb2777`) | **`app/iosApp`** Xcode entrypoint (xcodegen `project.yml` + Swift), dynamic `Shared` framework export, `MainViewController.kt` (Concerts + Stage), **`.github/workflows/ios.yml`** (manual macOS: link → build unsigned → simulator → inject demo → screenshot + honest smoke). **Proven green with real Wonderwall Stage pixels.** |
+| IOS04 | `5946874` | Keep the iOS screen awake during Stage (`KeepScreenAwake()` DisposableEffect in `App()`'s Stage branch; iOS analog of Android `StageHost`'s `FLAG_KEEP_SCREEN_ON`). |
+| IOS03 | `d953e51` | **Prep-plan runbook only** (§11) — the impl is BLOCKED on a Mac + Apple credentials. |
 
 Net: the app **performs baked concerts offline (Stage)**, **imports `.tstage` bundles**, and **hosts
-the live web editor (Edit)**. Six seam files only (I15 held throughout). Commit hashes are the
-as-landed values; they may have been rebased since — grep the subject line if a hash goes missing.
+the live web editor (Edit)** — on **both Android and iOS** (iOS Stage proven on the simulator, IOS02).
+I15 held throughout (platform code only in the seam actuals + the two thin entrypoints). Commit hashes
+are the as-landed values; they may have been rebased since — grep the subject line if a hash goes missing.
 
 ## 7. Current state & concurrency
 
@@ -147,11 +159,19 @@ as-landed values; they may have been rebased since — grep the subject line if 
 
 ## 8. Remaining work
 
+The actionable A/IOS queue is **drained** (§6). Both remaining app tasks are **BLOCKED** — do not
+start either without the user unblocking hardware/credentials:
+
 - **A07 — native wet-ink overlay: BLOCKED.** Needs a **real-tablet stylus latency spike** (input→
   photon latency + pen parity vs `web/ink`) that decides whether the optimized web path suffices. The
-  emulator can't measure this. Everything A07 needs is on `main`. This is the highest-value next
-  action but requires the user + hardware; it may close **unbuilt**.
+  emulator can't measure this. Everything A07 needs is on `main`; `InkOverlay` actuals (Android + iOS)
+  stay `TODO`. May close **unbuilt**.
+- **IOS03 impl — BLOCKED** on a **Mac + Apple credentials** (own-device free team / TestFlight $99 /
+  App Store). The full execution runbook is **§11** — follow it the day the Mac + credentials exist;
+  don't improvise a signing pipeline before then, and never commit certs/profiles/keys.
 - **T-track** is the other agent's lane; don't duplicate. Check `docs/tasks/` + `git log` for status.
+- **`ios.yml` is manual** (`workflow_dispatch` + weekly) — never make it per-push (macOS bills 10×).
+  To re-prove iOS, dispatch it and verify `stage.png` shows Wonderwall (see §11 / the IOS02 history).
 - Follow-ups noted in-code / PRs: none outstanding for the A-track.
 
 ## 9. Do-NOTs / gotchas
@@ -178,6 +198,7 @@ as-landed values; they may have been rebased since — grep the subject line if 
 ```
 make test                                   # Go suite
 cd app && ./gradlew :shared:check :androidApp:assembleDebug   # app build + KMP tests (needs local.properties)
+cd app && ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64  # iOS klibs (Linux cross-compile; framework LINK is macOS-only → SKIPPED here)
 make fixtures                               # regenerate committed TroubaStage fixtures (deterministic)
 # web typecheck: cd web && studio/node_modules/.bin/tsc -b studio  (after per-pkg npm ci --no-workspaces)
 ```
