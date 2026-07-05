@@ -59,12 +59,17 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T14 | [Editor chrome: reach the ≤220px target (panelize)](T14-editor-chrome-panelize.md) | studio | M |
 | T15 | [Split Viewer.tsx into pdf/overlay/sync hooks (T10 part 2)](T15-viewer-hooks-split.md) | studio | M |
 | T16 | [Seed PDFs render em-dashes as mojibake](T16-seed-pdf-encoding.md) | core seed | XS |
+| T17 | [Editor chrome: collapse the style bar behind a disclosure (≤220px)](T17-editor-style-disclosure.md) | studio | M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come
 after T05/T06 have landed. T13 fell out of T02 (the e2e job is `continue-on-error`
 until T13 fixes the CI-only layout shift and re-enables hard gating). T14 fell out of
-T05 (the remaining chrome height) and T15 out of T10 (the deferred sync-sensitive
+T05 (the remaining chrome height). **T14 update:** its "panelize" approach (move
+layer picker, fold zoom) was tried and measured at only ~10px (372→~363) and reverted
+— the chrome is dominated by the always-reserved style bar (~90px) + the sticky app
+shell (~160px), not the layer/zoom controls. The ≤220 goal is superseded by **T17**
+(collapse the style bar behind a disclosure). T15 came out of T10 (the deferred sync-sensitive
 Viewer split — run it attended, on an unloaded machine, since its safety net is a full
 e2e pass). T14/T15 both live in the song editor — don't run them in parallel. Everything
 else is independent.
