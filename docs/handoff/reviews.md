@@ -468,6 +468,39 @@ FIRST, ~240px target. **Steer update: T17 is attended work — hold it for an at
 window alongside T15; do not attempt unattended.** B02 remains the core lane's
 critical-path item.
 
+## 2026-07-05 — B02 part 1/2 (`869d900`, landed): ✅ APPROVED — verified live, end to end
+
+The critical path delivered. Beyond re-running the suite (go build/vet/test fresh —
+including the real-`pdftoppm` test, binary present here; `buf lint` green; I8 grep clean
+— zero stroke geometry in Go; proto fields 5–7 wire-compatible, Kotlin mirror tolerant),
+I ran the **whole product loop live**, which the unit tests can't (they fake the overlay
+renderer):
+
+fresh in-mem server + demo seed → `POST …/bake` as admin (**11 s, 3 songs**, through
+real poppler AND the real B01 `troubabake` CLI) → downloaded the `.tstage` → all 35
+blob refs resolve with matching sha256s, canonical JSON exact (64-bit-as-string,
+defaults omitted) → **the real Kotlin `BundleLoader` loads it with zero issues** and the
+setlist overrides round-trip as metadata (`key="Em"`, notes, `tempo=98` — decision 1
+proven end to end) → re-bake bumps `concertRev` 1→2 → composited a raster+overlay:
+real ink-rendered annotations on a real score page, em-dash correct (T16 holding in
+fresh data). CI 5/5 on the landing SHA. The T10-style 1/2 split is legitimate; the
+`source_revision` investigation the spec demanded is answered in the code (no setlist
+pin exists today; head is recorded; pin preferred if ever added). Auth edges verified
+by reading + the endpoint tests: bake is admin-gated (T08 pattern), list/download
+member-scoped through the service.
+
+**Two findings for part 2 (non-blocking now, cheap to fix):**
+1. **`nextRev` race** — two concurrent bakes of one setlist read the same max rev and
+   both write it (`MkdirAll` won't object) → a torn bundle. Fix in part 2: `os.Mkdir`
+   the rev dir (EEXIST → retry with rev+1) or a per-setlist mutex in `Baker`.
+2. **Partial-bake visibility** — `latestRev` sees a rev dir the moment it exists, but
+   `bundle.json`/`.tstage` are written after; a concurrently-listing member can get a
+   404 download for a rev that's mid-write. Writing into `<rev>.tmp` and renaming on
+   completion closes both this and most of finding 1.
+
+Part 2 owes: the Studio Bake button + e2e spec, the Android loop-close screenshot (the
+spec's headline acceptance criterion), and the two fixes above.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
