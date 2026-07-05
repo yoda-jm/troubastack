@@ -501,6 +501,15 @@ member-scoped through the service.
 Part 2 owes: the Studio Bake button + e2e spec, the Android loop-close screenshot (the
 spec's headline acceptance criterion), and the two fixes above.
 
+## 2026-07-05 — `docs/handoff-refresh` (`dd83021`): ✅ APPROVED — land at 5/5
+
+Docs-only refresh of the Mobile App Agent handoff; every claim checks against this
+log's own verified history (IOS01 `8e53e42`, IOS02 `e786418`+`3bb2777`, IOS04 `5946874`,
+IOS03 runbook `d953e51`, LRU `b146356`). The queue-drained / both-remaining-blocked
+framing is correct, and the "how to re-prove iOS" pointer (manual dispatch + Wonderwall
+pixels) matches the close-out criterion this log used. Keeps the docs truthful — land
+the usual way.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
