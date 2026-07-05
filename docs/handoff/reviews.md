@@ -414,6 +414,23 @@ macOS job now encodes all of it: arch pinning, runtime-derived device choice, ho
 liveness assertions, crash diagnostics. **Mobile lane is drained**: IOS03 is a decision
 stub blocked on Vincent (Mac + Apple ID); A07/InkOverlay blocked on the tablet spike.
 
+## 2026-07-05 — T14 close-out: ✅ APPROVED · T17 design call: GO
+
+T14 (`ac5f92f`, docs-only) is the T05 precedent applied exactly right: the panelize
+approach was built, **measured** (~10px, 372→~363 at 1440×900), and reverted rather than
+landed for a token win — with the measurement table preserved in T17's context so nobody
+retries the dead ends (layer-picker relocation is height-neutral AND hides controls;
+zoom folding is height-neutral). No product code changed; verified the diff is docs-only.
+
+**T17 design decision (the call flagged for the architect): GO.** The T05 invariant is
+"the score never shifts"; reserve-all-inline was a mechanism, not the invariant. The
+fixed-height single-row bar + overlay disclosure keeps the invariant and is the only
+measured lever. Decision + constraints are now written into the spec
+(`docs/tasks/T17-editor-style-disclosure.md`): ≤~240px is the accepted target (don't
+contort for a literal 220), prefer Width inline if the row fits, the zero-shift
+guarantee must be held by an e2e spec covering disclosure open/close, and the disclosure
+is a true overlay with one-click round-trips. T17 is ready to execute.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as

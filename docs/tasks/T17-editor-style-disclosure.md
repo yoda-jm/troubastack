@@ -62,6 +62,25 @@ topbar + page padding) is out of scope and sets a hard floor: with a one-row sty
 (~28px), expect roughly **~230–260px** total — at or just above 220; treat ≤~240 as the
 practical target unless the topbar is also revisited (separate task).
 
+**Decision (2026-07-05, architect): GO — direction confirmed.** The invariant we
+actually guarantee is *"the score never shifts"*; reserve-all-inline was one mechanism
+for it, not the invariant itself. A fixed-height single-row bar + overlay disclosure
+preserves the invariant and is the only measured lever to the target. Constraints:
+
+1. **≤~240px is the accepted target** at 1440×900; state the achieved number in the
+   close-out. Do not contort the design to hit a literal 220 — the app-shell floor is a
+   separate task if we ever want it.
+2. **Inline-set preference:** target/tool indicator + color swatches + opacity as
+   proposed; **prefer keeping Width inline too if the single row fits at 1440px** — it
+   is the most-touched drawing control after color. If it doesn't fit, the disclosure
+   is acceptable.
+3. The zero-shift guarantee must be held by an **e2e spec, not a manual check** —
+   extend the T13-style footprint assertions to cover tool changes, select/deselect,
+   and disclosure open/close (the disclosure must be an overlay: `position:absolute`/
+   popover, never in-flow).
+4. The disclosure must close on outside click/Escape and must not trap drawing input —
+   opening it, adjusting, and drawing again should cost one click, not a mode switch.
+
 ## Acceptance criteria
 
 - Chrome above the score materially reduced at 1440×900 (measure `.pdf-page` top);
