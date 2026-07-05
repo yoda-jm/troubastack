@@ -181,3 +181,82 @@ cd app && ./gradlew :shared:check :androidApp:assembleDebug   # app build + KMP 
 make fixtures                               # regenerate committed TroubaStage fixtures (deterministic)
 # web typecheck: cd web && studio/node_modules/.bin/tsc -b studio  (after per-pkg npm ci --no-workspaces)
 ```
+
+## 11. IOS03 prep plan — device / TestFlight / App Store (⛔ BLOCKED runbook)
+
+`docs/tasks/IOS03-*.md` is a **decision stub, blocked** on things this loop doesn't have: a
+**Mac** (or rented mac-cloud) and **Apple credentials** (Apple ID, later a paid Developer Program).
+Nothing here is buildable/verifiable in CI the way IOS01/02 were — a signing/export pipeline can't
+even run without those. So this section is a **runbook to execute the day someone has the Mac +
+credentials**, not code to land now. Do **not** improvise a signing pipeline before then (the stub
+exists precisely to stop that), and **never commit secrets** (signing certs, provisioning profiles,
+App Store Connect keys, `Apple ID`/app-specific passwords). Rewriting the task spec itself is the
+Architect/Reviewer's lane — this is the mobile-dev execution notes.
+
+**What IOS02 already gives us (the foundation):** a working, unsigned **simulator** build proven in
+`.github/workflows/ios.yml` (framework link → `xcodebuild` → simulator → Wonderwall Stage pixels).
+IOS03 only adds **signing + a real destination**; the app itself is done.
+
+### The three tiers (pick by goal)
+
+| Goal | Needs | Cost | Notes |
+|---|---|---|---|
+| Run on **your own** iPhone/iPad | Mac + Xcode + a **free** Apple ID (personal team) | free | App re-signs every **7 days**; **3-app** limit; simplest for a quick real-device check. |
+| **TestFlight** for the band | **Apple Developer Program** + App Store Connect | **$99/yr** | 90-day builds, up to 100 internal / 10k external testers; needs an App Store Connect app record. |
+| **App Store** release | Developer Program + App Review | $99/yr | Full review; privacy nutrition labels, screenshots, etc. Probably overkill for a band tool. |
+
+**Recommendation:** for a band, **TestFlight** is the sweet spot; own-device (free team) is the
+cheapest way to first prove it on real hardware / do the Stage QA below.
+
+### Signing config — kept OUT of the repo
+
+- Device/TestFlight builds must be **signed**; unlike IOS02's simulator build (`CODE_SIGNING_ALLOWED=NO`)
+  this needs a real identity + provisioning profile. Keep all of it out of git:
+  - **Local Mac:** let Xcode "Automatically manage signing" with your Apple ID (Signing & Capabilities
+    → Team). `project.yml` can set `DEVELOPMENT_TEAM` via a **`settings` override read from an env var
+    or a gitignored `app/iosApp/Signing.local.xcconfig`** — never hardcode the team id.
+  - **CI (only with a paid program):** store the **distribution cert (.p12)**, **provisioning profile**,
+    and an **App Store Connect API key (.p8)** as GitHub **Secrets**; import with `fastlane match`
+    (private cert repo) or `apple-actions/import-codesign-certs`. The macOS job stays
+    `workflow_dispatch` (10× minutes). Add `app/iosApp/Signing.local.xcconfig` and `*.p12/*.p8/*.mobileprovision`
+    to `.gitignore` **before** anyone generates them.
+
+### Build/export mechanics
+
+- Reuse IOS02's flow but archive+export instead of a simulator build:
+  ```sh
+  cd app && ./gradlew :shared:linkReleaseFrameworkIosArm64   # device = iosArm64, Release
+  cd iosApp && xcodegen generate
+  xcodebuild -project iosApp.xcodeproj -scheme iosApp -sdk iphoneos -configuration Release \
+    -archivePath build/iosApp.xcarchive archive
+  xcodebuild -exportArchive -archivePath build/iosApp.xcarchive \
+    -exportOptionsPlist ExportOptions.plist -exportPath build/export
+  ```
+  - `ExportOptions.plist` (gitignored) sets `method` = `development` (own device) / `app-store` /
+    `release-testing` and the team id.
+  - `project.yml` needs a **device** framework-search path too (`iosArm64/releaseFramework`) — IOS02
+    only wired `iosSimulatorArm64/debugFramework`. Parameterize by SDK or add a Release/device variant.
+  - **fastlane** (`gym` + `pilot`/`deliver`) is the higher-level alternative to raw `xcodebuild` for
+    TestFlight/Store uploads — worth it once there's a paid program; overkill for own-device.
+
+### PencilKit / ink
+
+- Only relevant **if A07 is ever built** (native wet-ink overlay — currently blocked on the tablet
+  stylus spike; iosMain `InkOverlay` is all-`TODO`). On device, PencilKit + Apple Pencil is the iOS
+  path; the golden-image parity vs `web/ink` (I8) would need real-device capture. Ignore until A07.
+
+### Stage-specific device QA (the point of going to hardware)
+
+Run the same Wonderwall demo but validate the **performance ergonomics** the simulator can't:
+- **Stand-mounted iPad**, landscape + portrait, real-tablet screen size and brightness.
+- **Guided Access** (triple-click) during a performance so a stray touch can't exit Stage.
+- **Screen stays awake** mid-performance (iOS: `UIApplication.isIdleTimerDisabled` — currently NOT set;
+  add it to the iOS Stage host, mirroring Android's `FLAG_KEEP_SCREEN_ON` in `StageHost`).
+- **Apple Pencil / finger** page turns (tap/swipe), fit modes, layer + role toggles — offline (airplane).
+- Battery/thermals over a full set; large real scans (decode/memory — IOS02 used the small demo).
+
+### When unblocked
+
+Turn the above into a real task, land signing config out-of-repo, add a **manual** `ios-release.yml`
+(archive → export → optional TestFlight upload) alongside `ios.yml`, and do the device QA. Until then:
+**Android is the shipped device story; iOS lives in CI simulators (IOS02).**
