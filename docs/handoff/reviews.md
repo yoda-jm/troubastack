@@ -448,6 +448,26 @@ usual way once CI is 5/5 (was in progress at review time; docs-only, no risk).
 is a few lines in `MainViewController.kt`, Linux-verifiable via the klib cross-compile,
 and doesn't need to wait for IOS03. Spec: `docs/tasks/IOS04-stage-keep-awake.md`.
 
+## 2026-07-05 — IOS04 (`4f62042`): ✅ APPROVED — land at 5/5 · T17 attempt log acknowledged, T17 → ATTENDED
+
+**IOS04:** re-verified fresh in a temp worktree — `:shared:check` + both iOS klib
+cross-compiles green (`--rerun-tasks`, 72 tasks). The scoping is exactly per spec and
+code-review-verifiable: `KeepScreenAwake()` mounts only in the Stage branch of `App()`,
+`DisposableEffect` restores `idleTimerDisabled = false` on every exit path, iosMain-only
+diff (Android untouched), no new seams. Honest note about the simulator being unable to
+prove the runtime behavior is correct — device QA is IOS03's checklist. Land the usual
+way at 5/5.
+
+**T17 attempt log (`065531b`, docs-only — verified):** the second honest
+build-measure-revert in two days, and it *validated the decision's constraint #3 the
+hard way* — the disclosure-as-proposed broke zero-shift via the variable-width tool
+pill (the T13 failure class an e2e gate would have caught before any measurement).
+The implications section is now the real spec for the work: deterministic single-row
+toolbar (inline labels, fixed-width target pill, `nowrap`), zero-shift e2e spec built
+FIRST, ~240px target. **Steer update: T17 is attended work — hold it for an attended
+window alongside T15; do not attempt unattended.** B02 remains the core lane's
+critical-path item.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
