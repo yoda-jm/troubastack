@@ -151,6 +151,7 @@ git push origin HEAD:main 2>&1 | sed -E "s/${TOKEN}/<TOKEN>/g"   # ff push; NO l
 
 | Task | Commit | Summary |
 |---|---|---|
+| B03 (slice) | `93ef372` | **B03 server slice only** (change #1 + Go test). `GET …/concerts` + the bake POST now return the proto **`AvailableConcert`** shape: `currentRev`/`updatedAt`/per-song `rev` as **canonical JSON strings** (app parses via A02's Kotlin mirror verbatim), `final_locked` passthrough, `bakedBy`/`downloadUrl` extras. Per-song `rev` = the song's source (annotation) revision. Studio Bake card updated to the shape; `viewOf` + flow-shape Go tests. **The rest of B03 is A-track (Mobile App Agent) — NOT done here:** ktor client, Connect flow, EncryptedSharedPreferences secrets hardening, `distribution/Updates.kt` bodies, offer UI, Kotlin tests. Manifest endpoint is ready for them; routing note in `docs/tasks/B03-distribution-and-updates.md`. |
 | B02 | `869d900` + `552c516` | **Bake orchestration: setlist → downloadable `.tstage`** (2-commit split, T10-style). Backend (`869d900`): proto `BakedSong` +`display_notes`/`key`/`tempo` (overrides = metadata, not pixels) + Kotlin mirror; `internal/bake` = Go `ConcertBundle` mirror + `.tstage` writer + `Baker` shelling to **pdftoppm** (rasters) and **B01's web/bake CLI** (overlays — core draws NOTHING, I8); endpoints `POST …/setlists/{s}/bake` (admin), `GET …/concerts` + `…/{c}/bundle` (member); Go tests (fakes + real-pdftoppm w/ skip) + endpoint auth; poppler-utils in the CI go job. UI (`552c516`): admin Bake card on the Setlist page (bake · download · history) + `bake.spec.ts`. `source_revision` = song's current engine head (no per-setlist pin exists). **Verified the real pipeline by unzipping an actual bake** (2 pdftoppm rasters + a same-size web/ink overlay). **Deferred (needs emulator):** the Android import+perform loop-close screenshot. |
 | B01 | `00a7da5` | **`web/bake` overlay renderer + the I8 golden parity test.** `renderOverlays`/`troubabake` CLI draw per-layer transparent PNGs via `@troubastack/ink` (Node Skia, `@napi-rs/canvas`); esbuild bundles ink from source (no 2nd copy). Parity test = bake vs. ink-in-headless-Chromium, per-pixel within an AA tolerance (spec's literal "100% transparent" relaxed to ≥99.9% — flagged at the gate). Added `setTextFontFamily` to ink (default UNCHANGED → studio byte-identical); bake pins bundled Roboto + `textRendering=geometricPrecision`. CI step in the web job. Overlays only — PDF rasters + bundle assembly are B02. |
 | T01 | `4ebdb3e` (+`243a92e`) | Fix workspace typecheck breakage; discover `tsc -b` (solution file). Follow-up: `web/bake` typecheck-only build. |
@@ -193,11 +194,12 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
 
 ## 8. Remaining work (T/B-track)
 
-**Queue status (updated 2026-07-06):** B01 ✅, T13 ✅, B02 ✅ all landed this session.
-**Remaining:** T14/T17 (editor chrome — **paused for an attended redesign**, see below), T15
-(**held**), the B02 **Android loop-close** screenshot (needs an emulator), and **B03** (the next big
-B-track piece — distribution/in-app downloads; not yet queued as immediate). Nothing merges without a
-verdict in `reviews.md` or from the human.
+**Queue status (updated 2026-07-06):** B01 ✅, T13 ✅, B02 ✅, and the **B03 server slice** ✅ all
+landed this session. **Remaining is now attended or A-track** — the unattended web-core queue is
+clear: T14/T17 (editor chrome — **paused for an attended redesign**, see below), T15 (**held**), the
+B02 **Android loop-close** screenshot (emulator), and the **B03 app bulk** (ktor/Connect/
+EncryptedSharedPreferences/`Updates.kt`/offer-UI/Kotlin tests — **A-track**, the manifest endpoint is
+ready for it). Nothing merges without a verdict in `reviews.md` or from the human.
 
 - **T13 ✅ done** (`66fcb19`) — the CI-only RO/RW shift was the Layers-panel row pills (`drawing`/
   `viewing` moving between rows tipped a wrap under CI's font); fixed by always-mounting them with
@@ -209,6 +211,12 @@ verdict in `reviews.md` or from the human.
   (attended, visual judgment) — full findings + guidance in `docs/tasks/T17-editor-style-disclosure.md`.
 - **B02 Android loop-close** — bake→download works + verified by unzip; importing/performing the
   `.tstage` in the Android app (emulator/device + screenshot) is the one deferred acceptance item.
+- **B03 app bulk — A-track, NOT web-core.** Only the server manifest slice (`93ef372`) was web-core
+  lane; the rest lives in `app/` (I15) and belongs to the Mobile App Agent: ktor client + cookie-
+  over-Storage, `Connect` screen, the mandatory EncryptedSharedPreferences secrets hardening,
+  `distribution/Updates.kt` (fetch/diff/apply over A05's `BundleImporter`), offer-chip UI, Kotlin
+  tests. Don't take this on from the web-core lane — hand it to the A-track. See the B03 spec's
+  Status note. If a future B-track task is similarly app-heavy, scope the lane split first.
 - **T15 — split `Viewer.tsx` (part 2 of T10).** Extract `usePdfDocument` / `useDryOverlay` /
   `useSongSync` hooks to bring `web/studio/src/pages/song-editor/Viewer.tsx` (~1262 LOC) under 600.
   **HELD** by the user for an **attended window on a quiet machine** — it's the one risky unattended
