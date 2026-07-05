@@ -81,6 +81,45 @@ preserves the invariant and is the only measured lever to the target. Constraint
 4. The disclosure must close on outside click/Escape and must not trap drawing input —
    opening it, adjusting, and drawing again should cost one click, not a mode switch.
 
+## Attempt log (2026-07-05, executing agent): disclosure ALONE is insufficient
+
+Implemented the disclosure exactly as first proposed (bar = target + swatches + color +
+opacity + a "More ▾" toggle; Width + shape-style + Text-size in an `position:absolute`
+overlay). Measured at 1440×900 — it **regressed** and was reverted (no code landed):
+
+- **pageTop got WORSE** (~401 vs 372 baseline), and **zero-shift broke** — toolbar height
+  swung 163↔101px across tools. Cause: the `style-target` pill text (`Draw: freehand` vs
+  `Draw: rect`) changes width, and with the style bar no longer full-width it sits near a
+  flex-wrap boundary, so the pill width tips the inline row's wrap. **This is exactly the
+  T13 failure class** — and it validates Decision constraint #3: the zero-shift gate MUST
+  be an e2e spec (it would have caught this immediately).
+- A screenshot showed the real height drivers, which the disclosure does **not** touch:
+  1. the **layer-controls row** (Drawing-on · Active-layer · New · Delete) — a full row in
+     `.editor-toolbar`, unchanged by the style disclosure;
+  2. the style-fields use **stacked column labels** (Color/Opacity sit *above* their
+     inputs) → tall rows regardless of how many controls show;
+  3. the ~160px **app-shell floor** (out of scope).
+
+**Implications for the attended build (do NOT just re-add the disclosure):**
+
+- The disclosure is a decluttering win but is **not** the lever to ≤~240 on its own. The
+  toolbar needs a **deterministic single-row redesign**: inline the style-field labels
+  (label beside input, not above), give the `style-target` a **fixed width** (or drop the
+  pill / make it non-wrapping) so it can't tip the wrap, and set the inline bar
+  `flex-wrap: nowrap` so tool changes can't reflow it.
+- Reconcile with the **layer-controls row**: it stays in the toolbar (T14 showed moving it
+  to the collapsible sidebar is height-neutral AND hides Delete/active-layer when
+  collapsed). Decide whether it shares the single row or is intentionally a second fixed
+  row — either way its height must be tool/selection-independent.
+- Honor Decision #2 (keep **Width inline** if the row fits) and #4 (close on outside
+  click/Escape). Build the zero-shift e2e spec (Decision #3) FIRST and let it gate every
+  step — extend the T13 footprint assertions with tool changes, select/deselect, and
+  disclosure open/close, at 1440px and ≤760px.
+- Realistic target remains **~240px** (app-shell floor); state the achieved number.
+
+This is attended-design work (visual judgment + iterative measurement); it was paused here
+rather than shipping a zero-shift regression unattended.
+
 ## Acceptance criteria
 
 - Chrome above the score materially reduced at 1440×900 (measure `.pdf-page` top);
