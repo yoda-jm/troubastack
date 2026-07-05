@@ -7,6 +7,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ApiError,
   api,
+  type Concert,
   type Role,
   type Setlist,
   type SetlistItem,
@@ -70,6 +71,7 @@ export function SetlistDetail() {
         songs={songs}
         reload={load}
       />
+      {myRole === "admin" && <BakeCard bandId={bandId} setlistId={setlistId} />}
       {myRole === "admin" && (
         <DeleteSetlist
           bandId={bandId}
@@ -78,6 +80,86 @@ export function SetlistDetail() {
         />
       )}
     </div>
+  );
+}
+
+// BakeCard (B02): admin bakes this setlist into a downloadable .tstage (I11), with
+// a download link for the latest bake and a short history. One card, no new route.
+function BakeCard({ bandId, setlistId }: { bandId: string; setlistId: string }) {
+  const [concerts, setConcerts] = useState<Concert[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const all = await api.listConcerts(bandId);
+      setConcerts(
+        all
+          .filter((c) => c.concertId === setlistId)
+          .sort((a, b) => b.concertRev - a.concertRev),
+      );
+    } catch {
+      // A missing/empty concert list is not an error worth surfacing here.
+    }
+  }, [bandId, setlistId]);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  async function bake() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.bakeSetlist(bandId, setlistId);
+      await loadHistory();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Bake failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const latest = concerts[0] ?? null;
+
+  return (
+    <section className="card" data-testid="bake-card">
+      <h2>Bake</h2>
+      <p className="muted">
+        Flatten this setlist into a performable <code>.tstage</code> bundle (page images +
+        annotation overlays) to download and load on a phone.
+      </p>
+      <div className="inline-form">
+        <button type="button" data-testid="bake-setlist" disabled={busy} onClick={bake}>
+          {busy ? "Baking…" : "Bake setlist"}
+        </button>
+        {latest && (
+          <a
+            data-testid="bake-download"
+            href={latest.downloadUrl}
+            download={`${latest.name || "concert"}.tstage`}
+          >
+            Download .tstage (rev {latest.concertRev})
+          </a>
+        )}
+      </div>
+      <ErrorBanner message={error} />
+      {concerts.length > 0 && (
+        <ul className="list" data-testid="bake-history">
+          {concerts.map((c) => (
+            <li key={c.concertRev} data-testid="bake-history-row">
+              <span>
+                Rev {c.concertRev} · {c.songs} song{c.songs === 1 ? "" : "s"}
+                {c.bakedBy ? ` · by ${c.bakedBy}` : ""}
+              </span>
+              <span className="muted">
+                {c.bakedAt ? new Date(c.bakedAt * 1000).toLocaleString() : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

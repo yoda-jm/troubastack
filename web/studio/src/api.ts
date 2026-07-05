@@ -128,6 +128,18 @@ export type SetlistItemPatch = {
   notes?: string;
 };
 
+/** A baked concert (one per setlist, rev-bumped per bake). `downloadUrl` streams
+ *  the .tstage; `bakedAt` is unix seconds. Mirrors httpapi's concertView (B02). */
+export type Concert = {
+  concertId: string;
+  name: string;
+  concertRev: number;
+  bakedAt: number;
+  bakedBy: string;
+  songs: number;
+  downloadUrl: string;
+};
+
 // ---- annotations (view-only) ----
 
 export type AnnotationZone = "conductor" | "shared" | "personal";
@@ -446,6 +458,16 @@ export const api = {
       `/api/bands/${bandId}/setlists/${setlistId}/reorder`,
       { orderedItemIds },
     ).then((r) => r.items),
+
+  // ---- bake / concerts (B02) ----
+  // A setlist bakes to a "concert" (concertId === setlistId); each bake bumps
+  // concertRev. Bake is admin-only; listing/download are member-scoped to the band.
+  bakeSetlist: (bandId: string, setlistId: string) =>
+    request<Concert>("POST", `/api/bands/${bandId}/setlists/${setlistId}/bake`),
+  listConcerts: (bandId: string) =>
+    request<{ concerts: Concert[] }>("GET", `/api/bands/${bandId}/concerts`).then(
+      (r) => r.concerts,
+    ),
 
   // ---- invites ----
   listInvites: () => request<{ invites: Invite[] }>("GET", "/api/invites").then((r) => r.invites),
