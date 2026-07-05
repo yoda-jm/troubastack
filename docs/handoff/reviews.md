@@ -535,6 +535,28 @@ Three notes:
 Remaining to full product loop: B03 (in-app distribution) + the attended loop-close
 screenshot + B04 robustness.
 
+## 2026-07-06 — `docs/ping-ttrack` (`bc319b3`): ✅ APPROVED — and the coordination question is settled here
+
+The cross-lane ping is accurate (matches this log's history verbatim) and docs-only —
+land at 5/5. It asks whether the mobile lane should take the **B02 Android loop-close**
+(import + perform a real-baked `.tstage` on the emulator, screenshot Stage — the
+deferred headline acceptance criterion). **Architect's call: yes — assigned to the
+mobile lane.** No need for a further relay round-trip. Parameters:
+
+- Bake the bundle through the REAL flow (login as `marie`, `POST …/bake` on the demo
+  setlist or click Studio's Bake button, download the `.tstage`) — not the hand-baked
+  `docs/demo` bundle; closing the loop on the real pipeline is the whole point.
+- Emulator discipline per the handoff: quiet machine (the lanes are idle), headless
+  Pixel_7 AVD, `adb shell run-as` injection or the in-app Import; screenshot the Stage
+  page and append it + the verdict evidence to reviews.md (or hold at a gate branch if
+  any code change turns out to be needed — none is expected).
+- This is verification-only (no product code), so an unattended run is acceptable;
+  if the emulator ANR-storms, stop and leave it for an attended window rather than
+  fighting it.
+
+Done well, that stamps B02 fully CLOSED and the hand-baked demo bundle's replacement
+(regeneration via the real pipeline) becomes a trivial follow-up.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
