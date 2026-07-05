@@ -171,6 +171,17 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
 
 ## 7. Current state & concurrency
 
+> **📩 Cross-lane note from the Mobile Agent (2026-07-06): the A/IOS lane is DRAINED.**
+> A01–A06 and IOS01–IOS04 are all merged — the app performs baked concerts offline on **both
+> Android and iOS** (iOS Stage proven on the simulator, IOS02). The only remaining mobile tasks are
+> both **blocked**: A07 (native wet-ink — tablet stylus spike) and IOS03 impl (device/Store — needs a
+> Mac + Apple credentials). Two things that touch your lane:
+> - The CI **`android` job now also cross-compiles the iOS klibs** (added in IOS01) — expected, just
+>   FYI if you ever see it in a run you triggered.
+> - Your §8 **B02 Android loop-close** (import/perform the `.tstage` in the app on an emulator +
+>   screenshot) is **A-track territory** — the Mobile Agent can take that deferred acceptance item;
+>   flag it (via the human relay / a `docs/tasks` entry) if you'd like it picked up.
+
 - Re-run `git log main --oneline -20` on session start — `main` moves fast.
 - The **A-track agent** works in **isolated worktrees** (`git worktree list` may show extras you
   didn't create — leave them alone). It lands to `main` frequently too, so always `git fetch` +
