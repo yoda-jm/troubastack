@@ -1,6 +1,6 @@
 # Handoff — Architect / Reviewer
 
-*Last updated: 2026-07-04. If you are a fresh session picking up this role: read this
+*Last updated: 2026-07-06. If you are a fresh session picking up this role: read this
 file top to bottom, then `docs/tasks/README.md`, then act. You do not implement tasks —
 you specify, review, steer, and keep the docs truthful.*
 
@@ -61,30 +61,34 @@ the task file too) → present at review gate → this role verifies → land li
   the *Score* file of Wonderwall; the Vocals part is clean (the demo bundle came from
   there). `rm -rf core/troubadata && make demo` reseeds.
 
-## State as of this writing
+## State as of this writing (2026-07-06)
 
-**Landed on `main`** (linear, all CI-green): T01–T12 + T10-part-1, A01–A06 (+ NRGBA
-fixture fix), CI with 5 hard-gating jobs + APK artifact + Node-24 action pins, README
-quick-start/screenshots, real-music demo bundle (`docs/demo/`, hand-baked — see its
-README), the full task pack including the B/IOS/P2 tracks.
+**Landed on `main`** (linear, all CI-green): T01–T13 + T16, A01–A06, **B01 + B02 (+
+B03's server slice)**, **IOS01–IOS04** (+ the IOS03 prep runbook), the LRU portability
+fix, CI with 5 hard-gating jobs (+ iOS klib cross-compile in the android job, + the
+manual `ios.yml` simulator proof — Wonderwall pixels verified). T14 closed honestly
+without landing (~10px, superseded by T17). Full verdict history:
+`docs/handoff/reviews.md` — ~15 reviews on 2026-07-04/05/06 alone, every landing
+independently re-verified (including a live seed→bake→download→Kotlin-loader run for
+B02 and artifact-pixel checks for IOS02).
 
-**The product today:** collaborative realtime annotation editor (web, fast wet ink,
-pluggable annotation types), Go core with tested sync invariants, Android app that
-performs `.tstage` bundles offline (resilient/read-only/login-free), imports them
-atomically, and hosts the live editor in a WebView.
+**The product today:** collaborative realtime annotation editor (web), Go core with
+tested sync invariants and a **real bake pipeline** (Studio "Bake" button →
+downloadable `.tstage`, admin-gated), and an app that imports + performs those bundles
+offline on **Android and iOS** (simulator-proven; screen stays awake on stage). The
+compose → bake → download → perform loop is closed; in-app distribution (B03) is the
+last product gap.
 
-**Open queue:** T13 (CI e2e quarantine), T14 (chrome ≤220px), T15 (Viewer hook split —
-**attended, quiet machine**), T16 (seed em-dash) · B01→B02→B03, OPS01 · IOS01→IOS02 ·
-P201–P203 (P203 starts with a cheap decision stage). Priorities: **B-track is the
-critical path** (closes compose→bake→distribute→perform); T15 next time the machine is
-calm; T16/T13/T14 fillers.
+**Open queue** (see `docs/tasks/README.md` "Queue state" for the always-current list):
+**B03 app half** is the critical path · B04 (bake atomicity) · B05 (regen demo bundle)
+· T18 (mirror dedup) · OPS01 · P201–P203. **Attended-only:** T15, T17 (read its attempt
+log first), and the B02 Android loop-close screenshot (assigned to the mobile lane).
 
 **Blocked on Vincent, not on agents:**
 1. **The tablet stylus spike** — decides A07 (native ink) build-or-close. Everything
    needed is on `main`; the web wet path measured ~3 ms event→paint on desktop.
-2. **Rotate the credential embedded in the git remote URL** (flagged at session start;
-   use `gh auth` or a credential helper instead). Related: IOS03 needs a Mac + Apple ID
-   decision eventually.
+2. **Rotate the credential embedded in the git remote URL** (long-flagged; use a
+   credential helper). Related: IOS03 impl needs a Mac + Apple ID decision.
 
 ## Style expectations for new specs (keep the bar)
 

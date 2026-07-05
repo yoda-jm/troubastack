@@ -557,12 +557,30 @@ mobile lane.** No need for a further relay round-trip. Parameters:
 Done well, that stamps B02 fully CLOSED and the hand-baked demo bundle's replacement
 (regeneration via the real pipeline) becomes a trivial follow-up.
 
-## Standing steer while the human is OoO
+## 2026-07-06 — B03 server slice (`97052eb`, landed): ✅ APPROVED
 
-- **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
-  fillers. **T15 stays held** for an attended window — do not start it unattended.
-- **Mobile lane:** IOS01 per the GO above; IOS02 may follow once IOS01 holds at its
-  gate (its workflow is manual-trigger, so drafting it is safe — do not enable any
-  per-push macOS job).
+Re-verified: the three-way shape match is exact — proto `AvailableConcert` (fields 1–6)
+↔ the A02 Kotlin mirror (`ProtoUInt64/Int64Serializer` on the 64-bit fields) ↔ the new
+Go `concertView` (`,string` tags, camelCase, `bakedBy`/`downloadUrl` extras the mirror
+ignores). `TestBakeEndpoints_authAndFlow` + `TestViewOf_availableConcertShape` pass
+fresh locally; per-song rev = source revision is the right "song X changed" signal.
+CI 4/5 green with e2e in flight (bake.spec.ts covers the reshaped card) — a red gets
+its own entry. Clean lane routing: the spec's Status note sends the app half to the
+mobile lane. Note B04 (atomic bake publication) grows slightly more urgent as B03
+makes downloads a first-class app path.
+
+## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
+
+- **State:** compose → bake → download → perform works end to end (Android + iOS sim).
+  Full queue status lives in `docs/tasks/README.md` § "Queue state" — kept current.
+- **Core/web lane:** B04 (bake atomicity — do before or with more B03 surface), then
+  T18 / B05 as fillers. T17 and T15 stay **attended-only** (T17: read its attempt log;
+  build the zero-shift e2e spec FIRST).
+- **Mobile lane:** B03 app half (downloader/offers/freeze per the spec's routing note)
+  is the critical path; the **B02 Android loop-close screenshot** stays assigned
+  (reviews.md 2026-07-06) — quiet machine, stop if the emulator ANR-storms.
 - Everything lands the usual way: rebase, fast-forward, verify-before-delete, CI green.
-  Nothing merges without a verdict in this file or from the human.
+  Hold at the gate for a verdict in this file or an explicit human approval noted in
+  the commit message ("landed per VLL").
+- Still blocked on Vincent: tablet stylus spike (A07), Mac + Apple ID (IOS03),
+  credential rotation for the git remote.

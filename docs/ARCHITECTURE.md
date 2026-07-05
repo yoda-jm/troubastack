@@ -96,7 +96,7 @@ and freehand-only**, is replaced by the authoritative dry render on commit, and 
 **Why.** Sharing *geometry* alone never guarantees identical *pixels* (anti-aliasing, text, sub-pixel
 differ per canvas backend). So we don't rely on it where it must match (editor vs bake → *same*
 renderer), and we don't require it where a sub-second pop at pen-up is harmless (wet → dry).
-**Enforced.** ✅ for the web bake / 🎯 for native — studio uses the one `@troubastack/ink` renderer, and `web/bake` now renders baked **overlays** through that same renderer, guarded by the **golden pixel-parity test** promised since the audit (`web/bake/test/parity.test.mjs`, in CI: bake vs. the studio dry path in headless Chromium, within a small AA tolerance — B01). Still 🎯: the **native** wet-overlay parity test (A07, blocked), and full-page bake (PDF rasters + bundle assembly = B02; bake composes overlays only). See [design/03](design/03-rendering-and-ink.md).
+**Enforced.** ✅ for the web bake / 🎯 for native — studio uses the one `@troubastack/ink` renderer; `web/bake` renders baked **overlays** through that same renderer, guarded by the **golden pixel-parity test** (`web/bake/test/parity.test.mjs`, in CI: bake vs. the studio dry path in headless Chromium, within a small AA tolerance — B01). The **full bake is real** (B02): core shells out to poppler for page rasters and to the B01 worker for overlays — Go draws nothing (grep-verified at review). Still 🎯: the **native** wet-overlay parity test (A07, blocked on the stylus spike). See [design/03](design/03-rendering-and-ink.md).
 
 ### I9 — Native renders only the wet (in-progress freehand) layer
 **Rule.** The native overlay renders **only the in-progress freehand stroke**. Everything
@@ -124,14 +124,26 @@ explicit manual bake** (by an admin *or* a band member). **Autobake** is a speci
 prominent red/orange banner** so editors know their edits are auto-publishing.
 **Why.** Performers get stable, deliberately-cut releases by default; autobake is a rehearsal
 convenience, never a silent default.
-**Enforced.** 🎯 target — the bake pipeline is a stub; the manual/autobake policy + banner are not yet implemented.
+**Enforced.** ✅ manual bake / 🎯 autobake — the pipeline is real (B01+B02): an explicit
+`POST …/bake` (Studio "Bake" button) flattens a setlist into a downloadable `.tstage`,
+covered by Go orchestration/endpoint tests + the bake e2e spec, and live-verified end to
+end at review (real poppler + real web/bake worker → the Kotlin loader accepts the
+output). v1 gates manual bake to **admins** (deliberately stricter than the rule's
+"admin *or* member" allowance — widen later if the product wants it). Still 🎯: autobake
+as an opt-in rehearsal mode + the red/orange live banner (P201).
 
 ### I12 — The presenter is offline, dumb, and self-contained
 **Rule.** A baked concert is **flattened images** (per page: PDF raster + transparent annotation
 overlay). The presenter is a pure image compositor + pager; at performance time it depends on
 **nothing** server-side and contains **no** annotation-model or access-control logic.
 **Why.** Stage reliability. The smartness happened at bake time, on the server.
-**Enforced.** 🎯 target — the TroubaStage presenter is a fixture-driven app scaffold (A04) and the bake is a stub; structure/review only, no automated check yet.
+**Enforced.** ✅ largely — the TroubaStage presenter is real and *proven* offline/dumb:
+it performs locally-imported `.tstage` bundles with no session or server dependency on
+**both Android (A04/A05, tested) and iOS (IOS02: simulator-proven with real Stage
+pixels; IOS04 keeps the screen awake)**; the loader's never-crash contract is tested
+(A02 + torture fixtures), and the bake producing the bundles is real (B02). Residual 🎯:
+no *automated* check forbids a server dependency creeping into the presenter — held by
+structure/review.
 
 ### I13 — Updates are explicit by default; auto-update is transient and never mid-show
 **Rule.** New versions are surfaced as offers and **applied only by user action by default**, never
@@ -140,7 +152,9 @@ mid-performance. A presenter may opt into **automatic update** (rehearsal), but 
 always the real default. Freeze/lock honored at setlist, bake, and device tiers.
 **Why.** Nothing shifts under a performer's eyes during a show; a forgotten auto-update toggle can't
 carry into a live performance.
-**Enforced.** 🎯 target — app-side scaffold; the update-offer / freeze-lock tiers are not yet implemented.
+**Enforced.** 🎯 target — in progress: the server now exposes the concerts manifest in
+the `AvailableConcert` shape the app parses (B03 server slice); the app-side
+downloader / update-offer / freeze-lock tiers are B03's remaining half.
 
 ---
 
@@ -158,7 +172,11 @@ No client imports another client; `core` contains no UI; `proto` imports nothing
 `expect/actual`. Everything else (presenter rendering, downloader, sync client, navigation,
 revision logic) is shared. iOS = fill in the three `actual`s.
 **Why.** "Keep native to the strict minimum." Anything beyond these three seams is a smell.
-**Enforced.** 🎯 target — true by layout/convention; no lint enforces the three-seam limit.
+**Enforced.** 🎯 target — true by layout/convention and *exercised on both platforms*:
+Android and iOS each fill the seams as `actual`s (iOS: Storage + WebViewHost real,
+InkOverlay `TODO` pending A07; the iOS entrypoint `MainViewController.kt` and the thin
+`iosApp` Xcode shell are entrypoint glue, the analog of `androidApp`). No lint enforces
+the three-seam limit — that residual check is the 🎯.
 
 ---
 
