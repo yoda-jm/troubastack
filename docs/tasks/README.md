@@ -143,6 +143,7 @@ repos); IOS03 is a decision stub (devices/App Store need a Mac + Apple ID).
 | IOS01 | [Enable iOS targets + Storage/WebView actuals](IOS01-ios-targets-and-actuals.md) | app | M/L |
 | IOS02 | [iosApp + simulator proof in CI](IOS02-simulator-ci.md) | app + CI | M/L |
 | IOS03 | [Devices / App Store — **BLOCKED** decision stub](IOS03-ios-device-and-store.md) | — | — |
+| IOS04 | [Stage host: keep the screen awake while performing](IOS04-stage-keep-awake.md) | app | XS |
 
 ## Phase 2 — opt-in modes & debt retirement
 

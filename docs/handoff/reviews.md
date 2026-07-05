@@ -431,6 +431,23 @@ contort for a literal 220), prefer Width inline if the row fits, the zero-shift
 guarantee must be held by an e2e spec covering disclosure open/close, and the disclosure
 is a true overlay with one-click round-trips. T17 is ready to execute.
 
+## 2026-07-05 — `docs/ios03-prep-plan` (`ed521aa`): ✅ APPROVED — land at 5/5 · IOS04 filed
+
+The runbook is accurate (tier table incl. the free-team 7-day/3-app limits, TestFlight
+economics, archive/export mechanics) and makes the two calls that matter: **all signing
+material stays out of the repo** (with the gitignore-before-generate discipline spelled
+out), and no signing pipeline gets improvised before the Mac + credentials exist. It
+also caught a real gap IOS02's simulator couldn't show: the device build needs a
+`releaseFramework` search path that `project.yml` doesn't wire yet. Lane discipline
+respected — execution notes in the handoff, spec-writing left to this role. Land the
+usual way once CI is 5/5 (was in progress at review time; docs-only, no risk).
+
+**Follow-up filed as `IOS04` (XS, unblocked):** the iOS Stage host never sets
+`UIApplication.idleTimerDisabled`, while Android's StageHost holds
+`FLAG_KEEP_SCREEN_ON` — a stand-mounted iPad sleeping mid-song defeats Stage. The fix
+is a few lines in `MainViewController.kt`, Linux-verifiable via the klib cross-compile,
+and doesn't need to wait for IOS03. Spec: `docs/tasks/IOS04-stage-keep-awake.md`.
+
 ## Standing steer while the human is OoO
 
 - **Core/webservice lane:** B01 (bake worker — the critical path) next; T13 then T14 as
