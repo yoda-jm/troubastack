@@ -96,7 +96,7 @@ function BakeCard({ bandId, setlistId }: { bandId: string; setlistId: string }) 
       setConcerts(
         all
           .filter((c) => c.concertId === setlistId)
-          .sort((a, b) => b.concertRev - a.concertRev),
+          .sort((a, b) => Number(b.currentRev) - Number(a.currentRev)),
       );
     } catch {
       // A missing/empty concert list is not an error worth surfacing here.
@@ -139,7 +139,7 @@ function BakeCard({ bandId, setlistId }: { bandId: string; setlistId: string }) 
             href={latest.downloadUrl}
             download={`${latest.name || "concert"}.tstage`}
           >
-            Download .tstage (rev {latest.concertRev})
+            Download .tstage (rev {latest.currentRev})
           </a>
         )}
       </div>
@@ -147,13 +147,13 @@ function BakeCard({ bandId, setlistId }: { bandId: string; setlistId: string }) 
       {concerts.length > 0 && (
         <ul className="list" data-testid="bake-history">
           {concerts.map((c) => (
-            <li key={c.concertRev} data-testid="bake-history-row">
+            <li key={c.currentRev} data-testid="bake-history-row">
               <span>
-                Rev {c.concertRev} · {c.songs} song{c.songs === 1 ? "" : "s"}
+                Rev {c.currentRev} · {c.songs.length} song{c.songs.length === 1 ? "" : "s"}
                 {c.bakedBy ? ` · by ${c.bakedBy}` : ""}
               </span>
               <span className="muted">
-                {c.bakedAt ? new Date(c.bakedAt * 1000).toLocaleString() : ""}
+                {c.updatedAt ? new Date(Number(c.updatedAt) * 1000).toLocaleString() : ""}
               </span>
             </li>
           ))}

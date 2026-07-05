@@ -53,34 +53,40 @@ func TestBakeEndpoints_authAndFlow(t *testing.T) {
 	resp, _ := member.do(http.MethodPost, bakeURL, nil)
 	mustStatus(t, resp, http.StatusForbidden)
 
-	// Admin bakes → rev 1.
+	// Admin bakes → rev 1. currentRev is canonical (uint64 as a JSON STRING) so the
+	// app deserializes it with A02's AvailableConcert mirror (B03).
 	resp, cbody := admin.do(http.MethodPost, bakeURL, nil)
 	mustStatus(t, resp, http.StatusOK)
-	var rev int
-	unmarshalField(t, cbody, "concertRev", &rev)
-	if rev != 1 {
-		t.Fatalf("first bake concertRev = %d, want 1", rev)
+	var rev string
+	unmarshalField(t, cbody, "currentRev", &rev)
+	if rev != "1" {
+		t.Fatalf("first bake currentRev = %q, want \"1\"", rev)
 	}
 
 	// Re-bake bumps the rev.
 	resp, cbody = admin.do(http.MethodPost, bakeURL, nil)
 	mustStatus(t, resp, http.StatusOK)
-	unmarshalField(t, cbody, "concertRev", &rev)
-	if rev != 2 {
-		t.Fatalf("re-bake concertRev = %d, want 2", rev)
+	unmarshalField(t, cbody, "currentRev", &rev)
+	if rev != "2" {
+		t.Fatalf("re-bake currentRev = %q, want \"2\"", rev)
 	}
 
-	// Member lists concerts (member-only) and sees this one.
+	// Member lists concerts (member-only) and sees this one, in the AvailableConcert
+	// manifest shape: currentRev string, a songs array, downloadUrl.
 	resp, lbody := member.do(http.MethodGet, "/api/bands/"+band.ID+"/concerts", nil)
 	mustStatus(t, resp, http.StatusOK)
 	var concerts []struct {
-		ConcertID   string `json:"concertId"`
-		ConcertRev  int    `json:"concertRev"`
-		DownloadURL string `json:"downloadUrl"`
+		ConcertID   string        `json:"concertId"`
+		CurrentRev  string        `json:"currentRev"`
+		Songs       []interface{} `json:"songs"`
+		DownloadURL string        `json:"downloadUrl"`
 	}
 	unmarshalField(t, lbody, "concerts", &concerts)
-	if len(concerts) != 1 || concerts[0].ConcertID != sl.ID || concerts[0].ConcertRev != 2 {
-		t.Fatalf("concerts list = %+v, want one concert (rev 2) for setlist %s", concerts, sl.ID)
+	if len(concerts) != 1 || concerts[0].ConcertID != sl.ID || concerts[0].CurrentRev != "2" {
+		t.Fatalf("concerts list = %+v, want one concert (rev \"2\") for setlist %s", concerts, sl.ID)
+	}
+	if concerts[0].Songs == nil || concerts[0].DownloadURL == "" {
+		t.Fatalf("manifest concert missing songs array / downloadUrl: %+v", concerts[0])
 	}
 
 	// Member downloads the .tstage.

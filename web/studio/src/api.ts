@@ -128,15 +128,16 @@ export type SetlistItemPatch = {
   notes?: string;
 };
 
-/** A baked concert (one per setlist, rev-bumped per bake). `downloadUrl` streams
- *  the .tstage; `bakedAt` is unix seconds. Mirrors httpapi's concertView (B02). */
+/** A baked concert (the proto AvailableConcert shape, B03) — 64-bit ints arrive as
+ *  JSON strings (canonical). `downloadUrl`/`bakedBy` are server extras. */
 export type Concert = {
   concertId: string;
   name: string;
-  concertRev: number;
-  bakedAt: number;
-  bakedBy: string;
-  songs: number;
+  currentRev: string; // uint64 as string
+  updatedAt: string; // int64 epoch seconds as string
+  finalLocked?: boolean;
+  songs: { songId: string; rev: string }[];
+  bakedBy?: string;
   downloadUrl: string;
 };
 

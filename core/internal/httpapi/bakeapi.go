@@ -31,27 +31,41 @@ func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.Hand
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/bundle", authed(a.downloadBundle))
 }
 
-// concertView is the client-facing projection of a baked concert (no page/overlay
-// detail — that's inside the .tstage). REST uses plain JSON numbers (unlike the
-// container's canonical string-encoded 64-bit ints).
+// concertView is the client-facing projection of a baked concert. It is the proto
+// AvailableConcert shape (docs/design/08 canonical JSON — 64-bit ints as STRINGS,
+// so the app deserializes it with A02's AvailableConcert Kotlin mirror verbatim,
+// B03), plus two extras the mirror ignores as unknown fields: `bakedBy` and the
+// `downloadUrl` for the .tstage. Per-song `rev` is the song's source (annotation)
+// revision — the "did song X change" signal for future granular updates (B03).
+type songRevView struct {
+	SongID string `json:"songId"`
+	Rev    uint64 `json:"rev,string"`
+}
+
 type concertView struct {
-	ConcertID   string `json:"concertId"`
-	Name        string `json:"name"`
-	ConcertRev  uint64 `json:"concertRev"`
-	BakedAt     int64  `json:"bakedAt"`
-	BakedBy     string `json:"bakedBy"`
-	Songs       int    `json:"songs"`
-	DownloadURL string `json:"downloadUrl"`
+	ConcertID   string        `json:"concertId"`
+	Name        string        `json:"name"`
+	CurrentRev  uint64        `json:"currentRev,string"`
+	UpdatedAt   int64         `json:"updatedAt,string"`
+	FinalLocked bool          `json:"finalLocked,omitempty"`
+	Songs       []songRevView `json:"songs"`
+	BakedBy     string        `json:"bakedBy,omitempty"` // extra (studio history)
+	DownloadURL string        `json:"downloadUrl"`       // extra (studio + app download)
 }
 
 func viewOf(bandID string, cb bake.ConcertBundle) concertView {
+	songs := make([]songRevView, 0, len(cb.Songs))
+	for _, s := range cb.Songs {
+		songs = append(songs, songRevView{SongID: s.SongID, Rev: s.SourceRevision})
+	}
 	return concertView{
 		ConcertID:   cb.ConcertID,
 		Name:        cb.Name,
-		ConcertRev:  cb.ConcertRev,
-		BakedAt:     cb.BakedAt,
+		CurrentRev:  cb.ConcertRev,
+		UpdatedAt:   cb.BakedAt,
+		FinalLocked: cb.FinalLocked,
+		Songs:       songs,
 		BakedBy:     cb.BakedBy,
-		Songs:       len(cb.Songs),
 		DownloadURL: "/api/bands/" + bandID + "/concerts/" + cb.ConcertID + "/bundle",
 	}
 }

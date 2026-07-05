@@ -22,6 +22,23 @@ Presenter sanctity (I12): everything here lives in `distribution/` + the concert
 UI. The `stage/` package keeps its no-network gate — offers appear in the list, never
 mid-performance.
 
+## Status (2026-07-06) — server slice done; app bulk is A-track
+
+The **web-core lane did change #1 + its Go test** (the only non-`app/` part): `GET
+/api/bands/{b}/concerts` now returns the full **AvailableConcert** manifest shape —
+`currentRev`/`updatedAt`/per-song `rev` as canonical JSON strings (so the app
+deserializes it with A02's `AvailableConcert` Kotlin mirror verbatim),
+`finalLocked` passthrough, plus `bakedBy`/`downloadUrl` extras the mirror ignores.
+Studio's Bake card consumes the new shape; Go tests cover the shape + per-song
+mapping (`viewOf`). **The manifest endpoint is ready for the app to consume.**
+
+**Everything else is A-track (Mobile App Agent), untouched here:** ktor-client +
+cookie-over-Storage, the `Connect` screen, the **EncryptedSharedPreferences secrets
+hardening** (mandatory before storing a session token), `distribution/Updates.kt`
+bodies (fetch/diff/apply over A05's `BundleImporter`), the offer-chip UI, and the
+Kotlin `diff`/apply-failure tests. Those stay under I15 (platform code only in the
+seam actuals) and belong to whoever owns `app/`.
+
 ## Changes
 
 1. **Server** — B02 already added list/download endpoints; extend the list response to
