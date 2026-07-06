@@ -309,3 +309,43 @@ Reviewer's riders (fold into implementation):
 
 Withheld for their own proposals (NOT here): B03 expired-session 401 handling (parked B03 note #2);
 hoisting the shared App()/nav into commonMain (a design decision).
+
+## 13. Shared App()/nav hoist — DECISION: (c) DEFER (reviews.md 2026-07-06)
+
+**Decided: defer.** Building the shared `App()` with optional slots before a second real consumer
+exists is speculative generality. **Concrete trigger:** this becomes its own spec'd task the moment
+an **iOS `ManifestTransport`** lands — plan the transport + the hoist together (the transport is what
+validates the slots). Option (b) is explicitly NOT banked now (half a shared nav still encodes
+today's Android shape). Until then the duplication is stable; new A-track work (A08/A09/A10…) lands
+in the already-shared `StageScreen`, not the nav. The original proposal + options are kept below.
+
+**Problem.** The Concerts↔Stage navigation + concert listing is duplicated:
+`androidApp/MainActivity.kt` (`App`/`ConcertsScreen`/`listConcerts` + B03 offer chips, per-concert
+overflow, Connect, Edit, Import) and `shared/iosMain/MainViewController.kt` (a trimmed `App`/
+`ConcertsScreen`/`listConcerts` — Stage-only; no offers/Connect/Edit/Import). Only `StageScreen` is
+truly shared today. So B03's distribution UI lives on Android only; iOS would re-implement it.
+
+**Sketch.** A commonMain `@Composable fun App(deps)` owning the nav + offer/overflow rendering,
+with platform bits injected (keeps I15 — no new seam):
+- `ImageDecoder` factory (Android BitmapFactory / iOS Skia) — already an interface.
+- bundle listing: inject `listInstalled: () -> List<ConcertEntry>` (Android `File.listFiles` / iOS
+  `NSFileManager`) — a DI lambda, NOT a new Storage-seam method.
+- optional `UpdatesManager` (null ⇒ offline-only, no offers) — iOS passes null until it has a ktor
+  transport (IOS-track); Android passes the real one.
+- optional platform slots: `stageWrapper` (Android StageHost keep-awake+immersive / iOS
+  KeepScreenAwake), and `onEdit`/`onImport`/`onConnect` (Android-only today; absent on iOS).
+
+**Trade-offs.** Pro: DRY; iOS gets offers/overflow for free once it has a transport; one tested nav.
+Con: the two entrypoints genuinely diverge (Android feature-rich; iOS Stage-only), so the shared
+`App()` needs several optional slots — risk of a leaky abstraction built before a second real
+consumer exists. Touches both entrypoints → re-verify Android on emulator + iOS klib. Medium/large.
+
+**Options (requesting a pick):**
+- **(a) Full hoist now** — shared `App()` with all the injected slots above.
+- **(b) Partial** — hoist only `listConcerts` + Concerts↔Stage nav + offer-chip *rendering*; leave
+  Edit/Import/Connect as platform screens. Incremental, smaller blast radius.
+- **(c) Defer** — hoist when IOS actually needs the distribution UI (i.e., an iOS-transport task
+  lands), so the abstraction is validated by a concrete second consumer instead of built speculatively.
+
+**Mobile Agent's lean: (c)**, or **(b)** if you want to bank the DRY now — a full (a) before iOS has
+a transport risks speculative generality. Your call.
