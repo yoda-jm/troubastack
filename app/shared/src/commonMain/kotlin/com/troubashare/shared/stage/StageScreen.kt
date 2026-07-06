@@ -5,6 +5,8 @@
 package com.troubashare.shared.stage
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +20,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -56,6 +60,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -181,16 +186,30 @@ private fun Performing(
                     }
                 }
             }
-            val strip = if (page.pageInSong == 0) metaStripText(page.displayNotes, page.key, page.tempo) else null
-            if (strip != null) {
-                Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)) {
-                    Text(
-                        strip,
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+            if (page.pageInSong == 0) {
+                val prefix = metaStripText(page.displayNotes, page.key, 0) // notes · key; tempo is the chip (A11)
+                val hasTempo = page.tempo > 0
+                if (prefix != null || hasTempo) {
+                    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (prefix != null) {
+                                Text(
+                                    prefix,
+                                    Modifier.weight(1f),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+                            if (hasTempo) TempoChip(page.tempo, resetKey = state.current)
+                        }
+                    }
                 }
             }
         }
@@ -284,6 +303,40 @@ private fun PageView(
                 }
             }
         }
+    }
+}
+
+/**
+ * The A08 tempo, as a tappable chip that runs a silent visual count-in (A11): [COUNT_IN_BEATS] beats
+ * at the song's tempo, a corner-of-the-eye pulse dot (downbeats emphasized), self-stopping. [resetKey]
+ * (the current page) cancels an in-progress count on a page turn. Read-only, no audio, no full-screen
+ * flash (stage lighting). Out-of-range tempo → the tap is a no-op.
+ */
+@Composable
+private fun TempoChip(tempo: Int, resetKey: Any) {
+    var running by remember(resetKey) { mutableStateOf(false) }
+    var beat by remember(resetKey) { mutableStateOf(-1) }
+    LaunchedEffect(running, resetKey) {
+        if (!running) { beat = -1; return@LaunchedEffect }
+        val ms = countInIntervalMs(tempo) ?: run { running = false; return@LaunchedEffect }
+        for (b in 0 until COUNT_IN_BEATS) { beat = b; delay(ms) }
+        beat = -1
+        running = false
+    }
+    Row(
+        Modifier.clickable { if (countInIntervalMs(tempo) != null) running = true }.padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("♩=$tempo", style = MaterialTheme.typography.labelMedium)
+        val active = beat >= 0
+        val dot = when { active && isDownbeat(beat) -> 12.dp; active -> 8.dp; else -> 7.dp }
+        Box(
+            Modifier.size(dot).background(
+                if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                CircleShape,
+            ),
+        )
     }
 }
 
