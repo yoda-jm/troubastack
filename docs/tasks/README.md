@@ -41,14 +41,14 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 
 ## Queue state (2026-07-06, from the review-gate log)
 
-- **Done & landed:** T01–T13, T16 · A01–A06 · B01, B02 (+B03's server slice), · IOS01,
-  IOS02, IOS04 (+ the IOS03 prep runbook). The product loop **compose → bake → download
-  → perform** works end to end on Android *and* iOS-simulator.
-- **Open, unblocked:** **B03** (app half — downloader/offers/freeze; server slice done),
-  **B04** (bake atomicity/concurrency), **B05** (regen demo bundle via the real
-  pipeline), **B06** (LAN mDNS discovery), **T18** (dedup the Go bundle mirrors),
-  **OPS01**, P20x · Stage nice-to-haves for the drained mobile lane: **A08**
-  (setlist metadata display), **A09** (pedal/volume page turns), **A10** (night mode).
+- **Done & landed:** T01–T13, T16 · A01–A06 · **B01, B02, B03 (complete)** · IOS01,
+  IOS02, IOS04 (+ the IOS03 prep runbook). The FULL product loop — **compose → bake →
+  offer → download → import → perform** — is in-app, no manual file transfer; I13's
+  explicit tier is ✅.
+- **Open, unblocked:** **B04** (bake atomicity/concurrency), **B05** (regen demo
+  bundle via the real pipeline), **B06** (LAN mDNS discovery), **T18** (dedup the Go
+  bundle mirrors), **OPS01**, P20x · Stage nice-to-haves: **A08** (setlist metadata
+  display), **A09** (pedal/volume page turns), **A10** (night mode).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
   see its attempt log), the **B02 Android loop-close screenshot** (assigned to the
   mobile lane, reviews.md 2026-07-06).

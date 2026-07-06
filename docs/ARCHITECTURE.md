@@ -152,9 +152,13 @@ mid-performance. A presenter may opt into **automatic update** (rehearsal), but 
 always the real default. Freeze/lock honored at setlist, bake, and device tiers.
 **Why.** Nothing shifts under a performer's eyes during a show; a forgotten auto-update toggle can't
 carry into a live performance.
-**Enforced.** 🎯 target — in progress: the server now exposes the concerts manifest in
-the `AvailableConcert` shape the app parses (B03 server slice); the app-side
-downloader / update-offer / freeze-lock tiers are B03's remaining half.
+**Enforced.** ✅ explicit tier / 🎯 auto tier — B03 landed the full explicit path:
+manifest diff → offer chips, applied **only on user tap** through A05's atomic import
+(a failed download leaves the installed bundle untouched — tested), FROZEN/LocalPin/
+server `final_locked` all suppress offers (10-case unit matrix), the session cookie
+lives in EncryptedSharedPreferences, and `stage/` keeps its no-network gate (offers
+never appear mid-performance). Still 🎯: the transient AUTO tier (P201 — the enum
+exists and is inert; I13's "resets to OFF on leaving Stage" semantics land there).
 
 ---
 
