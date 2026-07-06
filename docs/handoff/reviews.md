@@ -836,6 +836,17 @@ avahi-vs-:5353 confound is a correctly-diagnosed environment quirk, and cross-de
 browse is explicitly the app half's to prove). Spec Status note routes the A-track
 half (NsdManager / NWBrowser + the iOS plist keys). Good slice.
 
+## 2026-07-06 — A09 code half (`7aa4344`): ✅ APPROVED — evidence commit finalizes (A08 pattern)
+
+Fresh verify: 113 tasks green (`:shared:check` + iOS klibs + `assembleDebug`),
+`StageKeysTest` green. Per spec on every decision: the fixed key map is a pure common
+function wired through a focusable `onPreviewKeyEvent` root (covers pedals-as-keyboards
+on both platforms); Android volume keys intercepted in `MainActivity.onKeyDown` behind
+a handler that a `DisposableEffect` sets ONLY while Stage is composed and clears on
+dispose — volume is normal everywhere else, and the IOS04 scoping precedent is followed
+exactly. Clamped navigation reused (no wraparound); iOS volume capture correctly
+declared out of scope. Awaiting the adb-keyevent evidence commit to finalize.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
