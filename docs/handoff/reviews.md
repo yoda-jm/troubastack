@@ -684,6 +684,14 @@ demanded. READMEs carry the real-pipeline provenance + the honest reproducibilit
 caveat. The hand-baked demo era is over: every byte a user first sees now comes from
 the real pipeline. CI 4/5 with e2e in flight (docs+binary only; no risk).
 
+## 2026-07-06 — `docs/refresh-demo-screenshots` (`afb7e28`): ✅ APPROVED — land at 5/5
+
+The README's app screenshots still showed the retired single-song demo; good catch to
+refresh them alongside B05. Pixels checked: the concerts shot shows the imported
+"Sat @ The Anchor" with the B03 Connect button and overflow menu; the stage shot is the
+already-twice-verified Wonderwall-with-overlays capture (byte-identical to the
+loop-close evidence). Docs-only; land the usual way.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
