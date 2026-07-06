@@ -85,7 +85,14 @@ private fun cacheKey(ref: String, w: Int, h: Int): String = "$ref@${w}x$h"
 
 /** Root of the Stage UI: failure screen, empty state, or the performing pager. */
 @Composable
-fun StageScreen(vm: StageViewModel, decoder: ImageDecoder, onExit: () -> Unit) {
+fun StageScreen(
+    vm: StageViewModel,
+    decoder: ImageDecoder,
+    onExit: () -> Unit,
+    // A10: local night-mode preference, injected + persisted by the entrypoint (app DI, no seam).
+    initialColorMode: StageColorMode = StageColorMode.NORMAL,
+    onColorModeChange: (StageColorMode) -> Unit = {},
+) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when {
@@ -99,13 +106,21 @@ fun StageScreen(vm: StageViewModel, decoder: ImageDecoder, onExit: () -> Unit) {
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange)
         }
     }
 }
 
 @Composable
-private fun Performing(state: StageState, vm: StageViewModel, decoder: ImageDecoder, onExit: () -> Unit) {
+private fun Performing(
+    state: StageState,
+    vm: StageViewModel,
+    decoder: ImageDecoder,
+    onExit: () -> Unit,
+    initialColorMode: StageColorMode,
+    onColorModeChange: (StageColorMode) -> Unit,
+) {
+    var colorMode by remember { mutableStateOf(initialColorMode) }
     val cache = remember { PageImageCache() }
     val page = state.currentPage ?: return
     var showLayers by remember { mutableStateOf(false) }
@@ -138,7 +153,7 @@ private fun Performing(state: StageState, vm: StageViewModel, decoder: ImageDeco
                 .fillMaxSize()
                 .pointerNavigation(pageCount = state.pageCount, onPrev = vm::previous, onNext = vm::next),
         ) {
-            PageView(page, state.visibleLayers, state.fitMode, decoder, cache, Modifier.fillMaxSize())
+            PageView(page, state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
         }
 
         // Top overlays: the chrome bar, plus (A08) a footprint-stable setlist-metadata strip stacked
@@ -161,6 +176,9 @@ private fun Performing(state: StageState, vm: StageViewModel, decoder: ImageDeco
                     }
                     if (state.layers.isNotEmpty()) TextButton(onClick = { showLayers = true }) { Text("Layers") }
                     TextButton(onClick = { showRole = true }) { Text("Role") }
+                    TextButton(onClick = { colorMode = colorMode.next(); onColorModeChange(colorMode) }) {
+                        Text(if (colorMode == StageColorMode.NIGHT) "Night" else "Day")
+                    }
                 }
             }
             val strip = if (page.pageInSong == 0) metaStripText(page.displayNotes, page.key, page.tempo) else null
@@ -221,6 +239,7 @@ private fun PageView(
     fitMode: FitMode,
     decoder: ImageDecoder,
     cache: PageImageCache,
+    colorFilter: androidx.compose.ui.graphics.ColorFilter?,
     modifier: Modifier,
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
@@ -258,9 +277,9 @@ private fun PageView(
                     else Modifier.fillMaxSize()
                 val scale = if (fitMode == FitMode.FIT_WIDTH) ContentScale.FillWidth else ContentScale.Fit
                 Box(container, contentAlignment = Alignment.Center) {
-                    Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = imageMod, contentScale = scale)
+                    Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = colorFilter)
                     bitmaps.overlays.forEach {
-                        Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = scale)
+                        Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = colorFilter)
                     }
                 }
             }

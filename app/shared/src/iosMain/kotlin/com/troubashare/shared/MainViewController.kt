@@ -31,6 +31,7 @@ import com.troubashare.shared.bundle.BundleLoader
 import com.troubashare.shared.bundle.LoadResult
 import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.stage.ImageDecoder
+import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
 import kotlinx.cinterop.addressOf
@@ -88,7 +89,11 @@ private fun App() {
         OpenedBundle(StageViewModel(load), IosImageDecoder(dir))
     }
     KeepScreenAwake()  // performance resilience (I13) — iOS analog of Android StageHost's FLAG_KEEP_SCREEN_ON
-    StageScreen(opened.vm, opened.decoder, onExit = { selectedDir = null })
+    StageScreen(
+        opened.vm, opened.decoder, onExit = { selectedDir = null },
+        initialColorMode = StageColorMode.parse(storage.getSecret("stage.colorMode")),
+        onColorModeChange = { storage.putSecret("stage.colorMode", it.name) },
+    )
 }
 
 /**

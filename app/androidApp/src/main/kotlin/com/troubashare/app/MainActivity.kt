@@ -49,6 +49,7 @@ import com.troubashare.shared.distribution.UpdatesManager
 import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.stage.ImageDecoder
 import com.troubashare.shared.stage.PageTurn
+import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
 import kotlinx.coroutines.launch
@@ -56,6 +57,7 @@ import java.io.File
 import java.util.UUID
 
 private const val POLICIES_KEY = "trouba.update.policies"
+private const val COLOR_MODE_KEY = "stage.colorMode"
 
 /**
  * The thin Android entrypoint (I15). Concerts list (Storage bundlesDir) + the shared [StageScreen],
@@ -148,7 +150,11 @@ private fun App() {
         onDispose { activity?.stageVolumeTurn = null }
     }
     StageHost {
-        StageScreen(opened.vm, opened.decoder, onExit = { selectedDir = null })
+        StageScreen(
+            opened.vm, opened.decoder, onExit = { selectedDir = null },
+            initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
+            onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
+        )
     }
     BackHandler { selectedDir = null }
 }
