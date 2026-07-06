@@ -19,8 +19,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -104,7 +112,26 @@ private fun Performing(state: StageState, vm: StageViewModel, decoder: ImageDeco
     var showRole by remember { mutableStateOf(false) }
     var showSongs by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize()) {
+    // Hardware page turns (A09): BT pedals/keyboards send PageUp/Down, arrows, Space. Capture at the
+    // root before children so a keyboard turns the page while on-screen taps still work. (Android
+    // volume keys can't reach Compose; androidApp forwards them via onKeyDown.)
+    val keyFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { keyFocus.requestFocus() } }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .focusRequester(keyFocus)
+            .focusable()
+            .onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (stageKeyAction(e.key)) {
+                    PageTurn.NEXT -> { vm.next(); true }
+                    PageTurn.PREV -> { vm.previous(); true }
+                    null -> false
+                }
+            },
+    ) {
         // Page area with tap-thirds + horizontal swipe navigation.
         Box(
             Modifier
