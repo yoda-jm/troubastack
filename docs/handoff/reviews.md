@@ -952,6 +952,21 @@ listing methods. Filed **T22** (S): songs lexicographic by title (ci, ID tiebrea
 setlists/bands by name, sweep every listing, ordering asserted in endpoint tests on
 both backends. Quick fix — good next core-lane pick alongside the regen.
 
+## 2026-07-07 — B07 (`2a53bfe`, landed per queue + VLL): ✅ APPROVED — per-member bakes are real
+
+Re-verified fresh: bake package green under `-race` (B04's concurrency guarantees
+survive the variant dirs), resolver-fallback matrix + concert-id parse green, and the
+scope/authz endpoint suite passes — including the two negatives that matter (member A
+cannot LIST or DOWNLOAD member B's variant; non-member denied). Read the edges myself:
+the download gate scopes the base setlist to the band THEN enforces variant ownership,
+so the only fetchable shape is a real setlist + the caller's own ID — no traversal, no
+cross-member leak. Design per spec throughout: `setlist~user` variant keying with its
+own rev line, member-allowed `scope=mine` that deliberately leaves the I11 admin-only
+band bake untouched, my-files resolver with the degenerate-case-equals-band-bake
+fallback, and the honest annotations-were-made-on-the-default-part caveat in the UI.
+The USER-JOURNEY's top post-loop gap is closed: **Leo sees his tab on stage.** The
+device screenshot pair (tab vs score) rides the pending attended emulator batch.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
