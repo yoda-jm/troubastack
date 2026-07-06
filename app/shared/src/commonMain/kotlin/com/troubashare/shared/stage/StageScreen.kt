@@ -11,11 +11,13 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -138,27 +140,48 @@ private fun Performing(
     val keyFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { keyFocus.requestFocus() } }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .focusRequester(keyFocus)
-            .focusable()
-            .onPreviewKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (stageKeyAction(e.key)) {
-                    PageTurn.NEXT -> { vm.next(); true }
-                    PageTurn.PREV -> { vm.previous(); true }
-                    null -> false
-                }
-            },
-    ) {
-        // Page area with tap-thirds + horizontal swipe navigation.
+    // A12: facing pages. When the viewport is landscape (w > h) AND the fit is FIT_PAGE we show two
+    // adjacent pages (2k/2k+1) side by side and turn by the spread; portrait or FIT_WIDTH stays
+    // single-page exactly as before. The measurement decides the layout, so it wraps everything.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val twoUp = maxWidth > maxHeight && state.fitMode == FitMode.FIT_PAGE
+        // One navigation entry point (keys, taps, swipes, arrows) so turn-by-spread is applied once.
+        val turnNext: () -> Unit =
+            { vm.goToPage(if (twoUp) nextSpreadPage(state.current, state.pageCount) else state.current + 1) }
+        val turnPrev: () -> Unit =
+            { vm.goToPage(if (twoUp) prevSpreadPage(state.current) else state.current - 1) }
+        val spread = spreadPages(state.current, state.pageCount)
+
         Box(
             Modifier
                 .fillMaxSize()
-                .pointerNavigation(pageCount = state.pageCount, onPrev = vm::previous, onNext = vm::next),
+                .focusRequester(keyFocus)
+                .focusable()
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (stageKeyAction(e.key)) {
+                        PageTurn.NEXT -> { turnNext(); true }
+                        PageTurn.PREV -> { turnPrev(); true }
+                        null -> false
+                    }
+                },
         ) {
-            PageView(page, state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
+        // Page area with tap-thirds + horizontal swipe navigation (spread-aware in two-up).
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pointerNavigation(navKey = state.pageCount to twoUp, onPrev = turnPrev, onNext = turnNext),
+        ) {
+            if (twoUp) {
+                // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
+                Row(Modifier.fillMaxSize()) {
+                    spread.forEach { idx ->
+                        PageView(state.pages[idx], state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
+                    }
+                }
+            } else {
+                PageView(page, state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
+            }
         }
 
         // Top overlays: the chrome bar, plus (A08) a footprint-stable setlist-metadata strip stacked
@@ -186,31 +209,14 @@ private fun Performing(
                     }
                 }
             }
-            if (page.pageInSong == 0) {
-                val prefix = metaStripText(page.displayNotes, page.key, 0) // notes · key; tempo is the chip (A11)
-                val hasTempo = page.tempo > 0
-                if (prefix != null || hasTempo) {
-                    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            if (prefix != null) {
-                                Text(
-                                    prefix,
-                                    Modifier.weight(1f),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            } else {
-                                Spacer(Modifier.weight(1f))
-                            }
-                            if (hasTempo) TempoChip(page.tempo, resetKey = state.current)
-                        }
-                    }
+            // A12: in two-up the strip is per-side (each half over its page's top); one-up is full-width.
+            if (twoUp) {
+                Row(Modifier.fillMaxWidth()) {
+                    Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], resetKey = it) } }
+                    Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], resetKey = it) } }
                 }
+            } else {
+                MetaStrip(page, resetKey = state.current)
             }
         }
 
@@ -224,12 +230,12 @@ private fun Performing(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = vm::previous) { Text("‹") }
+                TextButton(onClick = turnPrev) { Text("‹") }
                 Text(
-                    "${state.current + 1}/${state.pageCount}",
+                    pagerLabel(state.current, state.pageCount, twoUp),
                     style = MaterialTheme.typography.labelLarge,
                 )
-                TextButton(onClick = vm::next) { Text("›") }
+                TextButton(onClick = turnNext) { Text("›") }
                 Spacer(Modifier.weight(1f))
                 Box {
                     TextButton(onClick = { showSongs = true }) { Text("Songs") }
@@ -243,6 +249,7 @@ private fun Performing(
                     }
                 }
             }
+        }
         }
     }
 
@@ -302,6 +309,40 @@ private fun PageView(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The A08 setlist-metadata strip for one page: notes · key on the left (ellipsised), A11's tempo chip
+ * on the right. Renders only on a song's FIRST page and only when there's something to show — otherwise
+ * nothing (so the layout is unchanged, I12). [resetKey] cancels an in-progress count-in on a page turn;
+ * in two-up it's the per-side page index so each half resets independently.
+ */
+@Composable
+private fun MetaStrip(page: StagePage, resetKey: Any) {
+    if (page.pageInSong != 0) return
+    val prefix = metaStripText(page.displayNotes, page.key, 0) // notes · key; tempo is the chip (A11)
+    val hasTempo = page.tempo > 0
+    if (prefix == null && !hasTempo) return
+    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (prefix != null) {
+                Text(
+                    prefix,
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            if (hasTempo) TempoChip(page.tempo, resetKey = resetKey)
         }
     }
 }
@@ -427,9 +468,9 @@ private fun RoleDialog(state: StageState, vm: StageViewModel, onDismiss: () -> U
 }
 
 /** Tap the left/right third = previous/next; horizontal swipe does the same. */
-private fun Modifier.pointerNavigation(pageCount: Int, onPrev: () -> Unit, onNext: () -> Unit): Modifier = this
-    .pointerInputTap(pageCount, onPrev, onNext)
-    .pointerInputSwipe(pageCount, onPrev, onNext)
+private fun Modifier.pointerNavigation(navKey: Any, onPrev: () -> Unit, onNext: () -> Unit): Modifier = this
+    .pointerInputTap(navKey, onPrev, onNext)
+    .pointerInputSwipe(navKey, onPrev, onNext)
 
 private fun Modifier.pointerInputTap(key: Any, onPrev: () -> Unit, onNext: () -> Unit): Modifier =
     pointerInput(key) {
