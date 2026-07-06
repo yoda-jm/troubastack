@@ -18,11 +18,9 @@
 package main
 
 import (
-	"archive/zip"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"image"
@@ -31,8 +29,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
+
+	"troubastack/core/internal/bake"
 )
 
 func main() {
@@ -59,7 +58,7 @@ func run(out, torture string, songs, pages int, seed int64, doZip bool) error {
 			return err
 		}
 		if doZip {
-			if err := writeTstage(out+".tstage", out, seed); err != nil {
+			if err := bake.WriteTstage(out+".tstage", out, time.Unix(seed, 0)); err != nil {
 				return err
 			}
 		}
@@ -72,40 +71,12 @@ func run(out, torture string, songs, pages int, seed int64, doZip bool) error {
 	return nil
 }
 
-// --- ConcertBundle model (mirrors proto/troubastack/v1/bundle.proto; field names & 64-bit-as-string
-// encoding match docs/design/08-bundle-container.md, which A02's Kotlin loader parses). -----------
-
-type layerImage struct {
-	LayerID     string `json:"layerId,omitempty"`
-	ImageRef    string `json:"imageRef,omitempty"`
-	ContentHash string `json:"contentHash,omitempty"`
-	Order       int32  `json:"order,omitempty"`     // int32 → JSON number (not stringified)
-	Mandatory   bool   `json:"mandatory,omitempty"` // viewer cannot hide
-	RoleTag     string `json:"roleTag,omitempty"`
-}
-
-type pageImages struct {
-	PageRasterRef string       `json:"pageRasterRef,omitempty"`
-	RasterHash    string       `json:"rasterHash,omitempty"`
-	Overlays      []layerImage `json:"overlays,omitempty"`
-}
-
-type bakedSong struct {
-	SongID         string       `json:"songId,omitempty"`
-	SourceRevision uint64       `json:"sourceRevision,string,omitempty"` // proto uint64 → JSON string
-	SongRev        uint64       `json:"songRev,string,omitempty"`
-	Pages          []pageImages `json:"pages,omitempty"`
-}
-
-type concertBundle struct {
-	ConcertID   string      `json:"concertId,omitempty"`
-	Name        string      `json:"name,omitempty"`
-	ConcertRev  uint64      `json:"concertRev,string,omitempty"` // proto uint64 → JSON string
-	BakedAt     int64       `json:"bakedAt,string,omitempty"`    // proto int64 → JSON string
-	BakedBy     string      `json:"bakedBy,omitempty"`
-	FinalLocked bool        `json:"finalLocked,omitempty"`
-	Songs       []bakedSong `json:"songs,omitempty"`
-}
+// --- ConcertBundle model: the ONE Go mirror lives in internal/bake (T18) --------------------------
+// This dev tool reuses bake's ConcertBundle/BakedSong/PageImages/LayerImage + MarshalCanonical +
+// WriteTstage (the real producer's mirror + writers). Only mkbundle's SYNTHETIC content and its
+// fixture short-hash stay local. NOTE: mkbundle keeps its own `shortHash` (sha256[:8]) deliberately
+// — the committed fixtures use short hashes; bake.Sha256Hex (full) is production's, and adopting it
+// would rewrite every fixture hash. Hashing is fixture-specific here, not part of the shared mirror.
 
 // A blob is a ref path plus the PNG bytes to write for it.
 type blob struct {
@@ -121,7 +92,7 @@ const (
 // buildBundle assembles the manifest plus the PNG blobs for it, deterministically.
 func buildBundle(songs, pages int, seed int64) *builtBundle {
 	b := &builtBundle{
-		manifest: concertBundle{
+		manifest: bake.ConcertBundle{
 			ConcertID:  "demo-concert",
 			Name:       "Demo Concert",
 			ConcertRev: 1,
@@ -130,7 +101,7 @@ func buildBundle(songs, pages int, seed int64) *builtBundle {
 		},
 	}
 	for si := 0; si < songs; si++ {
-		song := bakedSong{
+		song := bake.BakedSong{
 			SongID:         fmt.Sprintf("song-%d", si+1),
 			SourceRevision: uint64(si + 1),
 			SongRev:        1,
@@ -147,10 +118,10 @@ func buildBundle(songs, pages int, seed int64) *builtBundle {
 			condRef := fmt.Sprintf("blobs/s%d-p%d-L1.png", si+1, pi+1)
 			b.blobs = append(b.blobs, blob{mandRef, mand}, blob{condRef, cond})
 
-			song.Pages = append(song.Pages, pageImages{
+			song.Pages = append(song.Pages, bake.PageImages{
 				PageRasterRef: rasterRef,
 				RasterHash:    shortHash(raster),
-				Overlays: []layerImage{
+				Overlays: []bake.LayerImage{
 					{LayerID: "marks", ImageRef: mandRef, ContentHash: shortHash(mand), Order: 0, Mandatory: true},
 					{LayerID: "conductor", ImageRef: condRef, ContentHash: shortHash(cond), Order: 1, RoleTag: "conductor"},
 				},
@@ -162,7 +133,7 @@ func buildBundle(songs, pages int, seed int64) *builtBundle {
 }
 
 type builtBundle struct {
-	manifest concertBundle
+	manifest bake.ConcertBundle
 	blobs    []blob
 }
 
@@ -171,11 +142,10 @@ func writeBundle(dir string, b *builtBundle) error {
 	if err := os.MkdirAll(filepath.Join(dir, "blobs"), 0o755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(b.manifest, "", "  ")
+	data, err := b.manifest.MarshalCanonical()
 	if err != nil {
 		return err
 	}
-	data = append(data, '\n')
 	if err := os.WriteFile(filepath.Join(dir, "bundle.json"), data, 0o644); err != nil {
 		return err
 	}
@@ -210,7 +180,7 @@ func writeTortureVariants(parent string, seed int64) error {
 	}
 
 	// (c) empty: a valid manifest with zero songs, no blobs.
-	empty := &builtBundle{manifest: concertBundle{ConcertID: "demo-concert", Name: "Demo Concert", ConcertRev: 1, BakedAt: seed, BakedBy: "mkbundle"}}
+	empty := &builtBundle{manifest: bake.ConcertBundle{ConcertID: "demo-concert", Name: "Demo Concert", ConcertRev: 1, BakedAt: seed, BakedBy: "mkbundle"}}
 	if err := writeBundle(filepath.Join(parent, "empty"), empty); err != nil {
 		return err
 	}
@@ -224,51 +194,7 @@ func writeTortureVariants(parent string, seed int64) error {
 	return os.Remove(filepath.Join(nmDir, "bundle.json"))
 }
 
-// writeTstage zips a bundle dir into dst (.tstage), bundle.json at the zip root, entries in a fixed
-// order with pinned mod times so the archive is byte-deterministic.
-func writeTstage(dst, srcDir string, seed int64) error {
-	var names []string
-	err := filepath.WalkDir(srcDir, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			rel, rerr := filepath.Rel(srcDir, p)
-			if rerr != nil {
-				return rerr
-			}
-			names = append(names, filepath.ToSlash(rel))
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	sort.Strings(names)
-
-	f, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	zw := zip.NewWriter(f)
-	modTime := time.Unix(seed, 0).UTC()
-	for _, name := range names {
-		hdr := &zip.FileHeader{Name: name, Method: zip.Deflate, Modified: modTime}
-		w, werr := zw.CreateHeader(hdr)
-		if werr != nil {
-			return werr
-		}
-		data, rerr := os.ReadFile(filepath.Join(srcDir, filepath.FromSlash(name)))
-		if rerr != nil {
-			return rerr
-		}
-		if _, werr := w.Write(data); werr != nil {
-			return werr
-		}
-	}
-	return zw.Close()
-}
+// (writeTstage removed in T18 — mkbundle now uses bake.WriteTstage, the shared writer.)
 
 // --- synthetic image drawing (deterministic, flat colors so PNGs stay tiny) --------------------
 

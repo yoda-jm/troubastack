@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"troubastack/core/internal/bake"
 )
 
 const seed = 1700000000
@@ -17,7 +19,7 @@ func TestValidBundle_structure(t *testing.T) {
 	if err := run(dir, "", 2, 3, seed, false); err != nil {
 		t.Fatal(err)
 	}
-	var b concertBundle
+	var b bake.ConcertBundle
 	readJSON(t, filepath.Join(dir, "bundle.json"), &b)
 
 	if got := len(b.Songs); got != 2 {
@@ -70,7 +72,7 @@ func TestTortureVariants(t *testing.T) {
 	}
 
 	// (a) missing-blob: valid manifest, but a raster it references is gone.
-	var mb concertBundle
+	var mb bake.ConcertBundle
 	readJSON(t, filepath.Join(parent, "missing-blob", "bundle.json"), &mb)
 	ref := mb.Songs[0].Pages[0].PageRasterRef
 	if _, err := os.Stat(filepath.Join(parent, "missing-blob", filepath.FromSlash(ref))); !os.IsNotExist(err) {
@@ -87,7 +89,7 @@ func TestTortureVariants(t *testing.T) {
 	}
 
 	// (c) empty: valid manifest, zero songs.
-	var empty concertBundle
+	var empty bake.ConcertBundle
 	readJSON(t, filepath.Join(parent, "empty", "bundle.json"), &empty)
 	if len(empty.Songs) != 0 {
 		t.Errorf("empty: songs = %d, want 0", len(empty.Songs))
