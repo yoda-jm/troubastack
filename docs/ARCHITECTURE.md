@@ -88,11 +88,16 @@ another layer still references. Mechanism: represent cross-layer refs as git ref
 ## C. Rendering & ink  → details in [design/03-rendering-and-ink.md](design/03-rendering-and-ink.md)
 
 ### I8 — One authoritative renderer (dry); the bake reuses it; the wet overlay is transient
-**Rule.** There is **one authoritative rendering path — studio's *dry* renderer**. The **bake reuses
-it** (headless studio), so the editor and the baked images are **pixel-identical by construction**,
-not by geometry-parity. The **native *wet* overlay** is the only other renderer; it is **transient
-and freehand-only**, is replaced by the authoritative dry render on commit, and so needs only
-**visual closeness** (share `web/ink` geometry), **not** pixel-identity.
+**Rule.** There is **one authoritative rendering path — studio's *dry* renderer**
+(`@troubastack/ink`). The **bake runs that same code** (the `web/bake` Node worker; a
+different Skia backend, so identity is **held by the golden pixel-parity test**, within
+a small anti-aliasing tolerance — never a second implementation, never geometry-parity
+alone). The **native *wet* overlay** is the only other renderer; it is **transient and
+freehand-only**, is replaced by the authoritative dry render on commit, and so needs
+only **visual closeness** (share `web/ink` geometry), **not** pixel-identity.
+*(Amended 2026-07-06: the original said "headless studio / pixel-identical by
+construction"; B01 built it as same-code-different-backend guarded by the parity test —
+design/03 was corrected then, the constitution follows now. The intent is unchanged.)*
 **Why.** Sharing *geometry* alone never guarantees identical *pixels* (anti-aliasing, text, sub-pixel
 differ per canvas backend). So we don't rely on it where it must match (editor vs bake → *same*
 renderer), and we don't require it where a sub-second pop at pen-up is harmless (wet → dry).
