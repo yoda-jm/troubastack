@@ -672,6 +672,18 @@ demo becomes the real-baked 3-song "Sat @ The Anchor" (better demo, zero seed ch
 content-change out-of-scope is deliberately waived), with amended acceptance criteria
 (default-part title, reproducibility honest about server UUIDs). B05 is executable again.
 
+## 2026-07-06 — B05 (`4751bb4`, landed per steer + decision b + VLL): ✅ APPROVED — hand-bake retired
+
+Verified the SHIPPED artifact, not the report: unzipped the committed
+`demo-concert.tstage` — canonical `bundle.json` ("Sat @ The Anchor", rev "1", 3 songs),
+all 35 blob refs resolve non-empty, and the **real Kotlin `BundleLoader` loads it with
+zero issues** (scratch test, removed after). Cropped the Wonderwall raster title:
+**"Wonderwall — Score" with a true em-dash in the shipped bytes** — T16's fix has now
+propagated all the way into the distributed artifact, exactly as the amended acceptance
+demanded. READMEs carry the real-pipeline provenance + the honest reproducibility
+caveat. The hand-baked demo era is over: every byte a user first sees now comes from
+the real pipeline. CI 4/5 with e2e in flight (docs+binary only; no risk).
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
