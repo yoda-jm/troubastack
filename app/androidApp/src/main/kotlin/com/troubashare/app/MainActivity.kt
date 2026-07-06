@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,7 @@ import com.troubashare.shared.distribution.UpdatePolicy
 import com.troubashare.shared.distribution.UpdatesManager
 import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.stage.ImageDecoder
+import com.troubashare.shared.stage.PageTurn
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
 import kotlinx.coroutines.launch
@@ -62,9 +64,24 @@ private const val POLICIES_KEY = "trouba.update.policies"
  * offers live only in the list, never mid-performance.
  */
 class MainActivity : ComponentActivity() {
+    // Set by App() only while a Stage is open (A09) so the hardware VOLUME keys turn pages; null
+    // otherwise → volume behaves normally. Volume keys don't reach Compose, so they're intercepted
+    // here (keyboard/pedal keys are handled in the shared StageScreen via onPreviewKeyEvent).
+    var stageVolumeTurn: ((PageTurn) -> Unit)? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { MaterialTheme { App() } }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        stageVolumeTurn?.let { turn ->
+            when (keyCode) {
+                android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> { turn(PageTurn.NEXT); return true }
+                android.view.KeyEvent.KEYCODE_VOLUME_UP -> { turn(PageTurn.PREV); return true }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 }
 
@@ -123,6 +140,12 @@ private fun App() {
             StageViewModel(BundleLoader().load(dir, FileBundleFiles())),
             AndroidImageDecoder(File(dir)),
         )
+    }
+    // A09: route hardware VOLUME keys to page turns while (and only while) Stage is open.
+    val activity = LocalContext.current.findActivity() as? MainActivity
+    DisposableEffect(opened.vm, activity) {
+        activity?.stageVolumeTurn = { pt -> if (pt == PageTurn.NEXT) opened.vm.next() else opened.vm.previous() }
+        onDispose { activity?.stageVolumeTurn = null }
     }
     StageHost {
         StageScreen(opened.vm, opened.decoder, onExit = { selectedDir = null })
