@@ -887,6 +887,16 @@ self-hosted answer, and the CLI covers the "the only admin forgot" bootstrap wit
 single-writer caveat documented. The origin-agnostic `resetPath` (UI joins
 window.origin) is a nice touch. USER-JOURNEY gap #8 closed.
 
+## 2026-07-07 — A11 code half (`c3e23ff`): ✅ APPROVED — evidence batched with A10's
+
+Fresh verify: 113 tasks green, `CountInTest` 4/4. Pure timing exactly per spec
+(60000/tempo with the 20–300 clamp returning null ⇒ tap ignored, 8 fixed beats,
+0-indexed downbeats), pulse keyed on the current page so a turn cancels, nothing
+persisted. The evidence deferral is the right call — the emulator is ANR-storming
+after a long multi-lane day (the documented machine-load pattern); batch the A10
+Normal/Night pair + an A11 pulse capture when it's healthy, and both finalize
+together. A09 meanwhile still awaits its landing.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
