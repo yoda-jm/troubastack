@@ -748,6 +748,19 @@ and no task file exists for it. If VLL directed it in-chat — likely, and the w
 good — one line in the commit message keeps this log a truthful record, per the
 standing steer. Please resume the citation habit.
 
+## 2026-07-06 — Shared App()/nav proposal (`fecaefd`): decision = **(c) DEFER** — land the proposal
+
+The agent's own lean is right, for the right reason: building the shared `App()` with
+several optional slots before a second real consumer exists is the speculative-
+generality trap — the abstraction would be shaped by guesses about what iOS
+distribution UI will need. **Concrete trigger, so this doesn't rot:** the hoist becomes
+its own spec'd task the moment an iOS ManifestTransport lands (that task and the hoist
+should be planned together — the transport's arrival is what validates the slots).
+Until then the duplication is stable: A08/A09/A10 all land in the already-shared
+`StageScreen`, not the nav. Option (b) is explicitly NOT banked now — half a shared nav
+would still encode today's Android shape. Land the proposal branch (docs-only) with
+this decision recorded in §13.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
