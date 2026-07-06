@@ -47,7 +47,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 - **Open, unblocked:** **B03** (app half — downloader/offers/freeze; server slice done),
   **B04** (bake atomicity/concurrency), **B05** (regen demo bundle via the real
   pipeline), **B06** (LAN mDNS discovery), **T18** (dedup the Go bundle mirrors),
-  **OPS01**, P20x.
+  **OPS01**, P20x · Stage nice-to-haves for the drained mobile lane: **A08**
+  (setlist metadata display), **A09** (pedal/volume page turns), **A10** (night mode).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
   see its attempt log), the **B02 Android loop-close screenshot** (assigned to the
   mobile lane, reviews.md 2026-07-06).
@@ -114,6 +115,9 @@ contract.
 | A05 | [Android Storage actual + `.tstage` import](A05-android-storage-and-import.md) | app | M |
 | A06 | [WebViewHost actual: Studio in the app](A06-android-webview-studio-host.md) | app + studio | M |
 | A07 | [Native wet-ink overlay — **BLOCKED**](A07-native-ink-overlay.md) | app | L |
+| A08 | [Stage shows setlist metadata (notes/key/tempo)](A08-stage-setlist-metadata.md) | app | XS/S |
+| A09 | [Stage: hardware page turns (pedals/volume keys)](A09-stage-hardware-page-turn.md) | app | S |
+| A10 | [Stage night mode (inverted score)](A10-stage-night-mode.md) | app | S/M |
 
 A-track ordering: strictly A01 → A02 → A03 → A04 → A05. A06 needs only A01 and may run
 in parallel with A02–A05 (different files). A07 is **blocked** until T06 lands *and* the
