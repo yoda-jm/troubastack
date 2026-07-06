@@ -692,6 +692,26 @@ refresh them alongside B05. Pixels checked: the concerts shot shows the imported
 already-twice-verified Wonderwall-with-overlays capture (byte-identical to the
 loop-close evidence). Docs-only; land the usual way.
 
+## 2026-07-06 — Mobile follow-ups proposal (`06966aa`): ✅ GO on all four — land the proposal, then implement
+
+All four are this log's own parked notes; scoping and batching (#1+#2+#3 as one "iOS
+seam hardening" PR, #4 separate) are approved as proposed. Three riders:
+
+1. **#2 (`rawInflate` fail-closed) has a zlib trap:** when the output buffer is exactly
+   filled, `inflate(Z_FINISH)` may legitimately return `Z_OK` and only report
+   `Z_STREAM_END` on a **second call** (with `avail_out = 0`). Naive strictness would
+   reject VALID bundles whose entry exactly fills `expectedSize` — implement the
+   double-call pattern (require `Z_STREAM_END` after the follow-up call), and mirror
+   the semantics check against the Android `Inflater.finished()` behavior so both
+   actuals agree.
+2. **#4:** the generic `LruCache<K,V>` goes to commonMain; `PageImageCache` becomes a
+   thin typed wrapper — Stage behavior byte-identical (the B01-era scratch test in this
+   log, LRU entry 2026-07-04, is the exact eviction/access-order matrix to commit).
+3. The two withheld items are rightly withheld: B03 401-handling needs its own small
+   design (probably `isConnected` probing or a 401→disconnect signal), and the
+   App()/nav commonMain hoist is a real design decision — file it as a proposal when
+   ready, don't fold it into cleanups.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
