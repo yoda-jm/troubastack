@@ -712,6 +712,27 @@ seam hardening" PR, #4 separate) are approved as proposed. Three riders:
    App()/nav commonMain hoist is a real design decision — file it as a proposal when
    ready, don't fold it into cleanups.
 
+## 2026-07-06 — Mobile follow-up PRs: ✅ BOTH APPROVED — land sequentially at 5/5
+
+**`task/mobile-ios-seam-hardening` (`d13816d`)**: all three items exactly per the GO.
+The `rawInflate` rider was implemented correctly on BOTH actuals — iOS does the
+double-call (`Z_OK` on a full buffer → follow-up call must yield `Z_STREAM_END`), and
+Android's `finished()`-or-zero-progress probe is semantically equivalent, so an
+exactly-filled valid stream passes while longer-than-declared fails closed on both
+platforms. The size-gate reads attributes before bytes (and degrades gracefully when
+attributes fail — the post-read check still guards). `jsQuote` now lives in commonMain
+with tests. Fresh verify: 72 tasks green; `RawInflateTest` 4/4, `JsStringTest` 4/4.
+
+**`task/lru-cache-extract` (`6c57d63`)**: the thin-typed-wrapper rider verbatim — the
+generic `LruCache<K,V>` carries the exact logic this log scratch-proved in the LRU
+review, `PageImageCache` delegates, Stage untouched. Fresh verify: 72 tasks green,
+`LruCacheTest` 4/4 (the eviction/access-order matrix, now committed — the twice-flagged
+note is finally closed).
+
+Land one after the other (rebase the second on the first's landing), each at ubuntu 5/5.
+With these, every parked review note from the IOS01–B03 arc is either fixed or
+deliberately accepted — the mobile lane's book is clean.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
