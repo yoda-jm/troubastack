@@ -761,6 +761,28 @@ Until then the duplication is stable: A08/A09/A10 all land in the already-shared
 would still encode today's Android shape. Land the proposal branch (docs-only) with
 this decision recorded in §13.
 
+## 2026-07-06 — Tablet screenshots of the new demo (architect-produced + reviewed): ✅ landed
+
+Produced on a **Pixel Tablet AVD** (1600×2560 @ 276 dpi, portrait-natural, Android 16 /
+API 36 Play image, headless swiftshader; created by cloning the Pixel_7 AVD with the
+tablet LCD profile — the repo previously had no tablet AVD). APK = current `main`
+(includes B03 + both hardening landings). Bundle = the shipped 4-song
+`docs/demo/demo-concert.tstage`, injected via `run-as`.
+
+Reviewed by pixels before committing:
+- `tablet-concerts.png` — Concerts list with Connect/Edit/Import on tablet metrics.
+- `tablet-stage-wonderwall.png` — page 1/22, overlays composited, chrome correct at
+  tablet width.
+- `tablet-stage-openroad.png` — **the money shot**: the original Open Road lead sheet
+  with all three baked layers legible (orange "CHORUS — everyone in" highlight, green
+  circled "capo 2 OK" conductor cue, red lyric ellipse, "breathe"/"rit. watch me"
+  personal notes). Real content, real pipeline, real device class.
+
+One observation, not a bug: paging at ~1.2 s/page under software rendering briefly
+showed a blank page before the async decode caught up (A04's design; instant on real
+hardware) — worth remembering when screenshotting: give a cold page a beat. README now
+links the tablet shots in the mobile section.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).

@@ -80,6 +80,13 @@ Hosting the Studio editor inside the app is the next planned step
 <p>
 <img src="docs/screenshots/stage-concerts.png" alt="Concerts list (Sat @ The Anchor) with Connect + Import" width="240">&nbsp;
 <img src="docs/screenshots/stage-page.png" alt="A performed page: raster + overlay, pager, layer and role controls" width="240">
+
+On the stage-time form factor — a portrait tablet (Pixel Tablet, 1600×2560) performing the
+demo, including the original song *The Open Road* with its baked Form / conductor-cue /
+personal layers:
+
+<img src="docs/screenshots/tablet-stage-openroad.png" alt="The Open Road lead sheet on a portrait Pixel Tablet: chords and lyrics with the baked chorus highlight, capo cue and personal notes composited" width="320">&nbsp;
+<img src="docs/screenshots/tablet-stage-wonderwall.png" alt="Wonderwall — Score on the same tablet, section highlights and cues over the raster, page 1/22" width="320">
 </p>
 
 ### Build & install
