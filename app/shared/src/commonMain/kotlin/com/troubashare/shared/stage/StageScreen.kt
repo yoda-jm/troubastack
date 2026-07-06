@@ -62,24 +62,14 @@ fun interface ImageDecoder {
  * only from the composition (main) thread; the heavy decode runs off-thread and results are stored
  * back here on the main thread.
  */
-class PageImageCache(private val maxEntries: Int = 12) {
-    // Insertion-ordered map; we emulate access-order by re-inserting on get (the access-order
-    // LinkedHashMap constructor is JVM-only and doesn't exist in Kotlin/Native's common stdlib).
-    private val lru = LinkedHashMap<String, ImageBitmap>()
+class PageImageCache(maxEntries: Int = 12) {
+    // Thin typed wrapper over the generic access-order [LruCache] (the LRU logic lives there and is
+    // unit-tested off-device; Stage behaviour is unchanged).
+    private val lru = LruCache<String, ImageBitmap>(maxEntries)
 
-    fun get(key: String): ImageBitmap? {
-        val value = lru.remove(key) ?: return null
-        lru[key] = value // move to most-recently-used
-        return value
-    }
+    fun get(key: String): ImageBitmap? = lru.get(key)
 
-    fun put(key: String, bmp: ImageBitmap) {
-        lru.remove(key)
-        lru[key] = bmp
-        while (lru.size > maxEntries) {
-            lru.remove(lru.keys.first()) // evict least-recently-used
-        }
-    }
+    fun put(key: String, bmp: ImageBitmap) = lru.put(key, bmp)
 }
 
 private fun cacheKey(ref: String, w: Int, h: Int): String = "$ref@${w}x$h"
