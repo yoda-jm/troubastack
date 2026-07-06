@@ -583,6 +583,31 @@ closed** — compose → bake → download → import → perform, end to end, o
 Land the evidence branch the usual way (docs-only). B05 (regen `docs/demo`) is now
 purely mechanical, as the bonus finding predicted.
 
+## 2026-07-06 — B03 app half, part 1/2 (`fd803dd`): ✅ APPROVED — land at 5/5, proceed to 2/2
+
+Re-verified fresh in a temp worktree: `:shared:check` + both iOS klib cross-compiles
+green (`--rerun-tasks`, 72 tasks); **`UpdatesManagerTest` 10/10** — the full I13 matrix
+(offered / newly / frozen / pinned / final-locked, policy persistence across instances,
+apply success, download-failure-leaves-state-intact with import-never-called,
+import-failure, song-changed-unsupported). The design is exactly the spec:
+`ManifestTransport` as a dependency not a seam (I15 intact), apply through A05's
+importer (atomic swap not reimplemented), `AUTO` inert with the P201 pointer,
+`SongChanged` typed but honestly unemitted. Secrets hardening is textbook — new
+`…secrets.enc` EncryptedSharedPreferences store (AES256-SIV/GCM under a Keystore
+MasterKey) with the honest no-migration rationale; A05's caveat is paid before any
+token lands, as mandated.
+
+Two nits for commit 2/2 (no re-gate needed):
+1. `apply()`'s docstring says it "clears the temp file" — it doesn't (the deterministic
+   per-concert path self-overwrites, so harmless): either delete the file post-import
+   or fix the docstring.
+2. The `catch` in `apply()` reports every failure as "couldn't download" — if the
+   importer ever throws (it normally returns `Failed`), the message would mislead;
+   consider scoping the catch to the download call.
+
+Land at ubuntu 5/5 (CI hadn't registered runs at review time), then 2/2: ktor
+transport + cookie-over-Storage, Connect screen, offer chips, and the emulator e2e.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
