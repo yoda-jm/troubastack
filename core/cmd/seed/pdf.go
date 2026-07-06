@@ -132,6 +132,11 @@ func generatePlaceholderPDF(src pdfSource) ([]byte, error) {
 		pages = 2
 	}
 	pdf := fpdf.New("P", "mm", "A4", "")
+	// We paginate MANUALLY (one AddPage per intended page). Disable fpdf's auto
+	// page break, or the footer at y=285mm — below the default ~277mm trigger —
+	// spills onto an extra blank page for EVERY page, doubling the page count and
+	// shoving page-2 annotations (Outro / D.C.) onto a blank overflow page.
+	pdf.SetAutoPageBreak(false, 0)
 	// Core PDF fonts (Helvetica) are single-byte cp1252; passing raw UTF-8 makes a
 	// multi-byte rune like the em-dash render as mojibake (the "—" → "â€"" bug).
 	// tr maps UTF-8 → cp1252 (em-dash U+2014 → 0x97) using fpdf's embedded map; wrap
