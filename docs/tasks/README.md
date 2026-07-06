@@ -82,6 +82,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T19 | [Text charts: write formatted docs in Studio, bake like PDFs](T19-text-charts.md) | core + studio | M/L |
 | T20 | [Duplicate a setlist](T20-setlist-duplicate.md) | core + studio | S |
 | T21 | [Password reset (admin-assisted)](T21-password-reset.md) | core + studio | S |
+| T22 | [Deterministic list ordering (songs lexicographic + sweep)](T22-deterministic-listings.md) | core | S |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come

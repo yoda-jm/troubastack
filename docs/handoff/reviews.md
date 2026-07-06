@@ -930,6 +930,28 @@ the INTENDED count — the doubled blanks sat in plain sight in my own composite
 Content-plausibility ("does the page count match the source?") joins the review
 checklist.
 
+## 2026-07-07 — VLL field report triaged: annotations = STALE DATA (proven); song order = REAL BUG (T22 filed)
+
+VLL reports: Open Road / Black Hole Sun annotations "at the top, not where they should
+be", strange 2nd/3rd pages (also Hallelujah), and a nondeterministic song list.
+
+**Reproduced fresh to separate staleness from bugs.** On an isolated post-fix server
+(fresh seed → real bake → composite): **every Open Road annotation lands exactly
+right** — the chorus highlight over the Chorus block, the ellipse around "the open
+road is calling us instead", "rit. — watch me" at the chorus end, page counts the
+intended 3/4/3/2. So the misplacements + strange pages are the **pre-fix doubled-page
+data**: any instance seeded before `a014d75` keeps the doubled placeholder PDFs
+(annotations for content-page N land on what is now a blank page), and the SHIPPED
+demo bundle still carries them until the assigned regen lands. **Cure for a running
+instance:** `rm -rf core/troubadata core/cmd/seed/assets && make demo`. The demo-regen
+assignment (previous entry) now also fixes the page counts (~12 pages, not 22).
+
+**The song list is a REAL bug, confirmed by code read:** `SongsOfBand` iterates a Go
+map in BOTH repos → randomized order per request; the same pattern exists in other
+listing methods. Filed **T22** (S): songs lexicographic by title (ci, ID tiebreak),
+setlists/bands by name, sweep every listing, ordering asserted in endpoint tests on
+both backends. Quick fix — good next core-lane pick alongside the regen.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
