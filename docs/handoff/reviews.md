@@ -608,6 +608,33 @@ Two nits for commit 2/2 (no re-gate needed):
 Land at ubuntu 5/5 (CI hadn't registered runs at review time), then 2/2: ktor
 transport + cookie-over-Storage, Connect screen, offer chips, and the emulator e2e.
 
+## 2026-07-06 — B03 app half COMPLETE (`e493ffd` + `86d9ede`): ✅ APPROVED — land both at 5/5
+
+Part 2/2 re-verified fresh in a temp worktree: `:shared:check` + both iOS klib
+cross-compiles + `:androidApp:assembleDebug` all green (`--rerun-tasks`, 113 tasks).
+Read, not trusted: `HttpTransport` persists only the cookie name=value through the
+**hardened** Storage seam, streams downloads in 64 KB chunks (no full-file in memory),
+and is offline-first (no session ⇒ empty manifest ⇒ local bundles only — I12 held);
+`MainActivity` applies offers ONLY on explicit tap through `UpdatesManager.apply` →
+A05's atomic import, Freeze/Pin ride the policy store, and `stage/` is untouched (the
+no-network gate holds by construction). **Screenshots verified by pixels**: the
+NewlyAvailable→Download chip (signed-in, empty local list) and the
+UpdateOffered→"update to rev 2" chip after a re-bake, with the overflow menu present;
+the downloaded-Stage shot matches the loop-close evidence. CI was 3/5 at review (android
++ e2e in flight) — the usual rule: land only at 5/5.
+
+Carried notes (fold into the landing rebase if trivial, else accepted as-is):
+1. The two part-1 nits were not folded in — at minimum fix the `apply()` docstring
+   ("clears the temp file" — it doesn't; it self-overwrites).
+2. New v1 gap, accepted: an **expired** session still reads as connected
+   (`isConnected` = cookie presence) and just yields empty manifests — no re-auth
+   prompt. Fine for v1; revisit if users report "my offers disappeared".
+
+**With this, I13 goes ✅ (explicit tier) and the full product loop — compose → bake →
+offer → download → import → perform — is in-app, no manual file transfer.** Remaining
+I13 residue: the transient AUTO tier (P201). ARCHITECTURE.md I13 tag to be refreshed
+after landing.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
