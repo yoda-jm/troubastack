@@ -151,6 +151,7 @@ git push origin HEAD:main 2>&1 | sed -E "s/${TOKEN}/<TOKEN>/g"   # ff push; NO l
 
 | Task | Commit | Summary |
 |---|---|---|
+| B06 (core slice) | `ac0066e` | **LAN mDNS advertisement** (change #1 + Go test). `core/internal/discovery` advertises `_troubacore._tcp` on startup via `github.com/libp2p/zeroconf/v2` (maintained fork; pulls only `miekg/dns`) — actual listen port, instance name from `TROUBA_MDNS_NAME` (default host name), TXT `version`/`path=/`. On by default; `TROUBA_NO_MDNS=1` opts out. Register failures logged + swallowed (never blocks serving); shutdown `sync.Once`-guarded; wired in `main.go`. **Verified on the wire** (zeroconf browse found the running core: instance/host/port/TXT). **A-track (NOT here):** the Connect-screen browse UX (Android `NsdManager`, iOS `NWBrowser` + plist) — routing note in the B06 spec. First networking dep in core (deliberate per the spec). |
 | demo charts | `eec3bb8` + `b56ffb9` | **Copyright-safe demo sheet-music + a wired demo song.** New dev tool `core/cmd/mkcharts` (fpdf, deterministic — pinned date + `SetCatalogSort`) generates three PDFs into `docs/demo-charts/`: *"The Open Road"* (an **original** song — lead sheet p1 + guitar tab p2), *Amazing Grace* (**public domain**, Newton 1779), and a blank placeholder. `open-road.annotations.json` + `docs/screenshots/demo-chart-annotated.png` show three meaningful layers (Form/mandatory, Conductor-cues/roleTag, personal My-notes) in Studio. `b56ffb9` then **wired The Open Road into the seed** (`pdfSource.localPath` reads the committed chart; `buildOpenRoadAnnotations` places the layers at the lead-sheet coords; songDef in "The Troubadours"/"Sat @ The Anchor") — so it flows seed → bake → Stage, and `docs/demo/demo-concert.tstage` was regenerated to the 4-song concert incl. Open Road. **NO copyrighted lyrics/tab/sheet** anywhere — original + PD only (the real-titled seed songs keep synthetic placeholder PDFs for the same reason). |
 | B03 (slice) | `93ef372` | **B03 server slice only** (change #1 + Go test). `GET …/concerts` + the bake POST now return the proto **`AvailableConcert`** shape: `currentRev`/`updatedAt`/per-song `rev` as **canonical JSON strings** (app parses via A02's Kotlin mirror verbatim), `final_locked` passthrough, `bakedBy`/`downloadUrl` extras. Per-song `rev` = the song's source (annotation) revision. Studio Bake card updated to the shape; `viewOf` + flow-shape Go tests. **The rest of B03 is A-track (Mobile App Agent) — NOT done here:** ktor client, Connect flow, EncryptedSharedPreferences secrets hardening, `distribution/Updates.kt` bodies, offer UI, Kotlin tests. Manifest endpoint is ready for them; routing note in `docs/tasks/B03-distribution-and-updates.md`. |
 | B02 | `869d900` + `552c516` | **Bake orchestration: setlist → downloadable `.tstage`** (2-commit split, T10-style). Backend (`869d900`): proto `BakedSong` +`display_notes`/`key`/`tempo` (overrides = metadata, not pixels) + Kotlin mirror; `internal/bake` = Go `ConcertBundle` mirror + `.tstage` writer + `Baker` shelling to **pdftoppm** (rasters) and **B01's web/bake CLI** (overlays — core draws NOTHING, I8); endpoints `POST …/setlists/{s}/bake` (admin), `GET …/concerts` + `…/{c}/bundle` (member); Go tests (fakes + real-pdftoppm w/ skip) + endpoint auth; poppler-utils in the CI go job. UI (`552c516`): admin Bake card on the Setlist page (bake · download · history) + `bake.spec.ts`. `source_revision` = song's current engine head (no per-setlist pin exists). **Verified the real pipeline by unzipping an actual bake** (2 pdftoppm rasters + a same-size web/ink overlay). **Deferred (needs emulator):** the Android import+perform loop-close screenshot. |
@@ -195,34 +196,36 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
 
 ## 8. Remaining work (T/B-track)
 
-**Queue status (updated 2026-07-06):** B01 ✅, T13 ✅, B02 ✅, and the **B03 server slice** ✅ all
-landed this session. **Remaining is now attended or A-track** — the unattended web-core queue is
-clear: T14/T17 (editor chrome — **paused for an attended redesign**, see below), T15 (**held**), the
-B02 **Android loop-close** screenshot (emulator), and the **B03 app bulk** (ktor/Connect/
-EncryptedSharedPreferences/`Updates.kt`/offer-UI/Kotlin tests — **A-track**, the manifest endpoint is
-ready for it). Nothing merges without a verdict in `reviews.md` or from the human.
+**Queue status (refreshed 2026-07-06, late).** Web-core landed this session, all CI-green +
+gate-approved: **B01, T13, B02 (+UI), B03 server slice, B04, T18, B05, the demo charts + wired
+"The Open Road", and the B06 core slice (mDNS)** (see §6). The mobile lane has since **closed** B02's
+Android loop-close and landed the **B03 app bulk** + A08. So the earlier "attended/A-track only"
+note is out of date — new **web-core** work was filed (below). Land the usual way (rebase →
+`push origin HEAD:main` → CI green); hold at the gate for a verdict in `reviews.md` or an explicit
+human OK noted in the commit ("landed per steer + VLL").
 
-- **T13 ✅ done** (`66fcb19`) — the CI-only RO/RW shift was the Layers-panel row pills (`drawing`/
-  `viewing` moving between rows tipped a wrap under CI's font); fixed by always-mounting them with
-  reserved space; quarantine removed, `editor-rorw-shift` hard-gates again.
-- **T14 → superseded by T17 (both paused for attended).** The "panelize" approach was measured at
-  only ~10px (372→~363) and reverted; the disclosure attempt (T17) regressed (broke zero-shift, no
-  height win). Chrome is dominated by the always-reserved style bar + the ~160px sticky app-shell,
-  not the layer/zoom controls. Reaching ≤~240 needs a **deliberate single-row toolbar redesign**
-  (attended, visual judgment) — full findings + guidance in `docs/tasks/T17-editor-style-disclosure.md`.
-- **B02 Android loop-close** — bake→download works + verified by unzip; importing/performing the
-  `.tstage` in the Android app (emulator/device + screenshot) is the one deferred acceptance item.
-- **B03 app bulk — A-track, NOT web-core.** Only the server manifest slice (`93ef372`) was web-core
-  lane; the rest lives in `app/` (I15) and belongs to the Mobile App Agent: ktor client + cookie-
-  over-Storage, `Connect` screen, the mandatory EncryptedSharedPreferences secrets hardening,
-  `distribution/Updates.kt` (fetch/diff/apply over A05's `BundleImporter`), offer-chip UI, Kotlin
-  tests. Don't take this on from the web-core lane — hand it to the A-track. See the B03 spec's
-  Status note. If a future B-track task is similarly app-heavy, scope the lane split first.
-- **T15 — split `Viewer.tsx` (part 2 of T10).** Extract `usePdfDocument` / `useDryOverlay` /
-  `useSongSync` hooks to bring `web/studio/src/pages/song-editor/Viewer.tsx` (~1262 LOC) under 600.
-  **HELD** by the user for an **attended window on a quiet machine** — it's the one risky unattended
-  refactor. Don't start it unprompted.
-- **Not your lane:** the **tablet stylus spike** (gates A07) is the A-track's/user's, not T-track's.
+**Open, unblocked — web-core lane** (no steer assigns one; pick by priority or ask):
+- **T19 — text charts** (M/L; core + web/studio + maybe proto): author formatted song documents in
+  Studio and bake them like PDFs. Highest product value of these.
+- **B07 — per-member bake** (L; core + proto + studio): "Leo sees his tab on stage" — the per-member
+  my-files bake B02 deliberately deferred. Top post-loop product gap.
+- **T20 — duplicate a setlist** (S; `core/httpapi` + studio) · **T21 — password reset** (S,
+  admin-assisted; `core/httpapi` + studio). Good fillers.
+- Bigger / decisiony: **OPS01** (TLS/service/backup — effectively **human/env-blocked**: needs a real
+  server + creds), **P202** (real GC, M/L core), **P203** (proto codegen — a cheap **decision stage**
+  first; this is open call ⑤).
+
+**Attended-only — do NOT start unattended:**
+- **T17 — single-row toolbar redesign** (superseded T14 after it regressed zero-shift): **build the
+  zero-shift e2e spec FIRST**; full findings/brief in `docs/tasks/T17-editor-style-disclosure.md`.
+- **T15 — split `Viewer.tsx`** (T10 part 2): held for a quiet-machine attended window.
+
+**A-track (Mobile App Agent), NOT web-core — don't cross into `app/` (I15):** the **B06 app browse
+UX** (NsdManager/NWBrowser + plist), **A11/A12** (Stage count-in / facing pages), and the
+already-landed B03 app half + B02 loop-close. Scope the lane split first on any app-heavy B-task.
+
+**Open product calls for the human (Vincent):** ④ widen bake admin-only → members (I11 permits it)?
+⑤ promote P203 now the loop is closed? · long-flagged: **rotate the credential in the git remote URL**.
 
 ## 9. Verification commands (from repo root)
 
