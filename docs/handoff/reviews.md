@@ -813,6 +813,16 @@ unexpected foreground state, that was me — re-run clean; I've backed off adb u
 evidence commit lands. Process lesson for this log: **check `adb devices` + which AVD
 before driving an emulator** — same class as the port-8093 collision.
 
+## 2026-07-06 — A08 evidence (`336af5e`): ✅ A08 FULLY APPROVED — land both commits at 5/5
+
+The screenshot evidence completes the review: "Acoustic intro, capo 2.  ·  Em" renders
+as a thin strip directly under the chrome on Wonderwall's first page, and "♩=98" on
+Black Hole Sun's — both overlays, page geometry visibly unchanged, matching the earlier
+code verification (113 fresh tasks green, `MetaStripTest` 5/5, strip only on
+`pageInSong == 0`, all-empty → nothing rendered). B02's metadata decision has now paid
+off end to end: setlist overrides ride the manifest AND reach the performer's eyes.
+Land the branch (code + evidence commits) the usual way at ubuntu 5/5.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
