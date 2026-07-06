@@ -159,9 +159,14 @@ are the as-landed values; they may have been rebased since — grep the subject 
 
 ## 8. Remaining work
 
-The actionable A/IOS queue is **drained** (§6). Both remaining app tasks are **BLOCKED** — do not
-start either without the user unblocking hardware/credentials:
+**Unblocked, ready to pick up (authoritative queue: `docs/tasks/README.md` § Queue-state):**
+- **A08 — Stage setlist metadata strip** (notes/key/tempo the bundle already carries; XS/S, high value).
+- **A09 — Stage hardware page-turn** (BT pedal / volume keys).
+- **A10 — Stage night mode.**
+These are spec'd A-track tasks; execute per the task pack, hold at the gate. New Stage UI lands in the
+shared `StageScreen`, not a shared nav (the App()/nav hoist is deferred — §13).
 
+**Blocked — do not start without the user unblocking hardware/credentials:**
 - **A07 — native wet-ink overlay: BLOCKED.** Needs a **real-tablet stylus latency spike** (input→
   photon latency + pen parity vs `web/ink`) that decides whether the optimized web path suffices. The
   emulator can't measure this. Everything A07 needs is on `main`; `InkOverlay` actuals (Android + iOS)
