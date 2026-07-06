@@ -847,6 +847,14 @@ dispose — volume is normal everywhere else, and the IOS04 scoping precedent is
 exactly. Clamped navigation reused (no wraparound); iOS volume capture correctly
 declared out of scope. Awaiting the adb-keyevent evidence commit to finalize.
 
+## 2026-07-06 — A09 evidence (`7604ce9`): ✅ A09 FULLY APPROVED — land at 5/5
+
+The keyevent tour (PAGE_DOWN → DPAD_RIGHT → VOLUME_DOWN → PAGE_UP → VOLUME_UP → SPACE)
+lands the pager at 3/22 and the screenshot shows exactly that — Wonderwall page 2/3 =
+global 3, with (correctly) no A08 strip on a non-first page. Combined with the code
+half above (113 tasks, StageKeysTest 3/3, Stage-scoped volume interception), A09 is
+done: Bluetooth pedals and volume keys turn pages. Land both commits at ubuntu 5/5.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
