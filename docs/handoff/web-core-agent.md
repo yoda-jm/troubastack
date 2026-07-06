@@ -151,6 +151,8 @@ git push origin HEAD:main 2>&1 | sed -E "s/${TOKEN}/<TOKEN>/g"   # ff push; NO l
 
 | Task | Commit | Summary |
 |---|---|---|
+| T21 | `473557d` | **Admin-assisted password reset** (self-hosted honest — no email). `app.PasswordReset` stored keyed by the token's **SHA-256 hash** (never plaintext) — 24h expiry, single-use; new `Repo` methods on mem+file + `DeleteSessionsForUser`. Service owns policy: `IssuePasswordReset` (admin-only, member-of-*this*-band only, no cross-band), `IssuePasswordResetForUser` (operator/CLI, no band scope — the "only admin forgot" bootstrap), `ConsumePasswordReset` (set pw → burn token → **invalidate all sessions**; expired swept on read). Edges: admin `POST …/members/{u}/password-reset` → relative `resetPath` (server stays origin-agnostic); public `GET/POST /api/password-reset/{token}`; `troubacore reset-password <username>` CLI (run with server stopped on file backend — single-writer); Studio "Reset password…" per member row + public `/reset-password/:token` page. Tests: Go happy-path + hash-at-rest + single-use + session-death + old/new login (mem+file), authz matrix, expiry(403)/unknown(404), CLI-path unit; e2e admin→member→reset→old-session-bounced→new-login. **Gate-approved (crypto verified), CI green.** Deferred per spec: email/SMS, self-service forgot-pw, rate-limiting beyond single-use (→ OPS01). |
+| T20 | `8257d54` | **Duplicate a setlist** (USER-JOURNEY #7). `app.DuplicateSetlist` (member-level) deep-copies → `"<name> (copy)"` with same metadata + every item's song/position/overrides re-created with fresh ids; independent by construction (new id, no shared items, no bake history → baking the copy mints rev 1). `POST …/setlists/{s}/duplicate`; Studio member-visible "Duplicate setlist" action → jumps to the copy. Go test (copy fidelity, source untouched, outsider denied, mem+file) + e2e (duplicate → rename → both listed). **Gate-approved, CI green.** |
 | B06 (core slice) | `ac0066e` | **LAN mDNS advertisement** (change #1 + Go test). `core/internal/discovery` advertises `_troubacore._tcp` on startup via `github.com/libp2p/zeroconf/v2` (maintained fork; pulls only `miekg/dns`) — actual listen port, instance name from `TROUBA_MDNS_NAME` (default host name), TXT `version`/`path=/`. On by default; `TROUBA_NO_MDNS=1` opts out. Register failures logged + swallowed (never blocks serving); shutdown `sync.Once`-guarded; wired in `main.go`. **Verified on the wire** (zeroconf browse found the running core: instance/host/port/TXT). **A-track (NOT here):** the Connect-screen browse UX (Android `NsdManager`, iOS `NWBrowser` + plist) — routing note in the B06 spec. First networking dep in core (deliberate per the spec). |
 | demo charts | `eec3bb8` + `b56ffb9` | **Copyright-safe demo sheet-music + a wired demo song.** New dev tool `core/cmd/mkcharts` (fpdf, deterministic — pinned date + `SetCatalogSort`) generates three PDFs into `docs/demo-charts/`: *"The Open Road"* (an **original** song — lead sheet p1 + guitar tab p2), *Amazing Grace* (**public domain**, Newton 1779), and a blank placeholder. `open-road.annotations.json` + `docs/screenshots/demo-chart-annotated.png` show three meaningful layers (Form/mandatory, Conductor-cues/roleTag, personal My-notes) in Studio. `b56ffb9` then **wired The Open Road into the seed** (`pdfSource.localPath` reads the committed chart; `buildOpenRoadAnnotations` places the layers at the lead-sheet coords; songDef in "The Troubadours"/"Sat @ The Anchor") — so it flows seed → bake → Stage, and `docs/demo/demo-concert.tstage` was regenerated to the 4-song concert incl. Open Road. **NO copyrighted lyrics/tab/sheet** anywhere — original + PD only (the real-titled seed songs keep synthetic placeholder PDFs for the same reason). |
 | B03 (slice) | `93ef372` | **B03 server slice only** (change #1 + Go test). `GET …/concerts` + the bake POST now return the proto **`AvailableConcert`** shape: `currentRev`/`updatedAt`/per-song `rev` as **canonical JSON strings** (app parses via A02's Kotlin mirror verbatim), `final_locked` passthrough, `bakedBy`/`downloadUrl` extras. Per-song `rev` = the song's source (annotation) revision. Studio Bake card updated to the shape; `viewOf` + flow-shape Go tests. **The rest of B03 is A-track (Mobile App Agent) — NOT done here:** ktor client, Connect flow, EncryptedSharedPreferences secrets hardening, `distribution/Updates.kt` bodies, offer UI, Kotlin tests. Manifest endpoint is ready for them; routing note in `docs/tasks/B03-distribution-and-updates.md`. |
@@ -198,19 +200,19 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
 
 **Queue status (refreshed 2026-07-06, late).** Web-core landed this session, all CI-green +
 gate-approved: **B01, T13, B02 (+UI), B03 server slice, B04, T18, B05, the demo charts + wired
-"The Open Road", and the B06 core slice (mDNS)** (see §6). The mobile lane has since **closed** B02's
+"The Open Road", the B06 core slice (mDNS), T20 (setlist duplicate), and T21 (password reset)** (see §6). The mobile lane has since **closed** B02's
 Android loop-close and landed the **B03 app bulk** + A08. So the earlier "attended/A-track only"
 note is out of date — new **web-core** work was filed (below). Land the usual way (rebase →
 `push origin HEAD:main` → CI green); hold at the gate for a verdict in `reviews.md` or an explicit
 human OK noted in the commit ("landed per steer + VLL").
 
 **Open, unblocked — web-core lane** (no steer assigns one; pick by priority or ask):
-- **T19 — text charts** (M/L; core + web/studio + maybe proto): author formatted song documents in
-  Studio and bake them like PDFs. Highest product value of these.
 - **B07 — per-member bake** (L; core + proto + studio): "Leo sees his tab on stage" — the per-member
-  my-files bake B02 deliberately deferred. Top post-loop product gap.
-- **T20 — duplicate a setlist** (S; `core/httpapi` + studio) · **T21 — password reset** (S,
-  admin-assisted; `core/httpapi` + studio). Good fillers.
+  my-files bake B02 deliberately deferred. Top post-loop product gap. **← IN PROGRESS this session
+  (VLL "go ahead with B07").**
+- **T19 — text charts** (M/L; core + web/studio + maybe proto): author formatted song documents in
+  Studio and bake them like PDFs. Highest product value of the remainder.
+- Done this session (see §6): **T20** (setlist duplicate, S) + **T21** (password reset, admin-assisted).
 - Bigger / decisiony: **OPS01** (TLS/service/backup — effectively **human/env-blocked**: needs a real
   server + creds), **P202** (real GC, M/L core), **P203** (proto codegen — a cheap **decision stage**
   first; this is open call ⑤).
