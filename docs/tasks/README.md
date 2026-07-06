@@ -46,7 +46,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   → perform** works end to end on Android *and* iOS-simulator.
 - **Open, unblocked:** **B03** (app half — downloader/offers/freeze; server slice done),
   **B04** (bake atomicity/concurrency), **B05** (regen demo bundle via the real
-  pipeline), **T18** (dedup the Go bundle mirrors), **OPS01**, P20x.
+  pipeline), **B06** (LAN mDNS discovery), **T18** (dedup the Go bundle mirrors),
+  **OPS01**, P20x.
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
   see its attempt log), the **B02 Android loop-close screenshot** (assigned to the
   mobile lane, reviews.md 2026-07-06).
@@ -146,6 +147,7 @@ B05 retires the hand-baked `docs/demo` bundle now that the real pipeline exists.
 | B03 | [Distribution: in-app downloads, offers, freeze](B03-distribution-and-updates.md) | app + core | L |
 | B04 | [Bake robustness: atomic rev publication + concurrency guard](B04-bake-write-atomicity.md) | core | XS/S |
 | B05 | [Regenerate the demo bundle via the real pipeline](B05-regenerate-demo-bundle.md) | core + docs | XS/S |
+| B06 | [LAN auto-discovery of the band server (mDNS)](B06-lan-discovery.md) | core + app | S/M |
 | OPS01 | [Production serving: TLS, service, backup, release APK](OPS01-production-serving.md) | deploy | M |
 
 Two design decisions are resolved *inside* the specs (don't relitigate without cause):
