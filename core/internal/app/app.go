@@ -140,6 +140,19 @@ type Session struct {
 	CreatedAt time.Time `json:"-"`
 }
 
+// PasswordReset is a one-time, admin-issued credential-recovery grant (T21). The
+// plaintext token travels out-of-band — a link the admin hands the user in
+// person or in the band chat, the same trust model as invite links — and only
+// its SHA-256 hash is stored, so a leaked dataset yields no usable tokens.
+// Consuming it sets a new password AND invalidates every existing session for
+// the user. Single-use (deleted on consume) and expires after PasswordResetTTL.
+type PasswordReset struct {
+	TokenHash string    `json:"tokenHash"`
+	UserID    string    `json:"userId"`
+	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
 // Band is a group. The owner is always an admin member.
 type Band struct {
 	ID        string    `json:"id"`
@@ -268,6 +281,14 @@ type Repo interface {
 	CreateSession(s Session) error
 	GetSession(token string) (Session, error)
 	DeleteSession(token string) error
+	// DeleteSessionsForUser invalidates every session belonging to userID (used
+	// when a password reset is consumed). Deleting zero sessions is not an error.
+	DeleteSessionsForUser(userID string) error
+
+	// Password resets (T21) — keyed by the token's SHA-256 hash, never the token.
+	CreatePasswordReset(pr PasswordReset) error
+	GetPasswordReset(tokenHash string) (PasswordReset, error)
+	DeletePasswordReset(tokenHash string) error
 
 	// Bands + memberships.
 	CreateBand(b Band) error

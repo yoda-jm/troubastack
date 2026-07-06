@@ -375,6 +375,22 @@ export const api = {
   removeMember: (bandId: string, userId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/members/${userId}`),
 
+  // ---- password reset (T21) ----
+  // Admin mints a one-time reset link for a member; the server returns a relative
+  // path (it doesn't know its public origin) — the caller joins it with origin.
+  issuePasswordReset: (bandId: string, userId: string) =>
+    request<{ token: string; resetPath: string }>(
+      "POST",
+      `/api/bands/${bandId}/members/${userId}/password-reset`,
+    ),
+
+  // Public (the token IS the credential): who the reset is for, then set it.
+  previewPasswordReset: (token: string) =>
+    request<{ user: User }>("GET", `/api/password-reset/${token}`).then((r) => r.user),
+
+  submitPasswordReset: (token: string, newPassword: string) =>
+    request<void>("POST", `/api/password-reset/${token}`, { newPassword }),
+
   leaveBand: (bandId: string) => request<void>("POST", `/api/bands/${bandId}/leave`),
 
   listBandInvites: (bandId: string) =>

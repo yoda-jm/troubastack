@@ -2,6 +2,7 @@ package app
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -203,6 +204,122 @@ func (s *Service) ChangePassword(userID, currentPassword, newPassword string) er
 	}
 	u.PasswordHash = string(hash)
 	return s.repo.UpdateUser(u)
+}
+
+// passwordResetTTL is how long an admin-issued reset link stays valid (T21).
+const passwordResetTTL = 24 * time.Hour
+
+// hashToken returns the hex SHA-256 of a token. Reset tokens are stored hashed
+// (like a password) so a leaked dataset can't be used to reset anyone; the
+// plaintext lives only in the link the admin hands over.
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// IssuePasswordReset mints a one-time reset token for a band member. Admin-only,
+// and only for a user who is a member of bandID — an admin cannot reach across
+// bands. Returns the PLAINTEXT token; the caller hands it to the user
+// out-of-band (only its hash is stored). See PasswordReset.
+func (s *Service) IssuePasswordReset(caller User, bandID, targetUserID string) (string, error) {
+	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+		return "", err
+	}
+	// Scope: the target must be a member of THIS band (no cross-band reach).
+	if _, err := s.repo.GetMembership(bandID, targetUserID); err != nil {
+		return "", ErrNotFound
+	}
+	return s.mintPasswordReset(targetUserID)
+}
+
+// IssuePasswordResetForUser mints a reset token for a user by username with NO
+// band scope — the server-operator path (the CLI), covering the "the only admin
+// forgot their password" bootstrap. Not reachable over HTTP.
+func (s *Service) IssuePasswordResetForUser(username string) (User, string, error) {
+	u, err := s.repo.GetUserByUsername(strings.TrimSpace(username))
+	if err != nil {
+		return User{}, "", ErrNotFound
+	}
+	tok, err := s.mintPasswordReset(u.ID)
+	if err != nil {
+		return User{}, "", err
+	}
+	return u, tok, nil
+}
+
+func (s *Service) mintPasswordReset(userID string) (string, error) {
+	token := newToken()
+	now := s.now().UTC()
+	if err := s.repo.CreatePasswordReset(PasswordReset{
+		TokenHash: hashToken(token),
+		UserID:    userID,
+		CreatedAt: now,
+		ExpiresAt: now.Add(passwordResetTTL),
+	}); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// PasswordResetTarget validates a reset token and returns whose reset it is, so
+// the "set a new password for <user>" screen can name them. ErrNotFound for an
+// unknown token; ErrForbidden if expired. Does NOT consume the token.
+func (s *Service) PasswordResetTarget(token string) (User, error) {
+	pr, err := s.lookupLiveReset(token)
+	if err != nil {
+		return User{}, err
+	}
+	u, err := s.repo.GetUser(pr.UserID)
+	if err != nil {
+		return User{}, ErrNotFound
+	}
+	return u, nil
+}
+
+// ConsumePasswordReset sets a new password via a valid reset token. It is
+// single-use (the token is deleted) and invalidates ALL of the user's existing
+// sessions, so a leaked or forgotten session can't outlive the reset — the
+// whole point of a recovery. ErrNotFound (unknown token), ErrForbidden
+// (expired), or ErrInvalidInput (new password too short).
+func (s *Service) ConsumePasswordReset(token, newPassword string) error {
+	pr, err := s.lookupLiveReset(token)
+	if err != nil {
+		return err
+	}
+	if len(newPassword) < minPasswordLen {
+		return fmt.Errorf("%w: password too short", ErrInvalidInput)
+	}
+	u, err := s.repo.GetUser(pr.UserID)
+	if err != nil {
+		return ErrNotFound
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	u.PasswordHash = string(hash)
+	if err := s.repo.UpdateUser(u); err != nil {
+		return err
+	}
+	// Single-use: burn the token so it can't be replayed.
+	_ = s.repo.DeletePasswordReset(pr.TokenHash)
+	// Invalidate every existing session for this user.
+	return s.repo.DeleteSessionsForUser(u.ID)
+}
+
+// lookupLiveReset resolves a plaintext token to a non-expired PasswordReset.
+// Expired tokens are swept opportunistically. ErrNotFound (unknown) /
+// ErrForbidden (expired).
+func (s *Service) lookupLiveReset(token string) (PasswordReset, error) {
+	pr, err := s.repo.GetPasswordReset(hashToken(token))
+	if err != nil {
+		return PasswordReset{}, ErrNotFound
+	}
+	if !s.now().UTC().Before(pr.ExpiresAt) {
+		_ = s.repo.DeletePasswordReset(pr.TokenHash)
+		return PasswordReset{}, ErrForbidden
+	}
+	return pr, nil
 }
 
 // ---- bands & membership ----

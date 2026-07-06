@@ -141,6 +141,7 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
               <span className="muted member-handle">@{m.user.username}</span>
             </span>
             <span className="chip member-role">{label(m.role)}</span>
+            {myRole === "admin" && <MemberResetAction bandId={bandId} userId={m.user.id} />}
           </li>
         ))}
       </ul>
@@ -152,6 +153,57 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
       )}
       <ErrorBanner message={error} />
     </section>
+  );
+}
+
+/**
+ * MemberResetAction (admin) mints a one-time password-reset link for a member
+ * and shows the full URL to hand over out-of-band — the same trust model as
+ * invite links (T21). There is no email pipeline; copying the link IS delivery.
+ */
+function MemberResetAction({ bandId, userId }: { bandId: string; userId: string }) {
+  const [link, setLink] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onIssue() {
+    setError(null);
+    setBusy(true);
+    try {
+      const { resetPath } = await api.issuePasswordReset(bandId, userId);
+      setLink(window.location.origin + resetPath);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to issue reset");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (link) {
+    return (
+      <span className="member-reset">
+        <input className="reset-link" data-testid="reset-link" value={link} readOnly />
+        <button type="button" className="ghost-btn" onClick={() => setLink(null)}>
+          Done
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="member-reset">
+      <button
+        type="button"
+        className="ghost-btn"
+        data-testid="reset-password"
+        disabled={busy}
+        onClick={() => void onIssue()}
+        title="Issue a one-time password-reset link to hand over in person"
+      >
+        Reset password…
+      </button>
+      <ErrorBanner message={error} />
+    </span>
   );
 }
 

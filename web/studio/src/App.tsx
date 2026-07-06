@@ -6,6 +6,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import { ResetPassword } from "./pages/ResetPassword";
 import { Bands } from "./pages/Bands";
 import { BandDetail } from "./pages/BandDetail";
 import { BandSettings } from "./pages/BandSettings";
@@ -21,6 +22,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      {/* Public: a one-time reset link lands here (the token is the credential). */}
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
 
       {/* Authenticated area — Shell enforces the auth guard. */}
       <Route element={<Shell />}>

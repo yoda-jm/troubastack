@@ -20,17 +20,18 @@ import (
 
 // dataset is the on-disk shape. Maps mirror memrepo's keys.
 type dataset struct {
-	Users        map[string]app.User          `json:"users"`
-	Sessions     map[string]app.Session       `json:"sessions"`
-	Bands        map[string]app.Band          `json:"bands"`
-	Members      map[string]app.Membership    `json:"members"`
-	Invites      map[string]app.Invite        `json:"invites"`
-	InviteLinks  map[string]app.InviteLink    `json:"inviteLinks"`
-	Songs        map[string]app.Song          `json:"songs"`
-	Files        map[string]app.SongFile      `json:"files"`
-	Selections   map[string]app.FileSelection `json:"selections"`
-	Setlists     map[string]app.Setlist       `json:"setlists"`
-	SetlistItems map[string]app.SetlistItem   `json:"setlistItems"`
+	Users          map[string]app.User          `json:"users"`
+	Sessions       map[string]app.Session       `json:"sessions"`
+	PasswordResets map[string]app.PasswordReset `json:"passwordResets"`
+	Bands          map[string]app.Band          `json:"bands"`
+	Members        map[string]app.Membership    `json:"members"`
+	Invites        map[string]app.Invite        `json:"invites"`
+	InviteLinks    map[string]app.InviteLink    `json:"inviteLinks"`
+	Songs          map[string]app.Song          `json:"songs"`
+	Files          map[string]app.SongFile      `json:"files"`
+	Selections     map[string]app.FileSelection `json:"selections"`
+	Setlists       map[string]app.Setlist       `json:"setlists"`
+	SetlistItems   map[string]app.SetlistItem   `json:"setlistItems"`
 }
 
 // storedUser is the on-disk user record: app.User's API-visible fields PLUS the
@@ -105,17 +106,18 @@ var _ app.Repo = (*Repo)(nil)
 
 func emptyDataset() dataset {
 	return dataset{
-		Users:        map[string]app.User{},
-		Sessions:     map[string]app.Session{},
-		Bands:        map[string]app.Band{},
-		Members:      map[string]app.Membership{},
-		Invites:      map[string]app.Invite{},
-		InviteLinks:  map[string]app.InviteLink{},
-		Songs:        map[string]app.Song{},
-		Files:        map[string]app.SongFile{},
-		Selections:   map[string]app.FileSelection{},
-		Setlists:     map[string]app.Setlist{},
-		SetlistItems: map[string]app.SetlistItem{},
+		Users:          map[string]app.User{},
+		Sessions:       map[string]app.Session{},
+		PasswordResets: map[string]app.PasswordReset{},
+		Bands:          map[string]app.Band{},
+		Members:        map[string]app.Membership{},
+		Invites:        map[string]app.Invite{},
+		InviteLinks:    map[string]app.InviteLink{},
+		Songs:          map[string]app.Song{},
+		Files:          map[string]app.SongFile{},
+		Selections:     map[string]app.FileSelection{},
+		Setlists:       map[string]app.Setlist{},
+		SetlistItems:   map[string]app.SetlistItem{},
 	}
 }
 
@@ -156,6 +158,10 @@ func (r *Repo) load() error {
 	// Invite links were added later still; nil-guard for older files.
 	if r.d.InviteLinks == nil {
 		r.d.InviteLinks = map[string]app.InviteLink{}
+	}
+	// Password resets (T21) were added later still; nil-guard for older files.
+	if r.d.PasswordResets == nil {
+		r.d.PasswordResets = map[string]app.PasswordReset{}
 	}
 	return nil
 }
@@ -279,6 +285,46 @@ func (r *Repo) DeleteSession(token string) error {
 		return app.ErrNotFound
 	}
 	delete(r.d.Sessions, token)
+	return r.flush()
+}
+
+func (r *Repo) DeleteSessionsForUser(userID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for token, s := range r.d.Sessions {
+		if s.UserID == userID {
+			delete(r.d.Sessions, token)
+		}
+	}
+	return r.flush()
+}
+
+// ---- password resets ----
+
+func (r *Repo) CreatePasswordReset(pr app.PasswordReset) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.PasswordResets[pr.TokenHash] = pr
+	return r.flush()
+}
+
+func (r *Repo) GetPasswordReset(tokenHash string) (app.PasswordReset, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pr, ok := r.d.PasswordResets[tokenHash]
+	if !ok {
+		return app.PasswordReset{}, app.ErrNotFound
+	}
+	return pr, nil
+}
+
+func (r *Repo) DeletePasswordReset(tokenHash string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.d.PasswordResets[tokenHash]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.d.PasswordResets, tokenHash)
 	return r.flush()
 }
 

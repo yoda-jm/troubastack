@@ -36,6 +36,17 @@ import (
 )
 
 func main() {
+	// Operator subcommands (no args = run the server, the overwhelming default).
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "reset-password":
+			runResetPassword(os.Args[2:])
+			return
+		default:
+			log.Fatalf("troubacore: unknown subcommand %q (want: reset-password)", os.Args[1])
+		}
+	}
+
 	// Wire the subsystems (all stubs in this scaffold).
 	st, err := openStore() // swappable backend; default file, zero infra (ADR 0002)
 	if err != nil {
@@ -114,6 +125,32 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("troubacore: server error: %v", err)
 	}
+}
+
+// runResetPassword is the server operator's out-of-band recovery tool (T21): it
+// mints a one-time reset link for a user by username and prints the relative
+// path to hand over. This is the ONLY way to reset a password with no band
+// admin available — it covers the "the only admin forgot their password"
+// bootstrap. It opens the SAME app repo the server uses (TROUBA_APP_STORE), so
+// run it with the same env — and, on the file backend, while the server is
+// STOPPED: filerepo is a single-writer whole-file store, so a running server
+// would overwrite the freshly written token on its next flush.
+func runResetPassword(args []string) {
+	if len(args) != 1 || args[0] == "" {
+		log.Fatalf("usage: troubacore reset-password <username>")
+	}
+	appRepo, err := openAppRepo()
+	if err != nil {
+		log.Fatalf("troubacore: open app repo: %v", err)
+	}
+	svc := app.NewService(appRepo)
+	u, token, err := svc.IssuePasswordResetForUser(args[0])
+	if err != nil {
+		log.Fatalf("troubacore: reset-password %q: %v", args[0], err)
+	}
+	fmt.Printf("Password reset issued for %s (@%s).\n", u.DisplayName, u.Username)
+	fmt.Println("Hand this one-time link to them — valid 24h, single use:")
+	fmt.Printf("  <your-server-origin>/reset-password/%s\n", token)
 }
 
 // watchParent exits the process once our original parent dies (PPID changes as

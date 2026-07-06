@@ -36,6 +36,11 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/register", a.register)
 	mux.HandleFunc("POST /api/auth/login", a.login)
 	mux.HandleFunc("POST /api/auth/logout", a.logout)
+	// Password reset (T21): the token URL is opened by someone who is, by
+	// definition, locked out — so validate + set are public (the token IS the
+	// credential). Issuing a reset is admin-only (below).
+	mux.HandleFunc("GET /api/password-reset/{token}", a.previewPasswordReset)
+	mux.HandleFunc("POST /api/password-reset/{token}", a.submitPasswordReset)
 
 	// Authenticated.
 	mux.HandleFunc("GET /api/me", a.auth(a.me))
@@ -49,6 +54,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bands/{bandId}/members", a.auth(a.listMembers))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/members/{userId}", a.auth(a.updateMember))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/members/{userId}", a.auth(a.removeMember))
+	mux.HandleFunc("POST /api/bands/{bandId}/members/{userId}/password-reset", a.auth(a.issuePasswordReset))
 	mux.HandleFunc("POST /api/bands/{bandId}/leave", a.auth(a.leaveBand))
 	mux.HandleFunc("POST /api/bands/{bandId}/invites", a.auth(a.createInvite))
 	mux.HandleFunc("GET /api/bands/{bandId}/invites", a.auth(a.listBandInvites))
@@ -205,6 +211,49 @@ func (a *WebAPI) changePassword(w http.ResponseWriter, r *http.Request, u app.Us
 		return
 	}
 	if err := a.svc.ChangePassword(u.ID, in.CurrentPassword, in.NewPassword); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// issuePasswordReset (admin) mints a one-time reset link for a band member. We
+// return a relative resetPath rather than a full URL because the server is
+// URL-agnostic (it doesn't know its public origin); the UI joins it with
+// window.location.origin. The token itself is also returned for non-web callers.
+func (a *WebAPI) issuePasswordReset(w http.ResponseWriter, r *http.Request, u app.User) {
+	token, err := a.svc.IssuePasswordReset(u, r.PathValue("bandId"), r.PathValue("userId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"token":     token,
+		"resetPath": "/reset-password/" + token,
+	})
+}
+
+// previewPasswordReset (public) validates a reset token and names its user, so
+// the set-new-password page can greet them. The token is the credential here.
+func (a *WebAPI) previewPasswordReset(w http.ResponseWriter, r *http.Request) {
+	target, err := a.svc.PasswordResetTarget(r.PathValue("token"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": target.Public()})
+}
+
+// submitPasswordReset (public) consumes a reset token to set a new password. On
+// success every existing session for the user is invalidated (Service policy).
+func (a *WebAPI) submitPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		NewPassword string `json:"newPassword"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := a.svc.ConsumePasswordReset(r.PathValue("token"), in.NewPassword); err != nil {
 		writeErr(w, err)
 		return
 	}

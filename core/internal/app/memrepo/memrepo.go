@@ -17,33 +17,35 @@ import (
 type Repo struct {
 	mu sync.RWMutex
 
-	users        map[string]app.User          // id -> user
-	sessions     map[string]app.Session       // token -> session
-	bands        map[string]app.Band          // id -> band
-	members      map[string]app.Membership    // bandID|userID -> membership
-	invites      map[string]app.Invite        // id -> invite
-	inviteLinks  map[string]app.InviteLink    // id -> invite link
-	songs        map[string]app.Song          // id -> song
-	files        map[string]app.SongFile      // id -> song file
-	selections   map[string]app.FileSelection // userID|songID -> personal selection
-	setlists     map[string]app.Setlist       // id -> setlist
-	setlistItems map[string]app.SetlistItem   // id -> setlist item
+	users          map[string]app.User          // id -> user
+	sessions       map[string]app.Session       // token -> session
+	passwordResets map[string]app.PasswordReset // token hash -> reset grant
+	bands          map[string]app.Band          // id -> band
+	members        map[string]app.Membership    // bandID|userID -> membership
+	invites        map[string]app.Invite        // id -> invite
+	inviteLinks    map[string]app.InviteLink    // id -> invite link
+	songs          map[string]app.Song          // id -> song
+	files          map[string]app.SongFile      // id -> song file
+	selections     map[string]app.FileSelection // userID|songID -> personal selection
+	setlists       map[string]app.Setlist       // id -> setlist
+	setlistItems   map[string]app.SetlistItem   // id -> setlist item
 }
 
 // New returns an empty in-memory Repo.
 func New() *Repo {
 	return &Repo{
-		users:        map[string]app.User{},
-		sessions:     map[string]app.Session{},
-		bands:        map[string]app.Band{},
-		members:      map[string]app.Membership{},
-		invites:      map[string]app.Invite{},
-		inviteLinks:  map[string]app.InviteLink{},
-		songs:        map[string]app.Song{},
-		files:        map[string]app.SongFile{},
-		selections:   map[string]app.FileSelection{},
-		setlists:     map[string]app.Setlist{},
-		setlistItems: map[string]app.SetlistItem{},
+		users:          map[string]app.User{},
+		sessions:       map[string]app.Session{},
+		passwordResets: map[string]app.PasswordReset{},
+		bands:          map[string]app.Band{},
+		members:        map[string]app.Membership{},
+		invites:        map[string]app.Invite{},
+		inviteLinks:    map[string]app.InviteLink{},
+		songs:          map[string]app.Song{},
+		files:          map[string]app.SongFile{},
+		selections:     map[string]app.FileSelection{},
+		setlists:       map[string]app.Setlist{},
+		setlistItems:   map[string]app.SetlistItem{},
 	}
 }
 
@@ -153,6 +155,46 @@ func (r *Repo) DeleteSession(token string) error {
 		return app.ErrNotFound
 	}
 	delete(r.sessions, token)
+	return nil
+}
+
+func (r *Repo) DeleteSessionsForUser(userID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for token, s := range r.sessions {
+		if s.UserID == userID {
+			delete(r.sessions, token)
+		}
+	}
+	return nil
+}
+
+// ---- password resets ----
+
+func (r *Repo) CreatePasswordReset(pr app.PasswordReset) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.passwordResets[pr.TokenHash] = pr
+	return nil
+}
+
+func (r *Repo) GetPasswordReset(tokenHash string) (app.PasswordReset, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	pr, ok := r.passwordResets[tokenHash]
+	if !ok {
+		return app.PasswordReset{}, app.ErrNotFound
+	}
+	return pr, nil
+}
+
+func (r *Repo) DeletePasswordReset(tokenHash string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.passwordResets[tokenHash]; !ok {
+		return app.ErrNotFound
+	}
+	delete(r.passwordResets, tokenHash)
 	return nil
 }
 
