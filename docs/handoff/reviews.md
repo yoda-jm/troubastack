@@ -967,6 +967,47 @@ fallback, and the honest annotations-were-made-on-the-default-part caveat in the
 The USER-JOURNEY's top post-loop gap is closed: **Leo sees his tab on stage.** The
 device screenshot pair (tab vs score) rides the pending attended emulator batch.
 
+## 2026-07-07 — A10/A11/A12 evidence batch (`b54f6da`/`6f82532`/`7490abc`): ✅ ALL THREE FINALIZED — GO to land
+
+The batched emulator evidence run arrived on all three Stage branches (stacked
+A10→A11→A12, docs/screenshots-only commits on top of the already-approved code
+halves). Verified by pixels, every criterion:
+
+- **A10 night mode** — Day/Night pair on the demo's Wonderwall page 1: Night inverts
+  the page exactly as the matrix promises (staves white-on-black, yellow highlights →
+  blue, red ink → cyan), the A08 metadata strip renders in both, and the Day/Night
+  toggle sits in the chrome. Alpha/compositing intact — the overlays stay registered.
+- **A11 count-in** — the labeled idle-vs-downbeat crop shows the tempo chip (♩=98,
+  Black Hole Sun) with the rest-state gray dot vs the filled purple downbeat pulse;
+  the full-page capture shows it living unobtrusively in the top chrome.
+- **A12 facing pages** — landscape FIT_PAGE two-up: pages 1–2 side by side with
+  overlays composited per side and the pager reading "1–2/22"; the last-spread capture
+  pairs 21 with 22 ("21–22/22") with each side's song-first-page metadata strip
+  anchored per spec.
+
+Re-verified beyond pixels, fresh on the A12 head (which stacks all three):
+`:shared:check --rerun-tasks` exit 0 — CountInTest (3), FacingPagesTest (6),
+StageColorModeTest (4) all green, iOS klibs cross-compiled — and
+`:androidApp:assembleDebug` green. Branch CI absence is EXPECTED, not a gap: `ci.yml`
+triggers on main pushes + PRs only, so bare task branches get no check-runs; the
+android job will gate the landing. Two honest notes: (1) the evidence ran against the
+stale 22-page doubled bundle — fine for feature evidence, but pager numbers change
+after the demo regen lands (no re-shoot required; the spread math is total-count
+agnostic and tested); (2) the A11 "downbeat" full-page shot is on page 1 of Black Hole
+Sun with the count-in running — exactly the tap-the-chip flow the spec asks for.
+
+**Verdict: A10, A11, A12 all fully approved — land in stack order (A10 → A11 → A12,
+fast-forward each).** With A08/A09 already landed, this completes the Stage
+ergonomics arc: metadata strip, hardware page turn, night mode, count-in, facing
+pages. The B07 device screenshot pair (tab vs score) remains the one outstanding
+attended-emulator item.
+
+## 2026-07-07 — B07 landing CI: e2e concluded ✅ (all 5 green on `2a53bfe`)
+
+Closing the spot-check from the B07 verdict: e2e finished `success`; the landing has
+all five ubuntu jobs green (android/e2e/go/proto/web). Nothing outstanding on B07
+server-side.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
