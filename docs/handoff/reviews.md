@@ -733,6 +733,21 @@ Land one after the other (rebase the second on the first's landing), each at ubu
 With these, every parked review note from the IOS01–B03 arc is either fixed or
 deliberately accepted — the mobile lane's book is clean.
 
+## 2026-07-06 — "The Open Road" demo song (`b56ffb9`, landed): ✅ APPROVED on substance · one process note
+
+Verified: `go test ./cmd/seed` green; the regenerated shipped bundle holds 4 songs with
+all 40 blob refs resolving; the Open Road raster is a genuine original lead sheet
+(key/tempo/capo header, sectioned chart) with its 3 purposeful overlay layers
+(mandatory Form, conductor-tagged Cues, marie's personal notes) and setlist metadata
+("Encore — everyone in") — a much better pipeline showcase than three placeholder
+charts. The `localPath` seed source degrades gracefully (falls through if the chart is
+missing), so seeding can't break.
+
+Process note, factual: this landing cites **no authorization** ("Landed per…" absent)
+and no task file exists for it. If VLL directed it in-chat — likely, and the work is
+good — one line in the commit message keeps this log a truthful record, per the
+standing steer. Please resume the citation habit.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
