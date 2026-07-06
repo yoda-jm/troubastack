@@ -787,6 +787,14 @@ showed a blank page before the async decode caught up (A04's design; instant on 
 hardware) — worth remembering when screenshotting: give a cold page a beat. README now
 links the tablet shots in the mobile section.
 
+## 2026-07-06 — `docs/handoff-queue-fix` (`a72e8e3`): ✅ APPROVED — land at 5/5
+
+Right catch: §8's "queue drained" went stale when A08/A09/A10 were filed (`9c5d694`) —
+a fresh mobile session would have been pointed at nothing. The fix lists the three
+Stage tasks as ready, defers to `docs/tasks/README.md` § Queue-state as authoritative
+(correct — one source of truth for queue status), and cross-references the deferred
+nav-hoist decision. Docs-only; land the usual way.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
