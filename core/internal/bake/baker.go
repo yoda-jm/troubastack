@@ -68,13 +68,41 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		return ConcertBundle{}, err
 	}
 	concertID := setlistID
+	concertDir := filepath.Join(b.bakesDir, concertID)
+	if err := os.MkdirAll(concertDir, 0o755); err != nil {
+		return ConcertBundle{}, err
+	}
+
+	// Claim a rev ATOMICALLY (B04 finding 1): create the staging dir `<rev>.tmp`
+	// with os.Mkdir (fails if it exists — unlike MkdirAll). On collision, bump the
+	// number and retry; `nextRev` counts only PUBLISHED numeric dirs (not in-flight
+	// `.tmp` claims), so a concurrent baker would otherwise re-pick the same number
+	// forever — hence the local increment rather than a plain re-scan. No mutex.
 	rev, err := b.nextRev(concertID)
 	if err != nil {
 		return ConcertBundle{}, err
 	}
+	var stageDir string
+	for {
+		stageDir = filepath.Join(concertDir, strconv.FormatUint(rev, 10)+".tmp")
+		mkErr := os.Mkdir(stageDir, 0o755)
+		if mkErr == nil {
+			break
+		}
+		if !os.IsExist(mkErr) {
+			return ConcertBundle{}, mkErr
+		}
+		rev++ // another bake holds this rev's stage — try the next number
+	}
+	// Clean the staging dir if we don't reach a successful publish (rename clears it).
+	published := false
+	defer func() {
+		if !published {
+			_ = os.RemoveAll(stageDir)
+		}
+	}()
 
-	revDir := filepath.Join(b.bakesDir, concertID, strconv.FormatUint(rev, 10))
-	blobsDir := filepath.Join(revDir, "blobs")
+	blobsDir := filepath.Join(stageDir, "blobs")
 	if err := os.MkdirAll(blobsDir, 0o755); err != nil {
 		return ConcertBundle{}, err
 	}
@@ -99,14 +127,21 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	if err != nil {
 		return ConcertBundle{}, err
 	}
-	if err := os.WriteFile(filepath.Join(revDir, "bundle.json"), manifest, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stageDir, "bundle.json"), manifest, 0o644); err != nil {
 		return ConcertBundle{}, err
 	}
-	// Zip to a sibling .tstage (outside revDir, so it isn't zipped into itself).
-	tstage := filepath.Join(b.bakesDir, concertID, strconv.FormatUint(rev, 10)+".tstage")
-	if err := WriteTstage(tstage, revDir, time.Unix(bundle.BakedAt, 0)); err != nil {
+	// Publish ATOMICALLY (B04 finding 2). Write the sibling .tstage from the staged
+	// contents FIRST, then rename the staging dir to its final `<rev>` name. Readers
+	// key off the numeric dir (latestRev), so a rev becomes visible only once BOTH
+	// its .tstage and bundle.json are fully in place — never mid-write.
+	revName := strconv.FormatUint(rev, 10)
+	if err := WriteTstage(filepath.Join(concertDir, revName+".tstage"), stageDir, time.Unix(bundle.BakedAt, 0)); err != nil {
 		return ConcertBundle{}, err
 	}
+	if err := os.Rename(stageDir, filepath.Join(concertDir, revName)); err != nil {
+		return ConcertBundle{}, err
+	}
+	published = true
 	return bundle, nil
 }
 
@@ -233,6 +268,8 @@ func (b *Baker) nextRev(concertID string) (uint64, error) {
 		if !e.IsDir() {
 			continue
 		}
+		// Staging dirs are named `<rev>.tmp`; ParseUint rejects them, so in-flight
+		// bakes never count as a published rev here (B04). Both scanners rely on this.
 		if n, perr := strconv.ParseUint(e.Name(), 10, 64); perr == nil && n > max {
 			max = n
 		}

@@ -9,6 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 
 	"troubastack/core/internal/app"
@@ -175,6 +178,94 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	}
 	if concerts := b.ListConcerts(); len(concerts) != 1 || concerts[0].ConcertRev != 2 {
 		t.Fatalf("ListConcerts should show the latest rev (2), got %+v", concerts)
+	}
+}
+
+// TestBake_ConcurrentSameSetlist_distinctRevs is the B04 guard: two bakes of the
+// same setlist running at once must mint DISTINCT revs (atomic rev claim), both fully
+// published (atomic rename), with no staging dir left visible.
+func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
+	svc, eng, u, bandID, setlistID := seed(t)
+	png := tinyPNG(t, 40, 56)
+	b := &Baker{
+		svc:      svc,
+		eng:      eng,
+		raster:   fakeRaster{pages: 1, png: png},
+		overlays: fakeOverlays{png: png},
+		bakesDir: t.TempDir(),
+		now:      func() int64 { return 1700000000 },
+	}
+
+	const n = 2
+	var wg sync.WaitGroup
+	res := make([]ConcertBundle, n)
+	errs := make([]error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			res[i], errs[i] = b.Bake(context.Background(), bandID, setlistID, u)
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < n; i++ {
+		if errs[i] != nil {
+			t.Fatalf("concurrent bake %d failed: %v", i, errs[i])
+		}
+	}
+	if res[0].ConcertRev == res[1].ConcertRev {
+		t.Fatalf("both bakes minted rev %d — not distinct (rev race)", res[0].ConcertRev)
+	}
+
+	// Both revs are fully published: bundle.json parses, every blob ref resolves, .tstage exists.
+	for _, cb := range res {
+		revName := strconv.FormatUint(cb.ConcertRev, 10)
+		revDir := filepath.Join(b.bakesDir, setlistID, revName)
+		data, err := os.ReadFile(filepath.Join(revDir, "bundle.json"))
+		if err != nil {
+			t.Fatalf("rev %s bundle.json: %v", revName, err)
+		}
+		var parsed ConcertBundle
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			t.Fatalf("rev %s bundle.json parse: %v", revName, err)
+		}
+		for _, song := range parsed.Songs {
+			for _, page := range song.Pages {
+				for _, ref := range append([]string{page.PageRasterRef}, refsOf(page.Overlays)...) {
+					if _, err := os.Stat(filepath.Join(revDir, filepath.FromSlash(ref))); err != nil {
+						t.Fatalf("rev %s blob %q missing: %v", revName, ref, err)
+					}
+				}
+			}
+		}
+		if _, err := os.Stat(filepath.Join(b.bakesDir, setlistID, revName+".tstage")); err != nil {
+			t.Fatalf("rev %s .tstage missing: %v", revName, err)
+		}
+	}
+
+	// No staging dir is left behind (atomic publish cleaned/renamed it).
+	entries, err := os.ReadDir(filepath.Join(b.bakesDir, setlistID))
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Fatalf("staging dir left visible after publish: %s", e.Name())
+		}
+	}
+
+	// ListConcerts / BundlePath expose the highest rev cleanly (latest-per-concert).
+	hi := res[0].ConcertRev
+	if res[1].ConcertRev > hi {
+		hi = res[1].ConcertRev
+	}
+	concerts := b.ListConcerts()
+	if len(concerts) != 1 || concerts[0].ConcertRev != hi {
+		t.Fatalf("ListConcerts = %+v, want one concert at rev %d", concerts, hi)
+	}
+	if got, want := b.BundlePath(setlistID), filepath.Join(b.bakesDir, setlistID, strconv.FormatUint(hi, 10)+".tstage"); got != want {
+		t.Fatalf("BundlePath = %q, want %q", got, want)
 	}
 }
 
