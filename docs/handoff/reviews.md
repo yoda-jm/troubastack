@@ -855,6 +855,17 @@ global 3, with (correctly) no A08 strip on a non-first page. Combined with the c
 half above (113 tasks, StageKeysTest 3/3, Stage-scoped volume interception), A09 is
 done: Bluetooth pedals and volume keys turn pages. Land both commits at ubuntu 5/5.
 
+## 2026-07-06 — T20 (`8257d54`, landed per queue + VLL): ✅ APPROVED
+
+Re-verified: `TestSetlistDuplicate` green fresh (fidelity of items/overrides/order,
+source untouched, outsider denied), vet clean. The independence-by-construction design
+is right — a new setlist id means the copy has no bake history for free (baking it
+mints rev 1), and the deep copy re-creates items with fresh ids so no mutation can
+alias. Member-level authz matches setlist creation, per spec. The e2e spec covers the
+duplicate→rename→both-listed flow and gates in CI (in flight at review time — the
+usual 5/5 landing rule applies). Authorization line present. USER-JOURNEY gap #7
+closed.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
