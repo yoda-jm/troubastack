@@ -2,6 +2,8 @@
 package com.troubashare.shared.seams
 
 import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import java.io.File
 import java.util.zip.Inflater
 import java.util.zip.ZipInputStream
@@ -15,10 +17,23 @@ actual class Storage(private val context: Context) {
 
     actual fun tempDir(): String = context.cacheDir.path
 
-    // Secrets: holds NOTHING sensitive yet, so this is plain SharedPreferences. HARDEN to
-    // EncryptedSharedPreferences (androidx.security.crypto) BEFORE any auth token is stored here.
-    // No crypto dependency is pulled in for an unused path (per A05).
-    private val prefs by lazy { context.getSharedPreferences("troubashare.secrets", Context.MODE_PRIVATE) }
+    // Secrets: EncryptedSharedPreferences (androidx.security.crypto) — hardened for B03, which is the
+    // first to store an auth session cookie here (A05 flagged this as due before any token lands).
+    // Keys are AES256-SIV, values AES256-GCM, under a MasterKey in the Android Keystore. This is a
+    // NEW store ("…secrets.enc"); the old plaintext "troubashare.secrets" held nothing sensitive, so
+    // no migration is needed. Also serves as the small KV for non-secret distribution policy JSON.
+    private val prefs by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            "troubashare.secrets.enc",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
 
     actual fun getSecret(key: String): String? = prefs.getString(key, null)
 

@@ -46,13 +46,14 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))  // shared unit tests (bundle loader, …); run on androidUnitTest
+            implementation(libs.kotlinx.coroutines.test)  // runTest for the coroutine-based downloader (B03)
         }
 
         androidMain.dependencies {
             // SEAM ACTUALS ONLY (I15) — nothing here that could be shared:
             //   implementation(libs.androidx.webkit)          // seam 1: WebView host (I10)      [A06]
             //   implementation(libs.androidx.ink)             // seam 2: low-latency wet overlay (I9/I8) [A07]
-            //   implementation(libs.androidx.security.crypto) // seam 3: storage / secure prefs  [A05]
+            implementation(libs.androidx.security.crypto)      // seam 3: EncryptedSharedPreferences (B03)
         }
 
         // iosMain.dependencies {
