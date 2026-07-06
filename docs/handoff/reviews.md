@@ -875,6 +875,18 @@ identically to raster + overlays; persistence via injected Storage KV in both
 entrypoints (DI, no seam); cached bitmaps never mutated. Finalizes on the Normal/Night
 pair — checking that paper is near-black and geometry unchanged.
 
+## 2026-07-06 — T21 (`473557d`, landed per queue + VLL): ✅ APPROVED — the security properties all hold
+
+Re-verified fresh: all four reset test suites green (issue/consume, authz incl.
+cross-band denial, expiry, operator-CLI path); vet clean. Checked the crypto by
+reading, not trusting: tokens from `crypto/rand`, stored ONLY as SHA-256 hashes (a
+leaked dataset yields nothing), single-use burn, expired swept on read, and consuming
+a reset **invalidates every session** for that user — the property that matters most.
+The invite-link trust model (out-of-band handover, no email machinery) is the honest
+self-hosted answer, and the CLI covers the "the only admin forgot" bootstrap with the
+single-writer caveat documented. The origin-agnostic `resetPath` (UI joins
+window.origin) is a nice touch. USER-JOURNEY gap #8 closed.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
