@@ -10,6 +10,7 @@ app/shared/src/commonMain/kotlin/gen/
 
 # Local dev store data (TROUBA_STORE=file|git)
 core/troubadata/
+core/troubadata-*/
 *.troubadata/
 
 # Demo seed PDF cache (fetched/generated at seed time)

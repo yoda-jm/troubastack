@@ -117,9 +117,9 @@ class UpdatesManager(
 
     /**
      * Apply an offered/available update — EXPLICIT only (the caller gates on not-in-performance, I13).
-     * Downloads to [tempDir], hands to [importBundle] (atomic swap), then clears the temp file. On
-     * any failure returns [ImportResult.Failed] and the installed bundle is left untouched.
-     * `SongChanged` is unsupported in B03.
+     * Downloads to a fixed per-concert path under [tempDir] (overwritten each attempt), then hands it
+     * to [importBundle] (A05's atomic swap). On any failure returns [ImportResult.Failed] and the
+     * installed bundle is left untouched. `SongChanged` is unsupported in B03.
      */
     suspend fun apply(offer: Availability): ImportResult {
         val concertId = when (offer) {

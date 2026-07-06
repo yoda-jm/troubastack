@@ -19,14 +19,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,17 +41,25 @@ import com.troubashare.shared.bundle.BundleImporter
 import com.troubashare.shared.bundle.BundleLoader
 import com.troubashare.shared.bundle.ImportResult
 import com.troubashare.shared.bundle.LoadResult
+import com.troubashare.shared.distribution.Availability
+import com.troubashare.shared.distribution.Freeze
+import com.troubashare.shared.distribution.UpdatePolicy
+import com.troubashare.shared.distribution.UpdatesManager
 import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.stage.ImageDecoder
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
 
+private const val POLICIES_KEY = "trouba.update.policies"
+
 /**
- * The thin Android entrypoint (I15). Navigates between a Concerts list (backed by the Storage seam's
- * bundlesDir) and the shared [StageScreen]. No account, no auth, no network — Stage runs offline
- * straight from launch (I12). Bundles arrive by importing a `.tstage` (A05), not from assets.
+ * The thin Android entrypoint (I15). Concerts list (Storage bundlesDir) + the shared [StageScreen],
+ * plus B03 distribution: an optional Connect (session login) surfaces baked concerts as download
+ * offers on the list; applying them goes through A05's atomic import. Stage stays offline (I12) —
+ * offers live only in the list, never mid-performance.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,23 +70,51 @@ class MainActivity : ComponentActivity() {
 
 private class OpenedBundle(val vm: StageViewModel, val decoder: ImageDecoder)
 
-private data class ConcertEntry(val dir: String, val label: String, val damaged: Boolean)
+private data class ConcertEntry(
+    val dir: String,
+    val concertId: String,
+    val concertRev: ULong,
+    val label: String,
+    val damaged: Boolean,
+)
 
 @Composable
 private fun App() {
     val context = LocalContext.current.applicationContext
     val storage = remember { Storage(context) }
+    val transport = remember { HttpTransport(storage) }
+    val updates = remember {
+        UpdatesManager(
+            transport = transport,
+            tempDir = { storage.tempDir() },
+            installedRevs = { listConcerts(storage).filter { !it.damaged }.associate { it.concertId to it.concertRev } },
+            importBundle = { BundleImporter(AndroidImportFs(storage)).import(it) },
+            readPolicies = { storage.getSecret(POLICIES_KEY) },
+            writePolicies = { storage.putSecret(POLICIES_KEY, it) },
+        )
+    }
+
     var selectedDir by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf(false) }
+    var connecting by remember { mutableStateOf(false) }
 
     if (editing) {
         EditScreen(storage, onBack = { editing = false })
         return
     }
+    if (connecting) {
+        ConnectScreen(storage, transport, onConnected = { connecting = false }, onBack = { connecting = false })
+        return
+    }
 
     val dir = selectedDir
     if (dir == null) {
-        ConcertsScreen(context, storage, onOpen = { selectedDir = it }, onEdit = { editing = true })
+        ConcertsScreen(
+            context, storage, transport, updates,
+            onOpen = { selectedDir = it },
+            onEdit = { editing = true },
+            onConnect = { connecting = true },
+        )
         return
     }
 
@@ -90,9 +131,22 @@ private fun App() {
 }
 
 @Composable
-private fun ConcertsScreen(context: Context, storage: Storage, onOpen: (String) -> Unit, onEdit: () -> Unit) {
+private fun ConcertsScreen(
+    context: Context,
+    storage: Storage,
+    transport: HttpTransport,
+    updates: UpdatesManager,
+    onOpen: (String) -> Unit,
+    onEdit: () -> Unit,
+    onConnect: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
     var refresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
+    var connected by remember { mutableStateOf(transport.isConnected) }
+    var syncing by remember { mutableStateOf(false) }
+    var offers by remember { mutableStateOf<List<Availability>>(emptyList()) }
+    var names by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -108,32 +162,111 @@ private fun ConcertsScreen(context: Context, storage: Storage, onOpen: (String) 
 
     val entries = remember(refresh) { listConcerts(storage) }
 
+    // Pull the manifest + recompute offers whenever connection or install state changes (I13).
+    LaunchedEffect(connected, refresh) {
+        if (!connected) { offers = emptyList(); return@LaunchedEffect }
+        syncing = true
+        try {
+            val manifest = updates.fetchManifest()
+            names = manifest.concerts.associate { it.concertId to it.name.ifEmpty { it.concertId } }
+            offers = updates.diff(manifest)
+        } catch (e: Exception) {
+            message = "Couldn't reach the server"
+        }
+        syncing = false
+    }
+
+    fun applyOffer(offer: Availability) {
+        scope.launch {
+            syncing = true
+            message = when (val r = updates.apply(offer)) {
+                is ImportResult.Imported -> "Downloaded"
+                is ImportResult.Failed -> r.reason   // old bundle left untouched (importer guarantees)
+            }
+            syncing = false
+            refresh++
+        }
+    }
+
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Concerts", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                if (connected) {
+                    TextButton(onClick = { transport.signOut(); connected = false; offers = emptyList() }) { Text("Sign out") }
+                } else {
+                    TextButton(onClick = onConnect) { Text("Connect") }
+                }
                 TextButton(onClick = onEdit) { Text("Edit") }
                 // ".tstage" has no registered MIME type, so accept zip + anything and validate on import.
                 Button(onClick = { picker.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
                     Text("Import")
                 }
             }
+            if (syncing) Text("Syncing…", style = MaterialTheme.typography.bodySmall)
             message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+
+            // Offer chips (I13): download-available + update-offered, applied only on explicit tap.
+            offers.forEach { offer -> OfferChip(offer, names, onApply = { applyOffer(offer) }) }
+
             if (entries.isEmpty()) {
-                Text("No concerts yet. Import a .tstage to get started.", style = MaterialTheme.typography.bodyMedium)
+                Text("No concerts yet. Import a .tstage or Connect to download one.", style = MaterialTheme.typography.bodyMedium)
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(entries) { entry ->
-                    Card(
-                        onClick = { if (!entry.damaged) onOpen(entry.dir) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(entry.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            if (entry.damaged) {
-                                TextButton(onClick = { File(entry.dir).deleteRecursively(); refresh++ }) { Text("Delete") }
-                            }
-                        }
+                    ConcertRow(
+                        entry,
+                        onOpen = { if (!entry.damaged) onOpen(entry.dir) },
+                        onDelete = { File(entry.dir).deleteRecursively(); refresh++ },
+                        onFreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.FROZEN); refresh++ },
+                        onUnfreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.PROMPT); refresh++ },
+                        onPin = { updates.setFreeze(entry.concertId, Freeze.LocalPin(entry.concertRev)); refresh++ },
+                        onUnpin = { updates.setFreeze(entry.concertId, null); refresh++ },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfferChip(offer: Availability, names: Map<String, String>, onApply: () -> Unit) {
+    val (label, action) = when (offer) {
+        is Availability.NewlyAvailable -> "New: ${names[offer.concertId] ?: offer.concertId}" to "Download"
+        is Availability.UpdateOffered -> "${names[offer.concertId] ?: offer.concertId} — update to rev ${offer.serverRev}" to "Update"
+        is Availability.SongChanged -> return
+    }
+    ElevatedCard(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Button(onClick = onApply) { Text(action) }
+        }
+    }
+}
+
+@Composable
+private fun ConcertRow(
+    entry: ConcertEntry,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    onFreeze: () -> Unit,
+    onUnfreeze: () -> Unit,
+    onPin: () -> Unit,
+    onUnpin: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(entry.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            when {
+                entry.damaged -> TextButton(onClick = onDelete) { Text("Delete") }
+                else -> {
+                    TextButton(onClick = { menuOpen = true }) { Text("⋮") }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Freeze (no updates)") }, onClick = { menuOpen = false; onFreeze() })
+                        DropdownMenuItem(text = { Text("Unfreeze") }, onClick = { menuOpen = false; onUnfreeze() })
+                        DropdownMenuItem(text = { Text("Pin this version") }, onClick = { menuOpen = false; onPin() })
+                        DropdownMenuItem(text = { Text("Unpin") }, onClick = { menuOpen = false; onUnpin() })
                     }
                 }
             }
@@ -146,8 +279,11 @@ private fun listConcerts(storage: Storage): List<ConcertEntry> {
     val dirs = File(storage.bundlesDir()).listFiles()?.filter { it.isDirectory }?.sortedBy { it.name } ?: emptyList()
     return dirs.map { d ->
         when (val r = BundleLoader().load(d.path, FileBundleFiles())) {
-            is LoadResult.Loaded -> ConcertEntry(d.path, r.bundle.name.ifEmpty { r.bundle.concertId.ifEmpty { d.name } }, damaged = false)
-            is LoadResult.Failed -> ConcertEntry(d.path, "Damaged bundle (${d.name})", damaged = true)
+            is LoadResult.Loaded -> ConcertEntry(
+                d.path, r.bundle.concertId, r.bundle.concertRev,
+                r.bundle.name.ifEmpty { r.bundle.concertId.ifEmpty { d.name } }, damaged = false,
+            )
+            is LoadResult.Failed -> ConcertEntry(d.path, "", 0uL, "Damaged bundle (${d.name})", damaged = true)
         }
     }
 }
