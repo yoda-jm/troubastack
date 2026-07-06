@@ -483,11 +483,17 @@ export const api = {
       { orderedItemIds },
     ).then((r) => r.items),
 
-  // ---- bake / concerts (B02) ----
+  // ---- bake / concerts (B02, B07) ----
   // A setlist bakes to a "concert" (concertId === setlistId); each bake bumps
-  // concertRev. Bake is admin-only; listing/download are member-scoped to the band.
-  bakeSetlist: (bandId: string, setlistId: string) =>
-    request<Concert>("POST", `/api/bands/${bandId}/setlists/${setlistId}/bake`),
+  // concertRev. The band bake is admin-only. scope:"mine" mints the caller's
+  // PERSONAL variant (concertId === `${setlistId}~${userId}`, B07) — any member
+  // may bake their own. listing/download are member-scoped to the band and, for
+  // variants, to the caller.
+  bakeSetlist: (bandId: string, setlistId: string, scope?: "mine") =>
+    request<Concert>(
+      "POST",
+      `/api/bands/${bandId}/setlists/${setlistId}/bake${scope === "mine" ? "?scope=mine" : ""}`,
+    ),
   listConcerts: (bandId: string) =>
     request<{ concerts: Concert[] }>("GET", `/api/bands/${bandId}/concerts`).then(
       (r) => r.concerts,

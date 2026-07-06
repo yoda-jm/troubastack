@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"troubastack/core/internal/app"
@@ -57,17 +58,49 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 	}
 }
 
+// concertSep separates a setlist id from a member id in a per-member variant
+// concert id (<setlistId>~<userId>, B07). Setlist and user ids are UUIDs (no
+// '~'), so the split back into (setlist, user) is unambiguous.
+const concertSep = "~"
+
+// VariantConcertID is the concert id of userID's personal bake of setlistID.
+func VariantConcertID(setlistID, userID string) string {
+	return setlistID + concertSep + userID
+}
+
+// ParseConcertID splits a concert id into its base setlist id and, for a
+// per-member variant, the owner's user id. isVariant is false for a shared band
+// concert (id == setlist id). Used by the httpapi edge to scope listing +
+// download (a member sees band concerts + only their OWN variants).
+func ParseConcertID(id string) (setlistID, userID string, isVariant bool) {
+	if i := strings.IndexByte(id, concertSep[0]); i >= 0 {
+		return id[:i], id[i+1:], true
+	}
+	return id, "", false
+}
+
 // Bake renders the setlist into a bundle dir + .tstage under bakesDir and returns
 // the manifest. Admin authorization is the CALLER's responsibility (the httpapi
 // edge gates it, mirroring T08); `actor` scopes the data reads and is recorded as
-// bakedBy. concertId is the setlist id (stable per setlist); concert_rev bumps
-// monotonically per setlist across bakes.
-func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User) (ConcertBundle, error) {
+// bakedBy.
+//
+// personal selects the per-member variant (B07): the concert is keyed
+// <setlistId>~<actorId> and each song resolves to the member's my-files PDF
+// (falling back to the default). The shared band bake (personal=false) is keyed
+// by the setlist id alone and is byte-identical to B02/B04. concert_rev bumps
+// monotonically PER concert id (so a member's variant revs independently of the
+// band bake).
+func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, personal bool) (ConcertBundle, error) {
 	detail, err := b.svc.Setlist(actor, bandID, setlistID)
 	if err != nil {
 		return ConcertBundle{}, err
 	}
 	concertID := setlistID
+	name := detail.Setlist.Name
+	if personal {
+		concertID = VariantConcertID(setlistID, actor.ID)
+		name = fmt.Sprintf("%s (%s's parts)", detail.Setlist.Name, actor.DisplayName)
+	}
 	concertDir := filepath.Join(b.bakesDir, concertID)
 	if err := os.MkdirAll(concertDir, 0o755); err != nil {
 		return ConcertBundle{}, err
@@ -109,14 +142,14 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 
 	bundle := ConcertBundle{
 		ConcertID:  concertID,
-		Name:       detail.Setlist.Name,
+		Name:       name,
 		ConcertRev: rev,
 		BakedAt:    b.now(),
 		BakedBy:    actor.DisplayName,
 	}
 
 	for si, item := range detail.Items {
-		song, berr := b.bakeSong(ctx, si, bandID, actor, item, blobsDir)
+		song, berr := b.bakeSong(ctx, si, bandID, actor, item, blobsDir, personal)
 		if berr != nil {
 			return ConcertBundle{}, fmt.Errorf("song %s: %w", item.SongID, berr)
 		}
@@ -148,7 +181,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 // bakeSong bakes one setlist item: pick its default shared-pool PDF, rasterize its
 // pages, render per-layer overlays, and assemble the BakedSong (overrides ride as
 // metadata). A song with no viewable PDF bakes to zero pages (loaders tolerate it).
-func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string) (BakedSong, error) {
+func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string, personal bool) (BakedSong, error) {
 	song := BakedSong{
 		SongID:       item.SongID,
 		SongRev:      1,
@@ -166,7 +199,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	}
 	song.SourceRevision = snap.Revision
 
-	file, ok, err := b.defaultFile(actor, bandID, item.SongID)
+	file, ok, err := b.resolveFile(actor, bandID, item.SongID, personal)
 	if err != nil {
 		return BakedSong{}, err
 	}
@@ -236,9 +269,33 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	return song, nil
 }
 
-// defaultFile is v1's single-file choice: the song's shared-pool file with the
+// resolveFile picks the PDF to bake for one song (B07). A shared band bake uses
+// defaultFile unchanged (byte-identical to B02/B04). A personal bake uses the
+// first viewable PDF in the member's my-files view — their curated order; with
+// NO saved selection that view is the full pool in display order, so it equals
+// the band bake's default pick (the degenerate case the spec calls for). If the
+// member's view yields no PDF (e.g. they curated a PDF-less view), it falls back
+// to the default pool choice, so a personal bake is never emptier than the band
+// bake and always succeeds.
+func (b *Baker) resolveFile(actor app.User, bandID, songID string, personal bool) (app.SongFile, bool, error) {
+	if !personal {
+		return b.defaultFile(actor, bandID, songID)
+	}
+	files, _, err := b.svc.MyFileSelection(actor, bandID, songID)
+	if err != nil {
+		return app.SongFile{}, false, err
+	}
+	for _, f := range files {
+		if f.ContentType == "application/pdf" {
+			return f, true, nil
+		}
+	}
+	return b.defaultFile(actor, bandID, songID)
+}
+
+// defaultFile is the shared-pool single-file choice: the song's file with the
 // lowest DisplayOrder that is a viewable PDF — the same one Studio opens by
-// default. (Per-member my-files bakes are a later product decision.)
+// default, and the base for a personal bake's fallback (B07).
 func (b *Baker) defaultFile(actor app.User, bandID, songID string) (app.SongFile, bool, error) {
 	files, err := b.svc.SongFiles(actor, bandID, songID)
 	if err != nil {

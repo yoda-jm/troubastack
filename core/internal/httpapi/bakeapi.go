@@ -70,22 +70,29 @@ func viewOf(bandID string, cb bake.ConcertBundle) concertView {
 	}
 }
 
-// bake mints a new revision of a setlist's concert. ADMIN-only (I11).
+// bake mints a new revision of a setlist's concert. The band-wide bake is
+// ADMIN-only (I11, same pattern as T08's annotation import). `?scope=mine`
+// mints the caller's PERSONAL variant (B07) — allowed for any band member,
+// because baking your own view of an admin-curated setlist is reading, not
+// publishing to the band.
 func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	if a.baker == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bake not configured"})
 		return
 	}
 	bandID := r.PathValue("bandId")
-	// Admin gate, same pattern as T08's annotation import.
-	if _, role, err := a.svc.GetBand(u, bandID); err != nil {
+	personal := r.URL.Query().Get("scope") == "mine"
+	// Membership is required either way; GetBand 403/404s a non-member.
+	_, role, err := a.svc.GetBand(u, bandID)
+	if err != nil {
 		writeErr(w, err)
 		return
-	} else if role != app.RoleAdmin {
+	}
+	if !personal && role != app.RoleAdmin {
 		writeErr(w, app.ErrForbidden)
 		return
 	}
-	cb, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u)
+	cb, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, personal)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -108,9 +115,17 @@ func (a *BakeAPI) listConcerts(w http.ResponseWriter, r *http.Request, u app.Use
 	views := []concertView{}
 	if a.baker != nil {
 		for _, cb := range a.baker.ListConcerts() {
-			if inBand[cb.ConcertID] {
-				views = append(views, viewOf(bandID, cb))
+			// A concert is visible if its base setlist is in this band AND, for a
+			// per-member variant (B07), it belongs to the caller — never another
+			// member's variant.
+			base, owner, isVariant := bake.ParseConcertID(cb.ConcertID)
+			if !inBand[base] {
+				continue
 			}
+			if isVariant && owner != u.ID {
+				continue
+			}
+			views = append(views, viewOf(bandID, cb))
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"concerts": views})
@@ -121,8 +136,16 @@ func (a *BakeAPI) listConcerts(w http.ResponseWriter, r *http.Request, u app.Use
 func (a *BakeAPI) downloadBundle(w http.ResponseWriter, r *http.Request, u app.User) {
 	bandID := r.PathValue("bandId")
 	concertID := r.PathValue("concertId")
-	if _, err := a.svc.Setlist(u, bandID, concertID); err != nil {
+	// The base setlist must belong to the caller's band (svc.Setlist enforces
+	// scope). For a per-member variant (B07) the caller must also be its owner —
+	// a member can fetch band concerts + their OWN variants, never another's.
+	base, owner, isVariant := bake.ParseConcertID(concertID)
+	if _, err := a.svc.Setlist(u, bandID, base); err != nil {
 		writeErr(w, err) // not our band / unknown setlist → 403/404
+		return
+	}
+	if isVariant && owner != u.ID {
+		writeErr(w, app.ErrForbidden)
 		return
 	}
 	if a.baker == nil {

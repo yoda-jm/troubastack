@@ -76,7 +76,7 @@ export function SetlistDetail() {
         setlistId={setlistId}
         onDuplicated={(id) => navigate(`/bands/${bandId}/setlists/${id}`)}
       />
-      {myRole === "admin" && <BakeCard bandId={bandId} setlistId={setlistId} />}
+      <BakeCard bandId={bandId} setlistId={setlistId} myRole={myRole} />
       {myRole === "admin" && (
         <DeleteSetlist
           bandId={bandId}
@@ -88,44 +88,55 @@ export function SetlistDetail() {
   );
 }
 
-// BakeCard (B02): admin bakes this setlist into a downloadable .tstage (I11), with
-// a download link for the latest bake and a short history. One card, no new route.
-function BakeCard({ bandId, setlistId }: { bandId: string; setlistId: string }) {
+// BakeCard (B02 + B07): flatten this setlist into a downloadable .tstage (I11).
+// The band bake (admin-only) is the shared concert; "Bake my parts" (any member)
+// mints the caller's PERSONAL variant — same setlist, but each song resolves to
+// the member's own "my files" pick (concertId `${setlistId}~${userId}`). One card.
+function BakeCard({
+  bandId,
+  setlistId,
+  myRole,
+}: {
+  bandId: string;
+  setlistId: string;
+  myRole: Role | null;
+}) {
   const [concerts, setConcerts] = useState<Concert[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"" | "band" | "mine">("");
   const [error, setError] = useState<string | null>(null);
+  const isAdmin = myRole === "admin";
 
-  const loadHistory = useCallback(async () => {
+  // A concert belongs to this setlist if it IS the band concert (id === setlist)
+  // or the caller's variant (id starts with `${setlist}~`). The server only ever
+  // returns the caller's own variants, so any `~` match here is mine.
+  const load = useCallback(async () => {
     try {
       const all = await api.listConcerts(bandId);
-      setConcerts(
-        all
-          .filter((c) => c.concertId === setlistId)
-          .sort((a, b) => Number(b.currentRev) - Number(a.currentRev)),
-      );
+      setConcerts(all.filter((c) => c.concertId === setlistId || c.concertId.startsWith(`${setlistId}~`)));
     } catch {
       // A missing/empty concert list is not an error worth surfacing here.
     }
   }, [bandId, setlistId]);
 
   useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+    void load();
+  }, [load]);
 
-  async function bake() {
-    setBusy(true);
+  async function bake(scope?: "mine") {
+    setBusy(scope === "mine" ? "mine" : "band");
     setError(null);
     try {
-      await api.bakeSetlist(bandId, setlistId);
-      await loadHistory();
+      await api.bakeSetlist(bandId, setlistId, scope);
+      await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Bake failed");
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
-  const latest = concerts[0] ?? null;
+  const bandConcert = concerts.find((c) => c.concertId === setlistId) ?? null;
+  const myConcert = concerts.find((c) => c.concertId.startsWith(`${setlistId}~`)) ?? null;
 
   return (
     <section className="card" data-testid="bake-card">
@@ -134,27 +145,49 @@ function BakeCard({ bandId, setlistId }: { bandId: string; setlistId: string }) 
         Flatten this setlist into a performable <code>.tstage</code> bundle (page images +
         annotation overlays) to download and load on a phone.
       </p>
+      {isAdmin && (
+        <div className="inline-form">
+          <button type="button" data-testid="bake-setlist" disabled={busy !== ""} onClick={() => void bake()}>
+            {busy === "band" ? "Baking…" : "Bake setlist"}
+          </button>
+          {bandConcert && (
+            <a
+              data-testid="bake-download"
+              href={bandConcert.downloadUrl}
+              download={`${bandConcert.name || "concert"}.tstage`}
+            >
+              Download .tstage (rev {bandConcert.currentRev})
+            </a>
+          )}
+        </div>
+      )}
       <div className="inline-form">
-        <button type="button" data-testid="bake-setlist" disabled={busy} onClick={bake}>
-          {busy ? "Baking…" : "Bake setlist"}
+        <button type="button" data-testid="bake-mine" disabled={busy !== ""} onClick={() => void bake("mine")}>
+          {busy === "mine" ? "Baking…" : "Bake my parts"}
         </button>
-        {latest && (
+        {myConcert && (
           <a
-            data-testid="bake-download"
-            href={latest.downloadUrl}
-            download={`${latest.name || "concert"}.tstage`}
+            data-testid="bake-mine-download"
+            href={myConcert.downloadUrl}
+            download={`${myConcert.name || "my-parts"}.tstage`}
           >
-            Download .tstage (rev {latest.currentRev})
+            Download my parts (rev {myConcert.currentRev})
           </a>
         )}
       </div>
+      <p className="muted">
+        “My parts” bakes your own <em>my files</em> pick for each song. Annotations are the
+        shared snapshot — they were made on the default part, so they may not line up with a
+        different part’s layout.
+      </p>
       <ErrorBanner message={error} />
       {concerts.length > 0 && (
         <ul className="list" data-testid="bake-history">
           {concerts.map((c) => (
-            <li key={c.currentRev} data-testid="bake-history-row">
+            <li key={c.concertId} data-testid="bake-history-row">
               <span>
-                Rev {c.currentRev} · {c.songs.length} song{c.songs.length === 1 ? "" : "s"}
+                {c.concertId === setlistId ? "Band" : "My parts"} · Rev {c.currentRev} ·{" "}
+                {c.songs.length} song{c.songs.length === 1 ? "" : "s"}
                 {c.bakedBy ? ` · by ${c.bakedBy}` : ""}
               </span>
               <span className="muted">

@@ -124,7 +124,7 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 		now:      func() int64 { return 1700000000 },
 	}
 
-	cb, err := b.Bake(context.Background(), bandID, setlistID, u)
+	cb, err := b.Bake(context.Background(), bandID, setlistID, u, false)
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	}
 
 	// Re-bake bumps concert_rev monotonically.
-	cb2, err := b.Bake(context.Background(), bandID, setlistID, u)
+	cb2, err := b.Bake(context.Background(), bandID, setlistID, u, false)
 	if err != nil {
 		t.Fatalf("re-bake: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			res[i], errs[i] = b.Bake(context.Background(), bandID, setlistID, u)
+			res[i], errs[i] = b.Bake(context.Background(), bandID, setlistID, u, false)
 		}(i)
 	}
 	wg.Wait()
