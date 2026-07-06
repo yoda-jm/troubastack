@@ -624,3 +624,79 @@ func TestErrorBodyShape(t *testing.T) {
 	var raw json.RawMessage
 	unmarshalField(t, body, "error", &raw)
 }
+
+// ---- setlists: duplicate (T20) ----
+
+func TestSetlistDuplicate(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			admin := newClient(t, repo)
+			band := admin.makeBand("alice", "Band")
+			s1 := admin.makeSong(band.ID, "Song One")
+			s2 := admin.makeSong(band.ID, "Song Two")
+
+			// A setlist with two items; override the first.
+			_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists", map[string]string{"name": "Show"})
+			var sl app.Setlist
+			unmarshalField(t, body, "setlist", &sl)
+			base := "/api/bands/" + band.ID + "/setlists/" + sl.ID
+			for _, sng := range []app.Song{s1, s2} {
+				resp, _ := admin.do(http.MethodPost, base+"/items", map[string]string{"songId": sng.ID})
+				mustStatus(t, resp, http.StatusCreated)
+			}
+			// Overrides on the first item.
+			var items []app.SetlistItem
+			_, ib := admin.do(http.MethodGet, base, nil)
+			unmarshalField(t, ib, "items", &items)
+			resp, _ := admin.do(http.MethodPatch, base+"/items/"+items[0].ID, map[string]any{"keyOverride": "Bb", "tempoOverride": 140, "notes": "half-time"})
+			mustStatus(t, resp, http.StatusOK)
+
+			// Duplicate → 201, name "(copy)", distinct id.
+			resp, cb := admin.do(http.MethodPost, base+"/duplicate", nil)
+			mustStatus(t, resp, http.StatusCreated)
+			var copySL app.Setlist
+			unmarshalField(t, cb, "setlist", &copySL)
+			if copySL.ID == sl.ID {
+				t.Fatal("duplicate reused the source setlist id")
+			}
+			if copySL.Name != "Show (copy)" {
+				t.Fatalf("copy name = %q, want \"Show (copy)\"", copySL.Name)
+			}
+
+			// The copy's items match the source (song, position, overrides).
+			var got []app.SetlistItem
+			_, gb := admin.do(http.MethodGet, "/api/bands/"+band.ID+"/setlists/"+copySL.ID, nil)
+			unmarshalField(t, gb, "items", &got)
+			if len(got) != 2 || got[0].SongID != s1.ID || got[1].SongID != s2.ID {
+				t.Fatalf("copy items wrong: %+v", got)
+			}
+			if got[0].Position != 0 || got[1].Position != 1 {
+				t.Fatalf("copy order wrong: %+v", got)
+			}
+			if got[0].KeyOverride != "Bb" || got[0].TempoOverride != 140 || got[0].Notes != "half-time" {
+				t.Fatalf("copy override not carried: %+v", got[0])
+			}
+			// Copy items are independent (fresh ids).
+			if got[0].ID == items[0].ID {
+				t.Fatal("copy item reused a source item id")
+			}
+
+			// Source is untouched: still 2 items, original name.
+			var srcItems []app.SetlistItem
+			_, sb := admin.do(http.MethodGet, base, nil)
+			unmarshalField(t, sb, "items", &srcItems)
+			if len(srcItems) != 2 {
+				t.Fatalf("source item count changed: %d", len(srcItems))
+			}
+
+			// An outsider (not a band member) cannot duplicate.
+			outsider := newClient(t, repo)
+			outsider.registerLogin("mallory", "pw")
+			resp, _ = outsider.do(http.MethodPost, base+"/duplicate", nil)
+			if resp.StatusCode < 400 {
+				t.Fatalf("outsider duplicate should be denied, got %d", resp.StatusCode)
+			}
+		})
+	}
+}

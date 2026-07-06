@@ -77,6 +77,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.updateSetlistItem))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.removeSetlistItem))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/reorder", a.auth(a.reorderSetlist))
+	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/duplicate", a.auth(a.duplicateSetlist))
 	mux.HandleFunc("GET /api/invites", a.auth(a.listInvites))
 	mux.HandleFunc("POST /api/invites/{inviteId}/accept", a.auth(a.acceptInvite))
 	mux.HandleFunc("POST /api/invites/{inviteId}/decline", a.auth(a.declineInvite))
@@ -725,6 +726,16 @@ func (a *WebAPI) createSetlist(w http.ResponseWriter, r *http.Request, u app.Use
 		return
 	}
 	sl, err := a.svc.CreateSetlist(u, r.PathValue("bandId"), in.Name, in.EventDate, in.Venue, in.Notes)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"setlist": sl})
+}
+
+// duplicateSetlist deep-copies a setlist (member-level) and returns the new one.
+func (a *WebAPI) duplicateSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
+	sl, err := a.svc.DuplicateSetlist(u, r.PathValue("bandId"), r.PathValue("setlistId"))
 	if err != nil {
 		writeErr(w, err)
 		return

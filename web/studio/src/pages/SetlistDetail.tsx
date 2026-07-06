@@ -71,6 +71,11 @@ export function SetlistDetail() {
         songs={songs}
         reload={load}
       />
+      <DuplicateAction
+        bandId={bandId}
+        setlistId={setlistId}
+        onDuplicated={(id) => navigate(`/bands/${bandId}/setlists/${id}`)}
+      />
       {myRole === "admin" && <BakeCard bandId={bandId} setlistId={setlistId} />}
       {myRole === "admin" && (
         <DeleteSetlist
@@ -462,6 +467,45 @@ function ItemRow({
       </span>
       {error ? <ErrorBanner message={error} /> : null}
     </li>
+  );
+}
+
+// DuplicateAction (T20): member-visible — deep-copy this setlist ("… (copy)", same
+// songs + overrides) and jump to the copy. Handy for "same as last month, swap two".
+function DuplicateAction({
+  bandId,
+  setlistId,
+  onDuplicated,
+}: {
+  bandId: string;
+  setlistId: string;
+  onDuplicated: (newId: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function duplicate() {
+    setBusy(true);
+    setError(null);
+    try {
+      const copy = await api.duplicateSetlist(bandId, setlistId);
+      onDuplicated(copy.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to duplicate");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="inline-form">
+        <button type="button" data-testid="duplicate-setlist" disabled={busy} onClick={duplicate}>
+          {busy ? "Duplicating…" : "Duplicate setlist"}
+        </button>
+        <span className="muted">Make an editable copy — same songs, order and per-song overrides.</span>
+      </div>
+      <ErrorBanner message={error} />
+    </section>
   );
 }
 

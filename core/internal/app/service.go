@@ -1396,6 +1396,40 @@ func (s *Service) ReorderSetlist(caller User, bandID, setlistID string, orderedI
 	return out, nil
 }
 
+// DuplicateSetlist deep-copies a setlist (any member — creating setlists is
+// member-level): a new setlist named "<original> (copy)" with the same metadata and
+// every item's song/position/overrides. The copy is independent — a fresh id, no
+// shared items, and no bake history (its concertId = the new id), so baking it mints
+// rev 1 by construction.
+func (s *Service) DuplicateSetlist(caller User, bandID, setlistID string) (Setlist, error) {
+	src, err := s.getSetlistForMember(caller, bandID, setlistID)
+	if err != nil {
+		return Setlist{}, err
+	}
+	items, err := s.repo.ItemsOfSetlist(src.ID)
+	if err != nil {
+		return Setlist{}, err
+	}
+	dup, err := s.CreateSetlist(caller, bandID, src.Name+" (copy)", src.EventDate, src.Venue, src.Notes)
+	if err != nil {
+		return Setlist{}, err
+	}
+	for _, it := range items {
+		if err := s.repo.CreateSetlistItem(SetlistItem{
+			ID:            s.newID(),
+			SetlistID:     dup.ID,
+			SongID:        it.SongID,
+			Position:      it.Position,
+			KeyOverride:   it.KeyOverride,
+			TempoOverride: it.TempoOverride,
+			Notes:         it.Notes,
+		}); err != nil {
+			return Setlist{}, err
+		}
+	}
+	return dup, nil
+}
+
 // ---- helpers ----
 
 func identifiersOf(u User) []IdentifierMatch {

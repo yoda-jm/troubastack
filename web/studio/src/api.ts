@@ -421,6 +421,13 @@ export const api = {
       `/api/bands/${bandId}/setlists/${setlistId}`,
     ),
 
+  // Deep-copy a setlist (member-level); returns the new setlist (T20).
+  duplicateSetlist: (bandId: string, setlistId: string) =>
+    request<{ setlist: Setlist }>(
+      "POST",
+      `/api/bands/${bandId}/setlists/${setlistId}/duplicate`,
+    ).then((r) => r.setlist),
+
   updateSetlist: (bandId: string, setlistId: string, patch: SetlistPatch) =>
     request<{ setlist: Setlist }>(
       "PATCH",
