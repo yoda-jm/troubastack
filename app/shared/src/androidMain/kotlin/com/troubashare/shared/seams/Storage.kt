@@ -104,6 +104,12 @@ internal actual fun rawInflate(deflated: ByteArray, expectedSize: Int): ByteArra
             off += n
         }
         if (off != expectedSize) throw ZipFormatException("deflate stream shorter than declared size")
+        // Fail-closed on a stream LONGER than declared (mirrors the iOS actual). The buffer is full
+        // now; the stream must end exactly here. finished() may need one more zero-progress call to
+        // flip, so probe: a non-empty read means there's more data than declared.
+        if (!inflater.finished() && inflater.inflate(ByteArray(1)) != 0) {
+            throw ZipFormatException("deflate stream longer than declared size")
+        }
         return out
     } finally {
         inflater.end()

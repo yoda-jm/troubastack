@@ -141,6 +141,13 @@ private const val MAX_ARCHIVE_BYTES = 512L * 1024 * 1024 // 512 MB cap (zip-bomb
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 actual fun unpackBundle(zipPath: String, destDir: String): UnpackResult {
     val fm = NSFileManager.defaultManager
+    // Size-gate BEFORE reading the bytes: attributesOfItemAtPath avoids pulling a multi-GB pick
+    // fully into memory only to reject it (jetsam risk on device).
+    val preSize = (fm.attributesOfItemAtPath(zipPath, null)
+        ?.get(platform.Foundation.NSFileSize) as? platform.Foundation.NSNumber)?.longLongValue
+    if (preSize != null && preSize > MAX_ARCHIVE_BYTES) {
+        return UnpackResult.Failed("that file is too large to be a concert")
+    }
     val data = NSData.dataWithContentsOfFile(zipPath)
         ?: return UnpackResult.Failed("the selected file could not be read")
     if (data.length.toLong() > MAX_ARCHIVE_BYTES) {
@@ -239,9 +246,16 @@ internal actual fun rawInflate(deflated: ByteArray, expectedSize: Int): ByteArra
                     stream.avail_in = deflated.size.convert()
                     stream.next_out = outPin.addressOf(0).reinterpret()
                     stream.avail_out = expectedSize.convert()
-                    val rc = inflate(stream.ptr, Z_FINISH)
-                    if (rc != Z_STREAM_END && rc != Z_OK) {
-                        throw ZipFormatException("zlib inflate failed ($rc)")
+                    var rc = inflate(stream.ptr, Z_FINISH)
+                    // Fail-closed on a stream longer than declared, WITHOUT rejecting one that
+                    // exactly fills the buffer: when avail_out hits 0 zlib may return Z_OK and only
+                    // report Z_STREAM_END on a follow-up call (avail_out == 0). So if we got Z_OK,
+                    // call once more; a valid exactly-filled stream then reports Z_STREAM_END, while
+                    // a longer stream can't make progress and stays non-END. (Mirrors the Android
+                    // actual's finished() probe so both agree.)
+                    if (rc == Z_OK) rc = inflate(stream.ptr, Z_FINISH)
+                    if (rc != Z_STREAM_END) {
+                        throw ZipFormatException("deflate stream did not end at declared size ($rc)")
                     }
                     if (stream.total_out.convert<Int>() != expectedSize) {
                         throw ZipFormatException("deflate stream shorter than declared size")

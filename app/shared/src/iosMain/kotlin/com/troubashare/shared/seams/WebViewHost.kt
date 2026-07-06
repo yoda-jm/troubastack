@@ -115,21 +115,3 @@ actual class WebViewHost {
         const val BRIDGE_NAME = "TroubaShareShell"
     }
 }
-
-/** Quote [s] as a safe JS string literal (mirrors Android's `JSONObject.quote` on the bridge). */
-private fun jsQuote(s: String): String {
-    val sb = StringBuilder(s.length + 2)
-    sb.append('"')
-    for (c in s) {
-        when (c) {
-            '\\' -> sb.append("\\\\")
-            '"' -> sb.append("\\\"")
-            '\n' -> sb.append("\\n")
-            '\r' -> sb.append("\\r")
-            '\t' -> sb.append("\\t")
-            else -> if (c < ' ') sb.append("\\u").append(c.code.toString(16).padStart(4, '0')) else sb.append(c)
-        }
-    }
-    sb.append('"')
-    return sb.toString()
-}
