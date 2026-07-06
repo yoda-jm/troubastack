@@ -281,3 +281,31 @@ Run the same Wonderwall demo but validate the **performance ergonomics** the sim
 Turn the above into a real task, land signing config out-of-repo, add a **manual** `ios-release.yml`
 (archive → export → optional TestFlight upload) alongside `ios.yml`, and do the device QA. Until then:
 **Android is the shipped device story; iOS lives in CI simulators (IOS02).**
+
+## 12. Follow-ups — ✅ GO'd 2026-07-06 (reviews.md); implementing
+
+Four small cleanups (mostly the reviewer's own parked notes), approved on all four with three
+riders (below). Batched as proposed; each lands the usual way (rebase → ff → verify-before-delete).
+
+1. **iOS `unpackBundle`: size-check before read** — `NSData.dataWithContentsOfFile` reads the
+   whole file *before* the 512 MB cap (jetsam risk on a multi-GB pick). Add an
+   `attributesOfItemAtPath` size gate first. *(Parked IOS01 note #1.)* — XS, Linux-verifiable.
+2. **Tighten iOS `rawInflate`** — it accepts `Z_OK` with an exactly-filled buffer, tolerating a
+   stream longer than declared (cap-contained but lenient); fail closed. *(Parked IOS01 note #3.)* — XS.
+3. **Extract `jsQuote` (WebViewHost) → commonMain + unit test** — the bridge JS-string escaper is
+   iOS-only and untested; hoisting makes it JVM-testable. — S.
+4. **`PageImageCache` unit test** — extract a generic `LruCache<K,V>` (its `ImageBitmap` value type
+   blocked direct testing) and test eviction/access-order. *(Reviewer flagged twice.)* — S.
+
+Batching: **#1+#2+#3 as one "iOS seam hardening" PR**, **#4 as its own small PR**.
+
+Reviewer's riders (fold into implementation):
+- **#2 zlib trap:** when the output buffer is exactly filled, `inflate(Z_FINISH)` can return `Z_OK`
+  and only report `Z_STREAM_END` on a **second call** (`avail_out = 0`). Use the double-call pattern
+  (require `Z_STREAM_END` after the follow-up) so valid bundles that exactly fill `expectedSize`
+  aren't rejected; keep it consistent with Android `Inflater.finished()`.
+- **#4:** `LruCache<K,V>` goes to commonMain; `PageImageCache` becomes a thin typed wrapper (Stage
+  behaviour byte-identical); commit the eviction/access-order matrix (the 2026-07-04 LRU scratch test).
+
+Withheld for their own proposals (NOT here): B03 expired-session 401 handling (parked B03 note #2);
+hoisting the shared App()/nav into commonMain (a design decision).
