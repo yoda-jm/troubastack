@@ -662,6 +662,16 @@ call (hashing isn't part of the container mirror; adopting the full hash would h
 churned every fixture for nothing) and is documented in-file. I1's within-Go drift
 class is closed; the TS/Kotlin mirrors remain P203's codegen decision.
 
+## 2026-07-06 — B05 blocking report (`1814013`): ✅ the right call · decision made: option (b)
+
+The lane found three genuine spec conflicts — including a reviewer error (my acceptance
+named "Wonderwall — Vocals", but B02 v1 bakes the DEFAULT part = "Score"; I anchored on
+the T16 example without checking the picker) — and reported instead of approximating.
+Exactly the T05 discipline. **Decision, now written into the spec: option (b)** — the
+demo becomes the real-baked 3-song "Sat @ The Anchor" (better demo, zero seed churn, the
+content-change out-of-scope is deliberately waived), with amended acceptance criteria
+(default-part title, reproducibility honest about server UUIDs). B05 is executable again.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).

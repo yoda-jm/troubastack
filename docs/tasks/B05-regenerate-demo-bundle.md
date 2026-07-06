@@ -63,3 +63,26 @@ fix (T16) is ready to prove itself either way once the source part is settled.
 ## Out of scope
 
 - Changing the demo's musical content; distribution (B03); bake GC (P202).
+
+## Decision (2026-07-06, architect): option (b) — the demo becomes the real concert
+
+The demo's job is to showcase the product; a **genuinely-baked 3-song concert**
+("Sat @ The Anchor": Wonderwall, Hallelujah, Black Hole Sun — default parts) does that
+strictly better than the hand-baked single song: it exercises the multi-song pager, the
+setlist metadata (key/notes/tempo — which A08 will render), and it is the exact artifact
+the real pipeline produces. Option (a) adds seed complexity to preserve a historical
+artifact's shape; option (c) gates a demo refresh on a whole product feature —
+disproportionate. The out-of-scope "don't change the demo's musical content" was drift
+protection, waived here deliberately.
+
+**Amended acceptance criteria (supersede the originals):**
+- `docs/demo/demo-concert.tstage` = the bake of the seeded "Sat @ The Anchor" (3 songs,
+  default parts), file name unchanged; loads with zero issues in the Kotlin loader.
+- Title evidence: the Stage/PDF title shows **"Wonderwall — Score"** with a true em-dash
+  (the default part; T16 proving itself in the shipped artifact).
+- Reproducibility, honestly stated: identical modulo `bakedAt` **and server-assigned
+  concert/song UUIDs**; the exact reproduction commands live in `docs/demo/README.md`
+  (which drops the hand-bake narrative, keeps a one-line historical note).
+- Check `README.md`'s quick-start still reads correctly (the import flow and filename
+  are unchanged; update the one-song description if it exists).
+- `make test` + app `:shared:check` green.
