@@ -45,10 +45,11 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   IOS02, IOS04 (+ the IOS03 prep runbook). The FULL product loop — **compose → bake →
   offer → download → import → perform** — is in-app, no manual file transfer; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **B04** (bake atomicity/concurrency), **B05** (regen demo
-  bundle via the real pipeline), **B06** (LAN mDNS discovery), **T18** (dedup the Go
-  bundle mirrors), **OPS01**, P20x · Stage nice-to-haves: **A08** (setlist metadata
-  display), **A09** (pedal/volume page turns), **A10** (night mode).
+- **Open, unblocked:** **OPS01** (the demo→daily-use gap) · **B06** (mDNS) · **B07**
+  (per-member bake, L) · **T19** (text charts, M/L) · **T20/T21** (setlist dup,
+  password reset — S fillers) · Stage: **A09** (pedals), **A10** (night mode), **A11**
+  (visual count-in), **A12** (facing pages) · P20x. A08 landed 2026-07-06.
+  Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
   see its attempt log), the **B02 Android loop-close screenshot** (assigned to the
   mobile lane, reviews.md 2026-07-06).
@@ -78,6 +79,9 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T16 | [Seed PDFs render em-dashes as mojibake](T16-seed-pdf-encoding.md) | core seed | XS |
 | T17 | [Editor chrome: collapse the style bar behind a disclosure (≤220px)](T17-editor-style-disclosure.md) | studio | M |
 | T18 | [De-dup the Go ConcertBundle mirrors (bake ↔ mkbundle)](T18-dedup-bundle-mirrors.md) | core | XS |
+| T19 | [Text charts: write formatted docs in Studio, bake like PDFs](T19-text-charts.md) | core + studio | M/L |
+| T20 | [Duplicate a setlist](T20-setlist-duplicate.md) | core + studio | S |
+| T21 | [Password reset (admin-assisted)](T21-password-reset.md) | core + studio | S |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come
@@ -118,6 +122,8 @@ contract.
 | A08 | [Stage shows setlist metadata (notes/key/tempo)](A08-stage-setlist-metadata.md) | app | XS/S |
 | A09 | [Stage: hardware page turns (pedals/volume keys)](A09-stage-hardware-page-turn.md) | app | S |
 | A10 | [Stage night mode (inverted score)](A10-stage-night-mode.md) | app | S/M |
+| A11 | [Stage: visual count-in at the song's tempo](A11-stage-visual-count-in.md) | app | XS/S |
+| A12 | [Stage: facing pages (two-up) in landscape](A12-stage-facing-pages.md) | app | S/M |
 
 A-track ordering: strictly A01 → A02 → A03 → A04 → A05. A06 needs only A01 and may run
 in parallel with A02–A05 (different files). A07 is **blocked** until T06 lands *and* the
@@ -152,6 +158,7 @@ B05 retires the hand-baked `docs/demo` bundle now that the real pipeline exists.
 | B04 | [Bake robustness: atomic rev publication + concurrency guard](B04-bake-write-atomicity.md) | core | XS/S |
 | B05 | [Regenerate the demo bundle via the real pipeline](B05-regenerate-demo-bundle.md) | core + docs | XS/S |
 | B06 | [LAN auto-discovery of the band server (mDNS)](B06-lan-discovery.md) | core + app | S/M |
+| B07 | [Per-member bake: "Leo sees his tab on stage"](B07-per-member-bake.md) | core + app + studio | L |
 | OPS01 | [Production serving: TLS, service, backup, release APK](OPS01-production-serving.md) | deploy | M |
 
 Two design decisions are resolved *inside* the specs (don't relitigate without cause):
