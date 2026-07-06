@@ -866,6 +866,15 @@ duplicate→rename→both-listed flow and gates in CI (in flight at review time 
 usual 5/5 landing rule applies). Authorization line present. USER-JOURNEY gap #7
 closed.
 
+## 2026-07-06 — A10 code half (`2088eec`): ✅ APPROVED — screenshot pair finalizes
+
+Fresh verify: 113 tasks green, `StageColorModeTest` green. Per spec throughout: pure
+mode enum (cycle/parse, unknown→NORMAL), a draw-time RGB inversion with **alpha
+untouched** (the detail that keeps transparent overlay margins transparent), applied
+identically to raster + overlays; persistence via injected Storage KV in both
+entrypoints (DI, no seam); cached bitmaps never mutated. Finalizes on the Normal/Night
+pair — checking that paper is near-black and geometry unchanged.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
