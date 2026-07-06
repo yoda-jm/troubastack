@@ -28,6 +28,26 @@ appeared".
    `NWBrowser`/Bonjour in the entrypoint layer. Common code only sees a
    `List<DiscoveredServer(name, url)>` via app DI.
 
+## Status (2026-07-06) — CORE slice done; app browse is A-track
+
+The web-core lane did **change #1 + its Go test** (the only non-`app/` part):
+`core/internal/discovery` advertises `_troubacore._tcp` on startup via
+**`github.com/libp2p/zeroconf/v2`** (the maintained fork of grandcat/zeroconf;
+advertise-only API, pulls just `miekg/dns`), using the actual listen port, instance
+name from `TROUBA_MDNS_NAME` (default host name), TXT `version` + `path=/`. On by
+default; **`TROUBA_NO_MDNS=1`** opts out. Register failures are logged and swallowed —
+advertising never blocks serving — and the returned shutdown is `sync.Once`-guarded.
+Wired into `cmd/troubacore/main.go`; unit-tested (opt-out + never-fatal). **Verified on
+the wire**: a zeroconf browse discovered the running core (instance, host, port, TXT);
+same-host `avahi-browse` is confounded by the avahi-daemon owning :5353 (documented, not
+a bug). Log line: `mDNS: advertising as "<name>" (_troubacore._tcp port <n>)`.
+
+**A-track (Mobile App Agent) — NOT done here:** the Connect-screen browse UX — Android
+`NsdManager`, iOS `NWBrowser` + the `NSLocalNetworkUsageDescription`/`NSBonjourServices`
+plist entries in `app/iosApp/project.yml`, the tappable discovered-server rows (prefill
+only, show host:port), and the discovery→prefill unit test. The service is live for them
+to browse; not a new I15 seam (connectivity glue like `HttpTransport`).
+
 ## Changes
 
 1. **Core**: advertise `_troubacore._tcp` via a small zeroconf lib (e.g.

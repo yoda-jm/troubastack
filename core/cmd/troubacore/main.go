@@ -13,9 +13,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"troubastack/core/internal/app"
@@ -23,6 +25,7 @@ import (
 	"troubastack/core/internal/app/filerepo"
 	"troubastack/core/internal/app/memrepo"
 	"troubastack/core/internal/bake"
+	"troubastack/core/internal/discovery"
 	"troubastack/core/internal/engine"
 	"troubastack/core/internal/httpapi"
 	"troubastack/core/internal/store"
@@ -95,6 +98,16 @@ func main() {
 	// init/systemd). Portable getppid poll — no PR_SET_PDEATHSIG thread caveats.
 	if os.Getenv("TROUBA_DIE_WITH_PARENT") == "1" {
 		watchParent()
+	}
+
+	// LAN discovery (B06): advertise this core as _troubacore._tcp so the app's
+	// Connect screen can offer it without the user typing an IP. Best-effort —
+	// never blocks serving; TROUBA_NO_MDNS=1 opts out, TROUBA_MDNS_NAME overrides
+	// the instance name (default: the host name).
+	if _, portStr, err := net.SplitHostPort(addr); err == nil {
+		if port, perr := strconv.Atoi(portStr); perr == nil {
+			defer discovery.Advertise(port, os.Getenv("TROUBA_MDNS_NAME"))()
+		}
 	}
 
 	log.Printf("troubacore: listening on %s", addr)
