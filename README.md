@@ -78,7 +78,7 @@ Hosting the Studio editor inside the app is the next planned step
 ([`docs/tasks/A06`](docs/tasks/A06-android-webview-studio-host.md)).
 
 <p>
-<img src="docs/screenshots/stage-concerts.png" alt="Concerts list with Import button" width="240">&nbsp;
+<img src="docs/screenshots/stage-concerts.png" alt="Concerts list (Sat @ The Anchor) with Connect + Import" width="240">&nbsp;
 <img src="docs/screenshots/stage-page.png" alt="A performed page: raster + overlay, pager, layer and role controls" width="240">
 </p>
 
