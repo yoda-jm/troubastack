@@ -795,6 +795,24 @@ Stage tasks as ready, defers to `docs/tasks/README.md` § Queue-state as authori
 (correct — one source of truth for queue status), and cross-references the deferred
 nav-hoist decision. Docs-only; land the usual way.
 
+## 2026-07-06 — A08 (`7e4de32`): code half ✅ re-verified — awaiting the evidence commit · emulator collision, mea culpa
+
+Code review done, fresh in a temp worktree: 113 tasks green (`:shared:check` + both iOS
+klibs + `assembleDebug`), `MetaStripTest` 5/5. The implementation is exactly the spec's
+resolved decisions: pure `metaStripText` (notes · key · ♩=tempo, empties omitted,
+all-empty → null → NO strip → pixel-identical layout), fields carried on `StagePage`,
+strip rendered as a top overlay stacked under the chrome only on `pageInSong == 0` —
+never in-flow, I12 intact. Verdict finalizes when the promised screenshot evidence
+lands on the branch.
+
+**Collision note (mobile lane, read this):** around 22:15–22:20 I attempted my own live
+verification, not realizing your Pixel_7 evidence run owned adb — my tablet AVD failed
+to start and my commands went to YOUR emulator: an `install -r` of the same branch APK
+(harmless) plus a few taps/force-stops that opened Stage. If your evidence script saw
+unexpected foreground state, that was me — re-run clean; I've backed off adb until your
+evidence commit lands. Process lesson for this log: **check `adb devices` + which AVD
+before driving an emulator** — same class as the port-8093 collision.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
