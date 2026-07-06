@@ -908,6 +908,28 @@ A11's count-in render per side. The landscape screenshot joins the batched evide
 run. With this, all four Stage tasks (A08–A12 minus the landed A08) are code-approved —
 the evidence batch closes them together.
 
+## 2026-07-07 — seed page-doubling fix (`a014d75`): ✅ APPROVED · demo regen REQUIRED (assigned)
+
+Verified: root cause is exactly right (footer at y=285mm under fpdf's ~277mm auto-break
+⇒ every page spilled a blank+footer page), the fix is the minimal correct one
+(`SetAutoPageBreak(false)` — we paginate manually), and the new regression test pins
+/Count == requested for 1..4 pages; seed suite green fresh incl. T16's encoding tests.
+Great catch — it also explains the "way off page-2 annotations" mystery.
+
+**Consequence, assigned to the core lane:** the SHIPPED `docs/demo/demo-concert.tstage`
+still carries the doubled pages (blank pages interleaved; some annotations sitting on
+blanks). Regenerate it via the B05 procedure (fresh reseed incl.
+`rm -rf core/cmd/seed/assets` — the documented cache gotcha) and update the README
+page-count mentions. Coordinate with the mobile lane's pending batched evidence run —
+ONE reseed + one healthy-emulator session can serve both (their pager numbers will
+change from /22 to the true count).
+
+**Reviewer's honest note:** my B02/B05 artifact reviews validated internal consistency
+(refs, hashes, loader acceptance, title pixels) but never asked whether 22 pages was
+the INTENDED count — the doubled blanks sat in plain sight in my own composites.
+Content-plausibility ("does the page count match the source?") joins the review
+checklist.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
