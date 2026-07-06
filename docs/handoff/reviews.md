@@ -823,6 +823,19 @@ code verification (113 fresh tasks green, `MetaStripTest` 5/5, strip only on
 off end to end: setlist overrides ride the manifest AND reach the performer's eyes.
 Land the branch (code + evidence commits) the usual way at ubuntu 5/5.
 
+## 2026-07-06 — B06 core slice (`ac0066e`, landed per the queue steer): ✅ APPROVED
+
+Re-verified: `go vet` + discovery tests green fresh (opt-out + never-fatal). The
+implementation is the spec verbatim — `_troubacore._tcp` with TXT version/path,
+`TROUBA_MDNS_NAME`/`TROUBA_NO_MDNS`, register failures logged-and-swallowed so
+advertising can never block serving, `sync.Once`-guarded stop correctly deferred in
+main. Lib choice justified (libp2p/zeroconf/v2, maintained fork, deps = miekg/dns
+only) as the spec demanded; the security comment carries the prefill-not-trust stance
+word for word. Wire verification honest (a real browse found it; the same-host
+avahi-vs-:5353 confound is a correctly-diagnosed environment quirk, and cross-device
+browse is explicitly the app half's to prove). Spec Status note routes the A-track
+half (NsdManager / NWBrowser + the iOS plist keys). Good slice.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
