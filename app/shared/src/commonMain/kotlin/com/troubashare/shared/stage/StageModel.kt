@@ -23,6 +23,10 @@ data class StagePage(
     val rasterRef: String,
     val overlays: List<LayerImage>, // already sorted by z-order (A02 loader)
     val status: PageStatus,         // UNAVAILABLE when the raster blob was flagged missing/empty
+    // Setlist metadata (A08) — carried from BakedSong; shown only on the song's first page (pageInSong 0).
+    val displayNotes: String = "",
+    val key: String = "",
+    val tempo: Int = 0,
 )
 
 /** A song entry for the picker: jumps to the song's first global page. */
@@ -89,6 +93,9 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
                     rasterRef = page.pageRasterRef,
                     overlays = page.overlays,
                     status = if (rasterBad) PageStatus.UNAVAILABLE else PageStatus.READY,
+                    displayNotes = song.displayNotes,
+                    key = song.key,
+                    tempo = song.tempo,
                 ),
             )
         }
@@ -118,3 +125,17 @@ private fun aggregateLayers(bundle: ConcertBundle): List<LayerInfo> {
 }
 
 private fun blobKey(songId: String, page: Int, ref: String): String = "$songId#$page#$ref"
+
+/**
+ * The one-line setlist-metadata strip for a song's first page (A08): notes · key · ♩=tempo, omitting
+ * empty fields; tempo 0 is omitted. Returns null when nothing to show (⇒ no strip renders, layout
+ * unchanged). Visual one-line truncation is the caller's job (Text maxLines=1 + ellipsis).
+ */
+internal fun metaStripText(displayNotes: String, key: String, tempo: Int): String? {
+    val parts = buildList {
+        if (displayNotes.isNotBlank()) add(displayNotes.trim())
+        if (key.isNotBlank()) add(key.trim())
+        if (tempo > 0) add("♩=$tempo") // ♩=N (quarter-note); a display, not a click track
+    }
+    return if (parts.isEmpty()) null else parts.joinToString("  ·  ")
+}

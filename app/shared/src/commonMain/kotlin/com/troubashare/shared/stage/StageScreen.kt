@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -113,23 +114,39 @@ private fun Performing(state: StageState, vm: StageViewModel, decoder: ImageDeco
             PageView(page, state.visibleLayers, state.fitMode, decoder, cache, Modifier.fillMaxSize())
         }
 
-        // Top chrome bar: exit + display controls (kept off the bottom nav bar so nothing overflows).
-        Surface(
-            Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding(),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        // Top overlays: the chrome bar, plus (A08) a footprint-stable setlist-metadata strip stacked
+        // beneath it on a song's first page. Both are overlays over the page area — when there's no
+        // metadata the strip doesn't render and the layout is pixel-identical to before (I12).
+        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
+            Surface(
+                Modifier.fillMaxWidth().statusBarsPadding(),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
             ) {
-                TextButton(onClick = onExit) { Text("Back") }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = vm::toggleFit) {
-                    Text(if (state.fitMode == FitMode.FIT_PAGE) "Fit: page" else "Fit: width")
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onExit) { Text("Back") }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = vm::toggleFit) {
+                        Text(if (state.fitMode == FitMode.FIT_PAGE) "Fit: page" else "Fit: width")
+                    }
+                    if (state.layers.isNotEmpty()) TextButton(onClick = { showLayers = true }) { Text("Layers") }
+                    TextButton(onClick = { showRole = true }) { Text("Role") }
                 }
-                if (state.layers.isNotEmpty()) TextButton(onClick = { showLayers = true }) { Text("Layers") }
-                TextButton(onClick = { showRole = true }) { Text("Role") }
+            }
+            val strip = if (page.pageInSong == 0) metaStripText(page.displayNotes, page.key, page.tempo) else null
+            if (strip != null) {
+                Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)) {
+                    Text(
+                        strip,
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
 
