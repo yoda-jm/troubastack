@@ -98,17 +98,18 @@ GitHub Actions run (**android** job → `troubashare-debug-apk` artifact) and in
 
 ### Demo it with zero servers
 
-A small baked concert with **real music and real annotations** is committed at
-[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~90 KB, two annotated
-pages of the seeded *Wonderwall* — see [`docs/demo/README.md`](docs/demo/README.md) for
-how it was made), so you can present the app without running anything:
+A baked concert with **real music and real annotations** is committed at
+[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~350 KB — the seeded
+*"Sat @ The Anchor"* setlist: Wonderwall, Hallelujah, Black Hole Sun, flattened by the
+real bake pipeline; see [`docs/demo/README.md`](docs/demo/README.md) for how it's made),
+so you can present the app without running anything:
 
 ```sh
 adb push docs/demo/demo-concert.tstage /sdcard/Download/
 ```
 
 …or just share the file to the device (mail, messenger, USB). Then in the app:
-**Import** → pick `demo-concert.tstage` → open **Demo Concert** — and page through it
+**Import** → pick `demo-concert.tstage` → open **Sat @ The Anchor** — and page through it
 in airplane mode. Navigation (tap/swipe/song jump), fit modes and per-layer visibility
 all work offline; the screen stays awake and the system bars hide while performing. Try
 **Role → `conductor`**: the red conductor cues appear (role-targeted layers default off

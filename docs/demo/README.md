@@ -1,29 +1,48 @@
 # demo-concert.tstage — a real-music demo bundle (no server needed)
 
-`demo-concert.tstage` (~90 KB) is a **hand-baked** concert bundle: two pages of the
-seeded *Wonderwall — Vocals* part with its real annotations, packaged per
-[`../design/08-bundle-container.md`](../design/08-bundle-container.md). Install the app
-(root README → "The mobile app"), share/push this file to the device, **Import**, and
-perform it fully offline.
+`demo-concert.tstage` (~350 KB) is a **genuinely baked** concert bundle — the seeded
+band's *"Sat @ The Anchor"* setlist (three songs: **Wonderwall**, **Hallelujah**,
+**Black Hole Sun**), flattened by the real server-side bake pipeline (invariants I8/I11)
+per [`../design/08-bundle-container.md`](../design/08-bundle-container.md). Install the
+app (root README → "The mobile app"), share/push this file to the device, **Import**,
+and perform it fully offline.
 
-It demos the layer semantics:
+Each song bakes its **default shared-pool part** (e.g. Wonderwall → *Wonderwall — Score*)
+and carries ~3 annotation layers, demonstrating the layer visibility rules the presenter
+enforces:
 
-- **`sections`** (section labels + highlight bands) is `mandatory` — always composited,
-  the viewer can't hide it.
-- **`conductor-cues`** (the red "Watch me" markings) carries `roleTag: "conductor"` —
-  hidden by default; set **Role → `conductor`** in Stage and they appear.
+- a **mandatory** conductor-cue layer — always composited, the viewer can't hide it;
+- a **shared** markings layer — on by default, toggleable;
+- a **per-part** layer tagged with a `roleTag` (e.g. `guitar`) — shown by default only
+  for the matching viewer role.
 
-## Provenance (and why "hand-baked")
+## Provenance — produced by the real bake pipeline (B05)
 
-The real bake pipeline (server-side, invariants I8/I11) doesn't exist yet. This bundle
-was assembled from the *running* seeded editor: the PDF raster canvases and the
-transparent annotation-overlay canvases were extracted per layer from TroubaStudio
-(`make demo` data, `marie`'s view), downscaled, and wrapped in a canonical-JSON
-`bundle.json`. So the images are genuine studio renders, but the *packaging* is manual —
-when the real bake lands, regenerate this file with it and delete this caveat.
+This file is the exact output of the B02 pipeline (seed → `POST …/bake` → poppler page
+rasters + `@troubastack/ink` overlays → `.tstage`), so its images are genuine studio-
+parity renders **and** the packaging is the real thing. Reproduce it from a clean seed:
 
-Known cosmetic issue inherited from the seed data: this bundle's page-title raster shows
-an em-dash rendered as `â€"`. The underlying seed bug (`core/cmd/seed` wrote UTF-8 into a
-cp1252 PDF font) is **fixed** as of T16 — fresh `make demo` seeds now render `—`
-correctly — but this file was hand-baked from the *old* seeds, so its raster keeps the
-mojibake until the real bake (B02) regenerates it. Do not hand-rebake it for this.
+```sh
+# 1. Fresh, deterministic seed (wipe the gitignored asset cache so the placeholder
+#    PDFs regenerate from the current cmd/seed — the T16 assets-cache gotcha):
+rm -rf core/troubadata core/cmd/seed/assets
+make demo                     # boots a seeded core at :8080 (users marie/…/demo)
+#    (or, without the SPA: run troubacore, then `cd core && go run ./cmd/seed`)
+
+# 2. As marie (admin of "The Troubadours"), bake "Sat @ The Anchor" and download it:
+#    log in  → POST /api/bands/{band}/setlists/{setlist}/bake
+#            → GET  /api/bands/{band}/concerts/{concert}/bundle  > docs/demo/demo-concert.tstage
+```
+
+**Reproducibility caveat:** the bytes are identical **modulo `bakedAt`** (the bake
+timestamp) **and the server-assigned `concertId`/`songId` UUIDs** — both are minted fresh
+per seed run. Everything else (page rasters, overlays, hashes, structure) is
+deterministic.
+
+The old em-dash mojibake is **gone**: the title raster now renders *Wonderwall — Score*
+with a true `—` (the T16 seed-encoding fix proving itself in the shipped artifact).
+
+> Historical note: this bundle was previously **hand-baked** (a single *Wonderwall —
+> Vocals* part, pre-T16, with an `â€"` mojibake title). B05 retired the hand-bake — the
+> demo is now the real-baked multi-song concert, per the architect's decision recorded in
+> `docs/tasks/B05-regenerate-demo-bundle.md`.

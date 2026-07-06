@@ -10,7 +10,14 @@ visible on both Android and the IOS02 simulator proof. B02 made the real pipelin
 end to end (seed → `POST …/bake` → `.tstage` → Kotlin loader, live-verified at review),
 so the hand-baked artifact's days were declared numbered by B02's own spec.
 
-## Status (2026-07-06) — BLOCKED on scoping; needs a Fable decision (not executed)
+## Status (2026-07-06) — DONE per decision (b); was briefly blocked on scoping
+
+**Executed** — `docs/demo/demo-concert.tstage` is now the real-baked "Sat @ The Anchor"
+(3 songs, default parts), replacing the hand-bake; READMEs updated; em-dash correct.
+The scoping block below was resolved by the architect's decision (b) further down; kept
+for the record. (Seed observation, not fixed here — out of scope: the generated
+placeholder Score renders **6** pages though its seed def says `pages: 3`; the bake
+faithfully rasterizes whatever the PDF contains, 1:1.)
 
 Scoped from the web-core lane; **not executed** — three conflicts between this spec and
 the shipped B02/B04 pipeline mean regenerating the artifact now would silently change
