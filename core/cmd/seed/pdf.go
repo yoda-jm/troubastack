@@ -21,6 +21,7 @@ const assetsDir = "cmd/seed/assets"
 // placeholder. Pages controls the generated fallback's length.
 type pdfSource struct {
 	cacheName string   // file name under assetsDir (stable per song)
+	localPath string   // committed local PDF (HIGHEST priority); relative to the seed's cwd (core/)
 	urls      []string // optional public-domain PDF URLs, tried in order
 	title     string   // used in the generated fallback
 	subtitle  string   // e.g. composer/artist
@@ -53,6 +54,14 @@ func ensureAssetsDir() error { return os.MkdirAll(assetsDir, 0o755) }
 func resolvePDF(src pdfSource) (pdfResult, error) {
 	cachePath := filepath.Join(assetsDir, src.cacheName)
 	metaPath := cachePath + ".origin"
+
+	// 0. Committed local PDF (e.g. docs/demo-charts) — highest priority; read fresh so
+	// edits propagate. Falls through to fetch/generate if missing (seed never fails).
+	if src.localPath != "" {
+		if b, err := os.ReadFile(src.localPath); err == nil && len(b) > 5 && string(b[:5]) == "%PDF-" {
+			return pdfResult{data: b, origin: "local", fetched: false}, nil
+		}
+	}
 
 	// 1. Cache hit.
 	if b, err := os.ReadFile(cachePath); err == nil && len(b) > 0 {

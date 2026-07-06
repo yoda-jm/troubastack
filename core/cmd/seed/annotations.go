@@ -231,6 +231,50 @@ func buildSongAnnotations(songID, fileID, title, groupKind string, userID map[st
 	return *im
 }
 
+// buildOpenRoadAnnotations places meaningful annotations on "The Open Road" LEAD
+// SHEET (a local chart PDF with a known chords-over-lyrics layout — page 0), rather
+// than the generated-staff or fetched layouts buildSongAnnotations handles. Coords
+// match docs/demo-charts/open-road-leadsheet.pdf (page-relative [0,1]); ink infers
+// fill+multiply for `highlight` and stroke for `ellipse`, so no extra style flags
+// are needed. Three layers: Form (mandatory), Conductor cues (mandatory, conductor
+// role), My notes (personal, owned by the singer/admin).
+func buildOpenRoadAnnotations(songID, fileID string, userID map[string]string, conductorID string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+
+	// Form / sections — flag the chorus (mandatory, amber).
+	form := b.layer(wireLayer{
+		ID: layerID(songID, "form"), Name: "Form / sections",
+		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "ro", Mandatory: true,
+	})
+	b.highlight(form, "or-chorus-hi", 0, 0.055, 0.352, 0.955, 0.535, wireStyle{Color: colorShared, Opacity: 0.4})
+	b.text(form, "or-chorus", 0, 0.58, 0.366, "* CHORUS - everyone in", wireStyle{Color: "#B45309", Opacity: 1, FontSize: 0.016})
+
+	// Conductor cues — rit. + watch-me on the last chorus line (mandatory, conductor role).
+	cond := b.layer(wireLayer{
+		ID: layerID(songID, "cues"), Name: "Conductor cues",
+		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
+	})
+	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.016}
+	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.004}
+	b.text(cond, "or-rit", 0, 0.60, 0.503, "rit. - watch me", condText)
+	b.shape("ellipse", cond, "or-turn", 0, []wirePoint{{X: 0.60, Y: 0.487}, {X: 0.70, Y: 0.512}}, condStroke)
+	b.line(cond, "or-point", 0, 0.595, 0.505, 0.55, 0.517, condStroke)
+
+	// My notes — personal (owned by marie, the singer/admin): capo tick, a circled
+	// chord change, a breathe mark, and a freehand flourish.
+	mine := b.layer(wireLayer{
+		ID: layerID(songID, "mine"), Name: "My notes",
+		OwnerID: userID["marie"], Zone: "personal", Order: 0, Access: "rw",
+	})
+	b.text(mine, "or-capo", 0, 0.72, 0.052, "capo 2 OK", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.015})
+	b.shape("ellipse", mine, "or-change", 0, []wirePoint{{X: 0.05, Y: 0.312}, {X: 0.30, Y: 0.352}}, wireStyle{Color: colorPersonal, Opacity: 1, Width: 0.0035})
+	b.text(mine, "or-breathe", 0, 0.055, 0.542, "breathe", wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.013})
+	b.freehand(mine, "or-flourish", 0, []wirePoint{{X: 0.80, Y: 0.06}, {X: 0.85, Y: 0.05}, {X: 0.90, Y: 0.065}, {X: 0.93, Y: 0.05}}, wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.004})
+
+	return *im
+}
+
 // addPersonal adds an instrument-appropriate personal layer for the song's group.
 func addPersonal(b *builderCtx, title, groupKind string, userID map[string]string, generated bool) {
 	if groupKind == "Orchestra" {

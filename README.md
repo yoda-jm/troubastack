@@ -99,9 +99,10 @@ GitHub Actions run (**android** job → `troubashare-debug-apk` artifact) and in
 ### Demo it with zero servers
 
 A baked concert with **real music and real annotations** is committed at
-[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~350 KB — the seeded
-*"Sat @ The Anchor"* setlist: Wonderwall, Hallelujah, Black Hole Sun, flattened by the
-real bake pipeline; see [`docs/demo/README.md`](docs/demo/README.md) for how it's made),
+[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~545 KB — the seeded
+*"Sat @ The Anchor"* setlist: Wonderwall, Hallelujah, Black Hole Sun, and the original
+*The Open Road* lead sheet + tab, flattened by the real bake pipeline; see
+[`docs/demo/README.md`](docs/demo/README.md) for how it's made),
 so you can present the app without running anything:
 
 ```sh

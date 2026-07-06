@@ -1,8 +1,10 @@
 # demo-concert.tstage — a real-music demo bundle (no server needed)
 
-`demo-concert.tstage` (~350 KB) is a **genuinely baked** concert bundle — the seeded
-band's *"Sat @ The Anchor"* setlist (three songs: **Wonderwall**, **Hallelujah**,
-**Black Hole Sun**), flattened by the real server-side bake pipeline (invariants I8/I11)
+`demo-concert.tstage` (~545 KB) is a **genuinely baked** concert bundle — the seeded
+band's *"Sat @ The Anchor"* setlist (four songs: **Wonderwall**, **Hallelujah**,
+**Black Hole Sun**, and the original **The Open Road** — a real lead sheet + guitar tab
+with purpose-built annotation layers, see [`../demo-charts`](../demo-charts/)), flattened
+by the real server-side bake pipeline (invariants I8/I11)
 per [`../design/08-bundle-container.md`](../design/08-bundle-container.md). Install the
 app (root README → "The mobile app"), share/push this file to the device, **Import**,
 and perform it fully offline.

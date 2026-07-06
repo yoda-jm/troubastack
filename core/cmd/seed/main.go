@@ -126,12 +126,18 @@ func run(addr, password string) error {
 					src: pdfSource{cacheName: "hallelujah.pdf", title: "Hallelujah", subtitle: "Leonard Cohen", pages: 4}},
 				{title: "Black Hole Sun", artist: "Soundgarden", key: "G", tempo: 105, tags: []string{"grunge", "encore"},
 					src: pdfSource{cacheName: "black-hole-sun.pdf", title: "Black Hole Sun", subtitle: "Soundgarden", pages: 3}},
+				// An ORIGINAL demo song with a REAL committed chart (lead sheet + guitar
+				// tab) from docs/demo-charts — so one seeded song shows genuine sheet
+				// content + its purpose-built annotation layers (see buildOpenRoadAnnotations).
+				{title: "The Open Road", artist: "", key: "G", tempo: 92, tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + guitar tab. Capo 2.",
+					src: pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2}},
 			},
 			setlist: setlistDef{
 				name: "Sat @ The Anchor", eventDate: "2026-07-04", venue: "The Anchor Pub", notes: "60-minute set.",
 				overrides: []overrideDef{
 					{song: "Wonderwall", keyOverride: "Em", notes: "Acoustic intro, capo 2."},
 					{song: "Black Hole Sun", tempoOverride: 98},
+					{song: "The Open Road", notes: "Encore — everyone in on the last chorus."},
 				},
 			},
 		},
@@ -462,7 +468,13 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		if fileID == "" {
 			continue
 		}
+		// "The Open Road" uses a local lead-sheet chart with its own known layout, so
+		// it gets chart-specific annotation coords; every other song uses the
+		// generated/fetched-layout builder.
 		im := buildSongAnnotations(a.songID, fileID, a.title, g.kind, userID, conductorID, a.generated, a.pages)
+		if a.title == "The Open Road" {
+			im = buildOpenRoadAnnotations(a.songID, fileID, userID, conductorID)
+		}
 		var got annotationsImport
 		if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", im, &got); err != nil {
 			return seededGroup{}, 0, 0, fmt.Errorf("import annotations for %q: %w", a.title, err)
