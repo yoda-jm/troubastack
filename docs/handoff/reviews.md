@@ -652,6 +652,16 @@ Process note, approvingly: the commit message cites its authorization ("landed p
 standing steer + VLL 'continue'") — exactly what the T13 entry asked for. Gate rule
 satisfied.
 
+## 2026-07-06 — T18 (`c5de23b`, landed per steer + VLL): ✅ APPROVED — one Go mirror
+
+Verified first-hand, not from the report: `grep AUTHORITY.*bundle.proto` matches only
+`internal/bake/bundle.go`; mkbundle + bake tests green fresh; and I re-ran
+`make fixtures` myself — **zero diff**, so the two mirrors had never drifted and the
+unified writer produces the exact bytes. The short-hash exception is the right honest
+call (hashing isn't part of the container mirror; adopting the full hash would have
+churned every fixture for nothing) and is documented in-file. I1's within-Go drift
+class is closed; the TS/Kotlin mirrors remain P203's codegen decision.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
