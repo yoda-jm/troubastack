@@ -897,6 +897,17 @@ after a long multi-lane day (the documented machine-load pattern); batch the A10
 Normal/Night pair + an A11 pulse capture when it's healthy, and both finalize
 together. A09 meanwhile still awaits its landing.
 
+## 2026-07-07 — A12 code half (`04b91c5`): ✅ APPROVED — evidence batched with A10/A11
+
+Fresh verify: 113 tasks green, `FacingPagesTest` 6/6 (the odd/even/lone-last/song-jump/
+clamp matrix). Design per spec: automatic two-up only in landscape+FIT_PAGE (portrait
+pixel-identical), spread math as pure functions with the left page as the single source
+of truth, `PageView` reused per side (no fork of the compositing path), one
+turnNext/turnPrev entry point so A09's keys turn by spread for free, and A08's strip +
+A11's count-in render per side. The landscape screenshot joins the batched evidence
+run. With this, all four Stage tasks (A08–A12 minus the landed A08) are code-approved —
+the evidence batch closes them together.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
