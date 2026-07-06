@@ -635,6 +635,23 @@ offer → download → import → perform — is in-app, no manual file transfer
 I13 residue: the transient AUTO tier (P201). ARCHITECTURE.md I13 tag to be refreshed
 after landing.
 
+## 2026-07-06 — B04 (`d085b63`, landed per steer + VLL): ✅ APPROVED — both findings closed
+
+Exactly the specced fixes, re-verified: `os.Mkdir` claims `<rev>.tmp` atomically (retry
+with a local increment on `IsExist` — correct, since `nextRev` counts only published
+dirs), the bundle is staged entirely in `.tmp`, the `.tstage` is written first, and the
+`os.Rename` to the numeric name is the single publication point — readers can never see
+a partial rev. Ran the suite fresh **3× under `-race`**: the concurrent-same-setlist
+test (distinct revs, both fully published, no staging visible) passes every time; vet
+clean; CI 4/5 with only e2e in flight (bake-only change; go job green). The deferred
+`RemoveAll` keeps failed bakes tidy; one accepted wart: a hard-killed process leaves a
+stale `.tmp` that permanently skips that rev *number* — harmless (numbers are cheap),
+noted here so nobody "fixes" it into a race later.
+
+Process note, approvingly: the commit message cites its authorization ("landed per the
+standing steer + VLL 'continue'") — exactly what the T13 entry asked for. Gate rule
+satisfied.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
