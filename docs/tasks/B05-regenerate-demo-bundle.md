@@ -10,6 +10,32 @@ visible on both Android and the IOS02 simulator proof. B02 made the real pipelin
 end to end (seed → `POST …/bake` → `.tstage` → Kotlin loader, live-verified at review),
 so the hand-baked artifact's days were declared numbered by B02's own spec.
 
+## Status (2026-07-06) — BLOCKED on scoping; needs a Fable decision (not executed)
+
+Scoped from the web-core lane; **not executed** — three conflicts between this spec and
+the shipped B02/B04 pipeline mean regenerating the artifact now would silently change
+what the demo shows and still miss the acceptance. Reporting rather than approximating:
+
+1. **Wrong part.** Acceptance wants the Stage title "Wonderwall — Vocals". But the Baker
+   (B02 v1) bakes each song's **default shared-pool file** = lowest DisplayOrder = the
+   seed's Wonderwall **index 0 = "Wonderwall — Score"** (3 pages), not the Vocals part
+   (index 1). Baking Vocals needs the **per-member/my-files bake** that B02 explicitly
+   deferred ("Per-member my-files bakes are a product decision for later").
+2. **No single demo setlist.** Today's `docs/demo/demo-concert.tstage` is a single
+   Wonderwall bundle. The seed's only marie setlist is **"Sat @ The Anchor" (3 songs:**
+   Wonderwall, Hallelujah, Black Hole Sun). Baking it yields a 3-song concert baking
+   default parts — different musical content, which this spec lists as out of scope.
+3. **Reproducibility.** "byte-reproducible modulo bakedAt" is not achievable: `concertId`
+   is the setlist's server UUID and `songId`s are server UUIDs too — all random per seed
+   run. Reproducible only modulo bakedAt **and** those IDs.
+
+**Decision needed (Fable):** pick one, then this becomes executable — (a) add a dedicated
+single-song demo setlist to the seed whose default pool file IS the Vocals part (so v1
+bakes exactly the current demo); (b) accept the demo becoming the full "Sat @ The Anchor"
+3-song concert (relax acceptance #2 + the "Wonderwall — Vocals" title); or (c) land the
+per-member/my-files bake first (its own task) and bake marie's my-files view. The em-dash
+fix (T16) is ready to prove itself either way once the source part is settled.
+
 ## Changes
 
 1. Regenerate the committed demo bundle through the REAL flow: fresh seeded server →
