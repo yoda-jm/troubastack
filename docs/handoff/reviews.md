@@ -1138,6 +1138,15 @@ song list (T22, lexicographic). The one visible leftover is the deferred cosmeti
 ("Watch me — pickup" clips the page top on BHS — annotation-anchor nudge, VLL's
 "other 2 later").
 
+## 2026-07-07 — Demo-regen landing CI closed: ✅ 5/5 green on both main pushes
+
+Closing the spot-check from the regen verdict (e2e was in flight at review time):
+queried per-commit check-runs — `97a449b` (the regen) and `40ca338` (the log entry)
+are both 5/5 green (android/e2e/go/proto/web). Nothing outstanding on the regen.
+Gate status at this writing: nothing held for review — T19 is in progress on the
+web-core lane (uncommitted); the T22 invites/invite-links ordering fix-forward and
+the B07 device screenshot pair (attended emulator) remain the assigned follow-ups.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
