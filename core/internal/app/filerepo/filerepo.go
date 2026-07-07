@@ -23,6 +23,7 @@ type dataset struct {
 	Users          map[string]app.User          `json:"users"`
 	Sessions       map[string]app.Session       `json:"sessions"`
 	PasswordResets map[string]app.PasswordReset `json:"passwordResets"`
+	ChartSources   map[string]string            `json:"chartSources"`
 	Bands          map[string]app.Band          `json:"bands"`
 	Members        map[string]app.Membership    `json:"members"`
 	Invites        map[string]app.Invite        `json:"invites"`
@@ -109,6 +110,7 @@ func emptyDataset() dataset {
 		Users:          map[string]app.User{},
 		Sessions:       map[string]app.Session{},
 		PasswordResets: map[string]app.PasswordReset{},
+		ChartSources:   map[string]string{},
 		Bands:          map[string]app.Band{},
 		Members:        map[string]app.Membership{},
 		Invites:        map[string]app.Invite{},
@@ -162,6 +164,10 @@ func (r *Repo) load() error {
 	// Password resets (T21) were added later still; nil-guard for older files.
 	if r.d.PasswordResets == nil {
 		r.d.PasswordResets = map[string]app.PasswordReset{}
+	}
+	// Chart sources (T19) were added later still; nil-guard for older files.
+	if r.d.ChartSources == nil {
+		r.d.ChartSources = map[string]string{}
 	}
 	return nil
 }
@@ -325,6 +331,35 @@ func (r *Repo) DeletePasswordReset(tokenHash string) error {
 		return app.ErrNotFound
 	}
 	delete(r.d.PasswordResets, tokenHash)
+	return r.flush()
+}
+
+// ---- chart sources ----
+
+func (r *Repo) SetChartSource(fileID, source string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.ChartSources[fileID] = source
+	return r.flush()
+}
+
+func (r *Repo) GetChartSource(fileID string) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	src, ok := r.d.ChartSources[fileID]
+	if !ok {
+		return "", app.ErrNotFound
+	}
+	return src, nil
+}
+
+func (r *Repo) DeleteChartSource(fileID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.d.ChartSources[fileID]; !ok {
+		return nil // idempotent
+	}
+	delete(r.d.ChartSources, fileID)
 	return r.flush()
 }
 

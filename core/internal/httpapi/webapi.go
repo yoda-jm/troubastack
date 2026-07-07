@@ -70,6 +70,9 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files", a.auth(a.listFiles))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.updateFile))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.deleteFile))
+	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/text-charts", a.auth(a.createTextChart))
+	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source", a.auth(a.getChartSource))
+	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source", a.auth(a.putChartSource))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.getMyFiles))
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.putMyFiles))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.clearMyFiles))
@@ -697,6 +700,52 @@ func writeMyFiles(w http.ResponseWriter, files []app.SongFile, customized bool) 
 		files = []app.SongFile{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"files": files, "customized": customized})
+}
+
+// createTextChart (T19) renders a chart-dialect source to a PDF and adds it to the
+// song's pool as a generated file (any member).
+func (a *WebAPI) createTextChart(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Source string `json:"source"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	f, err := a.svc.CreateTextChart(u, r.PathValue("bandId"), r.PathValue("songId"), in.Source)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"file": f})
+}
+
+// getChartSource returns a generated file's editable source + its file record
+// (the file's Revision is the base the editor saves against).
+func (a *WebAPI) getChartSource(w http.ResponseWriter, r *http.Request, u app.User) {
+	f, src, err := a.svc.ChartSource(u, r.PathValue("bandId"), r.PathValue("songId"), r.PathValue("fileId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"file": f, "source": src})
+}
+
+// putChartSource re-renders a generated file from new source (LWW: baseRevision
+// must match the current revision, else 409 conflict).
+func (a *WebAPI) putChartSource(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Source       string `json:"source"`
+		BaseRevision int    `json:"baseRevision"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	f, err := a.svc.SaveChartSource(u, r.PathValue("bandId"), r.PathValue("songId"), r.PathValue("fileId"), in.BaseRevision, in.Source)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"file": f})
 }
 
 // getMyFiles returns the caller's personal ordered view of a song's file pool. If

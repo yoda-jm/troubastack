@@ -20,6 +20,7 @@ type Repo struct {
 	users          map[string]app.User          // id -> user
 	sessions       map[string]app.Session       // token -> session
 	passwordResets map[string]app.PasswordReset // token hash -> reset grant
+	chartSources   map[string]string            // file id -> chart source text
 	bands          map[string]app.Band          // id -> band
 	members        map[string]app.Membership    // bandID|userID -> membership
 	invites        map[string]app.Invite        // id -> invite
@@ -37,6 +38,7 @@ func New() *Repo {
 		users:          map[string]app.User{},
 		sessions:       map[string]app.Session{},
 		passwordResets: map[string]app.PasswordReset{},
+		chartSources:   map[string]string{},
 		bands:          map[string]app.Band{},
 		members:        map[string]app.Membership{},
 		invites:        map[string]app.Invite{},
@@ -195,6 +197,32 @@ func (r *Repo) DeletePasswordReset(tokenHash string) error {
 		return app.ErrNotFound
 	}
 	delete(r.passwordResets, tokenHash)
+	return nil
+}
+
+// ---- chart sources ----
+
+func (r *Repo) SetChartSource(fileID, source string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.chartSources[fileID] = source
+	return nil
+}
+
+func (r *Repo) GetChartSource(fileID string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	src, ok := r.chartSources[fileID]
+	if !ok {
+		return "", app.ErrNotFound
+	}
+	return src, nil
+}
+
+func (r *Repo) DeleteChartSource(fileID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.chartSources, fileID) // idempotent — not-found is not an error
 	return nil
 }
 

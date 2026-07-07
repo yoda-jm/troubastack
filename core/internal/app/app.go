@@ -229,6 +229,13 @@ type SongFile struct {
 	DisplayOrder int       `json:"displayOrder"`
 	UploadedBy   string    `json:"uploadedBy"`
 	CreatedAt    time.Time `json:"createdAt"`
+
+	// Generated marks a file the server renders from a text source (T19 text
+	// charts) rather than an upload — the UI offers "edit source" instead of
+	// "replace file". Revision bumps each time the source is re-rendered into this
+	// same file id (the chart source itself lives in the repo, keyed by file id).
+	Generated bool `json:"generated,omitempty"`
+	Revision  int  `json:"revision,omitempty"`
 }
 
 // FileSelection is a member's PERSONAL, ordered choice of which of a song's pool
@@ -289,6 +296,12 @@ type Repo interface {
 	CreatePasswordReset(pr PasswordReset) error
 	GetPasswordReset(tokenHash string) (PasswordReset, error)
 	DeletePasswordReset(tokenHash string) error
+
+	// Chart sources (T19) — the editable text a generated chart file was rendered
+	// from, keyed by that file's id. GetChartSource returns ErrNotFound when none.
+	SetChartSource(fileID, source string) error
+	GetChartSource(fileID string) (string, error)
+	DeleteChartSource(fileID string) error
 
 	// Bands + memberships.
 	CreateBand(b Band) error

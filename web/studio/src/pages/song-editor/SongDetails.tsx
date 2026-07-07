@@ -142,10 +142,15 @@ function fmtSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// chartEdit is the open text-chart editor state: a new chart (no fileId) or an
+// existing generated file's source (fileId + the revision we based the edit on).
+type chartEdit = { fileId?: string; source: string; baseRevision: number };
+
 export function Files({ bandId, songId }: { bandId: string; songId: string }) {
   const [files, setFiles] = useState<SongFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [chart, setChart] = useState<chartEdit | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -203,6 +208,16 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
     }
   }
 
+  async function editChartSource(file: SongFile) {
+    setError(null);
+    try {
+      const { source, file: cur } = await api.getChartSource(bandId, songId, file.id);
+      setChart({ fileId: file.id, source, baseRevision: cur.revision ?? 1 });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load chart source");
+    }
+  }
+
   async function move(index: number, dir: -1 | 1) {
     const other = index + dir;
     if (other < 0 || other >= files.length) return;
@@ -228,7 +243,28 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
         <button type="submit" data-testid="file-upload" disabled={busy}>
           Upload
         </button>
+        <button
+          type="button"
+          className="ghost-btn"
+          data-testid="new-text-chart"
+          onClick={() => setChart({ source: "# New chart\n\n## Verse 1\n", baseRevision: 0 })}
+        >
+          New text chart
+        </button>
       </form>
+
+      {chart && (
+        <ChartEditor
+          bandId={bandId}
+          songId={songId}
+          initial={chart}
+          onCancel={() => setChart(null)}
+          onDone={() => {
+            setChart(null);
+            void load();
+          }}
+        />
+      )}
 
       <ErrorBanner message={error} />
 
@@ -250,6 +286,11 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
                   {f.filename}
                 </a>{" "}
                 <span className="muted">{fmtSize(f.size)}</span>
+                {f.generated && (
+                  <span className="chip" data-testid="file-chart-badge">
+                    text chart
+                  </span>
+                )}
               </span>
               <span className="actions">
                 <button
@@ -268,6 +309,15 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
                 >
                   ↓
                 </button>
+                {f.generated && (
+                  <button
+                    type="button"
+                    data-testid="file-edit-source"
+                    onClick={() => void editChartSource(f)}
+                  >
+                    Edit source
+                  </button>
+                )}
                 <button type="button" data-testid="file-rename" onClick={() => rename(f)}>
                   Rename
                 </button>
@@ -280,6 +330,76 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
         </ul>
       )}
     </section>
+  );
+}
+
+// ChartEditor is the text-chart source editor: a plain textarea in the tiny chart
+// dialect, saved server-side to a rendered PDF (new file, or re-render in place for
+// an existing generated file). A save conflict (someone edited first) surfaces the
+// server's "reload" message. Live PDF preview is a later nicety — for now the saved
+// file appears in the pool and opens in the viewer.
+function ChartEditor({
+  bandId,
+  songId,
+  initial,
+  onDone,
+  onCancel,
+}: {
+  bandId: string;
+  songId: string;
+  initial: chartEdit;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [source, setSource] = useState(initial.source);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (initial.fileId) {
+        await api.saveChartSource(bandId, songId, initial.fileId, initial.baseRevision, source);
+      } else {
+        await api.createTextChart(bandId, songId, source);
+      }
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save chart");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card chart-editor" data-testid="chart-editor">
+      <textarea
+        data-testid="chart-source"
+        rows={14}
+        value={source}
+        spellCheck={false}
+        onChange={(e) => setSource(e.target.value)}
+      />
+      <details className="muted">
+        <summary>Chart format</summary>
+        <pre>{`# Title
+## Section          (Verse 1, Chorus, Bridge…)
+G     D             a line of chords renders above the next lyric line
+lyrics go here
+**bold** in a normal text line
+(blank line = paragraph gap)`}</pre>
+      </details>
+      <div className="inline-form">
+        <button type="button" data-testid="chart-save" disabled={busy} onClick={() => void save()}>
+          {busy ? "Saving…" : "Save chart"}
+        </button>
+        <button type="button" className="ghost-btn" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      <ErrorBanner message={error} />
+    </div>
   );
 }
 

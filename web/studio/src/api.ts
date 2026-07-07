@@ -82,6 +82,9 @@ export type SongFile = {
   size: number;
   displayOrder: number;
   createdAt: string;
+  // Generated text charts (T19): the server renders these from an editable source.
+  generated?: boolean;
+  revision?: number;
 };
 
 export type SongPatch = {
@@ -312,6 +315,33 @@ export const api = {
     request<{ files: SongFile[] }>("GET", `/api/bands/${bandId}/songs/${songId}/files`).then(
       (r) => r.files,
     ),
+
+  // ---- text charts (T19): write a chart in the tiny dialect; the server renders
+  // it to a PDF in the pool. Edit re-renders in place (same file id, revision++);
+  // saveChartSource sends the base revision for LWW conflict detection (409).
+  createTextChart: (bandId: string, songId: string, source: string) =>
+    request<{ file: SongFile }>("POST", `/api/bands/${bandId}/songs/${songId}/text-charts`, {
+      source,
+    }).then((r) => r.file),
+
+  getChartSource: (bandId: string, songId: string, fileId: string) =>
+    request<{ file: SongFile; source: string }>(
+      "GET",
+      `/api/bands/${bandId}/songs/${songId}/files/${fileId}/chart-source`,
+    ),
+
+  saveChartSource: (
+    bandId: string,
+    songId: string,
+    fileId: string,
+    baseRevision: number,
+    source: string,
+  ) =>
+    request<{ file: SongFile }>(
+      "PUT",
+      `/api/bands/${bandId}/songs/${songId}/files/${fileId}/chart-source`,
+      { source, baseRevision },
+    ).then((r) => r.file),
 
   uploadFile: (bandId: string, songId: string, file: File) => {
     const form = new FormData();

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"troubastack/core/internal/app/blob"
+	"troubastack/core/internal/chartpdf"
 )
 
 // Service is the business layer: it enforces the membership/consent/RBAC policy
@@ -1115,7 +1116,115 @@ func (s *Service) DeleteSongFile(caller User, bandID, songID, fileID string) err
 		return err
 	}
 	s.derefBlob(f.BlobHash)
+	if f.Generated {
+		_ = s.repo.DeleteChartSource(fileID) // drop the editable source too
+	}
 	return nil
+}
+
+// ---- text charts (T19): a member writes a chart in the tiny chartpdf dialect;
+// the server renders it to a PDF that enters the song's pool like any file, so
+// everything downstream (view/annotate/my-files/bake/Stage) works unchanged. ----
+
+// CreateTextChart renders source to a PDF and adds it to the song's pool as a
+// GENERATED file (any band member), storing the editable source keyed by the new
+// file id. ErrInvalidInput if the source uses characters the cp1252 renderer
+// can't represent.
+func (s *Service) CreateTextChart(caller User, bandID, songID, source string) (SongFile, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return SongFile{}, err
+	}
+	song, err := s.repo.GetSong(songID)
+	if err != nil || song.BandID != bandID {
+		return SongFile{}, ErrNotFound
+	}
+	pdf, err := chartpdf.Render(source)
+	if err != nil {
+		return SongFile{}, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	hash, err := s.blobs.Put(pdf)
+	if err != nil {
+		return SongFile{}, err
+	}
+	existing, _ := s.repo.FilesOfSong(songID)
+	f := SongFile{
+		ID:           s.newID(),
+		SongID:       songID,
+		BandID:       bandID,
+		Filename:     chartpdf.Title(source) + ".pdf",
+		ContentType:  "application/pdf",
+		Size:         int64(len(pdf)),
+		BlobHash:     hash,
+		UploadedBy:   caller.ID,
+		DisplayOrder: len(existing),
+		CreatedAt:    s.now().UTC(),
+		Generated:    true,
+		Revision:     1,
+	}
+	if err := s.repo.CreateSongFile(f); err != nil {
+		return SongFile{}, err
+	}
+	if err := s.repo.SetChartSource(f.ID, source); err != nil {
+		return SongFile{}, err
+	}
+	return f, nil
+}
+
+// ChartSource returns a generated file's editable source (member-only).
+// ErrNotFound if the file isn't a generated text chart.
+func (s *Service) ChartSource(caller User, bandID, songID, fileID string) (SongFile, string, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return SongFile{}, "", err
+	}
+	f, err := s.repo.GetSongFile(fileID)
+	if err != nil || f.BandID != bandID || f.SongID != songID || !f.Generated {
+		return SongFile{}, "", ErrNotFound
+	}
+	src, err := s.repo.GetChartSource(fileID)
+	if err != nil {
+		return SongFile{}, "", ErrNotFound
+	}
+	return f, src, nil
+}
+
+// SaveChartSource re-renders a generated file from new source, in place (same
+// file id, Revision bumped). baseRevision is the revision the editor started from;
+// a mismatch means someone else saved first → ErrConflict ("reload"). Any member
+// may edit (like annotations). ErrInvalidInput for unrenderable source.
+func (s *Service) SaveChartSource(caller User, bandID, songID, fileID string, baseRevision int, source string) (SongFile, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return SongFile{}, err
+	}
+	f, err := s.repo.GetSongFile(fileID)
+	if err != nil || f.BandID != bandID || f.SongID != songID || !f.Generated {
+		return SongFile{}, ErrNotFound
+	}
+	if baseRevision != f.Revision {
+		return SongFile{}, fmt.Errorf("%w: chart was changed by someone else — reload", ErrConflict)
+	}
+	pdf, err := chartpdf.Render(source)
+	if err != nil {
+		return SongFile{}, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	hash, err := s.blobs.Put(pdf)
+	if err != nil {
+		return SongFile{}, err
+	}
+	old := f.BlobHash
+	f.BlobHash = hash
+	f.Size = int64(len(pdf))
+	f.Filename = chartpdf.Title(source) + ".pdf"
+	f.Revision++
+	if err := s.repo.UpdateSongFile(f); err != nil {
+		return SongFile{}, err
+	}
+	if err := s.repo.SetChartSource(fileID, source); err != nil {
+		return SongFile{}, err
+	}
+	if old != hash {
+		s.derefBlob(old) // release the previous render if nothing else points at it
+	}
+	return f, nil
 }
 
 // DownloadSongFile returns a file's metadata and bytes, enforcing that the caller
