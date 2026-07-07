@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import QRCode from "qrcode";
 import { ApiError, api, type Band, type Invite, type MemberView, type Role, type Song } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
@@ -180,14 +181,7 @@ function MemberResetAction({ bandId, userId }: { bandId: string; userId: string 
   }
 
   if (link) {
-    return (
-      <span className="member-reset">
-        <input className="reset-link" data-testid="reset-link" value={link} readOnly />
-        <button type="button" className="ghost-btn" onClick={() => setLink(null)}>
-          Done
-        </button>
-      </span>
-    );
+    return <ResetLinkPanel link={link} onDone={() => setLink(null)} />;
   }
 
   return (
@@ -203,6 +197,42 @@ function MemberResetAction({ bandId, userId }: { bandId: string; userId: string 
         Reset password…
       </button>
       <ErrorBanner message={error} />
+    </span>
+  );
+}
+
+// ResetLinkPanel shows the one-time reset link as a QR (scan it on the member's
+// phone — the in-person handoff the design intends, same as invite links) plus
+// the raw URL to copy. Purely client-rendered (offline-safe).
+function ResetLinkPanel({ link, onDone }: { link: string; onDone: () => void }) {
+  const qrRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toString(link, { type: "svg", margin: 1, width: 128 })
+      .then((svg) => {
+        if (!cancelled && qrRef.current) qrRef.current.innerHTML = svg;
+      })
+      .catch(() => {
+        if (!cancelled && qrRef.current) qrRef.current.textContent = link;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [link]);
+
+  return (
+    <span className="member-reset member-reset-open">
+      <div className="qr" data-testid="reset-qr" ref={qrRef} />
+      <input
+        className="reset-link"
+        data-testid="reset-link"
+        readOnly
+        value={link}
+        onFocus={(e) => e.target.select()}
+      />
+      <button type="button" className="ghost-btn" onClick={onDone}>
+        Done
+      </button>
     </span>
   );
 }
