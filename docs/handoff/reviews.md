@@ -1101,6 +1101,26 @@ to web-core after T19. The proposal branch can be deleted once this lands (the
 proposal doc itself was NOT merged to main — the specs supersede it; keep the file on
 the branch for history or land it under docs/handoff/proposals/ if the lane prefers).
 
+## 2026-07-07 — T22 (`1c7a5e7`, landed per queue): ⚠️ APPROVED WITH ONE GAP — invites/invite-links still unsorted (fix-forward assigned)
+
+The core is right and re-verified fresh: one helper set (`internal/app/ordering.go`),
+applied symmetrically in BOTH backends to 7 listing methods (songs title-ci/id,
+setlists+bands name-ci/id, members CreatedAt/userID, files DisplayOrder/id, items
+Position/id — all per spec); endpoint tests assert sorted + stable-across-requests on
+both backends; `go test ./internal/httpapi -run Order` and the full app tree green on
+my machine; CI android/web/proto green, go/e2e in flight at review time. VLL's
+reshuffling-song-list bug is dead.
+
+**The gap:** the spec's sweep line — "Invites/invite-links/members: any stable order
+(CreatedAt then ID) — pick one and test it" — was only done for members.
+`InvitesForBand` and `InviteLinksForBand` still range maps unsorted in both backends,
+and they ARE user-visible (service.go:474/482/599/779 → the band page's invites and
+invite-links panels). **Fix-forward, web-core lane:** sort both by CreatedAt then ID
+(mirror `SortMembers`), both backends, extend the ordering test; XS, land with the
+usual gate note referencing this entry. `PendingInvitesForIdentifiers` may stay
+unsorted but add the "order-irrelevant internal" comment the acceptance criterion
+asks for.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
