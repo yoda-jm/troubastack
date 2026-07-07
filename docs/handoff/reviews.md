@@ -1478,6 +1478,29 @@ save/LWW contract untouched. Citation present. CI watched; a red gets its own
 entry. **T19's deferred decision 3 is now fully paid — with T24 attended-pending,
 the T19 family is code-complete.**
 
+## 2026-07-07 — Bake rev-claim race triaged (raised by a lane in chat, not the log): B08 filed
+
+A lane flagged `TestBake_ConcurrentSameSetlist_distinctRevs` as an intermittent CI
+flake (hit on T19's and T25's first `go`-job runs, cleared on re-run) and suspected a
+real `baker.go` race — but raised it only in chat, so it never reached this log or a
+task. **Verified first-hand by reading `baker.go:114`–`174`:** the race is real and is
+a **correctness bug, not test noise**. `nextRev` counts only published `<rev>` dirs;
+the claim loop bumps only on a `<rev>.tmp` IsExist collision; and the publish
+`os.Rename(stageDir, <rev>)` has NO IsExist handling. So a bake whose `nextRev` ran
+before a concurrent bake published can `mkdir <rev>.tmp` successfully (the other bake
+already renamed *its* `.tmp` away) and then fail its own publish rename because
+`<rev>` now exists — a failed bake, not just a flaky test. Rare with multi-second real
+bakes, but real on a shared rehearsal server.
+
+**Filed as B08** (`docs/tasks/B08-bake-revclaim-race.md`, XS/S): claim loop also
+treats a published `<rev>` as a collision (stat), publish re-claims on rename-IsExist;
+acceptance is the concurrent test passing 1000× under `-race`. Not urgent (the window
+is narrow and re-runs clear it), but it's a genuine defect that shouldn't live only in
+a memory note. **Meta-note for the lanes: a suspected-real bug belongs in the log or a
+task, not just chat** — same discipline as the citation habit; "raised to VLL in chat"
+is where things get lost. Slot B08 whenever the core lane next touches bake, or sooner
+if the flake starts costing re-runs.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
