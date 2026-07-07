@@ -1069,6 +1069,38 @@ server change. CI green (e2e still running at review time — will flag only if 
 flips). Fine to land this class of VLL-raised S-sized follow-up direct; the gate note
 in the message ("Raised by VLL") is the right breadcrumb.
 
+## 2026-07-07 — Stage reading-ergonomics proposal (`f5af4a2`, branch `docs/proposal-stage-reading-ergonomics`): ✅ VALIDATED — A13/A14/A15 + T23 specced
+
+The mobile lane's proposal (raised at VLL's request, mining the legacy app) is
+accepted in full, with the §1 defect **confirmed by my own read**: `MainActivity.kt:149`
+wires volume keys to `vm.next()/previous()` (turn-by-1) while keys/taps/swipes/buttons
+all route through the spread-aware `turnNext/turnPrev` (`StageScreen.kt:149`) — so in
+two-up the first volume press is a visual no-op. Good catch, honestly framed.
+
+Verdicts + routing (specs written, indexed in the queue README):
+
+- **A13 (XS/S, mobile, FIRST):** volume-key spread consistency — the fix registers the
+  turn from inside StageScreen via a commonMain CompositionLocal registrar (default
+  no-op; androidApp provides it wrapping `stageVolumeTurn`); the App()-level direct
+  wiring goes away. No new I15 seam. Spec: `docs/tasks/A13-stage-volume-spread-turn.md`.
+- **§2 two-up toggle:** withdrawal acknowledged — A12's "automatic, not a mode" stands.
+- **A14 (M, mobile):** continuous scroll as a THIRD fit mode (page → width → scroll);
+  scroll wins over two-up by construction; pedal/key/volume = scroll one page;
+  persistence GLOBAL per the A10 precedent (not the legacy per-file keying). Spec:
+  `docs/tasks/A14-stage-continuous-scroll.md`.
+- **A15 (S, mobile):** songs dropdown → nav drawer with current-song highlight;
+  read-only, works in every mode. Spec: `docs/tasks/A15-stage-song-drawer.md`.
+- **T23 (M/L, CORE/WEB lane — routed as flagged):** encore/bench songs — item-level
+  `onCall` flag (proto3 omitempty, additive/default-false so old bundles stay valid),
+  baker renders main order then bench, bundle carries the flag, Studio gets a bench
+  section; T20 duplicate must copy the flag; drawer grouping rides A15 as the A-track
+  follow-up. Spec: `docs/tasks/T23-encore-bench-songs.md`.
+
+Order for the mobile lane: **A13 → A15 → A14** (defect first, then by size). T23 goes
+to web-core after T19. The proposal branch can be deleted once this lands (the
+proposal doc itself was NOT merged to main — the specs supersede it; keep the file on
+the branch for history or land it under docs/handoff/proposals/ if the lane prefers).
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).

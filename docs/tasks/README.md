@@ -50,7 +50,9 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   bundle regen (docs/demo/demo-concert.tstage still carries the doubled 22 pages).
 - **Open, unblocked:** **T22** (deterministic listings, S — user-reported) · **CFG01**
   (config file — decisions fixed 2026-07-07, ready to implement) · **B06 app half**
-  (Connect-screen browse, mobile lane) · **OPS01** (the demo→daily-use gap) · P20x.
+  (Connect-screen browse, mobile lane) · reading-ergonomics batch **A13 → A15 → A14**
+  (validated 2026-07-07; A13 is an A12 defect, do it first) · **T23** (encore/bench
+  songs — web-core, after T19) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
   see its attempt log), the **B07 device screenshot pair** (tab vs score, rides the
@@ -85,6 +87,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T20 | [Duplicate a setlist](T20-setlist-duplicate.md) | core + studio | S |
 | T21 | [Password reset (admin-assisted)](T21-password-reset.md) | core + studio | S |
 | T22 | [Deterministic list ordering (songs lexicographic + sweep)](T22-deterministic-listings.md) | core | S |
+| T23 | [Encore/bench songs: baked + jumpable, outside the order](T23-encore-bench-songs.md) | core + proto + studio | M/L |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
@@ -128,6 +131,9 @@ contract.
 | A10 | [Stage night mode (inverted score)](A10-stage-night-mode.md) | app | S/M |
 | A11 | [Stage: visual count-in at the song's tempo](A11-stage-visual-count-in.md) | app | XS/S |
 | A12 | [Stage: facing pages (two-up) in landscape](A12-stage-facing-pages.md) | app | S/M |
+| A13 | [Stage: volume keys turn by spread in two-up (A12 defect)](A13-stage-volume-spread-turn.md) | app | XS/S |
+| A14 | [Stage: continuous-scroll reading mode](A14-stage-continuous-scroll.md) | app | M |
+| A15 | [Stage: song-jump navigation drawer](A15-stage-song-drawer.md) | app | S |
 
 A-track ordering: strictly A01 → A02 → A03 → A04 → A05. A06 needs only A01 and may run
 in parallel with A02–A05 (different files). A07 is **blocked** until T06 lands *and* the
