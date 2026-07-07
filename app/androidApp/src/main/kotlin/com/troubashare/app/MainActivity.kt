@@ -27,7 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +48,7 @@ import com.troubashare.shared.distribution.UpdatePolicy
 import com.troubashare.shared.distribution.UpdatesManager
 import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.stage.ImageDecoder
+import com.troubashare.shared.stage.LocalVolumeTurnRegistrar
 import com.troubashare.shared.stage.PageTurn
 import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
@@ -143,18 +144,23 @@ private fun App() {
             AndroidImageDecoder(File(dir)),
         )
     }
-    // A09: route hardware VOLUME keys to page turns while (and only while) Stage is open.
+    // A09/A13: route hardware VOLUME keys to page turns while (and only while) Stage is open. Volume
+    // keys don't reach Compose, so the Activity intercepts them (onKeyDown) and calls back through the
+    // registrar StageScreen provides here. StageScreen owns the turn logic, so two-up turns by a whole
+    // spread like every other input (A13) — the entrypoint just forwards the press; register/unregister
+    // is handled inside StageScreen keyed on Stage lifetime.
     val activity = LocalContext.current.findActivity() as? MainActivity
-    DisposableEffect(opened.vm, activity) {
-        activity?.stageVolumeTurn = { pt -> if (pt == PageTurn.NEXT) opened.vm.next() else opened.vm.previous() }
-        onDispose { activity?.stageVolumeTurn = null }
+    val volumeTurnRegistrar = remember(activity) {
+        { handler: ((PageTurn) -> Unit)? -> activity?.stageVolumeTurn = handler }
     }
-    StageHost {
-        StageScreen(
-            opened.vm, opened.decoder, onExit = { selectedDir = null },
-            initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
-            onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
-        )
+    CompositionLocalProvider(LocalVolumeTurnRegistrar provides volumeTurnRegistrar) {
+        StageHost {
+            StageScreen(
+                opened.vm, opened.decoder, onExit = { selectedDir = null },
+                initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
+                onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
+            )
+        }
     }
     BackHandler { selectedDir = null }
 }

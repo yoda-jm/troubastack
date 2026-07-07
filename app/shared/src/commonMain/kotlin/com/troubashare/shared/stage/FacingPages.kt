@@ -29,6 +29,18 @@ fun nextSpreadPage(page: Int, pageCount: Int): Int =
 fun prevSpreadPage(page: Int): Int = (spreadFor(page) - 2).coerceAtLeast(0)
 
 /**
+ * The target page for a page turn from [page], spread-aware when [twoUp] (A13). This is the single
+ * navigation rule every input shares — keys/pedals, taps, swipes, pager buttons AND Android volume
+ * keys — so two-up always turns by a whole spread and one-up by one page. The result is fed to
+ * [StageViewModel.goToPage], which clamps; NEXT/PREV in one-up are intentionally left unclamped here
+ * (page±1) to match that clamp-at-the-VM contract.
+ */
+fun turnTarget(page: Int, pageCount: Int, twoUp: Boolean, dir: PageTurn): Int = when (dir) {
+    PageTurn.NEXT -> if (twoUp) nextSpreadPage(page, pageCount) else page + 1
+    PageTurn.PREV -> if (twoUp) prevSpreadPage(page) else page - 1
+}
+
+/**
  * The pager label: "3–4/22" for a two-up spread, "22/22" for a lone last page, "5/22" one-up.
  * [twoUp] is the live layout decision; [page] is the source-of-truth current page.
  */

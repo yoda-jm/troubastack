@@ -46,11 +46,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -146,11 +148,23 @@ private fun Performing(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val twoUp = maxWidth > maxHeight && state.fitMode == FitMode.FIT_PAGE
         // One navigation entry point (keys, taps, swipes, arrows) so turn-by-spread is applied once.
-        val turnNext: () -> Unit =
-            { vm.goToPage(if (twoUp) nextSpreadPage(state.current, state.pageCount) else state.current + 1) }
-        val turnPrev: () -> Unit =
-            { vm.goToPage(if (twoUp) prevSpreadPage(state.current) else state.current - 1) }
+        val turnNext: () -> Unit = { vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT)) }
+        val turnPrev: () -> Unit = { vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV)) }
         val spread = spreadPages(state.current, state.pageCount)
+
+        // A13: Android volume keys can't reach Compose; androidApp intercepts them in the Activity and
+        // calls back through this registrar. Publish the SAME spread-aware turns every other input uses
+        // so two-up turns by a whole spread (one press = one spread) instead of the old turn-by-1.
+        // rememberUpdatedState keeps the forwarded handler current as the page/layout change without
+        // re-registering; unregister on dispose so volume keys behave normally outside Stage (this is
+        // also A09's dispose contract). iOS provides no registrar → the default no-op.
+        val volumeTurnRegistrar = LocalVolumeTurnRegistrar.current
+        val latestNext by rememberUpdatedState(turnNext)
+        val latestPrev by rememberUpdatedState(turnPrev)
+        DisposableEffect(volumeTurnRegistrar) {
+            volumeTurnRegistrar { pt -> if (pt == PageTurn.NEXT) latestNext() else latestPrev() }
+            onDispose { volumeTurnRegistrar(null) }
+        }
 
         Box(
             Modifier
