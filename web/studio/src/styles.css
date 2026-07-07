@@ -1,54 +1,66 @@
-/* TroubaStudio — design system. Tokens first, then components; fully responsive
-   with a tasteful dark mode. Markup is unchanged — these target existing classes. */
+/* TroubaStudio — design system ("concert program" identity). Tokens first, then
+   components; fully responsive with a "stage" dark mode. Warm paper-and-ink
+   neutrals, a serif display voice, and musical data set in monospace. */
 
 :root {
+  /* Type: a serif display (songbook/program voice), a system-sans body, and a
+     monospace for musical data (keys, tempo, durations, revs). No webfont
+     dependency — all system stacks, so it works in the offline embedded SPA. */
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
   --brand: #4f46e5;
-  --brand-strong: #4338ca;
-  --brand-tint: #eef2ff;
+  --brand-strong: #4035c9;
+  --brand-tint: #efedfc;
+  --brand-ink: #35309a;          /* indigo readable on the warm paper (links, labels, ranks) */
   --accent: var(--brand);        /* THE single accent — everything derives from the brand */
   accent-color: var(--accent);   /* unify native widgets (sliders, checkboxes) with the brand, both themes */
 
-  --bg: #f4f5fb;
-  --surface: #ffffff;
-  --surface-2: #fafafe;
-  --fg: #14151a;
-  --muted: #687087;
-  --border: #e6e8ef;
-  --border-strong: #d3d7e3;
+  --bg: #f7f4ee;                 /* warm paper ground */
+  --surface: #fffdfa;
+  --surface-2: #f2eee6;
+  --fg: #201d29;                 /* warm near-black ink */
+  --muted: #6d6979;
+  --border: #e7e1d8;
+  --border-strong: #d8d1c5;
 
-  --ok-bg: #ecfdf5; --ok-fg: #066b4d;
-  --error-bg: #fef2f2; --error-fg: #b42318;
+  --ok-bg: #e7f6ee; --ok-fg: #0a7154;
+  --error-bg: #fbeceb; --error-fg: #b42318;
 
-  /* Amber "locked layer / edit-anyway" family. */
-  --warn-bg: #fffbeb; --warn-fg: #b45309; --warn-border: #f59e0b;
-  /* Neutral chips (lock pill, corner lock). */
-  --chip-bg: #e5e7eb; --chip-fg: #374151;
+  /* Amber "locked layer / edit-anyway / bench" family. */
+  --warn-bg: #fbf0dd; --warn-fg: #9a5a08; --warn-border: #d08a2c;
+  /* Neutral chips (lock pill, metadata chips). */
+  --chip-bg: #ece7dd; --chip-fg: #494455;
   /* Translucent washes — derived from the tokens above, so they auto-adapt to
      dark mode: --accent/--muted/--warn-border change there and these follow. */
   --selection-fill: color-mix(in srgb, var(--accent) 10%, transparent);
   --muted-fill: color-mix(in srgb, var(--muted) 14%, transparent);
   --warn-fill: color-mix(in srgb, var(--warn-border) 12%, transparent);
+  /* Musical-staff motif — a faint five-line signature accent. */
+  --staff: color-mix(in srgb, var(--muted) 45%, transparent);
 
-  --r-sm: 8px; --r: 12px; --r-lg: 18px;
-  --shadow: 0 1px 2px rgba(20,21,26,.04), 0 6px 20px rgba(20,21,26,.06);
-  --shadow-sm: 0 1px 2px rgba(20,21,26,.06);
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+  --r-sm: 8px; --r: 13px; --r-lg: 20px;
+  --shadow: 0 1px 2px rgba(40,34,24,.05), 0 10px 30px rgba(40,34,24,.07);
+  --shadow-sm: 0 1px 2px rgba(40,34,24,.07);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent);
 
-  --maxw: 880px;
+  --maxw: 1040px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --brand: #818cf8; --brand-strong: #a5b4fc; --brand-tint: #1e2030;
-    --bg: #0e0f15;
-    --surface: #181a22; --surface-2: #1f2230;
-    --fg: #e9eaf2; --muted: #9aa1b4;
-    --border: #2a2d3a; --border-strong: #383c4d;
-    --ok-bg: #0f2a22; --ok-fg: #4ade80;
+    --brand: #a5b4fc; --brand-strong: #c7d0ff; --brand-tint: #201d33; --brand-ink: #c3ccff;
+    --bg: #100e16;
+    --surface: #191722; --surface-2: #211e2c;
+    --fg: #efeaf6; --muted: #9c96ac;
+    --border: #2b2836; --border-strong: #3a3648;
+    --ok-bg: #10281f; --ok-fg: #5ee0a3;
     --error-bg: #2a1414; --error-fg: #fca5a5;
-    --warn-bg: #2e2611; --warn-fg: #fcd34d; --warn-border: #a16207;
-    --chip-bg: #2a2d3a; --chip-fg: #c7ccda;
-    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.4);
+    --warn-bg: #2c2413; --warn-fg: #f2c14e; --warn-border: #a97b28;
+    --chip-bg: #262232; --chip-fg: #c8c2d6;
+    --staff: color-mix(in srgb, var(--muted) 55%, transparent);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 12px 34px rgba(0,0,0,.5);
   }
 }
 
@@ -59,7 +71,7 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.55;
   color: var(--fg);
@@ -67,8 +79,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; }
 h1 { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2rem); line-height: 1.2; letter-spacing: -.02em; margin: .2rem 0 .6rem; }
 h2 { font-size: 1.15rem; letter-spacing: -.01em; margin: 0 0 .25rem; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
