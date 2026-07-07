@@ -1537,6 +1537,36 @@ CI on the landing is being watched; a red gets its own entry. Note for the recor
 this is a *surgical* Viewer render-race fix with the e2e net green — a different risk
 class from the T15 hooks-split refactor, which stays attended.
 
+## 2026-07-08 — Studio reskin 1/N (`d56aea1`, landed per VLL): ✅ APPROVED — warm "concert program" identity, both themes verified by pixels
+
+First step of the VLL-approved management-pages redesign: a token + type change to
+`styles.css` only (48/34, no markup). Reviewed:
+
+- **No broken references (the reskin risk with a shared token file):** every existing
+  token NAME is retained — only additions (`--font-display/-body/-mono`, `--brand-ink`,
+  `--staff`). So every component re-skins automatically; nothing references a deleted
+  var. `tsc -b studio` clean.
+- **Pixels, both themes (on the CORRECT build — see the process note):** light is the
+  intended warm paper-and-ink — cream `#f7f4ee` ground, warm surface cards, **serif
+  display headings** (Georgia fallback on this Linux host; the Iowan/Palatino stack
+  degrades gracefully as designed), indigo accent kept as the single brand. Dark reads
+  as a dim "stage" — warm-black ground, warm-tinted surfaces, a lighter indigo
+  (`#a5b4fc`) readable on dark, legible muted text. Nav/cards/buttons/links all intact.
+- It's genuinely just the foundation — **this is 1/N**; the per-page layout sweep (page
+  headers, form grids, de-crammed setlist rows, the `--maxw` 880→1040 payoff, the
+  `.mono` musical-data treatment) lands in following commits and gets reviewed then.
+
+**Process note (a self-catch worth recording):** my first pixel pass showed the OLD
+cool palette — because the review worktree was still at `172c69f` (pre-reskin) and I'd
+only `git fetch`ed, not pulled, so Vite served stale `styles.css`. Caught it by the
+pixels not matching the diff, pulled to `d56aea1`, re-shot. Same lesson as the port-8093
+collision: **confirm you're exercising the reviewed SHA's bytes before trusting a
+screenshot.** Also: 8080 was another lane's live `troubacore` throughout — screenshots
+ran on an isolated `:8092/:5175` stack; that server was left untouched.
+
+Citation present. CI on the landing being watched; a red gets its own entry. The
+following redesign commits will each get a pixel pass as they land.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
