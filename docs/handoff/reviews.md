@@ -1,8 +1,10 @@
 # Review-gate log — Architect/Reviewer verdicts
 
-> **Reviewing the weekend?** Start with the digest:
-> [`SUMMARY-2026-07-04-to-06.md`](SUMMARY-2026-07-04-to-06.md) — everything landed,
-> every decision, every incident, with commit hashes; this log holds the full verdicts.
+> **Catching up?** Start with a digest — everything landed, every decision, every
+> incident, with commit hashes; this log holds the full verdicts:
+> [`SUMMARY-2026-07-04-to-06.md`](SUMMARY-2026-07-04-to-06.md) (the weekend: bake loop
+> + iOS) then [`SUMMARY-2026-07-06-to-07.md`](SUMMARY-2026-07-06-to-07.md) (Stage
+> ergonomics arc, text charts, encore/bench, field-report closure).
 
 When the human relay is offline, verdicts land here instead of chat. Executing agents:
 treat an entry here exactly like a pasted review. Keep working your lane's queue per the
