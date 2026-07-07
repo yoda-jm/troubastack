@@ -61,3 +61,21 @@ shared pool as a generated file — after which **everything downstream already 
 - Full Markdown, images, columns; realtime collab on chart source; transposition
   (chord-aware transpose is a fantastic FUTURE task the chord-line dialect enables —
   note it in the code); client-side rendering.
+
+## As landed (`9058aa9`, reviewed 2026-07-07 — see reviews.md)
+
+- **Renderer provenance:** `internal/chartpdf` is a fresh dialect renderer, not the
+  spec'd "move" — the real text renderer had meanwhile diverged in `cmd/mkcharts`
+  (the spec's `cmd/seed/pdf.go` attribution was itself imprecise; seed's pdf.go
+  renders the placeholder *scores*). Deviation approved by VLL ("land now, defer");
+  convergence is **T24** (attended — regenerates pixel-verified demo artifacts).
+- **Preview pane (decision 3) deferred:** the landed editor is textarea-only with
+  a format-help popover; the two-pane rendered preview is **T25**.
+- **UI caveat missing (fix-forward assigned):** the acceptance criterion's honest
+  "editing may shift layout under existing annotations" note is not in the editor —
+  web-core adds it (XS) with the T22-gap fix-forward.
+- **e2e narrower than spec'd, accepted:** `text-chart.spec.ts` covers create →
+  badge → servable PDF → edit-in-place; the annotate→bake leg is covered by
+  construction (a generated file is byte-identical to an uploaded pool PDF) and was
+  verified live at the gate (real bake of a text-chart setlist; raster pixels show
+  the rendered chart).

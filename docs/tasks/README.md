@@ -41,22 +41,25 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 
 ## Queue state (2026-07-07, from the review-gate log)
 
-- **Done & landed:** T01–T13, T16, T20, T21 · A01–A06, **A08–A12 (the full Stage
-  ergonomics arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice), B07
-  (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
-  page-doubling fix. The FULL product loop — **compose → bake → offer → download →
-  import → perform** — is in-app; I13's explicit tier is ✅.
-- **In progress:** **T19** (text charts — web-core lane, VLL go-ahead) · the demo
-  bundle regen (docs/demo/demo-concert.tstage still carries the doubled 22 pages).
-- **Open, unblocked:** **T22** (deterministic listings, S — user-reported) · **CFG01**
-  (config file — decisions fixed 2026-07-07, ready to implement) · **B06 app half**
-  (Connect-screen browse, mobile lane) · reading-ergonomics batch **A13 → A15 → A14**
-  (validated 2026-07-07; A13 is an A12 defect, do it first) · **T23** (encore/bench
-  songs — web-core, after T19) · **OPS01** (the demo→daily-use gap) · P20x.
+- **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
+  (deterministic listings) · A01–A06, **A08–A13 (Stage ergonomics arc + the A12
+  volume-key defect fix)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
+  B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
+  page-doubling fix + the demo bundle regen (12 true pages). The FULL product loop —
+  **compose → bake → offer → download → import → perform** — is in-app; I13's
+  explicit tier is ✅.
+- **Fix-forward owed (web-core, XS):** the T22 gap (invites/invite-links ordering,
+  reviews.md 2026-07-07) + the T19 editor caveat line ("editing may shift layout
+  under existing annotations").
+- **Open, unblocked:** **CFG01** (config file — decisions fixed 2026-07-07, ready to
+  implement) · **T23** (encore/bench songs — web-core, next) · **T25** (chart preview
+  pane, S) · **B06 app half** (Connect-screen browse, mobile lane) · reading-ergonomics
+  remainder **A15 → A14** · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
-  see its attempt log), the **B07 device screenshot pair** (tab vs score, rides the
-  next attended emulator batch).
+  see its attempt log), **T24** (chartpdf/mkcharts convergence — regenerates
+  pixel-verified demo artifacts), the **B07 device screenshot pair** (tab vs score,
+  rides the next attended emulator batch).
 - **Blocked on the human:** A07 (tablet stylus spike), IOS03 impl (Mac + Apple
   credentials), credential rotation for the git remote.
 - **Closed without landing:** T14 (panelize measured ~10px and reverted; superseded by T17).
@@ -88,6 +91,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T21 | [Password reset (admin-assisted)](T21-password-reset.md) | core + studio | S |
 | T22 | [Deterministic list ordering (songs lexicographic + sweep)](T22-deterministic-listings.md) | core | S |
 | T23 | [Encore/bench songs: baked + jumpable, outside the order](T23-encore-bench-songs.md) | core + proto + studio | M/L |
+| T24 | [Converge cmd/mkcharts onto internal/chartpdf (T19 deferral)](T24-chartpdf-mkcharts-converge.md) | core + demo artifacts | S/M |
+| T25 | [Chart editor: rendered PDF preview pane (T19 decision 3)](T25-chart-editor-preview.md) | core + studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).

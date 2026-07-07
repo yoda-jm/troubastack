@@ -1147,18 +1147,104 @@ Gate status at this writing: nothing held for review — T19 is in progress on t
 web-core lane (uncommitted); the T22 invites/invite-links ordering fix-forward and
 the B07 device screenshot pair (attended emulator) remain the assigned follow-ups.
 
-## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
+## 2026-07-07 — T19 (`9058aa9`, landed per VLL "land now, defer"): ✅ APPROVED — T24 deferral RATIFIED · two gaps, one fix-forward
 
-- **State:** compose → bake → download → perform works end to end (Android + iOS sim).
-  Full queue status lives in `docs/tasks/README.md` § "Queue state" — kept current.
-- **Core/web lane:** B04 (bake atomicity — do before or with more B03 surface), then
-  T18 / B05 as fillers. T17 and T15 stay **attended-only** (T17: read its attempt log;
-  build the zero-shift e2e spec FIRST).
-- **Mobile lane:** B03 app half (downloader/offers/freeze per the spec's routing note)
-  is the critical path; the **B02 Android loop-close screenshot** stays assigned
-  (reviews.md 2026-07-06) — quiet machine, stop if the emulator ANR-storms.
-- Everything lands the usual way: rebase, fast-forward, verify-before-delete, CI green.
-  Hold at the gate for a verdict in this file or an explicit human approval noted in
-  the commit message ("landed per VLL").
+Re-verified independently, every acceptance criterion, not from the report:
+
+- **Fresh full Go suite green** in the review worktree (vet + build + `go test ./...`
+  incl. chartpdf, the 75 s httpapi suite on both backends, and the seed);
+  `tsc -b studio` clean; the committed `text-chart.spec.ts` passes live.
+- **Criterion #1 by pixels + pdftotext, through the real UI** (scratch Playwright
+  tour): editor card + format popover render, save produces the badged pool file
+  named from the `# title`, and `pdftotext` on the downloaded bytes extracts
+  "Road Test — Review" and the em-dash lyric line **with true em-dashes**, ellipsis
+  intact, chords row present, zero leaked `**` markers.
+- **The bake criterion live, end to end:** isolated in-mem server on :8096, real
+  `web/bake` CLI — created a text chart via the API, put it in a setlist, baked
+  (3.5 s, rev 1), downloaded the `.tstage`, and **the raster pixels show the
+  rendered chart** (title, orange section label, blue monospace chord row over the
+  lyric, bold applied). A generated chart is a pool PDF, so downstream holds by
+  construction — and now also by observation.
+- **Code read:** authz on all three endpoints band-scopes the file (no traversal);
+  LWW 409 is server-side; `derefBlob` ordering after `UpdateSongFile` is correct
+  (reference-scan semantics); repo methods symmetrical on both backends with the
+  nil-guard for older files; `httpapi` lifecycle test covers create → round-trip →
+  rev bump → stale 409 → non-Latin 400 on both backends. CI **5/5 green** on the
+  landing SHA.
+
+**Ruling on the flagged scope call: T24 deferral RATIFIED.** The "move, don't copy"
+convergence would have regenerated the pixel-verified demo charts and shifted the
+seed's hand-placed Open Road anchors — exactly the class of change this log's
+demo-regen entries prove needs attended pixel re-verification. Landing the product
+feature and converging separately (T24, attended) is the right split. Honest note:
+the spec's own attribution was imprecise (`cmd/seed/pdf.go` renders placeholder
+*scores*; the diverged text renderer was `cmd/mkcharts`) — executor's correction
+accepted.
+
+**Two gaps, recorded in the task file's as-landed section:**
+1. **Editor caveat missing (fix-forward, web-core, XS):** the criterion's "editing
+   may shift layout under existing annotations" note is not in the UI — add it with
+   the T22 invites-ordering fix-forward.
+2. **Preview pane (decision 3) dropped with only a code comment**, not a gate flag —
+   the editor is a usable v1, so accepted, but the deviation should have been flagged
+   like the renderer one was. Filed as **T25** (spec written, S).
+
+## 2026-07-07 — A13 (`66e872f`, landed WITHOUT a verdict or citation): ✅ APPROVED on merit, post-hoc · ⚠️ process breach recorded
+
+Found by the gate watcher during the T19 review — A13 landed directly on main and
+its branch was deleted, with **no verdict in this file and no "landed per" citation
+in the commit message**. Reviewed post-hoc, fresh in the review worktree:
+
+- `:shared:check` + both iOS klib cross-compiles + `:androidApp:assembleDebug`
+  green (`--rerun-tasks`); `VolumeTurnTest` covers the spread-vs-one-page targets
+  and the fake-registrar drive incl. null-unregister. CI **5/5 green** on the SHA.
+- The implementation is the spec verbatim — and slightly better than spec'd: the
+  `rememberUpdatedState` + single `DisposableEffect(registrar)` pattern keeps the
+  forwarded handler current without re-registration churn (the spec's key-on-
+  twoUp/pageCount suggestion would have re-registered needlessly); the pure
+  `turnTarget()` unifies the nav rule for every input; MainActivity's direct
+  `vm.next/previous` wiring is gone; iOS defaults to the no-op; A09's dispose
+  contract holds (registrar(null) on Stage exit).
+- The evidence criterion is met as the spec allowed: the commit message carries the
+  adb-keyevent note (1–2/12 → 3–4/12 → 5–6/12, VOLUME_UP back — pedal parity on the
+  regenerated 12-page demo).
+
+**The process breach:** the standing steer requires holding at the gate for a
+verdict here OR citing explicit human approval in the commit message. A13 has
+neither — the mobile lane's first breach (the core lane's equivalents were called
+out at T13 and "The Open Road"). The work being flawless is why this is a note and
+not a revert; the rule exists for the day it isn't. Mobile lane: resume the
+citation habit, and don't delete the branch before the landing is verified —
+verify-before-delete is part of the protocol.
+
+## 2026-07-07 — Landed-history audit (VLL request): every landing accounted for; the agent pattern holds
+
+Walked `git log --first-parent origin/main` end to end against this log: **every
+code landing has a verdict entry** (pre-gate, post-hoc, or approved-with-gap) —
+T19/A13 were the only ones missing and are closed above; all remaining commits are
+architect docs commits or lane handoff records (docs-only). Both latest landings
+are independently CI 5/5 green. Stale local branches in the shared checkout
+(task/A09–A12, old docs branches) are leftovers of verified patch-identical
+landings — safe to prune. The three-agent pattern (spec → execute → gate → verify →
+linear landing) is intact; the one wobble is gate discipline on small tasks, called
+out above.
+
+## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
+
+- **State:** the full in-app product loop works end to end; text charts (T19) and
+  the Stage ergonomics arc (A08–A13) are landed and verified. Full queue status:
+  `docs/tasks/README.md` § "Queue state" — kept current.
+- **Core/web lane:** FIRST the owed fix-forward (T22 invites/invite-links ordering +
+  the T19 editor caveat line, one XS commit, cite this log). Then **T23**
+  (encore/bench) or **CFG01** (config file — decisions fixed); **T25** (chart
+  preview) as a filler. T15/T17/T24 stay **attended-only**.
+- **Mobile lane:** **A15** (song drawer) then **A14** (continuous scroll), per the
+  validated batch order. The **B07 device screenshot pair** rides the next attended
+  emulator session.
+- Everything lands the usual way: rebase, fast-forward, verify-before-delete, CI
+  green. **Hold at the gate for a verdict in this file or cite the human's approval
+  in the commit message** — no exceptions for XS tasks; A13 above is the cautionary
+  entry.
 - Still blocked on Vincent: tablet stylus spike (A07), Mac + Apple ID (IOS03),
-  credential rotation for the git remote.
+  credential rotation for the git remote (re-flagged: the embedded token echoes in
+  tool output whenever CI is queried without `gh`).
