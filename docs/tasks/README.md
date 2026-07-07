@@ -42,18 +42,16 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 ## Queue state (2026-07-07, from the review-gate log)
 
 - **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
-  (deterministic listings), **CFG01** (config file) · A01–A06, **A08–A13, A15 (Stage
-  ergonomics arc + the A12 volume-key defect fix)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
+  (deterministic listings), **CFG01** (config file) · A01–A06, **A08–A15 (the full
+  Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
   page-doubling fix + the demo bundle regen (12 true pages). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **In progress:** **A14** (continuous scroll — mobile lane). **Evidence owed:** the
-  A15 drawer screenshot (landed without it — reviews.md 2026-07-07; batch with A14's
-  evidence run).
 - **Open, unblocked:** **T23** (encore/bench songs — web-core, next) · **T25** (chart
-  preview pane, S) · **B06 app half** (Connect-screen browse, mobile lane) ·
-  **OPS01** (the demo→daily-use gap) · P20x.
+  preview pane, S) · **T26** (song titles in the bundle, S — surfaced by A15's drawer;
+  coordinate the proto file with T23) · **B06 app half** (Connect-screen browse,
+  mobile lane) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
   see its attempt log), **T24** (chartpdf/mkcharts convergence — regenerates
@@ -92,6 +90,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T23 | [Encore/bench songs: baked + jumpable, outside the order](T23-encore-bench-songs.md) | core + proto + studio | M/L |
 | T24 | [Converge cmd/mkcharts onto internal/chartpdf (T19 deferral)](T24-chartpdf-mkcharts-converge.md) | core + demo artifacts | S/M |
 | T25 | [Chart editor: rendered PDF preview pane (T19 decision 3)](T25-chart-editor-preview.md) | core + studio | S |
+| T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) | proto + core + app | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).

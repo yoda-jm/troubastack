@@ -1313,6 +1313,48 @@ drawer-open screenshot (mid-concert, current-song highlight visible) lands as a
 docs commit — batch it with A14's evidence run.** The mobile lane has already cut
 `task/A14-stage-continuous-scroll`; fold the A15 shot into that session.
 
+## 2026-07-07 — A14 (`06bfb4d`): ✅ APPROVED (landed mid-review, same SHA as reviewed) · A15 evidence verified — A15 fully CLOSED · T26 filed
+
+Fresh verify at the branch head: `:shared:check` + both iOS klibs +
+`:androidApp:assembleDebug` green (`--rerun-tasks`); `ReadingModeTest` covers the
+cycle, persistence round-trip, null/garbage parse, and clamped scroll turns
+including the empty-concert edge. Read in full — every resolved design decision
+honored:
+
+- **Scroll wins over two-up by construction** (the `when` branches SCROLL before
+  the twoUp arm); FIT_PAGE/two-up paths byte-identical otherwise.
+- **One navigation entry point held:** keys/pedals/volume/buttons all animate to
+  the next/prev page top via the same `turnNext/turnPrev` closures (so A13's
+  registrar gets scroll-aware turns for free); tap/swipe correctly disabled in
+  scroll (the column owns the vertical gesture); pager label tracks the topmost
+  visible page.
+- **`ScrollReader`/`ScrollPage`:** lazy column through the SAME shared LRU cache,
+  width-bound decode with aspect-reserved placeholders, night-mode filter on
+  raster + overlays, degrade-to-placeholder — no fork of the compositing
+  contract. A08 strip inline per song-first page; persistence is the A10 pattern
+  in BOTH entrypoints (`FitMode.parse`/`name`, tolerant parse).
+- **Evidence by pixels:** mid-scroll boundary (BHS p2's "D.C. al Fine" flowing
+  into p3's header, pager 9/12, "Scroll" chrome) and the song-boundary shot with
+  the ♩=98 strip inline. **The A15 shot closes A15**: drawer open mid-concert,
+  Song 2 highlighted, per-song meta lines, scrim over page 2/4.
+
+**Non-blocking nit, recorded:** in scroll mode `state.current` is not synced from
+finger-scrolling (only turns/jumps move it), so the drawer highlight and the A11
+pulse key can go stale after a manual scroll, and toggling back to page mode
+returns to the pre-scroll page. All minor, none spec'd; fold a
+`firstVisibleItemIndex → vm` sync into the next Stage task if VLL notices.
+
+**Follow-up filed as T26 (S):** the drawer surfaced that the bundle carries NO
+song titles — "Song 1…4" is the client fallback (`StageModel.kt:84`; verified
+against the shipped bundle's JSON). Additive `title = 8` on `BakedSong` +
+baker/loader/drawer plumbing; coordinate the proto file with T23's field. Spec:
+`docs/tasks/T26-bundle-song-titles.md`.
+
+The branch landed (fast-forward of the reviewed SHA — identical by construction)
+while this verdict was being written; the citation is in the message and CI on
+the landing is being watched — a red gets its own entry. With this, the
+reading-ergonomics batch (A13/A15/A14) is complete and evidenced.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
