@@ -42,8 +42,9 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 ## Queue state (2026-07-07, from the review-gate log)
 
 - **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
-  (deterministic listings), **CFG01** (config file), **T23**, **T25** (chart preview) (encore/bench — server
-  side; drawer grouping is the open A-track follow-up) · A01–A06, **A08–A15 (the full
+  (deterministic listings), **CFG01** (config file), **T23** (encore/bench — server
+  side; drawer grouping is the open A-track follow-up), **T25** (chart preview) ·
+  A01–A06, **A08–A15 (the full
   Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
   page-doubling fix + the demo bundle regen (12 true pages). The FULL product loop —
