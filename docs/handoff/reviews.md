@@ -1057,6 +1057,18 @@ and `TROUBA_NO_MDNS` is read inside `discovery.Advertise`, not `main.go` — the
 hoists that decision to the composition root. Queue README updated (CFG01 indexed,
 queue state refreshed to 2026-07-07).
 
+## 2026-07-07 — T21 follow-up: reset link as QR (`d30acc6`, landed per VLL raise): ✅ APPROVED (post-landing review)
+
+VLL asked "forgotten password is a QR code then?" and the lane landed the small studio
+change directly. Reviewed post-landing by read: reuses the exact invite-panel pattern
+(`qrcode` ^1.5.4, already a dep, client-rendered SVG — offline-safe), the encoded link
+is `window.location.origin + resetPath` (absolute — actually scannable on a phone; the
+API's relative-path contract untouched), raw URL + `data-testid="reset-link"` kept so
+copy-paste and the e2e both survive, render failure falls back to the plain link. No
+server change. CI green (e2e still running at review time — will flag only if it
+flips). Fine to land this class of VLL-raised S-sized follow-up direct; the gate note
+in the message ("Raised by VLL") is the right breadcrumb.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
