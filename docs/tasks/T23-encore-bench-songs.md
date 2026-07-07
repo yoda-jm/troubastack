@@ -13,7 +13,7 @@ and jumpable, but not part of the performance order.
 
 **Design decisions (resolved, arch 2026-07-07):**
 1. **Model: an item-level flag, not a second list.** Setlist items gain
-   `onCall: bool` (proto3, omitempty — absent = false = normal). One ordered list;
+   `onCall: bool` (absent/false = normal). One ordered list;
    bench items keep positions but sort after the main order for display/bake.
    Rationale: no new entity, duplication (T20), overrides, and B07 variants all keep
    working on items unchanged.
@@ -33,8 +33,13 @@ and jumpable, but not part of the performance order.
 
 ## Changes
 
-1. proto + canonical JSON: the `onCall` item field (+ bundle per-song field);
-   regenerate mirrors per the repo's current (pre-P203) process.
+1. proto + canonical JSON — **as ruled 2026-07-07 (reviews.md), option A:** proto
+   gains ONLY the bundle field, `bool on_call = 8;` on `BakedSong` (field 8 is
+   T23's; T26's `title` takes 9). The ITEM flag lives on `app.SetlistItem` (Go) +
+   the TS mirror exactly like `Notes` — there is no proto setlist-item message
+   (pre-existing I1 divergence, deliberately deferred to P203; add a comment on
+   `message Setlist` documenting that). Regenerate mirrors per the repo's current
+   (pre-P203) process.
 2. core: model/repo/service plumbing; baker ordering (main then bench); bundle
    emission; tests — ordering in the bake, flag round-trip on both repo backends,
    duplicate copies the flag, B07 variant bake includes bench with the member's files.

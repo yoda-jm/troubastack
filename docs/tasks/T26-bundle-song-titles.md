@@ -18,7 +18,8 @@ shouldn't have to remember set positions. (Verified against the shipped
 sourceRevision, pages, displayNotes, key` only.)
 
 **Design decisions (resolved):**
-1. **Additive proto field:** `string title = 8;` on `BakedSong` — proto3
+1. **Additive proto field:** `string title = 9;` on `BakedSong` (field 8 is
+   T23's `on_call` — ruled 2026-07-07) — proto3
    default-empty, so old bundles stay valid and old loaders ignore it (the same
    compatibility argument as B02's fields 5–7, documented right above it).
 2. **Baker writes the song's current Title** at bake time (a bundle is a snapshot;
@@ -31,7 +32,7 @@ sourceRevision, pages, displayNotes, key` only.)
 
 ## Changes
 
-1. `proto/troubastack/v1/bundle.proto`: `string title = 8;` on `BakedSong` with a
+1. `proto/troubastack/v1/bundle.proto`: `string title = 9;` on `BakedSong` with a
    comment mirroring the fields-5–7 compatibility note; `buf lint` clean.
 2. Core: the bake writer (`internal/bake`, T18-unified with mkbundle) populates it
    from the song record; `make fixtures` regenerated if the fixture writer gains

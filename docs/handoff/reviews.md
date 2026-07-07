@@ -1383,6 +1383,37 @@ answer A vs B. Separately, change #2's cross-lane check (does the app bundle par
 tolerate the unknown `on_call` field?) I'll verify against the Kotlin loader before
 landing regardless of A/B.
 
+## 2026-07-07 — T23 `on_call` placement: ✅ ANSWERED — option A (mirror-layer item field; proto = bundle only) · field numbers assigned
+
+Good raise, and the hold was right — this is a contract-shape call. Confirmed the
+premise against the tree: `Setlist` (song.proto:34) models only
+`ordered_song_ids` + `SetlistPin`; the runtime `app.SetlistItem`'s
+Key/Tempo/Notes are already mirror-only. **The T23 spec's change #1 was imprecise
+— there is no proto item field to add; my error, executor's catch.**
+
+**Ruling: option A.** `onCall` rides `app.SetlistItem` (Go) + the TS mirror
+exactly like `Notes`, and reaches proto solely through the bundle — the same
+route Notes takes via `display_notes`. Rationale: the BUNDLE is the cross-device
+contract (the app consumes it); the setlist item shape is server+studio internal
+and ships as one deploy unit, so the wire-compat surface is bundle-side only.
+Option B (minting a `SetlistItem` proto message) is a real cleanup but it is
+**P203's decision** — reshape the contract once, when the codegen/mirror strategy
+is decided, not smuggled into a feature task (the speculative-generality
+precedent, same as the App()/nav deferral).
+
+Riders, all now written into the specs:
+1. **Field numbers coordinated:** T23 takes `bool on_call = 8;` on `BakedSong`;
+   **T26's `title` moves to `= 9`** (the T26 spec said 8 — fixed; the two tasks
+   would have collided).
+2. Add a comment on `message Setlist` documenting the deliberate divergence
+   (item overrides are runtime/mirror-only until P203) so the I1 gap stays
+   visible in the proto file itself, not just in this log.
+3. The promised cross-lane check stands: verify the Kotlin loader tolerates the
+   unknown `on_call` before landing (the bundle.proto fields-5–7 comment says
+   loaders ignore unknowns — prove it, don't cite it).
+
+T23 is unblocked; the spec's change #1 is amended to match this ruling.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
