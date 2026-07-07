@@ -1121,6 +1121,23 @@ usual gate note referencing this entry. `PendingInvitesForIdentifiers` may stay
 unsorted but add the "order-irrelevant internal" comment the acceptance criterion
 asks for.
 
+## 2026-07-07 — Demo bundle regen (`97a449b`, landed per assignment): ✅ APPROVED — VLL's field report fully closed
+
+Re-verified the shipped `docs/demo/demo-concert.tstage` by content, not the report:
+**12 pages exactly** (Wonderwall 3 · Hallelujah 4 · Black Hole Sun 3 · The Open Road 2,
+verified from bundle.json), and I composited pages with their overlay layers to check
+placement by pixels — Open Road p1 has the chorus highlight over the Chorus block, the
+ellipse around "the open road is calling us", "rit. — watch me" at the chorus end;
+Black Hole Sun p1 has its highlights on the Verse/Chorus staves and the title box where
+authored. No interleaved blanks anywhere. README page counts updated honestly (old
+22-page state documented as history). CI green (e2e in flight at review time).
+
+With this + T22, **every item in VLL's field report is fixed and verified**:
+misplaced annotations & strange pages (stale doubled data → regen), nondeterministic
+song list (T22, lexicographic). The one visible leftover is the deferred cosmetic ①
+("Watch me — pickup" clips the page top on BHS — annotation-anchor nudge, VLL's
+"other 2 later").
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).
