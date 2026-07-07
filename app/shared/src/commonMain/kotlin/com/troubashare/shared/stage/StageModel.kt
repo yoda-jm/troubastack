@@ -9,8 +9,32 @@ import com.troubashare.shared.bundle.ConcertBundle
 import com.troubashare.shared.bundle.LayerImage
 import com.troubashare.shared.bundle.LoadResult
 
-/** How a page is scaled. FIT_WIDTH scrolls vertically; FIT_PAGE shows the whole page. */
-enum class FitMode { FIT_PAGE, FIT_WIDTH }
+/**
+ * The reading mode, cycled on the single Stage toggle (A14). FIT_PAGE shows the whole page (and is
+ * the only mode that goes two-up in landscape, A12); FIT_WIDTH fills width and scrolls one page
+ * vertically; SCROLL is a continuous vertical column of every page at fit-width.
+ */
+enum class FitMode {
+    FIT_PAGE, FIT_WIDTH, SCROLL;
+
+    companion object {
+        /** Parse a persisted mode (A14 persistence, A10 pattern); null/unknown → FIT_PAGE (the default). */
+        fun parse(raw: String?): FitMode = entries.firstOrNull { it.name == raw } ?: FIT_PAGE
+    }
+}
+
+/** Cycle the reading mode on the single toggle (A14): page → width → scroll → page. */
+fun nextFitMode(mode: FitMode): FitMode = when (mode) {
+    FitMode.FIT_PAGE -> FitMode.FIT_WIDTH
+    FitMode.FIT_WIDTH -> FitMode.SCROLL
+    FitMode.SCROLL -> FitMode.FIT_PAGE
+}
+
+/** Scroll-mode page turn (A14): move the topmost page forward one, clamped to the concert. */
+fun scrollNextPage(top: Int, pageCount: Int): Int = (top + 1).coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+
+/** Scroll-mode page turn (A14): move the topmost page back one, clamped at the first page. */
+fun scrollPrevPage(top: Int): Int = (top - 1).coerceAtLeast(0)
 
 /** A page either performs or shows a neutral placeholder — never a crash. */
 enum class PageStatus { READY, UNAVAILABLE }

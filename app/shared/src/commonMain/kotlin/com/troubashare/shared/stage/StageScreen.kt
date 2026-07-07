@@ -17,6 +17,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -106,6 +110,9 @@ fun StageScreen(
     // A10: local night-mode preference, injected + persisted by the entrypoint (app DI, no seam).
     initialColorMode: StageColorMode = StageColorMode.NORMAL,
     onColorModeChange: (StageColorMode) -> Unit = {},
+    // A14: persist the reading mode (page/width/scroll) globally; the entrypoint seeds the VM's
+    // initialFit and writes this callback (A10 pattern). No-op default ⇒ mode simply isn't persisted.
+    onFitModeChange: (FitMode) -> Unit = {},
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -120,7 +127,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange)
         }
     }
 }
@@ -133,6 +140,7 @@ private fun Performing(
     onExit: () -> Unit,
     initialColorMode: StageColorMode,
     onColorModeChange: (StageColorMode) -> Unit,
+    onFitModeChange: (FitMode) -> Unit,
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     val cache = remember { PageImageCache() }
@@ -142,6 +150,9 @@ private fun Performing(
     // A15: song-jump navigation drawer, opened from the bottom-bar "Songs" affordance.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    // A14: the continuous-scroll column's list state — the source of truth for the topmost page while
+    // in SCROLL mode (pager label + page turns read/drive it). Unused in page/width modes.
+    val scrollListState = rememberLazyListState()
 
     // Hardware page turns (A09): BT pedals/keyboards send PageUp/Down, arrows, Space. Capture at the
     // root before children so a keyboard turns the page while on-screen taps still work. (Android
@@ -156,17 +167,39 @@ private fun Performing(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
-            SongDrawerSheet(state) { i -> vm.goToSong(i); scope.launch { drawerState.close() } }
+            SongDrawerSheet(state) { i ->
+                // A14: in scroll mode a jump scrolls to the song's first page top; otherwise it moves
+                // the discrete current page. Either way the drawer closes.
+                if (state.fitMode == FitMode.SCROLL) {
+                    state.songs.getOrNull(i)?.let { s -> scope.launch { scrollListState.animateScrollToItem(s.firstPage) } }
+                } else {
+                    vm.goToSong(i)
+                }
+                scope.launch { drawerState.close() }
+            }
         },
     ) {
     // A12: facing pages. When the viewport is landscape (w > h) AND the fit is FIT_PAGE we show two
     // adjacent pages (2k/2k+1) side by side and turn by the spread; portrait or FIT_WIDTH stays
     // single-page exactly as before. The measurement decides the layout, so it wraps everything.
     BoxWithConstraints(Modifier.fillMaxSize()) {
+        val scrollMode = state.fitMode == FitMode.SCROLL
+        // A14: scroll wins over two-up (a single column); two-up only in landscape FIT_PAGE.
         val twoUp = maxWidth > maxHeight && state.fitMode == FitMode.FIT_PAGE
-        // One navigation entry point (keys, taps, swipes, arrows) so turn-by-spread is applied once.
-        val turnNext: () -> Unit = { vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT)) }
-        val turnPrev: () -> Unit = { vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV)) }
+        val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
+        // The topmost visible page is the source of truth for the pager + turns in scroll mode; the
+        // discrete current page otherwise.
+        val topPage = if (scrollMode) scrollListState.firstVisibleItemIndex else state.current
+        // One navigation entry point (keys, taps, swipes, arrows, volume) so a "turn" means the same
+        // everywhere: spread-aware in two-up, one page in scroll (animate to the next/prev page top).
+        val turnNext: () -> Unit = {
+            if (scrollMode) scope.launch { scrollListState.animateScrollToItem(scrollNextPage(topPage, state.pageCount)) }
+            else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT))
+        }
+        val turnPrev: () -> Unit = {
+            if (scrollMode) scope.launch { scrollListState.animateScrollToItem(scrollPrevPage(topPage)) }
+            else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV))
+        }
         val spread = spreadPages(state.current, state.pageCount)
 
         // A13: Android volume keys can't reach Compose; androidApp intercepts them in the Activity and
@@ -197,21 +230,25 @@ private fun Performing(
                     }
                 },
         ) {
-        // Page area with tap-thirds + horizontal swipe navigation (spread-aware in two-up).
+        // Page area. Tap-thirds + horizontal swipe navigation in page/width modes; in scroll mode the
+        // LazyColumn owns the vertical gesture, so pointer navigation is disabled (turns come from
+        // keys/pedals/volume/buttons, which animate the scroll).
         Box(
             Modifier
                 .fillMaxSize()
-                .pointerNavigation(navKey = state.pageCount to twoUp, onPrev = turnPrev, onNext = turnNext),
+                .then(if (scrollMode) Modifier else Modifier.pointerNavigation(navKey = state.pageCount to twoUp, onPrev = turnPrev, onNext = turnNext)),
         ) {
-            if (twoUp) {
-                // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
-                Row(Modifier.fillMaxSize()) {
-                    spread.forEach { idx ->
-                        PageView(state.pages[idx], state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
+            when {
+                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
+                twoUp -> {
+                    // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
+                    Row(Modifier.fillMaxSize()) {
+                        spread.forEach { idx ->
+                            PageView(state.pages[idx], state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
+                        }
                     }
                 }
-            } else {
-                PageView(page, state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
+                else -> PageView(page, state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
             }
         }
 
@@ -230,8 +267,12 @@ private fun Performing(
                 ) {
                     TextButton(onClick = onExit) { Text("Back") }
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = vm::toggleFit) {
-                        Text(if (state.fitMode == FitMode.FIT_PAGE) "Fit: page" else "Fit: width")
+                    TextButton(onClick = { vm.toggleFit(); onFitModeChange(vm.state.value.fitMode) }) {
+                        Text(when (state.fitMode) {
+                            FitMode.FIT_PAGE -> "Fit: page"
+                            FitMode.FIT_WIDTH -> "Fit: width"
+                            FitMode.SCROLL -> "Scroll"
+                        })
                     }
                     if (state.layers.isNotEmpty()) TextButton(onClick = { showLayers = true }) { Text("Layers") }
                     TextButton(onClick = { showRole = true }) { Text("Role") }
@@ -241,13 +282,15 @@ private fun Performing(
                 }
             }
             // A12: in two-up the strip is per-side (each half over its page's top); one-up is full-width.
-            if (twoUp) {
-                Row(Modifier.fillMaxWidth()) {
+            // A14: in scroll mode the strip is inline in the column (rendered per song's first page by
+            // ScrollReader) — no floating overlay here.
+            when {
+                scrollMode -> {} // inline in the scrolling column
+                twoUp -> Row(Modifier.fillMaxWidth()) {
                     Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], resetKey = it) } }
                     Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], resetKey = it) } }
                 }
-            } else {
-                MetaStrip(page, resetKey = state.current)
+                else -> MetaStrip(page, resetKey = state.current)
             }
         }
 
@@ -263,7 +306,8 @@ private fun Performing(
             ) {
                 TextButton(onClick = turnPrev) { Text("‹") }
                 Text(
-                    pagerLabel(state.current, state.pageCount, twoUp),
+                    // A14: in scroll mode the pager tracks the topmost visible page (single-column).
+                    pagerLabel(topPage, state.pageCount, twoUp),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 TextButton(onClick = turnNext) { Text("›") }
@@ -307,6 +351,76 @@ private fun SongDrawerSheet(state: StageState, onJump: (Int) -> Unit) {
                 onClick = { onJump(i) },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
             )
+        }
+    }
+}
+
+/** Approx page aspect (w/h) used to reserve a scroll item's height before its bitmap has decoded. */
+private const val SCROLL_PLACEHOLDER_ASPECT = 0.773f // US Letter portrait (8.5 / 11)
+
+/**
+ * A14 — continuous-scroll reading mode: a lazy vertical column of every concert page at fit-width,
+ * with A08's metadata strip rendered INLINE above each song's first page (it scrolls with content, no
+ * floating overlay). Laziness + the shared LRU cache keep decode pressure bounded (only visible +
+ * prefetched pages decode). Night mode (A10) applies via [colorFilter] exactly as elsewhere.
+ */
+@Composable
+private fun ScrollReader(
+    state: StageState,
+    listState: LazyListState,
+    decoder: ImageDecoder,
+    cache: PageImageCache,
+    colorFilter: androidx.compose.ui.graphics.ColorFilter?,
+    widthPx: Int,
+) {
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+        itemsIndexed(state.pages) { index, page ->
+            Column(Modifier.fillMaxWidth()) {
+                MetaStrip(page, resetKey = index) // renders only on a song's first page (else nothing)
+                ScrollPage(page, state.visibleLayers, decoder, cache, colorFilter, widthPx)
+            }
+        }
+    }
+}
+
+/** One page in the scroll column: fills width, height from the decoded aspect; degrades like PageView. */
+@Composable
+private fun ScrollPage(
+    page: StagePage,
+    visibleLayers: Set<String>,
+    decoder: ImageDecoder,
+    cache: PageImageCache,
+    colorFilter: androidx.compose.ui.graphics.ColorFilter?,
+    widthPx: Int,
+) {
+    if (page.status == PageStatus.UNAVAILABLE) {
+        PlaceholderCard(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT))
+        return
+    }
+    val overlayRefs = page.overlays.filter { it.layerId in visibleLayers }.map { it.imageRef }
+    // Decode at column width with a generous height cap; the decoder preserves aspect ⇒ width-bound.
+    val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, widthPx) {
+        value = null
+        if (widthPx <= 0) return@produceState
+        value = withContext(Dispatchers.Default) {
+            val raster = decodeCached(cache, page.rasterRef, widthPx, widthPx * 3, decoder)
+            val overlays = overlayRefs.mapNotNull { decodeCached(cache, it, widthPx, widthPx * 3, decoder) }
+            PageBitmaps(raster, overlays)
+        }
+    }
+    val bitmaps = decoded
+    when {
+        bitmaps?.raster == null -> Box(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT)) {
+            if (bitmaps != null) PlaceholderCard(Modifier.fillMaxSize()) // decoded but raster failed
+        }
+        else -> {
+            val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
+            Box(Modifier.fillMaxWidth().aspectRatio(aspect), contentAlignment = Alignment.Center) {
+                Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorFilter)
+                bitmaps.overlays.forEach {
+                    Image(BitmapPainter(it), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorFilter)
+                }
+            }
         }
     }
 }

@@ -47,6 +47,7 @@ import com.troubashare.shared.distribution.Freeze
 import com.troubashare.shared.distribution.UpdatePolicy
 import com.troubashare.shared.distribution.UpdatesManager
 import com.troubashare.shared.seams.Storage
+import com.troubashare.shared.stage.FitMode
 import com.troubashare.shared.stage.ImageDecoder
 import com.troubashare.shared.stage.LocalVolumeTurnRegistrar
 import com.troubashare.shared.stage.PageTurn
@@ -59,6 +60,7 @@ import java.util.UUID
 
 private const val POLICIES_KEY = "trouba.update.policies"
 private const val COLOR_MODE_KEY = "stage.colorMode"
+private const val FIT_MODE_KEY = "stage.fitMode" // A14: persisted reading mode (page/width/scroll)
 
 /**
  * The thin Android entrypoint (I15). Concerts list (Storage bundlesDir) + the shared [StageScreen],
@@ -140,7 +142,8 @@ private fun App() {
 
     val opened = remember(dir) {
         OpenedBundle(
-            StageViewModel(BundleLoader().load(dir, FileBundleFiles())),
+            // A14: seed the persisted reading mode (page/width/scroll) into the VM (A10 pattern).
+            StageViewModel(BundleLoader().load(dir, FileBundleFiles()), initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY))),
             AndroidImageDecoder(File(dir)),
         )
     }
@@ -159,6 +162,7 @@ private fun App() {
                 opened.vm, opened.decoder, onExit = { selectedDir = null },
                 initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
                 onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
+                onFitModeChange = { storage.putSecret(FIT_MODE_KEY, it.name) },
             )
         }
     }

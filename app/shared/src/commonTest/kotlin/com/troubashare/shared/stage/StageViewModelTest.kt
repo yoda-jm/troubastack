@@ -134,12 +134,20 @@ class StageViewModelTest {
     }
 
     @Test
-    fun fitMode_toggles() {
+    fun fitMode_cyclesPageWidthScroll() {
         val vm = StageViewModel(loaded(songs = 1, pagesPerSong = 1))
         assertEquals(FitMode.FIT_PAGE, vm.state.value.fitMode)
         vm.toggleFit()
         assertEquals(FitMode.FIT_WIDTH, vm.state.value.fitMode)
         vm.toggleFit()
-        assertEquals(FitMode.FIT_PAGE, vm.state.value.fitMode)
+        assertEquals(FitMode.SCROLL, vm.state.value.fitMode) // A14: third mode
+        vm.toggleFit()
+        assertEquals(FitMode.FIT_PAGE, vm.state.value.fitMode) // wraps
+    }
+
+    @Test
+    fun initialFit_seedsTheState() {
+        val vm = StageViewModel(loaded(songs = 1, pagesPerSong = 1), initialFit = FitMode.SCROLL)
+        assertEquals(FitMode.SCROLL, vm.state.value.fitMode) // A14: persisted mode restored on open
     }
 }

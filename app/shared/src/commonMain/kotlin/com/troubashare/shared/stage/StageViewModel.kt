@@ -9,9 +9,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class StageViewModel(loadResult: LoadResult, role: String = "") {
+class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitMode = FitMode.FIT_PAGE) {
 
-    private val _state = MutableStateFlow(stageStateFrom(loadResult, role))
+    // A14: the reading mode is a persisted global preference; the entrypoint seeds it here (A10 pattern).
+    private val _state = MutableStateFlow(stageStateFrom(loadResult, role).copy(fitMode = initialFit))
     val state: StateFlow<StageState> = _state.asStateFlow()
 
     fun next() = goToPage(_state.value.current + 1)
@@ -28,9 +29,8 @@ class StageViewModel(loadResult: LoadResult, role: String = "") {
         s.copy(current = song.firstPage.coerceIn(0, s.pages.lastIndex.coerceAtLeast(0)))
     }
 
-    fun toggleFit() = _state.update { s ->
-        s.copy(fitMode = if (s.fitMode == FitMode.FIT_PAGE) FitMode.FIT_WIDTH else FitMode.FIT_PAGE)
-    }
+    /** Cycle the reading mode: page → width → scroll → page (A14). */
+    fun toggleFit() = _state.update { s -> s.copy(fitMode = nextFitMode(s.fitMode)) }
 
     /** Show/hide a layer. A mandatory layer cannot be hidden (I12) — the request is ignored. */
     fun setLayerVisible(layerId: String, visible: Boolean) = _state.update { s ->

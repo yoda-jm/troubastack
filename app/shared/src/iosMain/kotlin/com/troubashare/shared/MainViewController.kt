@@ -31,6 +31,7 @@ import com.troubashare.shared.bundle.BundleLoader
 import com.troubashare.shared.bundle.LoadResult
 import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.stage.ImageDecoder
+import com.troubashare.shared.stage.FitMode
 import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
@@ -86,13 +87,15 @@ private fun App() {
         val load = BundleLoader().load(dir, IosBundleFiles())
         // Smoke marker for the simulator CI job: proves a bundle actually loaded (not just a launch).
         if (load is LoadResult.Loaded) writeMarker("loaded:${load.bundle.concertId}")
-        OpenedBundle(StageViewModel(load), IosImageDecoder(dir))
+        // A14: seed the persisted reading mode (page/width/scroll) into the VM (A10 pattern).
+        OpenedBundle(StageViewModel(load, initialFit = FitMode.parse(storage.getSecret("stage.fitMode"))), IosImageDecoder(dir))
     }
     KeepScreenAwake()  // performance resilience (I13) — iOS analog of Android StageHost's FLAG_KEEP_SCREEN_ON
     StageScreen(
         opened.vm, opened.decoder, onExit = { selectedDir = null },
         initialColorMode = StageColorMode.parse(storage.getSecret("stage.colorMode")),
         onColorModeChange = { storage.putSecret("stage.colorMode", it.name) },
+        onFitModeChange = { storage.putSecret("stage.fitMode", it.name) },
     )
 }
 
