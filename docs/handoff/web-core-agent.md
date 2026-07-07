@@ -151,6 +151,8 @@ git push origin HEAD:main 2>&1 | sed -E "s/${TOKEN}/<TOKEN>/g"   # ff push; NO l
 
 | Task | Commit | Summary |
 |---|---|---|
+| B07 | `2a53bfe` | **Per-member bake — "Leo sees his tab on stage".** B02 baked only the shared default file; B07 lets a member bake their OWN view of a setlist (USER-JOURNEY #4) as a distinct concert VARIANT keyed `<setlistId>~<userId>` (`bake.VariantConcertID`/`ParseConcertID`), independent rev numbering, same B04 atomic claim/publish; name carries "(X's parts)". `Baker.Bake` gained a `personal` scope; `resolveFile` picks the first viewable PDF in the member's my-files view, falling back to the default (no-selection ≡ band bake; PDF-less view never empties). Band bakes byte-identical to B02/B04. Edges: `POST …/bake?scope=mine` member-allowed (band bake stays admin-only, I11); `GET …/concerts` merges caller's OWN variants only; download rejects another member's variant (403). Studio: member-visible "Bake my parts" + own download; annotations are the shared snapshot (honest UI caveat: made on the default part). Tests: resolver fallback matrix + concert-id parse (bake pkg), scope/authz matrix + negative (httpapi, empty-setlist so no toolchain), existing B02/B04 + concurrency still green, e2e non-admin member bakes → variant download. **Gate-approved (authz verified), CI green.** Deferred per spec: on-device tab-vs-score emulator screenshot (A-track/attended); per-part annotation re-projection. |
+| seed fix | `a014d75` | **Placeholder-PDF page-count doubling.** The generated demo PDFs drew a footer at y=285mm — below fpdf's default auto-page-break (~277mm) — so every page spilled a blank overflow page (a "3-page" song → 6). Symptoms in Studio: interleaved near-blank pages, and page-2 annotations (Outro / D.C. al Fine) landing on the blank overflow page ("way off"); ALSO the malformed page structure made the browser's **pdf.js mirror some glyphs** ("inverted"-looking) — poppler always rendered them fine. Fix: `SetAutoPageBreak(false, 0)` (we paginate manually) + a regression test (`/Count` == requested). The `:8080` demo was re-seeded fresh (the seed skips re-upload when a song already has files, so existing instances keep the old PDFs — `rm -rf core/troubadata core/cmd/seed/assets/*.pdf` to refresh). Verified clean across BHS/Wonderwall/Open Road in the live viewer. **Gate-approved, CI green.** |
 | T21 | `473557d` | **Admin-assisted password reset** (self-hosted honest — no email). `app.PasswordReset` stored keyed by the token's **SHA-256 hash** (never plaintext) — 24h expiry, single-use; new `Repo` methods on mem+file + `DeleteSessionsForUser`. Service owns policy: `IssuePasswordReset` (admin-only, member-of-*this*-band only, no cross-band), `IssuePasswordResetForUser` (operator/CLI, no band scope — the "only admin forgot" bootstrap), `ConsumePasswordReset` (set pw → burn token → **invalidate all sessions**; expired swept on read). Edges: admin `POST …/members/{u}/password-reset` → relative `resetPath` (server stays origin-agnostic); public `GET/POST /api/password-reset/{token}`; `troubacore reset-password <username>` CLI (run with server stopped on file backend — single-writer); Studio "Reset password…" per member row + public `/reset-password/:token` page. Tests: Go happy-path + hash-at-rest + single-use + session-death + old/new login (mem+file), authz matrix, expiry(403)/unknown(404), CLI-path unit; e2e admin→member→reset→old-session-bounced→new-login. **Gate-approved (crypto verified), CI green.** Deferred per spec: email/SMS, self-service forgot-pw, rate-limiting beyond single-use (→ OPS01). |
 | T20 | `8257d54` | **Duplicate a setlist** (USER-JOURNEY #7). `app.DuplicateSetlist` (member-level) deep-copies → `"<name> (copy)"` with same metadata + every item's song/position/overrides re-created with fresh ids; independent by construction (new id, no shared items, no bake history → baking the copy mints rev 1). `POST …/setlists/{s}/duplicate`; Studio member-visible "Duplicate setlist" action → jumps to the copy. Go test (copy fidelity, source untouched, outsider denied, mem+file) + e2e (duplicate → rename → both listed). **Gate-approved, CI green.** |
 | B06 (core slice) | `ac0066e` | **LAN mDNS advertisement** (change #1 + Go test). `core/internal/discovery` advertises `_troubacore._tcp` on startup via `github.com/libp2p/zeroconf/v2` (maintained fork; pulls only `miekg/dns`) — actual listen port, instance name from `TROUBA_MDNS_NAME` (default host name), TXT `version`/`path=/`. On by default; `TROUBA_NO_MDNS=1` opts out. Register failures logged + swallowed (never blocks serving); shutdown `sync.Once`-guarded; wired in `main.go`. **Verified on the wire** (zeroconf browse found the running core: instance/host/port/TXT). **A-track (NOT here):** the Connect-screen browse UX (Android `NsdManager`, iOS `NWBrowser` + plist) — routing note in the B06 spec. First networking dep in core (deliberate per the spec). |
@@ -198,24 +200,31 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
 
 ## 8. Remaining work (T/B-track)
 
-**Queue status (refreshed 2026-07-06, late).** Web-core landed this session, all CI-green +
+**Queue status (refreshed 2026-07-07).** Web-core landed this session, all CI-green +
 gate-approved: **B01, T13, B02 (+UI), B03 server slice, B04, T18, B05, the demo charts + wired
-"The Open Road", the B06 core slice (mDNS), T20 (setlist duplicate), and T21 (password reset)** (see §6). The mobile lane has since **closed** B02's
+"The Open Road", the B06 core slice (mDNS), T20 (setlist duplicate), T21 (password reset), B07
+(per-member bake), and the seed page-doubling fix** (see §6). The mobile lane has since **closed** B02's
 Android loop-close and landed the **B03 app bulk** + A08. So the earlier "attended/A-track only"
 note is out of date — new **web-core** work was filed (below). Land the usual way (rebase →
 `push origin HEAD:main` → CI green); hold at the gate for a verdict in `reviews.md` or an explicit
 human OK noted in the commit ("landed per steer + VLL").
 
 **Open, unblocked — web-core lane** (no steer assigns one; pick by priority or ask):
-- **B07 — per-member bake** (L; core + proto + studio): "Leo sees his tab on stage" — the per-member
-  my-files bake B02 deliberately deferred. Top post-loop product gap. **← IN PROGRESS this session
-  (VLL "go ahead with B07").**
 - **T19 — text charts** (M/L; core + web/studio + maybe proto): author formatted song documents in
-  Studio and bake them like PDFs. Highest product value of the remainder.
-- Done this session (see §6): **T20** (setlist duplicate, S) + **T21** (password reset, admin-assisted).
+  Studio, render-to-PDF at save into the shared pool (downstream unchanged). Highest product value of
+  the remainder; builds directly on the seed's `pdf.go` renderer. **← IN PROGRESS this session
+  (VLL "go ahead with T19").**
+- Done this session (see §6): **T20** (setlist duplicate) · **T21** (password reset) · **B07**
+  (per-member bake) · **seed page-doubling fix** (+ `:8080` demo re-seeded).
 - Bigger / decisiony: **OPS01** (TLS/service/backup — effectively **human/env-blocked**: needs a real
   server + creds), **P202** (real GC, M/L core), **P203** (proto codegen — a cheap **decision stage**
   first; this is open call ⑤).
+
+**Demo polish, deferred (VLL "other 2 later"):** ① nudge annotation anchors on the generated
+placeholders — the top label ("Watch me — pickup") clips the page top and a few section labels sit a
+hair high on their staves (`core/cmd/seed/annotations.go` coords). ② dark-mode PDF paper — Studio's
+viewer inverts the white PDF canvas in dark mode; keep the "paper" white so colored annotations read
+correctly (Studio viewer theming). Both are cosmetic; neither blocks anything.
 
 **Attended-only — do NOT start unattended:**
 - **T17 — single-row toolbar redesign** (superseded T14 after it regressed zero-shift): **build the
