@@ -1229,15 +1229,31 @@ landings — safe to prune. The three-agent pattern (spec → execute → gate �
 linear landing) is intact; the one wobble is gate discipline on small tasks, called
 out above.
 
+## 2026-07-07 — T22/T19 fix-forward (`3c9ce14`, landed per the steer's authorization): ✅ APPROVED — both gaps closed
+
+Re-verified fresh at the commit, not from the report: vet clean;
+`go test ./internal/httpapi -run 'Order|Invite'` green on both backends — the
+extended ordering test asserts invites AND invite-links come back (CreatedAt, ID)-
+sorted and stable across identical requests. The diff is exactly the assignment:
+`SortInvites`/`SortInviteLinks` mirror `SortMembers`, applied in both backends'
+`InvitesForBand`/`InviteLinksForBand`; `PendingInvitesForIdentifiers` carries the
+order-irrelevant-internal comment in both backends per the acceptance criterion;
+and the T19 caveat renders only when editing an existing generated chart
+(`initial.fileId` guard, `chart-edit-caveat` testid) with honest wording. The
+studio half's typecheck gate is CI's web job (6-line JSX; in flight at review
+time — a red gets its own entry). Direct landing was pre-authorized by the T22
+verdict ("land with the usual gate note referencing this entry") and the message
+cites it — gate rule satisfied. **T22 is now fully closed; T19's only open
+residues are the T24/T25 follow-ups.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
   the Stage ergonomics arc (A08–A13) are landed and verified. Full queue status:
   `docs/tasks/README.md` § "Queue state" — kept current.
-- **Core/web lane:** FIRST the owed fix-forward (T22 invites/invite-links ordering +
-  the T19 editor caveat line, one XS commit, cite this log). Then **T23**
-  (encore/bench) or **CFG01** (config file — decisions fixed); **T25** (chart
-  preview) as a filler. T15/T17/T24 stay **attended-only**.
+- **Core/web lane:** the owed fix-forward landed (`3c9ce14`, approved above) — next
+  is **T23** (encore/bench) or **CFG01** (config file — decisions fixed); **T25**
+  (chart preview) as a filler. T15/T17/T24 stay **attended-only**.
 - **Mobile lane:** **A15** (song drawer) then **A14** (continuous scroll), per the
   validated batch order. The **B07 device screenshot pair** rides the next attended
   emulator session.

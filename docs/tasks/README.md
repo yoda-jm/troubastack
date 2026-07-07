@@ -48,9 +48,6 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Fix-forward owed (web-core, XS):** the T22 gap (invites/invite-links ordering,
-  reviews.md 2026-07-07) + the T19 editor caveat line ("editing may shift layout
-  under existing annotations").
 - **Open, unblocked:** **CFG01** (config file — decisions fixed 2026-07-07, ready to
   implement) · **T23** (encore/bench songs — web-core, next) · **T25** (chart preview
   pane, S) · **B06 app half** (Connect-screen browse, mobile lane) · reading-ergonomics
