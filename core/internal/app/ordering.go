@@ -47,6 +47,29 @@ func SortMembers(m []Membership) {
 	})
 }
 
+// SortInvites orders invites by creation time, then id — the same stable
+// founding order as SortMembers (invites carry no name). User-visible on the band
+// page's invites panel, so it must not reshuffle between requests (T22 fix-forward).
+func SortInvites(iv []Invite) {
+	sort.Slice(iv, func(i, j int) bool {
+		if !iv[i].CreatedAt.Equal(iv[j].CreatedAt) {
+			return iv[i].CreatedAt.Before(iv[j].CreatedAt)
+		}
+		return iv[i].ID < iv[j].ID
+	})
+}
+
+// SortInviteLinks orders invite links by creation time, then id — user-visible on
+// the band page's invite-links panel (T22 fix-forward).
+func SortInviteLinks(l []InviteLink) {
+	sort.Slice(l, func(i, j int) bool {
+		if !l[i].CreatedAt.Equal(l[j].CreatedAt) {
+			return l[i].CreatedAt.Before(l[j].CreatedAt)
+		}
+		return l[i].ID < l[j].ID
+	})
+}
+
 // SortFiles orders a song's files by DisplayOrder, then id — the intended pool
 // order (matches what the default-file / my-files resolution already assumes).
 func SortFiles(f []SongFile) {

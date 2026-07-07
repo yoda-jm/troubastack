@@ -381,6 +381,12 @@ function ChartEditor({
         spellCheck={false}
         onChange={(e) => setSource(e.target.value)}
       />
+      {initial.fileId && (
+        <p className="muted" data-testid="chart-edit-caveat">
+          Editing re-renders the PDF — layout may shift, so existing annotations on this
+          chart can end up off their original spot.
+        </p>
+      )}
       <details className="muted">
         <summary>Chart format</summary>
         <pre>{`# Title

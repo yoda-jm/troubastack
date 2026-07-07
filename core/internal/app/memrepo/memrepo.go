@@ -384,9 +384,13 @@ func (r *Repo) InvitesForBand(bandID string) ([]app.Invite, error) {
 			out = append(out, i)
 		}
 	}
+	app.SortInvites(out) // user-visible band panel — stable order (T22)
 	return out, nil
 }
 
+// PendingInvitesForIdentifiers returns matches in unspecified order — it feeds an
+// internal existence/dedup check at invite time, never a user-facing list, so
+// order is irrelevant (T22).
 func (r *Repo) PendingInvitesForIdentifiers(pairs []app.IdentifierMatch) ([]app.Invite, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -457,6 +461,7 @@ func (r *Repo) InviteLinksForBand(bandID string) ([]app.InviteLink, error) {
 			out = append(out, l)
 		}
 	}
+	app.SortInviteLinks(out) // user-visible band panel — stable order (T22)
 	return out, nil
 }
 
