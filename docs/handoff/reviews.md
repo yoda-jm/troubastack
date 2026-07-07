@@ -1460,6 +1460,24 @@ call" below the main order — is the **A-track follow-up** (mobile lane; pairs
 naturally with T26's title plumbing, one drawer touch for both). USER-JOURNEY's
 encore gap is closed server-side.
 
+## 2026-07-07 — T25 (`a3a93da`, landed per queue + VLL): ✅ APPROVED — T19's editor is now genuinely two-pane
+
+Re-verified fresh: vet clean, `go test ./internal/httpapi -run TextChart` green
+(both backends — member gets PDF with NO pool file created, bad chars 400,
+non-member denied per the T08 pattern), `tsc -b studio` clean, and the extended
+`text-chart.spec.ts` passes in the review worktree (preview pane gets a `blob:`
+URL, file list unchanged). By read: `PreviewTextChart` is provably
+persistence-free (render → return; no blob Put, no file record) with the same
+authz shape as create; the response is `application/pdf` inline; the pane is an
+`<object type="application/pdf">` with an anchor fallback inside (my headless
+screenshot shows exactly that fallback — the plugin-less environment, not a
+defect; the pane element carries the blob URL and fixed height), stacks under the
+textarea on narrow widths, renders on demand only, and the object URL is revoked
+on replace AND unmount. All three spec decisions honored; the frozen T19
+save/LWW contract untouched. Citation present. CI watched; a red gets its own
+entry. **T19's deferred decision 3 is now fully paid — with T24 attended-pending,
+the T19 family is code-complete.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
