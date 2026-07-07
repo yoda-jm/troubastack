@@ -53,11 +53,14 @@ test("bench a setlist item → outside the running order, still baked", async ({
   await page.getByTestId("create-setlist").click();
   await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
-  for (const label of ["Aaa", "Bbb", "Ccc"]) {
-    await page.getByTestId("add-item-song").selectOption({ label });
+  const labels = ["Aaa", "Bbb", "Ccc"];
+  for (let i = 0; i < labels.length; i++) {
+    // Wait for each row to land before adding the next — add is async (POST +
+    // reload) and reload resets the select, so back-to-back clicks race (CI-slow).
+    await page.getByTestId("add-item-song").selectOption({ label: labels[i] });
     await page.getByTestId("add-item").click();
+    await expect(page.getByTestId("item-row")).toHaveCount(i + 1);
   }
-  await expect(page.getByTestId("item-row")).toHaveCount(3);
   await expect(page.getByTestId("item-title").nth(0)).toContainText("1. Aaa");
   await expect(page.getByTestId("item-title").nth(1)).toContainText("2. Bbb");
   await expect(page.getByTestId("item-title").nth(2)).toContainText("3. Ccc");
