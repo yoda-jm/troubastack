@@ -139,3 +139,14 @@ internal fun metaStripText(displayNotes: String, key: String, tempo: Int): Strin
     }
     return if (parts.isEmpty()) null else parts.joinToString("  ·  ")
 }
+
+/**
+ * The A15 song-drawer meta line for the song at [songIndex]: the same notes · key · ♩=tempo as the
+ * A08 strip, read from the song's FIRST page (where the setlist metadata is carried). Null when the
+ * song or its page is missing, or when the song has no metadata to show. Pure so it's unit-tested.
+ */
+internal fun songMetaLine(state: StageState, songIndex: Int): String? {
+    val song = state.songs.getOrNull(songIndex) ?: return null
+    val page = state.pages.getOrNull(song.firstPage) ?: return null
+    return metaStripText(page.displayNotes, page.key, page.tempo)
+}

@@ -37,14 +37,17 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -52,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +69,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -134,7 +139,9 @@ private fun Performing(
     val page = state.currentPage ?: return
     var showLayers by remember { mutableStateOf(false) }
     var showRole by remember { mutableStateOf(false) }
-    var showSongs by remember { mutableStateOf(false) }
+    // A15: song-jump navigation drawer, opened from the bottom-bar "Songs" affordance.
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
     // Hardware page turns (A09): BT pedals/keyboards send PageUp/Down, arrows, Space. Capture at the
     // root before children so a keyboard turns the page while on-screen taps still work. (Android
@@ -142,6 +149,16 @@ private fun Performing(
     val keyFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { keyFocus.requestFocus() } }
 
+    // A15: the song drawer wraps the whole presenter so its scrim covers the pages when open. Swipe
+    // gestures are enabled only WHILE open (swipe-to-close) — a left-edge swipe must never open it
+    // mid-performance, which would fight the page-turn swipe (A12/A04). Open is via the Songs button.
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
+        drawerContent = {
+            SongDrawerSheet(state) { i -> vm.goToSong(i); scope.launch { drawerState.close() } }
+        },
+    ) {
     // A12: facing pages. When the viewport is landscape (w > h) AND the fit is FIT_PAGE we show two
     // adjacent pages (2k/2k+1) side by side and turn by the spread; portrait or FIT_WIDTH stays
     // single-page exactly as before. The measurement decides the layout, so it wraps everything.
@@ -251,24 +268,47 @@ private fun Performing(
                 )
                 TextButton(onClick = turnNext) { Text("›") }
                 Spacer(Modifier.weight(1f))
-                Box {
-                    TextButton(onClick = { showSongs = true }) { Text("Songs") }
-                    DropdownMenu(expanded = showSongs, onDismissRequest = { showSongs = false }) {
-                        state.songs.forEachIndexed { i, s ->
-                            DropdownMenuItem(
-                                text = { Text(if (i == state.currentSong) "• ${s.name}" else s.name) },
-                                onClick = { showSongs = false; vm.goToSong(i) },
-                            )
-                        }
-                    }
-                }
+                // A15: promote the old dropdown to the modal song drawer (opened from the same spot).
+                TextButton(onClick = { scope.launch { drawerState.open() } }) { Text("Songs") }
             }
         }
         }
     }
+    } // ModalNavigationDrawer
 
     if (showLayers) LayersDialog(state, vm) { showLayers = false }
     if (showRole) RoleDialog(state, vm) { showRole = false }
+}
+
+/**
+ * A15 — the song-jump navigation drawer. Lists every song in setlist order with the A08 meta line
+ * (notes · key · ♩=tempo) from its first page; the current song is highlighted; items are large
+ * touch targets for a stage. Read-only (I12): tapping jumps via [StageViewModel.goToSong] (which is
+ * spread-aligned in two-up, A12) and closes. The scrim/back closes it without navigating.
+ */
+@Composable
+private fun SongDrawerSheet(state: StageState, onJump: (Int) -> Unit) {
+    ModalDrawerSheet {
+        Text(
+            "Songs",
+            Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        state.songs.forEachIndexed { i, s ->
+            val meta = songMetaLine(state, i)
+            NavigationDrawerItem(
+                selected = i == state.currentSong,
+                label = {
+                    Column {
+                        Text(s.name, style = MaterialTheme.typography.titleMedium)
+                        if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium)
+                    }
+                },
+                onClick = { onJump(i) },
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+            )
+        }
+    }
 }
 
 /** Composites raster + visible overlays for one page; a decode failure degrades to a placeholder. */
