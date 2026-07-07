@@ -248,6 +248,7 @@ func (r *Repo) BandsForUser(userID string) ([]app.Band, error) {
 			}
 		}
 	}
+	app.SortBands(out)
 	return out, nil
 }
 
@@ -303,6 +304,7 @@ func (r *Repo) MembersOfBand(bandID string) ([]app.Membership, error) {
 			out = append(out, m)
 		}
 	}
+	app.SortMembers(out)
 	return out, nil
 }
 
@@ -478,6 +480,7 @@ func (r *Repo) SongsOfBand(bandID string) ([]app.Song, error) {
 			out = append(out, s)
 		}
 	}
+	app.SortSongs(out)
 	return out, nil
 }
 
@@ -529,6 +532,7 @@ func (r *Repo) FilesOfSong(songID string) ([]app.SongFile, error) {
 			out = append(out, f)
 		}
 	}
+	app.SortFiles(out)
 	return out, nil
 }
 
@@ -541,6 +545,7 @@ func (r *Repo) FilesWithBlob(blobHash string) ([]app.SongFile, error) {
 			out = append(out, f)
 		}
 	}
+	app.SortFiles(out)
 	return out, nil
 }
 
@@ -618,6 +623,7 @@ func (r *Repo) SetlistsOfBand(bandID string) ([]app.Setlist, error) {
 			out = append(out, sl)
 		}
 	}
+	app.SortSetlists(out)
 	return out, nil
 }
 
@@ -667,5 +673,6 @@ func (r *Repo) ItemsOfSetlist(setlistID string) ([]app.SetlistItem, error) {
 			out = append(out, it)
 		}
 	}
+	app.SortSetlistItems(out)
 	return out, nil
 }
