@@ -97,3 +97,45 @@ func TestTextChart_CreateEditRegenerate(t *testing.T) {
 		})
 	}
 }
+
+// TestTextChartPreview (T25) covers the no-persistence preview endpoint: a member
+// gets application/pdf bytes and NO pool file is created; bad chars → 400; a
+// non-member is denied.
+func TestTextChartPreview(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			admin := newClient(t, repo)
+			band := admin.makeBand("alice", "Band")
+			song := admin.makeSong(band.ID, "Song")
+			base := "/api/bands/" + band.ID + "/songs/" + song.ID
+
+			// Member preview → 200 application/pdf, and the pool stays empty.
+			resp, _ := admin.do(http.MethodPost, base+"/text-charts:preview", map[string]string{"source": chartSrc})
+			mustStatus(t, resp, http.StatusOK)
+			if ct := resp.Header.Get("Content-Type"); ct != "application/pdf" {
+				t.Fatalf("preview content-type = %q, want application/pdf", ct)
+			}
+			var files []app.SongFile
+			_, lb := admin.do(http.MethodGet, base+"/files", nil)
+			unmarshalField(t, lb, "files", &files)
+			if len(files) != 0 {
+				t.Fatalf("preview must not create a pool file; pool = %d", len(files))
+			}
+
+			// Bad characters → 400 on preview too (not just save).
+			resp, _ = admin.do(http.MethodPost, base+"/text-charts:preview", map[string]string{"source": "# T\n\n漢字"})
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("non-latin preview = %d, want 400", resp.StatusCode)
+			}
+
+			// A non-member is denied (T08 pattern: 403/404, never the bytes).
+			outsider := newClient(t, repo)
+			outsider.registerLogin("mallory", "pw")
+			resp, _ = outsider.do(http.MethodPost, base+"/text-charts:preview", map[string]string{"source": chartSrc})
+			if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusNotFound {
+				t.Fatalf("outsider preview = %d, want 403/404", resp.StatusCode)
+			}
+		})
+	}
+}

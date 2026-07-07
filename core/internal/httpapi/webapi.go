@@ -71,6 +71,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.updateFile))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.deleteFile))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/text-charts", a.auth(a.createTextChart))
+	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/text-charts:preview", a.auth(a.previewTextChart))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source", a.auth(a.getChartSource))
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source", a.auth(a.putChartSource))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.getMyFiles))
@@ -717,6 +718,26 @@ func (a *WebAPI) createTextChart(w http.ResponseWriter, r *http.Request, u app.U
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"file": f})
+}
+
+// previewTextChart (T25) renders chart source to PDF bytes and returns them
+// inline — nothing is stored. Bad chars → 400 (the ErrUnsupportedChar message).
+func (a *WebAPI) previewTextChart(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Source string `json:"source"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	pdf, err := a.svc.PreviewTextChart(u, r.PathValue("bandId"), r.PathValue("songId"), in.Source)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "inline")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(pdf)
 }
 
 // getChartSource returns a generated file's editable source + its file record

@@ -1170,6 +1170,24 @@ func (s *Service) CreateTextChart(caller User, bandID, songID, source string) (S
 	return f, nil
 }
 
+// PreviewTextChart renders source to PDF bytes WITHOUT persisting anything (no
+// blob, no file record) — the editor's write→see loop (T25). Member-gated to the
+// song's band like the create path; ErrInvalidInput for unrenderable source.
+func (s *Service) PreviewTextChart(caller User, bandID, songID, source string) ([]byte, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return nil, err
+	}
+	song, err := s.repo.GetSong(songID)
+	if err != nil || song.BandID != bandID {
+		return nil, ErrNotFound
+	}
+	pdf, err := chartpdf.Render(source)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	return pdf, nil
+}
+
 // ChartSource returns a generated file's editable source (member-only).
 // ErrNotFound if the file isn't a generated text chart.
 func (s *Service) ChartSource(caller User, bandID, songID, fileID string) (SongFile, string, error) {

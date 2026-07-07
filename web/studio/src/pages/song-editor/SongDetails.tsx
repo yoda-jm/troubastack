@@ -334,10 +334,10 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
 }
 
 // ChartEditor is the text-chart source editor: a plain textarea in the tiny chart
-// dialect, saved server-side to a rendered PDF (new file, or re-render in place for
-// an existing generated file). A save conflict (someone edited first) surfaces the
-// server's "reload" message. Live PDF preview is a later nicety — for now the saved
-// file appears in the pool and opens in the viewer.
+// dialect beside a rendered-PDF preview pane (T25), saved server-side to a rendered
+// PDF (new file, or re-render in place for an existing generated file). A save
+// conflict (someone edited first) surfaces the server's "reload" message. Preview
+// renders on demand (no per-keystroke round-trips) via the no-persistence endpoint.
 function ChartEditor({
   bandId,
   songId,
@@ -354,6 +354,29 @@ function ChartEditor({
   const [source, setSource] = useState(initial.source);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+
+  // Revoke the object URL when it's replaced or the editor unmounts (cleanup runs
+  // with the PREVIOUS url) — no blob leaks.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  async function preview() {
+    setPreviewing(true);
+    setError(null);
+    try {
+      const blob = await api.previewTextChart(bandId, songId, source);
+      setPreviewUrl(URL.createObjectURL(blob)); // effect revokes the old one
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to render preview");
+    } finally {
+      setPreviewing(false);
+    }
+  }
 
   async function save() {
     setBusy(true);
@@ -374,13 +397,32 @@ function ChartEditor({
 
   return (
     <div className="card chart-editor" data-testid="chart-editor">
-      <textarea
-        data-testid="chart-source"
-        rows={14}
-        value={source}
-        spellCheck={false}
-        onChange={(e) => setSource(e.target.value)}
-      />
+      <div className="chart-editor-panes" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+        <textarea
+          data-testid="chart-source"
+          rows={14}
+          style={{ flex: "1 1 20rem", minWidth: "16rem" }}
+          value={source}
+          spellCheck={false}
+          onChange={(e) => setSource(e.target.value)}
+        />
+        <div style={{ flex: "1 1 20rem", minWidth: "16rem" }}>
+          {previewUrl ? (
+            <object
+              data-testid="chart-preview"
+              data={previewUrl}
+              type="application/pdf"
+              style={{ width: "100%", height: "22rem", border: "1px solid var(--border, #ccc)" }}
+            >
+              <a href={previewUrl}>Open preview PDF</a>
+            </object>
+          ) : (
+            <p className="muted" data-testid="chart-preview-empty" style={{ margin: 0 }}>
+              Click Preview to render this chart.
+            </p>
+          )}
+        </div>
+      </div>
       {initial.fileId && (
         <p className="muted" data-testid="chart-edit-caveat">
           Editing re-renders the PDF — layout may shift, so existing annotations on this
@@ -399,6 +441,15 @@ lyrics go here
       <div className="inline-form">
         <button type="button" data-testid="chart-save" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Save chart"}
+        </button>
+        <button
+          type="button"
+          className="ghost-btn"
+          data-testid="chart-preview-btn"
+          disabled={previewing}
+          onClick={() => void preview()}
+        >
+          {previewing ? "Rendering…" : "Preview"}
         </button>
         <button type="button" className="ghost-btn" onClick={onCancel}>
           Cancel

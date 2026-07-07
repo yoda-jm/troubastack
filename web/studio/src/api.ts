@@ -327,6 +327,28 @@ export const api = {
       source,
     }).then((r) => r.file),
 
+  // Render a chart to PDF bytes WITHOUT persisting (T25 preview). Returns the PDF
+  // Blob; throws ApiError with the server's message (e.g. bad chars) on failure.
+  previewTextChart: async (bandId: string, songId: string, source: string): Promise<Blob> => {
+    const res = await fetch(`/api/bands/${bandId}/songs/${songId}/text-charts:preview`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source }),
+    });
+    if (!res.ok) {
+      let msg = `Request failed (${res.status})`;
+      try {
+        const j = (await res.json()) as { error?: unknown };
+        if (j && j.error != null) msg = String(j.error);
+      } catch {
+        // non-JSON error body — keep the generic message
+      }
+      throw new ApiError(res.status, msg);
+    }
+    return res.blob();
+  },
+
   getChartSource: (bandId: string, songId: string, fileId: string) =>
     request<{ file: SongFile; source: string }>(
       "GET",

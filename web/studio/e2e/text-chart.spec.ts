@@ -46,12 +46,21 @@ test("write a text chart → it enters the pool as a generated PDF, editable in 
   await createBandAndOpen(page, `ChartBand ${stamp()}`);
   await createSongAndOpen(page, `Song ${stamp()}`);
 
-  // Start a new text chart, type the tiny dialect, save.
+  // Start a new text chart, type the tiny dialect.
   await page.getByTestId("new-text-chart").click();
   await expect(page.getByTestId("chart-editor")).toBeVisible();
   await page
     .getByTestId("chart-source")
     .fill("# Road Song\n\n## Verse 1\nG            D\nPack a little light for the road ahead,\n");
+
+  // Preview (T25): renders the PDF into the pane via a blob URL, WITHOUT creating a
+  // pool file (rendering fidelity is covered by the Go golden tests).
+  await page.getByTestId("chart-preview-btn").click();
+  const preview = page.getByTestId("chart-preview");
+  await expect(preview).toBeVisible();
+  await expect(preview).toHaveAttribute("data", /^blob:/);
+  await expect(page.getByTestId("file-row")).toHaveCount(0); // nothing saved yet
+
   await page.getByTestId("chart-save").click();
 
   // It appears in the pool as exactly one generated file, badged, download-named
