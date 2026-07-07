@@ -1274,6 +1274,45 @@ mid-concert, current-song highlight visible) — the message's described tour is
 a substitute where the spec names pixels. Push the evidence commit on the branch
 (batch with A14's if the emulator is loaded), then land both commits at ubuntu 5/5.
 
+## 2026-07-07 — CFG01 (`78f968a`, landed): ✅ APPROVED post-hoc — every criterion re-verified live · ⚠️ no citation (again)
+
+Re-verified independently at the landing, not from the report:
+
+- **Byte-equality live:** built the binary and diffed `--print-default-config`
+  against the committed `troubacore.example.ini` — byte-equal, all 12 knobs
+  commented at their defaults with meaning comments, `[smtp]` reserved and honestly
+  marked "NOT READ BY ANY CODE YET", the secrets note (env wins; chmod 600) in the
+  header. The generated-example + byte-equality-test design makes doc rot
+  impossible — exactly what the spec fixed.
+- **Precedence live, both directions:** a file's `addr = :8097` applies;
+  `TROUBACORE_ADDR=:8098` beats the file; an explicitly named missing `--config`
+  exits 1 with a clear error while the missing default stays silent.
+- **Tests fresh:** config + discovery green, vet/build clean; the knob table is the
+  single source of truth (order = example order), `TROUBA_CONFIG` correctly a
+  meta-knob outside the table, `kindBoolInv` handles the TROUBA_NO_MDNS inversion,
+  and `discovery.Advertise(enabled)` hoists the last env read to the composition
+  root per the spec. gopkg.in/ini.v1 with ADR 0004 mirrors the B06 dependency
+  precedent. CI on the SHA being watched; a red gets its own entry.
+
+**Process, and this time it's a pattern:** no authorization citation — the same
+day A13's breach was logged and the steer re-emphasized "no exceptions for XS".
+VLL is clearly steering in chat today, and the work keeps being excellent, so
+these entries keep being approvals — but the log's value is that it never needs
+interpolation. Executors: ONE line ("landed per VLL, chat") is the whole ask.
+VLL: if you're green-lighting in chat, asking the lanes to include that line
+costs nothing and keeps the record self-contained.
+
+## 2026-07-07 — A15 landed (`6619496`): patch-identical ✓ — but the evidence condition was skipped; screenshot now owed as fix-forward
+
+The landing is **diff-of-diffs empty** against the approved code half (`1eeb1c5`),
+so the code needs no re-review. But the code-half verdict's finalize condition —
+evidence screenshot BEFORE landing — was not met: the branch landed and was
+deleted with no screenshot commit. Not a revert matter (the code is approved and
+CI-gated); the criterion simply remains open: **A15 stays not-fully-closed until a
+drawer-open screenshot (mid-concert, current-song highlight visible) lands as a
+docs commit — batch it with A14's evidence run.** The mobile lane has already cut
+`task/A14-stage-continuous-scroll`; fold the A15 shot into that session.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

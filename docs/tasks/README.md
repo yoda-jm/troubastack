@@ -42,16 +42,18 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 ## Queue state (2026-07-07, from the review-gate log)
 
 - **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
-  (deterministic listings) · A01–A06, **A08–A13 (Stage ergonomics arc + the A12
-  volume-key defect fix)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
+  (deterministic listings), **CFG01** (config file) · A01–A06, **A08–A13, A15 (Stage
+  ergonomics arc + the A12 volume-key defect fix)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
   page-doubling fix + the demo bundle regen (12 true pages). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **CFG01** (config file — decisions fixed 2026-07-07, ready to
-  implement) · **T23** (encore/bench songs — web-core, next) · **T25** (chart preview
-  pane, S) · **B06 app half** (Connect-screen browse, mobile lane) · reading-ergonomics
-  remainder **A15 → A14** · **OPS01** (the demo→daily-use gap) · P20x.
+- **In progress:** **A14** (continuous scroll — mobile lane). **Evidence owed:** the
+  A15 drawer screenshot (landed without it — reviews.md 2026-07-07; batch with A14's
+  evidence run).
+- **Open, unblocked:** **T23** (encore/bench songs — web-core, next) · **T25** (chart
+  preview pane, S) · **B06 app half** (Connect-screen browse, mobile lane) ·
+  **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
   see its attempt log), **T24** (chartpdf/mkcharts convergence — regenerates
