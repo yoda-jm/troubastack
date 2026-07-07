@@ -1,6 +1,7 @@
 # demo-concert.tstage — a real-music demo bundle (no server needed)
 
-`demo-concert.tstage` (~545 KB) is a **genuinely baked** concert bundle — the seeded
+`demo-concert.tstage` (~521 KB, **12 pages** — Wonderwall 3, Hallelujah 4, Black Hole
+Sun 3, The Open Road 2) is a **genuinely baked** concert bundle — the seeded
 band's *"Sat @ The Anchor"* setlist (four songs: **Wonderwall**, **Hallelujah**,
 **Black Hole Sun**, and the original **The Open Road** — a real lead sheet + guitar tab
 with purpose-built annotation layers, see [`../demo-charts`](../demo-charts/)), flattened
@@ -48,3 +49,8 @@ with a true `—` (the T16 seed-encoding fix proving itself in the shipped artif
 > Vocals* part, pre-T16, with an `â€"` mojibake title). B05 retired the hand-bake — the
 > demo is now the real-baked multi-song concert, per the architect's decision recorded in
 > `docs/tasks/B05-regenerate-demo-bundle.md`.
+>
+> Regenerated 2026-07-07 after the seed page-doubling fix (`a014d75`): the placeholder
+> generator's footer was tripping fpdf's auto page-break, spilling a blank page after
+> every real page — the old bundle carried ~22 pages (blanks interleaved, some
+> annotations sitting on the blanks). It now carries the intended 12.
