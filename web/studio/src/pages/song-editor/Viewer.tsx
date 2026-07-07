@@ -163,6 +163,15 @@ export function Viewer({
   // Surfaced via a hidden data-testid so e2e can assert no re-raster on edit.
   const pdfRenderCountRef = useRef(0);
   const [pdfRenderCount, setPdfRenderCount] = useState(0);
+  // One-shot "settle" redraw (T-fix): after a file's FIRST successful render pass
+  // we schedule exactly one more clean render on the next frame. This is the
+  // belt-and-suspenders for the intermittent upside-down/blank first paint some
+  // browsers show on initial load — the same thing a manual zoom (redraw) cures.
+  // Bumping renderNonce re-runs the render effect; nudgedFileRef makes it fire at
+  // most once per file open (not per zoom), so it can never loop.
+  const [renderNonce, setRenderNonce] = useState(0);
+  const nudgedFileRef = useRef<string | null>(null);
+  const nudgeRafRef = useRef<number | null>(null);
 
   // ---- refresh MY file strip (getMyFiles) — also after editor changes ----
   // Keeps a sensible selected file: preserves the current one if it survives,
@@ -830,9 +839,18 @@ export function Viewer({
     if (typeof zoomMode !== "number" && scale <= 0) return;
 
     let cancelled = false;
+    // In-flight PDF.js render tasks for THIS effect run. When the effect re-runs
+    // (zoom, file switch, or the first 0→measured scale bump), React calls this
+    // run's cleanup first — we cancel these tasks so an old render can't keep
+    // painting a canvas that the new run has already resized. Resizing a canvas
+    // (`canvas.width = …`) resets its 2D transform to identity, and a stale render
+    // continuing under identity draws in PDF-native (Y-up) space → the page comes
+    // out UPSIDE DOWN until the next clean re-render. Cancelling prevents that.
+    const tasks: pdfjs.RenderTask[] = [];
 
     (async () => {
       const dpr = window.devicePixelRatio || 1;
+      let renderedAny = false;
       for (let i = 0; i < pdfDoc.numPages; i++) {
         if (cancelled) return;
         const s = pageScale(i);
@@ -854,12 +872,22 @@ export function Viewer({
 
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        const task = page.render({ canvasContext: ctx, viewport });
+        tasks.push(task);
+        try {
+          await task.promise;
+        } catch (err) {
+          // A superseded render (cancelled in cleanup) rejects with
+          // RenderingCancelledException — expected; stop this stale pass quietly.
+          if ((err as { name?: string })?.name === "RenderingCancelledException") return;
+          throw err;
+        }
         if (cancelled) return;
         // Count an actual rasterization (one per page render). Editing an
         // annotation must never reach here, so this stays put on edits.
         pdfRenderCountRef.current += 1;
         setPdfRenderCount(pdfRenderCountRef.current);
+        renderedAny = true;
 
         // Size the overlay to the canvas's ACTUAL rendered dimensions, then
         // paint THIS page's objects off those dims. We call the LATEST paint via
@@ -874,16 +902,27 @@ export function Viewer({
           paintOverlayRef.current(overlay, i, dpr);
         }
       }
+
+      // One-shot settle redraw: once per file open, after its first full pass has
+      // completed and laid out, schedule a single clean re-render on the next
+      // frame. Cures the intermittent bad first paint without ever looping (the
+      // re-run keeps the same selectedFileId, so it won't schedule again).
+      if (!cancelled && renderedAny && nudgedFileRef.current !== selectedFileId) {
+        nudgedFileRef.current = selectedFileId ?? null;
+        nudgeRafRef.current = requestAnimationFrame(() => setRenderNonce((n) => n + 1));
+      }
     })();
 
     return () => {
       cancelled = true;
+      for (const t of tasks) t.cancel(); // stop any in-flight render on our canvases
+      if (nudgeRafRef.current != null) cancelAnimationFrame(nudgeRafRef.current);
     };
     // Depends ONLY on what changes the rasterized pixels: the file, the scale,
     // the page count, and the zoom mode. NOT objects/visibility/paintOverlay —
     // those repaint the overlay canvases via renderOverlays without re-raster.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFile, status, scale, numPages, zoomMode]);
+  }, [selectedFile, status, scale, numPages, zoomMode, renderNonce]);
 
   // ---- size + render the image overlay (image mode) ----
   const layoutImageOverlay = useCallback(() => {
