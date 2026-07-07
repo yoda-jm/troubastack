@@ -1503,6 +1503,40 @@ task, not just chat** — same discipline as the citation habit; "raised to VLL 
 is where things get lost. Slot B08 whenever the core lane next touches bake, or sooner
 if the flake starts costing re-runs.
 
+## 2026-07-07 — Viewer PDF-flip fix (`88e0c99`, landed per VLL): ✅ APPROVED — the no-flicker safety net re-run green on an isolated stack
+
+A VLL field bug: PDF pages in the song Viewer intermittently rendered 180°
+upside-down / blank, cured by a manual zoom. Landed directly on `main` per VLL
+(confirmed fixed in their real browser; the flip is timing/DPR-specific and does
+not reproduce headlessly). This touches **`Viewer.tsx` — the T15-attended file**,
+so I did not take the behavioral confirmation on faith for the regression surface:
+
+- **Root cause is right, verified by read:** the per-page render effect re-runs on
+  zoom/file-switch/the first 0→measured scale bump but never cancelled the in-flight
+  `page.render()`. A new run resizes the canvas (`canvas.width = …` resets the 2D
+  transform to identity), and a stale render continuing under identity paints in
+  PDF-native Y-up space → upside-down; a half-done cancelled paint → blank. Exactly
+  the reported symptom.
+- **Fix is sound and cannot loop:** (1) collect this run's `RenderTask`s and
+  `cancel()` them in cleanup, swallowing the expected `RenderingCancelledException`;
+  (2) a one-shot "settle" re-render scheduled once per file-open, guarded by
+  `nudgedFileRef === selectedFileId` so a zoom/edit can't re-trigger it and the
+  nonce-driven re-run can't recurse. Traced the guard across file-switch and
+  null-file cases — fires at most once per open.
+- **The invariant that makes this file attended — "no re-raster on edit" — HELD:**
+  `renderNonce` is the only new dep; edits still route through the overlay-only
+  repaint path. **Re-ran the safety net on an isolated stack (:8092/:5175, 8080 was
+  another lane's live server — left untouched):** `editor-noflicker.spec.ts` +
+  `viewer.spec.ts` **3/3 green**, and `tsc -b studio` clean. The settle fires during
+  load (before the test's post-zoom baseline), so the render-count-stable-on-edit
+  assertion is unaffected — confirmed empirically, not just argued.
+
+Citation present. The behavioral flip-fix itself rests on VLL's browser confirmation
+(correctly — it's unrepro headlessly); everything mechanically checkable is checked.
+CI on the landing is being watched; a red gets its own entry. Note for the record:
+this is a *surgical* Viewer render-race fix with the e2e net green — a different risk
+class from the T15 hooks-split refactor, which stays attended.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
