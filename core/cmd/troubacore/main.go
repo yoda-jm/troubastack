@@ -11,6 +11,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -25,6 +26,7 @@ import (
 	"troubastack/core/internal/app/filerepo"
 	"troubastack/core/internal/app/memrepo"
 	"troubastack/core/internal/bake"
+	"troubastack/core/internal/config"
 	"troubastack/core/internal/discovery"
 	"troubastack/core/internal/engine"
 	"troubastack/core/internal/httpapi"
@@ -42,13 +44,15 @@ func main() {
 		case "reset-password":
 			runResetPassword(os.Args[2:])
 			return
-		default:
-			log.Fatalf("troubacore: unknown subcommand %q (want: reset-password)", os.Args[1])
 		}
+		// Anything else falls through to flag parsing below (flags start with '-');
+		// an unknown non-flag arg is rejected there.
 	}
 
+	cfg := loadConfig() // defaults < troubacore.ini < TROUBA_* env < flags (ADR 0004)
+
 	// Wire the subsystems (all stubs in this scaffold).
-	st, err := openStore() // swappable backend; default file, zero infra (ADR 0002)
+	st, err := openStore(cfg) // swappable backend; default file, zero infra (ADR 0002)
 	if err != nil {
 		log.Fatalf("troubacore: open store: %v", err)
 	}
@@ -62,37 +66,31 @@ func main() {
 
 	// Relational ("normal web") domain: users/sessions, bands, members, invites,
 	// songs. Backend is swappable behind app.Repo (R8, ADR 0002).
-	appRepo, err := openAppRepo()
+	appRepo, err := openAppRepo(cfg)
 	if err != nil {
 		log.Fatalf("troubacore: open app repo: %v", err)
 	}
 	svc := app.NewService(appRepo)
 	// Song-file bytes live in a content-addressed blob store. The file backend
-	// persists under <TROUBA_DATA_DIR>/blobs/; otherwise it is in-memory.
-	blobs, err := openBlobStore()
+	// persists under <data_dir>/blobs/; otherwise it is in-memory.
+	blobs, err := openBlobStore(cfg)
 	if err != nil {
 		log.Fatalf("troubacore: open blob store: %v", err)
 	}
 	svc.WithBlobStore(blobs)
 
-	// Secure cookies only when explicitly told we're behind TLS (TROUBA_SECURE_COOKIES=1).
-	secureCookies := os.Getenv("TROUBA_SECURE_COOKIES") == "1"
-
 	// Bake orchestration (I11): resolves a setlist and shells out to poppler
 	// (pdftoppm) + the web/bake worker (Node) to flatten a .tstage under the data
 	// dir. A missing binary fails the individual bake, not the server — so this is
 	// safe to wire even where the toolchain isn't installed.
-	baker := bake.New(svc, eng, bakeConfig())
+	baker := bake.New(svc, eng, bakeConfig(cfg))
 
-	handler, err := httpapi.Router(svc, eng, baker, secureCookies)
+	handler, err := httpapi.Router(svc, eng, baker, cfg.Server.SecureCookies)
 	if err != nil {
 		log.Fatalf("troubacore: build router: %v", err)
 	}
 
-	addr := os.Getenv("TROUBACORE_ADDR")
-	if addr == "" {
-		addr = ":8080"
-	}
+	addr := cfg.Server.Addr
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -107,17 +105,17 @@ func main() {
 	// terminal sends SIGINT to make, not the whole process group), which would
 	// otherwise orphan us holding the port. Off by default (prod parent is
 	// init/systemd). Portable getppid poll — no PR_SET_PDEATHSIG thread caveats.
-	if os.Getenv("TROUBA_DIE_WITH_PARENT") == "1" {
+	if cfg.Dev.DieWithParent {
 		watchParent()
 	}
 
 	// LAN discovery (B06): advertise this core as _troubacore._tcp so the app's
 	// Connect screen can offer it without the user typing an IP. Best-effort —
-	// never blocks serving; TROUBA_NO_MDNS=1 opts out, TROUBA_MDNS_NAME overrides
-	// the instance name (default: the host name).
+	// never blocks serving. The enabled/name decision is resolved in the config
+	// (mdns.enabled / TROUBA_NO_MDNS, mdns.name / TROUBA_MDNS_NAME).
 	if _, portStr, err := net.SplitHostPort(addr); err == nil {
 		if port, perr := strconv.Atoi(portStr); perr == nil {
-			defer discovery.Advertise(port, os.Getenv("TROUBA_MDNS_NAME"))()
+			defer discovery.Advertise(cfg.MDNS.Enabled, port, cfg.MDNS.Name)()
 		}
 	}
 
@@ -125,6 +123,31 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("troubacore: server error: %v", err)
 	}
+}
+
+// loadConfig parses the server flags and resolves the configuration. Precedence
+// (ADR 0004): built-in defaults < INI file < TROUBA_* env vars < flags. --config
+// (or TROUBA_CONFIG) points at the file; --print-default-config emits the fully
+// commented example and exits (that output IS the committed troubacore.example.ini).
+func loadConfig() config.Config {
+	fs := flag.NewFlagSet("troubacore", flag.ExitOnError)
+	configPath := fs.String("config", os.Getenv("TROUBA_CONFIG"), "path to the INI config file (default ./troubacore.ini; env TROUBA_CONFIG)")
+	printDefault := fs.Bool("print-default-config", false, "print the fully-commented example config to stdout and exit")
+	_ = fs.Parse(os.Args[1:])
+
+	if *printDefault {
+		fmt.Print(config.PrintDefault())
+		os.Exit(0)
+	}
+
+	// An explicitly-named file (via --config or TROUBA_CONFIG) must exist; a missing
+	// default file is silently fine.
+	explicit := *configPath != ""
+	cfg, err := config.Load(*configPath, explicit)
+	if err != nil {
+		log.Fatalf("troubacore: %v", err)
+	}
+	return cfg
 }
 
 // runResetPassword is the server operator's out-of-band recovery tool (T21): it
@@ -139,7 +162,13 @@ func runResetPassword(args []string) {
 	if len(args) != 1 || args[0] == "" {
 		log.Fatalf("usage: troubacore reset-password <username>")
 	}
-	appRepo, err := openAppRepo()
+	// Resolve config so we open the SAME app repo the server uses (backend + data
+	// dir), honoring the file + env; this subcommand takes no flags of its own.
+	cfg, err := config.Load(os.Getenv("TROUBA_CONFIG"), os.Getenv("TROUBA_CONFIG") != "")
+	if err != nil {
+		log.Fatalf("troubacore: %v", err)
+	}
+	appRepo, err := openAppRepo(cfg)
 	if err != nil {
 		log.Fatalf("troubacore: open app repo: %v", err)
 	}
@@ -171,18 +200,12 @@ func watchParent() {
 	}()
 }
 
-// openStore picks a persistence backend from TROUBA_STORE (default: file — zero
-// infra for local dev). Swapping backends touches only this function; the rest of
-// core depends on the store.Store interface alone (I14, ADR 0002).
-func openStore() (store.Store, error) {
-	kind := store.Kind(os.Getenv("TROUBA_STORE"))
-	if kind == "" {
-		kind = store.DefaultKind
-	}
-	dir := os.Getenv("TROUBA_DATA_DIR")
-	if dir == "" {
-		dir = "./troubadata"
-	}
+// openStore picks a persistence backend from the resolved config (default: file —
+// zero infra for local dev). Swapping backends touches only this function; the rest
+// of core depends on the store.Store interface alone (I14, ADR 0002).
+func openStore(cfg config.Config) (store.Store, error) {
+	kind := store.Kind(cfg.Storage.Store)
+	dir := cfg.Storage.DataDir
 	log.Printf("troubacore: store backend = %s", kind)
 	switch kind {
 	case store.KindMemory:
@@ -192,25 +215,19 @@ func openStore() (store.Store, error) {
 	case store.KindGit:
 		return gitstore.New(dir)
 	case store.KindPostgres:
-		return pgstore.New(os.Getenv("TROUBA_DATABASE_URL"))
+		return pgstore.New(cfg.Storage.DatabaseURL)
 	default:
-		return nil, fmt.Errorf("unknown TROUBA_STORE %q (want mem|file|git|pg)", kind)
+		return nil, fmt.Errorf("unknown store %q (want mem|file|git|pg)", kind)
 	}
 }
 
-// openAppRepo picks the relational backend from TROUBA_APP_STORE (mem|file,
-// default mem for now). file persists to <TROUBA_DATA_DIR>/app.json (zero infra).
-// Postgres is a later step. Swapping backends touches only this function; the
-// rest of core depends on app.Repo alone (I14).
-func openAppRepo() (app.Repo, error) {
-	kind := os.Getenv("TROUBA_APP_STORE")
-	if kind == "" {
-		kind = "mem"
-	}
-	dir := os.Getenv("TROUBA_DATA_DIR")
-	if dir == "" {
-		dir = "./troubadata"
-	}
+// openAppRepo picks the relational backend from the resolved config (mem|file).
+// file persists to <data_dir>/app.json (zero infra). Postgres is a later step.
+// Swapping backends touches only this function; the rest of core depends on
+// app.Repo alone (I14).
+func openAppRepo(cfg config.Config) (app.Repo, error) {
+	kind := cfg.Storage.AppStore
+	dir := cfg.Storage.DataDir
 	log.Printf("troubacore: app store backend = %s", kind)
 	switch kind {
 	case "mem":
@@ -218,49 +235,29 @@ func openAppRepo() (app.Repo, error) {
 	case "file":
 		return filerepo.New(dir)
 	default:
-		return nil, fmt.Errorf("unknown TROUBA_APP_STORE %q (want mem|file)", kind)
+		return nil, fmt.Errorf("unknown app store %q (want mem|file)", kind)
 	}
 }
 
-// bakeConfig resolves the bake toolchain from env with dev-friendly defaults.
-// Binaries default to bare names (found on PATH); the web/bake worker defaults to
-// the repo-relative path that works when core runs from core/ (make dev/run/e2e).
-// Bundles are written under <data>/bakes. Swapping paths touches only this fn.
-func bakeConfig() bake.Config {
-	dir := os.Getenv("TROUBA_DATA_DIR")
-	if dir == "" {
-		dir = "./troubadata"
-	}
-	pdftoppm := os.Getenv("TROUBA_PDFTOPPM")
-	if pdftoppm == "" {
-		pdftoppm = "pdftoppm"
-	}
-	node := os.Getenv("TROUBA_NODE")
-	if node == "" {
-		node = "node"
-	}
-	cli := os.Getenv("TROUBA_BAKE_CLI")
-	if cli == "" {
-		cli = filepath.FromSlash("../web/bake/dist/cli.js")
-	}
+// bakeConfig resolves the bake toolchain from the config. Binaries default to bare
+// names (found on PATH); the web/bake worker defaults to the repo-relative path that
+// works when core runs from core/ (make dev/run/e2e). Bundles are written under
+// <data>/bakes. Swapping paths touches only this fn.
+func bakeConfig(cfg config.Config) bake.Config {
 	return bake.Config{
-		BakesDir: filepath.Join(dir, "bakes"),
-		Pdftoppm: pdftoppm,
-		Node:     node,
-		BakeCLI:  cli,
+		BakesDir: filepath.Join(cfg.Storage.DataDir, "bakes"),
+		Pdftoppm: cfg.Bake.Pdftoppm,
+		Node:     cfg.Bake.Node,
+		BakeCLI:  filepath.FromSlash(cfg.Bake.CLI),
 	}
 }
 
 // openBlobStore picks the song-file blob backend, matching the app repo backend:
-// TROUBA_APP_STORE=file persists blobs under <TROUBA_DATA_DIR>/blobs/; anything
-// else (mem/default) keeps them in memory. Swapping touches only this function.
-func openBlobStore() (blob.Store, error) {
-	if os.Getenv("TROUBA_APP_STORE") != "file" {
+// app_store=file persists blobs under <data_dir>/blobs/; anything else
+// (mem/default) keeps them in memory. Swapping touches only this function.
+func openBlobStore(cfg config.Config) (blob.Store, error) {
+	if cfg.Storage.AppStore != "file" {
 		return blob.NewMem(), nil
 	}
-	dir := os.Getenv("TROUBA_DATA_DIR")
-	if dir == "" {
-		dir = "./troubadata"
-	}
-	return blob.NewFile(filepath.Join(dir, "blobs"))
+	return blob.NewFile(filepath.Join(cfg.Storage.DataDir, "blobs"))
 }

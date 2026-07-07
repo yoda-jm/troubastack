@@ -17,6 +17,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/libp2p/zeroconf/v2 v2.2.0
 	golang.org/x/crypto v0.50.0
+	gopkg.in/ini.v1 v1.67.3
 )
 
 require (

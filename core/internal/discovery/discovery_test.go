@@ -2,10 +2,10 @@ package discovery
 
 import "testing"
 
-// The opt-out env fully disables advertising and returns a safe no-op stop.
-func TestAdvertise_disabledByEnv(t *testing.T) {
-	t.Setenv("TROUBA_NO_MDNS", "1")
-	stop := Advertise(8080, "")
+// enabled=false fully disables advertising and returns a safe no-op stop (the
+// composition root resolves TROUBA_NO_MDNS into this flag now — CFG01).
+func TestAdvertise_disabled(t *testing.T) {
+	stop := Advertise(false, 8080, "")
 	if stop == nil {
 		t.Fatal("Advertise returned a nil stop func")
 	}
@@ -17,7 +17,7 @@ func TestAdvertise_disabledByEnv(t *testing.T) {
 // discovery). This exercises the default (enabled) path; in a sandbox the register
 // may bind or may fail, and either outcome is fine.
 func TestAdvertise_neverFatal(t *testing.T) {
-	stop := Advertise(8080, "test-instance")
+	stop := Advertise(true, 8080, "test-instance")
 	if stop == nil {
 		t.Fatal("Advertise returned a nil stop func")
 	}

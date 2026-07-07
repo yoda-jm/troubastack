@@ -53,3 +53,23 @@ go build ./...
 Generated proto code (`internal/gen/`) and the embedded Studio `dist/` are
 produced by their own build steps and are git-ignored; the scaffold compiles
 without them.
+
+## Configuration (CFG01, ADR 0004)
+
+Settings resolve with layered precedence — **most specific wins**:
+
+```
+built-in defaults  <  INI file  <  TROUBA_* env vars  <  CLI flags
+```
+
+- **File:** `./troubacore.ini` by default (working directory — *not* under the data
+  dir). Point elsewhere with `--config <path>` or `TROUBA_CONFIG`. A missing default
+  file is fine; a missing *explicitly named* file is a startup error. With no file at
+  all, behavior is exactly the previous env-only behavior — every `TROUBA_*` var
+  still works as an override.
+- **See every knob:** `troubacore --print-default-config` prints the fully-commented
+  example — the committed [`troubacore.example.ini`](troubacore.example.ini) is that
+  output verbatim (a test keeps them in sync). Sections: `[server] [storage] [mdns]
+  [bake] [dev]`, plus a reserved, not-yet-read `[smtp]` hook.
+- **Secrets:** `database_url` may carry credentials; prefer injecting it via the
+  environment (env wins over the file), and `chmod 600` the file if it holds secrets.

@@ -26,13 +26,15 @@ const service = "_troubacore._tcp"
 // version is advertised in a TXT record (informational only).
 const version = "dev"
 
-// Advertise announces this core on the LAN unless TROUBA_NO_MDNS=1 (a LAN tool
-// should be findable by default; a server behind real DNS/TLS sets the opt-out).
-// name is the friendly instance name; empty falls back to the host name. It returns
-// a shutdown func that is ALWAYS safe to call (a no-op when advertising didn't start).
-func Advertise(port int, name string) func() {
-	if os.Getenv("TROUBA_NO_MDNS") == "1" {
-		log.Printf("mDNS: disabled (TROUBA_NO_MDNS=1)")
+// Advertise announces this core on the LAN when enabled (a LAN tool should be
+// findable by default; a server behind real DNS/TLS opts out). The enabled/name
+// decision is resolved by the composition root from config+env (CFG01) — nothing
+// here reads the environment. name is the friendly instance name; empty falls back
+// to the host name. It returns a shutdown func that is ALWAYS safe to call (a no-op
+// when advertising didn't start).
+func Advertise(enabled bool, port int, name string) func() {
+	if !enabled {
+		log.Printf("mDNS: disabled")
 		return func() {}
 	}
 	if name == "" {
