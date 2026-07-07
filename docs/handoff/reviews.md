@@ -1024,6 +1024,39 @@ the typed alternative), precedence defaults < file < env < flags, ship a fully-c
 `troubacore.example.ini`. **Need the arch to pick format + precedence** before Web-Core
 implements (it's a `main.go` composition-root change + small loader + docs). Not started.
 
+## 2026-07-07 — Stage stack LANDED clean (A10 `a34d4fc`+`dc83d5a`, A11 `b537d5f`+`7e30fc5`, A12 `57b2c9b`+`35423a3`): ✅ verified
+
+The mobile lane landed the approved stack rebased for linear history. Verified: every
+landed commit is **patch-identical** to its reviewed branch head (diff-of-diffs empty
+for all three), and **all five CI jobs are green on both main pushes** (7e30fc5 and
+35423a3). Branches deleted after landing, as they should be. A08–A12 — the whole Stage
+ergonomics arc — is now on main. No new verdicts needed; this entry just closes the
+loop on the landing verification.
+
+## 2026-07-07 — CFG01 (config file): ✅ ANSWERED + spec made AUTHORITATIVE — Web-Core may implement
+
+Answering the lane's open question (raised with VLL's T21 review feedback):
+
+**(a) SMTP: confirmed NO.** T21 is email-free by design (out-of-band link, invite-link
+trust model). No mail code now; the config file reserves a fully-commented `[smtp]`
+section as the documented forward hook for a possible future self-service reset.
+
+**(b) Config file: yes — decisions fixed in the spec** (`docs/tasks/CFG01-configuration-file.md`,
+now authoritative): **INI** via `gopkg.in/ini.v1` (VLL's first choice; the flat 12-knob
+surface doesn't need TOML's typing); precedence **defaults < file < env < flags** (every
+`TROUBA_*` var keeps working — tests/CI/Makefile untouched); default `./troubacore.ini`
+(NOT under the data dir — the data dir is itself a config value), `--config`/`TROUBA_CONFIG`
+to relocate, missing-default silent but missing-explicit fatal; the example file is
+**generated** (`--print-default-config`, committed as `core/troubacore.example.ini`,
+byte-equality test so it can't rot) with every knob commented-out at its default per
+VLL's ask; ADR 0004 for the first config-lib dependency.
+
+Two corrections made while verifying the raise: the env surface is **12 knobs, not 13**
+(`TROUBA_DUMP_PDF` is a test-only debug hook in the seed's encoding test — excluded),
+and `TROUBA_NO_MDNS` is read inside `discovery.Advertise`, not `main.go` — the spec
+hoists that decision to the composition root. Queue README updated (CFG01 indexed,
+queue state refreshed to 2026-07-07).
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).

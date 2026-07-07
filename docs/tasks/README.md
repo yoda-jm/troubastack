@@ -39,20 +39,22 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 6. Each task lists its own **acceptance criteria**. All of them must pass before the task
    is done. If a criterion is impossible as written, report why rather than approximating.
 
-## Queue state (2026-07-06, from the review-gate log)
+## Queue state (2026-07-07, from the review-gate log)
 
-- **Done & landed:** T01–T13, T16 · A01–A06 · **B01, B02, B03 (complete)** · IOS01,
-  IOS02, IOS04 (+ the IOS03 prep runbook). The FULL product loop — **compose → bake →
-  offer → download → import → perform** — is in-app, no manual file transfer; I13's
-  explicit tier is ✅.
-- **Open, unblocked:** **OPS01** (the demo→daily-use gap) · **B06** (mDNS) · **B07**
-  (per-member bake, L) · **T19** (text charts, M/L) · **T20/T21** (setlist dup,
-  password reset — S fillers) · Stage: **A09** (pedals), **A10** (night mode), **A11**
-  (visual count-in), **A12** (facing pages) · P20x. A08 landed 2026-07-06.
+- **Done & landed:** T01–T13, T16, T20, T21 · A01–A06, **A08–A12 (the full Stage
+  ergonomics arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice), B07
+  (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
+  page-doubling fix. The FULL product loop — **compose → bake → offer → download →
+  import → perform** — is in-app; I13's explicit tier is ✅.
+- **In progress:** **T19** (text charts — web-core lane, VLL go-ahead) · the demo
+  bundle regen (docs/demo/demo-concert.tstage still carries the doubled 22 pages).
+- **Open, unblocked:** **T22** (deterministic listings, S — user-reported) · **CFG01**
+  (config file — decisions fixed 2026-07-07, ready to implement) · **B06 app half**
+  (Connect-screen browse, mobile lane) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
-  see its attempt log), the **B02 Android loop-close screenshot** (assigned to the
-  mobile lane, reviews.md 2026-07-06).
+  see its attempt log), the **B07 device screenshot pair** (tab vs score, rides the
+  next attended emulator batch).
 - **Blocked on the human:** A07 (tablet stylus spike), IOS03 impl (Mac + Apple
   credentials), credential rotation for the git remote.
 - **Closed without landing:** T14 (panelize measured ~10px and reverted; superseded by T17).
@@ -83,6 +85,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T20 | [Duplicate a setlist](T20-setlist-duplicate.md) | core + studio | S |
 | T21 | [Password reset (admin-assisted)](T21-password-reset.md) | core + studio | S |
 | T22 | [Deterministic list ordering (songs lexicographic + sweep)](T22-deterministic-listings.md) | core | S |
+| CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come

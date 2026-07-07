@@ -1,38 +1,88 @@
 # CFG01 — A configuration file for troubacore
 
-> **Status: DESIGN QUESTION — raised by the Web-Core Agent for arch/reviewer decision
-> (2026-07-07), not an authoritative spec.** VLL asked two things while reviewing T21:
-> (a) does forgotten-password need an SMTP server?, and (b) we've never discussed
-> configuration — he'd like a config file. This captures both for a verdict; once the
-> arch fixes format + precedence, Web-Core can implement (it's a composition-root change
-> in `cmd/troubacore/main.go` + a small loader package + docs).
+**Priority:** operator ergonomics, VLL-requested (2026-07-07) · **Size:** S/M ·
+**Area:** `core/cmd/troubacore` (composition root) + a small loader package + docs
 
-## (a) Does forgotten-password need SMTP? — No (by design)
+> **Status: AUTHORITATIVE — decisions fixed by arch 2026-07-07** (was: design question
+> raised by Web-Core while VLL reviewed T21). Web-Core can implement.
 
-T21 (password reset) is **deliberately email-free**: a band admin (or the server
-operator via `troubacore reset-password <user>`) mints a one-time link and hands it over
-**out-of-band** — the same trust model as invite links. There is **no mail code in core**
-and none is needed for the shipped feature.
+## (a) Does forgotten-password need SMTP? — No (confirmed)
 
-SMTP only becomes relevant if we later add **self-service "forgot password"** (a user
-triggers their own reset and receives it by email) — which T21's spec listed as
-explicitly out-of-scope ("needs email — revisit if a mail pipeline ever exists"). So the
-recommendation is: **don't wire SMTP now**, but **reserve a commented-out `[smtp]`
-section** in the config file as a forward hook, so the shape is documented when/if
-self-service reset is picked up.
+T21 is **deliberately email-free**: a band admin (or the operator via
+`troubacore reset-password <user>`) mints a one-time link and hands it over
+out-of-band — the same trust model as invite links. No mail code in core, none needed.
+SMTP becomes relevant only if self-service "forgot password" is ever picked up (T21
+out-of-scope). We **reserve a commented `[smtp]` section** in the config file as the
+documented forward hook — shape only, no code behind it.
 
-## (b) Configuration file — the ask
+## (b) Configuration file — decisions (arch, 2026-07-07)
 
-Today **all** configuration is environment variables read ad-hoc in `main.go` (13 knobs,
-below). There is no single place to see or set them, and no file. VLL's preferences:
+1. **Format: INI**, via `gopkg.in/ini.v1` (mature, comment-friendly, sectioned).
+   VLL's first choice; the 12-knob surface is flat key=value and doesn't need TOML's
+   typing. JSON ruled out (no comments). `.properties` has no strong maintained Go lib.
+   (The raise said 13 knobs — verified by grep it's **12**: `TROUBA_DUMP_PDF` is a
+   test-only debug hook in `cmd/seed`'s encoding test, not server config. Excluded.)
+2. **Precedence: built-in defaults < config file < env vars < CLI flags.** Most
+   specific wins. Every existing `TROUBA_*` env var keeps working unchanged as an
+   override — tests/CI/Makefile untouched. (Today the only flag is `--config` itself;
+   the precedence statement future-proofs any later flags.)
+3. **Location:** default `./troubacore.ini` (working directory — NOT under the data
+   dir: the data dir is itself a config value, chicken-and-egg). Override with
+   `--config <path>` or `TROUBA_CONFIG`. A missing default file is fine (silent);
+   a missing *explicitly named* file is a startup error (fail loud on operator intent).
+4. **The example file is generated, never hand-maintained:**
+   `troubacore --print-default-config` emits the full file — every knob present,
+   **commented-out at its default** (per VLL), with a one-line comment per knob (reuse
+   the meaning column below). Commit the output as `core/troubacore.example.ini` and
+   add a Go test asserting the committed file byte-equals the generator output — the
+   docs can't rot.
+5. **Sections and keys** (ini key ↔ env var, 1:1, documented in the example file):
+   - `[server]` `addr` ↔ `TROUBACORE_ADDR` · `secure_cookies` ↔ `TROUBA_SECURE_COOKIES`
+   - `[storage]` `app_store` ↔ `TROUBA_APP_STORE` · `store` ↔ `TROUBA_STORE` ·
+     `data_dir` ↔ `TROUBA_DATA_DIR` · `database_url` ↔ `TROUBA_DATABASE_URL`
+   - `[mdns]` `enabled` (inverts `TROUBA_NO_MDNS`; file uses the positive form) ·
+     `name` ↔ `TROUBA_MDNS_NAME`
+   - `[bake]` `pdftoppm` ↔ `TROUBA_PDFTOPPM` · `node` ↔ `TROUBA_NODE` ·
+     `cli` ↔ `TROUBA_BAKE_CLI`
+   - `[dev]` `die_with_parent` ↔ `TROUBA_DIE_WITH_PARENT`
+   - `[smtp]` — fully commented, reserved: `host/port/from/user/pass/tls`, header
+     comment "not read by any code yet; forward hook for self-service password reset".
+6. **Secrets note (document in the example file header):** `database_url` (and any
+   future `smtp.pass`) may carry credentials — recommend `chmod 600`, and note that env
+   vars still win, so secret-injection via environment remains first-class.
+7. **Dependency + ADR:** first config-file lib in core — deliberate, mirrors the B06
+   zeroconf precedent. Write **ADR 0004** (config file + precedence): loading lives in
+   the composition root (`main.go` + the small loader pkg); everything else keeps
+   receiving resolved values, per ADR 0002's spirit.
 
-- **Format: INI or `.properties` preferred; JSON explicitly *less* preferred** (can't
-  comment JSON).
-- **Defaults are the most relevant values, shipped *commented-out* in the file** — i.e.
-  the config file itself documents every knob at its default; uncommenting overrides.
-- (Implied) the file should be the single documented surface for operators.
+## Changes
 
-### Current config surface (env vars in `cmd/troubacore/main.go`)
+1. `core/internal/config` (or `cmd/troubacore/config.go` if it stays tiny): load
+   defaults → ini → env; expose the resolved struct; `PrintDefault()` for the generator.
+2. `main.go`: replace the ad-hoc `os.Getenv` reads with the resolved config; add
+   `--config` and `--print-default-config`. All reads already live in `main.go`
+   except `TROUBA_NO_MDNS` (checked inside `discovery.Advertise`) — hoist that
+   decision to the composition root (pass enabled/name in; keep Advertise never-fatal).
+3. `core/troubacore.example.ini` (generated) + the byte-equality test.
+4. ADR 0004; README operator note (file → env → flags, where the file lives).
+
+## Acceptance criteria
+
+- With no file, behavior is byte-for-byte today's (env-only) — existing tests + e2e
+  green untouched. With a file, its values apply; env overrides file (test both
+  directions on at least `addr` + `data_dir`); explicit `--config` to a missing path
+  fails startup with a clear error.
+- `--print-default-config` output == committed `troubacore.example.ini` (test-enforced);
+  every knob in the table appears, commented, with its default and a meaning comment;
+  `[smtp]` present, commented, marked not-yet-read.
+- `make test` + e2e green; no `TROUBA_*` name changes.
+
+## Out of scope
+
+- SMTP code; hot reload; config for the app/Studio (server-side only); flags for
+  individual knobs; changing any default.
+
+### Current config surface (env vars in `cmd/troubacore/main.go`) — reference
 
 | Env var | Meaning | Current default |
 |---|---|---|
@@ -48,29 +98,6 @@ below). There is no single place to see or set them, and no file. VLL's preferen
 | `TROUBA_NODE` | node binary (bake) | `node` |
 | `TROUBA_BAKE_CLI` | web/bake CLI path | `../web/bake/dist/cli.js` |
 | `TROUBA_DIE_WITH_PARENT` | dev: exit when parent dies | off |
-| `TROUBA_DUMP_PDF` | debug PDF dump | off |
 
-## Open decisions for the arch
-
-1. **Format.** VLL's first choice is INI. Candidate Go libs: `gopkg.in/ini.v1` (mature,
-   comment-friendly, sections). Alternative worth a mention: **TOML** (`BurntSushi/toml`)
-   — comment-friendly *and* typed/nested, very idiomatic in Go, but it's not INI/.properties.
-   `.properties` (Java-style) has no strong maintained Go lib. **Recommend INI** unless the
-   arch prefers TOML for typing. (JSON ruled out per VLL — no comments.)
-2. **Precedence.** Proposed: built-in defaults **<** config file **<** env vars **<** CLI
-   flags (most specific wins). This keeps every existing `TROUBA_*` working as an override
-   and lets the file be the documented baseline.
-3. **Location / discovery.** Proposed: default `./troubacore.ini` (or under the data dir?);
-   `--config <path>` / `TROUBA_CONFIG` to point elsewhere. Ship a
-   `troubacore.example.ini` (or generate `--print-default-config`) with **every knob
-   present and commented at its default**, per VLL's "commented-out defaults" ask.
-4. **First-cut scope.** Fold the 13 knobs above + reserve a commented `[smtp]` section
-   (host/port/from/user/pass/tls) as the forgotten-password forward hook. Nothing else.
-5. **New dependency.** This introduces the first config-file lib. Consistent with ADR
-   0002's "composition root owns backend choice" — loading stays in `main.go`; the rest of
-   core keeps depending only on the resolved values. Worth an ADR? (arch's call).
-
-## Non-goals
-
-No runtime-behavior change; env vars keep working (as overrides). Not touching the
-`TROUBA_*` names the tests/CI/Makefile rely on.
+(`TROUBA_DUMP_PDF`, listed in the original raise, is a test-only debug hook in
+`core/cmd/seed/pdf_encoding_test.go` — not server config, not in the file.)
