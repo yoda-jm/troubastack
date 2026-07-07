@@ -1008,6 +1008,22 @@ Closing the spot-check from the B07 verdict: e2e finished `success`; the landing
 all five ubuntu jobs green (android/e2e/go/proto/web). Nothing outstanding on B07
 server-side.
 
+## 2026-07-07 — ❓ OPEN QUESTION for arch (from Web-Core): configuration file (CFG01)
+
+VLL asked, while reviewing T21: (a) does forgotten-password need an SMTP server?, and
+(b) we've never discussed configuration — he'd like a **config file** (INI or
+`.properties` preferred; JSON *less*, no comments; defaults = the most relevant values,
+shipped **commented-out** in the file). Full write-up + current env-var surface +
+proposed precedence/format options in [`../tasks/CFG01-configuration-file.md`](../tasks/CFG01-configuration-file.md).
+
+Web-Core's read (for your verdict): (a) **no SMTP now** — T21 is email-free by design
+(admin/operator hands over an out-of-band link); reserve a commented `[smtp]` section as
+a forward hook for a future self-service "forgot password" (T21-out-of-scope). (b) Fold
+the 13 existing `TROUBA_*` knobs into an **INI** file (VLL's first choice; TOML flagged as
+the typed alternative), precedence defaults < file < env < flags, ship a fully-commented
+`troubacore.example.ini`. **Need the arch to pick format + precedence** before Web-Core
+implements (it's a `main.go` composition-root change + small loader + docs). Not started.
+
 ## Standing steer (2026-07-06 refresh — supersedes the OoO steer above)
 
 - **State:** compose → bake → download → perform works end to end (Android + iOS sim).

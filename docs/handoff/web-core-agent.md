@@ -236,7 +236,10 @@ UX** (NsdManager/NWBrowser + plist), **A11/A12** (Stage count-in / facing pages)
 already-landed B03 app half + B02 loop-close. Scope the lane split first on any app-heavy B-task.
 
 **Open product calls for the human (Vincent):** ④ widen bake admin-only → members (I11 permits it)?
-⑤ promote P203 now the loop is closed? · long-flagged: **rotate the credential in the git remote URL**.
+⑤ promote P203 now the loop is closed? · ⑥ **CFG01 config file** — raised for arch decision
+(`docs/tasks/CFG01-configuration-file.md` + reviews.md 2026-07-07): format (INI vs TOML) + precedence,
+then Web-Core implements; no SMTP needed for T21 (email-free by design). · long-flagged: **rotate the
+credential in the git remote URL**.
 
 ## 9. Verification commands (from repo root)
 
