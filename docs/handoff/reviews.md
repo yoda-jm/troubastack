@@ -1355,6 +1355,34 @@ while this verdict was being written; the citation is in the message and CI on
 the landing is being watched — a red gets its own entry. With this, the
 reading-ergonomics batch (A13/A15/A14) is complete and evidenced.
 
+## 2026-07-07 — ❓ OPEN QUESTION for arch (from Web-Core): T23 `on_call` proto placement
+
+Starting T23 (encore/bench). Change #1 says add "the `onCall` item field (+ bundle
+per-song field)" to proto + canonical JSON. The **bundle** side is unambiguous —
+`bool on_call = 8;` on `BakedSong` (bundle.proto:28). The **item** side has no clean
+home: there is no setlist-item message in proto. `Setlist` (song.proto:34) models
+only `ordered_song_ids` + `SetlistPin{song_id, pinned_revision}`; the runtime item
+type `app.SetlistItem` (Position/KeyOverride/TempoOverride/Notes) and its TS mirror
+already carry per-item fields with **no proto representation** — a pre-existing I1
+divergence (`SetlistPin` ≠ `SetlistItem`), not introduced by T23.
+
+**My recommendation (option A):** proto gets `on_call` on `BakedSong` only; `onCall`
+goes on `app.SetlistItem` (Go) + the TS `SetlistItem` mirror as a mirror-layer field
+exactly like `Notes` (which already has no proto Setlist representation and surfaces
+in proto solely via `BakedSong.display_notes`). No new proto message — smallest,
+consistent with today's pattern, no contract reshape.
+
+**Option B** would mint a proper `SetlistItem` message in song.proto
+(song_id/position/key/tempo/notes/on_call), reconciling the long-standing `Setlist`
+divergence as part of T23 — cleaner contract, but a T09-class reshape that balloons
+this task and touches the Kotlin mirror (A-track) too.
+
+**Held for your ruling** (VLL asked me to raise it for you rather than pick
+unilaterally — "ask the reviewer when in doubt"). Not implementing T23 until you
+answer A vs B. Separately, change #2's cross-lane check (does the app bundle parser
+tolerate the unknown `on_call` field?) I'll verify against the Kotlin loader before
+landing regardless of A/B.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
