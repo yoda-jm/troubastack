@@ -271,6 +271,14 @@ type SetlistItem struct {
 	KeyOverride   string `json:"keyOverride,omitempty"`
 	TempoOverride int    `json:"tempoOverride,omitempty"`
 	Notes         string `json:"notes,omitempty"`
+
+	// OnCall marks a "bench" item (T23): baked into the concert and jumpable on
+	// Stage, but outside the running order — it sorts after the main order and is
+	// excluded from the main numbering. A mirror-layer field like Notes: there is no
+	// proto setlist-item message (SetlistPin ≠ SetlistItem, a deliberate I1
+	// divergence deferred to P203); it reaches the wire only via the bundle's
+	// BakedSong.on_call. Absent = false = a normal main-order item.
+	OnCall bool `json:"onCall,omitempty"`
 }
 
 // Repo is the swappable persistence contract for the relational domain. It mirrors

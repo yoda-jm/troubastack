@@ -181,6 +181,83 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	}
 }
 
+// TestBake_BenchSortsAfterMain_flagsOnCall (T23): a bench (on-call) item is baked
+// AFTER the whole main order regardless of its position, and carries on_call in the
+// bundle; main entries stay on_call=false.
+func TestBake_BenchSortsAfterMain_flagsOnCall(t *testing.T) {
+	svc, eng, u, bandID, setlistID := seed(t) // seed adds one main song ("Song", pos 0)
+
+	mkSong := func(title string) string {
+		s, err := svc.CreateSong(u, bandID, title, "")
+		if err != nil {
+			t.Fatalf("create song %q: %v", title, err)
+		}
+		if _, err := svc.UploadSongFile(u, bandID, s.ID, "s.pdf", "application/pdf", []byte("%PDF-1.4 x")); err != nil {
+			t.Fatalf("upload %q: %v", title, err)
+		}
+		return s.ID
+	}
+
+	// Add the bench song EARLY (position 1) so position order alone would put it
+	// second — the on_call sort must still push it last.
+	benchSong := mkSong("Bench")
+	benchItem, err := svc.AddSetlistItem(u, bandID, setlistID, benchSong)
+	if err != nil {
+		t.Fatalf("add bench item: %v", err)
+	}
+	// Two more main songs after it (positions 2, 3).
+	mainC := mkSong("Cmain")
+	mainD := mkSong("Dmain")
+	for _, sid := range []string{mainC, mainD} {
+		if _, err := svc.AddSetlistItem(u, bandID, setlistID, sid); err != nil {
+			t.Fatalf("add main item: %v", err)
+		}
+	}
+	onCall := true
+	if _, err := svc.UpdateSetlistItem(u, bandID, setlistID, benchItem.ID, app.SetlistItemPatch{OnCall: &onCall}); err != nil {
+		t.Fatalf("set on-call: %v", err)
+	}
+
+	png := tinyPNG(t, 40, 56)
+	b := &Baker{
+		svc: svc, eng: eng,
+		raster:   fakeRaster{pages: 1, png: png},
+		overlays: fakeOverlays{png: png},
+		bakesDir: t.TempDir(),
+		now:      func() int64 { return 1700000000 },
+	}
+	cb, err := b.Bake(context.Background(), bandID, setlistID, u, false)
+	if err != nil {
+		t.Fatalf("bake: %v", err)
+	}
+	if len(cb.Songs) != 4 {
+		t.Fatalf("want 4 baked songs, got %d", len(cb.Songs))
+	}
+	// The three main songs come first, all on_call=false; the bench song is LAST.
+	for i, s := range cb.Songs[:3] {
+		if s.OnCall {
+			t.Errorf("song %d (%s) should be main (on_call=false)", i, s.SongID)
+		}
+	}
+	last := cb.Songs[3]
+	if !last.OnCall {
+		t.Errorf("last baked song should be the bench item (on_call=true)")
+	}
+	if last.SongID != benchSong {
+		t.Errorf("bench song should sort last despite position 1; got last=%s want=%s", last.SongID, benchSong)
+	}
+
+	// B07: the PERSONAL variant bake also includes the bench, flagged and last —
+	// the bench is a setlist-structure property, independent of which file resolves.
+	pcb, err := b.Bake(context.Background(), bandID, setlistID, u, true)
+	if err != nil {
+		t.Fatalf("personal bake: %v", err)
+	}
+	if len(pcb.Songs) != 4 || !pcb.Songs[3].OnCall || pcb.Songs[3].SongID != benchSong {
+		t.Fatalf("variant bake should include the bench last+flagged, got %+v", pcb.Songs)
+	}
+}
+
 // TestBake_ConcurrentSameSetlist_distinctRevs is the B04 guard: two bakes of the
 // same setlist running at once must mint DISTINCT revs (atomic rev claim), both fully
 // published (atomic rename), with no staging dir left visible.

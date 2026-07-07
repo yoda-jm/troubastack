@@ -121,6 +121,8 @@ export type SetlistItem = {
   keyOverride?: string;
   tempoOverride?: number;
   notes?: string;
+  // T23: a bench/on-call item — baked + jumpable on Stage, outside the running order.
+  onCall?: boolean;
   songTitle?: string;
   songArtist?: string;
 };
@@ -129,6 +131,7 @@ export type SetlistItemPatch = {
   keyOverride?: string;
   tempoOverride?: number;
   notes?: string;
+  onCall?: boolean;
 };
 
 /** A baked concert (the proto AvailableConcert shape, B03) — 64-bit ints arrive as

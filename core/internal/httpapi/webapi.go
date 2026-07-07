@@ -904,6 +904,7 @@ func (a *WebAPI) updateSetlistItem(w http.ResponseWriter, r *http.Request, u app
 		KeyOverride   *string `json:"keyOverride"`
 		TempoOverride *int    `json:"tempoOverride"`
 		Notes         *string `json:"notes"`
+		OnCall        *bool   `json:"onCall"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -912,6 +913,7 @@ func (a *WebAPI) updateSetlistItem(w http.ResponseWriter, r *http.Request, u app
 		KeyOverride:   in.KeyOverride,
 		TempoOverride: in.TempoOverride,
 		Notes:         in.Notes,
+		OnCall:        in.OnCall,
 	})
 	if err != nil {
 		writeErr(w, err)

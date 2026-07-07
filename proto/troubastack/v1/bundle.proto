@@ -37,6 +37,8 @@ message BakedSong {
   string display_notes = 5;              // setlist item Notes
   string key = 6;                        // setlist KeyOverride ("" = song default)
   int32 tempo = 7;                       // setlist TempoOverride (0 = song default)
+  bool on_call = 8;                      // T23: bench/encore song — baked + jumpable,
+                                         // outside the running order; false/absent = main
 }
 
 // Minted ONLY by an explicit admin bake (I11). `concert_rev` is a function of the

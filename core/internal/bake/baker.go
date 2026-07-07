@@ -188,6 +188,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 		DisplayNotes: item.Notes,
 		Key:          item.KeyOverride,
 		Tempo:        int32(item.TempoOverride),
+		OnCall:       item.OnCall, // bench membership rides into the bundle (T23)
 	}
 	// source_revision = the song's CURRENT head annotation revision. (There is no
 	// per-setlist-item revision pin today — SetlistItem carries no revision, and

@@ -651,6 +651,9 @@ func TestSetlistDuplicate(t *testing.T) {
 			unmarshalField(t, ib, "items", &items)
 			resp, _ := admin.do(http.MethodPatch, base+"/items/"+items[0].ID, map[string]any{"keyOverride": "Bb", "tempoOverride": 140, "notes": "half-time"})
 			mustStatus(t, resp, http.StatusOK)
+			// Bench the second item (T23) — the copy must carry the flag too.
+			resp, _ = admin.do(http.MethodPatch, base+"/items/"+items[1].ID, map[string]any{"onCall": true})
+			mustStatus(t, resp, http.StatusOK)
 
 			// Duplicate → 201, name "(copy)", distinct id.
 			resp, cb := admin.do(http.MethodPost, base+"/duplicate", nil)
@@ -677,6 +680,12 @@ func TestSetlistDuplicate(t *testing.T) {
 			if got[0].KeyOverride != "Bb" || got[0].TempoOverride != 140 || got[0].Notes != "half-time" {
 				t.Fatalf("copy override not carried: %+v", got[0])
 			}
+			if got[0].OnCall {
+				t.Fatalf("copy main item should not be on-call: %+v", got[0])
+			}
+			if !got[1].OnCall {
+				t.Fatalf("copy did not carry the bench/on-call flag: %+v", got[1])
+			}
 			// Copy items are independent (fresh ids).
 			if got[0].ID == items[0].ID {
 				t.Fatal("copy item reused a source item id")
@@ -696,6 +705,72 @@ func TestSetlistDuplicate(t *testing.T) {
 			resp, _ = outsider.do(http.MethodPost, base+"/duplicate", nil)
 			if resp.StatusCode < 400 {
 				t.Fatalf("outsider duplicate should be denied, got %d", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestSetlistBench (T23): benching an item (onCall) round-trips on both backends,
+// and a benched item sorts AFTER the whole main order regardless of its position;
+// moving it back restores the running order. Main numbering is by main-order index,
+// so the bench item never perturbs it.
+func TestSetlistBench(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			admin := newClient(t, repo)
+			band := admin.makeBand("alice", "Band")
+			a := admin.makeSong(band.ID, "Aaa")
+			b := admin.makeSong(band.ID, "Bbb")
+			c := admin.makeSong(band.ID, "Ccc")
+
+			_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists", map[string]string{"name": "Show"})
+			var sl app.Setlist
+			unmarshalField(t, body, "setlist", &sl)
+			base := "/api/bands/" + band.ID + "/setlists/" + sl.ID
+			for _, sng := range []app.Song{a, b, c} {
+				resp, _ := admin.do(http.MethodPost, base+"/items", map[string]string{"songId": sng.ID})
+				mustStatus(t, resp, http.StatusCreated)
+			}
+
+			get := func() []app.SetlistItem {
+				var items []app.SetlistItem
+				_, ib := admin.do(http.MethodGet, base, nil)
+				unmarshalField(t, ib, "items", &items)
+				return items
+			}
+			items := get() // a(0), b(1), c(2)
+
+			// Bench the MIDDLE item (b, position 1). It must sort last despite its
+			// low position, with onCall set; the other two keep their order.
+			resp, _ := admin.do(http.MethodPatch, base+"/items/"+items[1].ID, map[string]any{"onCall": true})
+			mustStatus(t, resp, http.StatusOK)
+			after := get()
+			if len(after) != 3 {
+				t.Fatalf("want 3 items, got %d", len(after))
+			}
+			if after[0].SongID != a.ID || after[1].SongID != c.ID {
+				t.Fatalf("main order should be [a c], got [%s %s]", after[0].SongID, after[1].SongID)
+			}
+			if after[0].OnCall || after[1].OnCall {
+				t.Fatalf("main items must not be on-call: %+v", after[:2])
+			}
+			if after[2].SongID != b.ID || !after[2].OnCall {
+				t.Fatalf("benched item should sort last with onCall=true, got %+v", after[2])
+			}
+
+			// Move it back into the running order → original position order restored.
+			resp, _ = admin.do(http.MethodPatch, base+"/items/"+items[1].ID, map[string]any{"onCall": false})
+			mustStatus(t, resp, http.StatusOK)
+			restored := get()
+			if restored[0].SongID != a.ID || restored[1].SongID != b.ID || restored[2].SongID != c.ID {
+				t.Fatalf("moving back should restore [a b c], got [%s %s %s]",
+					restored[0].SongID, restored[1].SongID, restored[2].SongID)
+			}
+			for _, it := range restored {
+				if it.OnCall {
+					t.Fatalf("no item should be on-call after moving back: %+v", it)
+				}
 			}
 		})
 	}

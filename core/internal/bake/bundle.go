@@ -49,6 +49,7 @@ type BakedSong struct {
 	DisplayNotes   string       `json:"displayNotes,omitempty"` // setlist item Notes (B02)
 	Key            string       `json:"key,omitempty"`          // setlist KeyOverride
 	Tempo          int32        `json:"tempo,omitempty"`        // setlist TempoOverride
+	OnCall         bool         `json:"onCall,omitempty"`       // bench/encore item — jumpable, outside the running order (T23)
 }
 
 // ConcertBundle is the manifest of a baked concert (proto ConcertBundle, I11/I12).

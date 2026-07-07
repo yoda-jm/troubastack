@@ -1423,7 +1423,17 @@ func (s *Service) Setlist(caller User, bandID, setlistID string) (SetlistDetail,
 	if err != nil {
 		return SetlistDetail{}, err
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Position < items[j].Position })
+	// Main order first, then the bench (on-call) items — the order the baker emits
+	// and Studio sections on (T23). Within each group, by Position then ID.
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].OnCall != items[j].OnCall {
+			return !items[i].OnCall // main (false) before bench (true)
+		}
+		if items[i].Position != items[j].Position {
+			return items[i].Position < items[j].Position
+		}
+		return items[i].ID < items[j].ID
+	})
 	views := make([]SetlistItemView, 0, len(items))
 	for _, it := range items {
 		v := SetlistItemView{SetlistItem: it}
@@ -1541,6 +1551,7 @@ type SetlistItemPatch struct {
 	KeyOverride   *string
 	TempoOverride *int
 	Notes         *string
+	OnCall        *bool // move to/from the bench (T23)
 }
 
 // UpdateSetlistItem patches an item's overrides/notes (any member).
@@ -1563,6 +1574,9 @@ func (s *Service) UpdateSetlistItem(caller User, bandID, setlistID, itemID strin
 	}
 	if p.Notes != nil {
 		it.Notes = *p.Notes
+	}
+	if p.OnCall != nil {
+		it.OnCall = *p.OnCall
 	}
 	if err := s.repo.UpdateSetlistItem(it); err != nil {
 		return SetlistItem{}, err
@@ -1649,6 +1663,7 @@ func (s *Service) DuplicateSetlist(caller User, bandID, setlistID string) (Setli
 			KeyOverride:   it.KeyOverride,
 			TempoOverride: it.TempoOverride,
 			Notes:         it.Notes,
+			OnCall:        it.OnCall, // bench membership copies too (T23)
 		}); err != nil {
 			return Setlist{}, err
 		}

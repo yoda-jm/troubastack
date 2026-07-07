@@ -39,3 +39,11 @@ message Setlist {
   repeated SetlistPin pins = 5;
   bool frozen = 6;                       // hold pins + mute notifications
 }
+
+// NOTE (I1 divergence, deliberate): the runtime setlist ITEM type carries
+// per-item fields with no representation here — position, key/tempo overrides,
+// notes, and the T23 `on_call` (bench) flag live on the Go/TS `SetlistItem`
+// mirror and reach the wire only through the baked bundle (`BakedSong`, see
+// bundle.proto). Minting a proper `SetlistItem` message that supersedes
+// `ordered_song_ids` + `SetlistPin` is a contract reshape deferred to P203
+// (codegen/mirror strategy), not folded into feature tasks.

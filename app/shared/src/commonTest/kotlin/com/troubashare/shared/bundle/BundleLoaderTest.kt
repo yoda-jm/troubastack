@@ -139,4 +139,20 @@ class BundleLoaderTest {
         assertContains(text, "\"concertRev\":\"7\"")
         assertContains(text, "\"bakedAt\":\"1700000000\"")
     }
+
+    @Test
+    fun tolerates_unknown_onCall_field() {
+        // T23 adds `on_call` to the bundle's BakedSong. This app reader predates that
+        // field (no `onCall` in BakedSong): the loader must ignore the unknown key and
+        // load the bundle normally — the additive-field backward-compat guarantee, PROVEN
+        // (not just cited) per the T23 cross-lane check.
+        val manifest = """
+            {"concertId":"c1","songs":[{"songId":"s1","onCall":true,"pages":[
+              {"pageRasterRef":"blobs/p0.webp","overlays":[]}
+            ]}]}
+        """.trimIndent()
+        val files = filesWith(manifest, blobs = mapOf("blobs/p0.webp" to "r"))
+        val loaded = assertIs<LoadResult.Loaded>(loader.load(DIR, files))
+        assertEquals("s1", loaded.bundle.songs.single().songId, "unknown onCall must not break the load")
+    }
 }

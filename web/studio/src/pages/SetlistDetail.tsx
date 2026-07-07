@@ -32,7 +32,11 @@ export function SetlistDetail() {
         api.listSongs(bandId),
         api.getBand(bandId),
       ]);
-      items.sort((a, b) => a.position - b.position);
+      // Main order first, then bench; position within each group (matches the server
+      // and lets the Items view slice the two groups cleanly — T23).
+      items.sort(
+        (a, b) => Number(a.onCall ?? false) - Number(b.onCall ?? false) || a.position - b.position,
+      );
       setSetlist(setlist);
       setItems(items);
       setSongs(songs);
@@ -333,22 +337,41 @@ function Items({
     }
   }
 
-  async function move(index: number, dir: -1 | 1) {
+  // Main running order vs the bench (on-call). The server already returns
+  // main-then-bench; splitting here keeps the main numbering independent of the
+  // bench (T23).
+  const main = items.filter((it) => !it.onCall);
+  const bench = items.filter((it) => it.onCall);
+
+  // move reorders WITHIN a group, then sends the full order (the other group
+  // unchanged) since ReorderSetlist rewrites every item's position.
+  async function move(group: "main" | "bench", index: number, dir: -1 | 1) {
+    const arr = group === "main" ? main.slice() : bench.slice();
     const other = index + dir;
-    if (other < 0 || other >= items.length) return;
-    const reordered = items.slice();
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(other, 0, moved);
+    if (other < 0 || other >= arr.length) return;
+    const [moved] = arr.splice(index, 1);
+    arr.splice(other, 0, moved);
+    const full = group === "main" ? [...arr, ...bench] : [...main, ...arr];
     setError(null);
     try {
       await api.reorderSetlist(
         bandId,
         setlistId,
-        reordered.map((i) => i.id),
+        full.map((i) => i.id),
       );
       await reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to reorder");
+    }
+  }
+
+  async function setOnCall(itemId: string, onCall: boolean) {
+    setError(null);
+    try {
+      await api.updateSetlistItem(bandId, setlistId, itemId, { onCall });
+      await reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to move item");
     }
   }
 
@@ -378,22 +401,55 @@ function Items({
 
       <ErrorBanner message={error} />
 
-      {items.length === 0 ? (
+      {main.length === 0 ? (
         <p className="muted" data-testid="items-empty">
-          No songs in this setlist yet.
+          No songs in the running order yet.
         </p>
       ) : (
         <ul className="list" data-testid="items-list">
-          {items.map((item, i) => (
+          {main.map((item, i) => (
             <ItemRow
               key={item.id}
+              group="main"
+              label={`${i + 1}.`}
               bandId={bandId}
               setlistId={setlistId}
               item={item}
               index={i}
-              count={items.length}
+              count={main.length}
               onMove={move}
               onRemove={remove}
+              onSetOnCall={setOnCall}
+              reload={reload}
+            />
+          ))}
+        </ul>
+      )}
+
+      <h3 style={{ marginTop: "1rem" }}>Bench (on call)</h3>
+      <p className="muted">
+        Encores and likely requests: baked into the concert and jumpable on stage, but
+        outside the running order and its numbering.
+      </p>
+      {bench.length === 0 ? (
+        <p className="muted" data-testid="bench-empty">
+          No on-call songs. Use “To bench” on a song above to add one.
+        </p>
+      ) : (
+        <ul className="list" data-testid="bench-list">
+          {bench.map((item, i) => (
+            <ItemRow
+              key={item.id}
+              group="bench"
+              label="•"
+              bandId={bandId}
+              setlistId={setlistId}
+              item={item}
+              index={i}
+              count={bench.length}
+              onMove={move}
+              onRemove={remove}
+              onSetOnCall={setOnCall}
               reload={reload}
             />
           ))}
@@ -404,6 +460,8 @@ function Items({
 }
 
 function ItemRow({
+  group,
+  label,
   bandId,
   setlistId,
   item,
@@ -411,15 +469,19 @@ function ItemRow({
   count,
   onMove,
   onRemove,
+  onSetOnCall,
   reload,
 }: {
+  group: "main" | "bench";
+  label: string;
   bandId: string;
   setlistId: string;
   item: SetlistItem;
   index: number;
   count: number;
-  onMove: (index: number, dir: -1 | 1) => void;
+  onMove: (group: "main" | "bench", index: number, dir: -1 | 1) => void;
   onRemove: (itemId: string) => void;
+  onSetOnCall: (itemId: string, onCall: boolean) => void;
   reload: () => Promise<void>;
 }) {
   const [keyOverride, setKeyOverride] = useState(item.keyOverride ?? "");
@@ -448,9 +510,9 @@ function ItemRow({
   }
 
   return (
-    <li data-testid="item-row" style={{ flexWrap: "wrap" }}>
+    <li data-testid={group === "bench" ? "bench-row" : "item-row"} style={{ flexWrap: "wrap" }}>
       <span data-testid="item-title">
-        {index + 1}. {item.songTitle ?? item.songId}
+        {label} {item.songTitle ?? item.songId}
         {item.songArtist ? <span className="muted"> — {item.songArtist}</span> : null}
       </span>
       <span className="actions">
@@ -482,7 +544,7 @@ function ItemRow({
           type="button"
           data-testid="item-up"
           disabled={index === 0}
-          onClick={() => onMove(index, -1)}
+          onClick={() => onMove(group, index, -1)}
         >
           ↑
         </button>
@@ -490,10 +552,29 @@ function ItemRow({
           type="button"
           data-testid="item-down"
           disabled={index === count - 1}
-          onClick={() => onMove(index, 1)}
+          onClick={() => onMove(group, index, 1)}
         >
           ↓
         </button>
+        {group === "main" ? (
+          <button
+            type="button"
+            data-testid="item-tobench"
+            title="Move to the bench (on call, outside the running order)"
+            onClick={() => onSetOnCall(item.id, true)}
+          >
+            To bench
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid="item-tomain"
+            title="Move back into the running order"
+            onClick={() => onSetOnCall(item.id, false)}
+          >
+            To order
+          </button>
+        )}
         <button type="button" data-testid="item-remove" onClick={() => onRemove(item.id)}>
           Remove
         </button>
