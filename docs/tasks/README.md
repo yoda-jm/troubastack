@@ -42,15 +42,17 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 ## Queue state (2026-07-07, from the review-gate log)
 
 - **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
-  (deterministic listings), **CFG01** (config file) · A01–A06, **A08–A15 (the full
+  (deterministic listings), **CFG01** (config file), **T23** (encore/bench — server
+  side; drawer grouping is the open A-track follow-up) · A01–A06, **A08–A15 (the full
   Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
   page-doubling fix + the demo bundle regen (12 true pages). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T23** (encore/bench songs — web-core, next) · **T25** (chart
-  preview pane, S) · **T26** (song titles in the bundle, S — surfaced by A15's drawer;
-  coordinate the proto file with T23) · **B06 app half** (Connect-screen browse,
+- **Open, unblocked:** **T25** (chart preview pane, S — web-core) · **T26** (song
+  titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
+  the **T23 A-track follow-up** (drawer groups "On call" below the main order —
+  mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
   mobile lane) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —

@@ -1414,6 +1414,52 @@ Riders, all now written into the specs:
 
 T23 is unblocked; the spec's change #1 is amended to match this ruling.
 
+## 2026-07-07 — T23 (`59ba8e2`, landed per queue + VLL): ✅ APPROVED — ruling followed exactly, every criterion re-verified live
+
+The strongest landing of the day. Re-verified independently, not from the report:
+
+- **Fresh:** vet + full `go test ./...` green; `buf lint` clean; `tsc -b studio`
+  clean; the new `encore-bench.spec.ts` passes in the review worktree (deps now
+  installed there); **the Kotlin tolerance test re-proven by me** —
+  `:shared:testDebugUnitTest --tests '*BundleLoaderTest*' --rerun-tasks` green,
+  including the new unknown-`onCall` case (a realistic manifest, not a stub) —
+  rider 3 was PROVEN twice over.
+- **Live bench bake:** on an isolated :8097 server I benched the POSITION-0 item
+  and baked — the bundle emits the main song first and the benched song LAST with
+  `"onCall": true`, while the main entry omits the field entirely (`omitempty` ⇒
+  old readers see byte-identical shapes for main songs). Exactly decision 2.
+- **Ruling compliance verified by read:** proto gains ONLY `bool on_call = 8;` on
+  `BakedSong` (field 9 left for T26); the `message Setlist` divergence comment is
+  in, wording faithful to the ruling; the item flag rides `app.SetlistItem` + the
+  TS mirror like `Notes`; `Service.Setlist` orders main-then-bench with
+  Position/ID tiebreaks in ONE place (baker and Studio both consume it);
+  `DuplicateSetlist` copies the flag (T20 interplay, tested); the PATCH endpoint
+  takes `onCall` through the existing member gate.
+- **Studio pixels:** benching the middle song renumbers the running order
+  (1. Aaa / 2. Ccc), the "Bench (on call)" section holds the item with To
+  order/overrides/Remove intact, and the explainer line is honest about what the
+  bench means. Screenshot taken via a scratch clone of the committed spec.
+- Citation present and accurate (queue + VLL + the ruling SHA).
+- **CI on the landing: 4/5 — e2e RED**, and the lane's diagnosis + fix-forward
+  are both right (next entry). My local pass of the same spec (fresh, review
+  worktree) is consistent with the flake being runner-speed-dependent, not a
+  product bug: go/web/proto/android all green, and the failing assertion was the
+  test's own racing add loop.
+
+## 2026-07-07 — T23 e2e de-flake (`c8fb34b`, fix-forward): ✅ APPROVED — closes the landing's red
+
+Test-only (9 lines, `encore-bench.spec.ts`): the spec added three songs
+back-to-back while add is async (POST + reload resets the select), so CI's slower
+runner saw 2 rows at the 3-row assertion. The fix waits for each row before the
+next add — the same discipline the other specs use. Verified the diff touches no
+product code. **T23 closes when c8fb34b's CI is 5/5** — being watched; a red gets
+its own entry.
+
+**Remaining T23 residue, routed:** decision 4 — the Stage drawer grouping "On
+call" below the main order — is the **A-track follow-up** (mobile lane; pairs
+naturally with T26's title plumbing, one drawer touch for both). USER-JOURNEY's
+encore gap is closed server-side.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
