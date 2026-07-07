@@ -1246,6 +1246,34 @@ verdict ("land with the usual gate note referencing this entry") and the message
 cites it — gate rule satisfied. **T22 is now fully closed; T19's only open
 residues are the T24/T25 follow-ups.**
 
+## 2026-07-07 — A15 code half (`1eeb1c5`, at the gate): ✅ APPROVED — evidence screenshot finalizes (A08 pattern)
+
+Fresh verify in the review worktree at the branch head: `:shared:check` + both iOS
+klib cross-compiles + `:androidApp:assembleDebug` green (`--rerun-tasks`);
+`SongDrawerTest` 3/3 (currentSong-for-page boundaries, meta-line
+composition/omission, out-of-range null). Read in full — per spec on every
+decision, with two calls worth naming:
+
+- **Gestures enabled only while open** is a genuinely good stage-safety call the
+  spec didn't ask for: a left-edge swipe can never open the drawer mid-performance
+  and fight the page-turn swipe; open is the Songs button only, close is
+  scrim/back/swipe.
+- **`songMetaLine` delegates to A08's `metaStripText`** — one metadata format, no
+  fork; the drawer line includes tempo (correct — the drawer has no A11 chip),
+  read from the song's first page where the setlist overrides ride.
+
+`NavigationDrawerItem(selected = i == state.currentSong)` gives the highlight;
+jump goes through the existing `goToSong` (spread-aligned in two-up via A12);
+read-only throughout (I12). The dropdown is fully replaced, trigger kept in place.
+Authorization is cited in the message ("landed per VLL … Fable post-hoc review to
+follow") and the lane is correctly holding the branch at the gate — the citation
+habit is back.
+
+**To finalize:** the spec's evidence criterion is a screenshot (drawer open,
+mid-concert, current-song highlight visible) — the message's described tour is not
+a substitute where the spec names pixels. Push the evidence commit on the branch
+(batch with A14's if the emulator is loaded), then land both commits at ubuntu 5/5.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
