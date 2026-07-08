@@ -39,41 +39,63 @@ export function Invites() {
 
   return (
     <div className="page">
-      <h1>Pending invites</h1>
+      <header className="phead">
+        <div>
+          <div className="eyebrow">Invitations</div>
+          <h1 className="title">Pending invites</h1>
+          <div className="sub">Bands that have invited you — accept to join.</div>
+        </div>
+      </header>
+      <div className="staff sig" aria-hidden="true" />
       <ErrorBanner message={error} />
 
       {invites.length === 0 ? (
-        <p className="muted" data-testid="invites-empty">
-          No pending invites.
-        </p>
+        <section className="panel">
+          <div className="panel-body">
+            <p className="muted" data-testid="invites-empty" style={{ margin: 0 }}>
+              No pending invites.
+            </p>
+          </div>
+        </section>
       ) : (
-        <ul className="list" data-testid="invites-list">
-          {invites.map((inv) => (
-            <li key={inv.id} data-testid="invite-row">
-              <span>
-                Invite to band <code>{inv.bandId}</code> ({inv.kind}: {inv.identifier})
-              </span>
-              <span className="actions">
-                <button
-                  type="button"
-                  data-testid="invite-accept"
-                  disabled={busyId === inv.id}
-                  onClick={() => act(inv.id, "accept")}
-                >
-                  Accept
-                </button>
-                <button
-                  type="button"
-                  data-testid="invite-decline"
-                  disabled={busyId === inv.id}
-                  onClick={() => act(inv.id, "decline")}
-                >
-                  Decline
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Invitations</h2>
+            <span className="count">{invites.length}</span>
+          </div>
+          <div className="rows" data-testid="invites-list">
+            {invites.map((inv) => (
+              <div className="row" key={inv.id} data-testid="invite-row">
+                <div className="song">
+                  <div className="name">Band invitation</div>
+                  <div className="by">
+                    {inv.kind}: {inv.identifier}
+                  </div>
+                </div>
+                <div className="rowacts">
+                  <button
+                    type="button"
+                    className="primary btn-sm"
+                    data-testid="invite-accept"
+                    disabled={busyId === inv.id}
+                    onClick={() => act(inv.id, "accept")}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-sm"
+                    data-testid="invite-decline"
+                    disabled={busyId === inv.id}
+                    onClick={() => act(inv.id, "decline")}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

@@ -825,3 +825,7 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   .row-edit .form-grid { grid-template-columns: 1fr 1fr; }
   .phead .head-actions { margin-left: 0; width: 100%; }
 }
+
+/* panel toolbar (a disclosure/action strip at the top of a panel body) + list polish */
+.panel-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.song-list .song-link-title { font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; }

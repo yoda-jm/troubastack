@@ -49,11 +49,20 @@ export function BandDetail() {
 
   return (
     <div className="page">
-      <Link to="/bands">&larr; Bands</Link>
-      <h1 data-testid="band-title">{band.name}</h1>
-      <p className="muted">
-        Your role: <strong data-testid="my-role">{myRole}</strong>
-      </p>
+      <Link className="crumb" to="/bands">
+        &larr; Bands
+      </Link>
+      <header className="phead">
+        <div>
+          <div className="eyebrow">Band</div>
+          <h1 className="title" data-testid="band-title">
+            {band.name}
+          </h1>
+          <div className="sub">
+            Your role: <strong data-testid="my-role">{myRole}</strong>
+          </div>
+        </div>
+      </header>
 
       <SectionTabs bandId={bandId} active="overview" showSettings={myRole === "admin"} />
 
@@ -104,55 +113,60 @@ function Members({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
   }
 
   return (
-    <section className="card">
-      <div className="card-head">
+    <section className="panel">
+      <div className="panel-head">
         <h2>Members</h2>
-        {myRole === "admin" && (
-          <NewItem label="Invite member" testId="invite-toggle">
-            {(close) => (
-              <form
-                onSubmit={(e) => void onInvite(e).then((ok) => ok && close())}
-                className="inline-form"
-                data-testid="invite-form"
-              >
-                <input
-                  data-testid="invite-identifier"
-                  placeholder="Username or email"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  required
-                />
-                <button type="submit" data-testid="invite-submit" disabled={busy}>
-                  Invite
-                </button>
-                <button type="button" className="ghost-btn" onClick={close}>
-                  Cancel
-                </button>
-              </form>
-            )}
-          </NewItem>
-        )}
+        <span className="count">{members.length}</span>
       </div>
-      <ul className="list" data-testid="members-list">
-        {members.map((m) => (
-          <li key={m.user.id} data-testid="member-row" className="member-row">
-            <span className="member-identity">
-              <Avatar user={m.user} size={28} />
-              <span className="member-name">{m.user.displayName}</span>
-              <span className="muted member-handle">@{m.user.username}</span>
-            </span>
-            <span className="chip member-role">{label(m.role)}</span>
-            {myRole === "admin" && <MemberResetAction bandId={bandId} userId={m.user.id} />}
-          </li>
-        ))}
-      </ul>
+      <div className="panel-body">
+        {myRole === "admin" && (
+          <div className="panel-toolbar">
+            <NewItem label="Invite member" testId="invite-toggle">
+              {(close) => (
+                <form
+                  onSubmit={(e) => void onInvite(e).then((ok) => ok && close())}
+                  className="inline-form"
+                  data-testid="invite-form"
+                >
+                  <input
+                    data-testid="invite-identifier"
+                    placeholder="Username or email"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    required
+                  />
+                  <button type="submit" className="primary" data-testid="invite-submit" disabled={busy}>
+                    Invite
+                  </button>
+                  <button type="button" className="ghost-btn" onClick={close}>
+                    Cancel
+                  </button>
+                </form>
+              )}
+            </NewItem>
+          </div>
+        )}
+        <ul className="list member-list" data-testid="members-list">
+          {members.map((m) => (
+            <li key={m.user.id} data-testid="member-row" className="member-row">
+              <span className="member-identity">
+                <Avatar user={m.user} size={30} />
+                <span className="member-name">{m.user.displayName}</span>
+                <span className="muted member-handle">@{m.user.username}</span>
+              </span>
+              <span className="chip member-role">{label(m.role)}</span>
+              {myRole === "admin" && <MemberResetAction bandId={bandId} userId={m.user.id} />}
+            </li>
+          ))}
+        </ul>
 
-      {notice && (
-        <p className="notice" data-testid="invite-notice">
-          {notice}
-        </p>
-      )}
-      <ErrorBanner message={error} />
+        {notice && (
+          <p className="notice" data-testid="invite-notice">
+            {notice}
+          </p>
+        )}
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }
@@ -275,57 +289,62 @@ function Songs({ bandId }: { bandId: string }) {
   }
 
   return (
-    <section className="card">
-      <div className="card-head">
+    <section className="panel">
+      <div className="panel-head">
         <h2>Songs</h2>
-        <NewItem label="Add song" testId="new-song-btn">
-          {(close) => (
-            <form
-              onSubmit={(e) => void onCreate(e).then((ok) => ok && close())}
-              className="inline-form"
-            >
-              <input
-                data-testid="song-title"
-                placeholder="Song title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-              />
-              <input
-                data-testid="song-artist"
-                placeholder="Artist (optional)"
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-              />
-              <button type="submit" data-testid="create-song" disabled={busy}>
-                Add song
-              </button>
-              <button type="button" className="ghost-btn" onClick={close}>
-                Cancel
-              </button>
-            </form>
-          )}
-        </NewItem>
+        <span className="count">{songs.length}</span>
       </div>
+      <div className="panel-body">
+        <div className="panel-toolbar">
+          <NewItem label="Add song" testId="new-song-btn">
+            {(close) => (
+              <form
+                onSubmit={(e) => void onCreate(e).then((ok) => ok && close())}
+                className="inline-form"
+              >
+                <input
+                  data-testid="song-title"
+                  placeholder="Song title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
+                <input
+                  data-testid="song-artist"
+                  placeholder="Artist (optional)"
+                  value={artist}
+                  onChange={(e) => setArtist(e.target.value)}
+                />
+                <button type="submit" className="primary" data-testid="create-song" disabled={busy}>
+                  Add song
+                </button>
+                <button type="button" className="ghost-btn" onClick={close}>
+                  Cancel
+                </button>
+              </form>
+            )}
+          </NewItem>
+        </div>
 
-      <ErrorBanner message={error} />
+        <ErrorBanner message={error} />
 
-      {songs.length === 0 ? (
-        <p className="muted" data-testid="songs-empty">
-          No songs yet.
-        </p>
-      ) : (
-        <ul className="list" data-testid="songs-list">
-          {songs.map((s) => (
-            <li key={s.id}>
-              <Link to={`/bands/${bandId}/songs/${s.id}`} data-testid="song-link">
-                {s.title}
-                {s.artist ? <span className="muted"> — {s.artist}</span> : null}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+        {songs.length === 0 ? (
+          <p className="muted" data-testid="songs-empty">
+            No songs yet — add your first one.
+          </p>
+        ) : (
+          <ul className="list song-list" data-testid="songs-list">
+            {songs.map((s) => (
+              <li key={s.id}>
+                <Link to={`/bands/${bandId}/songs/${s.id}`} data-testid="song-link">
+                  <span className="song-link-title">{s.title}</span>
+                  {s.artist ? <span className="muted"> — {s.artist}</span> : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
