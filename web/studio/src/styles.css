@@ -511,6 +511,43 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .edit-canvas.tool-ellipse,
 .edit-canvas.tool-highlight { cursor: crosshair; }
 
+/* Floating selection toolbar (T27 stage 2): anchored at the selected object's
+   bbox and lifted just above it, floating over the canvas. The anchor is inert;
+   only the bar itself takes pointer events, so clicks elsewhere still reach the
+   wet canvas. No layout shift (absolute over the canvas). */
+.sel-toolbar-anchor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5; /* above the wet canvas + selection overlay */
+}
+.sel-toolbar {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, -6px);
+  display: flex; align-items: center; gap: .1rem;
+  padding: .2rem .25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.sel-toolbar button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  border: none; background: transparent; border-radius: 4px;
+  color: var(--fg); cursor: pointer;
+}
+.sel-toolbar button:hover { background: var(--surface-2); }
+.sel-toolbar button.danger:hover { background: color-mix(in srgb, #ef4444 18%, var(--surface)); color: #ef4444; }
+.sel-toolbar .sel-color { display: inline-flex; width: 26px; height: 26px; }
+.sel-toolbar .sel-color input[type="color"] {
+  width: 26px; height: 26px; padding: 0;
+  border: none; background: transparent; cursor: pointer;
+}
+
 .editor-toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem;
   padding: .6rem .9rem;

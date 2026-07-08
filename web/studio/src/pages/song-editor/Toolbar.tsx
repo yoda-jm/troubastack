@@ -375,6 +375,76 @@ export function EditorToolbar({
 }
 
 // ===========================================================================
+// Selection toolbar (T27 stage 2) — a small floating bar by a selected object
+// ===========================================================================
+
+/** A compact floating toolbar shown next to the single, active-editable selection:
+ *  colour · bring-to-front · send-to-back · duplicate · delete. It floats OVER the
+ *  canvas (position handled by the caller) with its own pointer-events, and stops
+ *  pointerdown from reaching the wet canvas underneath (which would start a marquee
+ *  / clear the selection). Drives off the existing selection + object mutations —
+ *  no new layout, no shift. */
+export function SelectionToolbar({
+  color,
+  onColor,
+  onBringToFront,
+  onSendToBack,
+  onDuplicate,
+  onDelete,
+}: {
+  color: string;
+  onColor: (c: string) => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className="sel-toolbar"
+      data-testid="sel-toolbar"
+      role="toolbar"
+      aria-label="Selected annotation"
+      // Keep clicks/drags on the bar from reaching the wet canvas below.
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <label className="sel-color" title="Colour">
+        <input
+          type="color"
+          data-testid="sel-color"
+          value={color}
+          onChange={(e) => onColor(e.target.value)}
+          aria-label="Colour"
+        />
+      </label>
+      <button type="button" data-testid="sel-front" title="Bring to front" aria-label="Bring to front" onClick={onBringToFront}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <rect x="2" y="2" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" opacity="0.5" />
+          <rect x="5" y="5" width="9" height="9" rx="1" fill="currentColor" />
+        </svg>
+      </button>
+      <button type="button" data-testid="sel-back" title="Send to back" aria-label="Send to back" onClick={onSendToBack}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <rect x="5" y="5" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" opacity="0.5" />
+          <rect x="2" y="2" width="9" height="9" rx="1" fill="currentColor" />
+        </svg>
+      </button>
+      <button type="button" data-testid="sel-duplicate" title="Duplicate" aria-label="Duplicate" onClick={onDuplicate}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <rect x="2" y="2" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          <rect x="5" y="5" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+        </svg>
+      </button>
+      <button type="button" data-testid="sel-delete" className="danger" title="Delete" aria-label="Delete" onClick={onDelete}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path d="M3 4h10M6 4V3h4v1M5 4l.7 9h4.6L11 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+// ===========================================================================
 // Edit canvas — per-page pointer capture + wet-object rendering
 // ===========================================================================
 

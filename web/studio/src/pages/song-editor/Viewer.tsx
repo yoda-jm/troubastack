@@ -693,6 +693,61 @@ export function Viewer({
     [doc.objects, isObjectEditableNow],
   );
 
+  // ---- selection-toolbar actions (T27 stage 2) ---------------------------
+  // Recolor the selected object (a scoped setStyle carrying only a new color).
+  const setObjectColor = useCallback(
+    (uuid: string, color: string) => {
+      const obj = doc.objects.find((o) => o.uuid === uuid);
+      if (!obj) return;
+      restyleObject(uuid, { ...obj.style, color });
+    },
+    [doc.objects, restyleObject],
+  );
+
+  // Bring-to-front / send-to-back WITHIN the object's layer+page: compute a new
+  // `order` from the current siblings (max+1 / min−1) and send a `reorder` (gated
+  // + LWW server-side). Only the active-editable selection can be reordered.
+  const reorderSelected = useCallback(
+    (uuid: string, dir: "front" | "back") => {
+      if (!syncRef.current) return;
+      const obj = doc.objects.find((o) => o.uuid === uuid);
+      if (!obj || !isObjectEditableNow(obj)) return;
+      const siblings = doc.objects.filter(
+        (o) => o.uuid !== uuid && o.layerId === obj.layerId && o.page === obj.page,
+      );
+      if (siblings.length === 0) return; // nothing to move relative to
+      const orders = siblings.map((o) => o.order ?? 0);
+      const nextOrder =
+        dir === "front" ? Math.max(...orders) + 1 : Math.min(...orders) - 1;
+      if (nextOrder === (obj.order ?? 0)) return; // already there
+      syncRef.current.reorderObject({ ...obj, order: nextOrder });
+    },
+    [doc.objects, isObjectEditableNow],
+  );
+
+  // Duplicate the selected object: a copy on the SAME (active editable) layer,
+  // nudged down-right so it's visibly distinct, and selected in its place.
+  const duplicateSelected = useCallback(
+    (uuid: string) => {
+      if (!syncRef.current) return;
+      const obj = doc.objects.find((o) => o.uuid === uuid);
+      if (!obj || !isObjectEditableNow(obj)) return;
+      const off = 0.02;
+      const copy: AnnotationObject = {
+        ...obj,
+        uuid: crypto.randomUUID(),
+        points: obj.points.map((p) => ({
+          ...p,
+          x: Math.min(1, p.x + off),
+          y: Math.min(1, p.y + off),
+        })),
+      };
+      syncRef.current.createObject(copy);
+      setSelectedUuids([copy.uuid]);
+    },
+    [doc.objects, isObjectEditableNow],
+  );
+
   // Scroll the page that contains an object into view (objects live on canvas,
   // so "scroll into view" means bringing its page WRAPPER on-screen). The viewer
   // renders ALL pages in one scroll column, so this works cross-page: clicking a
@@ -1400,6 +1455,10 @@ export function Viewer({
                   onCommitDraw={commitDraw}
                   onCommitMove={commitMove}
                   onCommitResize={commitResize}
+                  onReorder={reorderSelected}
+                  onDuplicate={duplicateSelected}
+                  onSetColor={setObjectColor}
+                  onDelete={deleteSelected}
                 />
               </div>
             ))}
@@ -1435,6 +1494,10 @@ export function Viewer({
                 onCommitDraw={commitDraw}
                 onCommitMove={commitMove}
                 onCommitResize={commitResize}
+                onReorder={reorderSelected}
+                onDuplicate={duplicateSelected}
+                onSetColor={setObjectColor}
+                onDelete={deleteSelected}
               />
             </div>
           )}

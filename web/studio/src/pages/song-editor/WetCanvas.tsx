@@ -28,6 +28,7 @@ import {
   type Tool,
 } from "../../editor";
 import { buildWet, compareObjectZ, measureTextWidth, toInkObject, type PRPoint, type LayerVisibility } from "./helpers";
+import { SelectionToolbar } from "./Toolbar";
 
 export function EditCanvas({
   page,
@@ -46,6 +47,10 @@ export function EditCanvas({
   onCommitDraw,
   onCommitMove,
   onCommitResize,
+  onReorder,
+  onDuplicate,
+  onSetColor,
+  onDelete,
 }: {
   page: number;
   tool: Tool;
@@ -70,6 +75,12 @@ export function EditCanvas({
   onCommitDraw: (tool: DrawTool, page: number, path: PRPoint[], text?: string) => void;
   onCommitMove: (obj: AnnotationObject) => void;
   onCommitResize: (obj: AnnotationObject) => void;
+  // Selection-toolbar actions (T27 stage 2) — all act on the single active-editable
+  // selection and are gated in the Viewer (owner/RW/active layer).
+  onReorder: (uuid: string, dir: "front" | "back") => void;
+  onDuplicate: (uuid: string) => void;
+  onSetColor: (uuid: string, color: string) => void;
+  onDelete: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The active gesture: a draw path, a move drag, a resize-handle drag, a
@@ -691,6 +702,41 @@ export function EditCanvas({
           />
         )}
       </div>
+      {/* Floating selection toolbar (T27 stage 2): shown by the single,
+          active-editable selection. Unlike the aria-hidden .selection-overlay, this
+          is interactive — it sits ABOVE the wet canvas with its own pointer-events
+          so its buttons are clickable, anchored at the object's bbox and lifted
+          above it in CSS. No layout shift (absolute over the canvas). */}
+      {selectedSingle && isObjectEditableNow(selectedSingle) && (() => {
+        const g = gestureRef.current;
+        const previewing =
+          g && (g.mode === "resize" || g.mode === "move") && g.obj.uuid === selectedSingle.uuid
+            ? g.preview
+            : selectedSingle;
+        const rm: TextMeasure | undefined = pageBoxPx
+          ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth }
+          : undefined;
+        const b = objectBBox(previewing, rm);
+        return (
+          <div
+            className="sel-toolbar-anchor"
+            style={{
+              left: `${b.minX * 100}%`,
+              top: `${b.minY * 100}%`,
+              width: `${(b.maxX - b.minX) * 100}%`,
+            }}
+          >
+            <SelectionToolbar
+              color={selectedSingle.style.color}
+              onColor={(c) => onSetColor(selectedSingle.uuid, c)}
+              onBringToFront={() => onReorder(selectedSingle.uuid, "front")}
+              onSendToBack={() => onReorder(selectedSingle.uuid, "back")}
+              onDuplicate={() => onDuplicate(selectedSingle.uuid)}
+              onDelete={onDelete}
+            />
+          </div>
+        );
+      })()}
     </>
   );
 }
