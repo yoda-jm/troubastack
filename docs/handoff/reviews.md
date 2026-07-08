@@ -1596,6 +1596,29 @@ the reviewed SHA (pulled first this time):
 Citation present. CI watched; a red gets its own entry. Remaining redesign commits
 (other management pages) each get this same e2e-plus-pixels pass as they land.
 
+## 2026-07-08 — Studio reskin 3/N: Song details & files (`18dd62b`, landed per VLL): ✅ APPROVED — e2e + pixels, both themes
+
+Third page migrated, reusing the 2/N primitives. Metadata → a `.panel` with a
+two-column `.form-grid` (mono uppercase labels, a `bpm` affix on Tempo, save bar);
+Files → a `.panel` with a mono pool count, the "New text chart" head action, and the
+pool rendered as a responsive `.file-grid` of cards (thumb · name · "text chart" badge ·
+size · ↑/↓ · Edit source · Rename · ✕) instead of cramped rows.
+
+- **Testids preserved (this hosts the T19 chart editor):** confirmed static (all
+  `meta-*`/`file-*`/`new-text-chart`/`file-chart-badge`/`files-list`/`file-row`/chart-
+  editor present; the specs' `edit-canvas`/`pdf-page`/`conn-status` live in the untouched
+  Viewer) AND empirical — **text-chart + box-render + flows 13/13 green** on an isolated
+  stack, `tsc -b studio` clean. No e2e edits were needed (metadata + upload interactions
+  unchanged), matching the commit's claim.
+- **Pixels, both themes:** the Details form grid + `bpm` affix + mono labels, and the
+  Files card grid with the generated chart's "text chart" badge, render per the mockup
+  in light and dark. The annotation Viewer/toolbar above is correctly out of scope for
+  this commit (it inherits the 1/N tokens; its markup redesign, if any, comes later).
+
+Reviewed on the reviewed SHA (pulled first). Citation present; CI watched, a red gets
+its own entry. Pattern is now steady across 2/N–3/N: additive primitives, per-page
+markup, testids held, e2e-plus-pixels each time.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
