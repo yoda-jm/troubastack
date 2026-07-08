@@ -1910,6 +1910,44 @@ Resolved design + resequencing written into `docs/tasks/T27-canvas-first-editor.
 (stage 2 section) so the executor doesn't re-derive it. The proposal doc stays under
 `proposals/` for history. Not a new task number — this is T27 stage 2.
 
+## 2026-07-08 — T27 stage 2 part 1/2: z-order data model (`c243c80`, landed): ✅ APPROVED — one non-blocking tiebreak note for part 2
+
+The backend half of the z-order decision, no UI yet. Re-verified the load-bearing
+bits first-hand, not the report:
+
+- **Kind enum — persistence-safe (the highest risk):** the full domain block is
+  Unspecified…LayerDelete then **`KindReorder` APPENDED last (value 12)** — no existing
+  iota value shifts, so file/git logs (which persist Kind as an int) stay valid. The
+  12-vs-proto-`KIND_REORDER=8` gap is a non-issue: the wire maps by **string**
+  (`kindFromString`/`kindToString`), never an int cast. The append-with-rationale
+  comment is exactly right.
+- **Gated + LWW, proven:** `TestWSReorderOwnObjectPersists` (owner reorder persists +
+  echo/HEAD carry `order`) and `TestWSReorderForbiddenOnForeignROLayer` (foreign-RO →
+  "forbidden") both green — reorder rides the same `canWriteLayer` gate + `version`
+  bump as move/resize. `fold.go` replays it as an in-place object replace. All three
+  store backends green (`order` round-trips). Proto `Object.order = 11` as approved.
+- **Pick↔paint unified (a genuine latent-bug fix):** one `compareObjectZ` (layer rank
+  → order) now drives BOTH the dry paint order and the wet pick order — previously
+  pick used raw array order while paint used layer order, so "what's on top" and "what
+  a click selects" could disagree. Editor e2e 19/19 (pick incl. locked-object
+  hit-testing, noflicker, wheelzoom, layers) green — the unification regressed nothing.
+  `tsc -b studio` clean.
+
+**Non-blocking note for part 2/2:** the z-order decision + T27 spec call for the
+within-layer tiebreak to be **`order` → `created_at` → `uuid`**; `compareObjectZ`
+stops at `order` and leans on JS stable-sort + insertion order for equal-`order`
+objects. Functionally identical in the common case (the render array is log-ordered
+and consistent across clients), but it's a silent deviation from the spec's explicit
+tiebreak and less robust if two objects ever share `order` (e.g. concurrent
+bring-to-front) while array order isn't guaranteed identical between passes. Cheap
+fix: add `created_at` then `uuid` to `compareObjectZ` (and the Go render comparator if
+one exists) — fold it into part 2/2 so the tiebreak matches the spec and is
+array-order-independent. Not gating; behavior is correct for every existing/seed doc.
+
+Part 2/2 owes: the floating selection toolbar UI (color · z-order bring-front/
+send-back · duplicate · delete) consuming this model — absolute-positioned (no shift),
+per the Q4 ruling. CI watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
