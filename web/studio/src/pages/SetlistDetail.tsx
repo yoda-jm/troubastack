@@ -424,13 +424,23 @@ function Items({
   function onDragStart(group: "main" | "bench", index: number) {
     dragRef.current = { group, index };
   }
+  // Only the dragged item's own group is a valid drop zone (cross-group moves use
+  // ★ / "To order"). Used to gate both the drop and its highlight.
+  function canDrop(group: "main" | "bench") {
+    return dragRef.current?.group === group;
+  }
   async function onDropRow(group: "main" | "bench", to: number) {
     const d = dragRef.current;
     dragRef.current = null;
     if (!d || d.group !== group || d.index === to) return;
     const arr = group === "main" ? main.slice() : bench.slice();
     const [moved] = arr.splice(d.index, 1);
-    arr.splice(to, 0, moved);
+    // The drop hint is the top border of the hovered row (= "land above this
+    // row"). After removing the dragged item, a target BELOW the source shifted up
+    // by one, so insert at to-1 to land where the hint shows; a target above keeps
+    // its index. Without this, downward drops land one slot too low.
+    const insertAt = d.index < to ? to - 1 : to;
+    arr.splice(insertAt, 0, moved);
     const full = group === "main" ? [...arr, ...bench] : [...main, ...arr];
     setError(null);
     try {
@@ -475,6 +485,7 @@ function Items({
               onSetOnCall={setOnCall}
               onDragStart={onDragStart}
               onDropRow={onDropRow}
+              canDrop={canDrop}
               reload={reload}
             />
           ))}
@@ -509,6 +520,7 @@ function Items({
               onSetOnCall={setOnCall}
               onDragStart={onDragStart}
               onDropRow={onDropRow}
+              canDrop={canDrop}
               reload={reload}
             />
           ))}
@@ -555,6 +567,7 @@ function ItemRow({
   onSetOnCall,
   onDragStart,
   onDropRow,
+  canDrop,
   reload,
 }: {
   group: "main" | "bench";
@@ -569,6 +582,7 @@ function ItemRow({
   onSetOnCall: (itemId: string, onCall: boolean) => void;
   onDragStart: (group: "main" | "bench", index: number) => void;
   onDropRow: (group: "main" | "bench", index: number) => void | Promise<void>;
+  canDrop: (group: "main" | "bench") => boolean;
   reload: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -611,6 +625,7 @@ function ItemRow({
       className={`row${editing ? " editing" : ""}${dragOver ? " drag-over" : ""}`}
       data-testid={group === "bench" ? "bench-row" : "item-row"}
       onDragOver={(e) => {
+        if (!canDrop(group)) return; // cross-group hover: not a drop target, no hint
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
         setDragOver(true);

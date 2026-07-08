@@ -57,4 +57,12 @@ test("drag a running-order song to the top; numbering follows", async ({ page })
   // Persists across reload.
   await page.reload();
   await expect(page.getByTestId("item-title").nth(0)).toContainText("1. Ccc");
+
+  // Now a DOWNWARD drag (the previously-broken direction): drag the 1st row (Ccc)
+  // onto the 3rd row (Bbb) → Ccc lands ABOVE Bbb, where the drop hint shows, not
+  // one slot too low. Expect [Aaa, Ccc, Bbb].
+  await page.getByTestId("item-grip").nth(0).dragTo(page.getByTestId("item-row").nth(2));
+  await expect(page.getByTestId("item-title").nth(0)).toContainText("1. Aaa");
+  await expect(page.getByTestId("item-title").nth(1)).toContainText("2. Ccc");
+  await expect(page.getByTestId("item-title").nth(2)).toContainText("3. Bbb");
 });
