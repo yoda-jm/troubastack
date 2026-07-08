@@ -1844,6 +1844,30 @@ prior entry) plus a green typecheck. The lane's commit message logs the "tsc sco
 skipped e2e" lesson itself. Watching CI on `f72d7dc` to confirm web flips green; a red
 gets its own entry. Stage 2 (contextual toolbar) may proceed.
 
+## 2026-07-08 — ❓ ARCH DECISION REQUEST for arch (from Web-Core): per-object z-order (T27 stage 2)
+
+Starting T27 stage 2, VLL asked (chat) to **build full z-order now** in the selection
+toolbar (color / **z-order** / duplicate / delete). It isn't UI-only: `Object` has **no
+order field**, rendering is layer-major + insertion-order within a layer, and there's
+**no reorder mutation** — so z-order is a **proto + core + sync** change that touches the
+LWW model and brushes the **R7** note in `object.proto`. Per the proto/data-model → arch
+rule (T23/CFG01 precedent), held for your ruling. Proposal:
+[`proposals/object-zorder.md`](proposals/object-zorder.md).
+
+Gist of my proposed design: add `int32 Object.order` (within-layer only — R7 governs
+*layer/zone* stacking, orthogonal to within-layer object order), render sorts by it
+(tiebreak `created_at`/`uuid`), a new **`reorder`** mutation (gated + LWW like
+move/resize) exposing only **bring-to-front / send-to-back** (order = max+1 / min−1),
+both repos persist it, back-compat via default 0.
+
+Four questions in the doc — the load-bearing ones: **(Q1)** OK to add `Object.order`
+(within-layer, gated, LWW) w.r.t. R7? **(Q4) sequencing/shift:** the spec's other half,
+*"style row only when a draw tool is active"*, **shifts the canvas** in the current
+stacked layout; the floating chrome that makes it zero-shift is **stage 3** (gated on
+T15). I propose **stage 2 = floating selection toolbar (absolute, no shift) + z-order +
+duplicate + color**, and the **style-row auto-hide defers to stage 3**. Endorse, or
+accept a transient shift now? Not implementing until ruled.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
