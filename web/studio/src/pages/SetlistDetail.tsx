@@ -1,6 +1,9 @@
 /**
  * Setlist detail — edit the setlist metadata, manage its ordered items (add a
- * band song, per-item key/tempo/notes overrides, reorder, remove) and delete.
+ * band song, per-item key/tempo/notes overrides, reorder, bench, remove) and
+ * delete. Redesign: page header + status chips, panelled sections, a roomy
+ * running-order list whose per-song overrides open in an inline editor, and a
+ * distinct "Bench (on call)" section (T23).
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -55,26 +58,43 @@ export function SetlistDetail() {
   if (error && !setlist) {
     return (
       <div className="page">
-        <Link to={`/bands/${bandId}/setlists`}>&larr; Setlists</Link>
+        <Link className="crumb" to={`/bands/${bandId}/setlists`}>
+          &larr; Setlists
+        </Link>
         <ErrorBanner message={error} />
       </div>
     );
   }
   if (!setlist) return <div className="page">Loading…</div>;
 
+  const mainCount = items.filter((it) => !it.onCall).length;
+  const benchCount = items.length - mainCount;
+  const sub = [setlist.eventDate, setlist.venue].filter(Boolean).join(" · ");
+
   return (
     <div className="page">
-      <Link to={`/bands/${bandId}/setlists`}>&larr; Setlists</Link>
-      <h1 data-testid="setlist-detail-title">{setlist.name}</h1>
+      <Link className="crumb" to={`/bands/${bandId}/setlists`}>
+        &larr; Setlists
+      </Link>
+      <header className="phead">
+        <div>
+          <div className="eyebrow">Setlist</div>
+          <h1 className="title" data-testid="setlist-detail-title">
+            {setlist.name}
+          </h1>
+          {sub && <div className="sub">{sub}</div>}
+          <div className="meta">
+            <span className="chip mono">
+              {mainCount} song{mainCount === 1 ? "" : "s"}
+            </span>
+            {benchCount > 0 && <span className="chip brand">{benchCount} on call</span>}
+          </div>
+        </div>
+      </header>
+      <div className="staff sig" aria-hidden="true" />
 
       <SetlistMeta bandId={bandId} setlist={setlist} onSaved={setSetlist} />
-      <Items
-        bandId={bandId}
-        setlistId={setlistId}
-        items={items}
-        songs={songs}
-        reload={load}
-      />
+      <Items bandId={bandId} setlistId={setlistId} items={items} songs={songs} reload={load} />
       <DuplicateAction
         bandId={bandId}
         setlistId={setlistId}
@@ -110,13 +130,12 @@ function BakeCard({
   const [error, setError] = useState<string | null>(null);
   const isAdmin = myRole === "admin";
 
-  // A concert belongs to this setlist if it IS the band concert (id === setlist)
-  // or the caller's variant (id starts with `${setlist}~`). The server only ever
-  // returns the caller's own variants, so any `~` match here is mine.
   const load = useCallback(async () => {
     try {
       const all = await api.listConcerts(bandId);
-      setConcerts(all.filter((c) => c.concertId === setlistId || c.concertId.startsWith(`${setlistId}~`)));
+      setConcerts(
+        all.filter((c) => c.concertId === setlistId || c.concertId.startsWith(`${setlistId}~`)),
+      );
     } catch {
       // A missing/empty concert list is not an error worth surfacing here.
     }
@@ -143,64 +162,79 @@ function BakeCard({
   const myConcert = concerts.find((c) => c.concertId.startsWith(`${setlistId}~`)) ?? null;
 
   return (
-    <section className="card" data-testid="bake-card">
-      <h2>Bake</h2>
-      <p className="muted">
-        Flatten this setlist into a performable <code>.tstage</code> bundle (page images +
-        annotation overlays) to download and load on a phone.
-      </p>
-      {isAdmin && (
-        <div className="inline-form">
-          <button type="button" data-testid="bake-setlist" disabled={busy !== ""} onClick={() => void bake()}>
-            {busy === "band" ? "Baking…" : "Bake setlist"}
-          </button>
-          {bandConcert && (
-            <a
-              data-testid="bake-download"
-              href={bandConcert.downloadUrl}
-              download={`${bandConcert.name || "concert"}.tstage`}
+    <section className="panel" data-testid="bake-card">
+      <div className="panel-head">
+        <h2>Bake</h2>
+      </div>
+      <div className="panel-body">
+        <p className="muted" style={{ marginTop: 0 }}>
+          Flatten this setlist into a performable <code>.tstage</code> bundle (page images +
+          annotation overlays) to download and load on a phone.
+        </p>
+        {isAdmin && (
+          <div className="inline-form">
+            <button
+              type="button"
+              className="primary"
+              data-testid="bake-setlist"
+              disabled={busy !== ""}
+              onClick={() => void bake()}
             >
-              Download .tstage (rev {bandConcert.currentRev})
+              {busy === "band" ? "Baking…" : "Bake setlist"}
+            </button>
+            {bandConcert && (
+              <a
+                data-testid="bake-download"
+                href={bandConcert.downloadUrl}
+                download={`${bandConcert.name || "concert"}.tstage`}
+              >
+                Download .tstage (rev {bandConcert.currentRev})
+              </a>
+            )}
+          </div>
+        )}
+        <div className="inline-form">
+          <button
+            type="button"
+            data-testid="bake-mine"
+            disabled={busy !== ""}
+            onClick={() => void bake("mine")}
+          >
+            {busy === "mine" ? "Baking…" : "Bake my parts"}
+          </button>
+          {myConcert && (
+            <a
+              data-testid="bake-mine-download"
+              href={myConcert.downloadUrl}
+              download={`${myConcert.name || "my-parts"}.tstage`}
+            >
+              Download my parts (rev {myConcert.currentRev})
             </a>
           )}
         </div>
-      )}
-      <div className="inline-form">
-        <button type="button" data-testid="bake-mine" disabled={busy !== ""} onClick={() => void bake("mine")}>
-          {busy === "mine" ? "Baking…" : "Bake my parts"}
-        </button>
-        {myConcert && (
-          <a
-            data-testid="bake-mine-download"
-            href={myConcert.downloadUrl}
-            download={`${myConcert.name || "my-parts"}.tstage`}
-          >
-            Download my parts (rev {myConcert.currentRev})
-          </a>
+        <p className="muted">
+          “My parts” bakes your own <em>my files</em> pick for each song. Annotations are the
+          shared snapshot — they were made on the default part, so they may not line up with a
+          different part’s layout.
+        </p>
+        <ErrorBanner message={error} />
+        {concerts.length > 0 && (
+          <ul className="list" data-testid="bake-history">
+            {concerts.map((c) => (
+              <li key={c.concertId} data-testid="bake-history-row">
+                <span>
+                  {c.concertId === setlistId ? "Band" : "My parts"} · Rev {c.currentRev} ·{" "}
+                  {c.songs.length} song{c.songs.length === 1 ? "" : "s"}
+                  {c.bakedBy ? ` · by ${c.bakedBy}` : ""}
+                </span>
+                <span className="muted">
+                  {c.updatedAt ? new Date(Number(c.updatedAt) * 1000).toLocaleString() : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-      <p className="muted">
-        “My parts” bakes your own <em>my files</em> pick for each song. Annotations are the
-        shared snapshot — they were made on the default part, so they may not line up with a
-        different part’s layout.
-      </p>
-      <ErrorBanner message={error} />
-      {concerts.length > 0 && (
-        <ul className="list" data-testid="bake-history">
-          {concerts.map((c) => (
-            <li key={c.concertId} data-testid="bake-history-row">
-              <span>
-                {c.concertId === setlistId ? "Band" : "My parts"} · Rev {c.currentRev} ·{" "}
-                {c.songs.length} song{c.songs.length === 1 ? "" : "s"}
-                {c.bakedBy ? ` · by ${c.bakedBy}` : ""}
-              </span>
-              <span className="muted">
-                {c.updatedAt ? new Date(Number(c.updatedAt) * 1000).toLocaleString() : ""}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
@@ -228,12 +262,7 @@ function SetlistMeta({
     setNotice(null);
     setBusy(true);
     try {
-      const updated = await api.updateSetlist(bandId, setlist.id, {
-        name,
-        eventDate,
-        venue,
-        notes,
-      });
+      const updated = await api.updateSetlist(bandId, setlist.id, { name, eventDate, venue, notes });
       onSaved(updated);
       setNotice("Saved.");
     } catch (err) {
@@ -244,52 +273,66 @@ function SetlistMeta({
   }
 
   return (
-    <section className="card">
-      <h2>Details</h2>
-      <form onSubmit={onSave} data-testid="setlist-meta-form">
-        <label>
-          Name
-          <input
-            data-testid="sl-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Event date
-          <input
-            data-testid="sl-eventDate"
-            type="date"
-            value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
-          />
-        </label>
-        <label>
-          Venue
-          <input data-testid="sl-venue" value={venue} onChange={(e) => setVenue(e.target.value)} />
-        </label>
-        <label>
-          Notes
-          <textarea
-            data-testid="sl-notes"
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </label>
-        <div className="inline-form">
-          <button type="submit" data-testid="sl-save" disabled={busy}>
-            Save details
-          </button>
-          {notice && (
-            <span className="notice" data-testid="sl-notice">
-              {notice}
-            </span>
-          )}
-        </div>
-      </form>
-      <ErrorBanner message={error} />
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Details</h2>
+      </div>
+      <div className="panel-body">
+        <form onSubmit={onSave} data-testid="setlist-meta-form">
+          <div className="form-grid">
+            <div className="field wide">
+              <label htmlFor="sl-name">Name</label>
+              <input
+                id="sl-name"
+                data-testid="sl-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sl-eventDate">Event date</label>
+              <input
+                id="sl-eventDate"
+                data-testid="sl-eventDate"
+                type="date"
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sl-venue">Venue</label>
+              <input
+                id="sl-venue"
+                data-testid="sl-venue"
+                value={venue}
+                onChange={(e) => setVenue(e.target.value)}
+              />
+            </div>
+            <div className="field wide">
+              <label htmlFor="sl-notes">Notes</label>
+              <textarea
+                id="sl-notes"
+                data-testid="sl-notes"
+                rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="form-foot">
+            <button type="submit" className="primary" data-testid="sl-save" disabled={busy}>
+              {busy ? "Saving…" : "Save details"}
+            </button>
+            {notice && (
+              <span className="saved" data-testid="sl-notice">
+                ✓ {notice}
+              </span>
+            )}
+          </div>
+        </form>
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }
@@ -338,8 +381,7 @@ function Items({
   }
 
   // Main running order vs the bench (on-call). The server already returns
-  // main-then-bench; splitting here keeps the main numbering independent of the
-  // bench (T23).
+  // main-then-bench; splitting here keeps the main numbering independent (T23).
   const main = items.filter((it) => !it.onCall);
   const bench = items.filter((it) => it.onCall);
 
@@ -376,37 +418,20 @@ function Items({
   }
 
   return (
-    <section className="card">
-      <h2>Songs</h2>
-
-      <form onSubmit={addSong} className="inline-form" data-testid="add-item-form">
-        <select
-          data-testid="add-item-song"
-          value={songId}
-          onChange={(e) => setSongId(e.target.value)}
-          required
-        >
-          <option value="">Select a song…</option>
-          {songs.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.title}
-              {s.artist ? ` — ${s.artist}` : ""}
-            </option>
-          ))}
-        </select>
-        <button type="submit" data-testid="add-item" disabled={busy}>
-          Add song
-        </button>
-      </form>
-
-      <ErrorBanner message={error} />
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Running order</h2>
+        <span className="count">
+          {main.length} song{main.length === 1 ? "" : "s"}
+        </span>
+      </div>
 
       {main.length === 0 ? (
-        <p className="muted" data-testid="items-empty">
-          No songs in the running order yet.
+        <p className="muted" data-testid="items-empty" style={{ padding: "1.15rem 1.25rem" }}>
+          No songs in the running order yet — add one below.
         </p>
       ) : (
-        <ul className="list" data-testid="items-list">
+        <div className="rows" data-testid="items-list">
           {main.map((item, i) => (
             <ItemRow
               key={item.id}
@@ -423,25 +448,27 @@ function Items({
               reload={reload}
             />
           ))}
-        </ul>
+        </div>
       )}
 
-      <h3 style={{ marginTop: "1rem" }}>Bench (on call)</h3>
-      <p className="muted">
-        Encores and likely requests: baked into the concert and jumpable on stage, but
-        outside the running order and its numbering.
+      <div className="bench-head">
+        <span className="lbl">★ Bench · on call</span>
+      </div>
+      <p className="bench-note">
+        Baked into the concert and jumpable on stage, but outside the running order and its
+        numbering.
       </p>
       {bench.length === 0 ? (
-        <p className="muted" data-testid="bench-empty">
-          No on-call songs. Use “To bench” on a song above to add one.
+        <p className="muted" data-testid="bench-empty" style={{ padding: "0 1.25rem .8rem" }}>
+          No on-call songs. Use “To bench” on a running-order song to add one.
         </p>
       ) : (
-        <ul className="list" data-testid="bench-list">
+        <div className="rows bench" data-testid="bench-list">
           {bench.map((item, i) => (
             <ItemRow
               key={item.id}
               group="bench"
-              label="•"
+              label="★"
               bandId={bandId}
               setlistId={setlistId}
               item={item}
@@ -453,8 +480,32 @@ function Items({
               reload={reload}
             />
           ))}
-        </ul>
+        </div>
       )}
+
+      <form onSubmit={addSong} className="addbar" data-testid="add-item-form">
+        <select
+          data-testid="add-item-song"
+          value={songId}
+          onChange={(e) => setSongId(e.target.value)}
+          required
+        >
+          <option value="">Add a song from the band library…</option>
+          {songs.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title}
+              {s.artist ? ` — ${s.artist}` : ""}
+            </option>
+          ))}
+        </select>
+        <button type="submit" data-testid="add-item" disabled={busy}>
+          Add to order
+        </button>
+      </form>
+
+      <div style={{ padding: "0 1.25rem 1rem" }}>
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }
@@ -484,9 +535,10 @@ function ItemRow({
   onSetOnCall: (itemId: string, onCall: boolean) => void;
   reload: () => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
   const [keyOverride, setKeyOverride] = useState(item.keyOverride ?? "");
   const [tempoOverride, setTempoOverride] = useState(
-    item.tempoOverride != null ? String(item.tempoOverride) : "",
+    item.tempoOverride != null && item.tempoOverride !== 0 ? String(item.tempoOverride) : "",
   );
   const [notes, setNotes] = useState(item.notes ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -501,6 +553,7 @@ function ItemRow({
         tempoOverride: tempoOverride === "" ? 0 : Number(tempoOverride),
         notes,
       });
+      setEditing(false);
       await reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save item");
@@ -509,40 +562,46 @@ function ItemRow({
     }
   }
 
+  function cancel() {
+    setKeyOverride(item.keyOverride ?? "");
+    setTempoOverride(item.tempoOverride ? String(item.tempoOverride) : "");
+    setNotes(item.notes ?? "");
+    setEditing(false);
+  }
+
   return (
-    <li data-testid={group === "bench" ? "bench-row" : "item-row"} style={{ flexWrap: "wrap" }}>
-      <span data-testid="item-title">
-        {label} {item.songTitle ?? item.songId}
-        {item.songArtist ? <span className="muted"> — {item.songArtist}</span> : null}
-      </span>
-      <span className="actions">
-        <input
-          data-testid="item-key"
-          placeholder="Key"
-          style={{ width: "5rem" }}
-          value={keyOverride}
-          onChange={(e) => setKeyOverride(e.target.value)}
-        />
-        <input
-          data-testid="item-tempo"
-          type="number"
-          placeholder="BPM"
-          style={{ width: "5.5rem" }}
-          value={tempoOverride}
-          onChange={(e) => setTempoOverride(e.target.value)}
-        />
-        <input
-          data-testid="item-notes"
-          placeholder="Notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-        <button type="button" data-testid="item-save" disabled={busy} onClick={save}>
-          Save
+    <div
+      className={`row${editing ? " editing" : ""}`}
+      data-testid={group === "bench" ? "bench-row" : "item-row"}
+    >
+      <div className="song">
+        <div className="name" data-testid="item-title">
+          {label} {item.songTitle ?? item.songId}
+        </div>
+        {item.songArtist && <div className="by">{item.songArtist}</div>}
+      </div>
+
+      <div className="tags">
+        {item.keyOverride && <span className="chip mono">{item.keyOverride}</span>}
+        {item.tempoOverride ? <span className="chip mono">{item.tempoOverride} bpm</span> : null}
+      </div>
+
+      <div className="rowacts">
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="item-edit"
+          title="Edit key / tempo / notes"
+          aria-expanded={editing}
+          onClick={() => setEditing((v) => !v)}
+        >
+          ✎
         </button>
         <button
           type="button"
+          className="icon-btn"
           data-testid="item-up"
+          title="Move up"
           disabled={index === 0}
           onClick={() => onMove(group, index, -1)}
         >
@@ -550,7 +609,9 @@ function ItemRow({
         </button>
         <button
           type="button"
+          className="icon-btn"
           data-testid="item-down"
+          title="Move down"
           disabled={index === count - 1}
           onClick={() => onMove(group, index, 1)}
         >
@@ -559,15 +620,17 @@ function ItemRow({
         {group === "main" ? (
           <button
             type="button"
+            className="icon-btn"
             data-testid="item-tobench"
             title="Move to the bench (on call, outside the running order)"
             onClick={() => onSetOnCall(item.id, true)}
           >
-            To bench
+            ★
           </button>
         ) : (
           <button
             type="button"
+            className="btn-sm"
             data-testid="item-tomain"
             title="Move back into the running order"
             onClick={() => onSetOnCall(item.id, false)}
@@ -575,12 +638,64 @@ function ItemRow({
             To order
           </button>
         )}
-        <button type="button" data-testid="item-remove" onClick={() => onRemove(item.id)}>
-          Remove
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="item-remove"
+          title="Remove from setlist"
+          onClick={() => onRemove(item.id)}
+        >
+          ✕
         </button>
-      </span>
-      {error ? <ErrorBanner message={error} /> : null}
-    </li>
+      </div>
+
+      {editing && (
+        <div className="row-edit">
+          <div className="form-grid">
+            <div className="field">
+              <label>Key</label>
+              <input
+                data-testid="item-key"
+                placeholder="e.g. Bb"
+                value={keyOverride}
+                onChange={(e) => setKeyOverride(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>Tempo</label>
+              <div className="input-affix">
+                <input
+                  data-testid="item-tempo"
+                  type="number"
+                  placeholder="—"
+                  value={tempoOverride}
+                  onChange={(e) => setTempoOverride(e.target.value)}
+                />
+                <span className="affix">bpm</span>
+              </div>
+            </div>
+            <div className="field">
+              <label>Performance note</label>
+              <input
+                data-testid="item-notes"
+                placeholder="e.g. half-time feel"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="form-foot">
+            <button type="button" className="primary btn-sm" data-testid="item-save" disabled={busy} onClick={save}>
+              {busy ? "Saving…" : "Save"}
+            </button>
+            <button type="button" className="btn-sm ghost-btn" onClick={cancel}>
+              Cancel
+            </button>
+          </div>
+          {error ? <ErrorBanner message={error} /> : null}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -611,14 +726,18 @@ function DuplicateAction({
   }
 
   return (
-    <section className="card">
-      <div className="inline-form">
-        <button type="button" data-testid="duplicate-setlist" disabled={busy} onClick={duplicate}>
-          {busy ? "Duplicating…" : "Duplicate setlist"}
-        </button>
-        <span className="muted">Make an editable copy — same songs, order and per-song overrides.</span>
+    <section className="panel">
+      <div className="panel-body">
+        <div className="inline-form">
+          <button type="button" data-testid="duplicate-setlist" disabled={busy} onClick={duplicate}>
+            {busy ? "Duplicating…" : "Duplicate setlist"}
+          </button>
+          <span className="muted">
+            Make an editable copy — same songs, order and per-song overrides.
+          </span>
+        </div>
+        <ErrorBanner message={error} />
       </div>
-      <ErrorBanner message={error} />
     </section>
   );
 }
@@ -649,14 +768,16 @@ function DeleteSetlist({
   }
 
   return (
-    <section className="card">
-      <h2>Danger zone</h2>
-      <div className="inline-form">
-        <button type="button" data-testid="delete-setlist" disabled={busy} onClick={onDelete}>
-          Delete setlist
-        </button>
+    <section className="panel">
+      <div className="panel-body">
+        <h2 style={{ marginTop: 0 }}>Danger zone</h2>
+        <div className="inline-form">
+          <button type="button" data-testid="delete-setlist" disabled={busy} onClick={onDelete}>
+            Delete setlist
+          </button>
+        </div>
+        <ErrorBanner message={error} />
       </div>
-      <ErrorBanner message={error} />
     </section>
   );
 }

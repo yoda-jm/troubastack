@@ -210,13 +210,16 @@ test("8. setlist: create, add two songs, reorder, key override persists", async 
   await page.getByTestId("item-down").first().click();
   await expect(page.getByTestId("item-title").first()).toContainText(songB);
 
-  // Set a key override on the now-first item (songB).
+  // Set a key override on the now-first item (songB). Per-item overrides open in
+  // an inline editor (redesign) — expand it, then fill + save.
+  await page.getByTestId("item-edit").first().click();
   await page.getByTestId("item-key").first().fill("Eb");
   await page.getByTestId("item-save").first().click();
 
-  // Reload: order and override persist.
+  // Reload: order and override persist (re-open the editor to read the value back).
   await page.reload();
   await expect(page.getByTestId("item-title").first()).toContainText(songB);
+  await page.getByTestId("item-edit").first().click();
   await expect(page.getByTestId("item-key").first()).toHaveValue("Eb");
 });
 
