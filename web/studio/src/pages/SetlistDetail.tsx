@@ -5,7 +5,7 @@
  * running-order list whose per-song overrides open in an inline editor, and a
  * distinct "Bench (on call)" section (T23).
  */
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ApiError,
@@ -417,6 +417,34 @@ function Items({
     }
   }
 
+  // Drag-to-reorder within a group (the grip handle is the drag source; each row is
+  // a drop target). Same group only — cross-group moves use the ★ / "To order"
+  // buttons. The ↑/↓ buttons remain as a keyboard/fallback path.
+  const dragRef = useRef<{ group: "main" | "bench"; index: number } | null>(null);
+  function onDragStart(group: "main" | "bench", index: number) {
+    dragRef.current = { group, index };
+  }
+  async function onDropRow(group: "main" | "bench", to: number) {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || d.group !== group || d.index === to) return;
+    const arr = group === "main" ? main.slice() : bench.slice();
+    const [moved] = arr.splice(d.index, 1);
+    arr.splice(to, 0, moved);
+    const full = group === "main" ? [...arr, ...bench] : [...main, ...arr];
+    setError(null);
+    try {
+      await api.reorderSetlist(
+        bandId,
+        setlistId,
+        full.map((i) => i.id),
+      );
+      await reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to reorder");
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-head">
@@ -445,6 +473,8 @@ function Items({
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
+              onDragStart={onDragStart}
+              onDropRow={onDropRow}
               reload={reload}
             />
           ))}
@@ -477,6 +507,8 @@ function Items({
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
+              onDragStart={onDragStart}
+              onDropRow={onDropRow}
               reload={reload}
             />
           ))}
@@ -521,6 +553,8 @@ function ItemRow({
   onMove,
   onRemove,
   onSetOnCall,
+  onDragStart,
+  onDropRow,
   reload,
 }: {
   group: "main" | "bench";
@@ -533,9 +567,12 @@ function ItemRow({
   onMove: (group: "main" | "bench", index: number, dir: -1 | 1) => void;
   onRemove: (itemId: string) => void;
   onSetOnCall: (itemId: string, onCall: boolean) => void;
+  onDragStart: (group: "main" | "bench", index: number) => void;
+  onDropRow: (group: "main" | "bench", index: number) => void | Promise<void>;
   reload: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [keyOverride, setKeyOverride] = useState(item.keyOverride ?? "");
   const [tempoOverride, setTempoOverride] = useState(
     item.tempoOverride != null && item.tempoOverride !== 0 ? String(item.tempoOverride) : "",
@@ -571,9 +608,33 @@ function ItemRow({
 
   return (
     <div
-      className={`row${editing ? " editing" : ""}`}
+      className={`row${editing ? " editing" : ""}${dragOver ? " drag-over" : ""}`}
       data-testid={group === "bench" ? "bench-row" : "item-row"}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        void onDropRow(group, index);
+      }}
     >
+      <span
+        className="grip"
+        draggable
+        data-testid="item-grip"
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          onDragStart(group, index);
+        }}
+      >
+        ⠿
+      </span>
       <div className="song">
         <div className="name" data-testid="item-title">
           {label} {item.songTitle ?? item.songId}

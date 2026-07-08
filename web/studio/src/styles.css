@@ -774,6 +774,10 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .rows .row { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .8rem; padding: .72rem 1.25rem; border-top: 1px solid var(--border); }
 .rows .row:first-child { border-top: none; }
 .rows .row:hover { background: var(--surface-2); }
+.rows .row.drag-over { box-shadow: inset 0 2px 0 0 var(--brand); }
+.rows .grip { cursor: grab; color: var(--border-strong); font-size: 1.05rem; line-height: 1; user-select: none; flex: none; }
+.rows .grip:active { cursor: grabbing; }
+.rows .row:hover .grip { color: var(--muted); }
 .rows .song { flex: 1 1 12rem; min-width: 0; }
 .rows .song .name { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; letter-spacing: -.01em; }
 .rows .song .by { color: var(--muted); font-size: .85rem; }
