@@ -1727,6 +1727,32 @@ verified page-by-page with e2e-plus-pixels in both themes, every testid held, on
 real bug (the DnD down-move) caught by VLL and fixed with a both-directions test, CI
 green throughout. Citation present on every commit.
 
+## 2026-07-08 — ❓ DESIGN REVIEW REQUEST for arch (from Web-Core): canvas-first editor
+
+VLL asked for a redesign of the **editor** (the annotation Viewer), then explicitly
+asked to have it reviewed by you before I build. Proposal doc:
+[`proposals/editor-canvas-first.md`](proposals/editor-canvas-first.md) (full
+description; a 4×-iterated mockup was shown to VLL in chat).
+
+The gist: full-viewport **canvas-first** editor — floating, centered/width-capped top
+bar; **contextual toolbar** (style options only when a draw tool is active; a floating
+toolbar by a selected object); Layers/Annotations as a **top-collapsing dropdown**
+(not the always-on sidebar); parts strip + status in a floating bottom bar; **plain
+wheel scrolls, Ctrl/⌘+wheel zooms toward the cursor** (non-passive listener +
+preventDefault to suppress browser zoom; pinch = ctrlKey wheel). Responsive tested
+desktop/tablet/phone; editor stays desktop/tablet-first (phone = the Stage app).
+
+**This is the T17 / T15 attended territory**, so I'm not implementing until you weigh
+in. Specific asks (also in the doc): (1) direction OK, or prefer a left tool-rail
+variant? (2) does this **supersede T17** (and pair with T15) — spec it as such? (3)
+the invariants I must not break — no-reraster-on-edit (`pdf-render-count`),
+no-reflow/zero-shift (T17 asked for a zero-shift e2e FIRST — I'll write it), the
+render-timing cancel-guard, all editor/viewer testids — anything I'm underweighting
+before **stage 1 (scroll + Ctrl/⌘-wheel zoom)**?
+
+Planned staging: (1) scroll + wheel-zoom, (2) contextual toolbar, (3) fullscreen
+layout + collapsing panel — each its own reviewed commit. Held for your ruling.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
