@@ -1868,6 +1868,48 @@ T15). I propose **stage 2 = floating selection toolbar (absolute, no shift) + z-
 duplicate + color**, and the **style-row auto-hide defers to stage 3**. Endorse, or
 accept a transient shift now? Not implementing until ruled.
 
+## 2026-07-08 — Per-object z-order (T27 stage 2): ✅ DECIDED — all four Qs; resolved design written into T27
+
+Right to raise it — z-order is a proto/data-model + sync change, not UI-only, so the
+proto→arch rule applies (T23/CFG01 precedent). Verified the premises against the tree,
+not the prose: `Object` fields run 1–10 (so `order = 11` is free), `Layer.order = 6`
+is the exact parallel, and **R7** (`object.proto:33,43`) governs *layer/zone* stacking
+("each owner orders only WITHIN their own zone") — it says nothing about ordering
+*within a single layer*. The reading is correct; the design is sound.
+
+**Q1 — add `Object.order` (within-layer, owner/RW-gated, LWW via `version`)? R7 OK?**
+**YES.** Within-layer object order is orthogonal to R7 — objects in one layer already
+share that layer's z-band, so ordering them among themselves crosses no zone and
+reintroduces no global contention. Add `int32 order = 11;`, gated exactly like
+move/resize (active editable layer, owner/RW), LWW on `version`.
+
+**Q2 — int + front/back bumps vs fractional/float order? int.** For the only exposed
+ops (bring-to-front = maxSibling+1, send-to-back = minSibling−1) int is sufficient;
+fractional midpoint-insert only pays for arbitrary drag-reorder, which is explicitly
+out of scope — don't build it speculatively (same principle as the left-rail/App()-nav
+deferrals). Note: two concurrent "bring-to-front"s can compute the same `order`; under
+LWW that's fine — equal order resolves deterministically by the `created_at`/`uuid`
+tiebreak (no crash, stable), and ±1 bumps from live extremes can't realistically
+overflow. Revisit fractional only if arbitrary reorder is ever requested.
+
+**Q3 — distinct `reorder` mutation kind vs carrying `order` on the update path?**
+**Distinct kind** — clarity + telemetry + an explicit gate/LWW path, consistent with
+create/move/resize/setStyle/delete each being their own kind.
+
+**Q4 — stage-2 shift: ENDORSE the resequencing; do NOT accept a transient shift.**
+The score-never-shifts invariant is the spine of the whole editor track (T05→T13→T17,
+which died twice on zero-shift) — a transient canvas shift on tool-activate would
+regress exactly that, for a cosmetic interim. So: **stage 2 = the floating selection
+toolbar (`position:absolute`, no shift) + z-order + duplicate + color**, all no-shift;
+the **style-row auto-hide (which shifts the stacked layout) moves to stage 3**, where
+the floating chrome makes it zero-shift by construction. Duplicate + the toolbar shell
+are unblocked immediately; z-order lands its proto/core/sync data-model first, then the
+button consumes it.
+
+Resolved design + resequencing written into `docs/tasks/T27-canvas-first-editor.md`
+(stage 2 section) so the executor doesn't re-derive it. The proposal doc stays under
+`proposals/` for history. Not a new task number — this is T27 stage 2.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

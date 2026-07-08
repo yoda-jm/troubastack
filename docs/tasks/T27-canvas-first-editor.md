@@ -48,16 +48,37 @@ the **rulings** that shape the build.
   async-decoded canvas (which hasn't re-rendered yet at the new scale).
 - Clean up the listener on unmount / ref-node change.
 
-### Stage 2 — contextual toolbar
-- Top bar shows tools only; the style row (color/Outline·Box·Highlight/width/target
-  layer) mounts **only when a draw tool is active**; a small selection toolbar
-  (color/z-order/duplicate/delete) floats by a selected object. Drive off existing
-  `tool` + `selectedUuids` state.
+### Stage 2 — floating selection toolbar + z-order + duplicate + color
+*(resequenced by the 2026-07-08 z-order arch decision — reviews.md)*
+- **A floating selection toolbar** (`position:absolute` over the canvas, by the
+  selected object — **no layout shift**): color · z-order · duplicate · delete. Drives
+  off existing `selectedUuids`.
+- **Duplicate** (client-only): `createObject` a copy on the active layer with a small
+  offset.
+- **Per-object z-order (proto + core + sync — resolved design, build this first):**
+  - Proto: `int32 order = 11;` on `Object` (within-layer only; R7 governs layer/zone
+    stacking and is untouched — orthogonal). Back-compat: default `0`.
+  - Render: within a layer, sort objects by `order`, tiebreak `created_at` then `uuid`
+    (so untouched docs keep today's insertion order). Layer-major ordering unchanged.
+  - Mutation: a **distinct `reorder` kind** carrying the object + new `order`, gated
+    exactly like move/resize (active editable layer, owner/RW), LWW via `version`.
+    Expose only **bring-to-front** (`order = maxSibling+1`) and **send-to-back**
+    (`order = minSibling−1`), computed client-side from the layer/page siblings. No
+    arbitrary drag-reorder (int, not fractional — revisit only if arbitrary reorder is
+    ever wanted). Concurrent equal-`order` bumps resolve by the created_at/uuid tiebreak.
+  - Both repos (mem + file) persist `order`; the WS snapshot carries it.
+- **The style-row auto-hide is NOT in stage 2** — mounting/unmounting the style block
+  shifts the stacked layout, violating zero-shift. It moves to **stage 3** (floating
+  chrome makes contextual show/hide zero-shift by construction). Do NOT accept a
+  transient shift in the current layout.
 
-### Stage 3 — fullscreen layout (after T15)
+### Stage 3 — fullscreen layout + contextual style-row auto-hide (after T15)
 - Float the chrome as `position:absolute` glass bars over the canvas (centered,
   `min(1080px,100vw−28px)`); top-collapsing Layers/Annotations dropdown; floating
   bottom parts/status bar; responsive (desktop/tablet-first; phone one compact row).
+- **The style row now auto-hides** (shown only when a draw tool is active) — zero-shift
+  because the chrome floats over the canvas; prove it with the T17-mandated zero-shift
+  e2e (written FIRST).
 
 ## Invariants to preserve (confirm each stage)
 
