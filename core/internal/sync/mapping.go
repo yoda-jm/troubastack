@@ -25,6 +25,8 @@ func kindFromString(s string) (domain.Kind, bool) {
 		return domain.KindDelete, true
 	case "restore":
 		return domain.KindRestore, true
+	case "reorder":
+		return domain.KindReorder, true
 	case "layerCreate":
 		return domain.KindLayerCreate, true
 	case "layerUpdate":
@@ -51,6 +53,8 @@ func kindToString(k domain.Kind) string {
 		return "delete"
 	case domain.KindRestore:
 		return "restore"
+	case domain.KindReorder:
+		return "reorder"
 	case domain.KindLayerCreate:
 		return "layerCreate"
 	case domain.KindLayerUpdate:
@@ -139,6 +143,7 @@ func objectToJSON(o domain.Object) objectJSON {
 		Points:  pts,
 		Page:    o.Page,
 		Text:    o.Text,
+		Order:   o.Order,
 		Style: styleJSON{
 			Color:    o.Style.Color,
 			Opacity:  o.Style.Opacity,
@@ -163,6 +168,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 		Points:  pts,
 		Page:    j.Page,
 		Text:    j.Text,
+		Order:   j.Order,
 		Style: domain.Style{
 			Color:    j.Style.Color,
 			Opacity:  j.Style.Opacity,

@@ -11,6 +11,24 @@ export type PRPoint = { x: number; y: number };
 /** Per-layer local visibility toggles: layerId → shown. */
 export type LayerVisibility = Record<string, boolean>;
 
+/** Render/hit-test z-order within a page (T27): layer z-rank first (via `layerRank`,
+ *  the index of each layer in the sorted stack), then per-object `order`. Equal keys
+ *  fall back to the caller's array order under a STABLE sort (= insertion/creation
+ *  order), so untouched docs keep their original stacking. Ascending = back→front, so
+ *  the LAST element paints on top (and is the topmost pick candidate). The SAME
+ *  comparator drives the dry overlay paint and the wet-canvas hit-test so what looks
+ *  on top is what a click selects. */
+export function compareObjectZ(
+  a: AnnotationObject,
+  b: AnnotationObject,
+  layerRank: Map<string, number>,
+): number {
+  const la = layerRank.get(a.layerId) ?? 0;
+  const lb = layerRank.get(b.layerId) ?? 0;
+  if (la !== lb) return la - lb;
+  return (a.order ?? 0) - (b.order ?? 0);
+}
+
 /** Whether the given user/role may edit objects on a layer (conductor zone is
  *  conductor-only; else owner or shared-RW). Mirrors the WS write gate's intent. */
 export function isEditableLayer(
@@ -48,6 +66,7 @@ export function buildWet(
     points: pointsForTool(tool, path),
     page: 0,
     text: "",
+    order: 0, // transient preview; z-order is irrelevant for the wet layer
     style,
   };
 }

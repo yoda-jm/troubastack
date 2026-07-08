@@ -27,7 +27,7 @@ import {
   type TextMeasure,
   type Tool,
 } from "../../editor";
-import { buildWet, measureTextWidth, toInkObject, type PRPoint, type LayerVisibility } from "./helpers";
+import { buildWet, compareObjectZ, measureTextWidth, toInkObject, type PRPoint, type LayerVisibility } from "./helpers";
 
 export function EditCanvas({
   page,
@@ -36,6 +36,7 @@ export function EditCanvas({
   drawLocked,
   objects,
   layersById,
+  layerRank,
   visible,
   selectedUuids,
   isObjectEditable,
@@ -52,6 +53,9 @@ export function EditCanvas({
   drawLocked: boolean;
   objects: AnnotationObject[];
   layersById: Map<string, AnnotationLayer>;
+  // layerId → z-rank, for the shared z-order comparator (T27). Ensures the pick
+  // order matches the dry overlay's paint order.
+  layerRank: Map<string, number>;
   visible: LayerVisibility;
   selectedUuids: string[];
   // Whether an object's layer is editable at all (owner/rw) — drives the lock cue.
@@ -127,8 +131,11 @@ export function EditCanvas({
         .filter((o) => {
           const l = layersById.get(o.layerId);
           return l && visible[l.id];
-        }),
-    [objects, page, layersById, visible],
+        })
+        // Same z-order as the dry overlay paints (layer rank, then object order,
+        // then insertion): pickAt wants ascending "topmost last" (T27).
+        .sort((a, b) => compareObjectZ(a, b, layerRank)),
+    [objects, page, layersById, layerRank, visible],
   );
 
   // Selected objects on THIS page (for the DOM bbox highlights).

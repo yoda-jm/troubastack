@@ -77,6 +77,11 @@ const (
 	KindLayerUpdate
 	KindLayerReorder
 	KindLayerDelete
+	// KindReorder changes an object's z-order WITHIN its layer (T27). It is an
+	// OBJECT kind (flows through applyObject / authorizeWrite like Move/Resize),
+	// APPENDED here rather than grouped with the object kinds above so the existing
+	// iota values (persisted as ints in the file/git logs) never shift.
+	KindReorder
 )
 
 // SharedOwner is the synthetic owner id for a band-shared layer.
@@ -132,6 +137,10 @@ type Object struct {
 	Version   uint64 // for LWW (I5)
 	CreatedAt int64  // unix ms (author-stamped; server is tiebreak authority)
 	Deleted   bool   // tombstone flag (I5); terminal until an explicit Restore
+	// Order is the z-order WITHIN this object's layer (T27). Rendered ascending;
+	// ties fall back to insertion/creation order. Default 0 keeps legacy objects
+	// in their original order. Set via KindReorder (bring-to-front / send-to-back).
+	Order int
 }
 
 // Clone returns a deep copy so callers cannot mutate stored state through aliases.

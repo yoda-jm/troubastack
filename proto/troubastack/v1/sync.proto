@@ -22,6 +22,7 @@ message Mutation {
     KIND_SET_TEXT = 5;
     KIND_DELETE = 6;   // terminal tombstone (I5)
     KIND_RESTORE = 7;  // the ONLY revive (I5)
+    KIND_REORDER = 8;  // change Object.order within its layer (T27); gated + LWW like MOVE
   }
   Kind kind = 1;
   string uuid = 2;          // target object (I2)

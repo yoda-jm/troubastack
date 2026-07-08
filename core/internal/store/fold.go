@@ -30,7 +30,7 @@ func Fold(log []domain.Mutation, revision uint64) domain.Snapshot {
 			if m.Object != nil {
 				upsertObj(m.Object.Clone())
 			}
-		case domain.KindMove, domain.KindResize, domain.KindSetStyle, domain.KindSetText:
+		case domain.KindMove, domain.KindResize, domain.KindSetStyle, domain.KindSetText, domain.KindReorder:
 			if m.Object != nil {
 				cur, ok := objects[m.UUID]
 				if !ok {

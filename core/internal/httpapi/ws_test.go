@@ -494,6 +494,86 @@ func TestWSEditForbiddenOnForeignROLayer(t *testing.T) {
 	}
 }
 
+// TestWSReorderOwnObjectPersists: an object on a shared-RW layer; a member sends a
+// `reorder` mutation → the echo carries the new order with a server seq, and the
+// engine HEAD (REST GET) reflects it. Exercises the full gated reorder path (T27).
+func TestWSReorderOwnObjectPersists(t *testing.T) {
+	band, song, alice, _, _ := twoMemberBand(t)
+	// Seed a shared-RW layer + an object on it (import is permissive).
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{
+			Layers:  []annLayer{{ID: "L-shared", FileID: "f1", Name: "Shared", OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw"}},
+			Objects: []annObject{*objOn("o-1", "L-shared")},
+		})
+	mustStatus(t, resp, http.StatusOK)
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+
+	// Bring-to-front: reorder carries the full object with the new order (like setStyle).
+	ro := objOn("o-1", "L-shared")
+	ro.Order = 7
+	sendMut(t, wsA, wsMutation{Kind: "reorder", UUID: "o-1", Object: ro})
+
+	echo := readMsg(t, wsA)
+	if echo.Type != "echo" {
+		t.Fatalf("reorder: type = %q, want echo", echo.Type)
+	}
+	if echo.Mutation.Seq == 0 {
+		t.Fatalf("reorder echo has no server seq")
+	}
+	if echo.Mutation.Object == nil || echo.Mutation.Object.Order != 7 {
+		t.Fatalf("reorder echo must carry the new order: %+v", echo.Mutation.Object)
+	}
+
+	// REST HEAD reflects the new order.
+	resp, body := alice.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var got annDoc
+	unmarshalField2(t, body, &got)
+	if len(got.Objects) != 1 || got.Objects[0].Order != 7 {
+		t.Fatalf("HEAD must reflect the reordered object: %+v", got.Objects)
+	}
+}
+
+// TestWSReorderForbiddenOnForeignROLayer: a member reordering an object on a foreign
+// RO layer is rejected "forbidden" (same gate as move/resize), HEAD unchanged.
+func TestWSReorderForbiddenOnForeignROLayer(t *testing.T) {
+	band, song, alice, _, bobID := twoMemberBand(t)
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{
+			Layers:  []annLayer{{ID: "L-bob-ro", FileID: "f1", Name: "Bob RO", OwnerID: bobID, Zone: "personal", Order: 0, Access: "ro"}},
+			Objects: []annObject{*objOn("o-bob", "L-bob-ro")},
+		})
+	mustStatus(t, resp, http.StatusOK)
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+
+	ro := objOn("o-bob", "L-bob-ro")
+	ro.Order = 9
+	sendMut(t, wsA, wsMutation{Kind: "reorder", UUID: "o-bob", Object: ro})
+	if rej := readMsg(t, wsA); rej.Type != "reject" || rej.Reason != "forbidden" {
+		t.Fatalf("alice reorder in bob's RO layer: type=%q reason=%q, want reject/forbidden", rej.Type, rej.Reason)
+	}
+
+	resp, body := alice.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var got annDoc
+	unmarshalField2(t, body, &got)
+	if len(got.Objects) != 1 || got.Objects[0].Order != 0 {
+		t.Fatalf("forbidden reorder must not change HEAD order: %+v", got.Objects)
+	}
+}
+
 // TestImportRequiresAdmin (T08): import is an admin-only bulk/seed tool. A band
 // ADMIN may provision layers+objects for an arbitrary owner (Bob) even into a
 // read-only layer — that permissive seeding is intentional. But a non-admin

@@ -186,6 +186,9 @@ export type AnnotationObject = {
   points: AnnotationPoint[];
   page: number;
   text: string;
+  // Z-order WITHIN the object's layer (T27). Rendered ascending; ties fall back to
+  // insertion order. Default 0. Changed via a `reorder` mutation.
+  order: number;
   style: AnnotationStyle;
 };
 

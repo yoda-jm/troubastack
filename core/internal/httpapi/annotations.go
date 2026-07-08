@@ -70,6 +70,7 @@ type objectJSON struct {
 	Points  []pointJSON `json:"points"`
 	Page    int         `json:"page"`
 	Text    string      `json:"text"`
+	Order   int         `json:"order"` // z-order within the layer (T27)
 	Style   styleJSON   `json:"style"`
 }
 
@@ -244,6 +245,7 @@ func objectToJSON(o domain.Object) objectJSON {
 		Points:  pts,
 		Page:    o.Page,
 		Text:    o.Text,
+		Order:   o.Order,
 		Style: styleJSON{
 			Color:    o.Style.Color,
 			Opacity:  o.Style.Opacity,
@@ -268,6 +270,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 		Points:  pts,
 		Page:    j.Page,
 		Text:    j.Text,
+		Order:   j.Order,
 		Style: domain.Style{
 			Color:    j.Style.Color,
 			Opacity:  j.Style.Opacity,

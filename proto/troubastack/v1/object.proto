@@ -74,4 +74,10 @@ message Object {
   string layer_id = 8;
   uint64 version = 9;         // for LWW (I5)
   int64 created_at = 10;      // unix ms (stamped by author; server is tiebreak authority)
+  // Z-order WITHIN this object's layer (T27). Orthogonal to R7, which fixes the
+  // per-viewer stack across ZONES/owners — this only orders objects that already
+  // share one layer's z-band. Rendered ascending (tiebreak: insertion/creation
+  // order); default 0 keeps legacy docs in their original insertion order. Set via
+  // the `reorder` mutation (bring-to-front = maxSibling+1, send-to-back = minSibling-1).
+  int32 order = 11;
 }

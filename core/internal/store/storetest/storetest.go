@@ -35,6 +35,7 @@ func Run(t *testing.T, newStore Factory) {
 	t.Run("ApplyAndHead", func(t *testing.T) { testApplyAndHead(t, newStore) })
 	t.Run("IdempotentBySeq", func(t *testing.T) { testIdempotent(t, newStore) })
 	t.Run("Tombstone", func(t *testing.T) { testTombstone(t, newStore) })
+	t.Run("Reorder", func(t *testing.T) { testReorder(t, newStore) })
 	t.Run("LinearHistory", func(t *testing.T) { testLinearHistory(t, newStore) })
 	t.Run("SnapshotAt", func(t *testing.T) { testSnapshotAt(t, newStore) })
 	t.Run("Pins", func(t *testing.T) { testPins(t, newStore) })
@@ -102,6 +103,39 @@ func testTombstone(t *testing.T, newStore Factory) {
 	snap, _ = st.Head(song)
 	if n := len(snap.LiveObjects()); n != 1 {
 		t.Fatalf("restore must revive: got %d", n)
+	}
+}
+
+// testReorder proves an object's z-order round-trips through Apply→Head and that a
+// KindReorder mutation folds in-place (bumps version, replaces Order) — identically
+// across all backends (T27). Covers both the new Object.Order field persistence and
+// the fold.go KindReorder case.
+func testReorder(t *testing.T, newStore Factory) {
+	st := newStore(t)
+	const song = "s1"
+	// Create with an explicit non-zero order so we prove the field persists at all.
+	o := freehand("a", "L1", "u1", 1)
+	o.Order = 3
+	mustApply(t, st, song, create(o, 1))
+	snap, _ := st.Head(song)
+	if len(snap.LiveObjects()) != 1 || snap.LiveObjects()[0].Order != 3 {
+		t.Fatalf("Order must persist through create: got %+v", snap.LiveObjects())
+	}
+	// Reorder: bring-to-front bumps Order (and version) in place, same uuid.
+	ro := o
+	ro.Order = 42
+	ro.Version = 2
+	mustApply(t, st, song, domain.Mutation{Kind: domain.KindReorder, UUID: "a", Object: &ro, Seq: 2, BaseVersion: 1})
+	snap, _ = st.Head(song)
+	live := snap.LiveObjects()
+	if len(live) != 1 {
+		t.Fatalf("reorder must not add/drop objects: got %d", len(live))
+	}
+	if live[0].Order != 42 {
+		t.Fatalf("reorder must update Order in place: got %d", live[0].Order)
+	}
+	if live[0].Version != 2 {
+		t.Fatalf("reorder must fold as a version bump: got %d", live[0].Version)
 	}
 }
 

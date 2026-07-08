@@ -33,7 +33,7 @@ import { EditorToolbar } from "./Toolbar";
 import { EditCanvas } from "./WetCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
 import { LayersPanel, AnnotationList } from "./SidePanels";
-import { toInkObject, isEditableLayer, type LayerVisibility } from "./helpers";
+import { toInkObject, isEditableLayer, compareObjectZ, type LayerVisibility } from "./helpers";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -431,6 +431,15 @@ export function Viewer({
     [doc.layers, myUserId],
   );
 
+  // layerId → z-rank (index in the sorted stack). Drives the shared z-order
+  // comparator used by BOTH the dry overlay paint and the wet-canvas hit-test, so
+  // render order and pick order stay identical (T27).
+  const layerRank = useMemo(() => {
+    const m = new Map<string, number>();
+    sortedLayers.forEach((l, idx) => m.set(l.id, idx));
+    return m;
+  }, [sortedLayers]);
+
   // ---- editable layers (for the active-layer selector) ----
   // Layers I may draw into, scoped to the currently selected file: my own
   // personal layers + any shared RW layer for this file.
@@ -789,8 +798,6 @@ export function Viewer({
     (overlay: HTMLCanvasElement, page: number, dpr: number) => {
       const ctx = overlay.getContext("2d");
       if (!ctx) return;
-      const orderIndex = new Map<string, number>();
-      sortedLayers.forEach((l, idx) => orderIndex.set(l.id, idx));
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
@@ -800,13 +807,15 @@ export function Viewer({
           const l = layersById.get(o.layerId);
           return l && visible[l.id];
         })
-        .sort((a, b) => (orderIndex.get(a.layerId) ?? 0) - (orderIndex.get(b.layerId) ?? 0));
+        // Layer z-rank, then per-object order, then insertion (stable) — same
+        // comparator as the hit-test so paint order matches pick order (T27).
+        .sort((a, b) => compareObjectZ(a, b, layerRank));
       // Logical page box (CSS px) fills the whole overlay — sized from THIS
       // page's actual canvas dimensions, not page 0's.
       const pageRect = { x: 0, y: 0, w: overlay.width / dpr, h: overlay.height / dpr };
       renderObjects(ctx, objs.map(toInkObject) as InkObject[], pageRect);
     },
-    [doc.objects, layersById, visible, sortedLayers],
+    [doc.objects, layersById, visible, layerRank],
   );
 
   // Latest paintOverlay, referenced by the PDF rasterization effect WITHOUT
@@ -1381,6 +1390,7 @@ export function Viewer({
                   drawLocked={focusLocked}
                   objects={doc.objects}
                   layersById={layersById}
+                  layerRank={layerRank}
                   visible={visible}
                   selectedUuids={selectedUuids}
                   isObjectEditable={isEditableObject}
@@ -1415,6 +1425,7 @@ export function Viewer({
                 drawLocked={focusLocked}
                 objects={doc.objects}
                 layersById={layersById}
+                layerRank={layerRank}
                 visible={visible}
                 selectedUuids={selectedUuids}
                 isObjectEditable={isEditableObject}

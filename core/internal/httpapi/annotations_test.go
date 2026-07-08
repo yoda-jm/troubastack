@@ -39,6 +39,7 @@ type annObject struct {
 	Points  []annPoint `json:"points"`
 	Page    int        `json:"page"`
 	Text    string     `json:"text"`
+	Order   int        `json:"order"`
 	Style   annStyle   `json:"style"`
 }
 

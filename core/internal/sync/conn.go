@@ -90,6 +90,7 @@ type objectJSON struct {
 	Points  []pointJSON `json:"points"`
 	Page    int         `json:"page"`
 	Text    string      `json:"text"`
+	Order   int         `json:"order"`
 	Style   styleJSON   `json:"style"`
 }
 

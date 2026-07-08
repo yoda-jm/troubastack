@@ -14,12 +14,12 @@
  *     {type:"mutation", mutation:<Mutation>}
  *
  *   Mutation = {kind, uuid, object?, layer?, baseVersion?, clientTs?, summary?}
- *   kind ∈ create|move|resize|setStyle|setText|delete|restore|layerCreate
+ *   kind ∈ create|move|resize|setStyle|setText|reorder|delete|restore|layerCreate
  *
  * The server derives version/authorId/seq; the client never sends them.
  *
- * Reconciliation is by uuid: create/move/resize/setStyle/setText/restore upsert
- * the object; delete removes it; layerCreate adds the layer. Optimistic local
+ * Reconciliation is by uuid: create/move/resize/setStyle/setText/reorder/restore
+ * upsert the object; delete removes it; layerCreate adds the layer. Optimistic local
  * ops are tracked by uuid so a `reject` can roll them back to the pre-op state.
  */
 import type { AnnotationLayer, AnnotationObject } from "./api";
@@ -30,6 +30,7 @@ export type MutationKind =
   | "resize"
   | "setStyle"
   | "setText"
+  | "reorder"
   | "delete"
   | "restore"
   | "layerCreate"
@@ -232,6 +233,7 @@ export class SyncClient {
       case "resize":
       case "setStyle":
       case "setText":
+      case "reorder":
       case "restore":
         if (m.object) this.objects.set(uuid, m.object);
         break;
@@ -276,6 +278,13 @@ export class SyncClient {
     this.objects.set(obj.uuid, obj);
     this.emit();
     this.sendMutation({ kind, uuid: obj.uuid, object: obj, clientTs: Date.now() });
+  }
+
+  /** Optimistically apply a new z-order and send a `reorder` (T27). Carries the
+   *  full object with its new `order`, gated + LWW server-side exactly like a
+   *  move/resize/setStyle. */
+  reorderObject(obj: AnnotationObject): void {
+    this.updateObject("reorder", obj);
   }
 
   /** Optimistically remove and send a delete (server expects only the uuid). */
