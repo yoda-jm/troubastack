@@ -26,7 +26,12 @@ export function compareObjectZ(
   const la = layerRank.get(a.layerId) ?? 0;
   const lb = layerRank.get(b.layerId) ?? 0;
   if (la !== lb) return la - lb;
-  return (a.order ?? 0) - (b.order ?? 0);
+  if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
+  // Spec tiebreak (T27): created_at, then uuid — array-order-independent, so equal
+  // `order` objects stack deterministically across clients/passes (no reliance on
+  // JS stable-sort insertion order). created_at ties → uuid is the final total order.
+  if ((a.createdAt ?? 0) !== (b.createdAt ?? 0)) return (a.createdAt ?? 0) - (b.createdAt ?? 0);
+  return a.uuid < b.uuid ? -1 : a.uuid > b.uuid ? 1 : 0;
 }
 
 /** Whether the given user/role may edit objects on a layer (conductor zone is
@@ -66,7 +71,8 @@ export function buildWet(
     points: pointsForTool(tool, path),
     page: 0,
     text: "",
-    order: 0, // transient preview; z-order is irrelevant for the wet layer
+    order: 0, // transient preview; z-order/createdAt are irrelevant for the wet layer
+    createdAt: 0,
     style,
   };
 }

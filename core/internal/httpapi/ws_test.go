@@ -151,7 +151,7 @@ func TestWSCreateBroadcastAndPersist(t *testing.T) {
 	defer wsB.Close()
 	expectSnapshot(t, wsB)
 
-	sendMut(t, wsA, wsMutation{Kind: "create", UUID: "o-1", Object: sampleObject("o-1"), AuthorID: "SPOOFED"})
+	sendMut(t, wsA, wsMutation{Kind: "create", UUID: "o-1", Object: sampleObject("o-1"), AuthorID: "SPOOFED", ClientTS: 1720000000000})
 
 	for _, pair := range []struct {
 		name string
@@ -169,6 +169,10 @@ func TestWSCreateBroadcastAndPersist(t *testing.T) {
 		}
 		if m.Mutation.UUID != "o-1" {
 			t.Fatalf("%s: echo uuid = %q, want o-1", pair.name, m.Mutation.UUID)
+		}
+		// createdAt is server-stamped from the author's clientTs (z-order tiebreak, T27).
+		if m.Mutation.Object == nil || m.Mutation.Object.CreatedAt != 1720000000000 {
+			t.Fatalf("%s: echo createdAt = %v, want 1720000000000", pair.name, m.Mutation.Object)
 		}
 	}
 

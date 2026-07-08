@@ -64,14 +64,15 @@ type layerJSON struct {
 }
 
 type objectJSON struct {
-	UUID    string      `json:"uuid"`
-	LayerID string      `json:"layerId"`
-	Type    string      `json:"type"` // freehand|rect|ellipse|line|text|highlight
-	Points  []pointJSON `json:"points"`
-	Page    int         `json:"page"`
-	Text    string      `json:"text"`
-	Order   int         `json:"order"` // z-order within the layer (T27)
-	Style   styleJSON   `json:"style"`
+	UUID      string      `json:"uuid"`
+	LayerID   string      `json:"layerId"`
+	Type      string      `json:"type"` // freehand|rect|ellipse|line|text|highlight
+	Points    []pointJSON `json:"points"`
+	Page      int         `json:"page"`
+	Text      string      `json:"text"`
+	Order     int         `json:"order"`     // z-order within the layer (T27)
+	CreatedAt int64       `json:"createdAt"` // z-order tiebreak after order (T27)
+	Style     styleJSON   `json:"style"`
 }
 
 // annotationsJSON is both the GET response and the import request body.
@@ -239,13 +240,14 @@ func objectToJSON(o domain.Object) objectJSON {
 		pts[i] = pointJSON{X: p.X, Y: p.Y}
 	}
 	return objectJSON{
-		UUID:    o.UUID,
-		LayerID: o.LayerID,
-		Type:    objectTypeToString(o.Type),
-		Points:  pts,
-		Page:    o.Page,
-		Text:    o.Text,
-		Order:   o.Order,
+		UUID:      o.UUID,
+		LayerID:   o.LayerID,
+		Type:      objectTypeToString(o.Type),
+		Points:    pts,
+		Page:      o.Page,
+		Text:      o.Text,
+		Order:     o.Order,
+		CreatedAt: o.CreatedAt,
 		Style: styleJSON{
 			Color:    o.Style.Color,
 			Opacity:  o.Style.Opacity,
@@ -264,13 +266,14 @@ func objectFromJSON(j objectJSON) domain.Object {
 		pts[i] = domain.Point{X: p.X, Y: p.Y}
 	}
 	return domain.Object{
-		UUID:    j.UUID,
-		LayerID: j.LayerID,
-		Type:    objectTypeFromString(j.Type),
-		Points:  pts,
-		Page:    j.Page,
-		Text:    j.Text,
-		Order:   j.Order,
+		UUID:      j.UUID,
+		LayerID:   j.LayerID,
+		Type:      objectTypeFromString(j.Type),
+		Points:    pts,
+		Page:      j.Page,
+		Text:      j.Text,
+		Order:     j.Order,
+		CreatedAt: j.CreatedAt,
 		Style: domain.Style{
 			Color:    j.Style.Color,
 			Opacity:  j.Style.Opacity,

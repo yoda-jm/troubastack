@@ -137,13 +137,14 @@ func objectToJSON(o domain.Object) objectJSON {
 		pts[i] = pointJSON{X: p.X, Y: p.Y}
 	}
 	return objectJSON{
-		UUID:    o.UUID,
-		LayerID: o.LayerID,
-		Type:    objectTypeToString(o.Type),
-		Points:  pts,
-		Page:    o.Page,
-		Text:    o.Text,
-		Order:   o.Order,
+		UUID:      o.UUID,
+		LayerID:   o.LayerID,
+		Type:      objectTypeToString(o.Type),
+		Points:    pts,
+		Page:      o.Page,
+		Text:      o.Text,
+		Order:     o.Order,
+		CreatedAt: o.CreatedAt,
 		Style: styleJSON{
 			Color:    o.Style.Color,
 			Opacity:  o.Style.Opacity,
@@ -162,13 +163,14 @@ func objectFromJSON(j objectJSON) domain.Object {
 		pts[i] = domain.Point{X: p.X, Y: p.Y}
 	}
 	return domain.Object{
-		UUID:    j.UUID,
-		LayerID: j.LayerID,
-		Type:    objectTypeFromString(j.Type),
-		Points:  pts,
-		Page:    j.Page,
-		Text:    j.Text,
-		Order:   j.Order,
+		UUID:      j.UUID,
+		LayerID:   j.LayerID,
+		Type:      objectTypeFromString(j.Type),
+		Points:    pts,
+		Page:      j.Page,
+		Text:      j.Text,
+		Order:     j.Order,
+		CreatedAt: j.CreatedAt,
 		Style: domain.Style{
 			Color:    j.Style.Color,
 			Opacity:  j.Style.Opacity,

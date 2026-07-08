@@ -66,6 +66,11 @@ func (c *conn) handleMutation(in mutationJSON) {
 			}
 			o.UUID = uuid
 			o.OwnerID = c.authorID
+			// Stamp the creation time (z-order tiebreak, T27) once, from the author's
+			// clock; first write wins so a re-create can't rewrite it.
+			if o.CreatedAt == 0 {
+				o.CreatedAt = m.ClientTS
+			}
 			if exists {
 				o.Version = curVer + 1 // re-create as an in-place update wins LWW
 			} else {

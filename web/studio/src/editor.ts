@@ -145,9 +145,10 @@ export function buildObject(args: {
     points: args.points,
     page: args.page,
     text: args.text ?? "",
-    // New objects default to order 0; being newest (last in the array) they render
-    // above existing order-0 objects under the stable within-layer sort (T27).
+    // New objects default to order 0; the server stamps createdAt on create, so
+    // the z tiebreak (order→createdAt→uuid) puts the newest on top of order-0 peers.
     order: 0,
+    createdAt: 0,
     style: { ...args.style },
   };
 }

@@ -186,9 +186,12 @@ export type AnnotationObject = {
   points: AnnotationPoint[];
   page: number;
   text: string;
-  // Z-order WITHIN the object's layer (T27). Rendered ascending; ties fall back to
-  // insertion order. Default 0. Changed via a `reorder` mutation.
+  // Z-order WITHIN the object's layer (T27). Rendered ascending; ties break by
+  // createdAt then uuid. Default 0. Changed via a `reorder` mutation.
   order: number;
+  // Author-stamped creation time (unix ms); the z-order tiebreak after `order`.
+  // Server-stamped on create; 0 for objects created before this field existed.
+  createdAt: number;
   style: AnnotationStyle;
 };
 

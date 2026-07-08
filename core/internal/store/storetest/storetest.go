@@ -116,10 +116,11 @@ func testReorder(t *testing.T, newStore Factory) {
 	// Create with an explicit non-zero order so we prove the field persists at all.
 	o := freehand("a", "L1", "u1", 1)
 	o.Order = 3
+	o.CreatedAt = 1720000000000
 	mustApply(t, st, song, create(o, 1))
 	snap, _ := st.Head(song)
-	if len(snap.LiveObjects()) != 1 || snap.LiveObjects()[0].Order != 3 {
-		t.Fatalf("Order must persist through create: got %+v", snap.LiveObjects())
+	if got := snap.LiveObjects(); len(got) != 1 || got[0].Order != 3 || got[0].CreatedAt != 1720000000000 {
+		t.Fatalf("Order + CreatedAt must persist through create: got %+v", got)
 	}
 	// Reorder: bring-to-front bumps Order (and version) in place, same uuid.
 	ro := o

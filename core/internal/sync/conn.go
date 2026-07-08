@@ -84,14 +84,15 @@ type layerJSON struct {
 }
 
 type objectJSON struct {
-	UUID    string      `json:"uuid"`
-	LayerID string      `json:"layerId"`
-	Type    string      `json:"type"`
-	Points  []pointJSON `json:"points"`
-	Page    int         `json:"page"`
-	Text    string      `json:"text"`
-	Order   int         `json:"order"`
-	Style   styleJSON   `json:"style"`
+	UUID      string      `json:"uuid"`
+	LayerID   string      `json:"layerId"`
+	Type      string      `json:"type"`
+	Points    []pointJSON `json:"points"`
+	Page      int         `json:"page"`
+	Text      string      `json:"text"`
+	Order     int         `json:"order"`
+	CreatedAt int64       `json:"createdAt"`
+	Style     styleJSON   `json:"style"`
 }
 
 // ---- connection ----

@@ -33,14 +33,15 @@ type annLayer struct {
 }
 
 type annObject struct {
-	UUID    string     `json:"uuid"`
-	LayerID string     `json:"layerId"`
-	Type    string     `json:"type"`
-	Points  []annPoint `json:"points"`
-	Page    int        `json:"page"`
-	Text    string     `json:"text"`
-	Order   int        `json:"order"`
-	Style   annStyle   `json:"style"`
+	UUID      string     `json:"uuid"`
+	LayerID   string     `json:"layerId"`
+	Type      string     `json:"type"`
+	Points    []annPoint `json:"points"`
+	Page      int        `json:"page"`
+	Text      string     `json:"text"`
+	Order     int        `json:"order"`
+	CreatedAt int64      `json:"createdAt"`
+	Style     annStyle   `json:"style"`
 }
 
 type annDoc struct {
