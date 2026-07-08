@@ -323,6 +323,18 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   border-radius: var(--r-sm);
 }
 
+/* The pages live in one transform target (T27 stage 1). Live Ctrl/⌘-wheel zoom
+   applies a cheap CSS `transform: scale()` here for instant feedback; the crisp
+   re-raster is committed only on wheel-settle. `width:max-content; min-width:100%`
+   reproduces the scroll column's old sizing (grow to the widest page so >100%
+   zoom stays horizontally scrollable; floor at column width so narrow pages
+   center) now that the pages are nested one level deeper. */
+.viewer-content {
+  display: flex; flex-direction: column; align-items: safe center; gap: 1rem;
+  width: max-content; min-width: 100%;
+  transform-origin: 0 0;
+}
+
 .pdf-page {
   position: relative;
   box-shadow: var(--shadow);

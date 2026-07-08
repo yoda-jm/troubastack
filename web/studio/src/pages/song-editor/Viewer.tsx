@@ -40,6 +40,16 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 // Discrete percentage stops the −/+ buttons step through.
 const ZOOM_PERCENTS = [50, 75, 100, 125, 150, 200, 300];
 
+// Continuous Ctrl/⌘-wheel zoom bounds (T27 stage 1). Wider than the discrete
+// stops so a pinch can go slightly beyond the button range.
+const MIN_ZOOM_SCALE = 0.25; // 25%
+const MAX_ZOOM_SCALE = 5.0; // 500%
+// Wheel→zoom sensitivity: scale multiplies by exp(-deltaY·k). Small so a trackpad
+// pinch (fine-grained ctrlKey wheel) feels smooth rather than jumpy.
+const WHEEL_ZOOM_K = 0.0015;
+// Idle gap after the last wheel tick before we commit the crisp re-raster.
+const WHEEL_SETTLE_MS = 120;
+
 /** A zoom selection is either a fit mode or an explicit percentage. */
 type ZoomMode = "fit-width" | "fit-page" | number;
 // ===========================================================================
@@ -155,6 +165,8 @@ export function Viewer({
   const pageSizesRef = useRef<{ w: number; h: number }[]>([]);
   // The scroll column we measure for Fit width / Fit page.
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // The pages wrapper — the CSS-transform target for live wheel-zoom (T27 s1).
+  const contentRef = useRef<HTMLDivElement | null>(null);
   // Image element box (for image-overlay sizing).
   const imgRef = useRef<HTMLImageElement | null>(null);
   const imgOverlayRef = useRef<HTMLCanvasElement | null>(null);
@@ -979,6 +991,160 @@ export function Viewer({
 
   const zoomSelectValue =
     typeof zoomMode === "number" ? String(zoomMode) : zoomMode;
+  // A continuous wheel-zoom can land on a percentage that isn't one of the
+  // discrete stops; surface it as an extra option so the readout stays truthful
+  // and the <select> doesn't render blank.
+  const customZoomPercent =
+    typeof zoomMode === "number" && !ZOOM_PERCENTS.includes(zoomMode) ? zoomMode : null;
+
+  // ---- Ctrl/⌘-wheel zoom-to-cursor (T27 stage 1) --------------------------
+  // Plain wheel scrolls natively (never intercepted). Ctrl/⌘+wheel — and a
+  // trackpad pinch, which the browser delivers as a wheel event with
+  // ctrlKey===true — zooms toward the pointer. The load-bearing invariant
+  // (Fable): DECOUPLE the visual zoom from rasterization. During a burst we only
+  // apply a cheap CSS transform on the pages wrapper (instant feedback, zero
+  // re-raster); the crisp PDF re-raster (the scale-keyed effect) is committed
+  // exactly ONCE, on wheel-settle. A fast pinch therefore costs one raster, not
+  // one per tick — which also keeps the flip-fix cancel-guard from thrashing.
+
+  // Live burst state (mutated per tick, no re-render): the committed base scale,
+  // the running target scale, and the pointer anchor (viewport offset vx/vy +
+  // scale-invariant content fraction fx/fy) used to re-place the scroll on settle.
+  const wheelBurstRef = useRef<{
+    base: number; target: number; vx: number; vy: number; fx: number; fy: number;
+  } | null>(null);
+  const wheelSettleRef = useRef<number | null>(null);
+
+  // Commit the burst: bake the live zoom into layout, then trigger exactly one
+  // crisp re-raster. To avoid any size jump we first CSS-resize the existing page
+  // canvases to the target (the browser stretches the current bitmap — instant,
+  // momentarily soft), drop the transform, re-anchor the scroll against the
+  // now-correct geometry, and only then setZoomMode (which re-rasters sharply in
+  // place). The overlay/edit canvases are inset:0 over .pdf-page and follow.
+  const commitWheelZoom = useCallback(() => {
+    wheelSettleRef.current = null;
+    const burst = wheelBurstRef.current;
+    wheelBurstRef.current = null;
+    if (!burst) return;
+    const content = contentRef.current;
+    const scroll = scrollRef.current;
+    const targetPct = Math.min(
+      Math.round(MAX_ZOOM_SCALE * 100),
+      Math.max(Math.round(MIN_ZOOM_SCALE * 100), Math.round(burst.target * 100)),
+    );
+    const targetScale = targetPct / 100;
+
+    for (let i = 0; i < pageCanvasRefs.current.length; i++) {
+      const sz = pageSizesRef.current[i];
+      const canvas = pageCanvasRefs.current[i];
+      if (!sz || !canvas) continue;
+      canvas.style.width = `${sz.w * targetScale}px`;
+      canvas.style.height = `${sz.h * targetScale}px`;
+    }
+    if (content) {
+      content.style.transform = "";
+      content.style.transformOrigin = "";
+      content.style.willChange = "";
+    }
+    if (scroll) {
+      const cs = getComputedStyle(scroll);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
+      const contentW = Math.max(1, scroll.scrollWidth - padL - padR);
+      const contentH = Math.max(1, scroll.scrollHeight - padT - padB);
+      scroll.scrollLeft = Math.max(0, burst.fx * contentW - burst.vx);
+      scroll.scrollTop = Math.max(0, burst.fy * contentH - burst.vy);
+    }
+    // One crisp re-raster (skip if the scale is effectively unchanged).
+    if (!(typeof zoomMode === "number" && zoomMode === targetPct)) {
+      setZoomMode(targetPct);
+    }
+  }, [zoomMode]);
+
+  // The wheel handler. Held in a ref so the non-passive listener binds once (and
+  // cleans up once) while always seeing the latest scale/zoomMode/isPdf.
+  const wheelZoomHandler = useCallback(
+    (e: WheelEvent) => {
+      // Plain wheel → let the browser scroll the column (multi-page nav).
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // Only PDFs rasterize at a scale; images are width-fit (zoom is a no-op),
+      // so leave their ctrl-wheel to the browser rather than swallowing it.
+      if (!isPdf) return;
+      const scroll = scrollRef.current;
+      const content = contentRef.current;
+      if (!scroll || !content) return;
+      // The ONLY branch that cancels the event — suppressing the browser's own
+      // ctrl+wheel page-zoom (Fable: preventDefault ONLY on the ctrl/meta branch).
+      e.preventDefault();
+
+      // Normalize delta across deltaMode (0 px / 1 line / 2 page).
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) dy *= 16;
+      else if (e.deltaMode === 2) dy *= 100;
+
+      let burst = wheelBurstRef.current;
+      if (!burst) {
+        // Burst start: anchor on the current committed scale + pointer. Geometry
+        // is read from the SCROLL CONTAINER synchronously (Fable) — never the
+        // async-decoded canvas, which hasn't re-rendered at the new scale.
+        const cs = getComputedStyle(scroll);
+        const padL = parseFloat(cs.paddingLeft) || 0;
+        const padR = parseFloat(cs.paddingRight) || 0;
+        const padT = parseFloat(cs.paddingTop) || 0;
+        const padB = parseFloat(cs.paddingBottom) || 0;
+        const bL = parseFloat(cs.borderLeftWidth) || 0;
+        const bT = parseFloat(cs.borderTopWidth) || 0;
+        const rect = scroll.getBoundingClientRect();
+        // Pointer offset within the content viewport (inside border + padding).
+        const vx = e.clientX - rect.left - bL - padL;
+        const vy = e.clientY - rect.top - bT - padT;
+        // Scale-invariant content fraction under the pointer — re-anchors
+        // correctly after the raster grows/shrinks the content.
+        const contentW = Math.max(1, scroll.scrollWidth - padL - padR);
+        const contentH = Math.max(1, scroll.scrollHeight - padT - padB);
+        const base = scale > 0 ? scale : 1;
+        burst = {
+          base,
+          target: base,
+          vx,
+          vy,
+          fx: (scroll.scrollLeft + vx) / contentW,
+          fy: (scroll.scrollTop + vy) / contentH,
+        };
+        wheelBurstRef.current = burst;
+        // Anchor the live scale at the pointer (wrapper-local coords).
+        const wr = content.getBoundingClientRect();
+        content.style.transformOrigin = `${e.clientX - wr.left}px ${e.clientY - wr.top}px`;
+        content.style.willChange = "transform";
+      }
+
+      const factor = Math.exp(-dy * WHEEL_ZOOM_K);
+      burst.target = Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, burst.target * factor));
+      content.style.transform = `scale(${burst.target / burst.base})`;
+
+      if (wheelSettleRef.current != null) window.clearTimeout(wheelSettleRef.current);
+      wheelSettleRef.current = window.setTimeout(commitWheelZoom, WHEEL_SETTLE_MS);
+    },
+    [isPdf, scale, commitWheelZoom],
+  );
+
+  // Bind the non-passive wheel listener once; call the latest handler via a ref.
+  const wheelZoomRef = useRef(wheelZoomHandler);
+  useEffect(() => {
+    wheelZoomRef.current = wheelZoomHandler;
+  }, [wheelZoomHandler]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const listener = (e: WheelEvent) => wheelZoomRef.current(e);
+    el.addEventListener("wheel", listener, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", listener);
+      if (wheelSettleRef.current != null) window.clearTimeout(wheelSettleRef.current);
+    };
+  }, []);
 
   return (
     <section
@@ -1080,6 +1246,9 @@ export function Viewer({
                 {p === 100 ? "Actual size (100%)" : `${p}%`}
               </option>
             ))}
+            {customZoomPercent != null && (
+              <option value={customZoomPercent}>{customZoomPercent}%</option>
+            )}
           </select>
           <button type="button" data-testid="zoom-in" onClick={() => stepZoom(1)}>
             +
@@ -1185,6 +1354,10 @@ export function Viewer({
           )}
           {status === "error" && <ErrorBanner message={error} />}
 
+          {/* Transform target for the live wheel-zoom (T27 stage 1): the pages
+              scale cheaply here during a Ctrl/⌘-wheel burst; the crisp raster is
+              committed on settle and this transform is reset. */}
+          <div className="viewer-content" ref={contentRef}>
           {status === "ready" && isPdf &&
             Array.from({ length: numPages }, (_, i) => (
               <div className="pdf-page" data-testid="pdf-page" key={i}>
@@ -1254,6 +1427,7 @@ export function Viewer({
               />
             </div>
           )}
+          </div>
         </div>
 
         {sidebarOpen && (
