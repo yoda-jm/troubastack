@@ -1786,6 +1786,46 @@ flip bug proved headless can't see everything). T27 is ready; stage 1 (scroll +
 wheel-zoom) can start. The proposal doc stays on `main` under `docs/handoff/proposals/`
 for history; T27 is the authoritative spec.
 
+## 2026-07-08 — T27 stage 1 (`b3179b6`): ✅ APPROVED ON SUBSTANCE · ⚠️ CI web RED — real tsc breakage, fix-forward assigned
+
+The wheel-zoom itself is exactly right and my flagged invariant is honored — but the
+commit's "tsc -b clean" claim is **wrong**, and CI proves it: the **web job FAILED**
+on the landing (go/proto/android green, e2e in flight, web ❌). Main is currently red.
+
+**Functional substance — APPROVED (verified, not trusted):**
+- Read the logic: non-passive `wheel` listener bound once via ref-indirection (cleaned
+  up on unmount), `preventDefault` only on the ctrl/meta branch, live CSS transform on
+  `.viewer-content` during the burst, `commitWheelZoom` on a 120ms settle that bakes
+  canvas CSS sizes, clears the transform, re-anchors scroll against the container's
+  real `scrollWidth/Height` **synchronously**, then `setZoomMode` ONCE. Render-effect
+  deps unchanged ⇒ edits still don't re-raster.
+- **Behavior confirmed by running the specs** (Playwright transpiles via esbuild, so
+  they run despite the tsc break): `editor-wheelzoom` + `editor-noflicker` 3/3 green —
+  an 8-tick Ctrl+wheel burst bumps `pdf-render-count` by exactly the page count (ONE
+  raster pass, not 8 — the zoom-thrash invariant I required), and a post-zoom edit
+  still does not re-raster. This is precisely the stage-1 acceptance.
+
+**The RED — diagnosed:** `editor-wheelzoom.spec.ts:76,129` construct `new
+WheelEvent(...)` inside `.evaluate()` callbacks. Those run in the BROWSER (WheelEvent
+exists there), but the spec is typechecked under `tsconfig.node.json` whose `lib` is
+`["ES2022"]` — **no DOM** — and that project `include`s `e2e`. So `tsc -b studio`
+(the repo's canonical typecheck, and CI's web job) throws `TS2304: Cannot find name
+'WheelEvent'`. Playwright never typechecks, which is why the run is green and the
+claim slipped through — **"tsc -b clean" was almost certainly checked at a scope that
+skipped e2e.**
+
+**Fix-forward (web-core, XS — urgent, main is red):** give the e2e its DOM lib. Cleanest
+is a `tsconfig.e2e.json` (`lib: ["ES2022","DOM","DOM.Iterable"]`, `include: ["e2e"]`)
+referenced from the solution, so `e2e` leaves `tsconfig.node.json` (keeping vite/
+playwright config Node-pure); or simply add `"DOM","DOM.Iterable"` to
+`tsconfig.node.json`'s lib. Then `tsc -b studio` clean + web green. **T27 stage 1 is
+approved on substance and closes when web is green** — no functional rework needed.
+
+**Process note:** the standing typecheck command is `tsc -b studio` (README §4), and
+it now covers `e2e/`. Run exactly that before claiming clean — a narrower `tsc` scope
+missed an e2e-only DOM-lib error and landed a red main. Same lesson as the DnD
+down-move: cite the check you actually ran.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
