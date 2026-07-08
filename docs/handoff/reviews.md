@@ -1567,6 +1567,35 @@ ran on an isolated `:8092/:5175` stack; that server was left untouched.
 Citation present. CI on the landing being watched; a red gets its own entry. The
 following redesign commits will each get a pixel pass as they land.
 
+## 2026-07-08 — Studio reskin 2/N: Setlist page (`f78e78b`, landed per VLL): ✅ APPROVED — layout sweep verified, e2e + pixels, both themes
+
+The first page migrated to the new identity (the worst-crammed one). +105 lines of
+additive `styles.css` primitives (`.phead`/`.panel`/`.form-grid`/`.rows`/chip
+modifiers/`.sig`/`.icon-btn`), and a 531-line `SetlistDetail.tsx` rework. Reviewed on
+the reviewed SHA (pulled first this time):
+
+- **Testid preservation — the real risk, since this is the T23 file and two specs
+  (encore-bench, setlist-duplicate) were left unchanged.** Confirmed BOTH ways: static
+  (every testid those specs need is present — `item-row`/`bench-row` are the computed
+  `data-testid={group === "bench" ? …}`, the rest static; `setlist-name`/`nav-setlists`
+  live on the untouched list page) AND empirical — **flows + encore-bench +
+  setlist-duplicate 12/12 green** on an isolated stack, `tsc -b studio` clean.
+- **The one interaction change is sound:** per-song key/tempo/notes moved from crammed
+  inline fields into an `item-edit` inline editor (new toggle). Only `flows.spec`
+  needed updating (its key-override test opens the editor, sets, reloads, re-opens to
+  read back) — and it passes; the other specs don't touch overrides so they're
+  correctly untouched.
+- **Pixels, both themes:** the `.phead` header (breadcrumb · mono "SETLIST" eyebrow ·
+  serif title · "3 songs"/"1 on call" chips · faint staff `.sig` line), a two-column
+  Details form grid, a roomy "Running order" with a tidy ✎/↑/↓/★/✕ icon cluster per
+  row, a distinct amber "★ BENCH · ON CALL" section with its explainer, and
+  Duplicate/Bake/Delete as panels. Bench numbering stays independent (★ The Open Road,
+  un-numbered — T23 semantics intact under the new layout). Dark "stage" theme
+  coherent. Matches the approved mockup.
+
+Citation present. CI watched; a red gets its own entry. Remaining redesign commits
+(other management pages) each get this same e2e-plus-pixels pass as they land.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
