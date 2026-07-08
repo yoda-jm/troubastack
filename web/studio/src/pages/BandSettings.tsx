@@ -53,12 +53,21 @@ export function BandSettings() {
 
   return (
     <div className="page">
-      <Link to={`/bands/${bandId}`}>&larr; Back to band</Link>
-      <h1 data-testid="settings-title">{band.name} — Settings</h1>
+      <Link className="crumb" to={`/bands/${bandId}`}>
+        &larr; Back to band
+      </Link>
+      <header className="phead">
+        <div>
+          <div className="eyebrow">Band settings</div>
+          <h1 className="title" data-testid="settings-title">
+            {band.name}
+          </h1>
+          <div className="sub">
+            Your role: <strong data-testid="settings-my-role">{myRole}</strong>
+          </div>
+        </div>
+      </header>
       <SectionTabs bandId={bandId} active="settings" showSettings={myRole === "admin"} />
-      <p className="muted">
-        Your role: <strong data-testid="settings-my-role">{myRole}</strong>
-      </p>
 
       {myRole === "admin" && <Rename bandId={bandId} band={band} onRenamed={setBand} />}
       <MembersAdmin bandId={bandId} myRole={myRole} />
@@ -100,25 +109,29 @@ function Rename({
   }
 
   return (
-    <section className="card">
-      <h2>Band name</h2>
-      <form onSubmit={onSave} className="inline-form" data-testid="rename-form">
-        <input
-          data-testid="band-name-input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <button type="submit" data-testid="rename-save" disabled={busy}>
-          Save
-        </button>
-        {notice && (
-          <span className="notice" data-testid="rename-notice">
-            {notice}
-          </span>
-        )}
-      </form>
-      <ErrorBanner message={error} />
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Band name</h2>
+      </div>
+      <div className="panel-body">
+        <form onSubmit={onSave} className="inline-form" data-testid="rename-form">
+          <input
+            data-testid="band-name-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+          <button type="submit" className="primary" data-testid="rename-save" disabled={busy}>
+            Save
+          </button>
+          {notice && (
+            <span className="saved" data-testid="rename-notice">
+              ✓ {notice}
+            </span>
+          )}
+        </form>
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }
@@ -183,57 +196,63 @@ function MembersAdmin({ bandId, myRole }: { bandId: string; myRole: Role | null 
   }
 
   return (
-    <section className="card">
-      <h2>Members</h2>
-      <ul className="list" data-testid="settings-members-list">
-        {members.map((m) => (
-          <li key={m.user.id} data-testid="settings-member-row">
-            <span>
-              <Avatar user={m.user} size={24} /> {m.user.displayName}{" "}
-              <span className="muted">@{m.user.username}</span>
-            </span>
-            <span className="actions">
-              {myRole === "admin" ? (
-                <select
-                  data-testid="member-role-select"
-                  value={m.role}
-                  disabled={busyId === m.user.id}
-                  onChange={(e) => changeRole(m.user.id, e.target.value as Role)}
-                >
-                  <option value="admin">admin</option>
-                  <option value="conductor">conductor</option>
-                  <option value="member">member</option>
-                </select>
-              ) : (
-                <span className="pill">{m.role}</span>
-              )}
-              {myRole === "admin" && m.user.id !== user?.id && (
-                <button
-                  type="button"
-                  data-testid="member-remove"
-                  disabled={busyId === m.user.id}
-                  onClick={() => remove(m.user.id)}
-                >
-                  Remove
-                </button>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <div className="inline-form">
-        <button
-          type="button"
-          data-testid="leave-band"
-          disabled={busyId === "self"}
-          onClick={leave}
-        >
-          Leave band
-        </button>
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Members</h2>
+        <span className="count">{members.length}</span>
       </div>
+      <div className="panel-body">
+        <ul className="list" data-testid="settings-members-list">
+          {members.map((m) => (
+            <li key={m.user.id} data-testid="settings-member-row" className="member-row">
+              <span className="member-identity">
+                <Avatar user={m.user} size={30} />
+                <span className="member-name">{m.user.displayName}</span>
+                <span className="muted member-handle">@{m.user.username}</span>
+              </span>
+              <span className="actions">
+                {myRole === "admin" ? (
+                  <select
+                    data-testid="member-role-select"
+                    value={m.role}
+                    disabled={busyId === m.user.id}
+                    onChange={(e) => changeRole(m.user.id, e.target.value as Role)}
+                  >
+                    <option value="admin">admin</option>
+                    <option value="conductor">conductor</option>
+                    <option value="member">member</option>
+                  </select>
+                ) : (
+                  <span className="chip">{m.role}</span>
+                )}
+                {myRole === "admin" && m.user.id !== user?.id && (
+                  <button
+                    type="button"
+                    data-testid="member-remove"
+                    disabled={busyId === m.user.id}
+                    onClick={() => remove(m.user.id)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
 
-      <ErrorBanner message={error} />
+        <div className="inline-form" style={{ marginTop: ".9rem" }}>
+          <button
+            type="button"
+            data-testid="leave-band"
+            disabled={busyId === "self"}
+            onClick={leave}
+          >
+            Leave band
+          </button>
+        </div>
+
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }
@@ -270,34 +289,39 @@ function PendingInvites({ bandId }: { bandId: string }) {
   }
 
   return (
-    <section className="card">
-      <h2>Pending invites</h2>
-      {invites.length === 0 ? (
-        <p className="muted" data-testid="band-invites-empty">
-          No pending invites.
-        </p>
-      ) : (
-        <ul className="list" data-testid="band-invites-list">
-          {invites.map((inv) => (
-            <li key={inv.id} data-testid="band-invite-row">
-              <span>
-                {inv.identifier} <span className="muted">({inv.kind})</span>
-              </span>
-              <span className="actions">
-                <button
-                  type="button"
-                  data-testid="invite-revoke"
-                  disabled={busyId === inv.id}
-                  onClick={() => revoke(inv.id)}
-                >
-                  Revoke
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <ErrorBanner message={error} />
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Pending invites</h2>
+        {invites.length > 0 && <span className="count">{invites.length}</span>}
+      </div>
+      <div className="panel-body">
+        {invites.length === 0 ? (
+          <p className="muted" data-testid="band-invites-empty" style={{ margin: 0 }}>
+            No pending invites.
+          </p>
+        ) : (
+          <ul className="list" data-testid="band-invites-list">
+            {invites.map((inv) => (
+              <li key={inv.id} data-testid="band-invite-row">
+                <span>
+                  {inv.identifier} <span className="muted">({inv.kind})</span>
+                </span>
+                <span className="actions">
+                  <button
+                    type="button"
+                    data-testid="invite-revoke"
+                    disabled={busyId === inv.id}
+                    onClick={() => revoke(inv.id)}
+                  >
+                    Revoke
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }
@@ -321,14 +345,18 @@ function DeleteBand({ bandId }: { bandId: string }) {
   }
 
   return (
-    <section className="card">
-      <h2>Danger zone</h2>
-      <div className="inline-form">
-        <button type="button" data-testid="delete-band" disabled={busy} onClick={onDelete}>
-          Delete band
-        </button>
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Danger zone</h2>
       </div>
-      <ErrorBanner message={error} />
+      <div className="panel-body">
+        <div className="inline-form">
+          <button type="button" data-testid="delete-band" disabled={busy} onClick={onDelete}>
+            Delete band
+          </button>
+        </div>
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }

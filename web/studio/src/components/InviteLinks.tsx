@@ -61,9 +61,12 @@ export function InviteLinks({ bandId }: { bandId: string }) {
   }
 
   return (
-    <section className="card">
-      <h2>Invite links</h2>
-      <p className="muted">
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Invite links</h2>
+      </div>
+      <div className="panel-body">
+      <p className="muted" style={{ marginTop: 0 }}>
         Share a link to let anyone join this band. The link role can be member or conductor (never
         admin).
       </p>
@@ -111,6 +114,7 @@ export function InviteLinks({ bandId }: { bandId: string }) {
           ))}
         </ul>
       )}
+      </div>
     </section>
   );
 }
