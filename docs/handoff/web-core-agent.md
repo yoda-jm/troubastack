@@ -235,9 +235,15 @@ correctly (Studio viewer theming). Both are cosmetic; neither blocks anything.
     committed ONCE on 120ms wheel-settle (one raster per pinch); scroll re-anchored
     against the scroll container synchronously. Spec: `e2e/editor-wheelzoom.spec.ts`.
     NB: e2e now has its own DOM-lib `tsconfig.e2e.json` — `tsc -b studio` covers `e2e`.
-  - **Stage 2 (contextual toolbar)** — style row only when a draw tool is active; floating
-    selection toolbar. Drives off existing `tool`/`selectedUuids`. Does NOT need T15. **NEXT.**
-  - **Stage 3 (fullscreen floating-chrome layout)** — after **T15**; zero-shift e2e written FIRST.
+  - **Stage 2 (floating selection toolbar + per-object z-order + duplicate + color) — ✅ LANDED &
+    APPROVED** (data model `c243c80`; UI `597daa8`→`e3ffc72`; spec-faithful tiebreak `ebc481b`).
+    Resequenced by the z-order arch decision: the *style-row auto-hide* moved to stage 3 (it shifts
+    the stacked layout) — stage 2 is the floating (absolute, no-shift) selection toolbar only.
+    Per-object z-order = `Object.order` (within-layer; R7-orthogonal) + a gated/LWW `reorder`
+    mutation; render↔pick share `compareObjectZ` (order → createdAt → uuid). Specs:
+    `e2e/editor-zorder.spec.ts` (+ core storetest/ws reorder). Fable: "stage 2 complete."
+  - **Stage 3 (fullscreen floating-chrome layout + style-row auto-hide)** — after **T15**;
+    zero-shift e2e written FIRST. **NEXT for the editor arc (blocked on T15).**
 - **T15 — split `Viewer.tsx`** (T10 part 2): held for a quiet-machine attended window; gates T27 stage 3.
 - **T17 — single-row toolbar redesign: CLOSED, superseded by T27** (contextual chrome solves the
   same "chrome eats the score" root problem more completely).
