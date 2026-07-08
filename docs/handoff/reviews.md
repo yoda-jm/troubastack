@@ -1826,6 +1826,24 @@ it now covers `e2e/`. Run exactly that before claiming clean — a narrower `tsc
 missed an e2e-only DOM-lib error and landed a red main. Same lesson as the DnD
 down-move: cite the check you actually ran.
 
+## 2026-07-08 — T27 stage 1 web-red fix-forward (`f72d7dc`): ✅ APPROVED — main green again, stage 1 CLOSED
+
+Exactly the cleaner option I prescribed: a dedicated `tsconfig.e2e.json` (`lib`
+ES2022 + DOM + DOM.Iterable, `include: ["e2e"]`) referenced from the solution, so
+`e2e` leaves the Node-pure `tsconfig.node.json`. Re-verified the check that was red,
+first-hand: **`tsc -b studio` clean** (+ ink + bake `--noEmit` clean). Bonus — turning
+on real DOM types surfaced two latent `any`-masked holes the missing lib had hidden,
+both fixed here (viewer.spec's `CanvasLike` shim replaced with the real Element type;
+editor-layers' nullable `elementHandle()` null-asserted before
+`compareDocumentPosition`) — a net type-coverage gain, not just an unbreak. Re-ran the
+touched specs on the isolated stack: editor-wheelzoom + viewer + editor-layers **13/13
+green**; no functional change to stage 1.
+
+**T27 stage 1 is now fully closed** — the wheel-zoom (approved on substance in the
+prior entry) plus a green typecheck. The lane's commit message logs the "tsc scope
+skipped e2e" lesson itself. Watching CI on `f72d7dc` to confirm web flips green; a red
+gets its own entry. Stage 2 (contextual toolbar) may proceed.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
