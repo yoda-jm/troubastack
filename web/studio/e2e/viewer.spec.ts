@@ -15,18 +15,12 @@ import { fileURLToPath } from "node:url";
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
-// Minimal canvas shape (the e2e tsconfig has no DOM lib). The callbacks below
-// run in the browser, where these are real <canvas> elements.
-type CanvasLike = {
-  width: number;
-  height: number;
-  getContext(id: "2d"): {
-    getImageData(x: number, y: number, w: number, h: number): { data: ArrayLike<number> };
-  } | null;
-};
-const canvasWidth = (c: CanvasLike) => c.width;
-const pixelSum = (c: CanvasLike) => {
-  const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+// These callbacks run in the browser on a real <canvas>. Locator.evaluate hands
+// the callback an Element; narrow to the canvas API inside.
+const canvasWidth = (c: Element) => (c as HTMLCanvasElement).width;
+const pixelSum = (c: Element) => {
+  const canvas = c as HTMLCanvasElement;
+  const d = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
   let s = 0;
   for (let i = 0; i < d.length; i++) s += d[i];
   return s;

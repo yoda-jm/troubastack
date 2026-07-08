@@ -504,9 +504,10 @@ test("editor: Layers panel renders ABOVE the annotation list in the DOM", async 
 
   // DOCUMENT_POSITION_FOLLOWING (4) → annotation list comes AFTER the layers
   // panel: the Layers panel is first in source order, so it sits on top.
+  const annHandle = await annlist.elementHandle();
   const layersIsFirst = await layers.evaluate(
     (l, a) => (l.compareDocumentPosition(a) & 4) !== 0,
-    await annlist.elementHandle(),
+    annHandle!,
   );
   expect(layersIsFirst).toBeTruthy();
 

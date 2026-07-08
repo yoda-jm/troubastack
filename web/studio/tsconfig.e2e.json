@@ -1,0 +1,16 @@
+{
+  "//": "Playwright e2e specs. Run under Node (the test runner) but their .evaluate() callbacks run in the BROWSER, so they need BOTH node types and the DOM lib (WheelEvent, Element, …). Kept separate from tsconfig.node.json so the vite/playwright *config* files stay Node-pure.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "composite": true
+  },
+  "include": ["e2e"]
+}
