@@ -1698,6 +1698,35 @@ Reviewed on the reviewed SHA; isolated `:8092/:5175`, `:8080` untouched. Citatio
 present; CI watched. Redesign now 5/6 by the lane's own count — the admin Settings
 tab (invite-link management, member roles) is the last one.
 
+## 2026-07-08 — Studio reskin 6/N: Band Settings (`249a90b`, landed per VLL): ✅ APPROVED — the sweep is COMPLETE
+
+The last page. Pure markup migration (no `styles.css` change — reuses the existing
+primitives): BandSettings + InviteLinks move to headed `.panel`s under a page header,
+all five sections (Band name · Members role-selects · Pending invites · Invite links ·
+Danger zone).
+
+- **Testids preserved:** every settings/invite-link testid the specs use is present
+  (`settings-title`/`-my-role`/`settings-members-list`/`settings-member-row`/
+  `member-role-select`/`member-remove`/`leave-band`/`invite-revoke`/`invite-link-*`/
+  `create-invite-link`/`delete-band`, and `rename-form`/`-save`/`-notice`). The
+  commit's "rename-*" is loose wording — there is no `rename-name` and no e2e uses any
+  `rename-*`, so nothing depends on it.
+- **Empirical:** `tsc -b studio` clean; **flows + identity + password-reset 17/17
+  green** on an isolated stack — settings-tab role management, invite-link create/join,
+  and reset all pass.
+- **Pixels, both themes:** all five panels render per the mockup; the invite-link QR
+  keeps its own light card (stays scannable on the dark "stage" ground), URL in mono,
+  metadata line intact. Reviewed on the reviewed SHA; `:8080` untouched.
+
+**Redesign arc COMPLETE (1/N–6/N):** tokens+type (`d56aea1`) → Setlist (`f78e78b`) →
+Song details & files (`18dd62b`) → setlist drag-reorder (`a30eb92`, + down-move fix
+`222b6c0`) → Band overview + Invites (`cf1be57`) → Band Settings (`249a90b`). The
+whole studio management surface now wears the warm "concert program" identity — serif
+program voice, monospace musical data, paper-and-ink neutrals, a dim-stage dark theme —
+verified page-by-page with e2e-plus-pixels in both themes, every testid held, one
+real bug (the DnD down-move) caught by VLL and fixed with a both-directions test, CI
+green throughout. Citation present on every commit.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
