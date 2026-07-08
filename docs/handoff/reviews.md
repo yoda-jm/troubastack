@@ -1948,6 +1948,37 @@ Part 2/2 owes: the floating selection toolbar UI (color · z-order bring-front/
 send-back · duplicate · delete) consuming this model — absolute-positioned (no shift),
 per the Q4 ruling. CI watched.
 
+## 2026-07-08 — T27 stage 2 part 2/2: floating selection toolbar (`597daa8`, at the gate): ✅ GO TO LAND at 5/5
+
+The UI half, correctly **held at the gate** (branch-only). Reviewed the branch head
+(`b77fb71`; `597daa8` is its pure rebase onto the part-1 verdict — diff-of-diffs empty,
+so this review carries over verbatim):
+
+- **No-shift, per the Q4 ruling — confirmed:** `SelectionToolbar` is `position:
+  absolute` (z-index above the wet canvas), anchored at the selected object's bbox and
+  rendered by WetCanvas over the canvas; it stops `pointerdown` reaching the canvas so
+  clicking it never starts a marquee. Zero layout shift by construction.
+- **Wiring per the ruling:** `reorderSelected` computes over same-layer+**same-page**
+  siblings (front = max+1, back = min−1), no-ops on empty/already-there, gated by
+  `isObjectEditableNow` (owner/RW/active layer) — as are color and duplicate; delete
+  reuses `deleteSelected`. Sends the part-1 `reorder` mutation.
+- **Verified on the branch head:** `tsc -b studio` clean; the new
+  `editor-zorder.spec.ts` green via **overlay-PIXEL sampling** (bring-to-front actually
+  flips the overlap colour in the rendered output — real z-order end to end, not just
+  state) + duplicate/recolor/delete counts + toolbar-hides-on-deselect; `editor-pick` +
+  `editor-noflicker` green (no pick/selection/no-reraster regression). 9/9 in my
+  subset; the lane's full editor suite is 41.
+
+**Tiebreak note (from part 1) — still OPEN, non-gating:** `compareObjectZ` untouched, so
+the within-layer tiebreak stays `order` + stable-sort rather than the spec's `order →
+created_at → uuid`. Fine to land (correct for every real doc), but the explicit tiebreak
+stays owed — fold into stage-3 or a small cleanup; don't let it rot.
+
+**GO to land `597daa8` at ubuntu 5/5** (bare task branch → no branch check-runs; the
+push to main gates it). With this, **T27 stage 2 is complete** (data model + toolbar).
+Stage 3 (fullscreen floating layout + style-row auto-hide) is next but **gated on T15**
+(Viewer split) — both attended.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
