@@ -57,13 +57,16 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   mobile lane) · **B08** (bake rev-claim race — XS core, real but rare; reviews.md
   2026-07-07) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
-- **Open, ATTENDED only:** **T15** (Viewer split), **T17** (toolbar single-row redesign —
-  see its attempt log), **T24** (chartpdf/mkcharts convergence — regenerates
-  pixel-verified demo artifacts), the **B07 device screenshot pair** (tab vs score,
-  rides the next attended emulator batch).
+- **Open, ATTENDED only:** **T27** (canvas-first editor — VLL-requested, design-reviewed
+  2026-07-08; staged: stage 1 scroll+wheel-zoom → stage 2 contextual toolbar → **T15**
+  Viewer split → stage 3 fullscreen layout; zero-shift e2e FIRST), **T24**
+  (chartpdf/mkcharts convergence — regenerates pixel-verified demo artifacts), the
+  **B07 device screenshot pair** (tab vs score, rides the next attended emulator batch).
 - **Blocked on the human:** A07 (tablet stylus spike), IOS03 impl (Mac + Apple
   credentials), credential rotation for the git remote.
 - **Closed without landing:** T14 (panelize measured ~10px and reverted; superseded by T17).
+  **T17** (single-row toolbar / style disclosure — superseded by **T27** canvas-first editor,
+  design-reviewed 2026-07-08; its zero-shift-e2e-first requirement carries into T27).
 
 ## Index
 
@@ -85,7 +88,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T14 | [Editor chrome: reach the ≤220px target (panelize)](T14-editor-chrome-panelize.md) | studio | M |
 | T15 | [Split Viewer.tsx into pdf/overlay/sync hooks (T10 part 2)](T15-viewer-hooks-split.md) | studio | M |
 | T16 | [Seed PDFs render em-dashes as mojibake](T16-seed-pdf-encoding.md) | core seed | XS |
-| T17 | [Editor chrome: collapse the style bar behind a disclosure (≤220px)](T17-editor-style-disclosure.md) | studio | M |
+| T17 | [Editor chrome: collapse the style bar behind a disclosure (≤220px)](T17-editor-style-disclosure.md) — **superseded by T27** | studio | M |
 | T18 | [De-dup the Go ConcertBundle mirrors (bake ↔ mkbundle)](T18-dedup-bundle-mirrors.md) | core | XS |
 | T19 | [Text charts: write formatted docs in Studio, bake like PDFs](T19-text-charts.md) | core + studio | M/L |
 | T20 | [Duplicate a setlist](T20-setlist-duplicate.md) | core + studio | S |
@@ -95,6 +98,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T24 | [Converge cmd/mkcharts onto internal/chartpdf (T19 deferral)](T24-chartpdf-mkcharts-converge.md) | core + demo artifacts | S/M |
 | T25 | [Chart editor: rendered PDF preview pane (T19 decision 3)](T25-chart-editor-preview.md) | core + studio | S |
 | T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) | proto + core + app | S |
+| T27 | [Canvas-first editor (supersedes T17; pairs with T15)](T27-canvas-first-editor.md) | studio | L (staged) |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).

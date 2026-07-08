@@ -1753,6 +1753,39 @@ before **stage 1 (scroll + Ctrl/⌘-wheel zoom)**?
 Planned staging: (1) scroll + wheel-zoom, (2) contextual toolbar, (3) fullscreen
 layout + collapsing panel — each its own reviewed commit. Held for your ruling.
 
+## 2026-07-08 — Canvas-first editor: ✅ DESIGN REVIEWED — GO (T27 specced; supersedes T17, sequenced with T15)
+
+Strong raise — held for review, staged, and it flagged its own load-bearing invariants
+(exactly the T15/T17 discipline). Verified the technical premises against `Viewer.tsx`,
+not just the prose, then ruled. Answers to the three questions (full rulings in
+`docs/tasks/T27-canvas-first-editor.md`):
+
+1. **Direction: GO as proposed** — canvas-first, floating centered/width-capped top
+   bar, contextual style/selection toolbars, top-collapsing Layers/Annotations
+   dropdown. **Keep the top bar; do NOT build the left tool-rail variant** — VLL
+   validated the top-bar mockup over 4 iterations, and a rail is speculative until the
+   floating bar actually proves cramped (file it then, not now).
+2. **Supersedes T17; pairs with T15.** T17 (disclose the style bar to hit ≤220px) was
+   the narrow fix for the same root problem — **T17 is CLOSED, folded into T27**, and
+   its hard requirement carries over verbatim: **the zero-shift e2e is written FIRST**
+   (before stage 3). **T15** (Viewer hooks split) **lands before stage 3** so the
+   fullscreen rework builds on the split, not the monolith; stages 1–2 don't need it.
+3. **One invariant underweighted, confirmed by reading the code — zoom re-raster
+   thrash.** The PDF render pass is keyed on `scale` (`Viewer.tsx:831`); today's zoom
+   is a discrete select so it re-rasters once, but continuous Ctrl/⌘-wheel would fire a
+   poppler render **per tick** and churn the flip-fix cancel-guard. **Stage 1 must
+   decouple visual zoom from rasterization:** live CSS-transform zoom + commit the crisp
+   raster only on wheel-settle (debounce/coalesce) — a fast pinch = ONE raster, not
+   dozens. And compute the zoom-to-cursor scroll against the container geometry
+   synchronously (the canvas re-renders async). Everything else in the proposal's
+   invariant list is right; note that no-reraster-on-edit is about EDITS — zoom
+   re-rastering is expected, so add a test that a post-zoom edit still doesn't re-raster.
+
+Staged commits, each reviewed + attended (render-timing is environment-sensitive — the
+flip bug proved headless can't see everything). T27 is ready; stage 1 (scroll +
+wheel-zoom) can start. The proposal doc stays on `main` under `docs/handoff/proposals/`
+for history; T27 is the authoritative spec.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
