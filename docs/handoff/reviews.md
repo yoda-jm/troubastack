@@ -1647,6 +1647,34 @@ group`. Harmless today (cross-group is the ★/"To order" path by design).
 Citation present. CI watched; a red gets its own entry. Reviewed on the reviewed SHA;
 isolated `:8092/:5175` stack, another lane's `:8080` untouched.
 
+## 2026-07-08 — Reskin 4/N DnD down-move fix (`222b6c0`, landed per VLL): ✅ APPROVED — and a REVIEWER MISS owned
+
+VLL hit a bug in the 4/N drag-reorder I approved one commit earlier: dragging a song
+UP landed correctly, dragging DOWN dropped it one slot too low. Classic splice-shift:
+`onDropRow` removed the dragged item then inserted at the hovered row's ORIGINAL
+index, but for a downward move the removal shifts the target up by one. Fix is exactly
+right — `insertAt = d.index < to ? to - 1 : to` — and it also closes the cross-group
+highlight nit I flagged at the 4/N gate (a `canDrop` predicate now gates both the
+`onDragOver` hint and the drop to the dragged item's own group). Verified: `tsc -b
+studio` clean; the DnD spec — **now asserting BOTH directions** — + encore-bench green
+on an isolated stack.
+
+**The miss is mine, and worth recording plainly.** At the 4/N gate I wrote "reorder
+correctness (by read) … splices within the dragged group's array by group-local
+index" and called it correct — but I did not mentally execute the *downward* case,
+where remove-then-insert-at-original-index is off by one. And I leaned on "setlist-dnd
+13/13 green" when that spec only exercised drag-3rd-to-**top** (an up-move) — the exact
+direction without the shift. Two gaps compounding: an incomplete logic trace AND a
+test whose single case missed the bug, and I didn't notice the test only covered one
+direction. **Lesson (added to the checklist): for any index/reorder logic, trace BOTH
+directions by hand, and confirm the e2e covers both before citing it as proof** — a
+green reorder test that only moves one way proves almost nothing. This is the same
+class as the "22 pages looked fine" content-plausibility miss: the artifact passed a
+check that wasn't actually testing the failure mode.
+
+Good outcome — the lane's own test now covers both directions, so the regression
+can't return. Citation present; CI watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
