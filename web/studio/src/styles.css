@@ -802,7 +802,15 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .addbar select { max-width: 340px; flex: 1 1 16rem; }
 
 /* files grid + member table (used by later page migrations) */
-.file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .85rem; }
+.file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .85rem; margin-top: .9rem; }
+.file-grid .file { border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); padding: .85rem; display: flex; flex-direction: column; gap: .6rem; }
+.file-grid .file.gen { border-style: dashed; }
+.file-grid .ftop { display: flex; align-items: flex-start; gap: .65rem; }
+.file-grid .thumb { width: 42px; height: 54px; border-radius: 5px; background: var(--surface); border: 1px solid var(--border-strong); display: grid; place-items: center; color: var(--muted); font-size: 1.15rem; flex: none; }
+.file-grid .fname { display: block; font-weight: 650; font-size: .92rem; line-height: 1.25; word-break: break-word; }
+.file-grid .fmeta { color: var(--muted); font-size: .78rem; font-family: var(--font-mono); margin-top: .15rem; }
+.file-grid .file .chip { flex: none; align-self: flex-start; }
+.file-grid .facts { display: flex; gap: .3rem; margin-top: auto; align-items: center; flex-wrap: wrap; }
 .mtable { width: 100%; border-collapse: collapse; }
 .mtable th { text-align: left; font-family: var(--font-mono); font-size: .68rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 .5rem .5rem; }
 .mtable td { padding: .7rem .5rem; border-top: 1px solid var(--border); vertical-align: middle; }

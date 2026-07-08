@@ -74,64 +74,88 @@ export function Metadata({
   }
 
   return (
-    <section className="card">
-      <h2>Details</h2>
-      <form onSubmit={onSave} data-testid="song-meta-form">
-        <label>
-          Title
-          <input
-            data-testid="meta-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Artist
-          <input
-            data-testid="meta-artist"
-            value={artist}
-            onChange={(e) => setArtist(e.target.value)}
-          />
-        </label>
-        <label>
-          Key
-          <input data-testid="meta-key" value={key} onChange={(e) => setKey(e.target.value)} />
-        </label>
-        <label>
-          Tempo (BPM)
-          <input
-            data-testid="meta-tempo"
-            type="number"
-            value={tempo}
-            onChange={(e) => setTempo(e.target.value)}
-          />
-        </label>
-        <label>
-          Tags (comma-separated)
-          <input data-testid="meta-tags" value={tags} onChange={(e) => setTags(e.target.value)} />
-        </label>
-        <label>
-          Notes
-          <textarea
-            data-testid="meta-notes"
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </label>
-        <div className="inline-form">
-          <button type="submit" data-testid="meta-save" disabled={busy}>
-            Save details
-          </button>
-          {notice && (
-            <span className="notice" data-testid="meta-notice">
-              {notice}
-            </span>
-          )}
-        </div>
-      </form>
-      <ErrorBanner message={error} />
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Details</h2>
+      </div>
+      <div className="panel-body">
+        <form onSubmit={onSave} data-testid="song-meta-form">
+          <div className="form-grid">
+            <div className="field wide">
+              <label htmlFor="meta-title">Title</label>
+              <input
+                id="meta-title"
+                data-testid="meta-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="meta-artist">Artist</label>
+              <input
+                id="meta-artist"
+                data-testid="meta-artist"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="meta-key">Key</label>
+              <input
+                id="meta-key"
+                data-testid="meta-key"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="meta-tempo">Tempo</label>
+              <div className="input-affix">
+                <input
+                  id="meta-tempo"
+                  data-testid="meta-tempo"
+                  type="number"
+                  value={tempo}
+                  onChange={(e) => setTempo(e.target.value)}
+                />
+                <span className="affix">bpm</span>
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="meta-tags">Tags</label>
+              <input
+                id="meta-tags"
+                data-testid="meta-tags"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+              />
+              <span className="hint">Comma-separated.</span>
+            </div>
+            <div className="field wide">
+              <label htmlFor="meta-notes">Notes</label>
+              <textarea
+                id="meta-notes"
+                data-testid="meta-notes"
+                rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="form-foot">
+            <button type="submit" className="primary" data-testid="meta-save" disabled={busy}>
+              {busy ? "Saving…" : "Save details"}
+            </button>
+            {notice && (
+              <span className="saved" data-testid="meta-notice">
+                ✓ {notice}
+              </span>
+            )}
+          </div>
+        </form>
+        <ErrorBanner message={error} />
+      </div>
     </section>
   );
 }
@@ -235,100 +259,125 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
   }
 
   return (
-    <section className="card">
-      <h2>Files</h2>
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Files</h2>
+        <span className="count">
+          {files.length} in the pool
+        </span>
+        <div className="head-actions">
+          <button
+            type="button"
+            className="btn-sm ghost-btn"
+            data-testid="new-text-chart"
+            onClick={() => setChart({ source: "# New chart\n\n## Verse 1\n", baseRevision: 0 })}
+          >
+            ＋ New text chart
+          </button>
+        </div>
+      </div>
+      <div className="panel-body">
+        <form onSubmit={onUpload} className="inline-form" data-testid="file-upload-form">
+          <input ref={fileInput} type="file" data-testid="file-input" />
+          <button type="submit" className="primary btn-sm" data-testid="file-upload" disabled={busy}>
+            Upload
+          </button>
+        </form>
 
-      <form onSubmit={onUpload} className="inline-form" data-testid="file-upload-form">
-        <input ref={fileInput} type="file" data-testid="file-input" />
-        <button type="submit" data-testid="file-upload" disabled={busy}>
-          Upload
-        </button>
-        <button
-          type="button"
-          className="ghost-btn"
-          data-testid="new-text-chart"
-          onClick={() => setChart({ source: "# New chart\n\n## Verse 1\n", baseRevision: 0 })}
-        >
-          New text chart
-        </button>
-      </form>
+        {chart && (
+          <ChartEditor
+            bandId={bandId}
+            songId={songId}
+            initial={chart}
+            onCancel={() => setChart(null)}
+            onDone={() => {
+              setChart(null);
+              void load();
+            }}
+          />
+        )}
 
-      {chart && (
-        <ChartEditor
-          bandId={bandId}
-          songId={songId}
-          initial={chart}
-          onCancel={() => setChart(null)}
-          onDone={() => {
-            setChart(null);
-            void load();
-          }}
-        />
-      )}
+        <ErrorBanner message={error} />
 
-      <ErrorBanner message={error} />
-
-      {files.length === 0 ? (
-        <p className="muted" data-testid="files-empty">
-          No files yet.
-        </p>
-      ) : (
-        <ul className="list" data-testid="files-list">
-          {files.map((f, i) => (
-            <li key={f.id} data-testid="file-row">
-              <span>
-                <a
-                  href={api.fileUrl(f.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  data-testid="file-download"
-                >
-                  {f.filename}
-                </a>{" "}
-                <span className="muted">{fmtSize(f.size)}</span>
-                {f.generated && (
-                  <span className="chip" data-testid="file-chart-badge">
-                    text chart
-                  </span>
-                )}
-              </span>
-              <span className="actions">
-                <button
-                  type="button"
-                  data-testid="file-up"
-                  disabled={i === 0}
-                  onClick={() => move(i, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  data-testid="file-down"
-                  disabled={i === files.length - 1}
-                  onClick={() => move(i, 1)}
-                >
-                  ↓
-                </button>
-                {f.generated && (
+        {files.length === 0 ? (
+          <p className="muted" data-testid="files-empty">
+            No files yet — upload a PDF or image, or create a text chart.
+          </p>
+        ) : (
+          <div className="file-grid" data-testid="files-list">
+            {files.map((f, i) => (
+              <div key={f.id} className={`file${f.generated ? " gen" : ""}`} data-testid="file-row">
+                <div className="ftop">
+                  <div className="thumb" aria-hidden="true">
+                    {f.generated ? "✎" : f.contentType.startsWith("image/") ? "🖼" : "♪"}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <a
+                      href={api.fileUrl(f.id)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="fname"
+                      data-testid="file-download"
+                    >
+                      {f.filename}
+                    </a>
+                    <div className="fmeta">{fmtSize(f.size)}</div>
+                  </div>
+                  {f.generated && (
+                    <span className="chip brand" data-testid="file-chart-badge">
+                      text chart
+                    </span>
+                  )}
+                </div>
+                <div className="facts">
                   <button
                     type="button"
-                    data-testid="file-edit-source"
-                    onClick={() => void editChartSource(f)}
+                    className="icon-btn"
+                    data-testid="file-up"
+                    title="Move up"
+                    disabled={i === 0}
+                    onClick={() => move(i, -1)}
                   >
-                    Edit source
+                    ↑
                   </button>
-                )}
-                <button type="button" data-testid="file-rename" onClick={() => rename(f)}>
-                  Rename
-                </button>
-                <button type="button" data-testid="file-delete" onClick={() => remove(f)}>
-                  Delete
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    data-testid="file-down"
+                    title="Move down"
+                    disabled={i === files.length - 1}
+                    onClick={() => move(i, 1)}
+                  >
+                    ↓
+                  </button>
+                  {f.generated && (
+                    <button
+                      type="button"
+                      className="btn-sm"
+                      data-testid="file-edit-source"
+                      onClick={() => void editChartSource(f)}
+                    >
+                      Edit source
+                    </button>
+                  )}
+                  <button type="button" className="btn-sm" data-testid="file-rename" onClick={() => rename(f)}>
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    data-testid="file-delete"
+                    title="Delete"
+                    onClick={() => remove(f)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
