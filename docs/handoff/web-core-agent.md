@@ -227,9 +227,20 @@ viewer inverts the white PDF canvas in dark mode; keep the "paper" white so colo
 correctly (Studio viewer theming). Both are cosmetic; neither blocks anything.
 
 **Attended-only — do NOT start unattended:**
-- **T17 — single-row toolbar redesign** (superseded T14 after it regressed zero-shift): **build the
-  zero-shift e2e spec FIRST**; full findings/brief in `docs/tasks/T17-editor-style-disclosure.md`.
-- **T15 — split `Viewer.tsx`** (T10 part 2): held for a quiet-machine attended window.
+- **T27 — canvas-first editor** (VLL-requested; Fable GO 2026-07-08, spec `docs/tasks/T27`,
+  **supersedes T17**). Staged, each its own reviewed+attended commit:
+  - **Stage 1 (scroll + Ctrl/⌘-wheel zoom-to-cursor) — ✅ LANDED & CLOSED** (`b3179b6`;
+    web-red fix-forward `f72d7dc`, CI 5/5 green). Approved on substance by Fable. Key
+    invariant realized: live CSS-transform zoom on `.viewer-content`, crisp re-raster
+    committed ONCE on 120ms wheel-settle (one raster per pinch); scroll re-anchored
+    against the scroll container synchronously. Spec: `e2e/editor-wheelzoom.spec.ts`.
+    NB: e2e now has its own DOM-lib `tsconfig.e2e.json` — `tsc -b studio` covers `e2e`.
+  - **Stage 2 (contextual toolbar)** — style row only when a draw tool is active; floating
+    selection toolbar. Drives off existing `tool`/`selectedUuids`. Does NOT need T15. **NEXT.**
+  - **Stage 3 (fullscreen floating-chrome layout)** — after **T15**; zero-shift e2e written FIRST.
+- **T15 — split `Viewer.tsx`** (T10 part 2): held for a quiet-machine attended window; gates T27 stage 3.
+- **T17 — single-row toolbar redesign: CLOSED, superseded by T27** (contextual chrome solves the
+  same "chrome eats the score" root problem more completely).
 
 **A-track (Mobile App Agent), NOT web-core — don't cross into `app/` (I15):** the **B06 app browse
 UX** (NsdManager/NWBrowser + plist), **A11/A12** (Stage count-in / facing pages), and the
