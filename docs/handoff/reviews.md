@@ -1619,6 +1619,34 @@ Reviewed on the reviewed SHA (pulled first). Citation present; CI watched, a red
 its own entry. Pattern is now steady across 2/N–3/N: additive primitives, per-page
 markup, testids held, e2e-plus-pixels each time.
 
+## 2026-07-08 — Reskin 4/N: setlist drag-to-reorder (`a30eb92`, landed per VLL): ✅ APPROVED — a real interaction, logic + e2e verified
+
+Not just a reskin — a functional add: a grip handle (⠿) drag source per row, rows as
+drop targets, group-scoped reorder persisted via the existing `ReorderSetlist`.
+Reviewed the logic, not just the look, since this one has behavior:
+
+- **Reorder correctness (by read):** `onDropRow` guards cross-group (`d.group !==
+  group`) and self-drops; splices within the dragged group's array by group-local
+  index (same indices the ↑/↓ `onMove` already uses); reassembles main-then-bench and
+  sends the full id list. Consistent with T23 — the server's `Setlist()` re-sorts by
+  (onCall, position), so grouping survives even though positions span the whole list.
+- **Accessibility/fallback preserved:** the ↑/↓ buttons stay as the keyboard path
+  (HTML5 drag isn't keyboard-operable), grip carries an `aria-label`; cross-group moves
+  remain on ★ / "To order". Right call to keep both.
+- **Empirical:** `tsc -b studio` clean; **setlist-dnd (new) + encore-bench +
+  setlist-duplicate + flows 13/13 green** on an isolated stack — the new DnD spec
+  proves drag-3rd-to-top renumbers and persists across reload, and flows' ↑/↓ reorder
+  test still passes (the grip didn't disturb row testids).
+
+**One non-blocking nit (recorded, not gating):** `onDragOver` sets the `.drag-over`
+highlight on ANY hovered row including a different-group one, but such a drop is a
+no-op (the guard rejects it) — so a cross-group drag shows a drop affordance that
+won't act. Cheap future polish: skip the highlight when `dragRef.current?.group !==
+group`. Harmless today (cross-group is the ★/"To order" path by design).
+
+Citation present. CI watched; a red gets its own entry. Reviewed on the reviewed SHA;
+isolated `:8092/:5175` stack, another lane's `:8080` untouched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
