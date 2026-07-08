@@ -1675,6 +1675,29 @@ check that wasn't actually testing the failure mode.
 Good outcome — the lane's own test now covers both directions, so the regression
 can't return. Citation present; CI watched.
 
+## 2026-07-08 — Studio reskin 5/N: Band overview + Invites (`cf1be57`, landed per VLL): ✅ APPROVED — e2e + pixels, both themes
+
+The member/invite-facing surfaces migrated (admin Settings-tab management is the
+stated final commit). BandDetail + Invites reworked to the shared primitives (page
+header, `.panel` Members/Songs cards with headed counts + a new `.panel-toolbar`
+disclosure strip, member rows with avatar · @handle · role chip · reset action).
+
+- **Testids preserved** (this hosts T22-ordered invites, the T21 reset action, and
+  the invite flow): precise grep confirms every band/invite testid the specs use is
+  present (`band-title`/`my-role`/`members-list`/`member-row`/`invite-toggle`/`-form`/
+  `-identifier`/`-submit`/`invite-notice`/`songs-*`/`invites-*`); `join-accept`/
+  `join-decline` correctly live in the untouched invite-link `Join.tsx`, not here.
+- **Empirical:** `tsc -b studio` clean; **flows + identity + password-reset 17/17
+  green** on an isolated stack — role changes, invite→accept, invite-link join, and
+  the reset-link issue/consume flow all pass on the redesigned pages.
+- **Pixels, both themes:** page header, panelled Members/Songs with disclosure
+  toolbars, member row with role chip + "Reset password…", serif song links (T22
+  order intact — Hallelujah before Wonderwall). Dark coherent. Matches the mockup.
+
+Reviewed on the reviewed SHA; isolated `:8092/:5175`, `:8080` untouched. Citation
+present; CI watched. Redesign now 5/6 by the lane's own count — the admin Settings
+tab (invite-link management, member roles) is the last one.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
