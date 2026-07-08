@@ -1979,6 +1979,34 @@ push to main gates it). With this, **T27 stage 2 is complete** (data model + too
 Stage 3 (fullscreen floating layout + style-row auto-hide) is next but **gated on T15**
 (Viewer split) — both attended.
 
+## 2026-07-08 — T27 stage 2 landed + tiebreak fix (`e3ffc72` + `ebc481b`): ✅ APPROVED — stage 2 CLOSED, my open note closed too
+
+Both stacked on my GO verdict and landed. Reconciled: part 2/2 landed as `e3ffc72`
+(the rebase of the `b77fb71` I GO'd — patch-identical), and the lane then **folded in
+my non-blocking tiebreak note** as `ebc481b` (reviewed on branch head `f3927b0`,
+diff-of-diffs empty vs the landing).
+
+The tiebreak commit is better than a one-liner — it surfaced that `Object.CreatedAt`
+(proto field 10, long declared) was **never actually stamped** on the create path
+(always 0), so the tiebreak field my note assumed was inert. The fix:
+- `compareObjectZ`: `order → createdAt → uuid` — a total order, array-position
+  independent (equal-`order` objects stack deterministically across clients/passes,
+  robust to concurrent bring-to-front). Matches the spec exactly.
+- **Server-stamps `CreatedAt` once on create** (`handleMutation`: `if o.CreatedAt == 0
+  { o.CreatedAt = m.ClientTS }` — first write wins), kept OUT of LWW (stays
+  version+authorId). Non-create mutations carry the client's already-stamped value, so
+  reorder/move preserve it; legacy/seed `createdAt=0` falls to the uuid tiebreak
+  (deterministic; demo regenerable). Wired on both WS + REST DTOs + all four mappers +
+  `AnnotationObject`.
+
+Re-verified fresh on the branch head: `go vet` + core store suites (all 3 backends) +
+httpapi (WSCreate stamps + round-trips; Reorder persists order+createdAt) green; `tsc
+-b studio` clean; `editor-zorder` (pixel-sampled render z) + `editor-pick` green.
+
+**T27 stage 2 is CLOSED** — z-order data model + createdAt-tiebroken render + the
+floating no-shift selection toolbar, all landed and verified, my one open note now
+resolved. Stage 3 remains gated on T15; both attended. CI on `ebc481b` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
