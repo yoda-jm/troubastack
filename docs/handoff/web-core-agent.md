@@ -242,26 +242,34 @@ correctly (Studio viewer theming). Both are cosmetic; neither blocks anything.
     Per-object z-order = `Object.order` (within-layer; R7-orthogonal) + a gated/LWW `reorder`
     mutation; render↔pick share `compareObjectZ` (order → createdAt → uuid). Specs:
     `e2e/editor-zorder.spec.ts` (+ core storetest/ws reorder). Fable: "stage 2 complete."
-  - **Stage 3 (fullscreen floating-chrome layout + style-row auto-hide)** — after **T15**;
-    zero-shift e2e written FIRST. **The user-visible fullscreen layout — VLL explicitly
-    asked for it (2026-07-09) "including the big split".** Blocked on T15.
-- **T15 — split `Viewer.tsx`** (T10 part 2): VLL cleared it 2026-07-09 ("the big split").
-  **Do this fresh** — `Viewer.tsx` is now ~1,549 lines and sync-sensitive; a rushed pass
-  regresses the no-flicker / echo-rollback invariants (spec: "CI is the reliable gate").
-  Concrete plan (verify each against the editor e2e subset locally — it runs in ~5 min,
-  only the full 56-test `make e2e` times out): (1) `usePdfDocument` — PDF load + raster
-  effect (deps MUST stay `[selectedFile,status,scale,numPages,zoomMode,renderNonce]`) +
-  zoom/DPR/fit + the stage-1 wheel-zoom + `pdfRenderCount` + refs (pdfDoc/pageCanvas/
-  pageSizes/scroll/content); (2) `useDryOverlay` — `paintOverlay`/`overlayRefs`/
-  `renderOverlays` (the only I8 dry path; called from the raster effect via
-  `paintOverlayRef` — keep that indirection); (3) `useSongSync` — `SyncClient` lifecycle
-  + `onState`→`doc` + visible-default merge + `onReject` rollback/notice + expose
-  `syncRef`. Gates T27 stage 3.
+  - **Stage 3 (fullscreen floating-chrome layout + style-row auto-hide) — NEXT, UNBLOCKED.**
+    **VLL's actual want** ("fullscreen is not implemented", 2026-07-09). The **zero-shift
+    guard is already written**: `e2e/editor-zeroshift.spec.ts` (currently `test.fixme` —
+    it fails on the stacked layout because the in-flow panel resizes the scroll on toggle;
+    flip `.fixme`→`test` when stage 3 lands green). Concrete plan (mostly CSS in
+    `styles.css` + light JSX/glass classes in Viewer/Toolbar):
+    (a) `.viewer` fills the viewport (full height); `.viewer-scroll` fills it and scrolls
+    behind the chrome (padding-top to clear the floating top bar);
+    (b) float `.editor-header` + `.editor-toolbar` + `.viewer-toolbar` as `position:
+    absolute` centered/width-capped (`min(1080px,100vw−28px)`) glass bars over the scroll;
+    (c) `.viewer-sidebar` → `position:absolute` top-right glass panel, top-collapsing
+    dropdown (NOT in flex flow — this is what makes the panel toggle zero-shift);
+    (d) style-row auto-hide moves here: Toolbar renders the style row only when a draw
+    tool is active (`tool !== "select"`), floating — no reserved slot;
+    (e) responsive: desktop/tablet centered bars; phone one compact row.
+    Verify: `editor-zeroshift` passes + full editor e2e (43) stays green + eyeball a
+    screenshot. Then rebuild + relaunch the `:8080` demo to show true fullscreen.
+- **T15 — split `Viewer.tsx`** (T10 part 2): ✅ **DONE** (`4f26f02` useSongSync,
+  `118a591` usePdfDocument). Viewer 1549 → 972; `useSongSync.ts` (94) + `usePdfDocument.ts`
+  (510). Full editor e2e (43) green; part 1 Fable-approved. Viewer is 972 not ≤600 — the
+  residual is editing handlers + JSX (spec keeps them) + the T27 stage-1/2 additions that
+  postdate the T15 spec; a `useEditing`/`useDryOverlay` trim is optional (flagged at gate).
 
-**Live demo instance (2026-07-09):** a stable single-binary build of green `main` (T27
-stages 1+2 + z-order) is running for VLL on **:8097** (mem store, seeded marie/demo) —
-`http://192.168.2.8:8097` / `http://atg4:8097`. Rebuild+relaunch (`make dist` on a free
-port, seed) after stage 3 lands to show true fullscreen. NOT the user's `:8080` server.
+**Live demo instance (2026-07-09):** a stable single-binary build of green `main` runs for
+VLL on **:8080** (VLL asked for the normal port; mem store, seeded marie/demo) —
+`http://192.168.2.8:8080` / `http://atg4:8080`. It has T27 stages 1+2 + z-order (NOT yet
+fullscreen — stage 3). Rebuild+relaunch (`make dist`, run on :8080 mem, seed) after stage
+3 lands to show true fullscreen.
 - **T17 — single-row toolbar redesign: CLOSED, superseded by T27** (contextual chrome solves the
   same "chrome eats the score" root problem more completely).
 
