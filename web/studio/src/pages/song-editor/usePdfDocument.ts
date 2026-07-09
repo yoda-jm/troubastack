@@ -38,6 +38,12 @@ const WHEEL_ZOOM_K = 0.0015;
 // Idle gap after the last wheel tick before we commit the crisp re-raster.
 const WHEEL_SETTLE_MS = 120;
 
+// Fit-width is capped at this scale so on a wide screen the score defaults to a
+// comfortable reading size (~230%, VLL-validated) — centered with margins — instead
+// of filling the whole column and rendering huge. Narrower columns fit below the cap
+// as before (T27 stage 3).
+const MAX_FIT_SCALE = 2.3;
+
 /** A zoom selection is either a fit mode or an explicit percentage. */
 export type ZoomMode = "fit-width" | "fit-page" | number;
 export type ViewerStatus = "loading" | "no-file" | "ready" | "error";
@@ -186,7 +192,7 @@ export function usePdfDocument(args: {
       if (typeof zoomMode === "number") return zoomMode / 100;
       const sz = pageSizesRef.current[pageIndex];
       if (!sz || columnWidth <= 0) return 0; // not measured yet → wait
-      const byW = columnWidth / sz.w;
+      const byW = Math.min(columnWidth / sz.w, MAX_FIT_SCALE);
       if (zoomMode === "fit-width") return byW;
       // fit-page: the page fits the viewport height too.
       const el = scrollRef.current;

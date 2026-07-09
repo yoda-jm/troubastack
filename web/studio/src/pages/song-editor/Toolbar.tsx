@@ -136,6 +136,10 @@ export function EditorToolbar({
       // tool, nothing selected) shows every slot, so picking up a selection only
       // ever HIDES slots (never adds), preserving the stable footprint.
       const neutral = selectedType == null && tool === "select";
+      // Contextual toolbar (T27 stage 3): the style row appears only when a draw
+      // tool is active or an object is selected — the neutral (select + nothing
+      // selected) state shows just the tools, keeping the floating bar compact.
+      if (neutral) return null;
       const targetType =
         selectedType ?? (tool !== "select" ? (tool as AnnotationObject["type"]) : null);
       const controls = targetType ? (descriptorFor(targetType)?.styleControls ?? []) : [];

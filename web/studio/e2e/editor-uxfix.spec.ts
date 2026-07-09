@@ -128,15 +128,30 @@ async function setup(page: Page, prefix: string) {
   return { bandId: band.id, songId, fileId, me };
 }
 
-async function pageBox(page: Page) {
+// Scroll the given page-Y fraction(s) into the visible band before returning the box
+// (the full-viewport editor's page can exceed the scroll / sit under the floating
+// chrome — T27 stage 3).
+async function pageBox(page: Page, ...pys: number[]) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
-  return (await pageEl.boundingBox())!;
+  let box = (await pageEl.boundingBox())!;
+  if (pys.length) {
+    const vh = page.viewportSize()!.height;
+    const midY = box.y + box.height * (pys.reduce((a, b) => a + b, 0) / pys.length);
+    if (midY < 110 || midY > vh - 60) {
+      await page
+        .getByTestId("viewer-scroll")
+        .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(midY - vh / 2));
+      await page.waitForTimeout(60);
+      box = (await pageEl.boundingBox())!;
+    }
+  }
+  return box;
 }
 
 /** Drag from a TRUE page-relative fraction to another (single linear drag). */
 async function dragPageFrac(page: Page, x0: number, y0: number, x1: number, y1: number, steps = 12) {
-  const box = await pageBox(page);
+  const box = await pageBox(page, y0, y1);
   await page.mouse.move(box.x + box.width * x0, box.y + box.height * y0);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1, { steps });
@@ -144,7 +159,7 @@ async function dragPageFrac(page: Page, x0: number, y0: number, x1: number, y1: 
 }
 
 async function clickPageFrac(page: Page, px: number, py: number) {
-  const box = await pageBox(page);
+  const box = await pageBox(page, py);
   await page.mouse.click(box.x + box.width * px, box.y + box.height * py);
 }
 

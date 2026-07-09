@@ -41,8 +41,14 @@ export function Shell() {
     return null;
   }
 
+  // The song editor is a full-bleed, canvas-first surface (T27 stage 3): hide the app
+  // top bar so the score owns the whole viewport (also the mobile win). Back-nav lives
+  // in the editor's own floating chrome.
+  const fullbleed = /\/bands\/[^/]+\/songs\/[^/]+/.test(location.pathname);
+
   return (
-    <div className="shell">
+    <div className={`shell${fullbleed ? " shell-fullbleed" : ""}`}>
+      {!fullbleed && (
       <header className="topbar">
         <Link to="/bands" className="brand">
           TroubaStudio
@@ -71,6 +77,7 @@ export function Shell() {
           </button>
         </div>
       </header>
+      )}
       <main className="content">
         <Outlet />
       </main>

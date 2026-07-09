@@ -59,7 +59,8 @@ async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: nu
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
   const vh = page.viewportSize()?.height ?? 720;
-  const top = Math.max(box.y, 0);
+  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
+  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
   const bottom = Math.min(box.y + box.height, vh);
   const bandH = Math.max(0, bottom - top) * 0.9;
   const px = (f: number) => box.x + box.width * f;

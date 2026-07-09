@@ -4,7 +4,7 @@
  * layer/editing state + optimistic mutation handlers, and the JSX. Behavior +
  * data-testids unchanged.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   api,
@@ -112,6 +112,12 @@ export function Viewer({
   const isPdf = selectedFile?.contentType === "application/pdf";
   const isImage = selectedFile?.contentType.startsWith("image/") ?? false;
 
+  // The floating chrome bar (T27 stage 3); we publish its measured height as
+  // --chrome-h so the scroll column's top padding + scroll-padding + the floating
+  // panel's top all clear it. Constant across tool changes (stable style-row
+  // footprint) → no canvas shift.
+  const chromeRef = useRef<HTMLDivElement | null>(null);
+
   // ---- refresh MY file strip (getMyFiles) — also after editor changes ----
   // Keeps a sensible selected file: preserves the current one if it survives,
   // otherwise falls back to the first viewable (PDF-preferred) entry.
@@ -173,6 +179,20 @@ export function Viewer({
   }, [files.length, status]);
 
   // (Realtime sync → useSongSync; PDF load/raster/zoom/overlay → usePdfDocument — T15.)
+
+  // Publish the floating chrome bar's height as --chrome-h on the .viewer card.
+  useEffect(() => {
+    const chrome = chromeRef.current;
+    if (!chrome) return;
+    const section = chrome.parentElement; // the .viewer card
+    const apply = () => {
+      section?.style.setProperty("--chrome-h", `${Math.round(chrome.getBoundingClientRect().height)}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(chrome);
+    return () => ro.disconnect();
+  }, [status]);
 
   const layersById = useMemo(() => {
     const m = new Map<string, AnnotationLayer>();
@@ -648,9 +668,10 @@ export function Viewer({
       className={`card viewer${sidebarOpen ? "" : " sidebar-collapsed"}`}
       data-testid="song-viewer"
     >
-      {/* Compact single-row header (T05): back · title · status. Replaces the
-          old centered back-link + big <h1>, and hosts the status pills that used
-          to sit between the toolbar's action buttons. */}
+      {/* Floating chrome (T27 stage 3): header + tools + zoom/files as one glass bar
+          over the canvas (centered, width-capped). */}
+      <div className="viewer-chrome" data-testid="viewer-chrome" ref={chromeRef}>
+      {/* Compact single-row header (T05): back · title · status. */}
       <div className="editor-header" data-testid="editor-header">
         <Link
           className="editor-back"
@@ -827,6 +848,7 @@ export function Viewer({
           onError={setError}
         />
       )}
+      </div>{/* .viewer-chrome */}
 
       <div className="viewer-body">
         <div className="viewer-scroll" data-testid="viewer-scroll" ref={scrollRef}>

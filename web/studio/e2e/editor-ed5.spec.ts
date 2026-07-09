@@ -105,19 +105,34 @@ async function getAnnotations(page: Page, bandId: string, songId: string) {
   );
 }
 
-/** Click at a TRUE page-relative fraction using the full page box. */
-async function clickPageFrac(page: Page, px: number, py: number) {
+// Scroll a page-relative Y fraction into the visible band (the full-viewport editor's
+// page can exceed the scroll height / sit under the floating chrome — T27 stage 3),
+// then return the page box.
+async function pageBoxFor(page: Page, ...pys: number[]) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
+  let box = (await pageEl.boundingBox())!;
+  const vh = page.viewportSize()!.height;
+  const midY = box.y + box.height * (pys.reduce((a, b) => a + b, 0) / pys.length);
+  if (midY < 110 || midY > vh - 60) {
+    await page
+      .getByTestId("viewer-scroll")
+      .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(midY - vh / 2));
+    await page.waitForTimeout(60);
+    box = (await pageEl.boundingBox())!;
+  }
+  return box;
+}
+
+/** Click at a TRUE page-relative fraction (scrolled into view). */
+async function clickPageFrac(page: Page, px: number, py: number) {
+  const box = await pageBoxFor(page, py);
   await page.mouse.click(box.x + box.width * px, box.y + box.height * py);
 }
 
-/** Drag between two TRUE page-relative fractions (full page box mapping). */
+/** Drag between two TRUE page-relative fractions (scrolled into view). */
 async function dragPageFrac(page: Page, fx: number, fy: number, tx: number, ty: number, steps = 14) {
-  const pageEl = page.getByTestId("pdf-page").first();
-  await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
+  const box = await pageBoxFor(page, fy, ty);
   await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * tx, box.y + box.height * ty, { steps });

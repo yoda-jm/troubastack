@@ -114,20 +114,35 @@ async function setup(page: Page, prefix: string) {
   return { bandId: band.id, songId, fileId, me };
 }
 
-/** Click at a TRUE page-relative fraction using the full page box. */
-async function clickPageFrac(page: Page, px: number, py: number) {
+/** Viewport point for a TRUE page-relative fraction, scrolling the fraction into
+ *  the visible band first (the full-viewport editor's page can be taller than the
+ *  scroll column, so a raw box.y+box.height*py may sit off-screen — T27 stage 3). */
+async function pageFracPoint(page: Page, px: number, py: number) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
-  await page.mouse.click(box.x + box.width * px, box.y + box.height * py);
+  let box = (await pageEl.boundingBox())!;
+  const vh = page.viewportSize()!.height;
+  const targetY = box.y + box.height * py;
+  if (targetY < 90 || targetY > vh - 50) {
+    await page
+      .getByTestId("viewer-scroll")
+      .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(targetY - vh / 2));
+    await page.waitForTimeout(60);
+    box = (await pageEl.boundingBox())!;
+  }
+  return { x: box.x + box.width * px, y: box.y + box.height * py };
 }
 
-/** Move (hover, no button) to a TRUE page-relative fraction. */
+/** Click at a TRUE page-relative fraction (scrolled into view). */
+async function clickPageFrac(page: Page, px: number, py: number) {
+  const p = await pageFracPoint(page, px, py);
+  await page.mouse.click(p.x, p.y);
+}
+
+/** Move (hover, no button) to a TRUE page-relative fraction (scrolled into view). */
 async function hoverPageFrac(page: Page, px: number, py: number) {
-  const pageEl = page.getByTestId("pdf-page").first();
-  await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
-  await page.mouse.move(box.x + box.width * px, box.y + box.height * py);
+  const p = await pageFracPoint(page, px, py);
+  await page.mouse.move(p.x, p.y);
 }
 
 /** The uuid of the single selected object (read off the selected-bbox overlay). */

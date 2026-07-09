@@ -225,15 +225,46 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
    The page itself keeps the narrow column for the title/details; only the
    viewer card stretches via negative margins computed from the viewport. */
 .viewer-page { max-width: 1400px; }
-.viewer-page .viewer {
-  /* Break out of the centered column up to a sensible max width. */
-  width: calc(100vw - clamp(1.5rem, 5vw, 4rem));
-  max-width: 1600px;
-  margin-left: 50%;
-  transform: translateX(-50%);
+
+/* Full-bleed editor (T27 stage 3): the app navbar is hidden (Shell) and the editor
+   owns the ENTIRE viewport. No outer scroll anywhere — only the canvas column scrolls.
+   The Details/files section (below the viewer) is intentionally clipped here for now;
+   it moves into a top-bar "Details" toggle next. */
+.shell-fullbleed { height: 100dvh; overflow: hidden; }
+.shell-fullbleed .content { max-width: none; padding: 0; height: 100dvh; overflow: hidden; }
+.shell-fullbleed .viewer-page { max-width: none; padding: 0; height: 100%; overflow: hidden; }
+.shell-fullbleed .viewer-page .viewer {
+  width: 100%; max-width: none; margin: 0; transform: none; height: 100%;
 }
 
-.viewer { gap: .75rem; }
+.viewer {
+  gap: 0; display: flex; flex-direction: column; min-height: 0;
+  position: relative; padding: 0; overflow: hidden;
+}
+
+/* Floating top chrome: header + tools + zoom/files, one centered/width-capped glass
+   bar over the canvas. pointer-events:none on the bar (auto on its controls) so
+   drawing on the score UNDER the glass passes through — only the controls capture. */
+.viewer-chrome {
+  position: absolute; z-index: 7;
+  top: .5rem; left: 50%; transform: translateX(-50%);
+  width: min(1080px, calc(100% - 1.4rem));
+  display: flex; flex-direction: column; gap: .3rem;
+  padding: .5rem .7rem; border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+  pointer-events: none;
+}
+.viewer-chrome button,
+.viewer-chrome input,
+.viewer-chrome select,
+.viewer-chrome a,
+.viewer-chrome label,
+.viewer-chrome .swatch,
+.viewer-chrome .file-tab,
+.viewer-chrome .pill { pointer-events: auto; }
+.viewer-chrome .viewer-toolbar { border-bottom: none; padding-bottom: 0; }
 
 .viewer-toolbar {
   display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
@@ -303,24 +334,21 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 }
 .link-button:hover:not(:disabled) { border: none; color: var(--brand-strong); }
 
-.viewer-body { display: flex; gap: 1rem; align-items: flex-start; }
-@media (max-width: 760px) { .viewer-body { flex-direction: column-reverse; } }
+/* The body fills the card and is the positioning context for the floating panel. */
+.viewer-body { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
 
 .viewer-scroll {
   position: relative;
   flex: 1 1 auto; min-width: 0;
-  /* Near-viewport height so the canvas column stays largely on-screen even when
-     the page is scrolled to interact with the sidebar below the fold (the Layers
-     panel now sits above the annotation list, pushing it lower) — the visible
-     canvas keeps covering pointer interactions instead of being clipped away. */
-  max-height: calc(100vh - 2rem); overflow: auto;
-  /* `safe center`: center pages that fit, but fall back to start-alignment when a
-     page is wider than the column so its left edge stays scrollable (not clipped). */
+  /* Fill the viewport height (canvas-first). The score scrolls UNDER the floating
+     chrome; the top pad + scroll-padding-top (both = the measured bar height,
+     --chrome-h) keep the score fully visible and let scrollIntoView land it BELOW
+     the bar rather than under it. */
+  height: 100%; overflow: auto;
+  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + .6rem);
   display: flex; flex-direction: column; align-items: safe center; gap: 1rem;
-  padding: 1rem;
+  padding: calc(var(--chrome-h, 3.5rem) + .6rem) 1rem 1rem;
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
 }
 
 /* The pages live in one transform target (T27 stage 1). Live Ctrl/⌘-wheel zoom
@@ -351,12 +379,21 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   pointer-events: none;
 }
 
+/* Layers/Annotations panel (T27 stage 3): a glass dropdown floating at the top-right,
+   just below the chrome bar. Absolute over the canvas, so opening/closing it never
+   resizes the score (zero-shift). Scrolls internally. */
 .viewer-sidebar {
-  flex: 0 0 260px; width: 260px; align-self: stretch;
+  position: absolute; z-index: 6;
+  top: calc(var(--chrome-h, 3.5rem) + 1rem); right: .6rem;
+  width: 264px; max-width: calc(100% - 1.2rem);
+  max-height: calc(100% - var(--chrome-h, 3.5rem) - 1.8rem); overflow: auto;
   display: flex; flex-direction: column; gap: .8rem;
-  min-width: 0;
+  padding: .7rem; border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
 }
-@media (max-width: 760px) { .viewer-sidebar { flex-basis: auto; width: 100%; } }
+@media (max-width: 760px) { .viewer-sidebar { width: min(300px, calc(100% - 1.2rem)); } }
 
 .layers-panel {
   background: var(--surface-2);

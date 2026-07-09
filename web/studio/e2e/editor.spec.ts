@@ -88,7 +88,10 @@ async function dragOnPage(
   const box = (await pageEl.boundingBox())!;
   // Constrain the drawable band to what is actually visible in the viewport.
   const vh = page.viewportSize()?.height ?? 720;
-  const top = Math.max(box.y, 0);
+  // Keep the draw band below the floating chrome bar (T27 stage 3) so gestures land
+  // on the score, not the toolbar.
+  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
+  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
   const bottom = Math.min(box.y + box.height, vh);
   const bandH = Math.max(0, bottom - top) * 0.9;
   const px = (f: number) => box.x + box.width * f;
@@ -105,7 +108,10 @@ async function clickOnPage(page: Page, fx: number, fy: number) {
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
   const vh = page.viewportSize()?.height ?? 720;
-  const top = Math.max(box.y, 0);
+  // Keep the draw band below the floating chrome bar (T27 stage 3) so gestures land
+  // on the score, not the toolbar.
+  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
+  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
   const bottom = Math.min(box.y + box.height, vh);
   const bandH = Math.max(0, bottom - top) * 0.9;
   await page.mouse.click(box.x + box.width * fx, top + bandH * fy);
