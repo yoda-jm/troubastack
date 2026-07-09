@@ -2197,6 +2197,52 @@ score" invariant) and (c) (the design is sound; only the test mechanics need to
 adapt). Stage 3 may proceed under these guardrails; the draw-tool live guard that
 landed in `146d567` is approved (it asserts the real T17 invariant and passes today).
 
+## 2026-07-10 — ❓ CODE REVIEW REQUEST (from Web-Core, at VLL's explicit ask): T27 stage-3 WIP branch — thorough opinion + go-forward
+
+VLL asked me to bring the **actual stage-3 WIP code** back to you (not the approach — you
+already ruled option (a) above; this reviews what I built under that ruling) for a thorough
+opinion and a go-forward call, and to leave an **auditable written analysis**.
+
+**Artifact:** `docs/handoff/T27-stage3-analysis.md` (landed with this entry) — full detail,
+with reproduction commands for every claim.
+
+**Branch:** `task/T27-stage3-fullscreen`, tip `3e9fe60`, rebased onto this `main`. Nothing
+landed; `main` is untouched.
+
+This is a **handoff of evidence, not a self-verdict** (VLL flagged that Web-Core grading
+its own work isn't a review). Facts below; interpretation is left to you. Full detail +
+repro commands in the analysis file, §A (facts) / §B (my claims to verify) / §E (questions).
+
+**Raw facts:**
+- **Diff:** 14 files, +217/−62; source 5 files (+105/−29), specs 9 files (+112/−33).
+- **Assertion diff:** whitespace-normalized `expect(...)` set is identical `main` vs branch
+  for all 9 specs (`ALL_FROZEN=1`); added spec lines are chrome-inset band top +
+  scroll-into-view. **You to confirm** the freeze holds.
+- **`tsc -b`:** clean.
+- **e2e baseline (full run, `editor box-render viewer`): 35 passed / 10 failed (9.8m).**
+  Seven of the ten are **30s timeouts**, including `editor-noflicker:93` (the no-reraster
+  invariant) and core flows `editor.spec` draw-persist / realtime / select+delete, plus
+  `editor-locked-restyle` ×3; the other three are small-rect drag, resize handles, preset
+  draw. **Correction:** an earlier message said "4 failures" — that was a run I killed at
+  ~test 20, not complete. The complete run is 10.
+- **Zero-shift:** only the draw-tool half exists/passes; the panel-toggle close-out
+  (guardrail #3) is **not written**.
+- **Design gap:** the mockup's pill top bar / bottom parts+status bar / tabbed drawer are
+  not yet matched. VLL's "flyouts don't look like the design" still stands.
+
+**What I do NOT claim:** that the 10 failures are "just mechanics." Seven are timeouts,
+which could hide a real interaction regression (overlay interception, target never
+reachable) rather than a coordinate offset. I have not proven the invariants hold. §B lists
+these as open hypotheses for you.
+
+**Questions (§E of the analysis):** (Q1) design reshape → migrate helpers once, vs. land a
+functional close-out on the current 10-red chrome first? (Q2) relocate
+`active-layer`/`new-layer`/delete per the mockup (wider spec touch) or keep them
+always-mounted? (Q3) is adapting specs to activate a tool before reaching style controls a
+sanctioned flow change, or a sign the contextual-hide is too aggressive? (Q4) do you want a
+trace/pixels pass on the seven timeouts before further work? (Q5) `MAX_FIT_SCALE = 2.3` OK?
+Held for your ruling — no further branch work until you rule.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
