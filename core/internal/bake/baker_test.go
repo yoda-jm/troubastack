@@ -346,6 +346,69 @@ func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
 	}
 }
 
+// TestBake_PublishReclaimsOnConcurrentPublish drives the EXACT B08 window
+// deterministically: bake B runs nextRev (claims rev 1), then — via the afterNextRev
+// test seam, before B's own claim/publish — a full bake A publishes rev 1. B must NOT
+// fail its publish; it re-claims a higher rev and lands a distinct, fully-published
+// one. This fails on the pre-B08 code (B's rename 1.tmp→1 errors "file exists").
+func TestBake_PublishReclaimsOnConcurrentPublish(t *testing.T) {
+	svc, eng, u, bandID, setlistID := seed(t)
+	png := tinyPNG(t, 40, 56)
+	b := &Baker{
+		svc:      svc,
+		eng:      eng,
+		raster:   fakeRaster{pages: 1, png: png},
+		overlays: fakeOverlays{png: png},
+		bakesDir: t.TempDir(),
+		now:      func() int64 { return 1700000000 },
+	}
+
+	var once sync.Once
+	var aRev uint64
+	b.afterNextRev = func() {
+		once.Do(func() {
+			// A: a full bake to completion (publishes rev 1) inside B's window, using a
+			// hookless copy so it doesn't recurse. Same goroutine → t.Errorf is safe.
+			a := *b
+			a.afterNextRev = nil
+			ab, err := a.Bake(context.Background(), bandID, setlistID, u, false)
+			if err != nil {
+				t.Errorf("inner bake A failed: %v", err)
+				return
+			}
+			aRev = ab.ConcertRev
+		})
+	}
+
+	bb, err := b.Bake(context.Background(), bandID, setlistID, u, false)
+	if err != nil {
+		t.Fatalf("B must re-claim, not fail, when its rev was published concurrently: %v", err)
+	}
+	if aRev == 0 {
+		t.Fatal("inner bake A did not run")
+	}
+	if bb.ConcertRev == aRev {
+		t.Fatalf("B minted the same rev as A (%d) — not distinct", bb.ConcertRev)
+	}
+
+	// Both A and B are fully published: distinct <rev> dirs + .tstage, no leftover .tmp.
+	for _, rev := range []uint64{aRev, bb.ConcertRev} {
+		revName := strconv.FormatUint(rev, 10)
+		if _, err := os.Stat(filepath.Join(b.bakesDir, setlistID, revName, "bundle.json")); err != nil {
+			t.Fatalf("rev %s bundle.json missing: %v", revName, err)
+		}
+		if _, err := os.Stat(filepath.Join(b.bakesDir, setlistID, revName+".tstage")); err != nil {
+			t.Fatalf("rev %s .tstage missing: %v", revName, err)
+		}
+	}
+	entries, _ := os.ReadDir(filepath.Join(b.bakesDir, setlistID))
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Fatalf("staging dir left behind: %s", e.Name())
+		}
+	}
+}
+
 func refsOf(overlays []LayerImage) []string {
 	out := make([]string, len(overlays))
 	for i, o := range overlays {

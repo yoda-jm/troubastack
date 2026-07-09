@@ -38,6 +38,10 @@ type Baker struct {
 	overlays OverlayRenderer
 	bakesDir string
 	now      func() int64 // injectable clock (unix seconds) for deterministic tests
+	// afterNextRev, if set, is called once right after nextRev returns — a TEST SEAM
+	// (nil in production) letting the B08 test deterministically publish a concurrent
+	// rev in the window between our nextRev and our claim/publish.
+	afterNextRev func()
 }
 
 // New builds a Baker with the real poppler + web/bake shell-out steps. A missing
@@ -115,9 +119,20 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	if err != nil {
 		return ConcertBundle{}, err
 	}
+	if b.afterNextRev != nil {
+		b.afterNextRev()
+	}
 	var stageDir string
 	for {
-		stageDir = filepath.Join(concertDir, strconv.FormatUint(rev, 10)+".tmp")
+		revName := strconv.FormatUint(rev, 10)
+		// A rev that is already PUBLISHED counts as taken too (B08): `nextRev` may have
+		// run before a concurrent same-setlist bake published this number, so its `.tmp`
+		// is gone and the Mkdir below would otherwise succeed on an already-used rev.
+		if _, statErr := os.Stat(filepath.Join(concertDir, revName)); statErr == nil {
+			rev++
+			continue
+		}
+		stageDir = filepath.Join(concertDir, revName+".tmp")
 		mkErr := os.Mkdir(stageDir, 0o755)
 		if mkErr == nil {
 			break
@@ -156,26 +171,49 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		bundle.Songs = append(bundle.Songs, song)
 	}
 
-	manifest, err := bundle.MarshalCanonical()
-	if err != nil {
-		return ConcertBundle{}, err
-	}
-	if err := os.WriteFile(filepath.Join(stageDir, "bundle.json"), manifest, 0o644); err != nil {
-		return ConcertBundle{}, err
-	}
-	// Publish ATOMICALLY (B04 finding 2). Write the sibling .tstage from the staged
+	// Publish ATOMICALLY (B04 finding 2): write the sibling .tstage from the staged
 	// contents FIRST, then rename the staging dir to its final `<rev>` name. Readers
-	// key off the numeric dir (latestRev), so a rev becomes visible only once BOTH
-	// its .tstage and bundle.json are fully in place — never mid-write.
-	revName := strconv.FormatUint(rev, 10)
-	if err := WriteTstage(filepath.Join(concertDir, revName+".tstage"), stageDir, time.Unix(bundle.BakedAt, 0)); err != nil {
-		return ConcertBundle{}, err
+	// key off the numeric dir (latestRev), so a rev becomes visible only once BOTH its
+	// .tstage and bundle.json are fully in place — never mid-write.
+	//
+	// The rename is also the concurrent-publish arbiter (B08): if `<rev>` already
+	// exists (a same-setlist bake published it while we were baking), the rename fails,
+	// and rather than failing the whole bake we re-claim a HIGHER rev, rewrite the
+	// bundle + .tstage under the new number, and retry. Two bakes can never both land
+	// the same `<rev>` — one rename wins, the loser bumps — so concurrent bakes always
+	// produce DISTINCT published revs. Our staged content stays put in `stageDir`
+	// (keeping its `<oldrev>.tmp` name) until a rename finally lands it.
+	for {
+		bundle.ConcertRev = rev
+		manifest, err := bundle.MarshalCanonical()
+		if err != nil {
+			return ConcertBundle{}, err
+		}
+		if err := os.WriteFile(filepath.Join(stageDir, "bundle.json"), manifest, 0o644); err != nil {
+			return ConcertBundle{}, err
+		}
+		revName := strconv.FormatUint(rev, 10)
+		tstagePath := filepath.Join(concertDir, revName+".tstage")
+		if err := WriteTstage(tstagePath, stageDir, time.Unix(bundle.BakedAt, 0)); err != nil {
+			return ConcertBundle{}, err
+		}
+		if err := os.Rename(stageDir, filepath.Join(concertDir, revName)); err == nil {
+			published = true
+			return bundle, nil
+		} else if _, statErr := os.Stat(filepath.Join(concertDir, revName)); statErr != nil {
+			// Rename failed for a reason OTHER than the target already existing.
+			return ConcertBundle{}, err
+		}
+		// `<rev>` was published by a concurrent bake — drop our orphaned .tstage and
+		// re-claim the next free (unpublished) rev, then retry the publish.
+		_ = os.Remove(tstagePath)
+		for {
+			rev++
+			if _, statErr := os.Stat(filepath.Join(concertDir, strconv.FormatUint(rev, 10))); statErr != nil {
+				break // free (not yet published) — the rename below is the atomic claim
+			}
+		}
 	}
-	if err := os.Rename(stageDir, filepath.Join(concertDir, revName)); err != nil {
-		return ConcertBundle{}, err
-	}
-	published = true
-	return bundle, nil
 }
 
 // bakeSong bakes one setlist item: pick its default shared-pool PDF, rasterize its
