@@ -273,7 +273,11 @@ func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
 		now:      func() int64 { return 1700000000 },
 	}
 
-	const n = 2
+	// n=4 (not 2): with >2 racers the B08 re-claim path fires often, which is exactly
+	// where the B09 two-phase .tstage matters — a loser must never clobber the winner's
+	// published <rev>.tstage. The per-rev checks below (every rev has its .tstage) catch
+	// a clobbered/removed one under -race.
+	const n = 4
 	var wg sync.WaitGroup
 	res := make([]ConcertBundle, n)
 	errs := make([]error, n)
@@ -291,8 +295,12 @@ func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
 			t.Fatalf("concurrent bake %d failed: %v", i, errs[i])
 		}
 	}
-	if res[0].ConcertRev == res[1].ConcertRev {
-		t.Fatalf("both bakes minted rev %d — not distinct (rev race)", res[0].ConcertRev)
+	seen := map[uint64]bool{}
+	for i := 0; i < n; i++ {
+		if seen[res[i].ConcertRev] {
+			t.Fatalf("rev %d minted twice — not distinct (rev race)", res[i].ConcertRev)
+		}
+		seen[res[i].ConcertRev] = true
 	}
 
 	// Both revs are fully published: bundle.json parses, every blob ref resolves, .tstage exists.
@@ -333,9 +341,11 @@ func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
 	}
 
 	// ListConcerts / BundlePath expose the highest rev cleanly (latest-per-concert).
-	hi := res[0].ConcertRev
-	if res[1].ConcertRev > hi {
-		hi = res[1].ConcertRev
+	var hi uint64
+	for i := 0; i < n; i++ {
+		if res[i].ConcertRev > hi {
+			hi = res[i].ConcertRev
+		}
 	}
 	concerts := b.ListConcerts()
 	if len(concerts) != 1 || concerts[0].ConcertRev != hi {

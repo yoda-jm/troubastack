@@ -171,18 +171,23 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		bundle.Songs = append(bundle.Songs, song)
 	}
 
-	// Publish ATOMICALLY (B04 finding 2): write the sibling .tstage from the staged
-	// contents FIRST, then rename the staging dir to its final `<rev>` name. Readers
-	// key off the numeric dir (latestRev), so a rev becomes visible only once BOTH its
-	// .tstage and bundle.json are fully in place — never mid-write.
+	// Publish (B04 atomic-rename + B08 re-claim + B09 two-phase .tstage).
 	//
-	// The rename is also the concurrent-publish arbiter (B08): if `<rev>` already
-	// exists (a same-setlist bake published it while we were baking), the rename fails,
-	// and rather than failing the whole bake we re-claim a HIGHER rev, rewrite the
-	// bundle + .tstage under the new number, and retry. Two bakes can never both land
-	// the same `<rev>` — one rename wins, the loser bumps — so concurrent bakes always
-	// produce DISTINCT published revs. Our staged content stays put in `stageDir`
-	// (keeping its `<oldrev>.tmp` name) until a rename finally lands it.
+	// The `<rev>/` dir rename is the atomic arbiter: on a target-exists collision (a
+	// same-setlist bake published this rev while we were baking, B08) we re-claim a
+	// HIGHER rev and retry rather than failing, so concurrent bakes always land DISTINCT
+	// published revs.
+	//
+	// The .tstage is published in TWO phases (B09): we write it under a name UNIQUE to
+	// our exclusive `stageDir` (`<rev>.tmp` — only we hold it), win the dir rename, and
+	// only THEN rename our staged .tstage onto the shared `<rev>.tstage`. So ONLY the
+	// bake that wins `<rev>/` ever writes `<rev>.tstage` — a concurrent bake that also
+	// re-claimed this rev writes its own unique staged file and, on losing the dir race,
+	// removes only THAT (never the winner's), so it can neither delete nor content-
+	// mismatch the published `.tstage`. (This narrows B04's "tstage strictly before dir"
+	// to a sub-ms window where `<rev>/` exists just before `<rev>.tstage` lands, on the
+	// rare re-claim path only — an accepted trade per the B09 ruling.)
+	tstageStage := stageDir + ".tstage" // unique: we exclusively hold stageDir
 	for {
 		bundle.ConcertRev = rev
 		manifest, err := bundle.MarshalCanonical()
@@ -192,21 +197,25 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		if err := os.WriteFile(filepath.Join(stageDir, "bundle.json"), manifest, 0o644); err != nil {
 			return ConcertBundle{}, err
 		}
-		revName := strconv.FormatUint(rev, 10)
-		tstagePath := filepath.Join(concertDir, revName+".tstage")
-		if err := WriteTstage(tstagePath, stageDir, time.Unix(bundle.BakedAt, 0)); err != nil {
+		if err := WriteTstage(tstageStage, stageDir, time.Unix(bundle.BakedAt, 0)); err != nil {
 			return ConcertBundle{}, err
 		}
+		revName := strconv.FormatUint(rev, 10)
 		if err := os.Rename(stageDir, filepath.Join(concertDir, revName)); err == nil {
+			// Won `<rev>/`. We are its sole owner, so we alone place `<rev>.tstage`.
+			if err := os.Rename(tstageStage, filepath.Join(concertDir, revName+".tstage")); err != nil {
+				return ConcertBundle{}, err
+			}
 			published = true
 			return bundle, nil
 		} else if _, statErr := os.Stat(filepath.Join(concertDir, revName)); statErr != nil {
 			// Rename failed for a reason OTHER than the target already existing.
+			_ = os.Remove(tstageStage)
 			return ConcertBundle{}, err
 		}
-		// `<rev>` was published by a concurrent bake — drop our orphaned .tstage and
-		// re-claim the next free (unpublished) rev, then retry the publish.
-		_ = os.Remove(tstagePath)
+		// `<rev>` was published by a concurrent bake — drop OUR uniquely-named staged
+		// .tstage (never the shared published one) and re-claim the next free rev.
+		_ = os.Remove(tstageStage)
 		for {
 			rev++
 			if _, statErr := os.Stat(filepath.Join(concertDir, strconv.FormatUint(rev, 10))); statErr != nil {
