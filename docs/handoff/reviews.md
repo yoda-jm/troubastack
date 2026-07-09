@@ -2099,6 +2099,31 @@ split's value (the sync spine and the PDF/render engine now isolated, testable h
 is delivered; part 3 can shave more via an optional `useDryOverlay` split if VLL wants,
 but it's not required. CI on `118a591` watched.
 
+## 2026-07-09 — T27 stage-3 zero-shift guard + T15 DONE (`55ba1e9`, landed): ✅ APPROVED — the guard is genuine
+
+The lane wrote the **zero-shift e2e FIRST** (the T17-carried requirement that killed
+T17 twice) before starting stage 3, and declared T15 done at part 2. Both right:
+
+- **The guard is real, not a tautology — I proved it.** `editor-zeroshift.spec.ts`
+  measures the first `.pdf-page`'s viewport box and asserts it's stable across (1)
+  activating a draw tool (style row appears) and (2) toggling the Layers/Annotations
+  panel. It's `test.fixme` (skipped) with a clear "flip to `test()` at stage 3" note.
+  I stripped the fixme and ran it on current `main`: it **fails at line 95, the
+  panel-toggle step** — the in-flow panel resizes the scroll column, shifting the
+  canvas — exactly as the commit claims. So when stage 3 floats the chrome
+  (`position:absolute`), the shift disappears and the guard goes green; a regression
+  that reintroduces in-flow chrome will re-break it. A guard that fails for the right
+  reason today is worth having.
+- **T15 is legitimately DONE at part 2** (useSongSync `4f26f02` + usePdfDocument
+  `118a591`; Viewer 1549→972, full editor e2e green throughout). Part 3 was the
+  optional trim I already called not-required; declaring done here is correct.
+
+Docs/test-scaffold only (the spec is skipped, so CI is unaffected). **Stage 3
+(fullscreen floating layout + style-row auto-hide) is now unblocked** — T15 done + the
+zero-shift guard written first, both prerequisites met. When stage 3 lands, the
+close-out is: flip the fixme to a live `test()` and it must pass. CI on `55ba1e9`
+watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
