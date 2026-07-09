@@ -243,8 +243,25 @@ correctly (Studio viewer theming). Both are cosmetic; neither blocks anything.
     mutation; render↔pick share `compareObjectZ` (order → createdAt → uuid). Specs:
     `e2e/editor-zorder.spec.ts` (+ core storetest/ws reorder). Fable: "stage 2 complete."
   - **Stage 3 (fullscreen floating-chrome layout + style-row auto-hide)** — after **T15**;
-    zero-shift e2e written FIRST. **NEXT for the editor arc (blocked on T15).**
-- **T15 — split `Viewer.tsx`** (T10 part 2): held for a quiet-machine attended window; gates T27 stage 3.
+    zero-shift e2e written FIRST. **The user-visible fullscreen layout — VLL explicitly
+    asked for it (2026-07-09) "including the big split".** Blocked on T15.
+- **T15 — split `Viewer.tsx`** (T10 part 2): VLL cleared it 2026-07-09 ("the big split").
+  **Do this fresh** — `Viewer.tsx` is now ~1,549 lines and sync-sensitive; a rushed pass
+  regresses the no-flicker / echo-rollback invariants (spec: "CI is the reliable gate").
+  Concrete plan (verify each against the editor e2e subset locally — it runs in ~5 min,
+  only the full 56-test `make e2e` times out): (1) `usePdfDocument` — PDF load + raster
+  effect (deps MUST stay `[selectedFile,status,scale,numPages,zoomMode,renderNonce]`) +
+  zoom/DPR/fit + the stage-1 wheel-zoom + `pdfRenderCount` + refs (pdfDoc/pageCanvas/
+  pageSizes/scroll/content); (2) `useDryOverlay` — `paintOverlay`/`overlayRefs`/
+  `renderOverlays` (the only I8 dry path; called from the raster effect via
+  `paintOverlayRef` — keep that indirection); (3) `useSongSync` — `SyncClient` lifecycle
+  + `onState`→`doc` + visible-default merge + `onReject` rollback/notice + expose
+  `syncRef`. Gates T27 stage 3.
+
+**Live demo instance (2026-07-09):** a stable single-binary build of green `main` (T27
+stages 1+2 + z-order) is running for VLL on **:8097** (mem store, seeded marie/demo) —
+`http://192.168.2.8:8097` / `http://atg4:8097`. Rebuild+relaunch (`make dist` on a free
+port, seed) after stage 3 lands to show true fullscreen. NOT the user's `:8080` server.
 - **T17 — single-row toolbar redesign: CLOSED, superseded by T27** (contextual chrome solves the
   same "chrome eats the score" root problem more completely).
 
