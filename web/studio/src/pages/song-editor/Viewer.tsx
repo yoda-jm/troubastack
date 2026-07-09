@@ -12,7 +12,6 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { renderObjects, type InkObject } from "@troubastack/ink";
 import {
   api,
-  type AnnotationDoc,
   type AnnotationLayer,
   type AnnotationObject,
   type AnnotationStyle,
@@ -20,7 +19,6 @@ import {
   type SongFile,
 } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { SyncClient, type SyncState } from "../../sync";
 import {
   DEFAULT_STYLE,
   buildObject,
@@ -33,7 +31,8 @@ import { EditorToolbar } from "./Toolbar";
 import { EditCanvas } from "./WetCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
 import { LayersPanel, AnnotationList } from "./SidePanels";
-import { toInkObject, isEditableLayer, compareObjectZ, type LayerVisibility } from "./helpers";
+import { toInkObject, isEditableLayer, compareObjectZ } from "./helpers";
+import { useSongSync, defaultVisibility } from "./useSongSync";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -55,20 +54,6 @@ type ZoomMode = "fit-width" | "fit-page" | number;
 // ===========================================================================
 // Viewer
 // ===========================================================================
-
-/** Default per-viewer visibility (I-style policy): mandatory + shared + my own
- *  personal layers ON; other members' (non-shared, non-mandatory) OFF. */
-function defaultVisibility(layers: AnnotationLayer[], myUserId: string | null): LayerVisibility {
-  const vis: LayerVisibility = {};
-  for (const l of layers) {
-    if (l.mandatory) vis[l.id] = true;
-    else if (l.zone === "shared") vis[l.id] = true;
-    else if (l.zone === "personal" && myUserId != null && l.ownerId === myUserId) vis[l.id] = true;
-    else if (l.zone === "conductor") vis[l.id] = true;
-    else vis[l.id] = false;
-  }
-  return vis;
-}
 
 /** z-order rank for a layer: conductor(0) < shared(1) < personal(2), then by
  *  `order`; within personal, my own layers sort ABOVE other members'. */
@@ -119,8 +104,11 @@ export function Viewer({
   const [customized, setCustomized] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [doc, setDoc] = useState<AnnotationDoc>({ layers: [], objects: [] });
-  const [visible, setVisible] = useState<LayerVisibility>({});
+  // Realtime spine (T15): the live doc, visibility, connection status, reject notice
+  // and the WS client live in useSongSync; the load-once REST seed below writes
+  // through setDoc/setVisible.
+  const { doc, setDoc, visible, setVisible, connStatus, rejectNotice, syncRef } =
+    useSongSync(bandId, songId, myUserId);
 
   // ---- live editing state ----
   const [tool, setTool] = useState<Tool>("select");
@@ -133,13 +121,6 @@ export function Viewer({
   const [focusedLayerId, setFocusedLayerId] = useState<string | null>(null);
   // The current selection (single click or rubber-band marquee). Empty = none.
   const [selectedUuids, setSelectedUuids] = useState<string[]>([]);
-  // A brief inline notice when the server rejects one of our writes.
-  const [rejectNotice, setRejectNotice] = useState<string | null>(null);
-  const [connStatus, setConnStatus] = useState<"connecting" | "open" | "closed">("connecting");
-  // The realtime client for this song; null until a connection is opened.
-  const syncRef = useRef<SyncClient | null>(null);
-  // Latest visibility/sortedLayers/style/tool — referenced inside pointer
-  // handlers that are bound once per page canvas (avoids stale closures).
   // Zoom: a fit mode (default Fit width) or an explicit percentage.
   const [zoomMode, setZoomMode] = useState<ZoomMode>("fit-width");
   const [numPages, setNumPages] = useState(0);
@@ -245,51 +226,7 @@ export function Viewer({
     }
   }, [files.length, status]);
 
-  // ---- realtime sync: one WebSocket per open song ----
-  // The live document is driven by the WS (snapshot + echoes). The REST GET
-  // above seeds the first paint; once the snapshot lands it becomes authoritative.
-  // New layers arriving over the wire default to visible (defaultVisibility).
-  useEffect(() => {
-    const client = new SyncClient(bandId, songId, {
-      onState: (s: SyncState) => {
-        setDoc({ layers: s.layers, objects: s.objects });
-        // Ensure any layer we don't yet have a visibility entry for gets a sane
-        // default (so my new personal layer shows immediately, etc.).
-        setVisible((prev) => {
-          let changed = false;
-          const next = { ...prev };
-          const defaults = defaultVisibility(s.layers, myUserId);
-          for (const l of s.layers) {
-            if (!(l.id in next)) {
-              next[l.id] = defaults[l.id];
-              changed = true;
-            }
-          }
-          return changed ? next : prev;
-        });
-      },
-      onStatus: setConnStatus,
-      onReject: (_uuid, reason) => {
-        // The editable-layer model should prevent forbidden writes, but if the
-        // server still rejects (e.g. a stale layer), roll back is already done —
-        // show a brief inline notice so the user knows the edit didn't stick.
-        setRejectNotice(
-          reason === "forbidden"
-            ? "That layer is read-only — your edit wasn't saved."
-            : reason === "deleted-remotely"
-              ? "That object was deleted by someone else."
-              : "Your edit couldn't be saved (out of date).",
-        );
-        window.setTimeout(() => setRejectNotice(null), 4000);
-      },
-    });
-    syncRef.current = client;
-    client.connect();
-    return () => {
-      client.close();
-      syncRef.current = null;
-    };
-  }, [bandId, songId, myUserId]);
+  // (Realtime sync lifecycle moved to useSongSync — T15.)
 
   // ---- load the selected file (PDF bytes via PDF.js, or just mark image) ----
   useEffect(() => {
