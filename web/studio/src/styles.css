@@ -245,14 +245,17 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 /* Floating top chrome: header + tools + zoom/files, one centered/width-capped glass
    bar over the canvas. pointer-events:none on the bar (auto on its controls) so
    drawing on the score UNDER the glass passes through — only the controls capture. */
-.viewer-chrome {
-  position: absolute; z-index: 7;
-  top: .5rem; left: 50%; transform: translateX(-50%);
-  width: min(1080px, calc(100% - 1.4rem));
-  display: flex; flex-direction: column; gap: .3rem;
-  padding: .5rem .7rem; border-radius: var(--r-sm);
+/* ---- Floating TOP BAR pill (T27 stage 3, matches the approved mockup): one slim
+   glass row over the canvas. pointer-events pass through to the score except on the
+   controls, so drawing under the glass still works. ---- */
+.viewer-chrome.topbar-pill {
+  position: absolute; z-index: 8;
+  top: .55rem; left: 50%; transform: translateX(-50%);
+  width: min(1080px, calc(100% - 1.75rem));
+  display: flex; align-items: center; gap: .5rem;
+  padding: .35rem .5rem; border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(10px);
+  backdrop-filter: saturate(150%) blur(12px);
   border: 1px solid var(--border); box-shadow: var(--shadow);
   pointer-events: none;
 }
@@ -260,11 +263,50 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .viewer-chrome input,
 .viewer-chrome select,
 .viewer-chrome a,
-.viewer-chrome label,
-.viewer-chrome .swatch,
-.viewer-chrome .file-tab,
-.viewer-chrome .pill { pointer-events: auto; }
-.viewer-chrome .viewer-toolbar { border-bottom: none; padding-bottom: 0; }
+.viewer-chrome label { pointer-events: auto; }
+
+.tb-back {
+  flex: 0 0 auto; width: 2rem; height: 2rem; display: grid; place-items: center;
+  border-radius: 999px; color: var(--muted); font-size: 1.15rem; text-decoration: none;
+}
+.tb-back:hover { background: var(--surface-2); color: var(--fg); text-decoration: none; }
+.tb-title {
+  flex: 0 1 auto; min-width: 0; font-weight: 700; font-size: 1rem; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22vw;
+}
+.tb-divider { flex: 0 0 auto; width: 1px; height: 1.4rem; background: var(--border); }
+.tb-spring { flex: 1 1 auto; }
+
+/* the tool cluster sits inline in the pill (shed its card chrome) */
+.topbar-pill .editor-toolbar { display: contents; }
+.topbar-pill .tool-palette {
+  display: flex; align-items: center; gap: .15rem; border: none; padding: 0; margin: 0;
+}
+/* locked-layer hint: float it BELOW the slim pill so it never widens the row, but
+   stays a real visible element when locked (specs assert visible/hidden). */
+.topbar-pill .draw-locked-hint {
+  position: absolute; top: calc(100% + .4rem); left: 1.2rem; margin: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  padding: .2rem .65rem; box-shadow: var(--shadow); white-space: nowrap;
+  font-size: .78rem; color: var(--warn-fg);
+}
+
+/* pill toggle buttons: Layers / Notes / Details */
+.pill-btn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: .35rem;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg);
+  font-weight: 600; font-size: .82rem; padding: .35rem .7rem; border-radius: 999px; margin: 0;
+}
+.pill-btn:hover { border-color: var(--brand); }
+.pill-btn.active,
+.pill-btn[aria-pressed="true"] {
+  background: var(--brand-tint); border-color: var(--brand); color: var(--brand-strong);
+}
+
+/* compact zoom cluster inside the pill */
+.topbar-pill .zoom-controls { flex: 0 0 auto; gap: .25rem; }
+.topbar-pill .zoom-controls button { min-width: 1.8rem; padding: .2rem .45rem; font-size: 1rem; }
+.topbar-pill .zoom-select { padding: .25rem .35rem; font-size: .8rem; max-width: 9rem; }
 
 .viewer-toolbar {
   display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
@@ -345,9 +387,11 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
      --chrome-h) keep the score fully visible and let scrollIntoView land it BELOW
      the bar rather than under it. */
   height: 100%; overflow: auto;
-  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + .6rem);
+  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + .7rem);
+  scroll-padding-bottom: 4.75rem;
   display: flex; flex-direction: column; align-items: safe center; gap: 1rem;
-  padding: calc(var(--chrome-h, 3.5rem) + .6rem) 1rem 1rem;
+  /* top clears the slim top pill; bottom clears the floating bottom pill. */
+  padding: calc(var(--chrome-h, 3.5rem) + .7rem) 1rem 4.75rem;
   background: var(--surface-2);
 }
 
@@ -379,21 +423,115 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   pointer-events: none;
 }
 
-/* Layers/Annotations panel (T27 stage 3): a glass dropdown floating at the top-right,
-   just below the chrome bar. Absolute over the canvas, so opening/closing it never
-   resizes the score (zero-shift). Scrolls internally. */
-.viewer-sidebar {
-  position: absolute; z-index: 6;
-  top: calc(var(--chrome-h, 3.5rem) + 1rem); right: .6rem;
-  width: 264px; max-width: calc(100% - 1.2rem);
-  max-height: calc(100% - var(--chrome-h, 3.5rem) - 1.8rem); overflow: auto;
-  display: flex; flex-direction: column; gap: .8rem;
-  padding: .7rem; border-radius: var(--r-sm);
+/* ---- On-demand right DRAWER (Layers | Annotations): one tabbed glass dropdown,
+   absolute over the canvas so opening/closing never resizes the score (zero-shift).
+   Scrolls internally. ---- */
+.drawer {
+  position: absolute; z-index: 7;
+  top: calc(var(--chrome-h, 3.5rem) + 1rem);
+  right: max(.9rem, calc((100% - 1080px) / 2 + .2rem));
+  width: 300px; max-width: calc(100% - 1.4rem);
+  max-height: min(62vh, 560px);
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: var(--r); border: 1px solid var(--border); box-shadow: var(--shadow);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(8px);
+  backdrop-filter: saturate(150%) blur(12px);
+}
+.drawer-tabs { display: flex; gap: .2rem; align-items: center; padding: .45rem .5rem 0; }
+.drawer-tab {
+  flex: 1 1 auto; border: none; background: transparent; color: var(--muted);
+  font-weight: 600; font-size: .84rem; padding: .45rem; margin: 0;
+  border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent;
+}
+.drawer-tab:hover { color: var(--fg); }
+.drawer-tab.active { color: var(--brand-strong); border-bottom-color: var(--brand); }
+.drawer-collapse {
+  flex: 0 0 auto; width: 1.9rem; border: none; background: transparent; color: var(--muted);
+  border-radius: 8px; font-size: .8rem; padding: .3rem; margin: 0;
+}
+.drawer-collapse:hover { background: var(--surface-2); color: var(--fg); }
+.drawer-body {
+  padding: .7rem .8rem; overflow: auto;
+  display: flex; flex-direction: column; gap: .8rem;
+}
+@media (max-width: 760px) { .drawer { width: auto; left: .7rem; right: .7rem; } }
+
+/* ---- Contextual STYLE pill (.ctx): slim glass bar just below the top pill,
+   shown only when a draw tool / selection is active. ---- */
+.ctx-bar {
+  position: absolute; z-index: 7;
+  top: calc(var(--chrome-h, 3.5rem) + .9rem); left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 1.75rem);
+  display: flex; align-items: center;
+  padding: .3rem .6rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: saturate(150%) blur(12px);
   border: 1px solid var(--border); box-shadow: var(--shadow);
 }
-@media (max-width: 760px) { .viewer-sidebar { width: min(300px, calc(100% - 1.2rem)); } }
+.ctx-bar .style-controls {
+  border: none; padding: 0; margin: 0; gap: .5rem;
+  flex-wrap: wrap; justify-content: center;
+}
+
+/* ---- Floating BOTTOM BAR pill: file tabs (parts) + "＋ Add file" · live status. ---- */
+.bottombar-pill {
+  position: absolute; z-index: 8;
+  bottom: .55rem; left: 50%; transform: translateX(-50%);
+  width: min(1080px, calc(100% - 1.75rem));
+  display: flex; align-items: center; gap: .6rem;
+  padding: .35rem .55rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.bottombar-pill .parts {
+  display: flex; align-items: center; gap: .3rem;
+  overflow-x: auto; flex: 1 1 auto; min-width: 0;
+}
+.bottombar-pill .part {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: .4rem;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg);
+  font-weight: 600; font-size: .8rem; padding: .3rem .7rem; border-radius: 999px; margin: 0;
+  max-width: 14rem; box-shadow: none;
+}
+.bottombar-pill .part:hover:not(:disabled) { border-color: var(--brand); }
+.bottombar-pill .part.active {
+  background: var(--brand-tint); border-color: var(--brand); color: var(--brand-strong);
+}
+.bottombar-pill .part:disabled { opacity: .5; cursor: default; }
+.bottombar-pill .part .file-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bottombar-pill .add-file { color: var(--muted); }
+.bottombar-pill .status {
+  flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; gap: .6rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .78rem; color: var(--muted); white-space: nowrap;
+}
+.live-status { display: inline-flex; align-items: center; gap: .35rem; font-weight: 700; color: var(--ok-fg); }
+.live-status::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.live-status.conn-connecting, .live-status.conn-closed { color: var(--warn-fg); }
+
+/* wheel/zoom hint (desktop). */
+.wheelhint {
+  position: absolute; z-index: 6; left: 50%; bottom: 4.2rem; transform: translateX(-50%);
+  font-size: .72rem; color: var(--muted); white-space: nowrap; pointer-events: none;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 1px solid var(--border); border-radius: 999px; padding: .2rem .7rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (max-width: 600px) { .wheelhint { display: none; } }
+
+/* Floating Details & files panel (opened by the top-bar Details pill). Keeps the
+   metadata / upload / chart surfaces reachable in the fullscreen editor. */
+.details-panel {
+  position: absolute; z-index: 9;
+  top: calc(var(--chrome-h, 3.5rem) + .9rem); left: 50%; transform: translateX(-50%);
+  width: min(680px, calc(100% - 1.75rem));
+  max-height: calc(100% - var(--chrome-h, 3.5rem) - 5.5rem); overflow: auto;
+  border-radius: var(--r); border: 1px solid var(--border); box-shadow: var(--shadow);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  backdrop-filter: saturate(150%) blur(12px);
+  padding: .4rem .7rem;
+}
 
 .layers-panel {
   background: var(--surface-2);

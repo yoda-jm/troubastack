@@ -33,6 +33,7 @@ const PRESET_BUTTONS: { id: PresetId; label: string; testid: string }[] = [
 ];
 
 export function EditorToolbar({
+  part,
   tool,
   onTool,
   style,
@@ -55,6 +56,12 @@ export function EditorToolbar({
   canDeleteSelection,
   onDelete,
 }: {
+  // Which slice of the toolbar to render into the T27 stage-3 fullscreen chrome:
+  //   "tools"  → the compact tool cluster (floating top-bar pill)
+  //   "style"  → the contextual style row (floating .ctx pill, shown when drawing/selected)
+  //   "layers" → layer management: active layer, +New layer, Edit-this-layer, Delete
+  //              (lives in the on-demand drawer, per the approved mockup)
+  part: "tools" | "style" | "layers";
   tool: Tool;
   onTool: (t: Tool) => void;
   style: AnnotationStyle;
@@ -83,7 +90,8 @@ export function EditorToolbar({
   canDeleteSelection: boolean;
   onDelete: () => void;
 }) {
-  return (
+  // The tool cluster (top-bar pill). Keeps `editor-toolbar`/`tool-palette` testids.
+  const toolsEl = (
     <div className="editor-toolbar" data-testid="editor-toolbar">
       <div className="tool-palette" role="toolbar" aria-label="Annotation tools">
         {TOOLS.map((t) => (
@@ -116,8 +124,11 @@ export function EditorToolbar({
           read-only layer — pick an editable layer to draw
         </span>
       </div>
+    </div>
+  );
 
-      {(() => {
+  // The contextual style row (.ctx pill). Returns null in the neutral state.
+  const styleEl = (() => {
       // ---- per-type control relevance (#1+#2) ----------------------------
       // The bar's FOOTPRINT never changes with selection: every control slot is
       // ALWAYS rendered; irrelevant slots are hidden via `visibility:hidden`
@@ -139,7 +150,9 @@ export function EditorToolbar({
       // Contextual toolbar (T27 stage 3): the style row appears only when a draw
       // tool is active or an object is selected — the neutral (select + nothing
       // selected) state shows just the tools, keeping the floating bar compact.
-      if (neutral) return null;
+      // Multi-selection is NOT neutral: it shows the row (disabled) so the "N
+      // selected" indicator + restyle-lock stay visible.
+      if (neutral && !multiSelected) return null;
       const targetType =
         selectedType ?? (tool !== "select" ? (tool as AnnotationObject["type"]) : null);
       const controls = targetType ? (descriptorFor(targetType)?.styleControls ?? []) : [];
@@ -305,8 +318,11 @@ export function EditorToolbar({
         </label>
       </div>
       );
-      })()}
+      })();
 
+  // Layer management (drawer). Keeps active-layer / new-layer / edit-this-layer /
+  // delete-object testids present + reachable (delete's primary UX is the selbar).
+  const layersEl = (
       <div className="layer-controls">
         {/* Prominent, brand-colored chip: always shows where ink will land. */}
         <span
@@ -374,8 +390,11 @@ export function EditorToolbar({
           Delete{selectionCount > 1 ? ` (${selectionCount})` : ""}
         </button>
       </div>
-    </div>
   );
+
+  if (part === "tools") return toolsEl;
+  if (part === "style") return styleEl;
+  return layersEl;
 }
 
 // ===========================================================================

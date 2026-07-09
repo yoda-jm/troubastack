@@ -103,7 +103,16 @@ export function Viewer({
   const [selectedUuids, setSelectedUuids] = useState<string[]>([]);
   const [status, setStatus] = useState<"loading" | "no-file" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // The on-demand right drawer (T27 stage 3): `sidebarOpen` gates it; `drawerTab`
+  // picks the Layers vs Annotations face. Toggled from the top-bar pills. Starts
+  // closed so the canvas owns the viewport (mockup default).
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<"layers" | "annotations">("layers");
+  // Open the drawer to a specific tab; clicking the already-open tab closes it.
+  const openDrawer = useCallback((tab: "layers" | "annotations") => {
+    setSidebarOpen((open) => !(open && drawerTab === tab));
+    setDrawerTab(tab);
+  }, [drawerTab]);
 
   const selectedFile = useMemo(
     () => files.find((f) => f.id === selectedFileId) ?? null,
@@ -663,91 +672,69 @@ export function Viewer({
   }
 
 
+  // The style/layer row + tool cluster share one big prop set; build it once.
+  const toolbarProps = {
+    tool,
+    onTool: (t: Tool) => {
+      setTool(t);
+      if (t !== "select") setSelectedUuids([]);
+    },
+    style: effectiveStyle,
+    onStyle: applyStyle,
+    controlsLocked,
+    multiSelected: selectedUuids.length > 1,
+    selectedType: selectedObject?.type ?? null,
+    editableLayers,
+    activeLayerId,
+    activeLayer,
+    onActiveLayer: selectActiveLayer,
+    onNewLayer: () => createPersonalLayer(),
+    canDraw: myUserId != null && selectedFileId != null,
+    drawLocked: focusLocked,
+    canEditFocusedLayer,
+    focusedLayerName: focusedLayer?.name ?? null,
+    onEditLayer: editFocusedLayer,
+    showEditLayerHint: selectionOnInactiveEditable,
+    selectionCount: selectedUuids.length,
+    canDeleteSelection: selectedUuids.some((u) => {
+      const o = doc.objects.find((x) => x.uuid === u);
+      return o != null && isObjectEditableNow(o);
+    }),
+    onDelete: deleteSelected,
+  };
+  // The contextual style pill (.ctx) shows only when there is something to style:
+  // a draw tool is active, or one/more objects are selected (mockup behavior).
+  const ctxShown = tool !== "select" || selectedUuids.length > 0;
+
   return (
     <section
       className={`card viewer${sidebarOpen ? "" : " sidebar-collapsed"}`}
       data-testid="song-viewer"
     >
-      {/* Floating chrome (T27 stage 3): header + tools + zoom/files as one glass bar
-          over the canvas (centered, width-capped). */}
-      <div className="viewer-chrome" data-testid="viewer-chrome" ref={chromeRef}>
-      {/* Compact single-row header (T05): back · title · status. */}
-      <div className="editor-header" data-testid="editor-header">
+      {/* ---- Floating TOP BAR pill (T27 stage 3, matches the approved mockup):
+          back · title · tool cluster · zoom · Layers/Notes/Details toggles. One
+          slim glass row over the canvas; pointer-events pass through to the score
+          except on the controls. ---- */}
+      <div className="viewer-chrome topbar-pill" data-testid="viewer-chrome" ref={chromeRef}>
         <Link
-          className="editor-back"
+          className="tb-back"
           to={`/bands/${bandId}`}
           aria-label="Back to band"
           title="Back to band"
         >
           &larr;
         </Link>
-        <span className="editor-song-title" data-testid="song-title">
+        <span className="tb-title" data-testid="song-title" title={songTitle}>
           {songTitle}
         </span>
-        <span className="editor-status">
-          <span className="pill" data-testid="object-count" title="Live annotation count">
-            {doc.objects.length} objects
-          </span>
-          <span
-            className={`pill conn-pill conn-${connStatus}`}
-            data-testid="conn-status"
-            title="Realtime connection"
-          >
-            {connStatus === "open" ? "live" : connStatus}
-          </span>
-        </span>
-      </div>
+        <span className="tb-divider" aria-hidden="true" />
 
-      <EditorToolbar
-        tool={tool}
-        onTool={(t) => {
-          setTool(t);
-          if (t !== "select") setSelectedUuids([]);
-        }}
-        style={effectiveStyle}
-        onStyle={applyStyle}
-        controlsLocked={controlsLocked}
-        multiSelected={selectedUuids.length > 1}
-        selectedType={selectedObject?.type ?? null}
-        editableLayers={editableLayers}
-        activeLayerId={activeLayerId}
-        activeLayer={activeLayer}
-        onActiveLayer={selectActiveLayer}
-        onNewLayer={() => createPersonalLayer()}
-        canDraw={myUserId != null && selectedFileId != null}
-        drawLocked={focusLocked}
-        canEditFocusedLayer={canEditFocusedLayer}
-        focusedLayerName={focusedLayer?.name ?? null}
-        onEditLayer={editFocusedLayer}
-        showEditLayerHint={selectionOnInactiveEditable}
-        selectionCount={selectedUuids.length}
-        canDeleteSelection={selectedUuids.some((u) => {
-          const o = doc.objects.find((x) => x.uuid === u);
-          return o != null && isObjectEditableNow(o);
-        })}
-        onDelete={deleteSelected}
-      />
+        <EditorToolbar part="tools" {...toolbarProps} />
 
-      {rejectNotice && (
-        <p className="notice editor-reject-notice" data-testid="reject-notice" role="alert">
-          {rejectNotice}
-        </p>
-      )}
+        <span className="tb-spring" />
 
-      {/* Hidden render-count probe: how many times PDF pages have actually been
-          rasterized. e2e asserts this does NOT change across an annotation edit
-          (no re-raster = no flicker). */}
-      <span
-        data-testid="pdf-render-count"
-        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}
-        aria-hidden="true"
-      >
-        {pdfRenderCount}
-      </span>
-
-      <div className="viewer-toolbar">
         <div className="zoom-controls" data-testid="zoom-controls">
-          <button type="button" data-testid="zoom-out" onClick={() => stepZoom(-1)}>
+          <button type="button" data-testid="zoom-out" onClick={() => stepZoom(-1)} aria-label="Zoom out">
             −
           </button>
           <select
@@ -768,87 +755,68 @@ export function Viewer({
               <option value={customZoomPercent}>{customZoomPercent}%</option>
             )}
           </select>
-          <button type="button" data-testid="zoom-in" onClick={() => stepZoom(1)}>
+          <button type="button" data-testid="zoom-in" onClick={() => stepZoom(1)} aria-label="Zoom in">
             +
           </button>
         </div>
 
-        <div className="my-files-controls">
-          <button
-            type="button"
-            className="my-files-edit-btn"
-            data-testid="my-files-edit"
-            aria-expanded={editorOpen}
-            onClick={() => setEditorOpen((o) => !o)}
-          >
-            Choose files
-          </button>
-          {customized && (
-            <span className="pill my-files-custom-pill" data-testid="my-files-custom">
-              custom
-            </span>
-          )}
-        </div>
-
-        {files.length >= 1 && (
-          <div
-            className="file-picker"
-            data-testid="file-picker"
-            role="tablist"
-            aria-label="Files"
-          >
-            {files.map((f) => {
-              const viewable = isViewable(f);
-              const active = f.id === selectedFileId;
-              const badge =
-                f.contentType === "application/pdf"
-                  ? "PDF"
-                  : f.contentType.startsWith("image/")
-                    ? "IMG"
-                    : "—";
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  className={`file-tab card${active ? " active" : ""}`}
-                  data-testid="file-tab"
-                  role="tab"
-                  aria-selected={active}
-                  disabled={!viewable}
-                  title={viewable ? f.filename : `${f.filename} (not viewable)`}
-                  onClick={() => viewable && setSelectedFileId(f.id)}
-                >
-                  <span className={`pill file-tab-badge badge-${badge.toLowerCase()}`}>
-                    {badge}
-                  </span>
-                  <span className="file-tab-name">{f.filename}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <span className="tb-divider" aria-hidden="true" />
 
         <button
           type="button"
-          className="sidebar-toggle"
+          className={`pill-btn${sidebarOpen && drawerTab === "layers" ? " active" : ""}`}
           data-testid="sidebar-toggle"
-          aria-expanded={sidebarOpen}
-          onClick={() => setSidebarOpen((o) => !o)}
+          aria-pressed={sidebarOpen && drawerTab === "layers"}
+          onClick={() => openDrawer("layers")}
+          title="Layers"
         >
-          {sidebarOpen ? "Hide layers ▸" : "◂ Show layers"}
+          Layers
+        </button>
+        <button
+          type="button"
+          className={`pill-btn${sidebarOpen && drawerTab === "annotations" ? " active" : ""}`}
+          data-testid="drawer-notes"
+          aria-pressed={sidebarOpen && drawerTab === "annotations"}
+          onClick={() => openDrawer("annotations")}
+          title="Annotations"
+        >
+          Notes
+        </button>
+        <button
+          type="button"
+          className={`pill-btn${editorOpen ? " active" : ""}`}
+          data-testid="my-files-edit"
+          aria-expanded={editorOpen}
+          onClick={() => setEditorOpen((o) => !o)}
+          title="Song details & files"
+        >
+          Details
         </button>
       </div>
 
-      {editorOpen && (
-        <MyFilesEditor
-          bandId={bandId}
-          songId={songId}
-          selected={files}
-          onChanged={refreshMyFiles}
-          onError={setError}
-        />
+      {/* Hidden render-count probe: how many times PDF pages have actually been
+          rasterized. e2e asserts this does NOT change across an annotation edit. */}
+      <span
+        data-testid="pdf-render-count"
+        style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}
+        aria-hidden="true"
+      >
+        {pdfRenderCount}
+      </span>
+
+      {/* ---- Contextual STYLE pill (.ctx): slides in below the top bar only when a
+          draw tool or a selection is active. Absolute over the canvas → zero-shift. ---- */}
+      {ctxShown && (
+        <div className="ctx-bar" data-testid="ctx-bar">
+          <EditorToolbar part="style" {...toolbarProps} />
+        </div>
       )}
-      </div>{/* .viewer-chrome */}
+
+      {rejectNotice && (
+        <p className="notice editor-reject-notice" data-testid="reject-notice" role="alert">
+          {rejectNotice}
+        </p>
+      )}
 
       <div className="viewer-body">
         <div className="viewer-scroll" data-testid="viewer-scroll" ref={scrollRef}>
@@ -959,37 +927,152 @@ export function Viewer({
           </div>
         </div>
 
+        {/* ---- On-demand right DRAWER: one tabbed glass dropdown (Layers |
+            Annotations), toggled from the top-bar pills. Absolute over the canvas
+            → opening/closing it never shifts the score. The Layers tab hosts layer
+            management (active layer, +New layer, Edit-this-layer, Delete). ---- */}
         {sidebarOpen && (
-          <div className="viewer-sidebar">
-            {/* Layers panel ABOVE the annotation list so its position stays
-                stable; only the variable-length annotation list (below) grows
-                or shrinks as the layer/selection changes. */}
-            <LayersPanel
-              layers={sortedLayers}
-              visible={visible}
-              myUserId={myUserId}
-              myRole={myRole}
-              activeLayerId={activeLayerId}
-              focusedLayerId={focusedLayerId}
-              onToggle={toggle}
-              onFocus={focusLayer}
-              canToggleAccess={canToggleLayerAccess}
-              onSetAccess={setLayerAccess}
-            />
-            <AnnotationList
-              objects={doc.objects}
-              focusedLayerId={focusedLayerId}
-              focusedLayer={focusedLayer}
-              focusLocked={focusLocked}
-              selectedUuids={selectedUuids}
-              onSelect={(uuid) => {
-                setSelectedUuids([uuid]);
-                scrollObjectIntoView(uuid);
-              }}
-            />
-          </div>
+          <aside className="drawer open" data-testid="viewer-drawer">
+            <div className="drawer-tabs">
+              <button
+                type="button"
+                className={`drawer-tab${drawerTab === "layers" ? " active" : ""}`}
+                aria-pressed={drawerTab === "layers"}
+                onClick={() => setDrawerTab("layers")}
+              >
+                Layers
+              </button>
+              <button
+                type="button"
+                className={`drawer-tab${drawerTab === "annotations" ? " active" : ""}`}
+                aria-pressed={drawerTab === "annotations"}
+                onClick={() => setDrawerTab("annotations")}
+              >
+                Annotations
+              </button>
+              <button
+                type="button"
+                className="drawer-collapse"
+                aria-label="Close panel"
+                title="Close"
+                onClick={() => setSidebarOpen(false)}
+              >
+                ▲
+              </button>
+            </div>
+            <div className="drawer-body">
+              {drawerTab === "layers" ? (
+                <>
+                  <LayersPanel
+                    layers={sortedLayers}
+                    visible={visible}
+                    myUserId={myUserId}
+                    myRole={myRole}
+                    activeLayerId={activeLayerId}
+                    focusedLayerId={focusedLayerId}
+                    onToggle={toggle}
+                    onFocus={focusLayer}
+                    canToggleAccess={canToggleLayerAccess}
+                    onSetAccess={setLayerAccess}
+                  />
+                  <EditorToolbar part="layers" {...toolbarProps} />
+                </>
+              ) : (
+                <AnnotationList
+                  objects={doc.objects}
+                  focusedLayerId={focusedLayerId}
+                  focusedLayer={focusedLayer}
+                  focusLocked={focusLocked}
+                  selectedUuids={selectedUuids}
+                  onSelect={(uuid) => {
+                    setSelectedUuids([uuid]);
+                    scrollObjectIntoView(uuid);
+                  }}
+                />
+              )}
+            </div>
+          </aside>
         )}
       </div>
+
+      {/* ---- Floating BOTTOM BAR pill: file tabs (parts) + "＋ Add file" · live
+          status (N objects · ● live). ---- */}
+      <div className="bottombar-pill" data-testid="viewer-bottombar">
+        <div className="parts" role="tablist" aria-label="Files" data-testid="file-picker">
+          {files.map((f) => {
+            const viewable = isViewable(f);
+            const active = f.id === selectedFileId;
+            const badge =
+              f.contentType === "application/pdf"
+                ? "PDF"
+                : f.contentType.startsWith("image/")
+                  ? "IMG"
+                  : "—";
+            return (
+              <button
+                key={f.id}
+                type="button"
+                className={`part file-tab${active ? " active" : ""}`}
+                data-testid="file-tab"
+                role="tab"
+                aria-selected={active}
+                disabled={!viewable}
+                title={viewable ? f.filename : `${f.filename} (not viewable)`}
+                onClick={() => viewable && setSelectedFileId(f.id)}
+              >
+                <span className={`pill file-tab-badge badge-${badge.toLowerCase()}`}>{badge}</span>
+                <span className="file-tab-name">{f.filename}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="part add-file"
+            data-testid="add-file"
+            onClick={() => setEditorOpen(true)}
+            title="Add or choose files"
+          >
+            ＋ Add file
+          </button>
+          {customized && (
+            <span className="pill my-files-custom-pill" data-testid="my-files-custom">
+              custom
+            </span>
+          )}
+        </div>
+        <div className="status">
+          <span data-testid="object-count" title="Live annotation count">
+            {doc.objects.length} objects
+          </span>
+          <span
+            className={`live-status conn-${connStatus}`}
+            data-testid="conn-status"
+            title="Realtime connection"
+          >
+            {connStatus === "open" ? "live" : connStatus}
+          </span>
+        </div>
+      </div>
+
+      {/* Wheel/zoom affordance hint (desktop). */}
+      <div className="wheelhint" aria-hidden="true">
+        scroll to zoom toward the cursor · ⌘/ctrl+scroll fine · drag to pan
+      </div>
+
+      {/* ---- Details & files panel (floating; opened by the top-bar Details pill).
+          Keeps metadata / upload / the T19 chart editor + T25 preview reachable —
+          they must NOT regress behind the fullscreen chrome. ---- */}
+      {editorOpen && (
+        <div className="details-panel" data-testid="details-panel">
+          <MyFilesEditor
+            bandId={bandId}
+            songId={songId}
+            selected={files}
+            onChanged={refreshMyFiles}
+            onError={setError}
+          />
+        </div>
+      )}
     </section>
   );
 }
