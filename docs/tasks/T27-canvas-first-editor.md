@@ -73,6 +73,26 @@ the **rulings** that shape the build.
   transient shift in the current layout.
 
 ### Stage 3 — fullscreen layout + contextual style-row auto-hide (after T15)
+
+**WIP review 2026-07-10 (reviews.md) — the ruled landing sequence, in order:**
+1. **DOM/CSS reshape to the artifact mockup** (the design is ground truth): ONE slim
+   pill top bar (back · serif title · tool cluster · zoom% mono · Layers/Notes/Details
+   pill-toggles); layer management moves INTO the tabbed glass drawer
+   (Layers | Annotations, collapse ▲); the style row becomes the separate slide-in
+   `.ctx` pill (only when a draw tool is active / object selected); a bottom pill bar
+   (file-tab parts strip + "N objects · ● live"); wheel-hint pill. The ⓘ Details
+   toggle MUST restore access to Details & files (metadata/upload/chart editor/preview/
+   danger zone — currently clipped = regression), and the initial scroll position must
+   land the page top BELOW the chrome.
+2. **Helper-mechanics migration** against the final DOM (its own commit; assertions
+   frozen — band math from the chrome bbox, scroll-into-view fractions).
+3. **Two sanctioned spec updates** (their own commit, citing the 2026-07-10 ruling):
+   `editor-layers` readouts activate a tool first (steps only); `editor-uxfix` #1+#2's
+   stable-footprint assertion is retired/rewritten (it tested T05's mechanism; the
+   invariant is the live zeroshift spec — T17 precedent). Freeze binds everything else.
+4. **Panel-toggle zero-shift flips LIVE** and passes.
+5. **Full editor suite green** (incl. the wheelzoom post-zoom-edit invariant spec) →
+   land the stack. Nothing lands red; VLL previews from a branch build.
 - Float the chrome as `position:absolute` glass bars over the canvas (centered,
   `min(1080px,100vw−28px)`); top-collapsing Layers/Annotations dropdown; floating
   bottom parts/status bar; responsive (desktop/tablet-first; phone one compact row).

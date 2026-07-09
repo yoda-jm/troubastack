@@ -2243,6 +2243,101 @@ sanctioned flow change, or a sign the contextual-hide is too aggressive? (Q4) do
 trace/pixels pass on the seven timeouts before further work? (Q5) `MAX_FIT_SCALE = 2.3` OK?
 Held for your ruling — no further branch work until you rule.
 
+## 2026-07-10 — T27 stage-3 WIP (`3e9fe60`) FULL ARCH REVIEW: sound skeleton, honest freeze — but the baseline was understated; design ~40% there; go-forward RULED
+
+Requested by VLL ("analyze what it did, gap vs the posted design, and all the broken
+things"). Reviewed against the **artifact design** (claude.ai e2c2aac5…, = the
+approved `editor-redesign.html`), with my own full-suite run and pixels of the WIP.
+
+### A. What's built and holds (verified first-hand)
+- `tsc -b studio` clean on the branch. **Assertion-freeze: CONFIRMED** — my own
+  normalized diff of all 9 edited specs: every `expect(...)` set textually identical
+  to main (ALL FROZEN). The helper edits are exactly the two sanctioned mechanics
+  (chrome-inset band top via `viewer-chrome` bbox; scroll-into-view fraction helpers).
+- The skeleton is right: fullbleed shell (navbar hidden on the editor route), floating
+  glass chrome with `pointer-events:none` + auto-on-controls (drawing under the glass
+  passes through — good), `--chrome-h` published by ResizeObserver, floating absolute
+  sidebar (structurally zero-shift), contextual style-row hide, `MAX_FIT_SCALE = 2.3`.
+- Passing on the WIP: **34/44**, including the invariant specs that matter most —
+  noflicker, wheel-zoom one-raster, zeroshift draw-tool (live), pick suite, realtime,
+  box-render, viewer.
+
+### B. The broken things (the full list — the analysis's §4 named only 4 of 10)
+**My run: 34 passed, 10 failed.** The six unlisted: `editor-locked-restyle`
+(style-reflect), `editor-uxfix` #3 (thin-line pad), #4 (marquee multi-select),
+#1+#2 (toolbar stable footprint), `editor-wheelzoom` (post-zoom edit no-reraster —
+an INVARIANT spec, failing in its drag mechanics, not its assertion), and
+`editor-zorder` (pixel z — draw placement mechanics moved the sampled overlap).
+Classification:
+- **8 are unmigrated helper mechanics** (ed5 #2/#5, features-resize, locked-restyle,
+  uxfix #3/#4, wheelzoom-postzoom, zorder-pixel): drags/clicks computed against the
+  window top or unscrolled geometry. Fix class = the already-sanctioned band/scroll
+  math. The wheelzoom one MUST be re-proven green — it guards no-reraster.
+- **2 collide with the approved design itself** (see D-Q3): `editor-layers` readouts
+  (style row now contextual → activate a tool first; steps change, assertions don't)
+  and `editor-uxfix` #1+#2 (asserts the toolbar's own footprint constant across
+  none/text/shape — the contextual design deliberately breaks that).
+**Functional regressions beyond tests (pixels + CSS read):**
+1. **The Details & files section is unreachable** on the song route (CSS comment
+   admits "intentionally clipped… moves into a Details toggle next") — metadata
+   editing, upload UI, the T19 chart editor + T25 preview, rename/delete, danger zone
+   all gone until that toggle exists. Not listed in the analysis's broken-things.
+2. **Initial view puts the page top UNDER the chrome** (my screenshot: the score title
+   half-hidden behind the glass at load) — the `--chrome-h` scroll-padding isn't
+   landing the initial position below the bar.
+3. Tool-activate grows the in-card style row → the bar covers ~310px of score (canvas
+   doesn't shift — zeroshift passes — but coverage balloons; the design avoids this
+   with the slim separate `.ctx` pill).
+
+### C. Gap vs the posted design (artifact ground truth; WIP ≈ 40%)
+1. **Top bar**: design = ONE slim pill (radius 999, ~52px: back · serif title · tool
+   cluster · zoom% mono · Layers/Notes/Details pill-toggles). WIP = a 3-row rounded-
+   rect card (~230px neutral, ~310px with a tool): header row + tools/layer-mgmt row +
+   zoom/files row.
+2. **Layer management** (active-layer select, ＋New layer, Delete, drawing-on pill)
+   sits in the top bar; design puts it **in the drawer**.
+3. **No separate `.ctx` pill** (slide-in below the bar, slim glass, swatches +
+   Outline/Box/Highlight seg + width + layer chip); WIP inlines the old style row.
+4. **No bottom pill bar** (parts strip: file tabs + "＋ Add file" · status "N objects
+   · ● live"); WIP keeps file tabs + status in the top chrome.
+5. **Drawer**: design = ONE tabbed glass dropdown (Layers | Annotations, collapse ▲,
+   toggled from the top bar); WIP = the two old stacked cards + the legacy "Hide
+   layers ▸" toggle.
+6. No wheel-hint pill; zoom is the old −/select/＋ row, not the design's mono readout.
+7. No ⓘ Details toggle (ties to regression B-1); phone rules (compact single row,
+   sheet drawer, no selbar) not implemented.
+
+### D. Go-forward — RULED (the analysis's Q1–Q5)
+- **Q1 (ordering): reshape FIRST, then migrate helpers once against the final DOM** —
+  VLL's stated priority, and it avoids a double migration. BUT nothing lands until
+  green: the branch stays up; VLL previews from a branch-built `:8080`. Landing shape
+  = a legible stack: (1) DOM/CSS reshape to the mockup, (2) helper-mechanics commit
+  (its own commit, frozen assertions), (3) the two sanctioned spec updates (own
+  commit, rationale in-message), (4) panel-toggle zero-shift flipped LIVE, (5) full
+  suite green → land.
+- **Q2 (control relocation): yes — follow the mockup.** Layer mgmt into the drawer,
+  delete stays in the selbar. Specs opening the drawer first is sanctioned mechanics;
+  every testid stays present/reachable.
+- **Q3 (design-obsoleted specs): sanctioned, by name, two specs only.**
+  `editor-layers` readouts: activate a tool first (steps only; assertions unchanged).
+  `editor-uxfix` #1+#2: the stable-footprint assertion tests T05's *mechanism*; the
+  invariant ("the score never shifts") is now guarded by the live zeroshift spec — so
+  RETIRE/rewrite that assertion in the open, citing this entry (T17 precedent: the
+  mechanism was never the invariant). The freeze still binds everything else.
+- **Q4 (seven timeouts):** subsumed by B — they're the unmigrated-mechanics class;
+  fix after the reshape, and the wheelzoom invariant spec must be green before land.
+- **Q5 (`MAX_FIT_SCALE = 2.3`): fine** as a VLL-validated product default; keep the
+  named constant; CFG01-style configurability only if ever asked.
+- **Additional requirements:** the reshape MUST restore access to Details & files
+  (the ⓘ Details toggle, or don't clip until it exists) — T19/T25 surfaces can't
+  regress; and fix the initial-scroll position (page top starts below the chrome).
+
+**Net judgment:** the skeleton and the test-integrity discipline are genuinely good
+(freeze held, zero-shift live, invariants mostly green); what was missing is honesty
+of the baseline (4 of 10 failures listed — same lesson as "cite the check you ran")
+and the visual reshape itself, which is well-specified by the artifact and now has an
+unambiguous sequence. Not stuck — unblocked.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
