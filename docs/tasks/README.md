@@ -47,16 +47,14 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   A01–A06, **A08–A15 (the full
   Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
-  page-doubling fix + the demo bundle regen (12 true pages) · **B08** (bake rev-claim
-  race — the concurrent-same-setlist failure; B09 tracks a narrow re-claim tail). The FULL product loop —
+  page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
 - **Open, unblocked:** **T26** (song
   titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
   the **T23 A-track follow-up** (drawer groups "On call" below the main order —
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
-  mobile lane) · **B09** (bake re-claim `.tstage` tail — XS core, B08 follow-up;
-  reviews.md 2026-07-09) · **OPS01** (the demo→daily-use gap) · P20x.
+  mobile lane) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T15** (split the now-~1,549-line, sync-sensitive
   `Viewer.tsx` — **VLL cleared it 2026-07-09, "the big split"**; do it fresh, the full

@@ -2039,6 +2039,30 @@ Re-verified against `baker.go`, not the report:
 
 CI on `86f1edd` watched; a red gets its own entry.
 
+## 2026-07-09 — B09 two-phase .tstage publish (`902ea34`, landed): ✅ APPROVED — B08 tail closed
+
+Fast, and exactly option (a) from the B09 spec. Verified in `baker.go`: the `.tstage`
+is staged under `stageDir + ".tstage"` (a name unique to the exclusively-held stageDir),
+the `<rev>/` dir rename stays the atomic arbiter, and **only the dir-rename winner
+renames its staged file onto the shared `<rev>.tstage`**; a losing re-claimer
+`os.Remove`s only its own uniquely-named staged file — it can neither delete nor
+content-mismatch the published one. The clobber/remove tail is closed. Test raised to
+n=4 racers (>2 exercises the re-claim path) asserting every published rev keeps a
+present `.tstage` + all revs distinct; I re-ran the bake reclaim/concurrent suite **30×
+under `-race`** — green (124s); `go vet` clean.
+
+**Observation (non-gating, noted not filed):** the two-phase is applied
+*unconditionally*, so B04's "tstage strictly before dir" zero-window guarantee narrows
+to a sub-ms dir-exists-before-`.tstage` window on **every** publish, not just the rare
+re-claim — a download hitting that exact instant would get a transient, self-correcting
+404. A strictly-better variant keeps tstage-before-dir on the non-reclaim path (where
+`.tmp` exclusivity already makes it safe) and uses two-phase only on re-claim. Not worth
+a task: the window is sub-ms, self-correcting, and bakes are infrequent/admin-triggered;
+recorded here so it's known. With this, **B08 + B09 fully close the concurrent-bake
+story** — concurrent same-setlist bakes always produce distinct, downloadable revs.
+
+CI on `902ea34` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
