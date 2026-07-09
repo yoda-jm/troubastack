@@ -47,15 +47,16 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   A01–A06, **A08–A15 (the full
   Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
-  page-doubling fix + the demo bundle regen (12 true pages). The FULL product loop —
+  page-doubling fix + the demo bundle regen (12 true pages) · **B08** (bake rev-claim
+  race — the concurrent-same-setlist failure; B09 tracks a narrow re-claim tail). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
 - **Open, unblocked:** **T26** (song
   titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
   the **T23 A-track follow-up** (drawer groups "On call" below the main order —
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
-  mobile lane) · **B08** (bake rev-claim race — XS core, real but rare; reviews.md
-  2026-07-07) · **OPS01** (the demo→daily-use gap) · P20x.
+  mobile lane) · **B09** (bake re-claim `.tstage` tail — XS core, B08 follow-up;
+  reviews.md 2026-07-09) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** **T27** (canvas-first editor — VLL-requested, design-reviewed
   2026-07-08; staged: stage 1 scroll+wheel-zoom → stage 2 contextual toolbar → **T15**
@@ -180,7 +181,8 @@ B05 retires the hand-baked `docs/demo` bundle now that the real pipeline exists.
 | B05 | [Regenerate the demo bundle via the real pipeline](B05-regenerate-demo-bundle.md) | core + docs | XS/S |
 | B06 | [LAN auto-discovery of the band server (mDNS)](B06-lan-discovery.md) | core + app | S/M |
 | B07 | [Per-member bake: "Leo sees his tab on stage"](B07-per-member-bake.md) | core + app + studio | L |
-| B08 | [Bake rev-claim race: publish rename vs concurrent rev](B08-bake-revclaim-race.md) | core | XS/S |
+| B08 | [Bake rev-claim race: publish rename vs concurrent rev](B08-bake-revclaim-race.md) — landed | core | XS/S |
+| B09 | [Bake re-claim can orphan/mismatch a published .tstage (B08 tail)](B09-bake-reclaim-tstage.md) | core | XS/S |
 | OPS01 | [Production serving: TLS, service, backup, release APK](OPS01-production-serving.md) | deploy | M |
 
 Two design decisions are resolved *inside* the specs (don't relitigate without cause):

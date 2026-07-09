@@ -2007,6 +2007,38 @@ httpapi (WSCreate stamps + round-trips; Reorder persists order+createdAt) green;
 floating no-shift selection toolbar, all landed and verified, my one open note now
 resolved. Stage 3 remains gated on T15; both attended. CI on `ebc481b` watched.
 
+## 2026-07-09 — B08 bake rev-claim race (`86f1edd`, landed): ✅ APPROVED — fixes the filed bug · one narrow tail filed as B09
+
+The B08 I filed on 2026-07-07 (from a chat-only flake report), implemented well.
+Re-verified against `baker.go`, not the report:
+
+- **Primary fix correct + provably safe:** the claim loop now stats the published
+  `<rev>` dir before `Mkdir(<rev>.tmp)` and bumps on either; the publish `rename` is
+  the atomic arbiter — on a target-exists collision (detected by `stat`, robust to
+  EEXIST vs ENOTEMPTY) it re-claims a higher rev, rewrites bundle.json (ConcertRev) +
+  the `.tstage`, and retries instead of failing. The 2-bake case cannot clobber because
+  `<rev>.tmp` is exclusive, so only its holder ever writes `<rev>.tstage`. The
+  `afterNextRev` test seam drives the exact window deterministically
+  (`TestBake_PublishReclaimsOnConcurrentPublish` — fails on pre-B08 code). **Ran the
+  reclaim + concurrent-guard tests 50× under `-race`: green** (214s); go test ./...
+  green per the commit. Single-publication-point + the accepted B04 stale-`.tmp`
+  number-skip both intact.
+
+- **One narrow tail I found, filed as B09 (not gating):** the *re-claim* inner loop
+  picks the next rev by scanning only free published *dirs* (not `.tmp` claims) and
+  does `os.Remove(tstagePath)` on a lost rename. So if TWO bakes both re-claim the
+  SAME higher rev N, both write `N.tstage`, one wins `N/`, and the loser's
+  `os.Remove(N.tstage)` can delete the winner's file — leaving `N/` with a removed or
+  mismatched `.tstage`, which `downloadBundle` (`os.Open` on `<rev>.tstage` — the file
+  is authoritative) would 404. Strictly narrower than the bug B08 fixed (needs ≥2 bakes
+  racing the *same re-claimed* rev; multi-second real bakes make it near-unreachable),
+  and NOT worth reverting B08 (which turns a hard failure into success) — but recorded
+  so it doesn't rot. Fix options in `docs/tasks/B09-bake-reclaim-tstage.md`: two-phase
+  `.tstage` publish (write temp → dir-rename wins → rename temp onto `<rev>.tstage`), or
+  give the re-claim an exclusive `.tmp` claim. XS/S, slot when bake is next touched.
+
+CI on `86f1edd` watched; a red gets its own entry.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
