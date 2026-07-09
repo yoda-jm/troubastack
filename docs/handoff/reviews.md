@@ -2063,6 +2063,20 @@ story** — concurrent same-setlist bakes always produce distinct, downloadable 
 
 CI on `902ea34` watched.
 
+## 2026-07-09 — T15 part 1/3: extract useSongSync (`4f26f02`, landed): ✅ APPROVED — behavior-preserving
+
+First hook of the Viewer split (VLL cleared T15). Moves the realtime spine — the
+per-song WS lifecycle + live `doc`/`visible` (with the on-wire layer-default merge)/
+`connStatus`/`rejectNotice` + `defaultVisibility` — into `useSongSync.ts`, verbatim;
+Viewer threads the hook's return as before (1549 → 1486 lines). For a refactor the bar
+is behavior-identical, and the e2e net (T15's whole reason for being attended) is the
+proof: re-ran on the isolated stack — **editor.spec realtime (two-client: A draws → B
+sees without reload), noflicker (`pdf-render-count` unchanged on edit), zorder, pick,
+viewer — 14/14 green**, `tsc -b studio` clean, testids untouched (diff is a move). The
+sync-sensitive behavior survived the extraction, which is exactly what the realtime
+spec exercises. Parts 2/3 (`usePdfDocument` — the PDF/zoom/raster/overlay chunk) + 3/3
+(trim) follow; each gets the same e2e-net pass. CI on `4f26f02` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
