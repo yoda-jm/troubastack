@@ -242,23 +242,20 @@ correctly (Studio viewer theming). Both are cosmetic; neither blocks anything.
     Per-object z-order = `Object.order` (within-layer; R7-orthogonal) + a gated/LWW `reorder`
     mutation; render↔pick share `compareObjectZ` (order → createdAt → uuid). Specs:
     `e2e/editor-zorder.spec.ts` (+ core storetest/ws reorder). Fable: "stage 2 complete."
-  - **Stage 3 (fullscreen floating-chrome layout + style-row auto-hide) — NEXT, UNBLOCKED.**
-    **VLL's actual want** ("fullscreen is not implemented", 2026-07-09). The **zero-shift
-    guard is already written**: `e2e/editor-zeroshift.spec.ts` (currently `test.fixme` —
-    it fails on the stacked layout because the in-flow panel resizes the scroll on toggle;
-    flip `.fixme`→`test` when stage 3 lands green). Concrete plan (mostly CSS in
-    `styles.css` + light JSX/glass classes in Viewer/Toolbar):
-    (a) `.viewer` fills the viewport (full height); `.viewer-scroll` fills it and scrolls
-    behind the chrome (padding-top to clear the floating top bar);
-    (b) float `.editor-header` + `.editor-toolbar` + `.viewer-toolbar` as `position:
-    absolute` centered/width-capped (`min(1080px,100vw−28px)`) glass bars over the scroll;
-    (c) `.viewer-sidebar` → `position:absolute` top-right glass panel, top-collapsing
-    dropdown (NOT in flex flow — this is what makes the panel toggle zero-shift);
-    (d) style-row auto-hide moves here: Toolbar renders the style row only when a draw
-    tool is active (`tool !== "select"`), floating — no reserved slot;
-    (e) responsive: desktop/tablet centered bars; phone one compact row.
-    Verify: `editor-zeroshift` passes + full editor e2e (43) stays green + eyeball a
-    screenshot. Then rebuild + relaunch the `:8080` demo to show true fullscreen.
+  - **Stage 3 (fullscreen) — BLOCKED on an arch decision (reviews.md 2026-07-09).**
+    VLL's want ("fullscreen is not implemented"). Attempted the full-viewport canvas-first
+    layout THREE ways (floating chrome / floating panel / viewport-height card) — each
+    trips a load-bearing assumption in the **unedited** e2e draw-helpers (band from the
+    viewport top; panel assumed open + not toggled by the layers specs; band measured vs
+    full viewport height while the short card clips the scroll). Genuine fullscreen is
+    incompatible with the draw-helpers as written, and stage 3's close-out forbids editing
+    specs. Reverted the layout — `main` clean (44/44). **Landed:**
+    `e2e/editor-zeroshift.spec.ts` (live) guarding the achievable part — draw-tool
+    activation never shifts the score. **Owed:** the arch ruling — recommend (a) sanction
+    updating the shared draw/click helpers (scroll clear of floating chrome; measure the
+    band vs the scroll viewport), then implement fullscreen against them. The CSS itself
+    is straightforward (full-height `.viewer`, `position:absolute` glass chrome + panel,
+    scroll `padding-top` for the bar) — it's the test-support that needs sign-off.
 - **T15 — split `Viewer.tsx`** (T10 part 2): ✅ **DONE** (`4f26f02` useSongSync,
   `118a591` usePdfDocument). Viewer 1549 → 972; `useSongSync.ts` (94) + `usePdfDocument.ts`
   (510). Full editor e2e (43) green; part 1 Fable-approved. Viewer is 972 not ≤600 — the

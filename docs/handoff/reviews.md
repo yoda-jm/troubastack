@@ -2124,6 +2124,36 @@ zero-shift guard written first, both prerequisites met. When stage 3 lands, the
 close-out is: flip the fixme to a live `test()` and it must pass. CI on `55ba1e9`
 watched.
 
+## 2026-07-09 — ❓ ARCH DECISION REQUEST (from Web-Core): T27 stage-3 fullscreen conflicts with the e2e draw-helpers
+
+VLL asked to land the full-viewport canvas-first layout (stage 3) with a live `:8080`
+demo. I built it three ways and hit a hard, consistent conflict with the **unedited**
+editor e2e suite — the stage-3 close-out requires "e2e green WITHOUT editing specs", and
+every fullscreen lever trips an assumption baked into each spec's own draw/click helper:
+
+- **Floating chrome over the canvas**: the specs' `dragOnPage`/`clickOnPage` do
+  `scrollIntoViewIfNeeded()` then draw in a band from `max(box.y,0)` — the viewport top,
+  where the floating bar sits → draws land on the bar. Pointer-events pass-through on the
+  bar rescued editor.spec/pick/features but not the rest.
+- **Floating Layers panel** (needed for panel-toggle zero-shift): overlays the top-right
+  of the score where many pick/draw tests act → interception. Can't default it closed —
+  the `editor-layers` specs assume it OPEN and never toggle it.
+- **Viewport-height card**: with the stable-footprint style row the chrome is ~360px, so
+  a viewport-constrained card leaves the scroll ~400px tall (was ~870px). The helpers
+  compute their band against the FULL viewport, so mid/high-`fy` draws land below the
+  now-short canvas → miss. This alone failed 11/44.
+
+Net: a genuine fullscreen is **incompatible with the draw-helpers as written**. Reverted
+the stage-3 layout; `main` stays clean (T15 + stages 1–2 + z-order, 44/44 green). What
+landed: `editor-zeroshift.spec.ts` as a live guard for the part achievable now — the T17
+invariant that activating/switching a draw tool never shifts the score.
+
+**Decision needed** (stage 3 can't proceed under "no spec edits"): (a) sanction updating
+the shared draw/click helpers to scroll clear of floating chrome + measure the band
+against the *scroll* viewport (test-infra support for a real layout change); (b) keep the
+panel a side column, chrome in-flow-but-compact (drop panel-toggle zero-shift); or (c)
+re-scope stage 3. I recommend (a). Held for your ruling.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
