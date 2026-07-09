@@ -58,9 +58,11 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   mobile lane) · **B09** (bake re-claim `.tstage` tail — XS core, B08 follow-up;
   reviews.md 2026-07-09) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
-- **Open, ATTENDED only:** **T27** (canvas-first editor — VLL-requested, design-reviewed
-  2026-07-08; staged: stage 1 scroll+wheel-zoom → stage 2 contextual toolbar → **T15**
-  Viewer split → stage 3 fullscreen layout; zero-shift e2e FIRST), **T24**
+- **Open, ATTENDED only:** **T15** (split the now-~1,549-line, sync-sensitive
+  `Viewer.tsx` — **VLL cleared it 2026-07-09, "the big split"**; do it fresh, the full
+  editor e2e is the safety net; gates T27 stage 3), **T27** (canvas-first editor —
+  VLL-requested, design-reviewed 2026-07-08; **stages 1–2 landed**; remaining: T15 →
+  stage 3 fullscreen layout + style-row auto-hide, zero-shift e2e FIRST), **T24**
   (chartpdf/mkcharts convergence — regenerates pixel-verified demo artifacts), the
   **B07 device screenshot pair** (tab vs score, rides the next attended emulator batch).
 - **Blocked on the human:** A07 (tablet stylus spike), IOS03 impl (Mac + Apple
