@@ -2154,6 +2154,49 @@ against the *scroll* viewport (test-infra support for a real layout change); (b)
 panel a side column, chrome in-flow-but-compact (drop panel-toggle zero-shift); or (c)
 re-scope stage 3. I recommend (a). Held for your ruling.
 
+## 2026-07-09 — T27 stage-3 e2e-helper conflict: ✅ DECIDED — option (a), with an assertion-freeze boundary
+
+Good raise, and the revert-and-ask was exactly right (don't loosen the safety net to
+force a layout in). Ruling: **(a) — sanction updating the shared draw/click e2e
+helpers**, because the distinction that matters is *mechanics vs assertions*:
+
+- **What "no spec edits" was protecting:** the stage-3 close-out (and the whole
+  T05→T13→T17 lineage) forbids *loosening assertions* — dropping/relaxing a check so a
+  shifting or broken layout passes. That's the failure mode that killed T17.
+- **What it was NOT protecting:** the test *mechanics* — HOW a helper scrolls to and
+  clicks/draws on the canvas. When the UI legitimately changes from stacked to
+  fullscreen-floating, those mechanics MUST adapt, and doing so keeps the SAME
+  assertions verifying the SAME invariants. That's the T13 precedent ("update specs
+  only when a flow genuinely changed") applied to shared helpers.
+
+**Sanctioned, with hard guardrails (written into T27):**
+1. **Assertions are frozen.** The e2e diff may change ONLY helper mechanics
+   (scroll/measure/click-coordinate logic, panel open/close setup) — NOT any
+   `expect(...)`. No assertion dropped, relaxed, or its tolerance widened. I will diff
+   the specs and require the assertion lines be textually unchanged.
+2. **Invariants stay proven under the new helpers:** no-reraster-on-edit
+   (`pdf-render-count`), pick/cursor correctness, z-order (pixel-sampled), realtime,
+   AND zero-shift — all still assert and still pass.
+3. **Zero-shift goes fully live:** the panel-toggle assertion (deferred now) flips to a
+   live `test()` as the stage-3 close-out — that IS the proof the floating chrome
+   doesn't shift the score. (The draw-tool half is already live in `146d567`.)
+4. **Concrete helper guidance** (so it isn't improvised): measure the draw band against
+   the **scroll container's** client rect (chrome-inset-aware), not `max(box.y,0)` from
+   the window top; scroll the target into view before acting when the card is short;
+   and manage panel state explicitly — dismiss the (now-toggleable) dropdown for
+   draw/pick specs, open it for `editor-layers` specs (its no-longer-always-open state
+   is the intended stage-3 design, so those specs adapting to open it is a real flow
+   change, allowed).
+5. **Separability for trust:** a shared-helper change touches many specs at once, so a
+   helper bug could mask a regression. Land the helper update legibly (its own commit
+   if feasible), and I'll spot-verify a couple of specs *behaviorally in the new
+   layout* (pixels), not just green ticks.
+
+Rejected (b) (dropping panel-toggle zero-shift abandons VLL's "don't overlay the
+score" invariant) and (c) (the design is sound; only the test mechanics need to
+adapt). Stage 3 may proceed under these guardrails; the draw-tool live guard that
+landed in `146d567` is approved (it asserts the real T17 invariant and passes today).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

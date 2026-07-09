@@ -77,8 +77,21 @@ the **rulings** that shape the build.
   `min(1080px,100vw−28px)`); top-collapsing Layers/Annotations dropdown; floating
   bottom parts/status bar; responsive (desktop/tablet-first; phone one compact row).
 - **The style row now auto-hides** (shown only when a draw tool is active) — zero-shift
-  because the chrome floats over the canvas; prove it with the T17-mandated zero-shift
-  e2e (written FIRST).
+  because the chrome floats over the canvas; prove it by flipping the `editor-zeroshift`
+  panel-toggle assertion from `fixme` to a live `test()` (it must pass). The draw-tool
+  no-shift half is already a live guard (landed `146d567`).
+- **e2e draw-helper update is SANCTIONED (arch decision 2026-07-09, option a) — with an
+  assertion-freeze boundary.** Fullscreen conflicts with the shared draw/click helpers'
+  baked-in assumptions (they scroll/measure against the window top + assume the Layers
+  panel always open). You MAY update the helper *mechanics*: measure the draw band
+  against the **scroll container's** client rect (chrome-inset-aware), scroll targets
+  into view when the card is short, and manage the now-toggleable panel's open/closed
+  state per what each spec needs (open it for `editor-layers`, dismiss it for
+  draw/pick). You may NOT touch any `expect(...)` — assertions are frozen; no check
+  dropped, relaxed, or its tolerance widened. Land the helper change legibly (own commit
+  if feasible); the reviewer diffs the specs to confirm assertion lines are unchanged
+  and spot-verifies a couple behaviorally (pixels) in the new layout. All invariants
+  below must still assert AND pass under the updated helpers.
 
 ## Invariants to preserve (confirm each stage)
 
