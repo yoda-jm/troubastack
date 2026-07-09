@@ -1,15 +1,11 @@
 /**
- * The song Viewer/editor (T10 extraction — moved verbatim from SongEditor.tsx):
- * PDF.js rasterization + zoom/DPR, the dry annotation overlay (@troubastack/ink,
- * I8), the file strip, realtime sync (WebSocket outbox/echo reconcile), and the
- * composed toolbar / wet canvas / side panels. Behavior + data-testids unchanged.
+ * The song Viewer/editor: composition root over useSongSync (realtime spine) and
+ * usePdfDocument (raster/zoom/overlay) — T15 split. Owns the file strip, the
+ * layer/editing state + optimistic mutation handlers, and the JSX. Behavior +
+ * data-testids unchanged.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import * as pdfjs from "pdfjs-dist";
-// Vite resolves ?url to the emitted asset path; PDF.js needs its worker URL.
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { renderObjects, type InkObject } from "@troubastack/ink";
 import {
   api,
   type AnnotationLayer,
@@ -31,26 +27,10 @@ import { EditorToolbar } from "./Toolbar";
 import { EditCanvas } from "./WetCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
 import { LayersPanel, AnnotationList } from "./SidePanels";
-import { toInkObject, isEditableLayer, compareObjectZ } from "./helpers";
+import { isEditableLayer } from "./helpers";
 import { useSongSync, defaultVisibility } from "./useSongSync";
+import { usePdfDocument, ZOOM_PERCENTS } from "./usePdfDocument";
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-
-// Discrete percentage stops the −/+ buttons step through.
-const ZOOM_PERCENTS = [50, 75, 100, 125, 150, 200, 300];
-
-// Continuous Ctrl/⌘-wheel zoom bounds (T27 stage 1). Wider than the discrete
-// stops so a pinch can go slightly beyond the button range.
-const MIN_ZOOM_SCALE = 0.25; // 25%
-const MAX_ZOOM_SCALE = 5.0; // 500%
-// Wheel→zoom sensitivity: scale multiplies by exp(-deltaY·k). Small so a trackpad
-// pinch (fine-grained ctrlKey wheel) feels smooth rather than jumpy.
-const WHEEL_ZOOM_K = 0.0015;
-// Idle gap after the last wheel tick before we commit the crisp re-raster.
-const WHEEL_SETTLE_MS = 120;
-
-/** A zoom selection is either a fit mode or an explicit percentage. */
-type ZoomMode = "fit-width" | "fit-page" | number;
 // ===========================================================================
 // Viewer
 // ===========================================================================
@@ -121,15 +101,9 @@ export function Viewer({
   const [focusedLayerId, setFocusedLayerId] = useState<string | null>(null);
   // The current selection (single click or rubber-band marquee). Empty = none.
   const [selectedUuids, setSelectedUuids] = useState<string[]>([]);
-  // Zoom: a fit mode (default Fit width) or an explicit percentage.
-  const [zoomMode, setZoomMode] = useState<ZoomMode>("fit-width");
-  const [numPages, setNumPages] = useState(0);
   const [status, setStatus] = useState<"loading" | "no-file" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // Measured available width of the PDF column's content box (CSS px). Drives
-  // Fit width and Fit page. Updated by a ResizeObserver.
-  const [columnWidth, setColumnWidth] = useState(0);
 
   const selectedFile = useMemo(
     () => files.find((f) => f.id === selectedFileId) ?? null,
@@ -137,34 +111,6 @@ export function Viewer({
   );
   const isPdf = selectedFile?.contentType === "application/pdf";
   const isImage = selectedFile?.contentType.startsWith("image/") ?? false;
-
-  // Loaded PDF.js document. Page/overlay canvases are indexed by page number.
-  const pdfDocRef = useRef<pdfjs.PDFDocumentProxy | null>(null);
-  const pageCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
-  const overlayRefs = useRef<(HTMLCanvasElement | null)[]>([]);
-  // Intrinsic (scale-1) page sizes in CSS px, used to compute fit scales.
-  const pageSizesRef = useRef<{ w: number; h: number }[]>([]);
-  // The scroll column we measure for Fit width / Fit page.
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  // The pages wrapper — the CSS-transform target for live wheel-zoom (T27 s1).
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  // Image element box (for image-overlay sizing).
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  const imgOverlayRef = useRef<HTMLCanvasElement | null>(null);
-  // How many times the PDF pages have actually been RASTERIZED (PDF.js page
-  // render). The PDF render effect bumps this; an annotation edit must NOT.
-  // Surfaced via a hidden data-testid so e2e can assert no re-raster on edit.
-  const pdfRenderCountRef = useRef(0);
-  const [pdfRenderCount, setPdfRenderCount] = useState(0);
-  // One-shot "settle" redraw (T-fix): after a file's FIRST successful render pass
-  // we schedule exactly one more clean render on the next frame. This is the
-  // belt-and-suspenders for the intermittent upside-down/blank first paint some
-  // browsers show on initial load — the same thing a manual zoom (redraw) cures.
-  // Bumping renderNonce re-runs the render effect; nudgedFileRef makes it fire at
-  // most once per file open (not per zoom), so it can never loop.
-  const [renderNonce, setRenderNonce] = useState(0);
-  const nudgedFileRef = useRef<string | null>(null);
-  const nudgeRafRef = useRef<number | null>(null);
 
   // ---- refresh MY file strip (getMyFiles) — also after editor changes ----
   // Keeps a sensible selected file: preserves the current one if it survives,
@@ -226,136 +172,7 @@ export function Viewer({
     }
   }, [files.length, status]);
 
-  // (Realtime sync lifecycle moved to useSongSync — T15.)
-
-  // ---- load the selected file (PDF bytes via PDF.js, or just mark image) ----
-  useEffect(() => {
-    if (!selectedFile) return;
-    let cancelled = false;
-    setError(null);
-
-    // Tear down any previous PDF doc.
-    const prev = pdfDocRef.current;
-    pdfDocRef.current = null;
-    if (prev) void prev.destroy();
-    pageCanvasRefs.current = [];
-    overlayRefs.current = [];
-    pageSizesRef.current = [];
-    setNumPages(0);
-
-    if (selectedFile.contentType.startsWith("image/")) {
-      // Image: nothing to rasterize; <img> + overlay handle it.
-      setStatus("ready");
-      return;
-    }
-    if (selectedFile.contentType !== "application/pdf") {
-      setStatus("no-file");
-      return;
-    }
-
-    setStatus("loading");
-    (async () => {
-      try {
-        const res = await fetch(api.fileUrl(selectedFile.id), { credentials: "include" });
-        if (!res.ok) throw new Error(`Failed to fetch PDF (${res.status})`);
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        if (cancelled) return;
-
-        const loadingTask = pdfjs.getDocument({ data: bytes });
-        const pdfDoc = await loadingTask.promise;
-        if (cancelled) {
-          void pdfDoc.destroy();
-          return;
-        }
-        pdfDocRef.current = pdfDoc;
-        pageCanvasRefs.current = new Array(pdfDoc.numPages).fill(null);
-        overlayRefs.current = new Array(pdfDoc.numPages).fill(null);
-
-        // Cache intrinsic page sizes (scale 1) for fit math.
-        const sizes: { w: number; h: number }[] = [];
-        for (let i = 0; i < pdfDoc.numPages; i++) {
-          const page = await pdfDoc.getPage(i + 1);
-          if (cancelled) return;
-          const vp = page.getViewport({ scale: 1 });
-          sizes.push({ w: vp.width, h: vp.height });
-        }
-        pageSizesRef.current = sizes;
-        setNumPages(pdfDoc.numPages);
-        setStatus("ready");
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load PDF");
-        setStatus("error");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedFile]);
-
-  // Tear down the PDF doc on unmount.
-  useEffect(() => {
-    return () => {
-      const d = pdfDocRef.current;
-      pdfDocRef.current = null;
-      if (d) void d.destroy();
-    };
-  }, []);
-
-  // ---- measure the scroll column (Fit width / Fit page, resize-aware) ----
-  // useLayoutEffect so the width is measured synchronously after the scroll
-  // column mounts and BEFORE the browser paints — this is what lets the first
-  // render compute the correct fit-width scale without any interaction/resize.
-  // The ResizeObserver then keeps it current (sidebar toggle, window resize),
-  // and crucially fires its first callback if the column wasn't laid out yet.
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const measure = () => {
-      const cs = getComputedStyle(el);
-      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-      const w = Math.max(0, el.clientWidth - padX);
-      // Only update on a real change to avoid extra render passes.
-      setColumnWidth((prev) => (Math.abs(prev - w) > 0.5 ? w : prev));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-    // Re-bind when the scroll element appears (status change mounts it) or the
-    // sidebar toggles (the column resizes, which ResizeObserver also catches).
-  }, [status, sidebarOpen]);
-
-  // ---- effective scale (CSS px per PDF unit) for a given page + zoom mode ----
-  // PER-PAGE: pages may have different intrinsic sizes, so fit modes are sized
-  // to THAT page's own dimensions (page 0's size is never assumed for others).
-  // For an explicit % the scale is constant. Returns 0 when a fit scale cannot
-  // be computed yet (width not measured), which gates the render pass.
-  const pageScale = useCallback(
-    (pageIndex: number): number => {
-      if (typeof zoomMode === "number") return zoomMode / 100;
-      const sz = pageSizesRef.current[pageIndex];
-      if (!sz || columnWidth <= 0) return 0; // not measured yet → wait
-      const byW = columnWidth / sz.w;
-      if (zoomMode === "fit-width") return byW;
-      // fit-page: the page fits the viewport height too.
-      const el = scrollRef.current;
-      const viewportH = el ? el.clientHeight - 32 /* approx padding */ : 0;
-      if (viewportH <= 0) return byW;
-      const byH = viewportH / sz.h;
-      return Math.min(byW, byH);
-    },
-    [zoomMode, columnWidth],
-  );
-
-  // A representative scale (page 0) for the zoom readout / − + stepping and for
-  // gating: 0 means "fit scale not measured yet".
-  const scale = useMemo(
-    () => pageScale(0),
-    // numPages is included so this recomputes once page sizes are cached.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pageScale, numPages],
-  );
+  // (Realtime sync → useSongSync; PDF load/raster/zoom/overlay → usePdfDocument — T15.)
 
   const layersById = useMemo(() => {
     const m = new Map<string, AnnotationLayer>();
@@ -376,6 +193,37 @@ export function Viewer({
     sortedLayers.forEach((l, idx) => m.set(l.id, idx));
     return m;
   }, [sortedLayers]);
+
+  // PDF raster / zoom / dry-overlay machinery (T15). Owns the scroll/content/canvas
+  // refs the JSX binds, the zoom controls, and renderOverlays; preserves the
+  // no-re-raster-on-edit + render-timing + wheel-zoom invariants internally.
+  const {
+    scrollRef,
+    contentRef,
+    pageCanvasRefs,
+    overlayRefs,
+    imgRef,
+    imgOverlayRef,
+    numPages,
+    pdfRenderCount,
+    zoomSelectValue,
+    customZoomPercent,
+    stepZoom,
+    onZoomSelect,
+    layoutImageOverlay,
+  } = usePdfDocument({
+    selectedFile,
+    isPdf,
+    isImage,
+    status,
+    setStatus,
+    setError,
+    sidebarOpen,
+    objects: doc.objects,
+    layersById,
+    visible,
+    layerRank,
+  });
 
   // ---- editable layers (for the active-layer selector) ----
   // Layers I may draw into, scoped to the currently selected file: my own
@@ -779,373 +627,11 @@ export function Viewer({
     [selectedObject, selectionEditable, restyleObject],
   );
 
-  // ---- overlay rendering: object coords [0,1] → page box. ----
-  // We scale the ctx by DPR and draw using the LOGICAL (CSS-px) page box, so a
-  // rect at {0.1..0.9} maps to exactly 10%..90% of the rendered page. The
-  // backing store is at scale × DPR for crispness; the DPR ctx-scale undoes it.
-  // Paint ONE page's overlay: clears it, then draws only that page's visible
-  // objects into the logical (CSS-px) page box derived from the overlay's OWN
-  // backing-store size. The ctx is scaled by DPR so [0,1] coords map to the box.
-  const paintOverlay = useCallback(
-    (overlay: HTMLCanvasElement, page: number, dpr: number) => {
-      const ctx = overlay.getContext("2d");
-      if (!ctx) return;
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
-      const objs = doc.objects
-        .filter((o) => o.page === page)
-        .filter((o) => {
-          const l = layersById.get(o.layerId);
-          return l && visible[l.id];
-        })
-        // Layer z-rank, then per-object order, then insertion (stable) — same
-        // comparator as the hit-test so paint order matches pick order (T27).
-        .sort((a, b) => compareObjectZ(a, b, layerRank));
-      // Logical page box (CSS px) fills the whole overlay — sized from THIS
-      // page's actual canvas dimensions, not page 0's.
-      const pageRect = { x: 0, y: 0, w: overlay.width / dpr, h: overlay.height / dpr };
-      renderObjects(ctx, objs.map(toInkObject) as InkObject[], pageRect);
-    },
-    [doc.objects, layersById, visible, layerRank],
-  );
-
-  // Latest paintOverlay, referenced by the PDF rasterization effect WITHOUT
-  // making that effect depend on it. This is the crux of the no-flicker fix:
-  // the PDF render pass must depend ONLY on [selectedFile, scale, numPages,
-  // zoomMode], never on objects/visibility/paintOverlay — otherwise every draw/
-  // move/restyle re-rasterizes every page (visible flicker). Overlay repaint on
-  // object/visibility change is a SEPARATE effect (renderOverlays).
-  const paintOverlayRef = useRef(paintOverlay);
-  useEffect(() => {
-    paintOverlayRef.current = paintOverlay;
-  }, [paintOverlay]);
-
-  // Repaint every mounted overlay (used when only visibility/objects change and
-  // the canvases keep their current size — no re-rasterization needed).
-  const renderOverlays = useCallback(() => {
-    const dpr = window.devicePixelRatio || 1;
-    if (isImage) {
-      const o = imgOverlayRef.current;
-      if (o) paintOverlay(o, 0, dpr);
-      return;
-    }
-    for (let p = 0; p < overlayRefs.current.length; p++) {
-      const overlay = overlayRefs.current[p];
-      if (overlay) paintOverlay(overlay, p, dpr);
-    }
-  }, [isImage, paintOverlay]);
-
-  // ---- render PDF pages on scale/document change, then overlays ----
-  // Robust per-page flow: for each page p, render PDF.js page → canvas C_p at
-  // (pageScale(p) × dpr), then size overlay O_p to C_p's ACTUAL backing-store
-  // and CSS dimensions, scale O_p's ctx by dpr, and draw that page's objects
-  // into the logical page box derived from C_p (never page 0's dims or a stale
-  // scale). The pass is keyed on scale/numPages/file so it re-runs on zoom,
-  // file switch, and (via columnWidth → scale) once the column is measured.
-  useEffect(() => {
-    const pdfDoc = pdfDocRef.current;
-    if (status !== "ready" || !pdfDoc || !isPdf) return;
-    // For fit modes, wait until the column width has been measured. pageScale
-    // returns 0 until then; the ResizeObserver's first callback bumps
-    // columnWidth → scale, which re-runs this effect with a real scale.
-    if (typeof zoomMode !== "number" && scale <= 0) return;
-
-    let cancelled = false;
-    // In-flight PDF.js render tasks for THIS effect run. When the effect re-runs
-    // (zoom, file switch, or the first 0→measured scale bump), React calls this
-    // run's cleanup first — we cancel these tasks so an old render can't keep
-    // painting a canvas that the new run has already resized. Resizing a canvas
-    // (`canvas.width = …`) resets its 2D transform to identity, and a stale render
-    // continuing under identity draws in PDF-native (Y-up) space → the page comes
-    // out UPSIDE DOWN until the next clean re-render. Cancelling prevents that.
-    const tasks: pdfjs.RenderTask[] = [];
-
-    (async () => {
-      const dpr = window.devicePixelRatio || 1;
-      let renderedAny = false;
-      for (let i = 0; i < pdfDoc.numPages; i++) {
-        if (cancelled) return;
-        const s = pageScale(i);
-        if (s <= 0) continue; // page size not cached yet; skip until measured
-        const page = await pdfDoc.getPage(i + 1);
-        if (cancelled) return;
-
-        const canvas = pageCanvasRefs.current[i];
-        if (!canvas) continue;
-        // Backing store at this page's scale × DPR; CSS size at logical scale.
-        const viewport = page.getViewport({ scale: s * dpr });
-        const cssW = viewport.width / dpr;
-        const cssH = viewport.height / dpr;
-
-        canvas.width = Math.round(viewport.width);
-        canvas.height = Math.round(viewport.height);
-        canvas.style.width = `${cssW}px`;
-        canvas.style.height = `${cssH}px`;
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) continue;
-        const task = page.render({ canvasContext: ctx, viewport });
-        tasks.push(task);
-        try {
-          await task.promise;
-        } catch (err) {
-          // A superseded render (cancelled in cleanup) rejects with
-          // RenderingCancelledException — expected; stop this stale pass quietly.
-          if ((err as { name?: string })?.name === "RenderingCancelledException") return;
-          throw err;
-        }
-        if (cancelled) return;
-        // Count an actual rasterization (one per page render). Editing an
-        // annotation must never reach here, so this stays put on edits.
-        pdfRenderCountRef.current += 1;
-        setPdfRenderCount(pdfRenderCountRef.current);
-        renderedAny = true;
-
-        // Size the overlay to the canvas's ACTUAL rendered dimensions, then
-        // paint THIS page's objects off those dims. We call the LATEST paint via
-        // a ref so this effect does not depend on paintOverlay (which changes on
-        // every object/visibility change and would otherwise re-rasterize).
-        const overlay = overlayRefs.current[i];
-        if (overlay) {
-          overlay.width = canvas.width;
-          overlay.height = canvas.height;
-          overlay.style.width = `${canvas.style.width}`;
-          overlay.style.height = `${canvas.style.height}`;
-          paintOverlayRef.current(overlay, i, dpr);
-        }
-      }
-
-      // One-shot settle redraw: once per file open, after its first full pass has
-      // completed and laid out, schedule a single clean re-render on the next
-      // frame. Cures the intermittent bad first paint without ever looping (the
-      // re-run keeps the same selectedFileId, so it won't schedule again).
-      if (!cancelled && renderedAny && nudgedFileRef.current !== selectedFileId) {
-        nudgedFileRef.current = selectedFileId ?? null;
-        nudgeRafRef.current = requestAnimationFrame(() => setRenderNonce((n) => n + 1));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      for (const t of tasks) t.cancel(); // stop any in-flight render on our canvases
-      if (nudgeRafRef.current != null) cancelAnimationFrame(nudgeRafRef.current);
-    };
-    // Depends ONLY on what changes the rasterized pixels: the file, the scale,
-    // the page count, and the zoom mode. NOT objects/visibility/paintOverlay —
-    // those repaint the overlay canvases via renderOverlays without re-raster.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFile, status, scale, numPages, zoomMode, renderNonce]);
-
-  // ---- size + render the image overlay (image mode) ----
-  const layoutImageOverlay = useCallback(() => {
-    if (!isImage) return;
-    const img = imgRef.current;
-    const overlay = imgOverlayRef.current;
-    if (!img || !overlay) return;
-    const dpr = window.devicePixelRatio || 1;
-    const w = img.clientWidth;
-    const h = img.clientHeight;
-    overlay.width = Math.round(w * dpr);
-    overlay.height = Math.round(h * dpr);
-    overlay.style.width = `${w}px`;
-    overlay.style.height = `${h}px`;
-    renderOverlays();
-  }, [isImage, renderOverlays]);
-
-  // Re-render overlays when visibility / sorted layers / objects change.
-  useEffect(() => {
-    if (status === "ready") renderOverlays();
-  }, [status, renderOverlays]);
-
-  // Re-layout the image overlay when the column resizes (image fills width).
-  useEffect(() => {
-    if (status === "ready" && isImage) layoutImageOverlay();
-  }, [status, isImage, columnWidth, layoutImageOverlay]);
 
   function toggle(layerId: string) {
     setVisible((v) => ({ ...v, [layerId]: !v[layerId] }));
   }
 
-  // −/+ step through the percentage stops. When in a fit mode, snap to the
-  // nearest percentage to the currently-rendered scale, then step from there.
-  function currentPercent(): number {
-    if (typeof zoomMode === "number") return zoomMode;
-    return Math.round(scale * 100);
-  }
-  function stepZoom(dir: -1 | 1) {
-    const cur = currentPercent();
-    // Find the first stop strictly above (for +) or below (for −) current.
-    if (dir === 1) {
-      const next = ZOOM_PERCENTS.find((p) => p > cur);
-      setZoomMode(next ?? ZOOM_PERCENTS[ZOOM_PERCENTS.length - 1]);
-    } else {
-      const below = [...ZOOM_PERCENTS].reverse().find((p) => p < cur);
-      setZoomMode(below ?? ZOOM_PERCENTS[0]);
-    }
-  }
-
-  function onZoomSelect(value: string) {
-    if (value === "fit-width" || value === "fit-page") setZoomMode(value);
-    else setZoomMode(Number(value));
-  }
-
-  const zoomSelectValue =
-    typeof zoomMode === "number" ? String(zoomMode) : zoomMode;
-  // A continuous wheel-zoom can land on a percentage that isn't one of the
-  // discrete stops; surface it as an extra option so the readout stays truthful
-  // and the <select> doesn't render blank.
-  const customZoomPercent =
-    typeof zoomMode === "number" && !ZOOM_PERCENTS.includes(zoomMode) ? zoomMode : null;
-
-  // ---- Ctrl/⌘-wheel zoom-to-cursor (T27 stage 1) --------------------------
-  // Plain wheel scrolls natively (never intercepted). Ctrl/⌘+wheel — and a
-  // trackpad pinch, which the browser delivers as a wheel event with
-  // ctrlKey===true — zooms toward the pointer. The load-bearing invariant
-  // (Fable): DECOUPLE the visual zoom from rasterization. During a burst we only
-  // apply a cheap CSS transform on the pages wrapper (instant feedback, zero
-  // re-raster); the crisp PDF re-raster (the scale-keyed effect) is committed
-  // exactly ONCE, on wheel-settle. A fast pinch therefore costs one raster, not
-  // one per tick — which also keeps the flip-fix cancel-guard from thrashing.
-
-  // Live burst state (mutated per tick, no re-render): the committed base scale,
-  // the running target scale, and the pointer anchor (viewport offset vx/vy +
-  // scale-invariant content fraction fx/fy) used to re-place the scroll on settle.
-  const wheelBurstRef = useRef<{
-    base: number; target: number; vx: number; vy: number; fx: number; fy: number;
-  } | null>(null);
-  const wheelSettleRef = useRef<number | null>(null);
-
-  // Commit the burst: bake the live zoom into layout, then trigger exactly one
-  // crisp re-raster. To avoid any size jump we first CSS-resize the existing page
-  // canvases to the target (the browser stretches the current bitmap — instant,
-  // momentarily soft), drop the transform, re-anchor the scroll against the
-  // now-correct geometry, and only then setZoomMode (which re-rasters sharply in
-  // place). The overlay/edit canvases are inset:0 over .pdf-page and follow.
-  const commitWheelZoom = useCallback(() => {
-    wheelSettleRef.current = null;
-    const burst = wheelBurstRef.current;
-    wheelBurstRef.current = null;
-    if (!burst) return;
-    const content = contentRef.current;
-    const scroll = scrollRef.current;
-    const targetPct = Math.min(
-      Math.round(MAX_ZOOM_SCALE * 100),
-      Math.max(Math.round(MIN_ZOOM_SCALE * 100), Math.round(burst.target * 100)),
-    );
-    const targetScale = targetPct / 100;
-
-    for (let i = 0; i < pageCanvasRefs.current.length; i++) {
-      const sz = pageSizesRef.current[i];
-      const canvas = pageCanvasRefs.current[i];
-      if (!sz || !canvas) continue;
-      canvas.style.width = `${sz.w * targetScale}px`;
-      canvas.style.height = `${sz.h * targetScale}px`;
-    }
-    if (content) {
-      content.style.transform = "";
-      content.style.transformOrigin = "";
-      content.style.willChange = "";
-    }
-    if (scroll) {
-      const cs = getComputedStyle(scroll);
-      const padL = parseFloat(cs.paddingLeft) || 0;
-      const padR = parseFloat(cs.paddingRight) || 0;
-      const padT = parseFloat(cs.paddingTop) || 0;
-      const padB = parseFloat(cs.paddingBottom) || 0;
-      const contentW = Math.max(1, scroll.scrollWidth - padL - padR);
-      const contentH = Math.max(1, scroll.scrollHeight - padT - padB);
-      scroll.scrollLeft = Math.max(0, burst.fx * contentW - burst.vx);
-      scroll.scrollTop = Math.max(0, burst.fy * contentH - burst.vy);
-    }
-    // One crisp re-raster (skip if the scale is effectively unchanged).
-    if (!(typeof zoomMode === "number" && zoomMode === targetPct)) {
-      setZoomMode(targetPct);
-    }
-  }, [zoomMode]);
-
-  // The wheel handler. Held in a ref so the non-passive listener binds once (and
-  // cleans up once) while always seeing the latest scale/zoomMode/isPdf.
-  const wheelZoomHandler = useCallback(
-    (e: WheelEvent) => {
-      // Plain wheel → let the browser scroll the column (multi-page nav).
-      if (!(e.ctrlKey || e.metaKey)) return;
-      // Only PDFs rasterize at a scale; images are width-fit (zoom is a no-op),
-      // so leave their ctrl-wheel to the browser rather than swallowing it.
-      if (!isPdf) return;
-      const scroll = scrollRef.current;
-      const content = contentRef.current;
-      if (!scroll || !content) return;
-      // The ONLY branch that cancels the event — suppressing the browser's own
-      // ctrl+wheel page-zoom (Fable: preventDefault ONLY on the ctrl/meta branch).
-      e.preventDefault();
-
-      // Normalize delta across deltaMode (0 px / 1 line / 2 page).
-      let dy = e.deltaY;
-      if (e.deltaMode === 1) dy *= 16;
-      else if (e.deltaMode === 2) dy *= 100;
-
-      let burst = wheelBurstRef.current;
-      if (!burst) {
-        // Burst start: anchor on the current committed scale + pointer. Geometry
-        // is read from the SCROLL CONTAINER synchronously (Fable) — never the
-        // async-decoded canvas, which hasn't re-rendered at the new scale.
-        const cs = getComputedStyle(scroll);
-        const padL = parseFloat(cs.paddingLeft) || 0;
-        const padR = parseFloat(cs.paddingRight) || 0;
-        const padT = parseFloat(cs.paddingTop) || 0;
-        const padB = parseFloat(cs.paddingBottom) || 0;
-        const bL = parseFloat(cs.borderLeftWidth) || 0;
-        const bT = parseFloat(cs.borderTopWidth) || 0;
-        const rect = scroll.getBoundingClientRect();
-        // Pointer offset within the content viewport (inside border + padding).
-        const vx = e.clientX - rect.left - bL - padL;
-        const vy = e.clientY - rect.top - bT - padT;
-        // Scale-invariant content fraction under the pointer — re-anchors
-        // correctly after the raster grows/shrinks the content.
-        const contentW = Math.max(1, scroll.scrollWidth - padL - padR);
-        const contentH = Math.max(1, scroll.scrollHeight - padT - padB);
-        const base = scale > 0 ? scale : 1;
-        burst = {
-          base,
-          target: base,
-          vx,
-          vy,
-          fx: (scroll.scrollLeft + vx) / contentW,
-          fy: (scroll.scrollTop + vy) / contentH,
-        };
-        wheelBurstRef.current = burst;
-        // Anchor the live scale at the pointer (wrapper-local coords).
-        const wr = content.getBoundingClientRect();
-        content.style.transformOrigin = `${e.clientX - wr.left}px ${e.clientY - wr.top}px`;
-        content.style.willChange = "transform";
-      }
-
-      const factor = Math.exp(-dy * WHEEL_ZOOM_K);
-      burst.target = Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, burst.target * factor));
-      content.style.transform = `scale(${burst.target / burst.base})`;
-
-      if (wheelSettleRef.current != null) window.clearTimeout(wheelSettleRef.current);
-      wheelSettleRef.current = window.setTimeout(commitWheelZoom, WHEEL_SETTLE_MS);
-    },
-    [isPdf, scale, commitWheelZoom],
-  );
-
-  // Bind the non-passive wheel listener once; call the latest handler via a ref.
-  const wheelZoomRef = useRef(wheelZoomHandler);
-  useEffect(() => {
-    wheelZoomRef.current = wheelZoomHandler;
-  }, [wheelZoomHandler]);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const listener = (e: WheelEvent) => wheelZoomRef.current(e);
-    el.addEventListener("wheel", listener, { passive: false });
-    return () => {
-      el.removeEventListener("wheel", listener);
-      if (wheelSettleRef.current != null) window.clearTimeout(wheelSettleRef.current);
-    };
-  }, []);
 
   return (
     <section
