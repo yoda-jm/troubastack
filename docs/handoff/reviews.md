@@ -2077,6 +2077,28 @@ sync-sensitive behavior survived the extraction, which is exactly what the realt
 spec exercises. Parts 2/3 (`usePdfDocument` — the PDF/zoom/raster/overlay chunk) + 3/3
 (trim) follow; each gets the same e2e-net pass. CI on `4f26f02` watched.
 
+## 2026-07-09 — T15 part 2/3: extract usePdfDocument (`118a591`, landed): ✅ APPROVED — the risky one, render-timing intact
+
+The big, render-timing-critical hook — PDF.js load + per-page raster + the zoom model
++ the dry ink overlay — moved VERBATIM into `usePdfDocument.ts` (510 lines; Viewer
+1486 → 972). This is where the flip-fix cancel-guard, the wheel-zoom decouple, and
+no-reraster-on-edit live, so I leaned on the specs that specifically guard them:
+re-ran on the isolated stack — **editor-wheelzoom (one raster per pinch),
+editor-noflicker (`pdf-render-count` unchanged on edit), viewer (render+zoom), zorder,
+editor realtime, pick — 16/16 green**, `tsc -b studio` clean, testids preserved. The
+render effect's deps are unchanged (`[selectedFile, status, scale, numPages, zoomMode,
+renderNonce]`) and render↔pick still share `compareObjectZ` — confirmed by the diff
+being a move and by the two invariant-guarding specs passing.
+
+**Honest deviation, accepted (T05 precedent):** Viewer landed at 972 lines vs the T15
+spec's ~600 target — but that target was written when Viewer was 1,260 lines; T27
+stages 1–2 (wheel-zoom + selection toolbar) added to it since, and the residual is the
+editing handlers + JSX the spec deliberately keeps in the orchestrator. The lane
+flagged it for the gate rather than contorting to a stale number — correct call. The
+split's value (the sync spine and the PDF/render engine now isolated, testable hooks)
+is delivered; part 3 can shave more via an optional `useDryOverlay` split if VLL wants,
+but it's not required. CI on `118a591` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
