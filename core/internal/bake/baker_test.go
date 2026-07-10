@@ -140,6 +140,10 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	if cb.Songs[0].SourceRevision == 0 {
 		t.Fatalf("source_revision should be the song's head revision, got 0")
 	}
+	// T26: the bundle carries the song's real Title (kills the "Song N" fallback).
+	if cb.Songs[0].Title != "Song" {
+		t.Fatalf("baked song title = %q, want the song's title (T26)", cb.Songs[0].Title)
+	}
 
 	// bundle.json parses and every blob ref resolves on disk (the container contract).
 	revDir := filepath.Join(b.bakesDir, setlistID, "1")

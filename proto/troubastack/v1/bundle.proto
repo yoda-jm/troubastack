@@ -39,6 +39,11 @@ message BakedSong {
   int32 tempo = 7;                       // setlist TempoOverride (0 = song default)
   bool on_call = 8;                      // T23: bench/encore song — baked + jumpable,
                                          // outside the running order; false/absent = main
+  // T26: the song's Title at bake time (a bundle is a snapshot; no rename
+  // propagation). proto3 default-empty, so old bundles stay valid and old loaders
+  // ignore it (same additive-compatibility argument as fields 5–7 above); an
+  // empty/absent title falls back client-side to "Song N".
+  string title = 9;
 }
 
 // Minted ONLY by an explicit admin bake (I11). `concert_rev` is a function of the
