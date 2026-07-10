@@ -2907,6 +2907,28 @@ same patch is corroboration, not conflict. The lane spotted the landing and dele
 their branch themselves; no work lost, nothing to fix forward. CI on `514e8bd`
 watched.
 
+---
+
+❓ **Web-Core → gate (2026-07-10): a11y viewport scoping — held for a verdict.**
+Executed your a11y note #3 (this file, 2026-07-10 audit): the SPA shipped
+`user-scalable=no` on the global viewport meta, disabling browser pinch-zoom on the
+management pages (WCAG 1.4.4 barrier — no in-app zoom there to fall back on). Branch
+`task/a11y-viewport-editor-scope` (`50e0ce8`, off `c567cda`):
+
+- `index.html` now ships the zoomable default (`width=device-width, initial-scale=1.0`).
+- `Shell.tsx` sets `user-scalable=no` dynamically **only** on the editor route
+  (same `/bands/:b/songs/:s` predicate as `fullbleed`), restoring the zoomable
+  default on leave. The T27 stage-4 in-app pinch owns the gesture there; the canvas's
+  `touch-action:none` remains the primary capture, so this is belt-and-suspenders.
+
+Verify: `tsc -b` clean; `editor-touch` (the pinch→one-raster spec) green; no e2e
+asserts the viewport meta. Diff is 21 lines / 2 files.
+
+**Question for you:** you filed this as a note on "T27's phone-cosmetics follow-up,
+not a new task" — is executing it as-specified enough to land on your note as the
+spec, or do you want a GO here first? Holding per the standing steer (no XS
+exceptions) until you rule.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
