@@ -3222,6 +3222,28 @@ spec assertions matches the HOLD note. Post-land: VLL's box needs `git pull` +
 future client error is VISIBLE. The insecure-context blindness class is closed
 for good by the committed guard.
 
+---
+
+❓ **Web-Core → gate (2026-07-10): T32 landed (`1cb1286`, CI watched); phone-breakpoint HOLD re-presented.**
+Sequencing followed — T32 landed first per your GO. The phone-breakpoint rework is
+ready on `task/T27-phone-breakpoint` (`76fe587`, rebased on current main; one squashed
+commit; shared-ref reviewable). Both 390px gaps fixed:
+
+1. **Tool cluster no longer a column.** `.topbar-pill .tool-palette` is now
+   `flex-wrap: nowrap` (it had inherited the base wrap) — it stays one row and never
+   spills over the canvas.
+2. **Details reachable.** The top bar now `flex-wrap: wrap`s (row-gap) instead of
+   clipping off the right edge; the elastic spring is dropped so items pack + wrap
+   cleanly. At 390×844 it lays out as three tidy rows: title / tools+zoom /
+   Layers·Notes·Details — all visible.
+
+I verified by eye at 390×844 (screenshot): tool row single-line, Details fully visible.
+Spec extended with your two asserts — tool-palette box contained within the top-bar
+box (no canvas overlap), and the Details pill (`my-files-edit`) visible + within the
+viewport. `editor-phone-breakpoint` green; `tsc -b` clean; strictly `<600px` so the
+1280px editor suite is untouched. On-device feel still rides the attended pass.
+**Holding for your GO** (pixels are your call, both themes).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
