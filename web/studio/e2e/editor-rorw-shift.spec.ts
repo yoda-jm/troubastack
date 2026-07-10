@@ -21,6 +21,7 @@
  * Screenshots: /tmp/ro-rw-rw.png (RW active), /tmp/ro-rw-ro.png (RO focused).
  */
 import { test, expect, type Page } from "@playwright/test";
+import { openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -100,6 +101,8 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  // T27 stage 3: layer rows live in the on-demand drawer — open it (Layers).
+  await openDrawer(page, "layers");
 }
 
 async function setup(page: Page, prefix: string) {
@@ -113,15 +116,18 @@ async function setup(page: Page, prefix: string) {
 }
 
 /** Toolbar height + viewer top offset at a FIXED scroll position (top). */
-async function measure(page: Page): Promise<{ toolbarH: number; pageTop: number }> {
+async function measure(page: Page): Promise<{ pageTop: number }> {
   // Pin scroll to the top so the pdf-page's viewport-relative top is comparable
   // across states. (globalThis avoids a DOM-lib dep in the e2e tsconfig.)
   await page.evaluate(() =>
     (globalThis as unknown as { scrollTo: (x: number, y: number) => void }).scrollTo(0, 0),
   );
-  const tb = (await page.getByTestId("editor-toolbar").boundingBox())!;
+  // T27 stage 3 (arch ruling 2026-07-10): the `editor-toolbar` height comparison is
+  // RETIRED — the tool cluster is `display:contents` in the floating pill (no box),
+  // so the metric is meaningless. `pageTop` (T13's real invariant — the score must
+  // not move when a read-only layer is focused) STAYS asserted, per arch.
   const pg = (await page.getByTestId("pdf-page").first().boundingBox())!;
-  return { toolbarH: tb.height, pageTop: pg.y };
+  return { pageTop: pg.y };
 }
 
 test("editor: focusing a read-only layer does NOT shift the layout (RO vs RW footprint identical)", async ({
@@ -211,8 +217,8 @@ test("editor: focusing a read-only layer does NOT shift the layout (RO vs RW foo
   const ro = await measure(page);
   await page.screenshot({ path: "/tmp/ro-rw-ro.png", fullPage: true });
 
-  // The toolbar footprint and the viewer position must be IDENTICAL across the
-  // two states — focusing a read-only layer must not move anything.
-  expect(ro.toolbarH).toBe(rw.toolbarH);
+  // The score position must be IDENTICAL across the two states — focusing a
+  // read-only layer must not move anything (T13's real invariant; the retired
+  // toolbar-height comparison is gone per the 2026-07-10 arch ruling).
   expect(ro.pageTop).toBe(rw.pageTop);
 });

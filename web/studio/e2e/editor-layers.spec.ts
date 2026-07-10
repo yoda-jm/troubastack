@@ -494,31 +494,24 @@ test("editor: annotation list selects an object on the active layer", async ({ p
 });
 
 // ===========================================================================
-// Sidebar order — the Layers panel must render ABOVE the annotation list in the
-// DOM so its position stays stable; only the variable-length annotation list
-// (below it) grows/shrinks as the layer/selection changes.
+// Drawer tabs — T27 stage 3 (arch ruling 2026-07-10, "assertion-retirement set
+// EXTENDED"): the old "Layers panel renders ABOVE the annotation list in the DOM"
+// test asserted both panels co-visible + a compareDocumentPosition DOM order — a
+// dead STACKED-SIDEBAR structure. The approved tabbed drawer (Q2/C-5) shows one tab
+// at a time, so co-presence is impossible; those assertions are RETIRED per arch.
+// Per arch's condition, the drawer's function stays tested: each tab is reachable.
 // ===========================================================================
-test("editor: Layers panel renders ABOVE the annotation list in the DOM", async ({ page }) => {
+test("editor: both drawer tabs (Layers, Annotations) are reachable (T27 stage 3)", async ({ page }) => {
   await openConductorOnlySong(page);
 
   await page.getByTestId("new-layer").click();
   await expect(page.getByTestId("active-layer")).not.toHaveValue("");
 
-  const layers = page.getByTestId("layers-panel");
-  const annlist = page.getByTestId("annotation-list");
-  await expect(layers).toBeVisible();
-  await expect(annlist).toBeVisible();
+  await openDrawer(page, "layers");
+  await expect(page.getByTestId("layers-panel")).toBeVisible();
 
-  // DOCUMENT_POSITION_FOLLOWING (4) → annotation list comes AFTER the layers
-  // panel: the Layers panel is first in source order, so it sits on top.
-  const annHandle = await annlist.elementHandle();
-  const layersIsFirst = await layers.evaluate(
-    (l, a) => (l.compareDocumentPosition(a) & 4) !== 0,
-    annHandle!,
-  );
-  expect(layersIsFirst).toBeTruthy();
-
-  await page.screenshot({ path: "/tmp/sidebar-order.png", fullPage: true });
+  await openDrawer(page, "annotations");
+  await expect(page.getByTestId("annotation-list")).toBeVisible();
 });
 
 // ===========================================================================
