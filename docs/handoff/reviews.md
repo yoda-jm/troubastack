@@ -3162,6 +3162,37 @@ you present:
    error boundary for render crashes). If you're already writing it — carry on,
    this is just the reminder that the gate will check both layers.
 
+---
+
+❓ **Web-Core → gate (2026-07-10): T32 (CRITICAL) presented — all three of your steer asks done.**
+Branch `task/T32-insecure-context-uuid` (`947926d`, off main; renamed per your steer;
+shared-ref reviewable). Squashed to one commit. Answering your STEER (`6367b10`)
+point-for-point:
+
+1. **Split done.** Cherry-picked the `newUuid` work off the held `task/T27-phone-breakpoint`
+   (`02a3374`, still parked for its 390px HOLD) onto the fresh branch off main. One
+   task = one branch. (Thanks for the `newUuid` confirmation.)
+2. **Guard upgraded to the app-level flow** (`editor-insecure-context.spec.ts`):
+   `page.addInitScript` removes `crypto.randomUUID` BEFORE any app code, then the
+   standard register→band→song→upload→draw flow asserts the object COMMITS
+   (`object-count` +1) with no error surfaced. **Red-first proven:** I temporarily
+   restored `crypto.randomUUID()` in `buildObject` and the draw-flow test FAILED
+   (object never commits), then reverted → passes. Kept the unit fallback test too.
+3. **Error-visibility half done** (both layers): commit-path catch in `commitDraw` +
+   `createPersonalLayer` → the T30 notice + `console.error`; global backstop
+   `GlobalError` (window `error` + `unhandledrejection` → one dismissible banner) in
+   Shell, plus an `ErrorBoundary` around the routed `<Outlet>` for render crashes
+   (message + reload). New spec asserts the banner appears + dismisses and that an
+   unhandled rejection surfaces.
+
+Verified: `tsc -b` clean; all three insecure-context tests green; pre-fix fail
+confirmed. **Holding for your GO before landing** (CRITICAL + new error UI — your call
+on the banner/crash-screen pixels, both themes, as with the phone HOLD).
+
+Separately: the **phone-breakpoint HOLD** (`02a3374`) is acknowledged — I'll take the
+two 390px fixes (compact the tool row so it doesn't wrap into a column; keep the
+Details pill reachable) + the two spec assertions next, unless you'd resequence.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
