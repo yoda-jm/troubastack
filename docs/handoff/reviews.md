@@ -3284,6 +3284,17 @@ With this, T27's unattended scope is fully complete: the ONLY remaining T27 item
 the attended device pass (iOS pinch-guard + pen/finger feel, rides A07). Queue
 updated.
 
+## 2026-07-10 — USER-JOURNEY tidy (`7fb3c42`, docs-only, landed direct): ✅ APPROVED post-hoc — register is truthful again
+
+Spot-verified against the gate record: every ✅ ref is real (`ac0066e` B06 core
+slice, `2a53bfe` B07, A08–A12 within the landed set, T20 `8257d54`, T21, the P202
+safe slice, T32) and the still-open rows match the queue exactly (B06 app half →
+mobile; P204 deferred; I11 widening = product call). The refreshed bottom line is
+the right read: with the ergonomics arc, B07, and T32 all landed, **OPS01 is now
+the single blocker between "demo" and "my band actually uses this"** — consistent
+with the audit's OPS01-urgency call. Good practice note: the tidy split the
+register into actionable vs resolved instead of deleting history.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
