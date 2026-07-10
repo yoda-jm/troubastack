@@ -470,8 +470,16 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 }
 .ctx-bar .style-controls {
   border: none; padding: 0; margin: 0; gap: .5rem;
-  flex-wrap: wrap; justify-content: center;
+  flex-wrap: nowrap; align-items: center;
+  max-width: calc(100vw - 3rem); overflow-x: auto;
 }
+/* In the floating .ctx the row stays a SINGLE slim line (matches the mockup): the
+   canvas no longer shifts (the pill floats + zero-shift is the live guard), so hidden
+   per-type slots collapse to display:none instead of reserving space. */
+.ctx-bar .style-slot-off { display: none; }
+.ctx-bar .shape-style { flex-wrap: nowrap; }
+.ctx-bar .style-field span:not(.style-value) { font-size: .62rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.ctx-bar .style-field input[type="range"] { width: 72px; }
 
 /* ---- Floating BOTTOM BAR pill: file tabs (parts) + "＋ Add file" · live status. ---- */
 .bottombar-pill {
