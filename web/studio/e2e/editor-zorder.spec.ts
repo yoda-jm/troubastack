@@ -11,6 +11,7 @@
  * + the within-layer render sort end to end.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { scrollFracIntoBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -47,41 +48,19 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  // T27 stage 3: new-layer lives in the on-demand drawer — open it (Layers).
+  await openDrawer(page, "layers");
 }
 const objectCount = (page: Page) =>
   page.getByTestId("object-count").innerText().then((t) => parseInt(t, 10));
 
 async function pageXY(page: Page, fx: number, fy: number) {
-  const el = page.getByTestId("pdf-page").first();
-  await el.scrollIntoViewIfNeeded();
-  let box = (await el.boundingBox())!;
-  // Scroll the target Y into the visible band (full-viewport editor: the page can sit
-  // partly under the floating chrome / below the fold — T27 stage 3).
-  const vh = page.viewportSize()!.height;
-  const targetY = box.y + box.height * fy;
-  if (targetY < 110 || targetY > vh - 60) {
-    await page
-      .getByTestId("viewer-scroll")
-      .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(targetY - vh / 2));
-    await page.waitForTimeout(60);
-    box = (await el.boundingBox())!;
-  }
+  const box = await scrollFracIntoBand(page, fy);
   return { x: box.x + box.width * fx, y: box.y + box.height * fy };
 }
 async function dragRect(page: Page, f: { x0: number; y0: number; x1: number; y1: number }) {
-  const el = page.getByTestId("pdf-page").first();
-  await el.scrollIntoViewIfNeeded();
-  let box = (await el.boundingBox())!;
-  // Scroll ONCE so the rect's mid-Y is centered (both endpoints share one box).
-  const vh = page.viewportSize()!.height;
-  const midY = box.y + box.height * ((f.y0 + f.y1) / 2);
-  if (midY < 110 || midY > vh - 60) {
-    await page
-      .getByTestId("viewer-scroll")
-      .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(midY - vh / 2));
-    await page.waitForTimeout(60);
-    box = (await el.boundingBox())!;
-  }
+  // Scroll ONCE so the rect's mid-Y is in the clear band (both endpoints share one box).
+  const box = await scrollFracIntoBand(page, f.y0, f.y1);
   await page.mouse.move(box.x + box.width * f.x0, box.y + box.height * f.y0);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * f.x1, box.y + box.height * f.y1, { steps: 10 });

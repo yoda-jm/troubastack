@@ -9,6 +9,7 @@
  * Kept separate from flows.spec.ts so the original 9 flows stay untouched.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { openDrawer } from "./fullscreen-helpers";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -225,7 +226,8 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
     )
     .toBeGreaterThan(0);
 
-  // Layers panel lists both layers.
+  // Layers panel lists both layers. T27 stage 3: it's in the on-demand drawer.
+  await openDrawer(page, "layers");
   await expect(page.getByTestId("layers-panel")).toBeVisible();
   await expect(page.getByTestId("layer-item")).toHaveCount(2);
   const toggles = page.getByTestId("layer-toggle");

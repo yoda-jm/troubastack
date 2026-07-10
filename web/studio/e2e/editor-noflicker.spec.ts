@@ -15,6 +15,7 @@
  * Screenshot: /tmp/ed4-noflicker.png (edited page at the correct, stable scale).
  */
 import { test, expect, type Page } from "@playwright/test";
+import { clearBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -58,10 +59,7 @@ async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: nu
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()?.height ?? 720;
-  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
-  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   const px = (f: number) => box.x + box.width * f;
   const py = (f: number) => top + bandH * f;
@@ -88,6 +86,8 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  // T27 stage 3: layer controls live in the on-demand drawer — open it (Layers).
+  await openDrawer(page, "layers");
 }
 
 test("editor: adding/moving an annotation does NOT re-rasterize the PDF (no flicker)", async ({

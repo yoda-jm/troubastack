@@ -16,6 +16,7 @@
  *     invariant holds post-zoom.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { clearBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -56,6 +57,8 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  // T27 stage 3: layer controls live in the on-demand drawer — open it (Layers).
+  await openDrawer(page, "layers");
 }
 
 const renderCount = (page: Page) =>
@@ -92,9 +95,7 @@ async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: nu
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()?.height ?? 720;
-  const top = Math.max(box.y, 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   const px = (f: number) => box.x + box.width * f;
   const py = (f: number) => top + bandH * f;

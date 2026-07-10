@@ -13,6 +13,7 @@
  * Screenshots: /tmp/ed5-presets.png, /tmp/ed5-lock.png, /tmp/ed5-smallmove.png.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { scrollFracIntoBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -109,19 +110,7 @@ async function getAnnotations(page: Page, bandId: string, songId: string) {
 // page can exceed the scroll height / sit under the floating chrome — T27 stage 3),
 // then return the page box.
 async function pageBoxFor(page: Page, ...pys: number[]) {
-  const pageEl = page.getByTestId("pdf-page").first();
-  await pageEl.scrollIntoViewIfNeeded();
-  let box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()!.height;
-  const midY = box.y + box.height * (pys.reduce((a, b) => a + b, 0) / pys.length);
-  if (midY < 110 || midY > vh - 60) {
-    await page
-      .getByTestId("viewer-scroll")
-      .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(midY - vh / 2));
-    await page.waitForTimeout(60);
-    box = (await pageEl.boundingBox())!;
-  }
-  return box;
+  return scrollFracIntoBand(page, ...pys);
 }
 
 /** Click at a TRUE page-relative fraction (scrolled into view). */
@@ -252,6 +241,7 @@ test("editor: dragging a small rect's center moves it without resizing (#2)", as
   // Select it via the list (deterministic), then verify NO resize handles show
   // (small object → move-only, Bug #2).
   await page.getByTestId("tool-select").click();
+  await openDrawer(page, "annotations");
   await page.getByTestId("annotation-item").filter({ hasText: "rect" }).first().click();
   const bbox = page.getByTestId("selected-bbox");
   await expect(bbox).toHaveCount(1);
@@ -303,6 +293,7 @@ test("editor: Highlight preset draws a filled multiply rect; Outline is stroke-o
   const { bandId, songId } = await setup(page, "Preset");
   await page.reload();
   await openEditorReady(page);
+  await openDrawer(page, "layers");
   await page.getByTestId("new-layer").click();
   await expect(page.getByTestId("active-layer")).not.toHaveValue("");
 
@@ -387,6 +378,8 @@ test("editor: lock icon appears for a shared layer the owner sees and flips stat
   await openEditorReady(page);
 
   // The owner sees a lock/unlock toggle on the shared layer; it starts UNLOCKED (rw).
+  // T27 stage 3: the layers panel is in the on-demand drawer.
+  await openDrawer(page, "layers");
   const toggle = page.getByTestId("layer-access-toggle");
   await expect(toggle).toHaveCount(1);
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
@@ -456,6 +449,8 @@ test("editor: a non-conductor sees the conductor zone read-only (#3)", async ({ 
   await openEditorReady(page);
 
   // The conductor layer shows the read-only lock cue in the layers panel…
+  // T27 stage 3: the layers panel is in the on-demand drawer.
+  await openDrawer(page, "layers");
   await expect(page.getByTestId("layer-lock").first()).toBeVisible();
   // …and is NOT in the active-layer (editable) selector — only my personal layer is.
   const options = await page
@@ -472,6 +467,7 @@ test("editor: a non-conductor sees the conductor zone read-only (#3)", async ({ 
     .getByTestId("layer-row")
     .filter({ hasText: "Conductor cues" })
     .click();
+  await openDrawer(page, "annotations");
   await page.getByTestId("annotation-item").first().click();
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
   await page.screenshot({ path: "/tmp/ed5-conductor.png", fullPage: true });

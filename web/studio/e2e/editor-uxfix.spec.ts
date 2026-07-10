@@ -11,6 +11,7 @@
  * /tmp/ui-multimove.png.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { scrollFracIntoBand } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -132,21 +133,7 @@ async function setup(page: Page, prefix: string) {
 // (the full-viewport editor's page can exceed the scroll / sit under the floating
 // chrome — T27 stage 3).
 async function pageBox(page: Page, ...pys: number[]) {
-  const pageEl = page.getByTestId("pdf-page").first();
-  await pageEl.scrollIntoViewIfNeeded();
-  let box = (await pageEl.boundingBox())!;
-  if (pys.length) {
-    const vh = page.viewportSize()!.height;
-    const midY = box.y + box.height * (pys.reduce((a, b) => a + b, 0) / pys.length);
-    if (midY < 110 || midY > vh - 60) {
-      await page
-        .getByTestId("viewer-scroll")
-        .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(midY - vh / 2));
-      await page.waitForTimeout(60);
-      box = (await pageEl.boundingBox())!;
-    }
-  }
-  return box;
+  return scrollFracIntoBand(page, ...pys);
 }
 
 /** Drag from a TRUE page-relative fraction to another (single linear drag). */
@@ -323,29 +310,16 @@ test("#1+#2 toolbar: stable footprint across none/text/shape, per-type controls"
   await openEditorReady(page);
   await page.getByTestId("tool-select").click();
 
-  const toolbar = page.getByTestId("style-controls");
-  const pageEl = page.getByTestId("pdf-page").first();
-
-  // Measure the toolbar's footprint (height) AND its on-screen top, plus the
-  // page's top — all at a fixed scroll position (window + the inner viewer
-  // scroll reset to 0) so a between-step scroll never masquerades as a layout
-  // shift. A stable toolbar height + top means the canvas/page below never moves.
-  async function metrics() {
-    await page.getByTestId("viewer-scroll").evaluate((el) => {
-      el.scrollTo({ top: 0 });
-      el.ownerDocument.defaultView?.scrollTo(0, 0);
-    });
-    const tb = (await toolbar.boundingBox())!;
-    const pg = (await pageEl.boundingBox())!;
-    return { h: Math.round(tb.height), tbTop: Math.round(tb.y), top: Math.round(pg.y) };
-  }
-
-  const none = await metrics();
+  // T27 stage 3 (arch ruling 2026-07-10, reviews.md "extend the assertion-retirement
+  // set"): the stable-toolbar-FOOTPRINT half (#1) is RETIRED here — the style row is
+  // now the contextual `.ctx` pill (absent in the neutral state, floating over the
+  // canvas), so the "identical footprint across none/text/shape" mechanism no longer
+  // applies; the real invariant (the score never shifts) is guarded LIVE by
+  // editor-zeroshift. The per-type control relevance (#2) below is unchanged.
 
   // Select the text object.
   await clickPageFrac(page, 0.31, 0.31);
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
-  const textM = await metrics();
   // For TEXT: size visible+usable, width control NOT usable.
   await expect(page.getByTestId("style-font")).toBeVisible();
   await expect(page.getByTestId("style-width")).toBeHidden();
@@ -354,19 +328,9 @@ test("#1+#2 toolbar: stable footprint across none/text/shape, per-type controls"
   // Select the rect.
   await clickPageFrac(page, 0.6, 0.2);
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
-  const shapeM = await metrics();
   // For SHAPE: width visible+usable, size control NOT usable; shape controls show.
   await expect(page.getByTestId("style-width")).toBeVisible();
   await expect(page.getByTestId("style-font")).toBeHidden();
   await expect(page.getByTestId("style-fill")).toBeVisible();
   await page.screenshot({ path: "/tmp/ui-toolbar-shape.png", fullPage: true });
-
-  // Footprint must NOT change between none / text / shape: the toolbar keeps the
-  // same height AND top, so the page/canvas below never shifts.
-  expect(textM.h).toBe(none.h);
-  expect(shapeM.h).toBe(none.h);
-  expect(textM.tbTop).toBe(none.tbTop);
-  expect(shapeM.tbTop).toBe(none.tbTop);
-  expect(textM.top).toBe(none.top);
-  expect(shapeM.top).toBe(none.top);
 });

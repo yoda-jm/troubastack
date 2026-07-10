@@ -12,6 +12,7 @@
  * /tmp/ed3-crosslayer.png.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { clearBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -117,10 +118,7 @@ async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: nu
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()?.height ?? 720;
-  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
-  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   const px = (f: number) => box.x + box.width * f;
   const py = (f: number) => top + bandH * f;
@@ -134,10 +132,7 @@ async function clickOnPage(page: Page, fx: number, fy: number) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()?.height ?? 720;
-  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
-  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   await page.mouse.click(box.x + box.width * fx, top + bandH * fy);
 }
@@ -152,6 +147,8 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  // T27 stage 3: layer controls live in the on-demand drawer — open it (Layers).
+  await openDrawer(page, "layers");
 }
 
 const STYLE = { color: "#e11d48", opacity: 1, width: 0.004, fontSize: 0.03 };
@@ -251,12 +248,14 @@ test("editor: object on a locked layer cannot be moved or deleted", async ({ pag
 
   // Select the locked object via the annotation list (deterministic).
   await page.getByTestId("tool-select").click();
+  await openDrawer(page, "annotations");
   const lockedItem = page.getByTestId("annotation-item").filter({ hasText: "rect" }).first();
   await lockedItem.click();
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
 
   // The locked cue must show and the delete button must be disabled (UI prevents).
   await expect(page.getByTestId("bbox-lock")).toBeVisible();
+  await openDrawer(page, "layers");
   await expect(page.getByTestId("delete-object")).toBeDisabled();
 
   // (a) Drag-to-move starting ON the locked object: it must be a no-op (no move
@@ -297,6 +296,7 @@ test("editor: selecting a locked object shows bbox-lock and disables controls", 
     .getByTestId("layer-row")
     .click();
   await page.getByTestId("tool-select").click();
+  await openDrawer(page, "annotations");
   await page.getByTestId("annotation-item").filter({ hasText: "rect" }).first().click();
 
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
@@ -305,11 +305,14 @@ test("editor: selecting a locked object shows bbox-lock and disables controls", 
   // The selection box reads read-only.
   await expect(page.getByTestId("selected-bbox").first()).toHaveClass(/readonly/);
 
-  // Style controls reflect the object but are disabled (no restyle on locked).
+  // Style controls (contextual .ctx pill for the selection) reflect the object but
+  // are disabled (no restyle on locked). toBeDisabled checks the disabled property,
+  // so it holds even for a per-type-hidden slot — no tab/tool switch needed here.
   await expect(page.getByTestId("style-color")).toBeDisabled();
   await expect(page.getByTestId("style-opacity")).toBeDisabled();
   await expect(page.getByTestId("style-width")).toBeDisabled();
   await expect(page.getByTestId("style-font")).toBeDisabled();
+  await openDrawer(page, "layers");
   await expect(page.getByTestId("delete-object")).toBeDisabled();
 
   await page.screenshot({ path: "/tmp/ed3-locked-bbox.png", fullPage: true });
@@ -328,6 +331,7 @@ test("editor: clicking an object focuses its layer (cross-layer)", async ({ page
     .filter({ hasText: "Editable layer" })
     .getByTestId("layer-row")
     .click();
+  await openDrawer(page, "annotations");
   await expect(page.getByTestId("annotation-list-title")).toContainText("Editable layer");
 
   // Now click the LOCKED object on the canvas (upper-left region). This belongs
@@ -364,6 +368,7 @@ test("editor: selecting an editable object reflects its style and restyles live"
     .getByTestId("layer-row")
     .click();
   await page.getByTestId("tool-select").click();
+  await openDrawer(page, "annotations");
   await page.getByTestId("annotation-item").filter({ hasText: "rect" }).first().click();
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
   // Editable selection: no lock cue, controls enabled.
@@ -399,7 +404,10 @@ test("editor: selecting an editable object reflects its style and restyles live"
     .toBe("#2563eb|0.5|0.01");
 
   // Deselect → controls revert to the draw defaults (still enabled, default red).
+  // T27 stage 3: the style row is the contextual .ctx pill, so pick a draw tool to
+  // reveal it (arch Q3 "activate a tool first" — steps only; the assertion is same).
   await clickOnPage(page, 0.05, 0.92);
   await expect(page.getByTestId("selected-bbox")).toHaveCount(0);
+  await page.getByTestId("tool-rect").click();
   await expect(page.getByTestId("style-color")).toBeEnabled();
 });

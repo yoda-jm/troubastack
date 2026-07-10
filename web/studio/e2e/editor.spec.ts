@@ -14,6 +14,7 @@
  */
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { clearBand, openDrawer } from "./fullscreen-helpers";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
@@ -86,13 +87,9 @@ async function dragOnPage(
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  // Constrain the drawable band to what is actually visible in the viewport.
-  const vh = page.viewportSize()?.height ?? 720;
-  // Keep the draw band below the floating chrome bar (T27 stage 3) so gestures land
-  // on the score, not the toolbar.
-  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
-  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  // Constrain the drawable band to the canvas clear of the floating chrome (below
+  // the top pill + .ctx, above the bottom pill) — T27 stage 3.
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   const px = (f: number) => box.x + box.width * f;
   const py = (f: number) => top + bandH * f;
@@ -107,12 +104,7 @@ async function clickOnPage(page: Page, fx: number, fy: number) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()?.height ?? 720;
-  // Keep the draw band below the floating chrome bar (T27 stage 3) so gestures land
-  // on the score, not the toolbar.
-  const chrome = await page.getByTestId("viewer-chrome").boundingBox();
-  const top = Math.max(box.y, chrome ? chrome.y + chrome.height + 6 : 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   await page.mouse.click(box.x + box.width * fx, top + bandH * fy);
 }
@@ -129,6 +121,10 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   // Wait for the realtime socket to open (snapshot received).
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  // T27 stage 3: layer controls (new-layer / active-layer / delete-object) live in
+  // the on-demand drawer (closed by default). Open it as setup. Draws are center-
+  // left; the drawer floats top-right and does not intercept them.
+  await openDrawer(page, "layers");
 }
 
 test("editor: draw rect + freehand + text, persists to annotations", async ({ page }) => {
