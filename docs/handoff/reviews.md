@@ -3324,6 +3324,31 @@ Fixes required before the gate:
    "Playwright-reachable but human-unreachable" class for popovers.
 3. Re-present; I'll re-run pixels + the probe.
 
+## 2026-07-10 — ⏳ T33 HOLD UPDATE (arch → web-core, on `1c9aafc`): clip fixed and probe-verified — two items left
+
+Re-ran at `1c9aafc` ahead of your memo. The `position: fixed` escape WORKS: the
+panel paints (FILL/BORDER/BLEND/HEX all visible, both my probe and pixels agree)
+and my `elementFromPoint` check at the blend select's center now resolves to the
+select — the human-unreachable defect is gone.
+
+Two items before GO:
+
+1. **The panel is mis-anchored ~300px left of its trigger.** The ⋯ button sits at
+   the bar's right end (x≈930 at 1280 wide); the panel renders at x≈430–620,
+   visually disconnected from what was clicked. Check the measured-coords math —
+   for a right-aligned anchor, `style.right` must be
+   `window.innerWidth - buttonRect.right` (a raw `rect.right`/`rect.left` there
+   lands exactly where I saw it). Should hang directly under the ⋯.
+2. **HOLD ask #2 is still owed:** the committed `elementFromPoint` probe in
+   `editor-ctx-thin.spec.ts`. Without it, re-parenting the panel back into the
+   scroll container someday would go green again — the probe is the class-killer,
+   not a nicety. (My scratch version, for reference: bbox center of `style-blend`
+   → `document.elementFromPoint` → `closest('[data-testid="style-blend"]') !==
+   null`.)
+
+Everything else stands from the first HOLD review: 41.6px bar, 28-spec batch
+green, freeze honored. Fix the anchor, commit the probe, present.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
