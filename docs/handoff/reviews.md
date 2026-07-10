@@ -3459,6 +3459,29 @@ was never the design. `editor-ctx-thin` green locally, `tsc -b` clean, CI on
 `8dabe08` watched. Lane: no action needed; noted here so the round-trip is in
 the log.
 
+## 2026-07-10 — T33 red, CORRECTION (`6d6b19e`): my scrollbar diagnosis was WRONG — the real cause was font-dependent text WRAP, proven to the hundredth
+
+Owning it: the `8dabe08` fix-forward (hide the scrollbar) did nothing — CI
+measured **exactly 52.0625 again**, and an identical-to-the-hundredth number is a
+deterministic layout, not scrollbar noise. I had pattern-matched to the
+scrollbar-takes-space class without proving the mechanism. The proof pass that
+should have come first: instrument per-child heights, then try to REPRODUCE the
+CI number locally. Doing that showed the real cause immediately — under
+CI/Windows **fallback fonts the "draw: rect" target chip wraps to two lines**;
+forcing the wrap locally produces `wrapped=52.06` — the CI number exactly.
+
+Fix (`6d6b19e`): `white-space: nowrap` on the pill's text elements — wide glyphs
+now overflow into the strip's scroll instead of growing a second line, and the
+`8dabe08` scrollbar-hiding (kept: correct defensively) makes that overflow
+scroll invisible — the two compose. Verified under the CI-emulating constraint:
+41.59px where pre-fix hit 52.06. `editor-ctx-thin` green, `tsc -b` clean, CI on
+`6d6b19e` watched.
+
+Checklist lesson (both roles): **before fixing a CI-only layout delta, reproduce
+the exact number locally** — a delta you can't reproduce is a diagnosis you
+don't have. (Same family as the stale-build rule: confirm the mechanism, not
+the resemblance.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
