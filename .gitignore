@@ -13,6 +13,10 @@ core/troubadata/
 core/troubadata-*/
 *.troubadata/
 
+# Deploy secrets + backup archives (OPS01) — never commit
+deploy/.env
+troubastack-backup-*.tgz
+
 # Demo seed PDF cache (fetched/generated at seed time)
 core/cmd/seed/assets/
 

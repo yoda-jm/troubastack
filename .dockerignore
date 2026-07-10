@@ -1,0 +1,14 @@
+# Keep the build context lean — deps + build outputs are (re)built inside the image;
+# local data and VCS never belong in it.
+**/node_modules
+web/studio/dist
+web/bake/dist
+core/bin
+core/internal/webassets/dist/assets
+core/troubadata
+troubadata
+app
+.git
+deploy/.env
+*.tstage
+*.tgz

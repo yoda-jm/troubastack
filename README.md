@@ -69,6 +69,16 @@ android · e2e).
 
 ---
 
+## Deploy it on a box you own
+
+`make demo` is local-only over `http://localhost`. To run TroubaStack for a real band —
+HTTPS on a home server or cheap VPS, one binary behind Caddy (automatic Let's Encrypt),
+all state in one backed-up data dir — see **[`deploy/`](deploy/README.md)**:
+`docker compose up -d` with your domain, or the documented systemd variant. Backups are
+a single `tar` of the data dir (`deploy/backup.sh`).
+
+---
+
 ## The mobile app — TroubaStage on your phone/tablet
 
 The Kotlin/Compose Multiplatform app (Android now, iOS later) currently ships the

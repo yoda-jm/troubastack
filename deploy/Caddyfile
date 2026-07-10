@@ -1,0 +1,23 @@
+# Caddy reverse proxy for TroubaStack (OPS01). The domain is the ONLY variable — Caddy
+# provisions + renews a Let's Encrypt cert for it automatically. `docker-compose.yml`
+# injects $DOMAIN from deploy/.env.
+{$DOMAIN} {
+	reverse_proxy troubacore:8080
+}
+
+# --- Testing variants (uncomment ONE instead of the block above) ---
+#
+# Self-signed, no domain / no ACME (localhost or an IP — browser will warn):
+#   :443 {
+#       tls internal
+#       reverse_proxy troubacore:8080
+#   }
+#
+# Let's Encrypt STAGING (untrusted cert, but exercises the full ACME flow without
+# hitting rate limits while you test):
+#   {$DOMAIN} {
+#       tls {
+#           ca https://acme-staging-v02.api.letsencrypt.org/directory
+#       }
+#       reverse_proxy troubacore:8080
+#   }

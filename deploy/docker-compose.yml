@@ -1,0 +1,50 @@
+# TroubaStack single-box deployment (OPS01): the troubacore binary behind Caddy, which
+# terminates TLS automatically via Let's Encrypt. Set DOMAIN in deploy/.env, point its
+# A/AAAA record at this host, then `docker compose up -d`. See deploy/README.md.
+services:
+  troubacore:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # DURABLE state: both backends on disk (the default APP_STORE is `mem` = ephemeral).
+      TROUBA_APP_STORE: file
+      TROUBA_STORE: file
+      TROUBA_DATA_DIR: /data
+      # Behind Caddy/TLS the session cookie must be Secure-only.
+      TROUBA_SECURE_COOKIES: "true"
+      # No LAN mDNS advertising inside a container.
+      TROUBA_NO_MDNS: "1"
+    volumes:
+      - troubadata:/data
+    healthcheck:
+      # The binary ships no shell utilities beyond node; hit /healthz with node.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # Not published to the host — only Caddy reaches it, on the compose network.
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - troubacore
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # persisted certificates (survive restarts)
+      - caddy_config:/config
+
+volumes:
+  troubadata:
+  caddy_data:
+  caddy_config:

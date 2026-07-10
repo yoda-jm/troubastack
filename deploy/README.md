@@ -1,0 +1,111 @@
+# Deploying TroubaStack on a box you own (OPS01)
+
+TroubaStack is one Go binary that serves the API **and** the web editor on a single
+origin, with all state in one data directory. This runs it on a small home server or
+cheap VPS, over HTTPS, with backups. No cloud services, no database.
+
+> **Status:** the `docker compose` path here is authored to spec but its live bring-up
+> (real TLS cert issuance) is the **attended acceptance step** — verify it once on your
+> host per *Verify* below. The **backup/restore** path is tested (a band + song survive
+> a wipe-and-restore).
+
+## What you need
+
+- A host with Docker + the Compose plugin.
+- A domain (or subdomain) whose **A/AAAA record points at the host** — Caddy needs it to
+  get a Let's Encrypt cert. Ports **80 and 443** reachable from the internet.
+- For baking setlists, nothing extra: the image already bundles `poppler-utils` + Node +
+  the bake worker.
+
+## Bring it up
+
+```sh
+cd deploy
+cp .env.example .env          # set DOMAIN=your.domain
+docker compose up -d --build  # builds the image (SPA embed + bake worker), starts Caddy
+```
+
+Caddy provisions the TLS cert automatically. Open `https://your.domain`.
+
+**First user / admin.** There is no instance admin and no bootstrap command — the app
+ships empty. The first person to open the site **self-registers**, then **creates a
+band**, which makes them that band's admin. (Registration is open: anyone who can reach
+the site can register. Put it behind a private network / VPN, or an auth proxy at the
+Caddy layer, if that matters to you — TroubaStack has no per-instance gate.)
+
+Forgot the only admin's password? `docker compose exec troubacore troubacore reset-password <username>` prints a one-time reset link.
+
+## Config (env, set in the compose file)
+
+| Var | Set to | Why |
+|---|---|---|
+| `TROUBA_APP_STORE` | `file` | durable users/bands/songs (default `mem` is **ephemeral**) |
+| `TROUBA_STORE` | `file` | durable annotations (`git` also works; `pg` needs a DB) |
+| `TROUBA_DATA_DIR` | `/data` | the one state dir → the `troubadata` volume |
+| `TROUBA_SECURE_COOKIES` | `true` | session cookie is HTTPS-only behind TLS |
+| `TROUBA_NO_MDNS` | `1` | no LAN advertising in a container |
+
+## Backup & restore
+
+The whole state is the data dir. `backup.sh` tars it; restore untars onto a fresh dir.
+**Stop the server first** — `app.json` is written as one file and a bake may be mid-write.
+
+```sh
+# Filesystem / systemd deploy (data dir on disk):
+./backup.sh backup  /var/lib/troubastack/data  /var/backups/troubastack
+./backup.sh restore  troubastack-backup-<ts>.tgz  /var/lib/troubastack/data-new
+
+# Docker-volume deploy (data is in the `troubadata` volume):
+docker compose stop troubacore
+docker run --rm -v deploy_troubadata:/data -v "$PWD":/backup alpine \
+  tar czf /backup/troubastack-backup.tgz -C /data .
+docker compose start troubacore
+# Restore: `docker run … tar xzf … -C /data` into a fresh volume, then compose up.
+```
+
+The git-store variant (`TROUBA_STORE=git`) is additionally `git bundle`-able.
+
+## Verify (the attended acceptance)
+
+1. `docker compose up -d --build`; `docker compose ps` shows `troubacore` healthy
+   (the compose healthcheck hits `/healthz`).
+2. `curl https://your.domain/healthz` → `ok` over a valid cert (use the `tls internal`
+   or Let's-Encrypt-**staging** variant in `Caddyfile` while testing to avoid rate
+   limits).
+3. Register a user, create a band + song; the Android **release** APK (below) pointed at
+   `https://your.domain` logs in and edits with no cleartext config.
+4. Backup, wipe, restore → the band + song return (already demonstrated in the PR).
+
+## systemd variant (no Docker)
+
+Prefer a plain service? Build the binary (`make dist` → `core/bin/troubacore`), copy it
+to the host, and run it under systemd, with Caddy (or your reverse proxy) terminating
+TLS in front. Baking needs `poppler-utils` + Node + the built `web/bake` worker on the
+host, with `TROUBA_BAKE_CLI`/`TROUBA_NODE`/`TROUBA_PDFTOPPM` pointed at them.
+
+```ini
+# /etc/systemd/system/troubacore.service
+[Unit]
+Description=TroubaCore
+After=network-online.target
+[Service]
+User=trouba
+Environment=TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=/var/lib/troubastack/data
+Environment=TROUBA_SECURE_COOKIES=true TROUBA_NO_MDNS=1 TROUBACORE_ADDR=127.0.0.1:8080
+ExecStart=/usr/local/bin/troubacore
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+```
+
+## Android release APK (mobile lane — pointer only)
+
+The signed release APK is built in the mobile lane (`app/`) and needs a self-managed
+keystore that stays **out of the repo**. Release builds already refuse cleartext, so they
+require the HTTPS origin above. See the mobile app's build docs for the `keytool`
+one-liner + Gradle `release` build type; CI signs only if keystore secrets are configured.
+
+## Secrets
+
+Never commit secrets. `deploy/.env` (your domain), any keystore, and passwords stay
+gitignored / in env only. This directory commits no secrets.
