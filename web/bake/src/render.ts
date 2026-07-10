@@ -120,13 +120,32 @@ function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+/** The per-object z fields the annotations API carries (T27 stage 2); ink's
+ *  InkObject doesn't declare them, but the doc arrives verbatim from the API. */
+type ZObject = InkObject & { order?: number; createdAt?: number };
+
+/** Within-layer z comparator — MUST mirror studio's `compareObjectZ` contract
+ *  (`order → createdAt → uuid`, T31): the bake renders what studio shows (I8). */
+function objectZ(a: ZObject, b: ZObject): number {
+  const ao = a.order ?? 0;
+  const bo = b.order ?? 0;
+  if (ao !== bo) return ao - bo;
+  const ac = a.createdAt ?? 0;
+  const bc = b.createdAt ?? 0;
+  if (ac !== bc) return ac - bc;
+  const au = a.uuid ?? "";
+  const bu = b.uuid ?? "";
+  return au < bu ? -1 : au > bu ? 1 : 0;
+}
+
 /**
  * Render every (page, layer) overlay for a document.
  *
  * Layers are z-ordered by `Layer.order` (ascending) so the manifest and file
- * set list them bottom-to-top. Within a layer, objects render in document order
- * (the order the API returned them), matching studio's dry layer. A layer with
- * no objects on a page produces NO overlay for that page (nothing to draw).
+ * set list them bottom-to-top. Within a layer, objects render sorted by
+ * `order → createdAt → uuid` (T31) — the same `compareObjectZ` contract studio's
+ * dry layer uses, so a bring-to-front done in studio is honored in the bake (I8).
+ * A layer with no objects on a page produces NO overlay for that page.
  */
 export function renderOverlays(
   doc: AnnotationsDoc,
@@ -172,7 +191,7 @@ export function renderOverlays(
       // browser canvas). Without this, Node-Skia and Chromium-Skia hint text
       // differently (~1px glyph-edge drift) and I8 text parity can't converge.
       (ctx as { textRendering?: string }).textRendering = "geometricPrecision";
-      renderObjects(ctx, objs, pageRect);
+      renderObjects(ctx, [...objs].sort(objectZ), pageRect);
 
       const png = canvas.encodeSync("png");
       out.push({
