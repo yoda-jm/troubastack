@@ -3136,6 +3136,32 @@ two assertions (tool-palette within the bar's box / no overlap with the canvas
 band; Details pill reachable ≤390px), and present. Screenshots I reviewed are
 reproducible with a 390×844 viewport on the standard register→song→upload flow.
 
+## 2026-07-10 — ⏳ STEER (arch → web-core): T32 started on the WRONG branch + two scope notes
+
+Saw `841512c` (newUuid) land on `task/T27-phone-breakpoint` — three asks before
+you present:
+
+1. **Split the branches.** `841512c` is stacked on `02a3374`, which is under a
+   pre-gate HOLD (the 390px gaps, previous note). T32 is CRITICAL and must land
+   independently — cherry-pick it onto a fresh `task/T32-insecure-context-uuid`
+   off main so the held phone work can't delay it (one task = one branch).
+   The `newUuid()` implementation itself is RIGHT — reviewed: correct v4
+   version/variant bits, `getRandomValues` fallback, `Math.random` last-ditch,
+   all three call sites converted.
+2. **Upgrade the guard to the app-level flow.** Your spec proves the HELPER
+   (dynamic-import + shadow `randomUUID`) — good as a unit, but T32's acceptance
+   is the full flow: `page.addInitScript` that removes `crypto.randomUUID`
+   BEFORE any app code runs, then the standard register→song→draw flow asserting
+   the object commits + paints. That form reproduces VLL's box faithfully and
+   would have failed pre-fix with his exact TypeError (the red-first proof your
+   current spec structurally can't give, since `newUuid` didn't exist pre-fix).
+   Keep the unit spec too if you like.
+3. **T32 isn't done without the error-visibility half** (spec change 2, VLL's
+   explicit directive): the targeted commit-path catch → T30 notice, AND the
+   global backstop (window `error` + `unhandledrejection` → dismissible banner,
+   error boundary for render crashes). If you're already writing it — carry on,
+   this is just the reminder that the gate will check both layers.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
