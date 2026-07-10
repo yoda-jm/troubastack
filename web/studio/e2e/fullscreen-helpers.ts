@@ -38,17 +38,22 @@ export async function scrollFracIntoBand(
   await pageEl.scrollIntoViewIfNeeded();
   let box = (await pageEl.boundingBox())!;
   const { top, bottom } = await clearBand(page);
-  // Center the requested fraction(s) at the band midpoint. Centering (rather than
-  // only nudging when the AVERAGE is out of band) guarantees a whole DRAG RANGE
-  // (e.g. a resize from 0.26→0.42) stays clear of the bottom pill — otherwise the
-  // average can read "in band" while an endpoint sits off-screen below the fold.
-  const frac = pys.length ? pys.reduce((a, b) => a + b, 0) / pys.length : 0.5;
-  const mid = (top + bottom) / 2;
-  const dy = box.y + box.height * frac - mid;
-  if (Math.abs(dy) > 4) {
+  // Scroll ONLY when the requested fraction RANGE doesn't already fit inside the
+  // clear band. Checking the whole range (min…max), not just the average, keeps a
+  // drag's endpoint from sitting under the bottom pill; and NOT scrolling when it
+  // already fits avoids sub-pixel drift that pushes a pick off-target (e.g. when the
+  // page fits the viewport at fit-page). When a scroll is needed, center the range.
+  const ys = pys.length ? pys : [0.5];
+  const lo = Math.min(...ys);
+  const hi = Math.max(...ys);
+  const mappedLo = box.y + box.height * lo;
+  const mappedHi = box.y + box.height * hi;
+  if (mappedLo < top + 8 || mappedHi > bottom - 8) {
+    const mid = (top + bottom) / 2;
+    const rangeMid = box.y + box.height * ((lo + hi) / 2);
     await page
       .getByTestId("viewer-scroll")
-      .evaluate((s, d) => s.scrollBy(0, d), Math.round(dy));
+      .evaluate((s, d) => s.scrollBy(0, d), Math.round(rangeMid - mid));
     await page.waitForTimeout(80);
     box = (await pageEl.boundingBox())!;
   }

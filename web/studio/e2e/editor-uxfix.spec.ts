@@ -183,12 +183,14 @@ test("#3 move: press+drag OUTSIDE a thin line (in the old pad) does NOT move it"
   // Press+drag starting in the WEAK proximity pad just OFF the segment (a couple
   // % below the thin line at y=0.4 — outside the body, inside the old select
   // pad). This still SELECTS the line, but must NOT start a move (points stay).
-  // 0.415 is safely INSIDE the ~0.02 proximity pad below the line at y=0.4 (still
-  // OFF the body) — 0.42 sat exactly on the pad edge, where sub-pixel scroll drift
-  // in the larger fullscreen page tips it just outside. Same "weak pad" intent.
-  await clickPageFrac(page, 0.5, 0.415); // confirm the pad still selects it
+  // 0.01 below the line at y=0.4: inside the line's WEAK select zone (its pixel-based
+  // proximity pad ≈ 0.0145 page-frac on the larger fullscreen page) but OUTSIDE the
+  // STRONG move zone (~0.0048) — so it SELECTS but must NOT move. The old 0.02 gap
+  // sat beyond the pad once the fullscreen page grew (the pad is pixel-based). Same
+  // "weak pad selects, no move" intent; only the input coordinate is recalibrated.
+  await clickPageFrac(page, 0.5, 0.41); // confirm the pad still selects it
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
-  await dragPageFrac(page, 0.5, 0.415, 0.5, 0.6);
+  await dragPageFrac(page, 0.5, 0.41, 0.5, 0.6);
 
   const afterPad = await getAnnotations(page, bandId, songId);
   const lineAfterPad = afterPad.objects.find((o) => o.uuid === "line")!;
