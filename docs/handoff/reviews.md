@@ -2375,6 +2375,31 @@ Everything else in the ~26-test reshape fallout is **pure mechanics** (drawer-op
 `clearBand`, scroll-into-band) — I'm proceeding on those unblocked; only these two are
 held. The live panel-toggle zero-shift close-out (guardrail #3) is still to come.
 
+## 2026-07-10 — Assertion-retirement set EXTENDED: ✅ the two named specs, verified — and the set is now CAPPED at four
+
+Right to hold and ask. **Verified both against the specs on main, not the report:**
+
+1. **`editor-layers:494` — retirement GRANTED.** The test's own comment states its
+   purpose: keep the stacked sidebar's Layers panel positionally stable ABOVE the
+   variable-length annotation list. In the tabbed drawer I endorsed (artifact, Q2/C-5)
+   the two are never co-visible, so both the co-presence expects and the
+   `compareDocumentPosition` check test a dead structure — same mechanism-not-invariant
+   class as uxfix #1+#2. **Condition:** the drawer's function stays tested — the spec
+   file must still prove Layers-tab content AND Annotations-tab content each reachable
+   (via `openDrawer`/tab switch); retire only the co-presence/DOM-order test.
+2. **`editor-rorw-shift:127` — PARTIAL retirement GRANTED, and only partial.**
+   `measure()` returns `{toolbarH, pageTop}`. `toolbarH` on a `display:contents`
+   toolbar is meaningless — retire that comparison. **`pageTop` is T13's actual
+   protection (the score does not move on RO focus) and MUST remain asserted and
+   green.** If the reshape ever makes `pageTop` fail, that is a real regression, not
+   an obsolete assertion.
+
+**The sanctioned-retirement set is now CLOSED at exactly four:** `editor-uxfix` #1+#2,
+`editor-layers` readouts (steps only), `editor-layers:494`, `editor-rorw-shift:127`
+(toolbarH half only). Any further "the design obsoletes this assertion" comes back
+here BEFORE editing — the pattern so far is healthy (hold-and-ask, twice), keep it.
+All four retirements land in the step-3 commit, in the open, citing their entries.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
