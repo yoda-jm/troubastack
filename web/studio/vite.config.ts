@@ -11,8 +11,22 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 
 const API_TARGET = process.env.TROUBA_API_TARGET ?? "http://localhost:8080";
+
+// T29: bake the git version into the bundle so the UI can show its own build and
+// flag a mismatch against the server's /api/version (the stale-cache detector).
+// Dev servers / builds outside a git checkout report "dev".
+function gitVersion(): string {
+  try {
+    return execSync("git describe --always --dirty", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "dev";
+  }
+}
 
 // studio installs with --no-workspaces, so @troubastack/ink (the one renderer,
 // I8) is not in node_modules. Alias it straight to the sibling package source;
@@ -20,6 +34,9 @@ const API_TARGET = process.env.TROUBA_API_TARGET ?? "http://localhost:8080";
 const inkSrc = fileURLToPath(new URL("../ink/src/index.ts", import.meta.url));
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(gitVersion()),
+  },
   plugins: [react()],
   resolve: {
     alias: {

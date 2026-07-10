@@ -13,6 +13,7 @@
 package webassets
 
 import (
+	"bytes"
 	"embed"
 	"io/fs"
 )
@@ -31,4 +32,19 @@ var dist embed.FS
 // just the placeholder directory.
 func FS() (fs.FS, error) {
 	return fs.Sub(dist, "dist")
+}
+
+// placeholderMarker appears only in the committed placeholder index.html ("SPA
+// not embedded"); a real Studio build overwrites that file, removing the marker.
+const placeholderMarker = "SPA not embedded"
+
+// SPAEmbedded reports whether a real Studio build is baked into this binary
+// (T29): true when the embedded index.html is NOT the committed placeholder.
+// Surfaced by /api/version so a running instance can be diagnosed at a glance.
+func SPAEmbedded() bool {
+	b, err := dist.ReadFile("dist/index.html")
+	if err != nil {
+		return false
+	}
+	return !bytes.Contains(b, []byte(placeholderMarker))
 }

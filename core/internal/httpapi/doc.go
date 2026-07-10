@@ -15,10 +15,12 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/bake"
+	"troubastack/core/internal/buildinfo"
 	"troubastack/core/internal/engine"
 	"troubastack/core/internal/webassets"
 )
@@ -40,6 +42,19 @@ func Router(svc *app.Service, eng *engine.Engine, baker *bake.Baker, secureCooki
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
+	})
+
+	// Build identity (T29): unauthenticated, like /healthz — what version is this
+	// binary, when was it built, and does it carry a real embedded SPA? Diagnosis
+	// (stale build / placeholder / SPA↔server mismatch) and the future app↔server
+	// compatibility hook. Display only — NO version gating happens anywhere yet.
+	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"version":     buildinfo.Version(),
+			"builtAt":     buildinfo.BuiltAt(),
+			"spaEmbedded": webassets.SPAEmbedded(),
+		})
 	})
 
 	// Relational JSON API (auth/identity, bands, members, invites, songs).

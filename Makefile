@@ -59,8 +59,13 @@ embed: studio
 	mkdir -p core/internal/webassets/dist
 	cp -r web/studio/dist/* core/internal/webassets/dist/
 
+# T29: stamp the git version + build time into the binary (buildinfo pkg; surfaced
+# by GET /api/version and the Studio version chip). Unstamped builds report "dev".
+VERSION_LDFLAGS = -X troubastack/core/internal/buildinfo.version=$(shell git describe --always --dirty) \
+                  -X troubastack/core/internal/buildinfo.builtAt=$(shell date -u +%Y-%m-%dT%H:%MZ)
+
 dist: embed
-	cd core && go build -o bin/troubacore ./cmd/troubacore
+	cd core && go build -ldflags "$(VERSION_LDFLAGS)" -o bin/troubacore ./cmd/troubacore
 	@echo "built core/bin/troubacore — serves /api + the embedded SPA on one origin"
 
 e2e:

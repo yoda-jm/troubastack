@@ -1073,3 +1073,19 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 /* panel toolbar (a disclosure/action strip at the top of a panel body) + list polish */
 .panel-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
 .song-list .song-link-title { font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; }
+
+/* T29 — version chip + popover (build-identity / stale-cache detector). */
+.version-chip-wrap { position: relative; display: inline-flex; }
+.version-chip {
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  font-family: var(--font-mono); font-size: .68rem; padding: .15rem .5rem;
+  border-radius: 999px; cursor: pointer;
+}
+.version-chip:hover { color: var(--fg); border-color: var(--border-strong); }
+.version-popover {
+  position: absolute; top: calc(100% + .4rem); right: 0; z-index: 30; min-width: 240px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+  box-shadow: var(--shadow); padding: .6rem .75rem; font-size: .78rem;
+  display: flex; flex-direction: column; gap: .3rem; white-space: nowrap;
+}
+.version-mismatch { color: var(--warn-fg); font-weight: 600; white-space: normal; max-width: 260px; }

@@ -10,6 +10,63 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { Avatar } from "./Avatar";
 
+type ServerVersion = { version: string; builtAt: string; spaEmbedded: boolean };
+
+/**
+ * T29 — build-identity chip: shows the SPA bundle's baked git version; clicking it
+ * fetches GET /api/version and shows the server's version/build time alongside.
+ * If the two DIFFER, a warning line flags it — the stale-browser-cache / stale-build
+ * detector (two field incidents on 2026-07-10 motivated this). Display only; no
+ * compatibility enforcement.
+ */
+function VersionChip() {
+  const [open, setOpen] = useState(false);
+  const [server, setServer] = useState<ServerVersion | null>(null);
+  const [error, setError] = useState(false);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !server) {
+      try {
+        const res = await fetch("/api/version");
+        setServer((await res.json()) as ServerVersion);
+      } catch {
+        setError(true);
+      }
+    }
+  }
+
+  const mismatch = server != null && server.version !== __APP_VERSION__;
+  return (
+    <span className="version-chip-wrap">
+      <button type="button" className="version-chip" data-testid="version-chip" onClick={() => void toggle()}>
+        {__APP_VERSION__}
+      </button>
+      {open && (
+        <div className="version-popover" data-testid="version-popover">
+          <div className="mono">Studio&nbsp;&nbsp;{__APP_VERSION__}</div>
+          {server ? (
+            <>
+              <div className="mono" data-testid="version-server">
+                Server&nbsp;&nbsp;{server.version} · {server.builtAt}
+                {!server.spaEmbedded && " · no SPA embedded"}
+              </div>
+              {mismatch && (
+                <div className="version-mismatch" data-testid="version-mismatch" role="alert">
+                  ⚠ Studio and server versions differ — reload (Ctrl+Shift+R) or rebuild the server.
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="mono muted">{error ? "server version unavailable" : "…"}</div>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 export function Shell() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
@@ -61,6 +118,7 @@ export function Shell() {
           </Link>
         </nav>
         <div className="user">
+          <VersionChip />
           <Link to="/me" className="profile-link" data-testid="nav-profile">
             <Avatar user={user} size={26} />
             <span data-testid="current-user">{user.displayName}</span>
