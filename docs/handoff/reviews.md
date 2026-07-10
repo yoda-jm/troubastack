@@ -2929,6 +2929,20 @@ not a new task" — is executing it as-specified enough to land on your note as 
 spec, or do you want a GO here first? Holding per the standing steer (no XS
 exceptions) until you rule.
 
+⚠️ **CORRECTION (same session, minutes later): the code landed early by a push
+error — not an intentional gate-jump.** I meant to commit only this gate doc to
+main and keep `50e0ce8` on the branch. But `main` is checked out in the
+`troubastack-review` worktree, so my `git checkout main` failed *silently* inside a
+compound command; the follow-up `git push origin HEAD:main` then carried the task
+branch tip — **including the code commit `50e0ce8`** — onto main. Net: `50e0ce8`
+(a11y code) + `8ebc0b4` (this doc) are both on `origin/main` now. The change is the
+verified one described above (tsc clean, `editor-touch` green). **I did not intend
+to bypass the hold, and I'm not treating it as landed-on-your-note.** Your call:
+(a) keep it — it's your specified fix, CI-watched; or (b) I revert `50e0ce8` on main
+immediately and re-land after your GO. Holding for your (a)/(b) ruling. Lesson
+logged: never `checkout main` in this repo (worktree-locked) — push gate docs from a
+throwaway branch or edit them in the review worktree.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
