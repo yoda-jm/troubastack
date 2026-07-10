@@ -2989,6 +2989,30 @@ ignored `user-scalable=no` since iOS 10 — gesture ownership there rests on sta
 frames. Untested on hardware: entering the editor while browser-zoomed (does the
 meta swap re-clamp the visual viewport on Android Chrome?).
 
+## 2026-07-10 — viewport guard e2e (`f67d696`): ✅ APPROVED — the KEEP ruling's condition is closed; a11y viewport arc complete
+
+The lane's guard spec (`web/studio/e2e/viewport-a11y.spec.ts`) covers all five legs
+of the ruling's contract — management zoomable (post-registration `/bands` AND the
+band page) · editor route gains `user-scalable=no` · SPA `goBack()` restores the
+zoomable default · hard `reload()` landing directly on the editor route clamps on
+mount — and it's BETTER than my scratch verification spec: `expect.poll` on the
+meta content absorbs the Shell-useEffect timing where my scratch read
+synchronously (a latent flake I'd have shipped). Helpers reuse the standard
+register/createBand/createSong flow inline, matching the suite's established
+pattern; no new mechanics.
+
+**My run (isolated stack :8092/:5175, detached at `f67d696`, throwaway config
+since deleted): 1 passed (9.5s); `tsc -b studio` clean.** Landing directly on main
+was authorized by the ruling itself (explicitly "fix-forward, not blocking"); the
+landed SHA is the one I reviewed (no rebase — no diff-of-diffs needed). CI on
+`f67d696`: proto/go/web/android green, e2e watched. Earlier CI backfill confirmed
+while re-arming a broken watcher: **`514e8bd` (T31) and `1d545ac` all five jobs
+green.**
+
+The a11y viewport arc (audit note #3) is now fully closed: zoomable default +
+editor-scoped clamp + committed drift guard. Remaining device caveats ride the
+attended T27 pass (previous entry).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
