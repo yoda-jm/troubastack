@@ -20,6 +20,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { openDrawer, clearBand } from "./fullscreen-helpers";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
@@ -207,9 +208,7 @@ async function dragOnPage(
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()?.height ?? 720;
-  const top = Math.max(box.y, 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   const px = (f: number) => box.x + box.width * f;
   const py = (f: number) => top + bandH * f;
@@ -223,9 +222,7 @@ async function clickOnPage(page: Page, fx: number, fy: number) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
   const box = (await pageEl.boundingBox())!;
-  const vh = page.viewportSize()?.height ?? 720;
-  const top = Math.max(box.y, 0);
-  const bottom = Math.min(box.y + box.height, vh);
+  const { top, bottom } = await clearBand(page);
   const bandH = Math.max(0, bottom - top) * 0.9;
   await page.mouse.click(box.x + box.width * fx, top + bandH * fy);
 }
@@ -240,6 +237,10 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  // T27 stage 3: layer/annotation controls live in the on-demand drawer (closed by
+  // default). This is a layer-management suite, so open it (Layers tab) as setup —
+  // sanctioned mechanics (arch Q3). Tests needing the annotation list switch tabs.
+  await openDrawer(page, "layers");
 }
 
 /** Shared setup: a song with a single conductor RO layer owned by someone else. */
@@ -471,6 +472,9 @@ test("editor: annotation list selects an object on the active layer", async ({ p
   await clickOnPage(page, 0.6, 0.3);
   await expect.poll(() => objectCount(page)).toBe(2);
 
+  // T27 stage 3: the annotation list lives on the drawer's Annotations tab.
+  await openDrawer(page, "annotations");
+
   // The annotation list shows both objects (one labelled with the text).
   await expect(page.getByTestId("annotation-list")).toBeVisible();
   await expect(page.getByTestId("annotation-item")).toHaveCount(2);
@@ -481,6 +485,9 @@ test("editor: annotation list selects an object on the active layer", async ({ p
   await page.getByTestId("tool-select").click();
   await textItem.click();
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
+  // delete-object lives with layer management on the Layers tab; the selection
+  // persists across tabs, so switch back to see it enabled.
+  await openDrawer(page, "layers");
   await expect(page.getByTestId("delete-object")).toBeEnabled();
 
   await page.screenshot({ path: "/tmp/ed-annlist.png", fullPage: true });
@@ -567,11 +574,15 @@ test("editor: focused layer scopes the annotation list (editable and locked)", a
     page.getByTestId("layer-item").filter({ hasText: name }).getByTestId("layer-row");
 
   // Focus the shared (editable) layer → list names it and shows only its rect.
+  // (T27 stage 3: layer rows live on the Layers tab, the scoped list on the
+  // Annotations tab — switch between them; focus state persists across tabs.)
   await row("Shared band notes").click();
+  await openDrawer(page, "annotations");
   await expect(page.getByTestId("annotation-list-title")).toContainText("Shared band notes");
   await expect(page.getByTestId("annotation-item")).toHaveCount(1);
   await expect(page.getByTestId("annotation-item")).toContainText("rect");
   // Editable focus also drives the active draw layer + indicator.
+  await openDrawer(page, "layers");
   await expect(page.getByTestId("active-layer-indicator")).toContainText("Shared band notes");
   await expect(page.getByTestId("active-layer")).toHaveValue("layer-shared");
 
@@ -579,13 +590,16 @@ test("editor: focused layer scopes the annotation list (editable and locked)", a
 
   // Focus my personal layer → list re-scopes to only its line.
   await row("My personal notes").click();
+  await openDrawer(page, "annotations");
   await expect(page.getByTestId("annotation-list-title")).toContainText("My personal notes");
   await expect(page.getByTestId("annotation-item")).toHaveCount(1);
   await expect(page.getByTestId("annotation-item")).toContainText("line");
 
   // Focus the LOCKED (someone else's conductor) layer → drawing disabled with a
   // hint, but its annotation is still listed and selectable.
+  await openDrawer(page, "layers");
   await row("Other conductor cues").click();
+  await openDrawer(page, "annotations");
   await expect(page.getByTestId("annotation-list-title")).toContainText("Other conductor cues");
   await expect(page.getByTestId("annotation-list-locked")).toContainText("read-only layer");
   await expect(page.getByTestId("draw-locked-hint")).toBeVisible();
@@ -610,11 +624,24 @@ test("editor: focused layer scopes the annotation list (editable and locked)", a
 test("editor: style controls show live value readouts", async ({ page }) => {
   await openConductorOnlySong(page);
 
-  // Readouts are present with the default style values.
+  // T27 stage 3: the style row is contextual (shown only while a draw tool is
+  // active or an object is selected). This song has only a conductor RO layer, so
+  // create an editable layer first, then activate a draw tool — the style row
+  // renders. Sanctioned flow change (arch ruling 2026-07-10, Q3); assertions same.
+  await page.getByTestId("new-layer").click();
+  await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+  await page.getByTestId("tool-rect").click();
+
+  // Readouts are present with the default style values. The style row is now
+  // per-type (a shape tool shows width, a text tool shows font size — never both
+  // at once), so assert width under the rect tool, then switch to the text tool
+  // for the font readout. Steps change; the assertions themselves are unchanged.
   await expect(page.getByTestId("style-color-value")).toBeVisible();
   await expect(page.getByTestId("style-opacity-value")).toHaveText(/%$/);
   await expect(page.getByTestId("style-width-value")).toBeVisible();
+  await page.getByTestId("tool-text").click();
   await expect(page.getByTestId("style-font-value")).toBeVisible();
+  await page.getByTestId("tool-rect").click();
 
   // Default opacity is 1 → 100%.
   await expect(page.getByTestId("style-opacity-value")).toHaveText("100%");
