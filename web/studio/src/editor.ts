@@ -129,6 +129,24 @@ export function pointsForTool(
   return [path[0], path[path.length - 1]];
 }
 
+/** A UUID v4 that works on INSECURE origins. `crypto.randomUUID()` is defined ONLY in
+ *  a secure context (HTTPS or localhost); a self-hosted core served over plain `http://`
+ *  on a LAN IP or a bare domain — exactly OPS01's "small box the band owns", and the
+ *  Android app's WebView against such an origin — has it `undefined`, so calling it throws
+ *  and annotating/layer-creation silently dies. `crypto.getRandomValues` IS available in
+ *  insecure contexts, so build the v4 from it; `Math.random` is the last-ditch fallback. */
+export function newUuid(): string {
+  const c: Crypto | undefined = globalThis.crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  const b = new Uint8Array(16);
+  if (c && typeof c.getRandomValues === "function") c.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40; // version 4
+  b[8] = (b[8] & 0x3f) | 0x80; // variant 10xx
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0"));
+  return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+}
+
 /** Assemble a complete wire object for a finished gesture. */
 export function buildObject(args: {
   tool: DrawTool;
@@ -139,7 +157,7 @@ export function buildObject(args: {
   text?: string;
 }): AnnotationObject {
   return {
-    uuid: crypto.randomUUID(),
+    uuid: newUuid(),
     layerId: args.layerId,
     type: toolObjectType(args.tool),
     points: args.points,

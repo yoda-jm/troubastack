@@ -9,6 +9,8 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { Avatar } from "./Avatar";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { GlobalError } from "./GlobalError";
 
 type ServerVersion = { version: string; builtAt: string; spaEmbedded: boolean };
 
@@ -122,6 +124,8 @@ export function Shell() {
 
   return (
     <div className={`shell${fullbleed ? " shell-fullbleed" : ""}`}>
+      {/* Global backstop: any uncaught error / rejection anywhere becomes visible (T32). */}
+      <GlobalError />
       {!fullbleed && (
       <header className="topbar">
         <Link to="/bands" className="brand">
@@ -154,7 +158,10 @@ export function Shell() {
       </header>
       )}
       <main className="content">
-        <Outlet />
+        {/* Render-crash boundary around the routed page (T32). */}
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

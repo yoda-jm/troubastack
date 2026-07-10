@@ -20,6 +20,7 @@ import {
   buildObject,
   isMeaningfulGesture,
   pointsForTool,
+  newUuid,
   type DrawTool,
   type Tool,
 } from "../../editor";
@@ -376,24 +377,33 @@ export function Viewer({
   const createPersonalLayer = useCallback(
     (name = "My notes"): string | null => {
       if (!myUserId || !selectedFileId || !syncRef.current) return null;
-      const id = crypto.randomUUID();
-      const order = doc.layers.filter((l) => l.fileId === selectedFileId).length;
-      syncRef.current.createLayer({
-        id,
-        fileId: selectedFileId,
-        name,
-        ownerId: myUserId,
-        zone: "personal",
-        order,
-        access: "rw",
-        mandatory: false,
-        roleTag: "",
-      });
-      setActiveLayerId(id);
-      setFocusedLayerId(id);
-      // A brand-new personal layer should be visible to me immediately.
-      setVisible((v) => ({ ...v, [id]: true }));
-      return id;
+      try {
+        const id = newUuid();
+        const order = doc.layers.filter((l) => l.fileId === selectedFileId).length;
+        syncRef.current.createLayer({
+          id,
+          fileId: selectedFileId,
+          name,
+          ownerId: myUserId,
+          zone: "personal",
+          order,
+          access: "rw",
+          mandatory: false,
+          roleTag: "",
+        });
+        setActiveLayerId(id);
+        setFocusedLayerId(id);
+        // A brand-new personal layer should be visible to me immediately.
+        setVisible((v) => ({ ...v, [id]: true }));
+        return id;
+      } catch (err) {
+        // T32: surface a layer-create failure instead of dying silently.
+        console.error("createPersonalLayer failed", err);
+        setLocalNotice(
+          `Couldn't create a layer — ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      }
     },
     [myUserId, selectedFileId, doc.layers],
   );
@@ -457,26 +467,37 @@ export function Viewer({
         setLocalNotice("Couldn't place the annotation — no layer to draw on.");
         return;
       }
-      const obj = buildObject({
-        tool,
-        points: pointsForTool(tool, path),
-        page,
-        layerId,
-        style,
-        text,
-      });
-      if (tool === "text" && !obj.text) return; // empty text → nothing to create
-      // Defense in depth: never commit onto a layer we may not write. ensureActiveLayer
-      // only ever returns an editable layer (or a freshly-created personal one), so
-      // we only reject a layer that is KNOWN to be non-editable in the current doc.
-      const target = doc.layers.find((l) => l.id === layerId);
-      if (target && !isEditableLayer(target, myUserId, myRole)) {
-        setLocalNotice("Couldn't place the annotation — the layer isn't editable."); // T30
-        return;
+      try {
+        const obj = buildObject({
+          tool,
+          points: pointsForTool(tool, path),
+          page,
+          layerId,
+          style,
+          text,
+        });
+        if (tool === "text" && !obj.text) return; // empty text → nothing to create
+        // Defense in depth: never commit onto a layer we may not write. ensureActiveLayer
+        // only ever returns an editable layer (or a freshly-created personal one), so
+        // we only reject a layer that is KNOWN to be non-editable in the current doc.
+        const target = doc.layers.find((l) => l.id === layerId);
+        if (target && !isEditableLayer(target, myUserId, myRole)) {
+          setLocalNotice("Couldn't place the annotation — the layer isn't editable."); // T30
+          return;
+        }
+        syncRef.current.createObject(obj);
+        setSelectedUuids([obj.uuid]);
+        setLocalNotice(null); // T30: a successful commit clears any stale decline notice
+      } catch (err) {
+        // T32: a create path must NEVER throw into the void (the insecure-context
+        // crypto.randomUUID class — fixed at the source by newUuid, but any future throw
+        // here would otherwise vanish silently). Surface it through the same T30 notice
+        // and log for forensics.
+        console.error("commitDraw failed", err);
+        setLocalNotice(
+          `Couldn't place the annotation — ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-      syncRef.current.createObject(obj);
-      setSelectedUuids([obj.uuid]);
-      setLocalNotice(null); // T30: a successful commit clears any stale decline notice
     },
     [ensureActiveLayer, doc.layers, myUserId, style],
   );
@@ -581,7 +602,7 @@ export function Viewer({
       const off = 0.02;
       const copy: AnnotationObject = {
         ...obj,
-        uuid: crypto.randomUUID(),
+        uuid: newUuid(),
         points: obj.points.map((p) => ({
           ...p,
           x: Math.min(1, p.x + off),

@@ -215,6 +215,27 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   padding: .55rem .8rem; border-radius: var(--r-sm); font-size: .9rem; font-weight: 500;
 }
 
+/* Global error backstop banner (T32): fixed at the top of the viewport, above ALL
+   chrome (incl. the fullscreen editor pills), so no uncaught error dies unseen. */
+.global-error {
+  position: fixed; z-index: 1000; top: 0; left: 0; right: 0;
+  display: flex; align-items: center; gap: .75rem;
+  padding: .6rem clamp(1rem, 4vw, 2rem);
+  background: var(--error-bg); color: var(--error-fg);
+  border-bottom: 1px solid color-mix(in srgb, var(--error-fg) 40%, transparent);
+  box-shadow: var(--shadow); font-weight: 600; font-size: .9rem;
+}
+.global-error-msg { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.global-error-dismiss {
+  flex: 0 0 auto; padding: 0 .5rem; line-height: 1; font-size: 1.25rem;
+  background: transparent; border: none; color: inherit;
+}
+.global-error-dismiss:hover:not(:disabled) { border: none; }
+
+/* Render-crash screen (T32 error boundary) — same error palette, with a reload hint. */
+.crash-screen { max-width: 34rem; margin: 4rem auto; padding: 1.5rem; text-align: center; }
+.crash-message { color: var(--error-fg); font-family: var(--font-mono); overflow-wrap: anywhere; }
+
 .editor-placeholder {
   border: 1.5px dashed var(--border-strong); background: transparent;
   text-align: center; color: var(--muted); padding: 2.5rem 1.5rem;
