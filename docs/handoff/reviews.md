@@ -2478,6 +2478,29 @@ isolated stack. CI on `81b7594` watched. The stage-3 branch inherits on rebase �
 spec's layer-toggle steps will need the drawer-open mechanics there (the
 fullscreen-helpers `openDrawer`), which is the already-sanctioned class.
 
+## 2026-07-10 — "Freehand fix not working" TRIAGED: stale build, not a bad fix · T29 filed (version visibility)
+
+VLL reported the freehand/stabilo fix "not working" on his box and shared
+`http://troubashare.leligeour.net:8080`. Diagnosis, verified:
+
+1. **The fix is good and covers freehand** — re-proven on `main` with a freehand-
+   specific pixel run: drawing freehand on a hidden layer auto-reveals it
+   (checkbox re-checked) and the ink lands exactly on the drawn path (alpha 201–255
+   on-path, 0 above/below) → no positional bug either.
+2. **His box cannot be serving the fix:** `:8080` returns the **"SPA not embedded"
+   placeholder** — the running binary was built without `make dist`, so whatever UI
+   his browser showed was a **stale cached bundle** hitting a live API. And the
+   stage-3 branch (`aa06ab9`) **does not contain the T28 fix** (ancestry-checked;
+   it landed on main after the branch's last rebase) — so a branch build wouldn't
+   have it either.
+3. **Remedy for the box:** rebuild with `make dist` from current `main` (has T28),
+   restart, hard-refresh the browser (Ctrl+Shift+R). The stage-3 branch picks the
+   fix up on its landing rebase (the lane should verify
+   `editor-hidden-layer-draw.spec.ts` passes there with the drawer-open mechanics).
+4. **T29 filed** (VLL's own suggestion, "not yet" — spec'd for later): git version
+   stamped into the binary + `GET /api/version` + an SPA info popover that flags a
+   SPA↔server version MISMATCH — the exact ten-second diagnosis this incident lacked.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
