@@ -60,7 +60,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
   the **T23 A-track follow-up** (drawer groups "On call" below the main order —
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
-  mobile lane) · **OPS01** (the demo→daily-use gap) · P201/P203 (P202 closed
+  mobile lane) · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
+  HTTPS bring-up + the release-APK half, mobile) · P201/P203 (P202 closed
   2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger

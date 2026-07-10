@@ -3635,6 +3635,24 @@ HTTPS bring-up on VLL's box (docker exists nowhere in the agent envs; the
 Dockerfile is authored-to-spec and now inspection-clean, but only a real build
 proves it) — and the release-APK half (mobile lane + VLL's keystore).
 
+## 2026-07-11 — OPS01 unattended slice LANDED (`3662468`): ✅ CLOSED (slice) — the adoption blocker is now on VLL's bench
+
+Patch-identical to the GO'd `d37aca9` (only the approval citation added). CI
+watched. **What ships:** the production Dockerfile (multi-stage, SPA embedded,
+bake-capable runtime, non-root), compose + Caddy (automatic TLS, WS-native,
+domain as the only variable), tested backup/restore, deploy/README. **What
+remains of OPS01 — both on VLL:**
+
+1. **The attended bring-up:** on the box — `git pull`, set `DOMAIN` in
+   `deploy/.env`, point DNS, `docker compose up -d` from `deploy/`. First real
+   `docker build` anywhere (no docker in any agent env); if it breaks, bring the
+   error to the gate.
+2. **The release APK:** mobile lane + VLL's keystore decision (spec item 3).
+
+With the slice landed, the box also gets the T32 (silent-error) and T34
+(stuck-nav) fixes on its next rebuild — one `git pull` + bring-up covers all
+three arcs.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
