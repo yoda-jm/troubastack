@@ -2427,6 +2427,36 @@ Rulings (full detail written into T27):
    Fullbleed itself is a WIN in the app (no double chrome) — hardware-back behavior
    in EditScreen should be smoke-tested on the branch.
 
+## 2026-07-10 — VLL field bug ("stabilo disappears") INVESTIGATED: hidden-active-layer swallow — T28 filed with reproducer
+
+VLL: a Highlight drawn on the Open Road PDF shows while drawing, vanishes at stroke
+end, stays gone after a tool change. Investigated empirically with a pixel-sampling
+reproducer (wet-canvas alpha mid-stroke; dry-overlay alpha at t0 post-stroke / t1
+post-echo / t2 post-toolswitch), run across a variant matrix on BOTH `main` and the
+stage-3 branch tip:
+
+- Fresh-layer, auto-create-layer, and zoomed(415%)+scrolled draws: **all clean on
+  both builds** (alpha 255 at t0/t1/t2). The sync echo, the z-order/createdAt mapping,
+  the multiply blend path, and stage-1 zoom are NOT the bug (each was a suspect;
+  each acquitted by a run).
+- **Hidden ACTIVE layer: reproduced exactly** — wet mid-stroke alpha **255** (the wet
+  canvas ignores visibility), then t0/t1/t2 all **0**: the committed object lands on
+  the hidden layer and the dry overlay (filtered to `visibleLayers`) never paints it.
+  Identical on `main` — a **longstanding defect, not a stage-3 regression**; the
+  stage-3 closed-by-default drawer merely removed the only cue (the sidebar checkbox),
+  which is why it reads as data loss now.
+
+**T28 filed** (`docs/tasks/T28-hidden-layer-draw-swallow.md`, XS/S, web-core, land on
+`main` — the branch inherits on rebase): fix = **auto-reveal on draw** (starting a
+stroke on a hidden active layer flips it visible through the existing toggle path —
+the Photoshop/GoodNotes idiom; blocking-modal rejected). The task embeds the exact
+e2e reproducer (`editor-hidden-layer-draw.spec.ts`) asserting the FIXED behavior:
+wet>0 mid-stroke, layer-toggle re-checked after commit, overlay>0 at t0/t1/t2 — it
+fails today, hard-gates the regression forever. Coverage note: `editor-ed5` #5
+asserts the Highlight preset via DOC STATE, not pixels — this class of
+"object exists but is never painted" bug was invisible to it; the reproducer closes
+that gap.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
