@@ -2584,6 +2584,27 @@ The big one, reviewed in full on my own isolated stack (not the lane's `:8080`):
 Land as the legible stack it already is, at ubuntu 5/5. With this landing, **T27
 stages 1–3 are complete**; stage 4 (touch grammar) is next and already spec'd.
 
+## 2026-07-10 — T27 STAGE 3 LANDED (`87bb8f2`…`a34920d`): ✅ CLOSED — stages 1–3 complete
+
+The stack fast-forwarded onto the gate verdict. Post-landing verification, first-hand:
+
+- **Patch-identity:** the landed pre-conditions stack (`7ec8a1c..37e6e34`) is
+  **diff-identical** to the reviewed branch (`4ac9c07..52e3ced`) — pure rebase.
+- **Both pre-land conditions satisfied exactly as ruled** (`a34920d`): the T28 spec
+  gained only `openDrawer(page, "layers")` steps (assertions frozen), and the mobile
+  stopgap is `.edit-canvas.tool-select { touch-action: pan-x pan-y; }` (draw tools
+  keep `none`) — select-mode one-finger scroll works on touch.
+- **Re-run on landed main:** T28 spec + BOTH live zero-shift tests (draw-tool AND
+  panel-toggle) + noflicker + wheelzoom — 6/6 green.
+
+**T27 stages 1–3 are COMPLETE**: wheel-zoom (one raster per settled zoom), the
+z-order/selection toolbar, and the canvas-first fullscreen editor matching the
+artifact — with every editor invariant live-gated (no-reraster, zero-shift both
+halves, render-timing, pick↔paint). Remaining T27 work: **stage 4** (the touch
+gesture grammar — two-finger nav/pinch-to-settle-raster, stroke-cancel, pen/finger
+split) + the phone-breakpoint cosmetics and reduced-blur fallback as its first
+commit. CI on `a34920d` watched; a red gets its own entry.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

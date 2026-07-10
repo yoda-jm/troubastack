@@ -43,7 +43,10 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 
 - **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
   (deterministic listings), **CFG01** (config file), **T23** (encore/bench — server
-  side; drawer grouping is the open A-track follow-up), **T25** (chart preview) ·
+  side; drawer grouping is the open A-track follow-up), **T25** (chart preview),
+  **T28** (hidden-layer draw swallow), **T15** (Viewer split), **T27 stages 1–3**
+  (canvas-first editor: wheel-zoom · z-order/selection toolbar · fullscreen, landed
+  2026-07-10) ·
   A01–A06, **A08–A15 (the full
   Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
@@ -56,11 +59,9 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
   mobile lane) · **OPS01** (the demo→daily-use gap) · P20x.
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
-- **Open, ATTENDED only:** **T15** (split the now-~1,549-line, sync-sensitive
-  `Viewer.tsx` — **VLL cleared it 2026-07-09, "the big split"**; do it fresh, the full
-  editor e2e is the safety net; gates T27 stage 3), **T27** (canvas-first editor —
-  VLL-requested, design-reviewed 2026-07-08; **stages 1–2 landed**; remaining: T15 →
-  stage 3 fullscreen layout + style-row auto-hide, zero-shift e2e FIRST), **T24**
+- **Open, ATTENDED only:** **T27 stage 4** (touch gesture grammar — spec'd in T27;
+  first commit also carries the phone-breakpoint cosmetics + reduced-blur fallback),
+  **T24**
   (chartpdf/mkcharts convergence — regenerates pixel-verified demo artifacts), the
   **B07 device screenshot pair** (tab vs score, rides the next attended emulator batch).
 - **Blocked on the human:** A07 (tablet stylus spike), IOS03 impl (Mac + Apple
