@@ -30,6 +30,18 @@ import {
 import { buildWet, compareObjectZ, measureTextWidth, toInkObject, type PRPoint, type LayerVisibility } from "./helpers";
 import { SelectionToolbar } from "./Toolbar";
 
+/** Capture a pointer id, best-effort (T34). Exotic/synthetic pointer ids (e.g. an e2e-
+ *  dispatched PointerEvent) can't be captured and throw NotFoundError; capture is a
+ *  reliability boost (nav-finger ups reach the canvas even lifting over chrome), never
+ *  load-bearing, so a failure is non-fatal. */
+function capturePointer(el: Element, id: number) {
+  try {
+    el.setPointerCapture(id);
+  } catch {
+    /* exotic/synthetic pointer — non-fatal */
+  }
+}
+
 export function EditCanvas({
   page,
   tool,
@@ -445,6 +457,26 @@ export function EditCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // T34 self-heal: a PRIMARY pointer is by spec the only active pointer of its type,
+    // so any lingering same-type entries in pointersRef are stale — a missed pointerup
+    // or pointercancel (e.g. a nav finger that lifted over a chrome button, whose
+    // pointer-events:auto swallowed the up, or off-window). Without this, one stale
+    // entry makes every later single touch read as size>=2 → instant nav → no stroke
+    // ever starts, and editing is dead until reload (the field bug). Clearing on the
+    // primary down heals it; penSeenRef is intentionally left sticky (out of scope).
+    if (e.isPrimary) {
+      pointersRef.current.clear();
+      // If a nav was still LIVE (both fingers' ups were missed — realistic when both
+      // lift at the pill edges), it left a live CSS transform + a populated wheel burst
+      // that only commitWheelZoom clears, so endGesture() must run to settle it to a
+      // crisp raster. Without it the score stays CSS-zoomed/blurry until a later pinch
+      // happens to commit (arch T34 pre-land condition).
+      if (navRef.current) {
+        navRef.current = null;
+        endGesture();
+      }
+    }
+
     // ---- Multi-touch (T27 stage 4): track pointers; a SECOND pointer starts a
     //      two-finger navigation (pinch-zoom + pan), in every tool. ----
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -463,10 +495,21 @@ export function EditCanvas({
           startMidX: midX,
           startMidY: midY,
         };
+        // T34: capture BOTH nav pointers so their pointerup/pointercancel are delivered
+        // to the canvas even when a finger lifts over a chrome button (pointer-events:
+        // auto) or off-window — otherwise the missed up leaves a stale pointersRef entry
+        // that jams every later single touch into nav.
+        capturePointer(canvas, ids[0]);
+        capturePointer(canvas, ids[1]);
       }
       return;
     }
-    if (navRef.current) return; // already navigating — ignore extra touches
+    if (navRef.current) {
+      // Already navigating — ignore extra touches, but capture them too so their ups
+      // don't leak to the chrome and orphan an entry (T34).
+      capturePointer(canvas, e.pointerId);
+      return;
+    }
 
     if (e.button !== 0) return;
     const pt = pageRelative(e);
