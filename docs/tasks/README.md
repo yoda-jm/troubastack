@@ -58,7 +58,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
   the **T23 A-track follow-up** (drawer groups "On call" below the main order —
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
-  mobile lane) · **OPS01** (the demo→daily-use gap) · P20x.
+  mobile lane) · **OPS01** (the demo→daily-use gap) · P201/P203 (P202 closed
+  2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
   feel — rides A07's tablet stylus session) + the phone-breakpoint cosmetics /
@@ -214,8 +215,9 @@ repos); IOS03 is a decision stub (devices/App Store need a Mac + Apple ID).
 | # | Task | Area | Size |
 |---|---|---|---|
 | P201 | [Rehearsal live mode: autobake + transient auto-update](P201-rehearsal-live-mode.md) | core+studio+app | L |
-| P202 | [Real GC: cross-layer reachability + retention](P202-real-gc.md) | core | M/L |
+| P202 | [Real GC: cross-layer reachability + retention](P202-real-gc.md) — safe slice landed, rest re-scoped → P204 | core | M/L |
 | P203 | [Adopt proto codegen (staged decision)](P203-codegen-adoption.md) | all | L |
+| P204 | [Annotation-history compaction (P202's deferred half)](P204-history-compaction.md) — DEFERRED until real disk pressure | core | M/L |
 
 P201 depends on B03. P202 benefits from B02 (bake source-revision roots). P203 starts
 with a cheap decision stage — do that anytime, execute stages only after review.

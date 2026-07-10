@@ -3053,6 +3053,60 @@ off `origin/main`), plan approved this session; **re-verify on rebase is welcome
 **Question:** happy to land the safe slice on your note + VLL's plan approval — and do you
 want the deferred items re-spec'd as a P202 phase 2 (or split into new tasks)?
 
+## 2026-07-10 — P202 safe slice (`5ceba9f`, landed per VLL's plan approval): ✅ APPROVED — and RULING: split; P202 closed, deferred half re-filed as P204
+
+Answering the memo above. Landing ahead of the verdict was authorized (VLL approved
+the "safe slice + flag Fable" plan in the lane's session); reviewed post-hoc on
+merit. The tmp-branch gate-memo push worked exactly as intended — lesson applied.
+
+**Re-verified (my runs, on the landed main tip):** `gofmt -l` empty · `go vet` clean
+· **full core suite green** · patch-identical across the rebase (diff-of-diffs
+clean). Deletion code read line-by-line — the high-risk class here — and it holds:
+numeric rev sort (no lexicographic 10<9 trap), symlink entries skipped
+(`DirEntry.IsDir` doesn't follow), deletion scoped to `<bakesDir>/<concert>/<rev>`,
+`keepN<=0` hard no-op ahead of any I/O, locked revs never deleted and never
+consuming a keep slot, `.tmp` staging ignored (the baker's own rule).
+**Live drive of `troubacore gc`** on a synthetic tree (revs 1–4 + `5.tmp`, rev 2
+FinalLocked, `TROUBA_BAKE_KEEP_REVS=2`): exactly rev 1 + `1.tstage` pruned; 2
+(locked), 3, 4, and the staging dir survived; stats line correct.
+
+Two review notes, neither blocking:
+- **Fail-open on the lock marker is real but guarded:** a bundle.json that can't be
+  read/parsed counts as NOT locked (documented: incomplete bakes are prunable). My
+  first synthetic drive proved the sharp edge — I hand-wrote `final_locked` instead
+  of `finalLocked` and watched the locked rev get pruned. The coupling IS gated:
+  `prune_test.go` marshals the real `ConcertBundle`, so a tag rename breaks
+  `TestPruneOutputs_neverPrunesFinalLocked`. Operators: the knob only acts via the
+  explicit `gc` subcommand, default keep-all — acceptable trade-off, recorded.
+- `gc` doesn't refuse to run against a live server (mid-download 404 caveat is
+  documented as a maintenance-window instruction). Fine for an operator CLI; if it
+  ever grows an HTTP trigger, revisit under the OPS01 auth-tier work.
+
+**The ReachabilityI7 suite** is exactly the contract-lock the audit wanted: pin at
+r1, `KeepRevisions` r2, head r4 — all must reconstruct after `Collect`, on all
+three backends, forever. Safety-only by design; reclamation assertions belong to
+the deferred half.
+
+**Deferral claims — all five verified against the tree:** `SetlistItem` has no
+revision field; `app.Repo` has no global enumeration; `domain.Pin` is never
+constructed by the app; `RootSet.KeepRevisions` exists but nothing populates it
+globally; go-git indeed lacks GC porcelain. The scoping was honest.
+
+**RULING (the memo's question): split, not phase-2-in-place.**
+- **P202 is CLOSED** — spec updated in place with the re-scope note; queue updated.
+- **The mechanical GC half (compaction + renumber-remap + enumeration surface +
+  gitstore repack) is re-filed as `docs/tasks/P204-history-compaction.md`**, with
+  the design rulings resolved now (baseline synthesis at the oldest kept rev;
+  renumber means remapping every external reference atomically — design the remap
+  first; root set assembled at the app layer; gitstore stays pure-Go via the
+  packfile writer, never shelling `git gc`). **DEFERRED until history disk pressure
+  is real** — bake PNGs were the actual growth source and P202 handled them; JSONL
+  deltas are small text. No GO without numbers.
+- **Setlist revision-pins:** product decision → VLL (queued on the human list).
+- **Operator auth tier / HTTP GC:** rides OPS01; the CLI subcommand stands.
+
+CI on `5ceba9f` AND the memo commit `fdd228b`: all five jobs green (verified by hand — the monitor lesson applies).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

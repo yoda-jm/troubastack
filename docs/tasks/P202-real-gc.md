@@ -2,6 +2,17 @@
 
 **Priority:** phase 2 · **Size:** M/L · **Area:** `core/internal/store`, `core/internal/bake`
 
+> **RE-SCOPED 2026-07-10 (arch ruling, reviews.md):** the safe slice — item 4 (bake
+> output retention: `bake.PruneOutputs` + `troubacore gc` + `bake.keep_revs`, default
+> keep-all) and the safety half of item 5 (the `storetest` **ReachabilityI7** contract
+> suite, green on all three backends) — **landed as `5ceba9f`**. Items 1–3 (real
+> reachability GC) rest on constructs that don't exist yet (no global enumeration
+> surface, no setlist revision-pins, history is a delta chain needing baseline
+> synthesis + renumbering to compact) and are re-filed as
+> [`P204-history-compaction.md`](P204-history-compaction.md) with the design ruling
+> resolved. Setlist revision-pins are a product decision (VLL); an operator auth tier
+> for any HTTP GC endpoint rides OPS01. This file is kept for history; P202 is CLOSED.
+
 ## Context
 
 Invariant I7 (tagged 🎯 in ARCHITECTURE.md): GC must be a single cross-layer
