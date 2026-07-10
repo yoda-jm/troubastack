@@ -2773,6 +2773,24 @@ page-zoom shows; (b) pen/finger palm-rejection + pan FEEL — un-drivable headle
 Both pair naturally with **A07's tablet stylus spike** (this grammar IS the A07 web
 surface); recorded so they ride that session, not rot.
 
+## 2026-07-10 — T27 STAGE 4 LANDED (`cb1f696`): ✅ CLOSED — **T27 IS COMPLETE (all four stages)**
+
+Post-landing verification: the landed rebase is **diff-of-diffs IDENTICAL** to the
+reviewed `1ff820c` (the T30 rebase condition resolved with zero content change);
+coexistence run on landed main — `editor-touch` (one raster per CDP pinch) +
+`editor-no-silent-ink` (offline gate) + wheelzoom + noflicker + both zeroshift
+halves — **7/7 green**. The offline read-only gate and the touch grammar work
+together as required.
+
+**T27, the canvas-first editor, is COMPLETE:** stage 1 wheel-zoom (one raster per
+settled zoom) · stage 2 z-order + selection toolbar (+ createdAt tiebreak) ·
+stage 3 fullscreen mockup-faithful layout (both zero-shift halves live) · stage 4
+touch grammar (two-finger nav/pinch on the same settle pipeline, stroke-cancel,
+pen/finger split). Every editor invariant is live-gated; the assertion-freeze
+discipline held across ~50 spec-file touches with exactly four sanctioned
+retirements. Remaining, attended (rides A07's tablet session): the iOS pinch-guard
+check + pen/pan feel. CI on `cb1f696` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
