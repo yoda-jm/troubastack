@@ -250,6 +250,9 @@ export function Viewer({
     stepZoom,
     onZoomSelect,
     layoutImageOverlay,
+    beginGesture,
+    updateGesture,
+    endGesture,
   } = usePdfDocument({
     selectedFile,
     isPdf,
@@ -904,6 +907,9 @@ export function Viewer({
                   onDuplicate={duplicateSelected}
                   onSetColor={setObjectColor}
                   onDelete={deleteSelected}
+                  beginGesture={beginGesture}
+                  updateGesture={updateGesture}
+                  endGesture={endGesture}
                 />
               </div>
             ))}
@@ -943,6 +949,9 @@ export function Viewer({
                 onDuplicate={duplicateSelected}
                 onSetColor={setObjectColor}
                 onDelete={deleteSelected}
+                beginGesture={beginGesture}
+                updateGesture={updateGesture}
+                endGesture={endGesture}
               />
             </div>
           )}

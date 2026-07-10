@@ -377,7 +377,11 @@ export function usePdfDocument(args: {
   const customZoomPercent =
     typeof zoomMode === "number" && !ZOOM_PERCENTS.includes(zoomMode) ? zoomMode : null;
 
-  // ---- Ctrl/⌘-wheel zoom-to-cursor (T27 stage 1) ----
+  // ---- Zoom burst pipeline (T27 stage 1 Ctrl/⌘-wheel; reused by stage-4 pinch) ----
+  // A "burst" is a live zoom/pan gesture: the pages scale cheaply via a CSS transform
+  // on the content wrapper (anchored at vx/vy in the scroll viewport, content-fraction
+  // fx/fy), plus a live pan translate (panDx/panDy — 0 for wheel, non-zero for a
+  // two-finger drag). On settle we commit ONE crisp re-raster and reconcile scroll.
   const wheelBurstRef = useRef<{
     base: number;
     target: number;
@@ -385,6 +389,8 @@ export function usePdfDocument(args: {
     vy: number;
     fx: number;
     fy: number;
+    panDx: number;
+    panDy: number;
   } | null>(null);
   const wheelSettleRef = useRef<number | null>(null);
 
@@ -421,8 +427,10 @@ export function usePdfDocument(args: {
       const padB = parseFloat(cs.paddingBottom) || 0;
       const contentW = Math.max(1, scroll.scrollWidth - padL - padR);
       const contentH = Math.max(1, scroll.scrollHeight - padT - padB);
-      scroll.scrollLeft = Math.max(0, burst.fx * contentW - burst.vx);
-      scroll.scrollTop = Math.max(0, burst.fy * contentH - burst.vy);
+      // The anchor content-point (fx,fy) should end under the gesture's CURRENT
+      // viewport position — the initial anchor (vx,vy) plus any two-finger pan.
+      scroll.scrollLeft = Math.max(0, burst.fx * contentW - burst.vx - burst.panDx);
+      scroll.scrollTop = Math.max(0, burst.fy * contentH - burst.vy - burst.panDy);
     }
     if (!(typeof zoomMode === "number" && zoomMode === targetPct)) {
       setZoomMode(targetPct);
@@ -464,6 +472,8 @@ export function usePdfDocument(args: {
           vy,
           fx: (scroll.scrollLeft + vx) / contentW,
           fy: (scroll.scrollTop + vy) / contentH,
+          panDx: 0,
+          panDy: 0,
         };
         wheelBurstRef.current = burst;
         const wr = content.getBoundingClientRect();
@@ -480,6 +490,68 @@ export function usePdfDocument(args: {
     },
     [isPdf, scale, commitWheelZoom],
   );
+
+  // ---- Two-finger pinch/pan gesture API (T27 stage 4) ----
+  // Drives the SAME burst pipeline as the wheel zoom above: a live CSS transform on
+  // the content wrapper during the gesture, then ONE crisp re-raster committed on
+  // gesture end. WetCanvas detects the two-pointer gesture and calls these.
+  const beginGesture = useCallback(
+    (clientX: number, clientY: number): boolean => {
+      if (!isPdf) return false;
+      const scroll = scrollRef.current;
+      const content = contentRef.current;
+      if (!scroll || !content) return false;
+      const cs = getComputedStyle(scroll);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
+      const bL = parseFloat(cs.borderLeftWidth) || 0;
+      const bT = parseFloat(cs.borderTopWidth) || 0;
+      const rect = scroll.getBoundingClientRect();
+      const vx = clientX - rect.left - bL - padL;
+      const vy = clientY - rect.top - bT - padT;
+      const contentW = Math.max(1, scroll.scrollWidth - padL - padR);
+      const contentH = Math.max(1, scroll.scrollHeight - padT - padB);
+      const base = scale > 0 ? scale : 1;
+      wheelBurstRef.current = {
+        base,
+        target: base,
+        vx,
+        vy,
+        fx: (scroll.scrollLeft + vx) / contentW,
+        fy: (scroll.scrollTop + vy) / contentH,
+        panDx: 0,
+        panDy: 0,
+      };
+      const wr = content.getBoundingClientRect();
+      content.style.transformOrigin = `${clientX - wr.left}px ${clientY - wr.top}px`;
+      content.style.willChange = "transform";
+      if (wheelSettleRef.current != null) {
+        window.clearTimeout(wheelSettleRef.current);
+        wheelSettleRef.current = null;
+      }
+      return true;
+    },
+    [isPdf, scale],
+  );
+
+  // scaleFactor is relative to the gesture START (pinch distance ratio); panDx/panDy
+  // is the midpoint drag in CSS px since the start.
+  const updateGesture = useCallback((scaleFactor: number, panDx: number, panDy: number) => {
+    const burst = wheelBurstRef.current;
+    const content = contentRef.current;
+    if (!burst || !content) return;
+    burst.target = Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, burst.base * scaleFactor));
+    burst.panDx = panDx;
+    burst.panDy = panDy;
+    content.style.transform = `translate(${panDx}px, ${panDy}px) scale(${burst.target / burst.base})`;
+  }, []);
+
+  // Commit ONE crisp raster on gesture end (fingers up) — the stage-1 settle path.
+  const endGesture = useCallback(() => {
+    commitWheelZoom();
+  }, [commitWheelZoom]);
 
   // Bind the non-passive wheel listener once; call the latest handler via a ref.
   const wheelZoomRef = useRef(wheelZoomHandler);
@@ -512,5 +584,9 @@ export function usePdfDocument(args: {
     onZoomSelect,
     renderOverlays,
     layoutImageOverlay,
+    // Two-finger pinch/pan gesture API (T27 stage 4) — WetCanvas drives these.
+    beginGesture,
+    updateGesture,
+    endGesture,
   };
 }

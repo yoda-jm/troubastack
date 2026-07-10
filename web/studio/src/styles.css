@@ -693,12 +693,13 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   position: absolute; inset: 0;
   display: block;
   pointer-events: auto;
-  touch-action: none; /* draw tools: a pointer drag draws rather than scrolls */
+  /* touch-action:none in EVERY tool so the wet canvas receives all touch pointers:
+     stage 4 drives navigation itself (two-finger pinch/pan; one-finger Select pan),
+     so it must not cede any touch to the browser. This SUPERSEDES the stage-3
+     `pan-x pan-y` stopgap (Select scroll is now the JS one-finger pan). */
+  touch-action: none;
 }
-/* Mobile touch stopgap (T27 stage-3 mobile ruling, 2026-07-10): in SELECT mode a
-   touch drag must SCROLL/pan the score — otherwise the fullbleed canvas swallows all
-   touch and phones/tablets can't scroll at all. Draw tools keep `none` (above). */
-.edit-canvas.tool-select { cursor: default; touch-action: pan-x pan-y; }
+.edit-canvas.tool-select { cursor: default; }
 .edit-canvas.tool-text { cursor: text; }
 .edit-canvas.tool-freehand,
 .edit-canvas.tool-line,

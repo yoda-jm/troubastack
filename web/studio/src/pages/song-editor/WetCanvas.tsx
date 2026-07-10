@@ -51,6 +51,9 @@ export function EditCanvas({
   onDuplicate,
   onSetColor,
   onDelete,
+  beginGesture,
+  updateGesture,
+  endGesture,
 }: {
   page: number;
   tool: Tool;
@@ -81,7 +84,30 @@ export function EditCanvas({
   onDuplicate: (uuid: string) => void;
   onSetColor: (uuid: string, color: string) => void;
   onDelete: () => void;
+  // Two-finger pinch/pan pipeline (T27 stage 4) — from usePdfDocument. beginGesture
+  // returns false when there's nothing to zoom (non-PDF / not ready).
+  beginGesture: (clientX: number, clientY: number) => boolean;
+  updateGesture: (scaleFactor: number, panDx: number, panDy: number) => void;
+  endGesture: () => void;
 }) {
+  // ---- Multi-touch navigation (T27 stage 4) ------------------------------
+  // Active pointers by id (client coords), so we can detect a second finger and
+  // drive a two-finger pinch/pan. `navRef` holds the live two-finger gesture.
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const navRef = useRef<{
+    idA: number;
+    idB: number;
+    startDist: number;
+    startMidX: number;
+    startMidY: number;
+  } | null>(null);
+  // A ONE-finger pan (Select mode, empty space, touch) — reuses the gesture pipeline
+  // with scaleFactor 1 (pan, no zoom). Kept separate from the two-finger navRef.
+  const panRef = useRef<{ id: number; startX: number; startY: number } | null>(null);
+  // Palm-rejection idiom (#4): once a PEN is ever used, treat a finger as navigation
+  // even with a draw tool (pen draws, finger pans). A pen-less device (phone) keeps
+  // the one-finger-draws default (#2).
+  const penSeenRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The active gesture: a draw path, a move drag, a resize-handle drag, a
   // rubber-band marquee, or none. Kept in a ref so pointer handlers read the
@@ -398,15 +424,82 @@ export function EditCanvas({
     if (canvas.style.cursor !== next) canvas.style.cursor = next;
   }
 
+  // Discard the in-progress wet gesture WITHOUT committing (2nd-finger-cancels-stroke,
+  // T27 stage 4 #3 — never leave a half-stroke). Clears the wet canvas + marquee.
+  function cancelWetGesture() {
+    const canvas = canvasRef.current;
+    if (gestureRef.current || marquee) {
+      gestureRef.current = null;
+      setMarquee(null);
+      resetWetCache();
+      repaint();
+      forceHandles((n) => n + 1);
+    }
+    if (panRef.current && canvas?.hasPointerCapture(panRef.current.id)) {
+      canvas.releasePointerCapture(panRef.current.id);
+    }
+    panRef.current = null;
+  }
+
   function onPointerDown(e: React.PointerEvent) {
-    if (e.button !== 0) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // ---- Multi-touch (T27 stage 4): track pointers; a SECOND pointer starts a
+    //      two-finger navigation (pinch-zoom + pan), in every tool. ----
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size >= 2 && !navRef.current) {
+      cancelWetGesture(); // abandon any one-finger stroke/pan; two fingers = navigate
+      const ids = [...pointersRef.current.keys()].slice(-2);
+      const a = pointersRef.current.get(ids[0])!;
+      const b = pointersRef.current.get(ids[1])!;
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      if (beginGesture(midX, midY)) {
+        navRef.current = {
+          idA: ids[0],
+          idB: ids[1],
+          startDist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+          startMidX: midX,
+          startMidY: midY,
+        };
+      }
+      return;
+    }
+    if (navRef.current) return; // already navigating — ignore extra touches
+
+    if (e.button !== 0) return;
     const pt = pageRelative(e);
 
     // A read-only (locked) focused layer blocks all drawing gestures; selecting
     // is still allowed so the user can browse/select the layer's annotations.
     if (drawLocked && tool !== "select") return;
+
+    if (e.pointerType === "pen") penSeenRef.current = true;
+
+    // One-finger PAN via the gesture pipeline. A finger navigates when:
+    //  - Select mode, on EMPTY space (idiomatic touch; supersedes the marquee — mouse
+    //    keeps the rubber-band), OR
+    //  - a draw tool is armed AND a pen has been seen (palm rejection, #4: pen draws,
+    //    finger pans). On a pen-less device a finger keeps drawing (#2, phone default).
+    if (e.pointerType === "touch") {
+      let doPan = tool !== "select" && penSeenRef.current;
+      if (tool === "select") {
+        const ctx0 = buildPickContext();
+        const pick0 = ctx0 ? pickAt(pt, ctx0) : { object: null, mode: "none" as const };
+        const dims0 = pageDims();
+        const inMulti =
+          selectedOnPage.length > 1 &&
+          dims0 != null &&
+          hitsMultiSelection(pt, selectedOnPage, dims0.w, dims0.h, textMeasure());
+        doPan = !pick0.object && !inMulti;
+      }
+      if (doPan && beginGesture(e.clientX, e.clientY)) {
+        canvas.setPointerCapture(e.pointerId);
+        panRef.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY };
+        return;
+      }
+    }
 
     if (tool === "select") {
       // Bug #4: a multi-selection group MOVE. If more than one object is
@@ -498,6 +591,30 @@ export function EditCanvas({
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    // ---- Two-finger navigation: pinch (distance ratio) + pan (midpoint delta). ----
+    const nav = navRef.current;
+    if (nav) {
+      const p = pointersRef.current.get(e.pointerId);
+      if (p) {
+        p.x = e.clientX;
+        p.y = e.clientY;
+      }
+      const a = pointersRef.current.get(nav.idA);
+      const b = pointersRef.current.get(nav.idB);
+      if (a && b) {
+        const midX = (a.x + b.x) / 2;
+        const midY = (a.y + b.y) / 2;
+        const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        updateGesture(dist / nav.startDist, midX - nav.startMidX, midY - nav.startMidY);
+      }
+      return;
+    }
+    // ---- One-finger pan (Select empty space): pan only, no zoom. ----
+    if (panRef.current && e.pointerId === panRef.current.id) {
+      updateGesture(1, e.clientX - panRef.current.startX, e.clientY - panRef.current.startY);
+      return;
+    }
+
     const g = gestureRef.current;
     if (!g) {
       // No active gesture → this is a HOVER. Set an action-reflecting cursor from
@@ -546,9 +663,28 @@ export function EditCanvas({
   }
 
   function onPointerUp(e: React.PointerEvent) {
+    pointersRef.current.delete(e.pointerId);
+    const canvas = canvasRef.current;
+
+    // ---- End a two-finger navigation when either finger lifts → commit ONE raster. ----
+    const nav = navRef.current;
+    if (nav) {
+      if (e.pointerId === nav.idA || e.pointerId === nav.idB) {
+        navRef.current = null;
+        endGesture();
+      }
+      return;
+    }
+    // ---- End a one-finger pan → commit (scroll reconciles). ----
+    if (panRef.current && e.pointerId === panRef.current.id) {
+      panRef.current = null;
+      if (canvas?.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      endGesture();
+      return;
+    }
+
     const g = gestureRef.current;
     gestureRef.current = null;
-    const canvas = canvasRef.current;
     if (canvas?.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
     if (!g) return;
     if (g.mode === "draw" && tool !== "select") {
