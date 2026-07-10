@@ -295,6 +295,10 @@ test("editor: a selected rect on the active layer shows resize handles and resiz
   expect((await importDoc(page, bandId, songId, doc)).ok).toBeTruthy();
   await page.reload();
   await openEditorReady(page);
+  // T27 stage 3: fit-page so the whole page (incl. the top-of-page rect + its resize
+  // handles) is visible clear of the floating chrome, so the corner-handle grab is
+  // unambiguous and the outward drag stays on-canvas.
+  await page.getByTestId("zoom-mode").selectOption("fit-page");
 
   const before = await getAnnotations(page, bandId, songId);
   const rectBefore = before.objects.find((o) => o.uuid === "obj-rect")!;

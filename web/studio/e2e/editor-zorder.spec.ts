@@ -48,7 +48,11 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
-  // T27 stage 3: new-layer lives in the on-demand drawer — open it (Layers).
+  // T27 stage 3: at fit-width the fullscreen page is taller than the clear band, so
+  // large draws (spanning ~0.4 page-frac) would run under the bottom pill. fit-page
+  // makes the whole page fit the viewport, so the draws land on the canvas.
+  await page.getByTestId("zoom-mode").selectOption("fit-page");
+  // new-layer lives in the on-demand drawer — open it (Layers).
   await openDrawer(page, "layers");
 }
 const objectCount = (page: Page) =>

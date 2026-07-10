@@ -12,7 +12,7 @@
  * /tmp/ed3-crosslayer.png.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { clearBand, openDrawer } from "./fullscreen-helpers";
+import { scrollFracIntoBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -114,27 +114,20 @@ async function getAnnotations(
   );
 }
 
+// These act on SPECIFIC imported objects, so they use TRUE page-relative positions
+// (scroll the target into the clear band, then map against the page box) — not the
+// band-relative "draw anywhere" mapping. T27 stage 3.
 async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: number, steps = 8) {
-  const pageEl = page.getByTestId("pdf-page").first();
-  await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
-  const { top, bottom } = await clearBand(page);
-  const bandH = Math.max(0, bottom - top) * 0.9;
-  const px = (f: number) => box.x + box.width * f;
-  const py = (f: number) => top + bandH * f;
-  await page.mouse.move(px(fx), py(fy));
+  const box = await scrollFracIntoBand(page, fy, ty);
+  await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
   await page.mouse.down();
-  await page.mouse.move(px(tx), py(ty), { steps });
+  await page.mouse.move(box.x + box.width * tx, box.y + box.height * ty, { steps });
   await page.mouse.up();
 }
 
 async function clickOnPage(page: Page, fx: number, fy: number) {
-  const pageEl = page.getByTestId("pdf-page").first();
-  await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
-  const { top, bottom } = await clearBand(page);
-  const bandH = Math.max(0, bottom - top) * 0.9;
-  await page.mouse.click(box.x + box.width * fx, top + bandH * fy);
+  const box = await scrollFracIntoBand(page, fy);
+  await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
 }
 
 const objectCount = (page: Page) =>
