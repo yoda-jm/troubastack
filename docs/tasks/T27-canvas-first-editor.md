@@ -113,6 +113,53 @@ the **rulings** that shape the build.
   and spot-verifies a couple behaviorally (pixels) in the new layout. All invariants
   below must still assert AND pass under the updated helpers.
 
+### Stage 3 MOBILE STOPGAP (required in the reshape — 2026-07-10 mobile ruling)
+
+Fullbleed removes the gutters that made touch scrolling possible today (the wet
+canvas is `touch-action: none`, `styles.css:504`, and the viewport meta is
+`user-scalable=no`) — without a stopgap the fullscreen editor is **unscrollable and
+unzoomable on any touchscreen**, including inside the Android app's EditScreen
+(A06 embeds this exact route). Stage 3 must therefore include:
+- **Select mode = one finger scrolls:** set `touch-action: pan-x pan-y` on the wet
+  canvas while the active tool is Select (tap still selects; draw tools keep
+  `touch-action: none`). ~2 lines; restores phone/tablet scroll immediately.
+- The mockup's phone breakpoint rules (<600px: compact single-row top bar, ctx +
+  drawer as full-width sheets, full-width bottom bar, wheel-hint hidden) ship with
+  the reshape CSS as designed.
+- `backdrop-filter` blur ×3 bars over a large canvas is a GPU cost on low-end
+  Android WebViews — provide a reduced/solid fallback at the phone breakpoint (or
+  `@supports`/media-query gate).
+
+### Stage 4 — touch gesture grammar (NEW; spec'd 2026-07-10, after stage 3)
+
+The idiomatic canvas-tool grammar (Procreate/GoodNotes/tldraw/Figma-mobile
+conventions), implemented on pointer events (which already drive the wet canvas):
+1. **Two fingers ALWAYS navigate**, in every tool: two-finger drag pans/scrolls;
+   **pinch zooms toward the gesture midpoint**. Feed the SAME live-CSS-transform +
+   commit-one-raster-on-settle pipeline as stage 1's wheel zoom (gesture end =
+   settle). A fast pinch = ONE raster — the stage-1 invariant applies verbatim.
+2. **One finger is tool-modal:** Select → scroll/pan (the stopgap, kept); tap
+   selects; drag on a selected object moves it. Draw tool → one finger draws.
+3. **Second finger during a one-finger draw CANCELS the stroke** and becomes
+   navigation (the GoodNotes/Procreate idiom — prevents accidental marks; never
+   commit a half-stroke on gesture escalation).
+4. **Pen vs finger (`pointerType === "pen"`):** with a draw tool armed, pen draws
+   and a FINGER still navigates (palm-rejection idiom). This is deliberately the
+   A07 tablet-stylus test surface — it makes the web wet path evaluable for the
+   stylus spike without native ink.
+5. Keep `user-scalable=no` (in-app zoom owns pinch; honored in WebViews); on iOS
+   Safari, `preventDefault` on the two-finger touchmove inside the canvas blocks
+   residual page-zoom (same non-passive pattern as stage 1).
+6. e2e: Playwright `touchscreen` taps + CDP `Input.synthesizeTapGesture`/pinch
+   where drivable; the raster-count invariant (one raster per settled pinch) is the
+   assertable core, mirroring `editor-wheelzoom`.
+
+**Apps note:** the Android app's EditScreen (WebViewHost/A06) inherits all of this —
+stage 4 is a hard prerequisite for calling the in-app editor mobile-usable (with
+`user-scalable=no` honored in the WebView, there is NO zoom at all until it lands).
+Native Stage is untouched (it renders baked rasters natively). iOS Studio embedding,
+when it arrives, inherits the same grammar via the existing WKWebView seam.
+
 ## Invariants to preserve (confirm each stage)
 
 - **No re-raster on annotation EDIT** — the `pdf-render-count` probe / overlay-only

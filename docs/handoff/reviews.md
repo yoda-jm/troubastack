@@ -2400,6 +2400,33 @@ Right to hold and ask. **Verified both against the specs on main, not the report
 here BEFORE editing — the pattern so far is healthy (hold-and-ask, twice), keep it.
 All four retirements land in the step-3 commit, in the open, citing their entries.
 
+## 2026-07-10 — MOBILE ruling for the canvas-first editor (VLL ask): stage-3 stopgap REQUIRED + stage 4 (touch grammar) SPEC'D
+
+Analyzed the new design's mobile story against the code, not assumptions. Three facts
+compound: the wet canvas is `touch-action: none` (styles.css:504 — a finger never
+scrolls), the viewport meta is `user-scalable=no` (no browser pinch; honored in
+WebViews), and stage-3 fullbleed removes the gutters that made touch scrolling
+possible today. **Net: the fullscreen editor as built is unscrollable AND unzoomable
+on any touchscreen — including inside the Android app (EditScreen/A06 embeds this
+exact route).** Stage 1's zoom listens only to `wheel`; touch pinch never synthesizes
+wheel events (that is a desktop-trackpad convention).
+
+Rulings (full detail written into T27):
+1. **Stage 3 must ship a stopgap:** Select mode sets `touch-action: pan-x pan-y` on
+   the canvas (one finger scrolls; draw tools keep none) + the mockup's phone
+   breakpoint rules + a reduced-blur fallback for low-end WebViews.
+2. **Stage 4 (new): the idiomatic touch grammar** — two fingers ALWAYS navigate
+   (pinch zooms toward the gesture midpoint, feeding stage 1's live-transform +
+   one-raster-on-settle pipeline); one finger is tool-modal; a second finger during a
+   draw CANCELS the stroke (GoodNotes/Procreate idiom); **pen draws / finger
+   navigates** via `pointerType` — deliberately the A07 stylus-spike test surface.
+3. **Apps:** Android EditScreen inherits everything (stage 4 is a hard prerequisite
+   for the in-app editor being mobile-usable — with `user-scalable=no` honored in the
+   WebView there is NO zoom until it lands); native Stage untouched; iOS embedding,
+   when it arrives, inherits the same grammar through the existing WKWebView seam.
+   Fullbleed itself is a WIN in the app (no double chrome) — hardware-back behavior
+   in EditScreen should be smoke-tested on the branch.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
