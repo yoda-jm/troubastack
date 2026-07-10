@@ -102,7 +102,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) | proto + core + app | S |
 | T27 | [Canvas-first editor (supersedes T17; pairs with T15)](T27-canvas-first-editor.md) | studio | L (staged) |
 | T28 | [Drawing on a hidden layer silently swallows the annotation](T28-hidden-layer-draw-swallow.md) — landed | studio | XS/S |
-| T29 | [Embed the git version: /api/version + info modal](T29-build-version-visibility.md) | core + studio | XS/S |
+| T29 | [Embed the git version: /api/version + info modal](T29-build-version-visibility.md) — landed | core + studio | XS/S |
 | T30 | [No silent ink: can’t-commit states are visible](T30-no-silent-ink.md) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 

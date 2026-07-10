@@ -2629,6 +2629,32 @@ CORRECT, and it is the build, not the fix:
   read-only presentation (disabled tools + not-allowed cursor + a "Read-only/Offline"
   chip) for static states, commit-time notice + wet-clear for dynamic declines.
 
+## 2026-07-10 — T29 (`cb92ec9`, landed per VLL "go ahead"): ✅ CLOSED — build identity end to end, evidence attached
+
+Architect-implemented per VLL (same role note as T28 — evidence over
+self-attestation; lanes may re-verify on rebase). What landed: `buildinfo` pkg
+stamped by the Makefile `dist` target (`git describe --always --dirty` + UTC time;
+unstamped = "dev"); `webassets.SPAEmbedded()` (placeholder-marker detection — the
+make-dist-was-skipped tell); **unauthenticated `GET /api/version`** →
+`{version, builtAt, spaEmbedded}` (the future app↔server compatibility hook —
+display only, NO gating anywhere); the SPA bakes its own `__APP_VERSION__` via vite
+define, and a mono **version chip** in the Shell nav opens a popover showing Studio
++ Server versions with a **mismatch warning** (the stale-browser-cache detector) and
+a "no SPA embedded" note.
+
+Evidence: full `go test ./...` + vet clean; `TestVersionEndpoint` green on both
+backends (unauthenticated 200; spaEmbedded's VALUE is deliberately only
+presence-asserted — go:embed bakes whatever is on disk, so the value is
+env-dependent; my own first draft asserted false and failed after a local `make
+dist` — fixed before landing); `tsc -b studio` clean; `version.spec.ts` green incl.
+a route-intercepted forced mismatch showing the flag; and a REAL `make dist` binary
+answered `{"version":"f254ecc-dirty","builtAt":"2026-07-10T09:46Z","spaEmbedded":
+true}` live. The webassets placeholder was restored after the dist run (never commit
+rebuilds). CI on `cb92ec9` watched.
+
+**Ops note for VLL's box:** after the next `make dist` deploy, the chip +
+`/api/version` make every future "is the fix on this box?" a ten-second check.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
