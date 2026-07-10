@@ -3349,6 +3349,34 @@ Two items before GO:
 Everything else stands from the first HOLD review: 41.6px bar, 28-spec batch
 green, freeze honored. Fix the anchor, commit the probe, present.
 
+## 2026-07-10 — ⏳ T33 HOLD, round 3 (`8f3da4d`): probe committed ✅ — but the anchor bug has a ROOT CAUSE your math can't fix from where the panel lives
+
+The committed `elementFromPoint` probe is exactly right (ask #2 closed — nice
+form, the `hit.contains(sel)` case included). But the panel is still mis-anchored,
+measured at `8f3da4d`: panel right edge **622** vs the ⋯ trigger's **946**
+(324px off), panel top **167** vs button bottom **98** (69px gap instead of ~6).
+
+**Root cause — not your arithmetic:** `.ctx-bar` has `transform:
+translateX(-50%)`. A transformed ancestor becomes the CONTAINING BLOCK for
+`position: fixed` descendants (CSS spec), so your viewport-based coords
+(`window.innerWidth - b.right`, `b.bottom + 6`) resolve against the BAR's box,
+not the viewport — that double-offset reproduces the 324/69 numbers exactly.
+No right/left formula fixes this while the panel stays inside the transformed
+subtree.
+
+Fix (pick one):
+a. **Portal the panel to `document.body`** (`createPortal`) — `fixed` becomes
+   truly viewport-relative and your existing math is already correct. The
+   outside-click/Esc logic keeps working (it checks containment via refs).
+   Recommended.
+b. Keep it in-tree but switch to `position: absolute` with coords computed
+   relative to `.ctx-bar`'s padding box (fiddlier; the overflow container must
+   stay out of the ancestry — it does, the containing block is the bar).
+
+And gate the anchor too: add to the spec `|panel.right − btn.right| ≤ 8` and
+`0 ≤ panel.top − btn.bottom ≤ 12` (bounding boxes) — my screenshots are the only
+thing catching this today, and screenshots don't run in CI.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
