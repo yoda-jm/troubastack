@@ -10,7 +10,7 @@
  * Screenshots: /tmp/ed4-text-bbox.png, /tmp/ed4-resize.png.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { clearBand, openDrawer } from "./fullscreen-helpers";
+import { clearBand, openDrawer, closeDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -311,7 +311,9 @@ test("editor: a selected rect on the active layer shows resize handles and resiz
   await page.screenshot({ path: "/tmp/ed4-resize.png", fullPage: true });
 
   // Drag the SE corner (page-frac 0.5,0.26) outward to (0.72,0.42) → bigger rect.
-  // True page-frac drag so the press lands on the handle's grab zone.
+  // True page-frac drag so the press lands on the handle's grab zone. Dismiss the
+  // drawer first so the drag's right-side endpoint isn't intercepted by it.
+  await closeDrawer(page);
   await dragPageFrac(page, 0.5, 0.26, 0.72, 0.42, 16);
 
   // The persisted rect is larger than before (its bbox width + height grew).

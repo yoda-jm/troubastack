@@ -63,3 +63,16 @@ export async function openDrawer(page: Page, tab: "layers" | "annotations" = "la
   if (!alreadyOnTab) await pill.click();
   await expect(page.getByTestId("viewer-drawer")).toBeVisible();
 }
+
+/** Dismiss the drawer if open, so a following canvas gesture (draw / resize / drag)
+ *  on the right side of the score is not intercepted by the floating panel. */
+export async function closeDrawer(page: Page): Promise<void> {
+  if (!(await page.getByTestId("viewer-drawer").count())) return;
+  for (const id of ["sidebar-toggle", "drawer-notes"]) {
+    if ((await page.getByTestId(id).getAttribute("aria-pressed")) === "true") {
+      await page.getByTestId(id).click();
+      break;
+    }
+  }
+  await expect(page.getByTestId("viewer-drawer")).toHaveCount(0);
+}

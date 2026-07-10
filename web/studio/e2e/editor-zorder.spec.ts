@@ -11,7 +11,7 @@
  * + the within-layer render sort end to end.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { scrollFracIntoBand, openDrawer } from "./fullscreen-helpers";
+import { scrollFracIntoBand, openDrawer, closeDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -108,6 +108,8 @@ test("editor: selection toolbar reorders z (render), duplicates, recolors, delet
   // (it's auto-selected), so labels are unambiguous: A red under, B blue on top.
   await page.getByTestId("new-layer").click();
   await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+  // Dismiss the drawer so the wide draws / z-order drags aren't intercepted by it.
+  await closeDrawer(page);
   await page.getByTestId("tool-rect").click();
   await page.getByTestId("preset-box").click(); // fill + border
 
