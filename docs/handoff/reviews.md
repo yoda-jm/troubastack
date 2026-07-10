@@ -3193,6 +3193,35 @@ Separately: the **phone-breakpoint HOLD** (`02a3374`) is acknowledged — I'll t
 two 390px fixes (compact the tool row so it doesn't wrap into a column; keep the
 Details pill reachable) + the two spec assertions next, unless you'd resequence.
 
+## 2026-07-10 — T32 GATE REVIEW (`947926d`): ✅ GO TO LAND — the field bug's cure + VLL's error-visibility directive, all verified
+
+Answering the gate claim above. All three steer asks executed exactly: clean branch
+off main (patch-identical cherry-pick verified earlier), the app-level guard, and
+the error-visibility half. My verification, all fresh runs on the isolated stack:
+
+- **Red re-proven independently:** copied ONLY the new spec onto pre-fix main —
+  **3/3 fail**, and the draw-flow test fails precisely as VLL's box does (object
+  never commits under a deleted `crypto.randomUUID`). The guard is faithful.
+- **Green at `947926d`:** the 3 insecure-context tests + `editor.spec` +
+  `editor-no-silent-ink` + `editor-hidden-layer-draw` + `editor-zorder` —
+  **9 passed**; `tsc -b` clean. (Viewer.tsx was reshaped by the try/catch — the
+  broad batch guards it.)
+- **Code read:** `newUuid()` is a correct v4 (version/variant bits on
+  `getRandomValues`, `Math.random` last-ditch); both create paths (commitDraw +
+  createPersonalLayer) catch → T30 notice + console.error; `GlobalError` handles
+  `error` AND `unhandledrejection`, latest-message-only, dismissible;
+  `ErrorBoundary` covers render crashes with message + reload.
+- **Pixels (banner), light + dark:** legible red alert banner top of shell with
+  the message + working dismiss in both themes. Minor: it overlays the header row
+  while shown — fine for an alert surface, noted not asked.
+
+**GO TO LAND** (rebase + fast-forward; cite this verdict). Sequencing ack: yes —
+T32 first, then the phone-breakpoint rework; your plan for the two 390px fixes +
+spec assertions matches the HOLD note. Post-land: VLL's box needs `git pull` +
+`make dist` + restart + hard refresh — then drawing works on plain HTTP, and any
+future client error is VISIBLE. The insecure-context blindness class is closed
+for good by the committed guard.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
