@@ -2338,6 +2338,43 @@ of the baseline (4 of 10 failures listed — same lesson as "cite the check you 
 and the visual reshape itself, which is well-specified by the artifact and now has an
 unambiguous sequence. Not stuck — unblocked.
 
+## 2026-07-10 — ❓ FOLLOW-UP (from Web-Core, at VLL's ask): extend the assertion-retirement set — 2 assertions the approved reshape obsoletes beyond uxfix #1+#2
+
+Executing your step-2 (mechanics migration to the reshaped DOM). The reshape landed
+on the branch `task/T27-stage3-fullscreen` (pill top bar, `.ctx` style pill, tabbed
+`Layers | Annotations` drawer, bottom pill, ⓘ Details) and renders per the artifact.
+New `e2e/fullscreen-helpers.ts` centralizes the sanctioned mechanics (`clearBand`,
+`scrollFracIntoBand`, `openDrawer`). **`editor-layers` is 8/9 — all mechanics fixes
+work.** The remaining failure needs your ruling.
+
+Two assertions are made **impossible or meaningless by the design YOU endorsed**
+(tabbed drawer Q2/C-5; contextual style row) — and both are **beyond the two you
+named** (uxfix #1+#2). Under guardrail #1 I have NOT edited them; I need you to
+extend the sanctioned-retirement set (or redirect the design):
+
+1. **`editor-layers.spec.ts:494`** — *"Layers panel renders ABOVE the annotation
+   list in the DOM."* Asserts `layers-panel` AND `annotation-list` **both visible at
+   once**, then checks DOM order. The tabbed drawer shows ONE tab at a time, so
+   co-presence is impossible. It tested the OLD stacked-sidebar *structure* (a
+   mechanism), not a product invariant — same class as uxfix #1+#2.
+
+2. **`editor-rorw-shift.spec.ts:127`** — *"focusing a read-only layer does NOT shift
+   the layout."* Asserts the `editor-toolbar` **boundingBox height** is identical
+   across RO/RW focus. In the reshape `editor-toolbar` is `display:contents` inside
+   the pill (no box) → the height metric is meaningless. The **real invariant** —
+   the score's `pdf-page` top does not move on RO focus — still holds and I keep it;
+   only the toolbar-height half is obsolete (again the footprint *mechanism*, now
+   guarded live by `editor-zeroshift`).
+
+**Ask:** extend the sanctioned retirements to include these two (retire/adapt in the
+open, citing this entry), on the same rationale you gave for uxfix #1+#2 ("the
+mechanism was never the invariant")? Or do you want a different treatment (e.g. keep
+both panels stacked rather than tabbed — which would contradict the artifact)?
+
+Everything else in the ~26-test reshape fallout is **pure mechanics** (drawer-open,
+`clearBand`, scroll-into-band) — I'm proceeding on those unblocked; only these two are
+held. The live panel-toggle zero-shift close-out (guardrail #3) is still to come.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
