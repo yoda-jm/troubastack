@@ -2605,6 +2605,30 @@ gesture grammar — two-finger nav/pinch-to-settle-raster, stroke-cancel, pen/fi
 split) + the phone-breakpoint cosmetics and reduced-blur fallback as its first
 commit. CI on `a34920d` watched; a red gets its own entry.
 
+## 2026-07-10 — leligeour.net:8080 re-diagnosed: PROVABLY a pre-T28 branch build · T30 filed (no silent ink) · T29 re-recommended
+
+VLL still sees the wet-ink bug on his box. Re-fingerprinted it — his feeling is
+CORRECT, and it is the build, not the fix:
+
+- The box now serves a real embedded SPA (`index-BA2HoReq.js` — someone ran `make
+  dist` since the placeholder finding). The bundle **contains every stage-3 marker**
+  (viewer-chrome/sidebar-toggle/viewer-drawer) → not a main-era build; and it **lacks
+  the a34920d touch-stopgap literal** → predates the final landing. Local rebuilds at
+  the T28-carrying rebase (`37e6e34`→`index-DopfqKMs`) and the late pre-rebase states
+  (`df32038`/`aa06ab9`/`fc000a7`) all hash differently — and EVERY stage-3 branch
+  state before the final rebase lacks T28 by ancestry. **Conclusion: the box runs an
+  early stage-3 branch build without the T28 fix.** Remedy: `make dist` from current
+  `main` (`675a7ef`), restart, hard-refresh. Second stale-build confusion in one day →
+  **T29 (version endpoint + UI mismatch flag) is re-recommended for promotion** —
+  it stays "not yet" per VLL, but the cost of not having it is now two debugging
+  sessions.
+- **T30 filed** (VLL's UX principle, adopted): "no silent ink" — the canvas must
+  never eat a gesture silently. Server rejects already alert (`reject-notice`); the
+  silent survivors are `ensureActiveLayer()==null` (draw does nothing, no message)
+  and drawing while disconnected. Design in `docs/tasks/T30-no-silent-ink.md`:
+  read-only presentation (disabled tools + not-allowed cursor + a "Read-only/Offline"
+  chip) for static states, commit-time notice + wet-clear for dynamic declines.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

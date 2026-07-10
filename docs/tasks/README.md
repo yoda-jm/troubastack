@@ -53,7 +53,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T26** (song
+- **Open, unblocked:** **T30** (no silent ink — VLL UX principle, S studio) · **T26** (song
   titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
   the **T23 A-track follow-up** (drawer groups "On call" below the main order —
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
@@ -103,6 +103,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T27 | [Canvas-first editor (supersedes T17; pairs with T15)](T27-canvas-first-editor.md) | studio | L (staged) |
 | T28 | [Drawing on a hidden layer silently swallows the annotation](T28-hidden-layer-draw-swallow.md) — landed | studio | XS/S |
 | T29 | [Embed the git version: /api/version + info modal](T29-build-version-visibility.md) | core + studio | XS/S |
+| T30 | [No silent ink: can’t-commit states are visible](T30-no-silent-ink.md) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
