@@ -2655,6 +2655,25 @@ rebuilds). CI on `cb92ec9` watched.
 **Ops note for VLL's box:** after the next `make dist` deploy, the chip +
 `/api/version` make every future "is the fix on this box?" a ten-second check.
 
+## 2026-07-10 — Branch audit (VLL ask): 32 stale locals + the remote stage-3 branch pruned; stage-4 needs a T29 rebase
+
+Audited every branch in the shared repo (`git cherry` vs `main` — patch-equivalence,
+not just ahead-counts, since landings are rebases here):
+
+- **32 local branches were fully landed** (0 cherry-unlanded) and are PRUNED —
+  including the A09–A12 stack and `docs/handoff-t20-t21-b07`, whose landed copies
+  were rebases (2–6 "ahead" but every commit patch-equivalent on main). Also pruned
+  `origin/task/T27-stage3-fullscreen` (landed, 0 unlanded).
+- **Kept, deliberate:** `docs/proposal-stage-reading-ergonomics` (the proposal doc
+  intentionally lives on its branch for history, per the 2026-07-07 ruling).
+- **Kept, ACTIVE:** `task/T27-stage4-touch` (1 commit, in progress) — based on
+  `f254ecc`, now **2 commits behind main (T29)**, and both touch `styles.css` /
+  Shell — **lane: rebase onto `cb92ec9`+ before presenting** (low conflict risk;
+  T29's additions are appended blocks).
+
+Housekeeping rule reaffirmed: branches delete after VERIFIED landing (this audit is
+that verification for the backlog); the two survivors are the only legitimate ones.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
