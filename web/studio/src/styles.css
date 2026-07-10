@@ -1089,3 +1089,10 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   display: flex; flex-direction: column; gap: .3rem; white-space: nowrap;
 }
 .version-mismatch { color: var(--warn-fg); font-weight: 600; white-space: normal; max-width: 260px; }
+
+/* T30 — no silent ink: the offline/read-only chip in the editor chrome. */
+.editor-readonly-chip {
+  background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border);
+  font-size: .72rem; font-weight: 600; padding: .15rem .55rem; border-radius: 999px;
+  white-space: nowrap;
+}

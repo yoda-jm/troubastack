@@ -90,6 +90,16 @@ export function Viewer({
   const { doc, setDoc, visible, setVisible, connStatus, rejectNotice, syncRef } =
     useSongSync(bandId, songId, myUserId);
 
+  // T30 — "no silent ink": while the realtime connection is down, ink cannot land,
+  // so the editor presents READ-ONLY up-front (draw tools grayed via canDraw, wet
+  // gestures blocked via WetCanvas drawLocked, and an explanatory chip in the
+  // chrome) instead of letting strokes silently evaporate. Presentation only —
+  // the sync client's reconnect semantics are untouched.
+  const offline = connStatus !== "open";
+  // T30 — commit-time notice for client-side declines (rendered through the same
+  // alert surface as server rejects; cleared on the next successful commit).
+  const [localNotice, setLocalNotice] = useState<string | null>(null);
+
   // ---- live editing state ----
   const [tool, setTool] = useState<Tool>("select");
   const [style, setStyle] = useState(DEFAULT_STYLE);
@@ -438,7 +448,12 @@ export function Viewer({
     (tool: DrawTool, page: number, path: { x: number; y: number }[], text?: string) => {
       if (!isMeaningfulGesture(tool, path)) return;
       const layerId = ensureActiveLayer();
-      if (!layerId || !syncRef.current) return;
+      if (!layerId || !syncRef.current) {
+        // T30: never swallow a gesture silently — say why it didn't land. (The wet
+        // stroke is already cleared by WetCanvas after every gesture.)
+        setLocalNotice("Couldn't place the annotation — no layer to draw on.");
+        return;
+      }
       const obj = buildObject({
         tool,
         points: pointsForTool(tool, path),
@@ -452,9 +467,13 @@ export function Viewer({
       // only ever returns an editable layer (or a freshly-created personal one), so
       // we only reject a layer that is KNOWN to be non-editable in the current doc.
       const target = doc.layers.find((l) => l.id === layerId);
-      if (target && !isEditableLayer(target, myUserId, myRole)) return;
+      if (target && !isEditableLayer(target, myUserId, myRole)) {
+        setLocalNotice("Couldn't place the annotation — the layer isn't editable."); // T30
+        return;
+      }
       syncRef.current.createObject(obj);
       setSelectedUuids([obj.uuid]);
+      setLocalNotice(null); // T30: a successful commit clears any stale decline notice
     },
     [ensureActiveLayer, doc.layers, myUserId, style],
   );
@@ -689,7 +708,10 @@ export function Viewer({
     activeLayer,
     onActiveLayer: selectActiveLayer,
     onNewLayer: () => createPersonalLayer(),
-    canDraw: myUserId != null && selectedFileId != null,
+    // T30: offline grays the draw tools via canDraw (NOT drawLocked — that prop
+    // drives the "read-only layer" hint text, which would mislead here; the
+    // offline chip in the chrome is the explanation instead).
+    canDraw: myUserId != null && selectedFileId != null && !offline,
     drawLocked: focusLocked,
     canEditFocusedLayer,
     focusedLayerName: focusedLayer?.name ?? null,
@@ -812,9 +834,9 @@ export function Viewer({
         </div>
       )}
 
-      {rejectNotice && (
+      {(rejectNotice ?? localNotice) && (
         <p className="notice editor-reject-notice" data-testid="reject-notice" role="alert">
-          {rejectNotice}
+          {rejectNotice ?? localNotice}
         </p>
       )}
 
@@ -865,7 +887,7 @@ export function Viewer({
                   page={i}
                   tool={tool}
                   style={style}
-                  drawLocked={focusLocked}
+                  drawLocked={focusLocked || offline}
                   objects={doc.objects}
                   layersById={layersById}
                   layerRank={layerRank}
@@ -904,7 +926,7 @@ export function Viewer({
                 page={0}
                 tool={tool}
                 style={style}
-                drawLocked={focusLocked}
+                drawLocked={focusLocked || offline}
                 objects={doc.objects}
                 layersById={layersById}
                 layerRank={layerRank}
@@ -1041,6 +1063,13 @@ export function Viewer({
           )}
         </div>
         <div className="status">
+          {/* T30: while disconnected the editor is read-only — say so, prominently,
+              instead of letting strokes silently evaporate. */}
+          {offline && (
+            <span className="editor-readonly-chip" data-testid="editor-readonly" role="status">
+              Read-only — offline, changes can't be saved
+            </span>
+          )}
           <span data-testid="object-count" title="Live annotation count">
             {doc.objects.length} objects
           </span>
