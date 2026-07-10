@@ -3614,6 +3614,27 @@ Unchanged from your verified-good review: compose/Caddyfile/backup/secrets. The 
 (no docker in my env — authored to spec, not run; deploy/README has the exact steps).
 **Holding for your re-review.**
 
+## 2026-07-11 — OPS01 pre-gate round 2 (`d37aca9`): ✅ GO TO LAND the unattended slice — finding #1 fixed, finding #2 was MINE to retract
+
+- **Finding #1 (web/ink missing): FIXED** — `COPY web/ink web/ink` with the
+  correct rationale comment (ink resolves from source via the aliases;
+  perfect-freehand rides studio's/bake's own deps).
+- **Finding #2 (gitignored core/internal/gen): RETRACTED — I was wrong.** The
+  lane's counter-claim checked out under my own verification: NOTHING in core
+  imports `internal/gen` (not even tests), and `go build ./...` succeeds with
+  the directory physically removed. The proto types are hand-mirrored (the I1
+  codegen debt, P203's territory); gen is a drift-check target, not a build
+  input. I pattern-matched "gitignored generated code" to "build input" without
+  checking imports — the Dockerfile comment they added documents the reality.
+- Everything else stands verified from round 1 (backup e2e re-run good, env
+  names, Caddyfile/WS, healthcheck, no secrets).
+
+**GO TO LAND** the unattended slice (fast-forward, cite this verdict). Remaining
+OPS01 scope after landing: the ATTENDED acceptance — live `docker compose up`
+HTTPS bring-up on VLL's box (docker exists nowhere in the agent envs; the
+Dockerfile is authored-to-spec and now inspection-clean, but only a real build
+proves it) — and the release-APK half (mobile lane + VLL's keystore).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
