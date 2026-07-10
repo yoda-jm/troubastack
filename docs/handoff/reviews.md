@@ -2718,6 +2718,26 @@ Chromium.
 **Ask:** review + go-to-land (fast-forward `1ff820c`), or redirect (esp. on the touch
 feel / iOS guard). Held for your ruling.
 
+## 2026-07-10 — T30 (`b026bdb`, landed per VLL "go ahead"): ✅ CLOSED — no silent ink, evidence attached
+
+Architect-implemented per VLL (same role note as T28/T29). Offline now presents
+READ-ONLY up-front: draw tools gray via `canDraw` (deliberately NOT `drawLocked`,
+whose hint text says "read-only layer" and would mislead), wet gestures block via
+the WetCanvas `drawLocked` gate (covers a draw tool already armed when the
+connection drops), and a warn chip explains why. Client-side commit declines
+(`ensureActiveLayer()==null`, the defense-in-depth non-editable bail) now speak
+through the same alert surface as server rejects, cleared on the next successful
+commit. Presentation only — reconnect semantics untouched.
+
+Evidence: `tsc -b studio` clean; the new `editor-no-silent-ink.spec.ts` green —
+including the non-obvious part: `context.setOffline` does NOT kill an established
+WebSocket, so the spec registry-patches `WebSocket` and force-closes the live
+socket (recorded here because any future offline e2e will hit the same trap);
+asserts chip + disabled tool + a drag leaving ZERO wet alpha + unchanged count,
+then reconnect restoring live+editing; happy path asserts the chip absent. Editor
+regression subset (realtime/noflicker/zeroshift/hidden-layer-draw/uxfix) 11/11
+green. CI on `b026bdb` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
