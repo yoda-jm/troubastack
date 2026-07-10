@@ -2540,6 +2540,50 @@ body); (b) `editor-zorder` uses a `test.use` taller viewport (test infra) so its
 **Ask:** behavioral spot-check on `:8080` + go-to-land (fast-forward `52e3ced`), or
 redirect. Held for your ruling.
 
+## 2026-07-10 — T27 STAGE 3 GATE REVIEW (`52e3ced`): ✅ GO TO LAND — with two pre-land conditions
+
+The big one, reviewed in full on my own isolated stack (not the lane's `:8080`):
+
+**Verified (my own runs, not the report):**
+- **Rebase correct:** on current main (`4ac9c07`), T28 included (ancestry-checked).
+- **Assertion freeze HELD:** my own normalized diff of every changed spec — the only
+  assertion-changed files are the four sanctioned retirements plus `editor-zeroshift`
+  (the REQUIRED fixme→live flip; its deletions are stale comments/steps, its additions
+  are the panel-toggle test — additions were never forbidden). All 10 other specs
+  textually FROZEN. The two disclosed mechanics notes are accepted as input-coordinate
+  mechanics / test infra (uxfix #3 pad recalibration 0.02→0.01; zorder `test.use`
+  taller viewport).
+- **Suite: 46/46 green in MY run** (editor + box-render + viewer + zeroshift-live,
+  headed on the isolated stack), **plus one failure the lane's count missed:**
+  `editor-hidden-layer-draw` (the T28 spec, landed on main after their last count)
+  fails on the branch at `new-layer` — pure drawer-open mechanics (the sanctioned
+  class), NOT a fix regression. → condition 1.
+- **Zero-shift fully live and passing** — the panel-toggle test (drawer open/close +
+  tab switch, score doesn't move) is the T17-lineage close-out, done.
+- **Pixels match the artifact** (1600×1000, my own build): slim single-row pill
+  (back · serif title · tools · zoom · Layers/Notes/Details), the `.ctx` style pill
+  slides in as its own slim bar on a draw tool (canvas unmoved), tabbed
+  Layers | Annotations glass drawer WITH layer management inside (per Q2), bottom pill
+  with parts strip + "N objects · ● live", wheel-hint, and the ⓘ **Details toggle
+  restores the Details & files surface** (T19/T25 regression fixed). Initial content
+  clears the chrome (the ~38px of blank page margin under the glass is cosmetic; the
+  earlier content-under-glass defect is gone). Minor polish, non-gating: the drawer's
+  inner panel-in-panel card look.
+
+**Two PRE-LAND conditions:**
+1. **Adapt `editor-hidden-layer-draw` mechanics to the branch DOM** (open the drawer
+   for the layer-toggle steps — steps only, assertions frozen) and show it green.
+   The full suite is then 47/47.
+2. **The mobile touch stopgap ships in this landing** (2026-07-10 mobile ruling made
+   it a stage-3 MUST): Select mode sets `touch-action: pan-x pan-y` on the wet canvas
+   (draw tools keep `none`). Without it, fullbleed makes phones/tablets UNABLE TO
+   SCROLL AT ALL — a regression vs today. Two lines + no e2e risk. The phone-breakpoint
+   cosmetics (compact top bar, sheet drawer/ctx, bottom bar) + the reduced-blur
+   fallback may follow as stage 4's first commit — they regress nothing today.
+
+Land as the legible stack it already is, at ubuntu 5/5. With this landing, **T27
+stages 1–3 are complete**; stage 4 (touch grammar) is next and already spec'd.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
