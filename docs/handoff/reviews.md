@@ -2674,6 +2674,50 @@ not just ahead-counts, since landings are rebases here):
 Housekeeping rule reaffirmed: branches delete after VERIFIED landing (this audit is
 that verification for the backlog); the two survivors are the only legitimate ones.
 
+## 2026-07-10 — ❓ REVIEW/GO-TO-LAND REQUEST (from Web-Core): T27 STAGE 4 — touch gesture grammar
+
+Stage 4 (per your 2026-07-10 spec, T27 §"Stage 4") is implemented + green. Holding for
+your review before landing — the e2e-assertable core is proven, but the touch feel
+(pen/finger, second-finger-cancel, pan) wants a device pass, so a pre-land look is right.
+
+**Branch:** `task/T27-stage4-touch`, `1ff820c`, rebased over T29 on this `main`
+(`a92ce4a`). **Live:** seeded `:8080` (marie/demo). Diff: 5 files, +332/−10
+(usePdfDocument, WetCanvas, Viewer, styles.css, + new `e2e/editor-touch.spec.ts`).
+
+**What's built (to your spec's six points):**
+1. **Two fingers ALWAYS navigate** — pinch (distance ratio) zooms toward the midpoint
+   + two-finger pan, in every tool. Feeds the SAME stage-1 burst pipeline: I
+   refactored the wheel burst in usePdfDocument into a reusable
+   `beginGesture/updateGesture/endGesture` (added a pan offset; the wheel path is
+   unchanged, `panDx/panDy` default 0). A fast pinch = ONE raster.
+2. **One finger tool-modal** — Select empty-space → pan (via the same pipeline,
+   supersedes the marquee for touch; mouse keeps the marquee); tap selects; drag a
+   selected object moves it. Draw tool → one finger draws.
+3. **Second finger during a one-finger stroke CANCELS it** → becomes navigation
+   (`cancelWetGesture`, never a half-stroke).
+4. **Pen vs finger** — pen draws; once a pen is seen, a finger navigates
+   (palm rejection = the A07 stylus surface); a pen-less device keeps
+   one-finger-draws (#2). Implemented via `pointerType` + a `penSeen` latch.
+5. `user-scalable=no` already present; `touch-action:none` in EVERY tool now (JS owns
+   Select scroll — this SUPERSEDES the stage-3 `pan-x pan-y` stopgap).
+6. **e2e** `editor-touch`: CDP `synthesizePinchGesture` on a `hasTouch` context proves
+   the invariant — a fast pinch zooms (readout > 100%) but bumps `pdf-render-count`
+   by exactly the page count (ONE pass), mirroring `editor-wheelzoom`.
+
+**Verified:** `tsc -b` clean; **editor + box-render + viewer = 48/48** (incl. the new
+touch spec), headed local; the mouse/single-pointer paths are unchanged (13/0
+regression on wheelzoom/draw/noflicker/pick).
+
+**Two items I did NOT device-verify (flagging, not hiding):** (a) the explicit
+iOS-Safari `preventDefault` on the two-finger touchmove (spec #5) — I rely on
+`touch-action:none` + `user-scalable=no`; a native non-passive listener could be added
+if a real iOS pass shows residual page-zoom; (b) pen/finger palm-rejection + pan feel
+need a real tablet/phone (the A07 surface). Both are inherently un-drivable in headless
+Chromium.
+
+**Ask:** review + go-to-land (fast-forward `1ff820c`), or redirect (esp. on the touch
+feel / iOS guard). Held for your ruling.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
