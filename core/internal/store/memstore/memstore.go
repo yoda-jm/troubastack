@@ -137,12 +137,13 @@ func (m *Mem) Pins(songID string) ([]domain.Pin, error) {
 	return out, nil
 }
 
-// Collect is the in-RAM reachability sweep (I7). For the v1 spike the keep-all tier
-// is a no-op; reachability-prune is honored by never dropping pinned/head revisions.
-// History is append-only and small (grows with strokes, not files), so this is a
-// safe no-op that still keeps every reference reconstructable.
+// Collect is the in-RAM reachability sweep (I7) — currently a reference-safe no-op
+// (keep-all is the default and always legal). A real reachability prune is DEFERRED
+// (P202): because history is a delta chain (SnapshotAt folds log[:prefix]), reclaiming
+// space means synthesizing a baseline snapshot at the oldest kept revision AND
+// renumbering (revisions[i].Number == i+1 is load-bearing) — an invariant-invasive
+// change with its own design. Until then this no-op keeps every reference
+// reconstructable, and storetest's ReachabilityI7 subtest locks that guarantee.
 func (m *Mem) Collect(_ store.RootSet, _ store.RetentionPolicy) error {
-	// No-op: keep-all is the default and reference-safe. A real prune would drop
-	// log entries superseded before the oldest kept revision; omitted for the spike.
 	return nil
 }

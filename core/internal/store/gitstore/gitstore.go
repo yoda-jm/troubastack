@@ -386,13 +386,12 @@ func (g *Git) indexRevCommits(songID string, dst map[plumbing.Hash]uint64) error
 	})
 }
 
-// Collect runs reachability GC. go-git exposes no porcelain `git gc`; a real prune
-// would call PackRefs + a loose-object repack. For the v1 spike this is a documented
-// reference-safe no-op (refs/tags ARE the root set, so nothing reachable is dropped).
-//
-// TODO: go-git limitation — there is no high-level git.Repository.GC(); implementing
-// a true repack means driving the storer's packfile writer directly. Left as a no-op
-// per the workflow guidance rather than failing.
+// Collect runs reachability GC — currently a reference-safe no-op (refs/tags ARE the
+// root set, so nothing reachable is dropped; keep-all is the default and always legal).
+// A real prune is DEFERRED (P202): go-git exposes no porcelain git.Repository.GC(), so
+// a true repack means driving the storer's packfile writer directly (or shelling out to
+// `git gc`, which fights the pure-Go single-binary goal) — a design call of its own.
+// storetest's ReachabilityI7 subtest locks the "every root still reconstructs" guarantee.
 func (g *Git) Collect(_ store.RootSet, _ store.RetentionPolicy) error {
 	return nil
 }

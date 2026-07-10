@@ -6,6 +6,7 @@ package storetest
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"troubastack/core/internal/domain"
@@ -41,6 +42,50 @@ func Run(t *testing.T, newStore Factory) {
 	t.Run("Pins", func(t *testing.T) { testPins(t, newStore) })
 	t.Run("EmptySong", func(t *testing.T) { testEmpty(t, newStore) })
 	t.Run("Collect", func(t *testing.T) { testCollect(t, newStore) })
+	t.Run("ReachabilityI7", func(t *testing.T) { testReachabilityI7(t, newStore) })
+}
+
+// testReachabilityI7 is the I7 proof (P202): after Collect at the reachability-prune
+// tier, EVERYTHING reachable from a root — head, every pin, and any
+// RootSet.KeepRevisions entry — must still reconstruct. It asserts SAFETY only (not
+// that anything was reclaimed), so a reference-safe no-op Collect passes on every
+// backend; the point is to LOCK the I7 contract so any future real prune (deferred:
+// baseline-snapshot compaction) must keep every root reconstructable.
+func testReachabilityI7(t *testing.T, newStore Factory) {
+	st := newStore(t)
+	const song = "s1"
+	// Four revisions, each a distinct accepted mutation with its own rev marker.
+	revs := make([]uint64, 0, 4)
+	for i := 1; i <= 4; i++ {
+		mustApply(t, st, song, create(freehand(fmt.Sprintf("o%d", i), "L1", "u1", 1), uint64(i)))
+		r, err := st.AppendRevision(song, domain.Revision{Summary: fmt.Sprintf("r%d", i)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		revs = append(revs, r)
+	}
+	// A pin holds an EARLY revision (r1); RootSet keeps a MIDDLE one (r2); head is r4.
+	if err := st.MovePin(song, "live", revs[0]); err != nil {
+		t.Fatal(err)
+	}
+	roots := store.RootSet{KeepRevisions: map[string][]uint64{song: {revs[1]}}}
+	if err := st.Collect(roots, store.RetentionPolicy{Tier: store.TierReachabilityPrune}); err != nil {
+		t.Fatal(err)
+	}
+	// I7: pinned (r1), kept (r2), and head (r4) all still reconstruct.
+	for _, r := range []uint64{revs[0], revs[1], revs[3]} {
+		if _, err := st.SnapshotAt(song, r); err != nil {
+			t.Fatalf("Collect broke a reachable revision r%d: %v", r, err)
+		}
+	}
+	// Head is unchanged (still folds to r4).
+	h, err := st.Head(song)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Revision != revs[3] {
+		t.Fatalf("head revision changed after Collect: got %d want %d", h.Revision, revs[3])
+	}
 }
 
 func testApplyAndHead(t *testing.T, newStore Factory) {

@@ -38,6 +38,7 @@ func TestDefault(t *testing.T) {
 		"TROUBA_PDFTOPPM":        "pdftoppm",
 		"TROUBA_NODE":            "node",
 		"TROUBA_BAKE_CLI":        "../web/bake/dist/cli.js",
+		"TROUBA_BAKE_KEEP_REVS":  "0",
 		"TROUBA_DIE_WITH_PARENT": "false",
 	}
 	for _, k := range knobs {

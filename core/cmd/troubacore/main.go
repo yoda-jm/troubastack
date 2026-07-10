@@ -44,6 +44,9 @@ func main() {
 		case "reset-password":
 			runResetPassword(os.Args[2:])
 			return
+		case "gc":
+			runGC(os.Args[2:])
+			return
 		}
 		// Anything else falls through to flag parsing below (flags start with '-');
 		// an unknown non-flag arg is rejected there.
@@ -180,6 +183,35 @@ func runResetPassword(args []string) {
 	fmt.Printf("Password reset issued for %s (@%s).\n", u.DisplayName, u.Username)
 	fmt.Println("Hand this one-time link to them — valid 24h, single use:")
 	fmt.Printf("  <your-server-origin>/reset-password/%s\n", token)
+}
+
+// runGC is the server operator's out-of-band retention pass (P202): it prunes OLD
+// baked concert outputs, keeping the newest `bake.keep_revs` per setlist (0 = keep
+// all, the DEFAULT → no-op) and never a final-locked rev. It reclaims the real
+// disk-growth source — the raster + overlay PNGs of every bake — while annotation
+// history is left untouched (that pruning is deferred; see docs/tasks/P202). Like
+// reset-password it resolves the SAME config the server uses, so run it with the same
+// env; on the file backend prefer a maintenance window (a live bake or an in-flight
+// .tstage download could race a pruned rev).
+func runGC(args []string) {
+	if len(args) != 0 {
+		log.Fatalf("usage: troubacore gc  (retention set by bake.keep_revs / TROUBA_BAKE_KEEP_REVS)")
+	}
+	cfg, err := config.Load(os.Getenv("TROUBA_CONFIG"), os.Getenv("TROUBA_CONFIG") != "")
+	if err != nil {
+		log.Fatalf("troubacore: %v", err)
+	}
+	if cfg.Bake.KeepRevs <= 0 {
+		fmt.Println("gc: bake.keep_revs=0 (keep all) — nothing to prune. Set it to opt into retention.")
+		return
+	}
+	bakesDir := bakeConfig(cfg).BakesDir
+	stats, err := bake.PruneOutputs(bakesDir, cfg.Bake.KeepRevs)
+	if err != nil {
+		log.Fatalf("troubacore: gc: %v", err)
+	}
+	fmt.Printf("gc: keep_revs=%d — scanned %d concert(s), pruned %d old bake revision(s), freed %d bytes.\n",
+		cfg.Bake.KeepRevs, stats.ConcertsScanned, stats.RevsDeleted, stats.BytesFreed)
 }
 
 // watchParent exits the process once our original parent dies (PPID changes as

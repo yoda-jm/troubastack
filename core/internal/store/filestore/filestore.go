@@ -220,9 +220,12 @@ func (f *File) Pins(songID string) ([]domain.Pin, error) {
 	return out, nil
 }
 
-// Collect compacts the append log and drops unreferenced blobs (I7). For the v1
-// spike the keep-all tier is a reference-safe no-op (history grows with strokes,
-// not files); a real prune would rewrite the JSONL below the oldest kept revision.
+// Collect is the on-disk reachability sweep (I7) — currently a reference-safe no-op
+// (keep-all is the default and always legal). A real prune is DEFERRED (P202): the
+// per-song JSONL is a delta chain, so reclaiming space means rewriting it around a
+// synthesized baseline snapshot at the oldest kept revision, not just deleting lines —
+// an invariant-invasive change with its own design. The no-op keeps every reference
+// reconstructable; storetest's ReachabilityI7 subtest locks that guarantee.
 func (f *File) Collect(_ store.RootSet, _ store.RetentionPolicy) error {
 	return nil
 }

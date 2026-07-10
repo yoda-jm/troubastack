@@ -12,6 +12,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"gopkg.in/ini.v1"
@@ -38,6 +39,7 @@ type Config struct {
 		Pdftoppm string // TROUBA_PDFTOPPM
 		Node     string // TROUBA_NODE
 		CLI      string // TROUBA_BAKE_CLI
+		KeepRevs int    // TROUBA_BAKE_KEEP_REVS
 	}
 	Dev struct {
 		DieWithParent bool // TROUBA_DIE_WITH_PARENT
@@ -107,6 +109,9 @@ var knobs = []knob{
 	{"bake", "cli", "TROUBA_BAKE_CLI", kindString, "../web/bake/dist/cli.js", "web/bake CLI path (repo-relative default works when core runs from core/)",
 		func(c *Config) string { return c.Bake.CLI },
 		func(c *Config, v string) { c.Bake.CLI = v }},
+	{"bake", "keep_revs", "TROUBA_BAKE_KEEP_REVS", kindString, "0", "retention: `troubacore gc` keeps only the newest N baked concert revisions per setlist (0 = keep all; a final-locked rev is never pruned)",
+		func(c *Config) string { return strconv.Itoa(c.Bake.KeepRevs) },
+		func(c *Config, v string) { n, _ := strconv.Atoi(v); c.Bake.KeepRevs = n }},
 
 	{"dev", "die_with_parent", "TROUBA_DIE_WITH_PARENT", kindBool, "false", "dev: exit when the launching parent process dies (set by make dev/run/demo)",
 		func(c *Config) string { return boolStr(c.Dev.DieWithParent) },
