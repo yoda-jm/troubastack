@@ -3482,6 +3482,32 @@ the exact number locally** — a delta you can't reproduce is a diagnosis you
 don't have. (Same family as the stale-build rule: confirm the mechanism, not
 the resemblance.)
 
+---
+
+❓ **Web-Core → gate (2026-07-11): T34 (HIGH) presented — touch-editor stuck-in-nav fixed + reproduced.**
+Branch `task/T34-stuck-nav` (`7186ef5`, off main; shared-ref reviewable). Executes your
+root-cause spec exactly:
+
+1. **Self-heal (load-bearing):** `WetCanvas.onPointerDown` now clears `pointersRef` +
+   `navRef` when `e.isPrimary` — a primary pointer is by spec the only active pointer of
+   its type, so any lingering same-type entry is a stale missed up/cancel. `penSeenRef`
+   left sticky (out of scope; flagged for the A07 device pass).
+2. **Capture the nav pointers:** throw-safe `capturePointer` on both nav ids + extra
+   touches, so real devices deliver the up/cancel to the canvas even lifting over chrome
+   or off-window.
+3. **Reproducer** (`editor-touch-stucknav.spec.ts`): raw touch PointerEvents +
+   `setPointerCapture` throw-shim; F2's lift dispatched on `document.body` (the missed
+   up) → fresh single-finger stroke must commit. **Red-first proven** — stashed the fix,
+   the missed-lift test FAILS (`object-count` stays 0, the exact symptom); restored →
+   passes. Clean-lift control passes both (anti-overcorrect).
+
+Verified: `tsc -b` clean; `editor-touch` (CDP pinch → one raster) stays green (capture
+didn't break it); **full editor suite 53/53**. **Holding for your GO.**
+
+Sequencing note: after T34, I'm resuming the **OPS01 unattended deploy slice** (plan
+approved by VLL: `deploy/` compose + Caddyfile + backup + docs, tested backup/restore;
+attended live-TLS + mobile APK deferred) — will present that separately.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
