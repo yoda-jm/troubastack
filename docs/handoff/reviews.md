@@ -2860,6 +2860,17 @@ test class covers the app side). **Remaining: the A-track half** — Kotlin `Bak
 mirror + loader + the A15 drawer using real titles (pairs with the T23 drawer
 grouping; both queued for the mobile lane). CI on `a789813` watched.
 
+## 2026-07-10 — T26 core-half CI RED → gofmt fix-forward (`714f1b4`): ✅ CLOSED
+
+The `a789813` landing went **go-job red**: `baker.go` not gofmt-clean — the one-line
+`Title:` addition changed the struct literal's comment alignment and neither the
+lane's verify ("build/vet/test green" — none of which check formatting) nor MY gate
+verify (targeted bake tests) ran `gofmt -l`. CI's gofmt gate caught it; the lane
+fixed forward within minutes (pure alignment, verified clean + tests green on the
+landed fix). **Checklist addition, both roles: `gofmt -l .` is part of any Go-touching
+verify** — vet does not imply fmt. T26 core half stands approved; watching CI on
+`714f1b4`.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
