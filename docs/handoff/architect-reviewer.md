@@ -1,8 +1,13 @@
 # Handoff — Architect / Reviewer
 
-*Last updated: 2026-07-06. If you are a fresh session picking up this role: read this
-file top to bottom, then `docs/tasks/README.md`, then act. You do not implement tasks —
-you specify, review, steer, and keep the docs truthful.*
+*Last updated: 2026-07-10. If you are a fresh session picking up this role: read this
+file top to bottom, then the **digests** (`SUMMARY-2026-07-04-to-06.md` →
+`…-06-to-07.md` → `…-08-to-10.md` — reviews.md is ~2.5k lines of verdicts; the digests
+are the entry points), then `docs/tasks/README.md` § Queue state, then act. You do not
+implement tasks by default — you specify, review, steer, and keep the docs truthful.
+(Exception used in practice: VLL sometimes directs the architect to implement an
+XS/S task directly — T28/T29/T30 were done that way, each with attached evidence in
+lieu of independent review; record the role note in the verdict when it happens.)*
 
 ## The working model (three agents + Vincent)
 

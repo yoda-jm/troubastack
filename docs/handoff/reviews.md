@@ -4,7 +4,9 @@
 > incident, with commit hashes; this log holds the full verdicts:
 > [`SUMMARY-2026-07-04-to-06.md`](SUMMARY-2026-07-04-to-06.md) (the weekend: bake loop
 > + iOS) then [`SUMMARY-2026-07-06-to-07.md`](SUMMARY-2026-07-06-to-07.md) (Stage
-> ergonomics arc, text charts, encore/bench, field-report closure).
+> ergonomics arc, text charts, encore/bench, field-report closure) then
+> [`SUMMARY-2026-07-08-to-10.md`](SUMMARY-2026-07-08-to-10.md) (the reskin, the
+> canvas-first editor T27 complete, T15, T28–T30, B08/B09).
 
 When the human relay is offline, verdicts land here instead of chat. Executing agents:
 treat an entry here exactly like a pasted review. Keep working your lane's queue per the
@@ -2790,6 +2792,60 @@ pen/finger split). Every editor invariant is live-gated; the assertion-freeze
 discipline held across ~50 spec-file touches with exactly four sanctioned
 retirements. Remaining, attended (rides A07's tablet session): the iOS pinch-guard
 check + pen/pan feel. CI on `cb1f696` watched.
+
+## 2026-07-10 — ARCHITECT AUDIT (VLL ask: "thorough check + improvements/fixes"): one real bug found (T31), one security call, and the debt list
+
+Swept the whole 07-04→07-10 arc for inconsistencies the incremental reviews could
+miss. Findings, ranked:
+
+1. **REAL BUG — T31 filed (HIGH, XS/S): the bake ignores per-object z-order.**
+   Studio's dry render now sorts `order → createdAt → uuid` (stage 2), but
+   `web/bake/src/render.ts:127` still draws objects in document order — its own
+   comment ("matching studio's dry layer") is now false. A studio bring-to-front is
+   silently ABSENT from the baked `.tstage` — studio and Stage disagree on stacking.
+   The exact I8 class the golden-parity test exists for, but that test predates
+   `order` and never inverts it. Fix + inverting pixel parity test spec'd in
+   `docs/tasks/T31-bake-zorder-parity.md`. (Root cause of the miss: stage 2's review
+   checked render↔pick parity WITHIN studio; nobody re-checked the bake mirror —
+   "who else renders objects?" joins the checklist for data-model changes.)
+
+2. **SECURITY — OPS01 needs promotion:** `troubashare.leligeour.net:8080` is a
+   PUBLIC, plain-HTTP instance — session cookies and passwords cross the internet
+   unencrypted, and `TROUBA_SECURE_COOKIES` is off (correctly, since there's no TLS).
+   Interim, cheap: put it behind a TLS reverse proxy (caddy: two lines) + set
+   `secure_cookies=true` in troubacore.ini; proper: OPS01 (service, TLS, backups).
+   VLL's call — but the exposure grows with every real account created there.
+
+3. **A11y regression-by-default:** `user-scalable=no` (long present, now load-bearing
+   for the editor's in-app zoom) also disables pinch-zoom on the MANAGEMENT pages,
+   which have no in-app zoom — a WCAG 1.4.4 concern for low-vision users. Cheap fix
+   candidate: scope the restriction to the editor route (set the viewport meta
+   dynamically) — filed as a note on T27's phone-cosmetics follow-up, not a new task.
+
+4. **P203 pressure is real now:** the hand-maintained proto↔Go↔TS(↔Kotlin) mirror
+   surface grew again this arc (`order`, `createdAt`, `on_call`, T26's `title` next).
+   Each addition landed clean, but the mirror-drift risk compounds. Recommend
+   promoting P203 (codegen decision) after T26/T31 — before the next model change.
+
+5. **Housekeeping / smaller:**
+   - `ed5 #5`-class doc-state assertions can't see "exists but never painted" — the
+     T28 reproducer + T31's pixel test cover the two live instances; new object-render
+     features should prefer pixel asserts (checklist note, no task).
+   - Phone-breakpoint cosmetics + reduced-blur fallback remain owed (stage-4 residue,
+     CSS-only) and now carry the a11y viewport note (#3).
+   - Mobile lane has been idle since 07-07: T23 drawer grouping, T26 drawer half, and
+     the B06 app half are all queued for it; the B07 screenshot pair still rides an
+     attended emulator session.
+   - Credential in the git remote: STILL unrotated (flagged since 07-04; it echoes
+     into tool output on every CI query without `gh`).
+   - `reviews.md` is ~2.5k lines; the three digests are the entry points — keep the
+     log append-only, but a fresh architect session should read digests first (the
+     bootstrap note in `architect-reviewer.md` should say so — updated).
+
+Also verified while auditing: Makefile `run`/`demo` inherit the T29 version stamping
+via `dist`; the fold/store Kind values are append-safe; the four sanctioned e2e
+retirements are the ONLY assertion deltas across the whole arc (re-diffed 07-04→
+today); no other renderer of objects exists beyond studio-dry, wet, and web/bake.
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
