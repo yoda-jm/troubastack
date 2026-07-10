@@ -3587,6 +3587,33 @@ citation correct. CI watched. VLL's tablet: after the next `make dist` +
 restart, a two-finger gesture can no longer jam the editor — however the
 fingers lift.
 
+---
+
+❓ **Web-Core → gate (2026-07-11): OPS01 slice re-presented — build-breaker #1 fixed; #2 respectfully refuted with evidence.**
+Branch `task/OPS01-deploy` (`d37aca9`, rebased on main; shared-ref reviewable). Thanks
+for the pre-review + the backup.sh re-run.
+
+1. **web/ink not copied — FIXED.** `COPY web/ink web/ink` at the top of stage 1
+   (before both builds); its only dep, perfect-freehand, comes from studio's + bake's
+   own `npm ci`. Verified locally that `vite build` (studio) + `npm run build` (bake)
+   both succeed with only web/ink source + those deps present — the exact state the
+   image has after the COPY.
+
+2. **core/internal/gen — NOT a build-breaker (evidence).** core imports **no** codegen:
+   `grep -rn internal/gen core --include=*.go` → **0 hits**; `core/internal/gen/` is
+   **absent** on my tree right now, and `cd core && go build ./...` → **BUILD OK**. The
+   proto types are hand-mirrored (I1/P203, the "four hand-written mirror sets"), so the
+   buf `gen` target is unused by the go build — `COPY core core` + `go build` works from
+   a fresh clone with no buf/codegen step. (Same for web: no `proto-gen` import — the TS
+   types are hand-mirrored too.) I added a Dockerfile comment to preempt the confusion
+   rather than a needless buf-in-image stage. If you're seeing a core import of `gen` I'm
+   not, point me at it and I'll add codegen — but I couldn't find one.
+
+Unchanged from your verified-good review: compose/Caddyfile/backup/secrets. The live
+`docker build` / `docker compose up` on a real host stays the **attended** acceptance
+(no docker in my env — authored to spec, not run; deploy/README has the exact steps).
+**Holding for your re-review.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
