@@ -56,7 +56,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T26** (song
+- **Open, unblocked:** **T33** (thin ctx pill to one slim row — VLL request, design
+  resolved in the spec) · **T26** (song
   titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
   the **T23 A-track follow-up** (drawer groups "On call" below the main order —
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
@@ -111,6 +112,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T30 | [No silent ink: can’t-commit states are visible](T30-no-silent-ink.md) — landed | studio | S |
 | T31 | [Bake ignores per-object z-order (I8 parity)](T31-bake-zorder-parity.md) — landed | web/bake | XS/S |
 | T32 | [`crypto.randomUUID` missing on plain-HTTP origins + global error visibility](T32-insecure-context-uuid.md) — landed | studio | XS/S |
+| T33 | [Thin the ctx style pill to the main bar's height](T33-thin-ctx-bar.md) | studio | S/M |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
