@@ -49,15 +49,14 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   fullscreen · touch grammar, landed 2026-07-10), **T29** (build identity), **T30**
   (no silent ink), **T31** (bake z-order parity, landed 2026-07-10), **T32**
   (insecure-origin uuid + global error visibility — the plain-HTTP field bug,
-  landed 2026-07-10), **T33** (thin ctx pill, landed 2026-07-10) ·
+  landed 2026-07-10), **T33** (thin ctx pill, landed 2026-07-10), **T34** (touch stuck-in-nav fix, landed 2026-07-11) ·
   A01–A06, **A08–A15 (the full
   Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T34** (touch editor stuck in nav after a two-finger gesture —
-  HIGH, field bug root-caused + reproduced 2026-07-11) · **T26** (song
+- **Open, unblocked:** **T26** (song
   titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
   the **T23 A-track follow-up** (drawer groups "On call" below the main order —
   mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
@@ -113,7 +112,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T31 | [Bake ignores per-object z-order (I8 parity)](T31-bake-zorder-parity.md) — landed | web/bake | XS/S |
 | T32 | [`crypto.randomUUID` missing on plain-HTTP origins + global error visibility](T32-insecure-context-uuid.md) — landed | studio | XS/S |
 | T33 | [Thin the ctx style pill to the main bar's height](T33-thin-ctx-bar.md) — landed | studio | S/M |
-| T34 | [Touch editor stuck in nav (stale pointer entry)](T34-stuck-nav-stale-pointer.md) | studio | XS/S |
+| T34 | [Touch editor stuck in nav (stale pointer entry)](T34-stuck-nav-stale-pointer.md) — landed | studio | XS/S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).

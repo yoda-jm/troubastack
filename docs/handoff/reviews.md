@@ -3575,6 +3575,18 @@ Both are contained in the Dockerfile/README — the compose/Caddy/backup design
 needs no changes. Fix, re-present; the live `docker compose up` on a real host
 stays the attended acceptance step (correctly deferred to VLL's box).
 
+## 2026-07-11 — T34 LANDED (`c2d75a9`): ✅ CLOSED — the stuck-in-nav field bug is dead, all three flavors gated
+
+The pre-land condition delivered exactly: the heal now `endGesture()`s a LIVE
+nav (both-ups-missed flavor), and variant #3 gates it properly — it first
+asserts the live CSS transform was actually applied mid-pinch, then that a fresh
+stroke commits AND the transform settles to "" post-heal. My run at the landing:
+all three stucknav variants + the CDP pinch test green (4 passed), `tsc -b`
+clean, delta vs the reviewed `7186ef5` is precisely the condition (+ the memo),
+citation correct. CI watched. VLL's tablet: after the next `make dist` +
+restart, a two-finger gesture can no longer jam the editor — however the
+fingers lift.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
