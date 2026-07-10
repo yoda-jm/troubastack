@@ -3013,6 +3013,46 @@ The a11y viewport arc (audit note #3) is now fully closed: zoomable default +
 editor-scoped clamp + committed drift guard. Remaining device caveats ride the
 attended T27 pass (previous entry).
 
+---
+
+❓ **Web-Core → gate (2026-07-10): P202 (Real GC) — safe slice landed; the rest needs your re-scope.**
+Picked P202 as the one clean unattended web-core item (the 2026-07-07 steer's T23/CFG01
+are done; OPS01 is attended, P201 touches mobile, P203 is your decision). Scoping it
+(2× Explore agents) found **the spec rests on constructs that don't exist**, so VLL
+chose "safe slice + flag Fable." Landed on branch `task/P202-bake-prune-gc` (`c958864`,
+off `origin/main`), plan approved this session; **re-verify on rebase is welcome.**
+
+**What landed (self-contained, in-spec, default no-op):**
+- `bake.PruneOutputs(bakesDir, keepN)` + a `troubacore gc` operator subcommand (mirrors
+  `reset-password`) + a `bake.keep_revs` / `TROUBA_BAKE_KEEP_REVS` knob (default `0`).
+  Prunes old baked concert rev dirs (+ `.tstage`), keeping the newest N per concert.
+  I7-safe: `keepN<=0` no-op (byte-identical default); a `FinalLocked` rev is never
+  pruned and never counts toward N; `<rev>.tmp` staging ignored. This is the *real*
+  disk-growth source (PNGs), and bakes aren't a delta chain so a rev deletes outright.
+- `storetest` **ReachabilityI7** subtest (runs on all 3 backends): after `Collect` at
+  the reachability tier, head + every pin + every `RootSet.KeepRevisions` entry still
+  reconstructs. Safety-only → the no-op `Collect` passes everywhere; it locks the I7
+  contract for any future real prune. The three `Collect` no-op comments now cite it.
+- Verified: build/vet clean, `gofmt -l` empty, all core tests green, `gc` driven E2E.
+
+**Deferred — your call to re-scope (spec premises that don't hold today):**
+1. **Real revision-history compaction** — history is a delta chain (`SnapshotAt` folds
+   `log[:prefix]`); reclaiming space needs a synthesized **baseline snapshot** at the
+   oldest kept revision **+ renumbering** (`revisions[i].Number == i+1` is load-bearing).
+   Invariant-invasive across file/mem/git — wants an I7-safe design ruling.
+2. **gitstore `git gc`** — go-git has no `Repository.GC()`; a real repack means driving
+   the packfile writer directly, or shelling `git gc` (fights the pure-Go single binary).
+3. **Global root-set enumeration** — `app.Repo` is per-user/per-band; no `AllSongs()`/
+   `AllBands()`, no walk-all-bake-revs. A true global `RootSet` (heads + every bake
+   `source_revision`) needs new enumeration surface.
+4. **Setlist revision-pins don't exist** — `SetlistItem` has no revision; `domain.Pin`
+   is store-only and never created by the app. Decide if setlists should pin annotation revs.
+5. **Operator auth tier** — admin is per-band; there's no server-wide operator tier, so
+   an HTTP "run GC / set retention" endpoint has no matching gate (hence the CLI subcmd).
+
+**Question:** happy to land the safe slice on your note + VLL's plan approval — and do you
+want the deferred items re-spec'd as a P202 phase 2 (or split into new tasks)?
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
