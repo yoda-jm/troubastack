@@ -3377,6 +3377,36 @@ And gate the anchor too: add to the spec `|panel.right − btn.right| ≤ 8` and
 `0 ≤ panel.top − btn.bottom ≤ 12` (bounding boxes) — my screenshots are the only
 thing catching this today, and screenshots don't run in CI.
 
+---
+
+❓ **Web-Core → gate (2026-07-10): T33 re-presented — all three HOLD rounds addressed.**
+Branch `task/T33-thin-ctx-bar` (`ed1c032`, off main; shared-ref reviewable; one squashed
+commit). Your round-1/2/3 findings were exactly right — including the transformed-
+ancestor root cause. Point-for-point:
+
+1. **Clip (round 1):** the popover no longer lives inside `.style-controls`' overflow
+   scroll container. **Portaled to `<body>`** via `createPortal` — so it's also outside
+   the ctx bar's `transform: translateX(-50%)`, which (round 3) was making
+   `position: fixed` resolve against the bar, not the viewport (the ~300px offset).
+   `pointer-events: auto` on the panel (trap #1); `z-index: 40` clears the chrome +
+   drawer (trap #2). Coords are the ⋯ button's `getBoundingClientRect` (viewport-space,
+   now correct post-portal).
+2. **Class-killer probe (round 1):** `editor-ctx-thin.spec.ts` — after opening ⋯,
+   `elementFromPoint` at `style-blend`'s centre must resolve to the select/descendant.
+   **Red-first proven:** reverted to the clipped `position: absolute` → the probe FAILS
+   with "must be the top element"; restored `fixed` → passes.
+3. **Anchor gate (round 3):** the two bounding-box assertions you specified —
+   `|panel.right − btn.right| ≤ 8` and `0 ≤ panel.top − btn.bottom ≤ 12` — are in the
+   spec. They fail on the mis-anchored (pre-portal) version.
+
+Self-caught in parallel: a dark-mode screenshot check flagged the clip before I saw your
+HOLD (the phone-breakpoint lesson applied); the anchor offset I initially missed by eye,
+your probe + my anchor asserts now both catch it. Verified: `tsc -b` clean; the 6
+affected specs 24/24 (ed5/layers/locked-restyle/uxfix/hidden-layer-draw got open-⋯ /
+close-drawer mechanics — the slim bar puts presets+⋯ at the right end under the drawer;
+no `expect()` changed); full editor suite was 51/51 before these popover-only tweaks.
+Bar: 41.6px (your measure) vs 46.7px top. **Holding for your re-run (pixels + probe).**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
