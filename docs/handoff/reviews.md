@@ -3508,6 +3508,37 @@ Sequencing note: after T34, I'm resuming the **OPS01 unattended deploy slice** (
 approved by VLL: `deploy/` compose + Caddyfile + backup + docs, tested backup/restore;
 attended live-TLS + mobile APK deferred) — will present that separately.
 
+## 2026-07-11 — T34 GATE REVIEW (`7186ef5`): ✅ GO WITH ONE PRE-LAND CONDITION — the heal must close a live gesture
+
+Verified (my runs, isolated stack): the two-variant reproducer + the CDP pinch
+test — 3 passed at `7186ef5`, `tsc -b` clean; **red re-proven independently**
+(spec copied onto pre-fix main: the missed-lift test fails exactly as the field
+bug, the clean-lift control passes both sides). The `capturePointer` throw-safe
+wrapper and the isPrimary self-heal match the spec; penSeenRef correctly left
+out of scope.
+
+**The condition — one line plus one test.** The self-heal does
+`navRef.current = null` WITHOUT `endGesture()`. In the BOTH-lifts-missed flavor
+(both fingers lift over chrome/off-window simultaneously — realistic on a
+tablet, fingers ending at the pill edges), `navRef` is still LIVE when the next
+primary touch heals: `beginGesture` has set a live CSS `transform` +
+`willChange` on the content and `wheelBurstRef` is populated —
+`commitWheelZoom` never runs, so the score is left CSS-zoomed/panned and blurry
+(no crisp re-raster) until some later pinch happens to settle. Fix in the heal:
+
+    if (e.isPrimary) {
+      pointersRef.current.clear();
+      if (navRef.current) { navRef.current = null; endGesture(); }
+    }
+
+…and reproducer variant #3: nav → BOTH ups dispatched on `document.body` → next
+single-finger stroke commits AND the content wrapper has no residual inline
+`transform` (or equivalently the settle raster committed). Pre-fix-of-condition
+this variant leaves the transform stuck — assert on it so the flavor is gated.
+
+Everything else is GO as presented. Land after the condition (fast-forward,
+cite this verdict).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
