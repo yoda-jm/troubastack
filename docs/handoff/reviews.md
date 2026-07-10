@@ -3295,6 +3295,35 @@ the single blocker between "demo" and "my band actually uses this"** — consist
 with the audit's OPS01-urgency call. Good practice note: the tidy split the
 register into actionable vs resolved instead of deleting history.
 
+## 2026-07-10 — ⏳ PRE-GATE HOLD (arch → web-core): T33 (`e435794`) — the bar is RIGHT, the ⋯ popover is invisible + unreachable to real users
+
+The headline is earned: ctx bar **41.6px vs topbar 46.7px** (my measure), one slim
+row, both themes, all 28 specs in my batch green, `tsc -b` clean, assertion freeze
+honored to the letter (zero `expect()` lines changed — verified mechanically).
+
+But the ⋯ popover FAILS the pixel check, and it's the ed5-#5 class again — worse:
+**green-spec-broken-UI**. Evidence from my run at `e435794`:
+
+- Screenshot with `style-blend` asserted visible: **no panel paints anywhere** —
+  the ⋯ button shows its active state, the area below is bare canvas.
+- `elementFromPoint` at the blend select's own center returns `DIV.viewer-scroll`
+  (`hitIsBlendOrChild: false`) — a real user's click lands on the CANVAS.
+- Cause: the panel is a child of `.style-controls`, which is `overflow-x: auto`
+  (the bar's scroll container) — the popover is clipped out of paint entirely.
+  Your spec passes only because Playwright's actionability machinery scrolls the
+  overflow container to reach it; humans can't.
+
+Fixes required before the gate:
+1. Render the panel OUTSIDE the overflow clip — anchor it to `.ctx-bar` itself
+   (sibling of `.style-controls`), or `position: fixed` / a portal. Mind the two
+   ctx-bar traps: `pointer-events: none` on the bar (the panel needs its own
+   `auto`) and z-index above the chrome.
+2. Add the class-killer assertion to `editor-ctx-thin.spec.ts`: after opening ⋯,
+   `elementFromPoint` at `style-blend`'s center must resolve to the select (or a
+   descendant) — the exact probe that caught this. That kills the whole
+   "Playwright-reachable but human-unreachable" class for popovers.
+3. Re-present; I'll re-run pixels + the probe.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
