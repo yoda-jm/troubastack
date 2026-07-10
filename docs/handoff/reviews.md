@@ -2871,6 +2871,42 @@ landed fix). **Checklist addition, both roles: `gofmt -l .` is part of any Go-to
 verify** — vet does not imply fmt. T26 core half stands approved; watching CI on
 `714f1b4`.
 
+## 2026-07-10 — T31 bake z-order parity (`514e8bd`, implemented by the architect per VLL "go ahead with T31"): ✅ LANDED — with a same-hour lane race resolved by identical patches
+
+Role note (T28/T29/T30 precedent): the architect implemented this XS task directly on
+VLL's explicit chat instruction; evidence attached in lieu of independent review.
+
+**The defect (2026-07-10 audit find):** T27 stage 2 gave objects a within-layer
+z-order and studio's dry render sorts by `order → createdAt → uuid`
+(`compareObjectZ`) — but `web/bake`'s `renderOverlays` still drew each layer's
+objects in document/API order; its own comment claimed "matching studio's dry layer",
+which stage 2 silently invalidated. A studio bring-to-front was therefore ABSENT from
+the baked `.tstage` — studio and Stage disagreed on stacking (the I8 class).
+
+**The fix:** an `objectZ` comparator in `render.ts` mirroring the exact
+`compareObjectZ` contract, applied per (layer, page) bucket before `renderObjects`
+(ink renders in array order by design — the caller owns ordering); stale comment
+corrected. REST DTOs already carry `order`/`createdAt` verbatim, so the fix is
+bake-local; Kotlin/Stage untouched (overlays arrive pre-rendered).
+
+**Evidence (test-first):** new `web/bake/test/zorder.test.mjs` asserts by PIXELS on
+the rendered overlay PNG — two overlapping opaque rects whose `order` INVERTS
+document order must show the high-order color at the overlap, plus the
+`createdAt`-then-`uuid` tiebreaks. Run RED against unfixed code first (**pass 0 /
+fail 2** — the guard is genuine), then green post-fix; full bake `npm test` green
+including the B01 golden pixel-parity and bundle-crosscheck suites.
+
+**The race, resolved:** the web-core lane picked T31 off the queue in the same hour
+(VLL had steered them to it too) and produced `aef7da2` on
+`task/T31-bake-zorder-parity` minutes after `514e8bd` landed. I diffed their tree
+against the landing: **functionally identical** — same comparator contract, same
+sort site, same pixel-test shape; only cosmetic deltas (they exported the type as
+`BakeObject` and typed `AnnotationsDoc.objects` with it; they sorted the bucket in
+place where the landing copies). Two independent implementations converging on the
+same patch is corroboration, not conflict. The lane spotted the landing and deleted
+their branch themselves; no work lost, nothing to fix forward. CI on `514e8bd`
+watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
