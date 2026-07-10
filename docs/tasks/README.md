@@ -100,7 +100,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T23 | [Encore/bench songs: baked + jumpable, outside the order](T23-encore-bench-songs.md) | core + proto + studio | M/L |
 | T24 | [Converge cmd/mkcharts onto internal/chartpdf (T19 deferral)](T24-chartpdf-mkcharts-converge.md) | core + demo artifacts | S/M |
 | T25 | [Chart editor: rendered PDF preview pane (T19 decision 3)](T25-chart-editor-preview.md) | core + studio | S |
-| T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) | proto + core + app | S |
+| T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) — core half landed; app half = mobile | proto + core + app | S |
 | T27 | [Canvas-first editor (supersedes T17; pairs with T15)](T27-canvas-first-editor.md) | studio | L (staged) |
 | T28 | [Drawing on a hidden layer silently swallows the annotation](T28-hidden-layer-draw-swallow.md) — landed | studio | XS/S |
 | T29 | [Embed the git version: /api/version + info modal](T29-build-version-visibility.md) — landed | core + studio | XS/S |

@@ -2847,6 +2847,19 @@ via `dist`; the fold/store Kind values are append-safe; the four sanctioned e2e
 retirements are the ONLY assertion deltas across the whole arc (re-diffed 07-04→
 today); no other renderer of objects exists beyond studio-dry, wet, and web/bake.
 
+## 2026-07-10 — T26 core half (`a789813`, landed per queue + VLL): ✅ APPROVED — titles ride the bundle; A-track half remains
+
+Re-verified fresh: `bool title = 9` on `BakedSong` (field 8 was T23's — the
+coordination ruling honored), the T18-unified writer populates it from
+`item.SongTitle` (no extra lookup), canonical JSON carries it `omitempty`, the bake
+test asserts it, `buf lint` clean, and **`make fixtures` is zero-diff** — the
+synthetic fixture generator deliberately doesn't stamp titles, so the shipped demo
+keeps its "Song N" fallback exactly as the acceptance demanded (no regen). Old
+bundles/loaders unaffected (proto3 default-empty; the T23 unknown-field tolerance
+test class covers the app side). **Remaining: the A-track half** — Kotlin `BakedSong`
+mirror + loader + the A15 drawer using real titles (pairs with the T23 drawer
+grouping; both queued for the mobile lane). CI on `a789813` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
