@@ -17,6 +17,13 @@ import { fileURLToPath } from "node:url";
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
+// T27 stage 3: this suite draws LARGE rects (~0.4 page-frac span) to test z-order.
+// On the default 720px viewport the fullscreen fit-width page is taller than the
+// clear band, so an endpoint runs under the bottom pill. A taller viewport (test
+// infra only — no product/assertion change) enlarges the band so both endpoints of
+// the big draws land on the canvas at fit-width.
+test.use({ viewport: { width: 1280, height: 1100 } });
+
 async function register(page: Page, username: string, password = "secret123") {
   await page.goto("/register");
   await page.getByTestId("username").fill(username);

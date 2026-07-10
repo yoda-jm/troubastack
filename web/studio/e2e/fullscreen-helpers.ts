@@ -22,6 +22,10 @@ export async function clearBand(page: Page): Promise<{ top: number; bottom: numb
   const ctx = (await ctxEl.count()) ? await ctxEl.boundingBox() : null;
   const barEl = page.getByTestId("viewer-bottombar");
   const bar = (await barEl.count()) ? await barEl.boundingBox() : null;
+  // Keep band-mapped gestures BELOW the .ctx (its centered controls would otherwise
+  // capture a draw), even though the .ctx is now pointer-events pass-through — the
+  // pass-through only rescues gestures that unavoidably start under it (e.g. large
+  // top-of-page draws at fit-page), it isn't a license to aim at its controls.
   const top =
     Math.max(0, chrome ? chrome.y + chrome.height : 0, ctx ? ctx.y + ctx.height : 0) + 10;
   const bottom = (bar ? Math.min(vh, bar.y) : vh) - 10;

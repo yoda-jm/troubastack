@@ -467,7 +467,16 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   backdrop-filter: saturate(150%) blur(12px);
   border: 1px solid var(--border); box-shadow: var(--shadow);
+  /* Pass-through overlay (like the top pill): a pointer gesture over the bar's glass
+     (not on a control) reaches the score UNDER it, so drawing near the top of the
+     page works even while the contextual style row is showing. */
+  pointer-events: none;
 }
+.ctx-bar button,
+.ctx-bar input,
+.ctx-bar select,
+.ctx-bar label,
+.ctx-bar .swatch { pointer-events: auto; }
 .ctx-bar .style-controls {
   border: none; padding: 0; margin: 0; gap: .5rem;
   flex-wrap: nowrap; align-items: center;
