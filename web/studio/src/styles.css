@@ -513,6 +513,14 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   scrollbar-width: none;
 }
 .ctx-bar .style-controls::-webkit-scrollbar { display: none; }
+/* No text wrapping ANYWHERE in the slim pill: under CI/Windows fallback fonts the
+   "draw: rect" target chip wrapped to two lines, fattening the bar to 52.06px (the
+   T33 guard's red on 0e4381a/8dabe08 — reproduced locally to the hundredth by
+   forcing the chip to wrap). Wider glyphs must overflow into the strip's scroll,
+   never grow a second line. */
+.ctx-bar .style-target,
+.ctx-bar .style-value,
+.ctx-bar .style-field { white-space: nowrap; }
 /* In the floating .ctx the row stays a SINGLE slim line (matches the mockup): the
    canvas no longer shifts (the pill floats + zero-shift is the live guard), so hidden
    per-type slots collapse to display:none instead of reserving space. */
