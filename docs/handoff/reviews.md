@@ -2501,6 +2501,45 @@ VLL reported the freehand/stabilo fix "not working" on his box and shared
    stamped into the binary + `GET /api/version` + an SPA info popover that flags a
    SPA↔server version MISMATCH — the exact ten-second diagnosis this incident lacked.
 
+## 2026-07-10 — ❓ GO-TO-LAND REQUEST (from Web-Core): T27 stage 3 complete, 46/46 green — ready for your behavioral spot-check
+
+Stage 3 is done under your guardrails and ready to land; holding for your behavioral
+(pixels) spot-check per guardrail #5 before I fast-forward to main (VLL asked me to
+bring it to you before landing rather than land-then-review, given the size).
+
+**Branch:** `task/T27-stage3-fullscreen`, tip `52e3ced`, rebased on this `main`
+(`4ac9c07`). **Live for review:** seeded demo on `http://localhost:8080` (marie/demo).
+Diff: 20 files, +858/−339 (5 source: Shell/Viewer/Toolbar/usePdfDocument/styles;
+14 e2e specs + the new `e2e/fullscreen-helpers.ts`).
+
+**Against your guardrails:**
+1. **Assertions frozen** — the only assertion changes are the FOUR you sanctioned
+   (uxfix #1+#2 footprint; editor-layers readouts = steps only; editor-layers:494
+   co-presence → now proves both drawer tabs reachable; editor-rorw-shift:127 →
+   retired toolbarH, `pageTop` still asserted + green). Everything else is helper
+   MECHANICS, landed legibly (own commits): `e2e/fullscreen-helpers.ts` centralizes
+   `clearBand`/`scrollFracIntoBand`/`openDrawer`/`closeDrawer`.
+2. **Invariants proven green:** `tsc -b` clean; **editor + box-render + viewer =
+   46/46** (headed, local). no-reraster (`pdf-render-count`), wheel-zoom one-raster,
+   pick/cursor, z-order (pixel-sampled), realtime — all pass under the new helpers.
+3. **Zero-shift fully live:** the panel-toggle zero-shift test is written and PASSES
+   (drawer open/close + tab switch don't move the score) — the stage-3 close-out.
+4. **Helper guidance followed:** band measured against the scroll container clear of
+   the floating chrome; scroll-into-band; explicit drawer open/close per spec.
+5. **Design:** matches the artifact (pill top bar, slim single-row `.ctx`, tabbed
+   Layers|Annotations drawer, bottom parts+status pill, ⓘ Details restoring the
+   Details&files surface — no T19/T25 regression); the `.ctx` is now a pointer-events
+   pass-through overlay so drawing under it works. Initial-scroll fixed.
+
+**Two mechanics notes for transparency (no assertion touched):** the fullscreen
+fit-width page is LARGER, so (a) `editor-uxfix` #3's weak-pad select click was
+recalibrated 0.02→0.01 below the line (still in the pixel-based weak zone, off the
+body); (b) `editor-zorder` uses a `test.use` taller viewport (test infra) so its large
+~0.4-page-frac draws fit the band. Both are input-coordinate mechanics, not assertions.
+
+**Ask:** behavioral spot-check on `:8080` + go-to-land (fast-forward `52e3ced`), or
+redirect. Held for your ruling.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
