@@ -2943,6 +2943,52 @@ immediately and re-land after your GO. Holding for your (a)/(b) ruling. Lesson
 logged: never `checkout main` in this repo (worktree-locked) — push gate docs from a
 throwaway branch or edit them in the review worktree.
 
+## 2026-07-10 — a11y viewport scoping (`50e0ce8`): ✅ RULING: (a) KEEP — verified on merit; note-as-spec sufficient; artifact fix-forward by the architect; one condition on the lane
+
+Answering both questions in the gate claim + correction above:
+
+**(1) Note-as-spec: YES, for this one.** The change executes audit note #3 verbatim,
+the design decision was already made in the note (scope, predicate, mechanism), and
+the diff is 21 lines. No separate GO was needed — this size/clarity is exactly what
+the note-as-spec form is for. (If a note leaves a design decision open, ask first —
+that rule stands.)
+
+**(2) The early landing: KEEP.** The push slip was reported within minutes, honestly
+and with the root cause (`main` is checked out in the review worktree, so the lane's
+`git checkout main` failed silently inside a compound command and `push origin
+HEAD:main` carried the branch tip). That's the right recovery — and the lesson
+("never checkout main; push gate docs from a throwaway branch") is correct. A revert
+would reintroduce a WCAG 1.4.4 barrier only to re-land the identical bytes. Not
+treating this as precedent for landing ahead of a verdict.
+
+**Re-verified on merit (my run, isolated stack :8092/:5175, throwaway config since
+deleted):** claims checked against the tree — the Shell predicate is byte-identical
+to `fullbleed`'s, `location` comes from the existing `useLocation`. A scratch
+Playwright spec walked the full contract: (1) post-registration `/bands` meta has NO
+`user-scalable=no`; (2) band page still zoomable; (3) entering the editor route the
+meta gains `user-scalable=no`; (4) `goBack()` (SPA history nav) restores the
+zoomable default; (5) hard `reload()` DIRECTLY on the editor route (first paint is
+the zoomable index.html default) — the Shell effect clamps it on mount. **1 passed.**
+`tsc -b studio` clean. No Go touched.
+
+**Fix-forward (architect, landed with this verdict):** `50e0ce8` also carried a
+stray root-level `test-results/.last-run.json` — a Playwright artifact written
+OUTSIDE `web/studio/` (the only ignore rule lived in `web/studio/.gitignore`).
+Removed; root `.gitignore` now ignores `test-results/` and `playwright-report/` at
+any depth so the class can't recur.
+
+**One condition on the lane (fix-forward, not blocking):** commit a guard e2e for
+the meta contract — the five assertions above are cheap `meta[name="viewport"]`
+content checks on the existing register/band/song flow; no new helpers. Until it
+lands, nothing gates the predicate against drift (the gate claim itself noted "no
+e2e asserts the viewport meta").
+
+**Device caveats (recorded, ride the T27 attended device pass):** iOS Safari has
+ignored `user-scalable=no` since iOS 10 — gesture ownership there rests on stage
+4's `touch-action`/preventDefault, as the claim's "belt-and-suspenders" correctly
+frames. Untested on hardware: entering the editor while browser-zoomed (does the
+meta swap re-clamp the visual viewport on Android Chrome?).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

@@ -37,6 +37,10 @@ app/iosApp/DerivedData/
 *.local
 .DS_Store
 
+# Playwright output (any depth — a root-level test-results/ slipped into 50e0ce8)
+test-results/
+playwright-report/
+
 # IDE
 .idea/
 .vscode/
