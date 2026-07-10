@@ -506,7 +506,13 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   border: none; padding: 0; margin: 0; gap: .5rem;
   flex-wrap: nowrap; align-items: center;
   max-width: calc(100vw - 3rem); overflow-x: auto;
+  /* No visible scrollbar inside the slim pill: on classic-scrollbar platforms
+     (CI Linux headless, Windows) a horizontal scrollbar takes ~11px of layout
+     height and fattens the bar past the T33 height guard — CI red on 0e4381a.
+     The strip still scrolls by wheel/touch/drag. */
+  scrollbar-width: none;
 }
+.ctx-bar .style-controls::-webkit-scrollbar { display: none; }
 /* In the floating .ctx the row stays a SINGLE slim line (matches the mockup): the
    canvas no longer shifts (the pill floats + zero-shift is the live guard), so hidden
    per-type slots collapse to display:none instead of reserving space. */
