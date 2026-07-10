@@ -301,7 +301,11 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 /* the tool cluster sits inline in the pill (shed its card chrome) */
 .topbar-pill .editor-toolbar { display: contents; }
 .topbar-pill .tool-palette {
+  /* nowrap: the tool cluster is ALWAYS a single row — never a vertical column. Without
+     this it inherits flex-wrap:wrap from the base .tool-palette and, when the bar is
+     tight (phone), wraps degenerate into a column floating over the canvas (T32 HOLD). */
   display: flex; align-items: center; gap: .15rem; border: none; padding: 0; margin: 0;
+  flex-wrap: nowrap; flex: 0 0 auto;
 }
 /* locked-layer hint: float it BELOW the slim pill so it never widens the row, but
    stays a real visible element when locked (specs assert visible/hidden). */
@@ -557,6 +561,57 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 @media (max-width: 600px) { .wheelhint { display: none; } }
+
+/* ---- Phone breakpoint (<600px): the floating glass pills become full-width sheets,
+   and the backdrop blur drops to a cheap near-opaque fill (T27 stage-4 residue).
+   Rationale: `backdrop-filter: blur()` on 3+ bars stacked over a full-screen canvas
+   is a real GPU cost on low-end Android WebViews (the Stage app embeds this route);
+   at phone widths we trade the frost for an opaque surface — cheaper AND more legible
+   over a busy score. The desktop wheel hint is already hidden (rule above). */
+@media (max-width: 600px) {
+  /* Edge-to-edge sheets: no centered-pill inset, square corners, side borders off. */
+  .viewer-chrome.topbar-pill,
+  .bottombar-pill,
+  .ctx-bar {
+    left: 0; right: 0; transform: none;
+    width: auto; max-width: none; border-radius: 0;
+    border-left: none; border-right: none;
+  }
+  .viewer-chrome.topbar-pill { top: 0; }
+  .bottombar-pill { bottom: 0; }
+
+  /* Compact top bar. The bar WRAPS to as many rows as it needs (row-gap) rather than
+     clipping controls off the right edge — Details (the only route to song details /
+     T19·T25 in fullscreen) must stay reachable at phone width (T32 HOLD). The tool
+     cluster itself stays one row (.topbar-pill .tool-palette is nowrap). Drop the
+     elastic spring (it would waste row 1 and force an ugly wrap) + the divider;
+     shrink the title and zoom select. */
+  .viewer-chrome.topbar-pill { gap: .3rem; flex-wrap: wrap; row-gap: .35rem; }
+  .topbar-pill .tb-divider,
+  .topbar-pill .tb-spring { display: none; }
+  .tb-title { max-width: 40vw; font-size: .9rem; }
+  .pill-btn { padding: .3rem .5rem; font-size: .78rem; }
+  .topbar-pill .tool-palette button { padding: .25rem .4rem; }
+  .topbar-pill .zoom-select { max-width: 6rem; }
+
+  /* Drawer as a full-width sheet (overrides the ≤760px near-edge treatment above). */
+  .drawer {
+    left: 0; right: 0; width: auto; border-radius: 0;
+    border-left: none; border-right: none;
+    max-height: min(70vh, 560px);
+  }
+
+  /* Reduced-blur fallback: an opaque-ish fill instead of a heavy blur on every bar. */
+  .viewer-chrome.topbar-pill,
+  .ctx-bar,
+  .bottombar-pill,
+  .drawer,
+  .details-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+  }
+}
 
 /* Floating Details & files panel (opened by the top-bar Details pill). Keeps the
    metadata / upload / chart surfaces reachable in the fullscreen editor. */
