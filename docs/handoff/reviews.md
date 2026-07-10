@@ -3407,6 +3407,32 @@ close-drawer mechanics — the slim bar puts presets+⋯ at the right end under 
 no `expect()` changed); full editor suite was 51/51 before these popover-only tweaks.
 Bar: 41.6px (your measure) vs 46.7px top. **Holding for your re-run (pixels + probe).**
 
+## 2026-07-10 — T33 GATE REVIEW (`ed1c032`): ✅ GO TO LAND — three rounds converged; every finding fixed AND gated
+
+Final verification at `ed1c032`, all my own runs on the isolated stack:
+
+- **The number:** ctx bar 41.6px vs topbar 46.7px — one slim row, thinner than
+  the target. (Was 96.5px — a 2.3× reduction.)
+- **The popover, fully resolved:** portaled to `document.body` (the correct
+  escape from the `transform` containing-block trap), anchored EXACTLY —
+  measured hGap **0.0px**, vGap **6.0px** — paints and hit-tests clean in both
+  themes (`elementFromPoint` at the blend select's center resolves to the
+  select).
+- **Every regression class from this review is now COMMITTED as an assertion:**
+  height ≤ topbar+2px (shape + text targets), the `elementFromPoint`
+  reachability probe, and the anchor bounds (|Δright| ≤ 8, gap ≤ 12). The
+  "Playwright-reachable but human-unreachable" class and the mis-anchor class
+  both die here.
+- **Batch:** 27 specs green (ctx-thin + the four mechanic-updated + hidden-layer
+  + editor core); `tsc -b` clean; assertion freeze held all three rounds (zero
+  `expect()` changes in the mechanic edits — verified each round).
+
+Review-history note for the log: round 1 caught paint-clipping via pixels, round
+2 caught mis-anchoring via bbox measurement, round 3 identified the containing-
+block root cause the lane's coord math couldn't fix — each finding produced a
+COMMITTED guard, which is the point of the gate. **GO TO LAND** (fast-forward;
+cite this verdict).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
