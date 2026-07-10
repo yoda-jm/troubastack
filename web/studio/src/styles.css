@@ -693,9 +693,12 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   position: absolute; inset: 0;
   display: block;
   pointer-events: auto;
-  touch-action: none; /* let pointer drags draw rather than scroll */
+  touch-action: none; /* draw tools: a pointer drag draws rather than scrolls */
 }
-.edit-canvas.tool-select { cursor: default; }
+/* Mobile touch stopgap (T27 stage-3 mobile ruling, 2026-07-10): in SELECT mode a
+   touch drag must SCROLL/pan the score — otherwise the fullbleed canvas swallows all
+   touch and phones/tablets can't scroll at all. Draw tools keep `none` (above). */
+.edit-canvas.tool-select { cursor: default; touch-action: pan-x pan-y; }
 .edit-canvas.tool-text { cursor: text; }
 .edit-canvas.tool-freehand,
 .edit-canvas.tool-line,

@@ -14,6 +14,7 @@
  *     the sync echo settles (t1), and after switching tools (t2).
  */
 import { test, expect, type Page } from "@playwright/test";
+import { openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -72,6 +73,9 @@ test("drawing on a hidden layer auto-reveals it; the committed stroke stays pain
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+
+  // T27 stage 3: layer management lives in the on-demand drawer — open it (Layers).
+  await openDrawer(page, "layers");
 
   // A layer to draw on — then HIDE it (the bug's precondition).
   await page.getByTestId("new-layer").click();
