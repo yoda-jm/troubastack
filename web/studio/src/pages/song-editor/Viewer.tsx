@@ -382,16 +382,26 @@ export function Viewer({
 
   // Ensure there's a layer to draw into, creating "My notes" on demand. Returns
   // the layer id to draw into, or null if we can't (no file / not signed in).
+  // T28: the resolved layer is AUTO-REVEALED — the wet stroke renders regardless of
+  // visibility, but the committed object is filtered by `visible`, so drawing on a
+  // hidden layer used to silently swallow the annotation (it existed, synced, and was
+  // never painted). Drawing IS the intent to see it (the Photoshop/GoodNotes idiom).
   const ensureActiveLayer = useCallback((): string | null => {
+    let id: string | null = null;
     if (activeLayerId && editableLayers.some((l) => l.id === activeLayerId)) {
-      return activeLayerId;
-    }
-    if (editableLayers[0]) {
+      id = activeLayerId;
+    } else if (editableLayers[0]) {
       setActiveLayerId(editableLayers[0].id);
-      return editableLayers[0].id;
+      id = editableLayers[0].id;
+    } else {
+      id = createPersonalLayer(); // already made visible on creation
     }
-    return createPersonalLayer();
-  }, [activeLayerId, editableLayers, createPersonalLayer]);
+    if (id) {
+      const layerId = id;
+      setVisible((v) => (v[layerId] ? v : { ...v, [layerId]: true }));
+    }
+    return id;
+  }, [activeLayerId, editableLayers, createPersonalLayer, setVisible]);
 
   // Commit a finished draw gesture: build the wire object on the active layer
   // and send a create (optimistically added by the sync client).
