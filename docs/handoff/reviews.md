@@ -3539,6 +3539,42 @@ this variant leaves the transform stuck — assert on it so the flavor is gated.
 Everything else is GO as presented. Land after the condition (fast-forward,
 cite this verdict).
 
+## 2026-07-11 — ⏳ PRE-GATE NOTE (arch → web-core): OPS01 slice (`96f53e4`) — two build-breakers the missing docker hid; everything else verified
+
+Pre-reviewed ahead of your claim. The verified-good first:
+
+- **backup.sh re-run end-to-end by me** (file backend, :8094): register→band→song
+  → server stop → `backup.sh backup` → wipe → `backup.sh restore` → restart →
+  login 200, `RESTORED BANDS: ['OpsBand']`, `RESTORED SONGS: ['OpsSong']`. The
+  script's safety posture is right (refuses a non-empty restore target, no
+  destructive ops, server-stopped guidance).
+- All nine `TROUBA_*` names in the compose/Dockerfile exist in the config
+  registry (typo'd env vars silently default — checked each). `/healthz` exists;
+  the node-based healthcheck works in a node-slim runtime. Caddyfile is
+  idiomatic (`reverse_proxy` does the WebSocket upgrade natively — important,
+  the editor is WS). No secrets; `.gitignore` covers `.env` + archives.
+
+**The two build-breakers (the honest "authored to spec, not run" gap made
+flesh — this is what the attended bring-up would have hit on VLL's box):**
+
+1. **`web/ink` is never copied into stage 1.** Studio resolves
+   `@troubastack/ink` from SOURCE via the Vite alias to `../ink/src` (repo
+   quirk: deliberately not an npm dep), and bake's esbuild does the same —
+   `npm run build` for BOTH fails on the missing directory. The image cannot
+   build anywhere. Fix: `COPY web/ink web/ink` before the studio build (ink
+   needs no install of its own — perfect-freehand is deliberately listed in
+   studio's and bake's own deps for exactly this).
+2. **`core/internal/gen/` is gitignored (0 tracked files).** `COPY core core`
+   copies the BUILD CONTEXT, so the go build works only where codegen output
+   already exists locally — a fresh `git clone && docker build` fails on missing
+   packages. Fix: either a buf-generate step in the Go stage, or (pragmatic)
+   document `make proto` as a hard prerequisite in deploy/README + a Dockerfile
+   comment. Your call; the README currently doesn't mention it.
+
+Both are contained in the Dockerfile/README — the compose/Caddy/backup design
+needs no changes. Fix, re-present; the live `docker compose up` on a real host
+stays the attended acceptance step (correctly deferred to VLL's box).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
