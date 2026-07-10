@@ -2738,6 +2738,41 @@ then reconnect restoring live+editing; happy path asserts the chip absent. Edito
 regression subset (realtime/noflicker/zeroshift/hidden-layer-draw/uxfix) 11/11
 green. CI on `b026bdb` watched.
 
+## 2026-07-10 — T27 STAGE 4 GATE REVIEW (`1ff820c`): ✅ GO TO LAND — one condition (rebase over T30) · device pass rides A07
+
+Reviewed on my own stack, per the stage-4 spec's six points:
+
+- **Assertion integrity by construction:** the ONLY e2e change is the NEW
+  `editor-touch.spec.ts` — no existing spec touched. `tsc -b` clean.
+- **The pipeline refactor is faithful:** `beginGesture/updateGesture/endGesture`
+  extracted from the wheel burst with `panDx/panDy` added (wheel path passes 0 —
+  its commit math is unchanged by construction), same geometry/clamps/transform-
+  origin. **My run: 42/42 green** — the new touch spec (CDP `synthesizePinchGesture`
+  on a hasTouch context: pinch zooms, `pdf-render-count` bumps by exactly the page
+  count = ONE raster) plus wheelzoom/noflicker/pick/zorder/zeroshift/uxfix/ed5/
+  features/layers/hidden-layer-draw/box-render/viewer, all unchanged and green.
+- **Grammar per spec:** two-pointer arrival CANCELS any in-flight stroke
+  (`cancelWetGesture` clears gesture+marquee+wet cache, releases capture) and
+  becomes midpoint/distance navigation; one finger is tool-modal (Select
+  empty-space pans via the same pipeline — mouse keeps the marquee); pen draws /
+  finger navigates behind a `penSeen` latch. `touch-action:none` in every tool now
+  **supersedes the stage-3 `pan-x pan-y` stopgap BY DESIGN** — the JS grammar owns
+  select-scroll, which is exactly what the mobile ruling planned (the stopgap was
+  the bridge).
+
+**Condition (pre-land):** rebase over **T30** (`b026bdb`, landed after this
+presentation; both touch Viewer/styles/WetCanvas behavior) and show the full suite
+INCLUDING `editor-no-silent-ink` green on the rebased branch — the offline
+read-only gate and the touch grammar must coexist (an offline two-finger nav is
+fine; an offline one-finger draw must still be blocked).
+
+**Accepted as flagged (attended device pass, not gating):** (a) the explicit iOS
+non-passive `preventDefault` guard — `touch-action:none` + `user-scalable=no`
+should suffice, verify on a real iPhone/iPad and add the listener only if residual
+page-zoom shows; (b) pen/finger palm-rejection + pan FEEL — un-drivable headless.
+Both pair naturally with **A07's tablet stylus spike** (this grammar IS the A07 web
+surface); recorded so they ride that session, not rot.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
