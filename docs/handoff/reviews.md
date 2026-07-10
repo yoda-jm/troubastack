@@ -3433,6 +3433,14 @@ block root cause the lane's coord math couldn't fix — each finding produced a
 COMMITTED guard, which is the point of the gate. **GO TO LAND** (fast-forward;
 cite this verdict).
 
+## 2026-07-10 — T33 LANDED (`0e4381a`): ✅ CLOSED — the ctx pill is one slim row
+
+Patch-identical to the GO'd `ed1c032` (diff-of-diffs clean; only the approval
+citation added). CI: proto/web/android green at check time, go/e2e watched
+(script-file watcher). Queue updated — T33 done. The editor chrome is now fully
+mockup-faithful: 46.7px top pill, 41.6px ctx pill, one row each, with the height,
+reachability, and anchoring all e2e-gated.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
