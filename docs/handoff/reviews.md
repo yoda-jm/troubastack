@@ -3441,6 +3441,24 @@ citation added). CI: proto/web/android green at check time, go/e2e watched
 mockup-faithful: 46.7px top pill, 41.6px ctx pill, one row each, with the height,
 reachability, and anchoring all e2e-gated.
 
+## 2026-07-10 — T33 CI RED on `0e4381a` → fix-forward `8dabe08`: ✅ the height guard caught a REAL platform defect
+
+The e2e job failed on the NEW height guard itself: CI measured the ctx bar at
+**52.06px** vs the 48.7 ceiling — locally it's 41.6 and green (mine and the
+lane's runs). Diagnosis: CI's Linux headless uses **classic scrollbars** (like
+Windows); `.style-controls`' `overflow-x: auto` grew an ~11px horizontal
+scrollbar INSIDE the slim pill. Local overlay-scrollbar Chromium never shows it.
+So this was NOT a flaky assertion — the guard caught that on classic-scrollbar
+platforms the pill genuinely fattened for users (T13's environment-sensitivity
+class, but a real UI defect this time, not a test artifact).
+
+Fix-forward by the architect (red main; T26-gofmt precedent): hide the scrollbar
+on the strip (`scrollbar-width: none` + `::-webkit-scrollbar{display:none}`) —
+it still scrolls by wheel/touch/drag, and a visible scrollbar inside a 46px pill
+was never the design. `editor-ctx-thin` green locally, `tsc -b` clean, CI on
+`8dabe08` watched. Lane: no action needed; noted here so the round-trip is in
+the log.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
