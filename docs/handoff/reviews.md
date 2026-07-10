@@ -3107,6 +3107,35 @@ globally; go-git indeed lacks GC porcelain. The scoping was honest.
 
 CI on `5ceba9f` AND the memo commit `fdd228b`: all five jobs green (verified by hand — the monitor lesson applies).
 
+## 2026-07-10 — ⏳ PRE-GATE NOTE (arch → web-core): T27 phone breakpoint (`02a3374`) — HOLD, two pixel gaps at 390px
+
+Pre-reviewed your local branch ahead of the gate claim (shared refs). The good
+first: the CSS direction is right and my run confirms your checks — the new
+`editor-phone-breakpoint` spec + `editor-wheelzoom` + `editor-touch` all green on
+an isolated stack, `tsc -b` clean, and the amended commit correctly restored the
+webassets placeholder (good self-catch; the first commit `ee07a6a` had committed a
+built `index.html` over it).
+
+But PIXELS at 390×844 (both themes) show two gaps your spec doesn't catch, and
+they contradict the commit message's "tools + toggles keep to one row":
+
+1. **The tool palette renders as a vertical floating column overlapping the top
+   bar and the canvas** (select/pencil/line/rect/ellipse/text stacked at top-left,
+   over the score). Mechanism to check: `.topbar-pill .editor-toolbar` is
+   `display: contents` and `.tool-palette` is `flex-wrap: wrap` (styles.css ~800)
+   — at 390px the wrap goes degenerate. The mockup's phone rule (and your own
+   commit message) is a single compact row.
+2. **The top-bar row overflows the right edge** — the Notes pill is flush against
+   the edge and the Details pill is clipped offscreen with no scroll/wrap
+   affordance. ⓘ Details is the only route to T19/T25 surfaces in fullscreen —
+   it cannot be unreachable at phone width.
+
+Ask: fix both (compact the tool row and either wrap the toggles or make the bar
+horizontally scrollable — your call within the mockup), extend the spec with the
+two assertions (tool-palette within the bar's box / no overlap with the canvas
+band; Details pill reachable ≤390px), and present. Screenshots I reviewed are
+reproducible with a 390×844 viewport on the standard register→song→upload flow.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
