@@ -90,6 +90,23 @@ export function Shell() {
       .catch(() => setPendingCount(null));
   }, [user]);
 
+  // A11y-scoped viewport (arch audit 2026-07-10, note #3 → WCAG 1.4.4): the editor
+  // needs `user-scalable=no` so its in-app pinch (T27 stage 4) owns the gesture, but
+  // the management pages have no in-app zoom, so disabling browser pinch there hurts
+  // low-vision users. Scope the restriction to the editor route; everywhere else is
+  // zoomable. (index.html ships the zoomable default for the first paint.)
+  useEffect(() => {
+    const editor = /\/bands\/[^/]+\/songs\/[^/]+/.test(location.pathname);
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return;
+    meta.setAttribute(
+      "content",
+      editor
+        ? "width=device-width, initial-scale=1.0, user-scalable=no"
+        : "width=device-width, initial-scale=1.0",
+    );
+  }, [location.pathname]);
+
   if (loading) {
     return <div className="center">Loading…</div>;
   }
