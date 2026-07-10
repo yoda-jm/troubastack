@@ -7,6 +7,11 @@ from formation to touring, and for every beat check what the stack actually does
 (needs Vincent), or `[accepted]` (deliberate non-goal for now). The gap register at the
 bottom is the actionable output.*
 
+*Tidied 2026-07-10 (web-core): gap statuses reconciled to what has landed since —
+resolved items are marked ✅ with their task/commit ref, still-open ones stay flagged.
+Landings since: T20, T21, A08–A12 (stage-ergonomics trio + facing pages), B06 core
+slice, B07, P202 safe slice, and T32 (insecure-context uuid + global error visibility).*
+
 ---
 
 ## The cast
@@ -41,9 +46,11 @@ sets up the server, makes accounts happen, and gets everyone in.
   real-world adoption gap — everything downstream is production-grade before the
   serving is.
 - **Finding the server from a phone** — typing `192.168.x.x:8080` is Phase-0 friction:
-  `[spec'd]` **B06** (mDNS prefill).
-- Password **reset** (forgotten, not change): none — `[needs-task]`, small but real for
-  a band of non-technical humans; admin-assisted reset would suffice for self-hosted.
+  **B06** ✅ core slice landed (mDNS advertise + discovery, `ac0066e`); the app's
+  Connect-screen prefill/browse (type-no-IP) is the open half — **mobile lane**.
+- Password **reset** (forgotten, not change): ✅ **T21** landed — operator
+  `troubacore reset-password <user>` mints a one-time link (admin-assisted, shown as a
+  QR); admin-assisted reset is enough for self-hosted, as scoped.
 - The **git-remote credential rotation** (repo hygiene, not product): `[product-call]`,
   long-flagged, still open.
 
@@ -105,7 +112,7 @@ offer the download.
 **Validated today:**
 - Setlists CRUD + item overrides (key/tempo/notes) + reorder — and those overrides
   **ride the bake as metadata** (B02 decision 1, proven end to end into the Kotlin
-  loader and — pending at the gate — onto the Stage screen via A08).
+  loader and onto the Stage screen via A08 ✅ landed).
 - **One-click bake** (Studio card, admin-gated), atomic + concurrency-safe publication
   (B04, verified under `-race`), deterministic `.tstage`, canonical manifest; overlay
   pixels provably identical to the editor within AA tolerance (B01 golden test).
@@ -117,17 +124,17 @@ offer the download.
 - **Who may bake** — rule I11 permits "admin *or* member", v1 ships admin-only:
   `[product-call]` (documented in ARCHITECTURE).
 - **Per-member bake** — bake *my-files* views so Leo's stand shows his tab, not the
-  default score: `[needs-task]`, and the single most requested-by-the-story feature
-  (my-files exists; the Baker deliberately defers it — B02 decision 2). Suggest filing
-  as **B07** when wanted.
+  default score: ✅ **B07** landed — per-member bakes are real (`2a53bfe`), the
+  most-requested-by-the-story feature delivered.
 - **"New bake is up" notification** — offers appear when the app is opened; nothing
   pushes: `[needs-task]` later (self-hosted push is nontrivial; a poll-on-app-open is
   what exists and is honest).
 - Bake **history** (list/download old revs): server keeps every rev on disk, API
-  exposes latest-only: `[accepted]` for v1 (noted in B04's out-of-scope), pairs with
-  P202 retention when it comes.
-- Setlist **duplication** ("same as last month's gig, swap two songs"): no endpoint —
-  `[needs-task]`, small, very touring-real.
+  exposes latest-only: `[accepted]` for v1 (noted in B04's out-of-scope). Retention now
+  has teeth — **P202** ✅ landed the `troubacore gc` bake-output prune (keep newest N
+  per concert, never a `final_locked` rev).
+- Setlist **duplication** ("same as last month's gig, swap two songs"): ✅ **T20**
+  landed — duplicate endpoint + Studio action.
 
 ## Phase 4 — Show night
 
@@ -146,14 +153,13 @@ surprises: page turns, role-appropriate layers, and nothing else.
   is credential-blocked (IOS03 runbook ready).
 
 **Gaps:**
-- **Pedal page turns**: `[spec'd]` **A09** — the #1 stage-hardware reality (BT pedals
-  are keyboards); volume-keys fallback included.
-- **Night mode**: `[spec'd]` **A10** — white pages at a dark gig are a floodlight.
-- **Metadata strip** (key/tempo/encore note at the top of a song): `[at the gate]`
-  **A08**, code approved, evidence pending.
-- **Facing pages / landscape two-up** on wide tablets: `[needs-task]` — real
-  sheet-music-app table stakes for 12"+ landscape use; today Stage is one-page.
-  Half-page turns are the deluxe version — idea-list only.
+- **Pedal page turns**: ✅ **A09** landed — BT pedals (keyboards) drive turns, with a
+  volume-keys fallback.
+- **Night mode**: ✅ **A10** landed — dark-gig reading without the floodlight.
+- **Metadata strip** (key/tempo/encore note at the top of a song): ✅ **A08** landed —
+  the setlist overrides now show on the Stage screen.
+- **Facing pages / landscape two-up** on wide tablets: ✅ **A12** landed — two-up on
+  wide/landscape tablets. (Half-page turns remain the deluxe idea-list version.)
 - **Kiosk hardening** (accidental Back/Home mid-song): partially mitigated (chrome is
   small; OS Guided Access documented for iOS QA) — `[accepted]`, revisit after real
   gig feedback.
@@ -174,7 +180,10 @@ soundcheck. A year later there are 40 bakes on the laptop and a new drummer join
 
 **Gaps:**
 - **Bake retention/GC**: 40 bakes × ~0.5 MB is fine; 400 with real scans is not.
-  `[spec'd]` **P202** (cross-layer GC — bake source-revisions are exactly its roots).
+  ◐ **P202** ✅ landed the safe slice — `troubacore gc` prunes old bake-output revs
+  (the real disk-growth source) + an I7 proof suite. The invariant-invasive half
+  (revision-history compaction with baseline snapshots) is deferred as **P204**
+  ("until real pressure").
 - **Server migration/backup story**: part of OPS01 — "the garage laptop died" must be
   a 10-minute restore, not a tragedy.
 - Codegen (**P203**): invisible to the band, existential to the maintainers — the
@@ -185,25 +194,35 @@ soundcheck. A year later there are 40 bakes on the laptop and a new drummer join
 
 ## Gap register (actionable summary, rough priority)
 
+**Still open (actionable):**
+
 | # | Gap | Class | Where |
 |---|---|---|---|
 | 1 | Production serving: TLS, service, backup/restore, release APK | spec'd | **OPS01** |
 | 2 | Rehearsal live mode (autobake + banner + transient auto-update) | spec'd | **P201** |
-| 3 | Pedal page turns / night mode / metadata strip | spec'd / at gate | **A09 / A10 / A08** |
-| 4 | Per-member (my-files) bake — "Leo sees his tab on stage" | needs-task | file **B07** |
-| 5 | LAN discovery (type-no-IP Connect) | spec'd | **B06** |
-| 6 | Facing-pages / landscape two-up on Stage | needs-task | file (A-track) |
-| 7 | Setlist duplication | needs-task | file (T-track, S) |
-| 8 | Password reset (admin-assisted is enough) | needs-task | file (T-track, S) |
-| 9 | Bake retention/GC | spec'd | **P202** |
+| 5 | LAN discovery — the app's Connect-screen prefill (core mDNS ✅ done) | app half | **B06** (mobile) |
+| 9 | Bake **history-compaction** GC (the deferred P202 half) | spec'd | **P204** (until real pressure) |
 | 10 | Proto codegen (maintainer risk, not user-visible) | product-call | **P203** promote? |
-| 11 | Widen bake to members | product-call | I11 note |
+| 11 | Widen bake to members (admin-only today) | product-call | I11 note |
 | 12 | Presence, push notifications, bulk upload, kiosk hardening | accepted/later | idea list |
 
-**Bottom line:** Phases 1, 2 (minus live mode), 3, and 4 (minus stage ergonomics) are
-real, tested, and evidenced — a band could run a rehearsal and play a gig on this stack
-*today* if someone technical babysits the server. The two things standing between
-"demo" and "my band actually uses this": **OPS01** (a server normal humans can keep
-alive) and the **stage-ergonomics trio A08/A09/A10** (already specced/at gate). The two
-things that make it *lovable* after that: **P201** (live rehearsal mode) and **B07**
-(per-member bakes).
+**Resolved since 2026-07-06** (moved out of the actionable list):
+
+| # | Gap | Landed as |
+|---|---|---|
+| 3 | Pedal page turns / night mode / metadata strip | ✅ **A09 / A10 / A08** |
+| 4 | Per-member (my-files) bake — "Leo sees his tab on stage" | ✅ **B07** (`2a53bfe`) |
+| 6 | Facing-pages / landscape two-up on Stage | ✅ **A12** |
+| 7 | Setlist duplication | ✅ **T20** (`8257d54`) |
+| 8 | Password reset (admin-assisted) | ✅ **T21** (`troubacore reset-password`, QR link) |
+| 9a | Bake retention — prune old bake outputs | ✅ **P202** safe slice (`troubacore gc`) |
+| — | Silent client failures (insecure-context `crypto.randomUUID`, any uncaught error) | ✅ **T32** (`newUuid` + global error visibility) |
+
+**Bottom line:** Phases 1–4 are real, tested, and evidenced — including the full
+stage-ergonomics arc (A08–A12) and per-member bakes (B07), which have all landed since
+this doc was written; a band could run a rehearsal and play a gig on this stack *today*
+if someone technical babysits the server. The **one** thing now standing between "demo"
+and "my band actually uses this" is **OPS01** — a server normal humans can keep alive
+(TLS, service, backup, signed APK). After that, **P201** (live rehearsal mode) is the
+big *lovable* workflow. T32 also closed a real adoption blocker this week: the product
+now works on a plain-HTTP self-hosted origin, and no client error dies silently.
