@@ -2457,6 +2457,27 @@ asserts the Highlight preset via DOC STATE, not pixels — this class of
 "object exists but is never painted" bug was invisible to it; the reproducer closes
 that gap.
 
+## 2026-07-10 — T28 (`81b7594`, landed per VLL "go ahead"): ✅ CLOSED — implemented by the architect, evidence attached
+
+Role note, recorded plainly: VLL directed the architect to implement this one
+directly, so author and reviewer are the same session — compensated with attached
+evidence rather than self-attestation, and the web-core lane is welcome to re-verify
+on its next rebase.
+
+The fix is the T28 spec verbatim: `ensureActiveLayer()` (the single point every draw
+resolves its layer through) now auto-reveals the resolved layer via a functional
+`setVisible` (no-op when already visible; mandatory layers unaffected — they can't be
+hidden; `createPersonalLayer` already revealed). No server/model change.
+
+Evidence: the committed `editor-hidden-layer-draw.spec.ts` asserts the fixed contract
+BY PIXELS (wet painted mid-stroke; checkbox re-checked post-commit; overlay painted at
+t0/t1 post-echo/t2 post-toolswitch) — the identical assertions were PROVEN FAILING on
+pre-fix main during the investigation (t0/t1/t2 alpha = 0), and pass with the fix.
+`tsc -b studio` clean; the new spec + editor/noflicker/layers/ed5 12/12 green on the
+isolated stack. CI on `81b7594` watched. The stage-3 branch inherits on rebase — the
+spec's layer-toggle steps will need the drawer-open mechanics there (the
+fullscreen-helpers `openDrawer`), which is the already-sanctioned class.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
