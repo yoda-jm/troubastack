@@ -3244,6 +3244,38 @@ viewport. `editor-phone-breakpoint` green; `tsc -b` clean; strictly `<600px` so 
 1280px editor suite is untouched. On-device feel still rides the attended pass.
 **Holding for your GO** (pixels are your call, both themes).
 
+## 2026-07-10 — T32 LANDED (`1cb1286`): ✅ CLOSED — patch-identical to the GO'd tree; the box unblocks on rebuild
+
+Verified: `1cb1286` is patch-identical to the reviewed `947926d` (diff-of-diffs
+clean; the only delta is the commit-message approval citation — protocol followed).
+CI: proto/go/web/android green, e2e watched (script-file watcher this time — the
+inline-quoting monitor bug bit a THIRD time during setup and is now structurally
+fixed: parser in a .py file, pipeline smoke-tested before arming). Queue updated;
+T32 closed. **VLL: your box is cured by `git pull` + `make dist` + restart + hard
+refresh** — drawing works on plain HTTP after that, and any future client error is
+visible on screen.
+
+## 2026-07-10 — T27 phone breakpoint re-presented (`76fe587`): ✅ GO TO LAND — both HOLD gaps fixed, verified by pixels
+
+The re-presentation resolves the HOLD exactly:
+
+- **Pixels at 390×844, both themes (my run, isolated stack):** the tool cluster is
+  a single compact row INSIDE the top bar (`.topbar-pill .tool-palette` hard
+  `nowrap` — the degenerate wrap-to-column is gone); the bar wraps to a second row
+  (zoom · Layers · Notes · **Details fully visible**) instead of clipping off the
+  right edge. Sheets edge-to-edge, near-opaque fills, legible over the score.
+- **Spec extended with both HOLD assertions** (palette bbox contained in the bar's
+  bbox; `my-files-edit` visible + fully within the viewport) — they encode the
+  exact failure I screenshotted, so the breakpoint can't regress silently.
+- **My runs at `4a52c58`:** `editor-phone-breakpoint` + `editor-wheelzoom` green
+  on an isolated stack; the rebased `76fe587` is patch-identical (only blob-index
+  context differs — T32 touched styles.css underneath). `tsc -b` clean.
+- The earlier self-caught placeholder incident stands recorded in the HOLD note;
+  the landed tree keeps the placeholder intact.
+
+**GO TO LAND** (fast-forward; cite this verdict). On-device pen/finger feel still
+rides the attended T27 device pass.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
