@@ -513,7 +513,50 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .ctx-bar .style-slot-off { display: none; }
 .ctx-bar .shape-style { flex-wrap: nowrap; }
 .ctx-bar .style-field span:not(.style-value) { font-size: .62rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-.ctx-bar .style-field input[type="range"] { width: 72px; }
+/* Range inputs inherit the global `input { padding: .55rem }`, which inflates each
+   slider field to ~40px and was the last thing making the bar tall — strip it. */
+.ctx-bar .style-field input[type="range"] { width: 72px; padding: 0; height: 1.4rem; }
+.ctx-bar .style-field input[type="color"] { height: 22px; }
+
+/* ---- T33: thin the ctx style bar to ONE slim row (~top-bar height). Labels are gone
+   (→ title/aria-label); values sit inline right of each slider; presets are a compact
+   icon trio; fill/border/blend/hex live in the ⋯ popover. The amber shape-style box
+   flattens into the row here (it's just the preset trio now). ------------------------ */
+.ctx-bar .style-controls { gap: .4rem; }
+.ctx-bar .shape-style { background: transparent; padding: 0; border-radius: 0; gap: .25rem; }
+.ctx-bar .preset-btn {
+  width: 1.85rem; height: 1.85rem; padding: 0; display: grid; place-items: center;
+  font-size: 1rem; line-height: 1;
+}
+/* Force the inline row: the base .style-field is row, but `.card label` (higher
+   specificity) forces column app-wide, which stacked each value BELOW its slider and
+   doubled the bar height. Here the value sits to the RIGHT of the control (T33). */
+.ctx-bar .style-field { flex-direction: row; align-items: center; gap: .25rem; }
+/* The ⋯ overflow: a compact square trigger + an anchored glass popover (version-chip
+   pattern). Inside, controls stack vertically with their labels — space is not tight. */
+.style-more-wrap { position: relative; display: inline-flex; align-items: center; }
+.style-more-btn {
+  width: 1.85rem; height: 1.85rem; padding: 0; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+  color: var(--muted); font-size: 1.05rem; line-height: 1;
+}
+.style-more-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--fg); }
+.style-more-btn[aria-expanded="true"] { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-strong); }
+.style-popover {
+  /* Fixed (not absolute): the ctx bar's .style-controls is an overflow scroll container
+     that would clip an absolutely-positioned child. Coords (top/right) are set inline
+     from the ⋯ button's measured rect; the high z-index clears the drawer + chrome. */
+  position: fixed; z-index: 40;
+  /* The ctx bar is pointer-events:none (glass pass-through); the popover opts its whole
+     surface back IN so clicks land on it, not the canvas behind (arch HOLD trap #1). */
+  pointer-events: auto;
+  display: flex; flex-direction: column; gap: .5rem; min-width: 12rem;
+  padding: .6rem .7rem; border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.style-popover .style-field { flex-direction: row; align-items: center; justify-content: space-between; gap: .6rem; }
 
 /* ---- Floating BOTTOM BAR pill: file tabs (parts) + "＋ Add file" · live status. ---- */
 .bottombar-pill {

@@ -12,7 +12,7 @@
  * /tmp/ed3-crosslayer.png.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { scrollFracIntoBand, openDrawer } from "./fullscreen-helpers";
+import { scrollFracIntoBand, openDrawer, closeDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -369,6 +369,8 @@ test("editor: selecting an editable object reflects its style and restyles live"
   await expect(page.getByTestId("style-color")).toBeEnabled();
 
   // Controls reflect the object's CURRENT style (#e11d48 → #E11D48, 100%).
+  await closeDrawer(page); // the drawer overlays the ctx-bar's right-end ⋯ — close it to reach the popover
+  await page.getByTestId("style-more").click(); // T33: hex readout lives in the ⋯ popover
   await expect(page.getByTestId("style-color-value")).toHaveText("#E11D48");
   await expect(page.getByTestId("style-opacity-value")).toHaveText("100%");
 

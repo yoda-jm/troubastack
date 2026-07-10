@@ -14,7 +14,7 @@
  *     the sync echo settles (t1), and after switching tools (t2).
  */
 import { test, expect, type Page } from "@playwright/test";
-import { openDrawer } from "./fullscreen-helpers";
+import { openDrawer, closeDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -82,6 +82,9 @@ test("drawing on a hidden layer auto-reveals it; the committed stroke stays pain
   await expect(page.getByTestId("active-layer")).not.toHaveValue("");
   await page.getByTestId("layer-toggle").first().uncheck();
   await expect(page.getByTestId("layer-toggle").first()).not.toBeChecked();
+  // Close the drawer: it overlays the ctx-bar's right end (presets), where Highlight
+  // lives now (T33). The layer stays hidden; we reopen the drawer to re-check it below.
+  await closeDrawer(page);
 
   // Draw a Highlight ("stabilo") rect across the page.
   await page.getByTestId("tool-rect").click();
@@ -110,7 +113,9 @@ test("drawing on a hidden layer auto-reveals it; the committed stroke stays pain
   await page.mouse.up();
   await expect.poll(() => page.getByTestId("object-count").innerText()).toContain("1");
 
-  // The commit must AUTO-REVEAL the hidden layer (T28) …
+  // The commit must AUTO-REVEAL the hidden layer (T28) … (reopen the drawer to inspect
+  // the layer's visibility toggle, which we closed for the preset click above).
+  await openDrawer(page, "layers");
   await expect(page.getByTestId("layer-toggle").first()).toBeChecked();
 
   // … and the committed object must be painted: immediately (t0) …

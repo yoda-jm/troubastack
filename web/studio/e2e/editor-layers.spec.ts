@@ -20,7 +20,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
-import { openDrawer, clearBand } from "./fullscreen-helpers";
+import { openDrawer, closeDrawer, clearBand } from "./fullscreen-helpers";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
@@ -629,6 +629,8 @@ test("editor: style controls show live value readouts", async ({ page }) => {
   // per-type (a shape tool shows width, a text tool shows font size — never both
   // at once), so assert width under the rect tool, then switch to the text tool
   // for the font readout. Steps change; the assertions themselves are unchanged.
+  await closeDrawer(page); // the drawer overlays the ctx-bar's right-end ⋯ — close it to reach the popover
+  await page.getByTestId("style-more").click(); // T33: hex readout lives in the ⋯ popover
   await expect(page.getByTestId("style-color-value")).toBeVisible();
   await expect(page.getByTestId("style-opacity-value")).toHaveText(/%$/);
   await expect(page.getByTestId("style-width-value")).toBeVisible();
@@ -641,6 +643,7 @@ test("editor: style controls show live value readouts", async ({ page }) => {
 
   // Picking a swatch updates the color hex readout live (#e11d48 → #E11D48).
   await page.getByLabel("Color #2563eb").click();
+  await page.getByTestId("style-more").click(); // reopen (tool switches above dismissed it)
   await expect(page.getByTestId("style-color-value")).toHaveText("#2563EB");
 
   // Set the inputs via React's native value setter so the controlled onChange

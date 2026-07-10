@@ -3,7 +3,8 @@
  * palette (registry-driven), style controls with contextual visibility, shape
  * presets, and the layer picker. Behavior + data-testids unchanged.
  */
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
 import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset } from "../../editor";
 import { descriptorFor, toolsInOrder } from "../../annotations/registry";
@@ -26,11 +27,148 @@ const TOOLS: ToolButton[] = [
 ];
 
 // The shape-style presets shown as one-click buttons (#5).
-const PRESET_BUTTONS: { id: PresetId; label: string; testid: string }[] = [
-  { id: "outline", label: "Outline", testid: "preset-outline" },
-  { id: "box", label: "Box", testid: "preset-box" },
-  { id: "highlight", label: "Highlight", testid: "preset-highlight" },
+// Presets as an icon trio (T33): the word labels cost ~120px of bar width; the glyph
+// + a `title`/`aria-label` carries the same affordance in the slim one-row ctx bar.
+const PRESET_BUTTONS: { id: PresetId; label: string; title: string; testid: string }[] = [
+  { id: "outline", label: "▢", title: "Outline", testid: "preset-outline" },
+  { id: "box", label: "■", title: "Box", testid: "preset-box" },
+  { id: "highlight", label: "▨", title: "Highlight", testid: "preset-highlight" },
 ];
+
+/**
+ * The ⋯ overflow popover (T33). Rare manual style combos — Fill, Border, Blend — plus
+ * the hex readout live here so the ctx bar stays one slim row; presets cover the common
+ * cases. Anchored panel (the VersionChip pattern), closes on outside-click / Esc. The
+ * `style-fill` / `style-stroke` / `style-blend` / `style-color-value` testids moved
+ * here unchanged. Shape-only controls are gated by `showShape` (hidden for text/none),
+ * mirroring the inline slots' reserve-then-hide.
+ */
+function StyleMore({
+  style,
+  onStyle,
+  disabled,
+  showShape,
+}: {
+  style: AnnotationStyle;
+  onStyle: (s: AnnotationStyle) => void;
+  disabled: boolean;
+  showShape: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  // The popover is `position: fixed` with JS-measured coords: the ctx bar's
+  // `.style-controls` is an overflow-x scroll container, which clips an absolutely
+  // positioned child dropping below it — fixed escapes that clipping.
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    const place = () => {
+      const b = btnRef.current?.getBoundingClientRect();
+      if (b) setCoords({ top: b.bottom + 6, right: window.innerWidth - b.right });
+    };
+    place();
+    const onDown = (e: MouseEvent) => {
+      const wrap = ref.current;
+      if (!wrap) return;
+      // Close only when the click lands OUTSIDE the whole style bar AND outside the
+      // (now fixed-positioned) popover — so tweaking a preset/slider, which updates the
+      // popover's fill/border/blend live, keeps it open; a canvas click dismisses it.
+      const boundary = wrap.closest(".ctx-bar") ?? wrap;
+      const target = e.target as Node;
+      if (boundary.contains(target)) return;
+      if ((target as Element).closest?.(".style-popover")) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
+
+  return (
+    <span className="style-more-wrap" ref={ref}>
+      <button
+        type="button"
+        className="style-more-btn"
+        data-testid="style-more"
+        aria-label="More style options"
+        aria-expanded={open}
+        title="Fill, border, blend, hex"
+        disabled={disabled}
+        ref={btnRef}
+        onClick={() => setOpen((o) => !o)}
+      >
+        ⋯
+      </button>
+      {open && coords && createPortal(
+        <div
+          className="style-popover"
+          data-testid="style-popover"
+          role="group"
+          aria-label="More style options"
+          style={{ top: coords.top, right: coords.right }}
+        >
+          {showShape && (
+            <>
+              <label className="style-field shape-toggle">
+                <input
+                  type="checkbox"
+                  data-testid="style-fill"
+                  checked={style.fill ?? false}
+                  disabled={disabled}
+                  onChange={(e) => onStyle({ ...style, fill: e.target.checked })}
+                />
+                <span>Fill</span>
+              </label>
+              <label className="style-field shape-toggle">
+                <input
+                  type="checkbox"
+                  data-testid="style-stroke"
+                  checked={style.stroke ?? true}
+                  disabled={disabled}
+                  onChange={(e) => onStyle({ ...style, stroke: e.target.checked })}
+                />
+                <span>Border</span>
+              </label>
+              <label className="style-field">
+                <span>Blend</span>
+                <select
+                  data-testid="style-blend"
+                  value={style.blend ?? "normal"}
+                  disabled={disabled}
+                  onChange={(e) =>
+                    onStyle({ ...style, blend: e.target.value as "normal" | "multiply" })
+                  }
+                >
+                  <option value="normal">Normal</option>
+                  <option value="multiply">Multiply</option>
+                </select>
+              </label>
+            </>
+          )}
+          <label className="style-field">
+            <span>Hex</span>
+            <span className="style-value" data-testid="style-color-value">
+              {style.color.toUpperCase()}
+            </span>
+          </label>
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+}
 
 export function EditorToolbar({
   part,
@@ -188,24 +326,25 @@ export function EditorToolbar({
             />
           ))}
         </span>
+        {/* T33: labels dropped to title/aria-label (the height cost); the numeric value
+            sits INLINE to the right of each slider (CSS makes .style-field a row). */}
         <label className="style-field">
-          <span>Color</span>
           <input
             type="color"
             data-testid="style-color"
+            aria-label="Custom color"
+            title={`Color ${style.color.toUpperCase()}`}
             value={style.color}
             disabled={disabled}
             onChange={(e) => onStyle({ ...style, color: e.target.value })}
           />
-          <span className="style-value" data-testid="style-color-value">
-            {style.color.toUpperCase()}
-          </span>
         </label>
         <label className="style-field">
-          <span>Opacity</span>
           <input
             type="range"
             data-testid="style-opacity"
+            aria-label="Opacity"
+            title="Opacity"
             min={0.1}
             max={1}
             step={0.05}
@@ -219,10 +358,11 @@ export function EditorToolbar({
         </label>
         {/* WIDTH — stroke width. Relevant for shapes/strokes, not text. */}
         <label className={slot(showWidth)} aria-hidden={!showWidth}>
-          <span>Width</span>
           <input
             type="range"
             data-testid="style-width"
+            aria-label="Stroke width"
+            title="Stroke width"
             min={0.001}
             max={0.02}
             step={0.001}
@@ -237,6 +377,8 @@ export function EditorToolbar({
         </label>
         {/* Shape style (#5): fill / border(stroke) / blend + presets. Relevant for
             shape/draw targets; hidden (space reserved) for text/none. */}
+        {/* Shape presets as an icon trio (#4). Fill/Border/Blend + the hex readout moved
+            into the ⋯ popover (#5) so this stays one slim row. */}
         <div
           className={`shape-style${showShape ? "" : " style-slot-off"}`}
           data-testid="shape-style"
@@ -252,6 +394,8 @@ export function EditorToolbar({
                   data-testid={p.testid}
                   className={`preset-btn${active ? " active" : ""}`}
                   aria-pressed={active}
+                  aria-label={p.title}
+                  title={p.title}
                   disabled={disabled || !showShape}
                   tabIndex={showShape ? undefined : -1}
                   onClick={() => onStyle(applyPreset(style, p.id))}
@@ -261,49 +405,15 @@ export function EditorToolbar({
               );
             })}
           </span>
-          <label className="style-field shape-toggle">
-            <input
-              type="checkbox"
-              data-testid="style-fill"
-              checked={style.fill ?? false}
-              disabled={disabled || !showShape}
-              tabIndex={showShape ? undefined : -1}
-              onChange={(e) => onStyle({ ...style, fill: e.target.checked })}
-            />
-            <span>Fill</span>
-          </label>
-          <label className="style-field shape-toggle">
-            <input
-              type="checkbox"
-              data-testid="style-stroke"
-              checked={style.stroke ?? true}
-              disabled={disabled || !showShape}
-              tabIndex={showShape ? undefined : -1}
-              onChange={(e) => onStyle({ ...style, stroke: e.target.checked })}
-            />
-            <span>Border</span>
-          </label>
-          <label className="style-field">
-            <span>Blend</span>
-            <select
-              data-testid="style-blend"
-              value={style.blend ?? "normal"}
-              disabled={disabled || !showShape}
-              tabIndex={showShape ? undefined : -1}
-              onChange={(e) => onStyle({ ...style, blend: e.target.value as "normal" | "multiply" })}
-            >
-              <option value="normal">Normal</option>
-              <option value="multiply">Multiply</option>
-            </select>
-          </label>
         </div>
         {/* TEXT SIZE — relevant only for a text target; hidden (space reserved)
             for shapes/strokes. */}
         <label className={slot(showFont)} aria-hidden={!showFont}>
-          <span>Text size</span>
           <input
             type="range"
             data-testid="style-font"
+            aria-label="Text size"
+            title="Text size"
             min={0.015}
             max={0.08}
             step={0.005}
@@ -316,6 +426,9 @@ export function EditorToolbar({
             {(style.fontSize * 1000).toFixed(0)}
           </span>
         </label>
+        {/* ⋯ overflow: fill / border / blend / hex (#5). Always present (fixed
+            footprint → no shift); shape-only controls gated inside by showShape. */}
+        <StyleMore style={style} onStyle={onStyle} disabled={disabled} showShape={showShape} />
       </div>
       );
       })();

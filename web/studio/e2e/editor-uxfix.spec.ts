@@ -336,6 +336,7 @@ test("#1+#2 toolbar: stable footprint across none/text/shape, per-type controls"
   // For SHAPE: width visible+usable, size control NOT usable; shape controls show.
   await expect(page.getByTestId("style-width")).toBeVisible();
   await expect(page.getByTestId("style-font")).toBeHidden();
+  await page.getByTestId("style-more").click(); // T33: fill lives in the ⋯ popover now
   await expect(page.getByTestId("style-fill")).toBeVisible();
   await page.screenshot({ path: "/tmp/ui-toolbar-shape.png", fullPage: true });
 });

@@ -13,7 +13,7 @@
  * Screenshots: /tmp/ed5-presets.png, /tmp/ed5-lock.png, /tmp/ed5-smallmove.png.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { scrollFracIntoBand, openDrawer } from "./fullscreen-helpers";
+import { scrollFracIntoBand, openDrawer, closeDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -296,10 +296,14 @@ test("editor: Highlight preset draws a filled multiply rect; Outline is stroke-o
   await openDrawer(page, "layers");
   await page.getByTestId("new-layer").click();
   await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+  // The drawer overlays the ctx-bar's right end (presets + ⋯); it's done its job
+  // (new-layer) — close it so the preset trio and the ⋯ popover are reachable (T33).
+  await closeDrawer(page);
 
   // Highlight preset → rect with fill+multiply+no-stroke.
   await page.getByTestId("tool-rect").click();
   await page.getByTestId("preset-highlight").click();
+  await page.getByTestId("style-more").click(); // T33: fill/border/blend live in the ⋯ popover
   await expect(page.getByTestId("style-fill")).toBeChecked();
   await expect(page.getByTestId("style-stroke")).not.toBeChecked();
   await expect(page.getByTestId("style-blend")).toHaveValue("multiply");
@@ -307,6 +311,7 @@ test("editor: Highlight preset draws a filled multiply rect; Outline is stroke-o
 
   // Outline preset → rect with stroke only.
   await page.getByTestId("preset-outline").click();
+  await page.getByTestId("style-more").click(); // reopen (the drag above dismissed it)
   await expect(page.getByTestId("style-stroke")).toBeChecked();
   await expect(page.getByTestId("style-fill")).not.toBeChecked();
   await page.getByTestId("tool-rect").click();
