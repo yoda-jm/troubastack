@@ -64,8 +64,9 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
-  feel — rides A07's tablet stylus session) + the phone-breakpoint cosmetics /
-  reduced-blur fallback (CSS-only follow-up), **T24**
+  feel — rides A07's tablet stylus session; the phone-breakpoint cosmetics +
+  reduced-blur fallback LANDED 2026-07-10 `f90a7ca`, plus the two viewport device
+  caveats to check), **T24**
   (chartpdf/mkcharts convergence — regenerates pixel-verified demo artifacts), the
   **B07 device screenshot pair** (tab vs score, rides the next attended emulator batch).
 - **Blocked on the human:** A07 (tablet stylus spike), IOS03 impl (Mac + Apple

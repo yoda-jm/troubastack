@@ -3276,6 +3276,14 @@ The re-presentation resolves the HOLD exactly:
 **GO TO LAND** (fast-forward; cite this verdict). On-device pen/finger feel still
 rides the attended T27 device pass.
 
+## 2026-07-10 — T27 phone breakpoint LANDED (`f90a7ca`): ✅ CLOSED — the stage-4 residue is done
+
+Patch-identical to the GO'd `76fe587` (diff-of-diffs clean; only the approval
+citation added — protocol followed). CI on `f90a7ca` watched (script-file watcher).
+With this, T27's unattended scope is fully complete: the ONLY remaining T27 item is
+the attended device pass (iOS pinch-guard + pen/finger feel, rides A07). Queue
+updated.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
