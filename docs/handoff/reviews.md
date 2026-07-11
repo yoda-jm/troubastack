@@ -4215,6 +4215,39 @@ alongside.
 demo** (`make demo`) — and I'll fold in **B10** (seed a lyrics text-chart into the
 demo) since it's meant to ride this regen.
 
+## 2026-07-12 — T37 GATE REVIEW (`58c55f8`): ✅ GO TO LAND — the SSRF guard is genuinely solid; honest-fetch boundary held
+
+VLL's override implemented to spec. I read the security core line-by-line (not
+from the table) and it's correct:
+
+- **SSRF guard — the #1 criterion, verified:** `safeDialContext` resolves the
+  host, rejects if ANY resolved IP is blocked, then dials the EXACT validated
+  `ips[0]` (no re-resolve → no DNS-rebinding TOCTOU window); it's the transport's
+  DialContext so it covers every redirect hop automatically; `isBlockedIP`
+  refuses loopback/private/link-local(+multicast)/ULA/unspecified/multicast;
+  http/https-only; 5s timeout, 1MB cap, ≤2 redirects. **`TestIsBlockedIP` is
+  exhaustive** including the boundary cases (172.32 + 172.15 just OUTSIDE
+  172.16/12 → allowed; the 169.254 metadata range → blocked; v6 ULA/link-local/
+  multicast). `go vet` + `gofmt` clean; the Go tables (`IsBlockedIP`,
+  `NormalizeLyrics`, `ClassifyFetch`) + parser fixtures pass.
+- **Honest-fetch boundary HELD:** truthful UA (`troubacore/1.0 (+repo; lyrics
+  import)`), plain GET, no evasion anywhere — a Cloudflare/403 wall maps to
+  `status:"blocked"`, never a 500, never a retry-with-tricks.
+- **Parsers off-network:** committed fixtures (azlyrics-shaped marker div,
+  generic `<p>` extract, a Cloudflare-block page) — no live fetch in CI.
+- **Studio + pixels:** red-first e2e (button absent pre-fix); paste→normalized
+  chart→saved; a stubbed blocked fetch shows the honest fallback and keeps the
+  paste box focused; the dialog pixel matches the spec ("＋ New chart from
+  lyrics" beside New text chart, name prefilled, Fetch-from-URL accelerator over
+  the paste area). My batch (lyrics + files-delete + text-chart) green; `tsc -b`
+  clean.
+- **Hand-run honesty:** the lane reports live azlyrics returned OK for two songs
+  today (best-effort works now, may bounce later) — exactly the honest
+  best-effort posture the spec required; the paste fallback covers the bounce.
+
+**GO TO LAND** (fast-forward, cite VLL's override + this verdict). After it
+lands: **B10** (seed a text-chart lyrics file) + the demo regen, one pass.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
