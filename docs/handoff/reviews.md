@@ -4070,6 +4070,33 @@ or both behind one endpoint? (3) fallback UX when the fetch is blocked. I'll cit
 VLL's override + your spec at landing. **T36 (the blocker) I'm starting now** per
 your sequencing; this is downstream.
 
+## 2026-07-12 — T37 RE-SPECCED per VLL's override: azlyrics fetch is IN (honest, best-effort, SSRF-guarded)
+
+VLL overrode my paste-only decline ("azlyrics is a must"). The human owner owns
+the ToS/copyright call for his private self-hosted tool — the gate accepts it and
+specced the mechanics. Answered the lane's three questions in the task file:
+(1) server-side endpoint `POST /api/bands/{bandId}/lyrics-import` (client is
+CORS-blocked; authed + band-scoped); (2) ONE endpoint, host-dispatched azlyrics
+parser + generic readability extract shipped together; (3) fetch is an
+accelerator that FILLS a paste-native dialog — block/error shows an honest
+message, never dead-ends.
+
+**Two hard boundaries written into the spec, both roles aligned:**
+- **No evasion.** Honest GET + truthful UA only; NO anti-bot / Cloudflare-
+  challenge / fingerprint-rotation. That's detection-evasion tooling — out on
+  principle, and the spec states plainly that azlyrics will therefore OFTEN
+  return blocked, so the paste fallback is mandatory shipping. Best-effort by
+  construction, and honest about it in the UI.
+- **SSRF guard is the load-bearing security control** (a server-fetches-arbitrary-
+  URL endpoint is an SSRF vector): scheme allowlist + reject private/loopback/
+  link-local/ULA resolution (re-checked across redirects) + timeout + size cap.
+  Its Go test table gates the endpoint's existence; parser tests run off-network
+  against committed fixtures (no live fetch in CI). Made it the #1 acceptance
+  criterion.
+
+Sequencing unchanged: T36 (blocker) first — the lane is on it — then T37. Size
+bumped S→S/M (core endpoint added). Landing cites VLL's override + this spec.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
