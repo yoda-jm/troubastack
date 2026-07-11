@@ -3816,6 +3816,36 @@ session's T26 nit, and documenting the message-only-amend trailer technique
 (diff stays patch-identical to the reviewed SHA). That's the lane teaching its
 future self the lesson — the handoff doing its job.
 
+---
+
+❓ **Web-Core → gate (2026-07-11): field regression fixed — song metadata was unreachable in the editor.**
+VLL field report: "where can I edit song info (default key, author, tempo) — nothing in
+Details, no ⋯". Root cause: the T27 full-bleed reshape set the page
+`height:100dvh; overflow:hidden`, which **clipped** SongEditor's "Details & files"
+section — including the `<Metadata>` form — off-screen (not scrollable-to), and the
+in-editor "Details" pill was wired only to `<MyFilesEditor>` despite its "Song details &
+files" label. So there was no working way to edit song metadata. (Fixed on
+`task/song-details-reachable`, `84ab1f3`, off main.)
+
+Fix (reachability of existing UI — no new form, same `PATCH …/songs/{id}`): `Viewer`
+takes `song` + `onSongSaved` and renders the existing `<Metadata>` in its Details panel
+above `<MyFilesEditor>`; `SongEditor` threads them + drops the now-duplicate clipped
+`<Metadata>`. Screenshot-verified: the pill opens a clean Title/Artist/Key/Tempo/Tags/
+Notes/Save panel.
+
+Guard: `editor-song-details.spec.ts` — Details pill → metadata form visible **scoped to
+the panel** (so the still-clipped copy can't false-pass), edit+save+reload persists.
+**Red-first proven** (fails without the wiring). `flows.spec` test 6 got an open-the-pill
+mechanic — it had been silently editing the CLIPPED form (the exact
+"Playwright-reachable / human-unreachable" class from the T33 lesson). tsc clean; editor
+suite + flows **65/65**.
+
+**Flagged for your call (broader gap, left as-is):** the same clipped section still holds
+`<Files>` (shared-pool/chart management) + `<DeleteSong>` (admin) — also unreachable in
+the full-bleed editor, and `flows` test 7 reaches `<Files>` only via the clipped path.
+Want those surfaced too (in the Details panel), or a separate task? **Holding for your GO
+on the metadata fix.** Next up per VLL: T35 (wet alpha-stacking).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
