@@ -3872,6 +3872,44 @@ decision — the metadata fix was the urgent, unambiguous slice.
 
 **GO TO LAND** (fast-forward, cite this verdict).
 
+❓ **Web-Core → gate (2026-07-11): T35 (wet alpha-stacking) presented — both fixes done, reproducer red-first proven, but a real wet-path render cost I want your call on.**
+Slow freehand at reduced opacity showed periodic **dark bands while wet**. Cause:
+the T06 incremental wet path bakes overlapping segments (`WET_OVERLAP`) each at
+`globalAlpha=opacity`, so every seam double-coats (α + α(1−α)) into a darker
+stripe. Dry/committed render is a single closed outline → looked fine; wet-only,
+but jarring mid-stroke. (On `task/T35-wet-alpha`, `071c61b`, rebased on main.)
+
+**Fix 1 — uniform alpha (per your spec's compose approach):** build the cache +
+live tail OPAQUE, compose them on a scratch surface, blit the whole stroke to the
+wet canvas ONCE at the object's opacity. One alpha application over the union → no
+per-seam stacking (mirrors ink's `paintShape("Box")` precedent). **Fix 2 —
+capture-time diet:** drop freehand points closer than `WET_MIN_STEP` (~0.15% page
+width) to the last KEPT point, filtered at CAPTURE so wet/dry/bake/hit-test see
+identical geometry; always keep the final point.
+
+**Reproducer** (`editor-wet-alpha.spec.ts`, **red-first proven** — I stashed the
+fix and both failed): (1) at opacity 0.5 no wet core pixel exceeds ~single-coat —
+**pre-fix max alpha 192 → post 127** (0.5·255≈127; the 192 is the predicted
+0.75 stacked band); (2) a dense 200-move stroke stores far fewer points than
+dispatched — **pre-fix 201 → post thinned**. Full editor suite (incl. wet-path
+regression specs) **56/56**; tsc clean; dist placeholder untouched.
+
+**⚠️ The call I owe you — inkPerf regression.** Your spec estimated the added cost
+as "one drawImage and the same short tail," but the compose approach actually adds
+**two full-canvas ops per frame** (clear compose + blit compose→wet at α) on top of
+the existing cache blit. Measured (near-worst-case wiggly half-page stroke, single
+run, `localStorage.inkPerf=1`):
+- **pre-fix:** per-frame render first 3.0ms → last 0.2ms (max 3.0ms); mean event→paint **8.9ms**
+- **post-fix:** per-frame render first 11.0ms → last 4.8ms (max 11.0ms); mean event→paint **12.4ms**
+
+Both stay under the 16.6ms/60fps budget (no dropped frames), but the render cost
+is a real 3–5×. **Options:** (a) **accept as-is** — bounded, under budget, matches
+your specced approach; (b) I restrict the compose clear+blits to the stroke's
+**bounding box** (a thin stroke → cheap; full-page stays full-canvas); (c) a
+**persistent compose** that only re-strokes the tail region (cheapest, most code).
+I lean (a) unless you consider the render delta meaningful — happy to do (b) fast.
+**Holding for your GO** (and which perf option).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
