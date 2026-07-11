@@ -151,6 +151,9 @@ test("6. edit song metadata persists across reload", async ({ page }) => {
   await createBandAndOpen(page, `MetaBand ${stamp()}`);
   await createSong(page, `MetaSong ${stamp()}`);
 
+  // Song metadata now lives in the editor's Details panel (opened via the Details pill);
+  // it was previously a clipped-off-screen section (fix: reachable via the pill).
+  await page.getByTestId("my-files-edit").click();
   await page.getByTestId("meta-key").fill("G#m");
   await page.getByTestId("meta-tempo").fill("128");
   await page.getByTestId("meta-tags").fill("rock, encore");
@@ -159,6 +162,7 @@ test("6. edit song metadata persists across reload", async ({ page }) => {
   await expect(page.getByTestId("meta-notice")).toBeVisible();
 
   await page.reload();
+  await page.getByTestId("my-files-edit").click();
   await expect(page.getByTestId("meta-key")).toHaveValue("G#m");
   await expect(page.getByTestId("meta-tempo")).toHaveValue("128");
   await expect(page.getByTestId("meta-tags")).toHaveValue("rock, encore");

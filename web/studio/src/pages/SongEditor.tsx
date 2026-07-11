@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api, type Role, type Song } from "../api";
-import { Details, Metadata, Files, DeleteSong } from "./song-editor/SongDetails";
+import { Details, Files, DeleteSong } from "./song-editor/SongDetails";
 import { Viewer } from "./song-editor/Viewer";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -69,10 +69,15 @@ export function SongEditor() {
             songTitle={song.title}
             myUserId={user?.id ?? null}
             myRole={myRole}
+            song={song}
+            onSongSaved={setSong}
           />
 
+          {/* NOTE: this section is clipped off-screen by the full-bleed editor layout —
+              song METADATA is now edited in the editor's Details panel (Viewer). The
+              shared-pool Files editor + DeleteSong remain here and are likewise not
+              reachable in the full-bleed editor (a broader gap, flagged for follow-up). */}
           <Details title="Details & files">
-            <Metadata bandId={bandId} song={song} onSaved={setSong} />
             <Files bandId={bandId} songId={songId} />
             {myRole === "admin" && (
               <DeleteSong

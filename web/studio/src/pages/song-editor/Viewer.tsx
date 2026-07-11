@@ -12,9 +12,11 @@ import {
   type AnnotationObject,
   type AnnotationStyle,
   type Role,
+  type Song,
   type SongFile,
 } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
+import { Metadata } from "./SongDetails";
 import {
   DEFAULT_STYLE,
   buildObject,
@@ -73,12 +75,19 @@ export function Viewer({
   songTitle,
   myUserId,
   myRole,
+  song,
+  onSongSaved,
 }: {
   bandId: string;
   songId: string;
   songTitle: string;
   myUserId: string | null;
   myRole: Role | null;
+  // The song's metadata (title/artist/key/tempo/tags/notes) + a save callback, so the
+  // fullscreen editor's Details panel can edit it — the SongEditor page's own Details
+  // section is clipped off-screen by the full-bleed layout (fixed: song info reachable).
+  song: Song;
+  onSongSaved: (s: Song) => void;
 }) {
   // The file strip is MY ordered selection (getMyFiles), not the whole pool.
   const [files, setFiles] = useState<SongFile[]>([]);
@@ -1123,6 +1132,9 @@ export function Viewer({
           they must NOT regress behind the fullscreen chrome. ---- */}
       {editorOpen && (
         <div className="details-panel" data-testid="details-panel">
+          {/* Song metadata (key/artist/tempo/tags/notes) — the "Details" pill's headline
+              content, matching its "Song details & files" title. */}
+          <Metadata bandId={bandId} song={song} onSaved={onSongSaved} />
           <MyFilesEditor
             bandId={bandId}
             songId={songId}
