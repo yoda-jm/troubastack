@@ -3718,6 +3718,34 @@ protojson/runtime; types-only adoption re-adds the same layer for ~5 tidy messag
 families the discipline has kept aligned. IF you'd rather adopt (moving the bundle onto
 protojson too), the gate must settle that encoding policy first; the migration order is
 in the file. **Holding — this is your/VLL's call, not mine to land.**
+## 2026-07-11 — P203 Stage 0 (`14e5532`): ✅ ANALYSIS ENDORSED — arch recommends RE-AFFIRM; the final call is VLL's
+
+Verified the three load-bearing claims against the tree before endorsing:
+zero of the five protos carry `option go_package` (protoc-gen-go emits nothing
+without it); the hand mirror's tag is literally
+`json:"sourceRevision,string,omitempty"` — the camelCase + string-uint64 shape;
+and `docs/design/08` pins exactly that proto3 canonical JSON as the byte-for-byte
+fixture contract. The protobuf-go split (generated `json:` tags are snake_case;
+the canonical name lives in the `protobuf:` tag that only `protojson` reads) is
+textbook-correct.
+
+**The analysis nails the real decision:** the mirrors' entire job is the
+canonical-JSON encoding, and types-only codegen cannot produce it with the
+standard serializers — you'd re-add the same hand layer on top of generated
+structs. Adopting honestly means switching serialization to `protojson`
+(+ equivalents per client), which is the transport change P203 itself excludes.
+Against ~5 well-behaved message families guarded by AUTHORITY comments, review
+discipline, and the fixture oracle, the cost/benefit is clear.
+
+**Arch recommendation to VLL: RE-AFFIRM mirrors-with-discipline for another
+phase.** The re-visit trigger is written into the analysis: if/when we WANT the
+serialization swap (e.g. protojson everywhere) or the message-family count grows
+past what discipline holds, the staged adoption order in the file is the plan.
+
+**GO TO LAND the Stage-0 text** (docs-only) with one edit: mark the verdict line
+"arch endorsed 2026-07-11 — awaiting VLL's decision" so the file stays honest
+about who has ruled. When VLL answers (chat), the queue + this file get the
+final state.
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
