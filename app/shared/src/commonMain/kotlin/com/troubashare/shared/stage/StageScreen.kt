@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -338,21 +339,39 @@ private fun SongDrawerSheet(state: StageState, onJump: (Int) -> Unit) {
             Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
             style = MaterialTheme.typography.titleLarge,
         )
-        state.songs.forEachIndexed { i, s ->
-            val meta = songMetaLine(state, i)
-            NavigationDrawerItem(
-                selected = i == state.currentSong,
-                label = {
-                    Column {
-                        Text(s.name, style = MaterialTheme.typography.titleMedium)
-                        if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium)
-                    }
-                },
-                onClick = { onJump(i) },
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+        // T23: bench/encore songs group below the running order under an "On call" header. Each item
+        // keeps its ORIGINAL song index (via withIndex) so a jump still lands on the right pages,
+        // regardless of how the bundle ordered them.
+        val (bench, main) = state.songs.withIndex().partition { it.value.onCall }
+        main.forEach { (i, s) -> SongDrawerItem(state, i, s, onJump) }
+        if (bench.isNotEmpty()) {
+            HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Text(
+                "On call",
+                Modifier.padding(horizontal = 28.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            bench.forEach { (i, s) -> SongDrawerItem(state, i, s, onJump) }
         }
     }
+}
+
+/** One row of the song drawer: title + the A08 meta line; highlighted when it is the current song. */
+@Composable
+private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int) -> Unit) {
+    val meta = songMetaLine(state, i)
+    NavigationDrawerItem(
+        selected = i == state.currentSong,
+        label = {
+            Column {
+                Text(s.name, style = MaterialTheme.typography.titleMedium)
+                if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium)
+            }
+        },
+        onClick = { onJump(i) },
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+    )
 }
 
 /** Approx page aspect (w/h) used to reserve a scroll item's height before its bitmap has decoded. */

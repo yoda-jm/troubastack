@@ -19,11 +19,25 @@ class SongDrawerTest {
         return r.state.value
     }
 
-    private fun song(pages: Int, key: String = "", tempo: Int = 0, notes: String = "") = BakedSong(
+    private fun song(pages: Int, key: String = "", tempo: Int = 0, notes: String = "", title: String = "", onCall: Boolean = false) = BakedSong(
         songId = "s",
         pages = (1..pages).map { PageImages(pageRasterRef = "p$it.png") },
-        key = key, tempo = tempo, displayNotes = notes,
+        key = key, tempo = tempo, displayNotes = notes, title = title, onCall = onCall,
     )
+
+    @Test
+    fun songName_usesBakedTitle_elseFallsBackToSongN() {
+        // T26: the baked title names the song; an empty title falls back to "Song N".
+        val s = state(song(1, title = "Wonderwall"), song(1), song(1, title = "Hallelujah"))
+        assertEquals(listOf("Wonderwall", "Song 2", "Hallelujah"), s.songs.map { it.name })
+    }
+
+    @Test
+    fun onCall_flagFlowsFromBundleToSongInfo() {
+        // T23: bench songs carry on_call → SongInfo.onCall, which the drawer groups on.
+        val s = state(song(2), song(1, onCall = true))
+        assertEquals(listOf(false, true), s.songs.map { it.onCall })
+    }
 
     @Test
     fun currentSong_isTheSongOwningTheCurrentPage() {

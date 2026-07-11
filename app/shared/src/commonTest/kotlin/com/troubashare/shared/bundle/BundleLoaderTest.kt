@@ -141,18 +141,35 @@ class BundleLoaderTest {
     }
 
     @Test
-    fun tolerates_unknown_onCall_field() {
-        // T23 adds `on_call` to the bundle's BakedSong. This app reader predates that
-        // field (no `onCall` in BakedSong): the loader must ignore the unknown key and
-        // load the bundle normally — the additive-field backward-compat guarantee, PROVEN
-        // (not just cited) per the T23 cross-lane check.
+    fun maps_title_and_onCall_fields() {
+        // T26 (title=9) + T23 (on_call=8): the loader now MAPS both bundle fields (previously the
+        // app ignored on_call; it's consumed since the T26 app half). Empty/absent stay defaulted.
         val manifest = """
-            {"concertId":"c1","songs":[{"songId":"s1","onCall":true,"pages":[
+            {"concertId":"c1","songs":[
+              {"songId":"s1","title":"Wonderwall","pages":[{"pageRasterRef":"blobs/p0.webp","overlays":[]}]},
+              {"songId":"s2","title":"Encore","onCall":true,"pages":[{"pageRasterRef":"blobs/p1.webp","overlays":[]}]}
+            ]}
+        """.trimIndent()
+        val files = filesWith(manifest, blobs = mapOf("blobs/p0.webp" to "r", "blobs/p1.webp" to "r"))
+        val loaded = assertIs<LoadResult.Loaded>(loader.load(DIR, files))
+        val (s1, s2) = loaded.bundle.songs
+        assertEquals("Wonderwall", s1.title)
+        assertEquals(false, s1.onCall)
+        assertEquals("Encore", s2.title)
+        assertEquals(true, s2.onCall)
+    }
+
+    @Test
+    fun tolerates_genuinely_unknown_field() {
+        // The additive-field backward-compat guarantee still holds for keys this reader doesn't know
+        // (a future proto field): the loader ignores them and loads normally (ignoreUnknownKeys).
+        val manifest = """
+            {"concertId":"c1","someFutureField":42,"songs":[{"songId":"s1","artistSubtitle":"x","pages":[
               {"pageRasterRef":"blobs/p0.webp","overlays":[]}
             ]}]}
         """.trimIndent()
         val files = filesWith(manifest, blobs = mapOf("blobs/p0.webp" to "r"))
         val loaded = assertIs<LoadResult.Loaded>(loader.load(DIR, files))
-        assertEquals("s1", loaded.bundle.songs.single().songId, "unknown onCall must not break the load")
+        assertEquals("s1", loaded.bundle.songs.single().songId, "unknown keys must not break the load")
     }
 }

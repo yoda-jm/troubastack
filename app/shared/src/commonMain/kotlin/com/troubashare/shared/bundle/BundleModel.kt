@@ -50,6 +50,12 @@ data class BakedSong(
     val displayNotes: String = "",                                              // proto display_notes
     val key: String = "",                                                       // proto key
     val tempo: Int = 0,                                                         // proto tempo
+    // T23: baked into the concert but sits on the "bench" (on call) — outside the running
+    // order, still jumpable. Additive/default-false; old bundles omit it (proto on_call = 8).
+    val onCall: Boolean = false,                                                // proto on_call
+    // T26: the song's Title at bake time (a bundle is a snapshot; no rename propagation).
+    // Additive/default-empty; empty/absent falls back to "Song N" client-side (proto title = 9).
+    val title: String = "",                                                     // proto title
 )
 
 /** proto `troubastack.v1.ConcertBundle` — the self-contained, performable baked concert (I11/I12). */

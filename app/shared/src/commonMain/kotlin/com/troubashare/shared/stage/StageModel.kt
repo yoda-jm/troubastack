@@ -53,8 +53,11 @@ data class StagePage(
     val tempo: Int = 0,
 )
 
-/** A song entry for the picker: jumps to the song's first global page. */
-data class SongInfo(val songId: String, val name: String, val firstPage: Int)
+/**
+ * A song entry for the picker: jumps to the song's first global page. [onCall] marks a bench/encore
+ * song (T23) — baked and jumpable but outside the running order; the drawer groups these separately.
+ */
+data class SongInfo(val songId: String, val name: String, val firstPage: Int, val onCall: Boolean = false)
 
 /** A distinct layer aggregated across the bundle, for the Layers panel. */
 data class LayerInfo(val layerId: String, val mandatory: Boolean, val roleTag: String)
@@ -105,8 +108,9 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
     val pages = ArrayList<StagePage>()
     val songs = ArrayList<SongInfo>()
     bundle.songs.forEachIndexed { songIdx, song ->
-        val songName = "Song ${songIdx + 1}"
-        songs.add(SongInfo(song.songId, songName, pages.size))
+        // T26: the baked title names the song; empty/absent falls back to the "Song N" client default.
+        val songName = song.title.ifBlank { "Song ${songIdx + 1}" }
+        songs.add(SongInfo(song.songId, songName, pages.size, onCall = song.onCall))
         song.pages.forEachIndexed { pageIdx, page ->
             val rasterBad = blobKey(song.songId, pageIdx, page.pageRasterRef) in badRefs
             pages.add(
