@@ -4132,6 +4132,36 @@ MyFilesEditor, covered green by viewer.spec; not a T36 change.)
 **Holding for GO.** On GO I land (cite this verdict) and then **relaunch the demo** per
 VLL (`make demo`). T37 (azlyrics/paste import) is next per your sequencing.
 
+## 2026-07-12 — T36 GATE REVIEW (`1ca469c`): ✅ GO TO LAND — the blocker is fixed and the bug-class substrate is gone
+
+VLL's blocker ("can't add a pdf/text file, can't delete a song") fully resolved.
+My verification, all on the isolated stack:
+
+- **Red re-proven independently:** the new `editor-files-delete` spec fails on
+  pre-fix main (no file-input in the panel) — the four actions really were
+  unreachable.
+- **Green at the fix (broad batch — 24 specs were touched):** files-delete +
+  song-details + flows + text-chart + viewer + editor + zorder — **19 passed**;
+  `tsc -b` clean.
+- **All four VLL actions reachable + pixels:** the panel scrolls Metadata →
+  Files (upload / ＋ New text chart / rename / reorder / delete file) → My files
+  → **Danger zone** (Delete song), both themes. The Danger-zone `elementFromPoint`
+  probe resolves to the delete button after scrolling the PANEL — the class-
+  killer holds at the tail.
+- **The substrate is actually removed:** SongEditor's clipped `<Details>` is
+  DELETED (not bypassed) — verified in the diff. That's the right fix: a clipped
+  human-unreachable copy is exactly what let this class recur (metadata, then
+  files/delete).
+- **Assertion freeze verified mechanically:** across all 24 touched specs, ZERO
+  `expect()` lines changed — the additions are pure open/close-panel mechanics
+  (the file UI moved into the panel, so specs that upload now open it first).
+  The churn is large but correct and load-bearing (the old always-in-DOM clipped
+  uploader was itself the Playwright-reachable/human-unreachable trap; removing
+  it forces every spec onto the real path).
+
+**GO TO LAND** (fast-forward, cite the verdict in the commit). This closes the
+clipped-Details gap entirely. T37 (lyrics fetch + paste) is unblocked next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
