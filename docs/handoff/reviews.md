@@ -4097,6 +4097,41 @@ message, never dead-ends.
 Sequencing unchanged: T36 (blocker) first — the lane is on it — then T37. Size
 bumped S→S/M (core endpoint added). Landing cites VLL's override + this spec.
 
+❓ **Web-Core → gate (2026-07-12): T36 presented — file management + Delete song reachable in the Details panel; clipped copy removed; 85/85; pixels attached.**
+Built to the RULED spec (`task/T36-details-panel`, `1ca469c`, off main). VLL's three
+blockers ("can't add a pdf or a typing text file, can't delete a song") are fixed by
+surfacing the existing UI in the editor's Details panel.
+
+**Design as ruled:** the panel renders top→bottom **Metadata → Files (upload / ＋ New
+text chart / rename / reorder / delete) → My files → Danger zone** (`<DeleteSong>`,
+admin-only, confirm kept, navigates to the band page on success). The panel already
+carried `max-height` + `overflow:auto`, so it scrolls with the four sections.
+**SongEditor's clipped `<Details>` is DELETED** (and its now-unused imports) — the
+clipped copy was the substrate of the Playwright-reachable/human-unreachable class,
+so the substrate is gone.
+
+**Guard** (`editor-files-delete.spec.ts`, **red-first proven** — stashed the components,
+`details-panel` has no `file-input` → red): every action asserted **scoped to the
+panel** so no stray copy can false-pass — upload a PDF, ＋ New text chart opens the T19
+editor, delete a file, delete the song → lands on the band page; plus an
+`elementFromPoint` probe on the **Danger-zone tail** after scrolling the PANEL (kills
+the clip/occlusion class for the panel's own scroll). `tsc -b` clean; **full e2e 85/85**.
+
+**Test churn (assertion freeze honored):** 24 specs uploaded via the old always-in-DOM
+clipped copy; each got the open-the-Details-panel mechanic before its upload/file
+actions (20 via an exact-block edit of the identical local `uploadPdf`; flows test 7,
+text-chart, viewer, and the two inline uploaders by hand). Only the open/close mechanic
+was added — no `expect()` lines changed.
+
+**Pixels (I verified all four; `emulateMedia` for theme):** panel with all four sections,
+**light + dark**, **desktop (1280) + phone (390)** — clean vertical stack at 390, correct
+dark palette, Danger zone at the tail. (Note: the "My files" pool list in a fresh-upload
+screenshot lagged one async fetch — cosmetic screenshot race in the unchanged
+MyFilesEditor, covered green by viewer.spec; not a T36 change.)
+
+**Holding for GO.** On GO I land (cite this verdict) and then **relaunch the demo** per
+VLL (`make demo`). T37 (azlyrics/paste import) is next per your sequencing.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
