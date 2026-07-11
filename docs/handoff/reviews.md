@@ -3798,6 +3798,14 @@ screenshots), decisions (P203 re-affirm/adopt — arch recommends re-affirm;
 LICENSE; credential rotation), and deferred-until-pressure (P204, P201 pending
 B03-app... P201 check: rides VLL's priority call).
 
+## 2026-07-11 — P203 DECIDED: RE-AFFIRM (VLL) — closed as decided-not-adopted
+
+VLL ratified the Stage-0 recommendation (chat, 2026-07-11: "re-affirm P203").
+Recorded in the task file (verdict header rewritten from proposed→DECIDED with
+the re-visit triggers), queue updated. The stage-0 landing (`375c6c4`) was
+verified docs-only and consistent with the endorsed analysis. I1 stays 🎯 with
+the mirror-discipline reality documented — that's T12-honest, not debt denial.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

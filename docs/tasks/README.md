@@ -59,7 +59,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   explicit tier is ✅.
 - **Open, unblocked:** *(none — every unattended agent-executable item is done as of
   2026-07-11; B06 app half landed `4e0c024`)* · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
-  HTTPS bring-up + the release-APK half, mobile) · P201/P203 (P202 closed
+  HTTPS bring-up + the release-APK half, mobile) · P201 (P203 DECIDED 2026-07-11: re-affirm mirrors —
+  closed-not-adopted; P202 closed
   2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
@@ -221,7 +222,7 @@ repos); IOS03 is a decision stub (devices/App Store need a Mac + Apple ID).
 |---|---|---|---|
 | P201 | [Rehearsal live mode: autobake + transient auto-update](P201-rehearsal-live-mode.md) | core+studio+app | L |
 | P202 | [Real GC: cross-layer reachability + retention](P202-real-gc.md) — safe slice landed, rest re-scoped → P204 | core | M/L |
-| P203 | [Adopt proto codegen (staged decision)](P203-codegen-adoption.md) | all | L |
+| P203 | [Adopt proto codegen (staged decision)](P203-codegen-adoption.md) — DECIDED: re-affirm mirrors (closed) | all | L |
 | P204 | [Annotation-history compaction (P202's deferred half)](P204-history-compaction.md) — DEFERRED until real disk pressure | core | M/L |
 
 P201 depends on B03. P202 benefits from B02 (bake source-revision roots). P203 starts

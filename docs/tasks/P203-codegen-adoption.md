@@ -20,7 +20,17 @@ inventory the delta per client: how far are generated shapes from the hand-writt
 (JSON tags, ULong vs uint64, oneofs)? Write the verdict + migration order into this file
 and get it reviewed before touching clients.
 
-### Stage 0 — findings + proposed verdict (2026-07-11, web-core — for VLL/arch review)
+### Stage 0 — DECIDED 2026-07-11: RE-AFFIRM mirrors-with-discipline (VLL)
+
+> **The decision (per the Stage-0 process):** VLL re-affirmed mirrors-with-discipline
+> for another phase (chat, 2026-07-11), ratifying the analysis below — which the arch
+> endorsed after verifying its three load-bearing claims against the tree (reviews.md,
+> same date). **P203 is CLOSED as decided-not-adopted.** I1 stays 🎯 with the honest
+> mirror-discipline note; the re-visit triggers are: wanting the `protojson`
+> serialization switch for its own sake, or the message-family count outgrowing
+> discipline. If reopened, the staged order at the bottom of this section is the plan.
+
+#### The findings (2026-07-11, web-core — analysis as presented and verified)
 
 **Prototype run.** `buf generate` (buf 1.71.0, remote `protocolbuffers/go`) into a
 scratch tree. Two frictions before any type comparison:
