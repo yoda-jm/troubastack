@@ -105,6 +105,7 @@ private fun App() {
     val context = LocalContext.current.applicationContext
     val storage = remember { Storage(context) }
     val transport = remember { HttpTransport(storage) }
+    val discovery = remember { NsdServerDiscovery(context) } // B06: LAN server discovery for Connect
     val updates = remember {
         UpdatesManager(
             transport = transport,
@@ -125,7 +126,7 @@ private fun App() {
         return
     }
     if (connecting) {
-        ConnectScreen(storage, transport, onConnected = { connecting = false }, onBack = { connecting = false })
+        ConnectScreen(storage, transport, onConnected = { connecting = false }, onBack = { connecting = false }, discovery = discovery)
         return
     }
 

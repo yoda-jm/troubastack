@@ -4,6 +4,9 @@
 
     <!-- Hosting the web Studio (I10) and reaching the core server need network access. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- B06: LAN discovery of the band server (mDNS via NsdManager) needs a Wi-Fi multicast lock so
+         multicast packets are delivered on devices that filter them by default. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <application
         android:allowBackup="true"

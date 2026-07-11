@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,7 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.troubashare.shared.distribution.ServerDiscovery
 import com.troubashare.shared.seams.Storage
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 private const val CORE_URL_KEY = "coreUrl"
@@ -34,13 +37,24 @@ private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080"
  * local bundles (I12). On success the session cookie is persisted (encrypted) by [HttpTransport].
  */
 @Composable
-fun ConnectScreen(storage: Storage, transport: HttpTransport, onConnected: () -> Unit, onBack: () -> Unit) {
+fun ConnectScreen(
+    storage: Storage,
+    transport: HttpTransport,
+    onConnected: () -> Unit,
+    onBack: () -> Unit,
+    // B06: LAN discovery source. Collected only while this screen is composed (start on open, stop on
+    // close). Defaults to none so the screen still works (and tests/previews compose) without discovery.
+    discovery: ServerDiscovery = ServerDiscovery { flowOf(emptyList()) },
+) {
     val scope = rememberCoroutineScope()
     var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // B06: servers advertising on this LAN. Tapping a row PREFILLS the URL only — no auto-connect,
+    // no credential sent without the explicit Connect tap below (mDNS is unauthenticated).
+    val discovered by discovery.servers().collectAsState(initial = emptyList())
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -52,6 +66,25 @@ fun ConnectScreen(storage: Storage, transport: HttpTransport, onConnected: () ->
                 "Sign in to see concerts your band has baked and download them. Playing works offline without an account.",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            // B06: discovered servers on this network, above the URL field. Tap to prefill the URL.
+            if (discovered.isNotEmpty()) {
+                Text("Servers on this network", style = MaterialTheme.typography.labelLarge)
+                discovered.forEach { server ->
+                    Surface(
+                        onClick = { serverUrl = server.url },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        tonalElevation = 2.dp,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Text(
+                            "🎵  ${server.label}",
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
             OutlinedTextField(serverUrl, { serverUrl = it }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(
