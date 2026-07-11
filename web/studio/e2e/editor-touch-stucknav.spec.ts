@@ -62,9 +62,13 @@ async function createSongAndOpen(page: Page, title: string) {
   await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
 }
 async function uploadPdf(page: Page) {
+  // T36: file management moved into the editor's Details panel — open it to reach the
+  // upload form, then close it so the canvas is unobstructed for whatever follows.
+  await page.getByTestId("my-files-edit").click();
   await page.getByTestId("file-input").setInputFiles(PDF_PATH);
   await page.getByTestId("file-upload").click();
   await expect(page.getByTestId("file-row")).toHaveCount(1);
+  await page.getByTestId("my-files-edit").click();
 }
 const objectCount = (page: Page) =>
   page.getByTestId("object-count").innerText().then((t) => parseInt(t, 10));

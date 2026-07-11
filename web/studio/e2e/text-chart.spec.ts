@@ -46,7 +46,8 @@ test("write a text chart → it enters the pool as a generated PDF, editable in 
   await createBandAndOpen(page, `ChartBand ${stamp()}`);
   await createSongAndOpen(page, `Song ${stamp()}`);
 
-  // Start a new text chart, type the tiny dialect.
+  // Start a new text chart (＋ New text chart lives in the editor's Details panel now).
+  await page.getByTestId("my-files-edit").click();
   await page.getByTestId("new-text-chart").click();
   await expect(page.getByTestId("chart-editor")).toBeVisible();
   await page

@@ -16,7 +16,7 @@ import {
   type SongFile,
 } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { Metadata } from "./SongDetails";
+import { Metadata, Files, DeleteSong } from "./SongDetails";
 import {
   DEFAULT_STYLE,
   buildObject,
@@ -77,6 +77,7 @@ export function Viewer({
   myRole,
   song,
   onSongSaved,
+  onSongDeleted,
 }: {
   bandId: string;
   songId: string;
@@ -88,6 +89,10 @@ export function Viewer({
   // section is clipped off-screen by the full-bleed layout (fixed: song info reachable).
   song: Song;
   onSongSaved: (s: Song) => void;
+  // T36: the whole song-management surface (files + delete) lives in this panel now,
+  // since SongEditor's clipped <Details> was the substrate of the unreachable-UI class
+  // and is removed. onSongDeleted navigates away (the song no longer exists).
+  onSongDeleted: () => void;
 }) {
   // The file strip is MY ordered selection (getMyFiles), not the whole pool.
   const [files, setFiles] = useState<SongFile[]>([]);
@@ -1132,9 +1137,13 @@ export function Viewer({
           they must NOT regress behind the fullscreen chrome. ---- */}
       {editorOpen && (
         <div className="details-panel" data-testid="details-panel">
-          {/* Song metadata (key/artist/tempo/tags/notes) — the "Details" pill's headline
-              content, matching its "Song details & files" title. */}
+          {/* T36 — the full "Song details & files" surface, top to bottom (RULED):
+              metadata → shared-pool files (upload / ＋ new text chart / manage) →
+              my-files selection → danger zone (delete). The panel scrolls (CSS
+              max-height + overflow-y) so the tail stays reachable at any viewport;
+              this replaces SongEditor's clipped <Details>, which is now removed. */}
           <Metadata bandId={bandId} song={song} onSaved={onSongSaved} />
+          <Files bandId={bandId} songId={songId} />
           <MyFilesEditor
             bandId={bandId}
             songId={songId}
@@ -1142,6 +1151,9 @@ export function Viewer({
             onChanged={refreshMyFiles}
             onError={setError}
           />
+          {myRole === "admin" && (
+            <DeleteSong bandId={bandId} songId={songId} onDeleted={onSongDeleted} />
+          )}
         </div>
       )}
     </section>

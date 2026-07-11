@@ -17,7 +17,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api, type Role, type Song } from "../api";
-import { Details, Files, DeleteSong } from "./song-editor/SongDetails";
 import { Viewer } from "./song-editor/Viewer";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -71,23 +70,13 @@ export function SongEditor() {
             myRole={myRole}
             song={song}
             onSongSaved={setSong}
+            onSongDeleted={() => navigate(`/bands/${bandId}`)}
           />
 
-          {/* NOTE: this section is clipped off-screen by the full-bleed editor layout —
-              song METADATA is now edited in the editor's Details panel (Viewer). The
-              shared-pool Files editor + DeleteSong remain here and are likewise not
-              reachable in the full-bleed editor (a broader gap, flagged for follow-up). */}
-          <Details title="Details & files">
-            <Files bandId={bandId} songId={songId} />
-            {myRole === "admin" && (
-              <DeleteSong
-                bandId={bandId}
-                songId={songId}
-                onDeleted={() => navigate(`/bands/${bandId}`)}
-              />
-            )}
-          </Details>
-
+          {/* T36: the song-management UI (metadata / files / delete) now lives INSIDE the
+              editor's Details panel (Viewer). The old clipped <Details> section that used
+              to sit here was removed — a clipped, human-unreachable copy is exactly how
+              the "Playwright-reachable but human-unreachable" bug class survived. */}
           <p className="muted editor-note" data-testid="editor-note">
             Pick a tool above and draw on the page. Edits sync live to everyone in the band;
             history/revert is the next step.

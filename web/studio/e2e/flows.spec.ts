@@ -173,6 +173,7 @@ test("7. files list renders (empty) on the song page", async ({ page }) => {
   await register(page, `files_${stamp()}`);
   await createBandAndOpen(page, `FilesBand ${stamp()}`);
   await createSong(page, `FilesSong ${stamp()}`);
+  await page.getByTestId("my-files-edit").click(); // files live in the Details panel now (T36)
   await expect(page.getByTestId("files-empty")).toBeVisible();
   await expect(page.getByTestId("file-upload-form")).toBeVisible();
 });

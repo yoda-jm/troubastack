@@ -45,6 +45,7 @@ test("offline: read-only chip, grayed tools, a drag leaves no ink; reconnect res
   await page.getByTestId("song-title").fill("No Silent Ink");
   await page.getByTestId("create-song").click();
   await page.getByTestId("song-link").first().click();
+  await page.getByTestId("my-files-edit").click(); // T36: upload form is in the Details panel
   await page.getByTestId("file-input").setInputFiles(PDF_PATH);
   await page.getByTestId("file-upload").click();
   await expect(page.getByTestId("file-row")).toHaveCount(1);

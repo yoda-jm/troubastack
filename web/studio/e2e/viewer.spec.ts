@@ -173,10 +173,12 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
   const songId = page.url().split("/songs/")[1];
 
-  // Upload the PDF fixture via the Details & files section (open by default).
+  // Upload the PDF fixture via the Details panel (T36: file management lives there now).
+  await page.getByTestId("my-files-edit").click();
   await page.getByTestId("file-input").setInputFiles(PDF_PATH);
   await page.getByTestId("file-upload").click();
   await expect(page.getByTestId("file-row")).toHaveCount(1);
+  await page.getByTestId("my-files-edit").click();
 
   // Discover the uploaded file's id, then import a rich annotation set via API
   // (same-origin fetch carries the session cookie).
@@ -342,11 +344,13 @@ test("my-files: per-member selection drives the strip (exclude, reorder, persist
 
   // Upload the same fixture 3 times → 3 distinct pool files, then rename each via
   // the API so the file-tab labels are distinguishable (A, B, C in pool order).
+  await page.getByTestId("my-files-edit").click(); // T36: uploads happen in the Details panel
   for (let i = 0; i < 3; i++) {
     await page.getByTestId("file-input").setInputFiles(PDF_PATH);
     await page.getByTestId("file-upload").click();
     await expect(page.getByTestId("file-row")).toHaveCount(i + 1);
   }
+  // (the page.reload() below closes the panel again before the my-files editor is opened)
 
   // Fresh uploads all share displayOrder 0, so the default order is otherwise
   // unstable. Assign each a distinct displayOrder (0,1,2) AND a distinct name

@@ -66,6 +66,7 @@ test("drawing on a hidden layer auto-reveals it; the committed stroke stays pain
   await page.getByTestId("song-title").fill("Hidden Layer Repro");
   await page.getByTestId("create-song").click();
   await page.getByTestId("song-link").first().click();
+  await page.getByTestId("my-files-edit").click(); // T36: upload form is in the Details panel
   await page.getByTestId("file-input").setInputFiles(PDF_PATH);
   await page.getByTestId("file-upload").click();
   await expect(page.getByTestId("file-row")).toHaveCount(1);
