@@ -57,8 +57,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T36** (HIGH/BLOCKER — Files + Delete-song reachable in the
-  editor's Details panel; placement RULED, VLL field input attached) · **T37**
+- **Open, unblocked:** **T37**
   (new chart from lyrics: best-effort azlyrics/URL fetch + paste fallback — VLL
   override 2026-07-12, honest fetch + SSRF-guarded; depends on T36) · ~~T35~~ (wet alpha-stacking — LANDED `21698ac` 2026-07-12 on slow freehand at reduced opacity —
   uniform-alpha wet compositing + capture-time point filter; research resolved in the
@@ -118,7 +117,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T33 | [Thin the ctx style pill to the main bar's height](T33-thin-ctx-bar.md) — landed | studio | S/M |
 | T34 | [Touch editor stuck in nav (stale pointer entry)](T34-stuck-nav-stale-pointer.md) — landed | studio | XS/S |
 | T35 | [Slow freehand at reduced opacity shows dark bands (wet alpha-stacking)](T35-wet-alpha-stacking.md) — landed | studio | S |
-| T36 | [Files + Delete song reachable in the editor (clipped-Details rest)](T36-details-panel-files-delete.md) | studio | S/M |
+| T36 | [Files + Delete song reachable in the editor (clipped-Details rest)](T36-details-panel-files-delete.md) — landed | studio | S/M |
 | T37 | [New chart from lyrics: best-effort fetch + paste fallback](T37-lyrics-paste-import.md) | core+studio | S/M |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 

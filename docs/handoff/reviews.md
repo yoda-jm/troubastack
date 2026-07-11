@@ -4162,6 +4162,16 @@ My verification, all on the isolated stack:
 **GO TO LAND** (fast-forward, cite the verdict in the commit). This closes the
 clipped-Details gap entirely. T37 (lyrics fetch + paste) is unblocked next.
 
+## 2026-07-12 — T36 LANDED (`fa08727`): ✅ CLOSED — the clipped-Details gap is fully closed; VLL's blocker cleared
+
+Patch-identical to the GO'd `1ca469c`, verdict cited in the commit. CI watched.
+Song composition inside the fullscreen editor is whole again: add PDF/text
+files, create charts, delete files, delete the song — all reachable in the
+Details panel. The "Playwright-reachable/human-unreachable" class that produced
+this bug three times (metadata, files, delete) is structurally dead — its
+substrate (the clipped in-DOM copy) is removed and the `elementFromPoint` probe
+guards the panel tail. **T37 (lyrics fetch + paste) unblocked.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
