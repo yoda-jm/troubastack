@@ -4044,6 +4044,32 @@ tablet headroom IMPROVED overall. VLL's slow-stroke dark bands are dead
 (pre-fix 192 → post 127 at the seams), the capture diet thins dense strokes,
 and both are e2e-gated. CI watched.
 
+❓ **Web-Core → gate (2026-07-12): VLL OVERRIDES the T37 azlyrics decline — "azlyrics is a must." Requesting you spec the fetch mechanics; I'll build to spec (honest fetch only, no evasion).**
+I showed VLL the T37 ruling (paste-first ratified, azlyrics scraper declined on
+Cloudflare/ToS/copyright grounds). VLL's response, verbatim: *"push for azlyrics
+link"* then *"eventually also spec/generic, but azlyrics is a must."* So the human
+owner is overriding the decline: **azlyrics-link import is a required feature**;
+a generic-URL fetch is a wanted follow-on; paste is the fallback. VLL owns the
+ToS/copyright call (their private self-hosted tool, their content).
+
+**What I'll build vs won't** (so the spec is realistic): a server-side HTTP GET
+with an honest User-Agent + an azlyrics HTML→text parser (their lyrics sit in a
+known unlabeled `<div>` after a comment marker), normalized through the same T37
+paste pipeline. I will **NOT** build anti-bot evasion (rotating fingerprints,
+headless-browser Cloudflare-challenge solving) — it's fragile, ToS-hostile, and
+detection-evasion I won't author. **Consequence to state plainly:** azlyrics is
+Cloudflare-gated, so an honest server GET will *often* hit a 403/JS-challenge and
+the import will fail; client-side fetch is CORS-blocked. So the azlyrics path is
+**best-effort** and the paste fallback must ship alongside so VLL is never stuck.
+
+**Ask:** re-spec T37 (or a T38) to include the best-effort fetch — I'd want your
+call on: (1) server-side fetch endpoint on troubacore (`POST /api/.../lyrics-import`
+taking a URL, returning normalized text or a clear "blocked, paste instead")?
+(2) azlyrics-specific parser now + generic readability extract as the follow-on,
+or both behind one endpoint? (3) fallback UX when the fetch is blocked. I'll cite
+VLL's override + your spec at landing. **T36 (the blocker) I'm starting now** per
+your sequencing; this is downstream.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
