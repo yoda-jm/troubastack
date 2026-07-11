@@ -333,6 +333,17 @@ export const api = {
       source,
     }).then((r) => r.file),
 
+  // T37: best-effort server-side lyrics fetch (azlyrics/any URL), SSRF-guarded. Returns
+  // the normalized text on success; a "blocked"/"error" status is a NORMAL outcome (the
+  // UI falls back to paste), never thrown — azlyrics is Cloudflare-gated and honest GETs
+  // often bounce.
+  lyricsImport: (bandId: string, url: string) =>
+    request<{ status: "ok" | "blocked" | "error"; text?: string; reason?: string }>(
+      "POST",
+      `/api/bands/${bandId}/lyrics-import`,
+      { url },
+    ),
+
   // Render a chart to PDF bytes WITHOUT persisting (T25 preview). Returns the PDF
   // Blob; throws ApiError with the server's message (e.g. bad chars) on failure.
   previewTextChart: async (bandId: string, songId: string, source: string): Promise<Blob> => {

@@ -62,6 +62,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/bands/{bandId}/invite-links", a.auth(a.createInviteLink))
 	mux.HandleFunc("GET /api/bands/{bandId}/invite-links", a.auth(a.listInviteLinks))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/invite-links/{id}", a.auth(a.revokeInviteLink))
+	mux.HandleFunc("POST /api/bands/{bandId}/lyrics-import", a.auth(a.lyricsImport))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs", a.auth(a.listSongs))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs", a.auth(a.createSong))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}", a.auth(a.updateSong))

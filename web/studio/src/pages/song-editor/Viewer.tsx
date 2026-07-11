@@ -1143,7 +1143,7 @@ export function Viewer({
               max-height + overflow-y) so the tail stays reachable at any viewport;
               this replaces SongEditor's clipped <Details>, which is now removed. */}
           <Metadata bandId={bandId} song={song} onSaved={onSongSaved} />
-          <Files bandId={bandId} songId={songId} />
+          <Files bandId={bandId} songId={songId} songTitle={song.title} />
           <MyFilesEditor
             bandId={bandId}
             songId={songId}

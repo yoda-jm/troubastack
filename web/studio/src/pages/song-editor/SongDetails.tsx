@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiError, api, type Song, type SongFile } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
+import { normalizeLyrics } from "./lyrics";
 
 export function Details({ title, children }: { title: string; children: ReactNode }) {
   // Default OPEN: the viewer is the headline, but the existing flows expect the
@@ -170,11 +171,20 @@ function fmtSize(bytes: number): string {
 // existing generated file's source (fileId + the revision we based the edit on).
 type chartEdit = { fileId?: string; source: string; baseRevision: number };
 
-export function Files({ bandId, songId }: { bandId: string; songId: string }) {
+export function Files({
+  bandId,
+  songId,
+  songTitle,
+}: {
+  bandId: string;
+  songId: string;
+  songTitle?: string;
+}) {
   const [files, setFiles] = useState<SongFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [chart, setChart] = useState<chartEdit | null>(null);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -274,6 +284,14 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
           >
             ＋ New text chart
           </button>
+          <button
+            type="button"
+            className="btn-sm ghost-btn"
+            data-testid="new-lyrics-chart"
+            onClick={() => setLyricsOpen(true)}
+          >
+            ＋ New chart from lyrics
+          </button>
         </div>
       </div>
       <div className="panel-body">
@@ -283,6 +301,18 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
             Upload
           </button>
         </form>
+
+        {lyricsOpen && (
+          <LyricsImportDialog
+            bandId={bandId}
+            defaultName={songTitle ?? ""}
+            onCancel={() => setLyricsOpen(false)}
+            onCreate={(source) => {
+              setLyricsOpen(false);
+              setChart({ source, baseRevision: 0 });
+            }}
+          />
+        )}
 
         {chart && (
           <ChartEditor
@@ -387,6 +417,102 @@ export function Files({ bandId, songId }: { bandId: string; songId: string }) {
 // PDF (new file, or re-render in place for an existing generated file). A save
 // conflict (someone edited first) surfaces the server's "reload" message. Preview
 // renders on demand (no per-keystroke round-trips) via the no-persistence endpoint.
+// LyricsImportDialog (T37): paste-first "New chart from lyrics". A "Fetch from URL"
+// accelerator sits above a paste textarea; on success it FILLS the textarea (the user
+// still reviews), on a blocked/failed fetch it shows an honest message and leaves focus
+// in the textarea — never a dead end. "Create" hands a normalized chart source up; the
+// existing ChartEditor then opens for cleanup. Fetch is best-effort (azlyrics is
+// Cloudflare-gated); paste always works.
+function LyricsImportDialog({
+  bandId,
+  defaultName,
+  onCreate,
+  onCancel,
+}: {
+  bandId: string;
+  defaultName: string;
+  onCreate: (source: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [url, setUrl] = useState("");
+  const [text, setText] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  async function onFetch() {
+    if (!url.trim() || fetching) return;
+    setMsg(null);
+    setFetching(true);
+    try {
+      const r = await api.lyricsImport(bandId, url.trim());
+      if (r.status === "ok" && r.text) {
+        setText(r.text);
+        setMsg("Fetched — review the lyrics below, then create the chart.");
+      } else {
+        setMsg("Couldn’t fetch — the site blocked the request. Paste the lyrics below instead.");
+        textRef.current?.focus();
+      }
+    } catch {
+      setMsg("Couldn’t fetch — paste the lyrics below instead.");
+      textRef.current?.focus();
+    } finally {
+      setFetching(false);
+    }
+  }
+
+  function create() {
+    const heading = name.trim() || "New chart";
+    onCreate(`# ${heading}\n\n${normalizeLyrics(text)}\n`);
+  }
+
+  return (
+    <div className="card chart-editor" data-testid="lyrics-dialog">
+      <label className="field">
+        <span>Chart name</span>
+        <input data-testid="lyrics-name" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <div className="inline-form lyrics-fetch-row">
+        <input
+          data-testid="lyrics-url"
+          placeholder="Paste an azlyrics (or any) song URL"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <button type="button" className="btn-sm" data-testid="lyrics-fetch" disabled={fetching} onClick={() => void onFetch()}>
+          {fetching ? "Fetching…" : "Fetch from URL"}
+        </button>
+      </div>
+      {msg && (
+        <p className="muted" data-testid="lyrics-fetch-msg">
+          {msg}
+        </p>
+      )}
+      <textarea
+        data-testid="lyrics-text"
+        ref={textRef}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="…or paste the lyrics here"
+        rows={10}
+      />
+      <div className="inline-form">
+        <button type="button" className="primary btn-sm" data-testid="lyrics-create" disabled={!text.trim()} onClick={create}>
+          Create chart
+        </button>
+        <button type="button" className="ghost-btn btn-sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      <p className="muted" data-testid="chart-edit-caveat" style={{ margin: 0 }}>
+        Fetching is best-effort — many lyric sites (azlyrics) block automated requests, so
+        paste is always available. You’ll review and tidy the chart next.
+      </p>
+    </div>
+  );
+}
+
 function ChartEditor({
   bandId,
   songId,
