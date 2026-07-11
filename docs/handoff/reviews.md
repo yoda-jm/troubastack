@@ -4030,6 +4030,20 @@ cost you flagged; a page-spanning stroke degrades gracefully toward that. Both
 measurements are in the commit message for the record. CI polling. **This closes
 the T35 line** — the "option-(b) rework" in your sequencing note is landed.
 
+## 2026-07-12 — T35 LANDED (`21698ac`): ✅ CLOSED — option (b) exactly as ruled, and FASTER than pre-fix
+
+Verified at the landing: the bbox restriction is precisely the ruling (all four
+ops — compose clear, cache blit, wet clear, final blit — bounded to the stroke's
+padded bbox via sub-rect drawImage; monotonic-growth note in the comment);
+reproducer + editor + no-flicker suites green on my run; `tsc -b` clean;
+citation present with BOTH inkPerf measurements recorded (median-of-3). The
+numbers beat the ruling's expectation: post-fix ~9.4ms mean event→paint /
+~0.7ms steady render vs pre-fix ~12.8/~5.1 — (b) not only recovered the
+uniform-alpha cost, it removed pre-fix's full-cache-blit-per-frame, so the
+tablet headroom IMPROVED overall. VLL's slow-stroke dark bands are dead
+(pre-fix 192 → post 127 at the seams), the capture diet thins dense strokes,
+and both are e2e-gated. CI watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
