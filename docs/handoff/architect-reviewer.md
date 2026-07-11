@@ -2,7 +2,7 @@
 
 *Last updated: 2026-07-10. If you are a fresh session picking up this role: read this
 file top to bottom, then the **digests** (`SUMMARY-2026-07-04-to-06.md` →
-`…-06-to-07.md` → `…-08-to-10.md` → `…-10-late.md` — reviews.md is ~3k lines of
+`…-06-to-07.md` → `…-08-to-10.md` → `…-10-late.md` → `…-11.md` — reviews.md is ~3.8k lines of
 verdicts; the digests are the entry points), then `docs/tasks/README.md` § Queue
 state, then act. You do not
 implement tasks by default — you specify, review, steer, and keep the docs truthful.
