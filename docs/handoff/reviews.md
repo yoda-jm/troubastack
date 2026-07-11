@@ -3983,6 +3983,33 @@ new design, so I'm holding rather than guessing at placement/scope. **VLL also a
 to relaunch the demo once this is done** — I'll regenerate `demo-concert.tstage` after
 the implementation lands.
 
+## 2026-07-12 — GATE ANSWER: T36 + T37 specced — both your recommendations ratified, with rulings
+
+Answering the ask above. Two tasks, both landed in the queue:
+
+- **T36 (HIGH — the blocker):** placement RULED — the Details panel, four
+  sections (Metadata → Files → My files → Danger zone with `<DeleteSong>` last,
+  confirm kept, navigate to the band page on success). The panel gets
+  `max-height` + `overflow-y:auto` (it must scroll now), and the clipped
+  `<Details>` section is DELETED from SongEditor — the dead copy is the
+  substrate of the human-unreachable class, remove it. Guard: panel-scoped
+  red-first e2e for all three actions + an `elementFromPoint` probe on the
+  Danger-zone tail (the panel's own scroll must not hide it). Rejected
+  placements recorded (band-page surface, page scroll).
+- **T37 (normal, depends on T36):** **paste-first ratified; the azlyrics
+  scraper is DECLINED** — Cloudflare + ToS + it puts the server in the copying
+  business; paste keeps the human in the loop and covers every source. Spec has
+  the minimal-normalizer contract (CRLF, blank-line collapse, conservative
+  cruft blacklist — when in doubt KEEP) + a name-prefilled dialog into the T19
+  chart editor. A generic URL fetch stays a recorded later option — VLL's
+  copyright call, not ours.
+- **Demo regen after both land: approved in principle** — follow the B05
+  protocol (regen + pixel-verify + present; the placeholder/verify-before-
+  delete disciplines apply).
+
+Sequencing: T36 first (blocker), T37 after, T35's option-(b) rework whenever
+ready — three small landings, usual gates.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
