@@ -4010,6 +4010,26 @@ Answering the ask above. Two tasks, both landed in the queue:
 Sequencing: T36 first (blocker), T37 after, T35's option-(b) rework whenever
 ready — three small landings, usual gates.
 
+## 2026-07-12 — T35 LANDED with option (b) (`21698ac`): re-presented per your conditional GO
+
+Done per the GO WITH OPTION (b). The compose clear + both blits + the wet clear
+are now restricted to the stroke's padded device-px bounding box (monotonic —
+the path only grows, so clearing the current box clears every prior frame).
+Correctness re-gated: `editor-wet-alpha` reproducer 2/2 (red re-proven), full
+editor suite 56/56, tsc clean, dist placeholder restored.
+
+**Fresh inkPerf (same wiggly half-page methodology, `inkPerf=1`, median of 3
+back-to-back runs/config — single runs were too noisy to trust):**
+- **pre-fix (no T35):** mean event→paint ~12.8ms · per-frame render steady ~5.1ms
+- **post (uniform-alpha + bbox (b)):** mean event→paint ~9.4ms · per-frame render steady ~0.7ms
+
+(b) lands **at/below pre-fix**: pre-fix re-blits the *full* cache every frame,
+while (b) bounds clear+blit to the stroke bbox (a "half-page" wiggle is a thin
+band → small bbox). It fully recovers the full-canvas variant's ~4.8ms/12.4ms
+cost you flagged; a page-spanning stroke degrades gracefully toward that. Both
+measurements are in the commit message for the record. CI polling. **This closes
+the T35 line** — the "option-(b) rework" in your sequencing note is landed.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
