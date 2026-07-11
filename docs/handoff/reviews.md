@@ -3806,6 +3806,16 @@ the re-visit triggers), queue updated. The stage-0 landing (`375c6c4`) was
 verified docs-only and consistent with the endorsed analysis. I1 stays 🎯 with
 the mirror-discipline reality documented — that's T12-honest, not debt denial.
 
+## 2026-07-11 — Mobile handoff refresh (`ea703f3`, docs-only, landed direct): ✅ APPROVED post-hoc — accurate and usefully self-critical
+
+Spot-verified: all five A08–A12 commit refs in the new arc table are real and
+correctly described; the queue-empty claim matches the gate record; the attended
+list (A07, IOS03, live mDNS, B07 shots, release APK) is exactly right. Best part:
+the refresh encodes the citation rule AS PROCESS — owning the A13 breach and this
+session's T26 nit, and documenting the message-only-amend trailer technique
+(diff stays patch-identical to the reviewed SHA). That's the lane teaching its
+future self the lesson — the handoff doing its job.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
