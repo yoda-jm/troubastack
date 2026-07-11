@@ -153,6 +153,10 @@ export function EditCanvas({
   // frame only blits the cache + re-strokes the short live tail (bounded work per
   // frame instead of getStroke over the whole, growing path).
   const wetCacheRef = useRef<HTMLCanvasElement | null>(null);
+  // Compose surface for uniform-alpha wet compositing (T35): the cache + live tail are
+  // built OPAQUE and composed here, then blitted to the wet canvas ONCE at the object's
+  // opacity — so overlapping segment seams don't stack alpha into darker bands.
+  const wetComposeRef = useRef<HTMLCanvasElement | null>(null);
   const cachedUpToRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   // Dev perf hook (localStorage.inkPerf === "1"): points received + mean
@@ -171,6 +175,11 @@ export function EditCanvas({
   // small overlap keeps the join between cached prefix and live tail continuous.
   const WET_SEG = 24;
   const WET_OVERLAP = 3;
+  // T35 capture-time diet: drop freehand points closer than this (page-relative, ~0.15%
+  // of page width) to the last KEPT point — slow strokes stop storing hundreds of
+  // near-duplicates (payload, store size, cache bakes) with no visible change (streamline
+  // covers it). Filtered at CAPTURE so wet/dry/bake/hit-test all see the SAME points.
+  const WET_MIN_STEP = 0.0015;
 
   // Objects on THIS page that are currently visible (for hit-testing on select).
   const pageObjects = useMemo(
@@ -276,28 +285,80 @@ export function EditCanvas({
       cachedUpToRef.current = 0;
     }
 
+    // T35: build the wet geometry OPAQUE (strip opacity, keep color/width/blend) so no
+    // per-pass alpha stacks; the single alpha application happens at the blit below.
+    const opaqueStyle = { ...style, opacity: 1 };
+
     // Bake the newly-stable segment into the cache when the tail grows past WET_SEG.
     if (path.length - cachedUpToRef.current > WET_SEG) {
       const cctx = cache.getContext("2d");
       if (cctx) {
         cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         const seg = path.slice(Math.max(0, cachedUpToRef.current - WET_OVERLAP));
-        const wet = buildWet("freehand", seg, style);
+        const wet = buildWet("freehand", seg, opaqueStyle);
         if (wet) renderObjects(cctx, [toInkObject(wet) as InkObject], box);
         cachedUpToRef.current = path.length;
       }
     }
 
-    // Per-frame: clear, blit the cached prefix (device px, identity transform),
-    // then stroke the live tail (bounded length) in CSS coords.
+    // Per-frame (T35 uniform-alpha): compose the OPAQUE cached prefix + OPAQUE live tail
+    // on a compose surface, then blit the whole stroke to the wet canvas ONCE at the
+    // object's opacity — one alpha application, so overlapping seams read uniform.
     const renderStart = performance.now();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (cachedUpToRef.current > 0) ctx.drawImage(cache, 0, 0);
+    let compose = wetComposeRef.current;
+    if (!compose) {
+      compose = document.createElement("canvas");
+      wetComposeRef.current = compose;
+    }
+    if (compose.width !== canvas.width || compose.height !== canvas.height) {
+      compose.width = canvas.width;
+      compose.height = canvas.height;
+    }
+    const octx = compose.getContext("2d");
+    if (!octx) return;
+
+    // T35 (b): restrict the clear + both full-canvas blits to the stroke's padded
+    // device-px bounding box, so per-frame cost scales with STROKE size, not canvas
+    // size. The T06 low-latency invariant matters most on tablets (~3–4× slower than
+    // this desktop, where a full-canvas clear+blit can blow the 16.6ms budget); a
+    // typical annotation stroke is small, and a page-wide stroke degrades gracefully to
+    // the full-canvas cost. The path only grows, so the bbox is monotonic — clearing the
+    // current (largest-so-far) box clears every earlier frame's pixels on both surfaces.
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const p of path) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    const cw = canvas.width;
+    const ch = canvas.height;
+    // Pen width is uniform and keyed to page width (ink I3: style.width is a page-width
+    // fraction); pad by a full width + a small AA margin so freehand caps/joins never clip.
+    const pad = (style.width ?? 0) * cw + 4;
+    const bx = Math.max(0, Math.floor(minX * cw - pad));
+    const by = Math.max(0, Math.floor(minY * ch - pad));
+    const bw = Math.min(cw, Math.ceil(maxX * cw + pad)) - bx;
+    const bh = Math.min(ch, Math.ceil(maxY * ch + pad)) - by;
+    if (bw <= 0 || bh <= 0) return; // nothing on-canvas to paint this frame
+
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    octx.clearRect(bx, by, bw, bh);
+    if (cachedUpToRef.current > 0) octx.drawImage(cache, bx, by, bw, bh, bx, by, bw, bh); // opaque prefix
     const tail = path.slice(Math.max(0, cachedUpToRef.current - WET_OVERLAP));
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const wetTail = buildWet("freehand", tail, style);
-    if (wetTail) renderObjects(ctx, [toInkObject(wetTail) as InkObject], box);
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wetTail = buildWet("freehand", tail, opaqueStyle);
+    if (wetTail) renderObjects(octx, [toInkObject(wetTail) as InkObject], box); // opaque tail
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(bx, by, bw, bh);
+    const prevAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = style.opacity ?? 1;
+    ctx.drawImage(compose, bx, by, bw, bh, bx, by, bw, bh);
+    ctx.globalAlpha = prevAlpha;
 
     const perf = perfRef.current;
     if (perf) {
@@ -668,12 +729,17 @@ export function EditCanvas({
     const pt = pageRelative(e);
     if (g.mode === "draw") {
       if (tool === "freehand") {
-        // Out of React, coalesced, one paint per frame (T06).
+        // Out of React, coalesced, one paint per frame (T06). Keep only points that
+        // moved at least WET_MIN_STEP from the last kept point (T35 diet).
         const pts = coalescedPoints(e);
-        for (const p of pts) g.path.push(p);
+        const eps2 = WET_MIN_STEP * WET_MIN_STEP;
+        for (const p of pts) {
+          const last = g.path[g.path.length - 1];
+          if (!last || (p.x - last.x) ** 2 + (p.y - last.y) ** 2 >= eps2) g.path.push(p);
+        }
         const perf = perfRef.current;
         if (perf) {
-          perf.points += pts.length;
+          perf.points += pts.length; // received rate (latency metric), not kept count
           perf.last = performance.now();
         }
         scheduleWetFrame();
@@ -742,6 +808,14 @@ export function EditCanvas({
             `mean event→paint ${mean}ms · per-frame render first ${perf.renderFirst.toFixed(2)}ms → last ${perf.renderLast.toFixed(2)}ms (max ${perf.renderMax.toFixed(2)}ms)`,
         );
         perfRef.current = null;
+      }
+      // T35: always keep the FINAL point — the filter may have dropped a sub-step move
+      // near the release, so the committed stroke ends exactly where the finger lifted
+      // (and the committed geometry matches the wet preview the user just watched).
+      if (tool === "freehand") {
+        const end = pageRelative(e);
+        const last = g.path[g.path.length - 1];
+        if (!last || last.x !== end.x || last.y !== end.y) g.path.push(end);
       }
       onCommitDraw(tool as DrawTool, page, g.path);
     } else if (g.mode === "move") {
