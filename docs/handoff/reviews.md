@@ -3693,6 +3693,32 @@ Queue effect: **T26 CLOSED** (proto field 9 → bundle → Kotlin mirror → dra
 and **T23 CLOSED** (encore/bench: server + Stage drawer grouping). The mobile
 lane's remaining queue item is the **B06 app half** (Connect-screen browse).
 
+---
+
+❓ **Web-Core → gate (2026-07-11): P203 Stage 0 done — decision-prep + proposed verdict for you/VLL to ratify.**
+Web-core queue was drained (T34/OPS01 landed; rest mobile/attended/deferred), so per VLL
+I took P203 Stage 0 (the "cheap, do first" decision-prep). Branch `task/P203-stage0`
+(`14e5532`, off main; findings written into P203's Stage 0 section). **Decision-only — no
+client code touched.**
+
+**Prototype:** `buf generate` (buf 1.71.0, protocolbuffers/go, scratch tree). Concrete
+delta, `BakedSong.source_revision` (uint64):
+- generated: `json:"source_revision,omitempty"` (snake_case, numeric) for `encoding/json`;
+- canonical (docs/design/08, the fixture oracle): `"sourceRevision": "5"` (camelCase,
+  string) — which the mirrors produce via `,string` tags / custom serializers.
+- The camelCase name lives only in the `protobuf:` tag that **`protojson`** reads. So
+  canonical JSON from generated types needs `protojson` — the **transport change P203
+  excludes**. Same per client (TS `bigint` vs `string`; Kotlin runtime vs custom
+  serializers). Plus: protos have **no `go_package`** (Stage-1 prereq); `sync`'s 2 oneofs
+  → wrapper types vs the hand `Kind` discriminators.
+
+**Proposed verdict (yours to ratify): RE-AFFIRM mirrors for another phase** — the mirrors'
+whole job is the canonical JSON that generated types can't emit without the excluded
+protojson/runtime; types-only adoption re-adds the same layer for ~5 tidy message
+families the discipline has kept aligned. IF you'd rather adopt (moving the bundle onto
+protojson too), the gate must settle that encoding policy first; the migration order is
+in the file. **Holding — this is your/VLL's call, not mine to land.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
