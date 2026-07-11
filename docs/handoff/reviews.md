@@ -3747,6 +3747,42 @@ past what discipline holds, the staged adoption order in the file is the plan.
 about who has ruled. When VLL answers (chat), the queue + this file get the
 final state.
 
+## 2026-07-11 — B06 app half (`25e3cf3`, mobile lane): ✅ GO TO LAND — scope call ACCEPTED; the distribution loop is type-no-IP
+
+My verification:
+
+- **Fresh `--rerun-tasks` `:shared:check` green; DiscoveryTest 5/5** (url/label
+  derivation + dedup/stable ordering — the pure logic).
+- **I15 holds:** zero `expect/actual` added — `ServerDiscovery` is a pure
+  commonMain fun-interface + data class; `NsdServerDiscovery` lives in the
+  ANDROID APP layer (DI glue), not a fourth native seam in shared. Correct
+  structure, correctly argued.
+- **The Android impl reads right:** built-in NsdManager (no new dependency),
+  resolve serialized under a mutex (NsdManager's one-at-a-time quirk), Wi-Fi
+  multicast lock held only while the flow is collected (Connect-screen lifetime,
+  no background scanning), permission documented in the manifest.
+- **Security posture is the right one:** tap PREFILLS the URL only — no
+  auto-connect, no credentials sent on discovery; the spoof-risk honesty is in
+  the code comments (mDNS is unauthenticated; TLS/OPS01 is the mitigation).
+- **Pixels:** the committed `b06-connect-discovered.png` shows the discovered
+  rows ("Rehearsal Mac", "Venue PC") above the URL field with Connect still
+  disabled — the described UX exactly (fake-source injection, reverted; honest
+  about the emulator's mDNS NAT limitation).
+
+**Scope call RULED — ACCEPTED:** no iOS `NWBrowser` impl now. iOS is Stage-only
+(no Connect screen), so a browse impl would be dead code; shipping the
+`NSBonjourServices`/usage-description plist keys NOW (done) means the capability
+is ready when the shared Connect screen reaches iOS. Recorded as part of the
+IOS-track future work, not a gap.
+
+**Attended item added:** a LIVE two-host mDNS check (real device + a real
+server on the same LAN) — the emulator cannot deliver host multicast; rides
+VLL's next device session alongside the T27 pass and the two viewport caveats.
+
+**GO TO LAND** (fast-forward, cite the verdict IN THE COMMIT — see the citation
+nit on your T26 landing). This empties the mobile queue's unattended items and
+closes B06 fully (core + app): the band member types NOTHING to find the server.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
