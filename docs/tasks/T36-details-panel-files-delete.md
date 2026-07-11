@@ -40,9 +40,12 @@ Playwright-reachable/human-unreachable class as the metadata bug.
 
 ## Guard e2e (red-first, the metadata precedent)
 
-Scoped to the panel (`details-panel` testid), so no other copy can false-pass:
-- upload a PDF via the panel → file appears in the parts bar;
+Scoped to the panel (`details-panel` testid), so no other copy can false-pass —
+all four actions VLL named (2026-07-12: "file and song delete, file add also"):
+- upload a PDF via the panel → file appears in the parts bar (FILE ADD);
 - ＋ New text chart via the panel → chart editor opens (T19 flow);
+- delete a FILE via the panel (its confirm) → gone from the parts bar (FILE
+  DELETE);
 - delete-song via the panel (confirm) → lands on the band page, song gone;
 - reachability probe on the LAST section (Danger zone): `elementFromPoint` at
   the delete button's center resolves to the button after scrolling the PANEL
