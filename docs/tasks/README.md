@@ -49,17 +49,15 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   fullscreen · touch grammar, landed 2026-07-10), **T29** (build identity), **T30**
   (no silent ink), **T31** (bake z-order parity, landed 2026-07-10), **T32**
   (insecure-origin uuid + global error visibility — the plain-HTTP field bug,
-  landed 2026-07-10), **T33** (thin ctx pill, landed 2026-07-10), **T34** (touch stuck-in-nav fix, landed 2026-07-11) ·
+  landed 2026-07-10), **T33** (thin ctx pill, landed 2026-07-10), **T34** (touch stuck-in-nav fix, landed 2026-07-11), **T26 + T23 COMPLETE**
+  (song titles + encore/bench, both halves, app half landed 2026-07-11) ·
   A01–A06, **A08–A15 (the full
   Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
   B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T26** (song
-  titles in the bundle, S — proto field 9; core half web-core, drawer half mobile) ·
-  the **T23 A-track follow-up** (drawer groups "On call" below the main order —
-  mobile; pairs with T26's drawer touch) · **B06 app half** (Connect-screen browse,
+- **Open, unblocked:** **B06 app half** (Connect-screen browse,
   mobile lane) · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
   HTTPS bring-up + the release-APK half, mobile) · P201/P203 (P202 closed
   2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
@@ -105,7 +103,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T23 | [Encore/bench songs: baked + jumpable, outside the order](T23-encore-bench-songs.md) | core + proto + studio | M/L |
 | T24 | [Converge cmd/mkcharts onto internal/chartpdf (T19 deferral)](T24-chartpdf-mkcharts-converge.md) | core + demo artifacts | S/M |
 | T25 | [Chart editor: rendered PDF preview pane (T19 decision 3)](T25-chart-editor-preview.md) | core + studio | S |
-| T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) — core half landed; app half = mobile | proto + core + app | S |
+| T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) — landed (both halves) | proto + core + app | S |
 | T27 | [Canvas-first editor (supersedes T17; pairs with T15)](T27-canvas-first-editor.md) | studio | L (staged) |
 | T28 | [Drawing on a hidden layer silently swallows the annotation](T28-hidden-layer-draw-swallow.md) — landed | studio | XS/S |
 | T29 | [Embed the git version: /api/version + info modal](T29-build-version-visibility.md) — landed | core + studio | XS/S |

@@ -3680,6 +3680,19 @@ one commit — right call, noted. My verification:
 **GO TO LAND** (fast-forward, cite this verdict). This closes BOTH A-track
 follow-ups: T26 is fully done (core + app), T23 is fully done (server + drawer).
 
+## 2026-07-11 — T26 app half + T23 drawer LANDED (`309f06f`): ✅ CLOSED — T26 and T23 are both fully done (core + app)
+
+Patch-identical to the GO'd `604ab37` (fully identical — same commit, fast-
+forwarded). CI watched. **Process nit for the mobile lane** (logged, no action):
+the landing does NOT cite the verdict in the commit message — the
+cite-approval-at-landing rule applies to the A-track too; amend before pushing
+next time (the web-core lane's `Approved: <verdict>` trailer is the pattern).
+The GO itself is unambiguous in this log, so the record stands.
+
+Queue effect: **T26 CLOSED** (proto field 9 → bundle → Kotlin mirror → drawer)
+and **T23 CLOSED** (encore/bench: server + Stage drawer grouping). The mobile
+lane's remaining queue item is the **B06 app half** (Connect-screen browse).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
