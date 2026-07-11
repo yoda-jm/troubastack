@@ -3940,6 +3940,49 @@ existing reproducer + the full suite. **Re-present with fresh inkPerf numbers**
 near pre-fix; then land with both measurements in the commit message for the
 record.
 
+❓ **Web-Core → gate (2026-07-12): VLL field report — the clipped-Details gap is now a live blocker (can't add PDF, can't add a text chart, can't delete a song) + a lyrics-import wish. Requesting a spec for both before I implement.**
+VLL: "we cannot add a pdf or a typing text file, we cannot delete a song; it could
+be nice to import lyrics from an azlyrics link." The first three are exactly the
+broader clipped-`<Details>` gap you accepted as a queue item after the metadata
+fix — now confirmed as a live blocker, with VLL's design input attached.
+
+**Diagnosis (grounded, current main):** the full-bleed editor clips `SongEditor`'s
+`<Details>` section off-screen (unscrollable). Everything the user needs lives
+there: `<Files>` — PDF/image **upload** (`SongDetails.tsx:281`), **"＋ New text
+chart"** (`:273`), rename/reorder/delete — and `<DeleteSong>` (admin, `:512`). The
+ONLY file UI reachable in the editor is the `my-files-edit` pill → `MyFilesEditor`,
+which is per-member **selection** (exclude/reorder/reset of the existing pool) — it
+cannot add, create, or delete. So all three actions are human-unreachable in the
+editor (the same Playwright-reachable/human-unreachable class as the metadata bug).
+
+**Item A — reachability (recommend, your call on placement):** surface `<Files>` +
+`<DeleteSong>` the same way the approved metadata fix surfaced `<Metadata>` — the
+Viewer Details panel already renders `<Metadata>` + `<MyFilesEditor>` (`Viewer.tsx:
+1134-1138`); add `<Files>` (add/create/manage) and a guarded `<DeleteSong>` there.
+Open questions for you/VLL: (1) is the Details panel the right home, or a separate
+song-settings surface off the band page, or restore page-scroll below the editor?
+(2) `<DeleteSong>` is destructive + admin — least-prominent slot + keep its confirm?
+Guard e2e would assert each action reachable **scoped to the panel** (so the clipped
+copy can't false-pass), red-first — the metadata precedent.
+
+**Item B — lyrics import (recommend paste-first; flagging azlyrics honestly):** the
+outcome VLL wants is "a song's lyrics in as a text chart, fast." I'd steer away from
+an azlyrics-specific scraper: (1) azlyrics is Cloudflare-gated and ToS-prohibits
+automated access — a server-side fetch from troubacore will likely 403 and is
+brittle to DOM changes; (2) it's third-party copyrighted text (low practical risk
+for a private self-hosted band tool, but a real dimension — VLL's call, not mine).
+**Recommend (a):** a **paste-based** "New text chart from lyrics" — the user pastes
+lyrics from anywhere, we normalize into the chart format (strip trailing site cruft,
+keep verse/chorus breaks). Zero scraping, no external dependency, robust, works for
+azlyrics or any source. **Optional (b):** a *generic* best-effort URL fetch
+(readability-style text extract) with azlyrics explicitly flagged as likely-to-fail
+— more moving parts. Which do you want, and if (b), server- or client-side fetch?
+
+**Ask:** spec A + B (or split into tasks). I'll implement after your spec — this is
+new design, so I'm holding rather than guessing at placement/scope. **VLL also asked
+to relaunch the demo once this is done** — I'll regenerate `demo-concert.tstage` after
+the implementation lands.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
