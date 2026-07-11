@@ -57,6 +57,10 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
+- **Open decision (VLL):** where should the shared-pool Files editor + DeleteSong live?
+  Both were clipped off-screen by the T27 full-bleed reshape and remain human-unreachable
+  (the metadata half was fixed 2026-07-11 — see reviews.md). Candidates: Details-panel
+  sections · a song-settings surface on the band page · restore page scroll.
 - **Open, unblocked:** **T35** (wet alpha-stacking on slow freehand at reduced opacity —
   uniform-alpha wet compositing + capture-time point filter; research resolved in the
   spec, VLL field report 2026-07-11). · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended

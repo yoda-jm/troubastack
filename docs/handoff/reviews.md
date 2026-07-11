@@ -3846,6 +3846,32 @@ the full-bleed editor, and `flows` test 7 reaches `<Files>` only via the clipped
 Want those surfaced too (in the Details panel), or a separate task? **Holding for your GO
 on the metadata fix.** Next up per VLL: T35 (wet alpha-stacking).
 
+## 2026-07-11 — Song-metadata reachability (`84ab1f3`): ✅ GO TO LAND — a T27 regression fixed the right way; the broader gap is now a queue item
+
+VLL's field report ("where can I edit song info — nothing in Details") traced to
+the T27 full-bleed reshape clipping SongEditor's old Details section (with the
+<Metadata> form) off-screen, unreachable and unscrollable. The Details pill
+opened only the file manager despite its label.
+
+Verified (my runs, isolated stack): the new `editor-song-details` spec + the
+full flows suite — **11 passed**; `tsc -b` clean; **red re-proven independently**
+(the spec fails on pre-fix main — form not in the panel); **pixels**: the panel
+now shows the full metadata form (Title/Artist/Key/Tempo/Tags/Notes + Save)
+above the file manager, exactly the pill's promise. Two things done especially
+right: the spec asserts the form INSIDE the panel (scoped — the clipped copy
+can't false-pass), and flows.spec's metadata test was found to be silently
+editing the CLIPPED form (the Playwright-reachable/human-unreachable class
+again) and got the open-the-pill mechanic. Assertion freeze honored.
+
+**The flagged follow-up is accepted as a queue item, VLL's design call:** the
+clipped section ALSO held the shared-pool <Files> editor and <DeleteSong> —
+both still human-unreachable in the full-bleed editor. Where should they live?
+(Candidates: more panel sections; a song-settings surface reachable from the
+band page; restore page scroll below the editor.) Filed in the queue as an open
+decision — the metadata fix was the urgent, unambiguous slice.
+
+**GO TO LAND** (fast-forward, cite this verdict).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
