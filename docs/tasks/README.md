@@ -63,7 +63,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   T36) · **T35** (wet alpha-stacking on slow freehand at reduced opacity —
   uniform-alpha wet compositing + capture-time point filter; research resolved in the
   spec, VLL field report 2026-07-11). · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
-  HTTPS bring-up + the release-APK half, mobile) · P201 (P203 DECIDED 2026-07-11: re-affirm mirrors —
+  HTTPS bring-up + the release-APK half, mobile) · P201 (spec REFRESHED 2026-07-12 — unblocked, ready when VLL says go; P203 DECIDED 2026-07-11: re-affirm mirrors —
   closed-not-adopted; P202 closed
   2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).

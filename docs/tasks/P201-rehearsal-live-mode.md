@@ -1,6 +1,9 @@
 # P201 — Rehearsal live mode: autobake + transient auto-update (I11/I13, R10)
 
-**Priority:** phase 2 (after B03) · **Size:** L · **Area:** core, `web/studio`, `app/shared`
+**Priority:** UNBLOCKED (B03 landed complete) — the next big feature when VLL says go ·
+**Size:** L (staged: core → studio → app) · **Area:** core, `web/studio`, `app/shared` ·
+*Spec refreshed 2026-07-12 against current main (originally written pre-T27/pre-B07;
+every building-block claim below re-verified).*
 
 ## Context
 
@@ -11,45 +14,82 @@ banner** in Studio; I13: a presenter may opt into auto-update, but the toggle is
 polish that makes it usable: content-hash-based, **viewport-preserving** page swaps so
 the score doesn't jump under a musician's eyes.
 
-Everything this builds on exists: bake (B02), distribution (B03, including the inert
-`AUTO` policy enum), `rasterHash`/`contentHash` in the container, and the app's
-manifest diff.
+**Every building block exists on main (re-verified 2026-07-12):**
+- `UpdatePolicy.AUTO` is landed and documented "inert in B03 (P201 wires it)"
+  (`app/shared/.../distribution/Updates.kt`), alongside the metadata-only manifest
+  diff (`Availability`) and the atomic-swap import path.
+- `PageRaster.raster_hash` + `Overlay.content_hash` carry the R10 comments in
+  `proto/troubastack/v1/bundle.proto` (fields 2/3) and ride every bundle.
+- The manifest the app polls is `GET /api/bands/{bandId}/concerts` (authed; the app
+  has connect credentials since B03); download is `.../concerts/{id}/bundle`.
+- The Baker is autobake-ready: B08's claim loop + B09's two-phase publish make
+  concurrent bakes of the same setlist safe BY DESIGN — a debounce race can't corrupt
+  or clobber. Per-member parts (B07), encore/bench (T23) and titles (T26) ride along
+  with no P201-specific work.
+- Retention exists: `troubacore gc` / `bake.keep_revs` (P202) — relevant because a
+  2-hour rehearsal at a ~10 s debounce mints dozens of revs (see Changes §1).
 
 ## Changes
 
-1. **Core**: a per-setlist "live mode" flag (admin toggles it; auto-clears after N hours
-   — a forgotten live mode must not survive to the gig). While live: debounce annotation
-   commits (~5–10 s quiet period) → auto-bake that setlist (reuse B02's Baker; bump
-   `concert_rev` as usual). Endpoint + state in the setlist API.
-2. **Studio (I11's banner)**: while the open song belongs to a live-mode setlist, show
-   the unmissable red/orange banner ("LIVE — edits are publishing to performers");
-   toggling live mode is on the setlist page, admin-only.
-3. **App (I13's transient toggle)**: in Stage (not the list), an "Auto-update
-   (rehearsal)" toggle — in-memory only, **never** written through the Storage seam,
-   reset when the Stage screen is left for any reason. While on: poll the manifest at a
-   gentle interval (~15 s), and on a new rev apply it via the importer automatically.
-   This is the single sanctioned network touch connected to Stage — implement it in
-   `distribution/` driven by a callback the Stage host registers, so the `stage/`
-   package's no-network grep gate **still passes**; document the seam.
-4. **Viewport-preserving swap (R10)**: after an auto-apply, compare per-page
-   `rasterHash`/`contentHash` old→new: unchanged page + position ⇒ stay exactly where
-   you are (same page index, same scroll fraction); changed current page ⇒ re-render it
-   in place without changing position; structural change (page count) ⇒ keep the
-   current song + nearest page index. Unit-test the mapping.
-5. **Tests**: debounce (Go — N rapid commits ⇒ one bake); transiency (leave Stage ⇒
-   toggle off — instrumented state test); the R10 mapping matrix (commonTest).
+1. **Core — live mode on a setlist.** An app-layer flag on the runtime setlist
+   (REST PATCH, admin-only; the proto `Setlist` message is deliberately not
+   involved — the runtime item type already diverges by design). Auto-clears after
+   N hours via an injected clock (a forgotten live mode must not survive to the
+   gig). While live: debounce annotation commits to the setlist's songs (~5–10 s
+   quiet period) → auto-bake via the EXISTING Baker path (claim loop + two-phase —
+   no new concurrency reasoning needed). Ship guidance with it: recommend
+   `bake.keep_revs` ≥ 1 in the deploy README's rehearsal note (dozens of revs per
+   rehearsal; gc reclaims them; `final_locked` is never pruned).
+2. **Studio — I11's banner, in the T27 fullscreen reality.** The editor is
+   full-bleed now (no Shell header). Placement RULED: a persistent, non-dismissible
+   red/orange strip rendered with the editor chrome (the T30 read-only chip / T32
+   banner are the visual precedents — but this one is its own element, always
+   visible while the open song belongs to a live setlist: "● LIVE — edits are
+   publishing to performers"). It must also show on the NON-editor song page
+   states and the setlist page. The live-mode toggle itself lives on the setlist
+   page (admin-only), next to the existing frozen control.
+3. **App — I13's transient toggle.** In Stage (not the concerts list): an
+   "Auto-update (rehearsal)" control in the Stage top bar (with Scroll/Layers/
+   Role/Day — the A08–A15 chrome). **In-memory only — never written through the
+   Storage seam** (deliberate contrast: A10's Day/Night toggle IS persisted;
+   this one must not be), reset when Stage is left for ANY reason. While on:
+   poll the manifest at a gentle interval (~15 s) and on a new rev of the
+   CURRENT concert, download + apply via the existing atomic-swap importer.
+   Stage stays network-free (I12): the poller lives in `distribution/` (which
+   already owns ktor via `ManifestTransport`) and is driven by a callback the
+   Stage HOST registers — same layering as B03/B06; document the seam comment.
+4. **Viewport-preserving swap (R10) — now with the A12/A14 modes.** After an
+   auto-apply, map old→new per page by `raster_hash`/`content_hash`:
+   - unchanged current page ⇒ stay exactly (same page index, same state);
+   - changed current page ⇒ re-render in place, position kept;
+   - structural change (page count) ⇒ keep current song, nearest page index.
+   The original spec predates A12/A14 — the mapping MUST also cover:
+   **facing pages** (A12: preserve the SPREAD — map to the spread containing the
+   nearest page) and **scroll mode** (A14: preserve the scroll FRACTION within
+   the song when pages resize/renumber). Unit-test the full matrix in commonTest
+   (fit × facing × scroll × {unchanged, content-changed, count-changed}).
+5. **Tests.** Go: debounce (N rapid commits ⇒ one bake, clock-injected) + live
+   expiry; app: transiency (leave Stage ⇒ OFF — instrumented state test), the
+   R10 matrix; studio: banner presence gated by an e2e (live setlist ⇒ strip
+   visible in the fullscreen editor — panel/pill-safe placement, pixels at the
+   gate).
 
 ## Acceptance criteria
 
-- Two-device rehearsal demo (or emulator + browser): editor draws → within ~15 s the
-  Stage device shows it, **without moving the page the performer is on**; Studio shows
-  the banner the whole time; killing Stage and reopening shows auto-update OFF.
-- Live mode expires on its own (clock-injected test).
-- The `stage/` no-network gate and all A04 acceptance gates still pass verbatim.
-- Explicit-by-default untouched: with live mode off, nothing auto-applies (regression
-  test on B03's offer flow).
+- Two-device rehearsal demo (or emulator + browser): editor draws → within ~15 s
+  the Stage device shows it **without moving the page/spread/scroll position the
+  performer is on**; Studio shows the banner the whole time; killing Stage and
+  reopening shows auto-update OFF.
+- Live mode expires on its own (clock-injected test); the banner disappears.
+- Stage stays network-free (the poller is in `distribution/`, host-registered —
+  same review bar as B06's discovery glue); the A04-era Stage acceptance
+  behaviors still pass verbatim.
+- Explicit-by-default untouched: with live mode off, nothing auto-applies
+  (regression test on B03's offer flow); `UpdatePolicy.AUTO` remains inert
+  unless BOTH the setlist is live AND the device toggle is on.
 
 ## Out of scope
 
-- WebSocket push to the app (polling is fine at rehearsal scale); multi-band live
-  sessions; any change to the default explicit flows.
+- WebSocket push to the app (polling is fine at rehearsal scale); multi-band
+  live sessions; any change to the default explicit flows; persisting the
+  device toggle in any form; auto-update outside Stage.
