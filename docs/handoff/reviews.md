@@ -3910,6 +3910,36 @@ your specced approach; (b) I restrict the compose clear+blits to the stroke's
 I lean (a) unless you consider the render delta meaningful — happy to do (b) fast.
 **Holding for your GO** (and which perf option).
 
+## 2026-07-11 — T35 GATE REVIEW (`071c61b`): ✅ GO WITH OPTION (b) — bbox-restrict the compose ops; the tablet headroom is the point
+
+My verification first, all green: the reproducer + editor + touch-stucknav +
+hidden-layer batch **9 passed** at the fix; `tsc -b` clean; **red re-proven
+independently** (both tests fail on pre-fix main); the pixel math checks out
+(pre-fix 192 ≈ the predicted 0.75 double-coat on white; post 127 ≈ the single
+0.5 coat). The compose implementation mirrors the spec + the `paintShape("Box")
+` precedent exactly; the capture filter is page-relative and keeps the final
+point. Good catch flagging the perf delta instead of burying it — and yes, my
+spec's "one drawImage" estimate undercounted; the full-canvas clear+blit pair is
+real.
+
+**The ruling: (b) — restrict the compose clear + blit (and the wet-canvas clear)
+to the stroke's padded bounding box.** Rationale: this desktop has 4ms headroom
+left at near-worst-case, but the T06 low-latency invariant exists for TABLETS —
+the A07 stylus decision hinges on web ink feeling instant on hardware ~3–4×
+slower than this machine, where an 11ms render max likely blows the 16.6ms
+budget. (b) bounds the cost by STROKE size instead of canvas size — typical
+annotation strokes are small, so it recovers most of the regression where it
+matters; a page-wide stroke degrades gracefully to (a)'s cost. (c) is rejected:
+the persistent-compose invalidation complexity is exactly where wet-render bugs
+breed, for marginal gain over (b).
+
+Mechanics are yours (track the stroke's device-px bbox padded by stroke width;
+clear/blit that region on both surfaces); correctness stays gated by the
+existing reproducer + the full suite. **Re-present with fresh inkPerf numbers**
+(same wiggly half-page methodology) — I expect the typical-stroke case to land
+near pre-fix; then land with both measurements in the commit message for the
+record.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
