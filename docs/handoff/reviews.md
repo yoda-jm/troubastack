@@ -3653,6 +3653,33 @@ With the slice landed, the box also gets the T32 (silent-error) and T34
 (stuck-nav) fixes on its next rebuild — one `git pull` + bring-up covers all
 three arcs.
 
+## 2026-07-11 — T26 app half + T23 drawer grouping (`604ab37`, mobile lane): ✅ GO TO LAND — both A-track halves done, verified
+
+The queue-sanctioned pairing (T23 §4 explicitly pairs with T26's drawer touch) in
+one commit — right call, noted. My verification:
+
+- **Fresh `--rerun-tasks` `:shared:check`: green** (exit 0, only the known
+  expect/actual Beta warnings). **SongDrawerTest 5/5, BundleLoaderTest 11/11** —
+  exactly the claimed counts, re-extracted from the XML reports.
+- **Code read:** `BundleModel` gains `title`/`onCall` additive-with-defaults (old
+  bundles stay valid); `buildLoaded` names songs from the baked title with the
+  "Song N" fallback on blank; the drawer partitions on `onCall` keeping each
+  row's ORIGINAL index (the jump-lands-right subtlety handled — `withIndex`
+  before partition).
+- **Test hygiene is right:** the stale "unknown onCall" tolerance case became a
+  real mapping assertion (both fields, mixed songs) PLUS a genuinely-unknown
+  field case — the back-compat guarantee stays gated instead of silently
+  becoming a mapped-field test.
+- **Pixels:** the committed `t26-song-titles-drawer.png` (emulator, real bake
+  driven end-to-end per the message — titles + a PATCHed onCall song baked last)
+  shows real titles with metadata lines, the current-song highlight, and
+  Hallelujah under the "On call" divider. The shipped old demo keeps "Song N" —
+  back-compat visually confirmed too.
+- Rebase over the README landing is patch-identical (delta = my README files).
+
+**GO TO LAND** (fast-forward, cite this verdict). This closes BOTH A-track
+follow-ups: T26 is fully done (core + app), T23 is fully done (server + drawer).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
