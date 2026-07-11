@@ -5,17 +5,19 @@
 > owns the **T-track** (web/core/infra); stay out of its way (see §2, §7).
 >
 > Point a fresh Claude Code session at this file to continue seamlessly. It captures **how we work**
-> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-05.
+> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-11.
 >
 > **To resume:** open this repo in a new session and say — *"Read `docs/handoff/mobile-app-agent.md`;
 > you are the Mobile App Agent — let's continue."* Then read §2 (how we work) and §5 (landing) before
 > touching anything, and `git log main --oneline -15` for current state. **Immediate next action:**
-> the actionable iOS + Android queue is **drained** (A01–A06, IOS01–IOS04 all merged — §6). The only
-> remaining app tasks are **both blocked**: **A07** (native wet-ink — real-tablet stylus spike) and
-> **IOS03 impl** (device/TestFlight/Store — needs a Mac + Apple credentials; the runbook is §11).
-> Don't start either without the user unblocking hardware/credentials. Otherwise there's nothing to
-> pick up unless a new `docs/tasks/*` is filed — check `git log` + `docs/tasks/` + the review-gate log
-> (`docs/handoff/reviews.md`) on start.
+> the **unattended mobile queue is EMPTY** — everything build-and-emulator-verifiable is merged
+> (A01–A06, A08–A15, IOS01/02/04, plus the T26 & B06 app halves — §6). What remains needs the user:
+> **A07** (native wet-ink — real-tablet stylus spike), **IOS03 impl** (Mac + Apple credentials; runbook §11),
+> and a handful of **attended device/emulator checks** (B06 live two-host mDNS, B07 device screenshots,
+> OPS01 release-APK) — see §8. Don't start blocked items without the user unblocking hardware/credentials.
+> Otherwise there's nothing to pick up unless a new `docs/tasks/*` is filed, or the web-core lane lands a
+> proto/bake half that queues an app consumption piece (that's how T26 arrived) — check `git log` +
+> `docs/tasks/` + the review-gate log (`docs/handoff/reviews.md`) on start.
 
 ---
 
@@ -127,6 +129,16 @@ git push origin --delete <branch>                   # PR auto-closes as merged
 Skipping step 1 (force-push branch) when you rebased → PR shows closed-not-merged. Deleting before
 step 4 → risk losing the branch if the push was rejected.
 
+**Cite the approval IN THE COMMIT before landing (hard rule — cost us on the A-track this session).**
+The gate accepts either a Fable verdict in `reviews.md` OR explicit human approval — but the commit
+message must record it, not just the chat. A13 landed on VLL's "go for it" without a citation and was
+logged as the mobile lane's first **gate breach** (approved on merit, not reverted, but a black mark).
+The trap: you commit *before* the approval exists. Fix: once the GO lands, **amend an `Approved: <verdict
+ref>` trailer** (message-only amend → the diff stays identical to the reviewed SHA, so it's still
+patch-identical) *then* fast-forward. When there's an open scope/completeness question, **hold at the
+gate** for the verdict instead of land-then-fix (B06 did this; the verdict ratified the iOS deferral).
+See memory `cite-approval-at-landing.md`.
+
 ## 6. What's done — the A-track (all merged to `main`)
 
 | Task | Commit | Summary |
@@ -142,11 +154,36 @@ step 4 → risk losing the branch if the push was rejected.
 | IOS02 | `e786418` (+`3bb2777`) | **`app/iosApp`** Xcode entrypoint (xcodegen `project.yml` + Swift), dynamic `Shared` framework export, `MainViewController.kt` (Concerts + Stage), **`.github/workflows/ios.yml`** (manual macOS: link → build unsigned → simulator → inject demo → screenshot + honest smoke). **Proven green with real Wonderwall Stage pixels.** |
 | IOS04 | `5946874` | Keep the iOS screen awake during Stage (`KeepScreenAwake()` DisposableEffect in `App()`'s Stage branch; iOS analog of Android `StageHost`'s `FLAG_KEEP_SCREEN_ON`). |
 | IOS03 | `d953e51` | **Prep-plan runbook only** (§11) — the impl is BLOCKED on a Mac + Apple credentials. |
+| B02/B03 | (see reviews.md) | Distribution loop: bake→offer→download→import→perform in-app (Android), emulator-proven. |
 
-Net: the app **performs baked concerts offline (Stage)**, **imports `.tstage` bundles**, and **hosts
-the live web editor (Edit)** — on **both Android and iOS** (iOS Stage proven on the simulator, IOS02).
-I15 held throughout (platform code only in the seam actuals + the two thin entrypoints). Commit hashes
-are the as-landed values; they may have been rebased since — grep the subject line if a hash goes missing.
+**Stage reading-ergonomics arc (all in the shared `StageScreen`, not a shared nav — §13):**
+
+| Task | Commit | Summary |
+|---|---|---|
+| A08 | `07e1e5d` | Setlist **metadata strip** (notes/key/tempo on each song's first page; footprint-stable overlay). |
+| A09 | `02808fb` | **Hardware page turns** — BT pedals/keyboards (`onPreviewKeyEvent`) + Android volume keys (`onKeyDown`); pure `stageKeyAction` map. |
+| A10 | `a34d4fc` | **Night mode** — invert `ColorFilter` at draw time (no re-encode); Day/Night toggle persisted via Storage KV, both entrypoints. |
+| A11 | `b537d5f` | Visual **count-in** — tap the tempo chip for a silent beat pulse at the song's tempo (`CountIn.kt`, pure timing). |
+| A12 | `57b2c9b` | **Facing pages (two-up)** in landscape FIT_PAGE — `FacingPages.kt` spread math + a two-up `Row`; turn by spread. |
+
+**This session (2026-07-11 and the days before it) — landed + Fable-approved:**
+
+| Task | Commit | Summary |
+|---|---|---|
+| A13 | `66e872f` | **Volume keys turn by spread in two-up** (A12 defect). StageScreen publishes its spread-aware turn via a commonMain CompositionLocal `LocalVolumeTurnRegistrar`; androidApp provides it; pure `turnTarget()` unifies every input. No new seam; iOS = default no-op. |
+| A15 | `6619496` | **Song-jump navigation drawer** — `ModalNavigationDrawer`, A08 meta lines, current-song highlight; tap → `goToSong` (spread-aligned) + close. Pure `songMetaLine()`. |
+| A14 | `06bfb4d` | **Continuous-scroll reading mode** — third Fit toggle (page→width→Scroll), a `LazyColumn` of all pages reusing the LRU cache; persisted via VM `initialFit` (A10 pattern); turns animate to page top; A08 strip inline. |
+| T26 (app half) | `309f06f` | Consume the baked **song title** (kills "Song N") + **T23 bench grouping** — `BakedSong` mirror gains `title`/`onCall`; drawer groups "On call" below the main order. Verified against a **real bake** (built the web/bake CLI + core, benched a song, baked, injected). Proto/bake half was web-core's (already landed). |
+| B06 (app half) | `4e0c024` | **LAN server discovery** on the Connect screen — commonMain `ServerDiscovery`/`DiscoveredServer` + pure dedup; Android `NsdServerDiscovery` (NsdManager, multicast lock, lifecycle-scoped); tap a "🎵 name — host:port" row to **prefill** the URL (no auto-connect). iOS: Bonjour plist keys only (NWBrowser wiring deferred to the App()/nav hoist — Fable-ratified). |
+
+Net: the app **performs baked concerts offline (Stage)** with full reading ergonomics (metadata, night
+mode, count-in, facing pages, hardware/volume turns, a song drawer, continuous scroll, real song titles
++ bench grouping), **imports `.tstage` bundles**, **hosts the live web editor (Edit)**, **downloads
+band-baked concerts** (B03), and **finds the band server on the LAN without typing an IP** (B06) — on
+Android (iOS: Stage proven on the simulator, IOS02; distribution/Connect UI awaits the App()/nav hoist).
+I15 held throughout (platform code only in the seam actuals + the two thin entrypoints; discovery is DI
+glue, not a seam). Commit hashes are as-landed; they may have been rebased since — grep the subject line
+if a hash goes missing.
 
 ## 7. Current state & concurrency
 
@@ -160,11 +197,24 @@ are the as-landed values; they may have been rebased since — grep the subject 
 ## 8. Remaining work
 
 **Unblocked, ready to pick up (authoritative queue: `docs/tasks/README.md` § Queue-state):**
-- **A08 — Stage setlist metadata strip** (notes/key/tempo the bundle already carries; XS/S, high value).
-- **A09 — Stage hardware page-turn** (BT pedal / volume keys).
-- **A10 — Stage night mode.**
-These are spec'd A-track tasks; execute per the task pack, hold at the gate. New Stage UI lands in the
-shared `StageScreen`, not a shared nav (the App()/nav hoist is deferred — §13).
+- **NONE right now** — the entire unattended A-track queue is drained (§6). New unblocked work appears
+  only when the Architect files a fresh `docs/tasks/*` **or** the web-core lane lands a proto/bake half
+  that queues an app consumption piece. That last path is real: **T26** (song titles) and **B06** (LAN
+  discovery) both arrived that way this session — when a "web made changes" prompt comes, `git log
+  06bfb4d..origin/main -- proto/ app/` and grep reviews.md for "app half queued for mobile".
+
+**Attended — need the user's device/hardware for a live check (code is landed/verified otherwise):**
+- **B06 live two-host mDNS check** — the Android emulator's NAT drops host multicast, so live
+  `NsdManager` discovery can't be exercised on it; the browse UI + prefill are proven with an injected
+  fake source (`docs/screenshots/b06-connect-discovered.png`) and the pure logic is unit-tested. A real
+  device + a real core on the same LAN confirms live discovery.
+- **B07 device screenshot pair** and **OPS01 release-APK** — ride the next attended device/emulator session.
+
+**Deferred by decision (not a gap):**
+- **iOS distribution/Connect UI** (offers, Connect screen, and the B06 NWBrowser discovery impl) rides
+  the **shared App()/nav hoist** (§13) — trigger = when an iOS `ManifestTransport`/Connect surface lands.
+  B06 shipped the iOS Bonjour plist keys so the capability is ready; the NWBrowser provider is intentionally
+  NOT built yet (would be dead code — Fable-ratified 2026-07-11).
 
 **Blocked — do not start without the user unblocking hardware/credentials:**
 - **A07 — native wet-ink overlay: BLOCKED.** Needs a **real-tablet stylus latency spike** (input→
