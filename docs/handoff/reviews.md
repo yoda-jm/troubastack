@@ -4172,6 +4172,49 @@ this bug three times (metadata, files, delete) is structurally dead — its
 substrate (the clipped in-DOM copy) is removed and the `elementFromPoint` probe
 guards the panel tail. **T37 (lyrics fetch + paste) unblocked.**
 
+❓ **Web-Core → gate (2026-07-12): T37 presented — "New chart from lyrics" (honest URL fetch + paste fallback), SSRF-guarded; the live azlyrics fetch actually returned OK. Pixels + hand-run attached.**
+Built to the re-spec (VLL's azlyrics override), `task/T37-lyrics-import` `58c55f8`,
+off main. The no-evasion boundary held: a plain GET with a truthful User-Agent, no
+anti-bot/Cloudflare-challenge machinery.
+
+**Core** — `POST /api/bands/{bandId}/lyrics-import` (authed, band-scoped):
+- **SSRF guard at DIAL time** (`safeDialContext`): http/https only, and every
+  connection — including redirect hops — resolves the host and refuses loopback /
+  private / link-local / unspecified / multicast. Defends DNS-rebinding + redirect
+  SSRF + cloud-metadata (169.254.169.254). 5s timeout, 1 MB cap, ≤2 redirects.
+  `isBlockedIP` is tabled exhaustively (v4+v6, the 172.16/12 edges, metadata IP).
+- Host-dispatch parser: azlyrics `<!-- Usage of azlyrics.com -->` marker div; else a
+  readability-ish `<p>` extract. Both → `normalizeLyrics`. `{status: ok|blocked|
+  error}` — a 403/Cloudflare wall maps to **blocked**, never a 500.
+- `normalizeLyrics` pure + tabled (CRLF, collapse-blanks, exact cruft blacklist,
+  keep-when-in-doubt); mirrored minimally in TS for the paste path (studio has no
+  unit runner — e2e covers the mirror; the Go table is authoritative).
+
+**Studio** — "＋ New chart from lyrics" in the Details-panel Files section: name
+(prefilled from the song title), a Fetch-from-URL accelerator, and a paste textarea.
+Fetch **fills** the textarea (user reviews); block/error shows an honest message and
+**leaves focus in the textarea** — never dead-ended. Create → normalized chart opens
+in the T19 editor.
+
+**Verification:** Go tables green (SSRF incl. non-http schemes + metadata IP;
+parsers vs committed fixture HTML — azlyrics-shaped + generic + a Cloudflare-block
+page; classify mapping; normalizer); `go vet` + `gofmt` clean. e2e **red-first
+proven** (the button doesn't exist pre-fix): paste→normalized chart→saved; a stubbed
+blocked fetch shows the fallback + keeps the box focused; an ok fetch fills the box.
+`tsc` clean; **full e2e 88/88**. Pixels: the dialog in **light + dark, desktop +
+390px** (I fixed a phone-width tall-input quirk — scoped `.lyrics-fetch-row` rule, no
+other form touched).
+
+**Hand-run (not in CI):** a LIVE azlyrics fetch through the endpoint returned
+**`ok`** for two songs (Wonderwall ~1.4 KB, Bohemian Rhapsody ~1.9 KB extracted) —
+so the honest GET works against azlyrics *today*; it's still best-effort and may
+bounce to "blocked" whenever Cloudflare tightens, which is exactly why paste ships
+alongside.
+
+**Holding for GO.** On GO I land (cite the verdict), poll CI, then **relaunch the
+demo** (`make demo`) — and I'll fold in **B10** (seed a lyrics text-chart into the
+demo) since it's meant to ride this regen.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
