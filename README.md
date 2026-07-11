@@ -1,11 +1,20 @@
 # TroubaStack
 
-Collaborative sheet-music & lyrics annotation for bands and ensembles.
+[![CI](https://github.com/yoda-jm/troubastack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yoda-jm/troubastack/actions/workflows/ci.yml)
+[![iOS (simulator)](https://github.com/yoda-jm/troubastack/actions/workflows/ios.yml/badge.svg)](https://github.com/yoda-jm/troubastack/actions/workflows/ios.yml)
+![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)
+![Node](https://img.shields.io/badge/Node-24%2B-5FA04E?logo=nodedotjs&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin%2FCompose-Android%20%C2%B7%20iOS-7F52FF?logo=kotlin&logoColor=white)
+
+Collaborative sheet-music & lyrics annotation for bands and ensembles — from the
+rehearsal-room edit to the on-stage page turn, self-hosted on a box you own.
 
 **One product (`TroubaShare`), three layers, one contract.** You *compose and annotate*
-scores in a reactive web editor (**TroubaStudio**); a server (**TroubaCore**) holds the single
-authoritative truth and publishes performable concerts; an offline, dumb presenter
-(**TroubaStage**, inside the mobile app) *performs* them on stage.
+scores in a fullscreen, canvas-first web editor (**TroubaStudio**); a server
+(**TroubaCore**, one Go binary) holds the single authoritative truth, bakes setlists
+into performable concert bundles, and distributes them in-app; an offline presenter
+(**TroubaStage**, inside the mobile app) *performs* them on stage — pedal page turns,
+night mode, count-in, facing pages, per-role layers.
 
 > The name is a troubadour pun, and it maps onto the architecture:
 > a **troubadour** *composes* (the editor), a **joglar** *performs* (the presenter).
@@ -13,7 +22,11 @@ authoritative truth and publishes performable concerts; an offline, dumb present
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| ![The TroubaStudio editor: a score with freehand, shape and text annotations, per-member layers, realtime sync](docs/screenshots/studio-editor.png) | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: score raster + section highlights + conductor cues" width="260"> |
+| ![The fullscreen canvas-first TroubaStudio editor: Wonderwall with conductor cues, section highlights and part tabs; slim floating tool and style pills over the score](docs/screenshots/studio-editor.png) | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: score raster + section highlights + conductor cues" width="260"> |
+
+The full loop works end to end today: **compose → annotate (realtime, multi-user) →
+bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
+and any browser.
 
 ---
 
@@ -25,6 +38,7 @@ authoritative truth and publishes performable concerts; an offline, dumb present
 | Understand a specific subsystem | [`docs/design/`](docs/design/) |
 | Know why a decision was made | [`docs/adr/`](docs/adr/) |
 | See what's being built next (agent-executable task specs) | [`docs/tasks/`](docs/tasks/) |
+| See what a real band can/can't do yet | [`docs/USER-JOURNEY.md`](docs/USER-JOURNEY.md) |
 | Look up a term (bake, concert, layer, wet/dry ink…) | [`docs/glossary.md`](docs/glossary.md) |
 
 **The golden rule:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) lists numbered
@@ -36,7 +50,7 @@ them. If code and an invariant disagree, the code is wrong.
 ## Quick start — run the whole thing locally
 
 Prerequisites: **Go 1.26+** and **Node 24+ / npm 11+** (that's all for the server + web editor).
-Baking a setlist to a `.tstage` (B02) additionally needs **`pdftoppm`** (from `poppler-utils`)
+Baking a setlist to a `.tstage` additionally needs **`pdftoppm`** (from `poppler-utils`)
 on `PATH` for PDF page rasters — override its location with `TROUBA_PDFTOPPM` if needed.
 
 ```sh
@@ -46,46 +60,63 @@ make demo    # builds the SPA, embeds it into the Go binary, seeds demo data, se
 
 Open **http://localhost:8080** and log in as **`marie` / `demo`** (band admin; also
 `leo`, `sasha` — and `maestro`/`flora`/`cory` in the orchestra — same password).
-You get two seeded bands with songs, multi-page PDFs, per-member annotation layers,
-and realtime sync — open the same song in two browsers and draw.
+You get two seeded bands with songs, multi-page PDFs, text charts, per-member
+annotation layers, conductor cues and realtime sync — open the same song in two
+browsers and draw.
 
 Reset the demo data with `rm -rf core/troubadata`.
 
-![Band overview: members with roles, songs, setlists](docs/screenshots/band-overview.png)
+![Band overview in the warm concert-program design: members with roles and admin password reset, songs, setlists](docs/screenshots/band-overview.png)
 
 Other useful targets (`make help` lists everything):
 
 | Command | What it does |
 |---|---|
 | `make dev` | development loop: Go API + Vite hot-reload SPA on :5173 |
-| `make test` | Go tests (engine, stores, HTTP API) |
-| `make e2e` | Playwright end-to-end suite (~56 specs, drives a real core+SPA) |
+| `make test` | Go tests (engine, stores, HTTP API, bake) |
+| `make e2e` | Playwright end-to-end suite (~80 specs, drives a real core+SPA) |
 | `make check` | `go vet` + strict `gofmt` gate (same as CI) |
 | `make app` | build the Android app (see below) |
 | `make fixtures` | regenerate the demo/torture bundle fixtures (`core/cmd/mkbundle`) |
 
 CI runs all of this on every push/PR: `.github/workflows/ci.yml` (go · web · proto ·
-android · e2e).
+android · e2e — all five gate the merge).
 
 ---
 
-## Deploy it on a box you own
+## Install it for real — Docker, on a box you own
 
 `make demo` is local-only over `http://localhost`. To run TroubaStack for a real band —
-HTTPS on a home server or cheap VPS, one binary behind Caddy (automatic Let's Encrypt),
-all state in one backed-up data dir — see **[`deploy/`](deploy/README.md)**:
-`docker compose up -d` with your domain, or the documented systemd variant. Backups are
-a single `tar` of the data dir (`deploy/backup.sh`).
+HTTPS on a home server or a cheap VPS, one binary behind Caddy with automatic
+Let's Encrypt certificates, all state in one backed-up data dir — see
+**[`deploy/`](deploy/README.md)**:
+
+```sh
+cp deploy/.env.example deploy/.env    # set DOMAIN=band.example.org
+cd deploy && docker compose up -d     # builds the image, provisions TLS, serves
+```
+
+The [`Dockerfile`](Dockerfile) is multi-stage (SPA embedded at compile time; the
+runtime can bake — poppler + the Node bake worker included; non-root). Backups are a
+single `tar` of the data dir ([`deploy/backup.sh`](deploy/backup.sh), restore path
+tested). A plain **systemd** variant (no docker) is documented in the same README.
+
+**Packaging status (honest):** the compose build above is the supported install.
+There is no published registry image, no GitHub Releases binary, and no store/F-Droid
+APK yet — CI builds a **debug APK** artifact on every push (below), and a signed
+release APK is the remaining half of the deploy story
+([`docs/tasks/OPS01`](docs/tasks/OPS01-production-serving.md)).
 
 ---
 
 ## The mobile app — TroubaStage on your phone/tablet
 
-The Kotlin/Compose Multiplatform app (Android now, iOS later) currently ships the
-**TroubaStage presenter**: fully **offline, no account, no login** — it performs baked
-concert bundles (`.tstage` files) that you import from anywhere on the device.
-Hosting the Studio editor inside the app is the next planned step
-([`docs/tasks/A06`](docs/tasks/A06-android-webview-studio-host.md)).
+The Kotlin/Compose Multiplatform app (Android now, iOS in simulator) ships the
+**TroubaStage presenter** — fully **offline, no account, no login** — plus the
+in-app distribution loop: connect to your band's server (mDNS discovery on the LAN),
+browse offered concerts, download and perform them. Stage-time ergonomics are real:
+pedal/volume-key page turns, night mode, count-in, facing pages on wide tablets,
+per-role layer defaults, a song drawer, and the screen stays awake while performing.
 
 <p>
 <img src="docs/screenshots/stage-concerts.png" alt="Concerts list (Sat @ The Anchor) with Connect + Import" width="240">&nbsp;
@@ -131,10 +162,10 @@ adb push docs/demo/demo-concert.tstage /sdcard/Download/
 in airplane mode. Navigation (tap/swipe/song jump), fit modes and per-layer visibility
 all work offline; the screen stays awake and the system bars hide while performing. Try
 **Role → `conductor`**: the red conductor cues appear (role-targeted layers default off
-for everyone else, and the mandatory section-markings layer can never be hidden). Real bundles will come from the server-side bake
-([`docs/design/04-publish-pipeline.md`](docs/design/04-publish-pipeline.md)) once it lands —
-the container format is specified in
-[`docs/design/08-bundle-container.md`](docs/design/08-bundle-container.md).
+for everyone else, and the mandatory section-markings layer can never be hidden).
+With a running server you don't need the file at all: **Connect** finds the server on
+your LAN, lists the offered concerts, and downloads them in-app
+([`docs/design/04-publish-pipeline.md`](docs/design/04-publish-pipeline.md)).
 
 ### iOS (simulator)
 
@@ -162,9 +193,10 @@ troubastack/
 │   ├── ink/      @troubastack/ink — THE one stroke renderer. [I8]
 │   ├── studio/   TroubaStudio — the canonical editor SPA. [I10]
 │   └── bake/     bake worker (Node) — reuses web/ink for pixel-parity. [I8]
-└── app/          TroubaShare — Kotlin/Compose Multiplatform mobile app.
-                  TroubaStage presenter + (soon) Studio in a webview.
-                  Native code kept to 3 seams only. [I15]
+├── app/          TroubaShare — Kotlin/Compose Multiplatform mobile app.
+│                 TroubaStage presenter + Studio in a webview.
+│                 Native code kept to 3 seams only. [I15]
+└── deploy/       single-box production serving: compose + Caddy/TLS + backups.
 ```
 
 Dependencies point **toward the contract only**: `core`, `web/studio`, `web/bake`, and `app`
@@ -172,17 +204,27 @@ all depend on `proto`; nothing depends on a sibling client. [I14]
 
 ## Status
 
-Actively implemented — the scaffold days are over:
+The product loop is closed and CI-gated end to end:
 
-- **Working today:** the Go core (append-only engine, LWW/tombstone sync, swappable
-  mem/file/git stores, REST + WebSocket API), the full Studio editor (PDF viewing,
-  freehand/shape/text annotation with a low-latency wet-ink path, per-member layers,
-  realtime multi-user echo), and the Android TroubaStage presenter (offline, resilient,
-  `.tstage` import).
-- **Scaffold / next:** the server-side bake & publish pipeline, distribution/updates,
-  Studio-in-the-app (A06), the native ink overlay (A07 — only if the web path proves too
-  slow on a real tablet), iOS, proto codegen adoption.
-- The live work queue with per-task specs is [`docs/tasks/`](docs/tasks/).
+- **The editor:** fullscreen, canvas-first — Ctrl/⌘-wheel and two-finger pinch
+  zoom-to-cursor (one raster per gesture), low-latency wet ink, per-member layers,
+  per-object z-order with a selection toolbar, shapes/text/highlights with presets,
+  realtime multi-user echo, offline honesty (read-only presentation + visible
+  errors — nothing dies silently), text charts alongside PDFs, drag-reorder
+  setlists, duplication, admin password reset, a build-version chip.
+- **The pipeline:** server-side bake (concurrent-safe, per-member parts, encore/bench
+  songs, retention via `troubacore gc`), in-app offer/download distribution, and the
+  committed demo bundle above — studio pixels and baked pixels come from the same
+  renderer (I8) and are parity-tested.
+- **The presenter:** Android + iOS-simulator TroubaStage with the stage ergonomics
+  arc (A08–A15) landed: metadata strip, pedal page turns, night mode, count-in,
+  facing pages, scroll mode, song drawer.
+- **Production serving:** the [`deploy/`](deploy/README.md) story above (compose +
+  Caddy/TLS + tested backups) — the attended first bring-up and the signed release
+  APK are the remaining steps.
+- **Next / open:** the live work queue with per-task specs is
+  [`docs/tasks/`](docs/tasks/) (§ *Queue state*); the honest gap register is
+  [`docs/USER-JOURNEY.md`](docs/USER-JOURNEY.md).
 
 ## Toolchains
 
