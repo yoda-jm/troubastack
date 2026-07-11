@@ -57,8 +57,9 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** *(none — every unattended agent-executable item is done as of
-  2026-07-11; B06 app half landed `4e0c024`)* · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
+- **Open, unblocked:** **T35** (wet alpha-stacking on slow freehand at reduced opacity —
+  uniform-alpha wet compositing + capture-time point filter; research resolved in the
+  spec, VLL field report 2026-07-11). · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
   HTTPS bring-up + the release-APK half, mobile) · P201 (P203 DECIDED 2026-07-11: re-affirm mirrors —
   closed-not-adopted; P202 closed
   2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
@@ -113,6 +114,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T32 | [`crypto.randomUUID` missing on plain-HTTP origins + global error visibility](T32-insecure-context-uuid.md) — landed | studio | XS/S |
 | T33 | [Thin the ctx style pill to the main bar's height](T33-thin-ctx-bar.md) — landed | studio | S/M |
 | T34 | [Touch editor stuck in nav (stale pointer entry)](T34-stuck-nav-stale-pointer.md) — landed | studio | XS/S |
+| T35 | [Slow freehand at reduced opacity shows dark bands (wet alpha-stacking)](T35-wet-alpha-stacking.md) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
