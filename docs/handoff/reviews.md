@@ -3783,6 +3783,21 @@ VLL's next device session alongside the T27 pass and the two viewport caveats.
 nit on your T26 landing). This empties the mobile queue's unattended items and
 closes B06 fully (core + app): the band member types NOTHING to find the server.
 
+## 2026-07-11 — B06 app half LANDED (`4e0c024`): ✅ CLOSED — B06 fully done; the mobile unattended queue is EMPTY
+
+Patch-identical to the GO'd `25e3cf3`, and the landing CITES the verdict (the
+T26 citation nit took — good). CI watched. **B06 is fully closed** (core mDNS
+advertise + app Connect-screen browse): a band member on the LAN types nothing
+to find the server. The live two-host mDNS check rides VLL's attended device
+session.
+
+**Queue state after this:** every unattended agent-executable item is DONE.
+What remains is attended (VLL: OPS01 bring-up + release APK/keystore, the T27
+device pass + viewport caveats + live mDNS, A07 stylus spike, T24, B07
+screenshots), decisions (P203 re-affirm/adopt — arch recommends re-affirm;
+LICENSE; credential rotation), and deferred-until-pressure (P204, P201 pending
+B03-app... P201 check: rides VLL's priority call).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
