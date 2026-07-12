@@ -4575,6 +4575,29 @@ Clock-injected. This is the concurrency-sensitive stage — it gets extra scruti
 debounce/expiry test (N commits → 1 bake). Then stage 2 (studio banner) + stage 3
 (app transient toggle + R10).
 
+## 2026-07-12 — P201 stages 1b + 2 landed (architect-implemented): rehearsal live mode is real in web+core
+
+Continuing the P201 build per VLL. Since stage 1a:
+- **1b (`95db8e8`, CI green):** the debounced AutoBaker — annotation commits on a live
+  setlist's songs coalesce (~8s quiet) into ONE autobake via the existing Baker, as the
+  enabling admin; policy/clock separated for flake-free tests (burst→1 bake, expiry,
+  non-live never bakes; -race clean). Fixed a goroutine-leak I introduced (Router now
+  takes a ctx so the ticker stops on shutdown/test-cleanup).
+- **2a (`3952840`):** setlist-page admin toggle ("Go live (rehearsal)") + a red LIVE
+  banner + pulsing chip; POST …/live; e2e toggle+persist; pixels both themes.
+- **2b (`b49694e`):** in-editor LIVE banner — a new membership-gated GET
+  …/live-setlists signal, the Viewer polls it (load + 20s) and shows a fixed red strip
+  ('publishing to performers'); the top pill shifts below it (no overlap, pixel-checked);
+  e2e + editor regression batch green.
+
+**STAGE 2 COMPLETE (web + core).** Rehearsal live mode works end-to-end on the web
+side: an admin flips a setlist live, the banner shows in the setlist page AND the
+editor, and edits auto-bake. **Stage 3 remains** — the app's TRANSIENT auto-update
+toggle (I13: in-memory, resets on leaving Stage) + the R10 viewport-preserving swaps
+(facing pages/scroll mode). That's mobile-lane Kotlin work + an attended device pass;
+not architect-implementable solo. I'll spec the stage-3 handoff for the mobile lane
+next unless VLL redirects.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
