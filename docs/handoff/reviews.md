@@ -4813,6 +4813,19 @@ VLL asked for the review after landing. Verified:
 per-file showcase) now has a working feature to display. My earlier
 misdiagnosis is on the record; the lane's reproduction + this fix close it right.
 
+## 2026-07-13 — T40 Layers-drawer follow-up (`edb5cac`): ✅ APPROVED — the last un-scoped surface, now filtered
+
+VLL caught the gap right after T40: the CANVAS/EditCanvas/AnnotationList were
+file-scoped, but the Layers DRAWER still listed the whole song's layers (Score's
+cues showing while viewing Vocals). Fix: `sortedFileLayers` (sortedLayers filtered
+to `selectedFileId`) feeds the LayersPanel; `layerRank` correctly stays over ALL
+layers (z-order only — only the current file's objects render, so stacking is
+preserved). Verified: **red re-proven** (the drawer assertion fails on
+`edb5cac~1` — pre-fix it lists file A's layer after switching to B); green at the
+fix (guard + editor-layers, 10 passed); `tsc -b` clean. Per-file scoping is now
+complete across every surface — render, hit-test, annotation list, AND the layers
+drawer.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
