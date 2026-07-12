@@ -134,7 +134,7 @@ func run(addr, password string) error {
 				// tab) from docs/demo-charts — so one seeded song shows genuine sheet
 				// content + its purpose-built annotation layers (see buildOpenRoadAnnotations).
 				{title: "The Open Road", artist: "", key: "G", tempo: 92, tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + guitar tab. Capo 2.",
-					src:           pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2},
+					src: pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2},
 					// A REAL text chart alongside the lead-sheet PDF — the demo now shows the
 					// T19 chart type (server-rendered from chart-dialect source), not only PDFs (B10).
 					textChartPath: "../docs/demo-charts/open-road-lyrics.chart"},
