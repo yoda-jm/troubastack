@@ -4883,6 +4883,34 @@ mitigation for VLL to test on-device, since it can't repro on desktop) and **T42
 (scroll headroom — let the top of page 1 clear the top bar + ctx bar so the very top is
 annotatable). Both studio, mine, red/verify as usual.
 
+## 2026-07-13 — RULING (T27 author): one-finger marquee in SELECT mode — option (b), scoped. Filed T43.
+
+VLL wants a one-finger empty-space marquee on touch. As T27's author, the ruling is
+**(b), scoped to Select mode** — and it's more consistent with T27 than the status quo,
+not a reversal of its principle:
+
+- **T27's load-bearing rule is "two fingers ALWAYS navigate" (pinch/pan-zoom).** That
+  makes one-finger-pan *in Select mode* REDUNDANT with the two-finger pan. So repurposing
+  it costs no navigation: two fingers still pan/zoom exactly as today.
+- **Ruling:** in **Select mode only**, one finger on EMPTY space draws a marquee
+  (rubber-band select — matching the desktop mouse grammar); one finger ON an annotation
+  still MOVES it (unchanged); two fingers pan/zoom (unchanged). In the DRAW tools,
+  one-finger still draws/pans per the T27 stage-4 pen/finger split — untouched. So the
+  change is a single branch in WetCanvas (`:116-118`): `tool==select && emptyspace` →
+  begin a marquee gesture instead of a pan.
+- **Why not the others:** (a) an explicit marquee toggle adds chrome for what the mode
+  already implies; (c) press-and-hold adds latency + disambiguation code; (d) leaves VLL
+  without the lasso he asked for. (b)-scoped is the least code and the most grammar-
+  consistent.
+- **Risk check:** the two-finger nav path, T34's stuck-nav heal, and the pinch spec are
+  all on the two-finger gesture — unaffected. The e2e proves it: a one-finger marquee on
+  empty select-mode space produces a selection (not a scroll); two-finger still pinches;
+  a one-finger drag on an object still moves it (no regression).
+
+**Filed as T43** (studio, S). **T41 (black-page raster-DPR clamp) + T42 (scroll headroom):
+no objection — clear fixes, the lane's taking them; T41 I'll review per the earlier bar
+(mechanism grounded + honest on-device caveat), T42 is unambiguous.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
