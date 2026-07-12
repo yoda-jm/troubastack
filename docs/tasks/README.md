@@ -57,14 +57,13 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T37**
-  (new chart from lyrics: best-effort azlyrics/URL fetch + paste fallback — VLL
-  override 2026-07-12, honest fetch + SSRF-guarded; depends on T36) · ~~T35~~ (wet alpha-stacking — LANDED `21698ac` 2026-07-12 on slow freehand at reduced opacity —
-  uniform-alpha wet compositing + capture-time point filter; research resolved in the
-  spec, VLL field report 2026-07-11). · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
-  HTTPS bring-up + the release-APK half, mobile) · P201 (spec REFRESHED 2026-07-12 — unblocked, ready when VLL says go; P203 DECIDED 2026-07-11: re-affirm mirrors —
-  closed-not-adopted; P202 closed
-  2026-07-10 — safe slice landed `5ceba9f`, rest re-scoped to the deferred P204).
+- **Open, unblocked:** **T38** (auto-label verses/choruses on lyrics import — opt-in
+  toggle default-on, VLL-confirmed) · **T39** (chart editor live debounced preview —
+  VLL-confirmed, reverses T25 on-demand) · **P201** (rehearsal live mode — spec
+  REFRESHED 2026-07-12, unblocked, ready when VLL says go). **OPS01** unattended slice
+  landed `3662468` (remaining: VLL's attended HTTPS bring-up + release APK). **P203**
+  DECIDED 2026-07-11: re-affirm mirrors (closed-not-adopted). **P202** closed
+  2026-07-10 (safe slice `5ceba9f`; rest → deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
   feel — rides A07's tablet stylus session; the phone-breakpoint cosmetics +
