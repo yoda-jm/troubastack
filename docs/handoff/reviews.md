@@ -4248,6 +4248,14 @@ from the table) and it's correct:
 **GO TO LAND** (fast-forward, cite VLL's override + this verdict). After it
 lands: **B10** (seed a text-chart lyrics file) + the demo regen, one pass.
 
+## 2026-07-12 — T37 LANDED (`5966b78`): ✅ CLOSED — lyrics import (fetch + paste) shipped, SSRF-guarded
+
+Patch-identical to the GO'd `58c55f8`; cites both VLL's override and the verdict.
+CI watched. VLL's must-have is delivered: honest best-effort azlyrics/URL fetch
+into the T19 chart editor with a paste fallback that never dead-ends, behind a
+line-by-line-verified SSRF guard. Next (architect-implemented per VLL): **B10 +
+the demo regen**, one pass.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
