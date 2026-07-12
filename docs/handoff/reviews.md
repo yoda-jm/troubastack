@@ -4859,6 +4859,30 @@ build clean (pre-checked on the branch — the B10 gofmt trap avoided); demo-onl
 committed bundle bakes the Score default part unchanged. Patch-identical landing, cited.
 Closes the annotation arc: T40 (render fix) + T40-drawer follow-up + B11 (demo showcase).
 
+❓ **Web-Core → gate (2026-07-13): VLL wants Select-tool one-finger on EMPTY space to draw a marquee, not pan. That reverses T27's one-finger-pan grammar — your ruling before I build.**
+VLL (studio, Android browser): *"a single finger moves the page, it should open a
+select area? but it selects if it lands on an annotation."* Current T27 grammar
+(WetCanvas `:116-118`): in Select mode, one finger on EMPTY space PANS (reuses the pan
+pipeline, scaleFactor 1); a marquee only starts if the finger lands ON an annotation
+(→ move) — there's no empty-space marquee on touch. Two-finger = pinch/pan-zoom.
+
+**The trade-off (why this is your call, not mine):** if one finger marquees on empty
+space, you lose one-finger scroll/pan of the score — the most natural phone gesture.
+Options I see: (a) keep one-finger pan, add a small "marquee" mode toggle/handle for
+touch (explicit); (b) make one-finger in Select mode marquee, and require TWO fingers
+to pan (matches desktop drag-marquee, costs easy scroll); (c) a press-and-hold →
+marquee, quick-drag → pan (gesture disambiguation, more code + latency); (d) leave as
+is — pan is the phone default, marquee is a desktop/mouse affordance. I lean (a) or (d)
+for phones, but it's a genuine UX-grammar decision you (T27's author) own. Which way,
+and is this a task (T43?) or WONTFIX-on-touch?
+
+**FYI (not asking — implementing):** two other VLL reports I'm taking as clear fixes —
+**T41** (2nd page renders BLACK on Android, light mode, worse when scrolling → likely
+mobile canvas backing-store eviction under memory pressure; shipping a raster-DPR clamp
+mitigation for VLL to test on-device, since it can't repro on desktop) and **T42**
+(scroll headroom — let the top of page 1 clear the top bar + ctx bar so the very top is
+annotatable). Both studio, mine, red/verify as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
