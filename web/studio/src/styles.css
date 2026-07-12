@@ -189,6 +189,28 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .lyrics-sections-toggle { display: flex; align-items: flex-start; gap: .5rem; font-size: .85rem; color: var(--muted); margin: .1rem 0; }
 .lyrics-sections-toggle input { flex: 0 0 auto; width: auto; margin-top: .15rem; }
 
+/* T39: "Lyrics & chords" editor — syntax-highlight overlay. A colored <pre> sits exactly
+   behind a transparent-text <textarea>; the wrap owns the border so the two text boxes
+   share an identical box model (padding/font/wrap) and the highlight stays aligned. The
+   pane is MONOSPACE (chords over words + reliable glyph alignment). */
+.chart-editor-head { margin-bottom: .5rem; }
+.chart-editor-head h3 { margin: 0 0 .15rem; font-size: 1rem; }
+.chart-src-wrap { position: relative; flex: 1 1 20rem; min-width: 16rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); overflow: hidden; }
+.chart-src-hl, .chart-src-ta {
+  margin: 0; padding: .5rem .6rem; border: 0; box-sizing: border-box; tab-size: 4;
+  font: .85rem/1.5 var(--font-mono);
+  white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word;
+}
+.chart-src-ta {
+  display: block; position: relative; z-index: 1; width: 100%; min-height: 22rem;
+  resize: vertical; background: transparent; color: transparent; caret-color: var(--fg);
+}
+.chart-src-hl { position: absolute; inset: 0; z-index: 0; overflow: auto; pointer-events: none; color: var(--fg); }
+.hl-title, .hl-section { color: var(--accent); font-weight: 700; }
+.hl-chord { color: var(--ok-fg); font-weight: 700; }
+.hl-bold { color: var(--fg); font-weight: 700; }
+.hl-plain { color: var(--fg); }
+
 /* ---- lists ------------------------------------------------------------- */
 .list { list-style: none; padding: 0; margin: .25rem 0 0; display: flex; flex-direction: column; gap: .4rem; }
 .list li {

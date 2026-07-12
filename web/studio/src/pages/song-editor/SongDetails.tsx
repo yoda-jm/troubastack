@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { ApiError, api, type Song, type SongFile } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
 import { normalizeLyrics, detectSections } from "./lyrics";
+import { tokenizeChartLine } from "./chartHighlight";
 
 export function Details({ title, children }: { title: string; children: ReactNode }) {
   // Default OPEN: the viewer is the headline, but the existing flows expect the
@@ -528,6 +529,50 @@ function LyricsImportDialog({
   );
 }
 
+// HighlightedSource (T39): the chart source pane with dialect syntax highlighting via the
+// overlay technique — a colored <pre> sits exactly behind a transparent-text <textarea>
+// (caret + all editing from the textarea; color from the <pre>). The pane is MONOSPACE so
+// chords line up over words AND the overlay stays glyph-aligned. The <pre> mirrors the
+// textarea's scroll. `chart-source` stays the textarea's testid (specs type into it);
+// preview is unchanged (still on-demand — no auto-render on type).
+function HighlightedSource({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
+  const syncScroll = () => {
+    if (taRef.current && preRef.current) {
+      preRef.current.scrollTop = taRef.current.scrollTop;
+      preRef.current.scrollLeft = taRef.current.scrollLeft;
+    }
+  };
+  const lines = value.split("\n");
+  return (
+    <div className="chart-src-wrap">
+      <pre className="chart-src-hl" aria-hidden="true" ref={preRef}>
+        {lines.map((ln, i) => (
+          <span className="hl-line" key={i}>
+            {tokenizeChartLine(ln).map((t, j) => (
+              <span className={t.cls} key={j}>
+                {t.text}
+              </span>
+            ))}
+            {"\n"}
+          </span>
+        ))}
+      </pre>
+      <textarea
+        data-testid="chart-source"
+        className="chart-src-ta"
+        ref={taRef}
+        rows={14}
+        value={value}
+        spellCheck={false}
+        onChange={(e) => onChange(e.target.value)}
+        onScroll={syncScroll}
+      />
+    </div>
+  );
+}
+
 function ChartEditor({
   bandId,
   songId,
@@ -587,15 +632,15 @@ function ChartEditor({
 
   return (
     <div className="card chart-editor" data-testid="chart-editor">
+      <div className="chart-editor-head">
+        <h3>Lyrics &amp; chords</h3>
+        <p className="muted" style={{ margin: 0 }}>
+          Title, sections, chords and lyrics — <code># title</code> · <code>## section</code> ·
+          chord lines over words.
+        </p>
+      </div>
       <div className="chart-editor-panes" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-        <textarea
-          data-testid="chart-source"
-          rows={14}
-          style={{ flex: "1 1 20rem", minWidth: "16rem" }}
-          value={source}
-          spellCheck={false}
-          onChange={(e) => setSource(e.target.value)}
-        />
+        <HighlightedSource value={source} onChange={setSource} />
         <div style={{ flex: "1 1 20rem", minWidth: "16rem" }}>
           {previewUrl ? (
             <object
