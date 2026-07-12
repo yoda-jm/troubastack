@@ -73,6 +73,12 @@ export function SetlistDetail() {
 
   return (
     <div className="page">
+      {liveNow(setlist) && (
+        <div className="live-banner" data-testid="live-banner" role="status">
+          <span className="live-dot" aria-hidden="true" />
+          LIVE — edits to these songs are auto-publishing to performers
+        </div>
+      )}
       <Link className="crumb" to={`/bands/${bandId}/setlists`}>
         &larr; Setlists
       </Link>
@@ -100,6 +106,9 @@ export function SetlistDetail() {
         setlistId={setlistId}
         onDuplicated={(id) => navigate(`/bands/${bandId}/setlists/${id}`)}
       />
+      {myRole === "admin" && (
+        <LiveModeCard bandId={bandId} setlist={setlist} onChanged={setSetlist} />
+      )}
       <BakeCard bandId={bandId} setlistId={setlistId} myRole={myRole} />
       {myRole === "admin" && (
         <DeleteSetlist
@@ -116,6 +125,64 @@ export function SetlistDetail() {
 // The band bake (admin-only) is the shared concert; "Bake my parts" (any member)
 // mints the caller's PERSONAL variant — same setlist, but each song resolves to
 // the member's own "my files" pick (concertId `${setlistId}~${userId}`). One card.
+// liveNow: is the setlist in rehearsal live mode right now? Self-expiring server-side,
+// so we also check the client clock against liveUntil (a stale page shouldn't claim live).
+function liveNow(sl: Setlist): boolean {
+  return !!sl.liveUntil && new Date(sl.liveUntil).getTime() > Date.now();
+}
+
+// LiveModeCard (P201, admin-only): toggle rehearsal live mode. While on, edits to the
+// setlist's songs auto-bake — the banner up top says so. Bounded window server-side.
+function LiveModeCard({
+  bandId,
+  setlist,
+  onChanged,
+}: {
+  bandId: string;
+  setlist: Setlist;
+  onChanged: (sl: Setlist) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const on = liveNow(setlist);
+
+  async function toggle() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { setlist: updated } = await api.setSetlistLive(bandId, setlist.id, !on);
+      onChanged(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't change live mode");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card live-card" data-testid="live-card">
+      <div className="card-head">
+        <h2>Rehearsal live mode</h2>
+        {on && <span className="chip live">● LIVE</span>}
+      </div>
+      <p className="muted">
+        While live, edits to this setlist&rsquo;s songs auto-publish to performers (they
+        auto-update in the app if they opt in). Turns itself off after a few hours.
+      </p>
+      <button
+        type="button"
+        className={on ? "btn danger" : "btn brand"}
+        data-testid="live-toggle"
+        disabled={busy}
+        onClick={toggle}
+      >
+        {busy ? "…" : on ? "Stop live mode" : "Go live (rehearsal)"}
+      </button>
+      {error && <p className="notice" role="alert">{error}</p>}
+    </section>
+  );
+}
+
 function BakeCard({
   bandId,
   setlistId,

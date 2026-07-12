@@ -104,6 +104,10 @@ export type Setlist = {
   venue?: string;
   notes?: string;
   createdAt: string;
+  // P201 rehearsal live mode: when set and in the future, edits to this setlist's
+  // songs auto-bake. Self-expiring (server-side window). Absent/zero = off. Prefer the
+  // server-computed `live` boolean from setSetlistLive over re-deriving from this.
+  liveUntil?: string;
 };
 
 export type SetlistPatch = {
@@ -525,6 +529,15 @@ export const api = {
 
   deleteSetlist: (bandId: string, setlistId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/setlists/${setlistId}`),
+
+  // P201: toggle rehearsal live mode (admin-only). Returns the setlist + the
+  // server-computed `live` boolean (as of the server clock).
+  setSetlistLive: (bandId: string, setlistId: string, live: boolean) =>
+    request<{ setlist: Setlist; live: boolean }>(
+      "POST",
+      `/api/bands/${bandId}/setlists/${setlistId}/live`,
+      { live },
+    ),
 
   addSetlistItem: (bandId: string, setlistId: string, songId: string) =>
     request<{ item: SetlistItem }>(
