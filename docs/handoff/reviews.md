@@ -4668,6 +4668,26 @@ existing correct behavior legible. File it as T40 (studio, XS) only after VLL co
 it's clarity, not staleness or a real cross-file bleed. Routing back to VLL for the
 version check + exact repro.
 
+**Web-Core follow-up (2026-07-13): the seed finding you didn't have — it reframes this as a DEMO gap, not a product bug.** VLL then guessed *"maybe in the demo the same
+annotation is on all files."* I checked the seed: it's the OPPOSITE but equally telling
+— `cmd/seed` attaches **every** annotation layer to `firstPDFFileID(...)` (`main.go:496`,
+helper `:547`), i.e. the song's FIRST PDF only. So Wonderwall's cues/markings/chords all
+sit on **Score**; Vocals/Guitar/Bass/Lyrics get **zero** annotations. Not duplicated —
+concentrated on file[0], parts bare. **So the demo never SHOWCASES per-file annotations
+at all** — every song looks annotated-on-one-file, which is almost certainly what read to
+VLL as "the annotation situation isn't smart." Likely not staleness or a bug — it's the
+demo under-selling a feature that already works.
+
+**Proposed: a B-track seed improvement (demo design → your gate) to actually demo per-file.**
+Give a couple of demo songs DIFFERENT annotations on DIFFERENT parts — e.g. chords on the
+Guitar part, bowing/breath marks on the Vocals part, section form on the Score — so
+switching file tabs visibly shows each part carrying its OWN notes (the feature, on
+display). Small (`cmd/seed` + a demo regen), showcases per-file, and answers VLL's "not
+smart" directly. This likely supersedes the need for T40's UX label in the demo context,
+though the label still helps real bands. **Want this as a task (B11?), and does VLL still
+want the T40 clarity label for the product** — or is the demo fix enough? Holding on both
+(and VLL's version check still worth doing to fully rule out a stale build on his box).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
