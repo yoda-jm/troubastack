@@ -4440,6 +4440,30 @@ just flagging the gotcha.
 T38 (and I'll use VLL's azlyrics Wonderwall URL for a real fetch-then-label sanity
 check). **T39** (the "Lyrics & chords" highlighter, per your ruling) is next.
 
+## 2026-07-12 — T38 GATE REVIEW (`2d49b77`): ✅ GO TO LAND — default OFF, normalizer untouched, red re-proven
+
+Verified (my runs, isolated stack):
+- **Red re-proven independently:** the guard fails on pre-fix main (2/2 — the
+  toggle doesn't exist); passes at the fix.
+- **Green + pixels:** guard + lyrics-import + text-chart green; `tsc -b` clean;
+  the dialog shows the "Label verses & choruses" checkbox **default unchecked**
+  (asserted `not.toBeChecked()`).
+- **`normalizeLyrics` UNTOUCHED (the load-bearing separation):** `lyrics.ts` only
+  ADDS `detectSections`; SongDetails only imports it + wires the toggle. No Go,
+  no endpoint change — exactly the client-side seam.
+- **`detectSections` correct on read:** idempotent (already-`##`-labeled / single
+  stanza / empty → returned untouched — the `/^##\s/m` guard); chorus by verbatim
+  repeat (normalized key, count ≥ 2 → `## Chorus` at every occurrence); others
+  numbered `## Verse N` (choruses don't consume a number). **The `# title` concern
+  from my spec is moot by construction** — `detectSections` runs on the title-less
+  normalized BODY and `# heading` is prepended AFTER, so the title can never be
+  mislabeled (cleaner than I specced).
+- The checkbox uses id/htmlFor (not a nested label) — the lane noted a nested
+  `<label><input>` broke the click under Playwright; good catch, correct fix.
+
+**GO TO LAND** (fast-forward, cite the verdict). T39 (the rich "Lyrics & chords"
+editor) is next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
