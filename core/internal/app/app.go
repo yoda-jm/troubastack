@@ -259,6 +259,24 @@ type Setlist struct {
 	Venue     string    `json:"venue,omitempty"`
 	Notes     string    `json:"notes,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+
+	// LiveUntil is the rehearsal "live mode" deadline (P201, I11): while it is set
+	// AND in the future, annotation commits to this setlist's songs auto-bake it
+	// (stage 1b). It is a self-expiring flag — an admin turns it on for a bounded
+	// window (LiveModeWindow) so a forgotten live mode can never survive to the gig;
+	// liveness is computed at read time (SetlistLive), so no background sweeper is
+	// needed. Zero = off. Persists like any Setlist field.
+	LiveUntil time.Time `json:"liveUntil,omitempty"`
+}
+
+// LiveModeWindow is how long a setlist stays in rehearsal live mode after an admin
+// enables it (P201/I11 — bounded so a forgotten live mode auto-expires before the gig).
+const LiveModeWindow = 3 * time.Hour
+
+// SetlistLive reports whether a setlist is in live mode AS OF now — set and not yet
+// expired. The single source of truth for both the API response and the autobaker.
+func SetlistLive(sl Setlist, now time.Time) bool {
+	return !sl.LiveUntil.IsZero() && now.Before(sl.LiveUntil)
 }
 
 // SetlistItem places a song at a position within a setlist, with optional per-item

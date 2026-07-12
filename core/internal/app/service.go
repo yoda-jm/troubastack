@@ -42,6 +42,15 @@ func (s *Service) WithBlobStore(b blob.Store) *Service {
 	return s
 }
 
+// WithClock swaps the injectable clock (tests drive live-mode expiry etc.) and
+// returns the Service for chaining. Production uses time.Now via NewService.
+func (s *Service) WithClock(now func() time.Time) *Service {
+	if now != nil {
+		s.now = now
+	}
+	return s
+}
+
 // ---- identity ----
 
 // Register creates a new user. username and password are required; email is
@@ -1511,6 +1520,36 @@ func (s *Service) DeleteSetlist(caller User, bandID, setlistID string) error {
 	}
 	return s.deleteSetlistCascade(setlistID)
 }
+
+// SetSetlistLive turns rehearsal live mode (P201/I11) on or off for a setlist,
+// admin-only. ON sets LiveUntil to now+LiveModeWindow (a bounded, self-expiring
+// window — a forgotten live mode auto-clears before the gig); OFF zeroes it.
+// Returns the updated setlist so the caller can report the (computed) live state.
+func (s *Service) SetSetlistLive(caller User, bandID, setlistID string, live bool) (Setlist, error) {
+	if _, err := s.repo.GetBand(bandID); err != nil {
+		return Setlist{}, ErrNotFound
+	}
+	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+		return Setlist{}, err
+	}
+	sl, err := s.repo.GetSetlist(setlistID)
+	if err != nil || sl.BandID != bandID {
+		return Setlist{}, ErrNotFound
+	}
+	if live {
+		sl.LiveUntil = s.now().UTC().Add(LiveModeWindow)
+	} else {
+		sl.LiveUntil = time.Time{}
+	}
+	if err := s.repo.UpdateSetlist(sl); err != nil {
+		return Setlist{}, err
+	}
+	return sl, nil
+}
+
+// SetlistLiveNow reports whether a setlist is in live mode as of the service clock —
+// the app-layer read used by the autobaker (stage 1b) and the API response.
+func (s *Service) SetlistLiveNow(sl Setlist) bool { return SetlistLive(sl, s.now().UTC()) }
 
 // deleteSetlistCascade deletes a setlist's items then the setlist record. No
 // permission check — callers must enforce.

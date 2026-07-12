@@ -89,6 +89,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.removeSetlistItem))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/reorder", a.auth(a.reorderSetlist))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/duplicate", a.auth(a.duplicateSetlist))
+	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/live", a.auth(a.setSetlistLive))
 	mux.HandleFunc("GET /api/invites", a.auth(a.listInvites))
 	mux.HandleFunc("POST /api/invites/{inviteId}/accept", a.auth(a.acceptInvite))
 	mux.HandleFunc("POST /api/invites/{inviteId}/decline", a.auth(a.declineInvite))
@@ -904,6 +905,24 @@ func (a *WebAPI) deleteSetlist(w http.ResponseWriter, r *http.Request, u app.Use
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// setSetlistLive toggles rehearsal live mode (P201/I11, admin-only). The response
+// carries the setlist plus the computed `live` boolean (as of the server clock) so
+// the client shows the banner without re-deriving expiry.
+func (a *WebAPI) setSetlistLive(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Live bool `json:"live"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	sl, err := a.svc.SetSetlistLive(u, r.PathValue("bandId"), r.PathValue("setlistId"), in.Live)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"setlist": sl, "live": a.svc.SetlistLiveNow(sl)})
 }
 
 func (a *WebAPI) addSetlistItem(w http.ResponseWriter, r *http.Request, u app.User) {
