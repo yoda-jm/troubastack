@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiError, api, type Song, type SongFile } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { normalizeLyrics } from "./lyrics";
+import { normalizeLyrics, detectSections } from "./lyrics";
 
 export function Details({ title, children }: { title: string; children: ReactNode }) {
   // Default OPEN: the viewer is the headline, but the existing flows expect the
@@ -439,6 +439,7 @@ function LyricsImportDialog({
   const [text, setText] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [labelSections, setLabelSections] = useState(false); // T38: opt-in, default OFF
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   async function onFetch() {
@@ -464,7 +465,9 @@ function LyricsImportDialog({
 
   function create() {
     const heading = name.trim() || "New chart";
-    onCreate(`# ${heading}\n\n${normalizeLyrics(text)}\n`);
+    const body = normalizeLyrics(text);
+    const structured = labelSections ? detectSections(body) : body;
+    onCreate(`# ${heading}\n\n${structured}\n`);
   }
 
   return (
@@ -497,6 +500,18 @@ function LyricsImportDialog({
         placeholder="…or paste the lyrics here"
         rows={10}
       />
+      <div className="lyrics-sections-toggle">
+        <input
+          type="checkbox"
+          id="lyrics-sections-cb"
+          data-testid="lyrics-sections"
+          checked={labelSections}
+          onChange={(e) => setLabelSections(e.target.checked)}
+        />
+        <label htmlFor="lyrics-sections-cb">
+          Label verses &amp; choruses (groups the stanzas into ## sections — you can edit them next)
+        </label>
+      </div>
       <div className="inline-form">
         <button type="button" className="primary btn-sm" data-testid="lyrics-create" disabled={!text.trim()} onClick={create}>
           Create chart

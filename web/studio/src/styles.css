@@ -185,6 +185,9 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 
 .inline-form { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .inline-form input { flex: 1 1 12rem; min-width: 0; }
+/* T38: opt-in "label verses & choruses" toggle in the lyrics dialog. */
+.lyrics-sections-toggle { display: flex; align-items: flex-start; gap: .5rem; font-size: .85rem; color: var(--muted); margin: .1rem 0; }
+.lyrics-sections-toggle input { flex: 0 0 auto; width: auto; margin-top: .15rem; }
 
 /* ---- lists ------------------------------------------------------------- */
 .list { list-style: none; padding: 0; margin: .25rem 0 0; display: flex; flex-direction: column; gap: .4rem; }
