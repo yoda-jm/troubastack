@@ -59,8 +59,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   explicit tier is ✅.
 - **Open, unblocked:** **T37**
   (new chart from lyrics: best-effort azlyrics/URL fetch + paste fallback — VLL
-  override 2026-07-12, honest fetch + SSRF-guarded; depends on T36) · **B10**
-  (seed a text-chart lyrics file into the demo — folds into the post-T37 demo regen) · ~~T35~~ (wet alpha-stacking — LANDED `21698ac` 2026-07-12 on slow freehand at reduced opacity —
+  override 2026-07-12, honest fetch + SSRF-guarded; depends on T36) · ~~T35~~ (wet alpha-stacking — LANDED `21698ac` 2026-07-12 on slow freehand at reduced opacity —
   uniform-alpha wet compositing + capture-time point filter; research resolved in the
   spec, VLL field report 2026-07-11). · **OPS01** (unattended slice LANDED `3662468` — remaining: VLL's attended
   HTTPS bring-up + the release-APK half, mobile) · P201 (spec REFRESHED 2026-07-12 — unblocked, ready when VLL says go; P203 DECIDED 2026-07-11: re-affirm mirrors —
@@ -120,7 +119,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T35 | [Slow freehand at reduced opacity shows dark bands (wet alpha-stacking)](T35-wet-alpha-stacking.md) — landed | studio | S |
 | T36 | [Files + Delete song reachable in the editor (clipped-Details rest)](T36-details-panel-files-delete.md) — landed | studio | S/M |
 | T37 | [New chart from lyrics: best-effort fetch + paste fallback](T37-lyrics-paste-import.md) — landed | core+studio | S/M |
-| B10 | [Seed a text-chart lyrics file into the demo (not only PDFs)](B10-demo-text-chart.md) | core seed + demo | XS/S |
+| B10 | [Seed a text-chart lyrics file into the demo (not only PDFs)](B10-demo-text-chart.md) — landed | core seed + demo | XS/S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
