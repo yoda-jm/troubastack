@@ -11,6 +11,24 @@ primary. **This is NOT live preview**: the earlier T39 (debounced auto-render)
 is superseded, and **T25's on-demand preview decision STANDS** (no reversal — the
 Preview button keeps rendering on click). WYSIWYG-on-the-PDF stays declined.
 
+## Naming ruling (VLL flagged "chart editor" as misleading, 2026-07-12)
+
+VLL: *"chart editor is misleading for a rich-text, most-likely lyrics editor."*
+Right that "chart" is opaque; but "lyrics editor" is too narrow (chords +
+sections are the point of a *chart*). **Ruling: user-facing label = "Lyrics &
+chords"** — the plain-language name for exactly what the dialect holds (title,
+sections, chords, lyrics), accurate AND recognizable. Apply as a LABEL change
+only (testids FROZEN — no data model, no file-type rename):
+
+- The editor pane heading → **"Lyrics & chords"** (replacing "chart" jargon in
+  the visible heading), with a one-line hint below it: *"Title, sections, chords
+  and lyrics — # title · ## section · chord lines over words."*
+- Where the UI currently says "text chart" to the user (the create buttons: "＋
+  New text chart", T37's "New chart from lyrics"), prefer "Lyrics & chords" /
+  "from lyrics" phrasing if it reads cleanly — but this is cosmetic polish, not
+  required; do NOT churn testids or the file-type term (`chart` stays the
+  internal/API name). Keep the change to visible strings.
+
 ## Dependency ruling (the lane's open question): NO new editor library — custom highlighter
 
 The dialect is **tiny and decoration-only** (`# title`, `## Section`, chord-only

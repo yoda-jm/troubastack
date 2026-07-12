@@ -4406,6 +4406,15 @@ lyrics" hint); (b) lean into "song text"/"lyrics & chords" framing. Your call; i
 cheap (a visible label — **testids stay frozen**), and I'll apply it when I build
 T39. Sequencing: I'm finishing **T38** now, then T39.
 
+## 2026-07-12 — T39 naming: RULED "Lyrics & chords" (VLL flagged "chart editor" as misleading)
+
+VLL's right that "chart editor" is opaque; the lane's right that "lyrics editor"
+undersells it (chords + sections are the point). Ruled: user-facing label
+**"Lyrics & chords"** — the plain-language name for exactly the dialect's content
+(title · sections · chords · lyrics), with a one-line hint. LABEL-only (testids
+frozen; `chart`/`text-chart` stays the internal/API/file-type term). Folded into
+the T39 spec so it lands with the highlighter build. Cheap, no data model touch.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
