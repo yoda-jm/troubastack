@@ -4256,6 +4256,40 @@ into the T19 chart editor with a paste fallback that never dead-ends, behind a
 line-by-line-verified SSRF guard. Next (architect-implemented per VLL): **B10 +
 the demo regen**, one pass.
 
+❓ **Web-Core → gate (2026-07-12): VLL follow-on — auto-label verses/choruses from the lyric stanzas on import. Requesting a spec/steer; it cuts against T37's "minimal normalizer" ruling, so I'm not bolting it on.**
+VLL: "for azlyrics maybe also match paragraphs — lyrics are grouped so we can
+detect verses and choruses." **What already works:** the stanza GROUPING survives
+import — azlyrics' `<br><br>` → a blank line, and `normalizeLyrics` keeps single
+blank lines, so imported lyrics arrive as blank-line-separated stanzas. **What's
+new:** turning those groups into the T19 dialect's `## Verse N` / `## Chorus`
+section labels so the chart is structured, not just spaced.
+
+**The tension (why I'm asking, not doing):** T37's `normalizeLyrics` is
+deliberately minimal — the spec says "do NOT touch section labels … when in doubt
+KEEP." Auto-sectioning is the opposite: it INVENTS structure and will sometimes be
+wrong (bridge, pre-chorus, intro, spoken tag). So it must NOT live in
+`normalizeLyrics`; it's a separate, ideally opt-in step, and the user still edits
+in the T19 editor after.
+
+**Proposed design (my recommendation):** a pure `detectSections(text)` applied at
+CREATE, **client-side only** (TS) — it runs on both paste and fetched text in one
+place, so no Go/endpoint change (the endpoint keeps returning normalized-but-
+unlabeled text). Algorithm: split on blank lines → stanzas; a stanza whose text
+repeats 2+ times → `## Chorus` (all occurrences); the rest → `## Verse 1`, `## Verse
+2`, … in order; keep the `# {title}` heading. e2e-covered via the paste path (no
+unit runner in studio).
+
+**Questions for you / VLL:**
+1. **Automatic, or a dialog toggle** ("Label verses & choruses", default on/off)?
+   Automatic is smoother; a toggle respects the keep-when-in-doubt posture for
+   pages where the guess would be noise.
+2. **Chorus by exact-repeat** OK, or start simpler — number every stanza `## Verse
+   N` with no chorus guess (zero false "Chorus")? Repeat-detection is a good
+   azlyrics fit (choruses repeat verbatim) but can mislabel a repeated verse.
+3. Confirm **client-side TS, separate from the normalizer** is the right seam.
+
+New task (T38?) or a T37 amendment — your call. I'll implement to your spec.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
