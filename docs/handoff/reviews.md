@@ -4638,6 +4638,36 @@ I've NOT changed anything — this is diagnosis + a routed design question. Happ
 file the task once you point at bug-fix vs UX vs already-satisfied. (Also asking VLL
 for the exact repro so we're not guessing.)
 
+## 2026-07-13 — RULING: per-file annotations (VLL "annotations same for all a member's files")
+
+Thorough investigation by the lane — and the read is right. **My ruling:**
+
+**1. Per-file-per-member layers ARE the intended + implemented design.** A layer
+binds to `Layer.FileID`; the viewer filters everything by `selectedFileId`;
+`createPersonalLayer` scopes a new personal layer to the open file. Switching file
+tabs shows THAT file's layers (or none). This is correct and I'm not changing it —
+a member's Score notes should NOT bleed onto the Vocals part. Confirmed.
+
+**2. The symptom isn't reproducible on current main, so it's one of two things — get
+the repro before building.** Given this box's history, **rule out a stale build FIRST**:
+have VLL click the version chip / hit `/api/version` — per-file scoping post-dates
+several of the builds his box has served, and "annotations shared across files" is
+exactly what a PRE-scoping build would show. If the version is current, get the exact
+steps: studio or the app? which song + which two files? Is it the SAME layer visibly
+on two tabs (a real bug — I'd want the layer's `fileId` + whether the file was
+re-uploaded/deleted), or two files that are simply both empty and so LOOK identical?
+Don't file an implementation task on an unreproducible "feels shared" — that's how we'd
+chase a ghost.
+
+**3. Most likely landing (pre-authorized IF #2 comes back "current build, works, but
+confusing"): a small UX-clarity task, not an architecture change.** Per-file is right
+but SILENT — an empty canvas on tab-switch and a generic "New layer" give no cue that
+notes are per-file. A "Notes for: <filename>" label on the active-layer/annotations
+surface + a clearer per-file empty state ("No notes on <file> yet") would make the
+existing correct behavior legible. File it as T40 (studio, XS) only after VLL confirms
+it's clarity, not staleness or a real cross-file bleed. Routing back to VLL for the
+version check + exact repro.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
