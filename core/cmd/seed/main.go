@@ -512,6 +512,34 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			return seededGroup{}, 0, 0, fmt.Errorf("import annotations for %q: %w", a.title, err)
 		}
 		fmt.Printf("     + annotations %q: %d layers, %d objects\n", a.title, len(got.Layers), len(got.Objects))
+
+		// B11: give Wonderwall's Vocals + Guitar parts their OWN annotations (the Score
+		// keeps the section-form set above), so switching file tabs visibly demonstrates
+		// per-file scoping (T40) — distinct ink over distinct PDFs. Additive imports;
+		// idempotent by id. adminID (marie) sings + admins The Troubadours.
+		if a.title == "Wonderwall" {
+			parts := []struct {
+				filename string
+				build    func(songID, fileID string) annotationsImport
+			}{
+				{"Part - Vocals", func(s, f string) annotationsImport { return buildVocalsAnnotations(s, f, adminID) }},
+				{"Part - Guitar", func(s, f string) annotationsImport { return buildGuitarAnnotations(s, f) }},
+			}
+			for _, p := range parts {
+				fid, err := pdfFileIDByFilename(admin, bandID, a.songID, p.filename)
+				if err != nil {
+					return seededGroup{}, 0, 0, err
+				}
+				if fid == "" {
+					continue
+				}
+				var pg annotationsImport
+				if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", p.build(a.songID, fid), &pg); err != nil {
+					return seededGroup{}, 0, 0, fmt.Errorf("import %s annotations for %q: %w", p.filename, a.title, err)
+				}
+				fmt.Printf("     + annotations %q [%s]: %d layers, %d objects\n", a.title, p.filename, len(pg.Layers), len(pg.Objects))
+			}
+		}
 	}
 
 	// Build a setlist (showcases setlists + per-item overrides).
@@ -556,6 +584,21 @@ func firstPDFFileID(admin *apiClient, bandID, songID string) (string, error) {
 	}
 	if len(fr.Files) > 0 {
 		return fr.Files[0].ID, nil
+	}
+	return "", nil
+}
+
+// pdfFileIDByFilename returns the id of the song's PDF file with the given filename
+// (the docTitle the seed uploads it under, e.g. "Part - Vocals"), or "" if absent.
+func pdfFileIDByFilename(admin *apiClient, bandID, songID, filename string) (string, error) {
+	var fr filesResp
+	if err := admin.getJSON("/api/bands/"+bandID+"/songs/"+songID+"/files", &fr); err != nil {
+		return "", err
+	}
+	for _, f := range fr.Files {
+		if f.Filename == filename && f.ContentType == "application/pdf" {
+			return f.ID, nil
+		}
 	}
 	return "", nil
 }

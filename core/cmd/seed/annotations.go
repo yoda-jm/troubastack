@@ -349,3 +349,56 @@ func addPersonal(b *builderCtx, title, groupKind string, userID map[string]strin
 		}
 	}
 }
+
+// ---- B11: per-part annotations for Wonderwall's Vocals + Guitar files ----
+//
+// The Score already carries the full section-form annotations (buildSongAnnotations).
+// These give the OTHER parts their own, role-appropriate notes so switching file tabs
+// visibly demonstrates per-file scoping (T40): each part shows different ink over a
+// different PDF. All Wonderwall parts are generated A4 staves, so the systemTopY/pdfLeftX
+// layout constants apply. Layer/object keys are file-distinct so ids never collide with
+// the Score's (import is idempotent by id).
+
+// buildVocalsAnnotations: the singer's personal "Breath & phrasing" layer (green) on the
+// Vocals part — breath ticks, a phrase highlight, and a soft-dynamic cue.
+func buildVocalsAnnotations(songID, fileID, singerID string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+
+	breath := b.layer(wireLayer{
+		ID: layerID(songID, "vocals-breath"), Name: "Breath & phrasing",
+		OwnerID: singerID, Zone: "personal", Order: 0, Access: "rw",
+	})
+	txt := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.020}
+	hi := wireStyle{Color: colorPersonal2, Opacity: 0.30}
+
+	b.text(breath, "voc-breath1", 0, pdfLeftX, systemTopY(1)-0.012, "V  (breath)", txt)
+	b.highlight(breath, "voc-phrase", 0, 0.28, systemTopY(2)-0.004, 0.62, systemBotY(2)+0.004, hi)
+	b.text(breath, "voc-cresc", 0, 0.55, systemTopY(2)-0.012, "cresc.", txt)
+	b.text(breath, "voc-breath2", 0, pdfMargX, systemTopY(3)-0.012, "V", txt)
+	b.text(breath, "voc-soft", 1, pdfLeftX, systemTopY(0)-0.012, "p — softer, let it float", txt)
+	return *im
+}
+
+// buildGuitarAnnotations: a shared "Chords & capo" layer (blue) on the Guitar part —
+// a capo note and chord names over the staves.
+func buildGuitarAnnotations(songID, fileID string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+
+	chords := b.layer(wireLayer{
+		ID: layerID(songID, "guitar-chords"), Name: "Chords & capo",
+		OwnerID: "_shared_", Zone: "shared", Order: 1, Access: "rw",
+	})
+	txt := wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.020}
+
+	b.text(chords, "gtr-capo", 0, pdfLeftX, systemTopY(0)-0.014, "Capo 2", txt)
+	for i, c := range []struct {
+		x    float64
+		name string
+	}{{0.14, "Em7"}, {0.34, "G"}, {0.54, "Dsus4"}, {0.74, "A7sus4"}} {
+		b.text(chords, fmt.Sprintf("gtr-ch-%d", i), 0, c.x, systemTopY(1)-0.012, c.name, txt)
+	}
+	b.text(chords, "gtr-ch-outro", 1, 0.14, systemTopY(0)-0.012, "Em7  G  Dsus4  A7sus4", txt)
+	return *im
+}
