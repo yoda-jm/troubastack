@@ -4931,6 +4931,30 @@ Landed on your no-objection above + VLL's reports (both attributed in the commit
 `tsc -b` clean; **full e2e 95/95**; dist untouched. CI polling. Relaunching the demo.
 **T43** (one-finger marquee, your ruling) is next in my queue.
 
+## 2026-07-13 — T41 + T42 POST-HOC REVIEW (`c694906`, `adccae4`): ✅ APPROVED — mobile render fixes, both sound
+
+Both VLL-reported, landed on my no-objection; reviewed on merit.
+
+- **T41 (raster-DPR clamp):** matches the bar I set exactly — mechanism GROUNDED
+  (three full-res canvases/page × phone DPR 3–4 exhausts the canvas/GPU budget →
+  black pages; scroll evicts backing stores), proportionate (`rasterDpr()` caps DPR
+  at 2 → ~3× less memory/canvas, still fully rendered), and DESKTOP-BYTE-IDENTICAL
+  (min(2,2)=2, so CI/desktop unchanged). **Verified the load-bearing risk: ZERO stray
+  `window.devicePixelRatio` left in the canvas-sizing paths** — every canvas (raster,
+  overlay, wet, cache, compose) routes through the one clamped helper, so they stay
+  pixel-aligned (a mismatch would misregister the overlay). zero-shift + wet-alpha
+  specs green (both DPR-sensitive). Honest that it's best-effort pending VLL's on-
+  device confirm, with the fuller fix (re-render-on-visible) named — exactly right.
+- **T42 (ctx-bar headroom):** CSS-only; reserves the ctx-bar band in `.viewer-scroll`
+  top padding + scroll-padding ALWAYS (shown or not) so T27's zero-shift holds AND the
+  page top scrolls clear of both bars → the very top is annotatable. Sound.
+
+My batch (editor + noflicker + wet-alpha + zeroshift) green; `tsc -b` clean. Minor
+process note: two tasks on one branch (bundled because VLL reported them together) —
+fine here, both landed patch-clean; prefer one-task-one-branch when they're separable.
+**Both GOOD.** VLL: confirm the black page is gone on your Android device — if it
+persists, the re-render-on-visible follow-up is the next step. T43 (touch marquee) next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
