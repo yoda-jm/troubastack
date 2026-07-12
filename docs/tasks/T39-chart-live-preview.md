@@ -1,60 +1,70 @@
-# T39 — Chart editor: live (debounced) preview as you type
+# T39 — Rich pseudo-md source editor for the chart dialect (syntax highlighting)
 
-**Priority:** normal (VLL, 2026-07-12: "edit the pseudo-md directly in preview
-mode") · **Size:** S · **Area:** `web/studio` (the T19/T25 ChartEditor) + e2e.
+**Priority:** normal (VLL, 2026-07-12) · **Size:** S/M · **Area:** `web/studio`
+(the T19/T25 ChartEditor source pane) + e2e.
 
-## Decision (RULED, VLL-confirmed 2026-07-12)
+## Decision (RE-SPECCED 2026-07-12 — VLL's settled intent, superseding the earlier live-preview reading)
 
-VLL wants the preview to keep up as you type (interpretation 1 of three). This
-**reverses the deliberate T25 "preview renders on demand" choice** — that choice
-was to avoid per-keystroke server renders (each preview is a `chartpdf` render +
-blob swap). VLL's OK sanctions the reversal; the mitigations below keep the
-render rate sane. The other two readings are OFF: **WYSIWYG-on-the-PDF is
-explicitly declined** (the preview is a rasterized served PDF with no
-source-position mapping — disproportionate build); "just a nicer split" is
-subsumed by this.
+VLL's "edit the pseudo-md in preview mode" reconciled to: make the SOURCE side a
+**rich editor** — syntax highlighting for the chart dialect, source stays
+primary. **This is NOT live preview**: the earlier T39 (debounced auto-render)
+is superseded, and **T25's on-demand preview decision STANDS** (no reversal — the
+Preview button keeps rendering on click). WYSIWYG-on-the-PDF stays declined.
 
-## Changes (ChartEditor, `SongDetails.tsx`)
+## Dependency ruling (the lane's open question): NO new editor library — custom highlighter
 
-1. **Debounced auto-preview.** When `source` changes, schedule `preview()` after
-   a quiet period (~500 ms). Coalesce: a new keystroke cancels the pending timer;
-   only one render fires per quiet period. The manual **Preview** button stays
-   (forces an immediate render; keep its testid).
-2. **In-flight coalescing (correctness — do not skip).** A render is a server
-   round-trip; edits during it must not stack or land stale. Guard: if a render
-   is in flight when the debounce fires, mark "dirty" and re-render once the
-   current one resolves; always render the LATEST source, never an intermediate.
-   Drop/ignore a resolved render whose source is no longer current (don't swap a
-   stale blob over a newer one).
-3. **No-thrash on errors.** A source that fails to render (bad char →
-   `ErrUnsupportedChar` 400) shows the error as today and does NOT spin
-   retrying the same bad text every 500 ms — only re-attempt when the source
-   changes again.
-4. **Blob hygiene unchanged.** The existing revoke-on-replace effect already
-   prevents leaks; the higher render frequency makes it load-bearing — keep it.
-5. **Scope guard:** editor-open only (the debounce lives in the ChartEditor
-   component; unmount cancels the timer). Same `previewTextChart` no-persist
-   endpoint — no new API, no Go change.
+The dialect is **tiny and decoration-only** (`# title`, `## Section`, chord-only
+lines, `**bold**`, plain text — ~4 token types, no autocomplete/folding/LSP).
+CodeMirror (a real dependency + bundle weight) is disproportionate and cuts
+against studio's deliberate minimal-dep posture (no-workspaces; ink from source).
+
+**Build a lightweight highlighter over the existing textarea** using the standard
+**overlay technique**: a highlighted `<pre>` layer positioned exactly behind a
+transparent-text `<textarea>` (caret + editing from the textarea; color from the
+`<pre>`). **Make the source pane MONOSPACE** — the chart is chords-over-words, so
+monospace is correct anyway, AND fixed-width glyphs make overlay alignment
+reliable (the overlay technique's one real failure mode — misaligned highlight —
+is a non-issue at a fixed advance width).
+
+Overlay requirements (the gotchas, as hard requirements — get these right or the
+highlight drifts):
+- textarea and `<pre>` share identical `font`, `line-height`, `padding`,
+  `white-space` (`pre-wrap`), `word-break`, and box size; the `<pre>` scrolls in
+  lockstep with the textarea (`onScroll` → mirror `scrollTop`/`scrollLeft`).
+- The textarea text is transparent (`color: transparent`) with a visible caret
+  (`caret-color`), sitting ABOVE the `<pre>` (which is `aria-hidden`).
+- Highlighting is a pure `tokenizeChartLine(line) → spans` per line (re-uses the
+  dialect rules already in `chartpdf`/the renderer's mental model: a line whose
+  tokens are all chords → chord color; `##`/`#` → heading color; `**bold**`
+  inline; else plain). Keep it a pure function, unit-shaped (studio e2e covers
+  it, but structure it so the token rules are testable).
+- Tab/newline/resize behave exactly as the plain textarea did (don't regress
+  editing); the `chart-source` testid stays ON the textarea (specs type into it).
+
+**Fallback (honest):** if monospace + overlay still can't hold alignment for the
+dialect in practice, STOP and come back to the gate before adding CodeMirror —
+don't silently pull in the dependency.
 
 ## Tests
 
-- e2e: type into `chart-source`, DON'T click Preview, wait past the debounce →
-  `chart-preview` updates (assert the preview object's blob/src changed, or a
-  render-count testid increments). A rapid burst of edits fires ONE render after
-  settle, not one per keystroke (the T25/wheel-zoom "one raster per settle"
-  pattern — mirror its assertion shape). The manual Preview button still forces
-  an immediate render.
-- Assert the error path doesn't loop (an unsupported char shows the error once
-  and stops until the source changes).
+- e2e: type dialect source into `chart-source` → the highlight overlay shows the
+  expected token classes (assert on the `<pre>`'s spans: a `## Chorus` line gets
+  the heading class, a chord-only line gets the chord class, a lyric line plain).
+  Editing still works (type/delete/select round-trips through the textarea).
+  Preview still renders ON DEMAND via the button (unchanged — assert it still
+  works, and that NO auto-render happens on typing — the anti-regression of the
+  reverted live-preview idea).
+- The token function's rules covered (heading / chord-line / bold / plain).
 
 ## Acceptance criteria
 
-- Live debounced preview works; a burst of N edits = 1 render after settle (not
-  N); manual Preview still works; no stale-blob swap; no error-retry loop;
-  full suite green; `tsc -b studio` clean; pixels at the gate (mid-edit preview
-  keeping up).
+- Source pane is a monospace highlighted editor; token classes correct; editing
+  unregressed; **preview stays on-demand** (no auto-render on type); no new
+  runtime dependency added to `web/studio/package.json`; full suite green;
+  `tsc -b studio` clean; pixels at the gate (highlighted source, both themes).
 
 ## Out of scope
 
-- WYSIWYG editing on the rendered PDF (declined above); per-keystroke
-  (undebounced) rendering; caching rendered PDFs; any server/endpoint change.
+- Live/debounced auto-preview (superseded — T25 on-demand stands); WYSIWYG on the
+  PDF; CodeMirror/Monaco/any editor lib (ruled out above — flag before adding);
+  autocomplete, folding, linting; changing the chart dialect or the renderer.

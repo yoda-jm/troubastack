@@ -12,11 +12,12 @@ normalizer's "never invent structure / keep-when-in-doubt" contract stands
 (T37). Auto-sectioning INVENTS structure and is sometimes wrong (bridge,
 pre-chorus, intro), so:
 
-- **A toggle, default ON.** The import dialog gets a **"Label verses &
-  choruses"** checkbox, checked by default (VLL's pick). ON → run
-  `detectSections` on the text before it becomes the chart source. OFF → the
-  text is used as-is (blank-line-separated stanzas, no headers). Either way the
-  user then edits in the T19 editor.
+- **A toggle, default OFF** (VLL's settled call, 2026-07-12 — reconciled from an
+  earlier "default ON"). The import dialog gets a **"Label verses & choruses"**
+  checkbox, UNCHECKED by default: the safe/minimal path is grouping-only
+  (blank-line stanzas, no invented headers), and labeling is explicitly opt-in.
+  Checked → run `detectSections` before the text becomes the chart source.
+  Either way the user then edits in the T19 editor.
 - **Client-side only (TS).** It runs on BOTH the paste text and the fetched
   text in one place (the create-chart handler in the dialog), so **no Go /
   endpoint change** — the `/lyrics-import` endpoint keeps returning
@@ -53,7 +54,7 @@ all verses, zero `## Chorus` (no false chorus); a stanza repeated 3× → `## Ch
 
 ## Acceptance criteria
 
-- Toggle present, default ON; `detectSections` behaves per the cases above;
+- Toggle present, default OFF (unchecked); `detectSections` behaves per the cases above;
   `normalizeLyrics` is UNCHANGED (verify the diff touches neither it nor Go);
   full suite green; `tsc -b studio` clean; dialog pixel (with the checkbox) at
   the gate.

@@ -58,8 +58,9 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
 - **Open, unblocked:** **T38** (auto-label verses/choruses on lyrics import — opt-in
-  toggle default-on, VLL-confirmed) · **T39** (chart editor live debounced preview —
-  VLL-confirmed, reverses T25 on-demand) · **P201** (rehearsal live mode — spec
+  toggle default-OFF, VLL-confirmed) · **T39** (rich pseudo-md source editor: dialect
+  syntax highlighting, custom highlighter/no new dep — VLL re-scoped; preview stays
+  on-demand) · **P201** (rehearsal live mode — spec
   REFRESHED 2026-07-12, unblocked, ready when VLL says go). **OPS01** unattended slice
   landed `3662468` (remaining: VLL's attended HTTPS bring-up + release APK). **P203**
   DECIDED 2026-07-11: re-affirm mirrors (closed-not-adopted). **P202** closed
@@ -120,7 +121,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T37 | [New chart from lyrics: best-effort fetch + paste fallback](T37-lyrics-paste-import.md) — landed | core+studio | S/M |
 | B10 | [Seed a text-chart lyrics file into the demo (not only PDFs)](B10-demo-text-chart.md) — landed | core seed + demo | XS/S |
 | T38 | [Auto-label verses/choruses on lyrics import (opt-in)](T38-lyrics-auto-sections.md) | studio | S |
-| T39 | [Chart editor: live (debounced) preview](T39-chart-live-preview.md) | studio | S |
+| T39 | [Rich pseudo-md source editor (dialect highlighting)](T39-chart-live-preview.md) | studio | S/M |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).

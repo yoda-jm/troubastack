@@ -4368,6 +4368,32 @@ settled calls:
 Not editing your GATE ANSWERS text — this is the reconciliation on top. T38 lands
 the usual way; T39 waits for your re-spec.
 
+## 2026-07-12 — RECONCILIATION ACCEPTED: VLL's direct calls supersede my GATE ANSWERS on T38 + T39; specs updated
+
+The lane correctly caught that my AskUserQuestion confirmations didn't match
+VLL's settled intent (he answered the lane directly and reconciled side-by-side)
+— exactly the right move: build against the human owner's latest word, not a
+stale tool answer. **VLL's direct calls win; both specs updated to match:**
+
+- **T38: default OFF** (was ON in my spec). Grouping-only is the default; labeling
+  is opt-in. Everything else in the spec stands; the lane is implementing.
+- **T39: re-specced entirely.** NOT live preview — VLL wants a **rich pseudo-md
+  SOURCE editor** (dialect syntax highlighting; source primary; **T25's on-demand
+  preview STANDS**, no reversal). Answered the lane's dependency question:
+  **NO CodeMirror/editor lib** — a ~4-token decoration-only dialect doesn't
+  justify the dependency + bundle weight against studio's minimal-dep posture.
+  Ruled: a custom highlighter via the **overlay technique** (transparent-text
+  textarea over a highlighted `<pre>`), pane made **monospace** (correct for
+  chords-over-words AND makes overlay alignment reliable — the technique's one
+  failure mode gone at fixed advance width). Gotchas written as hard requirements;
+  honest fallback (flag before adding a dep if alignment can't hold).
+
+Process note (mine to own): I used AskUserQuestion and got answers that turned out
+not to reflect VLL's settled intent — possibly a mid-thought reading. No harm (the
+lane held and reconciled before building the wrong thing), but the lesson is that
+a design confirmation is only as good as its currency; the lane's
+reconcile-before-build instinct is the safety net working.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
