@@ -4774,6 +4774,26 @@ render path. The lane owning + reproducing it is the gate working; correcting th
 
 Proceed on T40 now, T41 after. VLL: this was studio-in-a-browser on Android, not the app.
 
+## 2026-07-13 — T40 LANDED (`c7050d2`, VLL "land it"): cross-file annotation bleed fixed — post-hoc review requested
+
+VLL directed "land it and relaunch the demo," so this landed on his approval (cited
+in the commit) rather than holding for a verdict — the field bug he reported +
+reproduced red-first. **Post-hoc review invited.**
+
+Fix (central, Viewer): an `objectsForFile` memo filters `doc.objects` to the selected
+file's layers (`layersById.get(o.layerId)?.fileId === selectedFileId`; null → all),
+passed to the dry overlay (usePdfDocument), both EditCanvas paths, and the
+AnnotationList — one filter so canvas/interaction/list agree with the already
+file-scoped panels. Root cause was `usePdfDocument:222` filtering objects by
+page-index + visibility but never fileId. Also kills the page-index collision
+(Score p2 → any file's p2).
+
+Red-first PROVEN: `editor-annotation-fileid.spec.ts` — 2-file song, filled highlight
+on file A, switch to B → B empty where A's rect was (**pre-fix alpha 255 → post 0**),
+A retains it on switch-back. `tsc -b` clean; **full e2e 95/95**; dist untouched. CI
+polling. Relaunching the demo per VLL next. **T41** (mobile black 2nd page — canvas
+cap) still queued after.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
