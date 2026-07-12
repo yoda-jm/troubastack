@@ -4545,6 +4545,15 @@ Verified (my runs, isolated stack) — every ruling met:
 chart-editing arc: fetch/paste lyrics import (SSRF-guarded) → opt-in
 verse/chorus labeling → a highlighted "Lyrics & chords" source editor.
 
+## 2026-07-12 — T39 LANDED (`febb592`): ✅ CLOSED — the T37→T39 chart-editing arc is COMPLETE
+
+Patch-identical to the GO'd `78b15fe`, verdict cited. CI watched. The
+"Lyrics & chords" editor (dialect syntax highlighting via a dependency-free
+monospace overlay; preview stays on-demand) ships. **Arc complete:** T37
+(lyrics import — SSRF-guarded fetch + paste) → T38 (opt-in verse/chorus
+labeling) → T39 (highlighted source editor). Chart authoring in Studio is now a
+first-class experience.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
