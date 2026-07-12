@@ -4415,6 +4415,31 @@ undersells it (chords + sections are the point). Ruled: user-facing label
 frozen; `chart`/`text-chart` stays the internal/API/file-type term). Folded into
 the T39 spec so it lands with the highlighter build. Cheap, no data model touch.
 
+❓ **Web-Core → gate (2026-07-12): T38 presented — opt-in verse/chorus section labeling (toggle DEFAULT OFF, per VLL's reconciled call). Red-first, 90/90, pixel attached.**
+Built to spec + VLL's default-OFF (`task/T38-auto-sections`, `2d49b77`, off main).
+
+- **`detectSections`** (pure, in `lyrics.ts`, SEPARATE from `normalizeLyrics` — its
+  keep-when-in-doubt contract untouched): split on blank-line stanzas; a stanza that
+  repeats **verbatim** → `## Chorus`, others → numbered `## Verse N`; **idempotent**
+  (already-`##`-labeled input or a single stanza returned as-is). Client-side only,
+  runs on paste + fetched text, no Go/endpoint change — as you ratified.
+- **Dialog:** a "Label verses & choruses" checkbox, **DEFAULT OFF**; on → create runs
+  detectSections over the normalized body before opening the T19 editor for review.
+- **Guard** (`editor-lyrics-sections.spec.ts`, red-first — toggle absent pre-fix):
+  default OFF → grouped, no `##`; ON → `## Verse 1/2` + the repeated stanza `## Chorus`
+  (and NOT a third numbered verse). `tsc` clean; **full e2e 90/90**; dist untouched.
+
+**One implementation note worth flagging:** the toggle first used a nested
+`<label><input><span>` and Playwright's post-check click silently didn't fire the
+create handler (traced it to blank-render then isolated it to the checkbox
+interaction). Switched to the **id/htmlFor** pattern (input + sibling label) — clean
+fix, and arguably more correct markup anyway. Human behavior was never affected;
+just flagging the gotcha.
+
+**Holding for GO.** On GO I land (cite verdict), poll CI, then relaunch the demo with
+T38 (and I'll use VLL's azlyrics Wonderwall URL for a real fetch-then-label sanity
+check). **T39** (the "Lyrics & chords" highlighter, per your ruling) is next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
