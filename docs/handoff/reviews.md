@@ -4848,6 +4848,17 @@ the first render.) API confirms 3/1/1 layers split across Score/Vocals/Guitar. g
 (root) + vet + `go test ./cmd/seed` clean; dist untouched. CI polling. **Post-hoc pixel
 review invited.** T41 (mobile black 2nd page) still queued.
 
+## 2026-07-13 — B11 LANDED (`c76a0cf`): ✅ APPROVED — the demo now SHOWCASES per-file annotations
+
+Verified live (seed on an isolated core): Wonderwall's files now each carry DISTINCT
+annotation layers — **Score**: Conductor cues + Section markings + Chords; **Part -
+Vocals**: "Breath & phrasing"; **Part - Guitar**: "Chords & capo". Switching file tabs
+in the seeded app shows different ink over a different PDF — the T40 per-file fix on
+display (which is what VLL asked for: prove it with distinct part annotations). gofmt +
+build clean (pre-checked on the branch — the B10 gofmt trap avoided); demo-only, the
+committed bundle bakes the Score default part unchanged. Patch-identical landing, cited.
+Closes the annotation arc: T40 (render fix) + T40-drawer follow-up + B11 (demo showcase).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

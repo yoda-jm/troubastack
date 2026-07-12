@@ -120,7 +120,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T38 | [Auto-label verses/choruses on lyrics import (opt-in)](T38-lyrics-auto-sections.md) — landed | studio | S |
 | T39 | [Rich pseudo-md source editor (dialect highlighting)](T39-chart-live-preview.md) — landed | studio | S/M |
 | T40 | [Scope annotations to the on-screen file (cross-file bleed)](T40-annotation-fileid-scope.md) — landed | studio | S |
-| B11 | [Demo per-file annotations (each part its own notes)](B11-demo-per-file-annotations.md) | core seed + demo | S |
+| B11 | [Demo per-file annotations (each part its own notes)](B11-demo-per-file-annotations.md) — landed | core seed + demo | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
