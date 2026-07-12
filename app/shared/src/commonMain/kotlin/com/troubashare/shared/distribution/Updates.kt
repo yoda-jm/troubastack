@@ -136,6 +136,27 @@ class UpdatesManager(
         }
     }
 
+    /**
+     * P201 stage 3b — ONE rehearsal auto-update tick for the OPEN concert. The caller (the
+     * Stage host) loops this on a gentle interval WHILE the transient auto-update toggle is
+     * on (I13). Fetch the manifest; if a newer rev is offered for [concertId] — `diff`
+     * already suppresses `finalLocked` / FROZEN / a local pin, so an auto-update honors the
+     * performer's own freeze — download + atomic-swap import it. Returns the NEW rev on a
+     * successful apply (⇒ the host reloads the bundle and calls `StageViewModel.applyUpdate`,
+     * R10), or null if there was nothing to do OR anything failed. **A failed tick is a
+     * no-op: the show keeps performing the current rev — auto-update never disrupts it.**
+     */
+    suspend fun autoUpdateTick(concertId: String): ULong? {
+        val manifest = runCatching { fetchManifest() }.getOrNull() ?: return null
+        val offer = diff(manifest).firstOrNull {
+            it is Availability.UpdateOffered && it.concertId == concertId
+        } as? Availability.UpdateOffered ?: return null
+        return when (apply(offer)) {
+            is ImportResult.Imported -> offer.serverRev
+            is ImportResult.Failed -> null
+        }
+    }
+
     /** Set the per-concert update policy (PROMPT/FROZEN/AUTO). AUTO is inert in B03. */
     fun setPolicy(concertId: String, policy: UpdatePolicy) = mutate(concertId) { it.copy(policy = policy) }
 
