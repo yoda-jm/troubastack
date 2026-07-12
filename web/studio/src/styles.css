@@ -437,11 +437,15 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
      --chrome-h) keep the score fully visible and let scrollIntoView land it BELOW
      the bar rather than under it. */
   height: 100%; overflow: auto;
-  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + .7rem);
+  /* Reserve BOTH bars up top: the slim top pill (--chrome-h) AND the contextual
+     style pill below it (--ctx-h ≈ its top offset + height). The ctx pill is an
+     absolute zero-shift overlay (T27) so --chrome-h doesn't measure it; reserving
+     its band ALWAYS (shown or not) keeps zero-shift AND lets the very top of page 1
+     scroll clear of both bars, so it's reachable to annotate (VLL). */
+  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem));
   scroll-padding-bottom: 4.75rem;
   display: flex; flex-direction: column; align-items: safe center; gap: 1rem;
-  /* top clears the slim top pill; bottom clears the floating bottom pill. */
-  padding: calc(var(--chrome-h, 3.5rem) + .7rem) 1rem 4.75rem;
+  padding: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem)) 1rem 4.75rem;
   background: var(--surface-2);
 }
 
