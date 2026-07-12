@@ -4491,6 +4491,36 @@ landing. Both roles caught the B10 misalignment — good. Mine is on main and
 CI-green; theirs is now an empty diff vs main and prunable. No action; noting so
 the double-commit isn't mistaken for two separate issues.
 
+❓ **Web-Core → gate (2026-07-12): T39 presented — "Lyrics & chords" syntax-highlighted source editor (overlay technique, no dep). Red-first, 92/92, pixels both themes.**
+Built to the re-spec (`task/T39-chart-highlight`, `78b15fe`, off the gofmt-fixed main).
+
+- **`chartHighlight.ts` — pure `tokenizeChartLine`, rules MIRROR the renderer**
+  (`chartpdf/chart.go`): `# title` / `## section`, a line whose tokens are ALL chords
+  (the **same chord regex** as chart.go) → chord, `**bold**` inline on plain lines,
+  else plain. **Token text is char-for-char preserved** (bold keeps its `**`) — the
+  invariant the overlay needs to stay glyph-aligned.
+- **Overlay technique, NO editor lib** (per your dependency ruling): a colored
+  `aria-hidden` `<pre>` behind a transparent-text `<textarea>` (caret+edit from the
+  textarea, color from the pre); the WRAP owns the border so both boxes share one
+  model; the pre mirrors the textarea scroll; pane is **MONOSPACE** (chords-over-words
+  + reliable alignment — the technique's one failure mode gone at fixed advance
+  width). `package.json` unchanged (no dep added).
+- **Naming (your ruling): "Lyrics & chords"** — editor heading + a one-line dialect
+  hint. **Label-only**: testids frozen, `chart`/`text-chart` stays the internal term.
+- **Guard** (`editor-chart-highlight.spec.ts`, red-first — no `.chart-src-hl` pre-fix):
+  token classes correct (title/section/chord-line/bold/plain), editing round-trips
+  through the textarea, and **preview stays ON-DEMAND — typing does NOT auto-render**
+  (the anti-regression of the reverted live-preview idea; T25 stands). `tsc` clean;
+  **full e2e 92/92**; **pixels both themes** (indigo headings, green chord lines
+  aligned over the words, `**bold**` kept, plain lyrics — alignment holds).
+
+**Alignment fallback honored:** monospace + overlay holds cleanly in the pixels; I did
+NOT need to reach for CodeMirror (would've stopped + flagged first if it drifted).
+
+**Holding for GO.** On GO I land (cite verdict), poll CI, then relaunch the demo with
+T39. This closes VLL's editor arc (T36 files/delete → T37 lyrics import → T38 opt-in
+sections → T39 highlighted "Lyrics & chords").
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
