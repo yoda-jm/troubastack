@@ -47,8 +47,11 @@ func (a wsAuth) SongForMember(userID, bandID, songID string) (string, string, er
 // Auth happens INSIDE the upgrade (hub.Serve): the session cookie is read off the
 // request and verified before the socket is accepted, so an unauthenticated or
 // non-member upgrade is rejected with 401/403 and never becomes a WebSocket.
-func mountWS(mux *http.ServeMux, svc *app.Service, eng *engine.Engine) *syncpkg.Hub {
+func mountWS(mux *http.ServeMux, svc *app.Service, eng *engine.Engine, onCommit func(songID string)) *syncpkg.Hub {
 	hub := syncpkg.NewHub(eng, wsAuth{svc: svc})
+	if onCommit != nil {
+		hub.SetOnCommit(onCommit)
+	}
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/ws", func(w http.ResponseWriter, r *http.Request) {
 		token := ""
 		if c, err := r.Cookie(sessionCookie); err == nil {

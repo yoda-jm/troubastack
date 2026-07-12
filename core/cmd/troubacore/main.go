@@ -11,6 +11,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -88,7 +89,9 @@ func main() {
 	// safe to wire even where the toolchain isn't installed.
 	baker := bake.New(svc, eng, bakeConfig(cfg))
 
-	handler, err := httpapi.Router(svc, eng, baker, cfg.Server.SecureCookies)
+	// Server-lifetime context for background workers (P201 autobaker); runs for the
+	// whole process.
+	handler, err := httpapi.Router(context.Background(), svc, eng, baker, cfg.Server.SecureCookies)
 	if err != nil {
 		log.Fatalf("troubacore: build router: %v", err)
 	}

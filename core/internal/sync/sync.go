@@ -63,10 +63,19 @@ type Hub struct {
 	eng  Engine
 	auth Auth
 
+	// onCommit, if set, is called with a songID after every ACCEPTED realtime apply
+	// (P201 autobake trigger). Set once at wiring time via SetOnCommit before serving;
+	// nil in tests/deployments without an autobaker. Must be cheap + non-blocking.
+	onCommit func(songID string)
+
 	mu         sync.Mutex
 	rooms      map[string]*room  // keyed by engine songID
 	applyLocks map[string]*muRef // per-song apply serialization (read-version → Apply)
 }
+
+// SetOnCommit registers the post-apply commit hook (P201). Call before Serve; it is
+// read without a lock on the apply path, so it must be set during single-threaded wiring.
+func (h *Hub) SetOnCommit(fn func(songID string)) { h.onCommit = fn }
 
 // muRef is a per-song mutex guarding the hub's read-HEAD-then-Apply window so the
 // server-assigned object version is monotonic under concurrent senders.

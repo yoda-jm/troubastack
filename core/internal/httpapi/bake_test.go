@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,7 +25,9 @@ func bakeServer(t *testing.T) *httptest.Server {
 	svc.WithBlobStore(blob.NewMem())
 	eng := engine.New(memstore.New().(store.HistoryAware))
 	baker := bake.New(svc, eng, bake.Config{BakesDir: t.TempDir()})
-	h, err := httpapi.Router(svc, eng, baker, false)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel) // stop the P201 autobaker goroutine when the test ends
+	h, err := httpapi.Router(ctx, svc, eng, baker, false)
 	if err != nil {
 		t.Fatalf("Router: %v", err)
 	}

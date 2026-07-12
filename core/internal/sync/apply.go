@@ -113,6 +113,11 @@ func (c *conn) handleMutation(in mutationJSON) {
 		c.reject(targetUUID(in), reasonFor(err))
 		return
 	}
+	// P201: notify the autobaker that this song committed (a live setlist containing
+	// it debounce-bakes). Non-blocking, best-effort; nil when no autobaker is wired.
+	if hook := c.hub.onCommit; hook != nil {
+		hook(c.songID)
+	}
 
 	frame, marshalErr := json.Marshal(echoMsg{Type: "echo", Mutation: mutationToJSON(accepted)})
 	if marshalErr != nil {

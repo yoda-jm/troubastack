@@ -267,6 +267,11 @@ type Setlist struct {
 	// liveness is computed at read time (SetlistLive), so no background sweeper is
 	// needed. Zero = off. Persists like any Setlist field.
 	LiveUntil time.Time `json:"liveUntil,omitempty"`
+
+	// LiveBy is the id of the admin who enabled live mode — the actor the autobaker
+	// (stage 1b) bakes AS, so an auto-bake is attributed to whoever started rehearsal
+	// (and is a valid member/admin for the bake's authorization). Cleared with LiveUntil.
+	LiveBy string `json:"-"`
 }
 
 // LiveModeWindow is how long a setlist stays in rehearsal live mode after an admin

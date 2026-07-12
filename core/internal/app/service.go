@@ -1538,8 +1538,10 @@ func (s *Service) SetSetlistLive(caller User, bandID, setlistID string, live boo
 	}
 	if live {
 		sl.LiveUntil = s.now().UTC().Add(LiveModeWindow)
+		sl.LiveBy = caller.ID
 	} else {
 		sl.LiveUntil = time.Time{}
+		sl.LiveBy = ""
 	}
 	if err := s.repo.UpdateSetlist(sl); err != nil {
 		return Setlist{}, err
@@ -1550,6 +1552,42 @@ func (s *Service) SetSetlistLive(caller User, bandID, setlistID string, live boo
 // SetlistLiveNow reports whether a setlist is in live mode as of the service clock —
 // the app-layer read used by the autobaker (stage 1b) and the API response.
 func (s *Service) SetlistLiveNow(sl Setlist) bool { return SetlistLive(sl, s.now().UTC()) }
+
+// LiveSetlistsForSong returns the band's setlists that are in live mode AS OF NOW and
+// contain the given song — the autobaker's (stage 1b) reverse lookup on each committed
+// annotation. Caller-less (system-triggered); resolves song→band, filters live, checks
+// membership. A song not found, or in no live setlist, yields an empty slice + nil err.
+func (s *Service) LiveSetlistsForSong(songID string) ([]Setlist, error) {
+	song, err := s.repo.GetSong(songID)
+	if err != nil {
+		return nil, nil // unknown song → nothing to bake (not an error on the commit path)
+	}
+	sls, err := s.repo.SetlistsOfBand(song.BandID)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now().UTC()
+	var live []Setlist
+	for _, sl := range sls {
+		if !SetlistLive(sl, now) {
+			continue
+		}
+		items, err := s.repo.ItemsOfSetlist(sl.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, it := range items {
+			if it.SongID == songID {
+				live = append(live, sl)
+				break
+			}
+		}
+	}
+	return live, nil
+}
+
+// UserByID resolves a user for the autobaker's bake actor (the LiveBy admin).
+func (s *Service) UserByID(id string) (User, error) { return s.repo.GetUser(id) }
 
 // deleteSetlistCascade deletes a setlist's items then the setlist record. No
 // permission check — callers must enforce.

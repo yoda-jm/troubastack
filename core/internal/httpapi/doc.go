@@ -15,8 +15,10 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/bake"
@@ -35,7 +37,7 @@ import (
 // secureCookies should be true behind TLS. The realtime /ws upgrade is wired here
 // over a sync.Hub built on the SAME engine instance (in mountWS), so the live HEAD
 // the hub mutates is exactly the one GET …/annotations reads.
-func Router(svc *app.Service, eng *engine.Engine, baker *bake.Baker, secureCookies bool) (http.Handler, error) {
+func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *bake.Baker, secureCookies bool) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Liveness probe.
@@ -69,9 +71,25 @@ func Router(svc *app.Service, eng *engine.Engine, baker *bake.Baker, secureCooki
 	// download baked concerts. baker may be nil in tests that don't exercise bake.
 	NewBakeAPI(svc, baker).Mount(mux, web.auth)
 
+	// Rehearsal live mode autobaker (P201/I11 stage 1b): when a baker is wired, a
+	// debounced autobaker turns annotation commits on a live setlist's songs into
+	// auto-bakes. The bake closure wraps baker.Bake (a system bake as the enabling
+	// admin), so the app package needs no bake import. Started for the process
+	// lifetime; a nil baker (most unit tests) skips it entirely.
+	var onCommit func(songID string)
+	if baker != nil {
+		ab := app.NewAutoBaker(svc, func(ctx context.Context, bandID, setlistID string, actor app.User) error {
+			_, err := baker.Bake(ctx, bandID, setlistID, actor, false) // shared band bake
+			return err
+		}, nil, 0)
+		go ab.Run(ctx, time.Second) // stops when ctx is cancelled (server shutdown / test cleanup)
+		onCommit = ab.Notify
+	}
+
 	// Realtime annotation sync: a per-song WebSocket over the SAME engine, so live
-	// edits and the REST read see one consistent HEAD (I6).
-	mountWS(mux, svc, eng)
+	// edits and the REST read see one consistent HEAD (I6). onCommit (if wired) fires
+	// the autobaker after each accepted apply.
+	mountWS(mux, svc, eng, onCommit)
 
 	// Serve the embedded Studio SPA (I10) with HTML5-history fallback so client-side
 	// routes (e.g. /bands) resolve to index.html. The catch-all "/" pattern has lower
