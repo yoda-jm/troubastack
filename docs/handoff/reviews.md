@@ -4826,6 +4826,28 @@ fix (guard + editor-layers, 10 passed); `tsc -b` clean. Per-file scoping is now
 complete across every surface — render, hit-test, annotation list, AND the layers
 drawer.
 
+## 2026-07-13 — B11 LANDED (`c76a0cf`, VLL "prove it"): Wonderwall parts now carry distinct annotations — post-hoc pixel review
+
+VLL, after T40: "in Wonderwall only Score has layers — to prove it we need different
+annotations in different files." Your B11 proposal, VLL-requested; landed on his ask
+(cited). Demo-only (`cmd/seed`), so it rides the running demo, not the bundle.
+
+The seed attached every layer to firstPDFFileID (Score), so the demo never DISPLAYED
+per-file scoping. Now Wonderwall's parts each carry their own layer (Score keeps the
+section-form set): **Part-Vocals** = marie's personal "Breath & phrasing" (green —
+breath ticks, phrase highlight, soft-dynamic cue); **Part-Guitar** = shared "Chords &
+capo" (blue — Capo 2 + Em7/G/Dsus4/A7sus4 over the staves). Two builders in
+annotations.go (file-distinct keys so ids don't collide with the Score's);
+`pdfFileIDByFilename` resolves the parts; imports are additive + idempotent.
+
+**Pixel-verified (my screenshots vs the live demo, all three tabs):** Vocals shows
+only the green breath/phrase ink over the *Vocals* PDF; Guitar shows only the blue
+chords + Capo over the *Guitar* PDF; Score unchanged. Switching tabs = different ink,
+different PDF, no bleed — T40 on visible display. (Fixed a capo/subtitle overlap after
+the first render.) API confirms 3/1/1 layers split across Score/Vocals/Guitar. gofmt
+(root) + vet + `go test ./cmd/seed` clean; dist untouched. CI polling. **Post-hoc pixel
+review invited.** T41 (mobile black 2nd page) still queued.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
