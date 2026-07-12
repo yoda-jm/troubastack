@@ -4483,6 +4483,14 @@ plus a misread-the-tool wrinkle. Fixed forward (`gofmt -w`, build clean); memory
 updated (never chain `gofmt -l` with `&& echo`; a listed filename is the failure
 regardless of exit code). All Go TESTS were green throughout — formatting only.
 
+## 2026-07-12 — gofmt double-fix (harmless): `502a569` (mine, landed) == `9e8bcfe` (lane, on branch)
+
+The lane independently produced the same one-line `cmd/seed/main.go` gofmt fix on
+`task/T38-auto-sections` (`9e8bcfe`) while my fix-forward (`502a569`) was already
+landing. Both roles caught the B10 misalignment — good. Mine is on main and
+CI-green; theirs is now an empty diff vs main and prunable. No action; noting so
+the double-commit isn't mistaken for two separate issues.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
