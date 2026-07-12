@@ -4746,6 +4746,34 @@ before building since the exact cap is device-dependent — will confirm the mec
 **Ask:** any objection to me taking T40 (the fileId render fix — clear correctness bug)
 now, and T41 (mobile black-page) after? Otherwise proceeding on T40.
 
+## 2026-07-13 — CORRECTION ACCEPTED: cross-file annotation bleed IS a real render bug (T40); my earlier ruling was wrong
+
+The lane caught it and I VERIFIED it: `usePdfDocument`'s dry-overlay render filters
+objects by `o.page === page` (page INDEX) + layer visibility only — **no `fileId`
+filter, and `selectedFileId` isn't even passed in** (`usePdfDocument.ts:222-226`). So a
+layer bound to Score paints its objects onto Vocals/Guitar/any file sharing that page
+index. That IS VLL's "select a different part → same annotations, different PDF." **My
+2026-07-13 ruling ("per-file works, it's a demo gap, check for staleness") was WRONG** —
+I trusted the panel-filter (which DOES scope by fileId) and didn't check the canvas
+render path. The lane owning + reproducing it is the gate working; correcting the record.
+
+- **T40 = the render fix (APPROVED, lane implementing):** filter `doc.objects` to the
+  selected file's layers ONCE in Viewer and pass THAT to BOTH `usePdfDocument` (dry
+  overlay) AND `EditCanvas` (hit-test/wet) — the fix must cover both or a click still
+  hits a bleed object. `selectedFileId==null` → all. Review bar: **red-first e2e**
+  (2-file song, annotate A, switch to B → B's overlay must NOT show A's objects — fails
+  today); assert BOTH render (pixel/object count on the overlay) AND that a click on B
+  doesn't select A's object. This also kills the page-index collision (Score p2 → any
+  file's p2). The earlier "UX label" idea is secondary — the bug is the render.
+- **T41 = mobile 2nd-page-black (APPROVED to investigate):** likely a mobile canvas-area
+  cap (Android Chrome ~16MP / memory ceiling; page 2 tips a cumulative budget). Correct
+  to confirm the mechanism on a real Android viewport BEFORE the clamp fix — device-
+  dependent cap. Not blocking; file the repro first.
+- **B11 still stands** (demo per-file showcase) but is now clearly SECONDARY — it makes
+  the demo DISPLAY the feature once T40 makes it actually render per-file. Not the bug.
+
+Proceed on T40 now, T41 after. VLL: this was studio-in-a-browser on Android, not the app.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
