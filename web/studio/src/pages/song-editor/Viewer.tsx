@@ -283,6 +283,16 @@ export function Viewer({
     return m;
   }, [sortedLayers]);
 
+  // The Layers drawer must list only the on-screen file's layers (T40 follow-up).
+  // sortedLayers spans the whole song; without this filter the panel showed every
+  // file's layers (e.g. the Score's cues while viewing the Vocals part). layerRank
+  // stays over ALL layers — it only drives z-order, and only this file's objects
+  // render, so the relative stacking is preserved.
+  const sortedFileLayers = useMemo(
+    () => sortedLayers.filter((l) => selectedFileId == null || l.fileId === selectedFileId),
+    [sortedLayers, selectedFileId],
+  );
+
   // PDF raster / zoom / dry-overlay machinery (T15). Owns the scroll/content/canvas
   // refs the JSX binds, the zoom controls, and renderOverlays; preserves the
   // no-re-raster-on-edit + render-timing + wheel-zoom invariants internally.
@@ -1073,7 +1083,7 @@ export function Viewer({
               {drawerTab === "layers" ? (
                 <>
                   <LayersPanel
-                    layers={sortedLayers}
+                    layers={sortedFileLayers}
                     visible={visible}
                     myUserId={myUserId}
                     myRole={myRole}

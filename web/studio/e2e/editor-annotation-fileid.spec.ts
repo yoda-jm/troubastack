@@ -92,6 +92,11 @@ test("annotations drawn on one file do NOT bleed onto another file of the same s
     .poll(() => overlayAlpha(page, 0.4, 0.3), { message: "rect must paint on file A" })
     .toBeGreaterThan(0);
 
+  // File A's Layers drawer lists A's one layer.
+  await openDrawer(page, "layers");
+  await expect(page.getByTestId("layer-item")).toHaveCount(1);
+  await closeDrawer(page);
+
   // Switch to file B (tab 1): its overlay must be EMPTY where A's rect was.
   await page.getByTestId("file-tab").nth(1).click();
   await expect(page.getByTestId("file-tab").nth(1)).toHaveAttribute("aria-selected", "true");
@@ -100,6 +105,11 @@ test("annotations drawn on one file do NOT bleed onto another file of the same s
       message: "file B must NOT show file A's annotation (no cross-file bleed)",
     })
     .toBe(0);
+
+  // And file B's Layers drawer must NOT list file A's layer (panel is file-scoped too).
+  await openDrawer(page, "layers");
+  await expect(page.getByTestId("layer-item")).toHaveCount(0);
+  await closeDrawer(page);
 
   // Back to A: the rect is still there (scoping didn't lose it).
   await page.getByTestId("file-tab").nth(0).click();
