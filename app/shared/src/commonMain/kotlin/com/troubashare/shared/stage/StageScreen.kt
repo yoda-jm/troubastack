@@ -114,6 +114,11 @@ fun StageScreen(
     // A14: persist the reading mode (page/width/scroll) globally; the entrypoint seeds the VM's
     // initialFit and writes this callback (A10 pattern). No-op default ⇒ mode simply isn't persisted.
     onFitModeChange: (FitMode) -> Unit = {},
+    // P201/I13: show the rehearsal "Auto-update" toggle. Only true when the concert is
+    // server-backed (the host can poll for a new rev). The toggle state is TRANSIENT —
+    // it lives in the VM (StageState.autoUpdate) and resets when Stage is left; the host
+    // watches it to run/stop the poll loop. Default false ⇒ no toggle (iOS host, tests).
+    canAutoUpdate: Boolean = false,
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -128,7 +133,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate)
         }
     }
 }
@@ -142,6 +147,7 @@ private fun Performing(
     initialColorMode: StageColorMode,
     onColorModeChange: (StageColorMode) -> Unit,
     onFitModeChange: (FitMode) -> Unit,
+    canAutoUpdate: Boolean,
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     val cache = remember { PageImageCache() }
@@ -277,6 +283,11 @@ private fun Performing(
                     }
                     if (state.layers.isNotEmpty()) TextButton(onClick = { showLayers = true }) { Text("Layers") }
                     TextButton(onClick = { showRole = true }) { Text("Role") }
+                    // P201/I13: transient rehearsal auto-update. On ⇒ the host polls + swaps in
+                    // new revs (viewport-preserving); resets when Stage is left.
+                    if (canAutoUpdate) TextButton(onClick = { vm.setAutoUpdate(!state.autoUpdate) }) {
+                        Text(if (state.autoUpdate) "● Live" else "Auto-update")
+                    }
                     TextButton(onClick = { colorMode = colorMode.next(); onColorModeChange(colorMode) }) {
                         Text(if (colorMode == StageColorMode.NIGHT) "Night" else "Day")
                     }

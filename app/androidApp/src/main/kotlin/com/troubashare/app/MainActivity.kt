@@ -29,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,8 @@ import com.troubashare.shared.stage.PageTurn
 import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
@@ -157,6 +160,27 @@ private fun App() {
     val volumeTurnRegistrar = remember(activity) {
         { handler: ((PageTurn) -> Unit)? -> activity?.stageVolumeTurn = handler }
     }
+
+    // P201 stage 3c — rehearsal auto-update host loop. The concert is server-backed if it
+    // carries a concertId (downloaded/known to a server); only then is the toggle offered.
+    // While the transient toggle is on (StageState.autoUpdate), poll for a new rev of THIS
+    // concert every ~15s; on one, reload the swapped-in bundle from disk and hand it to the
+    // VM (applyUpdate → R10 viewport-preserving). The loop is keyed on (dir, autoUpdate), so
+    // it starts/stops with the toggle and cancels when Stage is left. Best-effort — a failed
+    // tick is a no-op (autoUpdateTick returns null), the current rev keeps performing.
+    val concertId = remember(dir) { listConcerts(storage).firstOrNull { it.dir == dir }?.concertId ?: "" }
+    val stageState by opened.vm.state.collectAsState()
+    LaunchedEffect(dir, stageState.autoUpdate) {
+        if (!stageState.autoUpdate || concertId.isEmpty()) return@LaunchedEffect
+        while (isActive) {
+            delay(15_000)
+            val newRev = runCatching { updates.autoUpdateTick(concertId) }.getOrNull()
+            if (newRev != null) {
+                opened.vm.applyUpdate(BundleLoader().load(dir, FileBundleFiles()))
+            }
+        }
+    }
+
     CompositionLocalProvider(LocalVolumeTurnRegistrar provides volumeTurnRegistrar) {
         StageHost {
             StageScreen(
@@ -164,6 +188,7 @@ private fun App() {
                 initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
                 onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
                 onFitModeChange = { storage.putSecret(FIT_MODE_KEY, it.name) },
+                canAutoUpdate = concertId.isNotEmpty(),
             )
         }
     }
