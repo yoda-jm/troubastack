@@ -56,6 +56,10 @@ type songDef struct {
 	src        pdfSource
 	files      []pdfSource      // optional multi-file shared pool (overrides src)
 	myFilesFor map[string][]int // username -> ordered indices into files (custom my-files)
+	// textChartPath is an optional committed chart-dialect source (docs/demo-charts/*.chart)
+	// added to the pool as a REAL text chart (T19) — POST /text-charts renders it to a PDF
+	// server-side, so the demo shows the text-chart file type, not only uploaded PDFs (B10).
+	textChartPath string
 }
 
 // overrideDef is a per-setlist-item override (settable on the setlist page).
@@ -130,7 +134,10 @@ func run(addr, password string) error {
 				// tab) from docs/demo-charts — so one seeded song shows genuine sheet
 				// content + its purpose-built annotation layers (see buildOpenRoadAnnotations).
 				{title: "The Open Road", artist: "", key: "G", tempo: 92, tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + guitar tab. Capo 2.",
-					src: pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2}},
+					src:           pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2},
+					// A REAL text chart alongside the lead-sheet PDF — the demo now shows the
+					// T19 chart type (server-rendered from chart-dialect source), not only PDFs (B10).
+					textChartPath: "../docs/demo-charts/open-road-lyrics.chart"},
 			},
 			setlist: setlistDef{
 				name: "Sat @ The Anchor", eventDate: "2026-07-04", venue: "The Anchor Pub", notes: "60-minute set.",
@@ -406,6 +413,31 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			}
 			uploaded = append(uploaded, fileOut.File.ID)
 			fmt.Printf("     + file %q (%s, %s, %d bytes)\n", src.filename(), src.cacheName, res.origin, len(res.data))
+		}
+
+		// B10: a REAL text chart from committed chart-dialect source — POST /text-charts
+		// renders it to a PDF server-side, so the demo shows the T19 chart type (not only
+		// uploaded PDFs). It enters the pool after the PDFs (highest displayOrder).
+		if s.textChartPath != "" {
+			source, rerr := os.ReadFile(s.textChartPath)
+			if rerr != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("read text chart %q for %q: %w", s.textChartPath, s.title, rerr)
+			}
+			var chartOut struct {
+				File struct {
+					ID string `json:"id"`
+				} `json:"file"`
+			}
+			if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+songID+"/text-charts",
+				map[string]string{"source": string(source)}, &chartOut); err != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("create text chart for %q: %w", s.title, err)
+			}
+			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+chartOut.File.ID,
+				map[string]any{"displayOrder": len(uploaded)}, nil); err != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for text chart of %q: %w", s.title, err)
+			}
+			uploaded = append(uploaded, chartOut.File.ID)
+			fmt.Printf("     + text chart %q (rendered from %s)\n", s.title, s.textChartPath)
 		}
 
 		// Curate per-member personal file selections via the my-files endpoint.

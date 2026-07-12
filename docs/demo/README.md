@@ -54,3 +54,10 @@ with a true `—` (the T16 seed-encoding fix proving itself in the shipped artif
 > generator's footer was tripping fpdf's auto page-break, spilling a blank page after
 > every real page — the old bundle carried ~22 pages (blanks interleaved, some
 > annotations sitting on the blanks). It now carries the intended 12.
+>
+> Regenerated 2026-07-12 (B10): the seed now adds a **text chart** (T19) to The Open
+> Road's pool — a real chart-dialect lyrics file, so the *seeded app* shows the
+> text-chart type, not only uploaded PDFs. The shared bundle here is unchanged in
+> substance (the bake is one file per song; The Open Road keeps its annotated
+> lead sheet as the default part — demoting it would drop the annotation showcase).
+> The text chart is visible in the seeded app and rides a member's per-member bake.

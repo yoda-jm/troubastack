@@ -34,6 +34,25 @@ button in T36's panel visibly meaningful.
    the new `demo-concert.tstage` gains a text-chart-origin part. Pixel-verify the
    baked page renders the lyrics (crop check), and that the app performs it.
 
+## Outcome (2026-07-12, architect-implemented per VLL)
+
+Done: the seeder now renders `docs/demo-charts/open-road-lyrics.chart` (original,
+copyright-safe words in the chart dialect) into The Open Road's pool via
+`POST /text-charts`. Verified live: it renders as a proper chords-over-lyrics
+chart (title, orange section headers, blue chords over monospace lyrics) and
+sits in the pool beside the lead-sheet PDF, openable in the T19 editor.
+
+**Honest scoping note (T05 precedent):** the shared `.tstage` bake is
+**one file per song by design** (B07 — the lowest-displayOrder viewable PDF),
+and The Open Road's default is its **annotated lead sheet** (the demo's
+purpose-built annotation showcase — keeping it default is correct). So the text
+chart shows in the **seeded app** (VLL's actual ask: "the demo should have a
+text lyrics file") but NOT in the shared committed bundle, where demoting the
+annotated lead sheet would be worse. A member who curates the chart first in
+their my-files gets it in their per-member bake — the sanctioned on-Stage path.
+The demo bundle was regenerated anyway (B05 hygiene — pipeline re-verified end
+to end with the new seed).
+
 ## Acceptance criteria
 
 - `rm -rf core/troubadata && make demo`: the target song shows a text-chart file
