@@ -48,6 +48,13 @@ the score doesn't jump under a musician's eyes.
    publishing to performers"). It must also show on the NON-editor song page
    states and the setlist page. The live-mode toggle itself lives on the setlist
    page (admin-only), next to the existing frozen control.
+> **STATUS 2026-07-12 (architect-implemented per VLL):** changes 1 + 2 are DONE
+> and landed — **stage 1a** (`eaa393f`) live-mode state/toggle/expiry, **stage 1b**
+> (`95db8e8`) the debounced autobaker, **stage 2a** (`3952840`) setlist toggle+banner,
+> **stage 2b** (`b49694e`) the in-editor banner. Web+core rehearsal live mode works
+> end to end. **What remains is change 3 + 4 below — the APP (stage 3), for the mobile
+> lane** + an attended two-device test. Concrete handoff notes are inlined ⤵.
+
 3. **App — I13's transient toggle.** In Stage (not the concerts list): an
    "Auto-update (rehearsal)" control in the Stage top bar (with Scroll/Layers/
    Role/Day — the A08–A15 chrome). **In-memory only — never written through the
@@ -58,6 +65,17 @@ the score doesn't jump under a musician's eyes.
    Stage stays network-free (I12): the poller lives in `distribution/` (which
    already owns ktor via `ManifestTransport`) and is driven by a callback the
    Stage HOST registers — same layering as B03/B06; document the seam comment.
+   > **Mobile-lane handoff (server side is ready):** the app already lists concerts
+   > via `GET /api/bands/{bandId}/concerts` (B03) and downloads the bundle — the
+   > SAME manifest the poller should diff for a new `currentRev` of the open concert.
+   > No new server endpoint is needed for stage 3: `currentRev` bumps on each
+   > autobake (stage 1b), so the transient poller is "if serverRev > localRev,
+   > atomic-swap import" — reuse `Updates.kt`'s `Availability.UpdateOffered` +
+   > `BundleImporter`, just triggered automatically instead of on a tap, ONLY while
+   > the in-memory toggle is on. `UpdatePolicy.AUTO` (already in `Updates.kt`,
+   > inert) is the natural flag. The transiency test mirrors A10's persistence test
+   > but asserts the OPPOSITE (leave Stage → the toggle is OFF; nothing written to
+   > the Storage seam).
 4. **Viewport-preserving swap (R10) — now with the A12/A14 modes.** After an
    auto-apply, map old→new per page by `raster_hash`/`content_hash`:
    - unchanged current page ⇒ stay exactly (same page index, same state);
