@@ -4464,6 +4464,13 @@ Verified (my runs, isolated stack):
 **GO TO LAND** (fast-forward, cite the verdict). T39 (the rich "Lyrics & chords"
 editor) is next.
 
+## 2026-07-12 — T38 LANDED (`2c213d6`): ✅ CLOSED — opt-in verse/chorus labeling shipped (default OFF)
+
+Patch-identical to the GO'd `2d49b77`, verdict cited. CI watched. Imported lyrics
+can now be auto-structured into `## Verse N`/`## Chorus` on opt-in, without
+touching the minimal normalizer. T39 (rich "Lyrics & chords" editor) is the last
+of the T37→T39 chart-editing arc still open.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

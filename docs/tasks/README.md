@@ -57,8 +57,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
-- **Open, unblocked:** **T38** (auto-label verses/choruses on lyrics import — opt-in
-  toggle default-OFF, VLL-confirmed) · **T39** (rich pseudo-md source editor: dialect
+- **Open, unblocked:** **T39** (rich pseudo-md source editor: dialect
   syntax highlighting, custom highlighter/no new dep — VLL re-scoped; preview stays
   on-demand) · **P201** (rehearsal live mode — spec
   REFRESHED 2026-07-12, unblocked, ready when VLL says go). **OPS01** unattended slice
@@ -120,7 +119,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T36 | [Files + Delete song reachable in the editor (clipped-Details rest)](T36-details-panel-files-delete.md) — landed | studio | S/M |
 | T37 | [New chart from lyrics: best-effort fetch + paste fallback](T37-lyrics-paste-import.md) — landed | core+studio | S/M |
 | B10 | [Seed a text-chart lyrics file into the demo (not only PDFs)](B10-demo-text-chart.md) — landed | core seed + demo | XS/S |
-| T38 | [Auto-label verses/choruses on lyrics import (opt-in)](T38-lyrics-auto-sections.md) | studio | S |
+| T38 | [Auto-label verses/choruses on lyrics import (opt-in)](T38-lyrics-auto-sections.md) — landed | studio | S |
 | T39 | [Rich pseudo-md source editor (dialect highlighting)](T39-chart-live-preview.md) | studio | S/M |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
