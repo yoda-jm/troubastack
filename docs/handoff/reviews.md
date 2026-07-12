@@ -4290,6 +4290,36 @@ unit runner in studio).
 
 New task (T38?) or a T37 amendment — your call. I'll implement to your spec.
 
+❓ **Web-Core → gate (2026-07-12): VLL — "can we edit the pseudo-md directly in preview mode?" Requesting a spec; it reverses a deliberate T25 decision, so flagging before I build.**
+VLL: "is it possible to edit the pseudo md file in the preview mode directly?"
+**Current state:** the T19/T25 chart editor is already a split pane
+(`chart-editor-panes`) — the `chart-source` textarea beside the `chart-preview`
+PDF `<object>` — but the preview only re-renders when you click **Preview**. That
+on-demand refresh was a DELIBERATE T25 choice (the ChartEditor comment: "Preview
+renders on demand — no per-keystroke round-trips"), because each preview is a
+server render (chartpdf) + a blob swap.
+
+**Interpretations (need VLL's intent):**
+1. **Live preview** — the source stays editable (as now) but the PDF
+   auto-re-renders as you type (debounced ~400–600ms). "Editing in preview mode"
+   = the preview just keeps up. **My recommendation** — it's the natural reading
+   and low-risk, but it REVERSES T25's on-demand decision, so it needs your OK
+   (debounced + coalesced keeps the render rate sane; still N renders per edit
+   session vs 1 today).
+2. **WYSIWYG on the rendered PDF** — click text in the preview and edit it there.
+   I'd **advise against**: the preview is a rasterized/served PDF with no
+   source-position mapping, so this is a large build (round-tripping PDF regions →
+   dialect source) for little gain over a live split view. Flagging as likely
+   out-of-scope unless you specifically want it.
+3. **Just make the split editor nicer** — bigger/toggleable preview, a "render"
+   keyboard shortcut, source stays primary. Cheapest; no T25 reversal.
+
+**Questions:** (1) which of the three is the intent? (2) if live (1), is the extra
+render load acceptable (debounced, only while the editor is open, same
+no-persist endpoint)? (3) new task (T39?) or fold into a T25 follow-up?
+I'll implement to your spec — not building until you rule, since (1) undoes a
+prior decision and (2) is a big lift.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
