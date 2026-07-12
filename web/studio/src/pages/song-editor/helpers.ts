@@ -8,6 +8,18 @@ import { pointsForTool, type DrawTool } from "../../editor";
 
 export type PRPoint = { x: number; y: number };
 
+/** Raster device-pixel-ratio, CLAMPED (T41). Every page stacks three full-res canvases
+ *  (PDF raster + annotation overlay + wet EditCanvas); at a phone's native DPR (often
+ *  3–4) the cumulative backing store exhausts the browser's canvas/GPU budget and later
+ *  pages fail to allocate — rendering solid BLACK, worse after scrolling (backing-store
+ *  eviction). Capping the raster DPR shrinks every canvas ~2–4× with imperceptible loss
+ *  at phone reading distance; desktop "retina" (DPR 2) is unaffected (min(2,2)=2). ALL
+ *  canvas sizing must use this one value so raster/overlay/wet stay pixel-aligned. */
+const MAX_RASTER_DPR = 2;
+export function rasterDpr(): number {
+  return Math.min(window.devicePixelRatio || 1, MAX_RASTER_DPR);
+}
+
 /** Per-layer local visibility toggles: layerId → shown. */
 export type LayerVisibility = Record<string, boolean>;
 

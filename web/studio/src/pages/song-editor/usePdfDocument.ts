@@ -22,7 +22,7 @@ import * as pdfjs from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { renderObjects, type InkObject } from "@troubastack/ink";
 import { api, type AnnotationLayer, type AnnotationObject, type SongFile } from "../../api";
-import { toInkObject, compareObjectZ, type LayerVisibility } from "./helpers";
+import { toInkObject, compareObjectZ, rasterDpr, type LayerVisibility } from "./helpers";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -243,7 +243,7 @@ export function usePdfDocument(args: {
 
   // Repaint every mounted overlay (visibility/objects change; no re-raster).
   const renderOverlays = useCallback(() => {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = rasterDpr();
     if (isImage) {
       const o = imgOverlayRef.current;
       if (o) paintOverlay(o, 0, dpr);
@@ -265,7 +265,7 @@ export function usePdfDocument(args: {
     const tasks: pdfjs.RenderTask[] = [];
 
     (async () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = rasterDpr();
       let renderedAny = false;
       for (let i = 0; i < pdfDoc.numPages; i++) {
         if (cancelled) return;
@@ -331,7 +331,7 @@ export function usePdfDocument(args: {
     const img = imgRef.current;
     const overlay = imgOverlayRef.current;
     if (!img || !overlay) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = rasterDpr();
     const w = img.clientWidth;
     const h = img.clientHeight;
     overlay.width = Math.round(w * dpr);

@@ -27,7 +27,7 @@ import {
   type TextMeasure,
   type Tool,
 } from "../../editor";
-import { buildWet, compareObjectZ, measureTextWidth, toInkObject, type PRPoint, type LayerVisibility } from "./helpers";
+import { buildWet, compareObjectZ, measureTextWidth, toInkObject, rasterDpr, type PRPoint, type LayerVisibility } from "./helpers";
 import { SelectionToolbar } from "./Toolbar";
 
 /** Capture a pointer id, best-effort (T34). Exotic/synthetic pointer ids (e.g. an e2e-
@@ -212,7 +212,7 @@ export function EditCanvas({
     const wrapper = canvas.parentElement;
     const pageCanvas = wrapper?.querySelector<HTMLElement>(".pdf-canvas");
     if (!pageCanvas) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = rasterDpr();
     const w = pageCanvas.clientWidth;
     const h = pageCanvas.clientHeight;
     if (w <= 0 || h <= 0) return;
@@ -242,7 +242,7 @@ export function EditCanvas({
     if (!canvas) return;
     const ctx = getWetCtx();
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = rasterDpr();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
     const box = { x: 0, y: 0, w: canvas.width / dpr, h: canvas.height / dpr };
@@ -268,7 +268,7 @@ export function EditCanvas({
     const canvas = canvasRef.current;
     const ctx = getWetCtx();
     if (!canvas || !ctx || g?.mode !== "draw") return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = rasterDpr();
     const cssW = canvas.width / dpr;
     const cssH = canvas.height / dpr;
     const box = { x: 0, y: 0, w: cssW, h: cssH };
