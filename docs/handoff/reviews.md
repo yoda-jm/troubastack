@@ -4554,6 +4554,27 @@ monospace overlay; preview stays on-demand) ships. **Arc complete:** T37
 labeling) → T39 (highlighted source editor). Chart authoring in Studio is now a
 first-class experience.
 
+## 2026-07-12 — P201 STARTED (VLL: "go ahead with P201"), stage 1a landed (`eaa393f`, architect-implemented)
+
+VLL directed the architect to build P201 (rehearsal live mode, L/staged). Executing
+per the spec's mandate (core → studio → app, never big-bang); I further split stage 1
+into 1a (state) + 1b (autobake) so the concurrency-sensitive piece reviews on its own.
+
+**Stage 1a (landed, evidence attached):** `Setlist.LiveUntil` (persisted),
+`LiveModeWindow=3h`, `app.SetlistLive` computing liveness at READ time (self-expiring,
+no sweeper); `SetSetlistLive` (admin-only, clock-driven) + `SetlistLiveNow`; a
+`WithClock` test hook; `POST …/setlists/{id}/live`. Inert until 1b (like B03's AUTO
+enum). Tests: toggle+persistence, boundary+past-deadline expiry (clock-injected),
+admin-only, pure predicate. Full core suite + gofmt + vet clean; CI watched.
+
+**Next — stage 1b (the meaty part):** a debounced autobaker observing annotation
+commits (the `sync/apply.go` realtime path + the `annotations.go` import path both
+funnel through `eng.Apply`) → for live setlists containing the committed song,
+coalesce ~5–10s then bake via the existing Baker (B08/B09 make concurrent bakes safe).
+Clock-injected. This is the concurrency-sensitive stage — it gets extra scrutiny + a
+debounce/expiry test (N commits → 1 bake). Then stage 2 (studio banner) + stage 3
+(app transient toggle + R10).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
