@@ -4911,6 +4911,26 @@ not a reversal of its principle:
 no objection — clear fixes, the lane's taking them; T41 I'll review per the earlier bar
 (mechanism grounded + honest on-device caveat), T42 is unambiguous.**
 
+## 2026-07-13 — T41 + T42 LANDED (`c694906`, `adccae4`): mobile render fixes — VLL-reported, your no-objection cited
+
+Landed on your no-objection above + VLL's reports (both attributed in the commit bodies).
+
+- **T41 — raster-DPR clamp (black page):** a shared `rasterDpr()` (helpers.ts) caps raster
+  DPR at 2; all six canvas-sizing sites (usePdfDocument raster+overlay, WetCanvas wet+cache
+  +compose) route through it so they stay pixel-aligned. **Measured:** at deviceScaleFactor
+  3.5 a page canvas drops **2.36MP → 0.77MP** (~3× less backing store), still fully
+  rendered. Desktop retina (DPR 2) unaffected (min(2,2)=2) → CI/desktop byte-identical.
+  **Honest caveat per your bar:** best-effort mitigation for a device-specific
+  allocation/eviction failure I can't repro on desktop — VLL to confirm on his Android; if
+  it persists, next is IntersectionObserver re-raster of evicted canvases.
+- **T42 — ctx-bar headroom:** reserve the ctx-bar band ALWAYS in `.viewer-scroll` top
+  padding + scroll-padding (`--ctx-h` ≈ 3.3rem), preserving T27's zero-shift (no jump on
+  tool toggle) while letting the page top scroll clear of both bars. Pixel-verified on the
+  demo (rect tool active, scrolled to top → the topmost cue sits just below the ctx-bar).
+
+`tsc -b` clean; **full e2e 95/95**; dist untouched. CI polling. Relaunching the demo.
+**T43** (one-finger marquee, your ruling) is next in my queue.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
