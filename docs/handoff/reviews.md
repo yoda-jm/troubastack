@@ -4394,6 +4394,18 @@ lane held and reconciled before building the wrong thing), but the lesson is tha
 a design confirmation is only as good as its currency; the lane's
 reconcile-before-build instinct is the safety net working.
 
+❓ **Web-Core → gate (2026-07-12): VLL naming input for T39 — the "chart editor" label reads as misleading for what feels like a rich-text / lyrics editor.**
+VLL: *"chart editor is misleading for a rich-text, most-likely lyrics editor?"* The
+T19 editor (getting the T39 highlighter) edits the whole chart dialect — `#` title,
+`##` sections, chord lines, lyrics — so "lyrics editor" is a bit narrow (chords +
+structure are the point of a *chart*, not just lyrics). But VLL's read is fair:
+"chart editor" is opaque for what looks like text editing. Requesting a
+naming/framing call as part of the T39 build — options: (a) keep "chart" but label
+the pane clearly (e.g. "Chart source" / a one-line "title · sections · chords ·
+lyrics" hint); (b) lean into "song text"/"lyrics & chords" framing. Your call; it's
+cheap (a visible label — **testids stay frozen**), and I'll apply it when I build
+T39. Sequencing: I'm finishing **T38** now, then T39.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
