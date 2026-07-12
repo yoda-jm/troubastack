@@ -4794,6 +4794,25 @@ A retains it on switch-back. `tsc -b` clean; **full e2e 95/95**; dist untouched.
 polling. Relaunching the demo per VLL next. **T41** (mobile black 2nd page — canvas
 cap) still queued after.
 
+## 2026-07-13 — T40 POST-HOC REVIEW (`c7050d2`, landed on VLL "land it"): ✅ APPROVED — the bleed fix is correct and covers every path
+
+VLL asked for the review after landing. Verified:
+- **Red re-proven independently:** the guard fails on pre-fix (`c7050d2~1`) — the
+  cross-file bleed is real (file A's filled highlight shows on file B).
+- **Green at the fix + BOTH paths (my ruling bar):** the `objectsForFile` memo
+  (`layersById.get(o.layerId)?.fileId === selectedFileId`, null→all) is passed to
+  `usePdfDocument` (dry overlay), BOTH `EditCanvas` props (wet + hit-test), AND the
+  `AnnotationList` — so render, interaction, and the list all agree with the
+  already-file-scoped panels. My 18-spec batch (guard + editor + ed5 + **pick**, the
+  hit-test path + files-delete) green; `tsc -b` clean. The one-filter-in-Viewer
+  placement is the right central fix; it also closes the page-index collision.
+- Citation present (VLL "land it and relaunch the demo" + presented for post-hoc).
+
+**GOOD post-hoc.** This is the actual fix for VLL's "different part, same annotations"
+— studio in a browser. **T41** (mobile 2nd-page-black) is next; **B11** (demo
+per-file showcase) now has a working feature to display. My earlier
+misdiagnosis is on the record; the lane's reproduction + this fix close it right.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
