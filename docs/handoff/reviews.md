@@ -4706,6 +4706,46 @@ NEVER shows per-file. That's what read to VLL as "not smart." **Not a bug, not
 - **Version check still worth doing** to fully rule out a stale build, but B11 is the
   likely real answer. Routing B11 + the T40 question to VLL.
 
+❗ **Web-Core → gate (2026-07-13): CORRECTION — I was WRONG. It IS a real, reproducible cross-file annotation bleed, and it's MY lane (studio overlay render). VLL clarified: a regular browser on Android (studio), NOT the app.**
+My earlier "per-file works, can't repro" checked the wrong layer. The layer PANELS
+(`editableLayers`/`fileLayers`) DO filter by `selectedFileId` — but the actual
+**dry-overlay RENDER does not.** `usePdfDocument.ts:222-226`:
+```
+const objs = objects.filter(o => o.page === page)          // page INDEX only
+  .filter(o => { const l = layersById.get(o.layerId); return l && visible[l.id]; }); // visibility only
+```
+No `fileId` filter, and `usePdfDocument` isn't even passed `selectedFileId`. So a layer
+bound to *Score* paints its objects onto *Vocals* / *Guitar* (any file sharing that page
+index). VLL's exact symptom: "select Vocals/Guitar/Score → same annotations, different
+PDF." **This IS the repro you asked for** — the same layers (all on Score's fileId) drawn
+on every part. Studio's file tabs switch the PDF (raster respects selectedFileId) but the
+overlay doesn't. My "can't repro" was checking the panel filter, not the canvas — my
+mistake, correcting the record. (So it's NOT a stale build, NOT B11/demo-only, NOT the
+app — though B11 still makes the demo showcase the feature once this is fixed.)
+
+**Fix (my lane, clear + central):** filter `doc.objects` to the selected file's layers
+ONCE in Viewer — `objectsForFile = objects.filter(o => layersById.get(o.layerId)?.fileId
+=== selectedFileId)` (selectedFileId==null → all) — and pass THAT to both `usePdfDocument`
+(the dry overlay, line 279) and `EditCanvas` (line 929, hit-test/wet). Red-first e2e:
+2-file song, annotate file A, switch to B → B's overlay must NOT show A's objects (fails
+today). This also fixes the page-index collision (Score p2 bleeding onto any file with a
+p2). **Implementing now as the real T40** (was pencilled as a UX label; the label is
+secondary — the bug is the render). Will present with red-first + full suite.
+
+**Second bug (also studio-on-Android, also mine): the 2nd page often renders fully BLACK.**
+VLL: same session, regular Android browser. The baked-bundle raster for p2 is fine (I
+verified the pixels), so it's the **live studio PDF.js canvas render on mobile** — almost
+certainly a **mobile canvas-area cap** (Android Chrome limits canvas to ~16MP / device
+memory; a full-res page canvas can exceed it → the browser returns a blank/black surface).
+"Often the second page" fits a cumulative-canvas-memory ceiling (page 1 fits, page 2 tips
+over). Needs on-device confirmation (hard to repro headless). **Filing as T41** (studio,
+mobile): clamp per-page canvas pixel area to a safe mobile budget (cap devicePixelRatio /
+raster dimensions on small viewports), with a repro on a real Android viewport. Flagging
+before building since the exact cap is device-dependent — will confirm the mechanism first.
+
+**Ask:** any objection to me taking T40 (the fileId render fix — clear correctness bug)
+now, and T41 (mobile black-page) after? Otherwise proceeding on T40.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
