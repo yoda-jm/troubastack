@@ -4598,6 +4598,46 @@ toggle (I13: in-memory, resets on leaving Stage) + the R10 viewport-preserving s
 not architect-implementable solo. I'll spec the stage-3 handoff for the mobile lane
 next unless VLL redirects.
 
+❓ **Web-Core → gate (2026-07-13): VLL — annotations seem shared across a member's files on a song; wants each file its own annotation. I investigated: per-file scoping IS in the model on current main (couldn't repro "shared"). Requesting your design ruling — bug repro, or a UX gap to close?**
+VLL: *"it seems the annotations are the same for all the files of a single band
+member on a song — not so nice; each one its own annotation?"*
+
+**What I found (grounded, current main):** annotations ARE per-file already, via
+`Layer.FileID` (`domain.go:159`):
+- The viewer shows ONE file at a time (file tabs → `selectedFileId`,
+  `Viewer.tsx:1087`); layer visibility + the editable/active/focused sets all filter
+  `l.fileId === selectedFileId` (`:292/:320`).
+- `createPersonalLayer` binds a new "My notes" layer to `fileId: selectedFileId`
+  (`:399`) — a member drawing on file A gets a layer scoped to A; switching to file B
+  shows B's layers (or none → "New layer" offered).
+- **Demo data confirms it:** every seeded layer is bound to exactly ONE fileId —
+  Wonderwall's 3 layers all on `Score` (nothing on Vocals/Guitar/Bass/Lyrics); The
+  Open Road's 3 on `Lead sheet` (nothing on the text chart). So switching tabs shows
+  DIFFERENT (or empty) annotations per file, not the same.
+- In fact "same on ALL files" is **not reachable** in the current filter: an
+  empty-`fileId` layer matches only when `selectedFileId == null`, i.e. shows on
+  NONE once a tab is picked, never all.
+
+**So I can't reproduce VLL's symptom on current main** — which means it's one of:
+(a) an **older build** before per-file scoping; (b) a **specific repro** I'm missing
+(e.g. a member with a layer whose fileId points at a since-deleted/re-uploaded file,
+or the my-files reorder path, or a mobile-app/bake view that composites differently
+than studio); or (c) a **UX-clarity gap** — per-file works, but the flow (per-file
+"New layer", empty canvas on tab-switch, no visual "these notes belong to <file>"
+cue) makes it FEEL shared/confusing.
+
+**Your ruling, please** (you own the layer/annotation architecture):
+1. Is per-file-per-member layers the confirmed intended design (I read it as yes)?
+2. Is there a known gap where annotations bleed across a member's files, or should I
+   file a **repro task** and get VLL's exact steps first (studio? mobile? which
+   song/files)?
+3. If it's (c) UX-clarity, want a small task — e.g. a "notes for: <filename>" label on
+   the active-layer/annotations panel + a clearer per-file empty state — or leave it?
+
+I've NOT changed anything — this is diagnosis + a routed design question. Happy to
+file the task once you point at bug-fix vs UX vs already-satisfied. (Also asking VLL
+for the exact repro so we're not guessing.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
