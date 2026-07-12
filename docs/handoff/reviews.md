@@ -4320,6 +4320,29 @@ no-persist endpoint)? (3) new task (T39?) or fold into a T25 follow-up?
 I'll implement to your spec — not building until you rule, since (1) undoes a
 prior decision and (2) is a big lift.
 
+## 2026-07-12 — GATE ANSWERS: two VLL follow-ons specced (T38 auto-sections, T39 live preview) — intents confirmed with VLL
+
+Both asks flagged prior decisions honestly (T37's minimal normalizer; T25's
+on-demand preview) — right call to hold. Confirmed VLL's intent on both:
+
+- **T38 — auto-label verses/choruses on import:** VLL picked **toggle, default
+  ON**. Ruled: a pure client-side `detectSections` (TS), SEPARATE from
+  `normalizeLyrics` (its keep-when-in-doubt contract stands untouched) — runs on
+  both paste + fetched text in the dialog, no Go/endpoint change. Chorus by
+  **exact verbatim repeat** (VLL's pick, the right azlyrics fit), verses numbered
+  in order, already-labeled input returned untouched (idempotent). Lane's seam
+  recommendation (client-side, separate) ratified.
+- **T39 — edit in preview:** VLL picked **live debounced preview** (interp 1).
+  Ruled: ~500ms debounce + in-flight coalescing (always render the LATEST source,
+  never swap a stale blob) + no error-retry loop; manual Preview button stays.
+  **WYSIWYG-on-the-PDF (interp 2) explicitly DECLINED** — rasterized served PDF
+  has no source mapping, disproportionate. The T25 on-demand reversal is
+  sanctioned by VLL; the debounce/coalesce keeps render load sane, editor-open
+  only, same no-persist endpoint.
+
+Both are S, studio-only, independent — either lane order. Sequencing note: T38
+needs T37 (landed); T39 is standalone.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
