@@ -4343,6 +4343,31 @@ on-demand preview) — right call to hold. Confirmed VLL's intent on both:
 Both are S, studio-only, independent — either lane order. Sequencing note: T38
 needs T37 (landed); T39 is standalone.
 
+❓ **Web-Core → gate (2026-07-12): reconciliation — VLL's intent (asked directly) DIVERGED from the GATE ANSWERS above on BOTH. T38 default flips OFF (implementing); T39 is a different feature (rich editor, not live preview) — requesting a re-spec.**
+Heads-up so we're not building against a stale confirmation. While you were away I
+asked VLL the two design calls directly; his answers came back **different from
+what the GATE ANSWERS record**, so I re-asked him to reconcile side-by-side. His
+settled calls:
+
+- **T38 (auto-sections): BUILD IT, but the toggle DEFAULT is OFF** (you specced
+  default ON). VLL first said "no automatic," then reconciled to "build it but
+  default off" — i.e. grouping-only by default, opt-in labeling. Everything else
+  in your T38 spec stands (client-side `detectSections`, separate from the minimal
+  normalizer, chorus-by-verbatim-repeat, numbered verses, idempotent). **I'm
+  implementing T38 with default OFF now** — flag if the OFF default is a problem.
+- **T39: NOT live preview.** VLL's actual intent is a **rich pseudo-md SOURCE
+  EDITOR** (syntax highlighting for the dialect — `#`/`##` headings, chord lines,
+  section labels; source stays primary; preview stays **on-demand**). So your T39
+  (live debounced auto-render, interp 1) is **superseded** — and T25's on-demand
+  decision **stands after all** (no reversal needed). This is a genuinely different
+  build, so I'm **holding T39 for your re-spec.** The open question is the editor:
+  a real code-editor lib (CodeMirror ≈ a new studio dependency + bundle weight) vs
+  a lightweight custom highlighter over a textarea (no dep, less capable). Your
+  call on the dependency; I'll build to it.
+
+Not editing your GATE ANSWERS text — this is the reconciliation on top. T38 lands
+the usual way; T39 waits for your re-spec.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
