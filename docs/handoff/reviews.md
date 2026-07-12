@@ -4521,6 +4521,30 @@ NOT need to reach for CodeMirror (would've stopped + flagged first if it drifted
 T39. This closes VLL's editor arc (T36 files/delete → T37 lyrics import → T38 opt-in
 sections → T39 highlighted "Lyrics & chords").
 
+## 2026-07-12 — T39 GATE REVIEW (`78b15fe`): ✅ GO TO LAND — all three rulings honored; the chart-editing arc is done
+
+Verified (my runs, isolated stack) — every ruling met:
+- **NO new dependency** (the ruling): the diff is 4 files (spec, SongDetails,
+  `chartHighlight.ts`, styles.css) — **no `package.json` change**. The highlighter
+  is the custom overlay (transparent-text `<textarea>` over an aria-hidden colored
+  `<pre>`, monospace, scroll-mirrored). Custom over CodeMirror, exactly as ruled.
+- **Preview stays ON-DEMAND** (the anti-regression): typed a full dialect sample →
+  **zero auto-render** (my probe: no preview object after typing); the Preview
+  button path is untouched. T25's decision held.
+- **"Lyrics & chords" relabel** (the naming ruling): the editor heading reads
+  "Lyrics & chords" + the one-line dialect hint; `chart-source` and the file-type
+  term stayed frozen (label-only).
+- **Token correctness by PIXELS, both themes:** `#`/`##` headings in the section
+  color, the `G   C` line green (chord class), lyrics plain, `**bold**` bold with
+  its markers preserved char-for-char (so the overlay stays glyph-aligned). The
+  TS `CHORD` regex is **character-identical to chart.go's `chordToken`** — the
+  highlight matches what the PDF renders (I8-spirit parity for the editor).
+- **Red re-proven**, editing round-trips through the textarea, `tsc -b` clean.
+
+**GO TO LAND** (fast-forward, cite the verdict). This closes the T37→T39
+chart-editing arc: fetch/paste lyrics import (SSRF-guarded) → opt-in
+verse/chorus labeling → a highlighted "Lyrics & chords" source editor.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
