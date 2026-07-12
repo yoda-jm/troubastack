@@ -32,6 +32,7 @@ func NewAnnotationsAPI(svc *app.Service, eng *engine.Engine) *AnnotationsAPI {
 func (a *AnnotationsAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.HandlerFunc) {
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/annotations", authed(a.getAnnotations))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/annotations/import", authed(a.importAnnotations))
+	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/live-setlists", authed(a.liveSetlists))
 }
 
 // ---- wire types (the EXACT contract the frontend + seeder speak) ----
@@ -97,6 +98,27 @@ func (a *AnnotationsAPI) getAnnotations(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	writeJSON(w, http.StatusOK, snapshotToJSON(snap))
+}
+
+// liveSetlists (P201 stage 2b) returns the band's setlists that are in rehearsal live
+// mode right now AND contain this song — the signal the editor uses to show its LIVE
+// banner. Membership-gated (SongForMember); an empty list = not live. Id + name only.
+func (a *AnnotationsAPI) liveSetlists(w http.ResponseWriter, r *http.Request, u app.User) {
+	song, err := a.svc.SongForMember(u, r.PathValue("bandId"), r.PathValue("songId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	sls, err := a.svc.LiveSetlistsForSong(song.ID)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	out := make([]map[string]string, 0, len(sls))
+	for _, sl := range sls {
+		out = append(out, map[string]string{"id": sl.ID, "name": sl.Name})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"setlists": out})
 }
 
 // importAnnotations bulk-applies layers (LayerCreate) and objects (Create) as

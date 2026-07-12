@@ -1277,3 +1277,21 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 @media (prefers-reduced-motion: reduce) { .live-dot, .chip.live::before { animation: none; } }
 .live-card .card-head { display: flex; align-items: center; gap: .6rem; }
 .btn.danger { background: var(--error-bg); color: var(--error-fg); border-color: color-mix(in srgb, var(--error-fg) 45%, transparent); }
+
+/* ---- In-editor LIVE banner (P201 stage 2b): a fixed strip at the very top of the
+   fullscreen editor, above the floating chrome, so a performer-publishing session is
+   unmissable while drawing. Pointer-events none so it never blocks the canvas/pills. ---- */
+.editor-live-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+  padding: .4rem .9rem;
+  background: var(--error-fg); color: #fff;
+  font-weight: 700; font-size: .82rem; letter-spacing: .01em;
+  pointer-events: none;
+  box-shadow: 0 1px 6px rgba(0,0,0,.18);
+}
+.editor-live-banner .live-dot { background: #fff; }
+@media (max-width: 600px) { .editor-live-banner { font-size: .74rem; padding: .3rem .5rem; } }
+/* When the banner is present, push the floating top pill below it so nothing overlaps. */
+.viewer.has-live-banner .viewer-chrome.topbar-pill { top: calc(.55rem + 1.9rem); }
+@media (max-width: 600px) { .viewer.has-live-banner .viewer-chrome.topbar-pill { top: 1.7rem; } }

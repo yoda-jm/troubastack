@@ -437,6 +437,14 @@ export const api = {
       doc,
     ),
 
+  // P201: the live-mode setlists (id + name) that contain this song right now — the
+  // editor's LIVE-banner signal. Empty = not live.
+  liveSetlistsForSong: (bandId: string, songId: string) =>
+    request<{ setlists: { id: string; name: string }[] }>(
+      "GET",
+      `/api/bands/${bandId}/songs/${songId}/live-setlists`,
+    ).then((r) => r.setlists),
+
   // ---- bands (admin) ----
   updateBand: (bandId: string, name: string) =>
     request<{ band: Band }>("PATCH", `/api/bands/${bandId}`, { name }).then((r) => r.band),

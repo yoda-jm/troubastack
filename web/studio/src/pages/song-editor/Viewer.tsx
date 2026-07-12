@@ -114,6 +114,26 @@ export function Viewer({
   // T30 — commit-time notice for client-side declines (rendered through the same
   // alert surface as server rejects; cleared on the next successful commit).
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+  // P201 stage 2b: names of the live-mode setlists containing this song (empty = not
+  // live). Polled so the editor's LIVE banner reflects an admin toggling it elsewhere.
+  const [liveSetlists, setLiveSetlists] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const sls = await api.liveSetlistsForSong(bandId, songId);
+        if (!cancelled) setLiveSetlists(sls.map((s) => s.name));
+      } catch {
+        /* transient — keep the last state; a real auth error surfaces elsewhere */
+      }
+    };
+    void poll();
+    const t = window.setInterval(poll, 20_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [bandId, songId]);
 
   // ---- live editing state ----
   const [tool, setTool] = useState<Tool>("select");
@@ -768,9 +788,17 @@ export function Viewer({
 
   return (
     <section
-      className={`card viewer${sidebarOpen ? "" : " sidebar-collapsed"}`}
+      className={`card viewer${sidebarOpen ? "" : " sidebar-collapsed"}${
+        liveSetlists.length > 0 ? " has-live-banner" : ""
+      }`}
       data-testid="song-viewer"
     >
+      {liveSetlists.length > 0 && (
+        <div className="editor-live-banner" data-testid="editor-live-banner" role="status">
+          <span className="live-dot" aria-hidden="true" />
+          LIVE — your edits are publishing to performers ({liveSetlists.join(", ")})
+        </div>
+      )}
       {/* ---- Floating TOP BAR pill (T27 stage 3, matches the approved mockup):
           back · title · tool cluster · zoom · Layers/Notes/Details toggles. One
           slim glass row over the canvas; pointer-events pass through to the score
