@@ -65,7 +65,12 @@ the score doesn't jump under a musician's eyes.
    Stage stays network-free (I12): the poller lives in `distribution/` (which
    already owns ktor via `ManifestTransport`) and is driven by a callback the
    Stage HOST registers — same layering as B03/B06; document the seam comment.
-   > **Mobile-lane handoff (server side is ready):** the app already lists concerts
+   > **STAGE 3a DONE (`3d17c53`, architect-implemented):** the SHARED, off-device-testable
+> core — `StageState.autoUpdate` (transient/I13), `StageViewModel.setAutoUpdate` +
+> `applyUpdate`/`remapCurrent` (the R10 viewport-preserving swap: hash → same-page →
+> nearest → clamp; fit/layers/role preserved; A12/A14 follow from `current`), 6 tests.
+> **REMAINING (3b): the Android host poller** — the network glue that DRIVES applyUpdate.
+> **Mobile-lane handoff (server side is ready):** the app already lists concerts
    > via `GET /api/bands/{bandId}/concerts` (B03) and downloads the bundle — the
    > SAME manifest the poller should diff for a new `currentRev` of the open concert.
    > No new server endpoint is needed for stage 3: `currentRev` bumps on each
