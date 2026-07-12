@@ -45,6 +45,7 @@ data class StagePage(
     val songName: String,
     val pageInSong: Int,            // 0-based index within its song
     val rasterRef: String,
+    val rasterHash: String = "",    // content hash (R10): identifies an UNCHANGED page across a re-bake
     val overlays: List<LayerImage>, // already sorted by z-order (A02 loader)
     val status: PageStatus,         // UNAVAILABLE when the raster blob was flagged missing/empty
     // Setlist metadata (A08) — carried from BakedSong; shown only on the song's first page (pageInSong 0).
@@ -76,6 +77,11 @@ data class StageState(
     val fitMode: FitMode = FitMode.FIT_PAGE,
     val visibleLayers: Set<String> = emptySet(),
     val role: String = "",
+    // P201/I13 rehearsal auto-update: TRANSIENT — lives only in this in-memory state, is
+    // never written through the Storage seam, and resets to false whenever Stage is left
+    // (a fresh StageViewModel starts it false). While true, the host polls for a new
+    // concert rev and applies it via applyUpdate (viewport-preserving, R10).
+    val autoUpdate: Boolean = false,
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)
@@ -119,6 +125,7 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
                     songName = songName,
                     pageInSong = pageIdx,
                     rasterRef = page.pageRasterRef,
+                    rasterHash = page.rasterHash,
                     overlays = page.overlays,
                     status = if (rasterBad) PageStatus.UNAVAILABLE else PageStatus.READY,
                     displayNotes = song.displayNotes,

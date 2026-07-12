@@ -43,4 +43,50 @@ class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitM
     fun setRole(role: String) = _state.update { s ->
         s.copy(role = role, visibleLayers = s.layers.filter { defaultVisible(it, role) }.map { it.layerId }.toSet())
     }
+
+    /** P201/I13: the transient rehearsal auto-update toggle. In-memory only — a new
+     *  StageViewModel (a fresh Stage entry) always starts it false, so leaving Stage
+     *  resets it; nothing is written through the Storage seam. */
+    fun setAutoUpdate(on: Boolean) = _state.update { s -> s.copy(autoUpdate = on) }
+
+    /**
+     * P201/R10: swap in a freshly re-baked concert (the host fetched + imported a new rev
+     * while auto-update was on) WITHOUT moving the page the performer is on. Rebuilds the
+     * state from [newResult] then remaps position: the current page's content hash finds
+     * its counterpart in the new bundle (unchanged page → exact same spot); failing that,
+     * the same (songId, pageInSong); failing that, the nearest page index. Fit mode,
+     * per-layer visibility (by layerId), role, and the auto-update flag are preserved.
+     * Facing pages (A12) and scroll mode (A14) follow automatically: they derive the
+     * spread / scroll position from `current`, which this maps correctly.
+     */
+    fun applyUpdate(newResult: LoadResult) = _state.update { old ->
+        val fresh = stageStateFrom(newResult, old.role).copy(fitMode = old.fitMode, autoUpdate = old.autoUpdate)
+        if (fresh.pages.isEmpty()) return@update fresh
+        val target = remapCurrent(old, fresh)
+        // Keep the viewer's layer choices for layers that still exist; a brand-new layer
+        // takes its default visibility (defaultVisible, already in fresh.visibleLayers).
+        val keptOld = fresh.layers.map { it.layerId }.filter { it in old.visibleLayers }.toSet()
+        val newLayerDefaults = fresh.visibleLayers.filter { id -> old.layers.none { it.layerId == id } }
+        fresh.copy(current = target, visibleLayers = keptOld + newLayerDefaults)
+    }
+}
+
+/** R10 position remap: find where the OLD current page lands in the NEW state. */
+internal fun remapCurrent(old: StageState, fresh: StageState): Int {
+    val cur = old.pages.getOrNull(old.current) ?: return 0
+    // 1) exact content match — an UNCHANGED page keeps the reader exactly in place.
+    if (cur.rasterHash.isNotEmpty()) {
+        val byHash = fresh.pages.indexOfFirst { it.rasterHash == cur.rasterHash }
+        if (byHash >= 0) return byHash
+    }
+    // 2) same logical page (song + page-in-song) — content changed but position is stable.
+    val byId = fresh.pages.indexOfFirst { it.songId == cur.songId && it.pageInSong == cur.pageInSong }
+    if (byId >= 0) return byId
+    // 3) same song, nearest page (the song grew/shrank) — stay in the song near where we were.
+    val songPages = fresh.pages.withIndex().filter { it.value.songId == cur.songId }
+    if (songPages.isNotEmpty()) {
+        return songPages.minByOrNull { kotlin.math.abs(it.value.pageInSong - cur.pageInSong) }!!.index
+    }
+    // 4) structural change (the song vanished) — clamp the old index into the new range.
+    return old.current.coerceIn(0, fresh.pages.size - 1)
 }

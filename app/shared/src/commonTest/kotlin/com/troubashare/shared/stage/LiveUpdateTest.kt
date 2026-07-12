@@ -1,0 +1,95 @@
+package com.troubashare.shared.stage
+
+import com.troubashare.shared.bundle.BakedSong
+import com.troubashare.shared.bundle.ConcertBundle
+import com.troubashare.shared.bundle.LoadResult
+import com.troubashare.shared.bundle.PageImages
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+// A bundle where page rasters carry explicit hashes so R10 remapping can be exercised.
+// `hashes[songIndex][pageIndex]` = the raster hash for that page (empty ⇒ no hash).
+private fun hashedBundle(hashes: List<List<String>>): LoadResult.Loaded {
+    val bundle = ConcertBundle(
+        concertId = "c1",
+        songs = hashes.mapIndexed { s, pageHashes ->
+            BakedSong(
+                songId = "song-${s + 1}",
+                pages = pageHashes.mapIndexed { p, h ->
+                    PageImages(pageRasterRef = "blobs/s${s + 1}-p${p + 1}.png", rasterHash = h)
+                },
+            )
+        },
+    )
+    return LoadResult.Loaded(bundle, emptyList())
+}
+
+class LiveUpdateTest {
+
+    // ---- The transient toggle (I13) ----
+
+    @Test
+    fun autoUpdate_startsOff_andIsTransientPerEntry() {
+        val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b"))))
+        assertFalse(vm.state.value.autoUpdate, "a fresh Stage entry must start with auto-update OFF")
+        vm.setAutoUpdate(true)
+        assertTrue(vm.state.value.autoUpdate)
+        // "Leaving Stage" = the ViewModel is discarded; a NEW one is off again (nothing persisted).
+        val reentered = StageViewModel(hashedBundle(listOf(listOf("a", "b"))))
+        assertFalse(reentered.state.value.autoUpdate, "re-entering Stage must reset auto-update to OFF")
+    }
+
+    // ---- R10: viewport-preserving swap ----
+
+    @Test
+    fun applyUpdate_unchangedCurrentPage_staysExactlyThere() {
+        // One song, 3 pages; sit on page index 1 (hash "b").
+        val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b", "c"))))
+        vm.setAutoUpdate(true)
+        vm.goToPage(1)
+        // Re-bake: page "b" is UNCHANGED (same hash) but a page was inserted before it.
+        vm.applyUpdate(hashedBundle(listOf(listOf("a", "a2", "b", "c"))))
+        assertEquals(2, vm.state.value.current, "the unchanged page (hash b) moved to index 2; follow it")
+        assertTrue(vm.state.value.autoUpdate, "auto-update survives the swap")
+    }
+
+    @Test
+    fun applyUpdate_changedCurrentPage_keepsLogicalPosition() {
+        val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b", "c"))))
+        vm.goToPage(1) // song-1, pageInSong 1
+        // Re-bake: same structure but page 1's CONTENT changed (new hash) — no hash match.
+        vm.applyUpdate(hashedBundle(listOf(listOf("a", "b2", "c"))))
+        assertEquals(1, vm.state.value.current, "no hash match → same (song, pageInSong) = index 1")
+    }
+
+    @Test
+    fun applyUpdate_songShrank_staysInSongNearestPage() {
+        // Two songs, 3 + 2 pages; sit on song-1 page 2 (index 2, hash "c").
+        val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b", "c"), listOf("d", "e"))))
+        vm.goToPage(2)
+        // Re-bake: song-1 shrank to 2 pages, and page "c" is gone (removed) — no hash, no (song,page2).
+        vm.applyUpdate(hashedBundle(listOf(listOf("a", "b"), listOf("d", "e"))))
+        assertEquals(1, vm.state.value.current, "song-1 shrank; stay in song-1 at its nearest page (index 1)")
+        assertEquals("song-1", vm.state.value.currentPage?.songId)
+    }
+
+    @Test
+    fun applyUpdate_songVanished_clampsIntoRange() {
+        val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b"), listOf("c", "d"))))
+        vm.goToPage(3) // song-2, last page
+        // Re-bake: song-2 removed entirely; only song-1 remains (2 pages).
+        vm.applyUpdate(hashedBundle(listOf(listOf("a", "b"))))
+        assertTrue(vm.state.value.current in 0..1, "the old index clamps into the new, smaller range")
+    }
+
+    @Test
+    fun applyUpdate_preservesFitAndLayers() {
+        val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b"))))
+        vm.toggleFit() // FIT_PAGE → FIT_WIDTH
+        val fit = vm.state.value.fitMode
+        vm.applyUpdate(hashedBundle(listOf(listOf("a", "b"))))
+        assertEquals(fit, vm.state.value.fitMode, "fit mode survives an auto-update swap")
+    }
+}
