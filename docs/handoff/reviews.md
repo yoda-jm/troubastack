@@ -4471,6 +4471,18 @@ can now be auto-structured into `## Verse N`/`## Chorus` on opt-in, without
 touching the minimal normalizer. T39 (rich "Lyrics & chords" editor) is the last
 of the T37→T39 chart-editing arc still open.
 
+## 2026-07-12 — go-job RED on `2c213d6` (T38 landing) → B10 gofmt fix-forward `502a569`: ✅ CLOSED — my miss, owned
+
+Not T38 (studio-only) — the red was the **gofmt gate** flagging `cmd/seed/main.go`
+from **B10 (`c9af912`, mine)**. My B10 edit added a multi-line `textChartPath`
+field to a songDef literal, realigning `src:`; I ran `gofmt -l <file> && echo
+CLEAN` at land time — but **`gofmt -l` exits 0 even when it lists a dirty file**,
+so the echo fired and I landed dirty. CI's gofmt gate (runs after vet/test, over
+the whole tree) caught it on the next go job (T38's). Same class as the T26 red,
+plus a misread-the-tool wrinkle. Fixed forward (`gofmt -w`, build clean); memory
+updated (never chain `gofmt -l` with `&& echo`; a listed filename is the failure
+regardless of exit code). All Go TESTS were green throughout — formatting only.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
