@@ -1,6 +1,6 @@
 # P201 — Rehearsal live mode: autobake + transient auto-update (I11/I13, R10)
 
-**Priority:** UNBLOCKED (B03 landed complete) — the next big feature when VLL says go ·
+**Priority:** ✅ IMPLEMENTED 2026-07-13 (core+studio+app); only the attended 2-device test remains ·
 **Size:** L (staged: core → studio → app) · **Area:** core, `web/studio`, `app/shared` ·
 *Spec refreshed 2026-07-12 against current main (originally written pre-T27/pre-B07;
 every building-block claim below re-verified).*
@@ -69,7 +69,14 @@ the score doesn't jump under a musician's eyes.
 > core — `StageState.autoUpdate` (transient/I13), `StageViewModel.setAutoUpdate` +
 > `applyUpdate`/`remapCurrent` (the R10 viewport-preserving swap: hash → same-page →
 > nearest → clamp; fit/layers/role preserved; A12/A14 follow from `current`), 6 tests.
-> **REMAINING (3b): the Android host poller** — the network glue that DRIVES applyUpdate.
+> **3b DONE (`0c85e63`):** `UpdatesManager.autoUpdateTick` (6 tests). **3c DONE (`97b24bf`):**
+> the Android host wiring — StageScreen 'Auto-update'/'● Live' toggle (gated on a
+> server-backed concert) + a MainActivity poll loop (LaunchedEffect keyed on the
+> transient toggle → autoUpdateTick every ~15s → reload → applyUpdate; cancels on
+> toggle-off/Stage-exit). `:shared:check` + `:androidApp:assembleDebug` green.
+> **ALL that remains: the ATTENDED 2-device rehearsal test** (editor draws → Stage
+> device auto-updates without moving the page) — real hardware + a server, not
+> verifiable off-device. iOS host wiring rides the iOS device track.
 > **Mobile-lane handoff (server side is ready):** the app already lists concerts
    > via `GET /api/bands/{bandId}/concerts` (B03) and downloads the bundle — the
    > SAME manifest the poller should diff for a new `currentRev` of the open concert.
