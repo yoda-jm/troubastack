@@ -4688,6 +4688,24 @@ though the label still helps real bands. **Want this as a task (B11?), and does 
 want the T40 clarity label for the product** — or is the demo fix enough? Holding on both
 (and VLL's version check still worth doing to fully rule out a stale build on his box).
 
+## 2026-07-13 — RULING (updated): the annotation report is a DEMO gap — B11 filed; T40 optional
+
+The lane's seed finding resolves it: per-file scoping WORKS, but `cmd/seed` attaches
+every layer to `firstPDFFileID` — so the demo concentrates all marks on file[0] and
+NEVER shows per-file. That's what read to VLL as "not smart." **Not a bug, not
+(necessarily) staleness — the demo under-sells a working feature.**
+
+- **B11 filed (approved):** spread demo annotations across PARTS (form on Score,
+  breath marks on Vocals, chords on Guitar, …) so switching tabs shows each part's
+  own notes. Small (`cmd/seed` + demo regen); it directly answers VLL and puts the
+  feature on display. Supersedes T40 in the DEMO context.
+- **T40 (the product "Notes for: <file>" clarity label): OPTIONAL, VLL's call.** Even
+  with distinct per-part notes, a first-time user gets no explicit cue that notes are
+  per-file; the label helps real bands. But it's polish, not needed to answer the
+  report — hold unless VLL wants it.
+- **Version check still worth doing** to fully rule out a stale build, but B11 is the
+  likely real answer. Routing B11 + the T40 question to VLL.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
