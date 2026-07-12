@@ -254,6 +254,21 @@ export function Viewer({
     return m;
   }, [doc.layers]);
 
+  // Objects scoped to the file currently on screen (T40). Annotations are keyed by
+  // song, but every layer binds to ONE file (layer.fileId); the render/hit-test must
+  // only ever see the selected file's objects, or a layer bound to the Score paints
+  // its ink onto the Vocals/Guitar parts (they share page indices) — the cross-file
+  // bleed VLL hit. The layer PANELS already filter by selectedFileId; this is the same
+  // filter for the canvas, applied once so the dry overlay + wet EditCanvas agree.
+  const objectsForFile = useMemo(
+    () =>
+      doc.objects.filter((o) => {
+        if (selectedFileId == null) return true;
+        return layersById.get(o.layerId)?.fileId === selectedFileId;
+      }),
+    [doc.objects, layersById, selectedFileId],
+  );
+
   const sortedLayers = useMemo(
     () => sortLayers(doc.layers, myUserId),
     [doc.layers, myUserId],
@@ -296,7 +311,7 @@ export function Viewer({
     setStatus,
     setError,
     sidebarOpen,
-    objects: doc.objects,
+    objects: objectsForFile,
     layersById,
     visible,
     layerRank,
@@ -954,7 +969,7 @@ export function Viewer({
                   tool={tool}
                   style={style}
                   drawLocked={focusLocked || offline}
-                  objects={doc.objects}
+                  objects={objectsForFile}
                   layersById={layersById}
                   layerRank={layerRank}
                   visible={visible}
@@ -996,7 +1011,7 @@ export function Viewer({
                 tool={tool}
                 style={style}
                 drawLocked={focusLocked || offline}
-                objects={doc.objects}
+                objects={objectsForFile}
                 layersById={layersById}
                 layerRank={layerRank}
                 visible={visible}
@@ -1073,7 +1088,7 @@ export function Viewer({
                 </>
               ) : (
                 <AnnotationList
-                  objects={doc.objects}
+                  objects={objectsForFile}
                   focusedLayerId={focusedLayerId}
                   focusedLayer={focusedLayer}
                   focusLocked={focusLocked}
