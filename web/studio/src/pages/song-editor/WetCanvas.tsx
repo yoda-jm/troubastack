@@ -581,23 +581,14 @@ export function EditCanvas({
 
     if (e.pointerType === "pen") penSeenRef.current = true;
 
-    // One-finger PAN via the gesture pipeline. A finger navigates when:
-    //  - Select mode, on EMPTY space (idiomatic touch; supersedes the marquee — mouse
-    //    keeps the rubber-band), OR
-    //  - a draw tool is armed AND a pen has been seen (palm rejection, #4: pen draws,
-    //    finger pans). On a pen-less device a finger keeps drawing (#2, phone default).
+    // One-finger PAN via the gesture pipeline, ONLY when a draw tool is armed AND a pen
+    // has been seen (palm rejection, #4: pen draws, finger pans; pen-less device keeps
+    // drawing on finger — #2, phone default). In SELECT mode a one-finger drag now
+    // MARQUEES on empty space / MOVES on an object (T43, VLL) — it falls through to the
+    // select block below, same as the mouse. No navigation is lost: two fingers ALWAYS
+    // pan/zoom (navRef), which already made one-finger-pan in select mode redundant.
     if (e.pointerType === "touch") {
-      let doPan = tool !== "select" && penSeenRef.current;
-      if (tool === "select") {
-        const ctx0 = buildPickContext();
-        const pick0 = ctx0 ? pickAt(pt, ctx0) : { object: null, mode: "none" as const };
-        const dims0 = pageDims();
-        const inMulti =
-          selectedOnPage.length > 1 &&
-          dims0 != null &&
-          hitsMultiSelection(pt, selectedOnPage, dims0.w, dims0.h, textMeasure());
-        doPan = !pick0.object && !inMulti;
-      }
+      const doPan = tool !== "select" && penSeenRef.current;
       if (doPan && beginGesture(e.clientX, e.clientY)) {
         canvas.setPointerCapture(e.pointerId);
         panRef.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY };
