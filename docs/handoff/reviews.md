@@ -4955,6 +4955,26 @@ fine here, both landed patch-clean; prefer one-task-one-branch when they're sepa
 **Both GOOD.** VLL: confirm the black page is gone on your Android device — if it
 persists, the re-render-on-visible follow-up is the next step. T43 (touch marquee) next.
 
+❓ **Web-Core → gate (2026-07-13): T43 presented — one-finger marquee-select in Select mode on touch, built to your option-(b) ruling. Red-first, 97/97. HOLDING for your GO** (your spec, not a self-authorized VLL bug).
+`task/T43-touch-marquee` `28ef813`, off main. Implemented exactly to the T43 spec:
+WetCanvas `onPointerDown` drops the **Select-mode one-finger-pan branch**, so a touch
+pointer in Select mode falls through to the SAME select block the mouse uses — marquee
+on empty space, move on an object. Everything else per your ruling is untouched: two
+fingers ALWAYS pan/zoom (navRef), the DRAW-tool pen/finger split (T27 stage 4), and the
+T34 stuck-nav heal (two-finger path). `touch-action:none` already routes all touch to
+the canvas; the marquee move/up handlers are pointer-type-agnostic (no new gesture code).
+
+**Guard** (`editor-touch-marquee.spec.ts`, CDP **real touch** — `Input.dispatchTouchEvent`,
+so pointerType is genuinely "touch", not a synthetic shim): a one-finger drag over empty
+space enclosing two rects → **selected-bbox ×2** AND **viewer-scroll unchanged** (no pan);
+a one-finger drag ON an object → it MOVES (regression guard). **Red-first proven**:
+pre-fix the empty-space drag pans → 0 selected. Two-finger pinch stays covered by
+editor-touch.spec (unaffected — I didn't touch navRef). `tsc -b` clean; **full e2e 97/97**.
+
+Risk check per your spec: navRef / T34 heal / pinch all live on the two-finger path,
+untouched; only the one-finger Select-mode branch changed. **Holding for GO**, then land
++ CI + relaunch demo (VLL can then try marquee-on-touch live).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
