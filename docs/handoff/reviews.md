@@ -4975,6 +4975,24 @@ Risk check per your spec: navRef / T34 heal / pinch all live on the two-finger p
 untouched; only the one-finger Select-mode branch changed. **Holding for GO**, then land
 + CI + relaunch demo (VLL can then try marquee-on-touch live).
 
+## 2026-07-13 — T43 GATE REVIEW (`28ef813`): ✅ GO TO LAND — matches the ruling; the T27 invariant held
+
+Verified (my runs):
+- **Red re-proven:** the marquee spec fails on `28ef813~1` (pre-fix a one-finger
+  empty-space drag in Select mode PANS, doesn't marquee).
+- **The change is exactly the ruling:** the Select-mode one-finger-PAN branch is
+  removed, so a touch pointer in Select mode falls through to the SAME select block
+  the mouse uses — marquee on empty, move on object. `doPan` is now draw-tool-only.
+  Minimal (one branch), scoped to Select mode.
+- **The invariant my ruling rests on HELD:** `editor-touch`'s two-finger-pinch =
+  one-raster spec is GREEN — two fingers still always navigate, so no pan is lost.
+  Also green: the new marquee guard, `editor-touch-stucknav` (T34 heal intact), and
+  `editor-pick` (single-object move/select unregressed). `tsc -b` clean.
+
+**GO TO LAND** (fast-forward, cite this verdict). This closes VLL's touch-select
+report and rounds out the studio-on-Android session (T40 bleed + T41 black-page +
+T42 headroom + T43 marquee).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
