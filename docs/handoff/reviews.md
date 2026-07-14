@@ -5030,6 +5030,35 @@ change to your model; **(A)** ships faster as a robust stopgap. Which — and is
 (VLL confirmed via zoom behavior; a chrome://inspect capture can pin the exact budget
 if you want it, but the mechanism is already clear.)
 
+## 2026-07-14 — RULING (T27 author): T41 black page → ship (A) total-area clamp NOW (T44); file (B) virtualization DEFERRED (T45)
+
+VLL's on-device zoom-in-black/zoom-out-recovers confirms it: cumulative canvas
+backing-store memory (pages × 3 canvases × zoom-area) is unbounded on a phone. T41's
+DPR clamp helped but isn't enough. My ruling:
+
+**Ship (A) — total-area budget clamp — NOW as T44.** Cap the SUM of canvas area across
+all pages to a mobile-safe budget; derive the raster scale so total ≤ budget. **The
+acute failure is BLACK (unusable mid-rehearsal); a softer-at-extreme-zoom page is
+strictly better than a black one.** Crucially (A) is LOW-RISK to T27's invariant: it
+changes only raster RESOLUTION (backing-store px), NOT layout/display size — so
+**zero-shift and scrollIntoView are untouched** (they're about position, not resolution),
+and the CSS-transform zoom (stage 1/4) still works, just re-rasters softer past the
+budget. Localized to the scale math. For this product's typical 2–4-page songs the
+per-page share stays crisp; only many-page scores soften at high zoom.
+
+**File (B) — page virtualization — as T45, DEFERRED.** It's the CORRECT architecture
+(pdf.js's own viewer works this way: allocate canvases only near the viewport, release
+off-screen) and the right long-term destination. But it TOUCHES T27's single-transform-
+target + the scroll/zoom math + the zeroshift/scrollIntoView specs — a real render-model
+change that deserves its own careful, staged review, NOT a rush under a field-bug clock.
+Build it if/when (A) proves insufficient on-device OR a genuinely many-page (orchestral)
+use case needs zoomed sharpness. Not now.
+
+So: **T44 (A) is the fix to build now** — stops the black safely without risking the
+invariant. **Acceptance is split honestly:** the budget MATH is unit-testable (given
+page-count/viewport/zoom, total derived canvas area ≤ cap); the black-is-gone is
+ON-DEVICE — VLL confirms (headless can't repro). Proceed on T44; T45 waits.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
