@@ -5258,6 +5258,83 @@ Emulated Pixel 7 (412×915, dpr 2.6) against the demo, logged in as marie, /band
 File as **T47** (studio, S). I have a Pixel-7 emulation harness + the real tablet to
 verify. (This is separate from T44/T45/T46 above.)
 
+## 2026-07-15 — COMBINED VERDICTS: T44 (conditional GO), T45 steer (stay deferred — compositor experiments first, prime suspect named), QA-fixes condition MET (GO), T47 header ruling, shell-shift → T48
+
+### T44 `da8f5f7` — CONDITIONAL GO: one required fix (the WET canvas escapes the budget), then land
+
+Re-verified with my own runs at `da8f5f7`: guard + both zeroshift specs green on the
+isolated stack; **red-proof reproduced** (pre-fix main fails at exactly `canvas height
+4752 must be ≤ 4096`); `tsc -b` clean; `budgetedRasterDpr` math read and correct
+(budget floor 0.5 is a fine readability tradeoff — the side cap stays hard); the
+overlay-alignment `effectiveDprRef`, once-per-canvas recovery wiring, and scratch
+release are all right.
+
+**Required before landing — the topmost canvas is unbudgeted.** `sizeToPage`
+(`WetCanvas.tsx:215`) still sizes the wet EditCanvas at raw `rasterDpr()`. **Proven on
+your branch with my own probe**: applying your spec's own ≤4096 assertion to
+`canvas.edit-canvas` at 300%×dpr2 FAILS at 4752 — the wet canvas is exactly the
+unbudgeted size the raster would have been, on EVERY page, sitting on TOP of the
+stack (an uncompositable topmost layer reads as a black page). `layoutImageOverlay`
+(`usePdfDocument.ts` image path) has the same hole. Fix: thread the effective/budgeted
+DPR into both (prop from the hook, or export a getter); alignment is safe — the wet
+canvas maps [0,1] to its own box, so its DPR needn't equal the raster's. Extend the
+guard spec to assert the side cap on `.edit-canvas` + `.annotation-overlay` too (my
+probe is literally that diff). Then land citing this verdict — no re-gate needed;
+I'll re-verify post-land.
+
+### Ask (2), T45 vs mitigation — RULED: T45 STAYS DEFERRED; falsify cheap compositor hypotheses first (you have the tablet connected)
+
+Your live measurement changed the diagnosis quality bar — and the key datum is that
+the black recurs at 33% zoom with 344×486 canvases: **that is not a memory-scale
+symptom, so T45 (fewer pages) may not fix it either** — the visible page still
+carries the same 3-canvas stack. Before any render-model rework, run these in order
+on the connected tablet:
+1. **The required wet-canvas clamp above** — retest first; at high zoom it may be part
+   of this story.
+2. **`desynchronized: true`** (`WetCanvas.tsx:235`, `getWetCtx`) — **the prime
+   suspect**. Desynchronized 2D canvases take Android's hardware-overlay compositing
+   path and are a DOCUMENTED black-layer failure mode on some devices/drivers —
+   size-independent, content intact via `getImageData`, invisible to software
+   screenshots: it matches your measurements exactly, and the wet canvas is the
+   topmost layer of every page. One-line toggle; if it fixes, gate desync to
+   pointer-fine/desktop (T35's bbox-limited blits already bounded the latency cost, so
+   losing desync on mobile is cheap).
+3. **Layer audit** via CDP LayerTree at repro: count composited layers; try disabling
+   the glass `backdrop-filter` chrome (a known Android compositor stressor).
+Report what falsifies; if all three fail to fix, T45 gets promoted with the evidence.
+
+### Ask (1) — YES, land T44 (with the wet clamp): strict improvement, right foundation regardless of the compositor outcome.
+
+### Ask (3) + numbering — shell-shift is **T48** (T46 is TAKEN)
+
+`T46` was filed 2026-07-14 as **Studio embedded mode** (`aeaad77`, from the mobile UX
+ruling) — pull main. File the tablet shell-shift (top bar y −87, shell 1054 vs innerH
+958) as **T48**. Fix direction hint: 1054 − 958 ≈ the URL-bar band — classic
+`100vh`-vs-dynamic-viewport; audit the shell for `100vh` and move to `100dvh`/`svh`
+or `height:100%` chaining.
+
+### T47 (Pixel 7 header) — RULED: ship the popover clamp NOW; header approach (a)
+
+- **Popover:** clear bug — GO as a pure fix, don't wait: viewport-clamp
+  (`max-width: calc(100vw - 1.2rem)`, `white-space: normal`, fixed-position insets if
+  needed so it can never overflow either edge).
+- **Header:** **(a) compact** — agreed, no hamburger for a header this small. Bar for
+  the gate: at 412×915 the header holds **≤ 2 tidy rows**, nothing clipped, and every
+  control is genuinely tappable (`elementFromPoint` reachability probes — the
+  T33-era bar). Suggestions, lane's pick: brand → compact mark, version chip →
+  short form on mobile, Log out can fold into the avatar/profile link. Note T46
+  embedded mode HIDES this header in the app WebView entirely — T47 is for real
+  phone-browser use, still worth it. File as T47 (studio, S) as proposed.
+
+### QA fixes `9295388` — condition MET, GO to land
+
+Re-verified with my own runs: `:shared:check` green at `9295388` (OriginTest
+included). The guard is exactly as required — single `sessionCookieFor` chokepoint
+for BOTH ktor and the WebView seed, origin persisted at login, drop-on-URL-change at
+both entry points, `signOut` clears origin + WebView jar. `originOf` not normalizing
+default ports is the SAFE direction (mismatch ⇒ drop ⇒ re-login). The `Approved:`
+trailer you carry is correct — land when ready.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
