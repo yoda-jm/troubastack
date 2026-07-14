@@ -20,6 +20,35 @@ export function rasterDpr(): number {
   return Math.min(window.devicePixelRatio || 1, MAX_RASTER_DPR);
 }
 
+// T44: two hard limits make a phone paint a page canvas solid BLACK (VLL, worse on
+// zoom-in, recovers on zoom-out): (1) a single side over the GPU max-texture floor
+// (~4096 px), and (2) the SUM of all page canvases' backing stores (× the ~3 canvases
+// each page stacks) over the device's canvas-memory budget. budgetedRasterDpr caps the
+// raster DPR so NEITHER is exceeded — scaling the raster DOWN (softer, never black) only
+// when the requested resolution would blow a limit; 1:1 for the desktop / small-doc /
+// fit-zoom common case. It changes RESOLUTION only, never display size, so T27's
+// zero-shift + scrollIntoView are untouched. Pure (unit-shaped: CI asserts the derived
+// dims via emulated dpr/zoom; the black-gone proof is on-device).
+const MAX_CANVAS_SIDE = 4096; // device px; Android GPU max-texture floor
+const CANVASES_PER_PAGE = 3; // raster + annotation overlay + wet EditCanvas
+const TOTAL_CANVAS_BUDGET_PX = 32_000_000; // ≈128 MB RGBA summed across every canvas
+export function budgetedRasterDpr(rawDpr: number, pageCssSizes: { w: number; h: number }[]): number {
+  let sumArea = 0;
+  let maxSide = 0;
+  for (const p of pageCssSizes) {
+    if (p.w <= 0 || p.h <= 0) continue;
+    sumArea += p.w * p.h;
+    maxSide = Math.max(maxSide, p.w, p.h);
+  }
+  if (sumArea <= 0 || maxSide <= 0) return rawDpr;
+  const byBudget = Math.sqrt(TOTAL_CANVAS_BUDGET_PX / (CANVASES_PER_PAGE * sumArea));
+  const bySide = MAX_CANVAS_SIDE / maxSide; // device-side cap, in DPR terms
+  // Budget clamp with a readable floor (0.5), THEN the per-side cap as a HARD ceiling
+  // (exceeding it blacks out regardless of memory, so it always wins).
+  const soft = Math.max(0.5, Math.min(rawDpr, byBudget));
+  return Math.min(soft, bySide);
+}
+
 /** Per-layer local visibility toggles: layerId → shown. */
 export type LayerVisibility = Record<string, boolean>;
 

@@ -22,7 +22,7 @@ import * as pdfjs from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { renderObjects, type InkObject } from "@troubastack/ink";
 import { api, type AnnotationLayer, type AnnotationObject, type SongFile } from "../../api";
-import { toInkObject, compareObjectZ, rasterDpr, type LayerVisibility } from "./helpers";
+import { toInkObject, compareObjectZ, rasterDpr, budgetedRasterDpr, type LayerVisibility } from "./helpers";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -69,6 +69,13 @@ export function usePdfDocument(args: {
   const pdfDocRef = useRef<pdfjs.PDFDocumentProxy | null>(null);
   const pageCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const overlayRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+  // Canvases already wired with contextlost/restored recovery listeners (T44), so we
+  // attach exactly once per canvas element across re-renders.
+  const wiredCanvasesRef = useRef<WeakSet<HTMLCanvasElement>>(new WeakSet());
+  // The budgeted raster DPR the last PDF render used (T44). Overlays repaint on their own
+  // trigger, but their canvas is sized to the raster — so their transform MUST use the
+  // same value or the ink misaligns at high zoom. Seeded to the unclamped clamp.
+  const effectiveDprRef = useRef<number>(rasterDpr());
   // Intrinsic (scale-1) page sizes in CSS px, used to compute fit scales.
   const pageSizesRef = useRef<{ w: number; h: number }[]>([]);
   // The scroll column we measure for Fit width / Fit page.
@@ -243,7 +250,7 @@ export function usePdfDocument(args: {
 
   // Repaint every mounted overlay (visibility/objects change; no re-raster).
   const renderOverlays = useCallback(() => {
-    const dpr = rasterDpr();
+    const dpr = effectiveDprRef.current; // T44: match the raster's budgeted DPR
     if (isImage) {
       const o = imgOverlayRef.current;
       if (o) paintOverlay(o, 0, dpr);
@@ -265,7 +272,19 @@ export function usePdfDocument(args: {
     const tasks: pdfjs.RenderTask[] = [];
 
     (async () => {
-      const dpr = rasterDpr();
+      // T44: derive the raster DPR from the WHOLE document's canvas footprint at the
+      // current zoom — cap the summed backing store + per-side dimension so a phone
+      // never paints a page black (see budgetedRasterDpr). Uses CSS display sizes
+      // (pageScale × intrinsic), which encode the current zoom; display size itself is
+      // unchanged (zero-shift intact).
+      const cssSizes: { w: number; h: number }[] = [];
+      for (let i = 0; i < pdfDoc.numPages; i++) {
+        const sz = pageSizesRef.current[i];
+        const s = pageScale(i);
+        if (sz && s > 0) cssSizes.push({ w: sz.w * s, h: sz.h * s });
+      }
+      const dpr = budgetedRasterDpr(rasterDpr(), cssSizes);
+      effectiveDprRef.current = dpr; // so overlay repaints match this raster (T44)
       let renderedAny = false;
       for (let i = 0; i < pdfDoc.numPages; i++) {
         if (cancelled) return;
@@ -276,6 +295,15 @@ export function usePdfDocument(args: {
 
         const canvas = pageCanvasRefs.current[i];
         if (!canvas) continue;
+        // T44 recover: if the browser evicts this canvas's backing store under memory
+        // pressure (contextlost), it stays black until a re-raster — so on restore, bump
+        // renderNonce to re-render. preventDefault marks the 2D context restorable.
+        // Attached once per canvas (deduped).
+        if (!wiredCanvasesRef.current.has(canvas)) {
+          wiredCanvasesRef.current.add(canvas);
+          canvas.addEventListener("contextlost", (e) => e.preventDefault());
+          canvas.addEventListener("contextrestored", () => setRenderNonce((n) => n + 1));
+        }
         const viewport = page.getViewport({ scale: s * dpr });
         const cssW = viewport.width / dpr;
         const cssH = viewport.height / dpr;
@@ -331,9 +359,13 @@ export function usePdfDocument(args: {
     const img = imgRef.current;
     const overlay = imgOverlayRef.current;
     if (!img || !overlay) return;
-    const dpr = rasterDpr();
     const w = img.clientWidth;
     const h = img.clientHeight;
+    // T44: budget the image overlay from its own box too (same GPU side-cap hole as the
+    // wet canvas — a zoomed image overlay could exceed 4096 and black out). effectiveDprRef
+    // so renderOverlays paints at the matching DPR.
+    const dpr = budgetedRasterDpr(rasterDpr(), [{ w, h }]);
+    effectiveDprRef.current = dpr;
     overlay.width = Math.round(w * dpr);
     overlay.height = Math.round(h * dpr);
     overlay.style.width = `${w}px`;

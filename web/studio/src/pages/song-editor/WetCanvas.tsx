@@ -27,7 +27,7 @@ import {
   type TextMeasure,
   type Tool,
 } from "../../editor";
-import { buildWet, compareObjectZ, measureTextWidth, toInkObject, rasterDpr, type PRPoint, type LayerVisibility } from "./helpers";
+import { buildWet, budgetedRasterDpr, compareObjectZ, measureTextWidth, toInkObject, rasterDpr, type PRPoint, type LayerVisibility } from "./helpers";
 import { SelectionToolbar } from "./Toolbar";
 
 /** Capture a pointer id, best-effort (T34). Exotic/synthetic pointer ids (e.g. an e2e-
@@ -157,6 +157,9 @@ export function EditCanvas({
   // built OPAQUE and composed here, then blitted to the wet canvas ONCE at the object's
   // opacity — so overlapping segment seams don't stack alpha into darker bands.
   const wetComposeRef = useRef<HTMLCanvasElement | null>(null);
+  // The budgeted DPR the wet canvas was last sized at (T44) — repaint()/drawWetFrame()
+  // read this so their transform matches the (possibly clamped) backing store.
+  const wetDprRef = useRef<number>(rasterDpr());
   const cachedUpToRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   // Dev perf hook (localStorage.inkPerf === "1"): points received + mean
@@ -212,10 +215,16 @@ export function EditCanvas({
     const wrapper = canvas.parentElement;
     const pageCanvas = wrapper?.querySelector<HTMLElement>(".pdf-canvas");
     if (!pageCanvas) return;
-    const dpr = rasterDpr();
     const w = pageCanvas.clientWidth;
     const h = pageCanvas.clientHeight;
     if (w <= 0 || h <= 0) return;
+    // T44: budget the wet canvas from ITS OWN box (it maps [0,1] to itself, so its DPR
+    // needn't match the raster's). At high zoom the raw-DPR wet canvas is the largest,
+    // TOPMOST layer on every page (~4752px at 300%×dpr2 > the 4096 GPU floor) — an
+    // uncompositable top layer reads as a BLACK page. Cap it like the raster; store the
+    // effective DPR so repaint()/drawWetFrame() use the SAME value (alignment).
+    const dpr = budgetedRasterDpr(rasterDpr(), [{ w, h }]);
+    wetDprRef.current = dpr;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     canvas.style.width = `${w}px`;
@@ -232,7 +241,14 @@ export function EditCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return null;
     if (wetCtxRef.current && wetCtxRef.current.canvas === canvas) return wetCtxRef.current;
-    const ctx = canvas.getContext("2d", { desynchronized: true }) as CanvasRenderingContext2D | null;
+    // T44: `desynchronized: true` puts this (topmost, per-page) canvas on Android's
+    // hardware-overlay compositing path — a documented BLACK-LAYER failure on some GPUs
+    // (content intact via getImageData / software screenshot, black on the physical
+    // display; VLL's exact symptom). Gate it to FINE pointers (desktop mouse / pen keep
+    // the low-latency win; touch phones/tablets skip the overlay path). T35's bbox blits
+    // already bounded the wet render cost, so dropping desync on touch is cheap.
+    const desync = window.matchMedia?.("(pointer: fine)")?.matches ?? true;
+    const ctx = canvas.getContext("2d", { desynchronized: desync }) as CanvasRenderingContext2D | null;
     wetCtxRef.current = ctx;
     return ctx;
   }, []);
@@ -242,7 +258,7 @@ export function EditCanvas({
     if (!canvas) return;
     const ctx = getWetCtx();
     if (!ctx) return;
-    const dpr = rasterDpr();
+    const dpr = wetDprRef.current;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
     const box = { x: 0, y: 0, w: canvas.width / dpr, h: canvas.height / dpr };
@@ -268,7 +284,7 @@ export function EditCanvas({
     const canvas = canvasRef.current;
     const ctx = getWetCtx();
     if (!canvas || !ctx || g?.mode !== "draw") return;
-    const dpr = rasterDpr();
+    const dpr = wetDprRef.current;
     const cssW = canvas.width / dpr;
     const cssH = canvas.height / dpr;
     const box = { x: 0, y: 0, w: cssW, h: cssH };
@@ -383,6 +399,12 @@ export function EditCanvas({
       rafRef.current = null;
     }
     cachedUpToRef.current = 0;
+    // T44: release the full-size wet scratch buffers between strokes. They were retained
+    // for the stroke's life (bake cache + compose surface) and lingered full-viewport
+    // afterward, adding to the canvas-memory pressure that blacks out pages on mobile.
+    // Both are lazily recreated on the next stroke (drawWetFrame), so dropping is safe.
+    wetCacheRef.current = null;
+    wetComposeRef.current = null;
   }, []);
 
   // Cancel a pending frame on unmount.
