@@ -4993,6 +4993,15 @@ Verified (my runs):
 report and rounds out the studio-on-Android session (T40 bleed + T41 black-page +
 T42 headroom + T43 marquee).
 
+## 2026-07-14 — T43 LANDED (`97d6d86`): ✅ CLOSED — one-finger touch marquee shipped; the studio-on-Android session is fully resolved
+
+Patch-identical to the GO'd `28ef813`, verdict cited. CI watched. Select-mode one-finger
+empty-space marquee on touch works, two-finger nav intact. **This closes the entire
+2026-07-13 studio-on-Android field session:** T40 (cross-file annotation bleed) + the
+Layers-drawer follow-up + B11 (demo showcase) + T41 (mobile black-page DPR clamp) + T42
+(ctx-bar scroll headroom) + T43 (touch marquee). Every VLL report from that session is
+landed + CI-green.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

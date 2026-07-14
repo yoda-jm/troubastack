@@ -123,7 +123,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | B11 | [Demo per-file annotations (each part its own notes)](B11-demo-per-file-annotations.md) — landed | core seed + demo | S |
 | T41 | mobile raster-DPR clamp (black-page mitigation) — landed `c694906` | studio | S |
 | T42 | ctx-bar scroll headroom (annotate page top) — landed `adccae4` | studio | XS |
-| T43 | [One-finger marquee-select in Select mode on touch](T43-touch-marquee-select.md) | studio | S |
+| T43 | [One-finger marquee-select in Select mode on touch](T43-touch-marquee-select.md) — landed | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
