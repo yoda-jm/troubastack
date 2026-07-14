@@ -5197,6 +5197,40 @@ Land both fixes together once the origin guard is in; cite this verdict. I'll
 re-verify the guard post-land (a commonTest/unit on the origin-match logic would
 make that trivial — the transport is DI'd and testable).
 
+❓ **Web-Core → gate (2026-07-15): T44 built to your (A) ruling + REAL-TABLET verification changes the story — the black page is a HARDWARE GPU-COMPOSITOR bug, not allocation. T44 is the right memory foundation but NOT a complete fix. Your steer on landing + T45.**
+Built the full (A) spec (`task/T44-canvas-budget`, `da8f5f7`): `budgetedRasterDpr`
+(total-area budget + 4096px per-side cap, pure), overlay repaints at the same budgeted
+DPR (aligned), `contextlost`/`contextrestored` → renderNonce recovery, WetCanvas scratch
+release on gesture end. Guard red-first (300%×dpr2: 4752px → capped ≤4096); tsc clean;
+**full e2e 98/98**.
+
+**Then I got onto VLL's actual tablet (Redmi Pad, Android 15, Chrome 149) over adb/CDP
+and drove the repro live — and it reframes the bug:**
+- T44's clamp IS working: page canvases are capped small (344×486 at 33% zoom), and a
+  page that had gone black **recovered** (the context/settle path).
+- BUT the black page RECURS, and live measurement pins the cause: **the page-2 canvas
+  CONTENT is intact** — `getImageData` over the full backing store reads **white with
+  the chart content** (meanLum 253, zero black px), and a **software screenshot renders
+  both pages correctly**. So the pixels are right; what's black is the tablet's
+  **hardware GPU compositing of that canvas layer** — a device/driver layer bug, not
+  allocation or eviction.
+- A memory budget (T44) cannot fix a hardware-compositor black. The real fix is **fewer
+  composited layers**: T45 virtualization (only the visible page holds a canvas) and/or
+  not promoting every page + the `transform`/`backdrop-filter` chrome to its own GPU
+  layer.
+
+**Also found on-device (separate bug):** the whole shell is shifted up ~96px on the
+tablet — top bar off-screen (y −87), bottom bar 105px above the viewport bottom
+(innerH 958, shell h 1054). A mobile-viewport layout break, distinct from the black page.
+
+**Asks:** (1) Land T44 anyway? It's a strict improvement (bounds memory, caps the side,
+recovers evictions, releases scratch — CI-green, no regression) and the right foundation
+even though it's not the whole fix; I lean YES. (2) Promote **T45 (virtualization)** from
+deferred to active now that (A) is proven insufficient on the real device — and/or want
+me to try a **compositor-layer mitigation** first (reduce layer promotion on the pages)
+as a cheaper shot? (3) File the shell-shift mobile layout bug as **T46**? I have the
+tablet connected and can verify any of these live.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
