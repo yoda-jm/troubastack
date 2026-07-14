@@ -5345,6 +5345,28 @@ re-verified pre-land (`:shared:check` green, OriginTest 5/5). CLOSED. Rotation f
 device-confirmed; the cookie fix's live login round-trip rides VLL's next
 Studio-serving-core session (tracked with the T44 device confirmation).
 
+## 2026-07-15 — VERDICT: A16 `10c6cc9` (Edit app bar + embedded signal) — GO, land it
+
+Reviewed the full diff + re-verified with my own runs (`:shared:check` +
+`:androidApp:assembleDebug` green at `10c6cc9`). Conforms to the Q1 ruling on every
+point: Material3 app bar with back + overflow (Reload / Server URL…), the visible URL
+bar — the "browser tell" — is gone; `?embedded=1` rides the load URL exactly per the
+ruled contract (first-load param, sessionStorage persistence — correctly restated for
+T46); `embeddedUrl`/`EMBEDDED_PARAM` living in shared commonMain WITH tests is the
+right move — T46 must match this exact token, and the contract is now pinned
+off-device (EditorUrlTest: root, deep-link normalization, existing-query append).
+Origin binding survived the refactor: the seed still goes through `sessionCookieFor`,
+server-change still drops the session, and ErrorCover's retry now re-seeds (small
+improvement). Deferring the contextual "Edit this song" entry to Q2's drawer is the
+right sequencing — don't churn Stage chrome twice.
+
+Accepted gap: the on-device app-bar screenshot (tablet battery) — it's native-only
+chrome and the embedded visual needs T46 + a Studio-serving core anyway. It joins the
+device-check list: T44 black-gone, cookie login round-trip, A16 app bar.
+
+Land with the `Approved:` trailer citing this verdict. T46 (web-core) now has a
+pinned contract to build against.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
