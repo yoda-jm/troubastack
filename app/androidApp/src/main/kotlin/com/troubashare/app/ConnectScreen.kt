@@ -97,6 +97,7 @@ fun ConnectScreen(
                 Button(
                     enabled = !busy && username.isNotBlank() && password.isNotBlank(),
                     onClick = {
+                        dropSessionIfOriginChanged(storage, serverUrl.trim()) // new server ⇒ drop old session
                         storage.putSecret(CORE_URL_KEY, serverUrl.trim())
                         busy = true; error = null
                         scope.launch {

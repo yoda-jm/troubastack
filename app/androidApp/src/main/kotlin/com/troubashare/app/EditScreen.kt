@@ -54,8 +54,9 @@ fun EditScreen(storage: Storage, onBack: () -> Unit) {
     LaunchedEffect(url) {
         // Carry the app's Connect session (B03) into the WebView so Edit doesn't make you log in
         // again: the session lives as an app-side ktor cookie; the WebView has its own jar, so seed
-        // CookieManager with the persisted "name=value" for this origin before loading Studio.
-        seedSessionCookie(url, storage.getSecret(SESSION_COOKIE_KEY))
+        // CookieManager before loading Studio. sessionCookieFor() only returns the cookie when it was
+        // issued by THIS origin, so we never hand another server's session to a user-typed URL.
+        seedSessionCookie(url, sessionCookieFor(storage, url))
         state = WebViewHost.State.Loading
         host.load(url)
     }
@@ -91,6 +92,7 @@ fun EditScreen(storage: Storage, onBack: () -> Unit) {
     if (showSettings) {
         ServerDialog(url, onDismiss = { showSettings = false }) { newUrl ->
             url = newUrl.trim()
+            dropSessionIfOriginChanged(storage, url) // pointing at a new server ⇒ drop the old session
             storage.putSecret(CORE_URL_KEY, url)
             showSettings = false
         }

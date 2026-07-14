@@ -3,6 +3,7 @@ package com.troubashare.app
 import com.troubashare.shared.bundle.AvailableConcert
 import com.troubashare.shared.bundle.AvailableConcerts
 import com.troubashare.shared.distribution.ManifestTransport
+import com.troubashare.shared.distribution.originOf
 import com.troubashare.shared.seams.Storage
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -29,6 +30,35 @@ private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080"     // emulator → 
 // Package-visible: EditScreen seeds this same session into the WebView's CookieManager so a Connect
 // login flows into the web editor (one login, not two).
 internal const val SESSION_COOKIE_KEY = "sessionCookie"
+// The origin the session was issued by. The session cookie is a bare name=value and the server URL
+// is user-editable, so we BIND the cookie to its origin and only ever replay it to a matching one —
+// otherwise logging into A then pointing at B would leak A's session to B (ktor AND the Edit WebView).
+internal const val SESSION_ORIGIN_KEY = "sessionOrigin"
+
+/**
+ * The persisted session cookie ("name=value") IFF it was issued by [url]'s origin; else null. The
+ * single guard for BOTH the ktor transport and the Edit WebView seed — a session is never handed to a
+ * server other than the one that issued it. An old install with no stored origin reads as null (⇒ one
+ * re-login, which records the origin).
+ */
+internal fun sessionCookieFor(storage: Storage, url: String): String? {
+    val cookie = storage.getSecret(SESSION_COOKIE_KEY)?.takeIf { it.isNotEmpty() } ?: return null
+    val origin = storage.getSecret(SESSION_ORIGIN_KEY).orEmpty()
+    return if (origin.isNotEmpty() && origin == originOf(url)) cookie else null
+}
+
+/**
+ * Call when the user changes the server URL: if the new origin differs from the session's, drop the
+ * stored session AND the WebView's cookie jar so nothing from the old server survives against the new
+ * one. Defense-in-depth alongside [sessionCookieFor] (which already refuses a cross-origin replay).
+ */
+internal fun dropSessionIfOriginChanged(storage: Storage, newUrl: String) {
+    if (originOf(newUrl) != storage.getSecret(SESSION_ORIGIN_KEY).orEmpty()) {
+        storage.putSecret(SESSION_COOKIE_KEY, "")
+        storage.putSecret(SESSION_ORIGIN_KEY, "")
+        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+    }
+}
 
 /**
  * ktor-backed [ManifestTransport] + session login (B03, I13). App DI — the concrete transport
@@ -67,13 +97,19 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         val setCookie = resp.headers.getAll("Set-Cookie")?.firstOrNull()
             ?: return "The server didn't return a session"
         storage.putSecret(SESSION_COOKIE_KEY, setCookie.substringBefore(';')) // name=value only
+        storage.putSecret(SESSION_ORIGIN_KEY, originOf(baseUrl))              // bind it to this server
         return null
     }
 
-    /** Clear the persisted session (the Storage seam is add/overwrite-only, so empty == signed out). */
-    fun signOut() = storage.putSecret(SESSION_COOKIE_KEY, "")
+    /** Clear the persisted session (Storage is overwrite-only, so empty == signed out) — and drop it
+     *  from the Edit WebView's shared cookie jar too, so signing out signs out everywhere. */
+    fun signOut() {
+        storage.putSecret(SESSION_COOKIE_KEY, "")
+        storage.putSecret(SESSION_ORIGIN_KEY, "")
+        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+    }
 
-    private fun cookie(): String? = storage.getSecret(SESSION_COOKIE_KEY)?.takeIf { it.isNotEmpty() }
+    private fun cookie(): String? = sessionCookieFor(storage, baseUrl)
 
     override suspend fun fetchManifest(): AvailableConcerts {
         val ck = cookie() ?: return AvailableConcerts()
