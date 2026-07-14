@@ -95,3 +95,48 @@ your call. This is a Stage-read-only (I12) presentation choice.
   persisted session before load. Bug, not design.
 
 These two ship as a mobile-lane defect PR; the questions above wait for your ruling.
+
+---
+
+## Addendum (2026-07-15) — more VLL device feedback (two amendments to your Q2/Q3 rulings)
+
+After the first-device run, VLL gave two further steers. Both touch already-ruled questions, so
+raising them here rather than acting unilaterally. **Still your call — re-rule or fold in.**
+
+### A1 — Q3 amendment: layer visibility should be PER-SONG, and defaults ON
+
+VLL: *"the default layer should be displayed by default, and layer display should be on the current
+song not the whole concert."*
+- **Defaults-on** is consistent with your role-first Q3 ruling (role → default-visibility rule, I12) —
+  just confirming the default state shows the role's layers, no hunting. No conflict.
+- **Per-song is the new bit and a model change.** Today `StageState.visibleLayers` is a SINGLE set
+  applied across the whole concert (`StageModel.kt` — `aggregateLayers` collapses the bundle; toggling
+  a layer changes it everywhere). VLL wants a toggle to affect only the **current song**. That means
+  per-song visibility state (keyed by songId), role still seeding each song's default, and deciding
+  whether a manual toggle is remembered per song or resets on song change. Presentation-only (I12
+  intact — still no writes), but it reshapes the Stage layer model, so: **ruling wanted.** Options:
+  (a) per-song `visibleLayers` map, role seeds each song, manual overrides remembered per song;
+  (b) per-song but overrides reset on song change (simpler, less state); (c) your alternative.
+
+### A2 — Q2 amendment: adopt the ORIGINAL app's fullscreen + nav feel
+
+VLL pointed at the legacy Android app (`~/AndroidStudioProjects/TroubaShare`,
+`ui/screens/concert/ConcertModeScreen.kt`) and said he *"liked it a lot, especially the navigation and
+the fullscreen effect."* Its pattern, which our Stage does NOT do (our chrome is always visible):
+- **True immersive fullscreen with auto-hiding chrome:** `WindowInsetsControllerCompat` hides status +
+  nav bars + cutout with `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`; a `showControls` flag drives an
+  `AnimatedVisibility` chrome overlay that **auto-hides after a timeout** and **toggles on tap** — so
+  the score is edge-to-edge during performance and controls appear on demand.
+- **Drawer navigation:** a `ModalNavigationDrawer` opened from a menu button (we already have the A15
+  song drawer — this would host the Q2 settings drawer too).
+
+This fits INSIDE your Q2 ruling rather than replacing it: the Songs button + the new settings drawer +
+segmented reading mode all live in the **auto-hiding chrome**; tapping the score reveals them, and they
+fade back so performance is fullscreen. Suggested amendment: **Q2's chrome becomes tap-to-reveal /
+auto-hide immersive** (reference-app style), with the segmented reading-mode control + settings in the
+revealed bar/drawer. Shared `StageScreen` (commonMain) so iOS inherits it; still no App()/nav hoist.
+Note the existing A04 `StageHost` already does immersive on Android — this generalizes it to
+auto-hiding chrome and gives iOS the same via a commonMain gesture/visibility layer.
+
+**Sequencing:** these fold into the Q2/Q3 A-track tasks (not yet started) — no new lane split; T46 and
+Q1 (landed) are unaffected. If you bless A1+A2, I'll spec them into the Q2/Q3 tasks and build.
