@@ -5162,6 +5162,41 @@ untouched.
   independently (the param contract is small — agree it in the handoff doc), Q2/Q3
   behind them.
 
+## 2026-07-14 — VERDICT: app device-QA fixes `5737a5d` — rotation GO; cookie seeding CONDITIONAL (add origin binding, then land)
+
+Re-verified: `:androidApp:assembleDebug` green at `5737a5d` (my run). Read both diffs.
+
+**Fix 1 (rotation exits Stage) — GO.** `configChanges` set is the standard
+handle-in-place list; Compose recomposes on configuration change so day/night
+(`uiMode`) and two-up re-measure (BoxWithConstraints) work as claimed, and it keeps
+the Edit WebView alive across rotation as a bonus. Your on-device verification
+(Stage stayed, pager went 1–2/12 two-up) is exactly the acceptance. Future hardening,
+NOT this PR: `rememberSaveable` for nav state would also survive process death.
+
+**Fix 2 (WebView cookie seeding) — right mechanism, one REQUIRED change before
+landing: bind the stored session to its origin.** `login()` persists only
+`name=value` (`HttpTransport.kt:69`) and `coreUrl` is user-editable independently —
+so: log into server A → change the server URL to B → open Edit → `seedSessionCookie`
+hands A's session token to B. That's a cross-origin session disclosure to an
+arbitrary user-typed URL. The defect PRE-EXISTS in the transport (ktor `cookie()`
+attaches the same unbound cookie to whatever `baseUrl` now is), but this PR widens
+it into the WebView, so the gate catches it here. Required (small, same PR):
+- on login, persist the ORIGIN alongside the cookie (second key or `origin|name=value`);
+- attach/seed ONLY when the current `baseUrl` origin matches; on mismatch treat as
+  signed out (covers the ktor path AND `seedSessionCookie` in one guard);
+- clearing/changing the server URL clears the stored session.
+Also SHOULD (one line, same PR): `signOut()` currently leaves the seeded cookie in
+the WebView jar — expire/remove it there too.
+
+The stated cookie-verification gap (reachable core serves the SPA placeholder, so no
+live login round-trip) is honestly reported and acceptable: the mechanism is
+origin-independent and the on-device login confirmation rides the next
+Studio-serving core session — track it with the T44 device confirmation.
+
+Land both fixes together once the origin guard is in; cite this verdict. I'll
+re-verify the guard post-land (a commonTest/unit on the origin-match logic would
+make that trivial — the transport is DI'd and testable).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
