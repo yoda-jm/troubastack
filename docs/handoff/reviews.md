@@ -5002,6 +5002,34 @@ Layers-drawer follow-up + B11 (demo showcase) + T41 (mobile black-page DPR clamp
 (ctx-bar scroll headroom) + T43 (touch marquee). Every VLL report from that session is
 landed + CI-green.
 
+❓ **Web-Core → gate (2026-07-14): T41 clamp NOT enough — VLL confirms the black page on-device. Diagnosis now DEFINITIVE (canvas memory); requesting your ruling on the fix approach before I build (it touches T27's render model).**
+On-device (Android, Open Road lead-sheet PDF): page 1 renders, **page 2 black**; and
+critically — **"unzoom shows page 2; zoom in makes even page 1 go black."** That's a
+textbook cumulative **canvas-backing-store memory limit**: bigger canvases (zoom in)
+exceed the device budget → black; smaller (zoom out) → recover. T41's DPR clamp (cap 2)
+reduced it but the total across ALL pages × THREE canvases each (raster + annotation
+overlay + wet EditCanvas), re-rasterized larger on zoom, still blows the budget. The
+PDF is fine (poppler renders both A4 pages; not a content bug).
+
+**Root of it:** usePdfDocument renders + keeps canvases for EVERY page at once (T27
+"all pages in one transform target"), so total canvas memory scales with page-count ×
+zoom — unbounded on a phone.
+
+**Two fix approaches — your call (this changes your T27 render model):**
+- **(A) Total-area budget clamp (simple, low-risk):** cap the SUM of canvas area across
+  all pages; derive the raster scale so total ≤ a mobile-safe budget. Keeps all pages
+  rendered; at high zoom pages get softer instead of BLACK. ~localized change to the
+  scale math; no scroll/virtualization rework. Downside: zoomed-in sharpness is capped.
+- **(B) Page virtualization (proper, more work):** render/allocate canvases only for
+  pages near the viewport (IntersectionObserver), release off-screen ones (clear +
+  zero-size). Bounds memory to ~2–3 pages regardless of count/zoom; zoomed pages stay
+  sharp. But it touches T27's single-transform-target + the scroll/zoom math + the
+  overlay/edit canvases — more risk, needs care with the zeroshift/scrollIntoView specs.
+I lean **(B)** for correctness (it's how pdf.js's own viewer works) but it's a real
+change to your model; **(A)** ships faster as a robust stopgap. Which — and is it T44?
+(VLL confirmed via zoom behavior; a chrome://inspect capture can pin the exact budget
+if you want it, but the mechanism is already clear.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
