@@ -9,13 +9,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.troubashare.shared.distribution.embeddedUrl
 import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.seams.WebViewHost
 
@@ -36,14 +40,24 @@ private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080" // host machine, fro
 
 /**
  * Hosts the canonical TroubaStudio web editor in a WebView (I10). No native editor logic — login,
- * editing and realtime sync are all Studio's own. Back navigates Studio history before leaving.
+ * editing and realtime sync are all Studio's own.
+ *
+ * A16: a real app bar (title / back / overflow), NOT a URL bar, so Edit reads as an app screen rather
+ * than a browser; the server URL moves into an overflow dialog. The load URL carries `?embedded=1`
+ * (the signal Studio uses to hide its own nav/logout — web-core T46; persisted in sessionStorage so
+ * SPA navigation keeps embedded mode). [initialPath] deep-links Studio to a context (e.g.
+ * `/bands/{id}/songs/{id}`) when launched from one; null opens the band list. Back navigates Studio
+ * history before leaving.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditScreen(storage: Storage, onBack: () -> Unit) {
+fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null) {
     val context = LocalContext.current
-    var url by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
+    var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
     var showSettings by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf<WebViewHost.State>(WebViewHost.State.Loading) }
+    val loadUrl = embeddedUrl(serverUrl, initialPath)
 
     val host = remember {
         WebViewHost(context).apply {
@@ -51,38 +65,38 @@ fun EditScreen(storage: Storage, onBack: () -> Unit) {
             onStudioMessage { json -> Log.i("ShellBridge", "studio → shell: $json") }
         }
     }
-    LaunchedEffect(url) {
-        // Carry the app's Connect session (B03) into the WebView so Edit doesn't make you log in
-        // again: the session lives as an app-side ktor cookie; the WebView has its own jar, so seed
-        // CookieManager before loading Studio. sessionCookieFor() only returns the cookie when it was
-        // issued by THIS origin, so we never hand another server's session to a user-typed URL.
-        seedSessionCookie(url, sessionCookieFor(storage, url))
+    fun reload() {
+        // Seed the app's Connect session (B03) into the WebView so Edit doesn't re-prompt: the session
+        // is an app-side ktor cookie; the WebView has its own jar. sessionCookieFor() returns it ONLY
+        // when it was issued by this origin, so another server's session never leaks to a typed URL.
+        seedSessionCookie(serverUrl, sessionCookieFor(storage, serverUrl))
         state = WebViewHost.State.Loading
-        host.load(url)
+        host.load(loadUrl)
     }
+    LaunchedEffect(loadUrl) { reload() }
 
     BackHandler { if (host.canGoBack()) host.goBack() else onBack() }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onBack) { Text("Back") }
-                Text(
-                    url,
-                    Modifier.weight(1f).padding(horizontal = 8.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                )
-                TextButton(onClick = { showSettings = true }) { Text("Server") }
-            }
-            Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            TopAppBar(
+                title = { Text("Edit") },
+                navigationIcon = { TextButton(onClick = onBack) { Text("‹  Back") } },
+                actions = {
+                    Box {
+                        TextButton(onClick = { menuOpen = true }) { Text("⋮") }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(text = { Text("Reload") }, onClick = { menuOpen = false; reload() })
+                            DropdownMenuItem(text = { Text("Server URL…") }, onClick = { menuOpen = false; showSettings = true })
+                        }
+                    }
+                },
+            )
+            Box(Modifier.weight(1f).fillMaxWidth()) {
                 AndroidView(factory = { host.view }, modifier = Modifier.fillMaxSize())
                 when (val s = state) {
                     WebViewHost.State.Loading -> Text("Loading…", Modifier.align(Alignment.Center))
-                    is WebViewHost.State.Error -> ErrorCover(s.message, onRetry = { state = WebViewHost.State.Loading; host.load(url) }, onBack = onBack)
+                    is WebViewHost.State.Error -> ErrorCover(s.message, onRetry = { reload() }, onBack = onBack)
                     WebViewHost.State.Loaded -> Unit
                 }
             }
@@ -90,10 +104,10 @@ fun EditScreen(storage: Storage, onBack: () -> Unit) {
     }
 
     if (showSettings) {
-        ServerDialog(url, onDismiss = { showSettings = false }) { newUrl ->
-            url = newUrl.trim()
-            dropSessionIfOriginChanged(storage, url) // pointing at a new server ⇒ drop the old session
-            storage.putSecret(CORE_URL_KEY, url)
+        ServerDialog(serverUrl, onDismiss = { showSettings = false }) { newUrl ->
+            serverUrl = newUrl.trim()
+            dropSessionIfOriginChanged(storage, serverUrl) // pointing at a new server ⇒ drop the old session
+            storage.putSecret(CORE_URL_KEY, serverUrl)
             showSettings = false
         }
     }
