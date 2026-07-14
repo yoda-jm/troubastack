@@ -26,7 +26,9 @@ import java.io.File
 
 private const val CORE_URL_KEY = "coreUrl"                       // shared with A06's Edit screen
 private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080"     // emulator → host
-private const val SESSION_COOKIE_KEY = "sessionCookie"
+// Package-visible: EditScreen seeds this same session into the WebView's CookieManager so a Connect
+// login flows into the web editor (one login, not two).
+internal const val SESSION_COOKIE_KEY = "sessionCookie"
 
 /**
  * ktor-backed [ManifestTransport] + session login (B03, I13). App DI — the concrete transport

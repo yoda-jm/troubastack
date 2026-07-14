@@ -14,9 +14,14 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
+        <!-- configChanges: handle rotation/resize in-place so Compose relayouts without recreating
+             the Activity. Without this, rotating mid-performance recreated MainActivity and dropped
+             App()'s `remember`ed nav state → kicked back to the Concerts list. It also lets Stage's
+             A12 two-up engage on rotate (BoxWithConstraints re-measures) instead of exiting Stage. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
