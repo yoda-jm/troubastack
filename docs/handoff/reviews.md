@@ -5087,6 +5087,81 @@ unchanged — (A) now, T45 virtualization deferred — but the fix is now
 alone leaves a black-page path open. Same acceptance split: math + recovery hook in CI,
 black-gone on VLL's device.
 
+## 2026-07-14 — DESIGN RULING: mobile app integration & Stage UX proposal (6c9f98c)
+
+Good proposal — the questions are the right ones and the invariant analysis is
+correct. Ruling on all three, per VLL's delegation ("maybe it can choose another
+design"). The two direct bug fixes (rotation `configChanges`, WebView cookie seeding)
+are ENDORSED as filed — `configChanges` is right not just for relayout but because it
+keeps the WebView alive across rotation; proceed on `task/app-device-qa-fixes`.
+
+### Q1 — RULED: (a) native chrome + Studio embedded mode, with ONE amendment on the signal
+
+Option (a) is correct — the bridge is the sanctioned seam and (c)'s DOM-coupling is
+rightly rejected. **Amendment: the embedded signal must be in the URL at first load
+(`?embedded=1`), persisted in sessionStorage for the SPA session — NOT derived from
+the JS bridge handshake.** Two reasons: (1) the handshake lands after first paint, so
+bridge-driven hiding would flash the web nav before removing it — exactly the "raw
+browser" feel we're killing; (2) a URL param makes the Studio side testable in plain
+Playwright (load `?embedded=1` → nav hidden, survives SPA navigation) — no WebView
+needed in CI. The bridge still corroborates for deeper integration later (app back ↔
+Studio route-back) but the param is the source of truth for layout.
+
+**What embedded mode does (web-core side, filed as T46):** suppress the Shell topbar
+(`Shell.tsx:130` — Bands/Invites nav + profile/Log out; it ALREADY self-hides in the
+T27 editor, so this generalizes an existing conditional), and hide **Log out /
+account management everywhere** while embedded — the app owns the session (the cookie
+it seeds), and a logout inside the WebView would silently break the app's session.
+Everything else stays the normal responsive Studio.
+
+**App side (mobile lane):** the real app bar (title/back/overflow) + append the param
++ **deep-link contextually**: the Edit entry should open Studio AT the current
+band/song (`/bands/{id}/songs/{id}?embedded=1`) when launched from a song context,
+not at the band list — that's most of the "feels like an app" win for one line.
+
+### Q2 — RULED: (a)+(b) hybrid, split by USE FREQUENCY; no App()/nav-hoist coupling
+
+The controls divide by when a performer needs them: **mid-performance** (song nav,
+page turns) vs **setup-time** (reading mode, layers, role, day/night). Rule:
+- **Songs stays a direct, visible button** (A15 as-is) — never bury mid-performance
+  nav behind a drawer. Its discoverability issue is labeling/placement polish, not
+  relocation.
+- **One Stage settings drawer/sheet** (hamburger or overflow in the top bar) absorbs
+  the setup-time controls; inside it, reading mode becomes a **labelled segmented
+  control — Page | Width | Scroll** — killing the toggle-stop-3 problem explicitly
+  (that's the (b) part, living inside the (a) drawer).
+- **A12 two-up stays automatic** (resolved design, not reopened): within "Page",
+  facing pages appear by aspect as spec'd. The segmented control makes the model
+  legible without adding a toggle.
+- **P201's Auto-update toggle + ● Live indicator stay in the top bar for now** — do
+  NOT churn P201 chrome before the attended 2-device test; the drawer can absorb the
+  toggle later if the bar gets tight.
+- **No App()/nav hoist**: the drawer is Stage-internal chrome in shared StageScreen —
+  commonMain, so iOS gets it for free WITHOUT the hoist. §13 stays deferred on its
+  own merits; don't couple this to it.
+
+### Q3 — RULED: (a) role-first, layers become the exception path
+
+Role-first matches the I12 mental model that already exists in the code (role →
+default layer visibility): pick **Role** as the primary control; layers follow the
+default-visibility rule; an **"Advanced: layers" expander** exposes the manual
+per-layer toggles for the exception case. Changing role resets manual overrides (or
+marks the state "custom" — lane's pick, test either). Presentation-only; I12
+untouched.
+
+### Lane split + review bar
+
+- **T46 (web-core, filed):** Studio embedded mode — param + sessionStorage, Shell nav
+  suppression, logout hidden; e2e in plain Playwright both ways (embedded hides,
+  normal unchanged); pixels at the gate.
+- **Mobile lane:** app bar + param + deep-link (Q1), Stage settings drawer + segmented
+  reading mode (Q2), role-first layers (Q3) — file as A-track tasks in your handoff;
+  Q2/Q3 are shared-code (commonTest the drawer state + role-first visibility);
+  device screenshots at the gate since Stage chrome is pixels.
+- Order: the QA-fixes PR first (bugs), then Q1 both-lane halves can proceed
+  independently (the param contract is small — agree it in the handoff doc), Q2/Q3
+  behind them.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

@@ -1,6 +1,6 @@
 # Proposal — mobile app integration & Stage UX (for arch decision)
 
-**Status:** proposal, awaiting arch decision · **Raised by:** Mobile App Agent (2026-07-14) ·
+**Status:** RULED 2026-07-14 (see docs/handoff/reviews.md — Q1: (a) with URL-param signal, T46 filed; Q2: hybrid drawer + segmented reading mode, Songs stays direct; Q3: role-first) · **Raised by:** Mobile App Agent (2026-07-14) ·
 **Area:** `app/androidApp` (Edit/Connect/Stage chrome), `app/shared` (StageScreen), the A06
 `bridge.ts` handshake + `web/studio` (an "embedded" mode) — **cross-lane** · **Relates to:**
 I10 (never reimplement the editor), I12 (Stage is read-only), A06 (WebView host), A14/A15

@@ -126,6 +126,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T43 | [One-finger marquee-select in Select mode on touch](T43-touch-marquee-select.md) — landed | studio | S |
 | T44 | [Total canvas-area budget clamp (stop mobile black pages)](T44-canvas-total-area-clamp.md) | studio | S |
 | T45 | [Page virtualization (deferred)](T45-page-virtualization.md) — DEFERRED | studio | M/L |
+| T46 | [Studio embedded mode (WebView hosting)](T46-studio-embedded-mode.md) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
