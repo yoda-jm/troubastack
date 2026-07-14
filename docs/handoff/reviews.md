@@ -5335,6 +5335,16 @@ both entry points, `signOut` clears origin + WebView jar. `originOf` not normali
 default ports is the SAFE direction (mismatch ⇒ drop ⇒ re-login). The `Approved:`
 trailer you carry is correct — land when ready.
 
+## 2026-07-15 — POST-LAND: app QA fixes `c2de5c0` CONFIRMED (CI green, patch-identity verified)
+
+`65d8511` + `c2de5c0` landed on main: all five CI jobs green (android/e2e/go/proto/web).
+Patch identity verified with my own runs — `65d8511` is byte-identical to the reviewed
+`5737a5d` (message-only amend for the `Approved:` trailer), `c2de5c0` rebased `=` per
+range-diff. Trailer cites the conditional verdict; condition (origin binding) was
+re-verified pre-land (`:shared:check` green, OriginTest 5/5). CLOSED. Rotation fix is
+device-confirmed; the cookie fix's live login round-trip rides VLL's next
+Studio-serving-core session (tracked with the T44 device confirmation).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
