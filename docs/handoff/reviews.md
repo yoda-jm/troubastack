@@ -5384,6 +5384,51 @@ push (the cite-approval-at-landing rule; same lesson as A13). Main is linear-his
 `ec40f06` (gap closed `cf071b8`).** Lane: amend the trailer BEFORE pushing next time
 — the approval memo exists precisely so the history is self-certifying.
 
+## 2026-07-15 — RULING: mobile-UX addendum (b4fa838) — A1 and A2 both BLESSED, with the load-bearing details ruled
+
+### A1 (Q3 amendment) — RULED: option (a), per-song visibility with remembered overrides
+
+- **Defaults-on confirmed** — that IS the Q3 role-first ruling: role seeds each song's
+  default-visible layers; no hunting.
+- **Per-song: (a).** `visibleLayers` becomes a per-song map (keyed by songId); the role
+  (re)seeds each song's defaults; a manual toggle affects ONLY the current song and is
+  REMEMBERED for that song within the Stage session — returning to a song (encore!)
+  keeps what you set for it. (b)'s reset-on-song-change throws away exactly the choice
+  a performer made deliberately.
+- Boundaries: role change re-seeds and CLEARS per-song overrides (consistent with the
+  Q3 ruling); nothing persists through the Storage seam (leave Stage ⇒ gone — same
+  session-scope as today's single set); I12 untouched.
+- **P201 cross-check (required in the spec):** `applyUpdate`/`remapCurrent`'s
+  visibility merge (keptOld ∪ new-layer defaults) currently merges ONE set — it must
+  become per-song (each song's kept overrides ∪ defaults for genuinely new layers).
+  Extend the LiveUpdateTest matrix accordingly — an auto-update mid-rehearsal must not
+  clobber per-song choices.
+
+### A2 (Q2 amendment) — RULED: BLESSED — immersive tap-to-reveal chrome, with the gesture split settled
+
+The reference-app pattern (edge-to-edge score, chrome revealed on demand, auto-hide)
+is the right performance-surface philosophy — same reasoning as T27's fullscreen
+editor. It folds INSIDE the Q2 ruling as proposed. The load-bearing detail is the
+tap conflict, and I'm ruling it now: **Stage today turns pages on left/right THIRD
+taps + horizontal swipe (`StageScreen.kt:668`) — those stay VERBATIM (A04 acceptance
+untouched). The MIDDLE third — currently inert — becomes the chrome toggle.** So:
+middle-tap reveals/hides chrome, chrome auto-hides after a timeout (~4s), edge taps
+and swipes keep turning pages with zero retraining. If the middle third turns out
+NOT to be inert somewhere (verify in the spec), come back before building.
+- Chrome contents per Q2: Songs button, the settings drawer (segmented Page | Width |
+  Scroll, layers/role per A1, day/night), and P201's Auto-update toggle + ● Live ride
+  the revealed chrome (transient rehearsal state doesn't need always-on pixels).
+- Layering: visibility/gesture/timeout logic in commonMain `StageScreen` (iOS
+  inherits); the system-bars immersive part stays in the platform host (A04's
+  `StageHost` already does it on Android — generalize, don't duplicate).
+- Review bar: gesture-split tests (middle tap toggles, edge taps turn, no
+  double-fire), auto-hide timeout test (clock-injected), A04-era acceptance verbatim,
+  device screenshots at the gate.
+
+**Sequencing approved:** fold A1+A2 into the Q2/Q3 A-track specs and build; T46/Q1
+unaffected. Good instinct raising both instead of acting on VLL's word unilaterally —
+this is exactly what the gate is for on already-ruled questions.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

@@ -100,6 +100,8 @@ These two ship as a mobile-lane defect PR; the questions above wait for your rul
 
 ## Addendum (2026-07-15) — more VLL device feedback (two amendments to your Q2/Q3 rulings)
 
+> **RULED 2026-07-15 (reviews.md):** A1 → option (a) per-song visibility, remembered per song, role re-seed clears, P201 merge must go per-song. A2 → BLESSED; gesture split ruled: left/right-third taps + swipes turn pages VERBATIM, the middle third (inert today) toggles the auto-hiding chrome.
+
 After the first-device run, VLL gave two further steers. Both touch already-ruled questions, so
 raising them here rather than acting unilaterally. **Still your call — re-rule or fold in.**
 
