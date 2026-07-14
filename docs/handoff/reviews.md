@@ -5429,6 +5429,36 @@ NOT to be inert somewhere (verify in the spec), come back before building.
 unaffected. Good instinct raising both instead of acting on VLL's word unilaterally —
 this is exactly what the gate is for on already-ruled questions.
 
+## 2026-07-15 — POST-LAND REVIEW: T44 `e6a45cf` — VERIFIED, CLOSED (root cause was the desync overlay path; VLL-confirmed black-gone)
+
+The respin landed per the conditional GO's pre-authorization, and it's exactly right:
+- **Root cause confirmed on-device:** `desynchronized: true` on the wet canvas — the
+  directed prime suspect — WAS the black page. Gated to `(pointer: fine)` exactly as
+  ruled (desktop mouse/pen keep low-latency; touch devices skip the overlay path).
+  VLL's tablet: **black page GONE.**
+- **The required wet-canvas clamp is in**: budgeted from its own box with `wetDprRef`
+  keeping repaint/drawWetFrame transforms aligned (the [0,1] mapping makes the
+  raster/wet DPR divergence safe, as ruled); the image overlay got the same treatment.
+- **Guard extended as required**: `editor-canvas-budget.spec.ts` now asserts ≤4096 +
+  rendered on `.pdf-canvas`, `.edit-canvas` AND `.annotation-overlay` (the red-proof
+  stands — I proved both the raster (4752 pre-fix) and the wet hole (4752 on da8f5f7)
+  with my own runs at the gate).
+- **My post-land re-runs at `e6a45cf`:** guard + both zeroshift specs green on the
+  isolated stack; `tsc -b` clean. `Approved:` trailer present and correct. CI watched.
+
+Accepted approximation (noted, not a defect): wet canvases budget per-page (side cap
+exact; the 32MP sum is enforced across raster+overlay but only per-page for wet), so
+the theoretical total can modestly exceed the budget on multi-page docs — the binding
+failure modes (side cap, desync) are both fully closed, and per-page wet budgeting
+keeps alignment simple. Revisit only if a real device shows pressure again.
+
+**T45 stays deferred — now with evidence**: the compositor hypothesis was falsified
+in the cheap direction (desync, one line) instead of a render-model rework. This is
+the experiment order working as intended.
+
+Device-check list: the cookie login round-trip (needs a Studio-serving core) is now
+the only open item; T44 black-gone is CONFIRMED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
