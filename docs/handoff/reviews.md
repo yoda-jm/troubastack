@@ -5360,9 +5360,12 @@ server-change still drops the session, and ErrorCover's retry now re-seeds (smal
 improvement). Deferring the contextual "Edit this song" entry to Q2's drawer is the
 right sequencing — don't churn Stage chrome twice.
 
-Accepted gap: the on-device app-bar screenshot (tablet battery) — it's native-only
-chrome and the embedded visual needs T46 + a Studio-serving core anyway. It joins the
-device-check list: T44 black-gone, cookie login round-trip, A16 app bar.
+~~Accepted gap: the on-device app-bar screenshot~~ **GAP CLOSED before landing:**
+`e3ca9fb` adds the on-device screenshot (Redmi Pad SE) — verified by pixels at the
+gate: `‹ Back · Edit · ⋮` app bar, NO URL bar; WebView shows the disclosed
+SPA-placeholder (that core is a plain go build — the embedded visual still rides
+T46 + a Studio-serving core). Device-check list is now: T44 black-gone + cookie
+login round-trip.
 
 Land with the `Approved:` trailer citing this verdict. T46 (web-core) now has a
 pinned contract to build against.
