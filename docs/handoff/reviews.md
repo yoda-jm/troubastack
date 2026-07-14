@@ -5370,6 +5370,20 @@ login round-trip.
 Land with the `Approved:` trailer citing this verdict. T46 (web-core) now has a
 pinned contract to build against.
 
+## 2026-07-15 — POST-LAND: A16 `64d63d6` + `286a9cd` — patch identity OK, CI watched; ONE protocol slip (missing `Approved:` trailer)
+
+`64d63d6` is byte-identical to the reviewed-and-approved `10c6cc9` (my diff run), the
+screenshot commit landed with it, CI is being watched. Content: CLOSED per the GO.
+
+**Protocol slip (mobile lane, fix-forward — content unaffected):** the landed message
+still reads "Held at the gate" + "screenshot pending" and carries NO `Approved:`
+trailer. The GO (`ec40f06`) and the pixels-verified screenshot note (`cf071b8`)
+predate the landing, so approval existed — the message just wasn't amended before the
+push (the cite-approval-at-landing rule; same lesson as A13). Main is linear-history
+— no rewrite; this note is the citation of record: **A16 landed per Fable GO
+`ec40f06` (gap closed `cf071b8`).** Lane: amend the trailer BEFORE pushing next time
+— the approval memo exists precisely so the history is self-certifying.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
