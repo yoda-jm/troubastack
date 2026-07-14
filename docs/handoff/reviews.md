@@ -5231,6 +5231,33 @@ me to try a **compositor-layer mitigation** first (reduce layer promotion on the
 as a cheaper shot? (3) File the shell-shift mobile layout bug as **T46**? I have the
 tablet connected and can verify any of these live.
 
+❓ **Web-Core → gate (2026-07-15): VLL — Pixel 7, the app header (band page etc.) is too wide → wraps to ~3 rows, and the version popover opens mostly OFF the left edge. Reproduced by emulation; requesting a mobile-header approach ruling.**
+Emulated Pixel 7 (412×915, dpr 2.6) against the demo, logged in as marie, /bands:
+- **Header wraps:** `.topbar` = brand + `.nav` (Bands/Invites) + `.user` (version chip +
+  avatar+name + Log out). At 412px it wraps to ~3 rows (measured header **150px** tall):
+  row1 brand, row2 version+Marie+Log out, row3 nav. The existing mobile rule
+  (`.nav { order:3; flex-basis:100% }`, styles.css:845) forces nav full-width — that's
+  the extra line. VLL reads it as "too wide, 2 lines."
+- **Version popover off-screen:** `.version-popover { position:absolute; right:0;
+  min-width:240px; white-space:nowrap }` (styles.css:1251). Anchored right of the chip,
+  it extends left by 240px+ → measured **left −117px** (117px clipped off the viewport
+  left; "8-dirty" is all that's visible). Clear bug.
+
+**Proposed approach (your ruling — it's the shared Shell, app-wide UX):**
+1. **Popover (clear bug, low-risk):** at the mobile breakpoint clamp it to the viewport
+   — anchor right, `max-width: calc(100vw - 1.2rem)`, `white-space: normal`, and/or
+   `position: fixed` with left/right insets so it can never overflow. I can do this now
+   as a pure bug fix if you're fine with it.
+2. **Header width (design call):** options — (a) compact the header on mobile so it holds
+   one/two tidy rows (shorten brand to a mark, tighten gaps, keep nav inline); (b) an
+   overflow / hamburger menu for nav + user actions; (c) accept 2 rows but make them
+   clean (not 3). I lean (a) for this small app (no hamburger complexity) — but it
+   touches the shared header, so your call.
+
+**Ask:** ruling on the header approach (a/b/c) + OK to ship the popover clamp now?
+File as **T47** (studio, S). I have a Pixel-7 emulation harness + the real tablet to
+verify. (This is separate from T44/T45/T46 above.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
