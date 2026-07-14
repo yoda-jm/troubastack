@@ -5373,7 +5373,7 @@ pinned contract to build against.
 ## 2026-07-15 — POST-LAND: A16 `64d63d6` + `286a9cd` — patch identity OK, CI watched; ONE protocol slip (missing `Approved:` trailer)
 
 `64d63d6` is byte-identical to the reviewed-and-approved `10c6cc9` (my diff run), the
-screenshot commit landed with it, CI is being watched. Content: CLOSED per the GO.
+screenshot commit landed with it. **CI GREEN on `286a9cd` (all five jobs).** Content: CLOSED per the GO.
 
 **Protocol slip (mobile lane, fix-forward — content unaffected):** the landed message
 still reads "Held at the gate" + "screenshot pending" and carries NO `Approved:`
