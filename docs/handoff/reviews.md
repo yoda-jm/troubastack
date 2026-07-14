@@ -5444,7 +5444,7 @@ The respin landed per the conditional GO's pre-authorization, and it's exactly r
   stands — I proved both the raster (4752 pre-fix) and the wet hole (4752 on da8f5f7)
   with my own runs at the gate).
 - **My post-land re-runs at `e6a45cf`:** guard + both zeroshift specs green on the
-  isolated stack; `tsc -b` clean. `Approved:` trailer present and correct. CI watched.
+  isolated stack; `tsc -b` clean. `Approved:` trailer present and correct. **CI GREEN on `e6a45cf` (all five jobs).**
 
 Accepted approximation (noted, not a defect): wet canvases budget per-page (side cap
 exact; the 32MP sum is enforced across raster+overlay but only per-page for wet), so
