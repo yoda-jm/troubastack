@@ -5059,6 +5059,34 @@ invariant. **Acceptance is split honestly:** the budget MATH is unit-testable (g
 page-count/viewport/zoom, total derived canvas area ≤ cap); the black-is-gone is
 ON-DEVICE — VLL confirms (headless can't repro). Proceed on T44; T45 waits.
 
+## 2026-07-14 — T44 ADDENDUM (re-analysis from the code, VLL-requested): ruling (A) CONFIRMED + 3 spec refinements
+
+Re-derived the failure with numbers instead of by symptom. `MAX_ZOOM_SCALE = 5.0`
+(`usePdfDocument.ts:35`): an A4 page at s=5 × dpr 2 is a 5950×8420 canvas — **200 MB
+RGBA per canvas, three canvases per page** (raster + overlay + a per-page WetCanvas,
+Viewer.tsx:963–1001). So the budget clamp stands. But the re-analysis found the
+mechanism behind the half of the symptom (A) alone would NOT fix:
+
+**"Page 2 black AT FIT" is canvas context loss, not just allocation failure.** Chrome
+evicts canvas backing stores under memory pressure, and our render effect re-rasters
+only on scale/zoomMode/renderNonce change — an evicted page stays black even after
+pressure clears, until zoom-out forces a settle re-raster ("recovers"). Prevention
+(the budget) shrinks the pressure we CAUSE but can't stop eviction someone else's app
+causes. T44 therefore now ALSO requires:
+1. **`contextlost`/`contextrestored` listeners → bump the existing `renderNonce`**
+   (the settle-nudge mechanism at usePdfDocument.ts:315 — recovery is nearly free);
+2. **a per-side dimension cap (~4096 px)** folded into the same pure function — the
+   Android GPU max-texture floor; at s=5 both sides exceed it and some drivers
+   black-out such canvases regardless of total memory;
+3. optional hardening: WetCanvas retains full-size `cache`+`compose` scratch buffers
+   forever after a freehand stroke (WetCanvas.tsx:283,314) — release on gesture end.
+
+T44 spec amended in place with all of the above (+ concrete numbers). The verdict is
+unchanged — (A) now, T45 virtualization deferred — but the fix is now
+**prevent (budget + dimension cap) AND recover (context-restored re-raster)**; either
+alone leaves a black-page path open. Same acceptance split: math + recovery hook in CI,
+black-gone on VLL's device.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
