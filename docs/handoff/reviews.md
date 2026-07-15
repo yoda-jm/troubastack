@@ -5459,6 +5459,15 @@ the experiment order working as intended.
 Device-check list: the cookie login round-trip (needs a Studio-serving core) is now
 the only open item; T44 black-gone is CONFIRMED.
 
+## 2026-07-15 — DEVICE-CHECK LIST: EMPTY (cookie round-trip confirmed live per the T46 cross-lane ping `61d16dd`)
+
+The mobile lane's T46 ping reports the live verification that was the last open
+device item: **app Connect (one login) → Edit auto-authenticates as Marie** — the
+cookie carry-over + origin binding work end-to-end against a real server. With T44
+black-gone already confirmed, every deferred on-device acceptance from this session's
+landings is now closed. (The ping's T46 contract restatement is accurate — web-core
+can build against it as written.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
