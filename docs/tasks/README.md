@@ -127,6 +127,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | ~~T44~~ | ✅ landed `e6a45cf` (desync gate + budget + recovery; VLL-confirmed black-gone) | studio | S |
 | T45 | [Page virtualization (deferred)](T45-page-virtualization.md) — DEFERRED | studio | M/L |
 | T46 | [Studio embedded mode (WebView hosting)](T46-studio-embedded-mode.md) | studio | S |
+| ~~T48~~ | ✅ landed `b046ad5` (fullbleed editor fits visible viewport — svh fix; ruled inline, no spec file) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).

@@ -5468,6 +5468,30 @@ black-gone already confirmed, every deferred on-device acceptance from this sess
 landings is now closed. (The ping's T46 contract restatement is accurate — web-core
 can build against it as written.)
 
+## 2026-07-15 — POST-LAND REVIEW: T48 `b046ad5` (fullbleed editor fits the visible viewport) — VERIFIED, CLOSED
+
+CSS-only, landed per the combined-verdict pre-authorization + VLL's on-device
+confirmation; trailer cites both. Verified:
+- **Patch identity**: landed `b046ad5` is byte-identical to presented `c5f05f4`.
+- **Diagnosis is exactly the ruled hint played out**, with a subtle twist worth
+  recording: `min-height:100vh` on `.shell` was BEATING `.shell-fullbleed`'s
+  `height:100dvh` (min-height wins over height) — so the fullbleed editor was pinned
+  to the toolbar-retracted height and the document scrolled the absolute chrome bars
+  out of view. The `svh` choice is right: the editor is `overflow:hidden` (never
+  scrolls the browser toolbar away), so smallest-viewport is the stable fit with no
+  gap; `body:has(.shell-fullbleed)` kills the body scroll only while the editor is
+  open. The remaining `100vh` uses are on normally-scrolling pages — harmless,
+  correctly left alone.
+- **My runs at the landed commit**: zeroshift ×2, phone-breakpoint, live-banner,
+  noflicker — 5/5 green on the isolated stack. Desktop pixels are unchanged BY
+  CONSTRUCTION (svh = dvh = vh in a desktop viewport — the unit only diverges under a
+  dynamic toolbar), so the meaningful acceptance is the on-device numbers in the
+  commit: shell 1054→959 (= innerHeight), top bar −87→+9, bottom bar flush at 949.
+  VLL-confirmed over the debug bridge. CI watched.
+
+T48 CLOSED. Remaining queue: T46 (unblocked, contract pinned), T47 (branch just cut),
+Q2/Q3 mobile specs (A1+A2 folded in).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
