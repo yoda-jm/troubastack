@@ -850,9 +850,20 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 
 /* ---- small screens ----------------------------------------------------- */
 @media (max-width: 640px) {
-  .topbar { gap: .75rem; flex-wrap: wrap; padding: .6rem 1rem; }
-  .nav { order: 3; flex-basis: 100%; }
-  .user { gap: .5rem; }
+  /* T47: keep the app header to TWO tidy rows on a phone (was ~3 — brand alone, then
+     user, then nav). Row 1: compact brand + nav inline; row 2: the user cluster
+     full-width. Nothing clipped; every control stays tappable. */
+  .topbar { gap: .4rem .75rem; flex-wrap: wrap; padding: .55rem .8rem; }
+  .brand { font-size: 1rem; }
+  .nav { order: 1; flex-basis: auto; }
+  .user { order: 2; flex-basis: 100%; margin-left: 0; justify-content: flex-start; gap: .6rem; }
+  /* Version popover: clamp to the viewport so it can't run off either edge (was
+     right:0 + 240px min-width → off the left on a narrow screen). Fixed insets +
+     max-width + wrap. */
+  .version-popover {
+    position: fixed; left: .6rem; right: auto; top: auto;
+    min-width: 0; max-width: calc(100vw - 1.2rem); white-space: normal;
+  }
   .inline-form { flex-direction: column; align-items: stretch; }
   .inline-form input, .inline-form select, .inline-form button { width: 100%; }
   /* T37: in the column layout, flex-basis:12rem would set the text input's HEIGHT;
