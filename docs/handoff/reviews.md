@@ -5509,7 +5509,7 @@ runs at the landed commit:
 - Cosmetic note only (not a gap): a worst-case 21-char username wraps within the
   user row; real display names fit one line. Revisit only if VLL sees it.
 
-T47 CLOSED. CI watched. Remaining queue: T46 (unblocked, contract pinned) + the Q2/Q3
+T47 CLOSED. **CI GREEN on `59f9917` (all five jobs).** Remaining queue: T46 (unblocked, contract pinned) + the Q2/Q3
 mobile specs.
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
