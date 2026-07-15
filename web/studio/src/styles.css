@@ -276,8 +276,17 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
    owns the ENTIRE viewport. No outer scroll anywhere — only the canvas column scrolls.
    The Details/files section (below the viewer) is intentionally clipped here for now;
    it moves into a top-bar "Details" toggle next. */
-.shell-fullbleed { height: 100dvh; overflow: hidden; }
-.shell-fullbleed .content { max-width: none; padding: 0; height: 100dvh; overflow: hidden; }
+/* T48: the fullbleed editor must fit the CURRENTLY VISIBLE viewport and never let the
+   document scroll (else the absolute top/bottom chrome bars shift off-screen). On
+   Android Chrome `100dvh`/`100vh` can resolve to the toolbar-RETRACTED height (larger
+   than innerHeight → ~URL-bar-band overflow → the page scrolls ~96px, top bar off the
+   top, bottom bar above the viewport bottom — VLL's report). `100svh` is the SMALLEST
+   (toolbar-shown) viewport, so it always fits; the editor has overflow:hidden (no scroll
+   to hide the toolbar) so svh stays stable with no gap. body:has() locks the document to
+   that height + kills its `min-height:100vh` scroll while the editor is open. */
+.shell-fullbleed { height: 100svh; min-height: 100svh; overflow: hidden; }
+body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
+.shell-fullbleed .content { max-width: none; padding: 0; height: 100svh; overflow: hidden; }
 .shell-fullbleed .viewer-page { max-width: none; padding: 0; height: 100%; overflow: hidden; }
 .shell-fullbleed .viewer-page .viewer {
   width: 100%; max-width: none; margin: 0; transform: none; height: 100%;
