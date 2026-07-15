@@ -5487,7 +5487,7 @@ confirmation; trailer cites both. Verified:
   CONSTRUCTION (svh = dvh = vh in a desktop viewport — the unit only diverges under a
   dynamic toolbar), so the meaningful acceptance is the on-device numbers in the
   commit: shell 1054→959 (= innerHeight), top bar −87→+9, bottom bar flush at 949.
-  VLL-confirmed over the debug bridge. CI watched.
+  VLL-confirmed over the debug bridge. **CI GREEN on `b046ad5` (all five jobs).**
 
 T48 CLOSED. Remaining queue: T46 (unblocked, contract pinned), T47 (branch just cut),
 Q2/Q3 mobile specs (A1+A2 folded in).
