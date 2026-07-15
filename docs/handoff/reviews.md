@@ -5492,6 +5492,26 @@ confirmation; trailer cites both. Verified:
 T48 CLOSED. Remaining queue: T46 (unblocked, contract pinned), T47 (branch just cut),
 Q2/Q3 mobile specs (A1+A2 folded in).
 
+## 2026-07-15 — POST-LAND REVIEW: T47 `59f9917` (compact mobile header + popover clamp) — VERIFIED, CLOSED
+
+Landed per the combined-verdict pre-authorization (popover "ship NOW" + header
+approach (a) with the gate bar); trailer cites it correctly. Verified with my own
+runs at the landed commit:
+- **Guard green** (header-mobile.spec.ts 2/2 on the isolated stack) and **red-proof
+  reproduced**: same spec against pre-T47 CSS fails 2/2 (nav on its own row; popover
+  off-screen) — the structural ≤2-row check is a smart, font-independent shape for
+  the assertion (a height threshold would have been CI-fragile; this is the
+  reproduce-the-number lesson applied preemptively).
+- **Pixels, my own capture, 412×915 light + dark**: two tidy rows (brand+nav / user
+  cluster); the dark capture shows the popover OPEN — fully on-screen, left-clamped,
+  wrapping instead of overflowing. Ruled bar met (≤2 rows, nothing clipped,
+  elementFromPoint reachability in the guard).
+- Cosmetic note only (not a gap): a worst-case 21-char username wraps within the
+  user row; real display names fit one line. Revisit only if VLL sees it.
+
+T47 CLOSED. CI watched. Remaining queue: T46 (unblocked, contract pinned) + the Q2/Q3
+mobile specs.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
