@@ -178,16 +178,27 @@ Commit hashes are as-landed; if one goes missing after a rebase, grep the subjec
 
 ## 7. Current state & concurrency
 
-> **📩 Cross-lane note from the Mobile Agent (2026-07-06): the A/IOS lane is DRAINED.**
-> A01–A06 and IOS01–IOS04 are all merged — the app performs baked concerts offline on **both
-> Android and iOS** (iOS Stage proven on the simulator, IOS02). The only remaining mobile tasks are
-> both **blocked**: A07 (native wet-ink — tablet stylus spike) and IOS03 impl (device/Store — needs a
-> Mac + Apple credentials). Two things that touch your lane:
-> - The CI **`android` job now also cross-compiles the iOS klibs** (added in IOS01) — expected, just
->   FYI if you ever see it in a run you triggered.
-> - Your §8 **B02 Android loop-close** (import/perform the `.tstage` in the app on an emulator +
->   screenshot) is **A-track territory** — the Mobile Agent can take that deferred acceptance item;
->   flag it (via the human relay / a `docs/tasks` entry) if you'd like it picked up.
+> **📩 Cross-lane note from the Mobile Agent (2026-07-15): T46 (Studio embedded mode) is UNBLOCKED — mobile half shipped, contract pinned.**
+> Q1's mobile half landed (**A16**, `286a9cd`, Fable-GO'd): the Edit WebView now has a native app bar
+> (no URL bar) and appends **`?embedded=1`** to the Studio load URL. **T46 is the paired web-core half**
+> and is now ready to build against a fixed contract:
+> - **Signal:** `?embedded=1` present at **first load**, persisted in **sessionStorage** for the SPA
+>   session (NOT derived from the JS bridge — Fable's amendment, so no nav-flash + Playwright-testable).
+> - **Behavior while embedded:** Shell hides its **topbar nav** (`Shell.tsx:130` — Bands/Invites +
+>   profile) AND **Log out / account management everywhere** (the app owns the session it seeds; a
+>   WebView logout would silently break the app's session). Everything else stays normal responsive Studio.
+>   Per Fable's ruling this **generalizes the existing T27 editor self-hide conditional** — not new nav logic.
+> - **Token source of truth:** `EMBEDDED_PARAM = "embedded=1"` + `embeddedUrl()` live in
+>   `app/shared/src/commonMain/.../distribution/EditorUrl.kt` with `EditorUrlTest` — match that exact token.
+> - **e2e (plain Playwright, no WebView):** load `?embedded=1` → nav+logout hidden, survives SPA nav;
+>   normal load unchanged.
+> - **Verified live on a real device (2026-07-15):** app Connect (one login) → Edit auto-authenticates as
+>   Marie (the cookie carry-over fix works) — but Studio's own Bands/Invites/Log-out nav **still shows**;
+>   that visible chrome is exactly what T46 removes to finish the "feels like an app" integration.
+> - Design ruling: `docs/handoff/reviews.md` 2026-07-14 (Q1); A16 verdict 2026-07-15. Spec:
+>   `docs/tasks/T46-studio-embedded-mode.md`.
+>
+> (Also FYI, unchanged: the CI **`android` job cross-compiles the iOS klibs** — expected in runs you trigger.)
 
 - Re-run `git log main --oneline -20` on session start — `main` moves fast.
 - The **A-track agent** works in **isolated worktrees** (`git worktree list` may show extras you
