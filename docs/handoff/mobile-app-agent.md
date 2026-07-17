@@ -5,19 +5,27 @@
 > owns the **T-track** (web/core/infra); stay out of its way (see §2, §7).
 >
 > Point a fresh Claude Code session at this file to continue seamlessly. It captures **how we work**
-> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-11.
+> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-17.
 >
 > **To resume:** open this repo in a new session and say — *"Read `docs/handoff/mobile-app-agent.md`;
 > you are the Mobile App Agent — let's continue."* Then read §2 (how we work) and §5 (landing) before
 > touching anything, and `git log main --oneline -15` for current state. **Immediate next action:**
-> the **unattended mobile queue is EMPTY** — everything build-and-emulator-verifiable is merged
-> (A01–A06, A08–A15, IOS01/02/04, plus the T26 & B06 app halves — §6). What remains needs the user:
-> **A07** (native wet-ink — real-tablet stylus spike), **IOS03 impl** (Mac + Apple credentials; runbook §11),
-> and a handful of **attended device/emulator checks** (B06 live two-host mDNS, B07 device screenshots,
-> OPS01 release-APK) — see §8. Don't start blocked items without the user unblocking hardware/credentials.
-> Otherwise there's nothing to pick up unless a new `docs/tasks/*` is filed, or the web-core lane lands a
-> proto/bake half that queues an app consumption piece (that's how T26 arrived) — check `git log` +
-> `docs/tasks/` + the review-gate log (`docs/handoff/reviews.md`) on start.
+> since 2026-07-11 a full device-QA + Stage-UX arc landed (all Fable-verified): the immersive chrome
+> (A17/A2/Q2), the reference-app faithful look, **B1/A19** ("same page, fewer annotations" — failure-
+> aware overlay decode + per-owner cache pins), the **N1/N2/N3 nav rework** (any-tap-toggles-chrome /
+> dropped edge-tap-turn; continuous advance with a song-boundary cue; per-song scroll), **A1/A18**
+> (per-song layer visibility, mandatory forced-visible at read), **A21** (a stale-swipe-closure fix —
+> swipe now reads the current page via `rememberUpdatedState`), and **N4** (direction-aware page-turn
+> slide). Portrait+landscape device-verified (two-up, rotation preserves position, text charts, cross-
+> song cue). **In flight:** **N5** — VLL's "black navigation on black" chrome-contrast fix — is out to
+> Fable (proposal Addendum 4; recommended: lighter translucent FAB disc + hairline outline); implement
+> + gate + device screenshot pair once ruled. **Next queued:** **A20** (the app half of **T50** personal
+> song cues) — BLOCKED until the web-core lane lands the T50 proto/bake half (`BakedSong.cues = 10`);
+> the app section is in `docs/tasks/T50-song-cues.md` §5, ready to lift. Still user-blocked: **A07**
+> (stylus spike), **IOS03 impl** (Mac + Apple creds), **B07** device screenshots, **OPS01** release-APK.
+> ⚠️ **Rotate the git-remote PAT** — the embedded token echoes in tool output when the GitHub API is hit
+> without `gh` (re-flagged in reviews.md; it leaked once this session via `curl -u` — use the
+> `Authorization: Bearer`/`token` header, never `-u`).
 
 ---
 
