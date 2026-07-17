@@ -4,6 +4,12 @@
 // a Result and is treated as "maybe a placeholder", so a bad image never crashes the performance.
 package com.troubashare.shared.stage
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,17 +48,24 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -65,12 +78,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -139,6 +154,7 @@ fun StageScreen(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun Performing(
     state: StageState,
     vm: StageViewModel,
@@ -154,9 +170,20 @@ private fun Performing(
     val page = state.currentPage ?: return
     var showLayers by remember { mutableStateOf(false) }
     var showRole by remember { mutableStateOf(false) }
-    // A15: song-jump navigation drawer, opened from the bottom-bar "Songs" affordance.
+    // A2: the settings sheet (reading mode / layers / role / day-night) opened from the ⚙ FAB.
+    var showSettings by remember { mutableStateOf(false) }
+    // A2: immersive chrome. The score is edge-to-edge on black; controls fade/slide in on a middle-tap
+    // and auto-hide after a timeout so performance is fullscreen. Starts revealed so the controls are
+    // discoverable on entry, then hides itself.
+    var chromeVisible by remember { mutableStateOf(true) }
+    // A15: song-jump navigation drawer, opened from the ☰ menu FAB.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    // Auto-hide the chrome while nothing modal is open; any re-reveal or opened surface restarts it.
+    val overlayOpen = drawerState.isOpen || showSettings || showLayers || showRole
+    LaunchedEffect(chromeVisible, overlayOpen) {
+        if (chromeVisible && !overlayOpen) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
+    }
     // A14: the continuous-scroll column's list state — the source of truth for the topmost page while
     // in SCROLL mode (pager label + page turns read/drive it). Unused in page/width modes.
     val scrollListState = rememberLazyListState()
@@ -237,13 +264,15 @@ private fun Performing(
                     }
                 },
         ) {
-        // Page area. Tap-thirds + horizontal swipe navigation in page/width modes; in scroll mode the
-        // LazyColumn owns the vertical gesture, so pointer navigation is disabled (turns come from
-        // keys/pedals/volume/buttons, which animate the scroll).
+        // A2: the page floats edge-to-edge on a BLACK canvas. Tap-thirds turn pages / the middle third
+        // toggles the chrome (stageTaps, all modes); horizontal swipe still turns in page/width modes;
+        // in scroll mode the LazyColumn owns the vertical drag (swipe disabled) and any tap toggles.
         Box(
             Modifier
                 .fillMaxSize()
-                .then(if (scrollMode) Modifier else Modifier.pointerNavigation(navKey = state.pageCount to twoUp, onPrev = turnPrev, onNext = turnNext)),
+                .background(Color.Black)
+                .stageTaps(state.pageCount to (twoUp to scrollMode), scrollMode, turnPrev, turnNext) { chromeVisible = !chromeVisible }
+                .then(if (scrollMode) Modifier else Modifier.pointerInputSwipe(state.pageCount to twoUp, turnPrev, turnNext)),
         ) {
             when {
                 scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
@@ -259,81 +288,150 @@ private fun Performing(
             }
         }
 
-        // Top overlays: the chrome bar, plus (A08) a footprint-stable setlist-metadata strip stacked
-        // beneath it on a song's first page. Both are overlays over the page area — when there's no
-        // metadata the strip doesn't render and the layout is pixel-identical to before (I12).
-        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
-            Surface(
-                Modifier.fillMaxWidth().statusBarsPadding(),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(onClick = onExit) { Text("Back") }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { vm.toggleFit(); onFitModeChange(vm.state.value.fitMode) }) {
-                        Text(when (state.fitMode) {
-                            FitMode.FIT_PAGE -> "Fit: page"
-                            FitMode.FIT_WIDTH -> "Fit: width"
-                            FitMode.SCROLL -> "Scroll"
-                        })
-                    }
-                    if (state.layers.isNotEmpty()) TextButton(onClick = { showLayers = true }) { Text("Layers") }
-                    TextButton(onClick = { showRole = true }) { Text("Role") }
-                    // P201/I13: transient rehearsal auto-update. On ⇒ the host polls + swaps in
-                    // new revs (viewport-preserving); resets when Stage is left.
-                    if (canAutoUpdate) TextButton(onClick = { vm.setAutoUpdate(!state.autoUpdate) }) {
-                        Text(if (state.autoUpdate) "● Live" else "Auto-update")
-                    }
-                    TextButton(onClick = { colorMode = colorMode.next(); onColorModeChange(colorMode) }) {
-                        Text(if (colorMode == StageColorMode.NIGHT) "Night" else "Day")
+        // A2: TOP chrome — ☰ song drawer · centered title+position card · [● Live] · ✕ exit. Fades and
+        // slides in on reveal; the A08 meta strip rides inside it (score stays clean when hidden). In
+        // scroll mode the strip is inline in the column (ScrollReader), so it's omitted here.
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { -it },
+            exit = fadeOut(tween(250)) + slideOutVertically(tween(250)) { -it },
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    StageFab("☰") { scope.launch { drawerState.open() } }
+                    TitleCard(
+                        title = state.songs.getOrNull(state.currentSong)?.name ?: "",
+                        position = stagePositionLabel(state, topPage, twoUp),
+                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (canAutoUpdate) StageFab(if (state.autoUpdate) "●" else "○") { vm.setAutoUpdate(!state.autoUpdate) }
+                        // Settings lives in the TOP bar, not the bottom: MIUI's bottom gesture zone
+                        // intercepts taps flush to the screen bottom, making a bottom ⚙ hard to hit.
+                        StageFab("⚙") { showSettings = true }
+                        StageFab("✕", container = Color(0xCCB3261E)) { onExit() }
                     }
                 }
-            }
-            // A12: in two-up the strip is per-side (each half over its page's top); one-up is full-width.
-            // A14: in scroll mode the strip is inline in the column (rendered per song's first page by
-            // ScrollReader) — no floating overlay here.
-            when {
-                scrollMode -> {} // inline in the scrolling column
-                twoUp -> Row(Modifier.fillMaxWidth()) {
-                    Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], resetKey = it) } }
-                    Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], resetKey = it) } }
+                when {
+                    scrollMode -> {}
+                    twoUp -> Row(Modifier.fillMaxWidth()) {
+                        Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], resetKey = it) } }
+                        Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], resetKey = it) } }
+                    }
+                    else -> MetaStrip(page, resetKey = state.current)
                 }
-                else -> MetaStrip(page, resetKey = state.current)
             }
         }
 
-        // Bottom nav bar: pager + song picker (the spec's "thin bottom bar").
-        Surface(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding(),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        // A2: BOTTOM chrome — ‹ previous · ⚙ settings · next › (big round FABs).
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { it },
+            exit = fadeOut(tween(250)) + slideOutVertically(tween(250)) { it },
+            modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // ‹ › page-turn FABs at the thumb corners (reference-app). Extra bottom clearance keeps
+                // them above MIUI's bottom gesture zone as much as possible; page turns also work via
+                // edge-tap/swipe/pedals, so these are a convenience, not the only path.
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 48.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = turnPrev) { Text("‹") }
-                Text(
-                    // A14: in scroll mode the pager tracks the topmost visible page (single-column).
-                    pagerLabel(topPage, state.pageCount, twoUp),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                TextButton(onClick = turnNext) { Text("›") }
-                Spacer(Modifier.weight(1f))
-                // A15: promote the old dropdown to the modal song drawer (opened from the same spot).
-                TextButton(onClick = { scope.launch { drawerState.open() } }) { Text("Songs") }
+                StageFab("‹", size = 64.dp) { turnPrev() }
+                StageFab("›", size = 64.dp) { turnNext() }
             }
         }
         }
     }
     } // ModalNavigationDrawer
 
+    if (showSettings) SettingsSheet(
+        state = state,
+        colorMode = colorMode,
+        onFitMode = { vm.setFitMode(it); onFitModeChange(it) },
+        onLayers = { showSettings = false; showLayers = true },
+        onRole = { showSettings = false; showRole = true },
+        onToggleColor = { colorMode = colorMode.next(); onColorModeChange(colorMode) },
+        onDismiss = { showSettings = false },
+    )
     if (showLayers) LayersDialog(state, vm) { showLayers = false }
     if (showRole) RoleDialog(state, vm) { showRole = false }
+}
+
+/** A2 — a round translucent Stage control (reference-app look): a glyph on a dark disc, white text. */
+@Composable
+private fun StageFab(glyph: String, size: Dp = 56.dp, container: Color = Color(0xC0000000), onClick: () -> Unit) {
+    FloatingActionButton(
+        onClick = onClick,
+        containerColor = container,
+        contentColor = Color.White,
+        modifier = Modifier.size(size),
+    ) { Text(glyph, style = MaterialTheme.typography.headlineSmall) }
+}
+
+/** A2 — the centered translucent song-title + position card (reference-app look). */
+@Composable
+private fun TitleCard(title: String, position: String, modifier: Modifier = Modifier) {
+    if (title.isEmpty() && position.isEmpty()) { Spacer(modifier); return }
+    Surface(modifier, color = Color(0xC0000000), shape = MaterialTheme.shapes.medium) {
+        Column(
+            Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (title.isNotEmpty()) Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (position.isNotEmpty()) Text(position, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+        }
+    }
+}
+
+/** "Song 2/4  ·  3–4/12" — the title card's position line (A2). Song part omitted when there are none. */
+private fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean): String {
+    val pages = pagerLabel(topPage, state.pageCount, twoUp)
+    val i = state.currentSong
+    return if (i >= 0 && state.songs.isNotEmpty()) "Song ${i + 1}/${state.songs.size}  ·  $pages" else pages
+}
+
+/**
+ * A2 (Q2) — the Stage settings sheet: the reading-mode segmented control (Page | Width | Scroll) plus
+ * the setup-time controls (layers, role, day/night) that used to clutter the top bar. Opened from the
+ * ⚙ FAB; auto-hide pauses while it's up. Layers/Role open their existing dialogs (A1 will refine them).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsSheet(
+    state: StageState,
+    colorMode: StageColorMode,
+    onFitMode: (FitMode) -> Unit,
+    onLayers: () -> Unit,
+    onRole: () -> Unit,
+    onToggleColor: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState()) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text("Reading mode", style = MaterialTheme.typography.titleSmall)
+            val modes = listOf(FitMode.FIT_PAGE to "Page", FitMode.FIT_WIDTH to "Width", FitMode.SCROLL to "Scroll")
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                modes.forEachIndexed { i, (mode, label) ->
+                    SegmentedButton(
+                        selected = state.fitMode == mode,
+                        onClick = { onFitMode(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                    ) { Text(label) }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (state.layers.isNotEmpty()) OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Layers") }
+                OutlinedButton(onClick = onRole, modifier = Modifier.weight(1f)) { Text(if (state.role.isEmpty()) "Role" else "Role: ${state.role}") }
+                OutlinedButton(onClick = onToggleColor, modifier = Modifier.weight(1f)) { Text(if (colorMode == StageColorMode.NIGHT) "Night" else "Day") }
+            }
+        }
+    }
 }
 
 /**
@@ -665,18 +763,26 @@ private fun RoleDialog(state: StageState, vm: StageViewModel, onDismiss: () -> U
     )
 }
 
-/** Tap the left/right third = previous/next; horizontal swipe does the same. */
-private fun Modifier.pointerNavigation(navKey: Any, onPrev: () -> Unit, onNext: () -> Unit): Modifier = this
-    .pointerInputTap(navKey, onPrev, onNext)
-    .pointerInputSwipe(navKey, onPrev, onNext)
-
-private fun Modifier.pointerInputTap(key: Any, onPrev: () -> Unit, onNext: () -> Unit): Modifier =
-    pointerInput(key) {
-        detectTapGestures { offset ->
-            val third = size.width / 3f
-            if (offset.x < third) onPrev() else if (offset.x > third * 2f) onNext()
+/**
+ * A2 — page-area taps: edge thirds turn pages (A04, verbatim), the middle third toggles the chrome;
+ * in scroll mode any tap toggles. The split is the pure [tapAction]. (Horizontal swipe still turns via
+ * [pointerInputSwipe] in page/width modes.)
+ */
+private fun Modifier.stageTaps(
+    key: Any,
+    scrollMode: Boolean,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onToggleChrome: () -> Unit,
+): Modifier = pointerInput(key) {
+    detectTapGestures { offset ->
+        when (tapAction(offset.x, size.width.toFloat(), scrollMode)) {
+            TapAction.PREV -> onPrev()
+            TapAction.NEXT -> onNext()
+            TapAction.TOGGLE_CHROME -> onToggleChrome()
         }
     }
+}
 
 private fun Modifier.pointerInputSwipe(key: Any, onPrev: () -> Unit, onNext: () -> Unit): Modifier =
     pointerInput(key) {

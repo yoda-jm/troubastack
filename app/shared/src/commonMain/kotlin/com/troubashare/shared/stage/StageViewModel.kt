@@ -32,6 +32,9 @@ class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitM
     /** Cycle the reading mode: page → width → scroll → page (A14). */
     fun toggleFit() = _state.update { s -> s.copy(fitMode = nextFitMode(s.fitMode)) }
 
+    /** Set the reading mode directly (A2 segmented control: Page | Width | Scroll). */
+    fun setFitMode(mode: FitMode) = _state.update { s -> s.copy(fitMode = mode) }
+
     /** Show/hide a layer. A mandatory layer cannot be hidden (I12) — the request is ignored. */
     fun setLayerVisible(layerId: String, visible: Boolean) = _state.update { s ->
         val layer = s.layers.find { it.layerId == layerId } ?: return@update s
