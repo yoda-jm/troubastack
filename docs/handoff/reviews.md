@@ -6578,6 +6578,18 @@ the AUTHORITY convention; loader-side additive test app-side when consuming.
 Sequencing: (a) lands app-side immediately; T53 whenever web-core picks it up; the
 app name-display rides after T53's bundles exist. Gate each as usual.
 
+## 2026-07-17 — A24 GATE REVIEW (`6eab904`): GO TO LAND
+
+N10(a) delivered exactly: `songLayers` derives the CURRENT song's layers from its
+own pages' overlays (display-only — the per-song visibility map and toggle
+semantics untouched, verified in the diff), `layerLabel` prettifies role-tags with
+id fallback, both unit-tested. Pixel-verified: "Layers — Wonderwall" lists its 5
+(down from the concert-wide 14), Conductor (required) + Guitar prettified; the
+remaining hashed names are T53's half by design. `:shared:check` green (my run).
+
+GO — land citing this verdict. When T53's name-carrying bundles land, the app's
+fallback chain picks names up with no further app change beyond reading the field.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
