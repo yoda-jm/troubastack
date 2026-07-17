@@ -46,6 +46,7 @@ export function EditCanvas({
   page,
   tool,
   style,
+  iconGlyph,
   drawLocked,
   objects,
   layersById,
@@ -70,6 +71,9 @@ export function EditCanvas({
   page: number;
   tool: Tool;
   style: AnnotationStyle;
+  // T51: the glyph id the Icon tool will stamp — carried into the WET preview so the
+  // chosen glyph shows mid-drag (not the `note` fallback).
+  iconGlyph: string;
   drawLocked: boolean;
   objects: AnnotationObject[];
   layersById: Map<string, AnnotationLayer>;
@@ -265,14 +269,14 @@ export function EditCanvas({
 
     const g = gestureRef.current;
     if (g?.mode === "draw" && g.path.length > 0 && tool !== "select") {
-      const wet = buildWet(tool as DrawTool, g.path, style);
+      const wet = buildWet(tool as DrawTool, g.path, style, tool === "icon" ? iconGlyph : "");
       if (wet) renderObjects(ctx, [toInkObject(wet) as InkObject], box);
     } else if (g?.mode === "move" || g?.mode === "resize") {
       renderObjects(ctx, [toInkObject(g.preview) as InkObject], box);
     } else if (g?.mode === "multi-move") {
       renderObjects(ctx, g.items.map((it) => toInkObject(it.preview) as InkObject), box);
     }
-  }, [tool, style, getWetCtx]);
+  }, [tool, style, iconGlyph, getWetCtx]);
 
   // Incremental freehand wet render (T06). Blits the cached prefix outline and
   // re-strokes only the short live tail, so per-frame cost stays bounded as the

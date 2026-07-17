@@ -103,6 +103,10 @@ export function buildWet(
   tool: DrawTool,
   path: PRPoint[],
   style: AnnotationStyle,
+  // T51: per-type content for the WET preview — the icon tool needs its glyph id here
+  // so the preview renders the chosen glyph mid-drag (else drawIcon falls back to
+  // `note`, the eighth-note flag VLL saw). Empty for tools that ignore `text`.
+  text = "",
 ): AnnotationObject | null {
   if (path.length === 0) return null;
   return {
@@ -111,7 +115,7 @@ export function buildWet(
     type: tool as AnnotationObject["type"],
     points: pointsForTool(tool, path),
     page: 0,
-    text: "",
+    text,
     order: 0, // transient preview; z-order/createdAt are irrelevant for the wet layer
     createdAt: 0,
     style,

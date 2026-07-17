@@ -988,6 +988,7 @@ export function Viewer({
                   page={i}
                   tool={tool}
                   style={style}
+                  iconGlyph={activeGlyph}
                   drawLocked={focusLocked || offline}
                   objects={objectsForFile}
                   layersById={layersById}
@@ -1030,6 +1031,7 @@ export function Viewer({
                 page={0}
                 tool={tool}
                 style={style}
+                iconGlyph={activeGlyph}
                 drawLocked={focusLocked || offline}
                 objects={objectsForFile}
                 layersById={layersById}
