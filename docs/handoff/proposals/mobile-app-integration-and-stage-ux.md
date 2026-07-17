@@ -300,3 +300,41 @@ Recommendation: **(a)**. It's a contained change to the already-pure/tested faci
 keeps every input on the one `turnTarget` funnel, and makes two-up honour the song unit like
 scroll (N2) does. Would gate the diff + a landscape device screenshot (a boundary spread now
 shows song N solo, song N+1 starting fresh). **Ruling?** (Tagging N6.)
+
+---
+
+## Addendum 6 (2026-07-17) — ❓ DESIGN REVIEW REQUEST: end-of-bounds nav feedback (N7?)
+
+Device QA (VLL, Redmi): *"last page of the landscape has a dummy swipe that works but displays
+the same page, feels like a bug … same for first page."* At the first/last page (one-up) and
+first/last spread (two-up), a turn is correctly CLAMPED to a no-op — but with NO feedback the
+same page just redraws, so a real swipe reads as broken. Needs a cue that says "you're at the
+boundary, nothing further this way." Correct behavior, missing affordance.
+
+VLL specified the cue they want (verbatim intent across two follow-ups): **a large icon in the
+CENTER of the display, BIGGER than the nav icons (~2×), semitransparent, shown for a fixed time
+then fades — the SAME transient-overlay layer as the N1 song-boundary card.** So this is one
+overlay surface reused: N1 flashes the title/position card on a cross-song advance; N7 flashes a
+big center "end/start" glyph on a blocked (no-op) turn.
+
+Design (mobile-lane, per VLL's spec):
+- **Trigger:** fire ONLY when a turn is a genuine no-op — the shared `turnTarget`/`goToPage`
+  result equals the current page (already clamped). Mid-concert turns never flash. Direction-
+  aware: blocked NEXT at the very last page → "end of setlist" cue; blocked PREV at the very
+  first page → "start of setlist" cue. (In scroll mode the column already rubber-bands natively;
+  scope this to page/width where the no-op is invisible.)
+- **Presentation:** reuse the N1 cue's `AnimatedVisibility` center overlay (clock-injectable
+  timeout, ~800ms–1s), rendering a big semitransparent glyph ~2× the FAB size — e.g. a barrier /
+  "⇥"-style end marker (direction-aware), optionally a one-line "End of setlist" / "Start of
+  setlist" label. No new nav entry point; presentation only.
+- **Testability:** the no-op detection is pure (`isEndOfConcert`/`isStartOfConcert` on
+  `turnTarget`), unit-tested; the flash timeout reuses the `autoHideChrome` seam like N1/A17.
+
+Alternative considered: an edge rubber-band bounce (the page nudges + springs back, reusing N4).
+Cheaper and iconless, but VLL explicitly prefers the center flash, so leading with that.
+
+Recommendation: **build VLL's center-flash cue** as above (one shared overlay layer with N1).
+Would gate the diff + a device screenshot (blocked swipe at the last page shows the cue).
+**Ruling?** (Tagging N7. Also: N5 — the FAB contrast fix — is coded and pending an on-device
+constant-tune; should it still land independently, or do you want to fold nav visibility into
+this center-cue direction? Your call.)
