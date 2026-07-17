@@ -4,6 +4,7 @@ import com.troubashare.shared.bundle.BakedSong
 import com.troubashare.shared.bundle.ConcertBundle
 import com.troubashare.shared.bundle.LoadResult
 import com.troubashare.shared.bundle.PageImages
+import com.troubashare.shared.bundle.SongCue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -19,11 +20,21 @@ class SongDrawerTest {
         return r.state.value
     }
 
-    private fun song(pages: Int, key: String = "", tempo: Int = 0, notes: String = "", title: String = "", onCall: Boolean = false) = BakedSong(
+    private fun song(pages: Int, key: String = "", tempo: Int = 0, notes: String = "", title: String = "", onCall: Boolean = false, cues: List<SongCue> = emptyList()) = BakedSong(
         songId = "s",
         pages = (1..pages).map { PageImages(pageRasterRef = "p$it.png") },
-        key = key, tempo = tempo, displayNotes = notes, title = title, onCall = onCall,
+        key = key, tempo = tempo, displayNotes = notes, title = title, onCall = onCall, cues = cues,
     )
+
+    @Test
+    fun cues_flowFromBundleToSongInfo_inOrder_defaultEmpty() {
+        // A20: the baked-for member's cues ride BakedSong.cues → SongInfo.cues (bake order preserved);
+        // a song with none defaults to empty (additive field, old bundles omit it).
+        val cues = listOf(SongCue("mic"), SongCue("guitar-electric", "#ff0000"))
+        val s = state(song(2, cues = cues), song(1))
+        assertEquals(cues, s.songs[0].cues)
+        assertEquals(emptyList(), s.songs[1].cues)
+    }
 
     @Test
     fun songName_usesBakedTitle_elseFallsBackToSongN() {

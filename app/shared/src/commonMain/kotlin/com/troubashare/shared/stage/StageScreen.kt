@@ -4,6 +4,7 @@
 // a Result and is treated as "maybe a placeholder", so a bad image never crashes the performance.
 package com.troubashare.shared.stage
 
+import com.troubashare.shared.bundle.SongCue
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -465,20 +466,27 @@ private fun Performing(
             }
         }
 
-        // N1: the song-boundary cue — the title/position card ALONE (no FABs, no meta strip), flashed
-        // for ~2s on a cross-song advance so continuous advance still announces the new song. Suppressed
-        // while full chrome is up (which already shows the card), so the two never stack.
+        // N1 + A20: the song-entry cue — ONE overlay, ONE timeout. The title/position card flashes at
+        // top (N1, so continuous advance announces the new song), and when the entered song has personal
+        // cues (A20) they flash LARGE in the center ("mic + red guitar" = what to prepare). Suppressed
+        // while full chrome is up (which already shows the title), so they never stack. No cues → just
+        // the N1 card, unchanged.
         AnimatedVisibility(
             visible = boundaryCueVisible && !chromeVisible,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(400)),
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier.fillMaxSize(),
         ) {
-            Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
-                TitleCard(
-                    title = state.songs.getOrNull(state.currentSong)?.name ?: "",
-                    position = stagePositionLabel(state, topPage, twoUp),
-                )
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
+                    TitleCard(
+                        title = state.songs.getOrNull(state.currentSong)?.name ?: "",
+                        position = stagePositionLabel(state, topPage, twoUp),
+                    )
+                }
+                state.songs.getOrNull(state.currentSong)?.cues?.takeIf { it.isNotEmpty() }?.let { cues ->
+                    CueFlashCard(cues, Modifier.align(Alignment.Center))
+                }
             }
         }
 
@@ -590,6 +598,22 @@ private fun BlockedTurnGlyph(forward: Boolean) {
     }
 }
 
+/** A20 — the song-entry cue flash: the member's cues LARGE + tinted on a translucent dark card, so
+ *  "what to prepare" reads over any score. Untinted cues render white (readable in day + night, like
+ *  the chrome). Rides the N1 overlay (one visibility, one timeout). */
+@Composable
+private fun CueFlashCard(cues: List<SongCue>, modifier: Modifier = Modifier) {
+    Surface(modifier, color = Color(0xCC000000), shape = MaterialTheme.shapes.large) {
+        Row(
+            Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            cues.forEach { cue -> CueGlyphIcon(cue.icon, parseCueColor(cue.color, Color.White), size = 56.dp) }
+        }
+    }
+}
+
 /** "Song 2/4  ·  3–4/12" — the title card's position line (A2). Song part omitted when there are none. */
 private fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean): String {
     val pages = pagerLabel(topPage, state.pageCount, twoUp, state.songs.map { it.firstPage })
@@ -677,12 +701,22 @@ private fun SongDrawerSheet(state: StageState, onJump: (Int) -> Unit) {
 @Composable
 private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int) -> Unit) {
     val meta = songMetaLine(state, i)
+    val neutral = MaterialTheme.colorScheme.onSurfaceVariant
     NavigationDrawerItem(
         selected = i == state.currentSong,
         label = {
             Column {
                 Text(s.name, style = MaterialTheme.typography.titleMedium)
                 if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium)
+            }
+        },
+        // A20: the member's tinted cue icons for this song, right-aligned — the glanceable "what's
+        // coming" list. Absent when the member has no cues on the song.
+        badge = if (s.cues.isEmpty()) null else {
+            {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    s.cues.forEach { cue -> CueGlyphIcon(cue.icon, parseCueColor(cue.color, neutral), size = 22.dp) }
+                }
             }
         },
         onClick = { onJump(i) },

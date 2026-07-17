@@ -5,9 +5,10 @@ import kotlinx.coroutines.delay
 /** How long the revealed Stage chrome stays up before auto-hiding (A2/Q2). */
 const val CHROME_AUTO_HIDE_MS = 4000L
 
-/** How long the N1 song-boundary cue (the title/position card ALONE, not full chrome) stays up after a
- *  cross-song advance, so continuous advance still announces "now in the next song". */
-const val BOUNDARY_CUE_MS = 2000L
+/** How long the N1 song-boundary cue (title/position card, + A20 big cue icons when the entered song
+ *  has cues) stays up after a song entry, so continuous advance announces "now in the next song" and
+ *  flashes what to prepare. ~2.5s per the A20 spec. */
+const val BOUNDARY_CUE_MS = 2500L
 
 /** How long the N7 end-of-bounds cue (a big center glyph) flashes when a turn is blocked at the
  *  concert edge, so a dead swipe reads as "you're at the start/end", not a broken turn. Shorter than

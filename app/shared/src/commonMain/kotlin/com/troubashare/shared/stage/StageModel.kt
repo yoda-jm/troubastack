@@ -8,6 +8,7 @@ import com.troubashare.shared.bundle.BundleIssue
 import com.troubashare.shared.bundle.ConcertBundle
 import com.troubashare.shared.bundle.LayerImage
 import com.troubashare.shared.bundle.LoadResult
+import com.troubashare.shared.bundle.SongCue
 
 /**
  * The reading mode, cycled on the single Stage toggle (A14). FIT_PAGE shows the whole page (and is
@@ -94,7 +95,15 @@ data class StagePage(
  * A song entry for the picker: jumps to the song's first global page. [onCall] marks a bench/encore
  * song (T23) — baked and jumpable but outside the running order; the drawer groups these separately.
  */
-data class SongInfo(val songId: String, val name: String, val firstPage: Int, val onCall: Boolean = false)
+data class SongInfo(
+    val songId: String,
+    val name: String,
+    val firstPage: Int,
+    val onCall: Boolean = false,
+    // T50/A20: the baked-for member's personal cues for this song (icon + tint), in bake order. Shown
+    // in the A15 drawer row and flashed center on song entry. Empty when the member has none.
+    val cues: List<SongCue> = emptyList(),
+)
 
 /** A distinct layer aggregated across the bundle, for the Layers panel. */
 data class LayerInfo(val layerId: String, val mandatory: Boolean, val roleTag: String)
@@ -169,7 +178,7 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
     bundle.songs.forEachIndexed { songIdx, song ->
         // T26: the baked title names the song; empty/absent falls back to the "Song N" client default.
         val songName = song.title.ifBlank { "Song ${songIdx + 1}" }
-        songs.add(SongInfo(song.songId, songName, pages.size, onCall = song.onCall))
+        songs.add(SongInfo(song.songId, songName, pages.size, onCall = song.onCall, cues = song.cues))
         song.pages.forEachIndexed { pageIdx, page ->
             val rasterBad = blobKey(song.songId, pageIdx, page.pageRasterRef) in badRefs
             pages.add(

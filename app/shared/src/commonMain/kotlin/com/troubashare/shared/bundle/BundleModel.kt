@@ -56,6 +56,18 @@ data class BakedSong(
     // T26: the song's Title at bake time (a bundle is a snapshot; no rename propagation).
     // Additive/default-empty; empty/absent falls back to "Song N" client-side (proto title = 9).
     val title: String = "",                                                     // proto title
+    // T50/A20: the baked-for member's PERSONAL song cues (icon + tint). The per-member bake injects
+    // THAT member's cues; the shared bake carries none. Additive/default-empty (proto cues = 10) — old
+    // bundles omit it, an unknown icon id renders as the `note` fallback client-side.
+    val cues: List<SongCue> = emptyList(),                                      // proto cues
+)
+
+/** proto `troubastack.v1.SongCue` — one personal cue: a stable icon id + an optional "#rrggbb" tint
+ *  ("" = neutral). T50/A20. An unknown [icon] renders as the `note` fallback (never an error). */
+@Serializable
+data class SongCue(
+    val icon: String = "",   // proto icon (stable id from the curated set; unknown → `note`)
+    val color: String = "",  // proto color (optional "#rrggbb"; "" = neutral/untinted)
 )
 
 /** proto `troubastack.v1.ConcertBundle` — the self-contained, performable baked concert (I11/I12). */
