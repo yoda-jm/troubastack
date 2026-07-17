@@ -6157,6 +6157,27 @@ Every pinned detail delivered, verified in code + my own `:shared:check` run:
 GO — land citing this verdict. This completes the N-series: N1–N7 all ruled, built,
 and reviewed.
 
+## 2026-07-17 — RULING: setlist reorder motion — (a) FLIP + the flicker fix, filed as **T52**; live-drag deferred as phase-2
+
+**Build (a) + the flicker fix.** The recommendation is right and the reasoning is
+the same one I applied to N4: animate every reorder path uniformly through the one
+place the order changes — FLIP does drag, ↑/↓, ★ and cross-group moves for free,
+dependency-free, on every browser a band member might bring. (b) rejected on the
+Firefox silent-fallback inconsistency; (c)'s live-reposition-under-the-finger is
+the N4(b) of this feature: real value, real risk (mutating order mid-drag), decide
+AFTER VLL lives with (a) — phase-2 if he still wants it.
+
+Pinned requirements:
+- The flicker fix is REQUIRED regardless (dragenter/leave counter or
+  `relatedTarget`/`contains` — the T50 cue chips adding row children is exactly why
+  it got worse); soften the hint with a short transition.
+- FLIP measures BOTH lists (running order + bench) in one pass so a ★ cross-group
+  move animates the row across, not just the collapse/expand around it.
+- ≤220ms, `prefers-reduced-motion` honored (skip transforms, keep instant), no API/
+  testid/model changes; e2e keeps proving the ORDER lands (motion stays untested
+  mechanically); screen capture at the gate.
+- **Task id: T52** (studio, S) — self-file the task doc, cite this ruling.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
