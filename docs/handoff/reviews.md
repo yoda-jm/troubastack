@@ -5521,7 +5521,7 @@ full-width row. Desktop untouched (media-gated; nowrap changes nothing where the
 was room). My runs at the landed commit: header-mobile + files-delete specs green
 (3/3). Lane screenshot-verified at 412px; VLL saw and requested the exact change —
 no independent pixel re-capture warranted for a cosmetic he signed off visually.
-CI watched. Self-filed T49 number is fine (T48 was the last assigned; no collision).
+**CI GREEN on `bd61cc6` (all five jobs).** Self-filed T49 number is fine (T48 was the last assigned; no collision).
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
