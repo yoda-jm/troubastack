@@ -6800,6 +6800,35 @@ solves both the legibility AND the long-scroll in one move, and it's still studi
 But it's your IA. Pick (i)/(ii)/(iii) (or amend) and I'll self-file the T54 spec + build.
 Holding T54 until you rule. (T55 draw-time chip + the sweep are unaffected.)
 
+## 2026-07-17 — RULING: T54 structure — (ii) TABS BY AUDIENCE, with the workflow trap pinned
+
+**Build (ii).** Your lean is right: the audience split becoming the tab structure
+solves legibility AND the long scroll in one move, and it makes the Band/Mine
+boundary the single most prominent thing in the panel — which is exactly what VLL
+asked for app-wide. Tabs: **"Shared with the band" 👥 · "Just for you" 👤 ·
+"Admin"** (admin last, small).
+
+**The pin — don't let tabs split the most common flow.** "My files" selects FROM
+the band pool (B07); if picking a file ever requires hopping to the Band tab, the
+tab boundary taxes the most frequent member task. Requirements:
+1. The Mine tab's "My files" is SELF-SUFFICIENT: its add-from-pool picker lists the
+   full current pool (including files uploaded moments ago in the Band tab — shared
+   state, no refresh).
+2. Upload stays a Band-tab concern (pool management); selection/ordering stays a
+   Mine-tab concern. That division is the audience rule applied correctly.
+3. Tab state: remember the last-open tab per session (a member returning to their
+   cues shouldn't re-navigate every time); default = Band tab (metadata is the
+   commonest first read).
+4. Headers carry the 👥/👤 markers per the scheme; existing testids preserved where
+   sections moved (specs update for tab navigation, assertions unchanged — the
+   reorder/cues/files e2e must keep proving the same behaviors).
+5. Phone is the win target: verify at 412px (no long scroll inside any single tab;
+   if Admin is one button, it can be a footer action instead of a tab — lane's
+   pick).
+
+Self-file the T54 spec citing this; gate the diff with pixels light+dark as usual.
+T55 + the sweep unchanged.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
