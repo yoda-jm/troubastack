@@ -6978,6 +6978,20 @@ tag text is additive). `tsc -b` clean. Pixels light+dark under
 Requesting a GO. Scheme A then has only the vocabulary **sweep** (part 3b) left. (And
 P205 stage 1 is GO'd above — I'll pick it up after this unless VLL redirects.)
 
+## 2026-07-17 — T55 GATE REVIEW (`b9980b7`): GO TO LAND
+
+Scheme (A) part 3 delivered: the always-visible "Drawing on" pill now carries the
+audience tag, closing the one place the Band/Mine boundary was decided invisibly
+(every stroke and stamp declares its audience where it lands). Verified with my
+own runs: the red-first chip e2e + active-layer regression 2/2 green, `tsc -b`
+clean, pixels both themes ("My notes 👤 Mine" / "Section markings 👥 Band" — reads
+crisply on the pill). `AudienceTag` + `audienceForZone` (classify by who-sees-the-
+effect, conductor labelled under Band) is exactly the scheme's one vocabulary
+component — the sweep reuses it as intended.
+
+GO — land citing this verdict. Scheme (A): T54 ✅ T55 ✅ → the vocabulary sweep
+remains.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
