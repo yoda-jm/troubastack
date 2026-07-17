@@ -264,3 +264,37 @@ Options:
 Mobile-lane recommendation: **(a)** — a one-constant restyle that fixes contrast on both
 backgrounds without changing layout or the reference-app silhouette. Would gate the diff (and
 a device screenshot pair, black-canvas + white-page) as usual. **Ruling?** (Tagging N5.)
+
+---
+
+## Addendum 5 (2026-07-17) — ❓ DESIGN REVIEW REQUEST: two-up spreads straddle a song boundary (N6?)
+
+Device QA (VLL, Redmi Pad SE, landscape): *"landscape double page breaks song barrier."*
+Confirmed in code. A12 two-up pairs pages by GLOBAL index — `spreadFor(page)` aligns to
+even global indices, so `spreadPages` yields `[2k, 2k+1]` with no song awareness
+(`FacingPages.kt`). When a song has an odd page count, the boundary falls mid-spread and the
+spread shows **the last page of song N on the left and the FIRST page of song N+1 on the
+right** — two different songs facing each other. VLL reads that as wrong (and it fights the
+N1 boundary cue + the N2 per-song mental model we just blessed: a song should read as a unit).
+
+This changes blessed A12 pairing, so gating the design before touching it. Options:
+
+- **(a) Song-aligned spreads (mobile-lane recommendation).** Pairing RESTARTS at each song's
+  first page: within a song, pages pair `[first, first+1], [first+2, first+3] …`; a song with
+  an ODD page count shows its last page SOLO (right half blank); the next song ALWAYS begins a
+  fresh spread on the left. A spread never contains two songs. Matches book convention (a
+  chapter starts recto) and the N2 per-song model. Cost: the pure facing-pages logic
+  (`spreadFor`/`spreadPages`/`next|prevSpreadPage`/`pagerLabel`/`turnTarget`, all in
+  `FacingPages.kt` + FacingPagesTest) becomes song-aware (needs the song firstPages as input);
+  two-up swipe-crossing + the N1 cue interplay re-verified. Tradeoff: an odd-paged song leaves
+  one blank half-page before the next song — reading clarity for a little whitespace.
+- **(b) Keep global pairing, only SPLIT at a boundary.** Leave `[2k,2k+1]` pairing but when a
+  spread would straddle a boundary, render the earlier song's last page solo and start the next
+  song fresh. Converges to (a) in effect but with fiddlier off-by-one bookkeeping; (a) is cleaner.
+- **(c) Leave as-is** (spreads straddle songs). Rejected by the feedback, listed for completeness.
+- **(d) Your alternative.**
+
+Recommendation: **(a)**. It's a contained change to the already-pure/tested facing-pages logic,
+keeps every input on the one `turnTarget` funnel, and makes two-up honour the song unit like
+scroll (N2) does. Would gate the diff + a landscape device screenshot (a boundary spread now
+shows song N solo, song N+1 starting fresh). **Ruling?** (Tagging N6.)
