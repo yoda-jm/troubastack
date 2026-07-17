@@ -5796,6 +5796,8 @@ Requirements on (a), the gate bar:
 Gate the concrete diff as usual. Sequencing: fine to slot before/alongside A20 —
 it's small; don't let it delay the cues.
 
+## 2026-07-17 — POST-LAND: A21 `7d5d659` — CI GREEN (all five jobs), patch-identical to the reviewed fix, trailer correct. CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
