@@ -39,9 +39,25 @@ class LayersTest {
     }
 
     @Test
-    fun layerLabel_prettifiesRole_elseId() {
-        assertEquals("Conductor", layerLabel(LayerInfo("la2", mandatory = true, roleTag = "conductor")))
-        assertEquals("Guitar", layerLabel(LayerInfo("lb1", mandatory = false, roleTag = "guitar")))
-        assertEquals("la1", layerLabel(LayerInfo("la1", mandatory = false, roleTag = ""))) // untagged → id (interim, T53 names it)
+    fun songLayerLabels_prettifyRole_elseNumberUntagged() {
+        val s = state()
+        // Song "a": la1 untagged, la2=conductor. Named layers never consume a number; untagged get "Layer N".
+        assertEquals(listOf("Layer 1", "Conductor"), songLayerLabels(s, "a").map { it.second })
+        assertEquals(listOf("Guitar"), songLayerLabels(s, "b").map { it.second })
+    }
+
+    @Test
+    fun songLayerLabels_numberUntaggedInOrder_noHashLeaks() {
+        // Two untagged + one role: hashes must never appear; untagged number 1,2 across the named one.
+        val bundle = ConcertBundle(
+            concertId = "c",
+            songs = listOf(BakedSong(songId = "s", pages = listOf(PageImages(pageRasterRef = "s.png", overlays = listOf(
+                layer("L-86453186435184"),
+                layer("L-conductorhash", role = "conductor"),
+                layer("L-99deadbeef00"),
+            ))))),
+        )
+        val s = StageViewModel(LoadResult.Loaded(bundle, emptyList())).state.value
+        assertEquals(listOf("Layer 1", "Conductor", "Layer 2"), songLayerLabels(s, "s").map { it.second })
     }
 }

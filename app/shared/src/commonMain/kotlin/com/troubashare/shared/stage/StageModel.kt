@@ -266,9 +266,18 @@ internal fun songLayers(state: StageState, songId: String): List<LayerInfo> {
 }
 
 /**
- * N10 — the human label for a layer in the dialog. Until the bundle carries a real name (T53 adds
- * LayerImage.name to the bake), fall back to a prettified role tag ("conductor" → "Conductor"), then
- * the raw id for untagged layers. Pure. (T53 will prepend the real name to this chain.)
+ * N10 — the human labels for a song's layers in the dialog. Until the bundle carries a real name
+ * (T53 adds LayerImage.name to the bake), fall back to a prettified role tag ("conductor" →
+ * "Conductor"); an untagged layer has no name at all, so rather than exposing its raw id (a hash
+ * like "L-86453186435184" reads as an internal id / "strange" — VLL) we number them "Layer N" in
+ * list order. Numbering is per untagged-layer so a named layer never consumes a number. Pure.
+ * (T53 will prepend the real name to the role→number chain.)
  */
-internal fun layerLabel(layer: LayerInfo): String =
-    if (layer.roleTag.isNotEmpty()) layer.roleTag.replaceFirstChar { it.uppercase() } else layer.layerId
+internal fun songLayerLabels(state: StageState, songId: String): List<Pair<LayerInfo, String>> {
+    var n = 0
+    return songLayers(state, songId).map { layer ->
+        val label = if (layer.roleTag.isNotEmpty()) layer.roleTag.replaceFirstChar { it.uppercase() }
+                    else "Layer ${++n}"
+        layer to label
+    }
+}

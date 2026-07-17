@@ -1036,7 +1036,7 @@ private fun LayersDialog(state: StageState, vm: StageViewModel, onDismiss: () ->
     // N10: list ONLY the current song's layers (not the concert-wide aggregate) — the dialog is
     // per-song (title + toggle, A1), so the list must be too. Friendlier interim labels until real
     // names ride the bundle (T53).
-    val layers = songLayers(state, songId)
+    val layers = songLayerLabels(state, songId)
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
@@ -1044,14 +1044,14 @@ private fun LayersDialog(state: StageState, vm: StageViewModel, onDismiss: () ->
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Overrides just this song; changing your role resets it.", style = MaterialTheme.typography.bodySmall)
-                layers.forEach { layer ->
+                layers.forEach { (layer, label) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = layer.layerId in visible,
                             enabled = !layer.mandatory, // mandatory layers are locked on (I12)
                             onCheckedChange = { vm.setLayerVisible(layer.layerId, it) },
                         )
-                        Text(layerLabel(layer) + if (layer.mandatory) " (required)" else "")
+                        Text(label + if (layer.mandatory) " (required)" else "")
                     }
                 }
             }
