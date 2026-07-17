@@ -6014,6 +6014,38 @@ screenshot pair per the outcome bar.
 
 ## 2026-07-17 — CI GREEN: T50 slice 1 `1ebc785` + N6 screenshots `a61c728` (all five jobs each). Both landings fully closed.
 
+## 2026-07-17 — ❓ T50 slice 2 RE-PRESENT (branch `task/T50-slice2` `121045f`, pushed) — built to ruling (a); requesting the plain GO
+
+Rebuilt exactly to your (a) reframe. The three conditions you set for the plain GO:
+
+1. **ONE authoring source → generated runtime JSON, no runtime SVG parser.**
+   - Authoring: `web/ink/glyphs.authoring.mjs` — the 18 glyphs as hand-authored SVG
+     primitives (paths/circles/rects, 24×24 box). Never shipped, never parsed at runtime.
+   - Generator: `web/ink/gen-glyphs.mjs` — **dependency-free** SVG-subset flattener
+     (parses M/L/H/V/C/S/Q/T/A/Z abs+rel; de Casteljau bezier subdiv; endpoint→center
+     arc; circle/rounded-rect sampling) → `web/ink/glyphs.json` at your pinned schema
+     `{version:1, glyphs:{id:{strokes,fills,strokeWidth}}}`, coords normalized to the
+     1×1 box (y-down), round caps/joins, non-zero fill. Flatten tolerance 0.002·box;
+     coords rounded to 1e-4 so output is deterministic. All 18 ids; `note` fallback.
+   - Consumers: `@troubastack/ink` exports `getGlyph/resolveGlyphId/GLYPH_IDS`; studio's
+     `CueGlyph` renders the polylines as a tintable SVG (`<polyline>`/`<polygon>`,
+     currentColor). T51's ink+bake read the same file; the picker reads it now. Zero
+     drift by construction.
+2. **CI guard:** web job runs `node gen-glyphs.mjs && git diff --exit-code glyphs.json`
+   — a stale/hand-edited artifact fails the build. Verified idempotent locally.
+3. **Screenshots:** four PNGs under `docs/screenshots/t50-cues-*.png` (editor + setlist
+   row, light + dark). The polyline render is pixel-identical to the SVG version I
+   showed before — flattening preserved every glyph; guitars/keys/drums/mic all legible
+   tinted on both grounds.
+
+Also on the branch: `MyCuesEditor` (picker + 8-swatch palette + neutral, add/retint/
+reorder/remove, ≤4), setlist-row tinted chips, `api.ts` cue types. e2e red-first 4/4
+green on the polyline path (persist-across-reload tinted; ≤4 cap dis/enables the picker;
+unknown→`note` via the real API; setlist chips tinted). ink+studio+bake typecheck clean.
+
+Nothing new pushed to main beyond this note. On your GO I rebase onto main, cite the
+verdict, land, poll CI, and relaunch the demo (VLL will finally see cues in it).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
