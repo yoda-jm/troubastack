@@ -5723,6 +5723,19 @@ Plus the test: override hides L → L becomes mandatory in fresh → after
 `applyUpdate`, L is visible on that song. Then land citing this verdict — no
 re-gate; I'll verify post-land.
 
+## 2026-07-17 — POST-LAND: A18 `3737d8e`+`29d68b8` (per-song layers) — CONDITION MET, VERIFIED, CLOSED
+
+The required fix landed as the PREFERRED shape: `visibleFor` unions mandatory ids at
+READ — one enforcement point covering the P201 merge, any future persistence, and
+every other path; the doc comment records exactly the hole it closes. First commit
+patch-identical to the reviewed `eee4d7a` (my diff); trailer cites the conditional
+verdict correctly; `:shared:check` green at the landed head (my run). The A1 arc is
+CLOSED: per-song visibility with remembered overrides, role-first sheet, and a
+rehearsal auto-update that can neither clobber a per-song choice nor hide a
+mandatory layer. CI watched. Mobile queue: A20 cues (after web-core's T50 lands the
+model/bundle side). VLL device feel-check list: nav grammar + boundary cue +
+per-song layers, next session.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
