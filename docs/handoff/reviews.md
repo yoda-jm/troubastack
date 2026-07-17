@@ -6711,6 +6711,8 @@ Go side only needed type mapping. Spec updated by this entry.
 GO — land citing this verdict (with the one doc line). The cue/stamp asset story
 is now complete: one glyph source feeding picker, stamps, bake, and app.
 
+## 2026-07-17 — POST-LAND: T51 `6577031` — landed per the GO with the required doc line delivered (01-data-model.md: `type=icon` → `text` carries the glyph id, note fallback). Delta vs reviewed tip = the T53 rebase + that doc line only. Trailer correct. CI watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
