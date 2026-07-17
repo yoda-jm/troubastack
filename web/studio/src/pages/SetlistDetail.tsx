@@ -5,7 +5,7 @@
  * running-order list whose per-song overrides open in an inline editor, and a
  * distinct "Bench (on call)" section (T23).
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ApiError,
@@ -406,6 +406,49 @@ function SetlistMeta({
   );
 }
 
+// T52 — FLIP reorder motion. Rows register their element by id into ONE map (both the
+// running-order and bench lists), so on each commit we measure every tracked row, and
+// for any that moved we apply the inverse translate then transition it to zero — drag,
+// ↑/↓, and ★ cross-group moves all animate uniformly, dependency-free, on every
+// browser. `prefers-reduced-motion` skips the transforms (instant, as before).
+const FLIP_MS = 200;
+function useFlipRows(dep: unknown): (id: string, el: HTMLElement | null) => void {
+  const els = useRef(new Map<string, HTMLElement>());
+  const prev = useRef(new Map<string, DOMRect>());
+  const register = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) els.current.set(id, el);
+    else els.current.delete(id);
+  }, []);
+  useLayoutEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const next = new Map<string, DOMRect>();
+    els.current.forEach((el, id) => next.set(id, el.getBoundingClientRect()));
+    if (!reduce) {
+      next.forEach((r, id) => {
+        const p = prev.current.get(id);
+        if (!p) return; // newly mounted row — nothing to animate from
+        const dx = p.left - r.left;
+        const dy = p.top - r.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        const el = els.current.get(id);
+        if (!el) return;
+        // Invert: jump back to the old position with no transition…
+        el.style.transition = "none";
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        el.getBoundingClientRect(); // force reflow so the jump is applied before playing
+        // …then play forward to the natural position.
+        requestAnimationFrame(() => {
+          el.style.transition = `transform ${FLIP_MS}ms ease`;
+          el.style.transform = "";
+        });
+      });
+    }
+    prev.current = next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dep]);
+  return register;
+}
+
 function Items({
   bandId,
   setlistId,
@@ -422,6 +465,8 @@ function Items({
   const [songId, setSongId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // FLIP over the current item order (re-measures whenever the list changes).
+  const registerRow = useFlipRows(items.map((it) => `${it.id}:${it.onCall ? "b" : "m"}`).join(","));
 
   async function addSong(e: FormEvent) {
     e.preventDefault();
@@ -555,6 +600,7 @@ function Items({
               index={i}
               count={main.length}
               cues={cuesBySong.get(item.songId)}
+              registerRef={registerRow}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
@@ -591,6 +637,7 @@ function Items({
               index={i}
               count={bench.length}
               cues={cuesBySong.get(item.songId)}
+              registerRef={registerRow}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
@@ -646,6 +693,7 @@ function ItemRow({
   onDropRow,
   canDrop,
   reload,
+  registerRef,
 }: {
   group: "main" | "bench";
   label: string;
@@ -662,6 +710,7 @@ function ItemRow({
   onDropRow: (group: "main" | "bench", index: number) => void | Promise<void>;
   canDrop: (group: "main" | "bench") => boolean;
   reload: () => Promise<void>;
+  registerRef: (id: string, el: HTMLElement | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -700,6 +749,7 @@ function ItemRow({
 
   return (
     <div
+      ref={(el) => registerRef(item.id, el)}
       className={`row${editing ? " editing" : ""}${dragOver ? " drag-over" : ""}`}
       data-testid={group === "bench" ? "bench-row" : "item-row"}
       onDragOver={(e) => {
@@ -708,7 +758,12 @@ function ItemRow({
         e.dataTransfer.dropEffect = "move";
         setDragOver(true);
       }}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={(e) => {
+        // Only clear when the pointer truly leaves the row — dragleave also fires when
+        // it crosses a CHILD (grip, buttons, cue chips) still inside the row, which
+        // made the blue hint flicker (T52).
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+      }}
       onDrop={(e) => {
         e.preventDefault();
         setDragOver(false);
