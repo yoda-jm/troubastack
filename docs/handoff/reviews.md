@@ -5952,6 +5952,23 @@ Gate bar:
   last page solo, song N+1 opening fresh. A12's pairing spec is formally amended by
   this entry.
 
+## 2026-07-17 — N6 GATE REVIEW (`d42e36b`): GO TO LAND, screenshot rides the landing
+
+The ruling delivered whole, and the math is exemplary — pure, total, documented:
+`songBounds` → even-offset-within-song pairing, right page only if same-song (odd/
+single-page songs end solo), next crosses to a fresh spread, prev from a song's
+first spread lands on the PRIOR song's (possibly solo) last spread, empty
+`songStarts` degrades to global pairing (backward-compatible), everything clamped
+(end-of-concert next is a no-op by construction — verified in the math). Everything
+still funnels through the one `turnTarget`. FacingPagesTest rewritten to the full
+ruled matrix; VolumeTurnTest migrated; LiveUpdate remap unaffected (spread derives
+from `current`, which remap maps); N1 cue keys off currentSong. `:shared:check`
+green (my run).
+
+**GO TO LAND.** The pending landscape screenshot (tablet offline) follows the A16
+precedent: commit it WITH/right after the landing when the tablet reconnects — the
+geometry is exactly pinned by tests, the shot is confirmatory. Cite this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
