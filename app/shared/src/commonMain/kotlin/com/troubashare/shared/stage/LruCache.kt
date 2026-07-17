@@ -11,11 +11,15 @@ package com.troubashare.shared.stage
  */
 internal class LruCache<K, V>(private val maxEntries: Int) {
     private val map = LinkedHashMap<K, V>()
-    // B1: keys that eviction must NOT drop — the on-screen page pins its raster+overlays so a re-decode
-    // can never evict the very entries it's about to reuse (which caused "same page, fewer annotations").
-    private var pinned: Set<K> = emptySet()
+    // B1: keys eviction must NOT drop — each displayed page (owner) pins its raster+overlays so a
+    // re-decode can never evict the very entries it's about to reuse (caused "same page, fewer
+    // annotations"). Keyed BY OWNER so multiple pages on screen at once (two-up, scroll) each keep
+    // their guarantee — eviction skips the UNION of all owners' pins.
+    private val pins = LinkedHashMap<Any, Set<K>>()
 
     val size: Int get() = map.size
+
+    private fun isPinned(key: K): Boolean = pins.values.any { key in it }
 
     /** Return the value and mark it most-recently-used; a miss leaves order untouched. */
     fun get(key: K): V? {
@@ -30,13 +34,18 @@ internal class LruCache<K, V>(private val maxEntries: Int) {
         map.remove(key)
         map[key] = value
         while (map.size > maxEntries) {
-            val victim = map.keys.firstOrNull { it !in pinned } ?: break // all remaining pinned → keep
+            val victim = map.keys.firstOrNull { !isPinned(it) } ?: break // all remaining pinned → keep
             map.remove(victim)
         }
     }
 
-    /** Protect [keys] from eviction (B1 — the currently-displayed page's entries). Replaces the set. */
-    fun pin(keys: Set<K>) {
-        pinned = keys
+    /** Protect [owner]'s [keys] from eviction (B1). Additive across owners; replaces THIS owner's set. */
+    fun pin(owner: Any, keys: Set<K>) {
+        pins[owner] = keys
+    }
+
+    /** Release [owner]'s pins (call when the page leaves composition). Others' pins stay. */
+    fun unpin(owner: Any) {
+        pins.remove(owner)
     }
 }

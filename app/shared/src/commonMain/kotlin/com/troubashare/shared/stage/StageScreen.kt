@@ -116,8 +116,11 @@ class PageImageCache(maxEntries: Int = 64) {
 
     fun put(key: String, bmp: ImageBitmap) = lru.put(key, bmp)
 
-    /** Protect the currently-displayed page's cache keys from eviction (B1). */
-    fun pin(keys: Set<String>) = lru.pin(keys)
+    /** Protect [owner]'s displayed-page cache keys from eviction (B1); additive across owners. */
+    fun pin(owner: Any, keys: Set<String>) = lru.pin(owner, keys)
+
+    /** Release [owner]'s pins when its page leaves composition (B1). */
+    fun unpin(owner: Any) = lru.unpin(owner)
 }
 
 private fun cacheKey(ref: String, w: Int, h: Int): String = "$ref@${w}x$h"
@@ -538,6 +541,10 @@ private fun ScrollPage(
         return
     }
     val overlayRefs = page.overlays.filter { it.layerId in visibleLayers }.map { it.imageRef }
+    // B1: each displayed page pins its own keys under a stable owner so several ScrollPages on screen
+    // at once don't clobber each other's pins; release on leave so off-screen pages can be evicted.
+    val owner = remember { Any() }
+    DisposableEffect(owner) { onDispose { cache.unpin(owner) } }
     // B1: retry a failed overlay decode on the next few frames (a failure isn't cached, so a re-decode
     // re-attempts); if it keeps failing we badge it — never silently show fewer annotations.
     var retryTick by remember(page.rasterRef, overlayRefs, widthPx) { mutableStateOf(0) }
@@ -548,7 +555,7 @@ private fun ScrollPage(
         value = withContext(Dispatchers.Default) {
             val raster = decodeCached(cache, page.rasterRef, widthPx, widthPx * 3, decoder)
             val ov = decodeOverlays(overlayRefs) { decodeCached(cache, it, widthPx, widthPx * 3, decoder) }
-            cache.pin(pageCacheKeys(page.rasterRef, overlayRefs, widthPx, widthPx * 3)) // eviction-proof this page
+            cache.pin(owner, pageCacheKeys(page.rasterRef, overlayRefs, widthPx, widthPx * 3)) // eviction-proof this page
             PageBitmaps(raster, ov.overlays, ov.missing)
         }
     }
@@ -594,6 +601,10 @@ private fun PageView(
         val hPx = with(density) { maxHeight.toPx().toInt() }
         val overlayRefs = page.overlays.filter { it.layerId in visibleLayers }.map { it.imageRef }
 
+        // B1: each displayed page pins under a stable owner (two-up composes two PageViews at once, so
+        // the right page must not unpin the left); release on leave so off-screen pages can be evicted.
+        val owner = remember { Any() }
+        DisposableEffect(owner) { onDispose { cache.unpin(owner) } }
         // B1: retry a failed overlay decode a few frames, then badge — never silently fewer annotations.
         var retryTick by remember(page.rasterRef, overlayRefs, wPx, hPx) { mutableStateOf(0) }
         val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, wPx, hPx, retryTick) {
@@ -602,7 +613,7 @@ private fun PageView(
             value = withContext(Dispatchers.Default) {
                 val raster = decodeCached(cache, page.rasterRef, wPx, hPx, decoder)
                 val ov = decodeOverlays(overlayRefs) { decodeCached(cache, it, wPx, hPx, decoder) }
-                cache.pin(pageCacheKeys(page.rasterRef, overlayRefs, wPx, hPx)) // eviction-proof this page
+                cache.pin(owner, pageCacheKeys(page.rasterRef, overlayRefs, wPx, hPx)) // eviction-proof this page
                 PageBitmaps(raster, ov.overlays, ov.missing)
             }
         }
