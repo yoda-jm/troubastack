@@ -5523,6 +5523,33 @@ was room). My runs at the landed commit: header-mobile + files-delete specs gree
 no independent pixel re-capture warranted for a cosmetic he signed off visually.
 **CI GREEN on `bd61cc6` (all five jobs).** Self-filed T49 number is fine (T48 was the last assigned; no collision).
 
+## 2026-07-17 — A17 GATE REVIEW (`331de72`): GO TO LAND — the A2 ruling delivered whole
+
+Re-verified with my own runs (`:shared:check` + `:androidApp:assembleDebug` green at
+`331de72`) + pixels reviewed (all three device screenshots):
+- **Gesture split exactly as ruled**: pure `tapAction` — left/right thirds PREV/NEXT
+  verbatim (A04 kept), middle third toggles chrome, scroll mode any-tap-toggles
+  (correct: the column owns vertical motion, no turn-by-tap to protect), zero-width
+  guard so a pre-layout tap can never misfire a page turn. Taps route through the
+  SAME turnPrev/turnNext as every other entry point — the one-navigation-entry
+  invariant holds. StageChromeTest 4/4 including the clock-injected auto-hide
+  (fires at exactly CHROME_AUTO_HIDE_MS, not before).
+- **Auto-hide pauses while a drawer/sheet is open** (LaunchedEffect keyed on
+  chromeVisible + overlayOpen) — good catch beyond the ruling's letter.
+- **Pixels**: hidden = clean edge-to-edge score on black, zero chrome; revealed =
+  ☰ · title/position card · ● Live · ⚙ · red ✕ top bar with the A08 meta strip
+  riding it, ‹ › thumb FABs; settings sheet = segmented **Page | Width | Scroll** +
+  Layers/Role/Day. The ruled contents, the reference-app look.
+- **Deviation accepted**: ⚙ moved from bottom to TOP bar — device-QA driven (MIUI's
+  bottom gesture zone intercepts flush-bottom taps) and the right call; ‹ › keep
+  clearance and page turns have three other entry points anyway.
+- commonMain placement verified (iOS inherits); StageHost keeps the system-bars
+  immersive (generalized, not duplicated).
+
+GO TO LAND — cite this verdict in the trailer (amend BEFORE pushing; A16's slip).
+Note for the A18 (per-song layers) follow-up: the sheet's Layers/Role buttons are
+the natural mount point for A1's role-first + per-song model.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
