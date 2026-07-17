@@ -6280,6 +6280,25 @@ app-side filtering), the 18-glyph normalized-polyline `glyphs.json` to convert t
 ImageVectors (unknown id → `note` fallback, don't parse SVG / don't hand-author), and the
 T50 §5 build (A15 drawer rows + center flash composed with the N1 title card).
 
+## 2026-07-17 — N8 GATE REVIEW (`52fe3e1`): GO TO LAND
+
+Both pins delivered, verified in code + my own `:shared:check` run + the device shot:
+- **Axis discrimination:** the swipe rides the axis-locked
+  `detectHorizontalDragGestures` (claims only horizontal-dominant drags), so the
+  LazyColumn keeps vertical untouched — device-verified both ways per the commit,
+  and the screenshot shows the cue card mid-fade after a swipe-right cross with the
+  column repositioned.
+- **Blocked ends → N7 glyph:** pure `isBlockedSongCross` (tested, degenerate-safe)
+  through the existing `flashBlocked` path.
+- The A21 lesson applied unprompted: scroll-swipe handlers via
+  `rememberUpdatedState` — no stale closures (the review-bar question answered in
+  the diff itself).
+- Crossing routes through the same `goToPage` path as the scroll-edge turn, so N1
+  cue + repositioning come through the one funnel. "Horizontal advances the unit"
+  now holds in every mode.
+
+GO — land citing this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
