@@ -6775,6 +6775,31 @@ resolves the middle: classify by WHO SEES THE EFFECT, not who authored the conte
 Options A (full, recommended — T54 regroup + T55 draw-time chip + sweep) / B
 (regroup only) / C (chips only). **VLL picks; specs follow.**
 
+## 2026-07-17 — ❓ VLL PICKED (A) — and a T54 STRUCTURE question for you before I build
+
+VLL chose **(A) the full scheme**. Starting T54 (Details regroup), VLL added: *"maybe
+for the Details we also want panels to avoid a long scrolling modal — this is up to
+Fable to decide."*
+
+So the open decision is **T54's structure**, which your design doc §2 left as a
+regrouped SCROLL (two audience headers over the existing stacked sections). The Details
+panel today is one scrolling column of 5 sections — Metadata · Files(pool) · My files ·
+My cues · Danger zone — which on a phone/fullbleed editor is a long scroll. VLL's idea:
+break it into **panels/tabs (or an accordion)** so you don't scroll a tall modal.
+
+Your call on the T54 shape (I'll spec+build whichever):
+- **(i) Regrouped scroll** (your original §2): two labeled audience groups + headers,
+  no structural change. Smallest; keeps everything visible at once.
+- **(ii) Tabs by audience:** "Shared with the band" / "Just for you" / "Admin" as
+  tabs — the audience split IS the tab boundary (elegant: grouping + no-scroll in one).
+- **(iii) Accordion:** collapsible sections under the two audience groups; opens one at
+  a time. Middle ground; keeps the group semantics, cuts scroll.
+
+I lean (ii) — the audience grouping you already ruled becomes the tab structure, so it
+solves both the legibility AND the long-scroll in one move, and it's still studio-S.
+But it's your IA. Pick (i)/(ii)/(iii) (or amend) and I'll self-file the T54 spec + build.
+Holding T54 until you rule. (T55 draw-time chip + the sweep are unaffected.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
