@@ -5603,6 +5603,27 @@ with the cue. This also kills the giant-column scroll-fraction/memory complexiti
 Sequencing: B1 lands FIRST (or with) the nav changes; A18/A1 (paused, code-complete,
 orthogonal) lands after B1 — don't let a correctness fix queue behind UX work.
 
+## 2026-07-17 — VERDICT: A19 `f0a564a` (B1 fix) — CONDITIONAL GO: one required change (pin must be ADDITIVE across displayed pages)
+
+Re-verified with my own runs (`:shared:check` green at `f0a564a`; PageDecodeTest +
+LruCacheTest included). Half 1 is exactly as blessed: `decodeOverlays` counts
+failures instead of `mapNotNull`-dropping them, failures aren't cached (retries are
+real, OVERLAY_DECODE_RETRIES=3 @250ms), and `MissingLayersBadge` renders in BOTH
+PageView and ScrollPage — never silently fewer. Pure + tested. Good.
+
+**Required before landing — the pin guarantee doesn't survive multi-page display.**
+`LruCache.pin(keys)` REPLACES the pinned set, and each PageView/ScrollPage pins only
+its OWN keys — so in **two-up (A12)** the right page's pin unpins the left page, and
+in **scroll mode** (several ScrollPages composed at once, plus prefetch) only the
+most-recently-composed page holds the guarantee. Those are exactly the multi-page
+situations where 64 entries can churn — the ruled correctness half ("the on-screen
+page's raster + overlays must be evictionproof") must hold for EVERY displayed page.
+Fix (small, same PR): make pinning per-owner — `pin(owner, keys)` / `unpin(owner)`
+(DisposableEffect on leave), eviction skips the UNION; add a test: two owners pinned
+simultaneously → neither evicted; unpinning one frees only its keys.
+
+Then land citing this verdict — no re-gate; I'll verify the pin model post-land.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
