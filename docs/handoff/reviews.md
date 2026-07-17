@@ -6718,7 +6718,7 @@ is now complete: one glyph source feeding picker, stamps, bake, and app.
 My parse of both committed bundles: 7 real layer names in each (T53 live), shared
 bake 0 cues / `-mine` 7 cues (T50 personal semantics intact). The demo now
 showcases the entire day's work: cues, stamps-capable editor, named layers, both
-bakes. CI watched. The N10 arc + B13 rider are COMPLETE.
+bakes. **CI GREEN on `e5cc269` (all five).** The N10 arc + B13 rider are COMPLETE.
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
