@@ -72,4 +72,20 @@ class NavSemanticsTest {
         val s = StageState() // no pages
         assertTrue(songPageRange(s, 0).isEmpty())
     }
+
+    @Test
+    fun isBlockedSongCross_atTheEndsOnly() {
+        // N8: a horizontal scroll-mode swipe crosses songs; blocked only at the first (backward) or
+        // last (forward) song — where it must fire the N7 cue instead of a silent no-op. 3 songs (0..2).
+        assertTrue(isBlockedSongCross(currentSong = 2, songCount = 3, forward = true))   // last → next blocked
+        assertTrue(isBlockedSongCross(currentSong = 0, songCount = 3, forward = false))  // first → prev blocked
+        assertFalse(isBlockedSongCross(currentSong = 0, songCount = 3, forward = true))  // first → next ok
+        assertFalse(isBlockedSongCross(currentSong = 2, songCount = 3, forward = false)) // last → prev ok
+        assertFalse(isBlockedSongCross(currentSong = 1, songCount = 3, forward = true))  // middle either way
+        assertFalse(isBlockedSongCross(currentSong = 1, songCount = 3, forward = false))
+        // single-song concert: both directions blocked; empty concert: blocked.
+        assertTrue(isBlockedSongCross(currentSong = 0, songCount = 1, forward = true))
+        assertTrue(isBlockedSongCross(currentSong = 0, songCount = 1, forward = false))
+        assertTrue(isBlockedSongCross(currentSong = 0, songCount = 0, forward = true))
+    }
 }

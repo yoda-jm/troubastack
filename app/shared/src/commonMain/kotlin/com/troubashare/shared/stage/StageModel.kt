@@ -48,6 +48,16 @@ internal fun crossedSongBoundary(pages: List<StagePage>, from: Int, to: Int): Bo
 }
 
 /**
+ * N8 — is a horizontal song-cross swipe (scroll mode) blocked because there's no adjacent song?
+ * [forward] at the LAST song, or backward at the FIRST, ⇒ blocked → the N7 end-of-bounds cue (scroll's
+ * native rubber-band only signals VERTICAL edges). No songs ⇒ blocked. Pure.
+ */
+internal fun isBlockedSongCross(currentSong: Int, songCount: Int, forward: Boolean): Boolean {
+    if (songCount <= 0) return true
+    return if (forward) currentSong >= songCount - 1 else currentSong <= 0
+}
+
+/**
  * N2 — the global page-index range (inclusive) of the song containing [page]. Per-song scroll shows
  * ONLY these pages so vertical motion always reads WITHIN the current song and crossing to another
  * song is always an explicit act. Empty when there are no pages. Songs' firstPage is monotonic in

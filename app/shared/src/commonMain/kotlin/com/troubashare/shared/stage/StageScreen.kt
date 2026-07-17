@@ -302,6 +302,21 @@ private fun Performing(
                 flashBlocked(false)
             } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV, songStarts))
         }
+        // N8: in scroll mode the vertical axis IS the column, so a HORIZONTAL swipe crosses SONGS (the
+        // free axis) — right = previous song, left = next — reusing the same cross path as the
+        // scroll-edge turn (goToPage to the adjacent song, which fires the N1 cue + repositions the
+        // column). At the first/last song it's a blocked cross → the N7 glyph (scroll's rubber-band only
+        // communicates VERTICAL ends). "Horizontal swipe advances the unit" now holds in every mode.
+        val scrollSwipeNext: () -> Unit = {
+            if (isBlockedSongCross(state.currentSong, state.songs.size, forward = true)) flashBlocked(true)
+            else vm.goToPage(songRange.last + 1)
+        }
+        val scrollSwipePrev: () -> Unit = {
+            if (isBlockedSongCross(state.currentSong, state.songs.size, forward = false)) flashBlocked(false)
+            else vm.goToPage(songRange.first - 1)
+        }
+        val latestScrollNext = rememberUpdatedState(scrollSwipeNext)
+        val latestScrollPrev = rememberUpdatedState(scrollSwipePrev)
         val spread = spreadPages(state.current, songStarts, state.pageCount)
 
         // A13: Android volume keys can't reach Compose; androidApp intercepts them in the Activity and
@@ -336,15 +351,19 @@ private fun Performing(
                     }
                 },
         ) {
-        // N3: the page floats edge-to-edge on a BLACK canvas. ANY tap toggles the chrome (stageTaps,
-        // all modes); page turns come from horizontal swipe (page/width modes) + ‹ › FABs + pedals/keys.
-        // In scroll mode the LazyColumn owns the vertical drag (swipe disabled) and any tap still toggles.
+        // N3/N8: the page floats edge-to-edge on a BLACK canvas. ANY tap toggles the chrome (stageTaps,
+        // all modes). A HORIZONTAL swipe navigates in EVERY mode — page/width turns pages, scroll crosses
+        // songs (N8) — via the axis-locked detectHorizontalDragGestures, which only claims horizontal-
+        // dominant drags so the LazyColumn keeps its vertical scroll untouched.
         Box(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black)
                 .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
-                .then(if (scrollMode) Modifier else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)),
+                .then(
+                    if (scrollMode) Modifier.pointerInputSwipe(Unit, latestScrollPrev, latestScrollNext)
+                    else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)
+                ),
         ) {
             when {
                 scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
