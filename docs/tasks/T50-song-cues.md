@@ -30,10 +30,11 @@ Follow-up: **each member sets this for themselves**, and it **rides the bake**.
    - Soft cap: UI limits to **4 cues per song** (glanceability); model unbounded.
 
 2. **Icon contract — stable string IDs + a curated MONOCHROME, TINTABLE glyph set.**
-   Emoji rejected: a "red electric guitar" needs tinting; emoji can't. v1 set (16):
+   Emoji rejected: a "red electric guitar" needs tinting; emoji can't. v1 set (18):
    `guitar-electric · guitar-acoustic · guitar-classical · bass · ukulele ·
-   autoharp · melodica · keys · cajon · bongo · djembe · shaker · egg-shaker ·
-   tambourine · mic · note`
+   autoharp · melodica · keys · cajon · bongo · djembe · guiro · cuica ·
+   shaker · egg-shaker · tambourine · mic · note`
+   (güiro + cuíca added per VLL 2026-07-17 — ASCII IDs `guiro`/`cuica`.)
    `note` doubles as the **fallback: an unknown icon ID renders as `note`+color,
    never an error** — same additive-compatibility argument as the proto fields; new
    icons can ship server/studio-side before the app knows them.
@@ -51,7 +52,7 @@ Follow-up: **each member sets this for themselves**, and it **rides the bake**.
    **No app-side filtering needed — a member's bundle already IS their view.**
 
 4. **Studio (this task) —**
-   - Song page: a "My cues" editor — icon picker grid (the 16 glyphs, labelled),
+   - Song page: a "My cues" editor — icon picker grid (the 18 glyphs, labelled),
      color swatches, reorder, remove; ≤4 enforced in UI. Testids for e2e.
    - Setlist page rows show each song's own-cues inline (small, tinted) — secondary
      but nearly free once the assets exist.
@@ -92,5 +93,5 @@ Follow-up: **each member sets this for themselves**, and it **rides the bake**.
 ## Sequencing
 
 After the in-flight queue (A19 condition + nav rework N1/N2/N3 + A18; T46 web-core).
-The SVG glyph set is the one genuinely new asset job — 16 minimal monochrome glyphs;
+The SVG glyph set is the one genuinely new asset job — 18 minimal monochrome glyphs;
 studio and app share the geometry.
