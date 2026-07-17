@@ -6270,6 +6270,16 @@ column repositioning come for free through the single funnel. Two pins:
 Gate: axis-discrimination test (state-level where possible), blocked-ends cue test,
 device check (cross with cue both directions + vertical scroll untouched). Tag N8.
 
+## 2026-07-17 — CROSS-LANE (web-core → mobile): A20 unblocked
+
+T50 web/core is complete on `main` (slice 1 proto+core+bake, slice 2 studio + the shared
+`web/ink/glyphs.json` asset — all CI green). Notified the mobile lane in
+`docs/handoff/mobile-app-agent.md` (header + §8) with the full A20 handoff: the
+`BakedSong.cues` field-10 contract (additive; per-member bake already filters, so no
+app-side filtering), the 18-glyph normalized-polyline `glyphs.json` to convert to Compose
+ImageVectors (unknown id → `note` fallback, don't parse SVG / don't hand-author), and the
+T50 §5 build (A15 drawer rows + center flash composed with the N1 title card).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

@@ -20,8 +20,9 @@
 > song cue). **In flight:** **N5** — VLL's "black navigation on black" chrome-contrast fix — is out to
 > Fable (proposal Addendum 4; recommended: lighter translucent FAB disc + hairline outline); implement
 > + gate + device screenshot pair once ruled. **Next queued:** **A20** (the app half of **T50** personal
-> song cues) — BLOCKED until the web-core lane lands the T50 proto/bake half (`BakedSong.cues = 10`);
-> the app section is in `docs/tasks/T50-song-cues.md` §5, ready to lift. Still user-blocked: **A07**
+> song cues) — ✅ **UNBLOCKED 2026-07-17** (web-core lane): T50 slice 1 (proto+core+bake) and slice 2
+> (studio+shared glyph asset) are landed on `main`, all CI green — see the cross-lane handoff note under
+> §8. The app section is `docs/tasks/T50-song-cues.md` §5, ready to lift. Still user-blocked: **A07**
 > (stylus spike), **IOS03 impl** (Mac + Apple creds), **B07** device screenshots, **OPS01** release-APK.
 > ⚠️ **Rotate the git-remote PAT** — the embedded token echoes in tool output when the GitHub API is hit
 > without `gh` (re-flagged in reviews.md; it leaked once this session via `curl -u` — use the
@@ -205,11 +206,34 @@ if a hash goes missing.
 ## 8. Remaining work
 
 **Unblocked, ready to pick up (authoritative queue: `docs/tasks/README.md` § Queue-state):**
-- **NONE right now** — the entire unattended A-track queue is drained (§6). New unblocked work appears
-  only when the Architect files a fresh `docs/tasks/*` **or** the web-core lane lands a proto/bake half
-  that queues an app consumption piece. That last path is real: **T26** (song titles) and **B06** (LAN
-  discovery) both arrived that way this session — when a "web made changes" prompt comes, `git log
-  06bfb4d..origin/main -- proto/ app/` and grep reviews.md for "app half queued for mobile".
+
+- **A20 — app half of T50 (personal song cues): ✅ UNBLOCKED 2026-07-17 by the web-core lane.**
+  Handoff from the T-track (spec: `docs/tasks/T50-song-cues.md` §5 = your work; §2/§3 = the contract):
+  - **Bundle contract (landed):** `BakedSong` gained field 10 `repeated SongCue cues`, with
+    `message SongCue { string icon = 1; string color = 2; }` — additive metadata exactly like fields
+    5–9 (B02). Mirror it in `BundleModel.kt` as a new **optional** field (default empty). The
+    **per-member bake injects THAT member's cues**; the shared bake carries none — so a member's bundle
+    already IS their view: **no app-side filtering.** `color` is `""` (neutral/untinted) or `#rrggbb`.
+  - **Glyph asset (shared, landed):** `web/ink/glyphs.json` — the **18 glyphs** (ids listed in T50 §2)
+    as pre-tessellated **normalized polylines**: `{version:1, glyphs:{id:{strokes:[[[x,y]…]…],
+    fills:[[[x,y]…]…], strokeWidth}}}`, coords in a **1×1 box, y-down**, stroke round caps/joins,
+    fills non-zero, ONE tint color for both. Convert to Compose `ImageVector`s (mechanical — stroke the
+    `strokes`, fill the `fills`, scale by render size). **DO NOT hand-author glyph geometry** or parse
+    SVG at runtime — that file is generated from `web/ink/glyphs.authoring.mjs` by `gen-glyphs.mjs`
+    (CI drift-guards it). **Unknown icon id → render `note`** (the pinned fallback — required so new
+    ids can ship server-side before the app knows them). This same asset feeds the T51 stamp tool later.
+  - **Your build (T50 §5):** A15 drawer rows = right-aligned tinted cue icons per song; **center flash
+    on song entry** = compose with the **N1 song-boundary title card** (ONE overlay, one clock-injected
+    timeout — the A17 auto-hide pattern); no cues → the N1 card alone, unchanged. Tests: loader default/
+    roundtrip, unknown→`note`, flash timeout (clock-injected), drawer-row presence.
+  - **Landed commits to diff:** `git log 06bfb4d..origin/main -- proto/ web/ink/ core/internal/bake/`
+    — T50 slice 1 (proto+core+bake) and slice 2 (studio + `web/ink/glyphs.json`), all CI green; verdicts
+    in `reviews.md` (2026-07-17 "T50 SLICE 2 GATE REVIEW … GO", "T50 slice 2 … CI GREEN").
+
+- Otherwise: the rest of the unattended A-track queue is drained (§6). New unblocked work appears
+  when the Architect files a fresh `docs/tasks/*` **or** the web-core lane lands a proto/bake half
+  that queues an app consumption piece (as A20, **T26**, **B06** all did) — on a "web made changes"
+  prompt, `git log 06bfb4d..origin/main -- proto/ app/` and grep reviews.md for the app-half handoff.
 
 **Attended — need the user's device/hardware for a live check (code is landed/verified otherwise):**
 - **B06 live two-host mDNS check** — the Android emulator's NAT drops host multicast, so live
