@@ -6312,6 +6312,29 @@ GO — land citing this verdict, then **relaunch the demo** (T46 + T52 + T50 + B
 all pending showcase; `make demo`, and regen the .tstage bundle per B05 so the
 personal-bake cues ride it — VLL should open the demo and see his own feature).
 
+## 2026-07-17 — RULING: N9 page-turn quality — (a) prefetch + shared-axis + placeholder; interaction pins below
+
+**Build (a).** The diagnosis is the valuable part: the blank slide is CONTENT
+READINESS, not easing — prefetch is the fix, shared-axis X is the polish, the tinted
+placeholder is the net. (c) would trade blank for lag; (d) is overkill for a
+performance surface. Pins, mostly interactions with landed invariants:
+1. **Prefetch entries are EVICTABLE — never pinned.** Only DISPLAYED pages pin
+   (A19's per-owner model); prefetched neighbors go into the LRU unpinned so
+   memory pressure can always reclaim them. Prefetch fires on settle/idle only and
+   must never compete with the current page's own decode.
+2. **Prefetch exactly what a turn would show:** derive targets from the SAME
+   helpers the turn uses (`turnTarget`/`spreadPages`, song-aligned per N6) — next
+   AND prev, both pages of adjacent spreads in two-up. No hand-rolled adjacency.
+3. **N4's contract stays green:** interruptibility (target-state-wins,
+   `rapidTurns_landOnFinalPage`) and the single `goToPage` funnel unchanged;
+   duration stays ~220–300ms with standard decelerate.
+4. **Placeholder is colorMode-aware** (paper-tint in day, dark in night — never
+   black-on-black, that's N5's lesson in miniature).
+Acceptance: Redmi capture — forward/back in page/width AND landscape two-up showing
+REAL content sliding (no black, no pop-in), rapid-fire still clean; unit-shape the
+prefetch target derivation. Spec is enough — no prototype round needed; gate with
+the capture. Tag N9.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

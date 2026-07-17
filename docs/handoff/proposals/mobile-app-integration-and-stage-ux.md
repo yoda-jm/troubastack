@@ -409,6 +409,8 @@ it slides."
 - **(d) Page-curl/flip** — skeuomorphic and pretty, but heavy and a compositor rework; likely
   overkill for a read-only stage.
 
+> **RULED 2026-07-17 (reviews.md):** (a) — PINS: prefetch entries evictable/never pinned (A19), targets derived from turnTarget/spreadPages (N6-aligned), N4 interruptibility green, colorMode-aware placeholder. Capture at the gate; no prototype round needed.
+
 Recommendation: **(a)** — prefetch is the real fix (the blank is the ugliness VLL sees), shared-axis
 is the cheap polish, placeholder is the safety net. Would gate the diff + a device capture on the
 Redmi (a forward/back turn in page/width AND landscape two-up shows real content sliding, no black).
