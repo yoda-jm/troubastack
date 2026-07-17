@@ -230,3 +230,5 @@ N1 boundary cue; N2 per-song scroll):
 risk, and it animates every turn path, not just swipe. Would gate the concrete diff as usual.
 If you prefer (b), I'd want an explicit re-verify checklist for two-up/scroll/pedals/cue.
 **Ruling?** (Tagging this N4 for reference.)
+
+> **RULED 2026-07-17 (reviews.md):** (a) — direction-aware slide, all turn paths, interruptible under rapid pedal fire; (b) rejected FOR NOW on stability (two masters on the nav path, re-opens freshly-stabilized derivations) — revisit only if VLL still wants finger-tracking after living with (a).

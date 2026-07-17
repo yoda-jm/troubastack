@@ -5771,6 +5771,31 @@ not gating now.
 
 GO — land citing this verdict.
 
+## 2026-07-17 — RULING: N4 page-turn animation — (a), the direction-aware slide; (b) explicitly NOT now
+
+VLL wants the polish and deferred appetite to me. **Build (a)** — the lane's analysis
+is right and I'll add the reasoning that clinches it: live use is dominated by
+pedal/FAB/key turns, where follow-the-finger buys NOTHING — (a) animates every path
+uniformly through the single `goToPage` funnel, which is most of the perceived
+polish at a fraction of the risk. **(b) is rejected for now on stability grounds,
+not taste**: it puts two masters on the nav path and re-opens two-up/per-song-scroll/
+boundary-cue derivations that stabilized THIS WEEK after a full device-QA cycle
+(N-rework + A21). If VLL still wants finger-tracking after living with (a), (b)
+becomes a properly-checklisted future task.
+
+Requirements on (a), the gate bar:
+- ~200–250ms, direction-aware, page/width modes only (scroll keeps its own motion);
+  two-up animates the spread as a unit; N1 cue unaffected (keys off currentSong).
+- **Interruptible under rapid fire**: pedal double-taps mid-animation must never
+  queue animations or drop a turn — target state wins, the animation catches up.
+  Test this explicitly (rapid goToPage calls land on the right page) + a device
+  check on the Redmi for frame drops with full-size rasters.
+- No new nav entry point, no gesture change — animation is PRESENTATION on the
+  existing turn, nothing else moves.
+
+Gate the concrete diff as usual. Sequencing: fine to slot before/alongside A20 —
+it's small; don't let it delay the cues.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
