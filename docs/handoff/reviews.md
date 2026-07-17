@@ -6992,6 +6992,8 @@ component — the sweep reuses it as intended.
 GO — land citing this verdict. Scheme (A): T54 ✅ T55 ✅ → the vocabulary sweep
 remains.
 
+## 2026-07-17 — POST-LAND: T55 `0492bf2` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. Scheme (A): the vocabulary sweep is the last piece.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
