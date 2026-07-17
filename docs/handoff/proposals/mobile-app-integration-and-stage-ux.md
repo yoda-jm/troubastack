@@ -372,3 +372,45 @@ Recommendation: **(a)** — it removes the inconsistency VLL felt, reuses the bl
 (+cue), and needs no new nav semantics (still "one turn = cross a song" in scroll). Would gate the
 diff + a device check (swipe left/right in scroll crosses songs with the cue; vertical scroll still
 works). **Ruling?** (Tagging N8.)
+
+---
+
+## Addendum 8 (2026-07-17) — ❓ DESIGN REVIEW REQUEST: page-turn animation quality (N9?)
+
+Device QA (VLL): *"animation in landscape and page width is not so good … document what is nice
+to see (or ask Fable for nice animation research)."* Diagnosed root cause + researched options.
+
+**Root cause (technical).** N4's slide is `AnimatedContent(targetState = current)` with a pure
+horizontal slide. The INCOMING page composes fresh and decodes OFF-THREAD
+(`produceState<PageBitmaps?>(null, …)`), so for the first frames of the ~220ms slide it slides
+in **BLANK/black** and only pops to the real image once the bitmap decodes — worst in **landscape
+two-up** (two pages decode at once) and on the low-end Redmi. A bare slide also lacks the polish of
+a real motion pattern. So the fix is less "a fancier curve" and more "the page must be READY before
+it slides."
+
+**What's nice to see (research — reading/score apps + Material Motion).**
+- **Content-ready turns.** Kindle/iBooks/Kobo/forScore never reveal a blank: the adjacent page is
+  pre-rendered so a turn shows real content immediately. This is the load-bearing fix.
+- **Material "shared-axis X"** (slide + fade together, standard easing ~300ms) is Google's blessed
+  forward/back transition — reads smoother and more intentional than a bare slide.
+- **A page-tinted placeholder** (not black) for any residual decode, so a void never flashes.
+- Matched duration + decelerate easing; two-up animates the spread as one unit (already does).
+
+**Options.**
+- **(a) Prefetch + shared-axis + placeholder (mobile-lane recommendation).** (1) Pre-decode the
+  adjacent page raster(s) into the existing LRU cache on settle/idle (next & prev; both spread
+  pages in two-up) so the incoming page is READY before it slides — kills the blank-slide. (2) Swap
+  the pure slide for Material shared-axis X (slide+fade). (3) Page-colored placeholder for any
+  residual decode. Contained: a prefetch hook in the cache/decoder path + the transitionSpec + a
+  placeholder tint. Interruptibility (N4) and the single `goToPage` funnel unchanged.
+- **(b) Crossfade only** — hides the pop but loses directionality; cheap.
+- **(c) Hold-until-ready** — gate the slide until the incoming bitmap decodes. No blank, but can
+  feel laggy on a slow decode (the turn "sticks" before moving).
+- **(d) Page-curl/flip** — skeuomorphic and pretty, but heavy and a compositor rework; likely
+  overkill for a read-only stage.
+
+Recommendation: **(a)** — prefetch is the real fix (the blank is the ugliness VLL sees), shared-axis
+is the cheap polish, placeholder is the safety net. Would gate the diff + a device capture on the
+Redmi (a forward/back turn in page/width AND landscape two-up shows real content sliding, no black).
+**Ruling?** (Tagging N9. Also happy to just prototype (a) and show you a screen-capture if you'd
+rather judge by eye than by spec.)
