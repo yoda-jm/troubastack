@@ -69,6 +69,26 @@ function VersionChip() {
   );
 }
 
+// T46: Studio embedded mode. The Android app hosts Studio in a WebView (I10, A06) and
+// opts in via `?embedded=1` on the entry URL — a param, NOT the JS bridge, so the nav
+// never flashes (the bridge handshake lands after first paint) and it's testable in
+// plain Playwright. Persisted to sessionStorage so it survives SPA navigation (the param
+// is only on the first load). When set we suppress the app topbar (its Bands/Invites/
+// profile/Log out duplicate the app's own chrome and read as an embedded browser); and
+// the Log out + account affordances go with it — the app owns the session it cookie-
+// seeds, so an in-WebView logout would silently break it.
+const EMBEDDED_KEY = "trouba_embedded";
+function studioEmbedded(): boolean {
+  try {
+    if (new URLSearchParams(window.location.search).get("embedded") === "1") {
+      sessionStorage.setItem(EMBEDDED_KEY, "1");
+    }
+    return sessionStorage.getItem(EMBEDDED_KEY) === "1";
+  } catch {
+    return new URLSearchParams(window.location.search).get("embedded") === "1";
+  }
+}
+
 export function Shell() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
@@ -121,12 +141,14 @@ export function Shell() {
   // top bar so the score owns the whole viewport (also the mobile win). Back-nav lives
   // in the editor's own floating chrome.
   const fullbleed = /\/bands\/[^/]+\/songs\/[^/]+/.test(location.pathname);
+  // Embedded (in the app's WebView): drop the app-duplicating chrome entirely. (T46)
+  const embedded = studioEmbedded();
 
   return (
-    <div className={`shell${fullbleed ? " shell-fullbleed" : ""}`}>
+    <div className={`shell${fullbleed ? " shell-fullbleed" : ""}${embedded ? " shell-embedded" : ""}`}>
       {/* Global backstop: any uncaught error / rejection anywhere becomes visible (T32). */}
       <GlobalError />
-      {!fullbleed && (
+      {!fullbleed && !embedded && (
       <header className="topbar">
         <Link to="/bands" className="brand">
           TroubaStudio
