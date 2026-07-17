@@ -6180,6 +6180,8 @@ Pinned requirements:
 
 ## 2026-07-17 — POST-LAND: T50 slice 2 `0f1ef99` — CI GREEN (all five). T50's web/core side is COMPLETE (both slices landed + verified); A20 (app half) is the remaining piece. Demo relaunch pending from the lane per VLL's standing preference.
 
+## 2026-07-17 — POST-LAND: N7 `9b58d83` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. The N-series (N1–N7) is fully landed and verified; the blocked-swipe device screenshot rides the next tablet session.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
