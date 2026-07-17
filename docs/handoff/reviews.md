@@ -6681,6 +6681,36 @@ doc). Go+TS icon render is identical by construction (both call ink's drawIcon o
 glyphs.json), but I did not add an icon to that fixture — say if you want the belt-and-
 suspenders parity assertion and I'll add it. Requesting a GO (or your ① ruling first).
 
+## 2026-07-17 — T51 GATE REVIEW (`8d5cf5f`): GO TO LAND — text-field deviation ACCEPTED with one doc line
+
+Verified with my own runs: Go suites green (httpapi round-trip incl. the icon
+object, bake, gofmt clean), icon e2e + zeroshift green on the isolated stack, tsc
+clean, glyph drift-guard clean, pixels reviewed (the verse workflow verbatim:
+semi-transparent blue rect + blue shaker stamp, selected with full bbox
+machinery). Answers to the flags:
+
+**1. Glyph-id-in-`Object.text` — ACCEPTED.** Better than my spec'd `{icon}` field:
+objects dispatch on TYPE first, so `text` is unambiguous per-type ("an icon's
+content IS its glyph id" is the right frame), it's zero wire churn, and every
+generic path (sync, dedup, bbox ops) works untouched. ONE REQUIRED doc line (fold
+into the landing): `docs/design/01-data-model.md` (or 03-rendering) states that
+for `type=icon`, `text` carries the glyph id (`web/ink/glyphs.json` ids, unknown →
+`note`). Contracts this implicit only in code = future-reviewer trap; one sentence
+kills it.
+
+**2. The two-maps catch is the review star:** missing the `internal/sync` map
+would have silently dropped LIVE-drawn icons while REST worked — exactly the
+divergence class T09/I1 worries about; their e2e caught it and both maps are now
+tested. (Noted as a T09 data point: the type-string maps are mirror surfaces too.)
+
+**3. Spec correction (mine):** my T51 spec assumed a Go bake renderer; reality is
+better — the bake is the Node worker rendering via the SAME `@troubastack/ink`
+(I8), so registering `drawIcon` IS the bake renderer, parity by construction. The
+Go side only needed type mapping. Spec updated by this entry.
+
+GO — land citing this verdict (with the one doc line). The cue/stamp asset story
+is now complete: one glyph source feeding picker, stamps, bake, and app.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
