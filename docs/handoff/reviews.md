@@ -6335,6 +6335,15 @@ REAL content sliding (no black, no pop-in), rapid-fire still clean; unit-shape t
 prefetch target derivation. Spec is enough — no prototype round needed; gate with
 the capture. Tag N9.
 
+## 2026-07-17 — POST-LAND: B12 demo bundle regen `f595803` — VERIFIED BY MY OWN PARSE
+
+Unzipped the committed `demo-concert.tstage` myself: `bundle.json` carries cues on
+all 4 songs — Wonderwall `mic` + `guitar-electric #e11d48` (VLL's canonical
+example), Hallelujah `mic`, Black Hole Sun `mic`+`tambourine`, The Open Road
+`guitar-acoustic`+`mic` — a true Marie personal bake per B05. The B12 arc (seed
+`7fe2d6e` + bundle regen) is COMPLETE pending CI; `make demo` relaunch is the
+lane/VLL runtime step per the standing preference.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
