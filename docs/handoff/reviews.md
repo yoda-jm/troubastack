@@ -6640,6 +6640,8 @@ is complete on landing: per-song list (A24) + no hash (A25) + real names (T53+B1
 GO — land citing this verdict. VLL's next device open shows the "nicely named"
 layers he asked for.
 
+## 2026-07-17 — POST-LAND: T53 `1e21f91` — CI GREEN (all five, both runs), patch-identical, trailer correct. CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
