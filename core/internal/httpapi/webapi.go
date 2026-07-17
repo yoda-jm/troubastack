@@ -78,6 +78,8 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.getMyFiles))
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.putMyFiles))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.clearMyFiles))
+	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/my-cues", a.auth(a.getMyCues))
+	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/my-cues", a.auth(a.putMyCues))
 	mux.HandleFunc("GET /api/files/{fileId}", a.auth(a.downloadFile))
 	mux.HandleFunc("GET /api/bands/{bandId}/setlists", a.auth(a.listSetlists))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists", a.auth(a.createSetlist))
@@ -556,15 +558,29 @@ func (a *WebAPI) declineInvite(w http.ResponseWriter, r *http.Request, u app.Use
 // ---- song handlers ----
 
 func (a *WebAPI) listSongs(w http.ResponseWriter, r *http.Request, u app.User) {
-	songs, err := a.svc.Songs(u, r.PathValue("bandId"))
+	bandID := r.PathValue("bandId")
+	songs, err := a.svc.Songs(u, bandID)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	if songs == nil {
-		songs = []app.Song{}
+	// T50: each song row carries the CALLER's own personal cues as `myCues` (drives
+	// the setlist-row cue chips + the editor's initial load). Cues are per-member, so
+	// this is always the caller's private view — never another member's.
+	type songWithCues struct {
+		app.Song
+		MyCues []app.SongCue `json:"myCues"`
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"songs": songs})
+	out := make([]songWithCues, 0, len(songs))
+	for _, s := range songs {
+		cues, cerr := a.svc.MyCues(u, bandID, s.ID)
+		if cerr != nil {
+			writeErr(w, cerr)
+			return
+		}
+		out = append(out, songWithCues{Song: s, MyCues: cues})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"songs": out})
 }
 
 func (a *WebAPI) createSong(w http.ResponseWriter, r *http.Request, u app.User) {
@@ -805,6 +821,42 @@ func (a *WebAPI) clearMyFiles(w http.ResponseWriter, r *http.Request, u app.User
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// writeMyCues emits the shared {cues} shape used by both my-cues endpoints,
+// normalizing a nil slice to [].
+func writeMyCues(w http.ResponseWriter, cues []app.SongCue) {
+	if cues == nil {
+		cues = []app.SongCue{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"cues": cues})
+}
+
+// getMyCues returns the caller's personal cues for a song (T50) — [] if unset.
+func (a *WebAPI) getMyCues(w http.ResponseWriter, r *http.Request, u app.User) {
+	cues, err := a.svc.MyCues(u, r.PathValue("bandId"), r.PathValue("songId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeMyCues(w, cues)
+}
+
+// putMyCues replaces the caller's cue list (self-only by construction). An empty
+// list clears them. Returns the stored list.
+func (a *WebAPI) putMyCues(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		Cues []app.SongCue `json:"cues"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	cues, err := a.svc.SetMyCues(u, r.PathValue("bandId"), r.PathValue("songId"), in.Cues)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeMyCues(w, cues)
 }
 
 // downloadFile streams a blob with its stored Content-Type. Members of the owning

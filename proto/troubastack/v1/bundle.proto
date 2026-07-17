@@ -44,6 +44,19 @@ message BakedSong {
   // ignore it (same additive-compatibility argument as fields 5–7 above); an
   // empty/absent title falls back client-side to "Song N".
   string title = 9;
+  // T50: the baked-for member's PERSONAL song cues (icons + colors) — what they
+  // must prepare for this song ("mic + red guitar" = sings it, red electric). The
+  // per-member bake injects THAT member's cues; the shared bake carries none (cues
+  // are personal, B07). Additive metadata exactly like fields 5–9: proto3
+  // default-empty, so old bundles stay valid and old loaders ignore it; absent =
+  // no cues. An unknown icon id renders as the `note` fallback client-side.
+  repeated SongCue cues = 10;
+}
+
+// SongCue is one personal cue on a song: a stable icon id + an optional tint (T50).
+message SongCue {
+  string icon = 1;  // stable id from the curated set (see docs/tasks/T50); unknown → `note` fallback
+  string color = 2; // optional "#rrggbb" tint; "" = neutral/untinted
 }
 
 // Minted ONLY by an explicit admin bake (I11). `concert_rev` is a function of the

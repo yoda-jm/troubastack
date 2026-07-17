@@ -248,6 +248,19 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	}
 	song.SourceRevision = snap.Revision
 
+	// T50: personal song cues ride the per-member bake only — the shared band bake
+	// carries none (cues are private, B07). A member's own bundle already IS their
+	// view, so no app-side filtering is needed.
+	if personal {
+		cues, cerr := b.svc.MyCues(actor, bandID, item.SongID)
+		if cerr != nil {
+			return BakedSong{}, cerr
+		}
+		for _, c := range cues {
+			song.Cues = append(song.Cues, SongCue{Icon: c.Icon, Color: c.Color})
+		}
+	}
+
 	file, ok, err := b.resolveFile(actor, bandID, item.SongID, personal)
 	if err != nil {
 		return BakedSong{}, err

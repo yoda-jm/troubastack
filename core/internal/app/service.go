@@ -1342,6 +1342,67 @@ func (s *Service) ClearMyFileSelection(caller User, bandID, songID string) error
 	return s.repo.DeleteFileSelection(caller.ID, songID)
 }
 
+// cueColorRe validates a cue tint: empty (neutral) or a 6-hex "#rrggbb". The model
+// deliberately accepts any hex (the UI offers a fixed stage palette; future custom
+// colors cost nothing) — it just rejects malformed input.
+var cueColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// maxSongCues bounds a member's cue list server-side. The UI caps at 4 for
+// glanceability (T50); this is a generous abuse guard well above that so a
+// legitimate list is never rejected but a runaway payload is.
+const maxSongCues = 32
+
+// MyCues returns the caller's PERSONAL, ordered cues for a song (T50). Member-gated
+// like other song reads; an empty (never-set) list is not an error — it returns an
+// empty slice. Self-only by construction: the caller can only ever read their own.
+func (s *Service) MyCues(caller User, bandID, songID string) ([]SongCue, error) {
+	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
+		return nil, err
+	}
+	sc, err := s.repo.GetSongCues(caller.ID, songID)
+	if err != nil {
+		return []SongCue{}, nil // ErrNotFound → the member simply has no cues here
+	}
+	return sc.Cues, nil
+}
+
+// SetMyCues replaces the caller's ordered cue list for a song (T50). Self-only by
+// construction — cues are always keyed to caller.ID, so a member can never write
+// another's. An empty list clears the cues. Each icon id must be non-empty; each
+// color must be "" or "#rrggbb". Returns the stored list.
+func (s *Service) SetMyCues(caller User, bandID, songID string, cues []SongCue) ([]SongCue, error) {
+	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
+		return nil, err
+	}
+	if len(cues) > maxSongCues {
+		return nil, fmt.Errorf("%w: too many cues (max %d)", ErrInvalidInput, maxSongCues)
+	}
+	clean := make([]SongCue, 0, len(cues))
+	for _, c := range cues {
+		icon := strings.TrimSpace(c.Icon)
+		if icon == "" {
+			return nil, fmt.Errorf("%w: cue icon must not be empty", ErrInvalidInput)
+		}
+		color := strings.TrimSpace(c.Color)
+		if color != "" && !cueColorRe.MatchString(color) {
+			return nil, fmt.Errorf("%w: cue color %q must be empty or #rrggbb", ErrInvalidInput, color)
+		}
+		clean = append(clean, SongCue{Icon: icon, Color: color})
+	}
+	if len(clean) == 0 {
+		// Empty list clears the customization (idempotent) rather than storing a
+		// hollow record; MyCues then reports [] exactly as before.
+		if err := s.repo.DeleteSongCues(caller.ID, songID); err != nil {
+			return nil, err
+		}
+		return []SongCue{}, nil
+	}
+	if err := s.repo.SetSongCues(SongCues{UserID: caller.ID, SongID: songID, Cues: clean}); err != nil {
+		return nil, err
+	}
+	return clean, nil
+}
+
 // resolveSelection maps an ordered list of fileIds to their SongFile records from
 // the pool, in that order, silently dropping ids no longer present in the pool.
 func resolveSelection(pool []SongFile, fileIDs []string) []SongFile {

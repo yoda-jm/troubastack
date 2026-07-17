@@ -28,6 +28,7 @@ type Repo struct {
 	songs          map[string]app.Song          // id -> song
 	files          map[string]app.SongFile      // id -> song file
 	selections     map[string]app.FileSelection // userID|songID -> personal selection
+	songCues       map[string]app.SongCues      // userID|songID -> personal cues (T50)
 	setlists       map[string]app.Setlist       // id -> setlist
 	setlistItems   map[string]app.SetlistItem   // id -> setlist item
 }
@@ -46,6 +47,7 @@ func New() *Repo {
 		songs:          map[string]app.Song{},
 		files:          map[string]app.SongFile{},
 		selections:     map[string]app.FileSelection{},
+		songCues:       map[string]app.SongCues{},
 		setlists:       map[string]app.Setlist{},
 		setlistItems:   map[string]app.SetlistItem{},
 	}
@@ -605,6 +607,32 @@ func (r *Repo) DeleteFileSelection(userID, songID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.selections, selectionKey(userID, songID))
+	return nil
+}
+
+// ---- song cues (per-member, per-song) ----
+
+func (r *Repo) GetSongCues(userID, songID string) (app.SongCues, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	sc, ok := r.songCues[selectionKey(userID, songID)]
+	if !ok {
+		return app.SongCues{}, app.ErrNotFound
+	}
+	return sc, nil
+}
+
+func (r *Repo) SetSongCues(sc app.SongCues) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.songCues[selectionKey(sc.UserID, sc.SongID)] = sc
+	return nil
+}
+
+func (r *Repo) DeleteSongCues(userID, songID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.songCues, selectionKey(userID, songID))
 	return nil
 }
 

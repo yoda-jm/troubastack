@@ -31,6 +31,7 @@ type dataset struct {
 	Songs          map[string]app.Song          `json:"songs"`
 	Files          map[string]app.SongFile      `json:"files"`
 	Selections     map[string]app.FileSelection `json:"selections"`
+	SongCues       map[string]app.SongCues      `json:"songCues"`
 	Setlists       map[string]app.Setlist       `json:"setlists"`
 	SetlistItems   map[string]app.SetlistItem   `json:"setlistItems"`
 }
@@ -118,6 +119,7 @@ func emptyDataset() dataset {
 		Songs:          map[string]app.Song{},
 		Files:          map[string]app.SongFile{},
 		Selections:     map[string]app.FileSelection{},
+		SongCues:       map[string]app.SongCues{},
 		Setlists:       map[string]app.Setlist{},
 		SetlistItems:   map[string]app.SetlistItem{},
 	}
@@ -156,6 +158,10 @@ func (r *Repo) load() error {
 	// Per-member file selections were added later still; nil-guard for older files.
 	if r.d.Selections == nil {
 		r.d.Selections = map[string]app.FileSelection{}
+	}
+	// Per-member song cues (T50) were added later still; nil-guard for older files.
+	if r.d.SongCues == nil {
+		r.d.SongCues = map[string]app.SongCues{}
 	}
 	// Invite links were added later still; nil-guard for older files.
 	if r.d.InviteLinks == nil {
@@ -746,6 +752,36 @@ func (r *Repo) DeleteFileSelection(userID, songID string) error {
 		return nil // idempotent: clearing an unset selection is a no-op
 	}
 	delete(r.d.Selections, k)
+	return r.flush()
+}
+
+// ---- song cues (per-member, per-song) ----
+
+func (r *Repo) GetSongCues(userID, songID string) (app.SongCues, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	sc, ok := r.d.SongCues[selectionKey(userID, songID)]
+	if !ok {
+		return app.SongCues{}, app.ErrNotFound
+	}
+	return sc, nil
+}
+
+func (r *Repo) SetSongCues(sc app.SongCues) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.SongCues[selectionKey(sc.UserID, sc.SongID)] = sc
+	return r.flush()
+}
+
+func (r *Repo) DeleteSongCues(userID, songID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	k := selectionKey(userID, songID)
+	if _, ok := r.d.SongCues[k]; !ok {
+		return nil // idempotent: clearing unset cues is a no-op
+	}
+	delete(r.d.SongCues, k)
 	return r.flush()
 }
 

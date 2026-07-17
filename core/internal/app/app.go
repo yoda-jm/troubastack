@@ -249,6 +249,27 @@ type FileSelection struct {
 	FileIDs []string `json:"fileIds"`
 }
 
+// SongCue is one PERSONAL cue on a song — a stable icon id plus an optional tint
+// — telling the member what to prepare ("mic + red guitar-electric" = this song
+// they sing and play the red electric). Icon is a stable string id from the
+// curated set (docs/tasks/T50); an unknown id renders as the `note` fallback
+// client-side rather than erroring, so new icons can ship server/studio-side
+// before every app knows them. Color is "" (neutral) or an "#rrggbb" hex tint.
+type SongCue struct {
+	Icon  string `json:"icon"`
+	Color string `json:"color,omitempty"`
+}
+
+// SongCues is a member's PERSONAL, ordered list of cues for a song, keyed by
+// (UserID, SongID) and private to that user (T50). It rides the member's own
+// per-member bake; it never affects what another member sees. Order is preserved
+// as stored (the member's chosen display order).
+type SongCues struct {
+	UserID string    `json:"userId"`
+	SongID string    `json:"songId"`
+	Cues   []SongCue `json:"cues"`
+}
+
 // Setlist is a band-scoped, ordered program of songs for an event. Items hold the
 // ordering and per-performance overrides; the songs themselves live independently.
 type Setlist struct {
@@ -389,6 +410,15 @@ type Repo interface {
 	// DeleteFileSelection clears a member's customization (reverts to default).
 	// Idempotent: clearing an unset selection is not an error.
 	DeleteFileSelection(userID, songID string) error
+
+	// Per-member, per-song personal cues (T50; personal, not shared).
+	// GetSongCues returns the caller's saved cues; ErrNotFound if the member never
+	// set cues on this song (the service then reports an empty list).
+	GetSongCues(userID, songID string) (SongCues, error)
+	// SetSongCues stores (creates or replaces) a member's cue list.
+	SetSongCues(sc SongCues) error
+	// DeleteSongCues clears a member's cues. Idempotent.
+	DeleteSongCues(userID, songID string) error
 
 	// Setlists + items.
 	CreateSetlist(sl Setlist) error

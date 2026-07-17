@@ -262,6 +262,59 @@ func TestBake_BenchSortsAfterMain_flagsOnCall(t *testing.T) {
 	}
 }
 
+// TestBake_PersonalCuesInjected is the T50 guard: the per-member (personal) bake
+// injects THAT member's song cues; the shared band bake carries none.
+func TestBake_PersonalCuesInjected(t *testing.T) {
+	svc, eng, u, bandID, setlistID := seed(t)
+
+	// The seeded setlist has one song; grab its id and set two personal cues on it.
+	songs, err := svc.Songs(u, bandID)
+	if err != nil || len(songs) != 1 {
+		t.Fatalf("songs: %v (len %d)", err, len(songs))
+	}
+	songID := songs[0].ID
+	want := []app.SongCue{{Icon: "mic"}, {Icon: "guitar-electric", Color: "#e11d48"}}
+	if _, err := svc.SetMyCues(u, bandID, songID, want); err != nil {
+		t.Fatalf("set my cues: %v", err)
+	}
+
+	png := tinyPNG(t, 40, 56)
+	b := &Baker{
+		svc: svc, eng: eng,
+		raster:   fakeRaster{pages: 1, png: png},
+		overlays: fakeOverlays{png: png},
+		bakesDir: t.TempDir(),
+		now:      func() int64 { return 1700000000 },
+	}
+
+	// Shared band bake: cues are personal → none ride.
+	shared, err := b.Bake(context.Background(), bandID, setlistID, u, false)
+	if err != nil {
+		t.Fatalf("shared bake: %v", err)
+	}
+	if len(shared.Songs) != 1 {
+		t.Fatalf("want 1 baked song, got %d", len(shared.Songs))
+	}
+	if len(shared.Songs[0].Cues) != 0 {
+		t.Fatalf("shared bake cues = %+v, want none (cues are personal)", shared.Songs[0].Cues)
+	}
+
+	// Personal variant bake: exactly this member's cues, in order, tints preserved.
+	personal, err := b.Bake(context.Background(), bandID, setlistID, u, true)
+	if err != nil {
+		t.Fatalf("personal bake: %v", err)
+	}
+	got := personal.Songs[0].Cues
+	if len(got) != len(want) {
+		t.Fatalf("personal bake cues = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i].Icon != want[i].Icon || got[i].Color != want[i].Color {
+			t.Fatalf("cue %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 // TestBake_ConcurrentSameSetlist_distinctRevs is the B04 guard: two bakes of the
 // same setlist running at once must mint DISTINCT revs (atomic rev claim), both fully
 // published (atomic rename), with no staging dir left visible.

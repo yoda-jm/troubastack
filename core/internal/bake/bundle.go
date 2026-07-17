@@ -51,6 +51,14 @@ type BakedSong struct {
 	Tempo          int32        `json:"tempo,omitempty"`        // setlist TempoOverride
 	OnCall         bool         `json:"onCall,omitempty"`       // bench/encore item — jumpable, outside the running order (T23)
 	Title          string       `json:"title,omitempty"`        // song Title at bake time (T26); empty → client "Song N" fallback
+	Cues           []SongCue    `json:"cues,omitempty"`         // the baked-for member's personal cues (T50); per-member bake only, shared bake has none
+}
+
+// SongCue is one personal cue on a song: a stable icon id + an optional tint
+// (proto SongCue, T50). Unknown icon ids render as the `note` fallback client-side.
+type SongCue struct {
+	Icon  string `json:"icon,omitempty"`
+	Color string `json:"color,omitempty"` // "#rrggbb" or "" (neutral)
 }
 
 // ConcertBundle is the manifest of a baked concert (proto ConcertBundle, I11/I12).
