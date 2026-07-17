@@ -127,7 +127,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | ~~T44~~ | ✅ landed `e6a45cf` (desync gate + budget + recovery; VLL-confirmed black-gone) | studio | S |
 | T45 | [Page virtualization (deferred)](T45-page-virtualization.md) — DEFERRED | studio | M/L |
 | ~~T46~~ | ✅ landed `2175b31` (embedded mode — Q1 arc complete with A16) | studio | S |
-| T50 | [Personal song cues: icons+colors per song per member (app half = A20)](T50-song-cues.md) | proto/core/studio (+app) | M |
+| ~~T50~~ | ✅ web/core landed (`1ebc785`+`0f1ef99`); A20 app half remains | proto/core/studio (+app) | M |
 | T51 | [Icon stamp annotation tool (tinted glyphs on the score)](T51-icon-stamp-tool.md) | ink/core/studio | M |
 | ~~T48~~ | ✅ landed `b046ad5` (fullbleed editor fits visible viewport — svh fix; ruled inline, no spec file) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
