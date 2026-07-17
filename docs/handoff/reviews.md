@@ -5651,7 +5651,7 @@ become evictable again. Two-owner test added; existing tests migrated. Verified 
 my own runs: `cfef3b0` is patch-identical to the reviewed `f0a564a`; `:shared:check`
 green at the landed head; both trailers cite correctly. The I12 "silently fewer
 annotations" bug is CLOSED (failure-aware decode + badge + retry + per-owner pins).
-CI watched. Next per sequencing: the N3/N1/N2 nav rework, then A18, then A20/T50.
+**CI GREEN on `5304988` (all five jobs).** Next per sequencing: the N3/N1/N2 nav rework, then A18, then A20/T50.
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
