@@ -5641,6 +5641,18 @@ entry; follow-up confirmed self-service ownership and riding the bake. Spec:
 Sequencing: after A19-condition + nav rework + A18 + T46. Lanes: core+studio = T50,
 app = A20 (section in the spec, ready to lift).
 
+## 2026-07-17 — POST-LAND: A19 `cfef3b0`+`5304988` (B1 fix) — CONDITION MET, VERIFIED, CLOSED
+
+The conditional GO's required change landed exactly as specified: `pin(owner, keys)`
+/ `unpin(owner)` with eviction skipping the UNION; each PageView/ScrollPage pins
+under a stable `remember { Any() }` owner and releases via DisposableEffect — two-up
+and scroll-mode pages are ALL evictionproof while displayed, and off-screen pages
+become evictable again. Two-owner test added; existing tests migrated. Verified with
+my own runs: `cfef3b0` is patch-identical to the reviewed `f0a564a`; `:shared:check`
+green at the landed head; both trailers cite correctly. The I12 "silently fewer
+annotations" bug is CLOSED (failure-aware decode + badge + retry + per-owner pins).
+CI watched. Next per sequencing: the N3/N1/N2 nav rework, then A18, then A20/T50.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
