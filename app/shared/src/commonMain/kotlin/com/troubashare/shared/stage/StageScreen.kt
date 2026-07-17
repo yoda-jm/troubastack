@@ -16,6 +16,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -54,6 +55,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -480,14 +482,26 @@ private fun Performing(
     if (showRole) RoleDialog(state, vm) { showRole = false }
 }
 
-/** A2 — a round translucent Stage control (reference-app look): a glyph on a dark disc, white text. */
+// N5 — Stage control styling. The A17 disc was translucent-DARK on a BLACK canvas, so on the black
+// margins the disc vanished and only the glyph floated (VLL: "black navigation on black"). Fix per the
+// N5 ruling: keep the dark body (white glyph stays high-contrast, silhouette unchanged) and add a light
+// HAIRLINE OUTLINE that delineates the disc on pure black; on the white page the dark body carries it.
+// Reads on both extremes in day/night without the light-frost-on-white inversion Fable warned about.
+private val STAGE_FAB_CONTAINER = Color(0xCC1F1F1F)
+private val STAGE_FAB_OUTLINE = Color(0xB3FFFFFF)
+private val STAGE_FAB_OUTLINE_WIDTH = 1.5.dp
+
+/** A2/N5 — a translucent Stage control (reference-app look): a white glyph on a dark disc with a light
+ *  hairline outline so it reads on both the black canvas and the white page. */
 @Composable
-private fun StageFab(glyph: String, size: Dp = 56.dp, container: Color = Color(0xC0000000), onClick: () -> Unit) {
+private fun StageFab(glyph: String, size: Dp = 56.dp, container: Color = STAGE_FAB_CONTAINER, onClick: () -> Unit) {
+    val shape = FloatingActionButtonDefaults.shape
     FloatingActionButton(
         onClick = onClick,
         containerColor = container,
         contentColor = Color.White,
-        modifier = Modifier.size(size),
+        shape = shape,
+        modifier = Modifier.size(size).border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
     ) { Text(glyph, style = MaterialTheme.typography.headlineSmall) }
 }
 
@@ -508,10 +522,16 @@ private fun TitleCard(title: String, position: String, modifier: Modifier = Modi
 
 /** N7 — the end-of-bounds glyph: a big semitransparent center disc with a direction-aware "arrow into a
  *  wall" (forward = blocked at the last page, backward = blocked at the first), ~2× a nav FAB so it
- *  reads as a distinct edge signal over the score. Flashed briefly then faded (shared N1 layer). */
+ *  reads as a distinct edge signal over the score. Flashed briefly then faded (shared N1 layer).
+ *  N5: same dark-disc + light hairline outline as the FABs so it reads on BOTH the white page (day) and
+ *  the black night page — a bare dark disc vanished on the night-black canvas. */
 @Composable
 private fun BlockedTurnGlyph(forward: Boolean) {
-    Surface(color = Color(0x99000000), shape = CircleShape, modifier = Modifier.size(120.dp)) {
+    Surface(
+        color = STAGE_FAB_CONTAINER,
+        shape = CircleShape,
+        modifier = Modifier.size(120.dp).border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, CircleShape),
+    ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 if (forward) "›|" else "|‹",
