@@ -74,6 +74,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -280,10 +281,14 @@ private fun Performing(
         // re-registering; unregister on dispose so volume keys behave normally outside Stage (this is
         // also A09's dispose contract). iOS provides no registrar → the default no-op.
         val volumeTurnRegistrar = LocalVolumeTurnRegistrar.current
-        val latestNext by rememberUpdatedState(turnNext)
-        val latestPrev by rememberUpdatedState(turnPrev)
+        // rememberUpdatedState keeps the CURRENT turn handlers readable from long-lived callbacks whose
+        // host isn't re-created every recomposition — the volume registrar (DisposableEffect keyed on
+        // the registrar) AND the swipe gesture (pointerInput keyed on the layout, not the page). Reading
+        // .value at fire time avoids the stale-closure bug where a swipe kept turning from page 0.
+        val latestNext = rememberUpdatedState(turnNext)
+        val latestPrev = rememberUpdatedState(turnPrev)
         DisposableEffect(volumeTurnRegistrar) {
-            volumeTurnRegistrar { pt -> if (pt == PageTurn.NEXT) latestNext() else latestPrev() }
+            volumeTurnRegistrar { pt -> if (pt == PageTurn.NEXT) latestNext.value() else latestPrev.value() }
             onDispose { volumeTurnRegistrar(null) }
         }
 
@@ -309,7 +314,7 @@ private fun Performing(
                 .fillMaxSize()
                 .background(Color.Black)
                 .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
-                .then(if (scrollMode) Modifier else Modifier.pointerInputSwipe(state.pageCount to twoUp, turnPrev, turnNext)),
+                .then(if (scrollMode) Modifier else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)),
         ) {
             when {
                 scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
@@ -895,14 +900,18 @@ private fun Modifier.stageTaps(
     }
 }
 
-private fun Modifier.pointerInputSwipe(key: Any, onPrev: () -> Unit, onNext: () -> Unit): Modifier =
+// N3 page-turn swipe. [onPrev]/[onNext] are passed as State and read at drag-END so the turn always
+// targets the CURRENT page: [key] intentionally excludes state.current (restarting the detector on
+// every turn is wasteful and could drop an in-flight drag), so a captured lambda would go stale and
+// keep turning from page 0 — reading .value at fire time is the fix.
+private fun Modifier.pointerInputSwipe(key: Any, onPrev: State<() -> Unit>, onNext: State<() -> Unit>): Modifier =
     pointerInput(key) {
         var dx = 0f
         detectHorizontalDragGestures(
             onDragStart = { dx = 0f },
             onDragEnd = {
                 val threshold = size.width * 0.15f
-                if (dx > threshold) onPrev() else if (dx < -threshold) onNext()
+                if (dx > threshold) onPrev.value() else if (dx < -threshold) onNext.value()
             },
         ) { _, amount -> dx += amount }
     }
