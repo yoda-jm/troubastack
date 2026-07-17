@@ -142,3 +142,53 @@ auto-hiding chrome and gives iOS the same via a commonMain gesture/visibility la
 
 **Sequencing:** these fold into the Q2/Q3 A-track tasks (not yet started) — no new lane split; T46 and
 Q1 (landed) are unaffected. If you bless A1+A2, I'll spec them into the Q2/Q3 tasks and build.
+
+---
+
+## Addendum 2 (2026-07-17) — Stage nav semantics (recommendation wanted) + two rendering reports (investigated)
+
+VLL feedback after living with A17 (immersive Stage) on the device. Design calls on navigation
+semantics are raised for your recommendation; two behaviour reports were investigated in code.
+
+### N1 — What does "next" mean: page, song, or both? (+ the song-boundary feel)
+Today `›`, edge-tap, swipe, and pedals all advance one **page** through the shared `turnNext`, and pages
+flow **continuously across song boundaries** (Wonderwall p3/3 → next song p1/4); the title card's
+"Song X/N · P/T" flips song mid-advance with **no seam**. VLL finds the cross-song chaining
+disorienting. Options: **(a)** page-only, no seam (today); **(b)** page-within-song + an explicit
+next-song affordance (or stop-at-song-end); **(c)** keep continuous but add a **song-boundary cue**
+(title-card flash / interstitial / divider) so crossing a song reads as intentional. Recommendation?
+
+### N2 — Scroll scope: whole concert vs per-song
+A14 scroll is one continuous column of the **entire concert** (all songs). VLL asks: whole concert or
+"just multipage PDFs" (within a song)? Options: **(a)** whole-concert (today); **(b)** scroll within the
+current song only, song change = discrete jump; **(c)** continuous with section breaks between songs.
+Couples to N1 (what "next" does while scrolling). Recommendation?
+
+### N3 — Tap-to-turn vs swipe (reopens the A2 tap ruling — flagging explicitly)
+VLL: tapping the bottom-right turns the page and "feels not expected"; *"a swipe in page mode should
+navigate to next page — feels natural."* Current model (A04 + the A2 ruling): left/right-third **tap**
+turns, middle-third tap toggles chrome, **and** horizontal swipe turns. So an edge tap turns the page,
+which competes with the "tap to reveal chrome" mental model and causes accidental turns. Options:
+**(a)** keep edge-tap-turn (A04 verbatim, as A2 ruled); **(b)** **drop edge-tap-turn** → page nav becomes
+**swipe + ‹ › FABs + pedals**, and ANY tap toggles chrome (matches VLL's instinct, removes accidental
+turns) — this **reopens the A2 tap split you just ruled**; **(c)** keep edge-tap but shrink the turn
+zones / require a firmer press. Recommendation? (This one changes A2, hence the explicit flag.)
+
+### B1 — BUG (investigated): "same page, fewer annotations after a tap"
+Root cause found in the read-only compositor (`StageScreen` `PageView`/`ScrollPage`): overlays are
+decoded via `overlayRefs.mapNotNull { decodeCached(...) }` — a **failed overlay decode is silently
+dropped** (no retry; a failed decode is also **not cached**), and `PageImageCache` holds only
+**12 entries** (raster + several overlays per page ⇒ ~2–4 pages before the LRU evicts). Navigating
+evicts a page's overlays; a transient re-decode failure then re-renders the **same page with fewer
+annotation layers**. This violates I12 (a page must never silently lose annotations). Fix direction for
+your ⟶ ok: don't silently drop a failed overlay (retry / visible-degrade, and be failure-aware so a
+miss isn't mistaken for "no layer"), and/or raise the cache budget so a page's own overlays aren't
+evicted while it's on screen. Mobile lane will fix on your confirmation.
+
+### B2 — "bottom-right tap renders something different"
+Investigated: this is N3's edge-tap-turn firing (right third → next page ⇒ a different page's
+annotations), i.e. by-design tap-to-turn, **not** a separate glitch. Folds into N3.
+
+**Sequencing:** mobile lane will fix **B1** once you bless the direction, and implement whatever you rule
+for **N1/N2/N3**. **A1 (per-song layers)** is code-complete and PAUSED — orthogonal to all of the above
+(it touches neither nav nor the compositor decode); land it when convenient or after these.
