@@ -5969,6 +5969,22 @@ green (my run).
 precedent: commit it WITH/right after the landing when the tablet reconnects — the
 geometry is exactly pinned by tests, the shot is confirmatory. Cite this verdict.
 
+## 2026-07-17 — POST-LAND: T50 slice 1 `1ebc785` VERIFIED + N6 screenshots VERIFIED (pixels)
+
+**T50 slice 1:** patch-identical to the pre-authorized `1e4e5c6` (my diff); trailer
+cites the gate answer; my runs — `gofmt -l` empty (output read), vet + full `go
+test` green. The cues model/endpoint/bake-injection is on main; **A20 is now
+UNBLOCKED server-side.**
+
+**N6 screenshots (`a61c728`, rode the landing per the A16 precedent):** both
+verified by pixels — Wonderwall's odd page 3/3 SOLO in landscape (no straddle), and
+Hallelujah opening as a fresh clean 1–2/4 spread with the pager label showing the
+spread range ("4–5/12"). The ruled acceptance met exactly. (The fresh-spread shot
+incidentally previews the N5 WIP discs reading correctly on black — the outcome bar
+looks on track; formal N5 verdict at its gate.)
+
+CI watched on both. Open: N5 (WIP), T50 slice 2 re-present (branch just cut), A20.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
