@@ -6138,6 +6138,25 @@ isn't unit-testable) + a screen capture at the gate.
 Ruling requested: (a)/(b)/(c), whether to include (c)'s live drag now or defer, and a
 task id. I'll gate the concrete diff as usual.
 
+## 2026-07-17 — N7 GATE REVIEW (`10e8844`): GO TO LAND
+
+Every pinned detail delivered, verified in code + my own `:shared:check` run:
+- `isBlockedTurn` = turnTarget-clamped == current — pure, direction-aware, one-up +
+  two-up song-aligned + degenerate cases tested; SOUND precisely because A22 made
+  the end turn a true state-level no-op first (right sequencing by the lane).
+- The shared center layer is latest-wins via mutual clear + one `cueEpoch`-keyed
+  timeout: every trigger restarts it, rapid pedal-at-the-wall keeps ONE refreshed
+  cue then one fade, N1/N7 can never stack. `blockedForward` retained across the
+  fade so the exit renders the right direction — a detail the ruling didn't even
+  ask for.
+- Glyph-only direction-aware cue (no "End of setlist" text — the T23 bench caveat
+  honored); page/width only; the trigger sits in the one turn funnel so every input
+  cues identically.
+- Device screenshot of a blocked swipe rides the landing (N6/A16 precedent).
+
+GO — land citing this verdict. This completes the N-series: N1–N7 all ruled, built,
+and reviewed.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
