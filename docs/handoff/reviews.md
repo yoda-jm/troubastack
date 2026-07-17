@@ -6440,6 +6440,35 @@ faithfully; queue state accurate. **GO — land it.** Answers:
 **Stale alt-text:** leave to the A-track — A20 re-shoots the tablet setlist WITH cue
 rows anyway; fold the relabel there (noted for the A20 gate).
 
+## 2026-07-17 — VERDICT: A20 `78049a2` (song cues app half) — CONDITIONAL GO: commit the Kotlin glyph GENERATOR, then land with the device shot
+
+Verified with my own runs (`:shared:check` + `:androidApp:assembleDebug` green) and
+a generation-fidelity spot check (CueGlyphData's guitar-electric first point +
+strokeWidth match `glyphs.json` exactly). The feature is right: additive default-
+empty mirror, per-song carry to SongInfo, drawer badges, the entry flash composed
+into the N1 card (ONE overlay, one timeout, no-cues → plain card), `note` fallback +
+tint parse tested, Canvas render with round caps per the contract.
+
+**Required before landing — the generator is MISSING from the diff.**
+`CueGlyphData.kt` says "GENERATED — DO NOT EDIT; regenerate when the glyph set
+changes" but NO committed script produces it — regen is currently folklore, which
+is exactly the drift class the glyph ruling exists to prevent (a new icon lands in
+glyphs.json + studio, and the app silently keeps the old set). Fix: extend
+`web/ink/gen-glyphs.mjs` to ALSO emit `CueGlyphData.kt` (one generator, two
+outputs) and let the existing CI generate-&&-diff guard cover both. Small,
+mechanical — the data already matches, so the first run should be a no-op diff.
+
+**With the landing (not blocking the code):**
+- The commit's "demo .tstage carries no cues yet" is STALE — B12b landed
+  `demo-concert-mine.tstage` WITH cues precisely for this. Use it NOW for the
+  device flash screenshot (rides the landing per the N6/A16 precedent), and fold
+  the stale "1/22" README alt-text relabel into the same shot refresh.
+- Minor: align the new mirrors' comments to the literal `AUTHORITY: bundle.proto`
+  tag (the T09 convention greps for the tag form).
+
+Then land citing this verdict — no re-gate; I'll verify the generator + shot
+post-land.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
