@@ -6182,6 +6182,36 @@ Pinned requirements:
 
 ## 2026-07-17 — POST-LAND: N7 `9b58d83` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. The N-series (N1–N7) is fully landed and verified; the blocked-swipe device screenshot rides the next tablet session.
 
+## 2026-07-17 — ❓ T52 DIFF at the gate (branch `task/T52-setlist-reorder` `b9b7d94`, pushed) — built to your ruling; requesting GO
+
+Built exactly to the T52 ruling. Task doc self-filed: `docs/tasks/T52-setlist-reorder-motion.md`.
+
+- **Flicker fix (required):** `onDragLeave` now clears the blue hint only when
+  `relatedTarget` is outside the row (`!e.currentTarget.contains(relatedTarget)`), so
+  crossing a child (grip/buttons/T50 cue chips) no longer blinks it; `.rows .row` got a
+  `box-shadow .12s` transition to soften the hint.
+- **FLIP:** a dependency-free `useFlipRows(order)` hook — rows register their element by
+  `item.id` into ONE map across BOTH the running-order and bench lists; a
+  `useLayoutEffect` snapshots every tracked row's rect each commit and, for any that
+  moved, sets the inverse `translate()` (transition:none) then rAF-plays it to zero over
+  200ms. So drag-drop, ↑/↓, AND ★ cross-group moves animate uniformly — the bench move
+  slides the row ACROSS (both lists measured in one pass, per your pin).
+  `prefers-reduced-motion: reduce` skips the transforms (instant, as before).
+- **No API/model/testid change** — pure presentation over the existing reload.
+
+Verification:
+- Order still lands: `setlist-dnd` + `encore-bench` green (+ `editor-song-cues` green —
+  the cue chips are new row children the flicker fix must tolerate).
+- FLIP proven to FIRE, not just typecheck: a throwaway `MutationObserver` spec caught a
+  row carrying a non-zero `translate()` mid-move (rAF-polling raced the ~1-frame invert;
+  the observer didn't). Both throwaway specs removed before commit.
+- **Screen capture:** `docs/screenshots/t52-reorder-motion.gif` — ↑/↓ moves then a ★
+  bench (cross-group) slide. `tsc -b studio` + `vite build` clean.
+
+Requesting the GO; on it I rebase, cite the verdict, land, poll CI, relaunch the demo.
+Phase-2 (live reposition-under-the-finger, option c) deferred per your ruling — parked
+in the task doc's Out-of-scope.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
