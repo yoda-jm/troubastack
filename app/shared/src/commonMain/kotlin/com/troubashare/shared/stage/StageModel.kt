@@ -101,7 +101,10 @@ data class StageState(
     val layers: List<LayerInfo> = emptyList(),
     val current: Int = 0,
     val fitMode: FitMode = FitMode.FIT_PAGE,
-    val visibleLayers: Set<String> = emptySet(),
+    // A1: layer visibility is PER-SONG (keyed by songId), not concert-wide. The role seeds each song's
+    // default-visible layers; a manual toggle changes only the current song's set and is remembered for
+    // it within the Stage session (I12 — session-scoped, nothing persisted).
+    val visibleBySong: Map<String, Set<String>> = emptyMap(),
     val role: String = "",
     // P201/I13 rehearsal auto-update: TRANSIENT — lives only in this in-memory state, is
     // never written through the Storage seam, and resets to false whenever Stage is left
@@ -115,7 +118,14 @@ data class StageState(
     /** The song index the current page belongs to (for highlighting the picker), or -1 if none. */
     val currentSong: Int
         get() = songs.indexOfLast { it.firstPage <= current }
+
+    /** The visible layer ids for [songId] (A1 per-song visibility); empty if the song is unknown. */
+    fun visibleFor(songId: String): Set<String> = visibleBySong[songId] ?: emptySet()
 }
+
+/** The role's default-visible layer ids (A1 seed for every song). */
+internal fun defaultVisibleLayers(layers: List<LayerInfo>, role: String): Set<String> =
+    layers.filter { defaultVisible(it, role) }.map { it.layerId }.toSet()
 
 /**
  * Default layer visibility (I12): empty roleTag ⇒ visible; non-empty ⇒ visible only when it equals
@@ -163,8 +173,10 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
     }
 
     val layers = aggregateLayers(bundle)
-    val visible = layers.filter { defaultVisible(it, role) }.map { it.layerId }.toSet()
-    return StageState(pages = pages, songs = songs, layers = layers, visibleLayers = visible, role = role)
+    // A1: seed every song with the role's default-visible layers; per-song overrides diverge later.
+    val defaults = defaultVisibleLayers(layers, role)
+    val visibleBySong = songs.associate { it.songId to defaults }
+    return StageState(pages = pages, songs = songs, layers = layers, visibleBySong = visibleBySong, role = role)
 }
 
 /** Distinct layers across the bundle, insertion-ordered; mandatory if any occurrence is mandatory. */

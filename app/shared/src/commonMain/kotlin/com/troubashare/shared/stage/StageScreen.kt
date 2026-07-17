@@ -317,11 +317,11 @@ private fun Performing(
                     // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
                     Row(Modifier.fillMaxSize()) {
                         spread.forEach { idx ->
-                            PageView(state.pages[idx], state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
+                            PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
                         }
                     }
                 }
-                else -> PageView(page, state.visibleLayers, state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
+                else -> PageView(page, state.visibleFor(page.songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
             }
         }
 
@@ -479,10 +479,13 @@ private fun SettingsSheet(
                     ) { Text(label) }
                 }
             }
+            // A1/Q3 — ROLE-FIRST: picking a role seeds the right layers for the whole concert; most
+            // users never open Layers. Layers is the demoted "Advanced" exception and scopes to the
+            // CURRENT song only (per-song, A1). Order reflects that: Role, then day/night, then Layers.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (state.layers.isNotEmpty()) OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Layers") }
                 OutlinedButton(onClick = onRole, modifier = Modifier.weight(1f)) { Text(if (state.role.isEmpty()) "Role" else "Role: ${state.role}") }
                 OutlinedButton(onClick = onToggleColor, modifier = Modifier.weight(1f)) { Text(if (colorMode == StageColorMode.NIGHT) "Night" else "Day") }
+                if (state.layers.isNotEmpty()) OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Layers…") }
             }
         }
     }
@@ -569,7 +572,7 @@ private fun ScrollReader(
         itemsIndexed(songPages) { index, page ->
             Column(Modifier.fillMaxWidth()) {
                 MetaStrip(page, resetKey = range.first + index) // renders only on the song's first page
-                ScrollPage(page, state.visibleLayers, decoder, cache, colorFilter, widthPx)
+                ScrollPage(page, state.visibleFor(page.songId), decoder, cache, colorFilter, widthPx)
             }
         }
     }
@@ -820,16 +823,22 @@ private fun CenteredMessage(title: String, body: String, onExit: () -> Unit) {
 
 @Composable
 private fun LayersDialog(state: StageState, vm: StageViewModel, onDismiss: () -> Unit) {
+    // A1: layer visibility is PER-SONG — show/toggle the CURRENT song's set. Role-first (Q3): this is
+    // the "Advanced: layers" exception path; most users just pick a role and let the defaults ride.
+    val songId = state.currentPage?.songId ?: ""
+    val visible = state.visibleFor(songId)
+    val songName = state.songs.getOrNull(state.currentSong)?.name ?: ""
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-        title = { Text("Layers") },
+        title = { Text(if (songName.isEmpty()) "Layers — this song" else "Layers — $songName") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Overrides just this song; changing your role resets it.", style = MaterialTheme.typography.bodySmall)
                 state.layers.forEach { layer ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
-                            checked = layer.layerId in state.visibleLayers,
+                            checked = layer.layerId in visible,
                             enabled = !layer.mandatory, // mandatory layers are locked on (I12)
                             onCheckedChange = { vm.setLayerVisible(layer.layerId, it) },
                         )

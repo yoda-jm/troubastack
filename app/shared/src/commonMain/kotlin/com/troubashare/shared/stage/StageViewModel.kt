@@ -35,16 +35,24 @@ class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitM
     /** Set the reading mode directly (A2 segmented control: Page | Width | Scroll). */
     fun setFitMode(mode: FitMode) = _state.update { s -> s.copy(fitMode = mode) }
 
-    /** Show/hide a layer. A mandatory layer cannot be hidden (I12) — the request is ignored. */
+    /**
+     * Show/hide a layer FOR THE CURRENT SONG ONLY (A1 per-song visibility); the choice is remembered
+     * for that song this session. A mandatory layer cannot be hidden (I12) — the request is ignored.
+     */
     fun setLayerVisible(layerId: String, visible: Boolean) = _state.update { s ->
         val layer = s.layers.find { it.layerId == layerId } ?: return@update s
         if (layer.mandatory) return@update s
-        s.copy(visibleLayers = if (visible) s.visibleLayers + layerId else s.visibleLayers - layerId)
+        val songId = s.currentPage?.songId ?: return@update s
+        val cur = s.visibleFor(songId)
+        val updated = if (visible) cur + layerId else cur - layerId
+        s.copy(visibleBySong = s.visibleBySong + (songId to updated))
     }
 
-    /** Set the local reading role; re-seeds layer visibility from the default rule (mandatory stays on). */
+    /** Set the local reading role; RE-SEEDS every song's visibility from the default rule, CLEARING any
+     *  per-song manual overrides (A1). Mandatory layers stay on. */
     fun setRole(role: String) = _state.update { s ->
-        s.copy(role = role, visibleLayers = s.layers.filter { defaultVisible(it, role) }.map { it.layerId }.toSet())
+        val defaults = defaultVisibleLayers(s.layers, role)
+        s.copy(role = role, visibleBySong = s.songs.associate { it.songId to defaults })
     }
 
     /** P201/I13: the transient rehearsal auto-update toggle. In-memory only — a new
@@ -58,7 +66,7 @@ class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitM
      * state from [newResult] then remaps position: the current page's content hash finds
      * its counterpart in the new bundle (unchanged page → exact same spot); failing that,
      * the same (songId, pageInSong); failing that, the nearest page index. Fit mode,
-     * per-layer visibility (by layerId), role, and the auto-update flag are preserved.
+     * PER-SONG layer visibility (by songId+layerId), role, and the auto-update flag are preserved.
      * Facing pages (A12) and scroll mode (A14) follow automatically: they derive the
      * spread / scroll position from `current`, which this maps correctly.
      */
@@ -66,11 +74,21 @@ class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitM
         val fresh = stageStateFrom(newResult, old.role).copy(fitMode = old.fitMode, autoUpdate = old.autoUpdate)
         if (fresh.pages.isEmpty()) return@update fresh
         val target = remapCurrent(old, fresh)
-        // Keep the viewer's layer choices for layers that still exist; a brand-new layer
-        // takes its default visibility (defaultVisible, already in fresh.visibleLayers).
-        val keptOld = fresh.layers.map { it.layerId }.filter { it in old.visibleLayers }.toSet()
-        val newLayerDefaults = fresh.visibleLayers.filter { id -> old.layers.none { it.layerId == id } }
-        fresh.copy(current = target, visibleLayers = keptOld + newLayerDefaults)
+        // A1: merge PER SONG. For a song that existed before, keep its overrides for layers that still
+        // exist, plus the default for any genuinely-new layer; a brand-new song takes fresh's default
+        // seed. An auto-update mid-rehearsal must never clobber a per-song layer choice.
+        val newLayerIds = fresh.layers.map { it.layerId }.filter { id -> old.layers.none { it.layerId == id } }.toSet()
+        val merged = fresh.songs.associate { song ->
+            val oldSet = old.visibleBySong[song.songId]
+            if (oldSet == null) {
+                song.songId to fresh.visibleFor(song.songId) // new song → its fresh default seed
+            } else {
+                val kept = oldSet.filter { id -> fresh.layers.any { it.layerId == id } }.toSet()
+                val newDefaults = fresh.visibleFor(song.songId).filter { it in newLayerIds }
+                song.songId to (kept + newDefaults)
+            }
+        }
+        fresh.copy(current = target, visibleBySong = merged)
     }
 }
 

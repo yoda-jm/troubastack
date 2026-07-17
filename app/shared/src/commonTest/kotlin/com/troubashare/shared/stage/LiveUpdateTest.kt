@@ -2,6 +2,7 @@ package com.troubashare.shared.stage
 
 import com.troubashare.shared.bundle.BakedSong
 import com.troubashare.shared.bundle.ConcertBundle
+import com.troubashare.shared.bundle.LayerImage
 import com.troubashare.shared.bundle.LoadResult
 import com.troubashare.shared.bundle.PageImages
 import kotlin.test.Test
@@ -91,5 +92,29 @@ class LiveUpdateTest {
         val fit = vm.state.value.fitMode
         vm.applyUpdate(hashedBundle(listOf(listOf("a", "b"))))
         assertEquals(fit, vm.state.value.fitMode, "fit mode survives an auto-update swap")
+    }
+
+    // ---- A1: per-song layer overrides survive an auto-update swap ----
+
+    private fun overlayBundle(): LoadResult.Loaded {
+        val notes = LayerImage(layerId = "notes", imageRef = "n.png", order = 0)
+        val bundle = ConcertBundle(
+            concertId = "c1",
+            songs = listOf("song-1", "song-2").map { id ->
+                BakedSong(songId = id, pages = listOf(PageImages(pageRasterRef = "$id.png", overlays = listOf(notes))))
+            },
+        )
+        return LoadResult.Loaded(bundle, emptyList())
+    }
+
+    @Test
+    fun applyUpdate_preservesPerSongLayerOverride() {
+        // A1: an auto-update mid-rehearsal must not clobber a per-song layer choice.
+        val vm = StageViewModel(overlayBundle())
+        vm.setLayerVisible("notes", false) // hide on song-1 only (current page)
+        assertFalse("notes" in vm.state.value.visibleFor("song-1"))
+        vm.applyUpdate(overlayBundle())
+        assertFalse("notes" in vm.state.value.visibleFor("song-1"), "song-1 override survives the swap")
+        assertTrue("notes" in vm.state.value.visibleFor("song-2"), "song-2 default is unchanged")
     }
 }
