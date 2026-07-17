@@ -6956,6 +6956,28 @@ explicit capture (no silent WYSIWYG). scope=mine retires only AFTER stage 3 ship
 (one release of overlap). Program acceptance: two identities, two devices, one
 file, different views. **Web-core: stage 1 is GO — gate as usual.**
 
+## 2026-07-17 — ❓ T55 at the gate: zone-at-draw-time audience tag (branch `task/T55-draw-zone-chip` `b9980b7`, pushed)
+
+Scheme A part 3a. The always-visible "Drawing on: `<layer>`" indicator now carries an
+audience tag, so every stroke/stamp declares its audience at the moment it lands (the
+one place the boundary was invisible).
+
+- New reusable **`AudienceTag`** (the scheme's one vocabulary component — the sweep will
+  reuse it): 👤 Mine vs 👥 Band, from `audienceForZone()` — classify by who sees the
+  EFFECT (personal → Mine; shared + conductor → Band; conductor gets a "(conductor)"
+  note). Solid chip so it reads on the indigo indicator pill.
+- The indicator wraps the name in a truncating `.ali-label` so the tag never gets
+  ellipsis-clipped.
+
+Verification: e2e red-first — the indicator shows 👤 Mine on a personal active layer and
+👥 Band on a shared one (asserted via the active-layer switch). `editor-active-layer` +
+`editor-layers` regressions green (their `toContainText` assertions are unaffected — the
+tag text is additive). `tsc -b` clean. Pixels light+dark under
+`docs/screenshots/t55-drawing-on-*.png`.
+
+Requesting a GO. Scheme A then has only the vocabulary **sweep** (part 3b) left. (And
+P205 stage 1 is GO'd above — I'll pick it up after this unless VLL redirects.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
