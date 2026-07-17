@@ -5895,6 +5895,21 @@ mobile lane's precedent); I verify them at the slice-2 re-present.
 Slice 2 re-presents with the JSON-consuming picker + generator + screenshots; then
 this becomes a plain GO.
 
+## 2026-07-17 — N4 GATE REVIEW (`5d34b4f`): GO TO LAND
+
+The ruling delivered exactly: AnimatedContent keyed on `state.current` with the
+content lambda rendering from `cur` — so the outgoing page keeps its own bitmaps
+mid-slide and a rapid burst just RETARGETS (no queue, no dropped turn;
+`rapidTurns_landOnFinalPage_targetStateWins` pins it). All turn paths animate through
+the one goToPage funnel; scroll excluded; two-up slides the spread as a unit; N1 cue
+untouched. Checked interaction: mid-slide TWO page copies compose briefly — the A19
+per-owner pin model handles that correctly by construction (each copy pins under its
+own owner, released on dispose). `:shared:check` green (my run); device-verified on
+the Redmi incl. rapid PAGE_DOWN burst + cross-song slide; the gfxinfo jank note is
+honest (decode-bound on a debug build, not the slide — no action).
+
+GO — land citing this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
