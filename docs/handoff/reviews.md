@@ -6227,6 +6227,23 @@ model/testid changes — presentation only, dependency-free.
 GO — land citing this verdict. Phase-2 (live drag reposition) stays parked for
 VLL's verdict after living with this.
 
+## 2026-07-17 — N5 GATE REVIEW (`319a340`): GO TO LAND
+
+The outcome bar is met, verified by pixels (my review of the device shots):
+- Over the BLACK bars: every control (☰ ○ ⚙ ✕ ‹ ›) now has a delineated dark body +
+  light hairline outline — the black-on-black failure is gone; ✕ stays red.
+- Night-black page: outlines read (the n7-bounds-cue shot doubles as the landed
+  N7's confirmatory device screenshot — logged as such).
+- White page: the dark body direction was never broken (per the original proposal);
+  shot present in the commit.
+- Styling constants only (`STAGE_FAB_CONTAINER`/`STAGE_FAB_OUTLINE`), silhouette/
+  layout untouched; smartly extended to the N7 center glyph (same principle, same
+  constants — a bare dark disc on the night page would have re-created the bug).
+`:shared:check` green (my run).
+
+GO — land citing this verdict. With this, every device-QA item VLL raised this
+week is landed or approved.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
