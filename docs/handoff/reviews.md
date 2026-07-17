@@ -5624,6 +5624,23 @@ simultaneously → neither evicted; unpinning one frees only its keys.
 
 Then land citing this verdict — no re-gate; I'll verify the pin model post-land.
 
+## 2026-07-17 — NEW FEATURE SPEC'D (VLL request): T50 personal song cues (icons+colors, per song per member) + A20 app half
+
+VLL asked for per-song per-member icon+color cues ("mic + red guitar" = sing this
+one, take the red electric) shown in the app's setlist and FLASHED center on song
+entry; follow-up confirmed self-service ownership and riding the bake. Spec:
+`docs/tasks/T50-song-cues.md`. Key decisions (analyzed against the existing model):
+- **Cues ride the PER-MEMBER bake** (`BakedSong.cues = 10`, additive metadata like
+  fields 5–9/B02) — a member's bundle already IS their view, zero app-side filtering.
+- **Stable icon IDs + curated monochrome TINTABLE glyphs** (16, incl. his full
+  instrument list); unknown ID → `note` fallback so icon-set growth never breaks old
+  apps. Emoji rejected (can't tint a red guitar).
+- **Self-only writes in v1** (`my-cues` endpoint); admin-edits-others deferred.
+- **The center flash composes with the N1 boundary card** — one overlay, one
+  clock-injected timeout; no new UI surface.
+Sequencing: after A19-condition + nav rework + A18 + T46. Lanes: core+studio = T50,
+app = A20 (section in the spec, ready to lift).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
