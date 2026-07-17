@@ -147,6 +147,8 @@ Q1 (landed) are unaffected. If you bless A1+A2, I'll spec them into the Q2/Q3 ta
 
 ## Addendum 2 (2026-07-17) — Stage nav semantics (recommendation wanted) + two rendering reports (investigated)
 
+> **RULED 2026-07-17 (reviews.md):** N3 → (b) drop edge-tap-turn (A2 tap split REVERSED on device evidence; any tap = chrome, nav = swipe/FABs/pedals). N1 → (c) continuous + transient title-card cue at song boundaries. N2 → (b) per-song scroll; song crossings always explicit + cued. B1 → both halves required (failure-aware decode + pin current page), lands FIRST. B2 folds into N3.
+
 VLL feedback after living with A17 (immersive Stage) on the device. Design calls on navigation
 semantics are raised for your recommendation; two behaviour reports were investigated in code.
 

@@ -5556,6 +5556,53 @@ Landed byte-identical to the reviewed `331de72`; `Approved:` trailer present and
 correct (the A16 lesson took). All five CI jobs green. A17 CLOSED. Queue: T46
 (web-core, contract pinned) + A18 (per-song layers — mount in A17's settings sheet).
 
+## 2026-07-17 — RULINGS: Stage nav semantics (N1/N2/N3) + B1 fix direction blessed
+
+### N3 — RULED: (b), drop edge-tap-turn. This REVERSES my A2 tap split, and the evidence earns it.
+
+Two days ago I kept edge-tap-turn for zero retraining. Living with A17 falsified
+that theory: VLL reports accidental turns and "not expected", and B2 is the proof —
+the product owner himself read an edge-tap page turn as a RENDERING GLITCH. In the
+immersive model taps mean "chrome", swipes mean "navigate"; mixing them costs
+accidental page turns, and mid-performance a wrong page is far worse than an
+accidentally revealed (self-hiding) chrome. So: **page nav = swipe + ‹ › FABs +
+pedals/keys; ANY tap toggles chrome, every mode.** `tapAction` simplifies to
+mode-independent (update StageChromeTest to pin the new contract); the
+one-navigation-entry invariant is about ROUTING and stands untouched. A04's
+tap-thirds acceptance is formally superseded on this point — this entry is the
+citation.
+
+### N1 — RULED: (c), continuous advance WITH a song-boundary cue.
+
+Stopping at song end (b) would strand pedal users mid-setlist — continuous advance
+is a performance requirement, not a bug. The disorientation is real though, so
+crossing a boundary must READ as crossing: on a cross-song advance, transiently
+reveal the TITLE/POSITION CARD alone (~2s, reusing A17's chrome card — no new UI;
+not the full chrome) so "Song 3/4 · Hallelujah · 1/2" announces itself. Clock-inject
+the cue timeout in tests like the A17 auto-hide.
+
+### N2 — RULED: (b), scroll is PER-SONG. Vertical = within the song; songs are explicit.
+
+The whole-concert column made "where am I" ambiguous and couples badly with N1. New
+semantic, clean and teachable: **vertical motion always reads WITHIN the current
+song; crossing to another song is always an explicit act** (FAB/pedal/swipe at
+column end → next song, WITH the N1 cue; the A15 drawer for jumps). Pedal flow is
+preserved: "next" inside the column steps down as today, at column end it crosses
+with the cue. This also kills the giant-column scroll-fraction/memory complexities.
+
+### B1 — BLESSED with both halves REQUIRED (this is an I12 correctness bug, priority over the N-work):
+
+1. **Failure-aware overlay decode**: a failed decode must NEVER read as "no layer" —
+   retry on the next frame; if persistently failing, degrade VISIBLY (a placeholder/
+   badge), never silently. Cache the failure state distinctly from absence.
+2. **The on-screen page's raster + overlays must be evictionproof**: pin the current
+   page's entries (correctness guarantee) and raise the 12-entry budget to cover
+   realistic page+overlay counts (polish). Regression test: inject a decode failure →
+   the page either keeps the layer or visibly reports; never fewer annotations
+   silently.
+Sequencing: B1 lands FIRST (or with) the nav changes; A18/A1 (paused, code-complete,
+orthogonal) lands after B1 — don't let a correctness fix queue behind UX work.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
