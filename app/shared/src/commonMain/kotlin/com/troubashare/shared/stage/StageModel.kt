@@ -106,7 +106,7 @@ data class SongInfo(
 )
 
 /** A distinct layer aggregated across the bundle, for the Layers panel. */
-data class LayerInfo(val layerId: String, val mandatory: Boolean, val roleTag: String)
+data class LayerInfo(val layerId: String, val mandatory: Boolean, val roleTag: String, val name: String = "")
 
 /**
  * The whole presenter state. Pure data, no Android deps — all transitions are total and clamped, so
@@ -216,6 +216,7 @@ private fun aggregateLayers(bundle: ConcertBundle): List<LayerInfo> {
                     layerId = o.layerId,
                     mandatory = (prev?.mandatory ?: false) || o.mandatory,
                     roleTag = prev?.roleTag?.ifEmpty { o.roleTag } ?: o.roleTag,
+                    name = prev?.name?.ifEmpty { o.name } ?: o.name, // T53: first non-empty baked name
                 )
             }
         }
@@ -266,18 +267,21 @@ internal fun songLayers(state: StageState, songId: String): List<LayerInfo> {
 }
 
 /**
- * N10 — the human labels for a song's layers in the dialog. Until the bundle carries a real name
- * (T53 adds LayerImage.name to the bake), fall back to a prettified role tag ("conductor" →
- * "Conductor"); an untagged layer has no name at all, so rather than exposing its raw id (a hash
- * like "L-86453186435184" reads as an internal id / "strange" — VLL) we number them "Layer N" in
- * list order. Numbering is per untagged-layer so a named layer never consumes a number. Pure.
- * (T53 will prepend the real name to the role→number chain.)
+ * N10 — the human labels for a song's layers in the dialog. Label chain (T53): the real baked
+ * layer name if present ("Guitar", "Lead vocal"); else a prettified role tag ("conductor" →
+ * "Conductor"); else — an untagged, un-named layer has nothing human at all, so rather than
+ * exposing its raw id (a hash like "L-86453186435184" reads as an internal id / "strange" — VLL)
+ * we number them "Layer N" in list order. Numbering is per un-labelled layer so a named/role layer
+ * never consumes a number. Pre-T53 bundles have no name and fall through to role→number. Pure.
  */
 internal fun songLayerLabels(state: StageState, songId: String): List<Pair<LayerInfo, String>> {
     var n = 0
     return songLayers(state, songId).map { layer ->
-        val label = if (layer.roleTag.isNotEmpty()) layer.roleTag.replaceFirstChar { it.uppercase() }
-                    else "Layer ${++n}"
+        val label = when {
+            layer.name.isNotEmpty() -> layer.name
+            layer.roleTag.isNotEmpty() -> layer.roleTag.replaceFirstChar { it.uppercase() }
+            else -> "Layer ${++n}"
+        }
         layer to label
     }
 }

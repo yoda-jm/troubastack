@@ -304,6 +304,13 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 		overlaysByPage[ov.Page] = append(overlaysByPage[ov.Page], ov)
 	}
 
+	// T53: the rendered overlay carries no name; look it up from the source snapshot's
+	// layers so the baked LayerImage can label the layer for the viewer.
+	nameByLayer := map[string]string{}
+	for _, l := range snap.Layers {
+		nameByLayer[l.ID] = l.Name
+	}
+
 	for i, r := range rasters {
 		rasterRef := fmt.Sprintf("blobs/s%d-p%d-raster.png", si, i)
 		if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(rasterRef)), r, 0o644); err != nil {
@@ -324,6 +331,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 				Order:       ov.Order,
 				Mandatory:   ov.Mandatory,
 				RoleTag:     ov.RoleTag,
+				Name:        nameByLayer[ov.LayerID],
 			})
 		}
 		song.Pages = append(song.Pages, page)

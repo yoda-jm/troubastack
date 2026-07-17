@@ -36,6 +36,7 @@ data class LayerImage(
     val order: Int = 0,                       // proto order — z-order (int32; JSON number)
     val mandatory: Boolean = false,           // proto mandatory — viewer cannot hide
     val roleTag: String = "",                 // proto role_tag — default-visibility targeting
+    val name: String = "",                    // proto name — human layer name for viewer labels (T53)
 )
 
 /** proto `troubastack.v1.BakedSong` — one song's baked pages. */

@@ -31,6 +31,7 @@ type LayerImage struct {
 	Order       int32  `json:"order,omitempty"` // int32 → JSON number
 	Mandatory   bool   `json:"mandatory,omitempty"`
 	RoleTag     string `json:"roleTag,omitempty"`
+	Name        string `json:"name,omitempty"` // human name (mirrors Layer.Name), for viewer labels (T53)
 }
 
 // PageImages is one page's raster + z-ordered overlays (proto PageImages).

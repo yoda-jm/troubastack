@@ -12,8 +12,8 @@ import kotlin.test.assertEquals
  *  gives a friendlier interim name (prettified role, else id) until real names ride the bundle (T53). */
 class LayersTest {
 
-    private fun layer(id: String, role: String = "", mandatory: Boolean = false) =
-        LayerImage(layerId = id, imageRef = "$id.png", roleTag = role, mandatory = mandatory)
+    private fun layer(id: String, role: String = "", mandatory: Boolean = false, name: String = "") =
+        LayerImage(layerId = id, imageRef = "$id.png", roleTag = role, mandatory = mandatory, name = name)
 
     private fun state(): StageState {
         val bundle = ConcertBundle(
@@ -59,5 +59,20 @@ class LayersTest {
         )
         val s = StageViewModel(LoadResult.Loaded(bundle, emptyList())).state.value
         assertEquals(listOf("Layer 1", "Conductor", "Layer 2"), songLayerLabels(s, "s").map { it.second })
+    }
+
+    @Test
+    fun songLayerLabels_prefersBakedName_overRoleAndNumber() {
+        // T53: once the bundle carries a name, it wins over role/number and never consumes a number.
+        val bundle = ConcertBundle(
+            concertId = "c",
+            songs = listOf(BakedSong(songId = "s", pages = listOf(PageImages(pageRasterRef = "s.png", overlays = listOf(
+                layer("L-hash1", name = "Lead vocal"),
+                layer("L-hash2", role = "guitar", name = "Marie's guitar"), // name beats role
+                layer("L-hash3"), // no name, no role → numbered
+            ))))),
+        )
+        val s = StageViewModel(LoadResult.Loaded(bundle, emptyList())).state.value
+        assertEquals(listOf("Lead vocal", "Marie's guitar", "Layer 1"), songLayerLabels(s, "s").map { it.second })
     }
 }

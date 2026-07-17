@@ -23,6 +23,7 @@ message LayerImage {
   int32 order = 4;          // z-order (mirrors Layer.order)
   bool mandatory = 5;       // viewer cannot hide (mirrors Layer.mandatory)
   string role_tag = 6;      // default-visibility targeting
+  string name = 7;          // human name (mirrors Layer.name) so the viewer can label layers (T53)
 }
 
 message BakedSong {

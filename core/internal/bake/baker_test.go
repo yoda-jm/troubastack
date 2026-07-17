@@ -137,6 +137,11 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	if got := len(cb.Songs[0].Pages[0].Overlays); got != 1 {
 		t.Fatalf("want 1 overlay (one layer), got %d", got)
 	}
+	// T53: the baked overlay carries the source Layer's Name (looked up from the snapshot),
+	// so the viewer can label layers instead of showing the raw layer id.
+	if got := cb.Songs[0].Pages[0].Overlays[0].Name; got != "Marks" {
+		t.Fatalf("baked overlay name = %q, want the source layer's name %q (T53)", got, "Marks")
+	}
 	if cb.Songs[0].SourceRevision == 0 {
 		t.Fatalf("source_revision should be the song's head revision, got 0")
 	}
