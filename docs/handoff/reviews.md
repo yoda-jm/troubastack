@@ -6851,7 +6851,7 @@ param defaulting "" — only the icon tool passes its glyph id; every other tool
 unchanged by the default), icon-stamp + noflicker e2e green on my stack, `tsc`
 clean. The wet preview being visually-verified-not-mechanically-asserted matches
 the standing treatment of wet/motion previews. Trailer cites VLL's report
-correctly. CI watched.
+correctly. **CI GREEN (all five). CLOSED.**
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
