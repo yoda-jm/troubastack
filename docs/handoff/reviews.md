@@ -6476,7 +6476,7 @@ The required generator landed exactly as specified: `gen-glyphs.mjs` now emits B
 generate-&&-diff guard covers both (ci.yml), and the AUTHORITY comments were
 aligned. Code commit patch-identical to the reviewed `78049a2` (my diff). One
 generator, two outputs, drift impossible by construction — the glyph contract is
-now enforced end to end across studio, bake, and app. CI watched.
+now enforced end to end across studio, bake, and app. **CI GREEN on `9fac951` (all five, incl. the extended drift guard).**
 
 **Still expected (rides per the verdict):** the device flash screenshot against the
 landed `-mine` bundle + the "1/22" alt-text relabel. T50/A20 is otherwise COMPLETE
