@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/domain"
 	"troubastack/core/internal/engine"
 )
 
@@ -171,6 +172,23 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		bundle.Songs = append(bundle.Songs, song)
 	}
 
+	// P205: carry the band roster so the viewer resolves identity at view time
+	// (logged-in Connect match ⇒ auto; anonymous ⇒ one-tap pick). Additive metadata;
+	// a roster lookup failure must not fail the bake (older/shared bakes had none).
+	if members, merr := b.svc.Members(actor, bandID); merr == nil {
+		for _, m := range members {
+			name := m.User.DisplayName
+			if name == "" {
+				name = m.User.Username
+			}
+			bundle.Roster = append(bundle.Roster, BundleMember{
+				MemberID:    m.User.ID,
+				DisplayName: name,
+				Role:        string(m.Role),
+			})
+		}
+	}
+
 	// Publish (B04 atomic-rename + B08 re-claim + B09 two-phase .tstage).
 	//
 	// The `<rev>/` dir rename is the atomic arbiter: on a target-exists collision (a
@@ -306,9 +324,15 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 
 	// T53: the rendered overlay carries no name; look it up from the source snapshot's
 	// layers so the baked LayerImage can label the layer for the viewer.
+	// P205: also carry each layer's owner (member id, or "" for band-shared) so a
+	// band-wide bundle can be filtered to the viewer's identity at view time.
 	nameByLayer := map[string]string{}
+	ownerByLayer := map[string]string{}
 	for _, l := range snap.Layers {
 		nameByLayer[l.ID] = l.Name
+		if l.OwnerID != domain.SharedOwner { // "" = band/shared; a member id = personal
+			ownerByLayer[l.ID] = l.OwnerID
+		}
 	}
 
 	for i, r := range rasters {
@@ -332,6 +356,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 				Mandatory:   ov.Mandatory,
 				RoleTag:     ov.RoleTag,
 				Name:        nameByLayer[ov.LayerID],
+				Owner:       ownerByLayer[ov.LayerID], // P205: "" = shared; member id = personal
 			})
 		}
 		song.Pages = append(song.Pages, page)

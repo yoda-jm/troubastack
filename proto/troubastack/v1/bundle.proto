@@ -24,6 +24,15 @@ message LayerImage {
   bool mandatory = 5;       // viewer cannot hide (mirrors Layer.mandatory)
   string role_tag = 6;      // default-visibility targeting
   string name = 7;          // human name (mirrors Layer.name) so the viewer can label layers (T53)
+  // P205 band-wide bundle: a single bundle carries ALL layers, tagged by owner, and
+  // the viewer filters at view time. "" = band/shared content; a member id = that
+  // member's PERSONAL layer (shown only to that identity). Additive: absent ⇒ "".
+  string owner = 8;
+  // P205: the layer's default-on state CAPTURED at bake time (explicit, WYSIWYG bake
+  // dialog — not silent). proto3 `optional` for presence: absent ⇒ compute as today
+  // (mandatory || role_tag rule); present ⇒ seeds the view-time default (precedence in
+  // the P205 spec). Old bundles omit it and behave exactly as before.
+  optional bool default_on = 9;
 }
 
 message BakedSong {
@@ -52,6 +61,17 @@ message BakedSong {
   // default-empty, so old bundles stay valid and old loaders ignore it; absent =
   // no cues. An unknown icon id renders as the `note` fallback client-side.
   repeated SongCue cues = 10;
+  // P205 band-wide bundle: EVERY member's personal cues for this song, keyed by
+  // member id — the viewer shows its own identity's entry. Field 10 (`cues`) keeps
+  // its per-member-bake semantics while `?scope=mine` still exists (and is left EMPTY
+  // in band-wide bakes), so an old app degrades to no-cues, never wrong-cues. Additive.
+  repeated MemberCues member_cues = 11;
+}
+
+// MemberCues is one member's personal cues for a song in a band-wide bundle (P205).
+message MemberCues {
+  string member_id = 1;
+  repeated SongCue cues = 2;
 }
 
 // SongCue is one personal cue on a song: a stable icon id + an optional tint (T50).
@@ -70,6 +90,18 @@ message ConcertBundle {
   string baked_by = 5;
   bool final_locked = 6;                 // admin band-wide lock (I13)
   repeated BakedSong songs = 7;
+  // P205 band-wide bundle: the band roster, so the viewer resolves identity at view
+  // time (logged-in Connect match ⇒ auto; anonymous ⇒ one-tap "Who are you?" pick).
+  // Additive: absent ⇒ no roster (old bundles / pre-P205), viewer falls back to the
+  // role picker only. I12 holds: identity is a local view preference, not an account.
+  repeated BundleMember roster = 8;
+}
+
+// BundleMember is one band member in the roster (P205), for view-time identity.
+message BundleMember {
+  string member_id = 1;
+  string display_name = 2;
+  string role = 3;          // "admin" | "conductor" | "member"
 }
 
 // Cheap metadata-only response for "what's available to me" (I13). A few KB.

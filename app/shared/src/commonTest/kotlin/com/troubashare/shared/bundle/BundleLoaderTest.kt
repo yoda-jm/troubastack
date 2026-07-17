@@ -160,6 +160,73 @@ class BundleLoaderTest {
     }
 
     @Test
+    fun p205_bandWideFields_decode_and_areAdditive() {
+        // P205: a band-wide bundle carries roster, per-layer owner + optional default_on,
+        // and per-member cues. All additive: this reader decodes them; a pre-P205 bundle
+        // (next test / the older cases above) loads them as defaults.
+        val manifest = """
+            {
+              "concertId":"c1",
+              "roster":[
+                {"memberId":"m-marie","displayName":"Marie","role":"admin"},
+                {"memberId":"m-leo","displayName":"Leo","role":"member"}
+              ],
+              "songs":[{"songId":"s1","pages":[
+                {"pageRasterRef":"blobs/p0.webp","overlays":[
+                  {"layerId":"L1","imageRef":"blobs/p0-L1.webp","order":1,"name":"Conductor cues","mandatory":true,"defaultOn":true},
+                  {"layerId":"L2","imageRef":"blobs/p0-L2.webp","order":2,"name":"My notes","owner":"m-marie","defaultOn":false},
+                  {"layerId":"L3","imageRef":"blobs/p0-L3.webp","order":3,"name":"Form"}
+                ]}
+              ],"memberCues":[
+                {"memberId":"m-marie","cues":[{"icon":"mic"},{"icon":"guitar-electric","color":"#e11d48"}]},
+                {"memberId":"m-leo","cues":[{"icon":"tambourine"}]}
+              ]}]
+            }
+        """.trimIndent()
+        val files = filesWith(
+            manifest,
+            blobs = mapOf(
+                "blobs/p0.webp" to "r", "blobs/p0-L1.webp" to "a",
+                "blobs/p0-L2.webp" to "b", "blobs/p0-L3.webp" to "c",
+            ),
+        )
+        val b = assertIs<LoadResult.Loaded>(loader.load(DIR, files)).bundle
+
+        assertEquals(listOf("m-marie", "m-leo"), b.roster.map { it.memberId })
+        assertEquals("Marie", b.roster[0].displayName)
+        assertEquals("member", b.roster[1].role)
+
+        val ovs = b.songs.single().pages.single().overlays  // sorted by order → L1,L2,L3
+        assertEquals("", ovs[0].owner, "shared layer owner is empty")
+        assertEquals("m-marie", ovs[1].owner, "personal layer carries its owner")
+        assertEquals(true, ovs[0].defaultOn)   // present-true
+        assertEquals(false, ovs[1].defaultOn)  // present-false (distinct from absent)
+        assertEquals(null, ovs[2].defaultOn, "absent default_on decodes as null (compute-as-today)")
+
+        val mc = b.songs.single().memberCues
+        assertEquals(listOf("m-marie", "m-leo"), mc.map { it.memberId })
+        assertEquals(listOf("mic", "guitar-electric"), mc[0].cues.map { it.icon })
+        assertEquals("#e11d48", mc[0].cues[1].color)
+    }
+
+    @Test
+    fun p205_oldBundle_hasEmptyBandWideFields() {
+        // A pre-P205 bundle omits all of it — roster empty, owner "", default_on null, memberCues empty.
+        val manifest = """
+            {"concertId":"c1","songs":[{"songId":"s1","pages":[
+              {"pageRasterRef":"blobs/p0.webp","overlays":[{"layerId":"L1","imageRef":"blobs/p0-L1.webp"}]}
+            ]}]}
+        """.trimIndent()
+        val files = filesWith(manifest, blobs = mapOf("blobs/p0.webp" to "r", "blobs/p0-L1.webp" to "a"))
+        val b = assertIs<LoadResult.Loaded>(loader.load(DIR, files)).bundle
+        assertTrue(b.roster.isEmpty())
+        val ov = b.songs.single().pages.single().overlays.single()
+        assertEquals("", ov.owner)
+        assertEquals(null, ov.defaultOn)
+        assertTrue(b.songs.single().memberCues.isEmpty())
+    }
+
+    @Test
     fun tolerates_genuinely_unknown_field() {
         // The additive-field backward-compat guarantee still holds for keys this reader doesn't know
         // (a future proto field): the loader ignores them and loads normally (ignoreUnknownKeys).

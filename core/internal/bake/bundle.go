@@ -31,7 +31,11 @@ type LayerImage struct {
 	Order       int32  `json:"order,omitempty"` // int32 → JSON number
 	Mandatory   bool   `json:"mandatory,omitempty"`
 	RoleTag     string `json:"roleTag,omitempty"`
-	Name        string `json:"name,omitempty"` // human name (mirrors Layer.Name), for viewer labels (T53)
+	Name        string `json:"name,omitempty"`  // human name (mirrors Layer.Name), for viewer labels (T53)
+	Owner       string `json:"owner,omitempty"` // P205: "" = shared/band; member id = that member's personal layer
+	// P205: bake-time default-on state (proto3 optional → *bool for presence). nil ⇒
+	// omitted from JSON ⇒ viewer computes as today; non-nil ⇒ seeds the view-time default.
+	DefaultOn *bool `json:"defaultOn,omitempty"`
 }
 
 // PageImages is one page's raster + z-ordered overlays (proto PageImages).
@@ -53,6 +57,14 @@ type BakedSong struct {
 	OnCall         bool         `json:"onCall,omitempty"`       // bench/encore item — jumpable, outside the running order (T23)
 	Title          string       `json:"title,omitempty"`        // song Title at bake time (T26); empty → client "Song N" fallback
 	Cues           []SongCue    `json:"cues,omitempty"`         // the baked-for member's personal cues (T50); per-member bake only, shared bake has none
+	MemberCues     []MemberCues `json:"memberCues,omitempty"`   // P205: EVERY member's cues, keyed by member id (band-wide bake); empty while scope=mine exists
+}
+
+// MemberCues is one member's personal cues for a song in a band-wide bundle
+// (proto MemberCues, P205). The viewer shows only its own identity's entry.
+type MemberCues struct {
+	MemberID string    `json:"memberId,omitempty"`
+	Cues     []SongCue `json:"cues,omitempty"`
 }
 
 // SongCue is one personal cue on a song: a stable icon id + an optional tint
@@ -64,13 +76,22 @@ type SongCue struct {
 
 // ConcertBundle is the manifest of a baked concert (proto ConcertBundle, I11/I12).
 type ConcertBundle struct {
-	ConcertID   string      `json:"concertId,omitempty"`
-	Name        string      `json:"name,omitempty"`
-	ConcertRev  uint64      `json:"concertRev,string,omitempty"` // uint64 → JSON string
-	BakedAt     int64       `json:"bakedAt,string,omitempty"`    // int64 → JSON string
-	BakedBy     string      `json:"bakedBy,omitempty"`
-	FinalLocked bool        `json:"finalLocked,omitempty"`
-	Songs       []BakedSong `json:"songs,omitempty"`
+	ConcertID   string         `json:"concertId,omitempty"`
+	Name        string         `json:"name,omitempty"`
+	ConcertRev  uint64         `json:"concertRev,string,omitempty"` // uint64 → JSON string
+	BakedAt     int64          `json:"bakedAt,string,omitempty"`    // int64 → JSON string
+	BakedBy     string         `json:"bakedBy,omitempty"`
+	FinalLocked bool           `json:"finalLocked,omitempty"`
+	Songs       []BakedSong    `json:"songs,omitempty"`
+	Roster      []BundleMember `json:"roster,omitempty"` // P205: band roster for view-time identity resolution
+}
+
+// BundleMember is one band member in the roster (proto BundleMember, P205), for
+// view-time identity (logged-in auto-match / anonymous one-tap pick).
+type BundleMember struct {
+	MemberID    string `json:"memberId,omitempty"`
+	DisplayName string `json:"displayName,omitempty"`
+	Role        string `json:"role,omitempty"` // "admin" | "conductor" | "member"
 }
 
 // MarshalCanonical renders a ConcertBundle as the container spec's canonical JSON

@@ -142,6 +142,15 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	if got := cb.Songs[0].Pages[0].Overlays[0].Name; got != "Marks" {
 		t.Fatalf("baked overlay name = %q, want the source layer's name %q (T53)", got, "Marks")
 	}
+	// P205: the overlay carries its owner (the seed layer L1 is owned by u, not shared),
+	// so a band-wide bundle can be filtered to the viewer's identity at view time.
+	if got := cb.Songs[0].Pages[0].Overlays[0].Owner; got != u.ID {
+		t.Fatalf("baked overlay owner = %q, want the layer owner %q (P205)", got, u.ID)
+	}
+	// P205: the bundle carries the band roster for view-time identity resolution.
+	if len(cb.Roster) != 1 || cb.Roster[0].MemberID != u.ID || cb.Roster[0].Role != "admin" {
+		t.Fatalf("bundle roster = %+v, want one admin member %q (P205)", cb.Roster, u.ID)
+	}
 	if cb.Songs[0].SourceRevision == 0 {
 		t.Fatalf("source_revision should be the song's head revision, got 0")
 	}

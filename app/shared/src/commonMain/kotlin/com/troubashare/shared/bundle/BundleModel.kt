@@ -37,6 +37,8 @@ data class LayerImage(
     val mandatory: Boolean = false,           // proto mandatory — viewer cannot hide
     val roleTag: String = "",                 // proto role_tag — default-visibility targeting
     val name: String = "",                    // proto name — human layer name for viewer labels (T53)
+    val owner: String = "",                   // proto owner — "" = shared/band; member id = personal layer (P205)
+    val defaultOn: Boolean? = null,           // proto default_on (optional) — bake-time default; null = compute as today (P205)
 )
 
 /** proto `troubastack.v1.BakedSong` — one song's baked pages. */
@@ -61,6 +63,17 @@ data class BakedSong(
     // THAT member's cues; the shared bake carries none. Additive/default-empty (proto cues = 10) — old
     // bundles omit it, an unknown icon id renders as the `note` fallback client-side.
     val cues: List<SongCue> = emptyList(),                                      // proto cues
+    // P205: EVERY member's personal cues, keyed by member id (band-wide bake). The viewer shows only
+    // its own identity's entry; `cues` (field 10) stays the per-member-bake fallback. Additive/default-empty.
+    val memberCues: List<MemberCues> = emptyList(),                             // proto member_cues
+)
+
+/** proto `troubastack.v1.MemberCues` (AUTHORITY: bundle.proto) — one member's personal cues for a song
+ *  in a band-wide bundle (P205). The viewer resolves its identity and shows the matching entry. */
+@Serializable
+data class MemberCues(
+    val memberId: String = "",              // proto member_id
+    val cues: List<SongCue> = emptyList(),  // proto cues
 )
 
 /** proto `troubastack.v1.SongCue` (AUTHORITY: bundle.proto) — one personal cue: a stable icon id + an
@@ -81,6 +94,18 @@ data class ConcertBundle(
     val bakedBy: String = "",                                               // proto baked_by
     val finalLocked: Boolean = false,                                       // proto final_locked (I13)
     val songs: List<BakedSong> = emptyList(),                               // proto songs
+    // P205: the band roster for view-time identity (logged-in auto-match / anonymous one-tap pick).
+    // Additive/default-empty; absent ⇒ no roster (old bundles), viewer falls back to the role picker.
+    val roster: List<BundleMember> = emptyList(),                           // proto roster
+)
+
+/** proto `troubastack.v1.BundleMember` (AUTHORITY: bundle.proto) — one band member in the roster,
+ *  for P205 view-time identity resolution. I12: identity is a local view preference, not an account. */
+@Serializable
+data class BundleMember(
+    val memberId: String = "",     // proto member_id
+    val displayName: String = "",  // proto display_name
+    val role: String = "",         // proto role — "admin" | "conductor" | "member"
 )
 
 /** proto `troubastack.v1.AvailableConcert` — cheap "what's available to me" metadata (I13). */
