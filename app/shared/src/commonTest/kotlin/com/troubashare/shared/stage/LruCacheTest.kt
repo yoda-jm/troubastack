@@ -56,4 +56,26 @@ class LruCacheTest {
         assertEquals(10, c.get("k10"))
         assertNull(c.get("k7"))
     }
+
+    @Test
+    fun pinnedEntriesAreNeverEvicted() {
+        // B1: the on-screen page's keys are pinned; churn must evict only NON-pinned entries.
+        val c = LruCache<String, Int>(maxEntries = 2)
+        c.put("raster", 0)
+        c.put("overlay", 0)
+        c.pin(setOf("raster", "overlay"))
+        for (i in 1..10) c.put("other$i", i) // heavy churn past capacity
+        assertEquals(0, c.get("raster"), "pinned raster must survive eviction")
+        assertEquals(0, c.get("overlay"), "pinned overlay must survive eviction")
+    }
+
+    @Test
+    fun unpinnedEvictNormallyAroundPinned() {
+        val c = LruCache<String, Int>(maxEntries = 3)
+        c.put("keep", 1)
+        c.pin(setOf("keep"))
+        c.put("a", 1); c.put("b", 1); c.put("c", 1) // over cap; "keep" is pinned so an unpinned goes
+        assertEquals(1, c.get("keep"))
+        assertNull(c.get("a"), "the LRU non-pinned entry is evicted, not the pinned one")
+    }
 }

@@ -105,17 +105,29 @@ fun interface ImageDecoder {
  * only from the composition (main) thread; the heavy decode runs off-thread and results are stored
  * back here on the main thread.
  */
-class PageImageCache(maxEntries: Int = 12) {
+class PageImageCache(maxEntries: Int = 64) {
     // Thin typed wrapper over the generic access-order [LruCache] (the LRU logic lives there and is
-    // unit-tested off-device; Stage behaviour is unchanged).
+    // unit-tested off-device). B1: budget raised from 12 → 64 so a page's own raster+overlays (and a
+    // few neighbours) stay resident across re-decodes; [pin] additionally makes the on-screen page's
+    // entries eviction-proof — together these stop "same page, fewer annotations".
     private val lru = LruCache<String, ImageBitmap>(maxEntries)
 
     fun get(key: String): ImageBitmap? = lru.get(key)
 
     fun put(key: String, bmp: ImageBitmap) = lru.put(key, bmp)
+
+    /** Protect the currently-displayed page's cache keys from eviction (B1). */
+    fun pin(keys: Set<String>) = lru.pin(keys)
 }
 
 private fun cacheKey(ref: String, w: Int, h: Int): String = "$ref@${w}x$h"
+
+/** The cache keys a page occupies at a given size (raster + visible overlays) — used to pin it (B1). */
+private fun pageCacheKeys(rasterRef: String, overlayRefs: List<String>, w: Int, h: Int): Set<String> =
+    buildSet {
+        add(cacheKey(rasterRef, w, h))
+        overlayRefs.forEach { add(cacheKey(it, w, h)) }
+    }
 
 /** Root of the Stage UI: failure screen, empty state, or the performing pager. */
 @Composable
@@ -526,15 +538,22 @@ private fun ScrollPage(
         return
     }
     val overlayRefs = page.overlays.filter { it.layerId in visibleLayers }.map { it.imageRef }
+    // B1: retry a failed overlay decode on the next few frames (a failure isn't cached, so a re-decode
+    // re-attempts); if it keeps failing we badge it — never silently show fewer annotations.
+    var retryTick by remember(page.rasterRef, overlayRefs, widthPx) { mutableStateOf(0) }
     // Decode at column width with a generous height cap; the decoder preserves aspect ⇒ width-bound.
-    val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, widthPx) {
+    val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, widthPx, retryTick) {
         value = null
         if (widthPx <= 0) return@produceState
         value = withContext(Dispatchers.Default) {
             val raster = decodeCached(cache, page.rasterRef, widthPx, widthPx * 3, decoder)
-            val overlays = overlayRefs.mapNotNull { decodeCached(cache, it, widthPx, widthPx * 3, decoder) }
-            PageBitmaps(raster, overlays)
+            val ov = decodeOverlays(overlayRefs) { decodeCached(cache, it, widthPx, widthPx * 3, decoder) }
+            cache.pin(pageCacheKeys(page.rasterRef, overlayRefs, widthPx, widthPx * 3)) // eviction-proof this page
+            PageBitmaps(raster, ov.overlays, ov.missing)
         }
+    }
+    LaunchedEffect(decoded?.missingOverlays, retryTick) {
+        if ((decoded?.missingOverlays ?: 0) > 0 && retryTick < OVERLAY_DECODE_RETRIES) { delay(250); retryTick++ }
     }
     val bitmaps = decoded
     when {
@@ -548,6 +567,7 @@ private fun ScrollPage(
                 bitmaps.overlays.forEach {
                     Image(BitmapPainter(it), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorFilter)
                 }
+                MissingLayersBadge(bitmaps.missingOverlays, Modifier.align(Alignment.TopEnd))
             }
         }
     }
@@ -574,14 +594,20 @@ private fun PageView(
         val hPx = with(density) { maxHeight.toPx().toInt() }
         val overlayRefs = page.overlays.filter { it.layerId in visibleLayers }.map { it.imageRef }
 
-        val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, wPx, hPx) {
+        // B1: retry a failed overlay decode a few frames, then badge — never silently fewer annotations.
+        var retryTick by remember(page.rasterRef, overlayRefs, wPx, hPx) { mutableStateOf(0) }
+        val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, wPx, hPx, retryTick) {
             value = null
             if (wPx <= 0 || hPx <= 0) return@produceState
             value = withContext(Dispatchers.Default) {
                 val raster = decodeCached(cache, page.rasterRef, wPx, hPx, decoder)
-                val overlays = overlayRefs.mapNotNull { decodeCached(cache, it, wPx, hPx, decoder) }
-                PageBitmaps(raster, overlays)
+                val ov = decodeOverlays(overlayRefs) { decodeCached(cache, it, wPx, hPx, decoder) }
+                cache.pin(pageCacheKeys(page.rasterRef, overlayRefs, wPx, hPx)) // eviction-proof this page
+                PageBitmaps(raster, ov.overlays, ov.missing)
             }
+        }
+        LaunchedEffect(decoded?.missingOverlays, retryTick) {
+            if ((decoded?.missingOverlays ?: 0) > 0 && retryTick < OVERLAY_DECODE_RETRIES) { delay(250); retryTick++ }
         }
 
         val bitmaps = decoded
@@ -604,8 +630,28 @@ private fun PageView(
                         Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = colorFilter)
                     }
                 }
+                MissingLayersBadge(bitmaps.missingOverlays, Modifier.align(Alignment.TopEnd))
             }
         }
+    }
+}
+
+/** B1 — a small visible badge when one or more annotation layers failed to decode, so a missing layer
+ *  is never mistaken for "no layer". Renders nothing when all overlays are present. */
+@Composable
+private fun MissingLayersBadge(missing: Int, modifier: Modifier = Modifier) {
+    if (missing <= 0) return
+    Surface(
+        modifier.padding(8.dp),
+        color = Color(0xCCB3261E),
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Text(
+            "⚠ $missing layer${if (missing == 1) "" else "s"} unavailable",
+            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
 }
 
@@ -677,7 +723,7 @@ private fun TempoChip(tempo: Int, resetKey: Any) {
     }
 }
 
-private data class PageBitmaps(val raster: ImageBitmap?, val overlays: List<ImageBitmap>)
+private data class PageBitmaps(val raster: ImageBitmap?, val overlays: List<ImageBitmap>, val missingOverlays: Int = 0)
 
 /** Cache-or-decode a single blob; null on any failure (the caller degrades gracefully). */
 private fun decodeCached(cache: PageImageCache, ref: String, w: Int, h: Int, decoder: ImageDecoder): ImageBitmap? {

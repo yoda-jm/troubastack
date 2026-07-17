@@ -11,6 +11,9 @@ package com.troubashare.shared.stage
  */
 internal class LruCache<K, V>(private val maxEntries: Int) {
     private val map = LinkedHashMap<K, V>()
+    // B1: keys that eviction must NOT drop — the on-screen page pins its raster+overlays so a re-decode
+    // can never evict the very entries it's about to reuse (which caused "same page, fewer annotations").
+    private var pinned: Set<K> = emptySet()
 
     val size: Int get() = map.size
 
@@ -21,12 +24,19 @@ internal class LruCache<K, V>(private val maxEntries: Int) {
         return value
     }
 
-    /** Insert/update [key] as most-recently-used, evicting the LRU entries past [maxEntries]. */
+    /** Insert/update [key] as most-recently-used, evicting the least-recently-used NON-pinned entries
+     *  past [maxEntries]; if only pinned entries remain, stay (temporarily) over budget. */
     fun put(key: K, value: V) {
         map.remove(key)
         map[key] = value
         while (map.size > maxEntries) {
-            map.remove(map.keys.first()) // evict least-recently-used
+            val victim = map.keys.firstOrNull { it !in pinned } ?: break // all remaining pinned → keep
+            map.remove(victim)
         }
+    }
+
+    /** Protect [keys] from eviction (B1 — the currently-displayed page's entries). Replaces the set. */
+    fun pin(keys: Set<K>) {
+        pinned = keys
     }
 }
