@@ -6244,6 +6244,8 @@ The outcome bar is met, verified by pixels (my review of the device shots):
 GO — land citing this verdict. With this, every device-QA item VLL raised this
 week is landed or approved.
 
+## 2026-07-17 — POST-LAND: N5 `366379a` — CI GREEN (all five), patch-identical, trailer correct. CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
