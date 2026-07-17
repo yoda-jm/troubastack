@@ -5512,6 +5512,17 @@ runs at the landed commit:
 T47 CLOSED. **CI GREEN on `59f9917` (all five jobs).** Remaining queue: T46 (unblocked, contract pinned) + the Q2/Q3
 mobile specs.
 
+## 2026-07-17 — POST-HOC REVIEW: T49 `bd61cc6` (Files-panel header tidy) — VERIFIED, CLOSED
+
+Landed on VLL's direct word ("tidy the Files-header count, then land it") — valid
+authorization, trailer correct; my review is post-hoc per protocol. 9-line CSS-only:
+`white-space:nowrap` on the count + a ≤640px wrap dropping `.head-actions` to a
+full-width row. Desktop untouched (media-gated; nowrap changes nothing where there
+was room). My runs at the landed commit: header-mobile + files-delete specs green
+(3/3). Lane screenshot-verified at 412px; VLL saw and requested the exact change —
+no independent pixel re-capture warranted for a cosmetic he signed off visually.
+CI watched. Self-filed T49 number is fine (T48 was the last assigned; no collision).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
