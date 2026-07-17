@@ -5699,6 +5699,30 @@ CI watched on both SHAs. Mobile queue: A18 (branch rebased, landing next), then
 A20/T50 cues. VLL feel-checks on next device session: the new tap/swipe grammar +
 boundary cue.
 
+## 2026-07-17 — VERDICT: A18 `eee4d7a` (per-song layers) — CONDITIONAL GO: one required fix (mandatory must survive the merge)
+
+Re-verified with my own runs (`:shared:check` green at `eee4d7a`). The A1 ruling is
+delivered: per-song map seeded from role defaults, toggle scopes to the current song
+and is remembered per song, `setRole` re-seeds + clears, nothing persisted, the
+LayersDialog labels the scope honestly, and the settings sheet went ROLE-FIRST (the
+Q3 ruling — Layers demoted to the advanced expander). The P201 per-song merge is the
+ruled semantic (kept ∩ still-existing ∪ defaults-for-new; new songs seed fresh) with
+the LiveUpdateTest extension.
+
+**Required before landing — a layer that BECOMES mandatory mid-rehearsal can stay
+hidden.** `visibleFor` returns the raw stored set; mandatory is enforced only at
+SEED time (`defaultVisible`) and TOGGLE time (`setLayerVisible` refuses). Sequence
+that breaks I12's "mandatory is ALWAYS visible": performer hides optional layer L on
+a song (legal) → bandleader marks L mandatory → autobake → auto-update → the merged
+kept-set still excludes L → mandatory layer hidden. P201 makes this sequence REAL.
+Fix (pick one, prefer the second):
+- union fresh's mandatory layer ids into every song's kept set in the merge; or
+- **enforce at READ: `visibleFor` unions the mandatory ids** — one place, covers
+  every current and future path (merge, future persistence, anything).
+Plus the test: override hides L → L becomes mandatory in fresh → after
+`applyUpdate`, L is visible on that song. Then land citing this verdict — no
+re-gate; I'll verify post-land.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
