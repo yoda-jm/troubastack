@@ -494,3 +494,12 @@ change (web-core).
 (and what becomes of personal layers/cues)? Is view-time identity (anonymous-pick / logged-in-auto) the
 direction, given the viewer is account-less today? And should bake-time default visibility be captured
 in the bundle? Split into task(s) as you see fit; nothing built until you rule.
+
+### Addendum 10 — VLL SIGN-OFF (2026-07-17): P205 direction + the ⚠ tradeoff ACCEPTED
+
+VLL reviewed the N11/P205 ruling including the ⚠ consequence and **accepts it**: he is fine
+with ONE band-wide bundle whose file physically contains every member's personal layers + cues
+(view-time gating hides others' in-app; anyone holding the file holds the bytes) — a trusted-band
+choice, consciously made, superseding B07's download-gating. **Green light to write the P205 spec
+and start Stage 1** (web-core proto/baker/bake-dialog). No "sensitive layer" opt-out requested for
+now (can be a later addition). Decisions 1–3 as ruled stand.
