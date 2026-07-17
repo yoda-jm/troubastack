@@ -36,6 +36,32 @@ fun scrollNextPage(top: Int, pageCount: Int): Int = (top + 1).coerceIn(0, (pageC
 /** Scroll-mode page turn (A14): move the topmost page back one, clamped at the first page. */
 fun scrollPrevPage(top: Int): Int = (top - 1).coerceAtLeast(0)
 
+/**
+ * N1 — did navigating from page [from] to page [to] cross into a different song? A continuous advance
+ * is a performance requirement (pedal users can't stop at every song end), but crossing must READ as
+ * crossing, so this drives the transient boundary cue. Out-of-range or same-song ⇒ false. Pure.
+ */
+internal fun crossedSongBoundary(pages: List<StagePage>, from: Int, to: Int): Boolean {
+    val a = pages.getOrNull(from) ?: return false
+    val b = pages.getOrNull(to) ?: return false
+    return a.songId != b.songId
+}
+
+/**
+ * N2 — the global page-index range (inclusive) of the song containing [page]. Per-song scroll shows
+ * ONLY these pages so vertical motion always reads WITHIN the current song and crossing to another
+ * song is always an explicit act. Empty when there are no pages. Songs' firstPage is monotonic in
+ * bundle order, so the containing song is the last one whose firstPage is at or before [page]. Pure.
+ */
+internal fun songPageRange(state: StageState, page: Int): IntRange {
+    if (state.pages.isEmpty()) return IntRange.EMPTY
+    val p = page.coerceIn(0, state.pages.lastIndex)
+    val songIdx = state.songs.indexOfLast { it.firstPage <= p }.coerceAtLeast(0)
+    val first = state.songs.getOrNull(songIdx)?.firstPage ?: 0
+    val last = (state.songs.getOrNull(songIdx + 1)?.firstPage ?: state.pageCount) - 1
+    return first..last.coerceAtLeast(first)
+}
+
 /** A page either performs or shows a neutral placeholder — never a crash. */
 enum class PageStatus { READY, UNAVAILABLE }
 

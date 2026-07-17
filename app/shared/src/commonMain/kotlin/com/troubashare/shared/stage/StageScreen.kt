@@ -199,6 +199,20 @@ private fun Performing(
     LaunchedEffect(chromeVisible, overlayOpen) {
         if (chromeVisible && !overlayOpen) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
     }
+    // N1: continuous advance is a performance requirement (pedal users can't stop at every song end),
+    // but crossing a song boundary must READ as crossing — so on a cross-song move we flash the
+    // title/position card ALONE (~2s), not the full chrome. We watch the current song index: it only
+    // changes when navigation crosses a boundary (in ANY mode). The first composition seeds lastCueSong
+    // so entering Stage never fires a spurious cue. Reuses the A17 auto-hide timer (clock-injectable).
+    var boundaryCueVisible by remember { mutableStateOf(false) }
+    var lastCueSong by remember { mutableStateOf(state.currentSong) }
+    LaunchedEffect(state.currentSong) {
+        if (state.currentSong != lastCueSong) {
+            lastCueSong = state.currentSong
+            boundaryCueVisible = true
+            autoHideChrome(BOUNDARY_CUE_MS) { boundaryCueVisible = false }
+        }
+    }
     // A14: the continuous-scroll column's list state — the source of truth for the topmost page while
     // in SCROLL mode (pager label + page turns read/drive it). Unused in page/width modes.
     val scrollListState = rememberLazyListState()
@@ -217,13 +231,10 @@ private fun Performing(
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             SongDrawerSheet(state) { i ->
-                // A14: in scroll mode a jump scrolls to the song's first page top; otherwise it moves
-                // the discrete current page. Either way the drawer closes.
-                if (state.fitMode == FitMode.SCROLL) {
-                    state.songs.getOrNull(i)?.let { s -> scope.launch { scrollListState.animateScrollToItem(s.firstPage) } }
-                } else {
-                    vm.goToSong(i)
-                }
+                // N2: a jump changes the current song in EVERY mode. In scroll mode that switches the
+                // per-song column (the positioning effect lands it at the song's top); in page/width it
+                // moves the discrete current page. Either way the drawer closes.
+                vm.goToSong(i)
                 scope.launch { drawerState.close() }
             }
         },
@@ -236,18 +247,29 @@ private fun Performing(
         // A14: scroll wins over two-up (a single column); two-up only in landscape FIT_PAGE.
         val twoUp = maxWidth > maxHeight && state.fitMode == FitMode.FIT_PAGE
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        // The topmost visible page is the source of truth for the pager + turns in scroll mode; the
-        // discrete current page otherwise.
-        val topPage = if (scrollMode) scrollListState.firstVisibleItemIndex else state.current
+        // N2: in scroll mode the column holds ONLY the current song's pages, so the LazyList index is
+        // LOCAL to the song. songRange is that song's global span; map the local top back to a global
+        // page for the label. Empty off scroll mode.
+        val songRange = if (scrollMode) songPageRange(state, state.current) else IntRange.EMPTY
+        val localTop = scrollListState.firstVisibleItemIndex
+        val topPage = if (scrollMode) (songRange.first + localTop).coerceIn(0, state.pages.lastIndex.coerceAtLeast(0)) else state.current
         // One navigation entry point (keys, taps, swipes, arrows, volume) so a "turn" means the same
-        // everywhere: spread-aware in two-up, one page in scroll (animate to the next/prev page top).
+        // everywhere: spread-aware in two-up; in scroll a turn steps WITHIN the current song's column and
+        // at a column EDGE crosses to the adjacent song (goToPage clamps and, by changing the song, fires
+        // the N1 boundary cue). Vertical motion thus always reads within the song; crossing is explicit.
         val turnNext: () -> Unit = {
-            if (scrollMode) scope.launch { scrollListState.animateScrollToItem(scrollNextPage(topPage, state.pageCount)) }
-            else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT))
+            if (scrollMode) {
+                val step = scrollNextPage(localTop, songRange.count())
+                if (step != localTop) scope.launch { scrollListState.animateScrollToItem(step) }
+                else vm.goToPage(songRange.last + 1) // column end → next song's first page
+            } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT))
         }
         val turnPrev: () -> Unit = {
-            if (scrollMode) scope.launch { scrollListState.animateScrollToItem(scrollPrevPage(topPage)) }
-            else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV))
+            if (scrollMode) {
+                val step = scrollPrevPage(localTop)
+                if (step != localTop) scope.launch { scrollListState.animateScrollToItem(step) }
+                else vm.goToPage(songRange.first - 1) // column top → previous song's last page
+            } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV))
         }
         val spread = spreadPages(state.current, state.pageCount)
 
@@ -279,14 +301,14 @@ private fun Performing(
                     }
                 },
         ) {
-        // A2: the page floats edge-to-edge on a BLACK canvas. Tap-thirds turn pages / the middle third
-        // toggles the chrome (stageTaps, all modes); horizontal swipe still turns in page/width modes;
-        // in scroll mode the LazyColumn owns the vertical drag (swipe disabled) and any tap toggles.
+        // N3: the page floats edge-to-edge on a BLACK canvas. ANY tap toggles the chrome (stageTaps,
+        // all modes); page turns come from horizontal swipe (page/width modes) + ‹ › FABs + pedals/keys.
+        // In scroll mode the LazyColumn owns the vertical drag (swipe disabled) and any tap still toggles.
         Box(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .stageTaps(state.pageCount to (twoUp to scrollMode), scrollMode, turnPrev, turnNext) { chromeVisible = !chromeVisible }
+                .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
                 .then(if (scrollMode) Modifier else Modifier.pointerInputSwipe(state.pageCount to twoUp, turnPrev, turnNext)),
         ) {
             when {
@@ -336,6 +358,23 @@ private fun Performing(
                     }
                     else -> MetaStrip(page, resetKey = state.current)
                 }
+            }
+        }
+
+        // N1: the song-boundary cue — the title/position card ALONE (no FABs, no meta strip), flashed
+        // for ~2s on a cross-song advance so continuous advance still announces the new song. Suppressed
+        // while full chrome is up (which already shows the card), so the two never stack.
+        AnimatedVisibility(
+            visible = boundaryCueVisible && !chromeVisible,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(400)),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            Box(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
+                TitleCard(
+                    title = state.songs.getOrNull(state.currentSong)?.name ?: "",
+                    position = stagePositionLabel(state, topPage, twoUp),
+                )
             }
         }
 
@@ -502,10 +541,13 @@ private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int)
 private const val SCROLL_PLACEHOLDER_ASPECT = 0.773f // US Letter portrait (8.5 / 11)
 
 /**
- * A14 — continuous-scroll reading mode: a lazy vertical column of every concert page at fit-width,
- * with A08's metadata strip rendered INLINE above each song's first page (it scrolls with content, no
- * floating overlay). Laziness + the shared LRU cache keep decode pressure bounded (only visible +
- * prefetched pages decode). Night mode (A10) applies via [colorFilter] exactly as elsewhere.
+ * N2 — PER-SONG continuous scroll: a lazy vertical column of ONLY the current song's pages at
+ * fit-width, with A08's metadata strip inline above the song's first page. Vertical motion thus always
+ * reads within the current song; crossing to another song is an explicit act (the parent's turns cross
+ * at a column edge, the drawer jumps) so "where am I" is never ambiguous. Whenever the song changes the
+ * column is (re)positioned: a cross lands at the song's top/bottom, and re-entering scroll mid-song
+ * lands on the current page. Laziness + the shared LRU cache keep decode pressure bounded; night mode
+ * (A10) applies via [colorFilter] exactly as elsewhere.
  */
 @Composable
 private fun ScrollReader(
@@ -516,10 +558,17 @@ private fun ScrollReader(
     colorFilter: androidx.compose.ui.graphics.ColorFilter?,
     widthPx: Int,
 ) {
+    val range = songPageRange(state, state.current)
+    val songPages = if (range.isEmpty()) emptyList() else state.pages.subList(range.first, range.last + 1)
+    LaunchedEffect(state.currentSong) {
+        // Land on the current page WITHIN this song's column (local index); a cross set current to the
+        // song's first/last page, so this positions the column at its top/bottom accordingly.
+        listState.scrollToItem((state.current - range.first).coerceIn(0, (songPages.size - 1).coerceAtLeast(0)))
+    }
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-        itemsIndexed(state.pages) { index, page ->
+        itemsIndexed(songPages) { index, page ->
             Column(Modifier.fillMaxWidth()) {
-                MetaStrip(page, resetKey = index) // renders only on a song's first page (else nothing)
+                MetaStrip(page, resetKey = range.first + index) // renders only on the song's first page
                 ScrollPage(page, state.visibleLayers, decoder, cache, colorFilter, widthPx)
             }
         }
@@ -821,22 +870,18 @@ private fun RoleDialog(state: StageState, vm: StageViewModel, onDismiss: () -> U
 }
 
 /**
- * A2 — page-area taps: edge thirds turn pages (A04, verbatim), the middle third toggles the chrome;
- * in scroll mode any tap toggles. The split is the pure [tapAction]. (Horizontal swipe still turns via
- * [pointerInputSwipe] in page/width modes.)
+ * N3 — page-area taps: EVERY tap, in EVERY mode, toggles the chrome (the pure [tapAction] pins that
+ * contract). Page turns are swipe ([pointerInputSwipe], page/width) + ‹ › FABs + pedals/keys only —
+ * edge-tap-turn was dropped because an accidental turn reads as a rendering glitch mid-performance.
  */
 private fun Modifier.stageTaps(
     key: Any,
-    scrollMode: Boolean,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
     onToggleChrome: () -> Unit,
 ): Modifier = pointerInput(key) {
-    detectTapGestures { offset ->
-        when (tapAction(offset.x, size.width.toFloat(), scrollMode)) {
-            TapAction.PREV -> onPrev()
-            TapAction.NEXT -> onNext()
+    detectTapGestures {
+        when (tapAction()) {
             TapAction.TOGGLE_CHROME -> onToggleChrome()
+            TapAction.PREV, TapAction.NEXT -> {} // taps never navigate after N3
         }
     }
 }

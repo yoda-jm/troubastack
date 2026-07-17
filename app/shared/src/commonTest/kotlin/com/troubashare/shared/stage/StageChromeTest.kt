@@ -9,31 +9,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** A2 — the immersive-chrome gesture split + auto-hide timeout (the load-bearing pure logic). */
+/** N3 — the immersive-chrome tap contract + auto-hide timeout (the load-bearing pure logic). */
 class StageChromeTest {
 
     @Test
-    fun tapThirds_edgesTurn_middleTogglesChrome() {
-        val w = 900f
-        assertEquals(TapAction.PREV, tapAction(10f, w, scrollMode = false))         // far left
-        assertEquals(TapAction.PREV, tapAction(299f, w, scrollMode = false))        // just inside left third
-        assertEquals(TapAction.TOGGLE_CHROME, tapAction(450f, w, scrollMode = false)) // centre
-        assertEquals(TapAction.TOGGLE_CHROME, tapAction(301f, w, scrollMode = false)) // just inside middle
-        assertEquals(TapAction.NEXT, tapAction(890f, w, scrollMode = false))        // far right
-    }
-
-    @Test
-    fun scrollMode_anyTapTogglesChrome() {
-        val w = 900f
-        assertEquals(TapAction.TOGGLE_CHROME, tapAction(10f, w, scrollMode = true))
-        assertEquals(TapAction.TOGGLE_CHROME, tapAction(450f, w, scrollMode = true))
-        assertEquals(TapAction.TOGGLE_CHROME, tapAction(890f, w, scrollMode = true))
-    }
-
-    @Test
-    fun zeroWidth_doesNotTurn() {
-        // Before layout the width can be 0 — never mis-fire a page turn; toggle is harmless.
-        assertEquals(TapAction.TOGGLE_CHROME, tapAction(0f, 0f, scrollMode = false))
+    fun everyTapTogglesChrome_neverTurns() {
+        // N3 (supersedes A04 tap-thirds): a tap never navigates — page turns are swipe/‹ ›/pedals/keys.
+        // tapAction is mode-independent by design; assert it toggles regardless of where/what mode.
+        assertEquals(TapAction.TOGGLE_CHROME, tapAction())
+        assertEquals(TapAction.TOGGLE_CHROME, tapAction()) // idempotent / no positional dependence
     }
 
     @Test
