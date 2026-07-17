@@ -797,6 +797,24 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   padding: .4rem .7rem;
 }
 
+/* T54 — audience tabs (Band 👥 / Mine 👤 / Admin). Sticky bar; only the body scrolls. */
+.details-tabs {
+  position: sticky; top: -0.4rem; z-index: 1;
+  display: flex; flex-wrap: wrap; gap: .3rem; align-items: center;
+  padding: .3rem 0 .45rem; margin: 0 0 .4rem;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.details-tab {
+  padding: .35rem .7rem; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted);
+  font-weight: 600; font-size: .88rem; line-height: 1; cursor: pointer; box-shadow: none;
+}
+.details-tab.active { background: var(--brand-tint); color: var(--brand-ink); border-color: var(--brand); }
+.details-tab-admin { margin-left: auto; }
+.details-tab-admin.active { background: var(--error-bg); color: var(--error-fg); border-color: var(--warn-border); }
+.details-tab-body { display: flex; flex-direction: column; gap: .6rem; }
+
 .layers-panel {
   background: var(--surface-2);
   border: 1px solid var(--border);

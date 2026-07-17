@@ -390,6 +390,7 @@ test("my-files: per-member selection drives the strip (exclude, reorder, persist
 
   // Open the my-files editor; it lists the whole pool (3 rows).
   await page.getByTestId("my-files-edit").click();
+  await page.getByTestId("details-tab-mine").click(); // T54: My files lives under the "Just for you" tab
   await expect(page.getByTestId("my-files-panel")).toBeVisible();
   await expect(page.getByTestId("my-files-row")).toHaveCount(3);
 

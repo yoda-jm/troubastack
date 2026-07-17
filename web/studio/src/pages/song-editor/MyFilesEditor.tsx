@@ -116,7 +116,7 @@ export function MyFilesEditor({
       </div>
       <p className="muted my-files-hint">
         Pick which files appear in your strip and in what order. Everyone shares the same
-        pool (managed in “Details &amp; files”).
+        pool (managed under the “Shared with the band” tab).
       </p>
 
       {pool.length === 0 ? (

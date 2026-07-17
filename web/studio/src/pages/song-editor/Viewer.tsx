@@ -142,6 +142,27 @@ export function Viewer({
   const [style, setStyle] = useState(DEFAULT_STYLE);
   // T51 — the glyph the "Icon" tool stamps next (its id rides in the object's text).
   const [activeGlyph, setActiveGlyph] = useState("mic");
+  // T54 — Details panel tab by AUDIENCE (Band 👥 / Mine 👤 / Admin). Remembered per
+  // session (default Band — metadata is the commonest first read). Only the active
+  // tab's content mounts, so switching to Mine re-fetches the pool (self-sufficient
+  // my-files picker — Fable's workflow-trap pin).
+  const [detailsTab, setDetailsTabState] = useState<"band" | "mine" | "admin">(() => {
+    try {
+      const v = sessionStorage.getItem("trouba_details_tab");
+      if (v === "band" || v === "mine" || v === "admin") return v;
+    } catch {
+      /* sessionStorage unavailable (private mode / insecure ctx) — default below */
+    }
+    return "band";
+  });
+  const setDetailsTab = useCallback((t: "band" | "mine" | "admin") => {
+    setDetailsTabState(t);
+    try {
+      sessionStorage.setItem("trouba_details_tab", t);
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
   // The layer the user is "focusing": drives which layer's objects the
   // annotation list shows (works for ANY layer, editable or locked). When the
@@ -954,12 +975,12 @@ export function Viewer({
               >
                 choose some
               </button>
-              , or upload a PDF or image in “Details &amp; files” below.
+              , or upload a PDF or image under Details → “Shared with the band”.
             </p>
           )}
           {status === "no-file" && files.length > 0 && (
             <p className="muted" data-testid="viewer-no-pdf">
-              No viewable file. Upload a PDF or image in “Details &amp; files” below.
+              No viewable file. Upload a PDF or image under Details → “Shared with the band”.
             </p>
           )}
           {status === "error" && <ErrorBanner message={error} />}
@@ -1202,24 +1223,76 @@ export function Viewer({
           they must NOT regress behind the fullscreen chrome. ---- */}
       {editorOpen && (
         <div className="details-panel" data-testid="details-panel">
-          {/* T36 — the full "Song details & files" surface, top to bottom (RULED):
-              metadata → shared-pool files (upload / ＋ new text chart / manage) →
-              my-files selection → danger zone (delete). The panel scrolls (CSS
-              max-height + overflow-y) so the tail stays reachable at any viewport;
-              this replaces SongEditor's clipped <Details>, which is now removed. */}
-          <Metadata bandId={bandId} song={song} onSaved={onSongSaved} />
-          <Files bandId={bandId} songId={songId} songTitle={song.title} />
-          <MyFilesEditor
-            bandId={bandId}
-            songId={songId}
-            selected={files}
-            onChanged={refreshMyFiles}
-            onError={setError}
-          />
-          <MyCuesEditor bandId={bandId} songId={songId} onError={setError} />
-          {myRole === "admin" && (
-            <DeleteSong bandId={bandId} songId={songId} onDeleted={onSongDeleted} />
-          )}
+          {/* T54 — tabs BY AUDIENCE (global-vs-personal legibility, scheme A): the
+              audience split IS the tab structure, so it fixes both the illegible mix
+              AND the long-scrolling modal. Band 👥 = shared with everyone (metadata +
+              the file pool); Mine 👤 = just for you (my-files order + my-cues); Admin =
+              the destructive delete (admins only). Only the active tab mounts. */}
+          {(() => {
+            // A non-admin can never sit on the Admin tab (session value or otherwise).
+            const tab = detailsTab === "admin" && myRole !== "admin" ? "band" : detailsTab;
+            return (
+              <>
+                <div className="details-tabs" role="tablist" aria-label="Song details">
+                  <button
+                    type="button"
+                    role="tab"
+                    data-testid="details-tab-band"
+                    className={`details-tab${tab === "band" ? " active" : ""}`}
+                    aria-selected={tab === "band"}
+                    onClick={() => setDetailsTab("band")}
+                  >
+                    <span aria-hidden="true">👥</span> Shared with the band
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    data-testid="details-tab-mine"
+                    className={`details-tab${tab === "mine" ? " active" : ""}`}
+                    aria-selected={tab === "mine"}
+                    onClick={() => setDetailsTab("mine")}
+                  >
+                    <span aria-hidden="true">👤</span> Just for you
+                  </button>
+                  {myRole === "admin" && (
+                    <button
+                      type="button"
+                      role="tab"
+                      data-testid="details-tab-admin"
+                      className={`details-tab details-tab-admin${tab === "admin" ? " active" : ""}`}
+                      aria-selected={tab === "admin"}
+                      onClick={() => setDetailsTab("admin")}
+                    >
+                      Admin
+                    </button>
+                  )}
+                </div>
+                <div className="details-tab-body" data-testid={`details-body-${tab}`}>
+                  {tab === "band" && (
+                    <>
+                      <Metadata bandId={bandId} song={song} onSaved={onSongSaved} />
+                      <Files bandId={bandId} songId={songId} songTitle={song.title} />
+                    </>
+                  )}
+                  {tab === "mine" && (
+                    <>
+                      <MyFilesEditor
+                        bandId={bandId}
+                        songId={songId}
+                        selected={files}
+                        onChanged={refreshMyFiles}
+                        onError={setError}
+                      />
+                      <MyCuesEditor bandId={bandId} songId={songId} onError={setError} />
+                    </>
+                  )}
+                  {tab === "admin" && myRole === "admin" && (
+                    <DeleteSong bandId={bandId} songId={songId} onDeleted={onSongDeleted} />
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </section>

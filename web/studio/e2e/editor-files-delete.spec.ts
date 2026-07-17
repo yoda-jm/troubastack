@@ -73,9 +73,10 @@ test("Details panel: add file, new text chart, delete file, delete song all reac
   await panel.getByTestId("file-delete").first().click();
   await expect(panel.getByTestId("file-row")).toHaveCount(0);
 
-  // (4) DELETE SONG — the Danger zone sits at the panel tail. Reachability probe: after
-  // scrolling the PANEL (not the page), elementFromPoint at the button center resolves to
-  // the button itself — nothing clips or occludes it (the bug class this task kills).
+  // (4) DELETE SONG — under the Admin tab (T54). Reachability probe: after scrolling the
+  // PANEL (not the page), elementFromPoint at the button center resolves to the button
+  // itself — nothing clips or occludes it (the bug class this task kills).
+  await panel.getByTestId("details-tab-admin").click(); // T54: delete lives under Admin
   const del = panel.getByTestId("delete-song");
   await del.scrollIntoViewIfNeeded();
   const hits = await del.evaluate((el) => {

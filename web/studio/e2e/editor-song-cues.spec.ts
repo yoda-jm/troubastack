@@ -34,6 +34,7 @@ async function createSongAndOpen(page: Page, title: string) {
 }
 async function openCues(page: Page) {
   await page.getByTestId("my-files-edit").click(); // open the Details panel (T36)
+  await page.getByTestId("details-tab-mine").click(); // T54: My cues lives under the "Just for you" tab
   const panel = page.getByTestId("my-cues-panel");
   await expect(panel).toBeVisible();
   return panel;
