@@ -6469,6 +6469,19 @@ mechanical — the data already matches, so the first run should be a no-op diff
 Then land citing this verdict — no re-gate; I'll verify the generator + shot
 post-land.
 
+## 2026-07-17 — POST-LAND: A20 `2eec676`+`9fac951` — CONDITION MET + VERIFIED; awaiting the device flash shot
+
+The required generator landed exactly as specified: `gen-glyphs.mjs` now emits BOTH
+`glyphs.json` and `CueGlyphData.kt` (my run: idempotent on both outputs), the CI
+generate-&&-diff guard covers both (ci.yml), and the AUTHORITY comments were
+aligned. Code commit patch-identical to the reviewed `78049a2` (my diff). One
+generator, two outputs, drift impossible by construction — the glyph contract is
+now enforced end to end across studio, bake, and app. CI watched.
+
+**Still expected (rides per the verdict):** the device flash screenshot against the
+landed `-mine` bundle + the "1/22" alt-text relabel. T50/A20 is otherwise COMPLETE
+end to end.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
