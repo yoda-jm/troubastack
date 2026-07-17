@@ -5798,6 +5798,60 @@ it's small; don't let it delay the cues.
 
 ## 2026-07-17 — POST-LAND: A21 `7d5d659` — CI GREEN (all five jobs), patch-identical to the reviewed fix, trailer correct. CLOSED.
 
+## 2026-07-17 — ❓ T50 web-core slice at the gate (personal song cues) — one architecture question before I land (branch `task/T50-song-cues`: core `1e4e5c6`, studio `6ddf838`)
+
+Built to your spec `docs/tasks/T50-song-cues.md`. VLL directed the pickup ("confirm
+CI is green, then pick up T50"). Two slices on the branch, both green locally; **I am
+NOT landing yet** because of the glyph-source question below.
+
+**Slice 1 — core + proto (`1e4e5c6`), I'm confident in this, landable independently:**
+- `proto` BakedSong field 10 `repeated SongCue cues` + `message SongCue{icon,color}`
+  — additive exactly like fields 5–9 (B02); Go mirror in `bundle.go`.
+- Model mirrors the my-files precedent: `SongCue{Icon,Color}` + `SongCues{UserID,
+  SongID,Cues}`, 3 repo methods on BOTH backends (mem+file, nil-guarded).
+- `GET`/`PUT /api/bands/{b}/songs/{s}/my-cues` — **self-only by construction** (keyed
+  to caller.ID, no userId in the path, so A literally cannot write B's). Empty PUT
+  clears. Validation: icon non-empty, color ""|`#rrggbb`, server cap 32 (UI caps 4).
+- `myCues` rides each `listSongs` row (your "cues ride GET song payloads") — the
+  setlist-row + editor batch view. There is no single-song GET, hence the row form.
+- Per-member bake injects the actor's cues; **shared bake carries none** (verified).
+- Tests green both backends: default-empty, PUT round-trip + order, empty-clears,
+  validation 400s, unknown-icon accepted, per-user isolation, listSongs myCues,
+  non-member 403; bake personal-vs-shared injection; proto additive round-trip
+  (old bundle → no cues; new → cues; omitempty when none). `gofmt`/vet clean.
+
+**Slice 2 — studio (`6ddf838`): works + pixel-verified, but ONE design conflict with
+your T51 ruling I want you to settle first.**
+- Delivered: a "My cues" editor in the song Details panel (labelled 18-glyph picker,
+  fixed 8-swatch palette + neutral, add/retint/reorder/remove, ≤4 enforced) + tinted
+  cue chips on setlist rows. e2e red-first, 4/4 green (persist-across-reload tinted;
+  the ≤4 cap dis/enables the picker; unknown-icon→`note` via the real API; setlist-row
+  chips tinted). Light+dark pixels captured (glyphs legible both grounds) — I can drop
+  the four PNGs wherever you want them.
+- **The conflict:** your T51 entry (just above, 2026-07-17) rules the 18 glyphs must be
+  **ONE generated JSON of pre-tessellated normalized polylines**, consumed by TS ink +
+  Go bake **AND the T50 picker** ("no SVG parser anywhere; both sides stroke/fill
+  polylines"). I built them the studio-obvious way instead: hand-authored **SVG-path**
+  line-art in `web/studio/src/components/CueGlyphs.tsx` (arcs/curves included). That is
+  a *second, divergent source of truth* for precisely the asset T51 depends on — if I
+  land it as-is, T51 re-authors all 18 as polylines and the two drift.
+- **My recommendation:** don't land slice 2 as-is. Let me produce the shared
+  polyline-JSON glyph asset now as part of T50 (single source), and have the picker
+  render from it — so T51 inherits geometry + the graceful-unknown guard for free. But
+  the JSON schema is a cross-consumer contract (Go bake stroke/fill + TS ink registry +
+  picker) that **you own** and T51 hasn't pinned yet. So I need your call:
+  - **(a)** I define + build the shared polyline JSON within T50 now (I'll propose a
+    schema for your sign-off first), picker consumes it, SVG version discarded; or
+  - **(b)** land slice 2 with SVG glyphs now (studio-only, unblocks VLL's cues today),
+    and T51 owns the polyline asset + a studio picker swap later — accepting the
+    temporary dual source.
+  I lean (a) to honor the "ONE JSON, no SVG parser" ruling, unless you want cues in
+  VLL's hands immediately and are fine reconciling in T51.
+- Slice 1 (core+proto) is independent of all this and can go whenever you bless it.
+
+Holding for your ruling on (a)/(b) + the schema, then I land citing it (or a VLL land
+directive). Nothing pushed to main yet beyond this gate note.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
