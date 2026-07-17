@@ -56,10 +56,21 @@ type songDef struct {
 	src        pdfSource
 	files      []pdfSource      // optional multi-file shared pool (overrides src)
 	myFilesFor map[string][]int // username -> ordered indices into files (custom my-files)
+	// cuesFor seeds each member's PERSONAL song cues (T50): username -> that member's
+	// ordered icon+color list. Self-only, so the seeder PUTs each list as that user;
+	// they ride the member's per-member bake (visible when baking "my parts").
+	cuesFor map[string][]cueDef
 	// textChartPath is an optional committed chart-dialect source (docs/demo-charts/*.chart)
 	// added to the pool as a REAL text chart (T19) — POST /text-charts renders it to a PDF
 	// server-side, so the demo shows the text-chart file type, not only uploaded PDFs (B10).
 	textChartPath string
+}
+
+// cueDef is one personal song cue (T50): a curated glyph id + an optional "#rrggbb"
+// tint ("" = neutral). See docs/tasks/T50-song-cues.md §2 for the id set.
+type cueDef struct {
+	icon  string
+	color string
 }
 
 // overrideDef is a per-setlist-item override (settable on the setlist page).
@@ -125,11 +136,26 @@ func run(addr, password string) error {
 					// the full score, then the guitar part — a non-default subset+order.
 					myFilesFor: map[string][]int{
 						"marie": {1, 0, 2},
+					},
+					// Personal cues (T50): Marie sings + plays the red electric (VLL's
+					// canonical "mic + red guitar" example); the bandmates prep their parts.
+					cuesFor: map[string][]cueDef{
+						"marie": {{icon: "mic"}, {icon: "guitar-electric", color: "#e11d48"}},
+						"sasha": {{icon: "bass", color: "#2563eb"}},
+						"leo":   {{icon: "guitar-acoustic"}},
 					}},
 				{title: "Hallelujah", artist: "Leonard Cohen", key: "C", tempo: 60, tags: []string{"ballad"}, notes: "Slow 6/8; watch the dynamics.",
-					src: pdfSource{cacheName: "hallelujah.pdf", title: "Hallelujah", subtitle: "Leonard Cohen", pages: 4}},
+					src: pdfSource{cacheName: "hallelujah.pdf", title: "Hallelujah", subtitle: "Leonard Cohen", pages: 4},
+					cuesFor: map[string][]cueDef{
+						"marie": {{icon: "mic"}},
+						"sasha": {{icon: "keys", color: "#7c3aed"}},
+					}},
 				{title: "Black Hole Sun", artist: "Soundgarden", key: "G", tempo: 105, tags: []string{"grunge", "encore"},
-					src: pdfSource{cacheName: "black-hole-sun.pdf", title: "Black Hole Sun", subtitle: "Soundgarden", pages: 3}},
+					src: pdfSource{cacheName: "black-hole-sun.pdf", title: "Black Hole Sun", subtitle: "Soundgarden", pages: 3},
+					cuesFor: map[string][]cueDef{
+						"marie": {{icon: "mic"}, {icon: "tambourine"}},
+						"sasha": {{icon: "bass", color: "#2563eb"}},
+					}},
 				// An ORIGINAL demo song with a REAL committed chart (lead sheet + guitar
 				// tab) from docs/demo-charts — so one seeded song shows genuine sheet
 				// content + its purpose-built annotation layers (see buildOpenRoadAnnotations).
@@ -137,7 +163,10 @@ func run(addr, password string) error {
 					src: pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2},
 					// A REAL text chart alongside the lead-sheet PDF — the demo now shows the
 					// T19 chart type (server-rendered from chart-dialect source), not only PDFs (B10).
-					textChartPath: "../docs/demo-charts/open-road-lyrics.chart"},
+					textChartPath: "../docs/demo-charts/open-road-lyrics.chart",
+					cuesFor: map[string][]cueDef{
+						"marie": {{icon: "guitar-acoustic"}, {icon: "mic"}},
+					}},
 			},
 			setlist: setlistDef{
 				name: "Sat @ The Anchor", eventDate: "2026-07-04", venue: "The Anchor Pub", notes: "60-minute set.",
@@ -466,6 +495,28 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 				}
 			}
 			fmt.Printf("     + %s my-files: [%s]\n", username, strings.Join(titles, ", "))
+		}
+
+		// Seed per-member personal cues (T50) via the my-cues endpoint, as each user.
+		for username, cues := range s.cuesFor {
+			payload := make([]map[string]string, 0, len(cues))
+			labels := make([]string, 0, len(cues))
+			for _, c := range cues {
+				payload = append(payload, map[string]string{"icon": c.icon, "color": c.color})
+				labels = append(labels, c.icon)
+			}
+			member := admin
+			if username != g.admin {
+				member, err = login(addr, username, password)
+				if err != nil {
+					return seededGroup{}, 0, 0, err
+				}
+			}
+			if err := member.putJSON("/api/bands/"+bandID+"/songs/"+songID+"/my-cues",
+				map[string]any{"cues": payload}, nil); err != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("set my-cues for %s on %q: %w", username, s.title, err)
+			}
+			fmt.Printf("     + %s cues: [%s]\n", username, strings.Join(labels, ", "))
 		}
 		anns = append(anns, songAnn{songID: songID, title: s.title, generated: !cachedFetched(primary), pages: primary.pages})
 	}
