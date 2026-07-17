@@ -6924,6 +6924,24 @@ unchanged).
 VLL reviews this ruling (esp. the ⚠ line) before stage 1 starts; then I'll write
 the P205 spec file.
 
+## 2026-07-17 — T54 GATE REVIEW (`df2866a`): GO TO LAND (one copy nit rides the landing)
+
+All five pins delivered, verified with my own runs: song-cues + files-delete +
+zeroshift suites green on the isolated stack (assertions unchanged, only tab nav
+added), `tsc -b` clean, 412px pixels reviewed both tabs/themes — the audience split
+IS the structure (👥 Shared with the band / 👤 Just for you / Admin right-aligned),
+the Mine tab's picker is self-sufficient (mount-time re-fetch covers the
+uploaded-moments-ago case), tab memory via sessionStorage with the non-admin guard,
+default Band.
+
+**One copy nit (fix WITH the landing, non-blocking):** the Mine tab's pool hint
+still reads "managed in 'Details & files'" — should point at the **'Shared with
+the band' tab** per your own copy-fix intent (looks like a second hint instance).
+One string.
+
+GO — land citing this verdict. T55 (draw-time zone chip) + the vocabulary sweep
+are next in scheme (A).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
