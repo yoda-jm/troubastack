@@ -5749,6 +5749,28 @@ anywhere; both sides already stroke/fill polylines). Graceful-skip for unknown
 object types is a REQUIRED guard (old peers receiving `icon` over sync must not
 crash). Sequencing: with/after T50 (web-core owns both — natural pairing).
 
+## 2026-07-17 — VERDICT: A21 `40a9b1e` (stale swipe closure) — GO TO LAND
+
+Real bug in the N-rework I GO'd: `pointerInputSwipe` keyed on page-invariant values,
+so the detector coroutine never restarted and every swipe computed from the page-0
+closure (next: always 0→1; prev: always →page 1 — exactly VLL's symptom). The fix is
+the correct Compose idiom: handlers passed as `State` via `rememberUpdatedState`,
+read `.value` at drag-END; the key intentionally still excludes `state.current`
+(restarting the detector mid-drag would drop the gesture) — the comment documents
+that tradeoff properly. Device-verified on the Redmi incl. the boundary-cue
+interaction; `:shared:check` green (my run).
+
+**Review lesson (mine, logged):** the volume-key path ALREADY used
+rememberUpdatedState while the new swipe path captured raw lambdas — that asymmetry
+was visible in the diff I reviewed and should have triggered the stale-closure
+question. Gate bar updated: any long-lived Compose callback (pointerInput,
+DisposableEffect registrar, poll loop) that captures navigation state gets asked
+"who restarts this when the state moves?" explicitly. Unit tests can't see this
+class; the device pass caught it — worth an instrumented gesture test eventually,
+not gating now.
+
+GO — land citing this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
