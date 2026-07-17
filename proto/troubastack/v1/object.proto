@@ -16,6 +16,10 @@ enum ObjectType {
   // Legacy: highlighting is now a rect/ellipse style preset (fill+multiply), not a
   // distinct tool — kept so persisted "highlight" objects stay representable.
   OBJECT_TYPE_HIGHLIGHT = 6;
+  // T51: a tinted glyph "stamp" placed in page space (e.g. a blue shaker beside a
+  // marked verse). The glyph id (from the curated set) rides in `text`; `style`
+  // carries the tint + opacity; `points` are the bbox corners. Additive.
+  OBJECT_TYPE_ICON = 7;
 }
 
 // Access controls who may add/edit objects in a Layer. NOTE (risks.md R2): the BAND

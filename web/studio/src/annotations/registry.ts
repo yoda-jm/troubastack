@@ -11,6 +11,7 @@ import { rectDescriptor } from "./rect";
 import { ellipseDescriptor } from "./ellipse";
 import { textDescriptor } from "./text";
 import { highlightDescriptor } from "./highlight";
+import { iconDescriptor } from "./icon";
 import { arrowDescriptor } from "./arrow";
 
 const BASE: AnnotationTypeDescriptor[] = [
@@ -20,6 +21,7 @@ const BASE: AnnotationTypeDescriptor[] = [
   ellipseDescriptor,
   textDescriptor,
   highlightDescriptor,
+  iconDescriptor,
 ];
 
 // Dev-only arrow demo (T07): behind localStorage.devArrow === "1". Proves the

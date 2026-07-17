@@ -206,8 +206,8 @@ func TestWSJoinSnapshot(t *testing.T) {
 	if len(snap.Layers) != 3 {
 		t.Fatalf("snapshot layers = %d, want 3", len(snap.Layers))
 	}
-	if len(snap.Objects) != 6 {
-		t.Fatalf("snapshot objects = %d, want 6", len(snap.Objects))
+	if len(snap.Objects) != 7 {
+		t.Fatalf("snapshot objects = %d, want 7", len(snap.Objects))
 	}
 	if snap.Seq == 0 {
 		t.Fatal("snapshot seq should be > 0 after an import")

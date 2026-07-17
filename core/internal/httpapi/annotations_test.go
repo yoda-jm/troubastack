@@ -78,6 +78,8 @@ func sampleDoc(fileID string) annDoc {
 			{UUID: "o-line", LayerID: "L-cond", Type: "line", Page: 1, Points: []annPoint{{X: 0.0, Y: 0.0}, {X: 1.0, Y: 1.0}}, Style: annStyle{Color: "#aabbcc", Opacity: 1, Width: 0.015}},
 			{UUID: "o-highlight", LayerID: "L-shared", Type: "highlight", Page: 2, Points: []annPoint{{X: 0.1, Y: 0.3}, {X: 0.9, Y: 0.35}}, Style: annStyle{Color: "#ffff00", Opacity: 0.4, Width: 0.05}},
 			{UUID: "o-text", LayerID: "L-pers", Type: "text", Page: 2, Text: "cue", Points: []annPoint{{X: 0.5, Y: 0.5}}, Style: annStyle{Color: "#000000", Opacity: 1, FontSize: 0.03}},
+			// T51 icon stamp: type "icon", glyph id in Text, bbox points, tint in style.
+			{UUID: "o-icon", LayerID: "L-shared", Type: "icon", Page: 0, Text: "shaker", Points: []annPoint{{X: 0.6, Y: 0.6}, {X: 0.7, Y: 0.7}}, Style: annStyle{Color: "#2563eb", Opacity: 0.9, Width: 0.01}},
 		},
 	}
 }
@@ -115,8 +117,8 @@ func TestAnnotationsImportAndGet(t *testing.T) {
 			if len(imported.Layers) != 3 {
 				t.Fatalf("import should return 3 layers, got %d", len(imported.Layers))
 			}
-			if len(imported.Objects) != 6 {
-				t.Fatalf("import should return 6 objects, got %d", len(imported.Objects))
+			if len(imported.Objects) != 7 {
+				t.Fatalf("import should return 7 objects, got %d", len(imported.Objects))
 			}
 
 			// GET returns the same materialized HEAD.
@@ -124,7 +126,7 @@ func TestAnnotationsImportAndGet(t *testing.T) {
 			mustStatus(t, resp, http.StatusOK)
 			var got annDoc
 			unmarshalField2(t, body, &got)
-			if len(got.Layers) != 3 || len(got.Objects) != 6 {
+			if len(got.Layers) != 3 || len(got.Objects) != 7 {
 				t.Fatalf("GET counts: %d layers, %d objects", len(got.Layers), len(got.Objects))
 			}
 
@@ -172,6 +174,24 @@ func TestAnnotationsImportAndGet(t *testing.T) {
 			if hl == nil || hl.Type != "highlight" || hl.Page != 2 {
 				t.Fatalf("highlight object round-trip mismatch: %+v", hl)
 			}
+
+			// T51: the icon stamp round-trips — type "icon", glyph id in Text, tint in
+			// style. (Pre-T51 the server maps "icon" → Unspecified and drops it.)
+			var ic *annObject
+			for i := range got.Objects {
+				if got.Objects[i].UUID == "o-icon" {
+					ic = &got.Objects[i]
+				}
+			}
+			if ic == nil {
+				t.Fatal("o-icon object missing from HEAD (server dropped the icon type?)")
+			}
+			if ic.Type != "icon" || ic.Text != "shaker" || ic.Style.Color != "#2563eb" || ic.Style.Opacity != 0.9 {
+				t.Fatalf("icon object round-trip mismatch: %+v (style %+v)", *ic, ic.Style)
+			}
+			if len(ic.Points) != 2 {
+				t.Fatalf("icon should keep its 2 bbox points, got %+v", ic.Points)
+			}
 		})
 	}
 }
@@ -190,7 +210,7 @@ func TestAnnotationsImportIdempotent(t *testing.T) {
 			mustStatus(t, resp, http.StatusOK)
 			var got annDoc
 			unmarshalField2(t, body, &got)
-			if len(got.Layers) != 3 || len(got.Objects) != 6 {
+			if len(got.Layers) != 3 || len(got.Objects) != 7 {
 				t.Fatalf("re-import must not duplicate: got %d layers, %d objects", len(got.Layers), len(got.Objects))
 			}
 		})

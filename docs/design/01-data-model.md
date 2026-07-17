@@ -10,8 +10,9 @@ Everything a user draws is an **object** with a client-generated UUID:
 ```
 Object {
   uuid        // client-generated; the idempotency + addressing key (I2)
-  type        // FREEHAND | LINE | RECT | ELLIPSE | TEXT | ...
+  type        // FREEHAND | LINE | RECT | ELLIPSE | TEXT | HIGHLIGHT | ICON
   geometry    // points/handles in PDF-relative [0,1] (I3)
+  text        // per-type content: TEXT → the label; ICON → the glyph id
   style       // color, width, opacity, ...
   ownerId     // who authored it
   scope       // PERSONAL | PART | ALL
@@ -21,6 +22,11 @@ Object {
 ```
 
 - **Freehand** = the immutable point-list case (the only type the native wet layer touches, I9).
+- **Icon** (T51) = a tinted glyph stamped in page space. Objects dispatch on `type` first, so the
+  `text` field carries the **glyph id** for `type=icon` (from `web/ink/glyphs.json`; an unknown id
+  renders the `note` fallback), the same way `text` carries the label for `type=text`. `geometry` is
+  the bbox and `style.color` the tint. Rendered by the one `@troubastack/ink` `drawIcon` (I8), so the
+  editor, the bake, and the app all draw it identically.
 - Creation is an *append*; editing is a *mutation event* (`move`/`resize`/`setStyle`/`setText`/
   `delete`) keyed by `uuid`.
 

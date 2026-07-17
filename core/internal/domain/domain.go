@@ -28,6 +28,7 @@ const (
 	TypeEllipse
 	TypeText
 	TypeHighlight
+	TypeIcon // T51: a tinted glyph stamp; the glyph id rides in Object.Text
 )
 
 // Scope is who may see an object (proto Scope). Largely subsumed by layer role_tag.

@@ -27,6 +27,7 @@ import {
   type Tool,
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
+import { IconGlyphPalette } from "./IconGlyphPalette";
 import { EditCanvas } from "./WetCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
 import { MyCuesEditor } from "./MyCuesEditor";
@@ -139,6 +140,8 @@ export function Viewer({
   // ---- live editing state ----
   const [tool, setTool] = useState<Tool>("select");
   const [style, setStyle] = useState(DEFAULT_STYLE);
+  // T51 — the glyph the "Icon" tool stamps next (its id rides in the object's text).
+  const [activeGlyph, setActiveGlyph] = useState("mic");
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
   // The layer the user is "focusing": drives which layer's objects the
   // annotation list shows (works for ANY layer, editable or locked). When the
@@ -534,7 +537,8 @@ export function Viewer({
           page,
           layerId,
           style,
-          text,
+          // T51: an icon stamp carries its glyph id in `text` (from the palette).
+          text: tool === "icon" ? activeGlyph : text,
         });
         if (tool === "text" && !obj.text) return; // empty text → nothing to create
         // Defense in depth: never commit onto a layer we may not write. ensureActiveLayer
@@ -559,7 +563,7 @@ export function Viewer({
         );
       }
     },
-    [ensureActiveLayer, doc.layers, myUserId, style],
+    [ensureActiveLayer, doc.layers, myUserId, style, activeGlyph],
   );
 
   // Is THIS object on a layer I may ever edit (owner / rw)? Drives the lock cue
@@ -924,6 +928,11 @@ export function Viewer({
         <div className="ctx-bar" data-testid="ctx-bar">
           <EditorToolbar part="style" {...toolbarProps} />
         </div>
+      )}
+
+      {/* T51 — glyph palette for the Icon tool (color/opacity stay in the style row). */}
+      {tool === "icon" && toolbarProps.canDraw && (
+        <IconGlyphPalette active={activeGlyph} color={style.color} onPick={setActiveGlyph} />
       )}
 
       {(rejectNotice ?? localNotice) && (

@@ -114,6 +114,8 @@ func objectTypeString(t domain.ObjectType) string {
 		return "text"
 	case domain.TypeHighlight:
 		return "highlight"
+	case domain.TypeIcon:
+		return "icon"
 	default:
 		return ""
 	}

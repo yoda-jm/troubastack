@@ -587,6 +587,30 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      page works even while the contextual style row is showing. */
   pointer-events: none;
 }
+
+/* T51 — glyph palette for the Icon tool: a narrow strip DOCKED to the left edge so it
+   never covers the score you're stamping onto. Container is click-through (like the
+   ctx-bar); only the glyph buttons capture, so drawing anywhere else reaches the canvas. */
+.icon-palette {
+  position: absolute; z-index: 7;
+  top: calc(var(--chrome-h, 3.5rem) + 3.6rem); left: .75rem;
+  max-height: calc(100% - var(--chrome-h, 3.5rem) - 5.5rem); overflow-y: auto;
+  display: grid; grid-template-columns: repeat(2, 34px); gap: .2rem;
+  padding: .35rem; border-radius: var(--r);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+  pointer-events: none;
+}
+.icon-pick {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: none; box-shadow: none; cursor: pointer; color: var(--fg);
+  pointer-events: auto;
+}
+.icon-pick:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.icon-pick.active { border-color: var(--brand); background: var(--brand-tint); }
 .ctx-bar button,
 .ctx-bar input,
 .ctx-bar select,

@@ -17,6 +17,7 @@
  */
 
 import { getStroke } from "perfect-freehand";
+import { getGlyph } from "./glyphs.js";
 
 // ---------------------------------------------------------------------------
 // Render-facing types
@@ -63,6 +64,8 @@ export type InkObjectType =
   | "line"
   | "text"
   | "highlight"
+  // T51 — icon stamp: a tinted glyph in page space; its glyph id rides in `text`.
+  | "icon"
   // Dev demo type (T07): registered/drawn only when studio's arrow descriptor is
   // active (localStorage.devArrow). Wire/proto support is deferred to T09.
   | "arrow";
@@ -458,6 +461,44 @@ export function drawHighlight(ctx: Ctx2D, obj: InkObject, page: PageRect): void 
   paintShape(ctx, obj, page, rectGeom(bbox(obj, page)));
 }
 
+// T51 — icon stamp: a tinted glyph placed in page space. The glyph id rides in
+// `obj.text` (an icon's "content" IS its glyph id); geometry comes from the shared
+// glyphs.json (getGlyph, unknown id → `note` fallback). The 1×1 glyph is fit into the
+// object's bbox preserving aspect + centered, filled and stroked in `style.color`
+// (opacity handled by renderObject's globalAlpha). Studio and the bake share this fn.
+export function drawIcon(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
+  const [a, b] = obj.points;
+  if (!a || !b) return;
+  const g = getGlyph(obj.text ?? "");
+  const box = bbox(obj, page);
+  const s = Math.min(box.w, box.h);
+  if (s <= 0) return;
+  const ox = box.x + (box.w - s) / 2;
+  const oy = box.y + (box.h - s) / 2;
+  const trace = (poly: number[][]) => {
+    for (let i = 0; i < poly.length; i++) {
+      const px = ox + poly[i][0] * s;
+      const py = oy + poly[i][1] * s;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+  };
+  ctx.fillStyle = obj.style.color;
+  ctx.strokeStyle = obj.style.color;
+  ctx.lineWidth = Math.max(0.5, g.strokeWidth * s);
+  for (const poly of g.fills) {
+    ctx.beginPath();
+    trace(poly);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (const poly of g.strokes) {
+    ctx.beginPath();
+    trace(poly);
+    ctx.stroke();
+  }
+}
+
 // Text font family. The DEFAULT is studio's on-screen stack (unchanged) — browsers
 // resolve `system-ui` to the OS UI font, which is right for the editor. But that
 // makes text NON-DETERMINISTIC across renderers: the bake worker (Node/Skia) and a
@@ -502,6 +543,7 @@ registerInkDraw("rect", drawRect);
 registerInkDraw("ellipse", drawEllipse);
 registerInkDraw("highlight", drawHighlight);
 registerInkDraw("text", drawText);
+registerInkDraw("icon", drawIcon);
 
 // T50/T51 — the shared cue/stamp glyph geometry (generated contract; see src/glyphs.ts).
 export { getGlyph, resolveGlyphId, GLYPH_IDS, FALLBACK_GLYPH_ID, type Glyph } from "./glyphs.js";
