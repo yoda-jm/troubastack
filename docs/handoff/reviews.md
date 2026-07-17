@@ -6713,6 +6713,13 @@ is now complete: one glyph source feeding picker, stamps, bake, and app.
 
 ## 2026-07-17 — POST-LAND: T51 `6577031` — landed per the GO with the required doc line delivered (01-data-model.md: `type=icon` → `text` carries the glyph id, note fallback). Delta vs reviewed tip = the T53 rebase + that doc line only. Trailer correct. **CI GREEN (all five). T51 CLOSED.**
 
+## 2026-07-17 — POST-HOC: final demo regen `e5cc269` (VLL-requested, absorbs the B13 rider) — PARSE-VERIFIED
+
+My parse of both committed bundles: 7 real layer names in each (T53 live), shared
+bake 0 cues / `-mine` 7 cues (T50 personal semantics intact). The demo now
+showcases the entire day's work: cues, stamps-capable editor, named layers, both
+bakes. CI watched. The N10 arc + B13 rider are COMPLETE.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
