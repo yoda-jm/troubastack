@@ -30,6 +30,15 @@ hand-write mirrored wire types, kept in sync by review + "AUTHORITY: object.prot
 (see [docs/tasks/T09](tasks/T09-proto-reconciliation.md)). Wiring `buf generate` and adopting
 generated types in the clients is the open I1 debt.
 
+**Scope note (2026-07-17, T50/T51/A20).** I1's principle — *cross-lane contracts have ONE
+generated, guarded source* — is not proto-specific. It also covers the shared **glyph
+geometry**: [`web/ink/glyphs.json`](../web/ink/glyphs.json) (+ its Kotlin twin
+`CueGlyphData.kt`), both emitted by `web/ink/gen-glyphs.mjs` from the authoring source and
+**CI drift-guarded** (regenerate && `git diff --exit-code`). Consumed identically by studio
+(cue picker), the bake (T51 stamps), and the app (A20 cue render). Hand-editing a generated
+artifact — under `gen/` or anywhere else — is forbidden; placement is consumer-driven, the
+invariant is *generated-and-guarded*.
+
 ---
 
 ## B. Domain & data model  → details in [design/01-data-model.md](design/01-data-model.md)
@@ -193,7 +202,7 @@ the three-seam limit — that residual check is the 🎯.
 
 | Invariant | Primary home |
 |---|---|
-| I1 | `proto/` |
+| I1 | `proto/`; `web/ink/glyphs.json` + `CueGlyphData.kt` (generated glyph geometry, `gen-glyphs.mjs`) |
 | I2 I3 I4 I5 I7 | `proto/`, `core/internal/{domain,store}` |
 | I6 | `core/internal/sync`, `core/internal/app` (sessions/auth), client outboxes |
 | I8 | `web/ink`, `web/bake` (bake↔dry parity test); native overlay parity test (not yet written) |
