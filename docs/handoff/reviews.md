@@ -5736,6 +5736,19 @@ mandatory layer. CI watched. Mobile queue: A20 cues (after web-core's T50 lands 
 model/bundle side). VLL device feel-check list: nav grammar + boundary cue +
 per-song layers, next session.
 
+## 2026-07-17 — NEW FEATURE SPEC'D (VLL): T51 icon STAMP tool (tinted glyphs as page-space annotations)
+
+VLL's follow-on to T50: place icon+color stamps ON the score (blue rect around a
+verse + blue shaker glyph = "shaker here"). Spec: `docs/tasks/T51-icon-stamp-tool.md`.
+Key analysis: annotations bake to overlay rasters, so **the app needs zero work** —
+this is pure ink/bake/studio. The TS renderer's draw REGISTRY (no switch) makes the
+new kind a clean plug-in; the Go baker's switch gains `TypeIcon`. The one shared
+prerequisite with T50: the 18 glyphs as pre-tessellated normalized polylines in ONE
+generated JSON consumed by TS ink + Go bake + the T50 picker (no SVG parser
+anywhere; both sides already stroke/fill polylines). Graceful-skip for unknown
+object types is a REQUIRED guard (old peers receiving `icon` over sync must not
+crash). Sequencing: with/after T50 (web-core owns both — natural pairing).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
