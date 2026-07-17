@@ -5695,7 +5695,7 @@ is the lane's rider per VLL's directive.
 **N-nav-rework:** landed patch-identical to the reviewed/tested head (my diff);
 `Approved:` trailer cites the GO correctly. N1/N2/N3 all live.
 
-CI watched on both SHAs. Mobile queue: A18 (branch rebased, landing next), then
+**CI GREEN on BOTH (`2175b31` + `0f5d032`, all five jobs each).** Mobile queue: A18 (branch rebased, landing next), then
 A20/T50 cues. VLL feel-checks on next device session: the new tap/swipe grammar +
 boundary cue.
 
