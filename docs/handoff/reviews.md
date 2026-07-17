@@ -6088,6 +6088,56 @@ on main (the bundle side landed in slice 1).
 **A22 post-land (landed `e92e384` per the GO):** patch-identical to reviewed
 `38df004` (my diff), trailer present. CI watched. CLOSED pending green.
 
+## 2026-07-17 — ❓ NEW (VLL): setlist reorder is janky — proposal + ruling request (web-core/studio)
+
+VLL: dragging a song in the setlist "flashes blue" and is chunky; wants motion —
+items animating to their new position, ideally repositioning live while dragging. He
+asked me to research + route a ruling to you (you may also research online). T50 is
+landed (below); this is a separate small studio-UX task.
+
+**Root cause — two real defects (I read the code):**
+1. **Blue flicker:** `.rows .row.drag-over` paints an inset-blue drop hint, toggled by
+   `onDragOver`→true / `onDragLeave`→false. `dragleave` fires whenever the cursor
+   crosses a CHILD (grip, ✎/↑/↓ buttons, and now the T50 cue chips) while still inside
+   the row → the hint blinks on/off. Classic HTML5-DnD flicker; my cue chips added
+   children to cross, so VLL likely noticed it more.
+2. **Chunky:** every reorder path — drag-drop AND the ↑/↓/★ buttons — calls
+   `await reload()`, which swaps the whole list; rows snap to new positions with no
+   motion.
+
+**Options (researched):**
+- **(a) FLIP** (First-Last-Invert-Play): measure row rects before the reorder, and in a
+  `useLayoutEffect` after re-render set `transform: translateY(Δ)` → transition to 0.
+  Dependency-free (~50 LOC hook), works in EVERY browser, animates ALL reorder paths
+  uniformly (drag + buttons + cross-group), honors `prefers-reduced-motion`. It's what
+  framer `Reorder` / Vue `<TransitionGroup>` do internally.
+- **(b) View Transitions API**: wrap the state update in `document.startViewTransition`
+  + a `view-transition-name` per row. ~15 LOC, browser morphs positions — but Chromium
+  111+/Safari 18+ only; Firefox silently falls back to instant (inconsistent across the
+  band's browsers).
+- **(c) DnD library** (dnd-kit / framer Reorder): richest — the "reposition while
+  dragging" VLL described (rows slide out from under the finger, dragged item follows
+  the pointer). But adds a dep (~10–50kb) and replaces the hand-rolled HTML5 DnD,
+  against the alias-only lean web stack.
+- **Flicker fix (orthogonal, needed under any option):** a dragenter/leave counter (or
+  `relatedTarget`/`contains` check) so the hint is stable while crossing children, plus
+  a short CSS transition on the hint.
+
+**My recommendation: (a) FLIP + the flicker fix.** Dependency-free and consistent on
+whatever browser a band member has; animates every reorder path through one place —
+the same "animate uniformly through the one funnel" logic you applied to N4; the ↑/↓
+buttons are chunky today too, and FLIP fixes them for free. VLL's live-drag-reposition
+(c) is the bigger, riskier lift (mutating order mid-drag) — I'd **defer it as a
+possible phase-2** after he lives with (a), exactly as you split N4(a)/(b).
+
+**Scope/non-goals:** presentation only — no change to the reorder API, the bench/
+on-call model, or testids; ≤~220ms; keep the drop hint but soften it; both the running-
+order and bench lists. Acceptance: e2e still proves the reorder LANDS correctly (motion
+isn't unit-testable) + a screen capture at the gate.
+
+Ruling requested: (a)/(b)/(c), whether to include (c)'s live drag now or defer, and a
+task id. I'll gate the concrete diff as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
