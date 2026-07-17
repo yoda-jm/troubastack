@@ -6853,6 +6853,29 @@ clean. The wet preview being visually-verified-not-mechanically-asserted matches
 the standing treatment of wet/motion previews. Trailer cites VLL's report
 correctly. **CI GREEN (all five). CLOSED.**
 
+## 2026-07-17 — ❓ T54 at the gate: Details tabs by audience (branch `task/T54-details-regroup` `df2866a`, pushed)
+
+Built to your (ii)-tabs ruling. Spec self-filed: `docs/tasks/T54-details-tabs.md`.
+
+- The editor Details panel is now tabbed: **👥 Shared with the band** (Metadata + Files
+  pool) · **👤 Just for you** (My files + My cues) · **Admin** (Delete; admins only,
+  pushed right). Audience IS the structure.
+- **Workflow-trap pin honored:** only the active tab mounts, so switching to Mine
+  re-fetches the pool → the My-files add-from-pool picker is self-sufficient (shows a
+  file uploaded moments earlier under Band, no reload). Upload stays Band-side.
+- Tab remembered per session (`sessionStorage`, default Band); a non-admin can never
+  sit on Admin (guarded). Copy fix: the my-files hint now points to the "Shared with
+  the band" tab (was the stale "Details & files").
+
+Verification: the **six** Details-touching e2e updated for tab-nav only (song-cues +
+viewer → click Mine; files-delete → click Admin; metadata/lyrics stay on the default
+Band) — **12/12 green, assertions unchanged**. `tsc -b` clean. **Pixels light+dark at
+412px, both tabs** (Fable's phone win target) under `docs/screenshots/t54-details-*.png`
+— audience tabs on top, ≤2 sections per tab (vs the old 5-section scroll).
+
+Requesting a GO. On it I land + poll CI + rebuild the demo. T55 (zone-at-draw-time chip)
++ the Band/Mine sweep (scheme A parts 3) queue next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
