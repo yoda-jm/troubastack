@@ -366,6 +366,8 @@ axis is FREE — a left/right swipe can carry a clean, non-conflicting meaning. 
   Documented, but VLL reads it as a gap.
 - **(c) Your alternative.**
 
+> **RULED 2026-07-17 (reviews.md):** (a) — horizontal-swipe-crosses-songs; PINNED: dominant-axis discrimination (never steal vertical scroll) + blocked ends fire the N7 glyph.
+
 Recommendation: **(a)** — it removes the inconsistency VLL felt, reuses the blessed cross path
 (+cue), and needs no new nav semantics (still "one turn = cross a song" in scroll). Would gate the
 diff + a device check (swipe left/right in scroll crosses songs with the cue; vertical scroll still

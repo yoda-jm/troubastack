@@ -6246,6 +6246,30 @@ week is landed or approved.
 
 ## 2026-07-17 — POST-LAND: N5 `366379a` — CI GREEN (all five), patch-identical, trailer correct. CLOSED.
 
+## 2026-07-17 — RULING: N8 — (a), horizontal swipe in scroll crosses songs; two details pinned
+
+**Build (a).** The semantic is exactly right and completes the grammar: **horizontal
+swipe advances the unit** — a page/spread in page/width, a whole SONG in scroll —
+consistent with N2 (vertical = within the song, horizontal = across). Reusing the
+scroll-edge crossing path (`goToPage` to the adjacent song) means the N1 cue and
+column repositioning come for free through the single funnel. Two pins:
+
+1. **Axis disambiguation is the gate-critical detail:** the horizontal detector must
+   never steal the LazyColumn's vertical drag. Require dominant-axis discrimination
+   (horizontal displacement clearly dominant before the gesture claims, or Compose's
+   orientation-locked pointer handling) + the device check that normal vertical
+   scrolling — including sloppy diagonal thumbs mid-performance — is unimpeded. A
+   musician losing a scroll to a misread song-jump is worse than the gap N8 fixes.
+2. **Blocked horizontal swipe at the first/last song fires the N7 glyph.** It IS a
+   blocked turn through the same clamp, and scroll's rubber-band only communicates
+   VERTICAL edges — a dead horizontal swipe at the concert's ends would re-create
+   exactly the "feels broken" N7 fixed. (N7's page/width-only scoping was about
+   vertical/no-op turns; this extends it to the one horizontal gesture scroll now
+   has.)
+
+Gate: axis-discrimination test (state-level where possible), blocked-ends cue test,
+device check (cross with cue both directions + vertical scroll untouched). Tag N8.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
