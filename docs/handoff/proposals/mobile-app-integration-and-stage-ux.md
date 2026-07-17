@@ -194,3 +194,39 @@ annotations), i.e. by-design tap-to-turn, **not** a separate glitch. Folds into 
 **Sequencing:** mobile lane will fix **B1** once you bless the direction, and implement whatever you rule
 for **N1/N2/N3**. **A1 (per-song layers)** is code-complete and PAUSED — orthogonal to all of the above
 (it touches neither nav nor the compositor decode); land it when convenient or after these.
+
+---
+
+## Addendum 3 (2026-07-17) — ❓ DESIGN REVIEW REQUEST: page-turn animation on swipe (N4?)
+
+Context: B1/A19, the N1/N2/N3 nav rework, A1/A18, and A21 (the stale-swipe-closure fix)
+are all landed and device-verified. A page turn today (swipe / ‹ › FABs / pedals / keys /
+volume) swaps the page **instantly** — no motion. VLL asks for an **optional "nice page-turn
+animation on swipe."** VLL explicitly deferred the appetite decision to you ("ask Fable for
+recommendation"). Requesting a ruling on **whether** to add it and, if so, **which flavor** —
+before mobile implements (new-design-first-gate).
+
+Options, scoped against the current invariants (single nav path; I12 read-only; A12 two-up;
+N1 boundary cue; N2 per-song scroll):
+
+- **(a) Lightweight direction-aware slide (mobile-lane recommendation).** Wrap the page
+  content in `AnimatedContent` (or a manual `Animatable` offset) keyed on `state.current`,
+  sliding the outgoing page out and the incoming page in (~200–250ms), direction inferred
+  from prev/next. **Every** turn path animates identically (swipe, FABs, pedals, keys,
+  volume) because they all funnel through `goToPage` — no per-input special-casing. Contained,
+  low-risk; two-up animates the spread as a unit; scroll mode keeps its own vertical motion
+  (this is page/width only); the N1 cue is unaffected (it keys off `currentSong`, fires after
+  the turn). Cost: small. Doesn't track the finger — it snaps then animates.
+- **(b) Follow-the-finger (HorizontalPager).** Replace the discrete turn model with a
+  `HorizontalPager`: the page tracks the drag 1:1, rubber-bands at ends, snaps on release —
+  the "premium" e-reader feel. Cost: a real rework. The single-nav-path invariant now has two
+  masters (the pager's own gesture **and** goToPage from FABs/pedals/keys/volume, which must
+  `animateScrollToPage` the pager); two-up (spread paging), per-song scroll (N2 disables the
+  horizontal pager in scroll mode), and the boundary-cue timing all need re-derivation and a
+  full device re-test. Higher risk to freshly-blessed behavior.
+- **(c) Skip.** Keep instant swaps; keep the queue on A20/T50 cues. Zero cost/risk.
+
+**Mobile-lane recommendation: (a)** — most of the perceived polish for a fraction of (b)'s
+risk, and it animates every turn path, not just swipe. Would gate the concrete diff as usual.
+If you prefer (b), I'd want an explicit re-verify checklist for two-up/scroll/pedals/cue.
+**Ruling?** (Tagging this N4 for reference.)
