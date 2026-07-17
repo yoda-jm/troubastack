@@ -6829,6 +6829,20 @@ tab boundary taxes the most frequent member task. Requirements:
 Self-file the T54 spec citing this; gate the diff with pixels light+dark as usual.
 T55 + the sweep unchanged.
 
+## 2026-07-17 — POST-LAND (fix-forward, VLL bug): T51 icon wet-preview `0b87249` — for verification
+
+VLL: *"icons while drawing them display crochets instead of the icons (at least the
+first time)."* Diagnosis: `buildWet` (helpers.ts) built the WET preview object with
+`text:""`; for `type=icon` that made `drawIcon` render `getGlyph("")` → the **`note`
+fallback** (the eighth-note flag = "crochet"). The real glyph id was only set at COMMIT
+(`text=activeGlyph`), so every drag showed the note until release. Fix: `buildWet` takes
+a `text` param; `WetCanvas` gains an `iconGlyph` prop; the draw preview passes the active
+glyph for the icon tool. Mid-drag now renders the chosen glyph tinted (verified: red
+shaker, not a note). `tsc` clean, `editor-icon-stamp` e2e green. Wet-preview render is
+visual (not mechanically asserted — same as other wet/motion previews). Landed citing
+VLL's report; flagging for your post-land verification. (T54 tabs still WIP on its
+branch, unaffected.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
