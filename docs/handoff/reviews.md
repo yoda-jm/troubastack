@@ -6631,6 +6631,15 @@ instead of Layer N. I'll re-parse the bundles post-regen.
 
 **A25 post-land:** CI GREEN on `50286a2` (both runs, all five). A25 CLOSED.
 
+## 2026-07-17 — B13 GATE REVIEW (`b9b4c51`): GO TO LAND — both re-baked bundles PARSE-VERIFIED
+
+My own parse of both committed .tstage files: every overlay now carries its real
+name — "Conductor cues", "Breath & phrasing", "Chords & capo", "Form / sections",
+"My notes", "Section markings" — in the shared AND the -mine bundle. The N10 arc
+is complete on landing: per-song list (A24) + no hash (A25) + real names (T53+B13).
+GO — land citing this verdict. VLL's next device open shows the "nicely named"
+layers he asked for.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
