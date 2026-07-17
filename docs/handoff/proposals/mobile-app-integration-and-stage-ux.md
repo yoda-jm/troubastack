@@ -416,3 +416,35 @@ is the cheap polish, placeholder is the safety net. Would gate the diff + a devi
 Redmi (a forward/back turn in page/width AND landscape two-up shows real content sliding, no black).
 **Ruling?** (Tagging N9. Also happy to just prototype (a) and show you a screen-capture if you'd
 rather judge by eye than by spec.)
+
+---
+
+## Addendum 9 (2026-07-17) — ❓ DESIGN/CROSS-LANE REQUEST: Layers list feels funky (N10?)
+
+Device QA (VLL): *"layers list feels funky — this is not the nicely 3-4 named in the demo, they
+have strange names with digits and it seems to have too many for a single song."* Two distinct
+root causes, diagnosed:
+
+**1. Too many (app bug, app-fixable).** The `LayersDialog` lists `state.layers` =
+`aggregateLayers(bundle)`, which is CONCERT-WIDE (all distinct layer ids across every song) — 14
+in the demo — even though the dialog is titled "Layers — <song>" and toggles PER SONG (A1). So on
+Wonderwall (5 layers) you see all 14. It should list only the CURRENT song's layers (derivable from
+`state.currentPage.overlays` → their layer ids). Small app-only change; matches the A1 per-song model.
+
+**2. Strange hashed names (needs the bake — cross-lane).** `LayerImage` in the bundle carries only
+`layer_id`, which is a HASH (`L-695a7bd5507675ea`) — there is NO human name field. The friendly names
+the studio shows ("Conductor cues", "Form", personal names) exist server-side (seed `Layer.Name`) but
+the **bake drops them**, so the app has nothing to render but the hash. Fix needs the T-track:
+`proto LayerImage` gains `string name = 7;` (additive), the baker injects `Layer.Name`, and the app
+displays it — falling back to a prettified `role_tag` ("Conductor", "Guitar"), then the id, so old
+bundles still render. (Role alone can't name the untagged layers — Wonderwall has 3 untagged — so the
+real name is required for the "nicely named" list VLL expects.)
+
+Mobile-lane plan / recommendation:
+- **(a) App now:** scope `LayersDialog` to the current song's layers (fixes "too many"), and show a
+  friendlier fallback label (role-prettified, else id) until names ride the bundle. Gate the small diff.
+- **(b) Cross-lane:** web-core adds `LayerImage.name` to the proto + baker (studio already has the
+  name); the app then shows real names. This is the "nicely 3-4 named" fix VLL wants.
+
+**Ruling / can web-core take (b)?** (Tagging N10. I'll do (a) app-side regardless once you bless the
+current-song scoping; (b) is the T-track's bake field.)
