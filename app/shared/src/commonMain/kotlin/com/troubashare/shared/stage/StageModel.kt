@@ -119,8 +119,15 @@ data class StageState(
     val currentSong: Int
         get() = songs.indexOfLast { it.firstPage <= current }
 
-    /** The visible layer ids for [songId] (A1 per-song visibility); empty if the song is unknown. */
-    fun visibleFor(songId: String): Set<String> = visibleBySong[songId] ?: emptySet()
+    /**
+     * The visible layer ids for [songId] (A1 per-song visibility). Mandatory layers are unioned in HERE,
+     * at read — the single enforcement point (I12: mandatory is ALWAYS visible, the viewer cannot hide
+     * it). This closes a P201 hole: a layer that a performer legally hid while optional and that a
+     * later re-bake marks mandatory would otherwise stay hidden through the merge; enforcing at read
+     * covers the merge, any future persistence, and every other path. Empty stored set ⇒ just mandatory.
+     */
+    fun visibleFor(songId: String): Set<String> =
+        (visibleBySong[songId] ?: emptySet()) + layers.filter { it.mandatory }.map { it.layerId }
 }
 
 /** The role's default-visible layer ids (A1 seed for every song). */

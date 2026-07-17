@@ -96,8 +96,8 @@ class LiveUpdateTest {
 
     // ---- A1: per-song layer overrides survive an auto-update swap ----
 
-    private fun overlayBundle(): LoadResult.Loaded {
-        val notes = LayerImage(layerId = "notes", imageRef = "n.png", order = 0)
+    private fun overlayBundle(mandatory: Boolean = false): LoadResult.Loaded {
+        val notes = LayerImage(layerId = "notes", imageRef = "n.png", order = 0, mandatory = mandatory)
         val bundle = ConcertBundle(
             concertId = "c1",
             songs = listOf("song-1", "song-2").map { id ->
@@ -116,5 +116,18 @@ class LiveUpdateTest {
         vm.applyUpdate(overlayBundle())
         assertFalse("notes" in vm.state.value.visibleFor("song-1"), "song-1 override survives the swap")
         assertTrue("notes" in vm.state.value.visibleFor("song-2"), "song-2 default is unchanged")
+    }
+
+    @Test
+    fun applyUpdate_layerBecomingMandatory_isForcedVisible() {
+        // A18 conditional (I12): a performer legally hides an OPTIONAL layer, then a re-bake marks it
+        // mandatory. After auto-update the merged kept-set still excludes it — but mandatory is ALWAYS
+        // visible, enforced at READ in visibleFor, so it must show regardless of the stored override.
+        val vm = StageViewModel(overlayBundle(mandatory = false))
+        vm.setLayerVisible("notes", false)
+        assertFalse("notes" in vm.state.value.visibleFor("song-1"))
+        vm.applyUpdate(overlayBundle(mandatory = true)) // same layer, now mandatory
+        assertTrue("notes" in vm.state.value.visibleFor("song-1"), "a now-mandatory layer can never stay hidden")
+        assertTrue("notes" in vm.state.value.visibleFor("song-2"))
     }
 }
