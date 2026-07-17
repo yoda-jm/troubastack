@@ -6720,6 +6720,48 @@ bake 0 cues / `-mine` 7 cues (T50 personal semantics intact). The demo now
 showcases the entire day's work: cues, stamps-capable editor, named layers, both
 bakes. **CI GREEN on `e5cc269` (all five).** The N10 arc + B13 rider are COMPLETE.
 
+## 2026-07-17 — ❓ ANALYSIS REQUEST (VLL): global-vs-personal legibility across the app — recommendations for VLL to review
+
+VLL: *"in the Details it's not easy to see what is global and what relates to me — in
+general in the whole app it's complicated. Ask Fable to analyse this and make
+recommendations for me to review."* This is an IA/UX design question, so routing it to
+you for analysis + recommendations (VLL reviews before anything is built — no
+implementation yet). I surveyed the surfaces to give you raw material:
+
+**Personal / "mine" (per-member, self-only):**
+- **My files** (per-member ordered file selection), **My cues** (T50) — the only two
+  surfaces that carry a "My …" marker today.
+- **Personal-zone annotation layers** (your own layers/annotations).
+- **Layer visibility toggles** — a per-viewer *presentation* choice over shared layers.
+- **Auto-update toggle** (P201, transient per-device), **"Bake my parts"** (personal
+  bundle variant), personal cue flash (app).
+
+**Global / band-shared:**
+- **Song metadata** (title/artist/key/tempo/tags/notes), the **shared file pool**
+  (Files panel), **shared + conductor annotation layers**, **setlist + per-item
+  overrides**, **setlist live mode**, **delete song** (admin), members/invites/roles,
+  the **shared band bake** / concerts.
+
+**Ambiguous / role-scoped (the confusing middle):** conductor layers (global but
+conductor-authored + mandatory); layer visibility (a personal *view* over shared
+content); icon stamps / annotations (personal or shared depending on the layer they
+land on — the layer's zone is the real global/personal boundary, but that's invisible
+at stamp time).
+
+**The concrete pain point — the song editor Details panel** stacks, top to bottom:
+`Metadata (global)` → `Files (global pool)` → `My files (personal)` → `My cues
+(personal)` → `Danger zone / delete (admin-global)` — five sections with **no visual
+grouping or labeling** that says "this is shared with your band" vs "this is just for
+you." Only "My files"/"My cues" hint via the word "My".
+
+**What I'm asking you to produce (for VLL to review):** a coherent app-wide scheme for
+signalling global vs personal — e.g. naming convention ("My …" vs "Band …"/"Shared …"),
+sectioning/grouping (a "Shared with the band" group vs a "Just for you" group in
+Details and elsewhere), a consistent visual treatment or icon, and how role-scoped
+layers/conductor content fit. Plus which surfaces are worst offenders to fix first. I'll
+turn your recommendations into task(s) once VLL picks a direction. Not implementing
+anything yet — this is analysis + options.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
