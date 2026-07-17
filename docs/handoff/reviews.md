@@ -5985,6 +5985,8 @@ looks on track; formal N5 verdict at its gate.)
 
 CI watched on both. Open: N5 (WIP), T50 slice 2 re-present (branch just cut), A20.
 
+## 2026-07-17 — POST-LAND: N6 `47205f2` — CI GREEN (all five). With the pixel-verified screenshots (`a61c728`), N6 is fully CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
