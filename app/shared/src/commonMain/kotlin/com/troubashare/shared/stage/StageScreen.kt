@@ -213,16 +213,19 @@ private fun Performing(
     // [cueEpoch]; a single timeout keyed on the epoch restarts on every trigger (rapid pedal-at-the-wall
     // keeps one cue, refreshed, then one fade). blockedForward is retained across the fade so the glyph
     // renders the right direction while it fades out.
-    var boundaryCueVisible by remember { mutableStateOf(false) } // N1: title/position card
+    var boundaryCueVisible by remember { mutableStateOf(false) } // N1/A20: song-entry flash is up
     var blockedCueVisible by remember { mutableStateOf(false) }  // N7: end/start glyph
     var blockedForward by remember { mutableStateOf(true) }      // N7: last blocked direction (for the fade)
+    var cueIsEntry by remember { mutableStateOf(false) }         // A20: this flash is the INITIAL concert entry
     var cueEpoch by remember { mutableStateOf(0) }
-    // N1: continuous advance is a performance requirement (pedal users can't stop at every song end), but
-    // crossing a song boundary must READ as crossing — flash the title/position card. currentSong only
-    // changes on a boundary cross (any mode); the first composition seeds lastCueSong so entry is quiet.
-    var lastCueSong by remember { mutableStateOf(state.currentSong) }
+    // N1/A20: flash on EVERY song entry, including the first — so opening concert mode shows the first
+    // song's cues too (A20; VLL). lastCueSong seeded to -1 so the first run (song 0) fires; cueIsEntry
+    // marks that initial run so the TITLE card is suppressed on entry (chrome already shows the title,
+    // and entry isn't a boundary CROSS) while the CUE squares still flash. A cross clears any blocked cue.
+    var lastCueSong by remember { mutableStateOf(-1) }
     LaunchedEffect(state.currentSong) {
         if (state.currentSong != lastCueSong) {
+            cueIsEntry = (lastCueSong == -1)
             lastCueSong = state.currentSong
             boundaryCueVisible = true; blockedCueVisible = false; cueEpoch++
         }
@@ -466,23 +469,25 @@ private fun Performing(
             }
         }
 
-        // N1 + A20: the song-entry cue — ONE overlay, ONE timeout. The title/position card flashes at
-        // top (N1, so continuous advance announces the new song), and when the entered song has personal
-        // cues (A20) they flash LARGE in the center ("mic + red guitar" = what to prepare). Suppressed
-        // while full chrome is up (which already shows the title), so they never stack. No cues → just
-        // the N1 card, unchanged.
+        // N1 + A20: the song-entry cue — ONE overlay, ONE timeout. On a CROSS the title/position card
+        // flashes at top (N1) — but not while full chrome is up (it already shows the title) nor on the
+        // initial concert entry (that's not a boundary cross). The entered song's personal cues (A20)
+        // flash LARGE in the center on EVERY entry, including the first (so opening the concert shows
+        // "mic + red guitar" for song 1) — regardless of chrome, since they duplicate nothing there.
         AnimatedVisibility(
-            visible = boundaryCueVisible && !chromeVisible,
+            visible = boundaryCueVisible,
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(400)),
             modifier = Modifier.fillMaxSize(),
         ) {
             Box(Modifier.fillMaxSize()) {
-                Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
-                    TitleCard(
-                        title = state.songs.getOrNull(state.currentSong)?.name ?: "",
-                        position = stagePositionLabel(state, topPage, twoUp),
-                    )
+                if (!cueIsEntry && !chromeVisible) {
+                    Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
+                        TitleCard(
+                            title = state.songs.getOrNull(state.currentSong)?.name ?: "",
+                            position = stagePositionLabel(state, topPage, twoUp),
+                        )
+                    }
                 }
                 state.songs.getOrNull(state.currentSong)?.cues?.takeIf { it.isNotEmpty() }?.let { cues ->
                     CueFlashCard(cues, Modifier.align(Alignment.Center))
@@ -603,13 +608,25 @@ private fun BlockedTurnGlyph(forward: Boolean) {
  *  the chrome). Rides the N1 overlay (one visibility, one timeout). */
 @Composable
 private fun CueFlashCard(cues: List<SongCue>, modifier: Modifier = Modifier) {
-    Surface(modifier, color = Color(0xCC000000), shape = MaterialTheme.shapes.large) {
-        Row(
-            Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            cues.forEach { cue -> CueGlyphIcon(cue.icon, parseCueColor(cue.color, Color.White), size = 56.dp) }
+    // Each cue is its OWN square tile (not one shared rectangle), so it reads at a glance as N
+    // distinct things to prepare — "mic AND red guitar" = two tiles, not one blob. A "+" between
+    // tiles reinforces that BOTH are needed (not a choice).
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        cues.forEachIndexed { i, cue ->
+            if (i > 0) {
+                // "+" on its own small dark chip so it reads on BOTH the white page and the night-black
+                // canvas (a bare white "+" in the gap vanished on the white score — the N5 lesson).
+                Surface(color = Color(0xCC000000), shape = CircleShape) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        Text("+", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            }
+            Surface(color = Color(0xCC000000), shape = MaterialTheme.shapes.large) {
+                Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+                    CueGlyphIcon(cue.icon, parseCueColor(cue.color, Color.White), size = 56.dp)
+                }
+            }
         }
     }
 }
