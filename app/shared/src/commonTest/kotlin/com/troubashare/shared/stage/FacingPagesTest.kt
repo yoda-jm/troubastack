@@ -100,6 +100,20 @@ class FacingPagesTest {
     }
 
     @Test
+    fun prefetchTargets_areTheNeighbourTurnsWouldShow() {
+        // N9: prefetch exactly what a next/prev turn displays, minus the current spread; song-aligned.
+        // one-up: neighbours are prev/next page (blocked direction drops out at the ends).
+        assertEquals(listOf(1), prefetchTargets(0, n, twoUp = false, starts))        // first page → only next
+        assertEquals(listOf(4, 6), prefetchTargets(5, n, twoUp = false, starts))     // mid → both sides
+        assertEquals(listOf(8), prefetchTargets(9, n, twoUp = false, starts))        // last page → only prev
+        // two-up: whole adjacent spreads, song-aligned, current spread excluded.
+        assertEquals(listOf(2), prefetchTargets(0, n, twoUp = true, starts))         // [0,1] shown → next solo [2]
+        assertEquals(listOf(0, 1, 3, 4), prefetchTargets(2, n, twoUp = true, starts)) // [2] shown → prev [0,1] + next [3,4]
+        // degenerate
+        assertEquals(emptyList(), prefetchTargets(0, 0, twoUp = false, starts))
+    }
+
+    @Test
     fun emptyBundle_andNoSongs_degradeToGlobalPairing() {
         assertEquals(emptyList(), spreadPages(0, starts, 0))
         // No songStarts ⇒ one whole-concert song ⇒ plain global pairing (backward-compatible).

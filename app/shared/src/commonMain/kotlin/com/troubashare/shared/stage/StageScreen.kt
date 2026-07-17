@@ -6,6 +6,7 @@ package com.troubashare.shared.stage
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -265,6 +266,7 @@ private fun Performing(
         // A14: scroll wins over two-up (a single column); two-up only in landscape FIT_PAGE.
         val twoUp = maxWidth > maxHeight && state.fitMode == FitMode.FIT_PAGE
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
+        val heightPx = with(LocalDensity.current) { maxHeight.roundToPx() }
         // N2: in scroll mode the column holds ONLY the current song's pages, so the LazyList index is
         // LOCAL to the song. songRange is that song's global span; map the local top back to a global
         // page for the label. Empty off scroll mode.
@@ -274,6 +276,24 @@ private fun Performing(
         // N6: two-up spreads are SONG-ALIGNED — the facing-pages math takes each song's first global
         // page so a spread never straddles a song boundary.
         val songStarts = state.songs.map { it.firstPage }
+        // N9: prefetch the pages a NEXT/PREV turn would show, so the page-turn slide reveals REAL
+        // content instead of a blank decode. Fires on settle (PREFETCH_SETTLE_MS after the page/layout
+        // changes) so it never competes with the current page's own decode; decodes at the SAME size the
+        // incoming PageView will use (full area, or half-width per page in two-up) so the cache keys hit.
+        // decodeCached puts UNPINNED (pin #1 — only displayed pages pin, A19), so prefetched neighbours
+        // stay evictable under memory pressure. Skipped in scroll mode (no horizontal page slide there).
+        if (!scrollMode && widthPx > 0 && heightPx > 0) {
+            LaunchedEffect(state.current, twoUp, widthPx, heightPx, state.pageCount) {
+                delay(PREFETCH_SETTLE_MS)
+                val targets = prefetchTargets(state.current, state.pageCount, twoUp, songStarts)
+                val pw = if (twoUp) widthPx / 2 else widthPx
+                withContext(Dispatchers.Default) {
+                    targets.forEach { idx ->
+                        state.pages.getOrNull(idx)?.let { decodeCached(cache, it.rasterRef, pw, heightPx, decoder) }
+                    }
+                }
+            }
+        }
         // One navigation entry point (keys, taps, swipes, arrows, volume) so a "turn" means the same
         // everywhere: spread-aware in two-up; in scroll a turn steps WITHIN the current song's column and
         // at a column EDGE crosses to the adjacent song (goToPage clamps and, by changing the song, fires
@@ -375,25 +395,34 @@ private fun Performing(
                 // pages during the slide. Scroll mode keeps its own vertical motion and is excluded.
                 else -> AnimatedContent(
                     targetState = state.current,
+                    // N9: Material "shared-axis X" — a SHORT directional slide (not full-width) + fade,
+                    // decelerate easing. Combined with N9 prefetch (incoming page already decoded) this
+                    // reads as an intentional page turn rather than a blank pane sweeping across. N4's
+                    // interruptibility (keyed on state.current, target-state-wins) is unchanged.
                     transitionSpec = {
                         val forward = targetState > initialState
-                        val enter = slideInHorizontally(tween(PAGE_TURN_ANIM_MS)) { w -> if (forward) w else -w }
-                        val exit = slideOutHorizontally(tween(PAGE_TURN_ANIM_MS)) { w -> if (forward) -w else w }
+                        val d = PAGE_TURN_ANIM_MS
+                        val shift = { w: Int -> w / SHARED_AXIS_SHIFT_DIVISOR }
+                        val enter = slideInHorizontally(tween(d, easing = FastOutSlowInEasing)) { w -> if (forward) shift(w) else -shift(w) } +
+                            fadeIn(tween(d))
+                        val exit = slideOutHorizontally(tween(d, easing = FastOutSlowInEasing)) { w -> if (forward) -shift(w) else shift(w) } +
+                            fadeOut(tween(d))
                         enter togetherWith exit
                     },
                     modifier = Modifier.fillMaxSize(),
                     label = "page-turn",
                 ) { cur ->
+                    val placeholder = colorMode.pagePlaceholder()
                     if (twoUp) {
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
                         Row(Modifier.fillMaxSize()) {
                             spreadPages(cur, songStarts, state.pageCount).forEach { idx ->
-                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
+                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), placeholder, Modifier.weight(1f).fillMaxHeight())
                             }
                         }
                     } else {
                         state.pages.getOrNull(cur)?.let { p ->
-                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), placeholder, Modifier.fillMaxSize())
                         }
                     }
                 }
@@ -762,6 +791,7 @@ private fun PageView(
     decoder: ImageDecoder,
     cache: PageImageCache,
     colorFilter: androidx.compose.ui.graphics.ColorFilter?,
+    placeholder: Color,
     modifier: Modifier,
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
@@ -796,7 +826,10 @@ private fun PageView(
 
         val bitmaps = decoded
         when {
-            bitmaps == null -> {} // brief blank while decoding; no spinner needed for local files
+            // N9: page-tinted placeholder while decoding (colorMode-aware) so a turn never slides in a
+            // BLACK void; with N9 prefetch the incoming page is usually already decoded, so this only
+            // shows for the rare uncached page.
+            bitmaps == null -> Box(Modifier.fillMaxSize().background(placeholder))
             bitmaps.raster == null -> PlaceholderCard(Modifier.fillMaxSize()) // decode failed at render time
             else -> {
                 val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()

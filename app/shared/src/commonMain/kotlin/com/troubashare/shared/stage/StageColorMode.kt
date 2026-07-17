@@ -1,6 +1,7 @@
 // Generated proto types come from gen/ — single source of truth is proto/ (I1).
 package com.troubashare.shared.stage
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 
@@ -42,4 +43,14 @@ fun StageColorMode.pageColorFilter(): ColorFilter? = when (this) {
             ),
         ),
     )
+}
+
+/**
+ * N9 — the placeholder tint shown behind a page while its bitmap is still decoding, so a turn never
+ * flashes a BLACK void mid-slide. Matches the paper the page will settle to: a near-paper light tint
+ * in NORMAL, a dark (but not pure-black-on-black, per N5) tint in NIGHT.
+ */
+fun StageColorMode.pagePlaceholder(): Color = when (this) {
+    StageColorMode.NORMAL -> Color(0xFFEDEDED) // near-paper
+    StageColorMode.NIGHT -> Color(0xFF1A1A1A)  // dark, still distinct from the pure-black canvas
 }

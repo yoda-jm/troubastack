@@ -95,6 +95,24 @@ fun isBlockedTurn(page: Int, pageCount: Int, twoUp: Boolean, dir: PageTurn, song
 }
 
 /**
+ * N9 — the page indices a NEXT or PREV turn from [page] would DISPLAY, so they can be pre-decoded
+ * before the slide (killing the blank-slide-in). Derived from the SAME turn rule + spread math the
+ * navigation uses (song-aligned, N6) — never hand-rolled adjacency — so prefetch always matches what a
+ * turn actually shows: both pages of the adjacent spread in two-up, the single next/prev page
+ * otherwise. Excludes the currently-displayed spread (already resident/pinned) and, at the concert
+ * ends, the blocked direction (its target == current). Distinct, in ascending order. Pure.
+ */
+fun prefetchTargets(page: Int, pageCount: Int, twoUp: Boolean, songStarts: List<Int>): List<Int> {
+    if (pageCount <= 0) return emptyList()
+    val displayed = if (twoUp) spreadPages(page, songStarts, pageCount).toSet() else setOf(page.coerceIn(0, pageCount - 1))
+    val neighbours = listOf(PageTurn.NEXT, PageTurn.PREV).flatMap { dir ->
+        val target = turnTarget(page, pageCount, twoUp, dir, songStarts).coerceIn(0, pageCount - 1)
+        if (twoUp) spreadPages(target, songStarts, pageCount) else listOf(target)
+    }
+    return (neighbours.toSet() - displayed).sorted()
+}
+
+/**
  * The pager label: "3–4/22" for a two-up spread, "22/22" for a lone last page, "5/22" one-up.
  * [twoUp] is the live layout decision; [page] is the source-of-truth current page.
  */
