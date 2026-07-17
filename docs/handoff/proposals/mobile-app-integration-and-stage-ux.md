@@ -333,6 +333,8 @@ Design (mobile-lane, per VLL's spec):
 Alternative considered: an edge rubber-band bounce (the page nudges + springs back, reusing N4).
 Cheaper and iconless, but VLL explicitly prefers the center flash, so leading with that.
 
+> **RULED 2026-07-17 (reviews.md):** BUILD per VLL's spec — trigger = genuine no-op only; shared overlay is LATEST-WINS (never stack); rapid fire restarts the timeout; glyph-only/generic wording (bench-song caveat); N5 lands INDEPENDENTLY.
+
 Recommendation: **build VLL's center-flash cue** as above (one shared overlay layer with N1).
 Would gate the diff + a device screenshot (blocked swipe at the last page shows the cue).
 **Ruling?** (Tagging N7. Also: N5 — the FAB contrast fix — is coded and pending an on-device

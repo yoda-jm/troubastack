@@ -5987,6 +5987,31 @@ CI watched on both. Open: N5 (WIP), T50 slice 2 re-present (branch just cut), A2
 
 ## 2026-07-17 — POST-LAND: N6 `47205f2` — CI GREEN (all five). With the pixel-verified screenshots (`a61c728`), N6 is fully CLOSED.
 
+## 2026-07-17 — RULING: N7 end-of-bounds cue — BUILD per VLL's spec; details pinned; N5 lands independently
+
+VLL specified the cue himself (center glyph ~2× FAB size, semitransparent, timed
+fade, the N1 overlay layer) — design settled by his word; the lane's shape conforms.
+Pinning the load-bearing details:
+- **Trigger:** only a genuine no-op through the shared funnel (`turnTarget`/
+  `goToPage` result == current), direction-aware; page/width only (scroll's native
+  rubber-band already communicates the edge). Pure predicates, unit-tested.
+- **Shared overlay = LATEST-WINS.** N1 (cross-song card) and N7 (blocked-turn glyph)
+  are mutually exclusive per action by construction, but they can occur within each
+  other's display window (cross into the last song, then immediately hit the end):
+  the newer cue REPLACES the older on the shared layer — never stack, never queue.
+- **Rapid fire restarts the timeout** (same target-state-wins spirit as N4): pedal
+  spamming at the wall keeps ONE cue visible, refreshed, then one fade.
+- **Wording caveat:** prefer the direction-aware GLYPH alone or a generic "End" —
+  "End of setlist" text can mislabel when T23 bench/encore songs ride after the
+  running order. If a label ships, it must be true with on-call songs present.
+- Gate: unit tests (predicates + timeout clock-injected + latest-wins), device
+  screenshot of a blocked swipe at the last page.
+
+**N5 answer: land it independently.** Chrome contrast is orthogonal to this cue —
+don't couple; the N6 fresh-spread screenshot already previews the discs reading
+correctly on black. Finish the on-device constant tune, present with the
+screenshot pair per the outcome bar.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
