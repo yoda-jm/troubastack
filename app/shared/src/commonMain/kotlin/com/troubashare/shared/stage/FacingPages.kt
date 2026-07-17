@@ -44,14 +44,17 @@ fun spreadPages(page: Int, songStarts: List<Int>, pageCount: Int): List<Int> {
 
 /**
  * Next spread's left page (turn-by-spread). Within the song, advance by 2; at the song's last spread,
- * cross to the NEXT song's first page (a fresh spread). Clamped so a turn never runs off the end.
+ * cross to the NEXT song's first page (a fresh spread). At the LAST spread of the LAST song, return
+ * this spread's own LEFT page — a true no-op (A22): returning the spread's RIGHT page instead would
+ * move `current` within the same spread and make the N4 slide animate a turn that renders the identical
+ * page ("extra swipe with animation, same page"). Every result is a spread-left index.
  */
 fun nextSpreadPage(page: Int, songStarts: List<Int>, pageCount: Int): Int {
     val left = spreadFor(page, songStarts, pageCount)
     val b = songBounds(left, songStarts, pageCount)
-    val within = left + 2
-    val target = if (within <= b.last) within else b.last + 1 // b.last + 1 = next song's first page
-    return target.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+    if (left + 2 <= b.last) return left + 2 // next spread within the song
+    val nextSong = b.last + 1               // first page of the next song
+    return if (nextSong <= pageCount - 1) nextSong else left // no next song → stay on this spread (no-op)
 }
 
 /**

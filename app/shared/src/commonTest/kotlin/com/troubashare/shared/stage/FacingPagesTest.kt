@@ -44,7 +44,11 @@ class FacingPagesTest {
         assertEquals(5, nextSpreadPage(3, starts, n))  // B → C [5]
         assertEquals(6, nextSpreadPage(5, starts, n))  // C → D [6,7]
         assertEquals(8, nextSpreadPage(6, starts, n))  // D: [6,7] → [8,9]
-        assertEquals(9, nextSpreadPage(8, starts, n))  // last spread of last song → stays (clamped)
+        // A22: last spread of the last song is a TRUE no-op — returns THIS spread's LEFT page (8), not
+        // its right page (9). Returning 9 would move `current` within the same spread and make the N4
+        // slide animate a turn that renders the identical page.
+        assertEquals(8, nextSpreadPage(8, starts, n)) // from the spread-left, next stays put
+        assertEquals(8, nextSpreadPage(9, starts, n)) // even from the right page it normalises to left
     }
 
     @Test
