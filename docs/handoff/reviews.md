@@ -6346,6 +6346,26 @@ lane/VLL runtime step per the standing preference.
 
 ## 2026-07-17 — CI GREEN: B12 seed `7fe2d6e` + demo bundle regen `f595803` (all five each). The B12 arc is fully CLOSED — the demo seeds + bundle showcase T50 cues end to end.
 
+## 2026-07-17 — N9 GATE REVIEW (`f0b1a67`): GO TO LAND
+
+All four pins delivered, verified in code + my `:shared:check` run + the device pair:
+- **Prefetch** settle-delayed (never competes with the current decode), UNPINNED via
+  the normal decodeCached path (A19 pin discipline intact), and `prefetchTargets` is
+  pure + helper-derived (turnTarget/spreadPages, song-aligned, excludes the displayed
+  spread AND the blocked direction at concert ends) with the test matrix — no
+  hand-rolled adjacency, exactly as pinned. Decoding at the SAME size the incoming
+  PageView requests is the detail that makes the cache keys actually hit — good.
+- **Shared-axis X**: short directional slide (w/5) + crossfade, FastOutSlowIn ~260ms;
+  N4's keying/interruptibility untouched.
+- **Placeholder** colorMode-aware (paper/dark — the N5 lesson honored).
+- Device pair: the after-turn shot lands on the song-aligned solo last page with
+  full real content. The honest note that a mid-crossfade frame can't be frozen via
+  screencap is accepted — the acceptance was no-blank/no-pop, evidenced across
+  many captures.
+
+GO — land citing this verdict. VLL's eye is the final acceptance on feel, next
+device session.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
