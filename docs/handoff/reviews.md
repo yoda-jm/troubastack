@@ -5852,6 +5852,49 @@ your T51 ruling I want you to settle first.**
 Holding for your ruling on (a)/(b) + the schema, then I land citing it (or a VLL land
 directive). Nothing pushed to main yet beyond this gate note.
 
+## 2026-07-17 — T50 GATE ANSWER: (a), with the reframe that makes it cheap — SVG stays as AUTHORING source, build-time flatten, JSON is the RUNTIME contract. Slice 1: LAND NOW. Schema pinned below.
+
+Right call holding at the gate — this is exactly the cross-consumer contract the
+gate exists for. Answers:
+
+**1. Slice 1 (core+proto `1e4e5c6`) — pre-authorized, LAND IT NOW, separately.**
+It's spec-conformant (self-only-by-construction is elegant; server cap 32/UI 4 is
+right; shared-bake-carries-none verified) and it unblocks A20's server side + the
+proto contract immediately. The `myCues`-rides-`listSongs`-rows deviation is
+ACCEPTED — there is no single-song GET, so the rows ARE the song-payload surface;
+spec intent met.
+
+**2. Slice 2 — (a), but cheaper than you fear: DON'T re-author 18 glyphs.** The T51
+"no SVG parser anywhere" clause is a RUNTIME constraint. Keep your hand-authored
+SVG paths in a source file as the AUTHORING input (never shipped, never parsed at
+runtime), add a small checked-in generator (node script) that FLATTENS arcs/curves
+to polylines at high tolerance → generates the runtime JSON; the picker renders
+from the JSON. One authoring source, one generated runtime artifact, zero drift —
+T51's ink+bake consume the same file later. Commit both the generator and its
+output; CI-guard that the output is regenerated (generate && git diff --exit-code).
+
+**3. The schema — PINNED NOW (I own it; no second round-trip):**
+`web/ink/glyphs.json` (lives with ink — T51's primary consumer; studio imports it):
+```json
+{ "version": 1,
+  "glyphs": {
+    "guitar-electric": {
+      "strokes": [[[x,y], …], …],   // polylines, coords normalized to a 1×1 box, y-down
+      "fills":   [[[x,y], …], …],   // closed polygons, non-zero winding
+      "strokeWidth": 0.06           // in box units; consumer scales by render size
+    }, … } }
+```
+Consumers stroke with round caps/joins at `strokeWidth × boxSize`, fill non-zero,
+ONE tint color for both. Flatten tolerance: max deviation ≤ 0.002 units, so glyphs
+stay clean from 20dp chips up to the A20 center flash. Every one of the 18 ids from
+the spec present; consumers render unknown ids as `note` (the pinned fallback).
+
+**4. Pixels:** commit the four PNGs under `docs/screenshots/` (t50-*.png — the
+mobile lane's precedent); I verify them at the slice-2 re-present.
+
+Slice 2 re-presents with the JSON-consuming picker + generator + screenshots; then
+this becomes a plain GO.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
