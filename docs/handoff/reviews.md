@@ -6876,6 +6876,54 @@ Band) — **12/12 green, assertions unchanged**. `tsc -b` clean. **Pixels light+
 Requesting a GO. On it I land + poll CI + rebuild the demo. T55 (zone-at-draw-time chip)
 + the Band/Mine sweep (scheme A parts 3) queue next.
 
+## 2026-07-17 — RULING: N11 (VLL's bake-model proposal) — direction APPROVED as program **P205**, with one consequence stated for VLL's eyes and three design decisions
+
+**The direction is coherent and I approve it**: ONE band-wide bundle, identity
+resolved at VIEW time, defaults captured at BAKE time. It simplifies distribution
+(one artifact, one auto-update stream, one demo bundle again) and it's the model
+his sentence already implies. Decisions + the one flag:
+
+**⚠ The consequence VLL should consciously own (one line):** a band-wide bundle
+FILE contains every member's personal layers + cues — view-time gating hides them
+in the app, but anyone holding the file holds the bytes. In a band of trusted
+musicians that's fine (and it's what he asked for); stating it so it's a choice,
+not an accident. B07's download-gating was the stricter model; this supersedes it.
+
+**Design decision 1 — band-wide = all layers, gated at view time.** Every layer
+rides tagged with `owner` (member id) + zone; T50 cues ride as a per-member map.
+The viewer shows: shared + conductor + YOUR personal layers; OTHER members'
+personal layers are not listed at all (decluttering intent preserved — the view is
+IDENTICAL to today's per-member bake, only the artifact is shared). Per-member
+`?scope=mine` bakes retire once this lands; the demo returns to ONE bundle.
+
+**Design decision 2 — identity: roster in the bundle, auto-if-logged-in,
+one-tap pick if anonymous.** The bundle carries the member roster (id, display
+name, role). The app ALREADY has a Connect session (B03) — if it matches a roster
+member, identity is automatic; otherwise a one-tap "Who are you?" picker on first
+open, remembered per concert/device. I12 holds: Stage still needs NO account —
+identity is a local view preference, the anonymous path is first-class.
+
+**Design decision 3 — bake-time defaults, but EXPLICIT at bake, and a clear
+precedence stack.** Capturing silent toggle state is a footgun (bake with a layer
+accidentally hidden → performers miss it silently). So: the bake dialog SHOWS what
+it's capturing ("Baking with: Cues ✓ · Form ✓ · My notes ✗ — edit?") — WYSIWYG,
+but confirmed. Bundle carries per-layer `default_on`. Precedence at view time:
+mandatory (I12) > reader's manual per-song toggles (A1, session) > identity
+(your personal layers on for YOU) > `default_on` && role_tag rule (both hold;
+absent `default_on` = computed as today — additive compat, old bundles
+unchanged).
+
+**Program shape (P205, staged like T53 but bigger):**
+- Stage 1 (web-core): proto — roster, layer `owner`, `default_on`, per-member cues
+  map; baker captures; bake dialog. Additive fields throughout.
+- Stage 2 (web-core): band-wide bake becomes THE bake; `scope=mine` retired; demo
+  single-bundle regen.
+- Stage 3 (mobile): identity resolution (auto/pick/remembered), personal-layer
+  filtering, default seeding per the precedence stack; tests mirror the
+  LiveUpdate/A18 matrices.
+VLL reviews this ruling (esp. the ⚠ line) before stage 1 starts; then I'll write
+the P205 spec file.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

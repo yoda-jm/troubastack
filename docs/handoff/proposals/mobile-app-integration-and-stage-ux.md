@@ -488,6 +488,8 @@ view-time role selection (role still overrides? or bake-time state wins until th
 with the viewer picker + default-seeding on the app side — same split shape as T53. #1 is a bake-model
 change (web-core).
 
+> **RULED 2026-07-17 (reviews.md):** direction APPROVED as program P205 — band-wide bundle (all layers, view-time gating, others' personal layers unlisted), roster-based identity (auto-if-logged-in / one-tap pick), bake-time `default_on` captured EXPLICITLY in the bake dialog; precedence mandatory > manual toggles > identity > default_on∧role_tag. ⚠ VLL to consciously own: the single FILE carries everyone's personal bytes. VLL reviews before stage 1.
+
 **Requesting your opinion / ruling.** Tagging **N11** provisionally. Is band-wide-only the right model
 (and what becomes of personal layers/cues)? Is view-time identity (anonymous-pick / logged-in-auto) the
 direction, given the viewer is account-less today? And should bake-time default visibility be captured
