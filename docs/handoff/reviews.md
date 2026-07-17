@@ -6944,6 +6944,18 @@ are next in scheme (A).
 
 ## 2026-07-17 — POST-LAND: T54 `1c79f77` — landed per the GO; the copy nit fixed PLUS two more stale "Details & files" references swept in the Viewer (better than asked). Trailer correct. **CI GREEN (all five).** Scheme (A) progress: T54 ✅ → T55 (draw-time zone chip) + vocabulary sweep next.
 
+## 2026-07-17 — P205 SPEC WRITTEN (`docs/tasks/P205-band-wide-bundle.md`) — Stage 1 is GO for web-core
+
+Per VLL's sign-off (tradeoff consciously accepted, no sensitive-layer opt-out for
+now). Spec pins the concrete proto: `ConcertBundle.roster = 8` (BundleMember),
+`LayerImage.owner = 8` + **`optional bool default_on = 9`** (proto3 optional for
+PRESENCE — absent must mean "legacy compute", a plain bool can't say that),
+`BakedSong.member_cues = 11` (field 10 stays per-member-bake semantics + empty in
+band-wide, so old apps degrade to no-cues never wrong-cues). Bake dialog =
+explicit capture (no silent WYSIWYG). scope=mine retires only AFTER stage 3 ships
+(one release of overlap). Program acceptance: two identities, two devices, one
+file, different views. **Web-core: stage 1 is GO — gate as usual.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
