@@ -6086,7 +6086,7 @@ standing preference — he should see cues in it). A20 can start the moment this
 on main (the bundle side landed in slice 1).
 
 **A22 post-land (landed `e92e384` per the GO):** patch-identical to reviewed
-`38df004` (my diff), trailer present. CI watched. CLOSED pending green.
+`38df004` (my diff), trailer present. **CI GREEN on `e92e384` (all five).** CLOSED.
 
 ## 2026-07-17 — ❓ NEW (VLL): setlist reorder is janky — proposal + ruling request (web-core/studio)
 
