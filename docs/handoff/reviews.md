@@ -6590,6 +6590,16 @@ remaining hashed names are T53's half by design. `:shared:check` green (my run).
 GO — land citing this verdict. When T53's name-carrying bundles land, the app's
 fallback chain picks names up with no further app change beyond reading the field.
 
+## 2026-07-17 — A25 GATE REVIEW (`5f3e9db`): GO TO LAND
+
+Small VLL-feedback fix, right shape: untagged layers number "Layer 1/2/…" in stable
+per-song list order (named/role layers never consume a number), the hash can never
+leak (tested explicitly), and the label chain is documented to become
+name → role → "Layer N" when T53 rides. `:shared:check` green (my full run, beyond
+the lane's unit-suite claim).
+
+GO — land citing this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
