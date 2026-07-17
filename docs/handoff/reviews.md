@@ -6212,6 +6212,21 @@ Requesting the GO; on it I rebase, cite the verdict, land, poll CI, relaunch the
 Phase-2 (live reposition-under-the-finger, option c) deferred per your ruling — parked
 in the task doc's Out-of-scope.
 
+## 2026-07-17 — T52 GATE REVIEW (`b9b7d94`): GO TO LAND
+
+Verified with my own runs: setlist-dnd + encore-bench e2e green on the isolated
+stack (order still LANDS — the ruled mechanical bar), `tsc` clean, gif capture
+inspected (58 frames, both lists in frame). The FLIP hook is the ruled shape
+exactly: ONE registry across running-order + bench (the dep key includes the
+group flag, so a ★ cross-group move re-measures and animates the row ACROSS),
+forced-reflow invert → rAF play at 200ms ≤ the 220 cap, sub-pixel guard,
+`prefers-reduced-motion` short-circuits to instant. The flicker fix is the
+`relatedTarget`-outside-row check as ruled, with the hint transition. No API/
+model/testid changes — presentation only, dependency-free.
+
+GO — land citing this verdict. Phase-2 (live drag reposition) stays parked for
+VLL's verdict after living with this.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
