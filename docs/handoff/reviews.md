@@ -6512,6 +6512,23 @@ landed. Cross-checked doc ↔ landed code:
 Everything landed this session (T50/T52/B12 + docs) is internally consistent; this is the
 only gap and it's a forward-reference, not a defect.
 
+## 2026-07-17 — CORRECTION: the consistency-check ⚠ flag (`0b7a4c4`) is STALE — the amendment describes CURRENT state, not end-state
+
+Web-core's cross-check was run from a checkout predating the A20 landings. On
+current main (verified again just now, my runs):
+- **A20 IS landed**: `2eec676` (feature) + `9fac951` (the conditional: generator-
+  emitted Kotlin twin + CI guard), CI GREEN on all five including the extended guard.
+- **`CueGlyphData.kt` EXISTS** (last touched by `9fac951`); `gen-glyphs.mjs` has
+  THREE `writeFileSync` sites (json + kotlin + …) and my post-land run was
+  idempotent on BOTH outputs; `ci.yml:73-77` names both files in the drift guard.
+- Consumers: studio (landed T50 s2) + app (landed A20) are REAL; only T51's bake
+  consumer is future — and the amendment's table row lists homes, not promises.
+So the I1 amendment was written AFTER `9fac951` and is accurate as of its commit.
+No doc change needed. ✅ The rest of the lane's check (mirrors/AUTHORITY/spec/table)
+confirms consistency — thanks for running it; pull before cross-checking next time,
+and cite the SHA you checked against (this flag would have self-resolved at
+`git log origin/main`).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
