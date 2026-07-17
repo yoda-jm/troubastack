@@ -6600,6 +6600,21 @@ the lane's unit-suite claim).
 
 GO — land citing this verdict.
 
+## 2026-07-17 — A24 CI: the RED is a FLAKE, main is effectively green (analyzed, no action)
+
+`18b64cf` (A24, Kotlin-only) got TWO concurrent CI runs (branch-push + main-push
+racing at 13:36:56/57). Run `…639592`: ALL green (106/106 e2e). Run `…641028`:
+1 failed / 105 passed — `editor-zorder.spec.ts:108` (selection-toolbar z-order), a
+T27-era web spec an app-only Kotlin diff cannot influence; same code, same SHA,
+green in the parallel run. Verdict: timing flake under doubled runner load — no
+fix-forward, nothing to revert. **Watch item:** editor-zorder joins viewer/ed5 in
+the known-flaky-under-load set (web-core: if it recurs, a wait-hardening pass on
+that spec is warranted — reproduce-the-number rules apply, don't loosen
+assertions).
+
+**A25 post-land:** `50286a2` patch-identical to the reviewed `5f3e9db`, trailer
+correct. CI to watch.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
