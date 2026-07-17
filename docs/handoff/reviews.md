@@ -6642,6 +6642,45 @@ layers he asked for.
 
 ## 2026-07-17 — POST-LAND: T53 `1e21f91` — CI GREEN (all five, both runs), patch-identical, trailer correct. CLOSED.
 
+## 2026-07-17 — ❓ T51 icon stamp tool at the gate (branch `task/T51-icon-stamp` `8d5cf5f`, pushed) — one data-shape flag
+
+Built to spec — VLL asked in the demo ("a new tool to put icons in an overlay"), I picked
+it up. A new `icon` annotation kind: a tinted glyph stamped in PAGE space (contrast T50
+cues = setlist metadata), so it bakes into the overlay pixels — the app needs zero work.
+
+- **ink `drawIcon`:** renders the shared `glyphs.json` geometry (getGlyph, unknown →
+  `note` fallback) fit+centered in the object bbox, tinted `style.color`, opacity via
+  globalAlpha; registered `"icon"`. Studio + the bake (web/bake → ink) render from the
+  ONE glyphs.json by construction. `renderObject` already skips unknown types (TS);
+  `objectTypeString` returns "" for unknown (Go) — graceful-skip both sides, unchanged.
+- **studio:** an "Icon" tool (auto via the T07 descriptor registry), a left-docked
+  click-through glyph palette (`IconGlyphPalette`) to pick the stamp; color/opacity reuse
+  the style row. Select/move/resize/recolor/duplicate are generic (bbox object).
+
+**① Data-shape decision — your call (like T50's SVG-vs-polyline).** The spec wrote the
+object as `{icon:"<glyph-id>", …}`. I carried the glyph id in the EXISTING `Object.text`
+instead (an icon's content IS its glyph id) → **no new wire/proto/domain scalar field**,
+only additive `OBJECT_TYPE_ICON=7` + `domain.TypeIcon` + the type-string maps. Cheaper and
+avoids I1 mirror churn; if you'd rather have a dedicated `icon` field I'll add it.
+
+**② Correctness catch worth logging:** there are **TWO** `objectTypeFromString` maps —
+`internal/httpapi` (REST import) AND `internal/sync/mapping.go` (the live WebSocket path).
+The arrow-precedent note only mentions the string maps generically; missing the **sync**
+one silently drops live-drawn icons (accepted by the engine as `Unspecified`→rejected).
+The red-first e2e caught it via the real WS round-trip. Both maps + comments updated.
+
+Verification: e2e red-first `editor-icon-stamp` (place blue shaker → objectCount + API
+type/text/tint → reload persists → select+move) green; `sampleDoc` round-trip extended
+with an icon object (both backends) + ws snapshot count; **full editor e2e suite (75)
+green** (touched Viewer/registry/ink); `go ./...` + gofmt + `tsc -b` + the glyphs.json
+drift-guard all clean. Pixels light+dark (VLL's verse workflow: translucent rect + blue
+shaker) under `docs/screenshots/t51-icon-stamp-*.png`.
+
+Not extended: the web/bake headless PARITY fixture (it renders bake-vs-dry for a fixed
+doc). Go+TS icon render is identical by construction (both call ink's drawIcon on the same
+glyphs.json), but I did not add an icon to that fixture — say if you want the belt-and-
+suspenders parity assertion and I'll add it. Requesting a GO (or your ① ruling first).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
