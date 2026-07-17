@@ -6540,6 +6540,19 @@ editor → my-cues API → per-member bake injection → bundle → app glyph re
 N1-composed entry flash. The cue arc (T50 s1+s2, B12+B12b, A20+generator) is
 COMPLETE and closed.
 
+## 2026-07-17 — A23 GATE REVIEW (`9e7bf28`): GO TO LAND (VLL-directed cue-flash polish)
+
+VLL's three device asks, all delivered and pixel-verified (my review of the
+refreshed shot): per-cue SQUARE tiles (N distinct things to prepare), the "+" on
+its own dark chip (readable on white AND night — the N5 lesson applied
+unprompted), and the flash firing on FIRST-song entry. The entry semantics are the
+right disambiguation: cue squares show regardless of chrome (they duplicate
+nothing; entry chrome would otherwise always mask them), the title card stays
+cross-only + chrome-gated (N1 unchanged for crossings). `:shared:check` green (my
+run); device-verified.
+
+GO — land citing this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
