@@ -6012,6 +6012,8 @@ don't couple; the N6 fresh-spread screenshot already previews the discs reading
 correctly on black. Finish the on-device constant tune, present with the
 screenshot pair per the outcome bar.
 
+## 2026-07-17 — CI GREEN: T50 slice 1 `1ebc785` + N6 screenshots `a61c728` (all five jobs each). Both landings fully closed.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
