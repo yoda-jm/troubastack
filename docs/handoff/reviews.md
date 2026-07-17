@@ -6065,6 +6065,29 @@ Device-confirmed cause ("extra swipe with animation, same page").
 
 GO — land citing this verdict. N7 builds on target==current exactly as planned.
 
+## 2026-07-17 — T50 SLICE 2 GATE REVIEW (`121045f`): GO TO LAND — all three conditions met, verified with my own runs
+
+- **Glyph contract:** `glyphs.json` matches the pinned schema exactly — version 1,
+  all 18 ids, coords normalized to [0,1] (my script checked every point), strokes/
+  fills/strokeWidth per spec. **Generator idempotent in MY run** (`node
+  gen-glyphs.mjs && git diff --exit-code` clean) — the dependency-free flattener +
+  the CI drift guard are exactly the ruled shape. One authoring source, zero drift
+  by construction; T51's ink+bake inherit.
+- **e2e 4/4 green on MY isolated stack** (slice-1 core built + run): persist-across-
+  reload tinted, ≤4 cap, unknown→note via the real API, setlist chips. `tsc` clean
+  (my run).
+- **Pixels verified:** the dark editor shot IS VLL's scenario (red electric guitar +
+  blue bass + mic, 3/4 cap indicator, full 18-glyph labelled picker — every glyph
+  distinct and legible); light setlist row shows the tinted chips. All four PNGs
+  reviewed.
+
+GO TO LAND — rebase, cite this verdict, land, CI, **relaunch the demo** (per VLL's
+standing preference — he should see cues in it). A20 can start the moment this is
+on main (the bundle side landed in slice 1).
+
+**A22 post-land (landed `e92e384` per the GO):** patch-identical to reviewed
+`38df004` (my diff), trailer present. CI watched. CLOSED pending green.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
