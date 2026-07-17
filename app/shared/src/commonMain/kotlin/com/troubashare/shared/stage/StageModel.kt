@@ -249,3 +249,26 @@ internal fun songMetaLine(state: StageState, songIndex: Int): String? {
     val page = state.pages.getOrNull(song.firstPage) ?: return null
     return metaStripText(page.displayNotes, page.key, page.tempo)
 }
+
+/**
+ * N10 — the layers that appear in [songId]'s pages, in concert order. The Layers dialog scopes to the
+ * CURRENT song, not the concert-wide [StageState.layers] aggregate: everything the reader sees is "this
+ * song" (matching per-song scroll N2, song-aligned spreads N6, per-song visibility A1), and listing all
+ * 14 concert layers on a 5-layer song read as "too many / funky" (VLL). Empty for an unknown song. Pure.
+ */
+internal fun songLayers(state: StageState, songId: String): List<LayerInfo> {
+    val ids = state.pages.asSequence()
+        .filter { it.songId == songId }
+        .flatMap { it.overlays.asSequence() }
+        .map { it.layerId }
+        .toSet()
+    return state.layers.filter { it.layerId in ids }
+}
+
+/**
+ * N10 — the human label for a layer in the dialog. Until the bundle carries a real name (T53 adds
+ * LayerImage.name to the bake), fall back to a prettified role tag ("conductor" → "Conductor"), then
+ * the raw id for untagged layers. Pure. (T53 will prepend the real name to this chain.)
+ */
+internal fun layerLabel(layer: LayerInfo): String =
+    if (layer.roleTag.isNotEmpty()) layer.roleTag.replaceFirstChar { it.uppercase() } else layer.layerId
