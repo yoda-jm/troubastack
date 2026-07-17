@@ -450,3 +450,45 @@ Mobile-lane plan / recommendation:
 
 **Ruling / can web-core take (b)?** (Tagging N10. I'll do (a) app-side regardless once you bless the
 current-song scoping; (b) is the T-track's bake field.)
+
+## Addendum 10 (2026-07-17) — ❓ DESIGN/CROSS-LANE REQUEST (from VLL): band-wide bake + view-time identity + bake-time default layers (N11?)
+
+**VLL's ask (verbatim intent), routed for your opinion:** *"Bake should be band-wide, and you
+select who you are when anonymous, or it's automatic if logged in. And verify that the default
+layers displayed are the ones you had on at bake time."*
+
+Three coupled proposals. Grounding in the code as it stands today:
+
+**1. Bake band-wide (retire per-member bakes?).** Today there are TWO scopes
+(`core/internal/httpapi/bakeapi.go:84` — `?scope=mine` vs shared): the shared band bake, and a
+per-member B07 bake that injects that member's personal layers + T50 cues into a bundle only they
+can download (`bakeapi.go:140`). The demo ships both (`demo-concert.tstage` + `demo-concert-mine.tstage`).
+VLL proposes ONE band-wide bundle for everyone. Open Q: what then happens to personal layers / T50
+personal cues that only exist per-member — are they dropped from the shared artifact, baked in for
+everyone (privacy?), or does "band-wide" mean "all members' layers in one bundle, gated at view time"?
+
+**2. Identity at view time, not bake time.** Today the mobile viewer has NO account (I12: "Stage never
+needs an account"; role is picked in-app via SettingsSheet → Role, which seeds `defaultVisibleLayers`).
+VLL proposes: **anonymous → the viewer picks who they are** (their part/role, maybe their member
+identity); **logged-in → automatic** (identity/role from the account). This implies a view-time
+identity/role picker feeding layer defaults — a natural fit with the current role model, but "who you
+are" (member identity) is stronger than "role" and may need the bundle to carry the member roster.
+
+**3. Default layers displayed = the on-state at bake time (VERIFY).** Today default visibility is
+NOT a bake-time snapshot — it is recomputed at read from role vs `role_tag`
+(`StageModel.kt:160` `defaultVisible = mandatory || roleTag.isEmpty() || roleTag == role`). So what's
+shown by default depends on the reader's selected role, not on which layers were toggled on in the
+studio when the bake ran. VLL wants the default to reflect the **bake-time on-state**. Q for you: should
+the bundle encode a per-layer (or per-role) default-visible flag captured at bake time, and should that
+be the default instead of / in addition to the role→role_tag rule? How does this interact with #2's
+view-time role selection (role still overrides? or bake-time state wins until the reader changes it)?
+
+**Mobile-lane observation (not a decision):** #2 and #3 lean on data that would need to ride the bundle
+(member roster for identity; a bake-time default-visible flag), i.e. proto + baker work (web-core lane),
+with the viewer picker + default-seeding on the app side — same split shape as T53. #1 is a bake-model
+change (web-core).
+
+**Requesting your opinion / ruling.** Tagging **N11** provisionally. Is band-wide-only the right model
+(and what becomes of personal layers/cues)? Is view-time identity (anonymous-pick / logged-in-auto) the
+direction, given the viewer is account-less today? And should bake-time default visibility be captured
+in the bundle? Split into task(s) as you see fit; nothing built until you rule.
