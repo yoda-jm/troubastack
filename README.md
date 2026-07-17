@@ -61,12 +61,19 @@ make demo    # builds the SPA, embeds it into the Go binary, seeds demo data, se
 Open **http://localhost:8080** and log in as **`marie` / `demo`** (band admin; also
 `leo`, `sasha` — and `maestro`/`flora`/`cory` in the orchestra — same password).
 You get two seeded bands with songs, multi-page PDFs, text charts, per-member
-annotation layers, conductor cues and realtime sync — open the same song in two
-browsers and draw.
+annotation layers, conductor cues, **personal song cues** and realtime sync — open the
+same song in two browsers and draw.
 
 Reset the demo data with `rm -rf core/troubadata`.
 
 ![Band overview in the warm concert-program design: members with roles and admin password reset, songs, setlists](docs/screenshots/band-overview.png)
+
+Each member sets their own **song cues** — a small set of tinted instrument/role icons
+per song (Marie's *"Sat @ The Anchor"* below: mic + red electric on Wonderwall, mic on
+the ballad, …) — shown on the setlist row and flashed on song entry in the app, so a
+player knows at a glance what to prepare. They ride that member's personal bake.
+
+![Marie's setlist rows showing her personal song cues as small tinted icons under each title](docs/screenshots/setlist-cues.png)
 
 Other useful targets (`make help` lists everything):
 
@@ -147,11 +154,13 @@ GitHub Actions run (**android** job → `troubashare-debug-apk` artifact) and in
 ### Demo it with zero servers
 
 A baked concert with **real music and real annotations** is committed at
-[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~545 KB — the seeded
+[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~556 KB — the seeded
 *"Sat @ The Anchor"* setlist: Wonderwall, Hallelujah, Black Hole Sun, and the original
 *The Open Road* lead sheet + tab, flattened by the real bake pipeline; see
 [`docs/demo/README.md`](docs/demo/README.md) for how it's made),
-so you can present the app without running anything:
+so you can present the app without running anything. A second bundle
+[`demo-concert-mine.tstage`](docs/demo/demo-concert-mine.tstage) is Marie's **personal**
+bake — same setlist, but it carries her per-member **song cues** and her "my files" parts.
 
 ```sh
 adb push docs/demo/demo-concert.tstage /sdcard/Download/
@@ -210,8 +219,10 @@ The product loop is closed and CI-gated end to end:
   zoom-to-cursor (one raster per gesture), low-latency wet ink, per-member layers,
   per-object z-order with a selection toolbar, shapes/text/highlights with presets,
   realtime multi-user echo, offline honesty (read-only presentation + visible
-  errors — nothing dies silently), text charts alongside PDFs, drag-reorder
-  setlists, duplication, admin password reset, a build-version chip.
+  errors — nothing dies silently), text charts alongside PDFs, **personal song
+  cues** (per-member icon+color reminders — "mic + red guitar" — that ride the
+  member's bake), animated drag-reorder setlists, duplication, admin password
+  reset, a build-version chip.
 - **The pipeline:** server-side bake (concurrent-safe, per-member parts, encore/bench
   songs, retention via `troubacore gc`), in-app offer/download distribution, and the
   committed demo bundle above — studio pixels and baked pixels come from the same

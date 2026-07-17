@@ -47,6 +47,7 @@ Shape (see the proto for the authoritative field set):
   "bakedAt": "1700000000", "bakedBy": "maestro", "finalLocked": true,
   "songs": [{
     "songId": "s1", "sourceRevision": "3", "songRev": "1",
+    "cues": [{ "icon": "mic", "color": "" }, { "icon": "guitar-electric", "color": "#e11d48" }],
     "pages": [{
       "pageRasterRef": "blobs/p0-raster.webp", "rasterHash": "…",
       "overlays": [
@@ -56,6 +57,14 @@ Shape (see the proto for the authoritative field set):
   }]
 }
 ```
+
+**Per-member cues (T50).** `cues` is the baked-for member's PERSONAL song cues (icon +
+optional `#rrggbb` tint) — additive manifest metadata (proto `BakedSong.cues = 10`), same
+compatibility rules as the other `BakedSong` fields (absent = none; old loaders ignore
+it). The **per-member** bake injects that member's cues; the **shared** band bake carries
+none. An unknown `icon` id renders as the `note` fallback client-side. The glyph geometry
+is NOT in the bundle — it is the shared generated asset `web/ink/glyphs.json` (normalized
+polylines), consumed identically by studio, the bake, and the app.
 
 ## Blob refs
 

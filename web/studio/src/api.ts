@@ -62,7 +62,8 @@ export type Invite = {
 };
 
 /** A personal cue on a song (T50): a stable icon id + an optional "#rrggbb" tint.
- *  An unknown icon id renders as the `note` fallback (see cue-glyphs.tsx). */
+ *  An unknown icon id renders as the `note` fallback (see cue-glyphs.tsx).
+ *  AUTHORITY: proto/troubastack/v1/bundle.proto `SongCue` (I1) — hand-written mirror. */
 export type SongCue = {
   icon: string;
   color?: string;
