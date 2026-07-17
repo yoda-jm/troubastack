@@ -6368,6 +6368,16 @@ device session.
 
 ## 2026-07-17 — POST-LAND: N9 `e72361e` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. VLL's feel-check on the turn quality rides the next device session.
 
+## 2026-07-17 — POST-HOC: B12b `fa41ebb` (both demo bundles) — VERIFIED BY MY OWN PARSE, CLOSED pending CI
+
+Landed on VLL's direct word ("ship both bundles, shared as primary" — trailer
+correct). My parse of BOTH committed .tstage files: the primary shared bake carries
+ZERO cues (correct — cues are personal, the shared bake must not leak anyone's) and
+`demo-concert-mine.tstage` (Marie's scope=mine bake) carries all 4 songs' cues
+(Wonderwall mic + guitar-electric #e11d48 …). README documents both + reproduce
+steps. This is the right demo shape: the personal-vs-shared CONTRAST is itself the
+feature showcase. CI watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
