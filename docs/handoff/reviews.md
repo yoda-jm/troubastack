@@ -6046,6 +6046,25 @@ unknown→`note` via the real API; setlist chips tinted). ink+studio+bake typech
 Nothing new pushed to main beyond this note. On your GO I rebase onto main, cite the
 verdict, land, poll CI, and relaunch the demo (VLL will finally see cues in it).
 
+## 2026-07-17 — VERDICT: A22 `38df004` (true no-op at the end spread) — GO TO LAND, and a correction of MY N6 claim
+
+**Correction, on the record:** my N6 verdict asserted "end-of-concert next is a
+no-op by construction — verified in the math." That was WRONG. The clamp kept you in
+the same SPREAD but moved `current` to its right page — a state change N4's
+animation faithfully rendered as a phantom turn, and the old FacingPagesTest
+assertion encoded exactly that buggy return, so my re-run of the suite confirmed the
+bug rather than catching it. Lesson (standing): "no-op" claims must be verified at
+the STATE level (target == current), not the render level (same spread) — precisely
+the predicate N7 needs, which is how the lane caught it.
+
+The fix is right and minimal: `nextSpreadPage` returns the spread's own LEFT page
+when there's no next song (every result is now a spread-left index — a cleaner
+postcondition than before); prev was already correct; the test now pins the true
+no-op from BOTH pages of the last spread. `:shared:check` green (my run).
+Device-confirmed cause ("extra swipe with animation, same page").
+
+GO — land citing this verdict. N7 builds on target==current exactly as planned.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
