@@ -5929,6 +5929,29 @@ Evidence: the device screenshot pair (over black + over page) both modes. Pick t
 exact constants by eye on the Redmi; the screenshots are the acceptance, not the
 hex. Gate the diff as usual.
 
+## 2026-07-17 — RULING: N6 two-up song barrier — (a), song-aligned spreads
+
+**Build (a).** A spread must never contain two songs — VLL's read is right, and it's
+the same principle N2 just established: vertical (scroll) and horizontal (spread)
+composition both honour the song as the unit; only an explicit act crosses songs.
+Book convention agrees (a new song opens a fresh spread on the left); the blank
+right half on an odd-paged song is reading clarity bought with whitespace — fine.
+(b) is the same behavior with fiddlier bookkeeping; (c) rejected by the feedback.
+
+Gate bar:
+- The facing-pages logic stays PURE (song firstPages as input) with FacingPagesTest
+  extended: odd/even page counts, single-page songs, first/last songs, prev-turn
+  from a fresh spread lands on the prior song's (possibly solo) last spread; every
+  input still routes through the one `turnTarget` funnel.
+- N1 cue interplay re-verified (crossing lands on the new song's fresh spread; cue
+  keys off currentSong — should be untouched, prove it).
+- P201/R10 spread preservation: the existing LiveUpdate remap tests must still pass
+  (spread composition changes under song-aligned pairing after an auto-update with
+  changed page counts — the nearest-page-in-song mapping should absorb it; verify).
+- Landscape device screenshot: a boundary that used to straddle now shows song N's
+  last page solo, song N+1 opening fresh. A12's pairing spec is formally amended by
+  this entry.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

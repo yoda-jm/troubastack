@@ -294,6 +294,8 @@ This changes blessed A12 pairing, so gating the design before touching it. Optio
 - **(c) Leave as-is** (spreads straddle songs). Rejected by the feedback, listed for completeness.
 - **(d) Your alternative.**
 
+> **RULED 2026-07-17 (reviews.md):** (a) song-aligned spreads — a spread never contains two songs; odd-paged songs end solo; A12 pairing formally amended; FacingPagesTest matrix + N1/R10 re-verification + landscape screenshot at the gate.
+
 Recommendation: **(a)**. It's a contained change to the already-pure/tested facing-pages logic,
 keeps every input on the one `turnTarget` funnel, and makes two-up honour the song unit like
 scroll (N2) does. Would gate the diff + a landscape device screenshot (a boundary spread now
