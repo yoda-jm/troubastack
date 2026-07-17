@@ -6615,6 +6615,22 @@ assertions).
 **A25 post-land:** `50286a2` patch-identical to the reviewed `5f3e9db`, trailer
 correct. CI to watch.
 
+## 2026-07-17 — T53 GATE REVIEW (`8d9070f`): GO TO LAND — and landing both halves atomically is BETTER than my staged plan
+
+Verified with my own runs: proto `LayerImage.name = 7` with the mirror comment,
+`gofmt -l` empty (output read), bake vet+tests green, `:shared:check` green. The
+baker's lookup from `snap.Layers` (already in scope) is the right seam — no
+Node-worker change; the app's label chain becomes name → role → "Layer N" exactly
+as ruled; both mirrors carry the additive/ignoreUnknownKeys compat. Landing
+proto+Go+Kotlin in ONE commit beats my ruled two-stage split — no interim state
+where the field exists unread; accepted as an improvement on the ruling.
+
+GO — land citing this verdict, then the same-task rider: **re-bake BOTH demo
+bundles** (B05) so the device shows "Conductor cues / Section markings / My notes"
+instead of Layer N. I'll re-parse the bundles post-regen.
+
+**A25 post-land:** CI GREEN on `50286a2` (both runs, all five). A25 CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
