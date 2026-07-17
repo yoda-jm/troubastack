@@ -340,3 +340,33 @@ Would gate the diff + a device screenshot (blocked swipe at the last page shows 
 **Ruling?** (Tagging N7. Also: N5 — the FAB contrast fix — is coded and pending an on-device
 constant-tune; should it still land independently, or do you want to fold nav visibility into
 this center-cue direction? Your call.)
+
+---
+
+## Addendum 7 (2026-07-17) — ❓ DESIGN REVIEW REQUEST: horizontal swipe in scroll mode (N8?)
+
+Device QA (VLL): *"swipe in scrolling mode does not seem to work to go to next song, is it
+intended? this is different than width or page mode."* Correct on both counts. N3 wired the
+page-turn swipe to **page/width only** — in SCROLL mode the `LazyColumn` owns the vertical drag,
+so `pointerInputSwipe` is intentionally not attached; crossing songs there is scroll-to-column-
+edge (fires the N1 cue), the ‹ › FABs, pedals, or the drawer. So swipe genuinely does nothing in
+scroll, which reads as inconsistent with page/width.
+
+The opening: in scroll mode the VERTICAL axis is the column (within-song, N2), so the HORIZONTAL
+axis is FREE — a left/right swipe can carry a clean, non-conflicting meaning. Options:
+
+- **(a) Horizontal swipe in scroll = cross SONGS (mobile-lane recommendation).** Left → next
+  song, right → previous song, routed through the SAME crossing path the scroll-edge turn already
+  uses (`goToPage(songRange.last+1 / first-1)`), so it fires the N1 boundary cue and repositions
+  the column. Makes swipe universal and teachable: *horizontal swipe advances the unit* — a
+  page/spread in page-width, a whole song in scroll — which matches the N2 per-song model (vertical
+  = within the song, horizontal = across songs). Small, contained (attach a horizontal-drag
+  detector in scroll that calls the existing cross helpers); the vertical scroll is untouched.
+- **(b) Leave as-is** — swipe is page/width only; scroll crosses via edge/FAB/pedal/drawer.
+  Documented, but VLL reads it as a gap.
+- **(c) Your alternative.**
+
+Recommendation: **(a)** — it removes the inconsistency VLL felt, reuses the blessed cross path
+(+cue), and needs no new nav semantics (still "one turn = cross a song" in scroll). Would gate the
+diff + a device check (swipe left/right in scroll crosses songs with the cue; vertical scroll still
+works). **Ruling?** (Tagging N8.)
