@@ -5550,6 +5550,12 @@ GO TO LAND — cite this verdict in the trailer (amend BEFORE pushing; A16's sli
 Note for the A18 (per-song layers) follow-up: the sheet's Layers/Role buttons are
 the natural mount point for A1's role-first + per-song model.
 
+## 2026-07-17 — POST-LAND: A17 `3e123d0` CONFIRMED (CI green, patch identity, trailer correct)
+
+Landed byte-identical to the reviewed `331de72`; `Approved:` trailer present and
+correct (the A16 lesson took). All five CI jobs green. A17 CLOSED. Queue: T46
+(web-core, contract pinned) + A18 (per-song layers — mount in A17's settings sheet).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
