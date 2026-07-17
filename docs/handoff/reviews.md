@@ -6299,6 +6299,19 @@ Both pins delivered, verified in code + my own `:shared:check` run + the device 
 
 GO — land citing this verdict.
 
+## 2026-07-17 — B12 GATE REVIEW (`08ad0f7`): GO TO LAND
+
+Verified with my own runs: `gofmt -l` empty (output read), vet quiet, seed builds.
+The structure mirrors `myFilesFor` (the right precedent), cues are deterministic,
+self-only is respected by construction (the seeder PUTs each list AS that user —
+exercising the real endpoint), and Marie's Wonderwall is VLL's canonical
+"mic + red electric guitar". The lane verified a fresh reseed: her personal bake
+carries the cues per song; the shared bake carries none.
+
+GO — land citing this verdict, then **relaunch the demo** (T46 + T52 + T50 + B12
+all pending showcase; `make demo`, and regen the .tstage bundle per B05 so the
+personal-bake cues ride it — VLL should open the demo and see his own feature).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
