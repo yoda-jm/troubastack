@@ -55,6 +55,20 @@ class StageViewModelTest {
     }
 
     @Test
+    fun rapidTurns_landOnFinalPage_targetStateWins() {
+        // N4: the page-turn animation reads state.current as its AnimatedContent target. Rapid turns
+        // (pedal double-taps mid-animation) must NEVER queue or drop — the model applies each goToPage
+        // immediately, so the net of a burst is exactly the final page. The animation just catches up.
+        val vm = StageViewModel(loaded(songs = 1, pagesPerSong = 6))
+        vm.next(); vm.next(); vm.next() // 0 → 3 in a burst
+        assertEquals(3, vm.state.value.current, "three rapid nexts land on page 3, not a queued 1")
+        vm.next(); vm.previous() // net +0 around 3
+        assertEquals(3, vm.state.value.current)
+        vm.previous(); vm.previous() // 3 → 1
+        assertEquals(1, vm.state.value.current)
+    }
+
+    @Test
     fun songJump_landsOnFirstPageOfSong() {
         val vm = StageViewModel(loaded(songs = 2, pagesPerSong = 3)) // pages 0..2 = song1, 3..5 = song2
         vm.goToSong(1)

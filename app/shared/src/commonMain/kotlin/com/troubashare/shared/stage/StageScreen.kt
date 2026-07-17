@@ -4,12 +4,16 @@
 // a Result and is treated as "maybe a placeholder", so a bad image never crashes the performance.
 package com.troubashare.shared.stage
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -318,15 +322,36 @@ private fun Performing(
         ) {
             when {
                 scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
-                twoUp -> {
-                    // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
-                    Row(Modifier.fillMaxSize()) {
-                        spread.forEach { idx ->
-                            PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
+                // N4: page/width turns animate as a direction-aware horizontal slide (presentation only —
+                // the turn is still the single goToPage funnel, so swipe/FABs/pedals/keys/volume all
+                // animate identically). Keyed on state.current: a turn mid-animation just retargets, the
+                // slide catches up to the new page (no queue, no dropped turn — target state always wins).
+                // The content renders from `cur` (the animated page), so the OUTGOING page keeps its own
+                // pages during the slide. Scroll mode keeps its own vertical motion and is excluded.
+                else -> AnimatedContent(
+                    targetState = state.current,
+                    transitionSpec = {
+                        val forward = targetState > initialState
+                        val enter = slideInHorizontally(tween(PAGE_TURN_ANIM_MS)) { w -> if (forward) w else -w }
+                        val exit = slideOutHorizontally(tween(PAGE_TURN_ANIM_MS)) { w -> if (forward) -w else w }
+                        enter togetherWith exit
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    label = "page-turn",
+                ) { cur ->
+                    if (twoUp) {
+                        // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
+                        Row(Modifier.fillMaxSize()) {
+                            spreadPages(cur, state.pageCount).forEach { idx ->
+                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
+                            }
+                        }
+                    } else {
+                        state.pages.getOrNull(cur)?.let { p ->
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
                         }
                     }
                 }
-                else -> PageView(page, state.visibleFor(page.songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.fillMaxSize())
             }
         }
 

@@ -9,6 +9,10 @@ const val CHROME_AUTO_HIDE_MS = 4000L
  *  cross-song advance, so continuous advance still announces "now in the next song". */
 const val BOUNDARY_CUE_MS = 2000L
 
+/** N4 — the direction-aware page-turn slide duration (page/width modes). Presentation only: the turn
+ *  itself is unchanged; a new target mid-animation just wins (AnimatedContent keys off the page). */
+const val PAGE_TURN_ANIM_MS = 220
+
 /** What a tap on the page area does. After N3 every tap [TOGGLE_CHROME]s; PREV/NEXT are page turns
  *  reached by swipe + ‹ › FABs + pedals/keys, never by tap. */
 enum class TapAction { PREV, NEXT, TOGGLE_CHROME }
