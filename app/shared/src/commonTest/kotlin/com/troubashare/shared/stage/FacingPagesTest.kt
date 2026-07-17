@@ -3,62 +3,88 @@ package com.troubashare.shared.stage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** A12 — facing-pages spread math (pure). The layout itself is code-review + screenshot. */
+/**
+ * A12 / N6 — facing-pages spread math (pure). Pairing is SONG-ALIGNED: a spread never contains two
+ * songs, an odd-paged (or single-page) song shows its last page solo, and each song opens a fresh
+ * spread. The layout itself is code-review + device screenshot.
+ */
 class FacingPagesTest {
 
+    // Concert: song A = 3 pages (0,1,2), B = 2 (3,4), C = 1 (5), D = 4 (6,7,8,9). Total 10.
+    // Exercises odd, even, and single-page songs plus every boundary.
+    private val starts = listOf(0, 3, 5, 6)
+    private val n = 10
+
     @Test
-    fun spreadFor_leftIsEven() {
-        assertEquals(0, spreadFor(0))
-        assertEquals(0, spreadFor(1))
-        assertEquals(2, spreadFor(2))
-        assertEquals(2, spreadFor(3))
-        assertEquals(20, spreadFor(20))
-        assertEquals(20, spreadFor(21))
+    fun spreadFor_alignsToEvenOffsetWithinSong() {
+        assertEquals(0, spreadFor(0, starts, n))
+        assertEquals(0, spreadFor(1, starts, n))
+        assertEquals(2, spreadFor(2, starts, n)) // song A's 3rd page → its own (solo) spread
+        assertEquals(3, spreadFor(3, starts, n)) // song B opens fresh at 3 (odd global index!)
+        assertEquals(3, spreadFor(4, starts, n))
+        assertEquals(5, spreadFor(5, starts, n)) // single-page song C
+        assertEquals(6, spreadFor(6, starts, n))
+        assertEquals(8, spreadFor(9, starts, n))
     }
 
     @Test
-    fun spreadPages_pairsAndLoneLast() {
-        // 22-page demo: first spread 1–2, last spread 21–22 (both present).
-        assertEquals(listOf(0, 1), spreadPages(0, 22))
-        assertEquals(listOf(0, 1), spreadPages(1, 22))
-        assertEquals(listOf(20, 21), spreadPages(21, 22))
-        // Odd total ⇒ the last page (even index) shows alone.
-        assertEquals(listOf(22), spreadPages(22, 23))
-        assertEquals(listOf(0), spreadPages(0, 1))
+    fun spreadPages_neverStraddlesASong() {
+        assertEquals(listOf(0, 1), spreadPages(0, starts, n))
+        assertEquals(listOf(2), spreadPages(2, starts, n))       // A's odd tail, solo
+        assertEquals(listOf(3, 4), spreadPages(3, starts, n))    // B pairs cleanly, starts fresh
+        assertEquals(listOf(5), spreadPages(5, starts, n))       // single-page song, solo
+        assertEquals(listOf(6, 7), spreadPages(6, starts, n))
+        assertEquals(listOf(8, 9), spreadPages(8, starts, n))
     }
 
     @Test
-    fun spreadPages_songJumpLandsOnPair() {
-        // A song whose first page is odd (idx 7) lands on the pair 7–8 (idx 6,7).
-        assertEquals(listOf(6, 7), spreadPages(7, 22))
+    fun nextSpread_stepsWithinSongThenCrossesToFreshSpread() {
+        assertEquals(2, nextSpreadPage(0, starts, n))  // A: [0,1] → [2]
+        assertEquals(3, nextSpreadPage(2, starts, n))  // A tail → B fresh [3,4]
+        assertEquals(5, nextSpreadPage(3, starts, n))  // B → C [5]
+        assertEquals(6, nextSpreadPage(5, starts, n))  // C → D [6,7]
+        assertEquals(8, nextSpreadPage(6, starts, n))  // D: [6,7] → [8,9]
+        assertEquals(9, nextSpreadPage(8, starts, n))  // last spread of last song → stays (clamped)
     }
 
     @Test
-    fun spreadPages_emptyBundle() {
-        assertEquals(emptyList(), spreadPages(0, 0))
+    fun prevSpread_stepsBackThenCrossesToPriorSongsLastSpread() {
+        assertEquals(0, prevSpreadPage(2, starts, n))  // A: [2] → [0,1]
+        assertEquals(0, prevSpreadPage(0, starts, n))  // very first spread → stays
+        assertEquals(2, prevSpreadPage(3, starts, n))  // B → A's solo last spread [2]
+        assertEquals(3, prevSpreadPage(5, starts, n))  // C → B [3,4]
+        assertEquals(5, prevSpreadPage(6, starts, n))  // D → C's solo [5]
+        assertEquals(6, prevSpreadPage(8, starts, n))  // D: [8,9] → [6,7]
     }
 
     @Test
-    fun turnByTwo_clamped() {
-        assertEquals(2, nextSpreadPage(0, 22))
-        assertEquals(2, nextSpreadPage(1, 22))
-        assertEquals(4, nextSpreadPage(2, 22))
-        // Already on the last spread ⇒ next stays inside it (no run-off).
-        assertEquals(21, nextSpreadPage(20, 22))
-        assertEquals(21, nextSpreadPage(21, 22))
-
-        assertEquals(0, prevSpreadPage(0))
-        assertEquals(0, prevSpreadPage(1))
-        assertEquals(0, prevSpreadPage(3))
-        assertEquals(18, prevSpreadPage(21))
+    fun turnTarget_oneUpUnchanged_twoUpSongAligned() {
+        // one-up: ±1, unclamped (VM clamps) — unchanged by N6.
+        assertEquals(6, turnTarget(5, n, twoUp = false, PageTurn.NEXT, starts))
+        assertEquals(4, turnTarget(5, n, twoUp = false, PageTurn.PREV, starts))
+        // two-up: routes through the song-aligned spread math.
+        assertEquals(3, turnTarget(2, n, twoUp = true, PageTurn.NEXT, starts)) // A tail → B fresh
+        assertEquals(2, turnTarget(3, n, twoUp = true, PageTurn.PREV, starts)) // B → A solo tail
     }
 
     @Test
-    fun label_oneUpTwoUpAndLone() {
-        assertEquals("6/22", pagerLabel(5, 22, twoUp = false))
-        assertEquals("1–2/22", pagerLabel(0, 22, twoUp = true))
-        assertEquals("21–22/22", pagerLabel(21, 22, twoUp = true))
-        assertEquals("23/23", pagerLabel(22, 23, twoUp = true)) // lone last page
-        assertEquals("0/0", pagerLabel(0, 0, twoUp = true))
+    fun label_songAlignedSpreads() {
+        assertEquals("3/10", pagerLabel(2, n, twoUp = true, starts))   // A's solo tail
+        assertEquals("1–2/10", pagerLabel(0, n, twoUp = true, starts))
+        assertEquals("4–5/10", pagerLabel(3, n, twoUp = true, starts)) // B, fresh from an odd index
+        assertEquals("6/10", pagerLabel(5, n, twoUp = true, starts))   // single-page song
+        assertEquals("6/10", pagerLabel(5, n, twoUp = false, starts))  // one-up label unaffected
+    }
+
+    @Test
+    fun emptyBundle_andNoSongs_degradeToGlobalPairing() {
+        assertEquals(emptyList(), spreadPages(0, starts, 0))
+        // No songStarts ⇒ one whole-concert song ⇒ plain global pairing (backward-compatible).
+        assertEquals(listOf(0, 1), spreadPages(1, emptyList(), 22))
+        assertEquals(listOf(20, 21), spreadPages(21, emptyList(), 22))
+        assertEquals(listOf(22), spreadPages(22, emptyList(), 23)) // odd total, lone last page
+        assertEquals("21–22/22", pagerLabel(21, 22, twoUp = true, emptyList()))
+        assertEquals(2, nextSpreadPage(0, emptyList(), 22))
+        assertEquals(0, prevSpreadPage(3, emptyList(), 22))
     }
 }

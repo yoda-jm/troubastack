@@ -258,6 +258,9 @@ private fun Performing(
         val songRange = if (scrollMode) songPageRange(state, state.current) else IntRange.EMPTY
         val localTop = scrollListState.firstVisibleItemIndex
         val topPage = if (scrollMode) (songRange.first + localTop).coerceIn(0, state.pages.lastIndex.coerceAtLeast(0)) else state.current
+        // N6: two-up spreads are SONG-ALIGNED — the facing-pages math takes each song's first global
+        // page so a spread never straddles a song boundary.
+        val songStarts = state.songs.map { it.firstPage }
         // One navigation entry point (keys, taps, swipes, arrows, volume) so a "turn" means the same
         // everywhere: spread-aware in two-up; in scroll a turn steps WITHIN the current song's column and
         // at a column EDGE crosses to the adjacent song (goToPage clamps and, by changing the song, fires
@@ -267,16 +270,16 @@ private fun Performing(
                 val step = scrollNextPage(localTop, songRange.count())
                 if (step != localTop) scope.launch { scrollListState.animateScrollToItem(step) }
                 else vm.goToPage(songRange.last + 1) // column end → next song's first page
-            } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT))
+            } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT, songStarts))
         }
         val turnPrev: () -> Unit = {
             if (scrollMode) {
                 val step = scrollPrevPage(localTop)
                 if (step != localTop) scope.launch { scrollListState.animateScrollToItem(step) }
                 else vm.goToPage(songRange.first - 1) // column top → previous song's last page
-            } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV))
+            } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV, songStarts))
         }
-        val spread = spreadPages(state.current, state.pageCount)
+        val spread = spreadPages(state.current, songStarts, state.pageCount)
 
         // A13: Android volume keys can't reach Compose; androidApp intercepts them in the Activity and
         // calls back through this registrar. Publish the SAME spread-aware turns every other input uses
@@ -342,7 +345,7 @@ private fun Performing(
                     if (twoUp) {
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
                         Row(Modifier.fillMaxSize()) {
-                            spreadPages(cur, state.pageCount).forEach { idx ->
+                            spreadPages(cur, songStarts, state.pageCount).forEach { idx ->
                                 PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), Modifier.weight(1f).fillMaxHeight())
                             }
                         }
@@ -472,7 +475,7 @@ private fun TitleCard(title: String, position: String, modifier: Modifier = Modi
 
 /** "Song 2/4  ·  3–4/12" — the title card's position line (A2). Song part omitted when there are none. */
 private fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean): String {
-    val pages = pagerLabel(topPage, state.pageCount, twoUp)
+    val pages = pagerLabel(topPage, state.pageCount, twoUp, state.songs.map { it.firstPage })
     val i = state.currentSong
     return if (i >= 0 && state.songs.isNotEmpty()) "Song ${i + 1}/${state.songs.size}  ·  $pages" else pages
 }

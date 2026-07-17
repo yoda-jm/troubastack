@@ -26,17 +26,18 @@ class VolumeTurnTest {
     @Test
     fun turnTarget_twoUp_movesByWholeSpread() {
         // From either page of the 0–1 spread, NEXT lands on the next spread's left page (2), not 1.
-        assertEquals(2, turnTarget(page = 0, pageCount = 6, twoUp = true, dir = PageTurn.NEXT))
-        assertEquals(2, turnTarget(page = 1, pageCount = 6, twoUp = true, dir = PageTurn.NEXT))
+        // (One whole-concert song here ⇒ empty songStarts ⇒ plain global pairing, N6-compatible.)
+        assertEquals(2, turnTarget(page = 0, pageCount = 6, twoUp = true, dir = PageTurn.NEXT, songStarts = emptyList()))
+        assertEquals(2, turnTarget(page = 1, pageCount = 6, twoUp = true, dir = PageTurn.NEXT, songStarts = emptyList()))
         // PREV from the 2–3 spread goes back to the 0–1 spread's left page.
-        assertEquals(0, turnTarget(page = 2, pageCount = 6, twoUp = true, dir = PageTurn.PREV))
-        assertEquals(0, turnTarget(page = 3, pageCount = 6, twoUp = true, dir = PageTurn.PREV))
+        assertEquals(0, turnTarget(page = 2, pageCount = 6, twoUp = true, dir = PageTurn.PREV, songStarts = emptyList()))
+        assertEquals(0, turnTarget(page = 3, pageCount = 6, twoUp = true, dir = PageTurn.PREV, songStarts = emptyList()))
     }
 
     @Test
     fun turnTarget_oneUp_movesByOnePage() {
-        assertEquals(2, turnTarget(page = 1, pageCount = 6, twoUp = false, dir = PageTurn.NEXT))
-        assertEquals(0, turnTarget(page = 1, pageCount = 6, twoUp = false, dir = PageTurn.PREV))
+        assertEquals(2, turnTarget(page = 1, pageCount = 6, twoUp = false, dir = PageTurn.NEXT, songStarts = emptyList()))
+        assertEquals(0, turnTarget(page = 1, pageCount = 6, twoUp = false, dir = PageTurn.PREV, songStarts = emptyList()))
     }
 
     /** A fake registrar mirroring androidApp: it just stores the handler StageScreen publishes. */
@@ -52,7 +53,7 @@ class VolumeTurnTest {
         val twoUp = true
         val reg = FakeRegistrar()
         // What StageScreen registers: forward the press through the spread-aware turn.
-        reg.register { pt -> vm.goToPage(turnTarget(vm.state.value.current, vm.state.value.pageCount, twoUp, pt)) }
+        reg.register { pt -> vm.goToPage(turnTarget(vm.state.value.current, vm.state.value.pageCount, twoUp, pt, vm.state.value.songs.map { it.firstPage })) }
 
         assertEquals(0, vm.state.value.current)
         reg.press(PageTurn.NEXT)               // ONE press ...
