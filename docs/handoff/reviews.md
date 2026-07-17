@@ -6762,6 +6762,19 @@ layers/conductor content fit. Plus which surfaces are worst offenders to fix fir
 turn your recommendations into task(s) once VLL picks a direction. Not implementing
 anything yet — this is analysis + options.
 
+## 2026-07-17 — ANALYSIS DELIVERED (VLL to review): global-vs-personal legibility — `docs/design/09-global-vs-personal-ia.md`
+
+Full analysis + scheme written for VLL's review. The nub: shared is UNMARKED while
+personal is only SOMETIMES marked, and surfaces interleave the two audiences by
+feature — so the fix is one vocabulary (Band 👥 / Mine 👤, reusing the existing
+`personal · mine` chip as THE component), audience-grouping in Details, and a
+zone-at-draw-time chip (the only place the boundary is decided invisibly today —
+stamps/strokes inherit the active layer's zone unseen). Ambiguity rule that
+resolves the middle: classify by WHO SEES THE EFFECT, not who authored the content
+(visibility toggles = Mine; conductor layers = Band with restricted authorship).
+Options A (full, recommended — T54 regroup + T55 draw-time chip + sweep) / B
+(regroup only) / C (chips only). **VLL picks; specs follow.**
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
