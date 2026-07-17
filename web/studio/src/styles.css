@@ -866,8 +866,21 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 /* The "Drawing on: <layer>" chip — always shows where new ink lands. */
 .active-layer-indicator {
   background: var(--accent); color: #fff; text-transform: none;
-  font-weight: 600; max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; max-width: 22rem;
+  display: inline-flex; align-items: center; gap: .35rem; min-width: 0;
 }
+/* Only the layer NAME truncates; the audience tag (T55) always stays visible. */
+.active-layer-indicator .ali-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* T55 — audience tag: 👥 Band / 👤 Mine. Solid so it reads on the indigo pill too. */
+.audience-tag {
+  display: inline-flex; align-items: center; gap: .2rem; flex: 0 0 auto;
+  padding: .05rem .45rem; border-radius: 999px;
+  font-size: .76rem; font-weight: 700; line-height: 1.5;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.audience-tag.audience-band { color: var(--brand-ink); border-color: var(--brand); }
+.audience-tag.audience-mine { color: var(--ok-fg); border-color: color-mix(in srgb, var(--ok-fg) 55%, transparent); }
+.audience-note { font-weight: 400; opacity: .75; }
 .editor-reject-notice {
   background: var(--error-bg); color: var(--error-fg);
   border: 1px solid color-mix(in srgb, var(--error-fg) 25%, transparent);

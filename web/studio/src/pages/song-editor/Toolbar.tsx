@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
 import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset } from "../../editor";
 import { descriptorFor, toolsInOrder } from "../../annotations/registry";
+import { AudienceTag, audienceForZone } from "../../components/AudienceTag";
 
 const SELECT_ICON = (
   <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
@@ -443,7 +444,15 @@ export function EditorToolbar({
           data-testid="active-layer-indicator"
           title="New annotations are drawn on this layer"
         >
-          Drawing on: {activeLayer ? activeLayer.name : "no editable layer — draw to create one"}
+          <span className="ali-label">
+            Drawing on: {activeLayer ? activeLayer.name : "no editable layer — draw to create one"}
+          </span>
+          {activeLayer && (
+            <AudienceTag
+              audience={audienceForZone(activeLayer.zone)}
+              note={activeLayer.zone === "conductor" ? "conductor" : undefined}
+            />
+          )}
         </span>
         <label className="style-field">
           <span>Active layer</span>
