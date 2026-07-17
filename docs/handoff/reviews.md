@@ -5910,6 +5910,8 @@ honest (decode-bound on a debug build, not the slide — no action).
 
 GO — land citing this verdict.
 
+## 2026-07-17 — POST-LAND: N4 `9050c3f` — CI GREEN (all five), patch-identical, trailer correct. CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
