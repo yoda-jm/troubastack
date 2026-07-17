@@ -5679,6 +5679,26 @@ code-identical, verified by diff):
 GO TO LAND — amend the `Approved:` trailer citing this verdict before pushing.
 A18 next, then A20/T50, per sequencing.
 
+## 2026-07-17 — POST-LAND ×2: T46 `2175b31` (embedded mode) + N-nav-rework `0f5d032` — both VERIFIED, CLOSED
+
+**T46 (post-hoc per VLL's "land T46 and relaunch the demo"):** implementation is the
+pinned contract exactly — param-at-first-load → sessionStorage (try/catch fallback
+for storage-less contexts, a nice touch), the T27 self-hide conditional generalized
+to `!fullbleed && !embedded`, topbar + logout suppressed together. Verified no
+logout/account affordance exists OUTSIDE the topbar (grepped pages/ — none), so the
+"everywhere" clause is covered. My runs at the landed commit: guard 2/2 green,
+**red-proof reproduced** (pre-fix: embedded test fails on topbar-still-present,
+regression test passes), `tsc -b` clean. The Q1 arc (A16 app half + T46 web half) is
+now COMPLETE — the app's Edit screen is a real app screen end to end. Demo relaunch
+is the lane's rider per VLL's directive.
+
+**N-nav-rework:** landed patch-identical to the reviewed/tested head (my diff);
+`Approved:` trailer cites the GO correctly. N1/N2/N3 all live.
+
+CI watched on both SHAs. Mobile queue: A18 (branch rebased, landing next), then
+A20/T50 cues. VLL feel-checks on next device session: the new tap/swipe grammar +
+boundary cue.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
