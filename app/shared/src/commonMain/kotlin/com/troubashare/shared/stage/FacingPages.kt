@@ -83,6 +83,18 @@ fun turnTarget(page: Int, pageCount: Int, twoUp: Boolean, dir: PageTurn, songSta
 }
 
 /**
+ * N7 — would a turn from [page] in [dir] be a no-op blocked at the concert EDGE? True when the shared
+ * [turnTarget] rule, after the VM's clamp, lands back on the same [page] — i.e. NEXT at the last
+ * page/spread or PREV at the first. Drives the end-of-bounds cue so a dead swipe reads as "you're at
+ * the edge" instead of a broken turn. Pure; works for one-up (page±1 clamped) and two-up (song-aligned
+ * spread). Empty/degenerate bundle ⇒ blocked.
+ */
+fun isBlockedTurn(page: Int, pageCount: Int, twoUp: Boolean, dir: PageTurn, songStarts: List<Int>): Boolean {
+    if (pageCount <= 0) return true
+    return turnTarget(page, pageCount, twoUp, dir, songStarts).coerceIn(0, pageCount - 1) == page
+}
+
+/**
  * The pager label: "3–4/22" for a two-up spread, "22/22" for a lone last page, "5/22" one-up.
  * [twoUp] is the live layout decision; [page] is the source-of-truth current page.
  */

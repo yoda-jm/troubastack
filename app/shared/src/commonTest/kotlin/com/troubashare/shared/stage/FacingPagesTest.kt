@@ -2,6 +2,8 @@ package com.troubashare.shared.stage
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * A12 / N6 — facing-pages spread math (pure). Pairing is SONG-ALIGNED: a spread never contains two
@@ -78,6 +80,23 @@ class FacingPagesTest {
         assertEquals("4–5/10", pagerLabel(3, n, twoUp = true, starts)) // B, fresh from an odd index
         assertEquals("6/10", pagerLabel(5, n, twoUp = true, starts))   // single-page song
         assertEquals("6/10", pagerLabel(5, n, twoUp = false, starts))  // one-up label unaffected
+    }
+
+    @Test
+    fun isBlockedTurn_trueOnlyAtTheConcertEdge() {
+        // N7: a turn is "blocked" (no-op) only at the very first (PREV) / last (NEXT) page or spread.
+        // two-up (song-aligned): last spread of song D is [8,9], left 8; first spread [0,1], left 0.
+        assertTrue(isBlockedTurn(8, n, twoUp = true, PageTurn.NEXT, starts))  // at the end → blocked
+        assertTrue(isBlockedTurn(0, n, twoUp = true, PageTurn.PREV, starts))  // at the start → blocked
+        assertFalse(isBlockedTurn(0, n, twoUp = true, PageTurn.NEXT, starts)) // mid-concert → not
+        assertFalse(isBlockedTurn(8, n, twoUp = true, PageTurn.PREV, starts))
+        assertFalse(isBlockedTurn(2, n, twoUp = true, PageTurn.NEXT, starts)) // crossing a song is a real turn
+        // one-up: last page 9, first page 0.
+        assertTrue(isBlockedTurn(9, n, twoUp = false, PageTurn.NEXT, starts))
+        assertTrue(isBlockedTurn(0, n, twoUp = false, PageTurn.PREV, starts))
+        assertFalse(isBlockedTurn(5, n, twoUp = false, PageTurn.NEXT, starts))
+        // degenerate bundle ⇒ blocked (nothing to turn to).
+        assertTrue(isBlockedTurn(0, 0, twoUp = true, PageTurn.NEXT, starts))
     }
 
     @Test

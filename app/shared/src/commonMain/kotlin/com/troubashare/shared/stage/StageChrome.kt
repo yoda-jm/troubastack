@@ -9,6 +9,11 @@ const val CHROME_AUTO_HIDE_MS = 4000L
  *  cross-song advance, so continuous advance still announces "now in the next song". */
 const val BOUNDARY_CUE_MS = 2000L
 
+/** How long the N7 end-of-bounds cue (a big center glyph) flashes when a turn is blocked at the
+ *  concert edge, so a dead swipe reads as "you're at the start/end", not a broken turn. Shorter than
+ *  the N1 card. Shares the N1 overlay layer (latest-wins). */
+const val BLOCKED_TURN_CUE_MS = 900L
+
 /** N4 — the direction-aware page-turn slide duration (page/width modes). Presentation only: the turn
  *  itself is unchanged; a new target mid-animation just wins (AnimatedContent keys off the page). */
 const val PAGE_TURN_ANIM_MS = 220

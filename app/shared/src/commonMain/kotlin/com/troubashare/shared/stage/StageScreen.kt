@@ -204,19 +204,30 @@ private fun Performing(
     LaunchedEffect(chromeVisible, overlayOpen) {
         if (chromeVisible && !overlayOpen) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
     }
-    // N1: continuous advance is a performance requirement (pedal users can't stop at every song end),
-    // but crossing a song boundary must READ as crossing — so on a cross-song move we flash the
-    // title/position card ALONE (~2s), not the full chrome. We watch the current song index: it only
-    // changes when navigation crosses a boundary (in ANY mode). The first composition seeds lastCueSong
-    // so entering Stage never fires a spurious cue. Reuses the A17 auto-hide timer (clock-injectable).
-    var boundaryCueVisible by remember { mutableStateOf(false) }
+    // N1 + N7 share ONE transient center-overlay layer (latest-wins): the N1 song-boundary card and the
+    // N7 blocked-turn glyph are mutually exclusive per action, so each trigger CLEARS the other and bumps
+    // [cueEpoch]; a single timeout keyed on the epoch restarts on every trigger (rapid pedal-at-the-wall
+    // keeps one cue, refreshed, then one fade). blockedForward is retained across the fade so the glyph
+    // renders the right direction while it fades out.
+    var boundaryCueVisible by remember { mutableStateOf(false) } // N1: title/position card
+    var blockedCueVisible by remember { mutableStateOf(false) }  // N7: end/start glyph
+    var blockedForward by remember { mutableStateOf(true) }      // N7: last blocked direction (for the fade)
+    var cueEpoch by remember { mutableStateOf(0) }
+    // N1: continuous advance is a performance requirement (pedal users can't stop at every song end), but
+    // crossing a song boundary must READ as crossing — flash the title/position card. currentSong only
+    // changes on a boundary cross (any mode); the first composition seeds lastCueSong so entry is quiet.
     var lastCueSong by remember { mutableStateOf(state.currentSong) }
     LaunchedEffect(state.currentSong) {
         if (state.currentSong != lastCueSong) {
             lastCueSong = state.currentSong
-            boundaryCueVisible = true
-            autoHideChrome(BOUNDARY_CUE_MS) { boundaryCueVisible = false }
+            boundaryCueVisible = true; blockedCueVisible = false; cueEpoch++
         }
+    }
+    // Shared cue timeout (clock-injectable via autoHideChrome, like A17): restarts on each trigger.
+    LaunchedEffect(cueEpoch) {
+        if (!boundaryCueVisible && !blockedCueVisible) return@LaunchedEffect
+        val ms = if (blockedCueVisible) BLOCKED_TURN_CUE_MS else BOUNDARY_CUE_MS
+        autoHideChrome(ms) { boundaryCueVisible = false; blockedCueVisible = false }
     }
     // A14: the continuous-scroll column's list state — the source of truth for the topmost page while
     // in SCROLL mode (pager label + page turns read/drive it). Unused in page/width modes.
@@ -265,11 +276,19 @@ private fun Performing(
         // everywhere: spread-aware in two-up; in scroll a turn steps WITHIN the current song's column and
         // at a column EDGE crosses to the adjacent song (goToPage clamps and, by changing the song, fires
         // the N1 boundary cue). Vertical motion thus always reads within the song; crossing is explicit.
+        // N7: in page/width a turn blocked at the very first/last page is a true no-op (A22); flash the
+        // end/start glyph so a dead swipe reads as "you're at the edge". Scroll's native rubber-band
+        // already communicates the edge, so N7 is page/width only.
+        val flashBlocked: (Boolean) -> Unit = { forward ->
+            blockedForward = forward; blockedCueVisible = true; boundaryCueVisible = false; cueEpoch++
+        }
         val turnNext: () -> Unit = {
             if (scrollMode) {
                 val step = scrollNextPage(localTop, songRange.count())
                 if (step != localTop) scope.launch { scrollListState.animateScrollToItem(step) }
                 else vm.goToPage(songRange.last + 1) // column end → next song's first page
+            } else if (isBlockedTurn(state.current, state.pageCount, twoUp, PageTurn.NEXT, songStarts)) {
+                flashBlocked(true)
             } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.NEXT, songStarts))
         }
         val turnPrev: () -> Unit = {
@@ -277,6 +296,8 @@ private fun Performing(
                 val step = scrollPrevPage(localTop)
                 if (step != localTop) scope.launch { scrollListState.animateScrollToItem(step) }
                 else vm.goToPage(songRange.first - 1) // column top → previous song's last page
+            } else if (isBlockedTurn(state.current, state.pageCount, twoUp, PageTurn.PREV, songStarts)) {
+                flashBlocked(false)
             } else vm.goToPage(turnTarget(state.current, state.pageCount, twoUp, PageTurn.PREV, songStarts))
         }
         val spread = spreadPages(state.current, songStarts, state.pageCount)
@@ -411,6 +432,18 @@ private fun Performing(
             }
         }
 
+        // N7: the end-of-bounds cue — a big semitransparent glyph flashed in the CENTER when a turn is
+        // blocked at the very first/last page, so a dead swipe reads as "you're at the edge" not a broken
+        // turn. Shares the N1 layer (latest-wins). blockedForward is retained across the fade.
+        AnimatedVisibility(
+            visible = blockedCueVisible,
+            enter = fadeIn(tween(120)),
+            exit = fadeOut(tween(400)),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            BlockedTurnGlyph(forward = blockedForward)
+        }
+
         // A2: BOTTOM chrome — ‹ previous · ⚙ settings · next › (big round FABs).
         AnimatedVisibility(
             visible = chromeVisible,
@@ -469,6 +502,22 @@ private fun TitleCard(title: String, position: String, modifier: Modifier = Modi
         ) {
             if (title.isNotEmpty()) Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (position.isNotEmpty()) Text(position, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+        }
+    }
+}
+
+/** N7 — the end-of-bounds glyph: a big semitransparent center disc with a direction-aware "arrow into a
+ *  wall" (forward = blocked at the last page, backward = blocked at the first), ~2× a nav FAB so it
+ *  reads as a distinct edge signal over the score. Flashed briefly then faded (shared N1 layer). */
+@Composable
+private fun BlockedTurnGlyph(forward: Boolean) {
+    Surface(color = Color(0x99000000), shape = CircleShape, modifier = Modifier.size(120.dp)) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                if (forward) "›|" else "|‹",
+                color = Color.White.copy(alpha = 0.9f),
+                style = MaterialTheme.typography.displaySmall,
+            )
         }
     }
 }
