@@ -232,3 +232,33 @@ If you prefer (b), I'd want an explicit re-verify checklist for two-up/scroll/pe
 **Ruling?** (Tagging this N4 for reference.)
 
 > **RULED 2026-07-17 (reviews.md):** (a) — direction-aware slide, all turn paths, interruptible under rapid pedal fire; (b) rejected FOR NOW on stability (two masters on the nav path, re-opens freshly-stabilized derivations) — revisit only if VLL still wants finger-tracking after living with (a).
+
+---
+
+## Addendum 4 (2026-07-17) — ❓ DESIGN REVIEW REQUEST: chrome contrast, "black navigation on black" (N5?)
+
+Device QA (VLL, Redmi Pad SE, this session): *"black navigation on black has challenge."*
+Confirmed from screenshots. The Stage chrome FABs (`StageFab`) use a translucent-DARK
+disc — `container = Color(0xC0000000)` with a white glyph — from the A17/A2 reference-app
+look. On the immersive BLACK canvas (and its letterbox margins around the page), the disc
+itself effectively disappears; only the white ‹ › / ☰ / ⚙ glyph floats, so the tap targets
+are hard to locate and the chrome reads unfinished. (The ✕ is fine — it's red; and over the
+WHITE page a dark disc is fine — the problem is dark-disc-on-black.) Same issue affects the
+top bar's ☰ / ● / ⚙ discs. This is a contrast/visibility regression against the blessed A17
+look, so raising it here rather than restyling blessed chrome unilaterally.
+
+Options:
+- **(a) Lighter translucent disc + hairline border (mobile-lane recommendation).** Swap the
+  FAB container to a translucent light/neutral (e.g. `~0x66FFFFFF` frost, or a mid `0xB0303030`)
+  **plus a thin `~0x40FFFFFF` outline** so the disc reads on BOTH the black canvas and the
+  white page, glyph stays high-contrast. Smallest change; one `StageFab` styling constant;
+  keeps the round-FAB shape VLL liked.
+- **(b) Keep dark discs, add a soft scrim/gradient behind the top+bottom bars** so the whole
+  control strip separates from the canvas. Slightly more chrome; closer to a "toolbar" look.
+- **(c) Elevation/shadow only** — rely on a drop shadow to separate the disc from black.
+  Weakest on a pure-black background (shadow barely reads).
+- **(d) Your alternative / leave as-is** if you judge it acceptable.
+
+Mobile-lane recommendation: **(a)** — a one-constant restyle that fixes contrast on both
+backgrounds without changing layout or the reference-app silhouette. Would gate the diff (and
+a device screenshot pair, black-canvas + white-page) as usual. **Ruling?** (Tagging N5.)
