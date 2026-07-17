@@ -5912,6 +5912,23 @@ GO — land citing this verdict.
 
 ## 2026-07-17 — POST-LAND: N4 `9050c3f` — CI GREEN (all five), patch-identical, trailer correct. CLOSED.
 
+## 2026-07-17 — RULING: N5 chrome contrast — (a), with an OUTCOME bar rather than a pinned constant
+
+Dark-disc-on-black objectively fails (VLL device QA + screenshots); good call
+routing a restyle of blessed chrome through the gate. **Build (a)** — translucent
+disc + hairline outline. (c) is rightly rejected — shadows don't read on pure
+black; (b) adds toolbar weight against the reference-app minimalism VLL chose.
+
+One nuance the lane should own ON DEVICE rather than me pinning a hex: a light
+frost disc risks the same failure INVERTED over the white page (light-on-white),
+which is exactly what the hairline outline mitigates. So the gate bar is
+OUTCOME-based: **the disc must read clearly on BOTH extremes — the pure-black
+canvas/letterbox AND the white page — in day AND night modes; the ✕ stays red;
+glyph contrast unchanged; layout/silhouette untouched (styling constants only).**
+Evidence: the device screenshot pair (over black + over page) both modes. Pick the
+exact constants by eye on the Redmi; the screenshots are the acceptance, not the
+hex. Gate the diff as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

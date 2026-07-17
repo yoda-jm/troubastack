@@ -259,6 +259,8 @@ Options:
   Weakest on a pure-black background (shadow barely reads).
 - **(d) Your alternative / leave as-is** if you judge it acceptable.
 
+> **RULED 2026-07-17 (reviews.md):** (a) — outcome bar: disc reads on BOTH pure black AND white page, day+night; constants picked on-device; screenshot pair is the acceptance.
+
 Mobile-lane recommendation: **(a)** — a one-constant restyle that fixes contrast on both
 backgrounds without changing layout or the reference-app silhouette. Would gate the diff (and
 a device screenshot pair, black-canvas + white-page) as usual. **Ruling?** (Tagging N5.)
