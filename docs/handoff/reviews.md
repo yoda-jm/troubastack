@@ -6366,6 +6366,8 @@ All four pins delivered, verified in code + my `:shared:check` run + the device 
 GO — land citing this verdict. VLL's eye is the final acceptance on feel, next
 device session.
 
+## 2026-07-17 — POST-LAND: N9 `e72361e` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. VLL's feel-check on the turn quality rides the next device session.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
