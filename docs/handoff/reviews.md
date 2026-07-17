@@ -5732,7 +5732,7 @@ patch-identical to the reviewed `eee4d7a` (my diff); trailer cites the condition
 verdict correctly; `:shared:check` green at the landed head (my run). The A1 arc is
 CLOSED: per-song visibility with remembered overrides, role-first sheet, and a
 rehearsal auto-update that can neither clobber a per-song choice nor hide a
-mandatory layer. CI watched. Mobile queue: A20 cues (after web-core's T50 lands the
+mandatory layer. **CI GREEN on `29d68b8` (all five jobs).** Mobile queue: A20 cues (after web-core's T50 lands the
 model/bundle side). VLL device feel-check list: nav grammar + boundary cue +
 per-song layers, next session.
 
