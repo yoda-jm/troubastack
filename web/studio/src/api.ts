@@ -61,6 +61,13 @@ export type Invite = {
   createdAt: string;
 };
 
+/** A personal cue on a song (T50): a stable icon id + an optional "#rrggbb" tint.
+ *  An unknown icon id renders as the `note` fallback (see cue-glyphs.tsx). */
+export type SongCue = {
+  icon: string;
+  color?: string;
+};
+
 export type Song = {
   id: string;
   bandId: string;
@@ -71,6 +78,9 @@ export type Song = {
   tags?: string[];
   notes?: string;
   createdAt: string;
+  /** The CALLER's own personal cues for this song (T50), as served on listSongs
+   *  rows. Absent/[] = none. Per-member — never another member's. */
+  myCues?: SongCue[];
 };
 
 export type SongFile = {
@@ -425,6 +435,19 @@ export const api = {
 
   clearMyFiles: (bandId: string, songId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/my-files`),
+
+  // ---- per-member song cues ("my cues", T50) ----
+  // Self-only by construction (keyed to the caller). GET returns [] when unset;
+  // PUT replaces the list (an empty list clears it).
+  getMyCues: (bandId: string, songId: string) =>
+    request<{ cues: SongCue[] }>("GET", `/api/bands/${bandId}/songs/${songId}/my-cues`).then(
+      (r) => r.cues,
+    ),
+
+  setMyCues: (bandId: string, songId: string, cues: SongCue[]) =>
+    request<{ cues: SongCue[] }>("PUT", `/api/bands/${bandId}/songs/${songId}/my-cues`, {
+      cues,
+    }).then((r) => r.cues),
 
   // ---- annotations (view-only) ----
   getAnnotations: (bandId: string, songId: string) =>

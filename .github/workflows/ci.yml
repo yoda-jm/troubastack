@@ -70,6 +70,14 @@ jobs:
       - name: install ink
         working-directory: web/ink
         run: npm ci --no-workspaces
+      # T50/T51 glyph contract: the runtime glyphs.json is GENERATED from the hand-
+      # authored SVG primitives (glyphs.authoring.mjs). Regenerate and fail if the
+      # committed output drifts — one source of truth, no stale runtime artifact.
+      - name: verify glyphs.json is regenerated from source
+        working-directory: web/ink
+        run: |
+          node gen-glyphs.mjs
+          git diff --exit-code glyphs.json
       # bake imports node builtins + @napi-rs/canvas, so it must be installed
       # before the typecheck below resolves its `-p bake` project.
       - name: install bake

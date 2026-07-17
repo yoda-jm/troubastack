@@ -15,8 +15,10 @@ import {
   type Setlist,
   type SetlistItem,
   type Song,
+  type SongCue,
 } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { CueGlyph } from "../components/CueGlyphs";
 
 export function SetlistDetail() {
   const { bandId, setlistId } = useParams<{ bandId: string; setlistId: string }>();
@@ -452,6 +454,11 @@ function Items({
   const main = items.filter((it) => !it.onCall);
   const bench = items.filter((it) => it.onCall);
 
+  // T50: the caller's own cues per song (listSongs carries them as myCues) → the
+  // glanceable "what to prepare" chips on each row.
+  const cuesBySong = new Map<string, SongCue[]>();
+  for (const s of songs) if (s.myCues?.length) cuesBySong.set(s.id, s.myCues);
+
   // move reorders WITHIN a group, then sends the full order (the other group
   // unchanged) since ReorderSetlist rewrites every item's position.
   async function move(group: "main" | "bench", index: number, dir: -1 | 1) {
@@ -547,6 +554,7 @@ function Items({
               item={item}
               index={i}
               count={main.length}
+              cues={cuesBySong.get(item.songId)}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
@@ -582,6 +590,7 @@ function Items({
               item={item}
               index={i}
               count={bench.length}
+              cues={cuesBySong.get(item.songId)}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
@@ -629,6 +638,7 @@ function ItemRow({
   item,
   index,
   count,
+  cues,
   onMove,
   onRemove,
   onSetOnCall,
@@ -644,6 +654,7 @@ function ItemRow({
   item: SetlistItem;
   index: number;
   count: number;
+  cues?: SongCue[];
   onMove: (group: "main" | "bench", index: number, dir: -1 | 1) => void;
   onRemove: (itemId: string) => void;
   onSetOnCall: (itemId: string, onCall: boolean) => void;
@@ -722,6 +733,13 @@ function ItemRow({
           {label} {item.songTitle ?? item.songId}
         </div>
         {item.songArtist && <div className="by">{item.songArtist}</div>}
+        {cues && cues.length > 0 && (
+          <div className="cue-row" data-testid="item-cues" aria-label="My cues">
+            {cues.map((c, ci) => (
+              <CueGlyph key={`${c.icon}-${ci}`} icon={c.icon} color={c.color} size={18} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="tags">

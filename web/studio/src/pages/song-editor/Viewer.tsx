@@ -29,6 +29,7 @@ import {
 import { EditorToolbar } from "./Toolbar";
 import { EditCanvas } from "./WetCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
+import { MyCuesEditor } from "./MyCuesEditor";
 import { LayersPanel, AnnotationList } from "./SidePanels";
 import { isEditableLayer } from "./helpers";
 import { useSongSync, defaultVisibility } from "./useSongSync";
@@ -1204,6 +1205,7 @@ export function Viewer({
             onChanged={refreshMyFiles}
             onError={setError}
           />
+          <MyCuesEditor bandId={bandId} songId={songId} onError={setError} />
           {myRole === "admin" && (
             <DeleteSong bandId={bandId} songId={songId} onDeleted={onSongDeleted} />
           )}

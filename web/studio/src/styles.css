@@ -427,6 +427,58 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .my-files-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .my-files-row.excluded .my-files-name { font-weight: 400; }
 
+/* ---- My cues editor (T50) ---- */
+.my-cues-panel { margin: 0; gap: .6rem; background: var(--surface-2); }
+.my-cues-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.my-cues-count { font-variant-numeric: tabular-nums; font-size: .82rem; }
+.my-cues-hint { font-size: .82rem; margin: 0; }
+
+.cue-glyph { display: block; flex: 0 0 auto; }
+
+.my-cues-list { gap: .4rem; }
+.cue-chip {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .35rem .5rem; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.cue-chip-glyph { display: inline-flex; flex: 0 0 auto; }
+.cue-chip-label { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: .88rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cue-chip-tints, .my-cues-addcolor { display: inline-flex; flex-wrap: wrap; gap: .2rem; flex: 0 0 auto; }
+.my-cues-addcolor { padding: .1rem 0 .2rem; }
+.cue-chip-actions { display: inline-flex; gap: .15rem; flex: 0 0 auto; }
+.cue-chip-actions button { padding: .2rem .4rem; font-size: .85rem; line-height: 1; }
+
+/* Color swatches. The neutral (empty value) shows a diagonal slash on paper. */
+.cue-swatch {
+  width: 18px; height: 18px; padding: 0; flex: 0 0 auto;
+  border: 1px solid var(--border-strong); border-radius: 50%;
+  background: var(--surface); box-shadow: none; cursor: pointer;
+}
+.cue-swatch[data-color=""] {
+  background:
+    linear-gradient(45deg, transparent 44%, var(--muted) 44%, var(--muted) 56%, transparent 56%),
+    var(--surface);
+}
+.cue-swatch.active { outline: 2px solid var(--fg); outline-offset: 1px; }
+.cue-swatch:disabled { opacity: .5; cursor: default; }
+
+/* Glyph picker grid. */
+.my-cues-picker {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: .35rem;
+}
+.cue-pick {
+  display: flex; flex-direction: column; align-items: center; gap: .2rem;
+  padding: .45rem .3rem; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface); box-shadow: none; cursor: pointer; color: var(--fg);
+}
+.cue-pick:hover:not(:disabled) { border-color: var(--brand); }
+.cue-pick:disabled { opacity: .45; cursor: default; }
+.cue-pick-label { font-size: .68rem; line-height: 1.1; text-align: center; color: var(--muted); }
+
+/* Setlist-row cue chips (T50) — small, tinted, glanceable. */
+.cue-row { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
+
 /* A button that reads like an inline link (used in empty-state copy). */
 .link-button {
   display: inline; margin: 0; padding: 0; border: none; background: none;
