@@ -1181,8 +1181,15 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   box-shadow: var(--shadow); margin: 1.1rem 0; overflow: hidden; display: block; }
 .panel-head { display: flex; align-items: center; gap: .7rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
 .panel-head h2 { font-size: 1.3rem; margin: 0; }
-.panel-head .count { color: var(--muted); font-weight: 600; font-size: .85rem; font-family: var(--font-mono); }
+.panel-head .count { color: var(--muted); font-weight: 600; font-size: .85rem; font-family: var(--font-mono); white-space: nowrap; }
 .panel-head .head-actions { margin-left: auto; display: flex; gap: .45rem; flex-wrap: wrap; }
+/* T49: on a phone the head-actions (＋ New text chart / ＋ New chart from lyrics) squeezed
+   the count onto multiple lines. Let the head wrap and drop the actions to their own
+   full-width row below "Files · N in the pool". */
+@media (max-width: 640px) {
+  .panel-head { flex-wrap: wrap; }
+  .panel-head .head-actions { margin-left: 0; width: 100%; }
+}
 .panel-body { padding: 1.15rem 1.25rem 1.25rem; }
 
 /* forms on an aligned responsive grid */
