@@ -6344,6 +6344,8 @@ example), Hallelujah `mic`, Black Hole Sun `mic`+`tambourine`, The Open Road
 `7fe2d6e` + bundle regen) is COMPLETE pending CI; `make demo` relaunch is the
 lane/VLL runtime step per the standing preference.
 
+## 2026-07-17 — CI GREEN: B12 seed `7fe2d6e` + demo bundle regen `f595803` (all five each). The B12 arc is fully CLOSED — the demo seeds + bundle showcase T50 cues end to end.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
