@@ -6942,6 +6942,8 @@ One string.
 GO — land citing this verdict. T55 (draw-time zone chip) + the vocabulary sweep
 are next in scheme (A).
 
+## 2026-07-17 — POST-LAND: T54 `1c79f77` — landed per the GO; the copy nit fixed PLUS two more stale "Details & files" references swept in the Viewer (better than asked). Trailer correct. CI watched. Scheme (A) progress: T54 ✅ → T55 (draw-time zone chip) + vocabulary sweep next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
