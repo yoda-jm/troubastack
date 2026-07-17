@@ -70,14 +70,15 @@ jobs:
       - name: install ink
         working-directory: web/ink
         run: npm ci --no-workspaces
-      # T50/T51 glyph contract: the runtime glyphs.json is GENERATED from the hand-
-      # authored SVG primitives (glyphs.authoring.mjs). Regenerate and fail if the
-      # committed output drifts — one source of truth, no stale runtime artifact.
-      - name: verify glyphs.json is regenerated from source
+      # T50/T51 glyph contract: the runtime glyphs.json AND the app mirror CueGlyphData.kt
+      # are GENERATED from the hand-authored SVG primitives (glyphs.authoring.mjs) by one
+      # generator. Regenerate and fail if either committed output drifts — one source of
+      # truth, no stale runtime artifact (A20: the app must never keep an old glyph set).
+      - name: verify glyphs.json + CueGlyphData.kt are regenerated from source
         working-directory: web/ink
         run: |
           node gen-glyphs.mjs
-          git diff --exit-code glyphs.json
+          git diff --exit-code glyphs.json ../../app/shared/src/commonMain/kotlin/com/troubashare/shared/stage/CueGlyphData.kt
       # bake imports node builtins + @napi-rs/canvas, so it must be installed
       # before the typecheck below resolves its `-p bake` project.
       - name: install bake

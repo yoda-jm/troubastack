@@ -1,5 +1,6 @@
-// GENERATED from web/ink/glyphs.json (T50 shared glyph contract v1) — DO NOT EDIT BY HAND.
-// Regenerate when the glyph set changes (one source: web/ink/glyphs.json). See docs/tasks/T50.
+// GENERATED from web/ink/glyphs.authoring.mjs by web/ink/gen-glyphs.mjs (T50 shared glyph
+// contract v1) — DO NOT EDIT BY HAND. Regenerate with `node web/ink/gen-glyphs.mjs` when the
+// glyph set changes; the same run also rewrites web/ink/glyphs.json. One source. See docs/tasks/T50.
 package com.troubashare.shared.stage
 
 import androidx.compose.ui.geometry.Offset

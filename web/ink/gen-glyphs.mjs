@@ -349,3 +349,44 @@ for (const [id, shapes] of Object.entries(GLYPHS)) glyphs[id] = buildGlyph(shape
 const outPath = join(HERE, "glyphs.json");
 writeFileSync(outPath, JSON.stringify({ version: 1, glyphs }, null, 2) + "\n");
 console.log(`wrote ${outPath}: ${Object.keys(glyphs).length} glyphs`);
+
+// ---- Kotlin app mirror (T50/A20) ----
+// One generator, TWO outputs: the same flattened geometry also emits the app's
+// CueGlyphData.kt, so a new glyph lands in glyphs.json AND the app in one run — the CI
+// `node gen-glyphs.mjs && git diff --exit-code` guard covers both, no drift folklore.
+function emitKotlin(glyphs) {
+  const num = (v) => `${v}f`;
+  const poly = (p) => "listOf(" + p.map(([x, y]) => `O(${num(x)},${num(y)})`).join(", ") + ")";
+  const polys = (ps) => (ps.length ? "listOf(" + ps.map(poly).join(", ") + ")" : "emptyList()");
+  const L = [];
+  L.push("// GENERATED from web/ink/glyphs.authoring.mjs by web/ink/gen-glyphs.mjs (T50 shared glyph");
+  L.push("// contract v1) — DO NOT EDIT BY HAND. Regenerate with `node web/ink/gen-glyphs.mjs` when the");
+  L.push("// glyph set changes; the same run also rewrites web/ink/glyphs.json. One source. See docs/tasks/T50.");
+  L.push("package com.troubashare.shared.stage");
+  L.push("");
+  L.push("import androidx.compose.ui.geometry.Offset");
+  L.push("");
+  L.push("/** One cue glyph's geometry, normalized to a 1x1 box (y-down): [strokes] are stroked (round");
+  L.push(" *  cap/join at [strokeWidth]*renderSize), [fills] are filled non-zero. Tinted at draw time. */");
+  L.push("internal class CueGlyph(val strokes: List<List<Offset>>, val fills: List<List<Offset>>, val strokeWidth: Float)");
+  L.push("");
+  L.push("private fun O(x: Float, y: Float) = Offset(x, y)");
+  L.push("");
+  L.push("/** The curated cue glyph set (T50), in authoring/picker order. Unknown ids resolve to `note`. */");
+  L.push("internal val CUE_GLYPHS: Map<String, CueGlyph> = mapOf(");
+  for (const [id, g] of Object.entries(glyphs)) {
+    L.push(`    "${id}" to CueGlyph(strokes = ${polys(g.strokes)}, fills = ${polys(g.fills)}, strokeWidth = ${num(g.strokeWidth)}),`);
+  }
+  L.push(")");
+  L.push("");
+  L.push("/** T50 fallback id for unknown/future icons. */");
+  L.push('internal const val CUE_FALLBACK_ID = "note"');
+  L.push("");
+  L.push("/** Resolve an icon id to a known glyph, falling back to [CUE_FALLBACK_ID] (never null). */");
+  L.push("internal fun cueGlyph(icon: String): CueGlyph = CUE_GLYPHS[icon] ?: CUE_GLYPHS.getValue(CUE_FALLBACK_ID)");
+  return L.join("\n") + "\n";
+}
+
+const ktPath = join(HERE, "..", "..", "app", "shared", "src", "commonMain", "kotlin", "com", "troubashare", "shared", "stage", "CueGlyphData.kt");
+writeFileSync(ktPath, emitKotlin(glyphs));
+console.log(`wrote ${ktPath}: ${Object.keys(glyphs).length} glyphs`);

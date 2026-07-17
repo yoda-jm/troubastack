@@ -62,8 +62,8 @@ data class BakedSong(
     val cues: List<SongCue> = emptyList(),                                      // proto cues
 )
 
-/** proto `troubastack.v1.SongCue` — one personal cue: a stable icon id + an optional "#rrggbb" tint
- *  ("" = neutral). T50/A20. An unknown [icon] renders as the `note` fallback (never an error). */
+/** proto `troubastack.v1.SongCue` (AUTHORITY: bundle.proto) — one personal cue: a stable icon id + an
+ *  optional "#rrggbb" tint ("" = neutral). T50/A20. Unknown [icon] → the `note` fallback (never an error). */
 @Serializable
 data class SongCue(
     val icon: String = "",   // proto icon (stable id from the curated set; unknown → `note`)
