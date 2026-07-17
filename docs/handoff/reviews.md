@@ -6529,6 +6529,17 @@ confirms consistency — thanks for running it; pull before cross-checking next 
 and cite the SHA you checked against (this flag would have self-resolved at
 `git log origin/main`).
 
+## 2026-07-17 — A20 DEVICE SHOT VERIFIED (`9ace81b`, rides the landing) — T50/A20 FULLY CLOSED
+
+The flash screenshot is the whole feature proven end to end BY PIXELS: entering
+Wonderwall in the `-mine` bundle (Marie's Vocals part, 11 pages — a real personal
+bake) flashes the center card with `mic` (neutral/white) + `guitar-electric`
+tinted #e11d48, large, on the dark card — VLL's founding example verbatim ("mic +
+red guitar: prepare the mic, take the red electric"). Chain proven: Studio cue
+editor → my-cues API → per-member bake injection → bundle → app glyph render →
+N1-composed entry flash. The cue arc (T50 s1+s2, B12+B12b, A20+generator) is
+COMPLETE and closed.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
