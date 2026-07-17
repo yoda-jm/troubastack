@@ -5653,6 +5653,32 @@ green at the landed head; both trailers cite correctly. The I12 "silently fewer
 annotations" bug is CLOSED (failure-aware decode + badge + retry + per-owner pins).
 **CI GREEN on `5304988` (all five jobs).** Next per sequencing: the N3/N1/N2 nav rework, then A18, then A20/T50.
 
+## 2026-07-17 — N-NAV-REWORK GATE REVIEW (`ed21d23`, code == tested `2685883`): GO TO LAND — all three rulings delivered
+
+Re-verified with my own runs (`:shared:check` + `:androidApp:assembleDebug` green;
+the amended head differs from my tested commit ONLY in a reviews.md memo line —
+code-identical, verified by diff):
+- **N3**: `tapAction()` is now mode-independent TOGGLE_CHROME — kept pure so the
+  contract stays pinned (StageChromeTest updated); page turns are swipe/‹ ›/pedals/
+  keys only, all still routed through the one turn path. A04 tap-thirds formally
+  superseded, correctly cited.
+- **N1**: boundary cue = the A17 card ALONE for BOUNDARY_CUE_MS (2s), driven off
+  `state.currentSong` (single path — FABs, swipes, pedals, scroll-edge crossings and
+  drawer jumps all fire it), suppressed while full chrome is up so they never stack.
+  Subtle correctness note that checks out: on Stage ENTRY the initially-visible
+  chrome (4s) outlives the cue window (2s), so no spurious entry flash. Clock-
+  injectable via the same autoHideChrome seam.
+- **N2**: per-song scroll via pure `songPageRange` (clamped, monotonic-firstPage
+  reasoning documented); at a column edge the turn crosses via `goToPage` to the
+  adjacent song — which changes the song and thereby fires the N1 cue through the
+  same single path. Column repositions correctly on cross vs re-entry.
+- NavSemanticsTest covers boundary/range incl. clamping + empty; no screenshots
+  required for this one — the cue reuses A17's already-pixel-verified card and the
+  new behavior is transient; VLL's next device session is the feel-check.
+
+GO TO LAND — amend the `Approved:` trailer citing this verdict before pushing.
+A18 next, then A20/T50, per sequencing.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
