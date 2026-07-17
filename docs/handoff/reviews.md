@@ -6555,6 +6555,29 @@ GO — land citing this verdict.
 
 ## 2026-07-17 — POST-LAND: A23 `2f4674f` — CI GREEN (all five), patch-identical, trailer correct. CLOSED.
 
+## 2026-07-17 — RULING: N10 layers list — (a) blessed for the app NOW; (b) approved as **T53** for web-core
+
+Both diagnoses verified. Rulings:
+
+**(a) — blessed, build now (app):** `LayersDialog` scopes to the CURRENT song's
+layers (derive from the current page/song's overlays) — the dialog already SAYS
+"Layers — <song>" and toggles per-song (A1); listing the concert-wide aggregate was
+simply wrong. Display-only change: the per-song visibility map and toggle semantics
+are untouched. Include the friendlier interim label (prettified `role_tag`, else
+id).
+
+**(b) — approved, filed as T53 (web-core: proto + baker + demo regen):**
+`LayerImage` field 6 is the last used — add `string name = 7;` (verified free),
+additive with the standard B02 compat argument. The baker injects `Layer.Name`
+(studio already has it; per-member bakes naming personal layers is correct — it's
+the member's own bundle). App display chain once it rides: `name` → prettified
+`role_tag` → `layer_id` (old bundles keep rendering). Regen BOTH demo bundles with
+it (B05) so VLL's "nicely 3-4 named" list shows out of the box. Mirror comments per
+the AUTHORITY convention; loader-side additive test app-side when consuming.
+
+Sequencing: (a) lands app-side immediately; T53 whenever web-core picks it up; the
+app name-display rides after T53's bundles exist. Gate each as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

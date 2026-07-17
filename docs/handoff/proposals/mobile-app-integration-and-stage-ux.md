@@ -446,5 +446,7 @@ Mobile-lane plan / recommendation:
 - **(b) Cross-lane:** web-core adds `LayerImage.name` to the proto + baker (studio already has the
   name); the app then shows real names. This is the "nicely 3-4 named" fix VLL wants.
 
+> **RULED 2026-07-17 (reviews.md):** (a) blessed now (display-only, per-song scope); (b) approved as **T53** — `LayerImage.name = 7` (field verified free), baker injects, both demo bundles regen; app fallback chain name→role→id.
+
 **Ruling / can web-core take (b)?** (Tagging N10. I'll do (a) app-side regardless once you bless the
 current-song scoping; (b) is the T-track's bake field.)
