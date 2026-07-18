@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/app/blob"
@@ -374,6 +375,128 @@ func TestBake_PersonalCuesInjected(t *testing.T) {
 		if got[i].Icon != want[i].Icon || got[i].Color != want[i].Color {
 			t.Fatalf("cue %d = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+// TestBake_BandWide_CarriesEveryMember is the P205 Stage-2 contract guard: ONE
+// band-wide bake (personal=false, baked by the admin) is THE bake for the whole
+// band — it must carry EVERY member's cues (member_cues) AND every member's
+// personal layer (owner-tagged), not just the actor's. This is the invariant that
+// lets scope=mine retire (Stage 2 step 4): if the band-wide bundle didn't already
+// carry a non-actor member's content, retiring the per-member bake would silently
+// drop it. The single-member tests above can't distinguish "the actor's" from
+// "everyone's" — this one has a second member whose content the admin never owns.
+func TestBake_BandWide_CarriesEveryMember(t *testing.T) {
+	repo := memrepo.New()
+	svc := app.NewService(repo)
+	svc.WithBlobStore(blob.NewMem())
+	eng := engine.New(memstore.New().(store.HistoryAware))
+
+	admin, err := svc.Register("admin", "Admin", "password123", "")
+	if err != nil {
+		t.Fatalf("register admin: %v", err)
+	}
+	band, err := svc.CreateBand(admin, "Band")
+	if err != nil {
+		t.Fatalf("band: %v", err)
+	}
+	song, err := svc.CreateSong(admin, band.ID, "Song", "")
+	if err != nil {
+		t.Fatalf("song: %v", err)
+	}
+	if _, err := svc.UploadSongFile(admin, band.ID, song.ID, "score.pdf", "application/pdf", []byte("%PDF-1.4 fixture")); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	// Leo is a second member (added directly — no invite flow needed here).
+	leo, err := svc.Register("leo", "Leo", "password123", "")
+	if err != nil {
+		t.Fatalf("register leo: %v", err)
+	}
+	if err := repo.AddMembership(app.Membership{BandID: band.ID, UserID: leo.ID, Role: app.RoleMember, CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatalf("add leo: %v", err)
+	}
+
+	// Each member has a PERSONAL annotation layer (owner-tagged) + a rect on it, and
+	// their own song cues. The admin owns neither Leo's layer nor Leo's cues.
+	mkLayer := func(layerID, owner string, order int) {
+		t.Helper()
+		if _, err := eng.Apply(song.ID, domain.Mutation{
+			Kind:     domain.KindLayerCreate,
+			Layer:    &domain.Layer{ID: layerID, Name: layerID, OwnerID: owner, Zone: domain.ZonePersonal, Order: order, Access: domain.AccessRW},
+			AuthorID: owner,
+		}); err != nil {
+			t.Fatalf("layer %s: %v", layerID, err)
+		}
+		if _, err := eng.Apply(song.ID, domain.Mutation{
+			Kind: domain.KindCreate, UUID: "o-" + layerID, AuthorID: owner,
+			Object: &domain.Object{
+				UUID: "o-" + layerID, LayerID: layerID, Type: domain.TypeRect, Page: 0, Version: 1,
+				Points: []domain.Point{{X: 0.2, Y: 0.1}, {X: 0.5, Y: 0.3}},
+				Style:  domain.Style{Color: "#e11d48", Opacity: 1, Width: 0.004},
+			},
+		}); err != nil {
+			t.Fatalf("object %s: %v", layerID, err)
+		}
+	}
+	mkLayer("LA", admin.ID, 0)
+	mkLayer("LL", leo.ID, 1)
+
+	if _, err := svc.SetMyCues(admin, band.ID, song.ID, []app.SongCue{{Icon: "mic"}}); err != nil {
+		t.Fatalf("admin cues: %v", err)
+	}
+	if _, err := svc.SetMyCues(leo, band.ID, song.ID, []app.SongCue{{Icon: "guitar-acoustic"}, {Icon: "tambourine"}}); err != nil {
+		t.Fatalf("leo cues: %v", err)
+	}
+
+	sl, err := svc.CreateSetlist(admin, band.ID, "Gig", "", "", "")
+	if err != nil {
+		t.Fatalf("setlist: %v", err)
+	}
+	if _, err := svc.AddSetlistItem(admin, band.ID, sl.ID, song.ID); err != nil {
+		t.Fatalf("add item: %v", err)
+	}
+
+	png := tinyPNG(t, 40, 56)
+	b := &Baker{
+		svc: svc, eng: eng,
+		raster:   fakeRaster{pages: 1, png: png},
+		overlays: fakeOverlays{png: png},
+		bakesDir: t.TempDir(),
+		now:      func() int64 { return 1700000000 },
+	}
+	cb, err := b.Bake(context.Background(), band.ID, sl.ID, admin, false, nil)
+	if err != nil {
+		t.Fatalf("band-wide bake: %v", err)
+	}
+
+	// Roster carries both members.
+	if len(cb.Roster) != 2 {
+		t.Fatalf("roster = %+v, want both members", cb.Roster)
+	}
+
+	// member_cues carries BOTH members' cues, keyed by member id — including Leo's,
+	// which the admin does not own.
+	byMember := map[string][]SongCue{}
+	for _, mc := range cb.Songs[0].MemberCues {
+		byMember[mc.MemberID] = mc.Cues
+	}
+	if got := byMember[admin.ID]; len(got) != 1 || got[0].Icon != "mic" {
+		t.Fatalf("admin member_cues = %+v, want [mic]", got)
+	}
+	if got := byMember[leo.ID]; len(got) != 2 || got[0].Icon != "guitar-acoustic" || got[1].Icon != "tambourine" {
+		t.Fatalf("leo member_cues = %+v, want [guitar-acoustic, tambourine] (a NON-actor member's cues must ride the band-wide bake)", got)
+	}
+
+	// Both members' personal layers ride the band-wide bake, owner-tagged — so the
+	// viewer can filter to its own identity at view time (Stage 3).
+	owners := map[string]bool{}
+	for _, pg := range cb.Songs[0].Pages {
+		for _, ov := range pg.Overlays {
+			owners[ov.Owner] = true
+		}
+	}
+	if !owners[admin.ID] || !owners[leo.ID] {
+		t.Fatalf("overlay owners = %v, want both admin %q and the NON-actor leo %q owner-tagged", owners, admin.ID, leo.ID)
 	}
 }
 

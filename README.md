@@ -158,9 +158,11 @@ A baked concert with **real music and real annotations** is committed at
 *"Sat @ The Anchor"* setlist: Wonderwall, Hallelujah, Black Hole Sun, and the original
 *The Open Road* lead sheet + tab, flattened by the real bake pipeline; see
 [`docs/demo/README.md`](docs/demo/README.md) for how it's made),
-so you can present the app without running anything. A second bundle
-[`demo-concert-mine.tstage`](docs/demo/demo-concert-mine.tstage) is Marie's **personal**
-bake — same setlist, but it carries her per-member **song cues** and her "my files" parts.
+so you can present the app without running anything. It's the **band-wide bundle** (P205):
+one artifact for the whole band — it carries the roster, every layer owner-tagged, and
+every member's **song cues**, and the presenter filters to the viewer's identity at view
+time. (A second `demo-concert-mine.tstage` is a **temporary bridge** carrying Marie's cues
+for current app builds; it's removed once the app reads `member_cues` — P205 Stage 3a.)
 
 ```sh
 adb push docs/demo/demo-concert.tstage /sdcard/Download/
