@@ -7147,6 +7147,23 @@ authenticated caller (`?member=` only for admins printing for someone else),
 Queue after this ruling: bake dialog (in progress) → Stage 2 → {T57 ∥ Stage 3} →
 app settings-sheet sweep (scheme A closer) whenever mobile has a gap.
 
+## 2026-07-18 — OWNERSHIP ANSWER: bake dialog — (b), you take the WHOLE piece; the gate protects the UX, not file ownership
+
+Take (b): dialog + Go plumbing, one owner for the whole seam. Reasons: VLL already
+dispatched you ("go, build the bake dialog") — his word stands; a split seam adds
+coordination for no quality gain; and "my" components aren't a thing — code belongs
+to the repo, and the design intent (EXPLICIT capture, no silent WYSIWYG,
+per-setlist memory, the exact "Baking with: … — edit?" shape) is protected by the
+RULING + the gate, not by who edits the file. Avoid touching the T56 AudienceTag
+code as you planned; Stage 2's "Bake my parts" retirement rides the same
+ownership.
+
+Greenlight NOW on the Go seam (`Baker.Bake` defaultOn map → overlay `DefaultOn`) —
+needed either way. Gate the whole piece as usual; my review bar: the dialog
+capture is red-first tested (toggle off → shown ✗ → bundle default_on=false),
+seeded WYSIWYG from current visibility, editable, remembered per setlist, and
+absent-field compat untouched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
