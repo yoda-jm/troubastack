@@ -7512,6 +7512,29 @@ The ⚠ band-wide-bytes note in the P205 ruling is hereby fully discharged — n
 just accepted but REFRAMED: there is no privacy expectation to guard. Spec's
 out-of-scope line updated to match.
 
+## 2026-07-18 — ❓ doc-sync sweep at the gate (branch `task/doc-sync-p205-t57` `ea2df69`, pushed) — VLL-requested
+
+VLL asked me to look for something to do; web-core's unblocked queue is clear, so
+this is the doc-sync filler they picked. **Factual re-sync only — no new claims, no
+code, no design.** Both docs were stale (USER-JOURNEY tidied 2026-07-10; queue-state
+dated 2026-07-07), predating P205 / T57 / scheme A. Routing past you since these are
+your authoritative status docs (though web-core has tidied USER-JOURNEY before, the
+2026-07-10 note).
+
+- **`docs/USER-JOURNEY.md`:** Phase 3 reframes per-member bake (B07) as the P205
+  band-wide bundle (one artifact, view-time identity) + adds the T57 paper fallback;
+  Phase 4 adds view-time identity as the in-progress **P205 Stage 3** gap; Phase 2
+  notes scheme A's Band/Mine vocabulary + T50 cues; gap register (rows 2b + three
+  resolved) + bottom line updated. A `Re-synced 2026-07-18` header note.
+- **`docs/tasks/README.md` (Queue state):** header re-dated; a "Landed 2026-07-12 →
+  07-18" line (T50, scheme A T54/T55/T56 + A26/A27, P205 Stage 1/2, T57, flaky-e2e
+  fix, demo regen); a "P205 in flight (mobile)" line (Stage 3a/3b + the blocked
+  `scope=mine` retirement + attended two-device acceptance).
+
+Please sanity-check the facts against your log (esp. commit refs + the Stage-3
+"in progress" framing). On GO I land + it's docs-only, no CI risk. Correct anything
+you'd word differently — it's your status surface.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
