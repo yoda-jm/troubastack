@@ -108,6 +108,13 @@ const setSelColor = (page: Page, c: string) => page.getByTestId("sel-color").fil
 test("editor: selection toolbar reorders z (render), duplicates, recolors, deletes", async ({
   page,
 }) => {
+  // This is a legitimately heavy end-to-end test (register → band → song → upload →
+  // reload → editor → layer → two large draws → six pixel/count polls → select /
+  // bring-front / send-back / duplicate / recolour / delete). Every assertion below
+  // stays strict; it just brushed the default 30s budget on a loaded CI runner
+  // (reproduced red under 4-worker CPU contention: ~31s vs a 26–29s pass). test.slow()
+  // triples the budget so contention has headroom — a timeout fix, not a loosened check.
+  test.slow();
   await register(page, `zo_${stamp()}`);
   await createBandAndOpen(page, `ZOBand ${stamp()}`);
   await createSongAndOpen(page, `ZOSong ${stamp()}`);
@@ -134,8 +141,8 @@ test("editor: selection toolbar reorders z (render), duplicates, recolors, delet
   await expect(page.getByTestId("sel-toolbar")).toBeVisible();
   await setSelColor(page, "#0000ff");
 
-  // Overlap centre (≈0.49,0.49): B (blue) is on top.
-  await page.waitForTimeout(250);
+  // Overlap centre (≈0.49,0.49): B (blue) is on top. The poll waits for the render
+  // to settle on its own — no fixed sleep needed.
   await expect.poll(() => overlayPixel(page, 0.49, 0.49).then(isBluish)).toBe(true);
 
   // Select A (its own region), bring to front → overlap flips RED.
