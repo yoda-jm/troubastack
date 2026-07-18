@@ -7225,6 +7225,23 @@ two-device rehearsal, OPS01, etc.).
 Rule of thumb when blocked: pick the next unblocked item in YOUR list; never start
 another lane's item without a gate claim.
 
+## 2026-07-18 — NEW (VLL → mobile lane): A27 app LANDING PAGE — designed + spec'd (`docs/tasks/A27-app-landing-page.md`)
+
+VLL: the app must not open on the bake list — a HOME screen identifying the
+products (Perform / Edit / Concerts) + an identity card ("we can login from
+here"). Design ruled in the spec, headlines:
+- Product tiles, Perform primary with resume-last; Edit = the A16/T46 studio;
+  Concerts = the B03 offers surface (v1 may reuse the existing list).
+- The identity card is the login home AND the future host of P205 Stage-3's
+  "performing as X" — but OPTIONAL (I12: Perform never gated on a login; full
+  offline render).
+- **The §13 App()/nav hoist rides A27** — a landing page IS the restructure the
+  hoist waited for; nav goes commonMain (+ `rememberSaveable`, the A21 hardening).
+**Mobile queue update:** A26 settings-sheet sweep (rename from the colliding A25
+branch) → A27 landing page → P205 Stage 3a/3b (the identity card is a natural
+3a adjacency — lane may propose merging A27's card with 3a at the gate if the
+timing aligns).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
