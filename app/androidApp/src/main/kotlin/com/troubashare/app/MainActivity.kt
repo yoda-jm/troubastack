@@ -59,8 +59,6 @@ import com.troubashare.shared.stage.PageTurn
 import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
-import com.troubashare.shared.stage.WhoAreYouDialog
-import com.troubashare.shared.stage.needsIdentityPick
 import com.troubashare.shared.stage.resolveIdentity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -194,9 +192,10 @@ private fun App() {
     val loadResult = remember(dir) { BundleLoader().load(dir, FileBundleFiles()) }
     val roster = remember(loadResult) { (loadResult as? LoadResult.Loaded)?.bundle?.roster ?: emptyList() }
     val idKey = "identity.$concertId"
-    // Stage 3a: a stored pick wins; else auto-match the logged-in member against the roster; else prompt.
-    var identity by rememberSaveable(dir, me?.userId) { mutableStateOf(resolveIdentity(roster, storage.getSecret(idKey), autoUserId = me?.userId ?: "")) }
-    var pickerHandled by rememberSaveable(dir) { mutableStateOf(false) }
+    // Stage 3a: a stored pick wins; else auto-match the logged-in member against the roster; else the
+    // Stage shows the "Who are you?" picker (StageScreen owns it). This value SEEDS the VM; the in-Stage
+    // picker/switch calls vm.setIdentity + onIdentityChange (below) to persist.
+    val identity = remember(dir, me?.userId) { resolveIdentity(roster, storage.getSecret(idKey), autoUserId = me?.userId ?: "") }
 
     val opened = remember(dir, identity) {
         OpenedBundle(
@@ -243,17 +242,10 @@ private fun App() {
                 onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
                 onFitModeChange = { storage.putSecret(FIT_MODE_KEY, it.name) },
                 canAutoUpdate = concertId.isNotEmpty(),
+                // Stage 3a-ii: StageScreen shows the "Who are you?" picker / "Switch"; persist the pick per concert.
+                onIdentityChange = { m -> storage.putSecret(idKey, m) },
             )
         }
-    }
-    // Stage 3a-ii: on a band-wide bundle with no identity yet, ask once. Picking re-seeds the VM
-    // (this member's layers + cues) and remembers per concert; "Not now" plays anonymous this session.
-    if (needsIdentityPick(roster, identity) && !pickerHandled) {
-        WhoAreYouDialog(
-            roster = roster,
-            onPick = { m -> storage.putSecret(idKey, m); identity = m; pickerHandled = true },
-            onDismiss = { pickerHandled = true },
-        )
     }
     BackHandler { selectedDir = null }
 }

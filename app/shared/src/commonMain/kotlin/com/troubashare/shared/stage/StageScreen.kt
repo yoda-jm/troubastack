@@ -159,6 +159,9 @@ fun StageScreen(
     // it lives in the VM (StageState.autoUpdate) and resets when Stage is left; the host
     // watches it to run/stop the poll loop. Default false ⇒ no toggle (iOS host, tests).
     canAutoUpdate: Boolean = false,
+    // P205 Stage 3a: persist the viewer's identity pick per concert. Called when the "Who are you?"
+    // picker or the "Switch" affordance sets an identity; the host writes it (I12 — a view preference).
+    onIdentityChange: (String) -> Unit = {},
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -173,7 +176,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange)
         }
     }
 }
@@ -189,11 +192,16 @@ private fun Performing(
     onColorModeChange: (StageColorMode) -> Unit,
     onFitModeChange: (FitMode) -> Unit,
     canAutoUpdate: Boolean,
+    onIdentityChange: (String) -> Unit = {},
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     val cache = remember { PageImageCache() }
     val page = state.currentPage ?: return
     var showLayers by remember { mutableStateOf(false) }
+    // P205 Stage 3a: identity picker state. On a band-wide bundle with no resolved identity we prompt
+    // once (dismiss ⇒ anonymous this session); the settings sheet's "Switch" re-opens it any time.
+    var switchIdentity by remember { mutableStateOf(false) }
+    var pickDismissed by remember { mutableStateOf(false) }
     var showRole by remember { mutableStateOf(false) }
     // A2: the settings sheet (reading mode / layers / role / day-night) opened from the ⚙ FAB.
     var showSettings by remember { mutableStateOf(false) }
@@ -540,10 +548,21 @@ private fun Performing(
         onLayers = { showSettings = false; showLayers = true },
         onRole = { showSettings = false; showRole = true },
         onToggleColor = { colorMode = colorMode.next(); onColorModeChange(colorMode) },
+        onSwitchIdentity = { showSettings = false; switchIdentity = true },
         onDismiss = { showSettings = false },
     )
     if (showLayers) LayersDialog(state, vm) { showLayers = false }
     if (showRole) RoleDialog(state, vm) { showRole = false }
+    // P205 Stage 3a: the "Who are you?" picker. Shows once on a band-wide bundle with no resolved
+    // identity (VLL: connected+match auto-selects and SKIPS this — resolveIdentity already did), or
+    // whenever the reader taps "Switch". Picking re-seeds the VM (setIdentity) and persists (host).
+    if (switchIdentity || (needsIdentityPick(state.roster, state.identity) && !pickDismissed)) {
+        WhoAreYouDialog(
+            roster = state.roster,
+            onPick = { m -> vm.setIdentity(m); onIdentityChange(m); switchIdentity = false; pickDismissed = false },
+            onDismiss = { switchIdentity = false; pickDismissed = true },
+        )
+    }
 }
 
 // N5 — Stage control styling. The A17 disc was translucent-DARK on a BLACK canvas, so on the black
@@ -679,6 +698,7 @@ private fun SettingsSheet(
     onLayers: () -> Unit,
     onRole: () -> Unit,
     onToggleColor: () -> Unit,
+    onSwitchIdentity: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState()) {
@@ -686,6 +706,15 @@ private fun SettingsSheet(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // P205 Stage 3a: "Performing as <you> · Switch" — only on a band-wide bundle (roster present).
+            // The switch is a free, unverified re-pick (VLL: no auth, a strong default when connected).
+            if (state.roster.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    val who = state.roster.firstOrNull { it.memberId == state.identity }?.displayName ?: "anonymous"
+                    Text("Performing as $who", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onSwitchIdentity) { Text("Switch") }
+                }
+            }
             Text("Reading mode", style = MaterialTheme.typography.titleSmall)
             val modes = listOf(FitMode.FIT_PAGE to "Page", FitMode.FIT_WIDTH to "Width", FitMode.SCROLL to "Scroll")
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
