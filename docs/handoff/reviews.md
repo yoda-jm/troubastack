@@ -7382,6 +7382,52 @@ Stage 3a (the identity card is ready to host "Performing as …").
 
 ## 2026-07-18 — POST-LAND: A27 `24a1a83`+`10d65ce` — CI GREEN (all five, both runs), rework patch-identical, trailer correct. CLOSED. The app opens on Home. Mobile next: P205 Stage 3a (identity + cues + defaults; bridge deletion on its checklist).
 
+## 2026-07-18 — ❓ T57 at the gate (branch `task/T57` `e918a15`, pushed) — concert-to-PDF + the shared view-resolution contract for Stage 3a to bless
+
+Next web-core item (waited on P205 Stage 2, landed). Built + green; **holding for
+your GO** — the centrepiece is a **cross-lane contract the mobile lane will build
+Stage 3a against**, so I want your eyes on the semantics before it's consumed.
+
+**What it is (pure compositing over an existing bundle — no new render pipeline):**
+- **The rule — `bake.LayerVisible`** (one function, the whole point). Precedence,
+  highest first: `mandatory` > personal layer (`owner != ""` → on iff it's the
+  viewer's own) > shared layer (`roleOK && defaultOK`, `roleOK = roleTag=="" ||
+  roleTag==role`, `defaultOK = defaultOn==nil ? true : *defaultOn`). Never a live
+  session's toggles (a printed backup must be reproducible).
+- **The contract file — `core/internal/bake/testdata/view-resolution.vectors.json`**
+  (12 cases + schema + README). The Go test runs it NOW; the app commonTest runs
+  the SAME cases at **Stage 3a** so **print == screen by construction** (glyphs.json
+  pattern applied to semantics). I authored the vectors per the queue directive
+  ("you author the vectors, both lanes run them").
+- **Compositing + PDF — `bake.ConcertPDF`:** raster + visible overlays (z-order,
+  onto white) → JPEG q85 → one A4 page each via **fpdf** (already a dep), header
+  "«Song» — page n/m [· On call]", footer "«Concert» · p/P", bench songs LAST,
+  pinned dates ⇒ deterministic bytes. Pure Go, no CGo/shell-outs.
+- **Endpoint** `GET …/concerts/{id}/pdf?role=X&member=Y` (same gating as the bundle
+  download; `?member=` admin-only). **Studio** "Download PDF" beside the .tstage link.
+
+**Two edge decisions I want you to confirm (they lock the mobile lane's behavior):**
+1. **Identity outranks `default_on` for personal layers** — my own personal layer
+   prints for me *even if* its `default_on=false` (I followed the ruled precedence
+   "identity > default_on"). Alternative: respect an explicit bake-time off even for
+   the owner. Vector: "my own personal layer prints for me even with default_on=false".
+2. **`default_on ∧ role_tag` is a true AND** — a role-tagged shared layer with
+   `default_on=true` still stays OFF for a non-matching role. Vector included.
+
+**Deviations from the spec letter (all within "lane's pick"):** used **fpdf** (the
+in-repo seed/chartpdf writer) instead of a hand-rolled writer/pdfcpu — no new dep;
+skipped `x/image/webp` because bundle blobs are **PNG** in practice and `image.Decode`
+is format-agnostic (webp slots in free if a blob ever is one).
+
+**Acceptance — all met:** page count == baked pages; valid PDF (header/xref/%%EOF);
+deterministic modulo timestamps; compositing red-first (owner sees a red personal
+overlay, a non-owner is filtered); e2e button downloads application/pdf, size sane;
+gofmt/vet + bake/httpapi + tsc trio + 4 bake e2e green; no new system deps.
+
+**For the mobile lane (Stage 3a), on GO:** consume this exact vectors file in
+commonTest + add the drift-guard (mirroring the glyphs/`CueGlyphData.kt` CI check) —
+noted in `testdata/README.md`. On your GO I land citing the verdict + poll CI.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
