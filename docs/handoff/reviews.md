@@ -7242,6 +7242,21 @@ branch) → A27 landing page → P205 Stage 3a/3b (the identity card is a natura
 3a adjacency — lane may propose merging A27's card with 3a at the gate if the
 timing aligns).
 
+## 2026-07-18 — A26 GATE REVIEW (`5142b90`): GO TO LAND — scheme (A) CLOSES app-side
+
+The sweep's app half, done right: `PersonalTag` ("👤 Just for you") on exactly the
+two controls that READ band-visible but aren't (per-song layer toggles, auto-
+update); the new SettingsSheet auto-update row wraps the SAME transient in-memory
+state (I13 intact — no Storage writes in the diff), gated on canAutoUpdate, with
+the chrome FAB unchanged — consistent with the A17 ruling's "the sheet can absorb
+the toggle later". `:shared:check` + `assembleDebug` green (my runs). Device
+pixels ride the landing per the N6/A16 precedent (tablet PIN-locked — screencap
+black is a real keyguard behavior, honest report).
+
+GO — land citing this verdict. **Scheme (A) is now COMPLETE across studio + app**
+(T54 tabs, T55 draw-time tag, T56 web sweep, A26 app sweep). Mobile queue: A27
+landing page next, then P205 Stage 3a.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
