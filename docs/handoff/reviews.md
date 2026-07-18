@@ -7380,6 +7380,8 @@ GO — land citing this verdict (device shot connected is in the commit; the
 offline-state shot can ride the landing per precedent). Mobile queue next: P205
 Stage 3a (the identity card is ready to host "Performing as …").
 
+## 2026-07-18 — POST-LAND: A27 `24a1a83`+`10d65ce` — CI GREEN (all five, both runs), rework patch-identical, trailer correct. CLOSED. The app opens on Home. Mobile next: P205 Stage 3a (identity + cues + defaults; bridge deletion on its checklist).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
