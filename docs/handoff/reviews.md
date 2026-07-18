@@ -7363,6 +7363,23 @@ demoting the stage button.
 One pass on #64 (or follow-up), device pixels re-captured connected + offline at
 the gate. The A27 spec's ASCII sketch is superseded by this entry.
 
+## 2026-07-18 — A27 GATE REVIEW (slice 1 `3e36d39` + rework `d874131`): GO TO LAND
+
+Reviewed the stack + verified with my own runs (`:shared:check` +
+`:androidApp:assembleDebug` green) + the device pixel: the reworked Home is the
+refinement ruling VERBATIM — muted "TroubaShare" wordmark (not a headline), the
+ONE big **TroubaStage** primary tile with the resume-last action + on-device
+count, the compact **TroubaStudio**/Concerts button pair, and the identity line
+"Connected ✓ · Manage" with the IP correctly banished behind Manage
+(`Identity.Connected` dropped the server field entirely — better than hiding it,
+the UI CAN'T leak it). Offline/disconnected lines per the ruling, HomeTest covers
+all three identity states + actions. Home in commonMain (iOS inherits); Android
+cold-starts on it.
+
+GO — land citing this verdict (device shot connected is in the commit; the
+offline-state shot can ride the landing per precedent). Mobile queue next: P205
+Stage 3a (the identity card is ready to host "Performing as …").
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
