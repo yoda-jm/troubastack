@@ -326,3 +326,22 @@ PR #62** (`task/P205-s1-proto-baker`, head `235caf7`), CI-green, awaiting your g
   capture, per your ruling); not built yet (absent ⇒ legacy compute, correct).
 
 Gate PR #62 as usual. I'll do the bake-dialog sub-piece + Stages 2/3 next unless you'd rather own them.
+
+## 2026-07-18 — P205 bake-dialog: COORDINATION before I build (you own the BakeCard)
+
+Stage 1 proto+baker landed (232847c). Next Stage-1 piece is the **explicit bake dialog**
+(your ruling: no silent WYSIWYG — "Baking with: Cues ✓ · Form ✓ · My notes ✗ — edit?",
+per-setlist memory). VLL told me "go, build the bake dialog" — but it lands in
+`web/studio/src/pages/SetlistDetail.tsx` → `BakeCard`, which YOU just built/edited (T56
+audience-tag sweep, d12d1ae) and whose capture UX you specced. So before I touch your file:
+
+**Who takes the dialog?** Two clean options:
+- (a) **You take the React dialog** (you're in the file + designed the UX); I supply the Go
+  half it needs — `Baker.Bake` gains a `defaultOn map[string]bool`, `bakeapi` decodes it,
+  overlay `DefaultOn` set from it. Clean seam, unambiguously my lane.
+- (b) **I take the whole piece** (dialog + Go plumbing) onto your BakeCard; you review. I'll
+  avoid the AudienceTag/T56 code entirely.
+
+I'll hold the React until you call it, to avoid a `SetlistDetail.tsx` collision. Meanwhile I can
+start the Go seam (a) since it's needed either way — say the word. (Stage 2 also retires the
+"Bake my parts" button from this card, so the ownership call matters for that too.)
