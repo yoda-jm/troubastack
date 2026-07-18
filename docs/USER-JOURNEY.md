@@ -12,6 +12,13 @@ resolved items are marked ✅ with their task/commit ref, still-open ones stay f
 Landings since: T20, T21, A08–A12 (stage-ergonomics trio + facing pages), B06 core
 slice, B07, P202 safe slice, and T32 (insecure-context uuid + global error visibility).*
 
+*Re-synced 2026-07-18 (web-core): the **P205 band-wide bundle** program reframed the
+bake model — ONE bundle now serves the whole band and identity resolves at VIEW time
+(Stage 1 bake dialog + Stage 2 band-wide bake landed; Stage 3 app-side identity is the
+mobile lane, in progress). **T57** added a printable-PDF paper fallback. **Scheme A**
+(T54–T56 + app A26) unified the "👥 Band / 👤 Mine" vocabulary across studio + app.
+These are woven into Phases 2–4 and the gap register below.*
+
 ---
 
 ## The cast
@@ -88,7 +95,12 @@ that only matter when she's directing.
 - **Layer model matches band reality**: personal layers (private-by-default),
   shared/mandatory layers, conductor `roleTag` — all of which survive into the bake
   and Stage's Role/Layers toggles (proven in the shipped demo: Form / conductor Cues /
-  Marie's notes).
+  Marie's notes). **Scheme A** (T54–T56, app A26) gave this one vocabulary everywhere:
+  a **👥 Band / 👤 Mine** tag on layers, the draw-time "Drawing on:" chip, and the
+  audience-tabbed Details panel, so "what's shared vs. what's just mine" reads at a glance.
+- **Personal song cues** (T50) — each member sets a small set of tinted instrument/role
+  icons per song, shown on the setlist row and flashed on song entry; per-member and
+  self-only.
 - Tablet editing via the app's Studio WebView (A06); song history is linear and
   append-only, revert = new head (I4) — no rehearsal can destroy history.
 
@@ -119,13 +131,26 @@ offer the download.
 - **In-app distribution** (B03): offers ("New" / "update to rev N") applied only on
   tap, atomic swap, download-failure leaves the old bundle intact (tested), FROZEN /
   local pin / server `final_locked` all suppress offers.
+- **One band-wide bundle** (P205, ✅ web-core): the bake now produces a SINGLE bundle
+  that carries the whole band — the roster, every layer owner-tagged, and every member's
+  cues — so identity resolves at VIEW time instead of minting a bundle per member. The
+  **bake dialog** captures which layers are on by default, explicitly (no silent
+  capture). The app-side identity filter (who-am-I → my layers + my cues) is **P205
+  Stage 3**, the mobile lane's in-progress piece; until it ships, a temporary
+  `demo-concert-mine.tstage` bridge keeps the current app's cue demo working.
+- **Paper fallback** (T57, ✅): "Download PDF" beside the bundle download composites
+  the concert to a printable A4 PDF (your view — mandatory + shared + your own layers),
+  for the "tablet died mid-set" case. Same view-resolution rule as the screen, so print
+  == screen by construction.
 
 **Gaps:**
 - **Who may bake** — rule I11 permits "admin *or* member", v1 ships admin-only:
   `[product-call]` (documented in ARCHITECTURE).
 - **Per-member bake** — bake *my-files* views so Leo's stand shows his tab, not the
-  default score: ✅ **B07** landed — per-member bakes are real (`2a53bfe`), the
-  most-requested-by-the-story feature delivered.
+  default score: ✅ **B07** landed (`2a53bfe`), then **reframed by P205**: rather than a
+  separate bundle per member, the ONE band-wide bundle carries everyone's layers + cues
+  and the presenter filters to your identity at view time (Stage 3, mobile). `scope=mine`
+  survives as a bridge until Stage 3 ships, then retires.
 - **"New bake is up" notification** — offers appear when the app is opened; nothing
   pushes: `[needs-task]` later (self-hosted push is nontrivial; a poll-on-app-open is
   what exists and is honest).
@@ -165,6 +190,12 @@ surprises: page turns, role-appropriate layers, and nothing else.
   gig feedback.
 - Devices are updated *before* the show by I13 design; a mid-show "rev 3 available"
   can never interrupt (offers render only in the concerts list — validated).
+- **View-time identity** (who's holding this tablet → show their layers + cues from the
+  one band-wide bundle): `[spec'd]` **P205 Stage 3** (mobile), in progress — a
+  Connect-session auto-match or a one-tap "Who are you?" picker, remembered per
+  concert/device (no account, I12 held). The bundle already carries the roster +
+  per-member cues + owner-tagged layers (Stage 1/2 ✅); the app-side filter is the
+  remaining piece. The printed PDF (T57) already implements the identical rule server-side.
 
 ## Phase 5 — The day after, and the months after
 
@@ -200,6 +231,7 @@ soundcheck. A year later there are 40 bakes on the laptop and a new drummer join
 |---|---|---|---|
 | 1 | Production serving: TLS, service, backup/restore, release APK | spec'd | **OPS01** |
 | 2 | Rehearsal live mode (autobake + banner + transient auto-update) | spec'd | **P201** |
+| 2b | View-time identity on Stage (one band-wide bundle → my layers + cues) | spec'd | **P205 Stage 3** (mobile, in progress) |
 | 5 | LAN discovery — the app's Connect-screen prefill (core mDNS ✅ done) | app half | **B06** (mobile) |
 | 9 | Bake **history-compaction** GC (the deferred P202 half) | spec'd | **P204** (until real pressure) |
 | 10 | Proto codegen (maintainer risk, not user-visible) | product-call | **P203** promote? |
@@ -217,12 +249,16 @@ soundcheck. A year later there are 40 bakes on the laptop and a new drummer join
 | 8 | Password reset (admin-assisted) | ✅ **T21** (`troubacore reset-password`, QR link) |
 | 9a | Bake retention — prune old bake outputs | ✅ **P202** safe slice (`troubacore gc`) |
 | — | Silent client failures (insecure-context `crypto.randomUUID`, any uncaught error) | ✅ **T32** (`newUuid` + global error visibility) |
+| — | One bundle for the whole band (roster + all cues + owner-tagged layers; bake dialog) | ✅ **P205 Stage 1/2** (`df0f3be`, `ed1966c`) — web-core; Stage 3 (app identity) in progress |
+| — | Printable paper fallback (concert → A4 PDF, print == screen) | ✅ **T57** (`0ebb346`) |
+| — | One Band/Mine vocabulary across studio + app (audience tags, draw-time chip, tabs) | ✅ **Scheme A: T54/T55/T56 + A26** |
 
 **Bottom line:** Phases 1–4 are real, tested, and evidenced — including the full
-stage-ergonomics arc (A08–A12) and per-member bakes (B07), which have all landed since
-this doc was written; a band could run a rehearsal and play a gig on this stack *today*
-if someone technical babysits the server. The **one** thing now standing between "demo"
-and "my band actually uses this" is **OPS01** — a server normal humans can keep alive
-(TLS, service, backup, signed APK). After that, **P201** (live rehearsal mode) is the
-big *lovable* workflow. T32 also closed a real adoption blocker this week: the product
-now works on a plain-HTTP self-hosted origin, and no client error dies silently.
+stage-ergonomics arc (A08–A12), and now the **P205 band-wide bundle** (one artifact
+serves the whole band; identity resolves at view time) and a **printable paper fallback**
+(T57), which landed since this doc was tidied. A band could run a rehearsal and play a
+gig on this stack *today* if someone technical babysits the server. The **one** thing
+now standing between "demo" and "my band actually uses this" is still **OPS01** — a
+server normal humans can keep alive (TLS, service, backup, signed APK). After that,
+**P201** (live rehearsal mode) is the big *lovable* workflow, and **P205 Stage 3** (the
+app-side view-time identity) completes the band-wide-bundle story on stage.
