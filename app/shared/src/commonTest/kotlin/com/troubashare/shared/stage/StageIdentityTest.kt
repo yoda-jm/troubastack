@@ -10,9 +10,11 @@ import com.troubashare.shared.bundle.PageImages
 import com.troubashare.shared.bundle.SongCue
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
-/** P205 Stage 3a — view-time identity: roster in state, member_cues by identity (field-10 fallback),
- *  and the default-visibility precedence (mandatory > mine > others'-off > default_on∧role > role). */
+/** P205 Stage 3a/3b — view-time identity: roster in state, member_cues by identity (field-10 fallback),
+ *  default-visibility precedence, and Stage-3b filtering (other members' personal layers dropped). */
 class StageIdentityTest {
 
     private val MARIE = "m-marie"
@@ -49,23 +51,39 @@ class StageIdentityTest {
     private fun state(identity: String) =
         StageViewModel(LoadResult.Loaded(bundle(), emptyList()), identity = identity).state.value
 
+    // Build a LayerInfo directly so the precedence test is independent of Stage-3b filtering (which
+    // would remove another member's layer from state.layers before we could assert on it).
+    private fun li(id: String, owner: String = "", role: String = "", mandatory: Boolean = false, defaultOn: Boolean? = null) =
+        LayerInfo(id, mandatory = mandatory, roleTag = role, owner = owner, defaultOn = defaultOn)
+
     @Test
     fun defaultVisible_precedence() {
-        val layers = state(MARIE).layers
-        fun vis(id: String, identity: String) =
-            defaultVisible(layers.first { it.layerId == id }, role = "", identity = identity)
-
         // mandatory: always on, for anyone.
-        assertEquals(true, vis("cond", ""))
+        assertEquals(true, defaultVisible(li("cond", role = "conductor", mandatory = true), role = "", identity = ""))
         // my personal layer on for me; another member's personal layer NOT for me.
-        assertEquals(true, vis("mine-marie", MARIE))
-        assertEquals(false, vis("mine-marie", LEO))
-        assertEquals(false, vis("mine-leo", MARIE))
+        assertEquals(true, defaultVisible(li("mm", owner = MARIE), role = "", identity = MARIE))
+        assertEquals(false, defaultVisible(li("mm", owner = MARIE), role = "", identity = LEO))
+        assertEquals(false, defaultVisible(li("ml", owner = LEO), role = "", identity = MARIE))
         // shared layer baked OFF stays off even though its roleTag is empty (default_on overrides legacy).
-        assertEquals(false, vis("form", MARIE))
+        assertEquals(false, defaultVisible(li("form", defaultOn = false), role = "", identity = MARIE))
         // role-scoped shared layer: off for the empty role, on when the role matches.
-        assertEquals(false, vis("guitar", MARIE))
-        assertEquals(true, defaultVisible(layers.first { it.layerId == "guitar" }, role = "guitar", identity = MARIE))
+        assertEquals(false, defaultVisible(li("guitar", role = "guitar"), role = "", identity = MARIE))
+        assertEquals(true, defaultVisible(li("guitar", role = "guitar"), role = "guitar", identity = MARIE))
+    }
+
+    @Test
+    fun stage3b_dropsOtherMembersLayers_fromModelAndComposite() {
+        val marie = state(MARIE)
+        // Leo's personal layer is gone entirely — not listed, not composited; Marie's is kept.
+        assertNull(marie.layers.find { it.layerId == "mine-leo" })
+        assertTrue(marie.layers.any { it.layerId == "mine-marie" })
+        val overlayIds = marie.pages.first().overlays.map { it.layerId }
+        assertTrue("mine-leo" !in overlayIds, "Leo's overlay must not composite for Marie")
+        assertTrue("mine-marie" in overlayIds)
+        // Anonymous sees NEITHER personal layer (only shared ones).
+        val anon = state("")
+        assertTrue(anon.layers.none { it.layerId == "mine-marie" || it.layerId == "mine-leo" })
+        assertTrue(anon.layers.any { it.layerId == "cond" }) // shared layers remain
     }
 
     @Test

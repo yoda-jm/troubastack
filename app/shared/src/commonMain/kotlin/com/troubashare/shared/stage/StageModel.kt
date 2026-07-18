@@ -192,6 +192,14 @@ internal fun defaultVisible(layer: LayerInfo, role: String, identity: String = "
 internal fun cuesForIdentity(song: BakedSong, identity: String): List<SongCue> =
     song.memberCues.firstOrNull { it.memberId == identity }?.cues?.takeIf { it.isNotEmpty() } ?: song.cues
 
+/**
+ * P205 Stage 3b — is this overlay shown to the viewer? A SHARED layer (owner "") or one the viewer
+ * OWNS is kept; another member's personal layer is DROPPED at load — never composited, never listed
+ * anywhere (the Layers dialog can't even show it). Anonymous (identity "") sees only shared layers.
+ */
+internal fun visibleToIdentity(overlay: LayerImage, identity: String): Boolean =
+    overlay.owner.isEmpty() || overlay.owner == identity
+
 /** Build the initial [StageState] from a loader result. Total: a Failed load becomes a failure state. */
 internal fun stageStateFrom(result: LoadResult, role: String, identity: String = ""): StageState = when (result) {
     is LoadResult.Failed -> StageState(failure = result.reason, role = role, identity = identity)
@@ -222,7 +230,8 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
                     pageInSong = pageIdx,
                     rasterRef = page.pageRasterRef,
                     rasterHash = page.rasterHash,
-                    overlays = page.overlays,
+                    // Stage 3b: drop other members' personal overlays (owner != me) — never composited.
+                    overlays = page.overlays.filter { visibleToIdentity(it, identity) },
                     status = if (rasterBad) PageStatus.UNAVAILABLE else PageStatus.READY,
                     displayNotes = song.displayNotes,
                     key = song.key,
@@ -232,7 +241,7 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
         }
     }
 
-    val layers = aggregateLayers(bundle)
+    val layers = aggregateLayers(bundle, identity)
     // A1 + Stage 3a: seed every song with the (role, identity) default-visible layers; per-song
     // overrides diverge later.
     val defaults = defaultVisibleLayers(layers, role, identity)
@@ -243,12 +252,15 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
     )
 }
 
-/** Distinct layers across the bundle, insertion-ordered; mandatory if any occurrence is mandatory. */
-private fun aggregateLayers(bundle: ConcertBundle): List<LayerInfo> {
+/** Distinct layers across the bundle, insertion-ordered; mandatory if any occurrence is mandatory.
+ *  Stage 3b: other members' personal layers (owner != identity, owner non-empty) are excluded — they
+ *  are not the viewer's and must not appear anywhere (Layers dialog included). */
+private fun aggregateLayers(bundle: ConcertBundle, identity: String): List<LayerInfo> {
     val byId = LinkedHashMap<String, LayerInfo>()
     for (song in bundle.songs) {
         for (page in song.pages) {
             for (o: LayerImage in page.overlays) {
+                if (!visibleToIdentity(o, identity)) continue
                 val prev = byId[o.layerId]
                 byId[o.layerId] = LayerInfo(
                     layerId = o.layerId,
