@@ -7545,6 +7545,21 @@ B07 → P205 reframing narrated honestly (per-member bundles superseded by
 view-time identity, scope=mine as bridge-then-retire). No overclaims found.
 GO — land citing this verdict.
 
+## 2026-07-18 — VLL CLARIFICATION (recorded, for the A28 gate): picker = no auth, but a STRONG default when connected
+
+VLL: "no auth in the picker but a strong default if you are connected." Pinned
+semantics for Stage 3:
+- **Connected + roster match ⇒ the identity is AUTO-SELECTED, no question asked** —
+  the picker does NOT appear; you're just "Performing as Marie · The Troubadours"
+  (changeable afterwards via the identity line / a "not you?" affordance, which
+  remains a free unverified switch per the privacy ruling).
+- **Anonymous / no match ⇒ the free one-tap picker**, any member, unverified,
+  remembered per concert/device.
+The strong default is UX, not auth: it removes a decision from the connected path
+without adding a verification gate anywhere. A28's auto-match slice (`ce39b2d`)
+appears to already implement this shape — the gate will verify the picker is
+genuinely SKIPPED (not just preselected) on a session match.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
