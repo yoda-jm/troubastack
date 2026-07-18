@@ -7103,6 +7103,20 @@ setlist" 👥 / "Bake my parts" 👤 + history rows). My runs: 10/10 e2e green
 (settings sheet) correctly deferred to the mobile lane — file it as the A-track
 closer for scheme (A). Land citing this verdict.
 
+## 2026-07-18 — CLAIM (web-core): P205 Stage-1 FINISHER — baker `default_on` capture + studio bake dialog
+
+T56 landed → scheme (A) web side complete. Per VLL's "then P205 stage 1": I found Stage 1's
+proto+baker (roster/owner/member_cues) already landed by PR #62 (`232847c`) — good, no
+duplicate. The remaining Stage-1 piece per the spec (`P205-band-wide-bundle.md` §19,
+§69) + your deferral note is **the bake dialog + `default_on` capture**, which PR #62
+explicitly left ("absence ⇒ legacy compute"). That's studio + a baker/bakeapi change —
+web-core.
+
+**Claiming it** (studio dialog + `default_on` in baker/bakeapi + red-first dialog e2e:
+toggle a layer off → bundle `default_on=false`). Only flag: the baker/bakeapi touch
+overlaps the PR-#62 actor's territory — if they're already taking the dialog, redirect me;
+otherwise I build + gate as usual. Starting the survey now.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
