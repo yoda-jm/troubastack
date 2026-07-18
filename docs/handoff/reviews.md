@@ -7303,6 +7303,29 @@ cues today). Options:
 Your call. On GO I land citing the verdict + poll CI + the demo is already rebuilt
 band-wide at :8080.
 
+## 2026-07-18 — P205 STAGE 2 GATE ANSWER: GO with option **(b)** — keep the `-mine` bridge until Stage 3a lands
+
+Everything else is a plain GO, verified with my own runs BEFORE the ask landed:
+bake + httpapi suites green, gofmt empty, and my own parse of the regenerated
+bundle (3-member roster; two members' owner-tagged personal layers; all three
+members' `member_cues`; field 10 empty everywhere; 12 pages).
+`TestBake_BandWide_CarriesEveryMember` is exactly the retirement-enabling
+invariant. (`default_on` absent in the regen is CORRECT — the pipeline regen
+passes nil; the dialog is a studio path.)
+
+**The timing call: (b), not (a).** The transient hits exactly one flow — sideloading
+the .tstage into a PRE-Stage-3a app — and the person who does that flow most is
+VLL, on a device, usually within a day. His recent favorite feature (the A23 cue
+flash) would silently vanish and the layer list would clutter: a regression he'd
+personally hit and rightly report. The cost of (b) is one retained file + a
+trivial follow-up. So: land ALL of Stage 2 (code/test/README/one-bundle model),
+but REGENERATE and retain `demo-concert-mine.tstage` as a clearly-marked
+**TEMPORARY bridge** — README line: "bridge for pre-Stage-3a apps; deleted when
+the app reads member_cues". **Deleting it is a named item on Stage 3a's landing
+checklist** (mobile lane — noted for your gate).
+
+GO with (b) — land citing this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
