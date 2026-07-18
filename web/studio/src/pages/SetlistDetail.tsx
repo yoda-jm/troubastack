@@ -20,6 +20,7 @@ import {
 import { ErrorBanner } from "../components/ErrorBanner";
 import { CueGlyph } from "../components/CueGlyphs";
 import { AudienceTag } from "../components/AudienceTag";
+import { BakeDialog } from "./BakeDialog";
 
 export function SetlistDetail() {
   const { bandId, setlistId } = useParams<{ bandId: string; setlistId: string }>();
@@ -112,7 +113,12 @@ export function SetlistDetail() {
       {myRole === "admin" && (
         <LiveModeCard bandId={bandId} setlist={setlist} onChanged={setSetlist} />
       )}
-      <BakeCard bandId={bandId} setlistId={setlistId} myRole={myRole} />
+      <BakeCard
+        bandId={bandId}
+        setlistId={setlistId}
+        songIds={[...new Set(items.map((it) => it.songId))]}
+        myRole={myRole}
+      />
       {myRole === "admin" && (
         <DeleteSetlist
           bandId={bandId}
@@ -189,15 +195,20 @@ function LiveModeCard({
 function BakeCard({
   bandId,
   setlistId,
+  songIds,
   myRole,
 }: {
   bandId: string;
   setlistId: string;
+  songIds: string[];
   myRole: Role | null;
 }) {
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [busy, setBusy] = useState<"" | "band" | "mine">("");
   const [error, setError] = useState<string | null>(null);
+  // P205: the open bake dialog (which scope), or null. Baking goes THROUGH the dialog
+  // so default-layer capture is never silent.
+  const [dialog, setDialog] = useState<{ scope?: "mine" } | null>(null);
   const isAdmin = myRole === "admin";
 
   const load = useCallback(async () => {
@@ -215,11 +226,12 @@ function BakeCard({
     void load();
   }, [load]);
 
-  async function bake(scope?: "mine") {
+  async function bake(scope: "mine" | undefined, layerDefaults: Record<string, boolean>) {
+    setDialog(null);
     setBusy(scope === "mine" ? "mine" : "band");
     setError(null);
     try {
-      await api.bakeSetlist(bandId, setlistId, scope);
+      await api.bakeSetlist(bandId, setlistId, scope, layerDefaults);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Bake failed");
@@ -248,7 +260,7 @@ function BakeCard({
               className="primary"
               data-testid="bake-setlist"
               disabled={busy !== ""}
-              onClick={() => void bake()}
+              onClick={() => setDialog({})}
             >
               {busy === "band" ? "Baking…" : "Bake setlist"}
             </button>
@@ -269,7 +281,7 @@ function BakeCard({
             type="button"
             data-testid="bake-mine"
             disabled={busy !== ""}
-            onClick={() => void bake("mine")}
+            onClick={() => setDialog({ scope: "mine" })}
           >
             {busy === "mine" ? "Baking…" : "Bake my parts"}
           </button>
@@ -307,6 +319,16 @@ function BakeCard({
           </ul>
         )}
       </div>
+      {dialog && (
+        <BakeDialog
+          bandId={bandId}
+          setlistId={setlistId}
+          songIds={songIds}
+          scope={dialog.scope}
+          onConfirm={(layerDefaults) => void bake(dialog.scope, layerDefaults)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
     </section>
   );
 }

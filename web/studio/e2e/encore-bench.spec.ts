@@ -78,6 +78,7 @@ test("bench a setlist item → outside the running order, still baked", async ({
   // The setlist (3 songs incl. the bench) still bakes — a bench song doesn't break
   // the pipeline. Bake is admin-only; the creator is admin.
   await page.getByTestId("bake-setlist").click();
+  await page.getByTestId("bake-dialog-confirm").click(); // P205 bake dialog
   await expect(page.getByTestId("bake-history-row")).toContainText("3 song");
 
   // Move it back → running order restored to three, bench empty.

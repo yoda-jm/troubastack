@@ -62,6 +62,7 @@ test("a member bakes their own parts → variant download appears", async ({ bro
   // Bake my parts → the personal download link appears.
   await expect(memberPage.getByTestId("bake-mine-download")).toHaveCount(0);
   await memberPage.getByTestId("bake-mine").click();
+  await memberPage.getByTestId("bake-dialog-confirm").click(); // P205 bake dialog
   await expect(memberPage.getByTestId("bake-mine-download")).toBeVisible();
   await expect(memberPage.getByTestId("bake-history-row").filter({ hasText: "Mine" })).toHaveCount(1); // T56: audience tag replaced "My parts"
 

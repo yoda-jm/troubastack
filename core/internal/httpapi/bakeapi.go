@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 
@@ -92,7 +93,16 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 		writeErr(w, app.ErrForbidden)
 		return
 	}
-	cb, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, personal)
+	// P205 bake dialog: an OPTIONAL body carries the captured per-layer defaults
+	// (name → default-on). Absent/empty body ⇒ nil ⇒ legacy (viewer computes as
+	// today). Malformed JSON is ignored (treated as no capture), never a 400.
+	var in struct {
+		LayerDefaults map[string]bool `json:"layerDefaults"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&in)
+	}
+	cb, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, personal, in.LayerDefaults)
 	if err != nil {
 		writeErr(w, err)
 		return

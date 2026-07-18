@@ -1434,3 +1434,22 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 /* When the banner is present, push the floating top pill below it so nothing overlaps. */
 .viewer.has-live-banner .viewer-chrome.topbar-pill { top: calc(.55rem + 1.9rem); }
 @media (max-width: 600px) { .viewer.has-live-banner .viewer-chrome.topbar-pill { top: 1.7rem; } }
+
+/* P205 — bake dialog (capture default-on layers explicitly, never silently). */
+.bake-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+  background: color-mix(in srgb, var(--fg) 40%, transparent);
+}
+.bake-dialog {
+  width: min(30rem, 100%); max-height: calc(100% - 2rem); overflow-y: auto;
+  display: flex; flex-direction: column; gap: .7rem;
+}
+.bake-dialog .card-head { display: flex; align-items: center; gap: .6rem; }
+.bake-dialog-summary { font-size: .85rem; }
+.bake-dialog-list { gap: .3rem; }
+.bake-dialog-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .4rem .5rem; }
+.bake-dialog-row label { display: flex; align-items: center; gap: .5rem; font-weight: 600; min-width: 0; }
+.bake-dialog-row label input { flex: 0 0 auto; }
+.bake-dialog-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bake-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }

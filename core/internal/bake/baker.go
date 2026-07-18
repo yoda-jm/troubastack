@@ -95,7 +95,12 @@ func ParseConcertID(id string) (setlistID, userID string, isVariant bool) {
 // by the setlist id alone and is byte-identical to B02/B04. concert_rev bumps
 // monotonically PER concert id (so a member's variant revs independently of the
 // band bake).
-func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, personal bool) (ConcertBundle, error) {
+// layerDefaults is the P205 bake-dialog capture: layer NAME → default-on. nil means
+// the dialog didn't run (legacy — LayerImage.DefaultOn stays absent so the viewer
+// computes as today). When non-nil, every overlay gets an explicit DefaultOn
+// (mandatory layers are forced on regardless). Keyed by name (the concert-level view
+// the dialog shows: "Cues · Form · My notes").
+func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, personal bool, layerDefaults map[string]bool) (ConcertBundle, error) {
 	detail, err := b.svc.Setlist(actor, bandID, setlistID)
 	if err != nil {
 		return ConcertBundle{}, err
@@ -165,7 +170,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	}
 
 	for si, item := range detail.Items {
-		song, berr := b.bakeSong(ctx, si, bandID, actor, item, blobsDir, personal)
+		song, berr := b.bakeSong(ctx, si, bandID, actor, item, blobsDir, personal, layerDefaults)
 		if berr != nil {
 			return ConcertBundle{}, fmt.Errorf("song %s: %w", item.SongID, berr)
 		}
@@ -246,7 +251,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 // bakeSong bakes one setlist item: pick its default shared-pool PDF, rasterize its
 // pages, render per-layer overlays, and assemble the BakedSong (overrides ride as
 // metadata). A song with no viewable PDF bakes to zero pages (loaders tolerate it).
-func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string, personal bool) (BakedSong, error) {
+func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string, personal bool, layerDefaults map[string]bool) (BakedSong, error) {
 	song := BakedSong{
 		SongID:       item.SongID,
 		SongRev:      1,
@@ -363,7 +368,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 			if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(ref)), ov.PNG, 0o644); err != nil {
 				return BakedSong{}, err
 			}
-			page.Overlays = append(page.Overlays, LayerImage{
+			li := LayerImage{
 				LayerID:     ov.LayerID,
 				ImageRef:    ref,
 				ContentHash: ov.ContentHash,
@@ -372,7 +377,15 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 				RoleTag:     ov.RoleTag,
 				Name:        nameByLayer[ov.LayerID],
 				Owner:       ownerByLayer[ov.LayerID], // P205: "" = shared; member id = personal
-			})
+			}
+			// P205 default_on capture (bake dialog): when the dialog ran, stamp an
+			// explicit default-on per layer (mandatory always on); otherwise leave it
+			// absent so the viewer computes as today.
+			if layerDefaults != nil {
+				on := ov.Mandatory || layerDefaults[nameByLayer[ov.LayerID]]
+				li.DefaultOn = &on
+			}
+			page.Overlays = append(page.Overlays, li)
 		}
 		song.Pages = append(song.Pages, page)
 	}
