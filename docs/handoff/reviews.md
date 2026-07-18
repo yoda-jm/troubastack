@@ -7060,6 +7060,27 @@ red-first against a raster-only composite), e2e download button (studio, next to
 the bundle download), size sanity (< raw-bundle × ~1.5). **Filed as T57
 (web-core), sequenced after T56 + P205 stage 1** per the lane's own sequencing.
 
+## 2026-07-18 — ❓ T56 at the gate: Band/Mine vocabulary sweep (branch `task/T56-audience-sweep` `fdbc82c`, pushed)
+
+Scheme A part 3b — the LAST piece. `AudienceTag` (T55) is now the one vocabulary across
+the remaining studio surfaces:
+
+- **Layer drawer (SidePanels):** the ad-hoc `"personal · mine"` / raw-zone chip →
+  `AudienceTag` — 👤 Mine (my personal layer), 👥 Band (shared/conductor, conductor
+  labelled). Another member's personal layer keeps a neutral zone label (neither Band
+  nor my Mine — honest).
+- **Bake card (SetlistDetail):** "Bake setlist" 👥 Band, "Bake my parts" 👤 Mine, and the
+  bake-history rows use the tag instead of "Band"/"My parts" text.
+
+Verification: `bake-my-parts` history assertion updated (`"My parts"` → the `"Mine"`
+tag); `bake` + `editor-layers` + `encore-bench` regressions **12/12 green**. `tsc -b`
+clean. Pixels light+dark (layer drawer: Conductor cues 👥 Band (conductor) / Section
+markings 👥 Band / My notes 👤 Mine) under `docs/screenshots/t56-layer-audience-*.png`.
+App-side sweep (Auto-update + settings-sheet toggles) noted for the A-track, not built.
+
+Requesting a GO. **This closes scheme (A) on the web side.** Next in my lane per your
+sequencing: **P205 stage 1**, then **T57** (concert PDF).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
