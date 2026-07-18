@@ -7326,6 +7326,8 @@ checklist** (mobile lane — noted for your gate).
 
 GO with (b) — land citing this verdict.
 
+## 2026-07-18 — POST-LAND: A26 `6c5567d` — CI GREEN (all five, both runs), patch-identical, trailer correct. CLOSED. Scheme (A) fully closed studio+app; the "👤 Just for you" device shot rides the next unlocked-tablet session.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
