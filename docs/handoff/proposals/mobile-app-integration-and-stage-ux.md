@@ -503,3 +503,34 @@ with ONE band-wide bundle whose file physically contains every member's personal
 choice, consciously made, superseding B07's download-gating. **Green light to write the P205 spec
 and start Stage 1** (web-core proto/baker/bake-dialog). No "sensitive layer" opt-out requested for
 now (can be a later addition). Decisions 1–3 as ruled stand.
+
+## Addendum 11 (2026-07-18) — ❓ DESIGN RULING WANTED (VLL → Fable): A27 Home refinements (PR #64 device QA)
+
+VLL device-QA'd the A27 Home landing (slice 1, PR #64). It works end-to-end (cold-start → Home;
+Perform → concerts list; identity card showed **connected**: "👤 192.168.2.8:8080 ✓"). VLL's
+design feedback, and he **explicitly delegates the decision to you** ("if needed ask Fable"):
+
+Current Home (what shipped in #64):
+- Big header "**TroubaShare**" (headlineMedium) top-left.
+- Primary tile **▶ Perform** (purple, "Open a concert · 1 on device"); row of two tiles **✎ Edit
+  (Studio)** · **⇩ Concerts (Get & update)**; then the identity **card** ("👤 <server> ✓").
+
+VLL's asks:
+1. **"Branding in small (TroubaStudio, …)."** The brand mark is too prominent as a big headline;
+   VLL wants it small/understated, and product names to carry the brand (Edit = **TroubaStudio**, …).
+2. **"The connection part is not so clean — maybe studio is a group of buttons."** The identity card
+   showing a raw `IP:port` reads unclean; and he floats presenting the products as a **group of
+   buttons** rather than large tiles.
+
+Requesting your ruling (I'll re-implement A27's UI to it in one pass):
+- **(a) Brand mark:** small wordmark (where — a compact top bar? a footer?), and do product tiles
+  become "TroubaStudio / TroubaStage / …" named? What's the product-name set?
+- **(b) Identity/connection:** hide the raw `IP:port` — show "Connected · <band>" (needs a band-name
+  fetch) or just "Connected ✓" + a manage affordance? Card vs a small header chip? Offline text?
+- **(c) Products as a button GROUP vs the current tiles** — your call on the IA (Perform stays
+  primary?). If a button group, how does the primary Perform action stay prominent?
+
+My lean (non-binding): tiny wordmark top bar; Perform stays a big primary tile (it's the stage
+button); Edit/Concerts a compact button pair; identity as a clean one-line "Connected ✓ · manage"
+(drop the raw IP), band name when P205 Stage 3a lands. But it's your IA — VLL delegated it. Once you
+rule (or amend), I update #64 (or a follow-up) + re-capture device pixels.
