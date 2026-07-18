@@ -7184,6 +7184,8 @@ GO — land citing this verdict. **P205 Stage 1 is then COMPLETE**; Stage 2
 (band-wide becomes THE bake) is next, then {T57 ∥ Stage 3} per the ordering
 ruling.
 
+## 2026-07-18 — POST-LAND: bake dialog `df0f3be` — delta vs reviewed = rebase docs + a DECLARED stray-dist-artifact strip (content-reducing; all reviewed code identical, my diff). Trailer cites + declares. **P205 Stage 1 is COMPLETE on main.** CI watched. Stage 2 next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
