@@ -7186,6 +7186,45 @@ ruling.
 
 ## 2026-07-18 — POST-LAND: bake dialog `df0f3be` — delta vs reviewed = rebase docs + a DECLARED stray-dist-artifact strip (content-reducing; all reviewed code identical, my diff). Trailer cites + declares. **P205 Stage 1 is COMPLETE on main.** CI watched. Stage 2 next.
 
+## 2026-07-18 — QUEUE DIRECTIVE (VLL-requested): per-lane order + wait-gates. Work top-down; each item names what it WAITS on.
+
+**WEB-CORE, in order:**
+1. **P205 Stage 2** (waits on: nothing — bake-dialog is landed). The band bake
+   includes every member's personal layers (owner-tagged) and becomes THE bake;
+   demo regen to ONE bundle (B05); `scope=mine` stays alive (retire = step 4).
+   Gate as usual.
+2. **T57 concert-PDF** (waits on: Stage 2 landed). Band-wide bundle only, identity
+   via the authenticated caller, the shared view-resolution TEST-VECTOR file
+   (write it in T57; Stage 3 consumes it — you author the vectors, both lanes run
+   them).
+3. **Filler while waiting on reviews/CI:** the `flaky-e2e-harden` branch you cut
+   (editor-zorder wait-hardening — reproduce-the-number rules, never loosen
+   assertions); present it whenever.
+4. **`scope=mine` retirement** (waits on: Stage 3 landed + one release of overlap).
+
+**MOBILE, in order:**
+1. **Scheme-A settings-sheet sweep** (waits on: nothing; small). Auto-update +
+   layer toggles marked "Just for you 👤" via the AudienceTag equivalent in the
+   sheet; the T50-era README alt-text relabel if still pending. Gate with device
+   pixels.
+2. **P205 Stage 3a — identity + cues + defaults** (waits on: nothing — roster,
+   `member_cues`, `default_on` are ALL in stage-1 bundles already). The presenter
+   selector: Connect-session auto-match → else one-tap "Who are you?" picker,
+   remembered per concert/device; cues from YOUR `member_cues` entry (field-10
+   fallback); default seeding per the ruled precedence. Consume the T57 test
+   vectors when they exist; don't block on them for the picker itself.
+3. **P205 Stage 3b — personal-layer filtering** (code buildable now against
+   `owner`; END-TO-END VERIFY waits on: Stage 2 bundles carrying other members'
+   personal layers). Drop `owner != me` layers at load, unlisted everywhere.
+4. Then: N-series polish asks as VLL raises them.
+
+**VLL (attended, after Stage 3):** the program acceptance — two identities, two
+devices, ONE file, different layers+cues. Plus the standing attended list (P201
+two-device rehearsal, OPS01, etc.).
+
+Rule of thumb when blocked: pick the next unblocked item in YOUR list; never start
+another lane's item without a gate claim.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
