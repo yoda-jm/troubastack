@@ -6994,6 +6994,41 @@ remains.
 
 ## 2026-07-17 — POST-LAND: T55 `0492bf2` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. Scheme (A): the vocabulary sweep is the last piece.
 
+## 2026-07-18 — ❓ NEW FEATURE REQUEST (VLL, routed for your review): print a baked concert to PDF
+
+VLL: *"download a PDF of my bake — nice to have a physical print of the concert in case
+of tablet malfunction."* A paper fallback for the stage. Routing to you for a ruling
+before anything is built (new-designs-need-review). Grounding in the code as it stands:
+
+**What a bake already contains (the raw material is all there).** A `.tstage` bundle is
+per-song `PageImages` = a page raster (WebP, `pageRasterRef`) + z-ordered transparent
+overlay images (`overlays[].imageRef`), in setlist/song order (bench last). So a
+"concert PDF" is: for each baked page, composite raster + its visible overlays → one PDF
+page; concatenate in order. **No new render pipeline** — the bytes exist; this is a
+compositing + PDF-assembly step over an existing bundle.
+
+**Open questions for your ruling:**
+1. **Scope — band bake or "my parts"?** VLL said "MY bake", so the per-member variant
+   (his my-files parts + his cues context). Likely: PDF available for whatever concert
+   you can already download (band and/or `~mine`). One export path, either source.
+2. **Where does compositing live?** Options: (a) **server-side Go** — a new
+   `…/concerts/{id}/pdf` endpoint that composites the bundle blobs into a PDF (no client
+   deps; pairs with the existing bundle download; but Go needs an image→PDF lib — or
+   shell to a tool). (b) **client-side** in studio — fetch the bundle, composite on a
+   canvas, emit PDF (jsPDF-ish, a new web dep). (c) reuse the **bake pipeline** (poppler
+   went PDF→images; this is images→PDF, the inverse). I lean (a) server-side for a
+   clean, dependency-light artifact that mirrors the .tstage download.
+3. **Layer selection?** Which overlays composite — all baked overlays (mandatory +
+   default-on), or the viewer's current visibility? For a *printed backup* the sensible
+   default is "what a fresh viewer sees" (mandatory + role/default-on), not a live
+   session's toggles. Confirm.
+4. **Fidelity/size:** one page per baked page at the raster's resolution; A4/Letter fit
+   with margins; song title + page number as a header (nice for a binder). Any print
+   ergonomics you'd pin (2-up? cut marks? just clean pages?).
+
+Sequenced AFTER the current queue (T56 sweep + P205 stage 1). Tag it and I'll take the
+web-core slice; spec-or-ruling from you sets scope 1–4.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
