@@ -128,6 +128,11 @@ private fun App() {
         )
     }
 
+    // P205 Stage 3a follow-up: the logged-in member (name/band → Home "Performing as …"; id →
+    // roster auto-match on concert open). Best-effort, offline-first — null degrades to "Connected".
+    var me by remember { mutableStateOf<CurrentIdentity?>(null) }
+    LaunchedEffect(transport.isConnected) { me = if (transport.isConnected) transport.currentIdentity() else null }
+
     // A27: nav state is rememberSaveable so a landing/product screen survives rotation + process death.
     var atHome by rememberSaveable { mutableStateOf(true) } // cold start lands on Home, not the concert list
     var selectedDir by rememberSaveable { mutableStateOf<String?>(null) }
@@ -153,9 +158,13 @@ private fun App() {
             state = HomeState(
                 lastConcertName = entries.firstOrNull { it.dir == lastDir }?.label ?: "",
                 concertCount = entries.size,
-                // Connected ✓ (name/band fill in with P205 Stage 3a); the raw server host lives behind
-                // Manage (the Connect screen), not on the Home line — per the 2026-07-18 A27 ruling.
-                identity = if (transport.isConnected) Identity.Connected() else Identity.Disconnected,
+                // Stage 3a: "Performing as <name> · <band>" once /api/me resolves; "Connected ✓" until
+                // then / if the fetch fails. The raw server host stays behind Manage (A27 ruling).
+                identity = if (transport.isConnected) {
+                    Identity.Connected(name = me?.displayName ?: "", band = me?.band ?: "")
+                } else {
+                    Identity.Disconnected
+                },
             ),
             onPerform = { atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
@@ -185,7 +194,8 @@ private fun App() {
     val loadResult = remember(dir) { BundleLoader().load(dir, FileBundleFiles()) }
     val roster = remember(loadResult) { (loadResult as? LoadResult.Loaded)?.bundle?.roster ?: emptyList() }
     val idKey = "identity.$concertId"
-    var identity by rememberSaveable(dir) { mutableStateOf(resolveIdentity(roster, storage.getSecret(idKey))) }
+    // Stage 3a: a stored pick wins; else auto-match the logged-in member against the roster; else prompt.
+    var identity by rememberSaveable(dir, me?.userId) { mutableStateOf(resolveIdentity(roster, storage.getSecret(idKey), autoUserId = me?.userId ?: "")) }
     var pickerHandled by rememberSaveable(dir) { mutableStateOf(false) }
 
     val opened = remember(dir, identity) {

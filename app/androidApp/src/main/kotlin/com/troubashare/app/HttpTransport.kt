@@ -35,6 +35,9 @@ internal const val SESSION_COOKIE_KEY = "sessionCookie"
 // otherwise logging into A then pointing at B would leak A's session to B (ktor AND the Edit WebView).
 internal const val SESSION_ORIGIN_KEY = "sessionOrigin"
 
+/** The logged-in member as the app needs it for P205 identity (id → roster auto-match; name/band → Home). */
+data class CurrentIdentity(val userId: String, val displayName: String, val band: String)
+
 /**
  * The persisted session cookie ("name=value") IFF it was issued by [url]'s origin; else null. The
  * single guard for BOTH the ktor transport and the Edit WebView seed — a session is never handed to a
@@ -80,7 +83,22 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
 
     @Serializable private data class LoginReq(val username: String, val password: String)
     @Serializable private data class Bands(val bands: List<Band> = emptyList()) {
-        @Serializable data class Band(val id: String = "")
+        @Serializable data class Band(val id: String = "", val name: String = "")
+    }
+    @Serializable private data class Me(val id: String = "", val displayName: String = "")
+
+    /** P205 Stage 3a follow-up: the logged-in member's id + display name + first band name, for the
+     *  Home identity line ("Performing as <name> · <band>") and auto-matching identity to the roster.
+     *  null when not connected or the fetch fails (offline-first — the caller degrades to "Connected"). */
+    suspend fun currentIdentity(): CurrentIdentity? {
+        val ck = cookie() ?: return null
+        return runCatching {
+            val meResp = client.get("$baseUrl/api/me") { header("Cookie", ck) }
+            if (!meResp.status.isSuccess()) return null
+            val me = meResp.body<Me>()
+            val band = client.get("$baseUrl/api/bands") { header("Cookie", ck) }.body<Bands>().bands.firstOrNull()?.name ?: ""
+            CurrentIdentity(userId = me.id, displayName = me.displayName, band = band)
+        }.getOrNull()
     }
 
     /** Log in against the persisted server URL; on success store the session cookie. Returns a
