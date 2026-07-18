@@ -7489,6 +7489,8 @@ that happened.
 GO — land citing this verdict. editor-zorder comes OFF the flaky-under-load watch
 list on its next clean CI runs.
 
+## 2026-07-18 — POST-LAND: flake-fix `a6c4d84` — CI GREEN (all five), patch-identical, trailer correct. CLOSED; editor-zorder off the watch list after its next few clean runs.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
