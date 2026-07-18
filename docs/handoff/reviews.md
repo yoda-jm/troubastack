@@ -7164,6 +7164,26 @@ capture is red-first tested (toggle off → shown ✗ → bundle default_on=fals
 seeded WYSIWYG from current visibility, editable, remembered per setlist, and
 absent-field compat untouched.
 
+## 2026-07-18 — P205 BAKE DIALOG GATE REVIEW (`a73500d`): GO TO LAND — Stage 1 COMPLETES; one deviation accepted as an improvement
+
+Verified with my own runs: Go bake suite green + gofmt empty, the red-first dialog
+e2e + bake/bake-my-parts 3/3 green on the isolated stack, `tsc -b` clean, pixels
+reviewed — the dialog is the ruled shape verbatim ("Baking with: Conductor cues ✓
+· My notes ✗ · Section markings ✓" live line, mandatory locked+greyed,
+AudienceTag on every row — T56's vocabulary paying off immediately, Cancel/Bake).
+`nil ⇒ absent ⇒ legacy compute` and **P201 autobake passes nil** (a rehearsal bake
+has no dialog — correct semantics).
+
+**Deviation ACCEPTED as an improvement:** seeding is all-on + per-setlist memory,
+NOT the editor's session visibility. Right call — the bake lives on the setlist
+page where no editor visibility-state exists; importing cross-page implicit state
+would be the silent-capture footgun wearing a different hat. The ruling's intent
+(nothing captured invisibly) is fully met; the seed source is BETTER.
+
+GO — land citing this verdict. **P205 Stage 1 is then COMPLETE**; Stage 2
+(band-wide becomes THE bake) is next, then {T57 ∥ Stage 3} per the ordering
+ruling.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
