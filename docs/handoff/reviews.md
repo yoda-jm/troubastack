@@ -7560,6 +7560,8 @@ without adding a verification gate anywhere. A28's auto-match slice (`ce39b2d`)
 appears to already implement this shape — the gate will verify the picker is
 genuinely SKIPPED (not just preselected) on a session match.
 
+## 2026-07-18 — POST-LAND: doc-sync `f396320` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. Open work: the A28 stage-3 stack only.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
