@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
+	"strconv"
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/bake"
@@ -30,6 +32,7 @@ func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.Hand
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/bake", authed(a.bake))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts", authed(a.listConcerts))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/bundle", authed(a.downloadBundle))
+	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/pdf", authed(a.concertPDF))
 }
 
 // concertView is the client-facing projection of a baked concert. It is the proto
@@ -181,4 +184,55 @@ func (a *BakeAPI) downloadBundle(w http.ResponseWriter, r *http.Request, u app.U
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+concertID+`.tstage"`)
 	http.ServeContent(w, r, concertID+".tstage", info.ModTime(), f)
+}
+
+// concertPDF renders a concert's latest bake to a printable A4 PDF (T57 — VLL's
+// paper fallback). Same gating as downloadBundle. The view is parameterized (never
+// a live session's toggles, so a printed backup is reproducible): `?role=X` selects
+// which role-tagged shared layers composite; personal layers resolve to the caller's
+// identity, or to `?member=Y` when the caller is an ADMIN (printing on someone's
+// behalf). The compositing rule is bake.LayerVisible — the shared P205 view-
+// resolution contract, so print == screen.
+func (a *BakeAPI) concertPDF(w http.ResponseWriter, r *http.Request, u app.User) {
+	bandID := r.PathValue("bandId")
+	concertID := r.PathValue("concertId")
+	base, owner, isVariant := bake.ParseConcertID(concertID)
+	if _, err := a.svc.Setlist(u, bandID, base); err != nil {
+		writeErr(w, err) // not our band / unknown setlist → 403/404
+		return
+	}
+	if isVariant && owner != u.ID {
+		writeErr(w, app.ErrForbidden)
+		return
+	}
+	if a.baker == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bake not configured"})
+		return
+	}
+	// Personal layers resolve to the caller, unless an admin prints on a member's
+	// behalf via ?member= (admin-only — a member never prints another's view).
+	viewerMemberID := u.ID
+	if m := r.URL.Query().Get("member"); m != "" && m != u.ID {
+		if _, role, err := a.svc.GetBand(u, bandID); err != nil {
+			writeErr(w, err)
+			return
+		} else if role != app.RoleAdmin {
+			writeErr(w, app.ErrForbidden)
+			return
+		}
+		viewerMemberID = m
+	}
+	pdf, err := a.baker.ConcertPDF(concertID, r.URL.Query().Get("role"), viewerMemberID)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeErr(w, app.ErrNotFound)
+			return
+		}
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+concertID+`.pdf"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
+	_, _ = w.Write(pdf)
 }

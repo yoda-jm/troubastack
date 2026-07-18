@@ -274,6 +274,16 @@ function BakeCard({
                 Download .tstage (rev {bandConcert.currentRev})
               </a>
             )}
+            {bandConcert && (
+              <a
+                data-testid="bake-pdf-download"
+                href={api.concertPdfUrl(bandConcert)}
+                download={`${bandConcert.name || "concert"}.pdf`}
+                title="A printable paper backup of this concert — your view, composited to PDF (T57)"
+              >
+                Download PDF
+              </a>
+            )}
           </div>
         )}
         <div className="inline-form">

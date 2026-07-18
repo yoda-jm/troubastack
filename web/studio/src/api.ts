@@ -625,6 +625,12 @@ export const api = {
       (r) => r.concerts,
     ),
 
+  // T57: the printable-PDF URL for a concert (paper fallback). Derived from the
+  // concert's bundle downloadUrl (…/bundle → …/pdf) — same auth gating; the server
+  // composites the caller's view (mandatory + untagged shared + the caller's own
+  // personal layers) via the shared P205 view-resolution rule, so print == screen.
+  concertPdfUrl: (c: Concert) => c.downloadUrl.replace(/\/bundle$/, "/pdf"),
+
   // ---- invites ----
   listInvites: () => request<{ invites: Invite[] }>("GET", "/api/invites").then((r) => r.invites),
 
