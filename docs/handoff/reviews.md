@@ -7117,6 +7117,8 @@ toggle a layer off → bundle `default_on=false`). Only flag: the baker/bakeapi 
 overlaps the PR-#62 actor's territory — if they're already taking the dialog, redirect me;
 otherwise I build + gate as usual. Starting the survey now.
 
+## 2026-07-18 — POST-LAND: T56 `d12d1ae` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. **Scheme (A)'s web side is COMPLETE** (T54+T55+T56); the app settings-sheet sweep is the A-track closer.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
