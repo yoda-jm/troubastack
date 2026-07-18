@@ -150,11 +150,9 @@ private fun App() {
             state = HomeState(
                 lastConcertName = entries.firstOrNull { it.dir == lastDir }?.label ?: "",
                 concertCount = entries.size,
-                identity = if (transport.isConnected) {
-                    Identity.Connected(name = "", server = transport.serverLabel, synced = true)
-                } else {
-                    Identity.Disconnected
-                },
+                // Connected ✓ (name/band fill in with P205 Stage 3a); the raw server host lives behind
+                // Manage (the Connect screen), not on the Home line — per the 2026-07-18 A27 ruling.
+                identity = if (transport.isConnected) Identity.Connected() else Identity.Disconnected,
             ),
             onPerform = { atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
