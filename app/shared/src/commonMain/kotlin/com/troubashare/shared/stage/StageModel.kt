@@ -4,7 +4,9 @@
 // (never an exception) — a crash or dead-end mid-performance is this product's worst failure.
 package com.troubashare.shared.stage
 
+import com.troubashare.shared.bundle.BakedSong
 import com.troubashare.shared.bundle.BundleIssue
+import com.troubashare.shared.bundle.BundleMember
 import com.troubashare.shared.bundle.ConcertBundle
 import com.troubashare.shared.bundle.LayerImage
 import com.troubashare.shared.bundle.LoadResult
@@ -105,8 +107,17 @@ data class SongInfo(
     val cues: List<SongCue> = emptyList(),
 )
 
-/** A distinct layer aggregated across the bundle, for the Layers panel. */
-data class LayerInfo(val layerId: String, val mandatory: Boolean, val roleTag: String, val name: String = "")
+/** A distinct layer aggregated across the bundle, for the Layers panel.
+ *  P205: [owner] ("" = band/shared, else a member id) and [defaultOn] (bake-time default; null =
+ *  compute as today) drive the Stage-3a default-visibility precedence. */
+data class LayerInfo(
+    val layerId: String,
+    val mandatory: Boolean,
+    val roleTag: String,
+    val name: String = "",
+    val owner: String = "",
+    val defaultOn: Boolean? = null,
+)
 
 /**
  * The whole presenter state. Pure data, no Android deps — all transitions are total and clamped, so
@@ -125,6 +136,11 @@ data class StageState(
     // it within the Stage session (I12 — session-scoped, nothing persisted).
     val visibleBySong: Map<String, Set<String>> = emptyMap(),
     val role: String = "",
+    // P205 Stage 3a: the band roster (from the bundle) + the viewer's resolved identity (a member id,
+    // "" = none/anonymous-unpicked). Identity is a LOCAL view preference (I12 — no account); it picks
+    // this member's cues (member_cues) and seeds their personal layers on. Host resolves/persists it.
+    val roster: List<BundleMember> = emptyList(),
+    val identity: String = "",
     // P201/I13 rehearsal auto-update: TRANSIENT — lives only in this in-memory state, is
     // never written through the Storage seam, and resets to false whenever Stage is left
     // (a fresh StageViewModel starts it false). While true, the host polls for a new
@@ -149,24 +165,40 @@ data class StageState(
         (visibleBySong[songId] ?: emptySet()) + layers.filter { it.mandatory }.map { it.layerId }
 }
 
-/** The role's default-visible layer ids (A1 seed for every song). */
-internal fun defaultVisibleLayers(layers: List<LayerInfo>, role: String): Set<String> =
-    layers.filter { defaultVisible(it, role) }.map { it.layerId }.toSet()
+/** The default-visible layer ids for (role, identity) — the A1 seed for every song. */
+internal fun defaultVisibleLayers(layers: List<LayerInfo>, role: String, identity: String = ""): Set<String> =
+    layers.filter { defaultVisible(it, role, identity) }.map { it.layerId }.toSet()
 
 /**
- * Default layer visibility (I12): empty roleTag ⇒ visible; non-empty ⇒ visible only when it equals
- * the local reading role; a mandatory layer is ALWAYS visible (the viewer cannot hide it).
+ * Default layer visibility. Precedence (P205 Stage 3a ruling), highest first:
+ *  1. mandatory (I12) — always visible, viewer cannot hide.
+ *  2. identity — a layer I OWN is on for me; another member's personal layer is NOT for me (off; Stage
+ *     3b drops it from the list entirely).
+ *  3. bake-time default_on (∧ the role_tag rule) when present; absent ⇒ computed as today.
+ *  4. legacy role_tag rule: empty roleTag ⇒ visible; else visible only when it equals the reading role.
+ * (Manual per-song toggles sit ABOVE this in the effective view — they override the seed, A1.)
  */
-internal fun defaultVisible(layer: LayerInfo, role: String): Boolean =
-    layer.mandatory || layer.roleTag.isEmpty() || layer.roleTag == role
-
-/** Build the initial [StageState] from a loader result. Total: a Failed load becomes a failure state. */
-internal fun stageStateFrom(result: LoadResult, role: String): StageState = when (result) {
-    is LoadResult.Failed -> StageState(failure = result.reason, role = role)
-    is LoadResult.Loaded -> buildLoaded(result.bundle, result.issues, role)
+internal fun defaultVisible(layer: LayerInfo, role: String, identity: String = ""): Boolean {
+    if (layer.mandatory) return true
+    val mine = identity.isNotEmpty() && layer.owner == identity
+    if (mine) return true
+    if (layer.owner.isNotEmpty()) return false // another member's personal layer — not for me
+    val roleOk = layer.roleTag.isEmpty() || layer.roleTag == role
+    return layer.defaultOn?.let { it && roleOk } ?: roleOk
 }
 
-private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: String): StageState {
+/** The cues to show for [song] given the viewer's [identity]: their member_cues entry (band-wide bundle),
+ *  falling back to the song's own `cues` field (a per-member/-mine bake, or an old bundle). */
+internal fun cuesForIdentity(song: BakedSong, identity: String): List<SongCue> =
+    song.memberCues.firstOrNull { it.memberId == identity }?.cues?.takeIf { it.isNotEmpty() } ?: song.cues
+
+/** Build the initial [StageState] from a loader result. Total: a Failed load becomes a failure state. */
+internal fun stageStateFrom(result: LoadResult, role: String, identity: String = ""): StageState = when (result) {
+    is LoadResult.Failed -> StageState(failure = result.reason, role = role, identity = identity)
+    is LoadResult.Loaded -> buildLoaded(result.bundle, result.issues, role, identity)
+}
+
+private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: String, identity: String): StageState {
     // Refs flagged missing/empty for a specific (song,page) — used to mark a page's RASTER unavailable.
     val badRefs: Set<String> = issues
         .filter { it.kind == BundleIssue.Kind.MISSING_BLOB || it.kind == BundleIssue.Kind.EMPTY_BLOB }
@@ -178,7 +210,9 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
     bundle.songs.forEachIndexed { songIdx, song ->
         // T26: the baked title names the song; empty/absent falls back to the "Song N" client default.
         val songName = song.title.ifBlank { "Song ${songIdx + 1}" }
-        songs.add(SongInfo(song.songId, songName, pages.size, onCall = song.onCall, cues = song.cues))
+        // P205 Stage 3a: show the viewer identity's cues (member_cues), falling back to the song's own
+        // `cues` (a -mine bake or an old bundle). Anonymous (identity "") ⇒ the fallback.
+        songs.add(SongInfo(song.songId, songName, pages.size, onCall = song.onCall, cues = cuesForIdentity(song, identity)))
         song.pages.forEachIndexed { pageIdx, page ->
             val rasterBad = blobKey(song.songId, pageIdx, page.pageRasterRef) in badRefs
             pages.add(
@@ -199,10 +233,14 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
     }
 
     val layers = aggregateLayers(bundle)
-    // A1: seed every song with the role's default-visible layers; per-song overrides diverge later.
-    val defaults = defaultVisibleLayers(layers, role)
+    // A1 + Stage 3a: seed every song with the (role, identity) default-visible layers; per-song
+    // overrides diverge later.
+    val defaults = defaultVisibleLayers(layers, role, identity)
     val visibleBySong = songs.associate { it.songId to defaults }
-    return StageState(pages = pages, songs = songs, layers = layers, visibleBySong = visibleBySong, role = role)
+    return StageState(
+        pages = pages, songs = songs, layers = layers, visibleBySong = visibleBySong,
+        role = role, roster = bundle.roster, identity = identity,
+    )
 }
 
 /** Distinct layers across the bundle, insertion-ordered; mandatory if any occurrence is mandatory. */
@@ -217,6 +255,8 @@ private fun aggregateLayers(bundle: ConcertBundle): List<LayerInfo> {
                     mandatory = (prev?.mandatory ?: false) || o.mandatory,
                     roleTag = prev?.roleTag?.ifEmpty { o.roleTag } ?: o.roleTag,
                     name = prev?.name?.ifEmpty { o.name } ?: o.name, // T53: first non-empty baked name
+                    owner = prev?.owner?.ifEmpty { o.owner } ?: o.owner, // P205: layer owner (member id / "")
+                    defaultOn = prev?.defaultOn ?: o.defaultOn,         // P205: first-seen bake-time default
                 )
             }
         }

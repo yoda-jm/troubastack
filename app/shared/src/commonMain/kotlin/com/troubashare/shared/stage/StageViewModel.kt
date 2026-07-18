@@ -9,10 +9,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitMode = FitMode.FIT_PAGE) {
+class StageViewModel(loadResult: LoadResult, role: String = "", identity: String = "", initialFit: FitMode = FitMode.FIT_PAGE) {
+
+    // P205 Stage 3a: the loaded bundle is retained so setIdentity can re-derive cues + the default
+    // seed for a newly-picked identity (applyUpdate swaps it for a fresh rev).
+    private var result: LoadResult = loadResult
 
     // A14: the reading mode is a persisted global preference; the entrypoint seeds it here (A10 pattern).
-    private val _state = MutableStateFlow(stageStateFrom(loadResult, role).copy(fitMode = initialFit))
+    private val _state = MutableStateFlow(stageStateFrom(loadResult, role, identity).copy(fitMode = initialFit))
     val state: StateFlow<StageState> = _state.asStateFlow()
 
     fun next() = goToPage(_state.value.current + 1)
@@ -51,8 +55,23 @@ class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitM
     /** Set the local reading role; RE-SEEDS every song's visibility from the default rule, CLEARING any
      *  per-song manual overrides (A1). Mandatory layers stay on. */
     fun setRole(role: String) = _state.update { s ->
-        val defaults = defaultVisibleLayers(s.layers, role)
+        val defaults = defaultVisibleLayers(s.layers, role, s.identity)
         s.copy(role = role, visibleBySong = s.songs.associate { it.songId to defaults })
+    }
+
+    /** P205 Stage 3a: set the viewer's IDENTITY (a member id, "" = anonymous). Re-derives this member's
+     *  cues (member_cues) and RE-SEEDS every song's visibility from the (role, identity) default rule,
+     *  CLEARING per-song manual overrides — the A18 role-change semantics. A local view preference (I12):
+     *  no account, no writes here; the host persists the choice per concert/device. Page/fit/auto-update
+     *  are preserved. */
+    fun setIdentity(identity: String) = _state.update { s ->
+        val fresh = stageStateFrom(result, s.role, identity)
+        if (fresh.pages.isEmpty()) return@update s.copy(identity = identity)
+        fresh.copy(
+            current = s.current.coerceIn(0, fresh.pages.lastIndex),
+            fitMode = s.fitMode,
+            autoUpdate = s.autoUpdate,
+        )
     }
 
     /** P201/I13: the transient rehearsal auto-update toggle. In-memory only — a new
@@ -71,7 +90,8 @@ class StageViewModel(loadResult: LoadResult, role: String = "", initialFit: FitM
      * spread / scroll position from `current`, which this maps correctly.
      */
     fun applyUpdate(newResult: LoadResult) = _state.update { old ->
-        val fresh = stageStateFrom(newResult, old.role).copy(fitMode = old.fitMode, autoUpdate = old.autoUpdate)
+        result = newResult // P205: keep the retained bundle current for a later setIdentity
+        val fresh = stageStateFrom(newResult, old.role, old.identity).copy(fitMode = old.fitMode, autoUpdate = old.autoUpdate)
         if (fresh.pages.isEmpty()) return@update fresh
         val target = remapCurrent(old, fresh)
         // A1: merge PER SONG. For a song that existed before, keep its overrides for layers that still
