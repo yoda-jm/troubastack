@@ -78,6 +78,9 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
 
     val isConnected: Boolean get() = cookie() != null
 
+    /** A27: the host part of the configured server (no scheme), for the Home identity card. */
+    val serverLabel: String get() = baseUrl.removePrefix("https://").removePrefix("http://")
+
     @Serializable private data class LoginReq(val username: String, val password: String)
     @Serializable private data class Bands(val bands: List<Band> = emptyList()) {
         @Serializable data class Band(val id: String = "")

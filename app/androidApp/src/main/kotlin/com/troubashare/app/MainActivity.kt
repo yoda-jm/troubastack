@@ -34,6 +34,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.troubashare.shared.home.HomeScreen
+import com.troubashare.shared.home.HomeState
+import com.troubashare.shared.home.Identity
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +68,7 @@ import java.util.UUID
 private const val POLICIES_KEY = "trouba.update.policies"
 private const val COLOR_MODE_KEY = "stage.colorMode"
 private const val FIT_MODE_KEY = "stage.fitMode" // A14: persisted reading mode (page/width/scroll)
+private const val LAST_CONCERT_KEY = "home.lastConcertDir" // A27: resume-last from the Home landing
 
 /**
  * The thin Android entrypoint (I15). Concerts list (Storage bundlesDir) + the shared [StageScreen],
@@ -120,9 +125,11 @@ private fun App() {
         )
     }
 
-    var selectedDir by remember { mutableStateOf<String?>(null) }
-    var editing by remember { mutableStateOf(false) }
-    var connecting by remember { mutableStateOf(false) }
+    // A27: nav state is rememberSaveable so a landing/product screen survives rotation + process death.
+    var atHome by rememberSaveable { mutableStateOf(true) } // cold start lands on Home, not the concert list
+    var selectedDir by rememberSaveable { mutableStateOf<String?>(null) }
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var connecting by rememberSaveable { mutableStateOf(false) }
 
     if (editing) {
         EditScreen(storage, onBack = { editing = false })
@@ -133,14 +140,40 @@ private fun App() {
         return
     }
 
+    // A27: HOME is the task root. Perform → the concerts list; Edit → the embedded Studio; Concerts →
+    // the list (download/update offers ride there, B03); the identity card → Connect. I12 intact: Home
+    // never gates Stage — Perform works fully offline with no login. Re-entering Home refreshes entries.
+    if (atHome && selectedDir == null) {
+        val entries = remember { listConcerts(storage).filter { !it.damaged } }
+        val lastDir = remember(entries) { storage.getSecret(LAST_CONCERT_KEY)?.takeIf { d -> entries.any { it.dir == d } } }
+        HomeScreen(
+            state = HomeState(
+                lastConcertName = entries.firstOrNull { it.dir == lastDir }?.label ?: "",
+                concertCount = entries.size,
+                identity = if (transport.isConnected) {
+                    Identity.Connected(name = "", server = transport.serverLabel, synced = true)
+                } else {
+                    Identity.Disconnected
+                },
+            ),
+            onPerform = { atHome = false },
+            onResume = { lastDir?.let { selectedDir = it } },
+            onEdit = { editing = true },
+            onConcerts = { atHome = false },
+            onIdentity = { connecting = true },
+        )
+        return
+    }
+
     val dir = selectedDir
     if (dir == null) {
         ConcertsScreen(
             context, storage, transport, updates,
-            onOpen = { selectedDir = it },
+            onOpen = { selectedDir = it; storage.putSecret(LAST_CONCERT_KEY, it) },
             onEdit = { editing = true },
             onConnect = { connecting = true },
         )
+        BackHandler { atHome = true } // A27: back from the concerts list returns to Home (the task root)
         return
     }
 
