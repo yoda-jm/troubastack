@@ -54,6 +54,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Switch
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -533,6 +534,8 @@ private fun Performing(
     if (showSettings) SettingsSheet(
         state = state,
         colorMode = colorMode,
+        canAutoUpdate = canAutoUpdate,
+        onToggleAutoUpdate = { vm.setAutoUpdate(!state.autoUpdate) },
         onFitMode = { vm.setFitMode(it); onFitModeChange(it) },
         onLayers = { showSettings = false; showLayers = true },
         onRole = { showSettings = false; showRole = true },
@@ -639,6 +642,28 @@ private fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean):
 }
 
 /**
+ * Scheme-A settings-sheet sweep: the app equivalent of the studio's Band/Mine AudienceTag. On the
+ * Stage everything is view-local, but two controls read like they might change what BANDMATES see —
+ * auto-update (pulls new bakes) and the per-song layer toggles (looks like hiding a layer for all).
+ * This chip makes it explicit they are personal: they only change YOUR view. Pure, themeable.
+ */
+@Composable
+private fun PersonalTag(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Text(
+            "👤 Just for you",
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+        )
+    }
+}
+
+/**
  * A2 (Q2) — the Stage settings sheet: the reading-mode segmented control (Page | Width | Scroll) plus
  * the setup-time controls (layers, role, day/night) that used to clutter the top bar. Opened from the
  * ⚙ FAB; auto-hide pauses while it's up. Layers/Role open their existing dialogs (A1 will refine them).
@@ -648,6 +673,8 @@ private fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean):
 private fun SettingsSheet(
     state: StageState,
     colorMode: StageColorMode,
+    canAutoUpdate: Boolean,
+    onToggleAutoUpdate: () -> Unit,
     onFitMode: (FitMode) -> Unit,
     onLayers: () -> Unit,
     onRole: () -> Unit,
@@ -677,6 +704,20 @@ private fun SettingsSheet(
                 OutlinedButton(onClick = onRole, modifier = Modifier.weight(1f)) { Text(if (state.role.isEmpty()) "Role" else "Role: ${state.role}") }
                 OutlinedButton(onClick = onToggleColor, modifier = Modifier.weight(1f)) { Text(if (colorMode == StageColorMode.NIGHT) "Night" else "Day") }
                 if (state.layers.isNotEmpty()) OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Layers…") }
+            }
+            // Scheme-A sweep: auto-update lives in the sheet (not just the ● chrome FAB) and is
+            // tagged personal — pulling new bakes only changes YOUR view, never a bandmate's.
+            if (canAutoUpdate) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Auto-update", style = MaterialTheme.typography.titleSmall)
+                            PersonalTag()
+                        }
+                        Text("Apply new bakes as they arrive", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = state.autoUpdate, onCheckedChange = { onToggleAutoUpdate() })
+                }
             }
         }
     }
@@ -1043,7 +1084,10 @@ private fun LayersDialog(state: StageState, vm: StageViewModel, onDismiss: () ->
         title = { Text(if (songName.isEmpty()) "Layers — this song" else "Layers — $songName") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Overrides just this song; changing your role resets it.", style = MaterialTheme.typography.bodySmall)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Overrides just this song; changing your role resets it.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    PersonalTag() // Scheme-A: toggling a layer only changes YOUR view, not a bandmate's
+                }
                 layers.forEach { (layer, label) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
