@@ -45,6 +45,7 @@ test("admin bakes a setlist → download link + history appear", async ({ page }
 
   // Bake → a download link and a history row appear (rev 1).
   await page.getByTestId("bake-setlist").click();
+  await page.getByTestId("bake-dialog-confirm").click(); // P205 bake dialog
   await expect(page.getByTestId("bake-download")).toBeVisible();
   await expect(page.getByTestId("bake-download")).toHaveAttribute(
     "href",
@@ -55,6 +56,7 @@ test("admin bakes a setlist → download link + history appear", async ({ page }
 
   // Re-bake bumps the revision.
   await page.getByTestId("bake-setlist").click();
+  await page.getByTestId("bake-dialog-confirm").click(); // P205 bake dialog
   await expect(page.getByTestId("bake-history-row").first()).toContainText("Rev 2");
   await expect(page.getByTestId("bake-download")).toContainText("rev 2");
 });
