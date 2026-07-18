@@ -7338,6 +7338,31 @@ deletion is on Stage 3a's landing checklist. **CI GREEN on `ed1966c` (all five).
 the queue directive: web-core → T57 (PDF, on the band-wide bundle + the shared
 view-resolution test vectors); mobile → A27 landing page, then Stage 3a.
 
+## 2026-07-18 — RULING: A27 Home refinements (VLL delegated) — small brand, branded products, hybrid tiles, clean identity line
+
+**(a) Branding:** the app wordmark goes SMALL — a compact muted top bar
+"TroubaShare", never a headline. Products carry the brand names, and the set is
+exactly TWO real products: **TroubaStage** (Perform) and **TroubaStudio** (Edit).
+"Concerts · get & update" is a UTILITY, not a product — unbranded, secondary.
+(TroubaCore is the server; it appears in connection details, never as a tile.)
+
+**(b) Identity/connection:** the raw `IP:port` NEVER headlines. Connected state =
+one clean line: **"Connected ✓"** (+ "· «band name»" whenever it's cheaply
+available — and when Stage 3a lands this line becomes "Performing as Marie ·
+The Troubadours"); a **Manage** affordance opens the server/account details —
+that's where the IP lives. Offline state = "Offline · concerts on device still
+work" (the I12 reassurance, not an error tone).
+
+**(c) Layout — hybrid, and the lane's lean is right:** **TroubaStage · Perform
+stays the ONE big primary tile** — it's the on-stage button; a big touch target is
+function, not decoration (resume-last subtitle stays). TroubaStudio · Edit and
+Concerts collapse to a compact button pair below it. Identity line at the bottom.
+VLL's "group of buttons" instinct is honored for the secondary actions without
+demoting the stage button.
+
+One pass on #64 (or follow-up), device pixels re-captured connected + offline at
+the gate. The A27 spec's ASCII sketch is superseded by this entry.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
