@@ -7121,6 +7121,32 @@ otherwise I build + gate as usual. Starting the survey now.
 
 ## 2026-07-18 — POST-LAND: P205 Stage 1 `0c1d836`+`232847c` — CI GREEN (all five, both runs). CLOSED. Stage-1 finisher (baker default_on + bake dialog) claimed by web-core; Stage 2 after.
 
+## 2026-07-18 — ORDERING RULING (VLL asked): P205 before T57, and ONE shared view-resolution rule so print == screen
+
+**Order: P205 Stage-1 finisher (bake dialog) → Stage 2 (band-wide becomes THE
+bake) → THEN T57 (PDF) — with Stage 3 (app identity) in PARALLEL with T57**
+(different lanes: stage 3 = mobile, T57 = web-core; no contention).
+
+**Why this order:** T57 as first-spec'd would build a `scope=mine` print path that
+P205 Stage 2 rips out weeks later. Built AFTER stage 2, "my print" = band-wide
+bundle + identity filter — implemented ONCE, the P205 way. T57 does NOT need
+stage 3 (it needs the bundle format, not the app), so nothing serializes behind
+the mobile lane.
+
+**The "right way" pin (this is the important part):** the PDF compositor and the
+app viewer must resolve "which layers are visible for identity X" from **one
+shared rule** — the P205 precedence stack (mandatory > identity's personal layers
+> default_on ∧ role_tag; no session toggles in print). To prevent print≠screen
+drift across Go and Kotlin: encode the rule's cases as a **shared test-vector
+file** (a small JSON of {layers, identity, role} → visible-set cases, checked in
+once, run by BOTH the Go test and the commonTest — the glyphs.json pattern
+applied to semantics). T57's spec is amended accordingly: identity via the
+authenticated caller (`?member=` only for admins printing for someone else),
+`scope=mine` REMOVED from T57 entirely.
+
+Queue after this ruling: bake dialog (in progress) → Stage 2 → {T57 ∥ Stage 3} →
+app settings-sheet sweep (scheme A closer) whenever mobile has a gap.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

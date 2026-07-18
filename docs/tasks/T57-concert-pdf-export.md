@@ -6,12 +6,16 @@ assembly + endpoint) + a studio download button. Ruling: reviews.md 2026-07-18.
 
 ## Design (ruled)
 
-- Input: an existing bundle's blobs (band bake; `scope=mine` while it exists — P205
-  slots in later as "band bundle + identity filter"). No new render pipeline.
-- `GET /api/bands/{b}/concerts/{id}/pdf[?scope=mine][&role=X]` — same gating as the
-  bundle download. Composite per baked page: raster + the DEFAULT-visible overlays
-  (mandatory + untagged; `role=X` adds that role's tagged layers; never session
-  toggles — a printed backup must be reproducible). Bench/on-call songs print LAST,
+- **RESEQUENCED 2026-07-18 (ordering ruling): builds AFTER P205 Stage 2, on the
+  band-wide bundle ONLY** — `scope=mine` is not part of T57. "My print" = band-wide
+  bundle + identity filter (the authenticated caller; `?member=` admin-only for
+  printing on someone's behalf). No new render pipeline.
+- `GET /api/bands/{b}/concerts/{id}/pdf[&role=X][&member=Y admin-only]` — same
+  gating as the bundle download. Composite per baked page via the **P205
+  view-resolution rule** (mandatory > identity's personal layers > default_on ∧
+  role_tag; never session toggles). **The rule's cases live in a shared test-vector
+  JSON run by BOTH the Go test and commonTest** so print == screen by construction
+  (the glyphs.json pattern applied to semantics). Bench/on-call songs print LAST,
   marked in the header.
 - Pure Go: `image/draw` + `x/image/webp` (decode) → JPEG q~85 → DCTDecode embed via
   a minimal PDF writer (or pdfcpu — lane's pick; no CGo, no shell-outs).
