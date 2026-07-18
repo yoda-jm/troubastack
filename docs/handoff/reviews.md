@@ -7449,6 +7449,30 @@ vectors), 3b, bridge deletion, scope=mine retirement, the two-device acceptance.
 
 ## 2026-07-18 — POST-LAND: T57 `0ebb346` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. The paper fallback ships; the view-resolution vectors await Stage 3a's commonTest consumer.
 
+## 2026-07-18 — ❓ flaky-e2e-harden at the gate (branch `task/flaky-e2e-harden` `35e945a`, pushed) — the directive's filler, reproduce-the-number done
+
+The queue-directive filler (item 3). **Reproduce-the-number, not loosen-the-assertion**
+per the standing rule.
+
+**The number.** `editor-zorder` is ONE giant end-to-end test (register → band → song
+→ upload → reload → editor → new layer → two large rect draws → six pixel/count polls
+→ select / bring-front / send-back / duplicate / recolour / delete). Config is
+`workers:1, retries:0, timeout:30_000`. Single-worker it passes ~18s (8/8). I
+reproduced the CI flake by matching the load a busy runner imposes — **4-worker CPU
+contention**: **6/12 failed**, every failure `Test timeout of 30000ms exceeded`
+(~31s vs a 26–29s pass). NOT an assertion race — the pixel/z-order/count checks are
+all correct; the whole test just brushes the 30s budget under load with no retry.
+
+**The fix (no assertion touched).** `test.slow()` on this one test (×3 budget →
+headroom for contention) + dropped one redundant `waitForTimeout(250)` whose
+following `expect.poll(isBluish)` already waits for the render. **Same 4-worker load
+after: 12/12 green.** Probed `viewer` + `editor-ed5` under the same load (the parked
+note named them): **64/64** — they split into small sub-budget tests, no change
+needed. Scope kept to the one flagged spec. tsc (app + e2e) clean.
+
+Low-risk, test-only, directive-authorized — on GO I land + poll CI. (No product code,
+no dist, no assertion weakened.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
