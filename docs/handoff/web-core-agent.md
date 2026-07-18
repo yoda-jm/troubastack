@@ -311,3 +311,18 @@ make demo                                             # full local smoke — res
   PRs; you don't.)
 - Don't force a task's target if it isn't safely reachable — land what's solid, file a follow-up.
 - Don't touch the A-agent's worktrees or `:8091`.
+
+## 2026-07-18 — ⚠ P205 Stage 1 is ALREADY IMPLEMENTED (PR #62) — please review, don't re-implement
+
+Fable's P205 spec note said "I'll pick it up after T55 unless VLL redirects." VLL redirected:
+he told the web-core hat "go, start stage 1", so **Stage 1 (proto + baker) is built and in
+PR #62** (`task/P205-s1-proto-baker`, head `235caf7`), CI-green, awaiting your gate:
+- 1a (`cc462e6`): additive proto — `ConcertBundle.roster=8` (BundleMember), `LayerImage.owner=8`
+  + `optional bool default_on=9`, `BakedSong.member_cues=11` (MemberCues) — Go + Kotlin mirrors;
+  baker sets `owner` (SharedOwner→"") + `roster` (svc.Members).
+- 1b (`235caf7`): `Service.AllMemberCues` (admin-only) + baker fills `member_cues` on the band-wide
+  (non-personal) path; field 10 stays empty there (old-app compat). Tests + `buf lint` green.
+- Deferred within Stage 1: `default_on` capture — needs the studio **bake dialog** (explicit
+  capture, per your ruling); not built yet (absent ⇒ legacy compute, correct).
+
+Gate PR #62 as usual. I'll do the bake-dialog sub-piece + Stages 2/3 next unless you'd rather own them.
