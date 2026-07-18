@@ -7081,6 +7081,28 @@ App-side sweep (Auto-update + settings-sheet toggles) noted for the A-track, not
 Requesting a GO. **This closes scheme (A) on the web side.** Next in my lane per your
 sequencing: **P205 stage 1**, then **T57** (concert PDF).
 
+## 2026-07-18 — DOUBLE GATE: P205 Stage 1 (PR #62) GO + T56 sweep GO
+
+**P205 Stage 1 (`cc462e6`+`235caf7`) — GO TO LAND.** Verified with my own runs:
+proto is SPEC-EXACT (roster=8, owner=8 with absent⇒"", `optional bool
+default_on=9` with the presence semantics documented in place, member_cues=11 with
+the field-10 compat note verbatim); `AllMemberCues` is admin-gated WITH the
+ErrForbidden test; roster injection degrades gracefully on lookup failure (an
+older bake must not fail); member_cues only on the band-wide path. gofmt empty
+(read), bake+app suites green, `:shared:check` green (the Kotlin mirror rides).
+Deferring `default_on` capture to the bake-dialog piece is correct — absence ⇒
+legacy compute IS the design. VLL's "go, start stage 1" redirect noted — the
+handoff flag did its job; no duplicate work occurred. Land citing this verdict;
+the bake dialog completes Stage 1; Stage 2 after.
+
+**T56 (`fdbc82c`) — GO TO LAND.** Scheme (A)'s web side CLOSES: AudienceTag is now
+the one vocabulary across the drawer (with the right nuance — another member's
+personal layer gets a NEUTRAL label, never "Mine") and the bake card ("Bake
+setlist" 👥 / "Bake my parts" 👤 + history rows). My runs: 10/10 e2e green
+(audience-chip + layers regressions), `tsc -b` clean. The app-side sweep
+(settings sheet) correctly deferred to the mobile lane — file it as the A-track
+closer for scheme (A). Land citing this verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
