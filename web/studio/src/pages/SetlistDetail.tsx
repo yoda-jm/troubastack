@@ -19,6 +19,7 @@ import {
 } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { CueGlyph } from "../components/CueGlyphs";
+import { AudienceTag } from "../components/AudienceTag";
 
 export function SetlistDetail() {
   const { bandId, setlistId } = useParams<{ bandId: string; setlistId: string }>();
@@ -251,6 +252,7 @@ function BakeCard({
             >
               {busy === "band" ? "Baking…" : "Bake setlist"}
             </button>
+            <AudienceTag audience="band" />{/* T56: the shared band bundle */}
             {bandConcert && (
               <a
                 data-testid="bake-download"
@@ -271,6 +273,7 @@ function BakeCard({
           >
             {busy === "mine" ? "Baking…" : "Bake my parts"}
           </button>
+          <AudienceTag audience="mine" />{/* T56: your personal variant */}
           {myConcert && (
             <a
               data-testid="bake-mine-download"
@@ -292,8 +295,8 @@ function BakeCard({
             {concerts.map((c) => (
               <li key={c.concertId} data-testid="bake-history-row">
                 <span>
-                  {c.concertId === setlistId ? "Band" : "My parts"} · Rev {c.currentRev} ·{" "}
-                  {c.songs.length} song{c.songs.length === 1 ? "" : "s"}
+                  <AudienceTag audience={c.concertId === setlistId ? "band" : "mine"} /> · Rev{" "}
+                  {c.currentRev} · {c.songs.length} song{c.songs.length === 1 ? "" : "s"}
                   {c.bakedBy ? ` · by ${c.bakedBy}` : ""}
                 </span>
                 <span className="muted">

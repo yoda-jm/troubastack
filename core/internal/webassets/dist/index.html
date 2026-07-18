@@ -1,19 +1,21 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>TroubaCore — SPA not embedded</title>
 <!--
-  Placeholder. The real TroubaStudio SPA (web/studio/dist/) is copied over this
-  directory and embedded by ../embed.go (I10) when you build with `make embed`/
-  `make dist`/`make run`. This file exists only so //go:embed has an embeddable
-  file in a fresh checkout (go:embed skips dotfiles, so a .gitkeep won't compile).
-  NOTE: a build overwrites this file locally — don't commit the built index.html.
+  TroubaStudio SPA entry (I10). Client-rendered, NOT SSR — this is what lets
+  core serve the built assets directly via embed.FS with no Node runtime in
+  production (06-tech-stack.md, I14).
 -->
-<body style="font:16px system-ui;max-width:40rem;margin:4rem auto;padding:0 1rem">
-<h1>TroubaCore is running</h1>
-<p>The API is up (try <code>/healthz</code> and <code>/api/me</code>), but the
-TroubaStudio SPA has not been embedded into this binary yet.</p>
-<ul>
-<li>Whole app on one origin: <code>make dist</code>, then <code>cd core &amp;&amp; ./bin/troubacore</code></li>
-<li>Frontend dev (hot reload): <code>make dev</code> → open <code>http://localhost:5173</code></li>
-</ul>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Zoomable by default (WCAG 1.4.4 — low-vision users can pinch-zoom the
+         management pages). `user-scalable=no` is scoped to the editor route at runtime
+         (Shell), where the in-app pinch owns the gesture (T27 stage 4). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TroubaStudio</title>
+    <script type="module" crossorigin src="/assets/index-DOdXE0my.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BaqWPmaM.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>

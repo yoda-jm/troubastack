@@ -8,6 +8,7 @@ import type { AnnotationLayer, AnnotationObject, Role } from "../../api";
 import { objectLabel } from "../../editor";
 import { Avatar } from "../../components/Avatar";
 import { isEditableLayer, type LayerVisibility } from "./helpers";
+import { AudienceTag } from "../../components/AudienceTag";
 
 export function LayersPanel({
   layers,
@@ -43,10 +44,19 @@ export function LayersPanel({
       ) : (
         <ul className="list layers-list">
           {layers.map((l) => {
-            const tag =
-              l.zone === "personal" && myUserId != null && l.ownerId === myUserId
-                ? "personal · mine"
-                : l.zone;
+            // T56: the audience chip — 👤 Mine for my personal layer, 👥 Band for
+            // shared/conductor (conductor labelled). Another member's personal layer
+            // (locked, not mine) keeps a neutral zone label — it is neither Band nor
+            // my Mine.
+            const isMineLayer =
+              l.zone === "personal" && myUserId != null && l.ownerId === myUserId;
+            const audienceEl = isMineLayer ? (
+              <AudienceTag audience="mine" />
+            ) : l.zone === "shared" || l.zone === "conductor" ? (
+              <AudienceTag audience="band" note={l.zone === "conductor" ? "conductor" : undefined} />
+            ) : (
+              <span className="pill">{l.zone}</span>
+            );
             // Non-editable = a layer I may not write (RO, or someone else's
             // personal layer). Shown with a lock; never the active draw target.
             const locked = !isEditableLayer(l, myUserId, myRole);
@@ -85,7 +95,7 @@ export function LayersPanel({
                     <span className="layer-name">{l.name}</span>
                   </button>
                 </div>
-                <span className="pill">{tag}</span>
+                {audienceEl}
                 {l.mandatory && <span className="pill mandatory-pill">required</span>}
                 {/* The `drawing` (active) and `viewing` (focused) pills are the ONLY
                     per-row content that changes when focus/active moves between layers.
