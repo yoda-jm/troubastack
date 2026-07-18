@@ -59,6 +59,9 @@ import com.troubashare.shared.stage.PageTurn
 import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
+import com.troubashare.shared.stage.WhoAreYouDialog
+import com.troubashare.shared.stage.needsIdentityPick
+import com.troubashare.shared.stage.resolveIdentity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -175,10 +178,21 @@ private fun App() {
         return
     }
 
-    val opened = remember(dir) {
+    // P205 Stage 3a-ii: resolve the viewer's identity for THIS concert (a local view preference, I12 —
+    // no account). A stored pick still in the roster wins; else "" ⇒ the "Who are you?" picker below.
+    // An old/-mine/anonymous bundle has no roster ⇒ identity stays "" and Perform is one-tap as today.
+    val concertId = remember(dir) { listConcerts(storage).firstOrNull { it.dir == dir }?.concertId ?: "" }
+    val loadResult = remember(dir) { BundleLoader().load(dir, FileBundleFiles()) }
+    val roster = remember(loadResult) { (loadResult as? LoadResult.Loaded)?.bundle?.roster ?: emptyList() }
+    val idKey = "identity.$concertId"
+    var identity by rememberSaveable(dir) { mutableStateOf(resolveIdentity(roster, storage.getSecret(idKey))) }
+    var pickerHandled by rememberSaveable(dir) { mutableStateOf(false) }
+
+    val opened = remember(dir, identity) {
         OpenedBundle(
             // A14: seed the persisted reading mode (page/width/scroll) into the VM (A10 pattern).
-            StageViewModel(BundleLoader().load(dir, FileBundleFiles()), initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY))),
+            // Stage 3a-ii: seed the resolved identity — picks this member's layers + cues.
+            StageViewModel(loadResult, identity = identity, initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY))),
             AndroidImageDecoder(File(dir)),
         )
     }
@@ -199,7 +213,6 @@ private fun App() {
     // VM (applyUpdate → R10 viewport-preserving). The loop is keyed on (dir, autoUpdate), so
     // it starts/stops with the toggle and cancels when Stage is left. Best-effort — a failed
     // tick is a no-op (autoUpdateTick returns null), the current rev keeps performing.
-    val concertId = remember(dir) { listConcerts(storage).firstOrNull { it.dir == dir }?.concertId ?: "" }
     val stageState by opened.vm.state.collectAsState()
     LaunchedEffect(dir, stageState.autoUpdate) {
         if (!stageState.autoUpdate || concertId.isEmpty()) return@LaunchedEffect
@@ -222,6 +235,15 @@ private fun App() {
                 canAutoUpdate = concertId.isNotEmpty(),
             )
         }
+    }
+    // Stage 3a-ii: on a band-wide bundle with no identity yet, ask once. Picking re-seeds the VM
+    // (this member's layers + cues) and remembers per concert; "Not now" plays anonymous this session.
+    if (needsIdentityPick(roster, identity) && !pickerHandled) {
+        WhoAreYouDialog(
+            roster = roster,
+            onPick = { m -> storage.putSecret(idKey, m); identity = m; pickerHandled = true },
+            onDismiss = { pickerHandled = true },
+        )
     }
     BackHandler { selectedDir = null }
 }
