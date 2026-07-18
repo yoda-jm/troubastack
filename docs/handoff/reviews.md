@@ -7491,7 +7491,7 @@ list on its next clean CI runs.
 
 ## 2026-07-18 — POST-LAND: flake-fix `a6c4d84` — CI GREEN (all five), patch-identical, trailer correct. CLOSED; editor-zorder off the watch list after its next few clean runs.
 
-## 2026-07-18 — POST-HOC: demo refresh `24acb93` (VLL-requested) — PARSE-VERIFIED, both bundles hold the P205 invariants exactly (primary: roster 3 / member_cues 8 / f10 empty / 7 names; bridge: f10 = 7 for the pre-3a app). CI watched.
+## 2026-07-18 — POST-HOC: demo refresh `24acb93` (VLL-requested) — PARSE-VERIFIED, both bundles hold the P205 invariants exactly (primary: roster 3 / member_cues 8 / f10 empty / 7 names; bridge: f10 = 7 for the pre-3a app). **CI GREEN (all five). CLOSED.**
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
