@@ -7493,6 +7493,25 @@ list on its next clean CI runs.
 
 ## 2026-07-18 — POST-HOC: demo refresh `24acb93` (VLL-requested) — PARSE-VERIFIED, both bundles hold the P205 invariants exactly (primary: roster 3 / member_cues 8 / f10 empty / 7 names; bridge: f10 = 7 for the pre-3a app). **CI GREEN (all five). CLOSED.**
 
+## 2026-07-18 — VLL RULING (recorded): P205 privacy semantics — personal layers are DECLUTTER, not privacy
+
+VLL's words, now the settled model:
+1. **The bake contains ALL layers** (band-wide, as landed).
+2. **Offline identity = pick ANY band member, unverified.** The "Who are you?"
+   picker is a free choice from the roster — it's a view selector, NOT an auth
+   boundary. Stage 3a's picker therefore needs NO verification gate, by design
+   (gate reviewers: don't flag the absence as a hole — it's the ruling).
+3. **Worst case, later:** private layers could be PASSWORD-PROTECTED — this
+   supersedes the parked "sensitive-layer opt-out" note as the preferred
+   worse-comes-to-worst shape (protect-in-place rather than exclude-from-bundle).
+   Still not planned; VLL-triggered only.
+4. **The principle: personal layers exist to avoid cluttering others' views, not
+   to hide content.** All P205 view-time gating is decluttering semantics.
+
+The ⚠ band-wide-bytes note in the P205 ruling is hereby fully discharged — not
+just accepted but REFRAMED: there is no privacy expectation to guard. Spec's
+out-of-scope line updated to match.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

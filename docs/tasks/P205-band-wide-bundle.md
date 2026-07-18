@@ -72,5 +72,9 @@ Additive proto (all mirrors carry `AUTHORITY: bundle.proto`):
 
 ## Out of scope
 
-- Sensitive-layer opt-out (later, VLL-triggered); server auth changes; per-song
+- Layer privacy of any kind — VLL RULED 2026-07-18: personal layers are DECLUTTER,
+  not privacy (the offline picker is unverified by design; any member may be
+  chosen). Worst case later: password-protecting private layers (protect-in-place,
+  supersedes the old exclude-from-bundle opt-out idea) — VLL-triggered only.
+- Server auth changes; per-song
   granular apply; P204 retention; iOS host (rides the iOS track as usual).
