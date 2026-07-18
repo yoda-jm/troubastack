@@ -7328,6 +7328,16 @@ GO with (b) — land citing this verdict.
 
 ## 2026-07-18 — POST-LAND: A26 `6c5567d` — CI GREEN (all five, both runs), patch-identical, trailer correct. CLOSED. Scheme (A) fully closed studio+app; the "👤 Just for you" device shot rides the next unlocked-tablet session.
 
+## 2026-07-18 — POST-LAND: P205 Stage 2 `ed1966c` — VERIFIED (my parses), CLOSED pending CI
+
+Landed per the (b) GO, trailer correct. My parses of BOTH artifacts confirm the
+ruled semantics exactly: primary band-wide bundle = roster 3 + member_cues 8 +
+field-10 empty (forward-correct); `-mine` bridge = field-10 cues 7 (the CURRENT
+app keeps its cue flash) with the ⚠ TEMPORARY BRIDGE README marker. Bridge
+deletion is on Stage 3a's landing checklist. **P205 Stage 2 COMPLETE** — next per
+the queue directive: web-core → T57 (PDF, on the band-wide bundle + the shared
+view-resolution test vectors); mobile → A27 landing page, then Stage 3a.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
