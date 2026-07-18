@@ -39,7 +39,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 6. Each task lists its own **acceptance criteria**. All of them must pass before the task
    is done. If a criterion is impossible as written, report why rather than approximating.
 
-## Queue state (2026-07-07, from the review-gate log)
+## Queue state (re-synced 2026-07-18, from the review-gate log)
 
 - **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
   (deterministic listings), **CFG01** (config file), **T23** (encore/bench — server
@@ -57,12 +57,28 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
   **compose → bake → offer → download → import → perform** — is in-app; I13's
   explicit tier is ✅.
+- **Landed 2026-07-12 → 07-18:** **T50** (personal song cues, per-member self-only) ·
+  **Scheme A** — one 👥 Band / 👤 Mine vocabulary: **T54** (audience-tabbed Details),
+  **T55** (draw-time zone chip), **T56** (web vocabulary sweep) + app **A26** (settings
+  sweep), **A27** (Home refinements) · **P205 Stage 1** (bake dialog + `default_on`
+  capture, `df0f3be`) + **Stage 2** (band-wide bake becomes THE bake; demo → one
+  band-wide bundle + a temporary `-mine` bridge; `ed1966c`) · **T57** (concert → printable
+  A4 PDF, the paper fallback; the shared view-resolution vectors so print == screen;
+  `0ebb346`) · the **editor-zorder flaky-e2e fix** (reproduced under load, budget-only fix;
+  `a6c4d84`) · demo bundles refreshed band-wide (`24acb93`).
 - **Open, unblocked:** **P201** (rehearsal live mode — spec
   REFRESHED 2026-07-12, unblocked, ready when VLL says go). **OPS01** unattended slice
   landed `3662468` (remaining: VLL's attended HTTPS bring-up + release APK). **P203**
   DECIDED 2026-07-11: re-affirm mirrors (closed-not-adopted). **P202** closed
   2026-07-10 (safe slice `5ceba9f`; rest → deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
+- **P205 in flight (mobile lane):** **Stage 3a** (app view-time identity — Connect
+  auto-match / one-tap picker → my layers + my cues from the one bundle), then **3b**
+  (personal-layer filtering). On Stage 3a's landing checklist: delete the temporary
+  `demo-concert-mine.tstage` bridge + wire the shared view-resolution vectors into
+  commonTest. **web-core follow-on (blocked on Stage 3):** retire `scope=mine` in the
+  bakeapi (one release of overlap). Program acceptance (attended, VLL): two identities,
+  two devices, ONE file, different layers + cues.
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
   feel — rides A07's tablet stylus session; the phone-breakpoint cosmetics +
   reduced-blur fallback LANDED 2026-07-10 `f90a7ca`, plus the two viewport device
