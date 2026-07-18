@@ -1366,6 +1366,39 @@ func (s *Service) MyCues(caller User, bandID, songID string) ([]SongCue, error) 
 	return sc.Cues, nil
 }
 
+// MemberSongCues is one member's personal cues for a song (P205 band-wide bake).
+type MemberSongCues struct {
+	MemberID string    `json:"memberId"`
+	Cues     []SongCue `json:"cues"`
+}
+
+// AllMemberCues returns EVERY band member's personal cues for a song, keyed by
+// member id, in the deterministic Members order (P205 band-wide bake). ADMIN-only:
+// unlike MyCues (self-only), this exposes other members' cues, so it is gated like
+// the band-wide bake that consumes it (bake is admin-only, I11). Members with no
+// cues for the song are omitted (never a hollow entry).
+func (s *Service) AllMemberCues(caller User, bandID, songID string) ([]MemberSongCues, error) {
+	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+		return nil, err
+	}
+	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
+		return nil, err
+	}
+	members, err := s.Members(caller, bandID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MemberSongCues, 0, len(members))
+	for _, m := range members {
+		sc, err := s.repo.GetSongCues(m.User.ID, songID)
+		if err != nil || len(sc.Cues) == 0 {
+			continue // ErrNotFound / no cues → omit this member
+		}
+		out = append(out, MemberSongCues{MemberID: m.User.ID, Cues: sc.Cues})
+	}
+	return out, nil
+}
+
 // SetMyCues replaces the caller's ordered cue list for a song (T50). Self-only by
 // construction — cues are always keyed to caller.ID, so a member can never write
 // another's. An empty list clears the cues. Each icon id must be non-empty; each

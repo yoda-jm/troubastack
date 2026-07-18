@@ -266,9 +266,12 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	}
 	song.SourceRevision = snap.Revision
 
-	// T50: personal song cues ride the per-member bake only — the shared band bake
-	// carries none (cues are private, B07). A member's own bundle already IS their
-	// view, so no app-side filtering is needed.
+	// T50: personal song cues ride the per-member bake as field 10 (`cues`) — a
+	// member's own bundle IS their view, no app-side filtering needed.
+	// P205: the band-wide (admin) bake instead carries EVERY member's cues as
+	// `member_cues` (field 11), keyed by member id; the viewer shows only its own
+	// identity's entry (Stage 3). Field 10 stays empty in the band-wide bake so an
+	// old app degrades to no-cues, never wrong-cues (the ruled compat guard).
 	if personal {
 		cues, cerr := b.svc.MyCues(actor, bandID, item.SongID)
 		if cerr != nil {
@@ -276,6 +279,18 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 		}
 		for _, c := range cues {
 			song.Cues = append(song.Cues, SongCue{Icon: c.Icon, Color: c.Color})
+		}
+	} else {
+		mcs, mcerr := b.svc.AllMemberCues(actor, bandID, item.SongID)
+		if mcerr != nil {
+			return BakedSong{}, mcerr
+		}
+		for _, mc := range mcs {
+			cues := make([]SongCue, 0, len(mc.Cues))
+			for _, c := range mc.Cues {
+				cues = append(cues, SongCue{Icon: c.Icon, Color: c.Color})
+			}
+			song.MemberCues = append(song.MemberCues, MemberCues{MemberID: mc.MemberID, Cues: cues})
 		}
 	}
 

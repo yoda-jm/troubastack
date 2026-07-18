@@ -310,7 +310,15 @@ func TestBake_PersonalCuesInjected(t *testing.T) {
 		t.Fatalf("want 1 baked song, got %d", len(shared.Songs))
 	}
 	if len(shared.Songs[0].Cues) != 0 {
-		t.Fatalf("shared bake cues = %+v, want none (cues are personal)", shared.Songs[0].Cues)
+		t.Fatalf("shared bake cues = %+v, want none in field 10 (cues are personal)", shared.Songs[0].Cues)
+	}
+	// P205: the band-wide (admin) bake carries every member's cues as member_cues,
+	// keyed by member id — the viewer filters to its own identity (Stage 3). Field 10
+	// stays empty so an old app degrades to no-cues, never wrong-cues.
+	mc := shared.Songs[0].MemberCues
+	if len(mc) != 1 || mc[0].MemberID != u.ID || len(mc[0].Cues) != 2 ||
+		mc[0].Cues[0].Icon != "mic" || mc[0].Cues[1].Color != "#e11d48" {
+		t.Fatalf("shared bake member_cues = %+v, want u's cues keyed by member id (P205)", mc)
 	}
 
 	// Personal variant bake: exactly this member's cues, in order, tints preserved.
