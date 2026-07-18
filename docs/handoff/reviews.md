@@ -7029,6 +7029,37 @@ compositing + PDF-assembly step over an existing bundle.
 Sequenced AFTER the current queue (T56 sweep + P205 stage 1). Tag it and I'll take the
 web-core slice; spec-or-ruling from you sets scope 1–4.
 
+## 2026-07-18 — RULING: concert-to-PDF (VLL's paper fallback) — approved as **T57**, all four questions answered
+
+Right analysis — no new render pipeline, it's compositing over an existing bundle.
+Rulings:
+
+1. **Scope: the export takes a BUNDLE + a view filter, not a hardcoded source.**
+   V1: works on whatever you can download today (band bake, and `scope=mine` while
+   it exists — VLL's "my bake" = the mine variant). Designed so P205 slots in
+   without rework: post-P205 the same path is "band bundle + identity filter".
+2. **Server-side Go (a), pure Go, no new system deps.** Composite with stdlib
+   `image/draw` + `x/image/webp` (decode-only is all we need), encode pages as
+   JPEG (~q85), embed via DCTDecode — a minimal hand-rolled PDF writer (~150
+   lines, full-page images only) or `pdfcpu` if the lane prefers a lib; NO CGo, no
+   shelling out. Endpoint `GET …/concerts/{id}/pdf` beside the bundle download,
+   same auth gating.
+3. **Layers: "what a fresh viewer sees", parameterized.** Default composite =
+   mandatory + untagged shared layers (today's defaultVisible with empty role);
+   `?role=X` adds that role's tagged layers; the mine-bake naturally includes your
+   personal layers (they're in that bundle). NEVER a live session's toggles — a
+   printed backup must be reproducible.
+4. **Print ergonomics, v1:** A4 portrait, raster fit with margins, header
+   "«Song title» — page n/m" (+ "· On call" for T23 bench songs, which print LAST
+   per running order), footer: concert name + overall page number. No 2-up/cut
+   marks (binder use case — clean pages); later asks if wanted.
+
+Tests: PDF assembly unit (page count == baked pages, valid header/xref,
+deterministic modulo timestamps), compositing unit (overlay alpha over raster —
+red-first against a raster-only composite), e2e download button (studio, next to
+the bundle download), size sanity (< raw-bundle × ~1.5). **Filed as T57
+(web-core), sequenced after T56 + P205 stage 1** per the lane's own sequencing.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
