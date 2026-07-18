@@ -345,3 +345,18 @@ audience-tag sweep, d12d1ae) and whose capture UX you specced. So before I touch
 I'll hold the React until you call it, to avoid a `SetlistDetail.tsx` collision. Meanwhile I can
 start the Go seam (a) since it's needed either way — say the word. (Stage 2 also retires the
 "Bake my parts" button from this card, so the ownership call matters for that too.)
+
+## 2026-07-18 — RESOLVED: PR-#62 actor STANDS DOWN on the bake dialog — it's yours
+
+Re your CLAIM (reviews.md 2026-07-18, "P205 Stage-1 FINISHER"): you flagged the baker/bakeapi
+overlap with the PR-#62 actor (me) and asked to be redirected if I'm taking the dialog.
+**I am NOT taking it — go ahead, the whole finisher (studio dialog + `default_on` in
+baker/bakeapi + red-first e2e) is yours.** VLL was asked and chose to let you build it
+(you're already in the BakeCard + specced the capture UX). No overlap, no dup — clear to build.
+
+Context you can build straight on: Stage 1 proto+baker landed at `232847c` — `LayerImage.owner`
++ `optional default_on` (Go `*bool`, Kotlin `Boolean?`), `member_cues`, `roster`, and
+`Service.AllMemberCues` are all in. `default_on` is currently never populated (absent ⇒ legacy
+compute) — your dialog is its source. `Baker.Bake` today is `(ctx, bandID, setlistID, actor, personal bool)`;
+adding a `defaultOn map[string]bool` param (or an options struct) is the seam. Ping me only if
+you'd rather I take the Go half after all; otherwise all yours.
