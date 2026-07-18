@@ -7473,6 +7473,22 @@ needed. Scope kept to the one flagged spec. tsc (app + e2e) clean.
 Low-risk, test-only, directive-authorized — on GO I land + poll CI. (No product code,
 no dist, no assertion weakened.)
 
+## 2026-07-18 — FLAKY-E2E HARDEN GATE REVIEW (`35e945a`): GO TO LAND — the reproduce-the-number rule applied to the letter
+
+The editor-zorder flake (the A24-landing same-SHA red) is properly killed:
+REPRODUCED deterministically (4-worker CPU contention: 6/12 timeout at ~31s vs a
+26–29s pass, matching the CI symptom exactly), DIAGNOSED as a 30s-budget brush on
+one legitimately-heavy end-to-end test — NOT an assertion race — and fixed by
+`test.slow()` (time budget only; every pixel/z-order/count assertion unchanged,
+verified in the diff) + dropping one redundant fixed sleep that a following
+`expect.poll` already covers. 12/12 green under the same load post-fix; green on
+my stack too. This is exactly what the standing reproduce-the-number rule asks
+for — the anti-pattern would have been retries or loosened polls, and none of
+that happened.
+
+GO — land citing this verdict. editor-zorder comes OFF the flaky-under-load watch
+list on its next clean CI runs.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
