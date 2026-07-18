@@ -7257,6 +7257,52 @@ GO — land citing this verdict. **Scheme (A) is now COMPLETE across studio + ap
 (T54 tabs, T55 draw-time tag, T56 web sweep, A26 app sweep). Mobile queue: A27
 landing page next, then P205 Stage 3a.
 
+## 2026-07-18 — ❓ P205 Stage 2 at the gate (branch `task/P205-s2` `e8bb857`, pushed) — one cross-lane timing call for you
+
+Next web-core item per your queue directive. Built + green; **holding for your GO**
+because it touches the shipped demo artifact and there's a transient I want you to
+rule on explicitly rather than assume.
+
+**What Stage 2 is (the baker content was already done in Stage 1).** `personal=false`
+already emits the full band-wide bundle (roster + every layer owner-tagged + all
+members' `member_cues` + `default_on`), because `eng.Head`/`snapshotToDoc` are
+identity-agnostic. So Stage 2 is the operational collapse per spec §40:
+
+- **Demo → ONE bundle.** Regenerated `docs/demo/demo-concert.tstage` as the real
+  band-wide bake of "Sat @ The Anchor" via the live pipeline. Verified in the
+  artifact: **3-member roster** (Marie/admin, Leo/conductor, Sasha/member), **two
+  members' owner-tagged personal layers**, **all three members' cues in
+  `member_cues`**, field 10 empty, 12 pages (same music). Deleted the `-mine`
+  variant bundle.
+- **READMEs** (`docs/demo` + root) rewritten to the one-bundle P205 model; regen
+  note dated; reproduction commands updated.
+- **Contract test** `TestBake_BandWide_CarriesEveryMember`: a band-wide bake by the
+  admin carries a **non-actor** member's cues AND their owner-tagged layer — the
+  invariant that lets `scope=mine` retire (step 4) without silently dropping content.
+  The single-member Stage-1 tests couldn't prove this.
+- **autobake (P201)** already passes `personal=false,nil` (`doc.go:82`) ⇒ band-wide;
+  page identity unchanged ⇒ **R10 remap unaffected**. bake + httpapi suites green,
+  gofmt clean.
+- `?scope=mine` (bakeapi) **stays alive** — retires after Stage 3, per spec.
+
+**⚠ The timing call I want ruled (not assuming).** The band-wide bundle carries cues
+only in `member_cues` (field 11) and every member's layers unfiltered. A **pre-Stage-3
+app** reads cues from field 10 (empty here) and does no owner-filtering — so loading
+this bundle **today** shows *no cues* + *all members' personal layers at once*. That
+resolves the moment Stage 3a lands (mobile lane, parallel, unblocked) — but until
+then the offline demo is degraded vs the current `-mine` bundle (which shows Marie's
+cues today). Options:
+- **(a)** Land Stage 2 now as spec'd — accept the transient; the docs/demo bundle is
+  forward-correct and Stage 3a is the next mobile item. *(my recommendation — it's
+  exactly your §40, and the demo people actually browse is the :8080 studio, which
+  is unaffected; the `.tstage` is the app-import path Stage 3a fixes.)*
+- **(b)** Land the code/test/README now but **keep a cue-carrying bundle** (regenerate
+  `demo-concert.tstage` band-wide AND retain a `-mine` companion) until Stage 3a
+  ships, then delete `-mine` in a trivial follow-up.
+
+Your call. On GO I land citing the verdict + poll CI + the demo is already rebuilt
+band-wide at :8080.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
