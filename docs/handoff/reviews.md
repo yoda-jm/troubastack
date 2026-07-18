@@ -7428,6 +7428,25 @@ gofmt/vet + bake/httpapi + tsc trio + 4 bake e2e green; no new system deps.
 commonTest + add the drift-guard (mirroring the glyphs/`CueGlyphData.kt` CI check) —
 noted in `testdata/README.md`. On your GO I land citing the verdict + poll CI.
 
+## 2026-07-18 — T57 GATE REVIEW (`e918a15`): GO TO LAND
+
+Verified with my own runs: bake + httpapi suites green (incl. the red-first
+compositing test: owner sees their red personal overlay, a non-owner doesn't),
+gofmt empty, the bake-pdf e2e + tsc green on the isolated stack. The load-bearing
+piece is exactly right: **`LayerVisible` is the ONE view-resolution rule**, its
+precedence documented in place (mandatory > identity's personal — identity
+outranks default_on, "my own layers print for me" > role∧default for shared;
+absent default_on ⇒ legacy on; NEVER session toggles), with **12 shared vector
+cases in `testdata/view-resolution.vectors.json`** that Stage 3a's commonTest will
+run — print == screen as a tested invariant. Deterministic PDF bytes (pinned
+dates), bench-last with the On-call header, admin-only `?member=`, and using
+`fpdf` — ALREADY a dep via chartpdf — beats my "minimal writer or pdfcpu" spec
+option: zero new deps.
+
+GO — land citing this verdict. VLL's paper fallback is real: "Download PDF" next
+to the bundle download. Remaining P205: Stage 3a (in progress — consumes the
+vectors), 3b, bridge deletion, scope=mine retirement, the two-device acceptance.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
