@@ -83,9 +83,18 @@ class MainActivity : ComponentActivity() {
     // here (keyboard/pedal keys are handled in the shared StageScreen via onPreviewKeyEvent).
     var stageVolumeTurn: ((PageTurn) -> Unit)? = null
 
+    // A31: bumped on every ON_RESUME so Home can re-run its live connection probe when the app comes
+    // back to the foreground (not just on nav re-entry). A Compose State, so reads are tracked.
+    val resumeTick = mutableStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { MaterialTheme { App() } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumeTick.value++
     }
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
@@ -109,6 +118,11 @@ private data class ConcertEntry(
     val damaged: Boolean,
 )
 
+/** A31: the concert list is ONE screen, two intents. Perform is reached via TroubaStage — lean rows,
+ *  tap to perform, fully offline (no server affordances). Manage is reached via TroubaStudio — adds
+ *  Import / download offers / Edit / freeze·pin·delete. */
+private enum class ConcertIntent { Perform, Manage }
+
 @Composable
 private fun App() {
     val context = LocalContext.current.applicationContext
@@ -126,16 +140,22 @@ private fun App() {
         )
     }
 
-    // P205 Stage 3a follow-up: the logged-in member (name/band → Home "Performing as …"; id →
-    // roster auto-match on concert open). Best-effort, offline-first — null degrades to "Connected".
+    // P205 Stage 3a follow-up: the logged-in member (id → roster auto-match on concert open).
+    // Best-effort, offline-first — null degrades to anonymous. (Home's OWN identity line is A31's
+    // live probe below; this is only for Stage identity resolution.)
     var me by remember { mutableStateOf<CurrentIdentity?>(null) }
     LaunchedEffect(transport.isConnected) { me = if (transport.isConnected) transport.currentIdentity() else null }
 
-    // A27: nav state is rememberSaveable so a landing/product screen survives rotation + process death.
+    // A27/A31: nav state is rememberSaveable so a landing/product screen survives rotation + process
+    // death — EXCEPT `connecting`, which must NOT resurrect the login screen after a process kill
+    // (A31: the diagnosed "cold-start onto Connect" glitch), so it is plain remember.
     var atHome by rememberSaveable { mutableStateOf(true) } // cold start lands on Home, not the concert list
     var selectedDir by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by rememberSaveable { mutableStateOf(false) }
-    var connecting by rememberSaveable { mutableStateOf(false) }
+    // A31: the concert list is ONE screen with two intents — entered via TroubaStage (perform: lean,
+    // offline, tap-to-perform) or via TroubaStudio (manage: import/update/edit affordances).
+    var manageIntent by rememberSaveable { mutableStateOf(false) }
+    var connecting by remember { mutableStateOf(false) }
 
     if (editing) {
         EditScreen(storage, onBack = { editing = false })
@@ -146,28 +166,37 @@ private fun App() {
         return
     }
 
-    // A27: HOME is the task root. Perform → the concerts list; Edit → the embedded Studio; Concerts →
-    // the list (download/update offers ride there, B03); the identity card → Connect. I12 intact: Home
-    // never gates Stage — Perform works fully offline with no login. Re-entering Home refreshes entries.
+    // A27/A31: HOME is the task root, TWO branded products. TroubaStage → the concert list in PERFORM
+    // intent; TroubaStudio → the SAME list in MANAGE intent (import/update/edit). The identity card →
+    // Connect. I12 intact: Home never gates Stage — perform works fully offline with no login.
     if (atHome && selectedDir == null) {
         val entries = remember { listConcerts(storage).filter { !it.damaged } }
         val lastDir = remember(entries) { storage.getSecret(LAST_CONCERT_KEY)?.takeIf { d -> entries.any { it.dir == d } } }
+
+        // A31: LIVE connection status — never the cached cookie flag. Probe the server on entry AND on
+        // every foreground resume (resumeTick); show "Checking…" while it's in flight, then resolve to
+        // Connected / Offline / Disconnected from the RESULT.
+        val activity = LocalContext.current.findActivity() as? MainActivity
+        var homeIdentity by remember { mutableStateOf<Identity>(Identity.Checking) }
+        LaunchedEffect(activity?.resumeTick?.value) {
+            if (!transport.isConnected) { homeIdentity = Identity.Disconnected; return@LaunchedEffect }
+            homeIdentity = Identity.Checking
+            homeIdentity = when (val p = transport.probePresence()) {
+                is Presence.Online -> Identity.Connected(name = p.displayName, band = p.band)
+                Presence.Unreachable -> Identity.Offline(band = me?.band ?: "")
+                Presence.Unauthorized -> Identity.Disconnected
+            }
+        }
+
         HomeScreen(
             state = HomeState(
                 lastConcertName = entries.firstOrNull { it.dir == lastDir }?.label ?: "",
                 concertCount = entries.size,
-                // Stage 3a: "Performing as <name> · <band>" once /api/me resolves; "Connected ✓" until
-                // then / if the fetch fails. The raw server host stays behind Manage (A27 ruling).
-                identity = if (transport.isConnected) {
-                    Identity.Connected(name = me?.displayName ?: "", band = me?.band ?: "")
-                } else {
-                    Identity.Disconnected
-                },
+                identity = homeIdentity,
             ),
-            onPerform = { atHome = false },
+            onPerform = { manageIntent = false; atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
-            onEdit = { editing = true },
-            onConcerts = { atHome = false },
+            onStudio = { manageIntent = true; atHome = false },
             onIdentity = { connecting = true },
         )
         return
@@ -177,11 +206,13 @@ private fun App() {
     if (dir == null) {
         ConcertsScreen(
             context, storage, transport, updates,
+            intent = if (manageIntent) ConcertIntent.Manage else ConcertIntent.Perform,
             onOpen = { selectedDir = it; storage.putSecret(LAST_CONCERT_KEY, it) },
             onEdit = { editing = true },
             onConnect = { connecting = true },
+            onHome = { atHome = true }, // A31: visible Home affordance in the top bar
         )
-        BackHandler { atHome = true } // A27: back from the concerts list returns to Home (the task root)
+        BackHandler { atHome = true } // A27: system-back from the concert list also returns to Home
         return
     }
 
@@ -256,10 +287,13 @@ private fun ConcertsScreen(
     storage: Storage,
     transport: HttpTransport,
     updates: UpdatesManager,
+    intent: ConcertIntent,
     onOpen: (String) -> Unit,
     onEdit: () -> Unit,
     onConnect: () -> Unit,
+    onHome: () -> Unit,
 ) {
+    val manage = intent == ConcertIntent.Manage
     val scope = rememberCoroutineScope()
     var refresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -280,11 +314,14 @@ private fun ConcertsScreen(
         }
     }
 
-    val entries = remember(refresh) { listConcerts(storage) }
+    // Perform intent is lean + fully offline (I12): damaged concerts aren't performable, so they only
+    // appear in Manage (where you can delete them).
+    val entries = remember(refresh, manage) { listConcerts(storage).filter { manage || !it.damaged } }
 
-    // Pull the manifest + recompute offers whenever connection or install state changes (I13).
-    LaunchedEffect(connected, refresh) {
-        if (!connected) { offers = emptyList(); return@LaunchedEffect }
+    // Pull the manifest + recompute offers whenever connection or install state changes (I13). Manage
+    // intent only — the perform path makes NO network call (offline-first entering via TroubaStage).
+    LaunchedEffect(connected, refresh, manage) {
+        if (!manage || !connected) { offers = emptyList(); return@LaunchedEffect }
         syncing = true
         try {
             val manifest = updates.fetchManifest()
@@ -310,32 +347,47 @@ private fun ConcertsScreen(
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // A31: a visible Home affordance on every sub-screen (placement consistent with the Edit
+            // bar's "‹ Back"), so returning to the landing page never depends on the system-back gesture.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Concerts", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                if (connected) {
-                    TextButton(onClick = { transport.signOut(); connected = false; offers = emptyList() }) { Text("Sign out") }
-                } else {
-                    TextButton(onClick = onConnect) { Text("Connect") }
-                }
-                TextButton(onClick = onEdit) { Text("Edit") }
-                // ".tstage" has no registered MIME type, so accept zip + anything and validate on import.
-                Button(onClick = { picker.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
-                    Text("Import")
+                TextButton(onClick = onHome) { Text("‹  Home") }
+                Text(
+                    if (manage) "Concerts" else "Perform",
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                // Manage-only affordances (import / download offers / edit / sign-in). Perform stays lean.
+                if (manage) {
+                    if (connected) {
+                        TextButton(onClick = { transport.signOut(); connected = false; offers = emptyList() }) { Text("Sign out") }
+                    } else {
+                        TextButton(onClick = onConnect) { Text("Connect") }
+                    }
+                    TextButton(onClick = onEdit) { Text("Edit") }
+                    // ".tstage" has no registered MIME type, so accept zip + anything and validate on import.
+                    Button(onClick = { picker.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
+                        Text("Import")
+                    }
                 }
             }
-            if (syncing) Text("Syncing…", style = MaterialTheme.typography.bodySmall)
+            if (manage && syncing) Text("Syncing…", style = MaterialTheme.typography.bodySmall)
             message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
-            // Offer chips (I13): download-available + update-offered, applied only on explicit tap.
-            offers.forEach { offer -> OfferChip(offer, names, onApply = { applyOffer(offer) }) }
+            // Offer chips (I13): download-available + update-offered, applied only on explicit tap. Manage only.
+            if (manage) offers.forEach { offer -> OfferChip(offer, names, onApply = { applyOffer(offer) }) }
 
             if (entries.isEmpty()) {
-                Text("No concerts yet. Import a .tstage or Connect to download one.", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    if (manage) "No concerts yet. Import a .tstage or Connect to download one."
+                    else "No concerts on device yet. Open TroubaStudio to import or download one.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(entries) { entry ->
                     ConcertRow(
                         entry,
+                        lean = !manage, // A31: perform intent = tap-to-perform only, no manage menu
                         onOpen = { if (!entry.damaged) onOpen(entry.dir) },
                         onDelete = { File(entry.dir).deleteRecursively(); refresh++ },
                         onFreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.FROZEN); refresh++ },
@@ -367,6 +419,7 @@ private fun OfferChip(offer: Availability, names: Map<String, String>, onApply: 
 @Composable
 private fun ConcertRow(
     entry: ConcertEntry,
+    lean: Boolean,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     onFreeze: () -> Unit,
@@ -379,6 +432,7 @@ private fun ConcertRow(
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(entry.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             when {
+                lean -> {} // A31 perform intent: the whole row is tap-to-perform, no trailing controls
                 entry.damaged -> TextButton(onClick = onDelete) { Text("Delete") }
                 else -> {
                     TextButton(onClick = { menuOpen = true }) { Text("⋮") }

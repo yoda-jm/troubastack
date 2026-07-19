@@ -28,6 +28,12 @@ class HomeTest {
     }
 
     @Test
+    fun identityLine_checking_isTransientProbeLabel() {
+        // A31: shown while Home actively probes the server; resolves to Connected/Offline/Disconnected.
+        assertEquals("Checking…", identityLine(Identity.Checking))
+    }
+
+    @Test
     fun identityLine_offline_isReassurance_notError() {
         assertEquals("Offline · concerts on device still work", identityLine(Identity.Offline()))
         assertEquals(
@@ -41,5 +47,6 @@ class HomeTest {
         assertEquals("Connect", identityAction(Identity.Disconnected))
         assertEquals("Manage", identityAction(Identity.Connected()))
         assertEquals("Manage", identityAction(Identity.Offline()))
+        assertEquals("Manage", identityAction(Identity.Checking)) // A31: transient — no Connect invite mid-probe
     }
 }

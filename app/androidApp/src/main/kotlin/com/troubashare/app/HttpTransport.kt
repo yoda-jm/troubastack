@@ -21,6 +21,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -37,6 +38,18 @@ internal const val SESSION_ORIGIN_KEY = "sessionOrigin"
 
 /** The logged-in member as the app needs it for P205 identity (id → roster auto-match; name/band → Home). */
 data class CurrentIdentity(val userId: String, val displayName: String, val band: String)
+
+/** A31: the outcome of a live server probe — what Home renders its identity line from (never a cached flag). */
+sealed interface Presence {
+    /** Server answered and the session is valid — carries the member for "Performing as <name> · <band>". */
+    data class Online(val userId: String, val displayName: String, val band: String) : Presence
+
+    /** Couldn't reach the server (timeout / connection refused / 5xx) — Home shows "Offline" (reassurance). */
+    data object Unreachable : Presence
+
+    /** Server reachable but the session is missing/expired — Home shows the "Connect to your band" invite. */
+    data object Unauthorized : Presence
+}
 
 /**
  * The persisted session cookie ("name=value") IFF it was issued by [url]'s origin; else null. The
@@ -85,6 +98,10 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
     @Serializable private data class Bands(val bands: List<Band> = emptyList()) {
         @Serializable data class Band(val id: String = "", val name: String = "")
     }
+    // /api/me returns the member WRAPPED: {"user":{"id":…,"displayName":…}}. Parsing the top level
+    // (the old bug) left id + displayName empty — so Home read "Connected" not "Performing as <name>",
+    // and P205 auto-match never fired (empty userId ⇒ the "Who are you?" picker always appeared). A31.
+    @Serializable private data class MeResp(val user: Me = Me())
     @Serializable private data class Me(val id: String = "", val displayName: String = "")
 
     /** P205 Stage 3a follow-up: the logged-in member's id + display name + first band name, for the
@@ -95,10 +112,34 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         return runCatching {
             val meResp = client.get("$baseUrl/api/me") { header("Cookie", ck) }
             if (!meResp.status.isSuccess()) return null
-            val me = meResp.body<Me>()
+            val me = meResp.body<MeResp>().user
             val band = client.get("$baseUrl/api/bands") { header("Cookie", ck) }.body<Bands>().bands.firstOrNull()?.name ?: ""
             CurrentIdentity(userId = me.id, displayName = me.displayName, band = band)
         }.getOrNull()
+    }
+
+    /** A31: LIVE connection state for the Home landing — resolved from an actual round-trip, never the
+     *  cached cookie. [Presence.Unreachable] on timeout/IO (server down → Home reads "Offline");
+     *  [Presence.Unauthorized] when the server answers but the session is gone/expired (→ "Connect");
+     *  [Presence.Online] carries the name/band for "Performing as …". Short [timeoutMs] so a dead
+     *  server can't hang Home on the "Checking…" state. */
+    suspend fun probePresence(timeoutMs: Long = 3000): Presence {
+        val ck = cookie() ?: return Presence.Unauthorized
+        return runCatching {
+            withTimeout(timeoutMs) {
+                val me = client.get("$baseUrl/api/me") { header("Cookie", ck) }
+                when {
+                    me.status.isSuccess() -> {
+                        val body = me.body<MeResp>().user
+                        val band = client.get("$baseUrl/api/bands") { header("Cookie", ck) }
+                            .body<Bands>().bands.firstOrNull()?.name ?: ""
+                        Presence.Online(body.id, body.displayName, band)
+                    }
+                    me.status == HttpStatusCode.Unauthorized -> Presence.Unauthorized
+                    else -> Presence.Unreachable // 5xx / unexpected — treat as not-usable
+                }
+            }
+        }.getOrDefault(Presence.Unreachable) // timeout / connection refused / DNS
     }
 
     /** Log in against the persisted server URL; on success store the session cookie. Returns a
