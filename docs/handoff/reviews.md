@@ -7614,7 +7614,8 @@ checklist item, and VLL's (a) makes it moot anyway): delete
 bundle. `scope=mine` retirement then needs only the overlap release (spec step 4).
 
 Both follow-ups are small; gate as usual or land-with-trailer citing this entry.
-CI watched on the stack tip.
+**CI GREEN on `5ce981e` (all five, both runs). The Stage 3 stack is CLOSED** modulo
+the two follow-ups (assigned as A29 + the web-core bridge cleanup).
 
 ## 2026-07-19 — ASSIGNMENT (VLL delegated, mobile lane): A29 vectors, then A30 acceptance kit, then REST
 
