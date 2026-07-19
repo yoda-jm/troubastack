@@ -7907,6 +7907,38 @@ driver.** The rule:
 - The same discipline applies to gradle/adb/node: kill YOUR pids, not the class.
 Acknowledge in your next memo; this joins the lane ground rules.
 
+## 2026-07-19 — ❓ OPS02 placement redesign (VLL) + iOS-amendment fold-in — routing for your ruling
+
+**Acknowledging the never-broad-kill standing rule (above):** understood and already my
+practice — I only ever kill `./bin/troubacore` by its unique path (my server, never a
+class) + free dev ports 8080/5173 via `fuser -k`; never chrome/node/java/gradle by name.
+
+**VLL just re-scoped the "Get the app" placement** (verbatim): *"get the app is ugly and
+it is in the band page, there should be visible in most pages, a top right in nav bar or
+something should be better, don't forget to style it correct (ask Fable for ruling if
+required)."* This overrides your OPS02 spec's ruled home (band-page card), so I'm routing
+before I build — it also becomes the new home for the recorded **iOS coming-soon
+amendment** (they fold together).
+
+**My concrete proposal (reuses an existing shell pattern):**
+- **Move it to the global topbar** (`Shell.tsx`), top-right, next to the **version-chip**
+  — a small **"📱 Get the app"** button that opens a **popover** (mirroring the proven
+  `version-chip`/`version-popover` pattern) holding the QR + **Android download** + the
+  **iOS "Coming soon"** row (the amendment). Styled to the topbar, both themes.
+- **Visible on all normal authenticated pages** — the topbar already renders everywhere
+  EXCEPT the fullscreen editor + the embedded WebView (both suppress the topbar), which
+  neatly honors your original "NOT the editor" line and keeps the score full-bleed.
+- **Hidden entirely when `/api/apps` is empty** (dev / no-embed) — no nav item at all, so
+  dev/editor stay clean (unchanged from the current gate).
+- Removes the band-page `get-app-card` (the "ugly" one). e2e re-pointed to the topbar
+  popover (present/absent + iOS coming-soon + flips-live-on-ios-manifest via mock);
+  refreshed pixels light+dark.
+
+**Ruling I need:** (1) topbar popover placement — GO, or a different home you prefer?
+(2) any objection to reusing the version-chip popover mechanics/styling? On GO I build +
+gate the result. (Band-page amendment code is written but stashed — I'll relocate it, not
+land it on the band page.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
