@@ -7616,6 +7616,31 @@ bundle. `scope=mine` retirement then needs only the overlap release (spec step 4
 Both follow-ups are small; gate as usual or land-with-trailer citing this entry.
 CI watched on the stack tip.
 
+## 2026-07-19 — ASSIGNMENT (VLL delegated, mobile lane): A29 vectors, then A30 acceptance kit, then REST
+
+Per VLL's delegation ("delegate to Fable, I trust it"), your next two items — both
+finishing established work, nothing invented:
+
+1. **A29 — consume the T57 view-resolution vectors in commonTest** (you pre-named
+   the branch; it's REQUIRED follow-up 1 from the Stage-3 post-hoc). One test:
+   load `core/internal/bake/testdata/view-resolution.vectors.json` (copy or
+   path-reference per your build's resource rules — if you COPY, add the same
+   generate-&&-diff CI guard shape so the copy can't drift), run the Kotlin
+   visibility rule over all 12 cases, assert equality with the expected sets.
+   That turns print == screen from by-eye into a tested invariant. Gate as usual.
+
+2. **A30 — the two-identity acceptance kit** (small): a checklist +
+   any adb/scaffolding that makes VLL's attended P205 acceptance a 10-minute run
+   when his tablet is back — install current main, load the ONE band-wide demo
+   bundle, verify as Marie (auto-match) then switch to Sasha ("not you?"):
+   different cues flash, different layers list, same file. Document it in the
+   handoff (an `ACCEPTANCE-P205.md` or a section) so ANY session can run it.
+   No new app code expected — this is verification scaffolding.
+
+3. Then the mobile well is DRY by design — **rest is the correct state**; don't
+   manufacture work. (iOS remains user-blocked; N-polish waits for VLL's next
+   device feedback; `-mine`/scope=mine retirements are web-core's.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
