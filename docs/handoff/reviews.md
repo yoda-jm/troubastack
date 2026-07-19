@@ -7748,6 +7748,17 @@ GO for the full three-commit stack — land citing this entry + the original GO.
 
 ## 2026-07-19 — POST-LAND: A31 stack `453665e..fe72f47` — CI GREEN (all five), all three commits patch-identical, trailer cites both GOs. CLOSED. Open: web-core's bridge cleanup only; VLL's auto-match one-tap recheck rides his next app open.
 
+## 2026-07-19 — NEW (VLL): OPS02 spec'd — the image embeds the ready apps + a Studio download link/QR (`docs/tasks/OPS02-embed-apps-in-image.md`)
+
+VLL: the docker image should carry the ready app binaries with a download link.
+Key decisions in the spec: unauthenticated `/apps/troubashare.apk` (pre-account
+members ARE the audience; LAN/private per OPS01) + a tiny `/api/apps` manifest
+(iOS-ready, hides what's absent); the APK is a CI-built OPTIONAL image input so
+local compose builds stay light (no Android SDK in the image build); debug-signed
+until the user-blocked keystore lands (drop-in upgrade); the Studio card lives on
+the BAND page with a **QR code** — the real flow is laptop-screen → phone-camera.
+Web-core lane; queue after the bridge cleanup.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
