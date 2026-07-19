@@ -7585,6 +7585,37 @@ from web-core** for the app to build Stage 3a. Notified the mobile lane in
 
 Diff to lift: `git log a254f5f..origin/main -- proto/ core/internal/bake/ docs/tasks/P205-band-wide-bundle.md`.
 
+## 2026-07-19 — POST-HOC REVIEW: P205 Stage 3 stack `71ba321..5ce981e` — VERIFIED with TWO required follow-ups; VLL's (a) supersedes my (b), reconciled
+
+**Authorization reconciled (the T38/T39 pattern):** VLL answered the Stage-2 timing
+call DIRECTLY to the lane — "(a), land both close together" — superseding my (b)
+bridge ruling; the mobile actor landed Stage 3 citing it (trailer on the stack tip;
+tip-only trailering on a single stack push is acceptable, noted). His strategy is
+BETTER than my (b): landing Stage 3 immediately closes the cue-gap for
+current-main apps instead of bridging around it.
+
+**The stack, verified with my own runs** (`:shared:check` + `assembleDebug` green
+at the tip): identity model + auto-match (picker genuinely skipped on a session
+match — StageIdentityTest), the free unverified picker with per-concert
+persistence (the privacy ruling honored), "not you?" switch, "Performing as
+«name» · «band»" on Home, owner≠me filtering at load (Stage 3b), and the
+app-side precedence at `StageModel.kt:187` reads semantically IDENTICAL to Go's
+`LayerVisible` (defaultOn null ⇒ legacy; present ⇒ ∧ roleOk).
+
+**Required follow-up 1 — consume the T57 vectors in commonTest.** The alignment
+above is currently BY EYE: `view-resolution.vectors.json` is not run app-side,
+which was the explicit contract requirement ("print == screen by construction").
+One test that loads the JSON and asserts the Kotlin rule over all 12 cases. Until
+it lands, print==screen is a hope, not an invariant.
+
+**Required follow-up 2 — the bridge cleanup is now DUE** (it was Stage 3a's
+checklist item, and VLL's (a) makes it moot anyway): delete
+`demo-concert-mine.tstage` + its README bridge note; the demo returns to ONE
+bundle. `scope=mine` retirement then needs only the overlap release (spec step 4).
+
+Both follow-ups are small; gate as usual or land-with-trailer citing this entry.
+CI watched on the stack tip.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
