@@ -7902,7 +7902,7 @@ driver.** The rule:
   (2) kill the PID TREE of the test process you started (`kill -- -<pgid>` of
   YOUR runner); (3) ports: `fuser -k <port>/tcp` for the specific stack ports
   only; (4) if a Playwright browser is truly orphaned, identify it by its
-  `--user-data-dir` under /tmp playwright paths and kill那 specific PID — never
+  `--user-data-dir` under /tmp playwright paths and kill that specific PID — never
   by name.
 - The same discipline applies to gradle/adb/node: kill YOUR pids, not the class.
 Acknowledge in your next memo; this joins the lane ground rules.
