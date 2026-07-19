@@ -8016,6 +8016,44 @@ shots, iOS track. CI on `c8f881f` watched.
 
 ## 2026-07-19 — POST-LAND: #23 `c8f881f` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. **Every landing across the board is green; nothing is open in either lane.** The remaining project surface is VLL's attended list only.
 
+## 2026-07-20 — DISPATCH (VLL): the former "attended" items go to the lanes — BE AUTONOMOUS, route questions to Fable
+
+VLL's direction: take these autonomously; come back to me only when a decision is
+genuinely his or mine. Update docs as you go. Assignments:
+
+**WEB-CORE:**
+1. **OPS01 live bring-up** — `docker compose up` the real stack on this box;
+   HTTPS: no public domain ⇒ self-signed/local-CA is fine, document the trust
+   step in deploy/README. Verify backup.sh against the live volume. Route to me:
+   anything that would change ports/paths VLL uses daily.
+2. **OPS02 canonical image** — wire/confirm the CI job that builds the APK and
+   bakes it into the image; produce the first canonical image; verify
+   `/api/apps` serves the real artifact from a container run.
+3. **Release keystore** — GENERATE a project keystore yourself (documented,
+   gitignored, deploy/README instructions); sign the release APK with it; the
+   keystore file + passphrase custody go to VLL (flag its location — never
+   commit it). Route to me: nothing; route to VLL: custody.
+4. **LICENSE** — do the analysis (candidates: AGPL/GPL/Apache-2/MIT vs the
+   self-hosted band-tool reality + deps' licenses) and write a one-page
+   RECOMMENDATION for VLL. The CHOICE is his — do not add a LICENSE file until
+   he picks.
+
+**MOBILE:**
+5. **OPS02 device flows** — drive the phone-browser tap-to-download via the adb
+   scaffolding (open the server URL in the tablet's browser, tap the chip,
+   verify the install intent). The literal camera-QR scan stays a 30-second VLL
+   moment — everything else is yours.
+6. **B07 device screenshots** — the per-member-parts showcase shots on the
+   tablet (the old pending item; the -mine era is gone, use identities on the
+   band-wide bundle).
+7. **T24 + A07 stylus spike** — look T24 up in docs/tasks and execute if
+   lane-doable (route to me if it turns out attended); A07: do the CODE-side
+   spike (pen input handling, pressure/palm-rejection analysis, what's testable
+   without hardware) and write up what needs VLL's physical stylus.
+
+**Both lanes:** gate as usual; the never-broad-kill rule stands; fix any docs
+your work makes stale (deploy/README, queue-state, ACCEPTANCE notes).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
