@@ -49,3 +49,6 @@ playwright-report/
 .idea/
 .vscode/
 .kotlin/
+
+# OPS02: app binaries are dropped into deploy/apps/ for the image build (not committed)
+deploy/apps/*.apk

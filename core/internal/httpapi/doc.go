@@ -37,7 +37,7 @@ import (
 // secureCookies should be true behind TLS. The realtime /ws upgrade is wired here
 // over a sync.Hub built on the SAME engine instance (in mountWS), so the live HEAD
 // the hub mutates is exactly the one GET …/annotations reads.
-func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *bake.Baker, secureCookies bool) (http.Handler, error) {
+func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *bake.Baker, secureCookies bool, appsDir string) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Liveness probe.
@@ -70,6 +70,11 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 	// Bake orchestration (I11): admin bakes a setlist → .tstage; members list +
 	// download baked concerts. baker may be nil in tests that don't exercise bake.
 	NewBakeAPI(svc, baker).Mount(mux, web.auth)
+
+	// Downloadable native app binaries (OPS02): the server image can carry the app
+	// so a band installs it from its own server. Unauthenticated (pre-account members
+	// are the audience). appsDir == "" (dev / no embedded apps) ⇒ empty manifest.
+	NewAppsAPI(appsDir, buildinfo.Version()).Mount(mux)
 
 	// Rehearsal live mode autobaker (P201/I11 stage 1b): when a baker is wired, a
 	// debounced autobaker turns annotation commits on a live setlist's songs into

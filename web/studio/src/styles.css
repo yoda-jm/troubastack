@@ -1453,3 +1453,13 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .bake-dialog-row label input { flex: 0 0 auto; }
 .bake-dialog-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bake-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }
+
+/* OPS02: "Get the app" card on the band page — QR + download button. */
+.get-app-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.get-app-meta { display: flex; flex-direction: column; gap: 8px; }
+.get-app a.primary.button {
+  display: inline-block; text-align: center; padding: 10px 16px; border-radius: 8px;
+  background: var(--brand); border: 1px solid var(--brand); color: #fff;
+  font-weight: 600; text-decoration: none;
+}
+.get-app a.primary.button:hover { background: var(--brand-strong); border-color: var(--brand-strong); }

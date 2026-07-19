@@ -58,11 +58,19 @@ COPY --from=web /src/web/bake/node_modules /app/web/bake/node_modules
 COPY --from=web /src/web/bake/assets /app/web/bake/assets
 COPY --from=web /src/web/bake/package.json /app/web/bake/package.json
 COPY --from=go /out/troubacore /usr/local/bin/troubacore
+# OPS02: embed the downloadable native app binaries. `deploy/apps/` is committed with
+# just a .gitkeep, so this COPY always succeeds; whoever builds a release image drops
+# the (debug-signed, unknown-sources-installable) APK there first — e.g.
+#   cp androidApp-debug.apk deploy/apps/troubashare.apk && docker build -t troubacore .
+# An EMPTY dir ⇒ /api/apps is empty ⇒ Studio hides the "Get the app" card (see
+# deploy/README.md § "Embed the app"). Non-secret; served unauthenticated.
+COPY deploy/apps/ /app/apps/
 # Point core at the worker's absolute path (the default is repo-relative and won't
 # resolve here); keep the data dir on a mounted volume.
 ENV TROUBA_BAKE_CLI=/app/web/bake/dist/cli.js \
     TROUBA_NODE=node \
     TROUBA_PDFTOPPM=pdftoppm \
+    TROUBA_APPS_DIR=/app/apps \
     TROUBA_DATA_DIR=/data \
     TROUBACORE_ADDR=:8080
 RUN useradd -r -u 10001 trouba && mkdir -p /data && chown trouba /data
