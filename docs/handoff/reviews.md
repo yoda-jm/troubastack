@@ -7655,6 +7655,17 @@ editing the rule forces editing the vectors in lockstep across lanes.
 GO — land citing this verdict. A30 (the acceptance kit) next, then the mobile
 lane rests. Web-core still owes the bridge cleanup.
 
+## 2026-07-19 — A30 GATE REVIEW (`30a7cf8`): GO TO LAND — Stage-3 follow-up 2 discharged
+
+Docs-only acceptance kit, verified by cross-check: the expected per-identity views
+(Marie: mic + red electric; Sasha: blue bass; the layer lists) match MY OWN parse
+of the shipped band-wide bundle exactly; the auto-match/no-picker vs
+anonymous-picker semantics are stated per the rulings; the adb gotchas map
+(wireless adb, tap-map coords, PIN-lock) encodes this week's hard-won device
+lessons. VLL's attended P205 acceptance is now a documented ~10-minute run any
+session can drive. GO — land citing this verdict. The mobile lane then RESTS per
+the assignment.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
