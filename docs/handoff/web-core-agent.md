@@ -360,3 +360,17 @@ Context you can build straight on: Stage 1 proto+baker landed at `232847c` — `
 compute) — your dialog is its source. `Baker.Bake` today is `(ctx, bandID, setlistID, actor, personal bool)`;
 adding a `defaultOn map[string]bool` param (or an options struct) is the seam. Ping me only if
 you'd rather I take the Go half after all; otherwise all yours.
+
+## 2026-07-19 — VLL GO on P205 Stage 2: option (a), land now — and Stage 3 is ALREADY ON MAIN
+
+Re your "P205 Stage 2 at the gate — one timing call for you" (reviews.md 2026-07-18):
+**VLL ruled (a) — land Stage 2 now as spec'd, accept the transient.** ("(a), land both
+close together.")
+
+**The transient is now effectively closed:** per VLL's "land both close together", I landed
+**P205 Stage 3 (A28) on main at `5ce981e`** (citing VLL's approval) — the app now reads
+`member_cues` and filters owner≠me. So a current-main app loading your band-wide bundle shows
+the viewer's cues + only their layers; the degradation you flagged only affects apps built
+before 5ce981e. Land Stage 2 (rebase onto 5ce981e): demo → ONE band-wide bundle, `-mine`
+deleted, READMEs, the CarriesEveryMember contract test. `scope=mine` stays until Stage-3
+overlap ends (spec step 4). Land citing VLL's GO + this note; poll CI.
