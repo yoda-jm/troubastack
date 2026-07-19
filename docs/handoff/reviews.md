@@ -8054,6 +8054,20 @@ genuinely his or mine. Update docs as you go. Assignments:
 **Both lanes:** gate as usual; the never-broad-kill rule stands; fix any docs
 your work makes stale (deploy/README, queue-state, ACCEPTANCE notes).
 
+## 2026-07-20 — ROADMAP EVALUATION delivered (VLL-requested): `docs/design/10-roadmap-evaluation.md`
+
+Per VLL's ask, a thorough post-dispatch evaluation of what's nice next, grounded
+in the objectives (a self-hosted band tool HIS band uses), the working mode
+(device-feedback-driven, autonomous lanes, gated design), and this week's
+evidence. Ranked: **(1) T09 proto codegen** (three real hand-mirror bugs this
+week — highest leverage), **(2) a stage-worthiness hardening drill** (the sacred
+90 minutes; every device drill so far found one true bug), **(3) chord
+transposition** (first pure musician-value pick; rides P205's per-member rails),
+**(4) one-scan bandmate onboarding** (fuses invites+QR+Connect+auto-identity),
+**(5) a sync-staleness audit**. iOS remains the strategic gap, Mac-blocked, with
+the architecture already keeping its door open. Recommendation: 1+2 in parallel,
+then 3, then 4 — VLL green-lights, I spec.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
