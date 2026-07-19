@@ -79,6 +79,13 @@ jobs:
         run: |
           node gen-glyphs.mjs
           git diff --exit-code glyphs.json ../../app/shared/src/commonMain/kotlin/com/troubashare/shared/stage/CueGlyphData.kt
+      # P205 view-resolution contract (print == screen): the vectors are committed in BOTH lanes —
+      # the Go printer (core/internal/bake) and the app presenter (app/shared commonTest) run the SAME
+      # cases. Fail if the two copies drift, so the shared rule can never silently fork (T57/P205 Stage 3).
+      - name: verify P205 view-resolution vectors are in sync across lanes
+        run: |
+          diff -u core/internal/bake/testdata/view-resolution.vectors.json \
+                  app/shared/src/commonTest/resources/view-resolution.vectors.json
       # bake imports node builtins + @napi-rs/canvas, so it must be installed
       # before the typecheck below resolves its `-p bake` project.
       - name: install bake

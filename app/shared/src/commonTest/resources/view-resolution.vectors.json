@@ -1,0 +1,77 @@
+{
+  "_comment": "P205 view-resolution contract vectors — the shared source of truth for LayerVisible. Run by the Go test (core/internal/bake) AND the app commonTest (P205 Stage 3, app/shared). print == screen by construction. See README.md. Authored web-core (T57).",
+  "cases": [
+    {
+      "name": "mandatory is always on, even for a mismatched role and a stranger",
+      "layer": { "mandatory": true, "roleTag": "conductor", "owner": "", "defaultOn": false },
+      "viewer": { "role": "member", "memberId": "u-me" },
+      "expectVisible": true
+    },
+    {
+      "name": "untagged shared layer is on for a fresh viewer (no role)",
+      "layer": { "mandatory": false, "roleTag": "", "owner": "", "defaultOn": null },
+      "viewer": { "role": "", "memberId": "u-me" },
+      "expectVisible": true
+    },
+    {
+      "name": "role-tagged shared layer is off for a fresh viewer (no matching role)",
+      "layer": { "mandatory": false, "roleTag": "guitar", "owner": "", "defaultOn": null },
+      "viewer": { "role": "", "memberId": "u-me" },
+      "expectVisible": false
+    },
+    {
+      "name": "role-tagged shared layer is on when the viewer role matches",
+      "layer": { "mandatory": false, "roleTag": "guitar", "owner": "", "defaultOn": null },
+      "viewer": { "role": "guitar", "memberId": "u-me" },
+      "expectVisible": true
+    },
+    {
+      "name": "role-tagged shared layer is off when the viewer role differs",
+      "layer": { "mandatory": false, "roleTag": "guitar", "owner": "", "defaultOn": null },
+      "viewer": { "role": "conductor", "memberId": "u-me" },
+      "expectVisible": false
+    },
+    {
+      "name": "my own personal layer prints for me (identity gate)",
+      "layer": { "mandatory": false, "roleTag": "", "owner": "u-me", "defaultOn": null },
+      "viewer": { "role": "", "memberId": "u-me" },
+      "expectVisible": true
+    },
+    {
+      "name": "another member's personal layer never prints in my view",
+      "layer": { "mandatory": false, "roleTag": "", "owner": "u-other", "defaultOn": null },
+      "viewer": { "role": "", "memberId": "u-me" },
+      "expectVisible": false
+    },
+    {
+      "name": "my own personal layer prints for me even with default_on=false (identity outranks default_on)",
+      "layer": { "mandatory": false, "roleTag": "", "owner": "u-me", "defaultOn": false },
+      "viewer": { "role": "", "memberId": "u-me" },
+      "expectVisible": true
+    },
+    {
+      "name": "shared layer with default_on=false is off even though untagged",
+      "layer": { "mandatory": false, "roleTag": "", "owner": "", "defaultOn": false },
+      "viewer": { "role": "", "memberId": "u-me" },
+      "expectVisible": false
+    },
+    {
+      "name": "shared layer with default_on=true is on for a fresh viewer (untagged)",
+      "layer": { "mandatory": false, "roleTag": "", "owner": "", "defaultOn": true },
+      "viewer": { "role": "", "memberId": "u-me" },
+      "expectVisible": true
+    },
+    {
+      "name": "default_on AND role_tag: default_on=true but role mismatch stays off",
+      "layer": { "mandatory": false, "roleTag": "guitar", "owner": "", "defaultOn": true },
+      "viewer": { "role": "conductor", "memberId": "u-me" },
+      "expectVisible": false
+    },
+    {
+      "name": "default_on AND role_tag: default_on=true and role matches is on",
+      "layer": { "mandatory": false, "roleTag": "guitar", "owner": "", "defaultOn": true },
+      "viewer": { "role": "guitar", "memberId": "u-me" },
+      "expectVisible": true
+    }
+  ]
+}
