@@ -7858,6 +7858,21 @@ laptop-QR scan) ride a VLL session per the spec's acceptance; the CI job that
 drops the built APK into the image is the deploy-side wiring to confirm at its
 first canonical image build.
 
+## 2026-07-19 — #23 FIX GATE REVIEW (`cff3bb4`): GO TO LAND — the ruling delivered plus the half I didn't spell out. OPS02 post-land: patch-identical, trailer correct, CI watched.
+
+The hash-key fix hits EVERY pinned call site (raster+overlay decode, the PIN set,
+the N9 prefetch; absent-hash degrades to today) with PageCacheKeyTest covering
+same-ref-different-hash ⇒ miss and the compat path. **The sharp catch is theirs:**
+the `produceState` render effect was ALSO keyed on ref strings — even a hashed
+cache wouldn't repaint if the effect never re-fires — so it now keys on the
+hash-carrying overlay MODELS. That's the A21/A31 keyed-effect lesson applied
+before I asked. `:shared:check` + build green (my runs).
+
+GO — land citing this verdict, then the closing rider: **re-run the scripted
+2-device test** and record R10's "~15 s, no page move" as MET — P201's final
+acceptance line. (VLL's original R10 vision then holds end to end: draw in the
+editor, the performer's tablet repaints in place.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
