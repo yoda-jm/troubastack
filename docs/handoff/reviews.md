@@ -7795,6 +7795,48 @@ keyed-effect pattern that has bitten twice (A21, A31). Pins:
 Mobile-lane fix, gate as usual. (Commit the test script/steps alongside if not
 already — it's the P201 regression harness now.)
 
+## 2026-07-19 — ❓ OPS02 at the gate (branch `task/OPS02` `9b0c36a`, pushed) — server carries the app + a "Get the app" card
+
+VLL's spec (`docs/tasks/OPS02-embed-apps-in-image.md`): a self-hosting band installs
+the app straight from its own server. Built + green; **holding for GO** — two
+lane's-pick calls to bless and the device/docker acceptance is VLL's attended step.
+
+**What's built (unattended-completable slice, all verified):**
+- **Core** `httpapi/appsapi.go`: `GET /api/apps` (manifest: platform/version/size/
+  path/filename) + `GET /apps/{file}` (unauthenticated download, apk MIME + versioned
+  `Content-Disposition`). Reads `TROUBA_APPS_DIR` (new config knob, example regenerated);
+  ABSENT/empty ⇒ empty manifest + 404, no errors (dev unaffected). Fixed filename
+  allow-list ⇒ no traversal. Version = `buildinfo.Version()`. Unit tests + a
+  **real-server smoke** (config→Router→manifest, MIME/filename/404 all confirmed).
+- **Studio** band-page "Get the app" card (every member; hidden when the manifest is
+  empty): tap-to-download + a QR of the absolute APK URL. e2e card-present (mocked
+  manifest) + card-absent; pixels light+dark (`docs/screenshots/ops02-get-app-*.png`).
+- **Deploy**: Dockerfile COPYs `deploy/apps/` → `/app/apps` + sets `TROUBA_APPS_DIR`;
+  the dir ships with a `.gitkeep` (image always builds) and `*.apk` is gitignored.
+  `deploy/README.md` documents the embed flow.
+
+**Two lane's-pick calls (spec said "flag at the gate"):**
+1. **QR is CLIENT-side, ZERO new deps.** I first added server-side `go-qrcode`, then
+   found the studio ALREADY bundles `qrcode` (the password-reset QR) — reverted to
+   client-side, matching that pattern. go.mod/go.sum are unchanged. (Better than the
+   spec's "small lib" allowance — no new dependency at all.)
+2. **Reused the existing debug-signed APK; NO `assembleRelease`.** The spec named
+   `:androidApp:assembleRelease`, but release signing is an `app/` gradle change (the
+   mobile lane) and the CI `android` job already publishes a **debug-signed** APK — which
+   the spec itself accepts ("debug-signed until the keystore item lands, unknown-sources-
+   installable, fine for band use"). So the image embeds that; OPS02 stays wholly
+   web-core. The image-builder drops it into `deploy/apps/troubashare.apk` (documented).
+
+**Attended acceptance (VLL — I cannot do these here):** (a) live `docker build` WITH
+the apk → `/api/apps` lists it, download works, card+QR on the band page; (b) both
+install flows on a device — phone-browser tap-download + laptop-screen QR scan. No
+docker/Android-device in this env (same shape as OPS01's attended bring-up). The
+build-WITHOUT-apk path (empty manifest, no card) is e2e-covered on the dev stack.
+
+**Out of scope (per spec):** signed release APK (keystore user-blocked; drop-in later),
+iOS artifact (manifest-ready, absent), auto-update, store publishing. On GO I land +
+poll CI.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
