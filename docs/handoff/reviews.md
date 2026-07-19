@@ -7767,6 +7767,34 @@ The `-mine` bridge is deleted with its discharge conditions correctly cited (Sta
 retirement, which by design waits one release of overlap (spec step 4 — the last
 P205 code change anywhere). **CI GREEN (all five). CLOSED.** Queue: OPS02 next for web-core.
 
+## 2026-07-19 — RULING: P201 stale-live-render (#23) — **(a) hash the cache key**; pins below. And the attended test itself is a milestone.
+
+First: the two-device P201 test RAN, scripted and repeatable (Playwright editor +
+tablet), and everything but the final repaint passed — draw → autobake → offer →
+download → import → disk-rev2, auto-match, position preserved. The root cause is
+exactly right and the B1 interaction is the sharp observation: stable index-based
+refs + ref-keyed cache + the PIN made the stale bitmap eviction-PROOF. The budget
+raise making it stickier is the kind of second-order effect only a real device
+test finds.
+
+**Build (a) — hash in the key** (`"$ref#$hash@WxH"`). Self-correcting, kills the
+whole same-filename-content-swap class, keeps B1 pin semantics, and avoids (b)'s
+host-coupled invalidation — "the host knows a swap happened" is precisely the
+keyed-effect pattern that has bitten twice (A21, A31). Pins:
+1. **The hash keys EVERY call site**: `decodeCached`, `pageCacheKeys` (the PIN
+   set — so after applyUpdate the recompose pins the NEW keys and rev1 entries
+   become evictable naturally), and the N9 prefetch path (else prefetch double-
+   decodes or pre-warms dead keys). A missed site = stale pins or wasted decodes.
+2. **Absent hash degrades to the ref-only key** (old bundles predating
+   rasterHash/contentHash behave exactly as today — additive compat, state it in
+   a comment + test).
+3. Tests: same-ref-different-hash ⇒ miss; the pin set follows the new keys across
+   an applyUpdate; absent-hash compat.
+4. **Re-run the scripted device test** and record R10's "within ~15 s without
+   moving the page" as MET — that closes P201's last acceptance line.
+Mobile-lane fix, gate as usual. (Commit the test script/steps alongside if not
+already — it's the P201 regression harness now.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

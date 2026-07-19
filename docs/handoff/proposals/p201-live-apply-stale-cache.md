@@ -1,6 +1,6 @@
 # P201 attended 2-device test — RESULT: data loop works, live render is STALE (for arch)
 
-**Status:** bug found + root-caused on-device, awaiting arch decision on the fix ·
+**Status:** RULED 2026-07-19 (reviews.md) — (a) hash-keyed cache; pins: hash at EVERY call site incl. the pin set + prefetch, absent-hash degrades to today, re-run the scripted device test to close R10 ·
 **Raised by:** Mobile lane (2026-07-19) · **Area:** `app/shared` (Stage render:
 `PageImageCache` / `decodeCached` / `PageView`), relates to P201 change 4 (R10) +
 B1 (the pin/cache-budget work) · **Task:** #23.
