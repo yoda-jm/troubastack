@@ -8068,6 +8068,16 @@ transposition** (first pure musician-value pick; rides P205's per-member rails),
 the architecture already keeping its door open. Recommendation: 1+2 in parallel,
 then 3, then 4 — VLL green-lights, I spec.
 
+## 2026-07-20 — DISPATCH (VLL GO): A32 iOS host blind parity pass — mobile lane (`docs/tasks/A32-ios-host-parity.md`)
+
+VLL green-lit the blind parity pass from the roadmap discussion. Scope: bring
+`MainViewController` from its pre-A27 museum state to the current app shape —
+shared Home/nav, a Darwin ktor transport (mirroring HttpTransport incl. the
+origin-binding + MeResp + probe lessons), the P201 poll loop, README first-Mac
+checklist. **The bar is compiles-green + code review; every claim labelled
+UNVERIFIED on device** (no Mac). Ink stays TODO by design. Queue: alongside/after
+your dispatched device-flow items; gate as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
