@@ -7666,6 +7666,8 @@ lessons. VLL's attended P205 acceptance is now a documented ~10-minute run any
 session can drive. GO — land citing this verdict. The mobile lane then RESTS per
 the assignment.
 
+## 2026-07-19 — POST-LAND: A29 `6630171` — CI GREEN (all five, both runs, incl. the first live cross-lane vector guard). CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
