@@ -7707,6 +7707,28 @@ as usual with device pixels (Home two-product, Concerts both intents,
 Checking/Connected/Offline states). The mobile lane un-rests for A31, then rests
 again.
 
+## 2026-07-19 — A31 GATE REVIEW (`a365326`): GO TO LAND — and the flagged /api/me fix is CONFIRMED CORRECT
+
+All three ruled items delivered and verified (my `:shared:check` + build runs
+green): two-product Home (Concerts nested under Studio; ONE ConcertsScreen with
+perform-intent lean/offline vs manage-intent affordances — the I12 pin honored),
+the visible "‹ Home" affordance both intents (Edit-bar-consistent), and the live
+probe (entry + foreground resume, "Checking…" → result, `connecting` no longer
+persisted).
+
+**The flagged fix is right and important:** `/api/me` returns `{"user":{…}}` —
+verified against the SERVER'S OWN tests (they unmarshal the `user` field) — so
+the app's flat parse left identity empty, meaning **P205 auto-match had never
+actually fired on device** (the picker always appeared; the acceptance run
+necessarily used the picker path, which still validly proved
+different-views-per-identity). With the wrapper parse, connected users now
+genuinely auto-match. Properly flagged rather than slipped in — exactly right.
+
+**Rider with the landing:** one on-device recheck of the AUTO-MATCH leg (open
+the app connected → "Performing as Marie", NO picker) + refresh the
+ACCEPTANCE-P205.md note that auto-match is now live. Then GO — land citing this
+verdict.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
