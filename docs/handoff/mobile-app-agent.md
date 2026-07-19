@@ -22,7 +22,12 @@
 > + gate + device screenshot pair once ruled. **Next queued:** **A20** (the app half of **T50** personal
 > song cues) — ✅ **UNBLOCKED 2026-07-17** (web-core lane): T50 slice 1 (proto+core+bake) and slice 2
 > (studio+shared glyph asset) are landed on `main`, all CI green — see the cross-lane handoff note under
-> §8. The app section is `docs/tasks/T50-song-cues.md` §5, ready to lift. Still user-blocked: **A07**
+> §8. The app section is `docs/tasks/T50-song-cues.md` §5, ready to lift. **Newer cross-lane unblock
+> (2026-07-19, web-core): P205 Stage 3a** (app view-time identity + cues + defaults) is now the top
+> unblocked item — the whole P205 web-core side (Stage 1 bake dialog + Stage 2 band-wide bake) **and**
+> T57's shared **view-resolution vectors** (`core/internal/bake/testdata/view-resolution.vectors.json`,
+> run them in commonTest → print == screen) are landed on `main`, all CI green. Full handoff under §8;
+> spec `docs/tasks/P205-band-wide-bundle.md` Stage 3. Still user-blocked: **A07**
 > (stylus spike), **IOS03 impl** (Mac + Apple creds), **B07** device screenshots, **OPS01** release-APK.
 > ⚠️ **Rotate the git-remote PAT** — the embedded token echoes in tool output when the GitHub API is hit
 > without `gh` (re-flagged in reviews.md; it leaked once this session via `curl -u` — use the
@@ -206,6 +211,43 @@ if a hash goes missing.
 ## 8. Remaining work
 
 **Unblocked, ready to pick up (authoritative queue: `docs/tasks/README.md` § Queue-state):**
+
+- **P205 Stage 3a — app view-time identity + cues + defaults: ✅ UNBLOCKED 2026-07-19 by the web-core lane.**
+  The whole P205 web-core side is landed on `main` (Stage 1 bake dialog + Stage 2 band-wide bake),
+  all CI green. The bundle NOW carries everything Stage 3a needs — nothing more is owed from web-core.
+  Spec: `docs/tasks/P205-band-wide-bundle.md` Stage 3 = your work.
+  - **Bundle contract (landed, additive — mirror in `BundleModel.kt`):** `ConcertBundle.roster`
+    (field 8, `repeated BundleMember{member_id, display_name, role}`) · `LayerImage.owner` (field 8,
+    `""` = shared/band, a member-id = that member's personal layer) · `LayerImage.default_on`
+    (field 9, **proto3 `optional` → Kotlin nullable**: absent ⇒ compute as today) ·
+    `BakedSong.member_cues` (field 11, `repeated MemberCues{member_id, repeated SongCue cues}`).
+    Field 10 (`cues`) is **empty in band-wide bundles** — read cues from `member_cues[myId]`, with
+    field-10 as the fallback for OLD (pre-P205) bundles so nothing regresses.
+  - **THE shared rule (landed, run it verbatim):** `core/internal/bake/testdata/view-resolution.vectors.json`
+    — **12 cases + schema**, documented in `core/internal/bake/testdata/README.md`. Implement the
+    Kotlin `layerVisible(layer, viewerRole, viewerMemberId)` to the precedence: **mandatory** (always on)
+    > **personal** (`owner != "" → owner == viewerMemberId`; identity outranks default_on) >
+    **shared** (`roleOK && defaultOK`, `roleOK = roleTag=="" || roleTag==role`,
+    `defaultOK = defaultOn==null ? true : defaultOn`). **Never** a live session's toggles (a printed/
+    offline view must be reproducible). Copy the vectors JSON into
+    `app/shared/src/commonTest/resources/` and add a commonTest that runs EVERY case (mirror the Go
+    `TestLayerVisible_Vectors`) — **print == screen is then a tested invariant**, not a hope. Add a **CI
+    drift-guard** so the two copies stay byte-identical (mirror the `glyphs.json`/`CueGlyphData.kt`
+    check in `.github/workflows/ci.yml`). Reference impl: Go `bake.LayerVisible` + `bake.ConcertPDF`
+    (T57) already do exactly this server-side.
+  - **Identity (Stage 3a):** resolve who's holding the tablet — a B03 Connect session matching a roster
+    member → auto; else a one-tap **"Who are you?"** picker, remembered per concert/device (Storage KV;
+    a VIEW preference, **not** an account — I12 held). Changing identity re-seeds like a role change
+    (A18 semantics). Role picker stays (role still drives `role_tag` scoping); identity supplies the
+    default role from the roster. **Defaults precedence** (P205 §Stage-3): mandatory > manual per-song
+    toggles (A1/A18 session) > identity (my personal layers on) > `default_on ∧ role_tag`; absent ⇒ legacy.
+  - **On your landing checklist (Fable, at Stage 3a land):** (1) delete the temporary
+    `docs/demo/demo-concert-mine.tstage` bridge (Stage 3a makes the band-wide bundle enough — the app
+    then reads `member_cues` + filters by identity); (2) wire the vectors CI drift-guard above. The
+    web-core `scope=mine` bakeapi retirement is BLOCKED on Stage 3a landing (one release of overlap).
+  - **Landed commits to diff:** `git log a254f5f..origin/main -- proto/ core/internal/bake/ docs/tasks/P205-band-wide-bundle.md`
+    — P205 Stage 1 (`df0f3be`) + Stage 2 (`ed1966c`) + T57 (`0ebb346`, the reference rule); verdicts in
+    `reviews.md` (2026-07-18 "P205 … GATE REVIEW/GATE ANSWER", "T57 GATE REVIEW … GO").
 
 - **A20 — app half of T50 (personal song cues): ✅ UNBLOCKED 2026-07-17 by the web-core lane.**
   Handoff from the T-track (spec: `docs/tasks/T50-song-cues.md` §5 = your work; §2/§3 = the contract):

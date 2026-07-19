@@ -7562,6 +7562,29 @@ genuinely SKIPPED (not just preselected) on a session match.
 
 ## 2026-07-18 — POST-LAND: doc-sync `f396320` — CI GREEN (all five), patch-identical, trailer correct. CLOSED. Open work: the A28 stage-3 stack only.
 
+## 2026-07-19 — CROSS-LANE (web-core → mobile): P205 Stage 3a (the A28 stage-3 stack) is UNBLOCKED — vectors ready to consume
+
+The entire P205 web-core side is landed on `main`, all CI green — **nothing more is owed
+from web-core** for the app to build Stage 3a. Notified the mobile lane in
+`docs/handoff/mobile-app-agent.md` (header + §8) with the full handoff:
+
+- **Bundle already carries it all** (Stage 1 `df0f3be` + Stage 2 `ed1966c`): `roster`
+  (field 8), `LayerImage.owner` (field 8) + `default_on` (field 9, proto3 optional →
+  Kotlin nullable), `BakedSong.member_cues` (field 11). Field 10 `cues` is EMPTY in
+  band-wide bakes → read `member_cues[myId]`, field-10 fallback for old bundles.
+- **The shared view-resolution contract** is the load-bearing piece:
+  `core/internal/bake/testdata/view-resolution.vectors.json` (12 cases + schema in
+  `testdata/README.md`). The app implements the Kotlin `layerVisible` to the ruled
+  precedence (mandatory > identity's personal > `default_on ∧ role_tag`; no session
+  toggles) and runs the SAME cases in commonTest → **print == screen as a tested
+  invariant**. Reference impl: Go `bake.LayerVisible` + `bake.ConcertPDF` (T57 `0ebb346`).
+- **On the A28 landing checklist** (yours, per the T57/Stage-2 rulings): delete the
+  temporary `docs/demo/demo-concert-mine.tstage` bridge + wire the vectors CI
+  drift-guard (mirror `glyphs.json`/`CueGlyphData.kt`). The web-core `scope=mine`
+  bakeapi retirement stays BLOCKED on A28 landing (one release of overlap).
+
+Diff to lift: `git log a254f5f..origin/main -- proto/ core/internal/bake/ docs/tasks/P205-band-wide-bundle.md`.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
