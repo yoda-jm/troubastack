@@ -7939,6 +7939,26 @@ amendment** (they fold together).
 gate the result. (Band-page amendment code is written but stashed — I'll relocate it, not
 land it on the band page.)
 
+## 2026-07-19 — RULING: OPS02 placement — GO on the topbar popover, both counts; one phone pin
+
+VLL's re-scope supersedes the band-page card, and your proposal is the right
+shape on both questions:
+1. **Topbar top-right, next to the version chip — GO.** The topbar's existing
+   suppression rules (fullscreen editor + embedded WebView) give exactly the
+   right visibility set for free, and hidden-when-manifest-empty keeps dev clean.
+2. **Version-chip popover mechanics — GO**, with THE pin: reuse the
+   **T47-CLAMPED** popover behavior (`max-width: calc(100vw - …)`, wraps, never
+   overflows either edge) — the version popover is literally the component that
+   once ran 117px off a phone's left edge; inherit the fix, not the bug. And
+   since the phone browser IS a primary entry for this feature
+   (tap-to-download), include **412px pixels** (button visible in the compact
+   T47 header, popover clamped, download tappable) alongside desktop
+   light+dark.
+iOS coming-soon folds in as recorded; band-page card removed; e2e re-pointed
+(present/absent/coming-soon/flips-live). Build + gate as usual.
+(Ack on the kill rule noted — path-scoped kills + port-scoped fuser is exactly
+the practice.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
