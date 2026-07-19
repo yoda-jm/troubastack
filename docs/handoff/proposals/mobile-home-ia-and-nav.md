@@ -66,3 +66,54 @@ page, and the mobile lane is resting post-P205 — so they're gated here before 
   open question above.
 - Confirm scope 2 + 3 ride with the IA change as one mobile task, or split.
 - Then the mobile lane picks it up as a specced task (A-track).
+
+---
+
+## A31 IMPLEMENTED — GATE (branch `task/A31-home-ia` @ `a365326`, 2026-07-19)
+
+Built to the ruling above. **Held at the gate for a verdict** (no land yet).
+
+**What shipped** (4 files: `HomeScreen.kt`, `HomeTest.kt`, `MainActivity.kt`, `HttpTransport.kt`):
+
+1. **Two-product Home.** `HomeScreen` now renders TroubaStage (big primary tile) +
+   TroubaStudio (second branded tile, "Author, import & manage concerts"). The Concerts
+   peer button is gone. `onEdit`/`onConcerts` → a single `onStudio`.
+2. **One list, two intents.** `ConcertsScreen(intent: ConcertIntent)`. Perform (via
+   TroubaStage): title "Perform", lean tap-to-perform rows, NO server calls, damaged
+   concerts hidden. Manage (via TroubaStudio): title "Concerts", Sign-out/Connect · Edit
+   · Import · offers · the ⋮ freeze/pin/delete menu. `manageIntent` is the nav flag.
+3. **Back/Home affordance.** A "‹ Home" TextButton leads the concert-list top bar in
+   both intents (placement matches the Edit bar's "‹ Back"); the system BackHandler stays.
+4. **Live connection status.** New `HttpTransport.probePresence()` → `Presence.{Online,
+   Unreachable,Unauthorized}` (short 3 s timeout). Home probes on entry AND on every
+   foreground resume (Activity `resumeTick` — no lifecycle-compose dep added), shows
+   `Identity.Checking` ("Checking…") in flight, resolves to Connected/Offline/Disconnected
+   from the RESULT. `connecting` downgraded rememberSaveable → remember (no longer
+   resurrects Connect after a process kill).
+
+**⚠ One change beyond the ruling — flagged for your call.** Root-causing why the probe
+showed "Connected" not "Performing as <name>", I found `/api/me` returns the member
+**wrapped** — `{"user":{"id":…,"displayName":…}}` — but the `Me` model parsed the top
+level, so `id`+`displayName` were **always empty**. Consequences it silently caused:
+Home never showed the name, AND **P205 auto-match never fired** (empty `userId` ⇒ the
+"Who are you?" picker appeared even for logged-in members — what we saw in the P205
+acceptance and mis-attributed to reseeded UUIDs). Fixed with a `MeResp` wrapper used by
+both `currentIdentity()` and `probePresence()`. This **changes landed P205 behaviour**
+(connected users now auto-match to their roster identity instead of always seeing the
+picker) — realising P205's stated "automatic if logged in" intent. If you'd rather split
+this into its own task, say so and I'll revert it from A31.
+
+**Device-verified** (wireless adb, screenshots on the QA host) — every state Fable named:
+- Home two-product; **Perform** intent lean ("‹ Home" · "Perform" · one tap row, no
+  chrome); **Manage** intent ("‹ Home" · "Concerts" · Sign out/Edit/Import · ⋮ menu).
+- **Disconnected** — Home read "Connect to your band" while a *stale* cookie still made
+  the Manage header say "Sign out": the live probe (Unauthorized) beat the cached flag.
+- **Connected** — "Performing as Marie · The Troubadours ✓" (after the /api/me fix).
+- **Offline** — server stopped, app resumed: "Offline · The Troubadours · concerts on
+  device still work" (cookie still present, so the old flag would have lied "Connected").
+
+**Green:** `:shared:check` (incl. the new `identityLine(Checking)` / `identityAction`
+cases) + `:androidApp:assembleDebug` + both iOS klibs.
+
+**Ask:** GO to land (rebase + fast-forward, cite the verdict), and rule on the flagged
+`/api/me` fix — keep it in A31, or split it out.
