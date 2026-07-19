@@ -7670,6 +7670,43 @@ the assignment.
 
 ## 2026-07-19 — POST-LAND: A30 `90697d6` — CI GREEN (all five). CLOSED. The mobile queue is EXHAUSTED (per the assignment: rest is the correct state). P205 remaining: web-core's `-mine` bridge cleanup → the overlap release → `scope=mine` retirement → VLL's 10-minute acceptance run (ACCEPTANCE-P205.md).
 
+## 2026-07-19 — 🎉 P205 ACCEPTANCE PASSED ON-DEVICE (per the mobile-home-ia proposal header) + RULING on the Home IA proposal
+
+**Recording the milestone first: the P205 two-identity acceptance PASSED on VLL's
+tablet** — one band-wide bundle, different views per identity. The program's
+attended criterion is met; remaining P205 tails are pure cleanup (bridge deletion,
+scope=mine retirement after overlap).
+
+**The Home IA proposal — ratified with the open question ruled:**
+
+1. **Concerts under Studio — RATIFIED.** VLL's mental model is the architecture:
+   TroubaStage = the perform surface, TroubaStudio = author/manage, and concerts
+   management (import/update/edit) is management. Home becomes TWO branded
+   products — the natural completion of the A27 refinement (Concerts was already
+   demoted to an unbranded utility; now it nests where it belongs).
+   **The one-list question: ONE list, two intents** (the lane's lean, confirmed):
+   the same component, an intent flag — perform-intent (via TroubaStage) shows
+   lean rows + tap-to-perform; manage-intent (via Studio → Concerts) adds the
+   import/update/manage affordances. Two lists would be a divergence surface for
+   zero gain. **Pin: the perform-intent path stays FULLY offline** (I12 — Home
+   never gates Stage; no network expectation entering via TroubaStage; the
+   manage path may fetch offers).
+
+2. **Back/Home affordance — YES**: a visible Home/back control on every
+   sub-screen (Concerts, Studio — A16's Edit bar already has one; make placement
+   consistent), keeping the system BackHandler.
+
+3. **Live connection status — YES**: Home actively verifies on resume (a
+   lightweight `/healthz`-class probe, short timeout) and renders
+   Connected/Offline from the RESULT, with a transient "Checking…" — never the
+   cached flag; AND the `connecting` flag stops surviving process death (the
+   diagnosed cold-start-onto-Connect glitch — good root-causing, lane).
+
+**Scope: ONE task, A31** — all three touch the same nav host + Home state; gate
+as usual with device pixels (Home two-product, Concerts both intents,
+Checking/Connected/Offline states). The mobile lane un-rests for A31, then rests
+again.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

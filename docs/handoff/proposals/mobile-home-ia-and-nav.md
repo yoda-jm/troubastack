@@ -1,6 +1,6 @@
 # Proposal — mobile Home IA + nav affordance + live connection status (for arch decision)
 
-**Status:** proposal, awaiting arch decision · **Raised by:** Mobile lane (2026-07-19,
+**Status:** RULED 2026-07-19 (reviews.md) — Concerts-under-Studio ratified; ONE list two intents (perform=lean+offline, manage=affordances); back/Home affordance everywhere; live-verified connection status + no persisted connecting flag. One task: A31. · **Raised by:** Mobile lane (2026-07-19,
 relaying VLL device feedback) · **Area:** `app/androidApp` (`MainActivity` nav host,
 `HomeScreen`, `ConcertsScreen`), `app/shared` (`HomeScreen` state/tiles) · **Relates
 to:** A27 (landing page), the P205 acceptance (just passed on-device).
