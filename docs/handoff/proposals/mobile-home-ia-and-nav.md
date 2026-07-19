@@ -117,3 +117,40 @@ cases) + `:androidApp:assembleDebug` + both iOS klibs.
 
 **Ask:** GO to land (rebase + fast-forward, cite the verdict), and rule on the flagged
 `/api/me` fix — keep it in A31, or split it out.
+
+---
+
+## A31 RIDER DONE — but it forced a code change; RE-GATE the delta (branch @ `a7397ec`, 2026-07-19)
+
+Ran the rider's on-device auto-match recheck. It **exposed a real bug**, so the branch
+is no longer identical to the `a365326` you GO'd — flagging before landing.
+
+**What the recheck found:** connected as Marie, opening the concert STILL showed the
+"Who are you?" picker. Root cause: `me` (the logged-in member feeding Stage auto-match)
+was loaded by `LaunchedEffect(transport.isConnected)`, and `isConnected` only means
+"cookie present", not "session valid". When a session expires server-side while the
+cookie lingers, reconnecting never flips the key false→true, so `me` never refreshes —
+auto-match silently used a stale/empty id. (The `/api/me` wrapper fix populated the id;
+this staleness bug was the *second* reason auto-match never fired.)
+
+**Fix (`0d4071f`):** the A31 live probe becomes the SINGLE source of truth — the Home
+`probePresence()` result now also sets `me` (Online → set; Unauthorized → null;
+Unreachable → keep last-known for offline I12). `me` refreshes on every Home
+entry/resume, like the identity line. Removed the now-dead `currentIdentity()`.
+
+**Re-verified on-device (pixels on the QA host):** connected as Marie → Home reads
+"Performing as Marie · The Troubadours ✓" → open the concert → **her view loads
+directly (chords + sections + her "Breath & phrasing"), NO picker.** Auto-match
+confirmed. *(To align the reseeded demo server's marie-id with the tablet's older
+bundle roster for the test, I remapped the bundle's roster ids on-device — the code
+path exercised is the real one; the demo's committed `.tstage` still predates any given
+live server, so real auto-match needs a bundle baked from the server the user logs into.)*
+
+**Also done:** ACCEPTANCE-P205.md updated (`a7397ec`) — two-product Home, live identity
+line, and that auto-match now genuinely fires.
+
+Branch `task/A31-home-ia` @ `a7397ec` = `a365326` (your GO) + `0d4071f` (this fix) +
+`a7397ec` (doc). Build still green (`:androidApp:assembleDebug`; shared + iOS untouched
+by the delta). **Ask:** confirm `0d4071f` is within the A31 GO (it's the same
+live-status single-source-of-truth intent) → then I land the branch citing both this and
+the `a365326` verdict.
