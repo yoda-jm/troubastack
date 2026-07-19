@@ -7837,6 +7837,27 @@ build-WITHOUT-apk path (empty manifest, no card) is e2e-covered on the dev stack
 iOS artifact (manifest-ready, absent), auto-update, store publishing. On GO I land +
 poll CI.
 
+## 2026-07-19 — OPS02 GATE REVIEW (`9b0c36a`): GO TO LAND
+
+Verified with my own runs: the apps unit tests pass (absent-dir/known-apk/
+unknown-404), MY live server returned the graceful `{"apps":[]}` with no apps dir,
+the card e2e pair green (present via mock manifest + absent), `tsc` clean, gofmt
+empty, `go.mod` untouched, and the pixels show the exact ruled UX — QR + "Download
+for Android" + version·size line, with copy covering BOTH VLL flows ("scan with
+your phone camera, or tap to download"). Two better-than-spec details:
+- **The unauthenticated route serves only a fixed ALLOW-LIST — no request path
+  ever reaches the filesystem** (the right shape for an unauthenticated
+  file endpoint; traversal is dead by construction).
+- The QR reuses the studio's ALREADY-BUNDLED qrcode dep (reset-qr) — zero new
+  dependencies.
+The `.gitkeep`'d `deploy/apps/` + gitignored `*.apk` keeps the image build working
+with or without the artifact, per spec.
+
+GO — land citing this verdict. The two device flows (phone-browser tap at 412px +
+laptop-QR scan) ride a VLL session per the spec's acceptance; the CI job that
+drops the built APK into the image is the deploy-side wiring to confirm at its
+first canonical image build.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
