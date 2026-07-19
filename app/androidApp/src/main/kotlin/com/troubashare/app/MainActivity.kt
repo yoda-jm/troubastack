@@ -140,11 +140,12 @@ private fun App() {
         )
     }
 
-    // P205 Stage 3a follow-up: the logged-in member (id → roster auto-match on concert open).
-    // Best-effort, offline-first — null degrades to anonymous. (Home's OWN identity line is A31's
-    // live probe below; this is only for Stage identity resolution.)
+    // P205 Stage 3a: the logged-in member (id → roster auto-match on concert open; name/band → Home
+    // line). A31: SET FROM THE LIVE PROBE below — a single source of truth. The old
+    // LaunchedEffect(transport.isConnected) went stale when a session expired server-side while the
+    // cookie lingered (isConnected never flipped false→true on reconnect, so `me` never refreshed and
+    // auto-match silently used a stale/empty id). Now `me` refreshes on every Home entry + resume.
     var me by remember { mutableStateOf<CurrentIdentity?>(null) }
-    LaunchedEffect(transport.isConnected) { me = if (transport.isConnected) transport.currentIdentity() else null }
 
     // A27/A31: nav state is rememberSaveable so a landing/product screen survives rotation + process
     // death — EXCEPT `connecting`, which must NOT resurrect the login screen after a process kill
@@ -179,12 +180,16 @@ private fun App() {
         val activity = LocalContext.current.findActivity() as? MainActivity
         var homeIdentity by remember { mutableStateOf<Identity>(Identity.Checking) }
         LaunchedEffect(activity?.resumeTick?.value) {
-            if (!transport.isConnected) { homeIdentity = Identity.Disconnected; return@LaunchedEffect }
+            if (!transport.isConnected) { homeIdentity = Identity.Disconnected; me = null; return@LaunchedEffect }
             homeIdentity = Identity.Checking
-            homeIdentity = when (val p = transport.probePresence()) {
-                is Presence.Online -> Identity.Connected(name = p.displayName, band = p.band)
-                Presence.Unreachable -> Identity.Offline(band = me?.band ?: "")
-                Presence.Unauthorized -> Identity.Disconnected
+            when (val p = transport.probePresence()) {
+                is Presence.Online -> {
+                    me = CurrentIdentity(userId = p.userId, displayName = p.displayName, band = p.band)
+                    homeIdentity = Identity.Connected(name = p.displayName, band = p.band)
+                }
+                // Keep last-known `me` so offline auto-match still resolves the performer's own view (I12).
+                Presence.Unreachable -> homeIdentity = Identity.Offline(band = me?.band ?: "")
+                Presence.Unauthorized -> { me = null; homeIdentity = Identity.Disconnected }
             }
         }
 

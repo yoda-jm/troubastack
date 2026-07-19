@@ -104,20 +104,6 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
     @Serializable private data class MeResp(val user: Me = Me())
     @Serializable private data class Me(val id: String = "", val displayName: String = "")
 
-    /** P205 Stage 3a follow-up: the logged-in member's id + display name + first band name, for the
-     *  Home identity line ("Performing as <name> · <band>") and auto-matching identity to the roster.
-     *  null when not connected or the fetch fails (offline-first — the caller degrades to "Connected"). */
-    suspend fun currentIdentity(): CurrentIdentity? {
-        val ck = cookie() ?: return null
-        return runCatching {
-            val meResp = client.get("$baseUrl/api/me") { header("Cookie", ck) }
-            if (!meResp.status.isSuccess()) return null
-            val me = meResp.body<MeResp>().user
-            val band = client.get("$baseUrl/api/bands") { header("Cookie", ck) }.body<Bands>().bands.firstOrNull()?.name ?: ""
-            CurrentIdentity(userId = me.id, displayName = me.displayName, band = band)
-        }.getOrNull()
-    }
-
     /** A31: LIVE connection state for the Home landing — resolved from an actual round-trip, never the
      *  cached cookie. [Presence.Unreachable] on timeout/IO (server down → Home reads "Offline");
      *  [Presence.Unauthorized] when the server answers but the session is gone/expired (→ "Connect");
