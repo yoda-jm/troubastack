@@ -1,6 +1,6 @@
-# demo-concert bundles — real-music demo bundles (no server needed)
+# demo-concert bundle — the real-music demo bundle (no server needed)
 
-**Genuinely baked** concert bundles of the seeded band's *"Sat @ The Anchor"* setlist
+One **genuinely baked** concert bundle of the seeded band's *"Sat @ The Anchor"* setlist
 (four songs: **Wonderwall**, **Hallelujah**, **Black Hole Sun**, and the original **The
 Open Road** — a real lead sheet + guitar tab with purpose-built annotation layers, see
 [`../demo-charts`](../demo-charts/)), flattened by the real server-side bake pipeline
@@ -25,16 +25,6 @@ Install the app (root README → "The mobile app"), share/push a file to the dev
   shared/conductor layers **plus only your own** personal layers, and renders **your**
   cues from `member_cues`.
 
-- **`demo-concert-mine.tstage`** (~531 KB, **11 pages**) — ⚠ **TEMPORARY BRIDGE for
-  pre-Stage-3a apps; deleted when the app reads `member_cues`.** Marie's `scope=mine`
-  personal bake: cues ride the legacy field 10 (Wonderwall → mic + red electric,
-  Hallelujah → mic, Black Hole Sun → mic + tambourine, The Open Road → acoustic + mic)
-  and her **"my files"** pick resolves Wonderwall to her *Vocals* part (2 pages, not the
-  3-page *Score* — hence 11). A **current app build** (before P205 Stage 3a reads
-  `member_cues` + filters by identity) shows *no* cues and *all* members' layers from the
-  band-wide bundle, so this bridge keeps the offline cue demo working in the meantime.
-  Its deletion is a named item on **Stage 3a's** landing checklist.
-
 Each song carries its annotation layers, demonstrating the visibility rules the presenter
 enforces:
 
@@ -46,8 +36,8 @@ enforces:
 
 ## Provenance — produced by the real bake pipeline (P205 Stage 2)
 
-These files are the exact output of the real pipeline (seed → `POST …/bake` → poppler
-page rasters + `@troubastack/ink` overlays → `.tstage`), so their images are genuine
+This file is the exact output of the real pipeline (seed → `POST …/bake` → poppler
+page rasters + `@troubastack/ink` overlays → `.tstage`), so its images are genuine
 studio-parity renders **and** the packaging is the real thing. Reproduce from a clean
 seed:
 
@@ -58,14 +48,11 @@ rm -rf core/troubadata core/cmd/seed/assets
 make demo                     # boots a seeded core at :8080 (users marie/…/demo)
 #    (or, without the SPA: run troubacore, then `cd core && go run ./cmd/seed`)
 
-# 2. As marie (admin of "The Troubadours"), log in and bake for "Sat @ The Anchor":
+# 2. As marie (admin of "The Troubadours"), log in and bake the ONE band-wide bundle
+#    for "Sat @ The Anchor":
 #      POST /api/auth/login              {"username":"marie","password":"demo"}
-#    PRIMARY (band-wide bundle):
 #      POST /api/bands/{band}/setlists/{setlist}/bake
 #        → GET /api/bands/{band}/concerts/{concert}/bundle        > docs/demo/demo-concert.tstage
-#    BRIDGE (Marie's parts — legacy field-10 cues + my-files; TEMPORARY, see above):
-#      POST /api/bands/{band}/setlists/{setlist}/bake?scope=mine
-#        → GET /api/bands/{band}/concerts/{concert}~{user}/bundle > docs/demo/demo-concert-mine.tstage
 ```
 
 **Reproducibility caveat:** the bytes are identical **modulo `bakedAt`** (the bake
@@ -94,7 +81,11 @@ proving itself in the shipped artifact).
 > Regenerated 2026-07-18 (**P205 Stage 2**): `demo-concert.tstage` becomes the **band-wide
 > bake** — it carries the roster, every layer owner-tagged, and **all** members' cues in
 > `member_cues`, so a single artifact serves the whole band and the presenter filters to
-> the viewer's identity at view time. `demo-concert-mine.tstage` is **retained as a
-> temporary bridge** for pre-Stage-3a app builds (which read field-10 cues + don't filter
-> by identity yet); it is deleted on Stage 3a's landing. `?scope=mine` stays available in
-> the API until Stage 3 ships.
+> the viewer's identity at view time. A temporary `demo-concert-mine.tstage` bridge was
+> retained for pre-Stage-3a app builds.
+>
+> Cleaned up 2026-07-19 (**P205 Stage 3a landed** — A29/A30): the `-mine` bridge is
+> **deleted**; the app now reads `member_cues` + filters by identity at view time (the
+> shared view-resolution vectors run in both the Go and the app commonTest, so print ==
+> screen), so ONE band-wide bundle is enough. `?scope=mine` stays in the API for one
+> overlap release, then retires.

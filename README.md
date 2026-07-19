@@ -161,8 +161,7 @@ A baked concert with **real music and real annotations** is committed at
 so you can present the app without running anything. It's the **band-wide bundle** (P205):
 one artifact for the whole band — it carries the roster, every layer owner-tagged, and
 every member's **song cues**, and the presenter filters to the viewer's identity at view
-time. (A second `demo-concert-mine.tstage` is a **temporary bridge** carrying Marie's cues
-for current app builds; it's removed once the app reads `member_cues` — P205 Stage 3a.)
+time (a Connect auto-match or a one-tap "Who are you?" picker).
 
 ```sh
 adb push docs/demo/demo-concert.tstage /sdcard/Download/

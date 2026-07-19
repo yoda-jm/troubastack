@@ -72,13 +72,11 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   DECIDED 2026-07-11: re-affirm mirrors (closed-not-adopted). **P202** closed
   2026-07-10 (safe slice `5ceba9f`; rest → deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
-- **P205 in flight (mobile lane):** **Stage 3a** (app view-time identity — Connect
-  auto-match / one-tap picker → my layers + my cues from the one bundle), then **3b**
-  (personal-layer filtering). On Stage 3a's landing checklist: delete the temporary
-  `demo-concert-mine.tstage` bridge + wire the shared view-resolution vectors into
-  commonTest. **web-core follow-on (blocked on Stage 3):** retire `scope=mine` in the
-  bakeapi (one release of overlap). Program acceptance (attended, VLL): two identities,
-  two devices, ONE file, different layers + cues.
+- **P205 — acceptance PASSED on-device 2026-07-19; program essentially complete.**
+  Stage 3a/3b landed (mobile A29/A30: app view-time identity + personal-layer filtering;
+  the shared view-resolution vectors run in both Go and app commonTest → print == screen).
+  The `-mine` demo bridge is **deleted** (2026-07-19, web-core). **Only web-core tail
+  left:** retire `?scope=mine` in the bakeapi after one overlap release.
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
   feel — rides A07's tablet stylus session; the phone-breakpoint cosmetics +
   reduced-blur fallback LANDED 2026-07-10 `f90a7ca`, plus the two viewport device

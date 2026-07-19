@@ -131,13 +131,15 @@ offer the download.
 - **In-app distribution** (B03): offers ("New" / "update to rev N") applied only on
   tap, atomic swap, download-failure leaves the old bundle intact (tested), FROZEN /
   local pin / server `final_locked` all suppress offers.
-- **One band-wide bundle** (P205, ✅ web-core): the bake now produces a SINGLE bundle
-  that carries the whole band — the roster, every layer owner-tagged, and every member's
-  cues — so identity resolves at VIEW time instead of minting a bundle per member. The
-  **bake dialog** captures which layers are on by default, explicitly (no silent
-  capture). The app-side identity filter (who-am-I → my layers + my cues) is **P205
-  Stage 3**, the mobile lane's in-progress piece; until it ships, a temporary
-  `demo-concert-mine.tstage` bridge keeps the current app's cue demo working.
+- **One band-wide bundle** (P205, ✅): the bake produces a SINGLE bundle that carries the
+  whole band — the roster, every layer owner-tagged, and every member's cues — and
+  identity resolves at VIEW time instead of minting a bundle per member. The **bake
+  dialog** captures which layers are on by default, explicitly (no silent capture). The
+  app-side identity filter (who-am-I → my layers + my cues) landed as **P205 Stage 3a/3b**
+  (mobile, A29/A30) and the two-identity acceptance **passed on-device 2026-07-19**; the
+  shared view-resolution vectors run in both the Go and the app commonTest, so **print ==
+  screen** is a tested cross-platform invariant. (`scope=mine` lingers in the bakeapi for
+  one overlap release, then retires.)
 - **Paper fallback** (T57, ✅): "Download PDF" beside the bundle download composites
   the concert to a printable A4 PDF (your view — mandatory + shared + your own layers),
   for the "tablet died mid-set" case. Same view-resolution rule as the screen, so print
