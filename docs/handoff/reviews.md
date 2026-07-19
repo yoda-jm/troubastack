@@ -7642,6 +7642,19 @@ finishing established work, nothing invented:
    manufacture work. (iOS remains user-blocked; N-polish waits for VLL's next
    device feedback; `-mine`/scope=mine retirements are web-core's.)
 
+## 2026-07-19 — A29 GATE REVIEW (`34ea20e`): GO TO LAND — print == screen is now a TESTED cross-platform invariant
+
+Verified with my own runs: the two committed vector copies are byte-identical (my
+diff), the CI cross-lane drift guard is in place (fails if the copies fork — the
+right enforcement for a two-lane contract file), `ViewResolutionVectorsTest` runs
+all 12 shared cases through the pure commonMain rule (JVM-run, iOS-covered by
+purity), and `:shared:check` is green. Stage-3 follow-up 1 is DISCHARGED: the
+printer and the presenter now provably resolve visibility identically, and
+editing the rule forces editing the vectors in lockstep across lanes.
+
+GO — land citing this verdict. A30 (the acceptance kit) next, then the mobile
+lane rests. Web-core still owes the bridge cleanup.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
