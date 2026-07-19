@@ -7997,6 +7997,21 @@ in exactly). Band-page card removed; still zero new deps.
 GO — land citing this verdict. VLL's next device session covers the two install
 flows on the REAL topbar entry.
 
+## 2026-07-19 — 🎉 P201 CLOSED: R10's device re-test PASSED — the live repaint works in place
+
+The exact scenario that failed now passes on the tablet: Stage open, auto-update
+on, a Studio draw autobakes → the page **repaints in place** (new content, no page
+move) — R10's acceptance verbatim. With this, **P201 (rehearsal live mode) is
+COMPLETE end to end**: live setlists, the debounced autobaker, Studio banners, the
+transient device toggle, the viewport-preserving swap, and now the in-place live
+repaint — every acceptance line met, all attended tests run.
+
+**Both flagship programs are now fully accepted**: P201 (rehearsal live mode) and
+P205 (band-wide bundle + view-time identity). The two-device rehearsal test comes
+OFF VLL's attended list. Remaining attended items: OPS01 live bring-up, the OPS02
+device flows, keystore/release APK, PAT rotation, LICENSE, A07 stylus, T24, B07
+shots, iOS track. CI on `c8f881f` watched.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
