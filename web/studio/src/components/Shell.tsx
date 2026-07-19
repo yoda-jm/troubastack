@@ -4,9 +4,10 @@
  * as the auth guard — if there is no user once loading finishes, redirect to
  * /login (the GET /api/me 401 path).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../api";
+import QRCode from "qrcode";
+import { api, type AppBinary } from "../api";
 import { useAuth } from "../auth";
 import { Avatar } from "./Avatar";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -63,6 +64,128 @@ function VersionChip() {
           ) : (
             <div className="mono muted">{error ? "server version unavailable" : "…"}</div>
           )}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// GetAppChip (OPS02 — VLL placement re-scope): a topbar "Get the app" affordance
+// (top-right, next to the version chip) so a band member installs the native app
+// straight from the server on ANY page — a QR (bandleader-screen → member-camera)
+// + a tap-to-download button in a popover (mirrors the version-chip pattern). It is
+// hidden entirely when /api/apps is empty (dev / no-embed image), and the topbar
+// itself is suppressed in the fullscreen editor + embedded WebView, so the
+// visibility set is exactly "every normal page, not the editor" for free.
+//
+// The iOS row reads "Coming soon" (greyed, inert) until an `ios` entry rides the
+// manifest, at which point the SAME row flips to a live download (VLL amendment).
+function GetAppChip() {
+  const [apps, setApps] = useState<AppBinary[]>([]);
+  const [open, setOpen] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listApps()
+      .then((a) => {
+        if (!cancelled) setApps(a);
+      })
+      .catch(() => {
+        /* no apps endpoint / none embedded — the chip stays hidden */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const android = apps.find((a) => a.platform === "android");
+  const ios = apps.find((a) => a.platform === "ios");
+  const primary = android ?? ios; // the QR points at the primary download
+  const url = primary ? window.location.origin + primary.path : "";
+
+  useEffect(() => {
+    if (!open || !url) return;
+    let cancelled = false;
+    QRCode.toString(url, { type: "svg", margin: 1, width: 132 })
+      .then((svg) => {
+        if (!cancelled && qrRef.current) qrRef.current.innerHTML = svg;
+      })
+      .catch(() => {
+        if (!cancelled && qrRef.current) qrRef.current.textContent = url;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, url]);
+
+  if (apps.length === 0) return null;
+
+  const meta = (a: AppBinary) => `${a.version} · ${(a.size / 1e6).toFixed(1)} MB`;
+
+  return (
+    <span className="getapp-wrap">
+      <button
+        type="button"
+        className="getapp-chip"
+        data-testid="get-app-btn"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span aria-hidden="true">📱</span> Get the app
+      </button>
+      {open && (
+        <div className="getapp-popover" data-testid="get-app-popover">
+          <div className="getapp-title">Get TroubaStage</div>
+          <p className="getapp-sub">
+            Perform offline on your phone or tablet. Scan the code with your phone camera, or
+            tap to download.
+          </p>
+          {url && <div className="qr" data-testid="get-app-qr" ref={qrRef} />}
+          <ul className="getapp-platforms">
+            {android && (
+              <li className="getapp-platform" data-testid="get-app-android">
+                <a
+                  className="primary button"
+                  data-testid="get-app-download"
+                  href={android.path}
+                  download={android.filename}
+                >
+                  Download for Android
+                </a>
+                <span className="getapp-meta" data-testid="get-app-version">
+                  {meta(android)} · Android
+                </span>
+              </li>
+            )}
+            <li className="getapp-platform" data-testid="get-app-ios">
+              {ios ? (
+                <>
+                  <a
+                    className="primary button"
+                    data-testid="get-app-ios-download"
+                    href={ios.path}
+                    download={ios.filename}
+                  >
+                    Download for iOS
+                  </a>
+                  <span className="getapp-meta">{meta(ios)} · iOS</span>
+                </>
+              ) : (
+                <>
+                  <span
+                    className="button is-disabled"
+                    data-testid="get-app-ios-soon"
+                    aria-disabled="true"
+                  >
+                    iOS <span className="coming-soon">Coming soon</span>
+                  </span>
+                  <span className="getapp-meta">Available in a future release</span>
+                </>
+              )}
+            </li>
+          </ul>
         </div>
       )}
     </span>
@@ -161,6 +284,7 @@ export function Shell() {
           </Link>
         </nav>
         <div className="user">
+          <GetAppChip />
           <VersionChip />
           <Link to="/me" className="profile-link" data-testid="nav-profile">
             <Avatar user={user} size={26} />

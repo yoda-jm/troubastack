@@ -964,12 +964,16 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   .brand { font-size: 1rem; }
   .nav { order: 1; flex-basis: auto; }
   .user { order: 2; flex-basis: 100%; margin-left: 0; justify-content: flex-start; gap: .6rem; }
-  /* Version popover: clamp to the viewport so it can't run off either edge (was
-     right:0 + 240px min-width → off the left on a narrow screen). Fixed insets +
-     max-width + wrap. */
+  /* Version + Get-the-app popovers: clamp to the viewport so they can't run off
+     either edge (the version popover once ran 117px off a phone's left; OPS02
+     inherits the fix). Fixed insets + max-width + wrap. */
   .version-popover {
     position: fixed; left: .6rem; right: auto; top: auto;
     min-width: 0; max-width: calc(100vw - 1.2rem); white-space: normal;
+  }
+  .getapp-popover {
+    position: fixed; left: .6rem; right: .6rem; top: auto;
+    width: auto; max-width: calc(100vw - 1.2rem);
   }
   .inline-form { flex-direction: column; align-items: stretch; }
   .inline-form input, .inline-form select, .inline-form button { width: 100%; }
@@ -1454,12 +1458,43 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .bake-dialog-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bake-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .3rem; }
 
-/* OPS02: "Get the app" card on the band page — QR + download button. */
-.get-app-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-.get-app-meta { display: flex; flex-direction: column; gap: 8px; }
-.get-app a.primary.button {
-  display: inline-block; text-align: center; padding: 10px 16px; border-radius: 8px;
-  background: var(--brand); border: 1px solid var(--brand); color: #fff;
-  font-weight: 600; text-decoration: none;
+/* OPS02: topbar "Get the app" affordance — a chip (next to the version chip) that
+   opens a popover with a QR + per-platform download rows. Mirrors the version-chip
+   pattern and INHERITS its T47 viewport clamp (see the media query below) so the
+   popover never runs off a phone's edge. */
+.getapp-wrap { position: relative; display: inline-flex; }
+.getapp-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  font-size: .74rem; font-weight: 600; padding: .2rem .6rem; border-radius: 999px; cursor: pointer;
 }
-.get-app a.primary.button:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
+.getapp-chip:hover { color: var(--fg); border-color: var(--border-strong); }
+.getapp-chip[aria-expanded="true"] { color: var(--fg); border-color: var(--brand); }
+.getapp-popover {
+  position: absolute; top: calc(100% + .4rem); right: 0; z-index: 30; width: 300px; max-width: 300px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+  box-shadow: var(--shadow); padding: .8rem .85rem;
+  display: flex; flex-direction: column; gap: .55rem; text-align: left;
+}
+.getapp-title { font-weight: 700; font-size: .92rem; }
+.getapp-sub { margin: 0; font-size: .76rem; color: var(--muted); line-height: 1.35; }
+.getapp-popover .qr { align-self: center; }
+.getapp-platforms { display: flex; flex-direction: column; gap: .6rem; margin: 0; padding: 0; list-style: none; }
+.getapp-platform { display: flex; flex-direction: column; gap: .25rem; }
+.getapp-meta { font-size: .72rem; color: var(--muted); }
+.getapp-platform a.primary.button {
+  display: inline-block; text-align: center; padding: 9px 14px; border-radius: 8px;
+  background: var(--brand); border: 1px solid var(--brand); color: #fff;
+  font-weight: 600; text-decoration: none; width: max-content;
+}
+.getapp-platform a.primary.button:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
+/* iOS coming-soon: styled like a button but inert (intent, not tappable). */
+.getapp-platform .button.is-disabled {
+  display: inline-flex; align-items: center; gap: .5rem; width: max-content;
+  padding: 9px 14px; border-radius: 8px; font-weight: 600;
+  background: transparent; border: 1px dashed var(--border); color: var(--muted); cursor: default;
+}
+.getapp-platform .coming-soon {
+  font-size: .66rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; background: var(--border); color: var(--muted);
+}

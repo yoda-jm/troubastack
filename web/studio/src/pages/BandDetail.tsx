@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import QRCode from "qrcode";
-import {
-  ApiError,
-  api,
-  type AppBinary,
-  type Band,
-  type Invite,
-  type MemberView,
-  type Role,
-  type Song,
-} from "../api";
+import { ApiError, api, type Band, type Invite, type MemberView, type Role, type Song } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { NewItem } from "../components/NewItem";
@@ -77,80 +68,7 @@ export function BandDetail() {
 
       <Members bandId={bandId} myRole={myRole} />
       <Songs bandId={bandId} />
-      <GetAppCard />
     </div>
-  );
-}
-
-// GetAppCard (OPS02): a "Get the app" CTA visible to every member — the server
-// image can carry the native app binary so a new member installs it straight from
-// the band's own server (no store). The real flow is bandleader-laptop-screen →
-// member-phone-camera, so it shows a QR (client-rendered, offline-safe) of the
-// absolute APK URL alongside a tap-to-download button. Renders NOTHING when the
-// server carries no apps (dev / image built without them) — the manifest is empty.
-function GetAppCard() {
-  const [apps, setApps] = useState<AppBinary[]>([]);
-  const qrRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .listApps()
-      .then((a) => {
-        if (!cancelled) setApps(a);
-      })
-      .catch(() => {
-        /* no apps endpoint / none embedded — leave the card hidden */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const android = apps.find((a) => a.platform === "android");
-  const url = android ? window.location.origin + android.path : "";
-
-  useEffect(() => {
-    if (!url) return;
-    let cancelled = false;
-    QRCode.toString(url, { type: "svg", margin: 1, width: 148 })
-      .then((svg) => {
-        if (!cancelled && qrRef.current) qrRef.current.innerHTML = svg;
-      })
-      .catch(() => {
-        if (!cancelled && qrRef.current) qrRef.current.textContent = url;
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-
-  if (!android) return null;
-
-  return (
-    <section className="panel get-app" data-testid="get-app-card">
-      <h2>Get the app</h2>
-      <p className="muted">
-        Install <strong>TroubaStage</strong> on your phone or tablet to perform offline. Scan
-        the code with your phone camera, or tap to download.
-      </p>
-      <div className="get-app-row">
-        <div className="qr" data-testid="get-app-qr" ref={qrRef} />
-        <div className="get-app-meta">
-          <a
-            className="primary button"
-            data-testid="get-app-download"
-            href={android.path}
-            download={android.filename}
-          >
-            Download for Android
-          </a>
-          <div className="sub muted" data-testid="get-app-version">
-            version {android.version} · {(android.size / 1e6).toFixed(1)} MB · Android
-          </div>
-        </div>
-      </div>
-    </section>
   );
 }
 
