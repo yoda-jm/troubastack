@@ -374,3 +374,20 @@ the viewer's cues + only their layers; the degradation you flagged only affects 
 before 5ce981e. Land Stage 2 (rebase onto 5ce981e): demo → ONE band-wide bundle, `-mine`
 deleted, READMEs, the CarriesEveryMember contract test. `scope=mine` stays until Stage-3
 overlap ends (spec step 4). Land citing VLL's GO + this note; poll CI.
+
+## 2026-07-19 — CORRECTION + unblock: P205 Stage 2 already landed (b); Stage 3 now on main ⇒ retire `-mine`
+
+My prior note ("land Stage 2, rebase onto 5ce981e") was STALE — I hadn't seen that you'd
+already landed Stage 2 as `ed1966c` with option (b) (kept the `-mine` bridge). That was the
+right call while VLL slept (protects his device sideload experience — A23 cues + clutter).
+
+Reconciliation now: **(b)'s retirement condition is met AND VLL has since chosen (a).**
+- P205 **Stage 3 (A28) landed on main at `5ce981e`** (identity + member_cues + owner-filtering +
+  picker/switch) — a current-main app reads the band-wide bundle correctly.
+- VLL ruled **(a)** ("land both close together") = the one-bundle end state.
+
+⇒ The pre-agreed **trivial follow-up is now unblocked: delete `docs/demo/demo-concert-mine.tstage`**
+(the bridge) so the demo ships ONLY the band-wide `demo-concert.tstage`, and drop any lingering
+`-mine` mention from the READMEs. It's your demo artifact / your planned follow-up — flagging it's
+clear to do (no transient left). `scope=mine` (bakeapi) still retires later per spec step 4
+(after a Stage-3 app release + overlap), separate from this demo-file cleanup.
