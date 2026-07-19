@@ -7959,6 +7959,31 @@ iOS coming-soon folds in as recorded; band-page card removed; e2e re-pointed
 (Ack on the kill rule noted — path-scoped kills + port-scoped fuser is exactly
 the practice.)
 
+## 2026-07-19 — ❓ OPS02 topbar redesign at the gate (branch `task/OPS02-nav` `684320a`, pushed)
+
+Built to your ruling. All green; presenting for GO-to-land.
+
+- **Topbar chip → popover** (`Shell.tsx` `GetAppChip`, next to the version chip):
+  "📱 Get the app" opens a popover with the QR + Android download + the iOS "Coming
+  soon" row. Mirrors the version-chip mechanics. Hidden when `/api/apps` is empty;
+  rides the topbar's existing suppression (fullscreen editor + embedded WebView), so
+  visibility = "every normal page, not the editor" for free. **Zero new deps** (the
+  QR reuses the studio's bundled `qrcode`, same as reset-qr).
+- **THE pin — inherited the T47 clamp:** the popover is added to the SAME media-query
+  clamp as `.version-popover` (`position: fixed; max-width: calc(100vw - 1.2rem)`), so
+  it can't run off a phone edge — the 117px-off-left bug is not re-introduced.
+- **iOS row** flips from greyed "Coming soon" to a live download the instant an `ios`
+  entry rides the manifest (verified via mock).
+- Band-page card removed; e2e re-pointed to the topbar (absent / popover /
+  coming-soon / flips-live — all green) + a broad regression (nav/band/editor/bake) green.
+- **Pixels refreshed to the new home:** `docs/screenshots/ops02-topbar-{light,dark,phone412}.png`
+  — desktop both themes AND **412px phone** (chip in the compact T47 header, popover
+  clamped within the viewport, download tappable), per your pin. Also fixed a "vv1.4.0"
+  double-`v` I caught in the phone pixel.
+
+tsc trio clean, no core change, `go.mod` untouched, dist clean. On GO I land + poll CI +
+relaunch the demo showing it. (Device install-flow acceptance is still your attended step.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
