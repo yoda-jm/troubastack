@@ -8,15 +8,16 @@ package com.troubashare.shared.stage
 internal data class DecodedOverlays<T>(val overlays: List<T>, val missing: Int)
 
 /**
- * Decode each overlay [refs], keeping the successes and COUNTING the failures (never silently drop a
+ * Decode each overlay [items], keeping the successes and COUNTING the failures (never silently drop a
  * failed one). Pure over an injected [decode] (returns null on failure) so the failure accounting is
- * unit-tested without a real `ImageBitmap`/decoder.
+ * unit-tested without a real `ImageBitmap`/decoder. Generic over the item type [E] so callers can pass
+ * either bare refs (tests) or the overlay model (which carries the R10 content hash — task #23).
  */
-internal fun <T : Any> decodeOverlays(refs: List<String>, decode: (String) -> T?): DecodedOverlays<T> {
-    val ok = ArrayList<T>(refs.size)
+internal fun <E, T : Any> decodeOverlays(items: List<E>, decode: (E) -> T?): DecodedOverlays<T> {
+    val ok = ArrayList<T>(items.size)
     var missing = 0
-    for (ref in refs) {
-        val d = decode(ref)
+    for (item in items) {
+        val d = decode(item)
         if (d != null) ok.add(d) else missing++
     }
     return DecodedOverlays(ok, missing)

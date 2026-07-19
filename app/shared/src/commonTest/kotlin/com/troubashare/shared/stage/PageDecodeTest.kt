@@ -26,14 +26,14 @@ class PageDecodeTest {
 
     @Test
     fun allFail_missingEqualsCount_noneRendered() {
-        val r = decodeOverlays<String>(listOf("a", "b")) { null }
+        val r = decodeOverlays<String, String>(listOf("a", "b")) { null }
         assertEquals(emptyList(), r.overlays)
         assertEquals(2, r.missing)
     }
 
     @Test
     fun noOverlays_isClean() {
-        val r = decodeOverlays<String>(emptyList()) { it }
+        val r = decodeOverlays<String, String>(emptyList()) { it }
         assertEquals(emptyList(), r.overlays)
         assertEquals(0, r.missing)
     }

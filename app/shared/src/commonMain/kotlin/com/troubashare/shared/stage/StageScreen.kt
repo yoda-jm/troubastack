@@ -4,6 +4,7 @@
 // a Result and is treated as "maybe a placeholder", so a bad image never crashes the performance.
 package com.troubashare.shared.stage
 
+import com.troubashare.shared.bundle.LayerImage
 import com.troubashare.shared.bundle.SongCue
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -133,13 +134,18 @@ class PageImageCache(maxEntries: Int = 64) {
     fun unpin(owner: Any) = lru.unpin(owner)
 }
 
-private fun cacheKey(ref: String, w: Int, h: Int): String = "$ref@${w}x$h"
+// P201/R10: the key includes the content [ver] (raster/overlay hash), NOT just the blob ref. Baked
+// blob filenames are STABLE across revs (blobs/s0-p0-raster.png, …-L-<id>.png), so a rehearsal
+// auto-update swaps a page's CONTENT under the same ref; keying on ref alone served the stale bitmap
+// (task #23 — found by the attended 2-device test). With the hash in the key a content change is a
+// natural cache miss; unchanged pages still hit (their hash is unchanged), and old entries age out.
+internal fun cacheKey(ref: String, ver: String, w: Int, h: Int): String = "$ref#$ver@${w}x$h"
 
 /** The cache keys a page occupies at a given size (raster + visible overlays) — used to pin it (B1). */
-private fun pageCacheKeys(rasterRef: String, overlayRefs: List<String>, w: Int, h: Int): Set<String> =
+private fun pageCacheKeys(rasterRef: String, rasterVer: String, overlays: List<LayerImage>, w: Int, h: Int): Set<String> =
     buildSet {
-        add(cacheKey(rasterRef, w, h))
-        overlayRefs.forEach { add(cacheKey(it, w, h)) }
+        add(cacheKey(rasterRef, rasterVer, w, h))
+        overlays.forEach { add(cacheKey(it.imageRef, it.contentHash, w, h)) }
     }
 
 /** Root of the Stage UI: failure screen, empty state, or the performing pager. */
@@ -302,7 +308,7 @@ private fun Performing(
                 val pw = if (twoUp) widthPx / 2 else widthPx
                 withContext(Dispatchers.Default) {
                     targets.forEach { idx ->
-                        state.pages.getOrNull(idx)?.let { decodeCached(cache, it.rasterRef, pw, heightPx, decoder) }
+                        state.pages.getOrNull(idx)?.let { decodeCached(cache, it.rasterRef, it.rasterHash, pw, heightPx, decoder) }
                     }
                 }
             }
@@ -863,22 +869,25 @@ private fun ScrollPage(
         PlaceholderCard(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT))
         return
     }
-    val overlayRefs = page.overlays.filter { it.layerId in visibleLayers }.map { it.imageRef }
+    // R10/#23: key on the overlay MODELS (LayerImage carries contentHash), not the ref strings, so a
+    // rehearsal auto-update that swaps content under the same blob filename re-decodes instead of
+    // re-showing the cached stale bitmap.
+    val overlays = page.overlays.filter { it.layerId in visibleLayers }
     // B1: each displayed page pins its own keys under a stable owner so several ScrollPages on screen
     // at once don't clobber each other's pins; release on leave so off-screen pages can be evicted.
     val owner = remember { Any() }
     DisposableEffect(owner) { onDispose { cache.unpin(owner) } }
     // B1: retry a failed overlay decode on the next few frames (a failure isn't cached, so a re-decode
     // re-attempts); if it keeps failing we badge it — never silently show fewer annotations.
-    var retryTick by remember(page.rasterRef, overlayRefs, widthPx) { mutableStateOf(0) }
+    var retryTick by remember(page.rasterRef, page.rasterHash, overlays, widthPx) { mutableStateOf(0) }
     // Decode at column width with a generous height cap; the decoder preserves aspect ⇒ width-bound.
-    val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, widthPx, retryTick) {
+    val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, widthPx, retryTick) {
         value = null
         if (widthPx <= 0) return@produceState
         value = withContext(Dispatchers.Default) {
-            val raster = decodeCached(cache, page.rasterRef, widthPx, widthPx * 3, decoder)
-            val ov = decodeOverlays(overlayRefs) { decodeCached(cache, it, widthPx, widthPx * 3, decoder) }
-            cache.pin(owner, pageCacheKeys(page.rasterRef, overlayRefs, widthPx, widthPx * 3)) // eviction-proof this page
+            val raster = decodeCached(cache, page.rasterRef, page.rasterHash, widthPx, widthPx * 3, decoder)
+            val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, widthPx, widthPx * 3, decoder) }
+            cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, widthPx, widthPx * 3)) // eviction-proof this page
             PageBitmaps(raster, ov.overlays, ov.missing)
         }
     }
@@ -923,21 +932,22 @@ private fun PageView(
         val density = LocalDensity.current
         val wPx = with(density) { maxWidth.toPx().toInt() }
         val hPx = with(density) { maxHeight.toPx().toInt() }
-        val overlayRefs = page.overlays.filter { it.layerId in visibleLayers }.map { it.imageRef }
+        // R10/#23: key on the overlay MODELS (contentHash), not ref strings — see ScrollPage.
+        val overlays = page.overlays.filter { it.layerId in visibleLayers }
 
         // B1: each displayed page pins under a stable owner (two-up composes two PageViews at once, so
         // the right page must not unpin the left); release on leave so off-screen pages can be evicted.
         val owner = remember { Any() }
         DisposableEffect(owner) { onDispose { cache.unpin(owner) } }
         // B1: retry a failed overlay decode a few frames, then badge — never silently fewer annotations.
-        var retryTick by remember(page.rasterRef, overlayRefs, wPx, hPx) { mutableStateOf(0) }
-        val decoded by produceState<PageBitmaps?>(null, page.rasterRef, overlayRefs, wPx, hPx, retryTick) {
+        var retryTick by remember(page.rasterRef, page.rasterHash, overlays, wPx, hPx) { mutableStateOf(0) }
+        val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, wPx, hPx, retryTick) {
             value = null
             if (wPx <= 0 || hPx <= 0) return@produceState
             value = withContext(Dispatchers.Default) {
-                val raster = decodeCached(cache, page.rasterRef, wPx, hPx, decoder)
-                val ov = decodeOverlays(overlayRefs) { decodeCached(cache, it, wPx, hPx, decoder) }
-                cache.pin(owner, pageCacheKeys(page.rasterRef, overlayRefs, wPx, hPx)) // eviction-proof this page
+                val raster = decodeCached(cache, page.rasterRef, page.rasterHash, wPx, hPx, decoder)
+                val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, wPx, hPx, decoder) }
+                cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, wPx, hPx)) // eviction-proof this page
                 PageBitmaps(raster, ov.overlays, ov.missing)
             }
         }
@@ -1064,10 +1074,10 @@ private fun TempoChip(tempo: Int, resetKey: Any) {
 private data class PageBitmaps(val raster: ImageBitmap?, val overlays: List<ImageBitmap>, val missingOverlays: Int = 0)
 
 /** Cache-or-decode a single blob; null on any failure (the caller degrades gracefully). */
-private fun decodeCached(cache: PageImageCache, ref: String, w: Int, h: Int, decoder: ImageDecoder): ImageBitmap? {
-    val key = cacheKey(ref, w, h)
+private fun decodeCached(cache: PageImageCache, ref: String, ver: String, w: Int, h: Int, decoder: ImageDecoder): ImageBitmap? {
+    val key = cacheKey(ref, ver, w, h)
     cache.get(key)?.let { return it }
-    val bmp = decoder.decode(ref, w, h).getOrNull() ?: return null
+    val bmp = decoder.decode(ref, w, h).getOrNull() ?: return null // decode the REAL ref; version only keys the cache
     cache.put(key, bmp)
     return bmp
 }
