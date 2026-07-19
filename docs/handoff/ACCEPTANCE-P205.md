@@ -61,9 +61,16 @@ Everything below is host-side; paths assume the repo worktree + Android SDK on P
 
 Wake + launch: `adb -s <ip>:5555 shell input keyevent KEYCODE_WAKEUP; adb -s <ip>:5555 shell monkey -p com.troubashare.app -c android.intent.category.LAUNCHER 1`
 
-1. **Home** → cold-start lands on the landing page (TroubaStage tile, TroubaStudio/Concerts, identity line).
-2. **Perform** → open **Sat @ The Anchor** → Wonderwall.
-   - **Connected as Marie** → auto-matched, **no picker**; identity reads "Performing as Marie". Anonymous → the **"Who are you?"** picker appears; pick **Marie**.
+1. **Home** → cold-start lands on the landing page. **A31:** two branded products —
+   **TroubaStage** (perform) + **TroubaStudio** (author/manage; Concerts nests inside it) —
+   plus a **live** identity line ("Checking…" → "Performing as <name> ✓" / "Offline …" /
+   "Connect to your band"), probed on entry + resume, never a cached flag.
+2. **Perform** (tap TroubaStage) → open **Sat @ The Anchor** → Wonderwall.
+   - **Connected as Marie** → **auto-matched, no picker**; identity reads "Performing as Marie".
+     *(This genuinely fires as of A31 — the pre-A31 `/api/me` wrapper bug left the userId empty,
+     so the picker ALWAYS appeared even when logged in; auto-match now needs the bundle's roster
+     to carry the connected member's server id, e.g. a bundle baked from that server.)* Anonymous
+     (or a roster whose ids predate the server) → the **"Who are you?"** picker appears; pick **Marie**.
    - ✅ **Cue flash:** 🎤 mic + 🎸 red electric guitar (center, on entry).
    - Open ⚙ → **Layers…**: ✅ lists Section markings · Chords & capo · Breath & phrasing (NOT Chords / Conductor cues).
 3. **Switch identity:** ⚙ → **"Performing as Marie · Switch"** → pick **Sasha**.
