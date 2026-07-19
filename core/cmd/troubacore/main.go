@@ -91,7 +91,7 @@ func main() {
 
 	// Server-lifetime context for background workers (P201 autobaker); runs for the
 	// whole process.
-	handler, err := httpapi.Router(context.Background(), svc, eng, baker, cfg.Server.SecureCookies)
+	handler, err := httpapi.Router(context.Background(), svc, eng, baker, cfg.Server.SecureCookies, cfg.Server.AppsDir)
 	if err != nil {
 		log.Fatalf("troubacore: build router: %v", err)
 	}

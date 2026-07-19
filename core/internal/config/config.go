@@ -24,6 +24,7 @@ type Config struct {
 	Server struct {
 		Addr          string // TROUBACORE_ADDR
 		SecureCookies bool   // TROUBA_SECURE_COOKIES
+		AppsDir       string // TROUBA_APPS_DIR
 	}
 	Storage struct {
 		AppStore    string // TROUBA_APP_STORE
@@ -79,6 +80,9 @@ var knobs = []knob{
 	{"server", "secure_cookies", "TROUBA_SECURE_COOKIES", kindBool, "false", "Secure flag on the session cookie — enable only behind TLS",
 		func(c *Config) string { return boolStr(c.Server.SecureCookies) },
 		func(c *Config, v string) { c.Server.SecureCookies = parseBool(v) }},
+	{"server", "apps_dir", "TROUBA_APPS_DIR", kindString, "", "directory of downloadable native app binaries (OPS02); empty = none. The Docker image sets this to the embedded apps/ dir",
+		func(c *Config) string { return c.Server.AppsDir },
+		func(c *Config, v string) { c.Server.AppsDir = v }},
 
 	{"storage", "app_store", "TROUBA_APP_STORE", kindString, "mem", "relational backend: mem | file",
 		func(c *Config) string { return c.Storage.AppStore },

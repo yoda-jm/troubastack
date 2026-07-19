@@ -233,6 +233,15 @@ export type MyFiles = {
   customized: boolean;
 };
 
+/** OPS02: one downloadable native app binary the server carries. */
+export type AppBinary = {
+  platform: string;
+  version: string;
+  size: number;
+  path: string; // download URL path (e.g. /apps/troubashare.apk)
+  filename: string; // versioned download filename
+};
+
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
@@ -624,6 +633,10 @@ export const api = {
     request<{ concerts: Concert[] }>("GET", `/api/bands/${bandId}/concerts`).then(
       (r) => r.concerts,
     ),
+
+  // OPS02: the native app binaries this server carries (empty when the image was
+  // built without them / in dev). The band page shows a "Get the app" card from this.
+  listApps: () => request<{ apps: AppBinary[] }>("GET", "/api/apps").then((r) => r.apps),
 
   // T57: the printable-PDF URL for a concert (paper fallback). Derived from the
   // concert's bundle downloadUrl (…/bundle → …/pdf) — same auth gating; the server

@@ -98,12 +98,34 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-## Android release APK (mobile lane — pointer only)
+## Embed the app in the image (OPS02) — self-serve install
 
-The signed release APK is built in the mobile lane (`app/`) and needs a self-managed
-keystore that stays **out of the repo**. Release builds already refuse cleartext, so they
-require the HTTPS origin above. See the mobile app's build docs for the `keytool`
-one-liner + Gradle `release` build type; CI signs only if keystore secrets are configured.
+The image can carry the native app so a new band member installs it straight from your
+server — point their phone's browser at the server, or scan the QR on the **band page** →
+download → install (Android "unknown sources"). No store, no other infrastructure.
+
+The APK is an **optional build input**: `deploy/apps/` is committed with only a
+`.gitkeep`, so the image always builds. To embed the app, drop the APK there before
+building — the CI `android` job already publishes a debug-signed one (installable via
+unknown-sources; fine for band use until the signed release APK lands):
+
+```sh
+# grab the debug APK from the latest CI run (Actions → "android" job → troubashare-debug-apk),
+# then:
+cp androidApp-debug.apk deploy/apps/troubashare.apk
+cd deploy && docker compose build && docker compose up -d
+```
+
+The server then exposes `GET /api/apps` (a tiny manifest) and `GET /apps/troubashare.apk`
+(the download, correct MIME + versioned filename), and Studio's band page shows a **"Get
+the app"** card with the download button + a QR of the absolute APK URL. Build **without**
+an APK (empty `deploy/apps/`) ⇒ the manifest is empty and the card is hidden — no errors.
+`deploy/apps/*.apk` is gitignored (it's a build artifact, never committed).
+
+> Signed **release** APK (vs. the debug one above) is the mobile lane's job (`app/`) and
+> needs a self-managed keystore kept **out of the repo**; it's a drop-in replacement for
+> the file above. See the mobile app's build docs for the `keytool` one-liner + Gradle
+> `release` build type; CI signs only if keystore secrets are configured.
 
 ## Secrets
 

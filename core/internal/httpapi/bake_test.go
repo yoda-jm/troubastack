@@ -27,7 +27,7 @@ func bakeServer(t *testing.T) *httptest.Server {
 	baker := bake.New(svc, eng, bake.Config{BakesDir: t.TempDir()})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel) // stop the P201 autobaker goroutine when the test ends
-	h, err := httpapi.Router(ctx, svc, eng, baker, false)
+	h, err := httpapi.Router(ctx, svc, eng, baker, false, "")
 	if err != nil {
 		t.Fatalf("Router: %v", err)
 	}
