@@ -7875,6 +7875,20 @@ editor, the performer's tablet repaints in place.)
 
 ## 2026-07-19 — POST-LAND: OPS02 `8b1e006` — CI GREEN (all five). CLOSED. Device flows + the canonical image build ride VLL's next session.
 
+## 2026-07-19 — VLL AMENDMENT (recorded): OPS02 card shows iOS GREYED / "coming soon" — intent over absence
+
+VLL: "for docker the ios logo can be greyed or coming soon or something to show
+intent." This amends my hide-what's-absent ruling for the ONE platform we intend:
+the Get-the-app card shows an **iOS entry greyed with a "Coming soon" tag** (no
+link, not tappable) alongside the Android download — signalling the roadmap to
+band members. Pinned:
+- Driven by INTENT, not the manifest: iOS is a hardcoded coming-soon row until an
+  ios entry appears in `/api/apps`, at which point it becomes a live download
+  (zero further UI change — the row flips on manifest presence).
+- Android-absent behavior unchanged (no apps at all ⇒ no card — dev stays clean).
+- Small studio rider on OPS02 (web-core): the row + e2e (coming-soon shown when
+  manifest lacks ios; flips when present via mock) + refreshed pixels.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

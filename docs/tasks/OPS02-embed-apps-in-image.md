@@ -33,7 +33,11 @@ infrastructure.
      image build — keep local `docker compose up` light).
    - Version stamping: the manifest's `version` = the build's git describe/commit
      (mirrors the existing version chip).
-3. **Studio (the link):** a "Get the app" card — home: the **band page** (visible to
+3. **AMENDED (VLL 2026-07-19):** the card also shows an **iOS row, greyed, "Coming
+   soon"** (not tappable) — intent over absence. It's a hardcoded coming-soon row
+   that flips to a live download the moment an `ios` entry appears in the manifest.
+   No-apps-at-all still means no card.
+3b. **Studio (the link):** a "Get the app" card — home: the **band page** (visible to
    every member, NOT the editor; embedded mode unaffected since the WebView user
    already has the app). Contents: the Android download button (from `/api/apps`;
    hidden when the manifest is empty) **and a QR code** of the absolute APK URL —
