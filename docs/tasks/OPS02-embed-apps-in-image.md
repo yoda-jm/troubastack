@@ -45,8 +45,13 @@ infrastructure.
 
 - Image built WITH the APK: `/api/apps` lists android+version, the APK downloads
   with the right MIME/filename, the band page shows the card + QR (pixels
-  light+dark); scanning the QR on a phone downloads the APK (device check, rides a
-  VLL session).
+  light+dark).
+- **Both install flows verified on device** (VLL 2026-07-19: "both are good"):
+  (a) PHONE-BROWSER flow — open the server URL on the phone, log in, tap the
+  card's download button, Android offers the install (the card must be
+  tap-friendly at phone width — T47-era 412px check); (b) QR flow — scan the
+  laptop-screen QR with the phone camera → download. Device check rides a VLL
+  session.
 - Image built WITHOUT the APK: builds, runs, manifest empty, no card shown, no
   errors (e2e against the dev stack where `apps/` is absent).
 - gofmt/vet/tests; e2e for card-present/card-absent; CI job wiring green.
