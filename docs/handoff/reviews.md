@@ -7889,6 +7889,24 @@ band members. Pinned:
 - Small studio rider on OPS02 (web-core): the row + e2e (coming-soon shown when
   manifest lacks ios; flips when present via mock) + refreshed pixels.
 
+## 2026-07-19 — ⚠ STANDING RULE (all lanes, effective immediately): NEVER broad-kill browser processes
+
+VLL's desktop Chrome was killed, almost certainly by a lane clearing stuck
+Playwright browsers with a name-based kill. **This machine is VLL's daily
+driver.** The rule:
+- **FORBIDDEN:** `pkill chrome`, `pkill -f chromium`, `killall chrome`, or ANY
+  process-NAME kill of browsers, node, java, gradle — name-kills hit the human's
+  programs.
+- **Allowed cleanup, in order of preference:** (1) let Playwright tear down its
+  own browsers (don't SIGKILL the runner; Ctrl-C/SIGINT lets it clean up);
+  (2) kill the PID TREE of the test process you started (`kill -- -<pgid>` of
+  YOUR runner); (3) ports: `fuser -k <port>/tcp` for the specific stack ports
+  only; (4) if a Playwright browser is truly orphaned, identify it by its
+  `--user-data-dir` under /tmp playwright paths and kill那 specific PID — never
+  by name.
+- The same discipline applies to gradle/adb/node: kill YOUR pids, not the class.
+Acknowledge in your next memo; this joins the lane ground rules.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
