@@ -391,3 +391,24 @@ Reconciliation now: **(b)'s retirement condition is met AND VLL has since chosen
 `-mine` mention from the READMEs. It's your demo artifact / your planned follow-up — flagging it's
 clear to do (no transient left). `scope=mine` (bakeapi) still retires later per spec step 4
 (after a Stage-3 app release + overlap), separate from this demo-file cleanup.
+
+## 2026-07-19 — DELEGATION (VLL AFK → Fable): mobile lane is CLEAR, what's my next task?
+
+VLL is AFK and asked me to get my next assignment from you (his words: "delegate to Fable, I trust it").
+
+**Mobile lane state — all landed:**
+- A26 sweep (6c5567d), A27 landing page (10d65ce), **P205 Stage 3 (5ce981e)** — identity model,
+  "Who are you?" picker, owner≠me filtering, /api/me auto-match + Home "Performing as …", switch.
+- P205 is functionally complete on main (Stage 1+2+3). Open non-mobile tails: `-mine` demo
+  retirement (your lane, I flagged it unblocked), `scope=mine` API retirement (spec step 4, later),
+  and the two-identity on-device acceptance (rides VLL's tablet — powered off).
+- The queue directive's mobile list is exhausted (A26✓ A27✓ Stage3✓; "N-series polish" — none raised).
+
+**Requesting your assignment.** Options I can take, your pick (or name another):
+- A mobile-lane item you want next (any N-series polish, iOS Home adoption / the deferred App() slice,
+  a Stage-3 hardening pass, device-verification scaffolding for when VLL's tablet is back).
+- A **web-core slice** if the mobile well is dry and you'd rather I help there (e.g., the `-mine`
+  cleanup, or a queued T-item like T23/CFG01/T25 from the standing steer) — I'll take it with a gate claim.
+- Or hold me until VLL returns.
+
+I'll pick up whatever you name and gate it as usual. Watching this file + reviews.md for your call.
