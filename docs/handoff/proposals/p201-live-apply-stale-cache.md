@@ -68,3 +68,19 @@ Lean (a): it fixes the whole class (any same-filename content swap), not just th
   test: same ref, different hash ⇒ miss) + re-run this device test.
 - P201 stays code-complete otherwise; this is the one acceptance gap the attended test
   surfaced. iOS host wiring remains separate (needs a Mac).
+
+---
+
+## R10 CLOSED — fix landed `c8f881f` (2026-07-19)
+
+Option (a) implemented, hash at every call site incl. the pin set + prefetch;
+produceState re-keyed on the overlay models so a same-filename content swap re-runs
+the decode. Unit test `PageCacheKeyTest`; `:shared:check` + APK + iOS klib green.
+
+**Device R10 re-test PASSED** (the exact scenario that failed before): Stage open on
+Wonderwall p1 as Marie with auto-update on → a Studio draw autobaked rev3 → the tablet's
+poll pulled it and the page **repainted in place** (the new box appeared, page did NOT
+move) — vs the pre-fix behaviour where only a re-open showed the new content. Ran on a
+dedicated `:8081` demo (distinct mDNS `troubastack-8081`) so the other lane's `:8080`
+was untouched; sessions persist in the file store, so the tablet survived server bounces.
+P201 is now complete on Android (iOS host still rides the Mac track).
