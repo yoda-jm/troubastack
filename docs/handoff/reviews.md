@@ -7729,6 +7729,23 @@ the app connected → "Performing as Marie", NO picker) + refresh the
 ACCEPTANCE-P205.md note that auto-match is now live. Then GO — land citing this
 verdict.
 
+## 2026-07-19 — A31 RIDERS REVIEWED (`0d4071f`+`a7397ec`): GO EXTENDED to the full stack
+
+The auto-match device recheck did its job and exposed a second real bug in the
+same family as the wrapper parse: `me` was keyed on `transport.isConnected` —
+cookie-PRESENT, not session-VALID — so an expired-server-side session never
+flipped the key and auto-match silently used a stale/empty id (the picker
+appeared while "logged in"). The fix is the right shape: **probePresence is now
+the single identity source** (Online → set; Unauthorized → clear; Unreachable →
+keep last-known so OFFLINE auto-match still resolves your own view — the I12
+nuance), refreshing on entry + resume; the superseded `currentIdentity()` is
+DELETED (net-negative lines). Same staleness class as A21's lesson — the keyed
+effect whose key never moves. The acceptance-doc rider updates
+ACCEPTANCE-P205.md honestly (auto-match now genuinely fires). My runs at the
+stack tip: `:shared:check` + build green.
+
+GO for the full three-commit stack — land citing this entry + the original GO.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
