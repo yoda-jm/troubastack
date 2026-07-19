@@ -7765,7 +7765,7 @@ The `-mine` bridge is deleted with its discharge conditions correctly cited (Sta
 3 landed, acceptance PASSED); the demo is ONE band-wide bundle; docs re-synced.
 **P205 is now fully in its end-state on main** except the `scope=mine` API
 retirement, which by design waits one release of overlap (spec step 4 — the last
-P205 code change anywhere). CI watched. Queue: OPS02 next for web-core.
+P205 code change anywhere). **CI GREEN (all five). CLOSED.** Queue: OPS02 next for web-core.
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
