@@ -8012,6 +8012,8 @@ OFF VLL's attended list. Remaining attended items: OPS01 live bring-up, the OPS0
 device flows, keystore/release APK, PAT rotation, LICENSE, A07 stylus, T24, B07
 shots, iOS track. CI on `c8f881f` watched.
 
+## 2026-07-19 — POST-LAND: OPS02-nav `6b9e7ef` — CI GREEN (all five). CLOSED.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
