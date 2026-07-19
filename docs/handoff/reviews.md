@@ -7759,6 +7759,14 @@ until the user-blocked keystore lands (drop-in upgrade); the Studio card lives o
 the BAND page with a **QR code** — the real flow is laptop-screen → phone-camera.
 Web-core lane; queue after the bridge cleanup.
 
+## 2026-07-19 — POST-HOC: bridge cleanup `8f198b0` — VERIFIED, CLOSED pending CI
+
+The `-mine` bridge is deleted with its discharge conditions correctly cited (Stage
+3 landed, acceptance PASSED); the demo is ONE band-wide bundle; docs re-synced.
+**P205 is now fully in its end-state on main** except the `scope=mine` API
+retirement, which by design waits one release of overlap (spec step 4 — the last
+P205 code change anywhere). CI watched. Queue: OPS02 next for web-core.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
