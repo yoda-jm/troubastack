@@ -7746,6 +7746,8 @@ stack tip: `:shared:check` + build green.
 
 GO for the full three-commit stack — land citing this entry + the original GO.
 
+## 2026-07-19 — POST-LAND: A31 stack `453665e..fe72f47` — CI GREEN (all five), all three commits patch-identical, trailer cites both GOs. CLOSED. Open: web-core's bridge cleanup only; VLL's auto-match one-tap recheck rides his next app open.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
