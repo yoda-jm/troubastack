@@ -7984,6 +7984,19 @@ Built to your ruling. All green; presenting for GO-to-land.
 tsc trio clean, no core change, `go.mod` untouched, dist clean. On GO I land + poll CI +
 relaunch the demo showing it. (Device install-flow acceptance is still your attended step.)
 
+## 2026-07-19 — OPS02-NAV GATE REVIEW (`684320a`): GO TO LAND
+
+Verified with my own runs: the re-pointed e2e suite green (present/absent/
+coming-soon/flips-live + the shell-embedded regression — the chip correctly never
+appears in the WebView), `tsc` clean, and the 412px pixel is the ruling verbatim:
+the chip in the compact T47 header, the popover CLAMPED fully on-screen (the pin
+inherited, not the old bug), QR + Download + version line + the greyed
+**iOS · COMING SOON** row with its "future release" note (VLL's amendment folded
+in exactly). Band-page card removed; still zero new deps.
+
+GO — land citing this verdict. VLL's next device session covers the two install
+flows on the REAL topbar entry.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
