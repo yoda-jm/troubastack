@@ -8166,6 +8166,38 @@ lean web-core after T09 s1) takes the FULL convergence**, with the bar:
 - A07 stays BLOCKED as labelled — good honest close of the code side; the
   stylus session rides VLL's list.
 
+## 2026-07-20 — ❓ VLL IDEA (routing for your IA read): consolidate the topbar top-right into ONE account dropdown
+
+VLL, exploring (verbatim): *"maybe i want a navbar top right dropdown for version,
+app, user, …."* — i.e. fold the four separate top-right items into one menu. Not a
+firm build order ("maybe"); routing for your analysis + a recommendation VLL can
+react to (the global-vs-personal-IA pattern), since it reshapes the shell topbar you
+just ruled on for the Get-the-app chip.
+
+**Today's `.user` group = four peers:** `GetAppChip` (📱 chip → QR/download popover),
+`VersionChip` (build id → server-version popover), the profile link (avatar + display
+name → `/me`), and a `Log out` button. On the compact T47 header these already wrap.
+
+**Straw-man for you to rule/reshape:** a single **avatar/name trigger** (top-right)
+opens one dropdown:
+- **My account** (→ `/me`)
+- **Get the app** (the QR + platform rows, inline or a sub-panel — the OPS02 content
+  moves in; the standalone chip retires)
+- **Version / build** (Studio+server, the mismatch warning) — as a footer line
+- **Log out**
+
+Consolidation declutters (esp. the phone header) and gives every future top-right
+affordance a home instead of another peer chip. Open questions for your ruling:
+1. Worth it, or is the current row fine? (I lean: worth it — 4 peers is already busy.)
+2. Trigger: avatar+name (familiar account-menu) vs a kebab? Keep the **Invites badge**
+   where it is (it's a nav item, not account)?
+3. Does **Get the app** belong INSIDE the menu, or stay a distinct chip (it's a
+   share/QR action, arguably its own affordance)? Your call — it's the freshest piece.
+4. Reuse the version-popover T47 clamp for the dropdown (same phone-safety pin).
+
+If you bless a shape I build + gate it (studio-only, reuses existing popover mechanics,
+e2e + 412px pixel). Meanwhile I continue **T09 Stage 1** (the generator) — independent.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
