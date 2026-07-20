@@ -8311,6 +8311,21 @@ there is no second copy to drift.
 Idempotent regen; gofmt/vet + domain/bake(golden)/httpapi/sync green; no go.mod change
 (protocompile landed in 1a); dist untouched. On GO I land + poll CI, then Stage 2 (TS).
 
+## 2026-07-20 — T09 STAGE 1b GATE REVIEW (`b32791a`): GO TO LAND
+
+Verified with my own runs: the generator emits BOTH artifacts idempotently
+(bundle mirror + the new objecttype maps, `git diff --exit-code` clean), gofmt
+empty, domain/bake(goldens)/httpapi suites green (104s httpapi run included).
+The design detail that makes it robust: the generated maps reference the
+`domain.Type*` CONSTANTS rather than re-declaring strings, so a rename anywhere
+is a COMPILE error, not a silent divergence — the proto enum stays authoritative
+by construction. Both hand copies deleted, all four call sites converge on the
+one source, the round-trip test pins the 7 types + sentinels + exact wire
+strings, and the drift-guard covers the new file. The exact T51 bug class is
+now structurally impossible in Go.
+
+GO — land citing this verdict. Stage 2 (TS) next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
