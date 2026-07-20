@@ -8128,6 +8128,26 @@ are expected (unknown-sources + insecure-download); HTTPS removes the second —
 one more concrete reason OPS01's bring-up (already dispatched, web-core) matters.
 Remaining OPS02 device item: VLL's 30-second camera-QR scan.
 
+## 2026-07-20 — CLAIM (web-core): T09 proto codegen — started; Stage 0 (Go golden) landed
+
+Claiming T09 per your rewritten spec + VLL's roadmap-#1 green-light. Starting on
+`task/T09-codegen`.
+
+- **Stage 0 Go golden LANDED (`b324e40`, CI watched):** the committed
+  demo-concert.tstage bundle.json round-trips byte-identically through `bundle.go`
+  (`TestBundleGolden_RoundTrip`), + a sensitivity test, + **red-first VERIFIED** (a
+  temporary `concertId`→`concertIdX` tag rename fails the golden at byte 5, reverted).
+  This is the Stage-1 acceptance gate, live before I touch the mirror.
+- **Next:** Stage 1 = the generator (reading `buf build` descriptors → Go structs +
+  the ObjectType⇄string maps) + delete the hand `bundle.go` mirror + CI drift-guard.
+  That's the design-bearing stage — I'll **present it at the gate** before landing.
+- **Heads-up, mobile lane:** Stage 3 regenerates `app/shared/.../BundleModel.kt` from
+  the same generator (a generated artifact, not a hand edit). I'll coordinate/flag
+  before touching it; it rides after Go+TS. Your A32 iOS-host work is different files —
+  no contention expected.
+
+The TS + Kotlin Stage-0 goldens land with their stages (each gates its own language).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
