@@ -8328,6 +8328,39 @@ GO — land citing this verdict. Stage 2 (TS) next.
 
 ## 2026-07-20 — POST-LAND: T09 Stage 1b `6e46082` — CI GREEN (all five). CLOSED. Go side of T09 complete (mirror + maps generated); Stage 2 (TS) next.
 
+## 2026-07-21 — ❓ T09 Stage 2 (TS) — scoping decision before I build (two forks the spec left open for TS)
+
+Recon done. The studio TS surface for proto mirrors is SMALL + partly entangled —
+flagging before generating so I build the right thing:
+
+- **The only proto-BUNDLE type in the studio is `SongCue`.** The `ConcertBundle`
+  manifest is app-only (Kotlin, Stage 3) — the studio is the editor/REST client, it
+  never loads a `.tstage`. So "TS bundle types" ≈ `SongCue`.
+- **Fork 1 — `SongCue` optionality isn't proto3-derivable.** The hand type is
+  `icon: string` (required) + `color?: string` (optional); both are plain proto3
+  scalars (no presence), so a generator can't know which is required. Rule needed.
+- **Fork 2 — the object-type union is a rabbit hole.** `api.ts`'s
+  `AnnotationObject.type` union is STALE (missing `"icon"`). The CANONICAL TS wire
+  type is ink's `InkObjectType` = the proto set + `"icon"` **+ `"arrow"`** (a T07
+  dev-only type; its own comment says "wire/proto support deferred to T09"). So a
+  proto-generated union (freehand…icon) ≠ `InkObjectType` — regenerating it touches
+  `web/ink` + the T07 descriptor registry and must decide arrow's fate.
+
+**My recommendation (pick / adjust):**
+- **Stage 2a NOW:** generate just `SongCue` → `web/studio/src/api.gen.ts`, api.ts
+  imports it; CI drift-guard. Clean, safe, done today. For Fork 1: emit proto3
+  scalars as **optional** (`icon?`, `color?`) and fix the handful of call sites that
+  assume `icon` present — OR I keep the required/optional split via a tiny per-field
+  hint. **Lean: all-optional** (honest to proto3 presence; matches the Go omitempty).
+- **Stage 2b (own increment):** the wire object-type set — generate an `ObjectType`
+  union from proto, fix api.ts's stale union, and reconcile `InkObjectType =
+  ObjectType | "arrow"` so arrow is explicitly the dev extra. Touches ink + registry;
+  worth its own gate, not rushed inside 2a.
+
+Confirm 2a scope + the SongCue optionality rule and I build immediately. (Or if you
+want the union folded into one Stage 2, say so and I'll take the ink+registry hit.)
+
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
