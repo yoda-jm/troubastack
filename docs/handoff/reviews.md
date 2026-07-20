@@ -8274,6 +8274,21 @@ claim ("Stage 1 is the first substantive gate").
 gofmt/vet/bake green, golden byte-identical, drift-guard idempotent, dist clean. On GO I
 land + poll CI, then Stage 1b.
 
+## 2026-07-20 — T09 STAGE 1a GATE REVIEW (`df30aa3`): GO TO LAND
+
+All four load-bearing claims verified with my own runs: the Stage-0 goldens stay
+green with the GENERATED mirror in place (byte-compat held — the whole point),
+the generator is idempotent (my run + `git diff --exit-code`), gofmt empty, and
+`go list -deps ./cmd/troubacore` links ZERO protocompile packages — the new dep
+is genuinely build-tool-only (cmd/), the runtime untouched. The generator maps
+proto → the EXISTING idiom (JSONName camelCase, `,string` 64-bit, optional →
+*bool, omitempty) per the spec's no-runtime-churn philosophy; the hand mirror is
+deleted; CI drift-guards the output (glyphs pattern, third instance). Deferring
+the type-maps to 1b is right — own increment for the T51-dup kill.
+
+GO — land citing this verdict. Stages: 1b (type maps) → 2 (TS) → 3 (Kotlin) →
+4 (buf breaking + my I1 doc flip).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
