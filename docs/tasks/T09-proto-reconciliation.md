@@ -1,62 +1,66 @@
-# T09 — Reconcile proto with the runtime type set
+# T09 — Proto codegen: generated mirrors, drift-guarded (REWRITTEN 2026-07-20, VLL green-light)
 
-**Priority:** 9 · **Size:** S · **Area:** `proto/`, `core/internal/{domain,httpapi,sync}`, `web/studio/src/api.ts`
+**Priority:** high (roadmap #1) · **Size:** M/L, staged · **Area:** `proto/`, a small
+generator, `core/internal/bake/bundle.go` + type maps, `web/studio/src/api.ts`
+(bundle types), `app/shared/.../BundleModel.kt`. Web-core lane.
+*(This file's original reconciliation items are absorbed: highlight/scope cleanup
+happened along the way; `buf lint` runs since P205 s1. What remains is THE debt:
+hand-written mirrors.)*
 
-## Context
+## Why (the honest evidence)
 
-`proto/` is supposed to be the single source of truth for domain types (invariant I1),
-but it has already drifted from what the running system does:
+Three real bugs this week were mirror-class: the T51 REST-vs-WS **type-string map
+divergence** (proto enum names, duplicated twice, one updated), and the general
+review-only discipline on five new P205 fields across three languages. (The
+`/api/me` wrapper bug was REST-DTO drift — SAME class, but REST DTOs are not
+proto-defined; they're a possible follow-up, out of scope here.) Every future
+field multiplies exposure. The fix: **mirrors become generated artifacts.**
 
-1. **`highlight` is missing from proto.** The Go domain enum
-   (`core/internal/domain/domain.go`, ~line 29 `TypeHighlight`), the TS union
-   (`web/studio/src/api.ts` ~line 164), and the ink renderer all know a `highlight`
-   object type (legacy data renders it), but `object.proto`'s `ObjectType` enum stops at
-   `TEXT`. Any persisted `highlight` object is unrepresentable in the "canonical"
-   contract.
-2. **Dead field:** `Object.scope` (`object.proto` ~line 67) is documented as subsumed by
-   the newer `Layer.role_tag` model (the comment at ~line 55 says so explicitly), yet
-   both still exist. Since nothing has ever been generated from these files (no `gen/`
-   dirs exist anywhere), this is the cheapest moment there will ever be to clean it up.
-3. `buf lint` isn't run anywhere (`make proto` is marked deferred).
+## Design — the glyphs.json philosophy, not three protobuf runtimes
 
-This task makes the contract *truthful* and *linted*. It deliberately does **not**
-switch the clients to generated types — that adoption is a larger, separate decision;
-until then the ARCHITECTURE doc must stop claiming codegen is enforced (T12 handles the
-wording).
+Do NOT adopt protobuf runtime libraries in three languages (churns every usage,
+new deps, JSON-shape risk). Instead: **ONE small generator** (node or Go, reading
+`buf build`'s descriptor output) emits the mirrors in each language's EXISTING
+idiom:
+- Go: the `bundle.go` structs with the exact current json tags/omitempty style.
+- TS: the `api.ts` bundle-side interfaces.
+- Kotlin: the `@Serializable` BundleModel data classes (kotlinx stays).
+- **Plus the type-string maps** (ObjectType ⇄ string — the T51 dup dies) for
+  httpapi AND sync from the one enum.
+All four outputs committed + **CI drift-guarded** (`generate && git diff
+--exit-code` — the CueGlyphData pattern, proven twice). Editing a mirror by hand
+becomes a CI failure; adding a proto field regenerates all three languages in one
+command.
 
-## Changes
+## The crux: byte-compatibility
 
-1. In `proto/troubastack/v1/object.proto`:
-   - Add `OBJECT_TYPE_HIGHLIGHT = 6;` to the `ObjectType` enum, with a comment marking it
-     legacy ("demoted to a rect/ellipse style preset; kept for persisted data").
-   - Remove the `scope` field from `Object` — **reserve** its tag number and name
-     (`reserved 7; reserved "scope";` with the actual number used) so it can never be
-     reused. If `Scope` in `common.proto` then has no remaining references, remove that
-     enum too (same reservation caution if it's inside a message; a top-level enum can
-     just be deleted while nothing generates from it).
-2. Run `cd proto && buf lint` and fix every finding. If `buf breaking` is configured via
-   `buf.yaml`, note: there is no published baseline yet, so breaking-change checks
-   against `main` start applying from this commit forward.
-3. Sweep the hand-written mirrors for the same story: Go (`domain.go` enum +
-   `httpapi/annotations.go` + `sync/mapping.go` string maps) and TS (`api.ts` union)
-   should each carry the exact same set: `freehand, line, rect, ellipse, text,
-   highlight`. Fix any mismatch found. Add a comment at each mirror pointing at
-   `object.proto` as the authority.
-4. Add the `proto` lint step to CI (extend the workflow from T02 if it didn't already
-   include it).
+The bundle format on disk must NOT change. **Stage 0 (red-first): golden tests** —
+the committed `demo-concert.tstage`'s `bundle.json` must round-trip IDENTICALLY
+through each language's current mirror; these goldens then gate every generated
+replacement. A generated mirror that changes one json key fails before review.
 
-## Acceptance criteria
+## Stages
 
-- `buf lint` exits 0 in CI and locally.
-- `git grep -n "scope" proto/` shows only the `reserved` markers (and unrelated words).
-- The three mirrors (proto enum, Go maps/enum, TS union) list the identical type set —
-  quote all three in the PR description.
-- `make test` and `make e2e` green (no runtime behavior change expected; `highlight`
-  handling already exists everywhere else).
+0. Golden round-trip tests against the committed demo bundle (Go + TS parse +
+   Kotlin decode), red-first proof they'd catch a key rename.
+1. The generator + Go output; delete the hand `bundle.go` mirror; type maps
+   generated; goldens green.
+2. TS output replacing api.ts's bundle types (studio compiles, e2e untouched).
+3. Kotlin output replacing BundleModel.kt (`:shared:check` + A29 vectors green —
+   the vectors are the semantic cross-check riding on top).
+4. `buf breaking` in CI against main (field-number safety forever), + the I1
+   section flips from "🎯 spec only" to "✅ enforced (generated + guarded)" — that
+   doc edit is MINE at the end.
+
+## Acceptance
+
+Goldens green pre/post per stage; all suites green; the AUTHORITY comments replaced
+by "GENERATED — do not edit" headers; drift-guard proven (touch a mirror → CI red);
+no runtime dependency changes; old .tstage files load unchanged (parse the
+committed bundle as the final check).
 
 ## Out of scope
 
-- Running `buf generate` and adopting generated types in any client (record in the PR
-  that this remains open — it is the real I1 debt).
-- New annotation types (see T07's dev-flagged arrow; promoting it to proto happens when
-  the product wants it).
+REST DTO generation (Me/Bands etc. — a candidate follow-up), any wire-format
+change, gen/ relocation debates (placement per the I1 scope note: generated-and-
+guarded is the invariant).

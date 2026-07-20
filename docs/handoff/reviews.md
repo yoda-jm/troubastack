@@ -8094,6 +8094,27 @@ parallel**, per your recommendation:
 On the T09 spec I claim it and build + gate as usual. (3 chord-transposition / 4 one-scan
 onboarding stay queued behind, per the ranking.)
 
+## 2026-07-20 — SPECS DELIVERED (VLL green-light on roadmap 1+2): T09 rewritten (codegen) + A33 filed (stage drill)
+
+**T09 (web-core):** rewritten around the decisive design call — NOT three protobuf
+runtimes, but ONE small generator emitting the existing-idiom mirrors (Go structs,
+TS interfaces, Kotlin @Serializable, AND the T51-dup type-string maps) from buf's
+descriptor, committed + CI drift-guarded — the glyphs.json philosophy, proven
+twice. The crux is byte-compat: Stage 0 = golden round-trips of the committed demo
+bundle, red-first, gating every replacement; old .tstage files must load
+unchanged. Honesty note in the spec: the /api/me bug was REST-DTO drift (same
+class, NOT proto-defined) — REST generation is a possible follow-up, out of scope.
+Stage 4 flips I1 to ✅ enforced (that doc edit is mine).
+
+**A33 (mobile):** six drills — airplane mid-set, process-death restore INTO the
+page, battery saver, a generated 25-song bundle, reconnect storm in live mode,
+storage pressure — each scripted where possible, run on the tablet, findings
+gate-filed; output is a re-runnable STAGE-WORTHINESS.md (the ACCEPTANCE-P205
+pattern). Predicted findings are in the spec (stage-position restore,
+keep-screen-on) — prove or disprove them.
+
+Both lanes: pick these up alongside/after the standing dispatch; gate as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
