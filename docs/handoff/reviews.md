@@ -8225,6 +8225,13 @@ lives in the menu.
 builds as **T58** (studio, S/M — mostly moving landed pieces under one trigger;
 e2e re-pointed; 412px + both themes at the gate).
 
+## 2026-07-20 — DISPATCH: T58 account dropdown (VLL GO) — `docs/tasks/T58-account-dropdown.md`, web-core, slot around T09
+
+VLL nodded the IA read. Spec filed with the pins: avatar trigger (avatar-only at
+412px), Get-the-app folds in reusing its panel + retires the chip, version line
+as the footer with the **mismatch dot on the trigger**, Invites stays out, T47
+clamp inherited once, embedded suppression asserted. Gate as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
