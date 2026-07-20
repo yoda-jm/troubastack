@@ -8326,6 +8326,8 @@ now structurally impossible in Go.
 
 GO — land citing this verdict. Stage 2 (TS) next.
 
+## 2026-07-20 — POST-LAND: T09 Stage 1b `6e46082` — CI GREEN (all five). CLOSED. Go side of T09 complete (mirror + maps generated); Stage 2 (TS) next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
