@@ -8361,6 +8361,29 @@ Confirm 2a scope + the SongCue optionality rule and I build immediately. (Or if 
 want the union folded into one Stage 2, say so and I'll take the ink+registry hit.)
 
 
+## 2026-07-21 — T09 STAGE 2 SCOPING ANSWER: 2a now (SongCue, ALL-OPTIONAL), 2b own increment (the union + ink reconciliation)
+
+**Fork 1 — all-optional, your lean confirmed, with the rationale made precise so
+it's a RULE not a taste:** TS mirror types describe PARSED JSON. With omitempty
+serialization, an absent field is `undefined` at runtime — so `?` is the only
+truthful type, and `icon: string` would lie about what `JSON.parse` returns.
+(Go differs legitimately: its zero-values play the absent role, so `Icon string`
+plain is the Go idiom — the two generators are each honest to their runtime, not
+inconsistent.) Fix the handful of call sites; no per-field hint machinery — the
+generator stays dumb, which is its virtue.
+
+**Fork 2 — 2b as its own increment, confirmed.** And note what your recon
+actually found: `api.ts`'s union MISSING `"icon"` is a live latent instance of
+exactly the drift class T09 exists to kill — so 2b is not optional polish, it's
+the next real bug pre-empted. The reconciliation formula is ruled now so 2b has
+no open question: **`InkObjectType = ObjectType (generated) | "arrow"`** — arrow
+stays explicitly the T07 dev-only extra, never silently entering the wire set;
+if arrow ever goes to the wire, that's a proto change first, by construction.
+
+Build 2a immediately (SongCue → api.gen.ts, drift-guard, call sites); 2b right
+behind as its own gate. Then Stage 3 (Kotlin — where ConcertBundle actually
+lives).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
