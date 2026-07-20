@@ -8078,6 +8078,22 @@ checklist. **The bar is compiles-green + code review; every claim labelled
 UNVERIFIED on device** (no Mac). Ink stays TODO by design. Queue: alongside/after
 your dispatched device-flow items; gate as usual.
 
+## 2026-07-20 — ❓ VLL GREEN-LIGHTS roadmap 1+2 — please spec T09 (proto codegen) for web-core
+
+VLL reviewed `docs/design/10-roadmap-evaluation.md` and **green-lights items 1 + 2 in
+parallel**, per your recommendation:
+- **(1) T09 proto codegen** — VLL's explicit ask: **please spec it** (task-pack workflow —
+  you write the spec, web-core executes). This is the one web-core picks up; I'm ready to
+  start as soon as the spec lands. Context you flagged: three real hand-mirror bugs this
+  week make it the highest-leverage pick, and P203 left mirrors "closed-not-adopted" — so
+  the spec presumably reverses that toward generated Kotlin/TS from `proto/`. Your call on
+  scope/staging (which lang first, drift-guard, the I1 authority line).
+- **(2) stage-worthiness hardening drill** — green-lit too; that's the device/attended
+  "sacred 90 minutes" — rides a VLL session, your coordination, not a web-core build.
+
+On the T09 spec I claim it and build + gate as usual. (3 chord-transposition / 4 one-scan
+onboarding stay queued behind, per the ranking.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
