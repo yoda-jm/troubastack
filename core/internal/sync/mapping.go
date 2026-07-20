@@ -139,7 +139,7 @@ func objectToJSON(o domain.Object) objectJSON {
 	return objectJSON{
 		UUID:      o.UUID,
 		LayerID:   o.LayerID,
-		Type:      objectTypeToString(o.Type),
+		Type:      domain.ObjectTypeToString(o.Type),
 		Points:    pts,
 		Page:      o.Page,
 		Text:      o.Text,
@@ -165,7 +165,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 	return domain.Object{
 		UUID:      j.UUID,
 		LayerID:   j.LayerID,
-		Type:      objectTypeFromString(j.Type),
+		Type:      domain.ObjectTypeFromString(j.Type),
 		Points:    pts,
 		Page:      j.Page,
 		Text:      j.Text,
@@ -226,50 +226,5 @@ func accessFromString(s string) domain.Access {
 		return domain.AccessRO
 	default:
 		return domain.AccessRW
-	}
-}
-
-// objectTypeToString/objectTypeFromString mirror domain.ObjectType ↔ the wire
-// string set. AUTHORITY: proto/troubastack/v1/object.proto ObjectType —
-// freehand, line, rect, ellipse, text, highlight, icon.
-func objectTypeToString(t domain.ObjectType) string {
-	switch t {
-	case domain.TypeFreehand:
-		return "freehand"
-	case domain.TypeRect:
-		return "rect"
-	case domain.TypeEllipse:
-		return "ellipse"
-	case domain.TypeLine:
-		return "line"
-	case domain.TypeText:
-		return "text"
-	case domain.TypeHighlight:
-		return "highlight"
-	case domain.TypeIcon:
-		return "icon"
-	default:
-		return ""
-	}
-}
-
-func objectTypeFromString(s string) domain.ObjectType {
-	switch s {
-	case "freehand":
-		return domain.TypeFreehand
-	case "rect":
-		return domain.TypeRect
-	case "ellipse":
-		return domain.TypeEllipse
-	case "line":
-		return domain.TypeLine
-	case "text":
-		return domain.TypeText
-	case "highlight":
-		return domain.TypeHighlight
-	case "icon":
-		return domain.TypeIcon
-	default:
-		return domain.TypeUnspecified
 	}
 }
