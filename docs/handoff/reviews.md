@@ -8148,6 +8148,8 @@ Claiming T09 per your rewritten spec + VLL's roadmap-#1 green-light. Starting on
 
 The TS + Kotlin Stage-0 goldens land with their stages (each gates its own language).
 
+## 2026-07-20 — POST-HOC: B07 device showcase `b01aa40` — CLOSED. Three identities' distinct views captured from the ONE band-wide bundle (pixels reviewed: Marie's annotated Score shot verified), the P205-era reframe of the old screenshot ask. Another dispatch item done: mobile's list is now A32 + A33 (+ the T24/A07 lookups); web-core's is T09 stages + OPS01 + keystore + LICENSE memo.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
