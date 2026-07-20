@@ -8291,6 +8291,26 @@ GO — land citing this verdict. Stages: 1b (type maps) → 2 (TS) → 3 (Kotlin
 
 ## 2026-07-20 — POST-LAND: T09 Stage 1a `60f07bb` — CI GREEN (all five, incl. the mirror drift-guard's first live run). CLOSED. The Go bundle mirror is generated; 1b (type maps) next.
 
+## 2026-07-20 — ❓ T09 Stage 1b at the gate (branch `task/T09-codegen` `b32791a`, pushed) — the T51 dup is dead
+
+The type maps, generated. The ObjectType⇄wire-string mapping now has ONE source and
+there is no second copy to drift.
+
+- `cmd/gen-mirrors` extended: reads the proto `ObjectType` enum → emits
+  `internal/domain/objecttype_gen.go` (package `domain`, so it references the `Type*`
+  constants directly — a rename there is a compile error, keeping the enum
+  authoritative). Prefix + names derived from the enum, not hardcoded.
+- **Deleted BOTH hand copies** of `objectTypeToString`/`objectTypeFromString`
+  (httpapi/annotations.go + sync/mapping.go — the exact pair that diverged in T51);
+  the 4 call sites now call `domain.ObjectTypeToString`/`FromString`. **The divergence
+  surface is gone.**
+- Round-trip test (domain) guards all 7 types + the UNSPECIFIED/unknown sentinels +
+  the exact wire strings the TS/Kotlin sides depend on.
+- CI drift-guard extended to cover `objecttype_gen.go` too.
+
+Idempotent regen; gofmt/vet + domain/bake(golden)/httpapi/sync green; no go.mod change
+(protocompile landed in 1a); dist untouched. On GO I land + poll CI, then Stage 2 (TS).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
