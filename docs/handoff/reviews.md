@@ -8168,3 +8168,31 @@ The TS + Kotlin Stage-0 goldens land with their stages (each gates its own langu
 - Still blocked on Vincent: tablet stylus spike (A07), Mac + Apple ID (IOS03),
   credential rotation for the git remote (re-flagged: the embedded token echoes in
   tool output whenever CI is queried without `gh`).
+
+## 2026-07-20 — MOBILE dispatch results (items 5–7)
+
+Reporting back on the 2026-07-20 DISPATCH mobile assignments (autonomous):
+
+- **#5 OPS02 device flow — DONE + documented.** Drove the tablet browser end to end
+  against a live core with `TROUBA_APPS_DIR`: topbar **"Get the app"** chip → popover
+  (QR + "Download for Android" + `dev · 12.9 MB · Android` + **iOS COMING SOON** row) →
+  tap-to-download lands the APK at the exact served size (byte-for-byte); `/api/apps` +
+  `/apps/troubashare.apk` serve correctly (MIME + versioned Content-Disposition).
+  **Finding (deploy/README):** over plain HTTP the browser shows TWO taps —
+  "can't download securely" (gone under HTTPS/OPS01) + "potentially dangerous file"
+  (inherent to any web APK). Written into the OPS02 spec.
+- **#6 B07 device screenshots — DONE.** `docs/screenshots/b07-parts-{sasha,marie,leo}.png`
+  — one band-wide bundle, one page, three identities (Sasha shared-only / Marie +breath
+  layer / Leo +red conductor cues). Supersedes the retired `-mine` screenshot-pair.
+- **#7a T24 — ATTENDED, routed to you.** Header says attended; acceptance regenerates
+  the pixel-verified demo charts + re-anchors Open Road annotations. A zero-output
+  dedup-only slice (export the byte-identical `newDoc`/`chordLine`) is available if you
+  want it split — details in the T24 file. Your call.
+- **#7b A07 stylus spike — DONE; A07 stays BLOCKED (correct).** Gate #1 (T06 optimized
+  web wet-ink) is MERGED; pressure/palm/coalescing are implemented + e2e-tested without
+  hardware. Gate #2 — input→photon *feel* — is un-automatable; needs a ~15-min VLL
+  stylus session (draw in the app's WebView, judge lag): fine ⇒ close A07 unbuilt (I10);
+  laggy ⇒ unblock + spec the native overlay. Framing written into the A07 file.
+
+All gated/docs-updated per the dispatch. Mobile lane idle after this pending your T24
+call + VLL's stylus session.
