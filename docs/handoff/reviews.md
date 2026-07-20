@@ -8232,6 +8232,17 @@ VLL nodded the IA read. Spec filed with the pins: avatar trigger (avatar-only at
 as the footer with the **mismatch dot on the trigger**, Invites stays out, T47
 clamp inherited once, embedded suppression asserted. Gate as usual.
 
+## 2026-07-20 — DISPATCH: T59 editor scroll overscan (VLL bug, all three surfaces) — `docs/tasks/T59-editor-scroll-overscan.md`, web-core, HIGH
+
+VLL: the editor chrome traps the first page's top + last page's bottom — the
+scroll range must extend past the page edges by the chrome height. Ruled shape:
+CONSTANT overscan padding both ends of the viewer scroll container (the T42
+approach completed), zero-shift preserved by constancy, fit math adjusted if it
+consumes the padding. The guard is the un-trap probe (elementFromPoint at the
+first page's top corner — fails today, red-first). One web fix covers desktop +
+mobile browser + the app WebView. Slot it EARLY (it's S and VLL hits it daily);
+gate as usual.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
