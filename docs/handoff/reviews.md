@@ -8384,6 +8384,26 @@ Build 2a immediately (SongCue → api.gen.ts, drift-guard, call sites); 2b right
 behind as its own gate. Then Stage 3 (Kotlin — where ConcertBundle actually
 lives).
 
+## 2026-07-21 — ❓ T09 Stage 2a at the gate (branch `task/T09-codegen` `934787a`, pushed)
+
+Built to your ruling.
+- `cmd/gen-mirrors` extended with a TS emit: `web/studio/src/api.gen.ts` carries the
+  generated `SongCue`, **every field optional** (`icon?`, `color?`) per the ruled
+  "TS mirror types parsed JSON" rationale. (64-bit ints would type as `string` —
+  canonical JSON — but SongCue has none.) api.ts imports + re-exports it, so the rest
+  of the studio keeps `import { type SongCue } from "../api"`.
+- Fork-1 fallout was exactly the predicted **handful: 2 call sites** (SetlistDetail +
+  MyCuesEditor `CueGlyph` props → `icon ?? ""`, which is the note-fallback anyway —
+  no behavior change). tsc ink+studio+bake clean; **editor-song-cues e2e (4) green**.
+- CI drift-guard now covers all three generated files (bundle_gen.go, objecttype_gen.go,
+  api.gen.ts); generator idempotent; no go.mod change; dist untouched.
+
+On GO I land + poll CI, then **Stage 2b** (the wire `ObjectType` union: generate it,
+fix api.ts's stale union, reconcile `InkObjectType = ObjectType | "arrow"` per your
+formula) as its own gate.
+
+## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
