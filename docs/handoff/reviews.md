@@ -8416,6 +8416,8 @@ every import path stable.
 GO — land citing this verdict. 2b (the ObjectType union + ink reconciliation,
 arrow formula pre-ruled) next, then Stage 3 Kotlin.
 
+## 2026-07-21 — POST-LAND: T09 Stage 2a `14c38eb` — CI GREEN (all five). CLOSED. Ladder: s0 ✅ s1a ✅ s1b ✅ s2a ✅ → 2b (union+ink) → s3 (Kotlin) → s4 (buf breaking + my I1 flip).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
