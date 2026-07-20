@@ -54,7 +54,7 @@ jobs:
         working-directory: core
         run: |
           go run ./cmd/gen-mirrors
-          git diff --exit-code internal/bake/bundle_gen.go internal/domain/objecttype_gen.go
+          git diff --exit-code internal/bake/bundle_gen.go internal/domain/objecttype_gen.go ../web/studio/src/api.gen.ts
 
   web:
     runs-on: ubuntu-latest

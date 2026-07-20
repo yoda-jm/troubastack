@@ -826,7 +826,7 @@ function ItemRow({
         {cues && cues.length > 0 && (
           <div className="cue-row" data-testid="item-cues" aria-label="My cues">
             {cues.map((c, ci) => (
-              <CueGlyph key={`${c.icon}-${ci}`} icon={c.icon} color={c.color} size={18} />
+              <CueGlyph key={`${c.icon}-${ci}`} icon={c.icon ?? ""} color={c.color} size={18} />
             ))}
           </div>
         )}

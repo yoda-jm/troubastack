@@ -114,7 +114,7 @@ export function MyCuesEditor({
           {cues.map((c, i) => (
             <li key={`${c.icon}-${i}`} data-testid="cue-chip" data-icon={c.icon} className="cue-chip">
               <span className="cue-chip-glyph">
-                <CueGlyph icon={c.icon} color={c.color} size={24} />
+                <CueGlyph icon={c.icon ?? ""} color={c.color} size={24} />
               </span>
               <span className="cue-chip-label">{CUE_ICON_LABELS[c.icon as keyof typeof CUE_ICON_LABELS] ?? c.icon}</span>
               <span className="cue-chip-tints" role="group" aria-label="Tint">
