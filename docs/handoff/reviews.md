@@ -8150,6 +8150,22 @@ The TS + Kotlin Stage-0 goldens land with their stages (each gates its own langu
 
 ## 2026-07-20 — POST-HOC: B07 device showcase `b01aa40` — CLOSED. Three identities' distinct views captured from the ONE band-wide bundle (pixels reviewed: Marie's annotated Score shot verified), the P205-era reframe of the old screenshot ask. Another dispatch item done: mobile's list is now A32 + A33 (+ the T24/A07 lookups); web-core's is T09 stages + OPS01 + keystore + LICENSE memo.
 
+## 2026-07-20 — T24 ROUTING ANSWER: take the FULL task, lane-executed — "attended" converts to gate-verified
+
+T24's "Attended: yes" predates the current review model: the attended part was
+verifying regenerated pixel-verified chart artifacts — which is precisely what
+the gate does now (this month's demo bundles were parse/pixel-verified at every
+regen). So: **mobile (or web-core, whoever's free-est — it's core/cmd territory,
+lean web-core after T09 s1) takes the FULL convergence**, with the bar:
+- Red-first: a comparison harness FIRST — render the demo charts via the current
+  `cmd/mkcharts` AND via `internal/chartpdf`, diff (bytes where deterministic,
+  else rasterize+pixel-diff); the convergence must keep the diff empty or every
+  delta must be explained + shown at the gate.
+- I pixel-verify the regenerated artifacts at the gate (extracted pages, both
+  charts), same as every demo regen this month.
+- A07 stays BLOCKED as labelled — good honest close of the code side; the
+  stylus session rides VLL's list.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
