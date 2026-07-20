@@ -12,11 +12,13 @@ module troubastack/core
 go 1.26
 
 require (
+	github.com/bufbuild/protocompile v0.14.1
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/libp2p/zeroconf/v2 v2.2.0
 	golang.org/x/crypto v0.50.0
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/ini.v1 v1.67.3
 )
 
@@ -39,6 +41,7 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )

@@ -109,6 +109,12 @@ demo: dist
 proto:
 	cd proto && buf lint && buf generate
 
+# T09: regenerate the proto-derived Go mirrors (cmd/gen-mirrors, pure-Go protocompile —
+# no buf/protoc binary). Deterministic; CI drift-guards it. Kotlin/TS outputs join in
+# later T09 stages.
+gen:
+	cd core && go run ./cmd/gen-mirrors
+
 # The KMP/CMP mobile app (A01): compile + check the shared "mobile library" and assemble the
 # Android debug APK. Uses the committed Gradle wrapper, so only a JDK (+ Android SDK) is assumed.
 app:

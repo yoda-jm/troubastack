@@ -47,6 +47,14 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
+      # T09: the proto-generated Go mirror must match what cmd/gen-mirrors emits from
+      # proto/ — editing bundle_gen.go by hand is a CI failure (the glyphs.json/
+      # CueGlyphData drift-guard pattern, applied to types).
+      - name: verify generated mirrors are regenerated from proto
+        working-directory: core
+        run: |
+          go run ./cmd/gen-mirrors
+          git diff --exit-code internal/bake/bundle_gen.go
 
   web:
     runs-on: ubuntu-latest

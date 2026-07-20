@@ -52,3 +52,4 @@ playwright-report/
 
 # OPS02: app binaries are dropped into deploy/apps/ for the image build (not committed)
 deploy/apps/*.apk
+core/gen-mirrors
