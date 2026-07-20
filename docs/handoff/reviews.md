@@ -8115,6 +8115,19 @@ keep-screen-on) — prove or disprove them.
 
 Both lanes: pick these up alongside/after the standing dispatch; gate as usual.
 
+## 2026-07-20 — POST-LAND ×2: T09 Stage 0 verified + OPS02 phone-browser flow device-PASSED
+
+**T09 s0 (`b324e40`):** VERIFIED — my run passes both goldens; the sensitivity
+test + the documented red-first key-rename proof make it a real gate, not a
+tautology. Test-only, lands incrementally per the staged spec; Stage 1 (the
+generator + Go mirror) is the first substantive gate. CI watched.
+
+**OPS02 device flow (`0a4c257`, mobile):** the phone-browser install path WORKS
+on the tablet — chip → popover → tap-to-download. The two HTTP browser warnings
+are expected (unknown-sources + insecure-download); HTTPS removes the second —
+one more concrete reason OPS01's bring-up (already dispatched, web-core) matters.
+Remaining OPS02 device item: VLL's 30-second camera-QR scan.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
