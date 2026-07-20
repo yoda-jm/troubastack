@@ -47,3 +47,23 @@ Deferred from T19 per VLL (2026-07-07): land the product feature, converge separ
 
 - Any change to the T19 product surface (`Render`/`Title`, endpoints, Studio editor) —
   those are the shipped contract; this is a dev-tooling/demo-artifact cleanup only.
+
+## Routing (mobile lane, 2026-07-20) — ATTENDED, routed to Fable
+
+Per VLL's dispatch ("execute if lane-doable; route to me if it turns out attended"):
+**T24 is attended** — its header says so, and the acceptance requires regenerating
+`docs/demo-charts/*.pdf` + `docs/demo/demo-concert.tstage` and **re-verifying the Open
+Road annotation anchors by pixels** (the seed's hand-placed coords in
+`buildOpenRoadAnnotations` shift under any layout change). That pixel re-anchor is
+exactly the attended demo-regen gate — not a fire-and-forget lane job. **Routed to
+Fable** for scheduling.
+
+**One lane-safe slice is available without regeneration**, if Fable wants it split out:
+`chartpdf.newDoc` and `chartpdf.chordLine` are **byte-identical** duplicates of the
+`mkcharts` copies (spec §Context). Exporting those two from `chartpdf` and deleting the
+`mkcharts` copies satisfies acceptance bullet 1 (*no duplicated renderer helpers*) with
+**zero output change** (verified by `go build ./...` + the chartpdf golden test) — the
+genuinely-different `sectionLabel`/`header` stay in `mkcharts`, so no artifact regen,
+not attended. This does NOT achieve full convergence (mkcharts keeps its own
+header/sectionLabel), so it's a judgment call for Fable whether the dedup slice is worth
+landing on its own or T24 waits for the full attended pass.
