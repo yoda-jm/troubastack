@@ -8402,7 +8402,6 @@ On GO I land + poll CI, then **Stage 2b** (the wire `ObjectType` union: generate
 fix api.ts's stale union, reconcile `InkObjectType = ObjectType | "arrow"` per your
 formula) as its own gate.
 
-## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
