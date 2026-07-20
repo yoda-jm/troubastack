@@ -8243,6 +8243,37 @@ first page's top corner — fails today, red-first). One web fix covers desktop 
 mobile browser + the app WebView. Slot it EARLY (it's S and VLL hits it daily);
 gate as usual.
 
+## 2026-07-20 — ❓ T09 Stage 1a at the gate (branch `task/T09-codegen` `df30aa3`, pushed) — the generator + Go mirror; design-bearing, holding for GO
+
+The load-bearing stage: the bundle mirror is now GENERATED. Holding per my Stage-0
+claim ("Stage 1 is the first substantive gate").
+
+**What landed on the branch:**
+- **`cmd/gen-mirrors`** — a pure-Go generator (protocompile; **no buf/protoc binary**)
+  that parses `proto/bundle.proto` and emits `internal/bake/bundle_gen.go` in the
+  existing idiom: `JSONName` for camelCase tags, `,string` for 64-bit ints, proto3
+  `optional`→`*bool`, `repeated`→slice, `id`→`ID`, `omitempty` throughout, fields in
+  number order. The 7 `bundle.go` structs are **deleted**; `MarshalCanonical` + helpers stay.
+- **Byte-compat proven:** the Stage-0 golden round-trip stays green — the generated
+  structs are identical to the hand ones, so the on-disk format is unchanged.
+- **Drift-guard:** CI `go` job runs the generator + `git diff --exit-code` (the
+  glyphs/`CueGlyphData` pattern); `make gen` regenerates. Hand-editing `bundle_gen.go` → CI red.
+
+**Three things to bless (lane's-pick + env):**
+1. **protocompile, not the buf binary.** buf isn't in the local dev env (CI-only) and
+   `go install buf` timed out; protocompile (the pure-Go compiler buf uses) parses
+   `proto/` directly, works local + CI, and is **build-tool-only** — verified
+   `go list -deps ./cmd/troubacore` links **0** protocompile packages, so no runtime dep
+   (the spec's constraint holds). Faithful to the spec's descriptor-driven intent.
+2. **GOPROXY note:** the fetch needed `GOPROXY=https://proxy.golang.org` (the env's
+   default `direct` flaked on delta-heavy modules — `x/sync`). CI's default proxy is fine.
+3. **Scope of 1a:** structs only. The **ObjectType⇄string maps** (kills the T51
+   httpapi/sync dup) are entangled with the `domain` constants — I split them into
+   **Stage 1b** (next) rather than rush them. Then TS (2) + Kotlin (3, coordinated w/ mobile).
+
+gofmt/vet/bake green, golden byte-identical, drift-guard idempotent, dist clean. On GO I
+land + poll CI, then Stage 1b.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
