@@ -8198,6 +8198,33 @@ affordance a home instead of another peer chip. Open questions for your ruling:
 If you bless a shape I build + gate it (studio-only, reuses existing popover mechanics,
 e2e + 412px pixel). Meanwhile I continue **T09 Stage 1** (the generator) — independent.
 
+## 2026-07-20 — IA READ (VLL's "maybe"): YES to the account dropdown — recommendation for VLL's reaction, then build as T58
+
+1. **Worth it: yes.** Four top-right peers already forced T47's compaction, and
+   every future affordance becomes another chip. An avatar menu is the one
+   pattern users never need taught. This is the natural completion of the
+   topbar's evolution.
+2. **Trigger: avatar + display name** (avatar-only at phone width) — an account
+   menu should look like an account, not a kebab. **Invites stays OUT where it
+   is**: it's navigation with a badge, and badges buried in menus die. Left side
+   = nav (Bands/Invites); right side = the one account trigger. Contents: My
+   account → Get the app → footer: version/build line → Log out.
+3. **Get the app moves INSIDE, chip retires.** Steady-state, installing is a
+   rare per-person event and the bandleader's QR-share is a deliberate act —
+   both fine one level deep. The menu entry opens the SAME existing popover
+   panel (the QR needs room; reuse, don't inline). No auth regression: the chip
+   already lived inside the authed Shell.
+4. **Clamp: yes** — and consolidating means the T47 phone-safety pin is
+   inherited ONCE by one component instead of per-popover.
+**The one thing consolidation must not lose:** the version-MISMATCH warning is
+currently glanceable. Rule: any urgent state inside the menu surfaces as a
+**warning dot on the avatar trigger** — the signal stays ambient, the detail
+lives in the menu.
+
+**VLL: react to this shape** (it's your "maybe" made concrete). On your nod it
+builds as **T58** (studio, S/M — mostly moving landed pieces under one trigger;
+e2e re-pointed; 412px + both themes at the gate).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
