@@ -65,3 +65,29 @@ infrastructure.
 - Release signing (the keystore item stays user-blocked; debug-signed now, drop-in
   upgrade later); iOS artifacts (manifest-ready, absent); auto-update of installed
   apps (the app's own update flows exist); publishing to any store.
+
+## Device-flow verification (mobile lane, 2026-07-20)
+
+Drove the phone-browser tap-to-download on the QA tablet (Brave) against a live core
+with `TROUBA_APPS_DIR` pointing at a dir holding the debug APK. End to end:
+
+- **Topbar chip → popover:** "Get the app" chip renders in the authenticated topbar;
+  tapping opens the popover: **QR code** (the camera path — VLL's 30-second moment),
+  **"Download for Android"**, the meta line (`dev · 12.9 MB · Android`), and the
+  **iOS · COMING SOON** greyed row ("Available in a future release"). Matches the spec
+  (incl. the AMENDED intent-over-absence iOS row).
+- **`/api/apps`** returns the android entry (`version dev`, size, `/apps/troubashare.apk`,
+  `filename troubashare-dev.apk`); **`/apps/troubashare.apk`** serves with
+  `Content-Type: application/vnd.android.package-archive` +
+  `Content-Disposition: attachment; filename="troubashare-dev.apk"`.
+- **Tap-to-download works:** the file lands in Downloads at the exact served size
+  (12,935,246 bytes, byte-for-byte). Tapping the APK then routes to the OS package
+  installer (the standard sideload step; needs the browser's unknown-sources grant).
+
+**Finding (worth a deploy/README note):** over **plain HTTP** the browser shows TWO
+confirmations before saving an APK — (1) *"can't download securely"* (HTTP, not HTTPS)
+and (2) *"potentially dangerous file"* (inherent to any web-sourced APK). (1) disappears
+once the server is behind **HTTPS** (OPS01's self-signed/local-CA) — recommend the
+deploy/README call this out so a self-hosting band expects the two taps (and that
+HTTPS removes the first). (2) and the unknown-sources grant are inherent to sideloading
+outside a store and can't be avoided.
