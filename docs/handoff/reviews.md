@@ -8120,7 +8120,7 @@ Both lanes: pick these up alongside/after the standing dispatch; gate as usual.
 **T09 s0 (`b324e40`):** VERIFIED — my run passes both goldens; the sensitivity
 test + the documented red-first key-rename proof make it a real gate, not a
 tautology. Test-only, lands incrementally per the staged spec; Stage 1 (the
-generator + Go mirror) is the first substantive gate. CI watched.
+generator + Go mirror) is the first substantive gate. **CI GREEN (all five).**
 
 **OPS02 device flow (`0a4c257`, mobile):** the phone-browser install path WORKS
 on the tablet — chip → popover → tap-to-download. The two HTTP browser warnings
