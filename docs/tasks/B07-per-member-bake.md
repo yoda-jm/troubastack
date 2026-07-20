@@ -55,3 +55,23 @@ from his tab while Marie performs from the vocals chart.
 
 - Widening the band-wide bake to members (I11 — Vincent's call); per-part annotation
   re-projection; auto-baking variants when the band bake happens (nice later — note it).
+
+## Device showcase (mobile lane, 2026-07-20) — P205-era, not `-mine`
+
+The `-mine`/`scope=mine` per-member-bake era is retired; per-member parts are now
+**identities on the ONE band-wide bundle** (P205). Captured the showcase on the QA
+tablet — the SAME concert (`Sat @ The Anchor`), SAME song/page (`Wonderwall — Score`,
+p1/3), three identities via the "Who are you?" / Switch flow:
+
+- `docs/screenshots/b07-parts-sasha.png` — **Sasha** (member): shared only — chords +
+  section markings.
+- `docs/screenshots/b07-parts-marie.png` — **Marie** (admin): + her personal
+  **"Breath & phrasing"** layer (green "V (breath)" / "cresc.").
+- `docs/screenshots/b07-parts-leo.png` — **Leo** (conductor): + the red **"Conductor
+  cues"** (mandatory: "Watch me — pickup", the boxed cue, "rit.") + the extra "Chords"
+  layer.
+
+One bundle → three per-member views (owner-filtered layers + per-member cues), resolved
+at view time. This supersedes the old "Leo's tab vs Marie's score (separate bake)"
+acceptance shot — different base *files* per member is not how P205 does it; the
+per-member difference is layers + cues on the shared part.
