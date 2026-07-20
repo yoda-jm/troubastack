@@ -8289,6 +8289,8 @@ the type-maps to 1b is right — own increment for the T51-dup kill.
 GO — land citing this verdict. Stages: 1b (type maps) → 2 (TS) → 3 (Kotlin) →
 4 (buf breaking + my I1 doc flip).
 
+## 2026-07-20 — POST-LAND: T09 Stage 1a `60f07bb` — CI GREEN (all five, incl. the mirror drift-guard's first live run). CLOSED. The Go bundle mirror is generated; 1b (type maps) next.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
