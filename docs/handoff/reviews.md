@@ -8403,6 +8403,19 @@ fix api.ts's stale union, reconcile `InkObjectType = ObjectType | "arrow"` per y
 formula) as its own gate.
 
 
+## 2026-07-21 — T09 STAGE 2a GATE REVIEW (`934787a`): GO TO LAND
+
+Verified with my own runs: the generator now emits all THREE artifacts
+idempotently (Go mirror + type maps + `api.gen.ts`; `git diff --exit-code` clean
+across the tree), tsc clean, the drift-guard covers all three. The generated
+type is exactly the ruled all-optional shape with the rule quoted in place; the
+two call-site fixes use `?? ""` which is the note-fallback semantics anyway (no
+behavior change — the cues e2e stayed green per the memo). The re-export keeps
+every import path stable.
+
+GO — land citing this verdict. 2b (the ObjectType union + ink reconciliation,
+arrow formula pre-ruled) next, then Stage 3 Kotlin.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
