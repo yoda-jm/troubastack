@@ -68,6 +68,8 @@ export type Invite = {
  *  the rest of the studio keeps importing it from "../api". */
 import type { SongCue } from "./api.gen";
 export type { SongCue };
+// The wire object-type set, GENERATED from proto and re-exported by ink (T09).
+import type { ObjectType } from "@troubastack/ink";
 
 export type Song = {
   id: string;
@@ -195,9 +197,9 @@ export type AnnotationStyle = {
 export type AnnotationObject = {
   uuid: string;
   layerId: string;
-  // AUTHORITY: proto/troubastack/v1/object.proto ObjectType (mirror the same set
-  // as core's domain.ObjectType): freehand, line, rect, ellipse, text, highlight.
-  type: "freehand" | "rect" | "ellipse" | "line" | "text" | "highlight";
+  // The wire object-type set, GENERATED from proto/troubastack/v1/object.proto (T09,
+  // via ink's ObjectType). Includes "icon" (T51) — the old inline union had drifted.
+  type: ObjectType;
   points: AnnotationPoint[];
   page: number;
   text: string;

@@ -18,6 +18,7 @@
 
 import { getStroke } from "perfect-freehand";
 import { getGlyph } from "./glyphs.js";
+import type { ObjectType } from "./objecttype.gen.js";
 
 // ---------------------------------------------------------------------------
 // Render-facing types
@@ -56,19 +57,14 @@ export interface InkStyle {
   blend?: "normal" | "multiply";
 }
 
-/** The kinds of object this renderer can draw. */
-export type InkObjectType =
-  | "freehand"
-  | "rect"
-  | "ellipse"
-  | "line"
-  | "text"
-  | "highlight"
-  // T51 — icon stamp: a tinted glyph in page space; its glyph id rides in `text`.
-  | "icon"
-  // Dev demo type (T07): registered/drawn only when studio's arrow descriptor is
-  // active (localStorage.devArrow). Wire/proto support is deferred to T09.
-  | "arrow";
+// The wire object-type set is GENERATED from proto ObjectType (objecttype.gen.ts, T09)
+// — re-exported so consumers get the proto-authoritative union from ink.
+export type { ObjectType } from "./objecttype.gen.js";
+
+/** The kinds of object this renderer can draw: the wire set (proto `ObjectType`) PLUS
+ *  the dev-only `"arrow"` (T07 — registered/drawn only when localStorage.devArrow is
+ *  set; NOT on the wire until proto adds it, by construction). */
+export type InkObjectType = ObjectType | "arrow";
 
 /**
  * One annotation object. `points` are page-relative [0,1]:
