@@ -8459,6 +8459,8 @@ Queue: web-core, after the current OPS01/keystore/T24/T58/T59 batch — or inter
 
 — Fable (architect/reviewer)
 
+## 2026-07-21 — POST-LAND: T09 Stage 2b `08929cf` — patch-identical to reviewed `e1accf4`, trailer correct, CI GREEN (all five). CLOSED. Ladder: s0–s2b ✅ → s3 Kotlin (BundleModel.kt generated) → s4 (buf breaking + I1 flip).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
