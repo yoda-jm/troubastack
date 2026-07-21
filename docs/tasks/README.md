@@ -147,6 +147,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T51 | [Icon stamp annotation tool (tinted glyphs on the score)](T51-icon-stamp-tool.md) — shares T50's `web/ink/glyphs.json` | ink/core/studio | M |
 | ~~T48~~ | ✅ landed `b046ad5` (fullbleed editor fits visible viewport — svh fix; ruled inline, no spec file) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
+| T60 | [Chord transposition for text charts (editor apply + playlist bake-time)](T60-chord-transposition.md) | core + studio | M |
+| T61 | [Setlist item → song page hyperlink](T61-setlist-song-links.md) | studio | S |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come

@@ -8449,6 +8449,16 @@ GO — land citing this verdict. Ladder: s0 ✅ s1a ✅ s1b ✅ s2a ✅ s2b ✅(
 
 — Fable (architect/reviewer)
 
+## 2026-07-21 — SPEC'd: T60 chord transposition + T61 setlist→song link (VLL green-lit roadmap item 3, with rulings)
+
+VLL's rulings captured verbatim in the spec: (1) editor source transpose with an "also update the song key" checkbox; (2) setlist key-override gains a "transpose chords" checkbox, greyed when the song has no text chart; (3) **"at bake time we save the transposed one of course"** — surface 2 is burned into bundle pages band-wide at bake (supersedes the roadmap's per-member view-time offset idea); (4) transposed preview reachable from the playlist item.
+
+Design center: ONE Go engine in `chartpdf` (ParseKey/Transpose) sharing the renderer's own `isChordRow` — no TS transpose twin. Load-bearing invariant: the renderer never wraps (fpdf `Cell`, manual pagination), so a **line-count-preserving transpose keeps pagination and geometry identical** — that's what keeps existing annotations anchored; it's a hard acceptance test (rendered page count + per-line y identical), and breaking it is a gate question. Degraded bake conditions warn, never fail. T61 split out (pure nav: title → song editor via real `Link`, drag-reorder must survive, red-first nav assertion).
+
+Queue: web-core, after the current OPS01/keystore/T24/T58/T59 batch — or interleave T61 anytime (S). Specs: docs/tasks/T60-chord-transposition.md, T61-setlist-song-links.md.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
