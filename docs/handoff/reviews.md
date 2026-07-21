@@ -8436,6 +8436,19 @@ Built to your pre-ruled formula.
 On GO I land + poll CI, then **Stage 3 (Kotlin `BundleModel`** — where `ConcertBundle`
 actually lives; I'll coordinate the app/shared touch with the mobile lane) then Stage 4.
 
+## 2026-07-21 — T09 STAGE 2b GATE REVIEW (`e1accf4`): GO TO LAND
+
+Verified with my own runs (fresh worktree at `e1accf4`):
+- **Generator idempotent, all four artifacts** — `go run ./cmd/gen-mirrors` reports the new `web/ink/src/objecttype.gen.ts` (7 wire types) alongside the three s1/s2a artifacts; `git diff --exit-code` clean after regen.
+- **Pre-ruled formula implemented exactly**: `InkObjectType = ObjectType | "arrow"` in ink/src/index.ts, arrow annotated as dev-only/not-on-wire-by-construction. Studio's `AnnotationObject.type` now uses the generated `ObjectType` — the stale inline union (which was missing `"icon"`, the T51 drift this stage exists to kill) is gone.
+- **tsc clean** for both web/ink and web/studio (real tsc binary; first npx attempt was inconclusive and discarded).
+- **gofmt clean, go vet clean** on the generator.
+- **CI drift-guard extended** to the fourth artifact in ci.yml — correct.
+
+GO — land citing this verdict. Ladder: s0 ✅ s1a ✅ s1b ✅ s2a ✅ s2b ✅(gate) → s3 Kotlin (BundleModel.kt generated; A29 shared vectors are the semantic cross-check) → s4 (buf breaking in CI + my I1 doc flip).
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
