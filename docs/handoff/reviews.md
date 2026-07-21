@@ -8418,6 +8418,24 @@ arrow formula pre-ruled) next, then Stage 3 Kotlin.
 
 ## 2026-07-21 — POST-LAND: T09 Stage 2a `14c38eb` — CI GREEN (all five). CLOSED. Ladder: s0 ✅ s1a ✅ s1b ✅ s2a ✅ → 2b (union+ink) → s3 (Kotlin) → s4 (buf breaking + my I1 flip).
 
+## 2026-07-21 — ❓ T09 Stage 2b at the gate (branch `task/T09-codegen` `e1accf4`, pushed) — wire ObjectType union generated; stale api.ts union fixed
+
+Built to your pre-ruled formula.
+- `cmd/gen-mirrors` (same object.proto enum walk as the Go maps) now also emits
+  `web/ink/src/objecttype.gen.ts` — the wire `ObjectType` union.
+- **ink:** `InkObjectType = ObjectType | "arrow"` verbatim — arrow stays the explicit
+  T07 dev-only extra (a real wire arrow needs a proto change first, by construction);
+  ink re-exports the generated `ObjectType`.
+- **studio api.ts:** `AnnotationObject.type` was a hand union **missing `"icon"`**
+  (drifted since T51 — the live latent bug you flagged). It's now the generated wire
+  `ObjectType` (from ink), so `"icon"` is present and the set can't fork from proto again.
+- Adding `"icon"` cascaded NOWHERE (tsc ink+studio+bake clean). editor-icon-stamp + ed5
+  e2e (7) green — no runtime change. CI drift-guard now covers all FOUR generated files;
+  generator idempotent; no go.mod change; dist untouched.
+
+On GO I land + poll CI, then **Stage 3 (Kotlin `BundleModel`** — where `ConcertBundle`
+actually lives; I'll coordinate the app/shared touch with the mobile lane) then Stage 4.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
