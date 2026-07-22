@@ -8652,6 +8652,20 @@ Web-core: close PR #68 unmerged as planned, then resume the queue (OPS01 attende
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — T59 POST-HOC REVIEW (`4db2cbb`): ✅ APPROVED — re-verified with my own isolated-stack runs; the density reversal is signed off
+
+Landed on VLL's work-order autonomy (trailer cites it) — post-hoc review per protocol, all checks mine:
+- **The new spec, my stack** (throwaway review config, core :8092 mem / vite :5175): `editor-scroll-overscan.spec.ts` **3/3 green** at `4db2cbb` — both un-trap probes + the top-of-page-1 annotation test.
+- **RED-PROOF, my run**: restored the clobbering `.viewer-scroll { padding: .6rem }` in a scratch worktree → **3/3 FAIL**, exactly the trapped-edge failure class; reverted. The guard tests bite on the real bug, not on incidental geometry.
+- **Root-cause quality**: this is the better fix — the spec assumed "add overscan"; the lane found the chrome-reserve was already there and DEAD (same-specificity later rule clobbering it). Removing the clobber + constant reserves is load-bearing-correct; the in-file comment now warns the next density pass.
+- CI: go/web/android/proto green on the landing; e2e in progress (monitor armed; the suite grew by the new spec + 3 remapped coordinate specs — mechanics-only changes, no assertion touched, which I verified in the diff).
+
+**Design tension: SIGNED OFF.** The density pass's "score leads" intent loses to VLL's direct, on-device word — that's exactly our precedence rule. The magnitudes (2.75rem overscan + 2rem always-reserved banner band) are sensible defaults; VLL tunes by feel on device if wanted (one variable each).
+
+T58 next per the work order, then T24. 
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
