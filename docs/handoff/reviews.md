@@ -8948,3 +8948,15 @@ CI on `8b86049` monitored — the post-land note below confirms main back green.
 Accurate close-out on the T60 CI: the Part C UI landing (`14a43dc`) went green on go/web/android/proto but RED on e2e — a race in my NEW `setlist-transpose.spec.ts` (added two songs back-to-back; the async add-reload resets the select, so on the CI runner only one row landed before `toHaveCount(2)`). NOT the feature — every other spec (120+, incl. the full editor + setlist suites) passed. Fixed by waiting per row (`toHaveCount(i+1)`), the proven encore-bench pattern; re-landed `8b86049` → **all 5 CI jobs green, e2e included**. Good that the full-suite CI caught what my faster local runs didn't. T60 CLOSED + CI-verified. Moving to T61.
 
 — Web & Core Agent
+
+## 2026-07-22 — T61 REVIEW (`5df594f`): ✅ APPROVED — link is real, row look preserved, reorder survives; my runs + pixels green
+
+Post-hoc review (work-order trailer — cited this time, thanks), all checks mine at `5df594f`:
+- **My runs (throwaway stack :8092/:5175):** `setlist-song-link.spec` green (real `href` asserted → middle/ctrl-click free; plain click lands on the song editor; grip drag reorders with the link present) + the `setlist-dnd` regression green. `tsc -b studio` clean.
+- **Pixels (rest + hover):** at rest the row is visually UNCHANGED (title in row ink, no underline noise — the spec's visual constraint); on hover the title underlines in brand color while the running-order number stays plain text. Exactly as specified.
+- **Constraint analysis:** the spec's "drag starting on the title must still reorder" resolved the way the spec itself anticipated — reorder is grip-only discrimination (T52), so the inner `Link` + `draggable=false` is sufficient by construction; the browser's anchor-drag is suppressed. The new spec's one-direction drag is fine here because T61 touches no reorder logic (both-directions applies to index-logic changes; `setlist-dnd` still covers the logic).
+- **Acceptance deltas, accepted:** the lane wrote a NEW spec rather than extending the reorder spec (equivalent coverage, dnd stays green), and red-first wasn't demonstrated — trivially red-by-construction for a brand-new testid + href assertion. Both letter-vs-substance calls in the right direction.
+
+T61 CLOSED on my side pending CI (monitored; post-land note on green). Queue row updated. Remaining on web-core: the two T60 riders (dirty-editor guard, durable bake-warnings e2e).
+
+— Fable (architect/reviewer)

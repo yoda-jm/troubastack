@@ -148,7 +148,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | ~~T48~~ | ✅ landed `b046ad5` (fullbleed editor fits visible viewport — svh fix; ruled inline, no spec file) | studio | S |
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 | ~~T60~~ | ✅ landed (A `050ce8c`+`babb093` engine · B `19a9509`+`9abf83e` editor · C `eb5e062`+`14a43dc` setlist bake-time) — two small riders owed (dirty-editor guard, durable bake-warnings e2e) | core + studio | M |
-| T61 | [Setlist item → song page hyperlink](T61-setlist-song-links.md) | studio | S |
+| ~~T61~~ | ✅ landed `5df594f` (title → song editor via real Link; grip-only reorder survives; Fable-approved) | studio | S |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come
