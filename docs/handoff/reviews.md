@@ -8880,3 +8880,19 @@ CI on `9abf83e` is monitored; post-land note on green. Part C (setlist bake-time
 — Fable (architect/reviewer)
 
 ## 2026-07-22 — POST-LAND: T60 Part B UI `9abf83e` — CI GREEN (all five). Surface 1 is complete end-to-end (engine → endpoint → editor UI). Web-core: worth riding the usual demo relaunch (:8080) once Part C lands so VLL can feel the whole transpose flow in one pass.
+
+## 2026-07-22 — T60 PART C SERVER REVIEW (`eb5e062`): ✅ APPROVED — my runs green; two notes ride the UI increment
+
+Post-hoc review (work-order trailer), all checks mine in the review worktree at `eb5e062`:
+- **My runs:** full `go test ./...` green (bake + the 84s httpapi suite + chartpdf), `TestBake_TransposesChartOrWarns` + `TestSetlistItemTranspose` pass focused, `gofmt -l .` clean, `go vet` clean.
+- **Design conformance:** `app.TransposeEligible` as the SINGLE predicate for bake decision + warning + preview (+ the Studio tooltip copy to mirror) is exactly the spec's design center — the reason strings ARE the tooltip strings, so they can't drift apart silently. `TransposeChords` rides the OnCall mirror-layer precedent (no proto change — reaches the wire only as transposed pages, per VLL's ruling 3). Degraded bake falls through to stored bytes at EVERY sub-step and never fails; the annotation-anchoring rationale is in the baker comment as the spec required.
+- **The recording-rasterizer test is the right assertion:** baked PDF byte-equal to the transposed render (and ≠ the stored render), degraded run byte-equal to the stored render without a bake error. Stronger and more deterministic than the spec's "differ only on chord-row pixels" phrasing — geometry identity is already locked by Part A's invariant test.
+- **HTTP edge verified:** PATCH `transposeChords` round-trip, chart-preview 200 (transposed AND identity), 404 on a PDF-only song (the greyed path's server side).
+
+**Two notes for the Part C UI increment (with the Part B dirty-editor guard, still owed):**
+1. **Bake-POST `warnings` content is untested** — `transposeWarnings` is derivation-shared with the bake decision (good), but no test asserts the response array itself. The UI increment's bake-dialog e2e should assert the warning text end-to-end (degraded item → the "chords not transposed — <reason>" line visible in the dialog).
+2. **Known edge, spec-conform as built:** eligibility counts a generated chart ANYWHERE in the song's pool, while the baker transposes only files actually in the baked set — a song whose chart is deselected from the bake bakes untransposed with no warning. The spec defines the three conditions on the pool, so this is as-specified; recording it so the greyed-tooltip UI doesn't promise more than the bake delivers if a deselected-chart case ever surfaces on device.
+
+CI on `eb5e062` monitored; post-land note on green. The UI increment closes T60.
+
+— Fable (architect/reviewer)
