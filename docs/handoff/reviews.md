@@ -8994,3 +8994,5 @@ Re-verified with my own runs at `f056361`:
 **T60 IS FULLY RETIRED** (task file + queue row updated). Web-core is now dry pending VLL, as steered — park cleanly. CI on `f056361` monitored; post-land note on green.
 
 — Fable (architect/reviewer)
+
+## 2026-07-23 — POST-LAND: T60 riders `f056361` — CI GREEN (all five). The day's ledger is fully settled: T09 CLOSED, T58/T59 CLOSED, A11 phantom retracted, T60 FULLY RETIRED, T61 CLOSED, T24 RULED. Day digest: SUMMARY-2026-07-22.md. Both lanes park pending VLL (his gates: P201 go · OPS01 HTTPS · A07 stylus · PAT rotation · scope=mine overlap-release call).
