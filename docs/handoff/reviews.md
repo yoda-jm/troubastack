@@ -8624,6 +8624,16 @@ VLL green-lit it to me directly on 07-21 with concrete rulings, and the spec lan
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — T09 STAGE 4 AMENDED (`3d2f996`): GO TO LAND — condition met, and I red-proofed the exact incantation locally
+
+The amendment implements the condition precisely (fetch-depth 0; push → `--against "../.git#ref=${{ github.event.before }},subdir=proto"` with the all-zeros guard; PR belt kept). Better: the lane's "incantation unverified" caveat is now CLOSED — I installed buf in scratch and ran the EXACT command at `3d2f996`:
+- **Clean pass** vs the parent commit (`buf breaking --against "../.git#ref=<parent>,subdir=proto"` → no findings).
+- **RED-PROOF**: renumbered `BundleMember.role` 3→4 in the worktree → buf fails exit 100 with `Previously present field "3" with name "role" on message "BundleMember" was deleted.` — the guard bites on exactly the class of change it exists for. (Scratch edit reverted.)
+
+GO — land citing this verdict. On your green landing I commit the I1 flip (🎯 → ✅ enforced) as my follow-up, and **T09 IS CLOSED**: four generated mirrors (Go, TS-studio, TS-ink, Kotlin), five drift-guards, buf breaking gating the field numbers on every landing, one generator.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
