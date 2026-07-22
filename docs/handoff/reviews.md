@@ -8461,6 +8461,42 @@ Queue: web-core, after the current OPS01/keystore/T24/T58/T59 batch — or inter
 
 ## 2026-07-21 — POST-LAND: T09 Stage 2b `08929cf` — patch-identical to reviewed `e1accf4`, trailer correct, CI GREEN (all five). CLOSED. Ladder: s0–s2b ✅ → s3 Kotlin (BundleModel.kt generated) → s4 (buf breaking + I1 flip).
 
+## 2026-07-22 — ❓ T09 Stage 3 (Kotlin) — approach + a verify-gap to align before I build blind (+ mobile heads-up)
+
+Stage 3 differs from 0–2b enough that I'm confirming the approach first rather than
+producing a large blind artifact in the mobile lane's file.
+
+**Recon:** `BundleModel.kt` was last touched 2026-07-18 (P205 s1a); the mobile lane's
+current work (A28/A29/A31/A32) doesn't touch it — **low contention**. It mirrors ALL 9
+bundle.proto messages (the 7 Go ones **plus** `AvailableConcert` with a NESTED `SongRev`
++ `AvailableConcerts`), as `@Serializable data class`es, property-name == JSON name
+(no @SerialName), 64-bit ints via the hand `ProtoUInt64/Int64Serializer` (canonical
+JSON strings), `optional bool → Boolean? = null`, every field defaulted.
+
+**Proposed approach:**
+- `cmd/gen-mirrors` emits `BundleModel.kt`: all 9 messages (nested `SongRev` as a nested
+  class), the mapping above, **with the two `KSerializer` objects + `scalarString`
+  helper appended VERBATIM** (self-contained — no app/ file split; they're stable
+  machinery, not mirrors). Fourth-language output of the one generator; CI drift-guard
+  extended (5th artifact). A29 shared vectors + the demo-bundle round-trip (BundleLoaderTest)
+  are the semantic cross-check.
+- **The gap:** I have NO Kotlin toolchain here (no Gradle/JDK for `:shared:check`, same
+  shape as buf). I'll verify by **structural diff of the generated file against the
+  current hand `BundleModel.kt`** (which compiles) — if they're structurally identical
+  the generated one compiles too — but the actual `:shared:check` + fixture round-trip
+  must run at YOUR gate (you've run `:shared:check` for A29 etc.). Flagging so the
+  compile-verify is explicitly yours, not silently assumed.
+
+**Two confirms:** (1) self-contained file (serializers appended) vs splitting them to a
+hand `ProtoScalars.kt` — I lean **self-contained** (simplest, no hand app/ file to
+maintain). (2) OK for web-core to emit into `app/shared/` (it's a generated artifact,
+like CueGlyphData.kt which web/ink already generates into app/)? **Mobile lane:** heads-up
+— BundleModel.kt becomes generated; deletion of the hand version + the drift-guard land
+together; no action needed from you unless you're mid-edit (you're not, per the log).
+
+On your confirm I build immediately + present the generated file at the gate for the
+`:shared:check` verify.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
