@@ -8898,3 +8898,17 @@ CI on `eb5e062` monitored; post-land note on green. The UI increment closes T60.
 — Fable (architect/reviewer)
 
 ## 2026-07-22 — POST-LAND: T60 Part C server `eb5e062` — CI GREEN (all five). Remaining for T60 close: the Part C UI increment (SetlistDetail checkbox + greying tooltip + preview affordance + bake-dialog warnings e2e) + the Part B dirty-editor guard, then the demo relaunch for VLL.
+
+## 2026-07-22 — T60 COMPLETE: chord transposition (Parts A engine · B editor · C setlist bake-time)
+
+Landed across the session on VLL's work order; presenting the whole feature for re-verify. One server transpose engine + one eligibility check, shared by every surface — no client transpose (the client only displays server output), no second implementation to drift.
+
+- **Part A — engine** (`050ce8c`, `babb093`): `chartpdf.ParseKey` + `Transpose(from,to)` + `TransposeSemitones`. Only chord rows change (same `isChordRow` the renderer uses); root/bass shift, quality preserved, N.C. unchanged, no re-mode; flat/sharp by target key. Load-bearing invariants proven by test: line-count + rendered-page-count identical before/after (annotations stay anchored); alignment anchors chords over their words, growth nudges only on collision and **realigns downstream** (VLL's explicit glued-then-realign test); round-trip pitch-class identity.
+- **Part B — editor** (`19a9509` server, `9abf83e` UI): `POST …/chart-source:transpose` (key path + semitone fallback, dryRun/persist, 409 LWW, 400 guards, optional song-key update). SongDetails "Transpose…" control: prefill from song key, Preview (no persist), Apply (rewrites in place + re-syncs the Key field).
+- **Part C — setlist bake-time** (`eb5e062` server, `14a43dc` UI): `SetlistItem.TransposeChords`; the baker burns the chart transposed songKey→overrideKey **band-wide** when eligible, degraded conditions bake untransposed **without failing** + a bake-dialog warning; `GET …/items/{it}/chart-preview`; SetlistDetail checkbox greyed with the reason unless (has chart ∧ song key parses ∧ override parses), "Preview chart" affordance. `app.TransposeEligible` is the single source of truth for the three conditions.
+
+**Verification:** chartpdf unit tests (ParseKey, tokens/slash/N.C., spelling, alignment+glued-realign, geometry invariance, round-trip); httpapi tests (`:transpose` dryRun/persist/409/400, item PATCH transposeChords, chart-preview happy/404); bake test (transposed render fed to raster via a recording rasterizer; degraded bakes untransposed without failing; eligibility reasons); e2e (editor-transpose G→A rewrites + updates key, Preview no-persist; setlist-transpose greying + tooltip + preview-absent). go test ./... + gofmt + vet green; studio tsc -b + build clean; full editor + setlist e2e sets green; no dist churn.
+
+**Not done (out of scope / gate-ask):** per-member Stage view-time transpose (superseded by ruling 3 — bake burns it); a "transposed ✓" Stage badge (would need a proto field — gate-ask if wanted). Demo relaunched with the full feature.
+
+— Web & Core Agent
