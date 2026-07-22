@@ -70,6 +70,37 @@ test("editor transpose G→A rewrites the chords and updates the song key (T60)"
   await expect(panel.getByTestId("meta-key")).toHaveValue("A");
 });
 
+test("Transpose is blocked while the chart editor has unsaved edits (dirty guard, T60)", async ({
+  page,
+}) => {
+  await register(page, `trd_${stamp()}`);
+  await createBandAndOpen(page, `TrdBand ${stamp()}`);
+  await createSongAndOpen(page, `Song ${stamp()}`);
+
+  await page.getByTestId("my-files-edit").click();
+  const panel = page.getByTestId("details-panel");
+  await panel.getByTestId("meta-key").fill("G");
+  await panel.getByTestId("meta-save").click();
+  await expect(panel.getByTestId("meta-notice")).toBeVisible();
+
+  await panel.getByTestId("new-text-chart").click();
+  await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nlyric here\n");
+  await panel.getByTestId("chart-save").click();
+  await panel.getByTestId("file-edit-source").click();
+  await expect(panel.getByTestId("chart-editor")).toBeVisible();
+
+  // Clean: Transpose is available.
+  await expect(panel.getByTestId("chart-transpose-btn")).toBeEnabled();
+
+  // Edit the source (now dirty) → Transpose is blocked so Apply can't clobber the edits.
+  await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nEDITED lyric\n");
+  await expect(panel.getByTestId("chart-transpose-btn")).toBeDisabled();
+  await expect(panel.getByTestId("chart-transpose-btn")).toHaveAttribute(
+    "title",
+    "Save your chart edits first",
+  );
+});
+
 test("transpose Preview renders without persisting; the source is untouched until Apply (T60)", async ({
   page,
 }) => {

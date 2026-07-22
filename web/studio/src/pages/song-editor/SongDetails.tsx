@@ -611,7 +611,13 @@ function ChartEditor({
   onCancel: () => void;
 }) {
   const [source, setSource] = useState(initial.source);
+  // The last persisted source, for the dirty-editor guard: transposing Apply
+  // overwrites the source in place, so it must be blocked while the textarea has
+  // unsaved edits (else those edits are clobbered silently). Updated on a transpose
+  // Apply (which persists); a normal Save closes the editor.
+  const [savedSource, setSavedSource] = useState(initial.source);
   const [baseRevision, setBaseRevision] = useState(initial.baseRevision);
+  const dirty = source !== savedSource;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -697,6 +703,7 @@ function ChartEditor({
     try {
       const { source: t, file } = await api.transposeChartSource(bandId, songId, initial.fileId, transposeArgs(false));
       setSource(t); // the editor now shows the transposed source (persisted in place)
+      setSavedSource(t); // the transposed source is now the saved baseline (no longer dirty)
       if (file?.revision != null) setBaseRevision(file.revision);
       if (keyParses && alsoUpdateKey) onSongKeyChanged?.(targetKey.trim());
       setTransposeOpen(false);
@@ -801,7 +808,8 @@ lyrics go here
           <button
             type="button"
             data-testid="transpose-apply"
-            disabled={transposing || !canTranspose}
+            disabled={transposing || !canTranspose || dirty}
+            title={dirty ? "Save your chart edits first" : undefined}
             onClick={() => void applyTranspose()}
           >
             Apply
@@ -830,6 +838,8 @@ lyrics go here
             className="ghost-btn"
             data-testid="chart-transpose-btn"
             aria-expanded={transposeOpen}
+            disabled={dirty}
+            title={dirty ? "Save your chart edits first" : "Transpose the chords"}
             onClick={() => setTransposeOpen((o) => !o)}
           >
             Transpose…

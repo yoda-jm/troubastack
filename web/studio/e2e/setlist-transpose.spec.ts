@@ -98,3 +98,45 @@ test("setlist item transpose checkbox greys on a PDF-only song, enables on a cha
   // And a chart-preview affordance is absent on the PDF-only song (no chart to preview).
   await expect(pdfRow.getByTestId("item-chart-preview")).toHaveCount(0);
 });
+
+test("bake surfaces per-song transpose warnings in the bake card (T60)", async ({ page }) => {
+  await register(page, `slw_${stamp()}`);
+  await createBandAndOpen(page, `SlwBand ${stamp()}`);
+  const bandUrl = page.url();
+
+  await newSong(page, bandUrl, "Some Song");
+  await page.goto(bandUrl);
+  await page.getByTestId("nav-setlists").click();
+  await page.getByTestId("setlist-name").fill("Show");
+  await page.getByTestId("create-setlist").click();
+  await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
+  await page.getByTestId("add-item-song").selectOption({ label: "Some Song" });
+  await page.getByTestId("add-item").click();
+  await expect(page.getByTestId("item-row")).toHaveCount(1);
+
+  // Mock the bake POST with a per-song warning (the e2e stack mocks bakes — no poppler);
+  // this asserts the CLIENT surfaces the server's `warnings` in the bake card. The
+  // server-side derivation is covered in httpapi TestBakeTransposeWarnings.
+  const warning = "Some Song: chords not transposed — song key not set or not parseable";
+  await page.route("**/setlists/*/bake**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        concertId: "c",
+        name: "Show",
+        currentRev: "1",
+        updatedAt: "0",
+        songs: [],
+        downloadUrl: "/x",
+        warnings: [warning],
+      }),
+    }),
+  );
+
+  await page.getByTestId("bake-setlist").click();
+  await page.getByTestId("bake-dialog-confirm").click();
+  const warns = page.getByTestId("bake-warnings");
+  await expect(warns).toBeVisible();
+  await expect(warns).toContainText(warning);
+});
