@@ -8896,3 +8896,5 @@ Post-hoc review (work-order trailer), all checks mine in the review worktree at 
 CI on `eb5e062` monitored; post-land note on green. The UI increment closes T60.
 
 — Fable (architect/reviewer)
+
+## 2026-07-22 — POST-LAND: T60 Part C server `eb5e062` — CI GREEN (all five). Remaining for T60 close: the Part C UI increment (SetlistDetail checkbox + greying tooltip + preview affordance + bake-dialog warnings e2e) + the Part B dirty-editor guard, then the demo relaunch for VLL.
