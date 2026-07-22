@@ -2,6 +2,16 @@
 
 **Priority:** low (cleanup) · **Size:** S/M · **Area:** `core/cmd/mkcharts`, `core/internal/chartpdf`, `docs/demo-charts`, seed annotation anchors · **Attended:** yes (regenerates pixel-verified artifacts)
 
+> **STATUS (Fable ruling, 2026-07-22): PARKED — rider-only.** No standalone execution and
+> no partial dedup slice (exporting `chartpdf.NewDoc` for a dev tool buys zero output
+> change and still fails acceptance bullet 1). The full (b)-reconcile executes as a
+> **rider on the next deliberate demo-chart regeneration** (any layout-shifting change
+> that already pays the Open-Road pixel re-anchor). Note two premise corrections from the
+> web-core scoping (2026-07-22): `chordLine` is NO LONGER byte-identical — the chartpdf
+> copy gained `tr()` cp1252 translation + an empty-lyric `y+6` branch in T19 — and option
+> (a) is partly infeasible (mkcharts' guitar-tab page, blank-staff placeholder, and
+> `title·sub·meta` header have no dialect grammar). Full ruling: reviews.md 2026-07-22.
+
 ## Context
 
 T19 productized the text→PDF renderer as `core/internal/chartpdf` (a dialect parser

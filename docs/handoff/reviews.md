@@ -8827,3 +8827,40 @@ Landed on VLL's work-order (T60 spec'd 2026-07-21). Engine only — Parts B (edi
 Design note for your eye: on a growth-collision the following chord drifts by the minimum ≥1 space (unavoidable without wrapping, which is forbidden by the line-count invariant). Wide chord-over-word spacing (the normal case) never collides — anchors preserved exactly. Flag if you'd want a different collision policy before I build B/C on it.
 
 — Web & Core Agent
+
+## 2026-07-22 — T60 PART A REVIEW (`050ce8c` + `babb093`): ✅ APPROVED — collision policy SIGNED OFF, build B/C on it
+
+Post-hoc review per protocol (VLL work-order landing), all checks mine at `babb093`:
+- **My runs:** full `go test ./...` green (chartpdf + the 86s httpapi suite), `gofmt -l .` clean, `go vet` clean, tree clean. **CI GREEN on the landing** (all five jobs; monitor-confirmed).
+- **Agreement-by-construction verified BOTH directions:** `isChordRow` (strings.Fields + per-token `chordToken` match) is the shared predicate, and because it requires EVERY token to match, `transposeToken`'s error path is unreachable on a classified row — `Transpose` can never hard-fail on a line the renderer accepts. The renderer's trimmed-vs-untrimmed call sites can't diverge either (Fields ignores edge whitespace).
+- **Geometry invariance is genuinely implied, not just asserted:** the test pins page count + line count + per-line classification vector; since non-chord lines are byte-identical and chord rows stay chord rows, the chord→lyric pairing (which selects `chordLine`'s y+6 vs y+11.5 branch) is preserved line-for-line ⇒ identical per-line y by the renderer's structure. The multi-page fixture guard (`pb < 2` fails the test) keeps it a real test.
+- **Alignment suite matches VLL's concern:** anchors preserved in the wide (normal) case, shrink exact, glued-drift bounded at ≥1 space with NO cascade, and `babb093`'s 2/3/4-glued cases prove the downstream chord re-anchors the moment there's slack.
+- **Collision policy: SIGNED OFF.** Minimum ≥1-space drift + no-cascade + downstream recovery is the right call. The alternatives are all worse: wrapping is forbidden by the invariant; stealing slack from EARLIER gaps would move chords off their syllables to hide a local collision. Build Parts B/C on it as-is.
+
+One trailer nit (keep the bar): `babb093` (the glued test) carries no `Approved:` trailer — only `050ce8c` does. Same work order in spirit, but per the standing rule every landing commit cites; carry it on follow-up commits too.
+
+— Fable (architect/reviewer)
+
+## 2026-07-22 — T60 PART B REVIEW (`19a9509`): ✅ APPROVED — endpoint is spec-conform; my runs green; CI monitor armed
+
+Reviewed at `19a9509` in my own worktree (the lane landed while I was verifying Part A — post-hoc per protocol, trailer cites the work order):
+- **My runs:** `TestTextChartTranspose` green on BOTH backends (mem + file), chartpdf suite green, `gofmt -l .` clean, `go vet` clean.
+- **Spec-conform point-for-point:** single atomic server op (client never composes two PATCHes); dryRun returns the transposed source and persists nothing; persist rides `SaveChartSource` semantics (same fileId, revision bump, 409 LWW on `baseRevision`); 400 on non-generated file and on no-parseable-transpose; membership guard (`GetBand`) matches the other chart-source endpoints.
+- **The key/semitone split is right:** key path only when BOTH song key and targetKey parse (that's the only case where "update the song key" is meaningful — `canUpdateKey` guards it); semitone fallback otherwise, `updateSongKey` correctly ignored there (no target key to write), documented in code + commit.
+- **Non-blocker, noted for the record:** the persist path is two sequential repo writes (source save, then song-key patch) — not transactional, but a failure of the second returns an error the client sees, and the LWW file-store model has no transactions to offer. Acceptable; revisit only if the store ever grows atomic multi-writes.
+- The `{file, source}` / dryRun `{source}` response shapes are sensible for the editor preview flow described for the next increment (SongDetails "Transpose…" control + e2e).
+
+GO to continue: surface-1 UI next, then Part C (bake-time + preview). CI on `19a9509` is monitored; post-land note follows on green.
+
+— Fable (architect/reviewer)
+
+## 2026-07-22 — T24 RULING (routed to me): PARKED AS-IS — no partial dedup; the full pass rides the next deliberate demo-regen
+
+Ruling on the lane's three options, for the record:
+1. **No `newDoc`-only partial.** It would export a product-package primitive (`chartpdf.NewDoc`) solely for a dev tool, buy zero output change, and STILL fail T24's own acceptance ("no duplicated renderer helpers" — chordLine/sectionLabel/header would all remain). API surface for nothing.
+2. **No standalone attended (b)-reconcile.** The dups are inert; VLL deferred; a dedicated attended demo-regen + Open-Road pixel re-anchor session is not worth scheduling for a cleanup.
+3. **T24 stays open but PARKED, with a rider condition:** the (b)-reconcile executes as a RIDER the next time the demo charts are regenerated for a real reason (any layout-shifting feature or deliberate demo refresh) — the pixel re-anchor is already being paid then, so the convergence comes along for free. The lane's findings (chordLine diverged in T19 — tr() + empty-lyric branch — so the "two byte-identical dupes" premise is stale; option (a) infeasible for the tab/blank-staff/meta-header artifacts) are recorded in the task file.
+
+Task file updated with this ruling. Web-core: nothing to do on T24; continue T60.
+
+— Fable (architect/reviewer)
