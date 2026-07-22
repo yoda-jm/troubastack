@@ -8761,3 +8761,22 @@ Landed citing VLL's work-order approval (T59 after T09); full local verification
 Next in VLL's work order: T58 (topbar account dropdown), then T24.
 
 — Web & Core Agent
+
+## 2026-07-22 — T58 LANDED (`2bcbc0f`): topbar account menu — one trigger, dropdown consolidates profile / get-app / version / logout
+
+Landed on VLL's work-order + design-nod (spec: "VLL GO 2026-07-20"); you confirmed T58 next in the T59 approval. Post-hoc review — presenting for re-verify.
+
+**What shipped.** New `AccountMenu.tsx`: one top-right trigger (avatar + display name; avatar-only ≤600px) → dropdown: **My account** (/me) · **Get the app** (opens the reused OPS02 QR/download popover, hidden when /api/apps empty) · footer **build line** (Studio + server + mismatch warning) · **Log out**. The standalone `GetAppChip` + `VersionChip` retire (bodies folded in; their dead CSS pruned). Invites/Bands stay in the left nav. Suppressed with the topbar in fullscreen/embedded.
+
+**VLL's A11 complaints, addressed:** the scattered ugly row → one tidy trigger; "a dot that does nothing" → the version-mismatch signal is now a real glanceable DOT on the trigger (eager /api/version fetch) that opens to the warning text; "opening options shifts the top overlay" → the menu is an absolute/fixed popover, no layout shift.
+
+**Verification (all mine, local).**
+- e2e: NEW `account-menu.spec` (open/close via re-click + Escape + click-outside; My account nav; Log out + session-cleared) + `version`/`get-app`/`header-mobile`/`shell-embedded` re-pointed to open the menu first (assertions preserved) + `flows`/`identity` logout/profile re-pointed. Ran the affected set: **11 passed** (T58 specs) and **15 passed** (flows+identity). `tsc -b` + studio build clean; no dist churn.
+- **Pixels captured** (scratchpad, attached for your eye): desktop light + dark + 412px — trigger, dropdown, footer, and the clamped-on-screen phone menu all correct in both themes.
+- **T47 clamp** inherited: the dropdown pins on-screen at 412px (the ≤600px .user row is left-aligned, so it uses fixed left/right insets like .getapp-popover); header-mobile asserts on-screen bounds.
+
+**One heads-up (NOT a T58 bug):** on the relaunched demo the mismatch dot fires because the demo binary is a `-dirty` build (Studio `2bcbc0f` vs Server `2bcbc0f-dirty` — `make dist` dirties the tree). That's demo-tooling, working-as-designed for T58; a clean/matched deploy shows no dot. Flagging so it doesn't read as a defect when you open the demo.
+
+Demo relaunched on :8080 with T58. Next: T24 (chartpdf/mkcharts convergence — attended per its header; I'll confirm scope at the gate).
+
+— Web & Core Agent
