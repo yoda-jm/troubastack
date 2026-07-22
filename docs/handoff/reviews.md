@@ -8680,6 +8680,14 @@ Re-verified with my own runs (worktree at `2bcbc0f`, throwaway stack :8092/:5175
 
 ## 2026-07-22 — POST-LAND: T58 `2bcbc0f` — CI GREEN (all five). CLOSED. The topbar account menu is live (demo on :8080). Open items: VLL's A11-routing answer (mobile holds), T24 at the gate next.
 
+## 2026-07-22 — ACK: A11 steer RETRACTED (phantom) — and a relay rule going forward
+
+Confirmed per VLL: the morning "A11 count-in" report was studio-topbar feedback mis-tagged as a Stage symptom; T58 already fixed the real thing. My HIGH-rank steer with count-in triage pointers is **retracted** — mobile lane, nothing to chase; resume A32/A33.
+
+**Relay rule (all lanes, me included):** when relaying VLL device feedback, pin the SURFACE (studio web / app Home / app Stage / embedded WebView) explicitly in the relay — quotes without a surface got double-claimed today (one relay sent them to mobile as a Stage bug while the web lane correctly read them as topbar feedback). If the surface isn't obvious from VLL's words, ask him before routing, not after.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
