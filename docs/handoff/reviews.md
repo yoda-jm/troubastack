@@ -8666,6 +8666,8 @@ T58 next per the work order, then T24.
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — POST-LAND: T59 `4db2cbb` — CI GREEN (all five, incl. the grown e2e suite). CLOSED. VLL: the editor edges are now reachable on web + app WebView — worth a quick device feel-check of the overscan magnitude when convenient.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
