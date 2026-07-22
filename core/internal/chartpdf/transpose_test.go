@@ -158,6 +158,47 @@ func TestTransposeAlignmentAnchors(t *testing.T) {
 	}
 }
 
+// TestTransposeGluedThenRealign is VLL's explicit case: when several chords are packed
+// tight enough that growth forces them to drift ("glued"), a later chord on the SAME line
+// must re-align to its original column as soon as there's slack — the drift never sticks
+// downstream. Covers 2 and 3 glued chords followed by a chord with room to recover.
+func TestTransposeGluedThenRealign(t *testing.T) {
+	from, to := mustKey(t, "C"), mustKey(t, "Db") // every root grows by one char
+	cases := []struct {
+		name       string
+		in         string
+		wantGlued  []int // expected columns of the leading glued chords (drift, ≥1 space)
+		lastTokIdx int   // index of the trailing chord that must recover its anchor
+	}{
+		{"2 glued", "C C            Am", []int{0, 3}, 2},
+		{"3 glued", "C C C            Am", []int{0, 3, 6}, 3},
+		{"4 glued", "C C C C            Am", []int{0, 3, 6, 9}, 4},
+	}
+	for _, tc := range cases {
+		inCols := tokenCols(tc.in)
+		out, err := Transpose(tc.in, from, to)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		outCols := tokenCols(out)
+		if len(outCols) != len(inCols) {
+			t.Fatalf("%s: token count changed %d → %d (%q)", tc.name, len(inCols), len(outCols), out)
+		}
+		// The leading glued chords drift to the packed columns (each ≥1 space apart).
+		for i, want := range tc.wantGlued {
+			if outCols[i].col != want {
+				t.Errorf("%s: glued chord %d at col %d, want %d (%q)", tc.name, i, outCols[i].col, want, out)
+			}
+		}
+		// The trailing chord RECOVERS its original column — realigned over its syllable.
+		got := outCols[tc.lastTokIdx].col
+		orig := inCols[tc.lastTokIdx].col
+		if got != orig {
+			t.Errorf("%s: trailing chord did NOT realign: col %d, want original %d (%q)", tc.name, got, orig, out)
+		}
+	}
+}
+
 func TestTransposeOnlyChordRows(t *testing.T) {
 	src := "# My Song\n## Verse 1\nC       G\nWhen the night has come\n\nand the land is dark\nAm\nstand by me"
 	got, err := Transpose(src, mustKey(t, "C"), mustKey(t, "D"))
@@ -253,6 +294,30 @@ func TestTransposeGeometryInvariant(t *testing.T) {
 }
 
 // --- test helpers ---------------------------------------------------------
+
+type tokCol struct {
+	tok string
+	col int
+}
+
+// tokenCols returns each whitespace-separated token with its start column (rune index).
+func tokenCols(s string) []tokCol {
+	var out []tokCol
+	runes := []rune(s)
+	i := 0
+	for i < len(runes) {
+		if runes[i] == ' ' || runes[i] == '\t' {
+			i++
+			continue
+		}
+		start := i
+		for i < len(runes) && runes[i] != ' ' && runes[i] != '\t' {
+			i++
+		}
+		out = append(out, tokCol{tok: string(runes[start:i]), col: start})
+	}
+	return out
+}
 
 var pageObjRe = regexp.MustCompile(`/Type\s*/Page[^s]`)
 
