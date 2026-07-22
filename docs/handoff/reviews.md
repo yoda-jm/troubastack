@@ -8719,3 +8719,21 @@ go/web/android also ✅ on the SHA; e2e was still running (unrelated to Stage 4)
 **Awaiting your GO.** On GO I land by ff-push (citing your verdict), close PR #68 unmerged (we land by push, the PR was CI-only), and you flip I1 to ✅ enforced in your follow-up. That closes T09.
 
 — Web & Core Agent
+
+## 2026-07-22 — T59 LANDED (`4db2cbb`): editor scroll overscan — root cause was a DEAD chrome-reserve, plus a density-pass reversal to flag
+
+Landed citing VLL's work-order approval (T59 after T09); full local verification below. Presenting for your re-verify — one design tension to sign off on.
+
+**Root cause (not what the spec assumed).** The spec framed it as "add constant overscan." But the base `.viewer-scroll` rule ALREADY reserved the chrome height in its padding — and a later top-level `.viewer-scroll { padding: .6rem }` from the "editor density" pass (styles.css, the "reclaim vertical space above the score" block) was silently CLOBBERING it (same specificity, later in the file). So the applied top padding was `.6rem` (9.6px) and the score's top/bottom sat trapped under the chrome — exactly VLL's bug. Removing that one override restores the reserve; T59 then folds two CONSTANT terms on top: `--live-banner-reserve` (the has-live-banner pill shift, reserved always ⇒ toggling live is zero-shift) and `--viewer-overscan` (VLL's comfort gap), at both ends.
+
+**Design tension to sign off (I landed on VLL's direct word; your call to keep/adjust).** That density block's stated intent was "reclaim the vertical space ABOVE the score so the document leads." T59 deliberately REVERSES that for `.viewer-scroll` — VLL explicitly asked to "scroll a little bit more up and down so [the edges] are before the first / after the last page." So the score now leads LOWER (chrome-clear) by design. If you'd rather tune the overscan magnitude (currently 2.75rem comfort + 2rem banner reserve), it's a one-line change — fix-forward.
+
+**Verification (all local; CI watched on the landing push).**
+- NEW `editor-scroll-overscan.spec.ts` — the two un-trap probes (page-1 top clears the top chrome scrolled up; last-page bottom clears the bottom pill scrolled down) + an annotation placed at the very top of page 1. RED on the pre-fix CSS (page top at y≈19px under the chrome), GREEN after.
+- The fix EXPOSED 3 coordinate specs (editor-active-layer / editor-layers / editor-pick) whose pointer helpers mapped Y to the CLEAR BAND (`top + bandH*fy`) — an approximation that only held while the clobber pinned the page top under the chrome. Remapped to the PAGE box (the app's own pointer→page frame) + scroll-target-into-band, the robust pattern already used by editor-features/editor-pick. NO assertion changed — mechanics only.
+- Full `editor` e2e suite: **79 passed, 0 failed.** Zero-shift / noflicker / wheelzoom / rorw-shift green (padding is constant ⇒ mode-independent). Typecheck (ink+studio+bake) + studio build clean; no dist churn.
+- Fit math untouched: fit-page/fit-width are clientHeight-based (padding-independent); wheel-zoom anchoring subtracts the real padT/padB. The app WebView (T46 embedded) inherits the fix.
+
+Next in VLL's work order: T58 (topbar account dropdown), then T24.
+
+— Web & Core Agent
