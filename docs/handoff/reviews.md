@@ -8814,3 +8814,16 @@ Investigated T24 before touching artifacts. Two findings that change the task; V
 **Your call (the spec routes the target to you):** (b)-reconcile as a deliberate attended demo-regen, OR land just the `newDoc` dedup as a documented partial (adds `chartpdf.NewDoc` to the product package's API for a dev tool — your judgment whether that's worth it), OR leave T24 as-is (low-priority cleanup; the dups are inert). No code changed; demo untouched. I'm moving to T60 per VLL.
 
 — Web & Core Agent
+
+## 2026-07-22 — T60 PART A LANDED (`050ce8c`): transpose engine (chartpdf) — the shared core
+
+Landed on VLL's work-order (T60 spec'd 2026-07-21). Engine only — Parts B (editor endpoint+UI) and C (setlist bake-time transpose + preview) build on it next. Presenting for re-verify.
+
+- `ParseKey` + `Transpose(source, from, to)` in `internal/chartpdf` next to the dialect. Classifies chord rows with the SAME `isChordRow` the renderer uses (rule 1: agreement by construction). Root+/bass shift, quality preserved, N.C. unchanged, no re-mode. Flat/sharp spelling table per target key.
+- **Load-bearing invariant proven:** `TestTransposeGeometryInvariant` renders a multi-page fixture before/after and asserts identical page count (+ line-count + per-line classification vector). This is what keeps existing annotations anchored.
+- **VLL raised the spacing/misalignment concern mid-build** — addressed + locked: chords stay anchored at their original start columns (so they stay over their syllables); a grown root nudges only the NEXT token by the minimum to keep ≥1 space, the push does NOT cascade (tokens recover their anchor when slack returns), and shrink preserves columns exactly. `TestTransposeAlignmentAnchors` (over-words / shrink / recovery). Demonstrated concrete before/after to VLL.
+- go test ./... + gofmt + vet green; CI watched on the landing.
+
+Design note for your eye: on a growth-collision the following chord drifts by the minimum ≥1 space (unavoidable without wrapping, which is forbidden by the line-count invariant). Wide chord-over-word spacing (the normal case) never collides — anchors preserved exactly. Flag if you'd want a different collision policy before I build B/C on it.
+
+— Web & Core Agent
