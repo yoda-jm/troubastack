@@ -100,7 +100,7 @@ func TestBake_TransposesChartOrWarns(t *testing.T) {
 	if _, err := svc.UpdateSetlistItem(u, band.ID, sl.ID, item.ID, app.SetlistItemPatch{KeyOverride: &over, TransposeChords: &yes}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, false, nil); err != nil {
+	if _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
 		t.Fatalf("transposed bake failed: %v", err)
 	}
 	if string(captured) != string(wantTransposed) {
@@ -116,7 +116,7 @@ func TestBake_TransposesChartOrWarns(t *testing.T) {
 		t.Fatal(err)
 	}
 	captured = nil
-	if _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, false, nil); err != nil {
+	if _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
 		t.Fatalf("degraded bake must not fail: %v", err)
 	}
 	if string(captured) != string(wantStored) {

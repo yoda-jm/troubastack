@@ -69,11 +69,6 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 // '~'), so the split back into (setlist, user) is unambiguous.
 const concertSep = "~"
 
-// VariantConcertID is the concert id of userID's personal bake of setlistID.
-func VariantConcertID(setlistID, userID string) string {
-	return setlistID + concertSep + userID
-}
-
 // ParseConcertID splits a concert id into its base setlist id and, for a
 // per-member variant, the owner's user id. isVariant is false for a shared band
 // concert (id == setlist id). Used by the httpapi edge to scope listing +
@@ -90,28 +85,24 @@ func ParseConcertID(id string) (setlistID, userID string, isVariant bool) {
 // edge gates it, mirroring T08); `actor` scopes the data reads and is recorded as
 // bakedBy.
 //
-// personal selects the per-member variant (B07): the concert is keyed
-// <setlistId>~<actorId> and each song resolves to the member's my-files PDF
-// (falling back to the default). The shared band bake (personal=false) is keyed
-// by the setlist id alone and is byte-identical to B02/B04. concert_rev bumps
-// monotonically PER concert id (so a member's variant revs independently of the
-// band bake).
+// The bake is keyed by the setlist id alone (byte-identical to B02/B04); concert_rev
+// bumps monotonically. (The per-member "?scope=mine" variant, B07, was retired — the
+// band-wide bake is THE bake, P205.)
 // layerDefaults is the P205 bake-dialog capture: layer NAME → default-on. nil means
 // the dialog didn't run (legacy — LayerImage.DefaultOn stays absent so the viewer
 // computes as today). When non-nil, every overlay gets an explicit DefaultOn
 // (mandatory layers are forced on regardless). Keyed by name (the concert-level view
 // the dialog shows: "Cues · Form · My notes").
-func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, personal bool, layerDefaults map[string]bool) (ConcertBundle, error) {
+func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, layerDefaults map[string]bool) (ConcertBundle, error) {
 	detail, err := b.svc.Setlist(actor, bandID, setlistID)
 	if err != nil {
 		return ConcertBundle{}, err
 	}
+	// The band-wide bake is THE bake (P205); the personal "?scope=mine" variant was
+	// retired. ParseConcertID still reads old `${setlistID}~${userID}` variant concerts
+	// for listing/download (read-compat), but no new ones are minted.
 	concertID := setlistID
 	name := detail.Setlist.Name
-	if personal {
-		concertID = VariantConcertID(setlistID, actor.ID)
-		name = fmt.Sprintf("%s (%s's parts)", detail.Setlist.Name, actor.DisplayName)
-	}
 	concertDir := filepath.Join(b.bakesDir, concertID)
 	if err := os.MkdirAll(concertDir, 0o755); err != nil {
 		return ConcertBundle{}, err
@@ -171,7 +162,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	}
 
 	for si, item := range detail.Items {
-		song, berr := b.bakeSong(ctx, si, bandID, actor, item, blobsDir, personal, layerDefaults)
+		song, berr := b.bakeSong(ctx, si, bandID, actor, item, blobsDir, layerDefaults)
 		if berr != nil {
 			return ConcertBundle{}, fmt.Errorf("song %s: %w", item.SongID, berr)
 		}
@@ -252,7 +243,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 // bakeSong bakes one setlist item: pick its default shared-pool PDF, rasterize its
 // pages, render per-layer overlays, and assemble the BakedSong (overrides ride as
 // metadata). A song with no viewable PDF bakes to zero pages (loaders tolerate it).
-func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string, personal bool, layerDefaults map[string]bool) (BakedSong, error) {
+func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string, layerDefaults map[string]bool) (BakedSong, error) {
 	song := BakedSong{
 		SongID:       item.SongID,
 		SongRev:      1,
@@ -272,35 +263,23 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	}
 	song.SourceRevision = snap.Revision
 
-	// T50: personal song cues ride the per-member bake as field 10 (`cues`) — a
-	// member's own bundle IS their view, no app-side filtering needed.
-	// P205: the band-wide (admin) bake instead carries EVERY member's cues as
-	// `member_cues` (field 11), keyed by member id; the viewer shows only its own
-	// identity's entry (Stage 3). Field 10 stays empty in the band-wide bake so an
-	// old app degrades to no-cues, never wrong-cues (the ruled compat guard).
-	if personal {
-		cues, cerr := b.svc.MyCues(actor, bandID, item.SongID)
-		if cerr != nil {
-			return BakedSong{}, cerr
+	// P205: the band-wide bake carries EVERY member's cues as `member_cues` (field 11),
+	// keyed by member id; the viewer shows only its own identity's entry (Stage 3). The
+	// personal-variant field 10 (`cues`) is retired with the scope=mine bake — it stays
+	// empty so an old app degrades to no-cues, never wrong-cues (the ruled compat guard).
+	mcs, mcerr := b.svc.AllMemberCues(actor, bandID, item.SongID)
+	if mcerr != nil {
+		return BakedSong{}, mcerr
+	}
+	for _, mc := range mcs {
+		cues := make([]SongCue, 0, len(mc.Cues))
+		for _, c := range mc.Cues {
+			cues = append(cues, SongCue{Icon: c.Icon, Color: c.Color})
 		}
-		for _, c := range cues {
-			song.Cues = append(song.Cues, SongCue{Icon: c.Icon, Color: c.Color})
-		}
-	} else {
-		mcs, mcerr := b.svc.AllMemberCues(actor, bandID, item.SongID)
-		if mcerr != nil {
-			return BakedSong{}, mcerr
-		}
-		for _, mc := range mcs {
-			cues := make([]SongCue, 0, len(mc.Cues))
-			for _, c := range mc.Cues {
-				cues = append(cues, SongCue{Icon: c.Icon, Color: c.Color})
-			}
-			song.MemberCues = append(song.MemberCues, MemberCues{MemberID: mc.MemberID, Cues: cues})
-		}
+		song.MemberCues = append(song.MemberCues, MemberCues{MemberID: mc.MemberID, Cues: cues})
 	}
 
-	file, ok, err := b.resolveFile(actor, bandID, item.SongID, personal)
+	file, ok, err := b.defaultFile(actor, bandID, item.SongID)
 	if err != nil {
 		return BakedSong{}, err
 	}
@@ -417,33 +396,9 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	return song, nil
 }
 
-// resolveFile picks the PDF to bake for one song (B07). A shared band bake uses
-// defaultFile unchanged (byte-identical to B02/B04). A personal bake uses the
-// first viewable PDF in the member's my-files view — their curated order; with
-// NO saved selection that view is the full pool in display order, so it equals
-// the band bake's default pick (the degenerate case the spec calls for). If the
-// member's view yields no PDF (e.g. they curated a PDF-less view), it falls back
-// to the default pool choice, so a personal bake is never emptier than the band
-// bake and always succeeds.
-func (b *Baker) resolveFile(actor app.User, bandID, songID string, personal bool) (app.SongFile, bool, error) {
-	if !personal {
-		return b.defaultFile(actor, bandID, songID)
-	}
-	files, _, err := b.svc.MyFileSelection(actor, bandID, songID)
-	if err != nil {
-		return app.SongFile{}, false, err
-	}
-	for _, f := range files {
-		if f.ContentType == "application/pdf" {
-			return f, true, nil
-		}
-	}
-	return b.defaultFile(actor, bandID, songID)
-}
-
 // defaultFile is the shared-pool single-file choice: the song's file with the
 // lowest DisplayOrder that is a viewable PDF — the same one Studio opens by
-// default, and the base for a personal bake's fallback (B07).
+// default. (The retired per-member bake once picked from the member's my-files view.)
 func (b *Baker) defaultFile(actor app.User, bandID, songID string) (app.SongFile, bool, error) {
 	files, err := b.svc.SongFiles(actor, bandID, songID)
 	if err != nil {

@@ -130,10 +130,10 @@ export function SetlistDetail() {
   );
 }
 
-// BakeCard (B02 + B07): flatten this setlist into a downloadable .tstage (I11).
-// The band bake (admin-only) is the shared concert; "Bake my parts" (any member)
-// mints the caller's PERSONAL variant — same setlist, but each song resolves to
-// the member's own "my files" pick (concertId `${setlistId}~${userId}`). One card.
+// BakeCard (B02): flatten this setlist into a downloadable .tstage (I11), admin-only.
+// The band-wide bake is THE bake (P205); the personal "Bake my parts" variant (B07)
+// was retired — the app resolves each member's view from the one band-wide bundle. Old
+// `${setlistId}~${userId}` variant concerts still list/download (read-compat).
 // liveNow: is the setlist in rehearsal live mode right now? Self-expiring server-side,
 // so we also check the client clock against liveUntil (a stale page shouldn't claim live).
 function liveNow(sl: Setlist): boolean {
@@ -204,12 +204,13 @@ function BakeCard({
   myRole: Role | null;
 }) {
   const [concerts, setConcerts] = useState<Concert[]>([]);
-  const [busy, setBusy] = useState<"" | "band" | "mine">("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]); // T60: per-song bake warnings
-  // P205: the open bake dialog (which scope), or null. Baking goes THROUGH the dialog
-  // so default-layer capture is never silent.
-  const [dialog, setDialog] = useState<{ scope?: "mine" } | null>(null);
+  // P205: the bake dialog is open (true) or not. Baking goes THROUGH the dialog so
+  // default-layer capture is never silent. (The personal "bake my parts" scope was
+  // retired — the band-wide bake is THE bake.)
+  const [dialog, setDialog] = useState(false);
   const isAdmin = myRole === "admin";
 
   const load = useCallback(async () => {
@@ -227,24 +228,23 @@ function BakeCard({
     void load();
   }, [load]);
 
-  async function bake(scope: "mine" | undefined, layerDefaults: Record<string, boolean>) {
-    setDialog(null);
-    setBusy(scope === "mine" ? "mine" : "band");
+  async function bake(layerDefaults: Record<string, boolean>) {
+    setDialog(false);
+    setBusy(true);
     setError(null);
     setWarnings([]);
     try {
-      const concert = await api.bakeSetlist(bandId, setlistId, scope, layerDefaults);
+      const concert = await api.bakeSetlist(bandId, setlistId, layerDefaults);
       setWarnings(concert.warnings ?? []);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Bake failed");
     } finally {
-      setBusy("");
+      setBusy(false);
     }
   }
 
   const bandConcert = concerts.find((c) => c.concertId === setlistId) ?? null;
-  const myConcert = concerts.find((c) => c.concertId.startsWith(`${setlistId}~`)) ?? null;
 
   return (
     <section className="panel" data-testid="bake-card">
@@ -262,10 +262,10 @@ function BakeCard({
               type="button"
               className="primary"
               data-testid="bake-setlist"
-              disabled={busy !== ""}
-              onClick={() => setDialog({})}
+              disabled={busy}
+              onClick={() => setDialog(true)}
             >
-              {busy === "band" ? "Baking…" : "Bake setlist"}
+              {busy ? "Baking…" : "Bake setlist"}
             </button>
             <AudienceTag audience="band" />{/* T56: the shared band bundle */}
             {bandConcert && (
@@ -289,31 +289,6 @@ function BakeCard({
             )}
           </div>
         )}
-        <div className="inline-form">
-          <button
-            type="button"
-            data-testid="bake-mine"
-            disabled={busy !== ""}
-            onClick={() => setDialog({ scope: "mine" })}
-          >
-            {busy === "mine" ? "Baking…" : "Bake my parts"}
-          </button>
-          <AudienceTag audience="mine" />{/* T56: your personal variant */}
-          {myConcert && (
-            <a
-              data-testid="bake-mine-download"
-              href={myConcert.downloadUrl}
-              download={`${myConcert.name || "my-parts"}.tstage`}
-            >
-              Download my parts (rev {myConcert.currentRev})
-            </a>
-          )}
-        </div>
-        <p className="muted">
-          “My parts” bakes your own <em>my files</em> pick for each song. Annotations are the
-          shared snapshot — they were made on the default part, so they may not line up with a
-          different part’s layout.
-        </p>
         <ErrorBanner message={error} />
         {warnings.length > 0 && (
           <div className="notice warn" data-testid="bake-warnings" role="status">
@@ -347,9 +322,8 @@ function BakeCard({
           bandId={bandId}
           setlistId={setlistId}
           songIds={songIds}
-          scope={dialog.scope}
-          onConfirm={(layerDefaults) => void bake(dialog.scope, layerDefaults)}
-          onCancel={() => setDialog(null)}
+          onConfirm={(layerDefaults) => void bake(layerDefaults)}
+          onCancel={() => setDialog(false)}
         />
       )}
     </section>

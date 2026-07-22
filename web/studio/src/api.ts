@@ -642,24 +642,18 @@ export const api = {
       { orderedItemIds },
     ).then((r) => r.items),
 
-  // ---- bake / concerts (B02, B07) ----
+  // ---- bake / concerts (B02) ----
   // A setlist bakes to a "concert" (concertId === setlistId); each bake bumps
-  // concertRev. The band bake is admin-only. scope:"mine" mints the caller's
-  // PERSONAL variant (concertId === `${setlistId}~${userId}`, B07) — any member
-  // may bake their own. listing/download are member-scoped to the band and, for
-  // variants, to the caller.
+  // concertRev. The band-wide bake is admin-only and is THE bake (P205); the personal
+  // "?scope=mine" variant (B07) was retired. Listing/download stay member-scoped to
+  // the band (old `${setlistId}~${userId}` variant concerts remain viewable).
   // P205: the optional layerDefaults map (layer name → default-on) is the bake
   // dialog's explicit capture — the server stamps LayerImage.default_on from it
   // (absent ⇒ legacy compute).
-  bakeSetlist: (
-    bandId: string,
-    setlistId: string,
-    scope?: "mine",
-    layerDefaults?: Record<string, boolean>,
-  ) =>
+  bakeSetlist: (bandId: string, setlistId: string, layerDefaults?: Record<string, boolean>) =>
     request<Concert>(
       "POST",
-      `/api/bands/${bandId}/setlists/${setlistId}/bake${scope === "mine" ? "?scope=mine" : ""}`,
+      `/api/bands/${bandId}/setlists/${setlistId}/bake`,
       layerDefaults ? { layerDefaults } : undefined,
     ),
   listConcerts: (bandId: string) =>

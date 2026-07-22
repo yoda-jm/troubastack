@@ -125,7 +125,7 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 		now:      func() int64 { return 1700000000 },
 	}
 
-	cb, err := b.Bake(context.Background(), bandID, setlistID, u, false, nil)
+	cb, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	}
 
 	// Re-bake bumps concert_rev monotonically.
-	cb2, err := b.Bake(context.Background(), bandID, setlistID, u, false, nil)
+	cb2, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
 	if err != nil {
 		t.Fatalf("re-bake: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestBake_DefaultOnCapture(t *testing.T) {
 	}
 	// nil → absent (legacy).
 	b, u, bandID, setlistID := mk()
-	cb, err := b.Bake(context.Background(), bandID, setlistID, u, false, nil)
+	cb, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
 	if err != nil {
 		t.Fatalf("bake(nil): %v", err)
 	}
@@ -224,7 +224,7 @@ func TestBake_DefaultOnCapture(t *testing.T) {
 	}
 	// Dialog turned "Marks" OFF → explicit default_on=false on that overlay.
 	b2, u2, bandID2, setlistID2 := mk()
-	cb2, err := b2.Bake(context.Background(), bandID2, setlistID2, u2, false, map[string]bool{"Marks": false})
+	cb2, err := b2.Bake(context.Background(), bandID2, setlistID2, u2, map[string]bool{"Marks": false})
 	if err != nil {
 		t.Fatalf("bake(off): %v", err)
 	}
@@ -234,7 +234,7 @@ func TestBake_DefaultOnCapture(t *testing.T) {
 	}
 	// Dialog turned "Marks" ON → default_on=true.
 	b3, u3, bandID3, setlistID3 := mk()
-	cb3, err := b3.Bake(context.Background(), bandID3, setlistID3, u3, false, map[string]bool{"Marks": true})
+	cb3, err := b3.Bake(context.Background(), bandID3, setlistID3, u3, map[string]bool{"Marks": true})
 	if err != nil {
 		t.Fatalf("bake(on): %v", err)
 	}
@@ -285,7 +285,7 @@ func TestBake_BenchSortsAfterMain_flagsOnCall(t *testing.T) {
 		bakesDir: t.TempDir(),
 		now:      func() int64 { return 1700000000 },
 	}
-	cb, err := b.Bake(context.Background(), bandID, setlistID, u, false, nil)
+	cb, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
@@ -305,21 +305,13 @@ func TestBake_BenchSortsAfterMain_flagsOnCall(t *testing.T) {
 	if last.SongID != benchSong {
 		t.Errorf("bench song should sort last despite position 1; got last=%s want=%s", last.SongID, benchSong)
 	}
-
-	// B07: the PERSONAL variant bake also includes the bench, flagged and last —
-	// the bench is a setlist-structure property, independent of which file resolves.
-	pcb, err := b.Bake(context.Background(), bandID, setlistID, u, true, nil)
-	if err != nil {
-		t.Fatalf("personal bake: %v", err)
-	}
-	if len(pcb.Songs) != 4 || !pcb.Songs[3].OnCall || pcb.Songs[3].SongID != benchSong {
-		t.Fatalf("variant bake should include the bench last+flagged, got %+v", pcb.Songs)
-	}
 }
 
-// TestBake_PersonalCuesInjected is the T50 guard: the per-member (personal) bake
-// injects THAT member's song cues; the shared band bake carries none.
-func TestBake_PersonalCuesInjected(t *testing.T) {
+// TestBake_MemberCuesInjected is the T50/P205 guard: the band-wide bake carries a
+// member's song cues as member_cues (field 11, keyed by id), and leaves field 10
+// (`cues`) empty so an old app degrades to no-cues. (The personal-variant field-10
+// path was retired with the ?scope=mine bake.)
+func TestBake_MemberCuesInjected(t *testing.T) {
 	svc, eng, u, bandID, setlistID := seed(t)
 
 	// The seeded setlist has one song; grab its id and set two personal cues on it.
@@ -343,7 +335,7 @@ func TestBake_PersonalCuesInjected(t *testing.T) {
 	}
 
 	// Shared band bake: cues are personal → none ride.
-	shared, err := b.Bake(context.Background(), bandID, setlistID, u, false, nil)
+	shared, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
 	if err != nil {
 		t.Fatalf("shared bake: %v", err)
 	}
@@ -360,21 +352,6 @@ func TestBake_PersonalCuesInjected(t *testing.T) {
 	if len(mc) != 1 || mc[0].MemberID != u.ID || len(mc[0].Cues) != 2 ||
 		mc[0].Cues[0].Icon != "mic" || mc[0].Cues[1].Color != "#e11d48" {
 		t.Fatalf("shared bake member_cues = %+v, want u's cues keyed by member id (P205)", mc)
-	}
-
-	// Personal variant bake: exactly this member's cues, in order, tints preserved.
-	personal, err := b.Bake(context.Background(), bandID, setlistID, u, true, nil)
-	if err != nil {
-		t.Fatalf("personal bake: %v", err)
-	}
-	got := personal.Songs[0].Cues
-	if len(got) != len(want) {
-		t.Fatalf("personal bake cues = %+v, want %+v", got, want)
-	}
-	for i := range want {
-		if got[i].Icon != want[i].Icon || got[i].Color != want[i].Color {
-			t.Fatalf("cue %d = %+v, want %+v", i, got[i], want[i])
-		}
 	}
 }
 
@@ -464,7 +441,7 @@ func TestBake_BandWide_CarriesEveryMember(t *testing.T) {
 		bakesDir: t.TempDir(),
 		now:      func() int64 { return 1700000000 },
 	}
-	cb, err := b.Bake(context.Background(), band.ID, sl.ID, admin, false, nil)
+	cb, err := b.Bake(context.Background(), band.ID, sl.ID, admin, nil)
 	if err != nil {
 		t.Fatalf("band-wide bake: %v", err)
 	}
@@ -527,7 +504,7 @@ func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			res[i], errs[i] = b.Bake(context.Background(), bandID, setlistID, u, false, nil)
+			res[i], errs[i] = b.Bake(context.Background(), bandID, setlistID, u, nil)
 		}(i)
 	}
 	wg.Wait()
@@ -623,7 +600,7 @@ func TestBake_PublishReclaimsOnConcurrentPublish(t *testing.T) {
 			// hookless copy so it doesn't recurse. Same goroutine → t.Errorf is safe.
 			a := *b
 			a.afterNextRev = nil
-			ab, err := a.Bake(context.Background(), bandID, setlistID, u, false, nil)
+			ab, err := a.Bake(context.Background(), bandID, setlistID, u, nil)
 			if err != nil {
 				t.Errorf("inner bake A failed: %v", err)
 				return
@@ -632,7 +609,7 @@ func TestBake_PublishReclaimsOnConcurrentPublish(t *testing.T) {
 		})
 	}
 
-	bb, err := b.Bake(context.Background(), bandID, setlistID, u, false, nil)
+	bb, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
 	if err != nil {
 		t.Fatalf("B must re-claim, not fail, when its rev was published concurrently: %v", err)
 	}

@@ -19,14 +19,12 @@ export function BakeDialog({
   bandId,
   setlistId,
   songIds,
-  scope,
   onConfirm,
   onCancel,
 }: {
   bandId: string;
   setlistId: string;
   songIds: string[];
-  scope?: "mine";
   onConfirm: (layerDefaults: Record<string, boolean>) => void;
   onCancel: () => void;
 }) {
@@ -75,7 +73,7 @@ export function BakeDialog({
     };
   }, [bandId, setlistId, songIds]);
 
-  const title = scope === "mine" ? "Bake my parts" : "Bake setlist";
+  const title = "Bake setlist";
   const summary = useMemo(
     () => (layers ?? []).map((l) => `${l.name} ${on[l.name] ? "✓" : "✗"}`).join(" · "),
     [layers, on],
@@ -99,7 +97,7 @@ export function BakeDialog({
       <div className="bake-dialog card">
         <div className="card-head">
           <h2>{title}</h2>
-          <AudienceTag audience={scope === "mine" ? "mine" : "band"} />
+          <AudienceTag audience="band" />
         </div>
         <p className="muted">
           Baking captures which layers show <em>by default</em> when the concert opens. Toggle any off

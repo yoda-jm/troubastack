@@ -78,25 +78,23 @@ func viewOf(bandID string, cb bake.ConcertBundle) concertView {
 	}
 }
 
-// bake mints a new revision of a setlist's concert. The band-wide bake is
-// ADMIN-only (I11, same pattern as T08's annotation import). `?scope=mine`
-// mints the caller's PERSONAL variant (B07) — allowed for any band member,
-// because baking your own view of an admin-curated setlist is reading, not
-// publishing to the band.
+// bake mints a new revision of a setlist's band-wide concert — ADMIN-only (I11, same
+// pattern as T08's annotation import). This is THE bake (P205); the per-member
+// "?scope=mine" variant (B07) was retired, so the query param no longer branches.
 func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	if a.baker == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bake not configured"})
 		return
 	}
 	bandID := r.PathValue("bandId")
-	personal := r.URL.Query().Get("scope") == "mine"
-	// Membership is required either way; GetBand 403/404s a non-member.
+	// The band-wide bake is THE bake (P205) and is ADMIN-only (I11); the personal
+	// "?scope=mine" variant was retired. GetBand 403/404s a non-member.
 	_, role, err := a.svc.GetBand(u, bandID)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	if !personal && role != app.RoleAdmin {
+	if role != app.RoleAdmin {
 		writeErr(w, app.ErrForbidden)
 		return
 	}
@@ -109,7 +107,7 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&in)
 	}
-	cb, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, personal, in.LayerDefaults)
+	cb, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, in.LayerDefaults)
 	if err != nil {
 		writeErr(w, err)
 		return
