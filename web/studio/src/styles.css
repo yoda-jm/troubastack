@@ -195,6 +195,16 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
    pane is MONOSPACE (chords over words + reliable glyph alignment). */
 .chart-editor-head { margin-bottom: .5rem; }
 .chart-editor-head h3 { margin: 0 0 .15rem; font-size: 1rem; }
+/* T60 transpose control: a compact inline row under the chart editor. */
+.transpose-form {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem;
+  padding: .55rem .7rem; margin-top: .5rem;
+  border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2);
+}
+.transpose-form .field { flex: 0 0 auto; gap: .2rem; }
+.transpose-form .field > span { font-family: var(--font-mono); font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.transpose-form .field input { width: auto; }
+.transpose-form .check { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; }
 .chart-src-wrap { position: relative; flex: 1 1 20rem; min-width: 16rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); overflow: hidden; }
 .chart-src-hl, .chart-src-ta {
   margin: 0; padding: .5rem .6rem; border: 0; box-sizing: border-box; tab-size: 4;

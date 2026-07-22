@@ -411,6 +411,28 @@ export const api = {
       { source, baseRevision },
     ).then((r) => r.file),
 
+  // transposeChartSource (T60 surface 1): transpose a generated chart's source by a
+  // target key (or a raw semitone count when the song key isn't parseable). dryRun
+  // returns the transposed source for preview without persisting; otherwise it saves
+  // in place (LWW on baseRevision → 409) and, with updateSongKey, sets the song key.
+  transposeChartSource: (
+    bandId: string,
+    songId: string,
+    fileId: string,
+    opts: {
+      targetKey?: string;
+      semitones?: number;
+      updateSongKey?: boolean;
+      baseRevision: number;
+      dryRun: boolean;
+    },
+  ) =>
+    request<{ file?: SongFile; source: string }>(
+      "POST",
+      `/api/bands/${bandId}/songs/${songId}/files/${fileId}/chart-source:transpose`,
+      opts,
+    ),
+
   uploadFile: (bandId: string, songId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);

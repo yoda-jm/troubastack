@@ -1271,7 +1271,13 @@ export function Viewer({
                   {tab === "band" && (
                     <>
                       <Metadata bandId={bandId} song={song} onSaved={onSongSaved} />
-                      <Files bandId={bandId} songId={songId} songTitle={song.title} />
+                      <Files
+                        bandId={bandId}
+                        songId={songId}
+                        songTitle={song.title}
+                        songKey={song.key}
+                        onSongKeyChanged={(k) => onSongSaved({ ...song, key: k })}
+                      />
                     </>
                   )}
                   {tab === "mine" && (

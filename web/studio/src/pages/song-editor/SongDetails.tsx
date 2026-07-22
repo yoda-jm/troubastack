@@ -48,6 +48,13 @@ export function Metadata({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // T60: a chart-source transpose can update the song key server-side (from the
+  // ChartEditor). Re-sync the key field when the song prop's key changes so the
+  // displayed key reflects it (the field is otherwise seeded once on mount).
+  useEffect(() => {
+    setKey(song.key ?? "");
+  }, [song.key]);
+
   async function onSave(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -176,10 +183,16 @@ export function Files({
   bandId,
   songId,
   songTitle,
+  songKey,
+  onSongKeyChanged,
 }: {
   bandId: string;
   songId: string;
   songTitle?: string;
+  // T60: the song's current key drives the ChartEditor's Transpose control (prefill +
+  // key/semitone path). onSongKeyChanged bubbles up a transpose that also updated the key.
+  songKey?: string;
+  onSongKeyChanged?: (key: string) => void;
 }) {
   const [files, setFiles] = useState<SongFile[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -320,6 +333,8 @@ export function Files({
             bandId={bandId}
             songId={songId}
             initial={chart}
+            songKey={songKey}
+            onSongKeyChanged={onSongKeyChanged}
             onCancel={() => setChart(null)}
             onDone={() => {
               setChart(null);
@@ -573,24 +588,44 @@ function HighlightedSource({ value, onChange }: { value: string; onChange: (v: s
   );
 }
 
+// keyRe: a bare musical key for UX gating only (prefill + key-vs-semitone path). This
+// is NOT transposition — the transpose algorithm lives only on the server (T60). Mirrors
+// the server's ParseKey grammar.
+const keyRe = /^[A-G](#|b)?m?$/;
+
 function ChartEditor({
   bandId,
   songId,
   initial,
+  songKey,
+  onSongKeyChanged,
   onDone,
   onCancel,
 }: {
   bandId: string;
   songId: string;
   initial: chartEdit;
+  songKey?: string;
+  onSongKeyChanged?: (key: string) => void;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const [source, setSource] = useState(initial.source);
+  const [baseRevision, setBaseRevision] = useState(initial.baseRevision);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+
+  // T60 transpose control (existing generated charts only). The song key drives the
+  // path: a parseable key → key picker + "also update song key"; otherwise a ± semitone
+  // stepper (interval-only transpose is still well-defined server-side).
+  const keyParses = keyRe.test((songKey ?? "").trim());
+  const [transposeOpen, setTransposeOpen] = useState(false);
+  const [targetKey, setTargetKey] = useState(keyParses ? (songKey ?? "").trim() : "");
+  const [semitones, setSemitones] = useState(1);
+  const [alsoUpdateKey, setAlsoUpdateKey] = useState(keyParses);
+  const [transposing, setTransposing] = useState(false);
 
   // Revoke the object URL when it's replaced or the editor unmounts (cleanup runs
   // with the PREVIOUS url) — no blob leaks.
@@ -618,7 +653,7 @@ function ChartEditor({
     setError(null);
     try {
       if (initial.fileId) {
-        await api.saveChartSource(bandId, songId, initial.fileId, initial.baseRevision, source);
+        await api.saveChartSource(bandId, songId, initial.fileId, baseRevision, source);
       } else {
         await api.createTextChart(bandId, songId, source);
       }
@@ -627,6 +662,48 @@ function ChartEditor({
       setError(err instanceof ApiError ? err.message : "Failed to save chart");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Transpose request args: a parseable song key uses the key path (+ optional key
+  // update); otherwise the ± semitone path. dryRun for preview, persist for apply.
+  const transposeArgs = (dryRun: boolean) =>
+    keyParses
+      ? { targetKey: targetKey.trim(), updateSongKey: alsoUpdateKey, baseRevision, dryRun }
+      : { semitones, baseRevision, dryRun };
+  // Enabled only with a valid transpose to request (a parseable target key, or any
+  // semitone count in the fallback path).
+  const canTranspose = keyParses ? keyRe.test(targetKey.trim()) : true;
+
+  async function previewTranspose() {
+    if (!initial.fileId) return;
+    setTransposing(true);
+    setError(null);
+    try {
+      const { source: t } = await api.transposeChartSource(bandId, songId, initial.fileId, transposeArgs(true));
+      const blob = await api.previewTextChart(bandId, songId, t);
+      setPreviewUrl(URL.createObjectURL(blob)); // effect revokes the old one
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to preview transpose");
+    } finally {
+      setTransposing(false);
+    }
+  }
+
+  async function applyTranspose() {
+    if (!initial.fileId) return;
+    setTransposing(true);
+    setError(null);
+    try {
+      const { source: t, file } = await api.transposeChartSource(bandId, songId, initial.fileId, transposeArgs(false));
+      setSource(t); // the editor now shows the transposed source (persisted in place)
+      if (file?.revision != null) setBaseRevision(file.revision);
+      if (keyParses && alsoUpdateKey) onSongKeyChanged?.(targetKey.trim());
+      setTransposeOpen(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to transpose");
+    } finally {
+      setTransposing(false);
     }
   }
 
@@ -673,6 +750,67 @@ lyrics go here
 **bold** in a normal text line
 (blank line = paragraph gap)`}</pre>
       </details>
+      {/* Transpose (T60 surface 1) — existing generated charts only. */}
+      {initial.fileId && transposeOpen && (
+        <div className="transpose-form" data-testid="transpose-form">
+          {keyParses ? (
+            <label className="field">
+              <span>Transpose to key</span>
+              <input
+                data-testid="transpose-target-key"
+                value={targetKey}
+                onChange={(e) => setTargetKey(e.target.value)}
+                placeholder="e.g. A, F#m, Bb"
+                size={6}
+              />
+            </label>
+          ) : (
+            <label className="field">
+              <span>Shift semitones</span>
+              <input
+                type="number"
+                data-testid="transpose-semitones"
+                value={semitones}
+                min={-11}
+                max={11}
+                onChange={(e) => setSemitones(Number(e.target.value) || 0)}
+                size={4}
+              />
+            </label>
+          )}
+          {keyParses && (
+            <label className="check">
+              <input
+                type="checkbox"
+                data-testid="transpose-update-key"
+                checked={alsoUpdateKey}
+                onChange={(e) => setAlsoUpdateKey(e.target.checked)}
+              />
+              Also update the song key
+            </label>
+          )}
+          <button
+            type="button"
+            className="ghost-btn"
+            data-testid="transpose-preview"
+            disabled={transposing || !canTranspose}
+            onClick={() => void previewTranspose()}
+          >
+            {transposing ? "…" : "Preview"}
+          </button>
+          <button
+            type="button"
+            data-testid="transpose-apply"
+            disabled={transposing || !canTranspose}
+            onClick={() => void applyTranspose()}
+          >
+            Apply
+          </button>
+          <button type="button" className="ghost-btn" onClick={() => setTransposeOpen(false)}>
+            Close
+          </button>
+        </div>
+      )}
       <div className="inline-form">
         <button type="button" data-testid="chart-save" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving…" : "Save chart"}
@@ -686,6 +824,17 @@ lyrics go here
         >
           {previewing ? "Rendering…" : "Preview"}
         </button>
+        {initial.fileId && (
+          <button
+            type="button"
+            className="ghost-btn"
+            data-testid="chart-transpose-btn"
+            aria-expanded={transposeOpen}
+            onClick={() => setTransposeOpen((o) => !o)}
+          >
+            Transpose…
+          </button>
+        )}
         <button type="button" className="ghost-btn" onClick={onCancel}>
           Cancel
         </button>

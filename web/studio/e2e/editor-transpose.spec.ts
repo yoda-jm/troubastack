@@ -1,0 +1,99 @@
+/**
+ * T60 surface 1 (editor transpose): the chart-source editor's "Transpose…" control
+ * transposes a generated chart in place. With "Also update the song key" on, a G→A
+ * transpose rewrites the chord rows (G→A, D→E), and the song's Key field reflects the
+ * new key. Prefill comes from the song key; the checkbox defaults on when it parses.
+ */
+import { test, expect, type Page } from "@playwright/test";
+
+const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+async function register(page: Page, username: string, password = "secret123") {
+  await page.goto("/register");
+  await page.getByTestId("username").fill(username);
+  await page.getByTestId("displayName").fill(`Display ${username}`);
+  await page.getByTestId("password").fill(password);
+  await page.getByTestId("submit").click();
+  await expect(page).toHaveURL(/\/bands$/);
+}
+async function createBandAndOpen(page: Page, bandName: string) {
+  await page.getByTestId("new-band-btn").click();
+  await page.getByTestId("band-name").fill(bandName);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
+  await expect(page.getByTestId("band-title")).toHaveText(bandName);
+}
+async function createSongAndOpen(page: Page, title: string) {
+  await page.getByTestId("new-song-btn").click();
+  await page.getByTestId("song-title").fill(title);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").filter({ hasText: title }).click();
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+}
+
+test("editor transpose G→A rewrites the chords and updates the song key (T60)", async ({ page }) => {
+  await register(page, `tr_${stamp()}`);
+  await createBandAndOpen(page, `TrBand ${stamp()}`);
+  await createSongAndOpen(page, `Song ${stamp()}`);
+
+  await page.getByTestId("my-files-edit").click();
+  const panel = page.getByTestId("details-panel");
+
+  // Set the song key to G (a parseable "from" → the key path is enabled).
+  await panel.getByTestId("meta-key").fill("G");
+  await panel.getByTestId("meta-save").click();
+  await expect(panel.getByTestId("meta-notice")).toBeVisible();
+
+  // Create + save a text chart whose chord row is "G            D".
+  await panel.getByTestId("new-text-chart").click();
+  await expect(panel.getByTestId("chart-editor")).toBeVisible();
+  await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nwords under the chords here\n");
+  await panel.getByTestId("chart-save").click();
+
+  // Re-open the saved (generated) chart's source — Transpose shows for saved charts only.
+  await panel.getByTestId("file-edit-source").click();
+  await expect(panel.getByTestId("chart-editor")).toBeVisible();
+
+  // Open Transpose: the target key is prefilled from the song key; "also update key" on.
+  await panel.getByTestId("chart-transpose-btn").click();
+  await expect(panel.getByTestId("transpose-target-key")).toHaveValue("G");
+  await expect(panel.getByTestId("transpose-update-key")).toBeChecked();
+
+  // Transpose to A and apply.
+  await panel.getByTestId("transpose-target-key").fill("A");
+  await panel.getByTestId("transpose-apply").click();
+
+  // The source is rewritten in place (G→A, D→E) …
+  await expect(panel.getByTestId("chart-source")).toHaveValue(/A\s+E/);
+  await expect(panel.getByTestId("chart-source")).not.toHaveValue(/G\s+D/);
+  // … and the song Key field now shows A (the "also update key" side effect).
+  await expect(panel.getByTestId("meta-key")).toHaveValue("A");
+});
+
+test("transpose Preview renders without persisting; the source is untouched until Apply (T60)", async ({
+  page,
+}) => {
+  await register(page, `trp_${stamp()}`);
+  await createBandAndOpen(page, `TrpBand ${stamp()}`);
+  await createSongAndOpen(page, `Song ${stamp()}`);
+
+  await page.getByTestId("my-files-edit").click();
+  const panel = page.getByTestId("details-panel");
+  await panel.getByTestId("meta-key").fill("G");
+  await panel.getByTestId("meta-save").click();
+  await expect(panel.getByTestId("meta-notice")).toBeVisible();
+
+  await panel.getByTestId("new-text-chart").click();
+  await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nline of lyrics\n");
+  await panel.getByTestId("chart-save").click();
+  await panel.getByTestId("file-edit-source").click();
+  await expect(panel.getByTestId("chart-editor")).toBeVisible();
+
+  await panel.getByTestId("chart-transpose-btn").click();
+  await panel.getByTestId("transpose-target-key").fill("A");
+  await panel.getByTestId("transpose-preview").click();
+
+  // Preview renders the transposed chart, but the editor source stays G until Apply.
+  await expect(panel.getByTestId("chart-preview")).toBeVisible();
+  await expect(panel.getByTestId("chart-source")).toHaveValue(/G\s+D/);
+});
