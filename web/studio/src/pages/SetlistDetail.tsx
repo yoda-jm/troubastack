@@ -206,6 +206,7 @@ function BakeCard({
   const [concerts, setConcerts] = useState<Concert[]>([]);
   const [busy, setBusy] = useState<"" | "band" | "mine">("");
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]); // T60: per-song bake warnings
   // P205: the open bake dialog (which scope), or null. Baking goes THROUGH the dialog
   // so default-layer capture is never silent.
   const [dialog, setDialog] = useState<{ scope?: "mine" } | null>(null);
@@ -230,8 +231,10 @@ function BakeCard({
     setDialog(null);
     setBusy(scope === "mine" ? "mine" : "band");
     setError(null);
+    setWarnings([]);
     try {
-      await api.bakeSetlist(bandId, setlistId, scope, layerDefaults);
+      const concert = await api.bakeSetlist(bandId, setlistId, scope, layerDefaults);
+      setWarnings(concert.warnings ?? []);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Bake failed");
@@ -312,6 +315,16 @@ function BakeCard({
           different part’s layout.
         </p>
         <ErrorBanner message={error} />
+        {warnings.length > 0 && (
+          <div className="notice warn" data-testid="bake-warnings" role="status">
+            Baked, with warnings:
+            <ul style={{ margin: ".3rem 0 0", paddingLeft: "1.2rem" }}>
+              {warnings.map((wm, i) => (
+                <li key={i}>{wm}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {concerts.length > 0 && (
           <ul className="list" data-testid="bake-history">
             {concerts.map((c) => (
@@ -446,6 +459,10 @@ function SetlistMeta({
 // for any that moved we apply the inverse translate then transition it to zero — drag,
 // ↑/↓, and ★ cross-group moves all animate uniformly, dependency-free, on every
 // browser. `prefers-reduced-motion` skips the transforms (instant, as before).
+// keyRe: a bare musical key, for the T60 transpose-checkbox greying (UX only — the
+// transpose algorithm lives on the server). Mirrors app.TransposeEligible / ParseKey.
+const keyRe = /^[A-G](#|b)?m?$/;
+
 const FLIP_MS = 200;
 function useFlipRows(dep: unknown): (id: string, el: HTMLElement | null) => void {
   const els = useRef(new Map<string, HTMLElement>());
@@ -754,8 +771,23 @@ function ItemRow({
     item.tempoOverride != null && item.tempoOverride !== 0 ? String(item.tempoOverride) : "",
   );
   const [notes, setNotes] = useState(item.notes ?? "");
+  const [transposeChords, setTransposeChords] = useState(item.transposeChords ?? false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // T60 transpose-checkbox greying. The song key + generated-chart presence come from
+  // the item view (they don't change while editing); the override is parsed live so the
+  // checkbox enables the moment a valid override is typed. reason names the first gap.
+  const songKeyOk = keyRe.test((item.songKey ?? "").trim());
+  const overrideOk = keyRe.test(keyOverride.trim());
+  const transposeEligible = Boolean(item.hasChart) && songKeyOk && overrideOk;
+  const transposeReason = !item.hasChart
+    ? "no text chart on this song"
+    : !songKeyOk
+      ? "song key not set or not parseable"
+      : !overrideOk
+        ? "override key not parseable"
+        : "transpose the chords from the song key to this override at bake";
 
   async function save() {
     setError(null);
@@ -765,6 +797,7 @@ function ItemRow({
         keyOverride,
         tempoOverride: tempoOverride === "" ? 0 : Number(tempoOverride),
         notes,
+        transposeChords,
       });
       setEditing(false);
       await reload();
@@ -779,6 +812,7 @@ function ItemRow({
     setKeyOverride(item.keyOverride ?? "");
     setTempoOverride(item.tempoOverride ? String(item.tempoOverride) : "");
     setNotes(item.notes ?? "");
+    setTransposeChords(item.transposeChords ?? false);
     setEditing(false);
   }
 
@@ -934,11 +968,42 @@ function ItemRow({
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+            {/* T60: transpose the chart's chords to the key override, burned at bake.
+                Greyed (with the reason) unless the song has a chart and both keys parse. */}
+            <div className="field">
+              <label>Chords</label>
+              <label
+                className={`check${transposeEligible ? "" : " is-disabled"}`}
+                data-testid="item-transpose-label"
+                title={transposeReason}
+              >
+                <input
+                  type="checkbox"
+                  data-testid="item-transpose"
+                  checked={transposeChords}
+                  disabled={!transposeEligible}
+                  onChange={(e) => setTransposeChords(e.target.checked)}
+                />
+                transpose chords
+              </label>
+            </div>
           </div>
           <div className="form-foot">
             <button type="button" className="primary btn-sm" data-testid="item-save" disabled={busy} onClick={save}>
               {busy ? "Saving…" : "Save"}
             </button>
+            {item.hasChart && (
+              <a
+                className="btn-sm ghost-btn"
+                data-testid="item-chart-preview"
+                href={`/api/bands/${bandId}/setlists/${setlistId}/items/${item.id}/chart-preview`}
+                target="_blank"
+                rel="noreferrer"
+                title="Preview this chart as it will bake (transposed if enabled + saved)"
+              >
+                Preview chart
+              </a>
+            )}
             <button type="button" className="btn-sm ghost-btn" onClick={cancel}>
               Cancel
             </button>

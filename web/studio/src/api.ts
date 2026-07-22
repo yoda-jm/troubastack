@@ -142,6 +142,11 @@ export type SetlistItem = {
   onCall?: boolean;
   songTitle?: string;
   songArtist?: string;
+  // T60: burn the chart transposed to keyOverride at bake. songKey/hasChart are view
+  // hints for the checkbox greying (the client parses the live-edited keyOverride).
+  transposeChords?: boolean;
+  songKey?: string;
+  hasChart?: boolean;
 };
 
 export type SetlistItemPatch = {
@@ -149,6 +154,7 @@ export type SetlistItemPatch = {
   tempoOverride?: number;
   notes?: string;
   onCall?: boolean;
+  transposeChords?: boolean;
 };
 
 /** A baked concert (the proto AvailableConcert shape, B03) — 64-bit ints arrive as
@@ -162,6 +168,9 @@ export type Concert = {
   songs: { songId: string; rev: string }[];
   bakedBy?: string;
   downloadUrl: string;
+  // T60: per-song bake warnings (e.g. a transposed item that wasn't eligible at bake).
+  // Present only on the bake POST response.
+  warnings?: string[];
 };
 
 // ---- annotations (view-only) ----

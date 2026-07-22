@@ -1660,6 +1660,11 @@ type SetlistItemView struct {
 	SetlistItem
 	SongTitle  string `json:"songTitle"`
 	SongArtist string `json:"songArtist,omitempty"`
+	// T60: hints for the Studio transpose checkbox greying — the song's key and whether
+	// it has a generated chart. The client parses the (live-edited) keyOverride itself;
+	// these two don't change while editing, so they ride the view instead of N fetches.
+	SongKey  string `json:"songKey,omitempty"`
+	HasChart bool   `json:"hasChart,omitempty"`
 }
 
 // getSetlistForMember resolves a setlist scoped to a band the caller belongs to.
@@ -1701,6 +1706,15 @@ func (s *Service) Setlist(caller User, bandID, setlistID string) (SetlistDetail,
 		if song, err := s.repo.GetSong(it.SongID); err == nil {
 			v.SongTitle = song.Title
 			v.SongArtist = song.Artist
+			v.SongKey = song.Key
+		}
+		if files, err := s.repo.FilesOfSong(it.SongID); err == nil {
+			for _, f := range files {
+				if f.Generated {
+					v.HasChart = true
+					break
+				}
+			}
 		}
 		views = append(views, v)
 	}

@@ -243,6 +243,10 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   text-transform: lowercase;
 }
 .notice { background: var(--ok-bg); color: var(--ok-fg); text-transform: none; font-weight: 600; }
+.notice.warn { background: var(--warn-bg); color: var(--warn-fg); }
+/* A checkbox+label pair; greyed (with a not-allowed cursor) when its precondition fails. */
+.check { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; }
+.check.is-disabled { opacity: .5; cursor: not-allowed; }
 
 .error-banner {
   background: var(--error-bg); color: var(--error-fg);

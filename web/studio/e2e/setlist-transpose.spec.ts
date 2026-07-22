@@ -1,0 +1,97 @@
+/**
+ * T60 surface 2 (setlist transpose checkbox): the item edit form's "transpose chords"
+ * checkbox is greyed unless the song has a text chart AND both the song key and the
+ * typed key override parse. On a chart song it enables the moment a valid override is
+ * typed; on a PDF-only song it stays greyed with the "no text chart" tooltip.
+ */
+import { test, expect, type Page } from "@playwright/test";
+import { fileURLToPath } from "node:url";
+
+const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
+
+async function register(page: Page, u: string) {
+  await page.goto("/register");
+  await page.getByTestId("username").fill(u);
+  await page.getByTestId("displayName").fill(`D ${u}`);
+  await page.getByTestId("password").fill("secret123");
+  await page.getByTestId("submit").click();
+  await expect(page).toHaveURL(/\/bands$/);
+}
+async function createBandAndOpen(page: Page, name: string) {
+  await page.getByTestId("new-band-btn").click();
+  await page.getByTestId("band-name").fill(name);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").filter({ hasText: name }).click();
+  await expect(page.getByTestId("band-title")).toHaveText(name);
+}
+async function newSong(page: Page, bandUrl: string, title: string) {
+  await page.goto(bandUrl);
+  await page.getByTestId("new-song-btn").click();
+  await page.getByTestId("song-title").fill(title);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").filter({ hasText: title }).click();
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+}
+
+test("setlist item transpose checkbox greys on a PDF-only song, enables on a chart song (T60)", async ({
+  page,
+}) => {
+  await register(page, `slt_${stamp()}`);
+  await createBandAndOpen(page, `SltBand ${stamp()}`);
+  const bandUrl = page.url();
+
+  // Chart song: key G + a generated text chart.
+  await newSong(page, bandUrl, "Chart Song");
+  await page.getByTestId("my-files-edit").click();
+  let panel = page.getByTestId("details-panel");
+  await panel.getByTestId("meta-key").fill("G");
+  await panel.getByTestId("meta-save").click();
+  await expect(panel.getByTestId("meta-notice")).toBeVisible();
+  await panel.getByTestId("new-text-chart").click();
+  await panel.getByTestId("chart-source").fill("# Chart Song\n## Verse\nG            D\nlyric here\n");
+  await panel.getByTestId("chart-save").click();
+
+  // PDF-only song: upload a PDF, no chart.
+  await newSong(page, bandUrl, "PDF Song");
+  await page.getByTestId("my-files-edit").click();
+  panel = page.getByTestId("details-panel");
+  await panel.getByTestId("file-input").setInputFiles(PDF_PATH);
+  await panel.getByTestId("file-upload").click();
+  await expect(panel.getByTestId("file-row")).toHaveCount(1);
+
+  // Setlist with both songs.
+  await page.goto(bandUrl);
+  await page.getByTestId("nav-setlists").click();
+  await page.getByTestId("setlist-name").fill("Show");
+  await page.getByTestId("create-setlist").click();
+  await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
+  await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
+  for (const label of ["Chart Song", "PDF Song"]) {
+    await page.getByTestId("add-item-song").selectOption({ label });
+    await page.getByTestId("add-item").click();
+  }
+  await expect(page.getByTestId("item-row")).toHaveCount(2);
+
+  const chartRow = page.getByTestId("item-row").filter({ hasText: "Chart Song" });
+  const pdfRow = page.getByTestId("item-row").filter({ hasText: "PDF Song" });
+
+  // Chart song: checkbox starts disabled (no override typed), enables on a valid key.
+  await chartRow.getByTestId("item-edit").click();
+  await expect(chartRow.getByTestId("item-transpose")).toBeDisabled(); // no override yet
+  await chartRow.getByTestId("item-key").fill("A");
+  await expect(chartRow.getByTestId("item-transpose")).toBeEnabled();
+  await chartRow.getByTestId("item-transpose").check();
+  await chartRow.getByTestId("item-save").click();
+
+  // PDF-only song: greyed even with a valid override, tooltip explains why.
+  await pdfRow.getByTestId("item-edit").click();
+  await pdfRow.getByTestId("item-key").fill("A");
+  await expect(pdfRow.getByTestId("item-transpose")).toBeDisabled();
+  await expect(pdfRow.getByTestId("item-transpose-label")).toHaveAttribute(
+    "title",
+    "no text chart on this song",
+  );
+  // And a chart-preview affordance is absent on the PDF-only song (no chart to preview).
+  await expect(pdfRow.getByTestId("item-chart-preview")).toHaveCount(0);
+});
