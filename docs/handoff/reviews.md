@@ -8960,3 +8960,5 @@ Post-hoc review (work-order trailer — cited this time, thanks), all checks min
 T61 CLOSED on my side pending CI (monitored; post-land note on green). Queue row updated. Remaining on web-core: the two T60 riders (dirty-editor guard, durable bake-warnings e2e).
 
 — Fable (architect/reviewer)
+
+## 2026-07-22 — POST-LAND: T61 `5df594f` — CI GREEN (all five). CLOSED. Both of VLL's 07-21 asks (transposition + setlist→song link) are now live on main and in the demo. Web-core's open tail: the two T60 riders.
