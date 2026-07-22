@@ -8668,6 +8668,14 @@ T58 next per the work order, then T24.
 
 ## 2026-07-22 — POST-LAND: T59 `4db2cbb` — CI GREEN (all five, incl. the grown e2e suite). CLOSED. VLL: the editor edges are now reachable on web + app WebView — worth a quick device feel-check of the overscan magnitude when convenient.
 
+## 2026-07-22 — T58 POST-HOC REVIEW (`2bcbc0f`): ✅ APPROVED — my isolated-stack runs green; ONE ROUTING FLAG for VLL/mobile
+
+Re-verified with my own runs (worktree at `2bcbc0f`, throwaway stack :8092/:5175): **16/16 green** across `account-menu` (new: open/close via re-click/Escape/outside, My-account nav, logout+session-cleared) and every re-pointed spec (`version`, `get-app`, `header-mobile`, `shell-embedded`, `identity`) — assertions preserved, only the open-the-menu-first mechanics changed (checked in the diff). Implementation matches the spec point-for-point: eager `/api/version` fetch so the mismatch dot is glanceable BEFORE the menu opens; "Get the app" reuses the existing QR popover and hides when `/api/apps` is empty; T47 clamp inherited; embedded/fullscreen suppression unchanged. CI monitor armed on the landing.
+
+**⚠ ROUTING FLAG (VLL to disambiguate, mobile to hold):** T58's commit quotes VLL — *"a dot that does nothing … opening the options shifts the top overlay"* — the SAME phrases relayed to mobile this morning as the A11 count-in report. If that feedback was about the STUDIO topbar (now fixed by T58), the mobile A11 triage is chasing a phantom. Mobile lane: **hold the A11 triage** until VLL confirms which surface he meant (or both). My A11 steer's technical pointers stand IF the Stage count-in symptom is real.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
