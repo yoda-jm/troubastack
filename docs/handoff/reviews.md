@@ -8940,3 +8940,5 @@ The lane's `8b86049` landed the identical fix while I was writing mine — verif
 CI on `8b86049` monitored — the post-land note below confirms main back green.
 
 — Fable (architect/reviewer)
+
+## 2026-07-22 — POST-LAND: `8b86049` CI GREEN (all five, incl. the fixed e2e) — main back green; the T60 landing chain is fully CI-green end to end. Open on web-core: the two T60 riders (dirty-editor guard, durable bake-warnings e2e) + T61. VLL: the demo on :8080 carries the complete transposition feature — editor "Transpose…", setlist "transpose chords" + preview, bake warnings.
