@@ -983,10 +983,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   /* Version + Get-the-app popovers: clamp to the viewport so they can't run off
      either edge (the version popover once ran 117px off a phone's left; OPS02
      inherits the fix). Fixed insets + max-width + wrap. */
-  .version-popover {
-    position: fixed; left: .6rem; right: auto; top: auto;
-    min-width: 0; max-width: calc(100vw - 1.2rem); white-space: normal;
-  }
+  /* (T58: the version popover retired; the account menu has its own mobile clamp.) */
   .getapp-popover {
     position: fixed; left: .6rem; right: .6rem; top: auto;
     width: auto; max-width: calc(100vw - 1.2rem);
@@ -1148,7 +1145,6 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 
 /* ---- avatars & identity/onboarding ---- */
 .avatar svg { display: block; }
-.profile-link { display: inline-flex; align-items: center; gap: .4rem; text-decoration: none; color: inherit; }
 .avatar-picker { border: 1px solid var(--border); border-radius: 8px; padding: .5rem .75rem; margin: .5rem 0; }
 .avatar-picker legend { font-size: .85rem; color: var(--muted); padding: 0 .35rem; }
 .avatar-option { display: inline-flex; flex-direction: column; align-items: center; gap: .25rem; font-size: .8rem; cursor: pointer; padding: .4rem; border-radius: 8px; border: 2px solid transparent; }
@@ -1401,19 +1397,8 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .song-list .song-link-title { font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; }
 
 /* T29 — version chip + popover (build-identity / stale-cache detector). */
-.version-chip-wrap { position: relative; display: inline-flex; }
-.version-chip {
-  border: 1px solid var(--border); background: transparent; color: var(--muted);
-  font-family: var(--font-mono); font-size: .68rem; padding: .15rem .5rem;
-  border-radius: 999px; cursor: pointer;
-}
-.version-chip:hover { color: var(--fg); border-color: var(--border-strong); }
-.version-popover {
-  position: absolute; top: calc(100% + .4rem); right: 0; z-index: 30; min-width: 240px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
-  box-shadow: var(--shadow); padding: .6rem .75rem; font-size: .78rem;
-  display: flex; flex-direction: column; gap: .3rem; white-space: nowrap;
-}
+/* (T58 retired .version-chip / .version-popover — the build line now lives in the
+   account-menu footer as .account-version; .version-mismatch is still used there.) */
 .version-mismatch { color: var(--warn-fg); font-weight: 600; white-space: normal; max-width: 260px; }
 
 /* T30 — no silent ink: the offline/read-only chip in the editor chrome. */
@@ -1483,14 +1468,8 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
    opens a popover with a QR + per-platform download rows. Mirrors the version-chip
    pattern and INHERITS its T47 viewport clamp (see the media query below) so the
    popover never runs off a phone's edge. */
-.getapp-wrap { position: relative; display: inline-flex; }
-.getapp-chip {
-  display: inline-flex; align-items: center; gap: .35rem;
-  border: 1px solid var(--border); background: transparent; color: var(--muted);
-  font-size: .74rem; font-weight: 600; padding: .2rem .6rem; border-radius: 999px; cursor: pointer;
-}
-.getapp-chip:hover { color: var(--fg); border-color: var(--border-strong); }
-.getapp-chip[aria-expanded="true"] { color: var(--fg); border-color: var(--brand); }
+/* (T58 retired the standalone .getapp-chip — "Get the app" is an account-menu item
+   now; the .getapp-popover panel below is reused verbatim, opened from that item.) */
 .getapp-popover {
   position: absolute; top: calc(100% + .4rem); right: 0; z-index: 30; width: 300px; max-width: 300px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
@@ -1518,4 +1497,53 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .getapp-platform .coming-soon {
   font-size: .66rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 999px; background: var(--border); color: var(--muted);
+}
+
+/* ---- T58 topbar account menu: one avatar+name trigger → dropdown (My account /
+   Get the app / build line / Log out). Reuses the .getapp-popover panel for the
+   QR (opened from the "Get the app" item). ---- */
+.account-menu-wrap { position: relative; display: inline-flex; }
+.account-trigger {
+  display: inline-flex; align-items: center; gap: .45rem;
+  border: 1px solid var(--border); background: var(--surface); color: inherit; font: inherit;
+  border-radius: 999px; padding: .18rem .6rem .18rem .28rem; cursor: pointer;
+}
+.account-trigger:hover { border-color: var(--border-strong); }
+.account-trigger[aria-expanded="true"] { border-color: var(--brand); background: var(--brand-tint); }
+.account-name { font-weight: 600; font-size: .86rem; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Glanceable urgent-state dot (version mismatch) on the trigger — the warn token in
+   both themes; the ring keeps it legible on the tinted open state. */
+.account-dot {
+  width: .5rem; height: .5rem; border-radius: 999px; background: var(--warn-fg);
+  box-shadow: 0 0 0 2px var(--surface); flex: 0 0 auto;
+}
+.account-menu {
+  position: absolute; top: calc(100% + .4rem); right: 0; z-index: 40;
+  min-width: 15rem; max-width: min(19rem, calc(100vw - 1.5rem));
+  display: flex; flex-direction: column; gap: .05rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-sm); box-shadow: var(--shadow); padding: .35rem;
+}
+.account-item {
+  display: flex; align-items: center; gap: .55rem; width: 100%; text-align: left;
+  border: 0; background: transparent; color: inherit; font: inherit; font-size: .88rem;
+  padding: .5rem .6rem; border-radius: 8px; cursor: pointer; text-decoration: none;
+}
+.account-item:hover { background: var(--surface-2); }
+.account-version {
+  margin-top: .3rem; padding: .5rem .6rem .35rem; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: .25rem; font-size: .72rem; color: var(--muted);
+}
+.account-version .mono { font-family: var(--font-mono); white-space: nowrap; }
+/* Phone width: avatar-only trigger + the dropdown clamps to the viewport (T47) —
+   at ≤600px the .user cluster drops to its own left-aligned row, so a right:0 anchor
+   would open the menu off the left edge; pin it with fixed insets like .getapp-popover
+   (which the reused app panel already inherits). */
+@media (max-width: 600px) {
+  .account-name { display: none; }
+  .account-trigger { padding: .2rem; }
+  .account-menu {
+    position: fixed; left: .6rem; right: .6rem; top: auto;
+    min-width: 0; max-width: calc(100vw - 1.2rem);
+  }
 }

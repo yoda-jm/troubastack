@@ -27,7 +27,8 @@ async function createBandAndOpen(page: Page, bandName: string) {
 
 test("a. profile edit persists across reload", async ({ page }) => {
   await register(page, `prof_${stamp()}`);
-  await page.getByTestId("nav-profile").click();
+  await page.getByTestId("account-trigger").click(); // T58: profile is a menu entry now
+  await page.getByTestId("menu-account").click();
   await expect(page).toHaveURL(/\/me$/);
 
   const newName = `Edited ${stamp()}`;
@@ -50,7 +51,8 @@ test("a. profile edit persists across reload", async ({ page }) => {
 test("b. change password, logout, login with the new password", async ({ page }) => {
   const username = `pw_${stamp()}`;
   await register(page, username, "originalpw");
-  await page.getByTestId("nav-profile").click();
+  await page.getByTestId("account-trigger").click(); // T58: profile is a menu entry now
+  await page.getByTestId("menu-account").click();
 
   await page.getByTestId("pw-current").fill("originalpw");
   await page.getByTestId("pw-new").fill("changedpw");
@@ -58,6 +60,7 @@ test("b. change password, logout, login with the new password", async ({ page })
   await page.getByTestId("pw-save").click();
   await expect(page.getByTestId("pw-notice")).toBeVisible();
 
+  await page.getByTestId("account-trigger").click(); // T58: logout is a menu entry now
   await page.getByTestId("logout").click();
   await expect(page).toHaveURL(/\/login/);
 
@@ -140,6 +143,7 @@ test("e. logged-out /join → login → returns to join and can join", async ({ 
   const userPage = await userCtx.newPage();
   const uname = `guarduser_${stamp()}`;
   await register(userPage, uname, "joinpw1");
+  await userPage.getByTestId("account-trigger").click(); // T58: logout is a menu entry now
   await userPage.getByTestId("logout").click();
   await expect(userPage).toHaveURL(/\/login/);
 

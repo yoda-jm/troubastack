@@ -58,8 +58,10 @@ test("app header stays ≤ 2 rows on a phone, all controls reachable (T47)", asy
   // user cluster on the row below.
   expect(rows.user!.top, "user cluster is on row 2, below the brand").toBeGreaterThanOrEqual(rows.brand!.bottom - 2);
 
-  // Every control genuinely tappable (nothing clipped/occluded).
-  for (const id of ["version-chip", "nav-invites", "nav-profile", "logout"]) {
+  // Every topbar control genuinely tappable (nothing clipped/occluded). T58 folded
+  // profile/version/logout into the single account trigger; the row-2 controls are
+  // now the Invites nav link and the account trigger.
+  for (const id of ["nav-invites", "account-trigger"]) {
     expect(await reachable(page, id), `${id} must be tappable`).toBe(true);
   }
 
@@ -70,10 +72,10 @@ test("app header stays ≤ 2 rows on a phone, all controls reachable (T47)", asy
   expect(overflowX, "no horizontal overflow").toBeLessThanOrEqual(1);
 });
 
-test("version popover stays fully on-screen on a phone (T47)", async ({ page }) => {
+test("account menu stays fully on-screen on a phone (T47/T58)", async ({ page }) => {
   await register(page, `hp_${stamp()}`);
-  await page.getByTestId("version-chip").click();
-  const pop = page.getByTestId("version-popover");
+  await page.getByTestId("account-trigger").click();
+  const pop = page.getByTestId("account-menu");
   await expect(pop).toBeVisible();
   const box = await pop.evaluate((el) => {
     const b = el.getBoundingClientRect();

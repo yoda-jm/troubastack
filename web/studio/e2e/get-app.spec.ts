@@ -1,14 +1,17 @@
 /**
- * OPS02 (VLL placement re-scope): a topbar "Get the app" chip (top-right, on every
- * normal page) opens a popover with a QR + per-platform download rows. It appears
- * ONLY when the server carries an app (/api/apps non-empty). The e2e stack runs core
- * without TROUBA_APPS_DIR, so the chip is absent by default; the present cases are
- * driven by intercepting /api/apps with a fake manifest. The iOS row reads "Coming
- * soon" until an ios entry rides the manifest, then flips to a live download.
+ * OPS02 "Get the app", now a T58 account-menu item: open the account menu (top-right)
+ * → "Get the app" opens the reused QR/download popover. The item appears ONLY when the
+ * server carries an app (/api/apps non-empty). The e2e stack runs core without
+ * TROUBA_APPS_DIR, so the item is absent by default; the present cases are driven by
+ * intercepting /api/apps with a fake manifest. The iOS row reads "Coming soon" until an
+ * ios entry rides the manifest, then flips to a live download.
  */
 import { test, expect, type Page } from "@playwright/test";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+/** Open the top-right account menu (the "Get the app" item lives inside it now). */
+const openMenu = (page: Page) => page.getByTestId("account-trigger").click();
 
 async function register(page: Page, username: string, password = "secret123") {
   await page.goto("/register");
@@ -39,15 +42,17 @@ const mockApps = (page: Page, apps: object[]) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ apps }) }),
   );
 
-test("no topbar Get-the-app chip when no apps are embedded", async ({ page }) => {
+test("no Get-the-app menu item when no apps are embedded", async ({ page }) => {
   await register(page, `noapp_${stamp()}`);
+  await openMenu(page);
   await expect(page.getByTestId("get-app-btn")).toHaveCount(0);
 });
 
-test("topbar chip opens a popover: Android download + QR + iOS coming-soon", async ({ page }) => {
+test("menu item opens a popover: Android download + QR + iOS coming-soon", async ({ page }) => {
   await mockApps(page, [androidEntry]);
   await register(page, `app_${stamp()}`);
 
+  await openMenu(page);
   const btn = page.getByTestId("get-app-btn");
   await expect(btn).toBeVisible();
   await btn.click();
@@ -71,6 +76,7 @@ test("iOS row flips to a live download once the manifest carries ios", async ({ 
   await mockApps(page, [androidEntry, iosEntry]);
   await register(page, `ios_${stamp()}`);
 
+  await openMenu(page);
   await page.getByTestId("get-app-btn").click();
   await expect(page.getByTestId("get-app-popover")).toBeVisible();
   // The SAME iOS row is now a live download — no coming-soon.

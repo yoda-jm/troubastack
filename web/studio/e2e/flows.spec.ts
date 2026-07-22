@@ -119,6 +119,7 @@ test("4. create a song; clicking it opens the annotation editor", async ({ page 
 test("5. logout redirects to /login; guarded routes redirect when logged out", async ({ page }) => {
   await register(page, `leaver_${stamp()}`);
 
+  await page.getByTestId("account-trigger").click(); // T58: logout is a menu entry now
   await page.getByTestId("logout").click();
   await expect(page).toHaveURL(/\/login$/);
 

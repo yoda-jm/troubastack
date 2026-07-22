@@ -30,8 +30,7 @@ test("embedded=1 hides the topbar + logout, and survives SPA navigation (T46)", 
   await page.goto("/bands?embedded=1");
   await expect(page.getByTestId("band-link").first()).toBeVisible(); // Studio content still there
   await expect(page.locator(".topbar")).toHaveCount(0); // app topbar suppressed
-  await expect(page.getByTestId("logout")).toHaveCount(0); // no logout affordance
-  await expect(page.getByTestId("version-chip")).toHaveCount(0);
+  await expect(page.getByTestId("account-trigger")).toHaveCount(0); // no account menu (⇒ no logout/version/get-app)
   await expect(page.getByTestId("nav-invites")).toHaveCount(0);
 
   // Client-side navigation to another page: the flag must survive (param is gone now).
@@ -46,7 +45,6 @@ test("without ?embedded=1 the topbar + logout are present (T46 regression)", asy
   await register(page, `nm_${stamp()}`);
   // Fresh context (no embedded flag leaks from the other test).
   await expect(page.locator(".topbar")).toHaveCount(1);
-  await expect(page.getByTestId("logout")).toBeVisible();
-  await expect(page.getByTestId("version-chip")).toBeVisible();
+  await expect(page.getByTestId("account-trigger")).toBeVisible(); // account menu present (hosts Log out / version / get-app)
   await expect(page.getByTestId("nav-invites")).toBeVisible();
 });
