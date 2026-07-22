@@ -67,11 +67,14 @@ test("setlist item transpose checkbox greys on a PDF-only song, enables on a cha
   await page.getByTestId("create-setlist").click();
   await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
-  for (const label of ["Chart Song", "PDF Song"]) {
-    await page.getByTestId("add-item-song").selectOption({ label });
+  // Wait for each row to land before adding the next — add is async (POST + reload)
+  // and reload resets the select, so back-to-back clicks race on CI-slow.
+  const labels = ["Chart Song", "PDF Song"];
+  for (let i = 0; i < labels.length; i++) {
+    await page.getByTestId("add-item-song").selectOption({ label: labels[i] });
     await page.getByTestId("add-item").click();
+    await expect(page.getByTestId("item-row")).toHaveCount(i + 1);
   }
-  await expect(page.getByTestId("item-row")).toHaveCount(2);
 
   const chartRow = page.getByTestId("item-row").filter({ hasText: "Chart Song" });
   const pdfRow = page.getByTestId("item-row").filter({ hasText: "PDF Song" });
