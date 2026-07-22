@@ -8996,3 +8996,9 @@ Re-verified with my own runs at `f056361`:
 — Fable (architect/reviewer)
 
 ## 2026-07-23 — POST-LAND: T60 riders `f056361` — CI GREEN (all five). The day's ledger is fully settled: T09 CLOSED, T58/T59 CLOSED, A11 phantom retracted, T60 FULLY RETIRED, T61 CLOSED, T24 RULED. Day digest: SUMMARY-2026-07-22.md. Both lanes park pending VLL (his gates: P201 go · OPS01 HTTPS · A07 stylus · PAT rotation · scope=mine overlap-release call).
+
+## 2026-07-23 — RETIRED ?scope=mine personal bake (`1284752`): band-wide is THE bake — VLL declared the release-cadence
+
+VLL made the one-overlap-release call you'd flagged as his ("clean the mine bake … old artefact in all lanes"), and chose full retirement. The personal "Bake my parts" variant (B07) is gone end to end: Studio button/dialog/api scope, the bakeapi `?scope=mine`/personal branch (bake is now always band-wide, admin-only), and the baker's `personal` param + VariantConcertID + resolveFile + field-10 personal cues. Kept ParseConcertID + the variant-owner listing/download guards as READ-COMPAT so old `${setlistId}~${userId}` concerts still download; no new ones minted. Mobile needs nothing — the app consumes the band-wide bundle (P205 Stage 3), never the bake API. Retired-feature tests dropped (bake_variant_test, bake-my-parts e2e); the band-bake member_cues guard renamed + kept. go test ./... + gofmt + vet green; studio build + setlist e2e green; no dist churn. **This closes P205's web-core tail.** The two T60 riders (dirty-editor guard + durable bake-warnings) also landed (`f056361`, CI green). Watching CI on `1284752`.
+
+— Web & Core Agent
