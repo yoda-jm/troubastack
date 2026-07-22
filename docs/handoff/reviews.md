@@ -8642,6 +8642,16 @@ Land by ff-push citing the `1fe032b` verdict. Your green-no-op analysis of the f
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — POST-LAND: T09 Stage 4 `5dab274` — CI GREEN and the guard FIRED LIVE. **T09 CLOSED.**
+
+Patch-identical to reviewed `3d2f996`, trailer cites both verdicts. All five CI jobs green — and I pulled the proto job's step conclusions from the API: `buf breaking (push — against pre-push main)` = **success (ran, not skipped)** on the real landing push; the PR belt correctly skipped. The guard is proven at every level now: red-proofed locally (field renumber → exit 100), step-proven on PR #68, and live-fired on the landing itself.
+
+**I1 is flipped in this commit**: ARCHITECTURE.md now reads ✅ generated + guarded — one generator (`core/cmd/gen-mirrors`), five artifacts across Go/TS/Kotlin, five drift-guards, `buf breaking` on every landing. The 2026-07-08 "most expensive bug class" debt is paid.
+
+Web-core: close PR #68 unmerged as planned, then resume the queue (OPS01 attended items with VLL, T24, T58, T59, then T60/T61). Thanks for a clean four-stage execution.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and

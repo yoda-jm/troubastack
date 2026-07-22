@@ -101,7 +101,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T06 | [Low-latency wet-ink drawing path](T06-wet-ink-performance.md) | studio | M |
 | T07 | [Annotation-type descriptor registry](T07-annotation-type-registry.md) | web | M |
 | T08 | [Close the REST-import authorization gap](T08-rest-import-authorization.md) | core | S/M |
-| T09 | [Reconcile proto with the runtime type set](T09-proto-reconciliation.md) | proto/core/web | S |
+| ~~T09~~ | ✅ CLOSED 2026-07-22 (`5dab274`) — [the codegen program](T09-proto-reconciliation.md): gen-mirrors, 5 guarded artifacts, buf breaking; I1 flipped ✅ | proto/core/web/app | M (was S) |
 | T10 | [Split SongEditor.tsx](T10-split-song-editor.md) | studio | L |
 | T11 | [Remove dead wiring in core](T11-core-dead-wiring.md) | core | S |
 | T12 | [Make ARCHITECTURE.md enforcement claims honest](T12-docs-honesty.md) | docs | S |

@@ -25,10 +25,16 @@ All three clients (`core`, `web`, `app`) **generate** their types from it. Hand-
 duplicates of a wire type are forbidden.
 **Why.** Three languages (Go, TS, Kotlin) cannot be kept in sync by discipline. Drift here
 is the most expensive bug class.
-**Enforced.** 🎯 target — spec only today. Codegen has never run: Go, TS, and Kotlin each
-hand-write mirrored wire types, kept in sync by review + "AUTHORITY: object.proto" comments
-(see [docs/tasks/T09](tasks/T09-proto-reconciliation.md)). Wiring `buf generate` and adopting
-generated types in the clients is the open I1 debt.
+**Enforced.** ✅ generated + guarded (T09, closed 2026-07-22). One generator —
+[`core/cmd/gen-mirrors`](../core/cmd/gen-mirrors) (protocompile; a build-tool dependency
+only, zero runtime linkage) — emits five artifacts across the three client languages from
+`proto/`: `core/internal/bake/bundle_gen.go`, `core/internal/domain/objecttype_gen.go`,
+`web/studio/src/api.gen.ts`, `web/ink/src/objecttype.gen.ts`, and
+`app/shared/.../bundle/BundleModel.kt`. CI drift-guards all five (regenerate &&
+`git diff --exit-code`), and `buf breaking` gates field-number compatibility on every
+landing (push events compare against the pre-push tip, `github.event.before`). Hand-written
+wire mirrors are gone; hand-editing a generated artifact is forbidden — fix the generator.
+(History in [docs/tasks/T09](tasks/T09-proto-reconciliation.md).)
 
 **Scope note (2026-07-17, T50/T51/A20).** I1's principle — *cross-lane contracts have ONE
 generated, guarded source* — is not proto-specific. It also covers the shared **glyph
@@ -202,7 +208,7 @@ the three-seam limit — that residual check is the 🎯.
 
 | Invariant | Primary home |
 |---|---|
-| I1 | `proto/`; `web/ink/glyphs.json` + `CueGlyphData.kt` (generated glyph geometry, `gen-glyphs.mjs`) |
+| I1 | `proto/` → `core/cmd/gen-mirrors` (5 CI-guarded artifacts) + `buf breaking`; `web/ink/glyphs.json` + `CueGlyphData.kt` (generated glyph geometry, `gen-glyphs.mjs`) |
 | I2 I3 I4 I5 I7 | `proto/`, `core/internal/{domain,store}` |
 | I6 | `core/internal/sync`, `core/internal/app` (sessions/auth), client outboxes |
 | I8 | `web/ink`, `web/bake` (bake↔dry parity test); native overlay parity test (not yet written) |
