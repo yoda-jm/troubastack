@@ -247,6 +247,10 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 /* A checkbox+label pair; greyed (with a not-allowed cursor) when its precondition fails. */
 .check { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; }
 .check.is-disabled { opacity: .5; cursor: not-allowed; }
+/* T61: setlist item title → song editor. Inherit the row's look; link affordance on
+   hover only (no permanent underline noise in the list). */
+.item-title-link { color: inherit; text-decoration: none; }
+.item-title-link:hover { text-decoration: underline; color: var(--brand-ink, var(--brand)); }
 
 .error-banner {
   background: var(--error-bg); color: var(--error-fg);

@@ -854,7 +854,19 @@ function ItemRow({
       </span>
       <div className="song">
         <div className="name" data-testid="item-title">
-          {label} {item.songTitle ?? item.songId}
+          {/* T61: the title links to the song's editor. The running-order number stays
+              plain text; drag-to-reorder is grip-only so the link never intercepts it.
+              draggable=false stops the browser's own anchor-drag. A real <Link> gives
+              middle/ctrl-click + keyboard for free (hover-only affordance, no blue noise). */}
+          {label}{" "}
+          <Link
+            to={`/bands/${bandId}/songs/${item.songId}`}
+            className="item-title-link"
+            data-testid="item-title-link"
+            draggable={false}
+          >
+            {item.songTitle ?? item.songId}
+          </Link>
         </div>
         {item.songArtist && <div className="by">{item.songArtist}</div>}
         {cues && cues.length > 0 && (
