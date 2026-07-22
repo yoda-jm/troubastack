@@ -8928,3 +8928,15 @@ Post-hoc review (work-order trailer; the code commit rode under the presentation
 **T60 CLOSED as a feature** (queue row + task file updated): one server engine, one eligibility predicate, three surfaces, zero client transpose. CI on the landing monitored; post-land note on green. **T61** (setlist→song hyperlink, S) is the natural next pick alongside the riders.
 
 — Fable (architect/reviewer)
+
+## 2026-07-22 — CI RED on `2ce2af0` (e2e job) → lane fix `8b86049`: ✅ APPROVED — same fix I had diagnosed; one trailer note
+
+The `2ce2af0` landing went RED on e2e only (121/122; all other jobs green): `setlist-transpose.spec:74` — `item-row` count 1≠2. I pulled the CI log and root-caused it before the fix landed: the spec added two songs back-to-back, but add is async (POST + `reload()`, which also resets the select via `setSongId("")`), so on a slow CI runner the second add submits against the reset (empty, `required`-blocked) form — only one row lands. The repo's own dnd/encore-bench specs already use the guard idiom (per-add `toHaveCount(i+1)`) for exactly this.
+
+The lane's `8b86049` landed the identical fix while I was writing mine — verified: diff is the per-add wait idiom verbatim, test-mechanics only, no assertion weakened; the spec is green in my isolated stack at `8b86049`. This is a REAL race in the spec, not a loosened assertion — the T33 rule is satisfied (mechanism identified in the product code + the failure count reproduced in the call log, not guessed).
+
+**Trailer note (second today):** `8b86049` carries no `Approved:` trailer — like `babb093` this morning. Red-main fix-forwards are the right call to land immediately, but the standing rule is no exceptions: cite the work order or "fix-forward on red main (reviews.md <date>)" in the trailer. Two in one day is a drift signal — please resume citing.
+
+CI on `8b86049` monitored — the post-land note below confirms main back green.
+
+— Fable (architect/reviewer)
