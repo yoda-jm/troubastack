@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"troubastack/core/internal/app"
@@ -93,6 +94,120 @@ func TestTextChart_CreateEditRegenerate(t *testing.T) {
 			resp, _ = admin.do(http.MethodPost, base+"/text-charts", map[string]string{"source": "# T\n\n漢字"})
 			if resp.StatusCode != http.StatusBadRequest {
 				t.Fatalf("non-latin create = %d, want 400", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestTextChartTranspose (T60 surface 1) covers the :transpose endpoint over the HTTP
+// edge: dryRun returns the transposed source without persisting; a persist bumps the
+// revision, rewrites the source, and (with updateSongKey) sets the song key; a stale
+// baseRevision conflicts (409); a non-generated file and a no-op request are rejected
+// (400); and the semitone fallback works when the song key isn't parseable.
+func TestTextChartTranspose(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			admin := newClient(t, repo)
+			band := admin.makeBand("alice", "Band")
+			song := admin.makeSong(band.ID, "Song")
+			base := "/api/bands/" + band.ID + "/songs/" + song.ID
+
+			// Song key = G → the key path is enabled (a parseable "from").
+			resp, _ := admin.do(http.MethodPatch, base, map[string]any{"key": "G"})
+			mustStatus(t, resp, http.StatusOK)
+
+			// Create a chart whose chord row is "G            D".
+			resp, body := admin.do(http.MethodPost, base+"/text-charts", map[string]string{"source": chartSrc})
+			mustStatus(t, resp, http.StatusCreated)
+			var f app.SongFile
+			unmarshalField(t, body, "file", &f)
+			tpath := base + "/files/" + f.ID + "/chart-source:transpose"
+
+			// G→A (+2): G→A, D→E, same widths ⇒ byte-identical layout except the roots.
+			wantSrc := strings.Replace(chartSrc, "G            D", "A            E", 1)
+			if wantSrc == chartSrc {
+				t.Fatal("test setup: chord row literal did not match chartSrc")
+			}
+
+			// dryRun: returns the transposed source, persists NOTHING.
+			resp, db := admin.do(http.MethodPost, tpath, map[string]any{"targetKey": "A", "updateSongKey": true, "baseRevision": 1, "dryRun": true})
+			mustStatus(t, resp, http.StatusOK)
+			var drySrc string
+			unmarshalField(t, db, "source", &drySrc)
+			if drySrc != wantSrc {
+				t.Fatalf("dryRun source = %q, want %q", drySrc, wantSrc)
+			}
+			_, sb := admin.do(http.MethodGet, base+"/files/"+f.ID+"/chart-source", nil)
+			var stored string
+			var sf app.SongFile
+			unmarshalField(t, sb, "source", &stored)
+			unmarshalField(t, sb, "file", &sf)
+			if stored != chartSrc || sf.Revision != 1 {
+				t.Fatalf("dryRun must not persist: rev=%d, srcChanged=%v", sf.Revision, stored != chartSrc)
+			}
+
+			// Persist G→A with updateSongKey: revision bumps, source rewritten, key=A.
+			resp, pb := admin.do(http.MethodPost, tpath, map[string]any{"targetKey": "A", "updateSongKey": true, "baseRevision": 1, "dryRun": false})
+			mustStatus(t, resp, http.StatusOK)
+			var pf app.SongFile
+			unmarshalField(t, pb, "file", &pf)
+			if pf.ID != f.ID || pf.Revision != 2 {
+				t.Fatalf("persist: id=%q rev=%d, want same id rev 2", pf.ID, pf.Revision)
+			}
+			_, sb2 := admin.do(http.MethodGet, base+"/files/"+f.ID+"/chart-source", nil)
+			var stored2 string
+			unmarshalField(t, sb2, "source", &stored2)
+			if stored2 != wantSrc {
+				t.Fatalf("persisted source = %q, want %q", stored2, wantSrc)
+			}
+			// Song key updated to A (side effect of updateSongKey).
+			_, songsBody := admin.do(http.MethodGet, "/api/bands/"+band.ID+"/songs", nil)
+			var songs []app.Song
+			unmarshalField(t, songsBody, "songs", &songs)
+			var key string
+			for _, s := range songs {
+				if s.ID == song.ID {
+					key = s.Key
+				}
+			}
+			if key != "A" {
+				t.Fatalf("song key = %q, want A (updateSongKey)", key)
+			}
+
+			// Stale baseRevision (1, now 2) → 409.
+			resp, _ = admin.do(http.MethodPost, tpath, map[string]any{"targetKey": "C", "baseRevision": 1, "dryRun": false})
+			if resp.StatusCode != http.StatusConflict {
+				t.Fatalf("stale transpose = %d, want 409", resp.StatusCode)
+			}
+
+			// No-op request (no parseable targetKey, no semitones) → 400.
+			resp, _ = admin.do(http.MethodPost, tpath, map[string]any{"targetKey": "", "baseRevision": 2, "dryRun": true})
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("no-op transpose = %d, want 400", resp.StatusCode)
+			}
+
+			// Non-generated (uploaded) file → 400.
+			uresp, ubody := admin.upload(base+"/files", "u.pdf", "application/pdf", smallPDF)
+			mustStatus(t, uresp, http.StatusCreated)
+			var uf app.SongFile
+			unmarshalField(t, ubody, "file", &uf)
+			resp, _ = admin.do(http.MethodPost, base+"/files/"+uf.ID+"/chart-source:transpose",
+				map[string]any{"targetKey": "A", "baseRevision": 1, "dryRun": true})
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("non-generated transpose = %d, want 400", resp.StatusCode)
+			}
+
+			// Semitone fallback when the song key isn't parseable ("weird" → use +2).
+			resp, _ = admin.do(http.MethodPatch, base, map[string]any{"key": "weird"})
+			mustStatus(t, resp, http.StatusOK)
+			resp, semb := admin.do(http.MethodPost, tpath, map[string]any{"semitones": 2, "baseRevision": 2, "dryRun": true})
+			mustStatus(t, resp, http.StatusOK)
+			var semSrc string
+			unmarshalField(t, semb, "source", &semSrc)
+			// Current stored source is the A-transposed chart; +2 more → B/F# roots.
+			if !strings.Contains(semSrc, "B") || semSrc == stored2 {
+				t.Fatalf("semitone transpose did not shift: %q", semSrc)
 			}
 		})
 	}

@@ -75,6 +75,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/text-charts:preview", a.auth(a.previewTextChart))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source", a.auth(a.getChartSource))
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source", a.auth(a.putChartSource))
+	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source:transpose", a.auth(a.transposeChartSource))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.getMyFiles))
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.putMyFiles))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/my-files", a.auth(a.clearMyFiles))
@@ -785,6 +786,35 @@ func (a *WebAPI) putChartSource(w http.ResponseWriter, r *http.Request, u app.Us
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"file": f})
+}
+
+// transposeChartSource transposes a generated chart's source by a target key or a raw
+// semitone count (T60 surface 1). dryRun returns the transposed source (for preview);
+// otherwise it persists (SaveChartSource LWW, 409 on stale baseRevision) and optionally
+// updates the song key. 400 when the file isn't a generated chart or no transpose is
+// specified.
+func (a *WebAPI) transposeChartSource(w http.ResponseWriter, r *http.Request, u app.User) {
+	var in struct {
+		TargetKey     string `json:"targetKey"`
+		Semitones     *int   `json:"semitones"`
+		UpdateSongKey bool   `json:"updateSongKey"`
+		BaseRevision  int    `json:"baseRevision"`
+		DryRun        bool   `json:"dryRun"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	f, source, err := a.svc.TransposeChartSource(u, r.PathValue("bandId"), r.PathValue("songId"), r.PathValue("fileId"),
+		in.TargetKey, in.Semitones, in.UpdateSongKey, in.BaseRevision, in.DryRun)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if in.DryRun {
+		writeJSON(w, http.StatusOK, map[string]any{"source": source})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"file": f, "source": source})
 }
 
 // getMyFiles returns the caller's personal ordered view of a song's file pool. If

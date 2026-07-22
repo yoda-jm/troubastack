@@ -1254,6 +1254,72 @@ func (s *Service) SaveChartSource(caller User, bandID, songID, fileID string, ba
 	return f, nil
 }
 
+// TransposeChartSource transposes a generated chart's source (T60 surface 1). One
+// atomic server op — the client never composes two writes:
+//   - key path: when BOTH the song's key and targetKey parse, transpose by their
+//     interval; targetKey is also the new song key when updateSongKey is set.
+//   - semitone path: when the song key isn't parseable, transpose by `semitones`
+//     (updateSongKey is ignored — there's no target key to write).
+//   - dryRun: return the transposed source, persist nothing (the editor feeds it to
+//     the existing preview machinery).
+//   - persist: SaveChartSource semantics (same fileId, revision bump, 409 on stale
+//     baseRevision) + optionally set song.key.
+//
+// ErrInvalidInput (400) when the file isn't a generated chart, or when neither a
+// parseable targetKey (with a parseable song key) nor semitones is supplied.
+func (s *Service) TransposeChartSource(caller User, bandID, songID, fileID, targetKey string, semitones *int, updateSongKey bool, baseRevision int, dryRun bool) (SongFile, string, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return SongFile{}, "", err
+	}
+	f, err := s.repo.GetSongFile(fileID)
+	if err != nil || f.BandID != bandID || f.SongID != songID {
+		return SongFile{}, "", ErrNotFound
+	}
+	if !f.Generated {
+		return SongFile{}, "", fmt.Errorf("%w: not a text chart — only generated charts can be transposed", ErrInvalidInput)
+	}
+	src, err := s.repo.GetChartSource(fileID)
+	if err != nil {
+		return SongFile{}, "", ErrNotFound
+	}
+	song, err := s.repo.GetSong(songID)
+	if err != nil {
+		return SongFile{}, "", ErrNotFound
+	}
+
+	from, fromOK := chartpdf.ParseKey(song.Key)
+	to, toOK := chartpdf.ParseKey(targetKey)
+	var transposed string
+	canUpdateKey := false
+	switch {
+	case fromOK && toOK:
+		transposed, err = chartpdf.Transpose(src, from, to)
+		canUpdateKey = true
+	case semitones != nil:
+		transposed, err = chartpdf.TransposeSemitones(src, *semitones)
+	default:
+		return SongFile{}, "", fmt.Errorf("%w: need a parseable target key (song key must also parse) or a semitone count", ErrInvalidInput)
+	}
+	if err != nil {
+		return SongFile{}, "", fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+
+	if dryRun {
+		return f, transposed, nil // preview only — nothing persisted
+	}
+
+	saved, err := s.SaveChartSource(caller, bandID, songID, fileID, baseRevision, transposed)
+	if err != nil {
+		return SongFile{}, "", err // includes 409 on stale baseRevision, invalid render
+	}
+	if updateSongKey && canUpdateKey {
+		if _, err := s.UpdateSong(caller, bandID, songID, SongPatch{Key: &targetKey}); err != nil {
+			return SongFile{}, "", err
+		}
+	}
+	return saved, transposed, nil
+}
+
 // DownloadSongFile returns a file's metadata and bytes, enforcing that the caller
 // is a member of the owning band. Non-members get ErrForbidden (the file exists)
 // or ErrNotFound (it does not) — never the bytes.

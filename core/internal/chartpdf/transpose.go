@@ -93,6 +93,14 @@ func Transpose(source string, from, to Key) (string, error) {
 	return transposeBy(source, interval, preferFlats(to))
 }
 
+// TransposeSemitones shifts every chord row by a raw semitone count — the well-defined
+// fallback when the song's key is free text that ParseKey can't read (so there is no
+// from/to to derive an interval from). Spelling defaults to sharps (no key context to
+// prefer flats). Negative and >12 counts are normalized mod 12.
+func TransposeSemitones(source string, semitones int) (string, error) {
+	return transposeBy(source, semitones, false)
+}
+
 // transposeBy is the interval-only core (also the well-defined semitone-stepper path).
 // flat selects the spelling table for the rewritten roots.
 func transposeBy(source string, interval int, flat bool) (string, error) {
