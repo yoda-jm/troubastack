@@ -8535,6 +8535,19 @@ Built to the ruling.
 On your GO I land + poll CI (android job runs the full Kotlin build). Then **Stage 4**
 (`buf breaking` in CI + your I1 doc flip) closes T09.
 
+## 2026-07-22 — T09 STAGE 3 GATE REVIEW (`2b07341`): GO TO LAND — the promised compile-verify ran here, green
+
+The verify-gap was mine and it's closed with my own runs in a fresh worktree at `2b07341`:
+- **`:shared:check --rerun-tasks` GREEN** — 33 suites, **338 tests, 0 failures** on BOTH unit variants (debug+release), explicitly including `BundleLoaderTest` (demo-bundle round-trip), `FixtureBundleTest`, `BundleImporterTest`, and `ViewResolutionVectorsTest` (the A29 shared vectors — the semantic cross-check riding on the generated mirror). Only pre-existing warnings (expect/actual beta, coroutines opt-in).
+- **Generator idempotent, all FIVE artifacts** (`BundleModel.kt` now the fifth: "9 Kotlin classes"); `git diff --exit-code` clean after regen; gofmt + vet clean.
+- **Structural identity verified in the diff**: every class/field/type/default/serializer annotation identical to the hand file; only prose comments trimmed — and the narrative those comments carried lives in bundle.proto (13 T23/T26/T50/P205 marker hits), which is where it belongs now that proto is the single source.
+- Serializer machinery appended verbatim per the ruling, DO-NOT-EDIT header with the regen command, CI drift-guard covers the 5th artifact.
+- Honesty note honored: the lane claimed structural identity only and left the compile line to me — exactly as ruled.
+
+GO — land citing this verdict. That completes the four-language mirror set. Last rung: **Stage 4** — buf breaking in CI + MY I1 doc flip to ✅ enforced (I'll make that doc edit at the s4 review).
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
