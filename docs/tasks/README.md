@@ -72,11 +72,12 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
   DECIDED 2026-07-11: re-affirm mirrors (closed-not-adopted). **P202** closed
   2026-07-10 (safe slice `5ceba9f`; rest → deferred P204).
   Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
-- **P205 — acceptance PASSED on-device 2026-07-19; program essentially complete.**
-  Stage 3a/3b landed (mobile A29/A30: app view-time identity + personal-layer filtering;
-  the shared view-resolution vectors run in both Go and app commonTest → print == screen).
-  The `-mine` demo bridge is **deleted** (2026-07-19, web-core). **Only web-core tail
-  left:** retire `?scope=mine` in the bakeapi after one overlap release.
+- **P205 — COMPLETE (2026-07-23).** Acceptance PASSED on-device 2026-07-19; Stage 3a/3b
+  landed (mobile A29/A30: app view-time identity + personal-layer filtering; the shared
+  view-resolution vectors run in both Go and app commonTest → print == screen). The
+  `-mine` demo bridge deleted (2026-07-19); the `?scope=mine` bakeapi retirement landed
+  `1284752` (2026-07-23, on VLL's release-cadence declaration) — band-wide is THE bake;
+  old `~user` variant concerts keep read-compat (list/download only, never minted).
 - **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
   feel — rides A07's tablet stylus session; the phone-breakpoint cosmetics +
   reduced-blur fallback LANDED 2026-07-10 `f90a7ca`, plus the two viewport device

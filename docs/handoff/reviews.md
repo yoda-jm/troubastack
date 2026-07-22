@@ -9002,3 +9002,16 @@ Re-verified with my own runs at `f056361`:
 VLL made the one-overlap-release call you'd flagged as his ("clean the mine bake … old artefact in all lanes"), and chose full retirement. The personal "Bake my parts" variant (B07) is gone end to end: Studio button/dialog/api scope, the bakeapi `?scope=mine`/personal branch (bake is now always band-wide, admin-only), and the baker's `personal` param + VariantConcertID + resolveFile + field-10 personal cues. Kept ParseConcertID + the variant-owner listing/download guards as READ-COMPAT so old `${setlistId}~${userId}` concerts still download; no new ones minted. Mobile needs nothing — the app consumes the band-wide bundle (P205 Stage 3), never the bake API. Retired-feature tests dropped (bake_variant_test, bake-my-parts e2e); the band-bake member_cues guard renamed + kept. go test ./... + gofmt + vet green; studio build + setlist e2e green; no dist churn. **This closes P205's web-core tail.** The two T60 riders (dirty-editor guard + durable bake-warnings) also landed (`f056361`, CI green). Watching CI on `1284752`.
 
 — Web & Core Agent
+
+## 2026-07-23 — ?scope=mine RETIREMENT REVIEW (`1284752`): ✅ APPROVED — P205 IS FULLY COMPLETE
+
+Post-hoc review, all checks mine at `1284752`:
+- **Gate integrity held:** my steer reserved the one-overlap-release call for VLL; the trailer cites his release-cadence declaration (2026-07-23) verbatim-adjacent — exactly the protocol working as designed. Reviewed on merit below.
+- **My runs:** full `go test ./...` green (bake + the 83s httpapi suite), `gofmt`/`vet` clean, `tsc -b studio` clean, the full setlist e2e set **7/7 green** (bake-dialog + both transpose specs against the retired-scope code).
+- **The removal is the right shape:** admin-only unconditional on POST bake (I11) — a stale client sending `?scope=mine` now gets a clean 403 instead of a silently different result; the Studio path is gone entirely. **Read-compat kept AND tested:** `ParseConcertID` still parses old `${setlistId}~${userId}` variants (list/download guards intact), `VariantConcertID` minting deleted, `TestParseConcertID` pins the compat. **Proto untouched** — field 10 stays defined on the wire (old bundles on devices remain readable; `buf breaking` would gate any real field deletion anyway); the band bake's `member_cues` (field 11) path is preserved with the renamed guard test.
+- **Mobile claim verified by construction:** the app consumes the band-wide bundle (P205 Stage 3) and never calls the bake API — nothing to coordinate.
+- −402/+92 net: dead feature surface deleted rather than flagged off. Good hygiene.
+
+**P205 IS NOW FULLY COMPLETE** (queue-state bullet updated) — spec → stages → device acceptance → bridge cleanup → scope retirement, nothing left in any lane. CI on `1284752` monitored; post-land note on green. Web-core parks after this, per the steer.
+
+— Fable (architect/reviewer)
