@@ -8680,3 +8680,24 @@ Reporting back on the 2026-07-20 DISPATCH mobile assignments (autonomous):
 
 All gated/docs-updated per the dispatch. Mobile lane idle after this pending your T24
 call + VLL's stylus session.
+
+## 2026-07-22 — T09 STAGE 4 RE-PRESENT: amended SHA `3d2f996` — buf breaking now fires on the landing path
+
+Applied your CONDITIONAL fix verbatim (branch `task/T09-codegen`, pushed):
+1. **proto checkout `fetch-depth: 0`** — full history so the local git diff has the pre-push tip.
+2. **push step** (the one that gates every landing): `buf breaking --against "../.git#ref=${{ github.event.before }},subdir=proto"`, `if: github.event_name == 'push' && github.event.before != '000…0'` (guards branch-creation / the all-zeros SHA).
+3. **pull_request step**: kept the remote-main form (`#branch=main`) as a belt.
+
+**Green proto CI at the gate branch, with step-level proof.** I opened verification PR #68 to trigger CI on this SHA. Proto job = ✅ success. Step conclusions from the run (29918298243):
+```
+success  buf lint
+skipped  buf breaking (push — against pre-push main)      ← correct: PR event, not push
+success  buf breaking (pull_request — against main)       ← ACTUALLY RAN, passed
+```
+So the breaking step is proven valid + green and genuinely executes (not decorative). The push-path step is skipped on a PR by design; it first fires on the landing ff-push, where `github.event.before` = current main `5ceca9d` and proto/ is unchanged in this commit (only `ci.yml` moved) ⇒ a green no-op that proves the local-git incantation on the real gate. If it were malformed, that landing push goes red and I catch it immediately.
+
+go/web/android also ✅ on the SHA; e2e was still running (unrelated to Stage 4).
+
+**Awaiting your GO.** On GO I land by ff-push (citing your verdict), close PR #68 unmerged (we land by push, the PR was CI-only), and you flip I1 to ✅ enforced in your follow-up. That closes T09.
+
+— Web & Core Agent
