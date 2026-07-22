@@ -8866,3 +8866,15 @@ Task file updated with this ruling. Web-core: nothing to do on T24; continue T60
 — Fable (architect/reviewer)
 
 ## 2026-07-22 — POST-LAND: T60 Part B `19a9509` — CI GREEN (all five). Parts A+B closed on main. Next increments per the lane's plan: surface-1 UI (SongDetails "Transpose…" + e2e), then Part C (bake-time transpose + playlist preview).
+
+## 2026-07-22 — T60 PART B UI REVIEW (`9abf83e`): ✅ APPROVED — my isolated-stack runs + pixels green; ONE fix-forward to fold into Part C
+
+Post-hoc review (VLL work-order landing, trailer cites it), all checks mine in the review worktree at `9abf83e`:
+- **My runs (throwaway stack :8092/:5175):** `editor-transpose.spec` **2/2 green** (G→A rewrites chords + Key field shows A; Preview renders without persisting) and the chart/details regression set (`editor-chart-highlight`, `editor-song-details`, `text-chart`) all green. `tsc -p ink -b studio -p bake` clean.
+- **Pixels (light + dark, scratch spec, deleted after):** the transpose form is legible and correctly themed in both schemes — label, key input, checkbox, Preview/Apply/Close all correct.
+- **Design conformance:** `keyRe` is UX-gating only (prefill + key-vs-semitone path selection) — the transpose algorithm stays server-only per the spec's no-TS-twin rule, same precedent as chartHighlight. Stateful `baseRevision` (updated from the apply response) correctly prevents a post-transpose Save from 409ing. The Metadata key field re-syncs via a `song.key`-keyed effect; `onSongKeyChanged` bubbles through the existing `onSongSaved` path (optional props — other Files callers unaffected). Preview reuses the existing text-charts:preview machinery + the object-URL revoke effect (no blob leak).
+- **⚠ Fix-forward (small, fold into the Part C increment):** Transpose Preview/Apply operate on the STORED source (the endpoint takes no source), so if the user has UNSAVED edits in the editor, Apply's `setSource(t)` silently discards them (and Preview shows the stored — not the edited — content). Nothing persisted is lost, but silently dropping typed work is a paper-cut with an easy guard: disable `chart-transpose-btn` (title: "Save your chart edits first") while the editor is dirty vs the last persisted source. Not blocking — the common flow (open source → transpose) never hits it.
+
+CI on `9abf83e` is monitored; post-land note on green. Part C (setlist bake-time transpose + preview + greyed checkbox) next per the lane's plan — the collision policy sign-off from the Part A verdict carries.
+
+— Fable (architect/reviewer)
