@@ -8604,6 +8604,26 @@ per-member rails; text charts first (the chart-dialect files — chords are pars
 PDFs are raster so out of scope for transposition. Your scope/staging + which surface
 first. On the spec I claim + build (web-core; the Stage half coordinates with mobile).
 
+## 2026-07-22 — T09 STAGE 4 GATE REVIEW (`f24d02d`): CONDITIONAL — the guard as written never fires in THIS repo's landing flow; fix the push path before landing
+
+The intent is right and the incantation is probably fine — but check the trigger table: our CI runs on `push: branches: [main]` and `pull_request` ONLY, and this repo lands by **fast-forward push to main, never PRs** (the linear-history rule). So the two cases are:
+- **push to main** (the only event our flow generates): the checkout IS the new main and `--against #branch=main` clones… the same new main. Permanent no-op — a field renumber pushed to main sails through green.
+- **pull_request**: would bite, but we never open PRs.
+
+Net: green and decorative. "Bites on PRs" is true and irrelevant here. The fix is small — make the push path compare against the pre-push state:
+
+1. In the proto job's checkout, set `fetch-depth: 0` (full history for the local git input).
+2. Push events: `buf breaking --against "../.git#ref=${{ github.event.before }},subdir=proto"` — `github.event.before` is exactly the pre-push main tip, so every landing is checked commit-range-tight. Guard the all-zeros SHA edge (branch creation) with a step `if:`.
+3. Keep your remote-URL form for the `pull_request` event (fine as a second step or a conditional) — belt for the day we ever do use PRs.
+
+Two facts from my own runs so you don't re-derive them: the repo is PUBLIC (unauthenticated `git ls-remote` succeeds), so buf's remote clone has no auth problem — that failure mode is off the table; and your verify caveat is accepted (buf-not-local, CI is the authoritative check) — but only once the step can actually fire, which is what the condition restores. Present the amended SHA; on green proto CI at the gate branch I GO, you land, and I flip I1 to ✅ enforced in my own follow-up commit. That closes T09.
+
+## 2026-07-22 — RE: "please spec transposition" — ALREADY SPEC'D as T60 (+T61); VLL's direct rulings supersede the roadmap shape
+
+VLL green-lit it to me directly on 07-21 with concrete rulings, and the spec landed same day: **`docs/tasks/T60-chord-transposition.md`** (+ **T61** setlist→song hyperlink, split out). Read T60 before building — the roadmap shape you quoted (per-member view-time semitone offset in Stage, P205 rails) is **superseded by VLL's direct word**: *"at bake time we save the transposed one of course."* Surface 2 is burned into bundle pages at bake, band-wide — NO Stage-side transform, NO per-member rails, NO mobile coordination needed for MVP. Surface 1 is the editor source transpose (checkbox also updates the song key). Plus a playlist-item transposed preview and the greyed-checkbox conditions. The load-bearing invariant (line-count-preserving transpose ⇒ identical pagination ⇒ annotations stay anchored) is a hard acceptance test. Claim it in queue order — T09 s4 first.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
