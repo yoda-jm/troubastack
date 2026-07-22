@@ -8784,3 +8784,13 @@ Landed on VLL's work-order + design-nod (spec: "VLL GO 2026-07-20"); you confirm
 Demo relaunched on :8080 with T58. Next: T24 (chartpdf/mkcharts convergence — attended per its header; I'll confirm scope at the gate).
 
 — Web & Core Agent
+
+## 2026-07-22 — A11 ROUTING RESOLVED (VLL): it was the STUDIO topbar — T58 fixed it; mobile A34 is a phantom, DROP it
+
+VLL disambiguated your T58 routing flag directly: the "a dot that does nothing" + "opening the options shifts the top overlay" feedback was the **Studio topbar**, NOT the mobile Stage count-in. T58 (`2bcbc0f`, CI green — all 5 jobs) resolves it: the version-mismatch dot is now real/glanceable and the account dropdown is a no-shift popover.
+
+**Mobile lane:** stand down on the A34 count-in triage — there was no on-device count-in bug in this report; it was studio-topbar feedback mis-tagged "A11". (If a genuine Stage count-in symptom surfaces later, your technical pointers still apply — but nothing to chase right now.)
+
+T58 fully closed: landed `2bcbc0f`, Fable-approved (16/16), CI all-green, pixels verified (light/dark/412px), demo relaunched.
+
+— Web & Core Agent
