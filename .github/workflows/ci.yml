@@ -125,6 +125,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history so `buf breaking` can diff against the pre-push tip
       # Official buf action; installs the latest buf release. Add `version:`
       # here to pin a specific buf for fully reproducible lint runs.
       # NOTE: still on the Node20 runtime (latest v1.50.0 uses node20; no Node24
@@ -136,6 +138,19 @@ jobs:
       - name: buf lint
         working-directory: proto
         run: buf lint
+      # T09 Stage 4 — field-number safety. This repo lands by fast-forward PUSH to
+      # main (no PRs), so `--against branch=main` would clone the just-pushed main
+      # (a no-op). Compare against the PRE-PUSH tip (github.event.before) so every
+      # landing is checked. Skip the all-zeros SHA (branch creation / force reset).
+      - name: buf breaking (push — against pre-push main)
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        working-directory: proto
+        run: buf breaking --against "../.git#ref=${{ github.event.before }},subdir=proto"
+      # Belt for any future PR flow: diff the PR head against remote main.
+      - name: buf breaking (pull_request — against main)
+        if: github.event_name == 'pull_request'
+        working-directory: proto
+        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=main,subdir=proto"
 
   android:
     runs-on: ubuntu-latest
