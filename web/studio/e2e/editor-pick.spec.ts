@@ -350,6 +350,11 @@ test("cursor: hover over a movable body → move; over a resize handle → *-res
   // Select it so handles appear, then hover the SE corner handle → "nwse-resize".
   await clickPageFrac(page, 0.35, 0.24);
   await expect(page.getByTestId("resize-handle")).toHaveCount(4);
+  // T59: the page's rest position sits lower now (constant scroll overscan), so the
+  // SE corner (fraction 0.36) can land under the bottom pill. Scroll it into the
+  // clear band before reading/hovering its handle (side-effect scroll; the handle
+  // box is re-read live below, so it reflects the scrolled position).
+  await pageFracPoint(page, 0.5, 0.36);
   // Hover the SE corner handle by its real on-screen centre (it sits at
   // (maxX,maxY) = (0.5,0.36)); reading the handle's box avoids viewport-clip math.
   const seBox = await page

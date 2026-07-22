@@ -109,23 +109,48 @@ async function getAnnotations(page: Page, bandId: string, songId: string) {
   );
 }
 
+// T59 — map the Y coordinate by the PAGE box (box.y + box.height*fy), the same
+// frame the app uses for pointer→page, and scroll the target into the clear band
+// first. (Was `top + bandH*fy`, a band-relative approximation that only held while
+// the .6rem-clobber pinned the page's top under the chrome; T59's scroll overscan
+// moves the page's rest position down, so the band frame no longer coincides with
+// the page frame.)
 async function clickOnPage(page: Page, fx: number, fy: number) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
+  let box = (await pageEl.boundingBox())!;
   const { top, bottom } = await clearBand(page);
-  const bandH = Math.max(0, bottom - top) * 0.9;
-  await page.mouse.click(box.x + box.width * fx, top + bandH * fy);
+  const targetY = box.y + box.height * fy;
+  if (targetY < top + 8 || targetY > bottom - 8) {
+    const mid = (top + bottom) / 2;
+    await page
+      .getByTestId("viewer-scroll")
+      .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(targetY - mid));
+    await page.waitForTimeout(60);
+    box = (await pageEl.boundingBox())!;
+  }
+  await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
 }
 
 async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: number, steps = 10) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
-  const box = (await pageEl.boundingBox())!;
+  let box = (await pageEl.boundingBox())!;
   const { top, bottom } = await clearBand(page);
-  const bandH = Math.max(0, bottom - top) * 0.9;
+  // Scroll so the whole drag RANGE (min…max fraction) sits inside the clear band.
+  const loY = box.y + box.height * Math.min(fy, ty);
+  const hiY = box.y + box.height * Math.max(fy, ty);
+  if (loY < top + 8 || hiY > bottom - 8) {
+    const mid = (top + bottom) / 2;
+    const rangeMid = box.y + box.height * ((fy + ty) / 2);
+    await page
+      .getByTestId("viewer-scroll")
+      .evaluate((s, dy) => s.scrollBy(0, dy), Math.round(rangeMid - mid));
+    await page.waitForTimeout(60);
+    box = (await pageEl.boundingBox())!;
+  }
   const px = (f: number) => box.x + box.width * f;
-  const py = (f: number) => top + bandH * f;
+  const py = (f: number) => box.y + box.height * f;
   await page.mouse.move(px(fx), py(fy));
   await page.mouse.down();
   await page.mouse.move(px(tx), py(ty), { steps });

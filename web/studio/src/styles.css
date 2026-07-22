@@ -503,10 +503,26 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      absolute zero-shift overlay (T27) so --chrome-h doesn't measure it; reserving
      its band ALWAYS (shown or not) keeps zero-shift AND lets the very top of page 1
      scroll clear of both bars, so it's reachable to annotate (VLL). */
-  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem));
-  scroll-padding-bottom: 4.75rem;
+  /* T59 — constant scroll OVERSCAN at both ends so page 1's top edge and the last
+     page's bottom edge can be scrolled FULLY clear of the floating chrome (VLL:
+     "scroll a little bit more up and down so they're before the first / after the
+     last page"). Two constant terms fold into the existing chrome reserve:
+       --live-banner-reserve : the has-live-banner variant shifts the top pill down
+         by ~1.9rem; reserving it ALWAYS (banner shown or not) means toggling a live
+         setlist never moves the score — the reserve is mode-independent, so the
+         zero-shift invariant (T27/T42) still holds;
+       --viewer-overscan     : the comfort gap past each end VLL asked for.
+     The bottombar is a single non-wrapping row (parts overflow-x:auto), i.e. a
+     constant height, so a constant bottom reserve is correct. This is scroll RANGE,
+     not page size: the fit math is clientHeight-based (padding-independent), so
+     fit-page/fit-width are unchanged; wheel-zoom anchoring subtracts the real
+     padT/padB and self-adjusts. */
+  --viewer-overscan: 2.75rem;
+  --live-banner-reserve: 2rem;
+  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem) + var(--live-banner-reserve) + var(--viewer-overscan));
+  scroll-padding-bottom: calc(4.75rem + var(--viewer-overscan));
   display: flex; flex-direction: column; align-items: safe center; gap: 1rem;
-  padding: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem)) 1rem 4.75rem;
+  padding: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem) + var(--live-banner-reserve) + var(--viewer-overscan)) 1rem calc(4.75rem + var(--viewer-overscan));
   background: var(--surface-2);
 }
 
@@ -1248,7 +1264,12 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .editor-toolbar .style-field input[type="range"] { width: 68px; }
 .editor-toolbar .style-field input[type="color"] { width: 26px; height: 22px; }
 .viewer-toolbar { padding-bottom: .35rem; gap: .4rem .7rem; }
-.viewer-scroll { padding: .6rem; }
+/* T59 — do NOT override .viewer-scroll padding here. This density pass once set
+   `.viewer-scroll { padding: .6rem }`, which (same specificity, later in the file)
+   silently CLOBBERED the chrome-reserve + overscan padding on the base rule — so
+   the score's top/bottom edges sat trapped ~9.6px under the floating chrome (the
+   exact bug VLL reported). The vertical padding there is load-bearing scroll RANGE,
+   not airiness; leave it to the base .viewer-scroll rule. */
 
 /* ==========================================================================
    Management-pages redesign ("concert program"). Rich, additive primitives —
