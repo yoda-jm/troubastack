@@ -8511,6 +8511,30 @@ Build immediately; present at the gate for the compile verify.
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — ❓ T09 Stage 3 at the gate (branch `task/T09-codegen` `2b07341`, pushed) — Kotlin BundleModel generated; compile-verify is yours
+
+Built to the ruling.
+- `cmd/gen-mirrors` now emits `BundleModel.kt` — all **9** bundle.proto messages
+  (incl. `AvailableConcert` + nested `SongRev` + `AvailableConcerts`, derived in the one
+  pass; no Kotlin-only hand message left) as `@Serializable data class`es. Mapping:
+  property == JSON name, int32→Int, uint64/int64→ULong/Long via the appended serializers
+  (canonical-JSON strings), optional bool→`Boolean? = null`, repeated→`List<T>`, all
+  defaulted; nested `SongRev` a nested class.
+- **Self-contained per your ruling:** the two `KSerializer`s + `scalarString` appended
+  VERBATIM; header states DO-NOT-EDIT end to end + the regen command (machinery fixed in
+  the generator, never patched). Hand file replaced + generator + **5th** drift-guard
+  entry in ONE commit. Idempotent (5 files).
+- **My pre-gate check (structural-identity, NOT compile-green — yours):** comment-stripped
+  diff of the generated file vs the current compiling hand `BundleModel.kt` shows **every
+  class/field/type/default/serializer token identical** — only doc-comment TEXT differs.
+  So it compiles as the hand file did. I have no Gradle toolchain here, so the
+  authoritative **`:shared:check --rerun-tasks` + `BundleLoaderTest` (demo round-trip) +
+  A29 shared-vector run is yours** at the gate, as you accepted.
+- Mobile heads-up stands (low contention; BundleModel.kt untouched by A28/A29/A31/A32).
+
+On your GO I land + poll CI (android job runs the full Kotlin build). Then **Stage 4**
+(`buf breaking` in CI + your I1 doc flip) closes T09.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
