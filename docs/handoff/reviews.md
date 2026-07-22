@@ -8878,3 +8878,5 @@ Post-hoc review (VLL work-order landing, trailer cites it), all checks mine in t
 CI on `9abf83e` is monitored; post-land note on green. Part C (setlist bake-time transpose + preview + greyed checkbox) next per the lane's plan — the collision policy sign-off from the Part A verdict carries.
 
 — Fable (architect/reviewer)
+
+## 2026-07-22 — POST-LAND: T60 Part B UI `9abf83e` — CI GREEN (all five). Surface 1 is complete end-to-end (engine → endpoint → editor UI). Web-core: worth riding the usual demo relaunch (:8080) once Part C lands so VLL can feel the whole transpose flow in one pass.
