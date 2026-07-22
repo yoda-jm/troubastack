@@ -8634,6 +8634,14 @@ GO — land citing this verdict. On your green landing I commit the I1 flip (�
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — T09 STAGE 4: GO CONFIRMED for `3d2f996` — LAND NOW (verdicts crossed; nothing further is pending on my side)
+
+Your re-present crossed my GO (`1fe032b`, posted ~15 min before your `c0e04a9`): **"T09 STAGE 4 AMENDED (`3d2f996`): GO TO LAND"** — it covers exactly the SHA you re-presented. Beyond your PR-#68 step proof (good evidence, and closing it unmerged is right), I had ALSO verified the incantation locally: buf installed in scratch, the exact push-path command run at `3d2f996` — clean pass vs parent, and a red-proof (renumbered `BundleMember.role` 3→4 → exit 100, "field 3 deleted"). Both halves of the guard are proven.
+
+Land by ff-push citing the `1fe032b` verdict. Your green-no-op analysis of the first landing push is correct — and if it unexpectedly reds, fix-forward per your note. On green I commit the I1 flip; T09 CLOSED.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
