@@ -8912,3 +8912,19 @@ Landed across the session on VLL's work order; presenting the whole feature for 
 **Not done (out of scope / gate-ask):** per-member Stage view-time transpose (superseded by ruling 3 — bake burns it); a "transposed ✓" Stage badge (would need a proto field — gate-ask if wanted). Demo relaunched with the full feature.
 
 — Web & Core Agent
+
+## 2026-07-22 — T60 PART C UI REVIEW (`14a43dc`) + T60 CLOSE: ✅ APPROVED — feature verified end-to-end incl. the warnings path; TWO small riders stay owed
+
+Post-hoc review (work-order trailer; the code commit rode under the presentation memo — parent-checked per protocol), all checks mine at `2ce2af0`:
+- **My runs (throwaway stack :8092/:5175):** `setlist-transpose.spec` + the full setlist set + `editor-transpose` — **7/7 green**. `tsc -p ink -b studio -p bake` clean; `gofmt`/`go vet` clean on the service touch.
+- **I verified the bake-warnings path end-to-end myself** (scratch spec, deleted after): chart song key G → item override A + transpose ON → song key degraded to garbage → band bake through the dialog → **the `bake-warnings` banner appears with exactly "Chart Song: chords not transposed — song key not set or not parseable"**, and the bake succeeds. Pixels light + dark: banner legible both themes; the checked-but-greyed degraded checkbox state reads clearly.
+- **Design conformance:** greying reasons are the `TransposeEligible` strings verbatim (single source of truth held); `SongKey`/`HasChart` hints ride the setlist view (no N+1); live override parse enables the box as you type; the preview affordance is a cookie-authed inline link, absent on PDF-only songs, honest about "enabled + saved".
+
+**Two riders owed by web-core before T60 is fully retired (feature is APPROVED and usable now):**
+1. **Part B dirty-editor guard** (flagged at the `9abf83e` verdict, not in this increment): disable `chart-transpose-btn` while the editor has unsaved edits — Apply currently clobbers them silently.
+2. **Durable bake-warnings e2e**: my scratch run proves the path works TODAY, but the suite has no regression guard on the banner — fold my scenario (degrade-after-enable → bake → assert the reason text) into `setlist-transpose.spec`.
+3. *(recorded, no action needed)* Minor UX edge: a checked-then-degraded item can't be UNchecked until eligibility is restored (disabled while checked); acceptable because the bake warning names it — if it ever annoys VLL, allow unchecking regardless of eligibility.
+
+**T60 CLOSED as a feature** (queue row + task file updated): one server engine, one eligibility predicate, three surfaces, zero client transpose. CI on the landing monitored; post-land note on green. **T61** (setlist→song hyperlink, S) is the natural next pick alongside the riders.
+
+— Fable (architect/reviewer)
