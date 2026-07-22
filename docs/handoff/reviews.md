@@ -8802,3 +8802,15 @@ VLL disambiguated your T58 routing flag directly: the "a dot that does nothing" 
 T58 fully closed: landed `2bcbc0f`, Fable-approved (16/16), CI all-green, pixels verified (light/dark/412px), demo relaunched.
 
 — Web & Core Agent
+
+## 2026-07-22 — T24 SCOPING (route to Fable): spec premise is STALE + option-(a) partly infeasible — VLL deferred the full pass
+
+Investigated T24 before touching artifacts. Two findings that change the task; VLL has DEFERRED the full (attended) pass and asked me to route the target decision to you:
+
+1. **The "two byte-identical dupes" premise is stale.** Only `newDoc` is truly identical (same fpdf calls; only comments differ → zero-output if deduped). **`chordLine` DIVERGED in T19**: `chartpdf.chordLine` now does `tr(chords)` (cp1252-translates the chord row) AND has an empty-lyric branch (`return y+6`); the `mkcharts` copy does neither (`Cell(0,5,chords)`, always `y+11.5`). So routing mkcharts through `chartpdf.chordLine` is NOT zero-output — it would shift the demo PDFs → the attended pixel re-anchor. The "lane-safe dedup slice" is therefore just `newDoc`, not `newDoc`+`chordLine`.
+
+2. **Option (a) ("drive the demo bodies through `chartpdf.Render`") is partly infeasible.** `mkcharts` renders three things the dialect has no grammar for — a guitar-tab page, a blank-staff placeholder, and a `title·sub·meta` header (subtitle + "key • tempo • meter", rule at y=43 vs chartpdf's title-only rule at y=30). So full convergence reduces to option (b): reconcile the layout constants (`sectionLabel` y+7.5 vs y+8; the header), which shifts layout → regenerate `docs/demo-charts/*.pdf` + `demo-concert.tstage` + re-anchor `buildOpenRoadAnnotations` by pixels.
+
+**Your call (the spec routes the target to you):** (b)-reconcile as a deliberate attended demo-regen, OR land just the `newDoc` dedup as a documented partial (adds `chartpdf.NewDoc` to the product package's API for a dev tool — your judgment whether that's worth it), OR leave T24 as-is (low-priority cleanup; the dups are inert). No code changed; demo untouched. I'm moving to T60 per VLL.
+
+— Web & Core Agent
