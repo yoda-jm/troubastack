@@ -89,6 +89,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}", a.auth(a.deleteSetlist))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/items", a.auth(a.addSetlistItem))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.updateSetlistItem))
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}/chart-preview", a.auth(a.itemChartPreview))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}/items/{itemId}", a.auth(a.removeSetlistItem))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/reorder", a.auth(a.reorderSetlist))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/duplicate", a.auth(a.duplicateSetlist))
@@ -1024,25 +1025,42 @@ func (a *WebAPI) addSetlistItem(w http.ResponseWriter, r *http.Request, u app.Us
 
 func (a *WebAPI) updateSetlistItem(w http.ResponseWriter, r *http.Request, u app.User) {
 	var in struct {
-		KeyOverride   *string `json:"keyOverride"`
-		TempoOverride *int    `json:"tempoOverride"`
-		Notes         *string `json:"notes"`
-		OnCall        *bool   `json:"onCall"`
+		KeyOverride     *string `json:"keyOverride"`
+		TempoOverride   *int    `json:"tempoOverride"`
+		Notes           *string `json:"notes"`
+		OnCall          *bool   `json:"onCall"`
+		TransposeChords *bool   `json:"transposeChords"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	item, err := a.svc.UpdateSetlistItem(u, r.PathValue("bandId"), r.PathValue("setlistId"), r.PathValue("itemId"), app.SetlistItemPatch{
-		KeyOverride:   in.KeyOverride,
-		TempoOverride: in.TempoOverride,
-		Notes:         in.Notes,
-		OnCall:        in.OnCall,
+		KeyOverride:     in.KeyOverride,
+		TempoOverride:   in.TempoOverride,
+		Notes:           in.Notes,
+		OnCall:          in.OnCall,
+		TransposeChords: in.TransposeChords,
 	})
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"item": item})
+}
+
+// itemChartPreview renders a setlist item's chart as it will bake (T60 surface 2):
+// the song's first generated chart, transposed to the key override when the item asks
+// (and it's eligible), else as-is. Inline PDF; no persistence. 404 when there's no chart.
+func (a *WebAPI) itemChartPreview(w http.ResponseWriter, r *http.Request, u app.User) {
+	pdf, err := a.svc.SetlistItemChartPreview(u, r.PathValue("bandId"), r.PathValue("setlistId"), r.PathValue("itemId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "inline")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(pdf)
 }
 
 func (a *WebAPI) removeSetlistItem(w http.ResponseWriter, r *http.Request, u app.User) {

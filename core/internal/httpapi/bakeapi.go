@@ -55,6 +55,10 @@ type concertView struct {
 	Songs       []songRevView `json:"songs"`
 	BakedBy     string        `json:"bakedBy,omitempty"` // extra (studio history)
 	DownloadURL string        `json:"downloadUrl"`       // extra (studio + app download)
+	// Warnings surface per-song bake issues in the Studio bake dialog. Set only on the
+	// bake POST (omitempty → absent for listConcerts). T60: items that asked to transpose
+	// but whose conditions didn't hold at bake time (baked untransposed, not failed).
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 func viewOf(bandID string, cb bake.ConcertBundle) concertView {
@@ -110,7 +114,47 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, viewOf(bandID, cb))
+	view := viewOf(bandID, cb)
+	view.Warnings = a.transposeWarnings(u, bandID, r.PathValue("setlistId"))
+	writeJSON(w, http.StatusOK, view)
+}
+
+// transposeWarnings names the items that asked for a chord transpose but weren't
+// eligible at bake time (baked untransposed). Derived from current state via the same
+// app.TransposeEligible the baker used, so the warning and the bake decision agree.
+// Best-effort: any lookup error yields no warning (never blocks the bake response).
+func (a *BakeAPI) transposeWarnings(u app.User, bandID, setlistID string) []string {
+	detail, err := a.svc.Setlist(u, bandID, setlistID)
+	if err != nil {
+		return nil
+	}
+	var warns []string
+	for _, item := range detail.Items {
+		if !item.TransposeChords {
+			continue
+		}
+		song, serr := a.svc.SongForMember(u, bandID, item.SongID)
+		if serr != nil {
+			continue
+		}
+		hasChart := false
+		if files, ferr := a.svc.SongFiles(u, bandID, item.SongID); ferr == nil {
+			for _, f := range files {
+				if f.Generated {
+					hasChart = true
+					break
+				}
+			}
+		}
+		if ok, reason := app.TransposeEligible(song.Key, item.KeyOverride, hasChart); !ok {
+			title := item.SongTitle
+			if title == "" {
+				title = song.Title
+			}
+			warns = append(warns, title+": chords not transposed — "+reason)
+		}
+	}
+	return warns
 }
 
 // listConcerts returns the baked concerts whose setlist belongs to this band.

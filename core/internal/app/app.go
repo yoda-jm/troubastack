@@ -323,6 +323,14 @@ type SetlistItem struct {
 	// divergence deferred to P203); it reaches the wire only via the bundle's
 	// BakedSong.on_call. Absent = false = a normal main-order item.
 	OnCall bool `json:"onCall,omitempty"`
+
+	// TransposeChords (T60 surface 2): when true AND this item carries a parseable
+	// KeyOverride AND the song has a parseable key and a generated text chart, the
+	// baker burns the chart transposed from the song key to the override key — band-
+	// wide, everyone sees it (VLL: "at bake time we save the transposed one"). Like
+	// OnCall, a mirror-layer field with no proto setlist-item message; it reaches the
+	// wire only as transposed BakedSong chart pages. Absent = false = bake as stored.
+	TransposeChords bool `json:"transposeChords,omitempty"`
 }
 
 // Repo is the swappable persistence contract for the relational domain. It mirrors

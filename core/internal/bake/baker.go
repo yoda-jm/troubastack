@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/chartpdf"
 	"troubastack/core/internal/domain"
 	"troubastack/core/internal/engine"
 )
@@ -309,6 +310,30 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	_, pdf, err := b.svc.DownloadSongFile(actor, file.ID)
 	if err != nil {
 		return BakedSong{}, err
+	}
+
+	// T60 surface 2: burn the chart transposed to the item's key override, band-wide,
+	// when the item asks AND all conditions hold at bake time. A degraded case (key
+	// edited to garbage, chart replaced) falls through to the stored PDF — the bake must
+	// NOT fail (a failed bake the night before a gig, or a silent wrong-key page, are
+	// both worse; bakeapi surfaces a warning from the same TransposeEligible check). The
+	// transpose preserves line count ⇒ identical pagination/geometry ⇒ existing layer
+	// annotations stay anchored (chartpdf Part A invariant). Any sub-step failing leaves
+	// `pdf` as the stored bytes.
+	if item.TransposeChords {
+		if song, serr := b.svc.SongForMember(actor, bandID, item.SongID); serr == nil {
+			if ok, _ := app.TransposeEligible(song.Key, item.KeyOverride, file.Generated); ok {
+				if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, file.ID); cerr == nil {
+					from, _ := chartpdf.ParseKey(song.Key)
+					to, _ := chartpdf.ParseKey(item.KeyOverride)
+					if t, terr := chartpdf.Transpose(src, from, to); terr == nil {
+						if tpdf, rerr := chartpdf.Render(t); rerr == nil {
+							pdf = tpdf
+						}
+					}
+				}
+			}
+		}
 	}
 
 	rasters, err := b.raster.Rasterize(ctx, pdf)

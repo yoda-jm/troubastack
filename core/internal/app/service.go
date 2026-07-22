@@ -1254,6 +1254,80 @@ func (s *Service) SaveChartSource(caller User, bandID, songID, fileID string, ba
 	return f, nil
 }
 
+// TransposeEligible reports whether a setlist item's chord-transpose can be applied,
+// and if not, names the first failing condition (T60 surface 2). The three conditions
+// are the SINGLE source of truth shared by the bake decision, the bake warning, the
+// playlist preview, and the Studio greying tooltip (mirrored client-side):
+//  1. the song has a generated text chart to transpose,
+//  2. the song key parses (the transpose "from"),
+//  3. the override key parses (the transpose "to").
+//
+// The reason strings match the Studio tooltip copy.
+func TransposeEligible(songKey, keyOverride string, hasGeneratedChart bool) (bool, string) {
+	if !hasGeneratedChart {
+		return false, "no text chart on this song"
+	}
+	if _, ok := chartpdf.ParseKey(songKey); !ok {
+		return false, "song key not set or not parseable"
+	}
+	if _, ok := chartpdf.ParseKey(keyOverride); !ok {
+		return false, "override key not parseable"
+	}
+	return true, ""
+}
+
+// SetlistItemChartPreview renders a setlist item's chart as it will appear on stage
+// (T60 surface 2 preview): the song's first generated chart, transposed to the item's
+// key override when the item asks for it and it's eligible, else rendered as-is (an
+// identity "show me the chart from here"). No persistence. ErrNotFound when the song
+// has no generated chart to preview.
+func (s *Service) SetlistItemChartPreview(caller User, bandID, setlistID, itemID string) ([]byte, error) {
+	if _, err := s.getSetlistForMember(caller, bandID, setlistID); err != nil {
+		return nil, err
+	}
+	it, err := s.repo.GetSetlistItem(itemID)
+	if err != nil || it.SetlistID != setlistID {
+		return nil, ErrNotFound
+	}
+	song, err := s.repo.GetSong(it.SongID)
+	if err != nil || song.BandID != bandID {
+		return nil, ErrNotFound
+	}
+	files, err := s.repo.FilesOfSong(it.SongID)
+	if err != nil {
+		return nil, err
+	}
+	var chart *SongFile
+	for i := range files {
+		if files[i].Generated {
+			chart = &files[i]
+			break
+		}
+	}
+	if chart == nil {
+		return nil, ErrNotFound // no chart to preview
+	}
+	src, err := s.repo.GetChartSource(chart.ID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	// hasGeneratedChart is true here (we found `chart`); transpose only if the item asks.
+	if it.TransposeChords {
+		if ok, _ := TransposeEligible(song.Key, it.KeyOverride, true); ok {
+			from, _ := chartpdf.ParseKey(song.Key)
+			to, _ := chartpdf.ParseKey(it.KeyOverride)
+			if t, terr := chartpdf.Transpose(src, from, to); terr == nil {
+				src = t
+			}
+		}
+	}
+	pdf, err := chartpdf.Render(src)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	return pdf, nil
+}
+
 // TransposeChartSource transposes a generated chart's source (T60 surface 1). One
 // atomic server op — the client never composes two writes:
 //   - key path: when BOTH the song's key and targetKey parse, transpose by their
@@ -1803,10 +1877,11 @@ func (s *Service) AddSetlistItem(caller User, bandID, setlistID, songID string) 
 
 // SetlistItemPatch carries optional per-item overrides.
 type SetlistItemPatch struct {
-	KeyOverride   *string
-	TempoOverride *int
-	Notes         *string
-	OnCall        *bool // move to/from the bench (T23)
+	KeyOverride     *string
+	TempoOverride   *int
+	Notes           *string
+	OnCall          *bool // move to/from the bench (T23)
+	TransposeChords *bool // burn the chart transposed to keyOverride at bake (T60)
 }
 
 // UpdateSetlistItem patches an item's overrides/notes (any member).
@@ -1832,6 +1907,9 @@ func (s *Service) UpdateSetlistItem(caller User, bandID, setlistID, itemID strin
 	}
 	if p.OnCall != nil {
 		it.OnCall = *p.OnCall
+	}
+	if p.TransposeChords != nil {
+		it.TransposeChords = *p.TransposeChords
 	}
 	if err := s.repo.UpdateSetlistItem(it); err != nil {
 		return SetlistItem{}, err
