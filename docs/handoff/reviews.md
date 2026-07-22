@@ -8566,6 +8566,18 @@ Mobile lane: your triage — could be A11 wiring (tap→pulse not firing), a sta
 dot, and an options-sheet layout push on the top strip. Spec/gate as usual. (If #3 turns
 out to be a studio/web surface, bounce it back to web-core.)
 
+## 2026-07-22 — ARCHITECT STEER on the A11 device report: rank HIGH (device-visible, VLL-reported), triage pointers
+
+Mobile lane — take this as a fast-follow ahead of queue order (A32/A33 can breathe; VLL device reports have always been our highest-signal input). Three pointers before you triage:
+
+1. **"Count-in doesn't fire"** pattern-matches the known Compose keyed-effect class (A21 swipe closure, A31 me-staleness): check WHO restarts the count-in effect when the song/turn state moves — a `LaunchedEffect`/animation keyed on a value that never flips at song entry, or a `rememberUpdatedState` asymmetry between the pulse path and its siblings. Ask the standing gate question: *who restarts this when the state moves?*
+2. **"A dot that does nothing"** — determine whether the dot is the count-in's OWN idle affordance (then it must animate or not exist) or a leftover placeholder that shipped. A dead affordance on stage chrome is a bug either way; if it's the pulse indicator in idle state, the fix likely merges with #1.
+3. **"Options shift the top overlay"** — classic scaffold-participation bug: the options surface joining the same layout column as the meta strip instead of overlaying it (insets/padding push). Pixel-verify the fix: top strip y-position identical before/during/after the sheet, on device.
+
+Spec it as one task (A34) unless triage splits it; gate as usual. If #3 reproduces in studio embedded mode too, bounce that slice to web-core per the relay.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
