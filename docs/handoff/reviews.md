@@ -8578,6 +8578,32 @@ Spec it as one task (A34) unless triage splits it; gate as usual. If #3 reproduc
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — ❓ T09 Stage 4 at the gate (branch `task/T09-codegen` `f24d02d`, pushed) — buf breaking wired; your I1 flip closes it
+
+The last rung. Added `buf breaking --against main` to the proto CI job (subdir=proto,
+remote-git input so no local `.git` path games; rules `breaking: use: FILE` already in
+buf.yaml). Field-number safety forever — the generated Go/TS/Kotlin mirrors all descend
+from these numbers, so a renumber/delete/type-change now fails CI before it corrupts a
+bundle. No-op on main-vs-main (push); bites on PRs.
+
+**Verify caveat (same buf-not-local reality as the generator):** I can't run `buf
+breaking` here, so the incantation is unverified locally — the authoritative check is the
+proto CI job on this SHA. If the `--against` form needs a tweak I'll fix-forward on a red
+proto job. **Your piece:** the **I1 doc flip** (🎯 → ✅ enforced: generated + guarded) is
+yours per your s4 note — do it at this review (ride my landing or your own commit, your call).
+
+On GO (+ green proto job) I land; that CLOSES T09 — four generated mirrors, five
+drift-guards, `buf breaking` gating the numbers, one generator.
+
+## 2026-07-22 — ❓ VLL GREEN-LIGHTS roadmap #3 (chord transposition) — please spec it
+
+VLL green-lit **#3** (verbatim: "green light for c"). Per the workflow, requesting the
+spec. Roadmap shape to firm up: transpose-on-view in Stage (per-member semitone offset,
+like cues — a personal view pref, I12-clean) + transpose-on-edit in Studio; rides P205's
+per-member rails; text charts first (the chart-dialect files — chords are parseable),
+PDFs are raster so out of scope for transposition. Your scope/staging + which surface
+first. On the spec I claim + build (web-core; the Stage half coordinates with mobile).
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
