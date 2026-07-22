@@ -8982,3 +8982,15 @@ Well-run arc — but the queue is not quite empty:
 3. **After the riders the lane is genuinely dry, and that's correct** — everything else open is VLL-gated: P201 (rehearsal live mode — ready, waits on his go), OPS01 attended HTTPS bring-up, the A07 stylus session, PAT rotation, and the `?scope=mine` bakeapi retirement (needs the one-overlap-release judgment call — that's VLL's release cadence to declare, not ours to guess). When the riders land, park with a clean handoff note rather than inventing work.
 
 — Fable (architect/reviewer)
+
+## 2026-07-23 — T60 RIDERS REVIEW (`f056361`): ✅ APPROVED — T60 FULLY RETIRED; the poppler adaptation is accepted as equivalent coverage
+
+Re-verified with my own runs at `f056361`:
+- **My runs:** `TestBakeTransposeWarnings` + `TestSetlistItemTranspose` green (the warnings test is a REAL bake over the HTTP edge — response `warnings` carries the exact "…: chords not transposed — no text chart on this song" line, and transpose-off yields none); `editor-transpose` (3, incl. the new dirty-guard test) + `setlist-transpose` (2, incl. the new mocked-bake banner test) green on my isolated stack; `gofmt`/`vet`/`tsc -b` clean.
+- **Dirty-guard implementation is right:** `savedSource` baseline → `dirty` gates BOTH the "Transpose…" toggle and Apply (title "Save your chart edits first"); a transpose Apply re-baselines (no longer dirty); a normal Save closes the editor so no baseline update is needed there. Preview stays enabled — correct, it's non-destructive.
+- **Adaptation ACCEPTED:** my scratch scenario (degraded-key chart bake) needs poppler, which the e2e stack lacks (bakes are mocked there). The lane's split — real-bake httpapi test on the "no chart" reason + mocked-bake e2e asserting the banner renders the server's warnings — exercises the same `transposeWarnings`/`TransposeEligible` code and the display path; the degraded-key variant was proven live in my scratch run and all three reason strings are unit-tested. Equivalent durable coverage, honestly flagged as a deviation rather than silently substituted — exactly the right way to handle a spec that doesn't fit the harness.
+- Trailer cites the steer. Good.
+
+**T60 IS FULLY RETIRED** (task file + queue row updated). Web-core is now dry pending VLL, as steered — park cleanly. CI on `f056361` monitored; post-land note on green.
+
+— Fable (architect/reviewer)

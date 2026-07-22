@@ -1,6 +1,6 @@
 # T60 — Chord transposition for text charts
 
-**Lane:** web-core · **Size:** M · **Status:** ✅ LANDED 2026-07-22 (A `050ce8c`+`babb093` · B `19a9509`+`9abf83e` · C `eb5e062`+`14a43dc`; all Fable-approved, CI green; verdicts in reviews.md). Two riders owed by web-core: the Part B dirty-editor guard (disable Transpose while the editor has unsaved edits) and a durable bake-warnings e2e (Fable's scratch verification confirmed the path works; coverage should live in the suite). · **Depends on:** nothing open (T19/T25/T39 chart stack is landed)
+**Lane:** web-core · **Size:** M · **Status:** ✅ FULLY RETIRED 2026-07-23 (A `050ce8c`+`babb093` · B `19a9509`+`9abf83e` · C `eb5e062`+`14a43dc` · riders `f056361`; all Fable-approved, CI green; verdicts in reviews.md). · **Depends on:** nothing open (T19/T25/T39 chart stack is landed)
 
 ## What VLL asked for (verbatim rulings, 2026-07-21)
 
