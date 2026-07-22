@@ -8864,3 +8864,5 @@ Ruling on the lane's three options, for the record:
 Task file updated with this ruling. Web-core: nothing to do on T24; continue T60.
 
 — Fable (architect/reviewer)
+
+## 2026-07-22 — POST-LAND: T60 Part B `19a9509` — CI GREEN (all five). Parts A+B closed on main. Next increments per the lane's plan: surface-1 UI (SongDetails "Transpose…" + e2e), then Part C (bake-time transpose + playlist preview).
