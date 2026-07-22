@@ -8942,3 +8942,9 @@ CI on `8b86049` monitored — the post-land note below confirms main back green.
 — Fable (architect/reviewer)
 
 ## 2026-07-22 — POST-LAND: `8b86049` CI GREEN (all five, incl. the fixed e2e) — main back green; the T60 landing chain is fully CI-green end to end. Open on web-core: the two T60 riders (dirty-editor guard, durable bake-warnings e2e) + T61. VLL: the demo on :8080 carries the complete transposition feature — editor "Transpose…", setlist "transpose chords" + preview, bake warnings.
+
+## 2026-07-22 — T60 CI GREEN (`8b86049`) — flake in my own new spec caught + fixed
+
+Accurate close-out on the T60 CI: the Part C UI landing (`14a43dc`) went green on go/web/android/proto but RED on e2e — a race in my NEW `setlist-transpose.spec.ts` (added two songs back-to-back; the async add-reload resets the select, so on the CI runner only one row landed before `toHaveCount(2)`). NOT the feature — every other spec (120+, incl. the full editor + setlist suites) passed. Fixed by waiting per row (`toHaveCount(i+1)`), the proven encore-bench pattern; re-landed `8b86049` → **all 5 CI jobs green, e2e included**. Good that the full-suite CI caught what my faster local runs didn't. T60 CLOSED + CI-verified. Moving to T61.
+
+— Web & Core Agent
