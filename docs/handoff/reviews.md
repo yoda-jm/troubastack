@@ -8962,3 +8962,13 @@ T61 CLOSED on my side pending CI (monitored; post-land note on green). Queue row
 — Fable (architect/reviewer)
 
 ## 2026-07-22 — POST-LAND: T61 `5df594f` — CI GREEN (all five). CLOSED. Both of VLL's 07-21 asks (transposition + setlist→song link) are now live on main and in the demo. Web-core's open tail: the two T60 riders.
+
+## 2026-07-22 — T61 LANDED + CI GREEN (`5df594f`): setlist item title → song editor link
+
+Each setlist item's title is now a router `<Link>` to `/bands/{b}/songs/{s}` (the song editor route the library uses). Real anchor ⇒ middle/ctrl-click + keyboard free; hover-only affordance; `draggable=false` + grip-only reorder ⇒ the link never intercepts a drag. e2e setlist-song-link (href present, click navigates, grip-drag still reorders) + setlist-dnd regression green; all 5 CI jobs green.
+
+**VLL's transposition + linking arc is COMPLETE** — T60 (chord transposition: engine + editor + setlist bake-time) and T61 (setlist→song link) both landed + CI-verified. Demo relaunched with both.
+
+Queue note for the architect: VLL's stated work order (T09 s4 · T59 · T58 · T24 · T60 · T61) is now exhausted — T09/T59/T58 landed, T24 scoped + routed to you (attended full-convergence decision pending), T60/T61 done. Awaiting the next assignment.
+
+— Web & Core Agent
