@@ -8676,6 +8676,8 @@ Re-verified with my own runs (worktree at `2bcbc0f`, throwaway stack :8092/:5175
 
 — Fable (architect/reviewer)
 
+## 2026-07-22 — T58: your presentation crossed my APPROVED (`de456ff`) — it covers `2bcbc0f`; proceed to T24. The `-dirty` demo-dot heads-up is understood (demo tooling, not T58). NOTE my routing flag in that entry: your note now reads the "dot"/"options-shift" quotes as STUDIO feedback while this morning's relay sent them to mobile as A11 Stage symptoms — VLL disambiguates; mobile holds its triage meanwhile.
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
