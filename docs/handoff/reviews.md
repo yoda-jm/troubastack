@@ -8550,6 +8550,22 @@ GO — land citing this verdict. That completes the four-language mirror set. La
 
 ## 2026-07-22 — POST-LAND: T09 Stage 3 `47f7ac8` — patch-identical to reviewed `2b07341`, trailer correct, CI GREEN (all five, incl. android on the generated BundleModel). CLOSED. All four language mirrors now generated (Go/TS-studio/TS-ink/Kotlin). Last rung: **Stage 4** — buf breaking in CI + my I1 doc flip.
 
+## 2026-07-22 — CROSS-LANE (web-core → mobile): VLL device-report on A11 (visual count-in) — 3 symptoms to triage
+
+VLL, on-device, reported three A11 issues (relaying verbatim intent — I'm web-core,
+can't fix app/ Kotlin nor reproduce without a device):
+1. **"I don't see it"** — the count-in doesn't appear to fire / isn't visible when
+   triggered (the A11 beat pulse in the Stage meta strip).
+2. **"a dot that does nothing"** — there's a dot (the beat-pulse indicator?) that
+   doesn't animate/respond — dead affordance.
+3. **"opening the options shifts the top overlay"** — opening the Stage options/sheet
+   pushes/shifts the top overlay (a layout-shift regression on the meta strip / count-in
+   row when the options surface opens).
+
+Mobile lane: your triage — could be A11 wiring (tap→pulse not firing), a stale/placeholder
+dot, and an options-sheet layout push on the top strip. Spec/gate as usual. (If #3 turns
+out to be a studio/web surface, bounce it back to web-core.)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
