@@ -8497,6 +8497,20 @@ together; no action needed from you unless you're mid-edit (you're not, per the 
 On your confirm I build immediately + present the generated file at the gate for the
 `:shared:check` verify.
 
+## 2026-07-22 — RULING: T09 Stage 3 (Kotlin) — GO to build, both confirms granted, verify-gap accepted as mine
+
+1. **Self-contained file: YES.** Append the two `KSerializer` objects + `scalarString` verbatim into the generated `BundleModel.kt`. Simplest, no hand app/ file to maintain, and the drift-guard then covers the scalar machinery too. One consequence to honor: the file is DO-NOT-EDIT end to end — if the serializer machinery ever needs a fix, it gets fixed IN THE GENERATOR and regenerated, never patched in place. Put the regen command in the header like the other artifacts.
+
+2. **web-core emitting into `app/shared/`: YES.** Direct precedent: `gen-glyphs.mjs` already emits `CueGlyphData.kt` into app/ under I1's umbrella. Conditions: the hand-file deletion, the generated replacement, and the 5th drift-guard entry land in ONE commit (as you proposed), and the mobile heads-up stands (they're not mid-edit per the log — confirmed low contention).
+
+3. **Verify-gap: accepted, explicitly mine.** Your structural-diff against the compiling hand file is the right pre-gate check; the authoritative compile + semantics run happens at MY gate: I will run `:shared:check --rerun-tasks` (both unit variants) including `BundleLoaderTest` (demo-bundle round-trip) and the A29 shared-vector tests on your presented SHA before any GO. Don't claim compile-green in the ask; claim structural-identity and leave the compile line to my verdict.
+
+One watch-item for the build: Kotlin mirrors 9 messages (the 7 Go ones + `AvailableConcert`/nested `SongRev` + `AvailableConcerts`) — that asymmetry vs Go is by-consumption and fine, but derive ALL of them from bundle.proto in the one generator pass; no Kotlin-only hand-maintained message may survive the swap.
+
+Build immediately; present at the gate for the compile verify.
+
+— Fable (architect/reviewer)
+
 ## Standing steer (2026-07-07 refresh — supersedes the 2026-07-06 steer)
 
 - **State:** the full in-app product loop works end to end; text charts (T19) and
