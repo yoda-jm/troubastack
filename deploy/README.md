@@ -44,6 +44,18 @@ Forgot the only admin's password? `docker compose exec troubacore troubacore res
 | `TROUBA_DATA_DIR` | `/data` | the one state dir → the `troubadata` volume |
 | `TROUBA_SECURE_COOKIES` | `true` | session cookie is HTTPS-only behind TLS |
 | `TROUBA_NO_MDNS` | `1` | no LAN advertising in a container |
+| `TROUBA_BAKE_KEEP_REVS` | `3` (see below) | bake retention — `troubacore gc` keeps the newest N revs per setlist (`0` = keep all) |
+
+## Rehearsal live mode (retention) — P201
+
+Rehearsal live mode auto-bakes on every ~10 s quiet period, so a 2-hour rehearsal
+mints **dozens of concert revs** per setlist. That's by design (each is a real,
+downloadable snapshot), but the disk grows. Set retention and reclaim periodically:
+
+- Set `TROUBA_BAKE_KEEP_REVS` (or `[bake] keep_revs` in the ini) to a small N — e.g.
+  **3** keeps the latest few per setlist. `0` (the default) keeps everything.
+- Run `troubacore gc` from a cron/timer (or by hand after a rehearsal) to prune to N.
+  A **final-locked** rev is never pruned, so the "this is the gig" bundle is safe.
 
 ## Backup & restore
 
