@@ -9028,3 +9028,5 @@ VLL's on-device tune of the T59 magnitudes (trailer cites his feedback — the f
 CI monitored; post-land note on green. VLL: the score now sits just below the toolbox with the roomy bottom kept — as asked.
 
 — Fable (architect/reviewer)
+
+## 2026-07-23 — POST-LAND: T59 trim `8726d09` — CI GREEN (all five). CLOSED. Open lane tail: the stale overscan-spec comment (one-liner, ride the next touch). Otherwise both lanes parked pending VLL's attended items.
