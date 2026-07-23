@@ -521,26 +521,21 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      absolute zero-shift overlay (T27) so --chrome-h doesn't measure it; reserving
      its band ALWAYS (shown or not) keeps zero-shift AND lets the very top of page 1
      scroll clear of both bars, so it's reachable to annotate (VLL). */
-  /* T59 — constant scroll OVERSCAN at both ends so page 1's top edge and the last
-     page's bottom edge can be scrolled FULLY clear of the floating chrome (VLL:
-     "scroll a little bit more up and down so they're before the first / after the
-     last page"). Two constant terms fold into the existing chrome reserve:
-       --live-banner-reserve : the has-live-banner variant shifts the top pill down
-         by ~1.9rem; reserving it ALWAYS (banner shown or not) means toggling a live
-         setlist never moves the score — the reserve is mode-independent, so the
-         zero-shift invariant (T27/T42) still holds;
-       --viewer-overscan     : the comfort gap past each end VLL asked for.
-     The bottombar is a single non-wrapping row (parts overflow-x:auto), i.e. a
-     constant height, so a constant bottom reserve is correct. This is scroll RANGE,
-     not page size: the fit math is clientHeight-based (padding-independent), so
-     fit-page/fit-width are unchanged; wheel-zoom anchoring subtracts the real
-     padT/padB and self-adjusts. */
-  --viewer-overscan: 2.75rem;
-  --live-banner-reserve: 2rem;
-  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem) + var(--live-banner-reserve) + var(--viewer-overscan));
-  scroll-padding-bottom: calc(4.75rem + var(--viewer-overscan));
+  /* T59 (refined per VLL 2026-07-23): by default the score sits JUST BELOW the top
+     toolbox — reserve exactly the top chrome (--chrome-h pill + --ctx-h contextual
+     bar, both reserved ALWAYS so toggling the ctx bar / a live banner never shifts
+     the score — zero-shift, T27/T42) plus only a SMALL top overscan so you can nudge
+     it a little further clear if you need to annotate the very top. Too-large a top
+     margin was the complaint, so NO big top reserve. The BOTTOM keeps the roomier
+     overscan (VLL: the bottom margin is fine) — the bottombar is a constant-height
+     single row. Scroll RANGE, not page size: fit math is clientHeight-based
+     (padding-independent); wheel-zoom anchoring subtracts the real padT/padB. */
+  --viewer-overscan-top: 0.75rem;
+  --viewer-overscan-bottom: 2.75rem;
+  scroll-padding-top: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem) + var(--viewer-overscan-top));
+  scroll-padding-bottom: calc(4.75rem + var(--viewer-overscan-bottom));
   display: flex; flex-direction: column; align-items: safe center; gap: 1rem;
-  padding: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem) + var(--live-banner-reserve) + var(--viewer-overscan)) 1rem calc(4.75rem + var(--viewer-overscan));
+  padding: calc(var(--chrome-h, 3.5rem) + var(--ctx-h, 3.3rem) + var(--viewer-overscan-top)) 1rem calc(4.75rem + var(--viewer-overscan-bottom));
   background: var(--surface-2);
 }
 
