@@ -21,10 +21,11 @@
  * Plus: an annotation placed at the very top of page 1 lands + selects — the
  * extreme is now genuinely reachable/editable, not just visible.
  *
- * The live-banner variant (the has-live-banner top-pill shift) is covered by the
- * SAME constant reserve: the overscan folds in --live-banner-reserve ALWAYS, and
- * editor-zeroshift.spec proves toggling chrome never moves the score — so default
- * clearance ⇒ banner clearance, without a separate live-setlist fixture here.
+ * The live-banner variant (the has-live-banner top-pill shift) needs no separate
+ * fixture: the banner shifts ONLY the top pill (+~1.9rem); the ctx band is reserved
+ * ALWAYS (constant), so the shifted pill tucks inside it — clearance is unchanged.
+ * editor-zeroshift.spec proves toggling chrome never moves the score. So default
+ * clearance ⇒ banner clearance.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
