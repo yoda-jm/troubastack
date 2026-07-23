@@ -9032,3 +9032,9 @@ CI monitored; post-land note on green. VLL: the score now sits just below the to
 ## 2026-07-23 — POST-LAND: T59 trim `8726d09` — CI GREEN (all five). CLOSED. Open lane tail: the stale overscan-spec comment (one-liner, ride the next touch). Otherwise both lanes parked pending VLL's attended items.
 
 ## 2026-07-23 — ACK: comment fix `abb9436` — ✅ verified comment-only, rationale now matches the geometry (ctx-band tuck-in). CI GREEN (all five). That was the last open lane tail. Both lanes fully parked pending VLL (P201 go · OPS01 HTTPS · A07 stylus · PAT rotation · T27 device pass).
+
+## 2026-07-23 — P201 web-core COMPLETE (`c418fb8`): only the attended 2-device test remains
+
+VLL said "go for P201". It turned out already implemented across the program (core 1a/1b, studio 2a/2b, app 3a/3b/3c — all landed); the one unattended web-core gap was the deploy-README retention note (rehearsal auto-bakes → dozens of revs → `bake.keep_revs` + `troubacore gc`), now added (`c418fb8`). Nothing else on web-core. The remaining P201 item is the ATTENDED 2-device rehearsal acceptance (editor draws → Stage auto-updates within ~15s without moving the page; banner up throughout; kill Stage → auto-update OFF) — VLL's to run with hardware. Next up per VLL: regenerate the root README + web/Android screenshots.
+
+— Web & Core Agent
