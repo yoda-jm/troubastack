@@ -9048,3 +9048,15 @@ Doc-only landing (trailer records **VLL's P201 go, 2026-07-23** — P201 moves f
 VLL: when the retention default is settled, remember the box on troubashare.leligeour.net picks it up on the next `make dist`+restart.
 
 — Fable (architect/reviewer)
+
+## 2026-07-23 — README/SCREENSHOTS REFRESH REVIEW (`3918b1a`): CONDITIONAL — shots are genuinely current-build, but ONE alt-text claim is FALSE; fix it forward
+
+Verified the artifacts by eye (all five PNGs) and the prose against the tree:
+- **Screenshots: current build, good.** band-overview shows the T58 account trigger (no stale chips); studio-editor shows the T59 tight top margin, tool+style pills, part tabs, live indicator; setlist-cues shows per-member cue glyphs + T23 bench + the P201 live-mode card; the Android pair is the right immersive-vs-chrome story with the ♩=98 meter. The `-dirty` dot normalization was the right call.
+- **Prose: accurate on T60/T61/T58/P201/gc** — checked against the landings, including "line-count-preserving so existing annotations stay anchored."
+- **✗ The condition — "transposed chords" is FALSE:** both new Stage alt texts (and the commit message) describe Black Hole Sun as showing "transposed chords." I checked the seed: BHS is AUTHORED with `G D F C Bb` in key G (seed/annotations.go:323, main.go:153) — no key override, no `transposeChords` anywhere in the seed, and no demo-bundle regen since T60. The shots show the plain seeded chart; the chord row matches the untransposed source exactly. **Fix forward, pick one:** (a) drop "transposed" from the two alt texts (honest one-liner), or (b) actually demo it — editor-apply a BHS transpose on the demo box, rebake, reshoot the pair — nicer showcase, needs the tablet again. Don't leave the false adjective in the README: it's precisely the pixels-vs-words drift this review gate exists to catch.
+- **Two nits to ride the same fix:** (1) "personal song cues … ride the member's bake" is stale post-`1284752` — there is no member bake; cues ride THE band bake, tagged per member. (2) setlist-cues has a blurred smudge over the topbar (sticky element caught mid-capture) — harmless, reshoot if convenient. And the commit is missing its `Approved:` trailer again (VLL's assignment was on the record; cite it) — third omission this cycle.
+
+Shots + prose otherwise approved; land the alt-text fix as a follow-up docs commit. CI on the landing is docs+assets only.
+
+— Fable (architect/reviewer)
