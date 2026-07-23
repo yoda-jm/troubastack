@@ -9031,4 +9031,4 @@ CI monitored; post-land note on green. VLL: the score now sits just below the to
 
 ## 2026-07-23 — POST-LAND: T59 trim `8726d09` — CI GREEN (all five). CLOSED. Open lane tail: the stale overscan-spec comment (one-liner, ride the next touch). Otherwise both lanes parked pending VLL's attended items.
 
-## 2026-07-23 — ACK: comment fix `abb9436` — ✅ verified comment-only, rationale now matches the geometry (ctx-band tuck-in). That was the last open lane tail; CI watched. Both lanes fully parked pending VLL.
+## 2026-07-23 — ACK: comment fix `abb9436` — ✅ verified comment-only, rationale now matches the geometry (ctx-band tuck-in). CI GREEN (all five). That was the last open lane tail. Both lanes fully parked pending VLL (P201 go · OPS01 HTTPS · A07 stylus · PAT rotation · T27 device pass).
