@@ -22,7 +22,7 @@ night mode, count-in, facing pages, per-role layers.
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| ![The fullscreen canvas-first TroubaStudio editor: Wonderwall with conductor cues, section highlights and part tabs; slim floating tool and style pills over the score](docs/screenshots/studio-editor.png) | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: score raster + section highlights + conductor cues" width="260"> |
+| ![The fullscreen canvas-first TroubaStudio editor — Wonderwall (Vocals part): breath-layer cues over the staff, part tabs, and the slim floating tool + style pills sitting just above the score](docs/screenshots/studio-editor.png) | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with transposed chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
 
 The full loop works end to end today: **compose → annotate (realtime, multi-user) →
 bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
@@ -125,16 +125,14 @@ browse offered concerts, download and perform them. Stage-time ergonomics are re
 pedal/volume-key page turns, night mode, count-in, facing pages on wide tablets,
 per-role layer defaults, a song drawer, and the screen stays awake while performing.
 
+On the stage-time form factor — a portrait tablet performing the committed demo bundle.
+Immersive (system bars hidden, the whole screen is the score) on the left; a tap brings
+back the Stage chrome on the right — song drawer, the live **♩ tempo meter**, per-role /
+layer controls and the page pager:
+
 <p>
-<img src="docs/screenshots/stage-concerts.png" alt="Concerts list (Sat @ The Anchor) with Connect + Import" width="240">&nbsp;
-<img src="docs/screenshots/stage-page.png" alt="A performed page: raster + overlay, pager, layer and role controls" width="240">
-
-On the stage-time form factor — a portrait tablet (Pixel Tablet, 1600×2560) performing the
-demo, including the original song *The Open Road* with its baked Form / conductor-cue /
-personal layers:
-
-<img src="docs/screenshots/tablet-stage-openroad.png" alt="The Open Road lead sheet on a portrait Pixel Tablet: chords and lyrics with the baked chorus highlight, capo cue and personal notes composited" width="320">&nbsp;
-<img src="docs/screenshots/tablet-stage-wonderwall.png" alt="Wonderwall — Score on the same tablet, section highlights and cues over the raster, page 1/22" width="320">
+<img src="docs/screenshots/stage-page.png" alt="Immersive Stage page on a portrait tablet: Black Hole Sun composited — transposed chords, section highlights, conductor annotations, page 1/3" width="300">&nbsp;
+<img src="docs/screenshots/stage-controls.png" alt="The same page with the Stage chrome revealed: song drawer, title + position, the ♩=98 tempo meter, settings, page arrows" width="300">
 </p>
 
 ### Build & install
@@ -220,14 +218,19 @@ The product loop is closed and CI-gated end to end:
   zoom-to-cursor (one raster per gesture), low-latency wet ink, per-member layers,
   per-object z-order with a selection toolbar, shapes/text/highlights with presets,
   realtime multi-user echo, offline honesty (read-only presentation + visible
-  errors — nothing dies silently), text charts alongside PDFs, **personal song
-  cues** (per-member icon+color reminders — "mic + red guitar" — that ride the
-  member's bake), animated drag-reorder setlists, duplication, admin password
-  reset, a build-version chip.
-- **The pipeline:** server-side bake (concurrent-safe, per-member parts, encore/bench
-  songs, retention via `troubacore gc`), in-app offer/download distribution, and the
-  committed demo bundle above — studio pixels and baked pixels come from the same
-  renderer (I8) and are parity-tested.
+  errors — nothing dies silently), text charts alongside PDFs with **chord
+  transposition** (transpose a chart to any key — line-count-preserving so existing
+  annotations stay anchored — in the editor, or per setlist item burned in at bake),
+  **personal song cues** (per-member icon+color reminders — "mic + red guitar" — that
+  ride the member's bake), animated drag-reorder setlists (titles link to the song),
+  duplication, admin password reset, and a top-right account menu (profile · get the
+  app · build/version-mismatch check · log out).
+- **The pipeline:** server-side bake (concurrent-safe, one band-wide bundle per setlist,
+  encore/bench songs, retention via `troubacore gc`), in-app offer/download distribution,
+  **rehearsal live mode** (opt-in: annotation edits debounce-autobake and, for a performer
+  who opts in on Stage, auto-update the open concert in place — viewport-preserving, so
+  the page doesn't jump), and the committed demo bundle above — studio pixels and baked
+  pixels come from the same renderer (I8) and are parity-tested.
 - **The presenter:** Android + iOS-simulator TroubaStage with the stage ergonomics
   arc (A08–A15) landed: metadata strip, pedal page turns, night mode, count-in,
   facing pages, scroll mode, song drawer.
