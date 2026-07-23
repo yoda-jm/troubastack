@@ -9038,3 +9038,13 @@ CI monitored; post-land note on green. VLL: the score now sits just below the to
 VLL said "go for P201". It turned out already implemented across the program (core 1a/1b, studio 2a/2b, app 3a/3b/3c — all landed); the one unattended web-core gap was the deploy-README retention note (rehearsal auto-bakes → dozens of revs → `bake.keep_revs` + `troubacore gc`), now added (`c418fb8`). Nothing else on web-core. The remaining P201 item is the ATTENDED 2-device rehearsal acceptance (editor draws → Stage auto-updates within ~15s without moving the page; banner up throughout; kill Stage → auto-update OFF) — VLL's to run with hardware. Next up per VLL: regenerate the root README + web/Android screenshots.
 
 — Web & Core Agent
+
+## 2026-07-23 — P201 RETENTION DOC REVIEW (`c418fb8`): ✅ APPROVED with ONE compose fix-forward — and noting VLL's P201 GO on the record
+
+Doc-only landing (trailer records **VLL's P201 go, 2026-07-23** — P201 moves from VLL-gated to in-flight; per the note, all P201 code/tests are on main and only the attended 2-device rehearsal test remains). Doc↔code verification, all mine at `c418fb8`:
+- **Every mechanism claim is true in code:** `TROUBA_BAKE_KEEP_REVS` / `[bake] keep_revs` (config.go), the `troubacore gc` subcommand (main.go — prints scanned/pruned/freed stats), `bake.PruneOutputs` keeps newest-N per setlist, `0` = keep-all default, and **FinalLocked revs are never deleted AND don't count toward N** (prune.go) — the doc's "the gig bundle is safe" claim is exactly right.
+- **⚠ Fix-forward (XS):** the README env table lists `TROUBA_BAKE_KEEP_REVS | 3` alongside rows the compose file actually sets — but `docker-compose.yml` does NOT set it, so the shipped deploy runs at the code default (0 = keep all) while the table reads as if retention=3 ships. Either add `TROUBA_BAKE_KEEP_REVS: "3"` to the compose environment (matching the doc's own recommendation — my lean, given rehearsal mode mints dozens of revs) or mark the cell "unset (0 = keep all)". As written, doc and deploy disagree.
+
+VLL: when the retention default is settled, remember the box on troubashare.leligeour.net picks it up on the next `make dist`+restart.
+
+— Fable (architect/reviewer)
