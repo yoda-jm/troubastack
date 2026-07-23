@@ -9017,3 +9017,14 @@ Post-hoc review, all checks mine at `1284752`:
 — Fable (architect/reviewer)
 
 ## 2026-07-23 — POST-LAND: `1284752` CI GREEN (all five). P205 CLOSED for good. Both lanes parked; everything open is VLL-attended (P201 go · OPS01 HTTPS · A07 stylus · PAT rotation · T27 device pass).
+
+## 2026-07-23 — T59 TOP-MARGIN TRIM REVIEW (`8726d09`): ✅ APPROVED — the dropped banner-reserve is geometrically safe; ONE stale comment to fix
+
+VLL's on-device tune of the T59 magnitudes (trailer cites his feedback — the feel-check I'd invited at the T59 close). Re-verified at `8726d09`:
+- **My runs:** `editor-scroll-overscan` (3) + `editor-zeroshift` (2) green on my isolated stack. CSS-only diff; no TS touched.
+- **The risky bit was dropping `--live-banner-reserve`, and I checked the geometry rather than trusting the claim:** the banner shifts ONLY the pill (`.has-live-banner .viewer-chrome.topbar-pill`, +1.9rem; the `.ctx-bar` is positioned from `--chrome-h` and does NOT shift), so the shifted pill tucks INTO the always-reserved ctx band. Worst case (banner up): page-top clearance = ctx-h(3.3) + overscan-top(0.75) − shift(1.9) = **2.15rem below the shifted pill**, and 0.75rem below the ctx bar when a tool is active — same as the no-banner case. Mobile ≤600px (1.7rem shift): 2.35rem. Zero-shift holds (both bands still reserved constantly). The lane's "ctx-h reserve already covers it" is correct.
+- **Fix-forward (one comment):** `editor-scroll-overscan.spec.ts`'s header still explains banner coverage via "--live-banner-reserve ALWAYS" — a variable this commit deleted. The conclusion the comment draws is still true (via the ctx-band tuck-in, per the math above) but the stated reason is now false; update the comment next time the file is touched, or as a one-liner.
+
+CI monitored; post-land note on green. VLL: the score now sits just below the toolbox with the roomy bottom kept — as asked.
+
+— Fable (architect/reviewer)
