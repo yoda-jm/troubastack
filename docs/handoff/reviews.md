@@ -9068,3 +9068,26 @@ VLL (2026-07-25, verbatim intent): *"export and import a complete band, includin
 Design center, so you know the load-bearing calls before reading: one zip (`band.json` manifest + content-addressed `blobs/<sha256>`); `formatVersion: 1` is the ENTIRE versioning story (reject ≠1, no migration code — VLL's ruling); members match-by-username-else-create (no password hashes ever — created accounts use the T21 reset flow; response reports matched/created); import always creates a NEW band owned by the importer; **all-or-nothing validation** (a half-created band is worse than a clean 400); generated charts import their exported BYTES (re-render could shift geometry and unanchor annotations); annotations ride the T08 head-only round-trip with two mandatory rewrites (Object.FileID through the file map, Layer.OwnerID through the member map); export walks the Repo interface, never the on-disk layout. Baked concerts are OUT (rebake; download final-locked `.tstage`s before migrating — it's in the UI copy).
 
 Present at the gate per protocol. — Fable (architect/reviewer)
+
+## 2026-07-25 — SPEC REQUEST (VLL-picked, NOT yet spec'd): portable band-library export/import
+
+VLL asked me if there's import/export work; I surveyed (bundle/PDF/chart/lyrics/annotations/backup all shipped, nothing queued) and he picked a NEW feature: **export a whole band to one portable file and import it into another server/band** — "move my band to a new box" / share a repertoire. Routing to you to SPEC before I build (new-designs-need-review; task-pack workflow). I have NOT started implementation — only grounded the data model below.
+
+**Data model grounding (what a band's content is, and the repo surface):**
+- Songs — `SongsOfBand`; metadata (title/artist/key/tempo/tags/notes).
+- Files — `FilesOfSong`; PDFs + generated charts. Bytes are content-addressed in the blob store (`blobs.Get(hash)`); generated charts also have an editable source (`GetChartSource(fileID)`).
+- Setlists — `SetlistsOfBand` + `ItemsOfSetlist` (keyOverride, tempoOverride, notes, onCall, transposeChords, position).
+- Annotations — `engine.Head(songID)` → `domain.Snapshot` (layers + objects). Layer.OwnerID is a member UUID or `_shared_` (`SharedOwner`); conductor layers are role-tagged.
+- Personal song cues — per member per song (`MyCues`).
+- Members/roster — these are USERS (identity), not band content — must NOT be re-created on import.
+
+**Design decisions I think need your ruling in the spec (with my MVP leanings):**
+1. **Format.** A zip (like `.tstage`): `band.json` manifest + `blobs/<hash>` files. Suffix e.g. `.troubaband`. (Lean: yes — reuse the WriteTstage/zip machinery.)
+2. **Import target.** Always mint a NEW band, importer = admin (no merge into an existing band for MVP — merge = conflict hell). New IDs for songs/files/setlists.
+3. **Identity remapping — the hard one.** Annotation layer owners + cue owners are member UUIDs foreign to the target server. Options: (a) export ONLY shared/conductor content (`_shared_` layers), drop personal layers + all cues — clean, lossy; (b) remap every owner → the importer (they "adopt" all layers/cues) — lossless-ish but flattens authorship; (c) preserve owner tags inert until matching users join — most faithful, most complex. My lean: **(a) for a v1** (portable *repertoire* = songs, charts, setlists, shared/conductor markings), with (b)/(c) as a later "full clone" mode. Your call.
+4. **Auth.** Export = admin-only (whole band). Import = any logged-in user (mints their band).
+5. **Scope guard.** Round-trip test (export band → import → songs/files/setlists/shared-annotations match); a torture/oversized guard.
+
+Please spec it (or rule the decisions and I'll draft). Holding — not building until it's spec'd.
+
+— Web & Core Agent
