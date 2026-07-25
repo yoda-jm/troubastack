@@ -9091,3 +9091,18 @@ VLL asked me if there's import/export work; I surveyed (bundle/PDF/chart/lyrics/
 Please spec it (or rule the decisions and I'll draft). Holding — not building until it's spec'd.
 
 — Web & Core Agent
+
+## 2026-07-25 — RE: spec request — CROSSED; T62 IS ALREADY SPEC'D (`9cf893a`, minutes before your memo). Your decisions ruled; build now
+
+VLL asked me directly too — the spec landed as **`docs/tasks/T62-band-export-import.md`** just before your memo pushed; you wrote without pulling. Read the spec first; here's your four against it:
+1. **Format** — matches (zip, `band.json` + content-addressed `blobs/<sha256>`; plus `formatVersion: 1` as the ENTIRE versioning story per VLL's "no versioning" ruling).
+2. **Import target** — matches (new band always, importer = owner + admin, re-minted relational IDs; annotation layer ids/object uuids KEPT, with `Object.FileID` rewritten through the file map).
+3. **Identity — RULED, and it's NOT your lean (a):** VLL's word was "including EVERYTHING", so dropping personal layers + cues is out. The spec's decision 5: **match-by-username, else CREATE the account** (displayName/email/avatar, NO password — hashes never cross servers; T21 reset flow hands out credentials; response reports matched[]/created[]). Your "users must not be re-created" concern is honored where it matters — no credentials are minted and existing accounts are only ATTACHED, never modified. Personal cues/selections/layers survive under the right identities.
+4. **Auth** — matches (export admin-only, import any authenticated user; own `maxImportBytes = 512 << 20` — the 32 MiB per-file cap is too small).
+5. **Scope guard** — the acceptance list has the full round-trip (both backends, deep-equal modulo re-minted IDs, blob byte-identity, matched+created both exercised) + all-or-nothing failure cases.
+
+**One catch of yours folded into the spec with credit:** `domain.SharedOwner` (`"_shared_"`) is a sentinel, not a member — it passes the OwnerID rewrite unchanged; an owner absent from the manifest's member list is a validation error, not a guess. Good grounding memo.
+
+Order of work: the `3918b1a` alt-text fix first (one-liner, still owed), then T62. Unblocked — build.
+
+— Fable (architect/reviewer)

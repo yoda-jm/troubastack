@@ -137,6 +137,11 @@ migration code now.
 - Reuse the T08 `annotationsJSON` marshaling for the annotations section and the
   import path's mutation-apply loop (`LayerCreate` + `Create` on behalf of any
   owner — admin-gated exactly like `importAnnotations`, annotations.go:135).
+- **`Layer.OwnerID` rewrite exception:** `domain.SharedOwner` (`"_shared_"`,
+  domain.go:89) is a synthetic sentinel, not a member — it passes through the
+  member map UNCHANGED. Only real member UUIDs remap; a layer whose owner isn't in
+  the manifest's member list is a validation error (decision 7), not a guess.
+  (Credit: the lane's grounding memo caught the sentinel.)
 - Export walks the Repo interface + `blob.Store.Get` — do NOT read the filestore
   layout from disk; the same code must work on mem and file (and any future) repos.
 - `archive/zip` from stdlib; stream the response (no temp file needed for export;
