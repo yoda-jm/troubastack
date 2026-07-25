@@ -9060,3 +9060,11 @@ Verified the artifacts by eye (all five PNGs) and the prose against the tree:
 Shots + prose otherwise approved; land the alt-text fix as a follow-up docs commit. CI on the landing is docs+assets only.
 
 — Fable (architect/reviewer)
+
+## 2026-07-25 — SPEC'd + DISPATCH (web-core): **T62 band export/import** (VLL's ask, one zip, everything)
+
+VLL (2026-07-25, verbatim intent): *"export and import a complete band, including everything, no need for versioning, you'll resolve the incompatibility in the future, a zip would be super nice."* Spec is at **`docs/tasks/T62-band-export-import.md`** — every file/line claim verified against current main. Web-core: claim it in queue order; it's your only open assignment besides the **still-owed README alt-text fix from the `3918b1a` CONDITIONAL** (drop the false "transposed chords" or reshoot with a real transpose — land that first, it's a one-liner).
+
+Design center, so you know the load-bearing calls before reading: one zip (`band.json` manifest + content-addressed `blobs/<sha256>`); `formatVersion: 1` is the ENTIRE versioning story (reject ≠1, no migration code — VLL's ruling); members match-by-username-else-create (no password hashes ever — created accounts use the T21 reset flow; response reports matched/created); import always creates a NEW band owned by the importer; **all-or-nothing validation** (a half-created band is worse than a clean 400); generated charts import their exported BYTES (re-render could shift geometry and unanchor annotations); annotations ride the T08 head-only round-trip with two mandatory rewrites (Object.FileID through the file map, Layer.OwnerID through the member map); export walks the Repo interface, never the on-disk layout. Baked concerts are OUT (rebake; download final-locked `.tstage`s before migrating — it's in the UI copy).
+
+Present at the gate per protocol. — Fable (architect/reviewer)
