@@ -67,6 +67,10 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 	// + objects. Reuses the relational auth middleware so it shares one auth path.
 	NewAnnotationsAPI(svc, eng).Mount(mux, web.auth)
 
+	// Whole-band export/import (T62): admin exports a .tband zip; any user imports
+	// one into a new band. Needs the engine (annotations ride the export).
+	NewBandIOAPI(svc, eng).Mount(mux, web.auth)
+
 	// Bake orchestration (I11): admin bakes a setlist → .tstage; members list +
 	// download baked concerts. baker may be nil in tests that don't exercise bake.
 	NewBakeAPI(svc, baker).Mount(mux, web.auth)

@@ -73,6 +73,7 @@ export function BandSettings() {
       <MembersAdmin bandId={bandId} myRole={myRole} />
       {myRole === "admin" && <PendingInvites bandId={bandId} />}
       {myRole === "admin" && <InviteLinks bandId={bandId} />}
+      {myRole === "admin" && <ExportBand bandId={bandId} bandName={band.name} />}
       {myRole === "admin" && <DeleteBand bandId={bandId} />}
     </div>
   );
@@ -320,6 +321,58 @@ function PendingInvites({ bandId }: { bandId: string }) {
             ))}
           </ul>
         )}
+        <ErrorBanner message={error} />
+      </div>
+    </section>
+  );
+}
+
+function ExportBand({ bandId, bandName }: { bandId: string; bandName: string }) {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onExport() {
+    setError(null);
+    setBusy(true);
+    try {
+      const { blob, filename } = await api.exportBand(bandId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to export band");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Export band</h2>
+      </div>
+      <div className="panel-body">
+        <p className="muted" style={{ marginTop: 0 }}>
+          Download <strong>{bandName}</strong> as a portable <code>.tband</code> archive — its
+          members, songs, files, charts, annotations, and setlists. Baked concerts are not
+          included; re-bake them after importing.
+        </p>
+        <div className="inline-form">
+          <button
+            type="button"
+            className="primary"
+            data-testid="export-band"
+            disabled={busy}
+            onClick={onExport}
+          >
+            {busy ? "Preparing…" : "Export band (.zip)"}
+          </button>
+        </div>
         <ErrorBanner message={error} />
       </div>
     </section>

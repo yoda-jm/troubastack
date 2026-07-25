@@ -1,14 +1,17 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError, api, type Band } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { NewItem } from "../components/NewItem";
 
 export function Bands() {
+  const navigate = useNavigate();
   const [bands, setBands] = useState<Band[]>([]);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   async function load() {
     try {
@@ -39,10 +42,45 @@ export function Bands() {
     }
   }
 
+  async function onImport(e: FormEvent<HTMLInputElement>) {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    input.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setError(null);
+    setImporting(true);
+    try {
+      const rep = await api.importBand(file);
+      await load();
+      navigate(`/bands/${rep.band.id}`, { state: { importReport: rep } });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to import band");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-head">
         <h1>My bands</h1>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".zip,.tband,application/zip"
+          hidden
+          data-testid="import-band-input"
+          onChange={onImport}
+        />
+        <button
+          type="button"
+          className="ghost-btn"
+          data-testid="import-band-btn"
+          disabled={importing}
+          onClick={() => fileInput.current?.click()}
+        >
+          {importing ? "Importing…" : "Import band…"}
+        </button>
         <NewItem label="New band" testId="new-band-btn">
           {(close) => (
             <form

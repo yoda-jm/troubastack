@@ -52,6 +52,18 @@ export type MemberView = {
   role: Role;
 };
 
+/** Result of importing a .tband archive (T62): the new band plus a member reconciliation
+ * report. `matched` accounts already existed and were attached; `created` accounts were
+ * minted with no password (the people need a reset link to sign in). */
+export type ImportReport = {
+  band: Band;
+  matched: string[];
+  created: string[];
+  songs: number;
+  files: number;
+  setlists: number;
+};
+
 export type Invite = {
   id: string;
   bandId: string;
@@ -331,6 +343,27 @@ export const api = {
     request<{ invite: Invite }>("POST", `/api/bands/${bandId}/invites`, { identifier, kind }).then(
       (r) => r.invite,
     ),
+
+  // ---- whole-band export/import (T62) ----
+  // Export the band as a portable .tband archive (admin-only, gated server-side). Returns
+  // the zip Blob plus the server-suggested filename (from Content-Disposition).
+  exportBand: async (bandId: string): Promise<{ blob: Blob; filename: string }> => {
+    const res = await fetch(`/api/bands/${bandId}/export`, { credentials: "include" });
+    if (!res.ok) {
+      await decode<void>(res); // throws ApiError with the server message
+    }
+    const disp = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="?([^"]+)"?/.exec(disp);
+    return { blob: await res.blob(), filename: match?.[1] ?? `band-${bandId}.tband.zip` };
+  },
+
+  // Import a .tband archive → a NEW band owned by the caller. Returns the reconciliation
+  // report (new band + which member accounts were matched vs freshly created).
+  importBand: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<ImportReport>("/api/bands/import", form);
+  },
 
   // ---- songs ----
   listSongs: (bandId: string) =>

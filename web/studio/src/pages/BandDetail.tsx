@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import QRCode from "qrcode";
-import { ApiError, api, type Band, type Invite, type MemberView, type Role, type Song } from "../api";
+import {
+  ApiError,
+  api,
+  type Band,
+  type ImportReport,
+  type Invite,
+  type MemberView,
+  type Role,
+  type Song,
+} from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { NewItem } from "../components/NewItem";
@@ -14,9 +23,13 @@ function label(s: string): string {
 
 export function BandDetail() {
   const { bandId } = useParams<{ bandId: string }>();
+  const location = useLocation();
   const [band, setBand] = useState<Band | null>(null);
   const [myRole, setMyRole] = useState<Role | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A just-completed import (T62) navigates here with its report in router state.
+  const importReport = (location.state as { importReport?: ImportReport } | null)?.importReport;
+  const [showReport, setShowReport] = useState(true);
 
   const loadBand = useCallback(async () => {
     if (!bandId) return;
@@ -66,9 +79,51 @@ export function BandDetail() {
 
       <SectionTabs bandId={bandId} active="overview" showSettings={myRole === "admin"} />
 
+      {importReport && showReport && (
+        <ImportSummary report={importReport} onDismiss={() => setShowReport(false)} />
+      )}
+
       <Members bandId={bandId} myRole={myRole} />
       <Songs bandId={bandId} />
     </div>
+  );
+}
+
+/**
+ * ImportSummary reports what a just-finished band import (T62) brought in and,
+ * crucially, which member accounts were freshly created — those people can't sign
+ * in until an admin issues each a reset link (below, on every member row).
+ */
+function ImportSummary({ report, onDismiss }: { report: ImportReport; onDismiss: () => void }) {
+  const matched = report.matched ?? [];
+  const created = report.created ?? [];
+  return (
+    <section className="panel" data-testid="import-report">
+      <div className="panel-head">
+        <h2>Import complete</h2>
+        <button type="button" className="ghost-btn" onClick={onDismiss} data-testid="import-report-dismiss">
+          Dismiss
+        </button>
+      </div>
+      <div className="panel-body">
+        <p style={{ marginTop: 0 }}>
+          Imported <strong>{report.songs}</strong> song{report.songs === 1 ? "" : "s"} (
+          {report.files} file{report.files === 1 ? "" : "s"}) and <strong>{report.setlists}</strong>{" "}
+          setlist{report.setlists === 1 ? "" : "s"}.
+        </p>
+        {matched.length > 0 && (
+          <p className="muted" data-testid="import-matched">
+            Attached to existing accounts: {matched.join(", ")}.
+          </p>
+        )}
+        {created.length > 0 && (
+          <p className="notice" data-testid="import-created">
+            New accounts created (no password yet — issue each a reset link below so they can sign
+            in): {created.join(", ")}.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
