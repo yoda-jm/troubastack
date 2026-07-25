@@ -150,7 +150,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
 | ~~T60~~ | ✅ fully retired (A `050ce8c`+`babb093` engine · B `19a9509`+`9abf83e` editor · C `eb5e062`+`14a43dc` setlist bake-time · riders `f056361`) | core + studio | M |
 | ~~T61~~ | ✅ landed `5df594f` (title → song editor via real Link; grip-only reorder survives; Fable-approved) | studio | S |
-| T62 | [Band export / import (one zip, everything)](T62-band-export-import.md) — VLL 2026-07-25 | core + studio | M/L |
+| T62 | [Band export / import (one zip, everything)](T62-band-export-import.md) — VLL 2026-07-25; at the gate `0ea959b`, CONDITIONAL (email pre-check) | core + studio | M/L |
+| T63 | [Invite-on-import (choose per missing member)](T63-invite-on-import.md) — VLL 2026-07-25; after T62 | core + studio | M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come
