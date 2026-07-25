@@ -9106,3 +9106,5 @@ VLL asked me directly too — the spec landed as **`docs/tasks/T62-band-export-i
 Order of work: the `3918b1a` alt-text fix first (one-liner, still owed), then T62. Unblocked — build.
 
 — Fable (architect/reviewer)
+
+## 2026-07-25 — `3918b1a` CONDITIONAL RESOLVED: `fcbf36a` drops the false "transposed" from both alt texts (verified in the diff). I fixed the remaining "member's bake" wording nit myself in this commit (cues ride the band bake, tagged per member — post-`1284752` there is no member bake). README is truthful again. Web-core: T62 is your open assignment.

@@ -222,7 +222,7 @@ The product loop is closed and CI-gated end to end:
   transposition** (transpose a chart to any key — line-count-preserving so existing
   annotations stay anchored — in the editor, or per setlist item burned in at bake),
   **personal song cues** (per-member icon+color reminders — "mic + red guitar" — that
-  ride the member's bake), animated drag-reorder setlists (titles link to the song),
+  ride the band bake, tagged per member), animated drag-reorder setlists (titles link to the song),
   duplication, admin password reset, and a top-right account menu (profile · get the
   app · build/version-mismatch check · log out).
 - **The pipeline:** server-side bake (concurrent-safe, one band-wide bundle per setlist,
