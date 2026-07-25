@@ -22,7 +22,7 @@ night mode, count-in, facing pages, per-role layers.
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| ![The fullscreen canvas-first TroubaStudio editor — Wonderwall (Vocals part): breath-layer cues over the staff, part tabs, and the slim floating tool + style pills sitting just above the score](docs/screenshots/studio-editor.png) | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with transposed chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
+| ![The fullscreen canvas-first TroubaStudio editor — Wonderwall (Vocals part): breath-layer cues over the staff, part tabs, and the slim floating tool + style pills sitting just above the score](docs/screenshots/studio-editor.png) | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
 
 The full loop works end to end today: **compose → annotate (realtime, multi-user) →
 bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
@@ -131,7 +131,7 @@ back the Stage chrome on the right — song drawer, the live **♩ tempo meter**
 layer controls and the page pager:
 
 <p>
-<img src="docs/screenshots/stage-page.png" alt="Immersive Stage page on a portrait tablet: Black Hole Sun composited — transposed chords, section highlights, conductor annotations, page 1/3" width="300">&nbsp;
+<img src="docs/screenshots/stage-page.png" alt="Immersive Stage page on a portrait tablet: Black Hole Sun composited — chords, section highlights, conductor annotations, page 1/3" width="300">&nbsp;
 <img src="docs/screenshots/stage-controls.png" alt="The same page with the Stage chrome revealed: song drawer, title + position, the ♩=98 tempo meter, settings, page arrows" width="300">
 </p>
 
