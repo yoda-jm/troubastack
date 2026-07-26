@@ -144,12 +144,16 @@ func (a *BakeAPI) transposeWarnings(u app.User, bandID, setlistID string) []stri
 				}
 			}
 		}
+		title := item.SongTitle
+		if title == "" {
+			title = song.Title
+		}
 		if ok, reason := app.TransposeEligible(song.Key, item.KeyOverride, hasChart); !ok {
-			title := item.SongTitle
-			if title == "" {
-				title = song.Title
-			}
 			warns = append(warns, title+": chords not transposed — "+reason)
+		} else if !a.svc.BakeTransposeSucceeds(u, bandID, item.SongID, item.KeyOverride) {
+			// D3: eligible, but the transform errored at bake so the chart baked
+			// UNTRANSPOSED — otherwise a silent wrong-key page.
+			warns = append(warns, title+": chords not transposed — the chart could not be transposed at bake")
 		}
 	}
 	return warns

@@ -286,6 +286,17 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	if !ok {
 		return song, nil // no PDF to bake — metadata-only song
 	}
+	// D1: when the item asks to transpose, bake the GENERATED chart — the exact file the
+	// playlist preview shows and the bake-warning / Studio checkbox key on. Otherwise, with
+	// an uploaded PDF at a lower DisplayOrder, the baker would bake that untransposed PDF
+	// while the band previewed the transposed chart — a silently wrong gig bundle.
+	if item.TransposeChords {
+		if gen, genOK, gerr := b.generatedChart(actor, bandID, item.SongID); gerr != nil {
+			return BakedSong{}, gerr
+		} else if genOK {
+			file = gen
+		}
+	}
 	_, pdf, err := b.svc.DownloadSongFile(actor, file.ID)
 	if err != nil {
 		return BakedSong{}, err
@@ -305,7 +316,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 				if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, file.ID); cerr == nil {
 					from, _ := chartpdf.ParseKey(song.Key)
 					to, _ := chartpdf.ParseKey(item.KeyOverride)
-					if t, terr := chartpdf.Transpose(src, from, to); terr == nil {
+					if t, terr := chartpdf.TransposeToKey(src, item.KeyOverride, from, to); terr == nil { // D5
 						if tpdf, rerr := chartpdf.Render(t); rerr == nil {
 							pdf = tpdf
 						}
@@ -407,6 +418,25 @@ func (b *Baker) defaultFile(actor app.User, bandID, songID string) (app.SongFile
 	sort.Slice(files, func(i, j int) bool { return files[i].DisplayOrder < files[j].DisplayOrder })
 	for _, f := range files {
 		if f.ContentType == "application/pdf" {
+			return f, true, nil
+		}
+	}
+	return app.SongFile{}, false, nil
+}
+
+// generatedChart returns the song's generated text-chart (lowest DisplayOrder) if it has
+// one — the file transpose + the playlist preview operate on. Baking THIS when an item asks
+// to transpose (D1) keeps the gig bundle, the preview, the bake-warning, and the Studio
+// checkbox all pointing at the same document; "a generated chart exists" is the single
+// eligibility predicate the other three sites already use.
+func (b *Baker) generatedChart(actor app.User, bandID, songID string) (app.SongFile, bool, error) {
+	files, err := b.svc.SongFiles(actor, bandID, songID)
+	if err != nil {
+		return app.SongFile{}, false, err
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].DisplayOrder < files[j].DisplayOrder })
+	for _, f := range files {
+		if f.Generated {
 			return f, true, nil
 		}
 	}

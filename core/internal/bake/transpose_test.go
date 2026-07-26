@@ -137,3 +137,63 @@ func TestBake_TransposesChartOrWarns(t *testing.T) {
 		t.Errorf("bad-override reason = %q", reason)
 	}
 }
+
+// TestBake_D1_TransposesGeneratedChartNotDefaultPDF (T64 D1): a song with an uploaded PDF at
+// a LOWER DisplayOrder than its generated chart, transpose requested. The baker must bake the
+// TRANSPOSED generated chart (what the preview shows + the checkbox/warning key on) — not the
+// untransposed uploaded PDF it used to pick as the default file (a silently wrong gig bundle).
+func TestBake_D1_TransposesGeneratedChartNotDefaultPDF(t *testing.T) {
+	svc := app.NewService(memrepo.New())
+	svc.WithBlobStore(blob.NewMem())
+	eng := engine.New(memstore.New().(store.HistoryAware))
+
+	u, _ := svc.Register("admin", "Admin", "password123", "")
+	band, _ := svc.CreateBand(u, "Band")
+	song, _ := svc.CreateSong(u, band.ID, "Stand By Me", "")
+	key := "C"
+	if _, err := svc.UpdateSong(u, band.ID, song.ID, app.SongPatch{Key: &key}); err != nil {
+		t.Fatal(err)
+	}
+	// Uploaded PDF FIRST → DisplayOrder 0 (the old default-baked file); generated chart after.
+	uploaded := []byte("%PDF-1.4 the uploaded score")
+	if _, err := svc.UploadSongFile(u, band.ID, song.ID, "score.pdf", "application/pdf", uploaded); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateTextChart(u, band.ID, song.ID, transposeChartSrc); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eng.Apply(song.ID, domain.Mutation{
+		Kind:     domain.KindLayerCreate,
+		Layer:    &domain.Layer{ID: "L1", Name: "Marks", OwnerID: u.ID, Zone: domain.ZonePersonal, Order: 0, Access: domain.AccessRW},
+		AuthorID: u.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sl, _ := svc.CreateSetlist(u, band.ID, "Gig", "", "", "")
+	item, _ := svc.AddSetlistItem(u, band.ID, sl.ID, song.ID)
+	yes, over := true, "D"
+	if _, err := svc.UpdateSetlistItem(u, band.ID, sl.ID, item.ID, app.SetlistItemPatch{KeyOverride: &over, TransposeChords: &yes}); err != nil {
+		t.Fatal(err)
+	}
+
+	from, _ := chartpdf.ParseKey("C")
+	to, _ := chartpdf.ParseKey("D")
+	transposedSrc, _ := chartpdf.Transpose(transposeChartSrc, from, to)
+	wantTransposed, _ := chartpdf.Render(transposedSrc)
+
+	png := tinyPNG(t, 40, 56)
+	var captured []byte
+	baker := &Baker{
+		svc: svc, eng: eng, raster: recordRaster{png: png, lastPDF: &captured},
+		overlays: fakeOverlays{png: png}, bakesDir: t.TempDir(), now: func() int64 { return 1700000000 },
+	}
+	if _, err := baker.Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
+		t.Fatalf("bake failed: %v", err)
+	}
+	if string(captured) == string(uploaded) {
+		t.Fatal("baker baked the untransposed uploaded PDF — the D1 silently-wrong-bundle bug")
+	}
+	if string(captured) != string(wantTransposed) {
+		t.Fatal("baker did not bake the transposed generated chart")
+	}
+}

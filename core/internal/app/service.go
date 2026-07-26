@@ -27,12 +27,15 @@ type Service struct {
 	blobs blob.Store       // content-addressed bytes for song files
 	now   func() time.Time // injectable clock (tests)
 	newID func() string    // injectable id generator (tests)
+	// bakeTranspose is the chord-transpose step used by the bake-warning check (D3),
+	// injectable so a test can force a runtime failure. Production = chartpdf.Transpose.
+	bakeTranspose func(source string, from, to chartpdf.Key) (string, error)
 }
 
 // NewService wires a Service over a Repo with production defaults. The blob store
 // defaults to in-memory; call WithBlobStore to use a persistent backend.
 func NewService(repo Repo) *Service {
-	return &Service{repo: repo, blobs: blob.NewMem(), now: time.Now, newID: newUUID}
+	return &Service{repo: repo, blobs: blob.NewMem(), now: time.Now, newID: newUUID, bakeTranspose: chartpdf.Transpose}
 }
 
 // WithBlobStore swaps the blob backend (file-backed for persistent deployments)
@@ -47,6 +50,15 @@ func (s *Service) WithBlobStore(b blob.Store) *Service {
 func (s *Service) WithClock(now func() time.Time) *Service {
 	if now != nil {
 		s.now = now
+	}
+	return s
+}
+
+// WithBakeTransposeFunc overrides the bake-warning transpose step (D3) — a test seam to
+// force a runtime transform failure. Production uses chartpdf.Transpose via NewService.
+func (s *Service) WithBakeTransposeFunc(fn func(source string, from, to chartpdf.Key) (string, error)) *Service {
+	if fn != nil {
+		s.bakeTranspose = fn
 	}
 	return s
 }
@@ -1276,6 +1288,51 @@ func TransposeEligible(songKey, keyOverride string, hasGeneratedChart bool) (boo
 	return true, ""
 }
 
+// BakeTransposeSucceeds reports whether an ELIGIBLE item's generated chart actually
+// transposes + renders (D3). The baker falls through to the untransposed chart if the
+// transform errors at bake, so eligibility passing does NOT guarantee the gig bundle is
+// transposed; the bake-warning path calls this to surface that otherwise-silent fallthrough.
+// Callers should only invoke it for items already TransposeEligible; a false return then
+// means "eligible, but the transform failed at bake → baked untransposed".
+func (s *Service) BakeTransposeSucceeds(caller User, bandID, songID, keyOverride string) bool {
+	song, err := s.SongForMember(caller, bandID, songID)
+	if err != nil {
+		return false
+	}
+	files, err := s.SongFiles(caller, bandID, songID)
+	if err != nil {
+		return false
+	}
+	SortFiles(files)
+	var chartID string
+	for _, f := range files {
+		if f.Generated {
+			chartID = f.ID
+			break
+		}
+	}
+	if chartID == "" {
+		return false
+	}
+	src, err := s.repo.GetChartSource(chartID)
+	if err != nil {
+		return false
+	}
+	from, ok1 := chartpdf.ParseKey(song.Key)
+	to, ok2 := chartpdf.ParseKey(keyOverride)
+	if !ok1 || !ok2 {
+		return false
+	}
+	t, err := s.bakeTranspose(src, from, to)
+	if err != nil {
+		return false
+	}
+	if _, err := chartpdf.Render(t); err != nil {
+		return false
+	}
+	return true
+}
+
 // SetlistItemChartPreview renders a setlist item's chart as it will appear on stage
 // (T60 surface 2 preview): the song's first generated chart, transposed to the item's
 // key override when the item asks for it and it's eligible, else rendered as-is (an
@@ -1316,7 +1373,7 @@ func (s *Service) SetlistItemChartPreview(caller User, bandID, setlistID, itemID
 		if ok, _ := TransposeEligible(song.Key, it.KeyOverride, true); ok {
 			from, _ := chartpdf.ParseKey(song.Key)
 			to, _ := chartpdf.ParseKey(it.KeyOverride)
-			if t, terr := chartpdf.Transpose(src, from, to); terr == nil {
+			if t, terr := chartpdf.TransposeToKey(src, it.KeyOverride, from, to); terr == nil { // D5
 				src = t
 			}
 		}
@@ -1367,7 +1424,7 @@ func (s *Service) TransposeChartSource(caller User, bandID, songID, fileID, targ
 	canUpdateKey := false
 	switch {
 	case fromOK && toOK:
-		transposed, err = chartpdf.Transpose(src, from, to)
+		transposed, err = chartpdf.TransposeToKey(src, targetKey, from, to) // D5: respect F#/Gb spelling
 		canUpdateKey = true
 	case semitones != nil:
 		transposed, err = chartpdf.TransposeSemitones(src, *semitones)

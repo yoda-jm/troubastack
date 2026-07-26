@@ -12,6 +12,7 @@ package chartpdf
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // Key is a parsed musical key: a pitch class (0=C … 11=B) plus major/minor. Mode is
@@ -93,12 +94,58 @@ func Transpose(source string, from, to Key) (string, error) {
 	return transposeBy(source, interval, preferFlats(to))
 }
 
+// TransposeToKey is Transpose but spells the rewritten roots to match the accidental the
+// user actually TYPED in rawTargetKey (D5): "F#" → sharps, "Gb" → flats — even though both
+// parse to the same pitch class. This keeps the printed chords consistent with the key the
+// user asked for (and, on the editor Apply path, with the key stored on the song). With no
+// explicit accidental in rawTargetKey it falls back to the key's default spelling.
+func TransposeToKey(source, rawTargetKey string, from, to Key) (string, error) {
+	flat := preferFlats(to)
+	switch {
+	case strings.Contains(rawTargetKey, "#"):
+		flat = false
+	case strings.ContainsRune(rawTargetKey, 'b'): // lowercase only: the 'b' flat, not the 'B' note
+		flat = true
+	}
+	interval := ((to.root-from.root)%12 + 12) % 12
+	return transposeBy(source, interval, flat)
+}
+
 // TransposeSemitones shifts every chord row by a raw semitone count — the well-defined
 // fallback when the song's key is free text that ParseKey can't read (so there is no
-// from/to to derive an interval from). Spelling defaults to sharps (no key context to
-// prefer flats). Negative and >12 counts are normalized mod 12.
+// from/to to derive an interval from). Negative and >12 counts are normalized mod 12.
+//
+// D6: a net-zero shift is a TRUE no-op (returns the source unchanged, never respelling);
+// otherwise the rewritten roots keep the source's existing accidental style (a flat-spelled
+// chart stays flat) instead of being forced to sharps, so +1 then −1 round-trips.
 func TransposeSemitones(source string, semitones int) (string, error) {
-	return transposeBy(source, semitones, false)
+	if ((semitones%12)+12)%12 == 0 {
+		return source, nil
+	}
+	return transposeBy(source, semitones, sourcePrefersFlats(source))
+}
+
+// sourcePrefersFlats reports whether the chart's chord rows spell accidentals with flats
+// more than sharps — so the semitone stepper can preserve the existing style (D6). In a
+// chord token 'b' is only ever a flat accidental and '#' only a sharp (qualities are
+// maj/min/m/dim/aug/sus/add + digits + '/'), so a raw count is exact.
+func sourcePrefersFlats(source string) bool {
+	flats, sharps := 0, 0
+	for _, line := range strings.Split(source, "\n") {
+		body := strings.TrimSuffix(line, "\r")
+		if !isChordRow(body) {
+			continue
+		}
+		for _, r := range body {
+			switch r {
+			case 'b':
+				flats++
+			case '#':
+				sharps++
+			}
+		}
+	}
+	return flats > sharps
 }
 
 // transposeBy is the interval-only core (also the well-defined semitone-stepper path).
@@ -136,32 +183,45 @@ func transposeChordRow(line string, interval int, flat bool) (string, error) {
 	col := 0 // current output column (rune count already emitted)
 	i := 0
 	for i < len(runes) {
-		if runes[i] == ' ' || runes[i] == '\t' {
+		// Capture the whitespace run before this token. Tokenize on ANY Unicode whitespace,
+		// exactly as isChordRow's strings.Fields does (D2) — splitting only on ' '/'\t' let
+		// an NBSP glue onto a token (only the first chord transposed; a leading NBSP hit the
+		// byte-indexed shiftRoot with a multi-byte rune → "bad chord root").
+		wsStart := i
+		for i < len(runes) && unicode.IsSpace(runes[i]) {
 			i++
-			continue
+		}
+		ws := runes[wsStart:i]
+		if i >= len(runes) {
+			b.WriteString(string(ws)) // trailing whitespace, verbatim
+			break
 		}
 		start := i
-		for i < len(runes) && runes[i] != ' ' && runes[i] != '\t' {
+		for i < len(runes) && !unicode.IsSpace(runes[i]) {
 			i++
 		}
-		tok := string(runes[start:i])
-		out, err := transposeToken(tok, interval, flat)
+		out, err := transposeToken(string(runes[start:i]), interval, flat)
 		if err != nil {
 			return "", err
 		}
-		// Anchor at the original start column, but never overwrite the previous token:
-		// keep at least one space between tokens (push right on collision).
-		target := start
-		if target < col+1 && col > 0 {
-			target = col + 1
-		}
-		if b.Len() == 0 && start > 0 {
-			// leading indent of the first token is preserved verbatim
-			target = start
-		}
-		for col < target {
-			b.WriteByte(' ')
-			col++
+		if col == wsStart {
+			// No accumulated drift up to here (no earlier token grew/shrank): reproduce the
+			// ORIGINAL whitespace verbatim so tabs and exact spacing survive — the chord row
+			// stays aligned over the (tab-keeping) lyric row (D7). Also preserves the leading
+			// indent of the first token.
+			b.WriteString(string(ws))
+			col += len(ws)
+		} else {
+			// Drift: anchor at the original start column, but never overwrite the previous
+			// token — keep at least one space, pushing right on collision (computed padding).
+			target := start
+			if target < col+1 {
+				target = col + 1
+			}
+			for col < target {
+				b.WriteByte(' ')
+				col++
+			}
 		}
 		b.WriteString(out)
 		col += len([]rune(out))

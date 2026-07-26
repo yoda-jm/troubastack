@@ -550,7 +550,15 @@ function LyricsImportDialog({
 // chords line up over words AND the overlay stays glyph-aligned. The <pre> mirrors the
 // textarea's scroll. `chart-source` stays the textarea's testid (specs type into it);
 // preview is unchanged (still on-demand — no auto-render on type).
-function HighlightedSource({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function HighlightedSource({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const syncScroll = () => {
@@ -581,6 +589,7 @@ function HighlightedSource({ value, onChange }: { value: string; onChange: (v: s
         rows={14}
         value={value}
         spellCheck={false}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         onScroll={syncScroll}
       />
@@ -724,7 +733,9 @@ function ChartEditor({
         </p>
       </div>
       <div className="chart-editor-panes" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-        <HighlightedSource value={source} onChange={setSource} />
+        {/* D4: lock the source while a transpose Apply is in flight — typing mid-round-trip
+            would be clobbered by the setSource/setSavedSource on completion. */}
+        <HighlightedSource value={source} onChange={setSource} disabled={transposing} />
         <div style={{ flex: "1 1 20rem", minWidth: "16rem" }}>
           {previewUrl ? (
             <object

@@ -101,6 +101,46 @@ test("Transpose is blocked while the chart editor has unsaved edits (dirty guard
   );
 });
 
+test("the chart source is locked while a transpose Apply is in flight (T64 D4)", async ({
+  page,
+}) => {
+  await register(page, `trl_${stamp()}`);
+  await createBandAndOpen(page, `TrlBand ${stamp()}`);
+  await createSongAndOpen(page, `Song ${stamp()}`);
+
+  await page.getByTestId("my-files-edit").click();
+  const panel = page.getByTestId("details-panel");
+  await panel.getByTestId("meta-key").fill("G");
+  await panel.getByTestId("meta-save").click();
+  await expect(panel.getByTestId("meta-notice")).toBeVisible();
+
+  await panel.getByTestId("new-text-chart").click();
+  await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nlyric line\n");
+  await panel.getByTestId("chart-save").click();
+  await panel.getByTestId("file-edit-source").click();
+  await expect(panel.getByTestId("chart-editor")).toBeVisible();
+
+  await panel.getByTestId("chart-transpose-btn").click();
+  await panel.getByTestId("transpose-target-key").fill("A");
+
+  // Hold the Apply request open so we can observe the in-flight state.
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => (release = r));
+  await page.route(/chart-source:transpose/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+
+  await panel.getByTestId("transpose-apply").click();
+  // While the Apply is in flight the source is DISABLED — typing can't be clobbered by the
+  // setSource/setSavedSource that lands when the round-trip completes (D4).
+  await expect(panel.getByTestId("chart-source")).toBeDisabled();
+  release();
+  // After it resolves the source is editable again and shows the transposed chords.
+  await expect(panel.getByTestId("chart-source")).toBeEnabled();
+  await expect(panel.getByTestId("chart-source")).toHaveValue(/A\s+E/);
+});
+
 test("transpose Preview renders without persisting; the source is untouched until Apply (T60)", async ({
   page,
 }) => {

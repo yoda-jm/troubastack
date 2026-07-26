@@ -128,6 +128,84 @@ func TestTransposeAlignment(t *testing.T) {
 	}
 }
 
+// TestTransposeD2Whitespace (T64 D2): a chord row separated by non-ASCII whitespace (NBSP,
+// vertical tab, form feed — all matched by isChordRow's strings.Fields) must transpose
+// EVERY chord, and a leading such space must not error. Pre-fix, transposeChordRow split
+// only on ' '/'\t', so only the FIRST token shifted and a leading NBSP hit the byte-indexed
+// shiftRoot with a multi-byte rune → "bad chord root".
+func TestTransposeD2Whitespace(t *testing.T) {
+	from, to := mustKey(t, "C"), mustKey(t, "D") // +2 semitones
+	const nbsp = "\u00a0"
+	for _, ws := range []string{nbsp, "\v", "\f"} {
+		in := "C" + ws + "G" + ws + "Am"
+		got, err := Transpose(in, from, to)
+		if err != nil {
+			t.Fatalf("row separated by %q errored: %v", ws, err)
+		}
+		f := strings.Fields(got)
+		if len(f) != 3 || f[0] != "D" || f[1] != "A" || f[2] != "Bm" {
+			t.Fatalf("row %q → %q; want all three shifted to D A Bm", in, got)
+		}
+	}
+	// A leading NBSP must transpose cleanly (no byte-index panic/error).
+	got, err := Transpose(nbsp+"C G", from, to)
+	if err != nil {
+		t.Fatalf("leading-NBSP row errored: %v", err)
+	}
+	if f := strings.Fields(got); len(f) != 2 || f[0] != "D" || f[1] != "A" {
+		t.Fatalf("leading-NBSP row → %q; want D A", got)
+	}
+}
+
+// TestTransposeToKey_D5: the rewritten chords match the accidental the user TYPED in the
+// target key (F# → sharps, Gb → flats) even though both parse to the same pitch class, so the
+// printed chords stay consistent with the requested/stored key.
+func TestTransposeToKey_D5(t *testing.T) {
+	from := mustKey(t, "C")
+	to := mustKey(t, "F#") // == ParseKey("Gb"): pitch class 6
+	cases := []struct{ in, rawKey, want string }{
+		{"C", "F#", "F#"}, // tonic respects the typed accidental
+		{"C", "Gb", "Gb"},
+		{"G", "F#", "C#"}, // non-tonic follows the same spelling
+		{"G", "Gb", "Db"},
+	}
+	for _, c := range cases {
+		if got, _ := TransposeToKey(c.in, c.rawKey, from, to); got != c.want {
+			t.Errorf("TransposeToKey(%q, %q) = %q, want %q", c.in, c.rawKey, got, c.want)
+		}
+	}
+}
+
+// TestTransposeSemitones_D6: a net-zero shift is a true no-op, and a flat-spelled chart keeps
+// its flats (pre-fix the semitone path forced sharps, so 0 respelled and +n/−n never restored).
+func TestTransposeSemitones_D6(t *testing.T) {
+	src := "Db      Ab\nsome words here\n"
+	if got, _ := TransposeSemitones(src, 0); got != src {
+		t.Errorf("semitones 0 must be a no-op; got %q", got)
+	}
+	if got, _ := TransposeSemitones(src, 24); got != src {
+		t.Errorf("semitones 24 (≡0) must be a no-op; got %q", got)
+	}
+	// Flat chart stays flat: Db→Eb, Ab→Bb (pre-fix: D#, A#).
+	up, _ := TransposeSemitones(src, 2)
+	if want := "Eb      Bb\nsome words here\n"; up != want {
+		t.Errorf("flat chart +2 = %q, want %q (kept flats)", up, want)
+	}
+	// Round-trips while the chart stays flat-dominant.
+	if back, _ := TransposeSemitones(up, -2); back != src {
+		t.Errorf("+2 then −2 didn't round-trip: %q != %q", back, src)
+	}
+}
+
+// TestTranspose_D7_PreservesTabs: a tab-separated chord row keeps its tabs when the tokens
+// don't change width, so the chord row stays aligned over the (tab-keeping) lyric row.
+func TestTranspose_D7_PreservesTabs(t *testing.T) {
+	from, to := mustKey(t, "C"), mustKey(t, "D") // +2: C→D, G→A, Am→Bm — all same width
+	if got, _ := Transpose("C\tG\tAm", from, to); got != "D\tA\tBm" {
+		t.Errorf("tabbed row = %q, want \"D\\tA\\tBm\" (tabs preserved)", got)
+	}
+}
+
 // TestTransposeAlignmentAnchors is the "chords stay over their words" guard (VLL's
 // concern): with realistic chord-over-word spacing the columns are preserved exactly,
 // shrink never misaligns, and a growth-induced push never cascades past available slack.
