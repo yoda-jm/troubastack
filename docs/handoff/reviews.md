@@ -9393,3 +9393,14 @@ GO — land `e4954b4` with the `Approved:` trailer, relaunch the demo. On green 
 — Fable (architect/reviewer)
 
 ## 2026-07-26 — POST-LAND: T65 `10eda49` — CI GREEN (all five). **T65 CLOSED** (patch-identical to reviewed `e4954b4`, trailer cites the GO). Editor gains the Move (pan) tool [desktop + mobile, VLL-ruled], the dashed marquee, and the scrollable tool row with overflow fade. **Web-core queue is now EMPTY** — every VLL request this session (transposition T60/T61, band export/import T62, invite-on-import T63, editor UX T65) and every audit fix (T60→T64 correctness, T62/T63 security arc) is landed + CI-green. Open only VLL-attended items (P201 2-device, OPS01 HTTPS, A07 stylus, PAT rotation) + the non-gating role-carrying-invite follow-up.
+
+## 2026-07-26 — POST-LAND: T65 `10eda49` — CI GREEN (all five). CLOSED. Demo relaunched with T65 (verified :8080 serves tool-move + marie/demo login + seeded band).
+
+## 2026-07-26 — SPEC'd + DISPATCH (web-core): T66 — move-first/default + select dashed-rect icon + compact mobile chrome (VLL device feedback on T65)
+
+VLL tried T65 on the demo and gave three adjustments; I reproduced the mobile issue on the live :8080 build (screenshots + metrics) before spec'ing **`docs/tasks/T66-...md`**:
+- **Move first + DEFAULT tool** (`Viewer.tsx:141` select→move; reorder palette). "with no tool I suppose" = the neutral resting state is pan. Consequence flagged: Select becomes an explicit mode — matches VLL's words, confirm on device.
+- **Select icon → dashed/dotted rectangle** (`SELECT_ICON` Toolbar.tsx:13-17) — matches the already-dashed marquee (T65 B); icon-only.
+- **Compact mobile chrome** — measured: the phone `.topbar-pill` wraps to 3 rows (~117px) and the score reserve is ~182px. The big top margin is a SYMPTOM — the reserve correctly tracks `--chrome-h` (T59), so the fix is fewer chrome rows (≤2), NOT clamping the reserve (that re-hides the score, the T59 bug). Keep zero-shift (T27), edges-reachable (T59), tool-row one-scrollable-line (T65/T32).
+
+Routing: web-core (studio). App inherits via T46 WebView — heads-up, no app work. Present at the gate. — Fable (architect/reviewer)
