@@ -1,10 +1,11 @@
 /**
- * T47 guard: on a phone (Pixel 7, 412px) the app header must stay to ≤ 2 tidy rows
- * (was ~3 — brand, then user, then nav), nothing clipped, every control tappable; and
- * the version popover must never run off either screen edge (was right:0 + 240px min →
- * ~117px off the left). VLL, Pixel 7. Ruling: compact header (approach a) + popover clamp.
+ * Phone header guard (Pixel 7, 412px): the app header stays on ONE row — brand + nav +
+ * the account trigger all inline, the trigger pinned right, nothing clipped, every
+ * control tappable; and the account menu never runs off either screen edge.
  *
- * Red-first: pre-fix the header is ~150px (3 rows) and the popover's left is negative.
+ * History: T47 compacted a ~3-row header to two rows (user cluster on its own line);
+ * T58 then made the trigger avatar-only, leaving a lone avatar stranded on row 2. VLL
+ * (2026-07-26) asked for it inline — one row. This guard now encodes that.
  */
 import { test, expect, type Page } from "@playwright/test";
 
@@ -32,22 +33,21 @@ async function reachable(page: Page, testid: string): Promise<boolean> {
   });
 }
 
-test("app header stays ≤ 2 rows on a phone, all controls reachable (T47)", async ({ page }) => {
+test("app header stays on one row on a phone, account trigger inline (VLL 2026-07-26)", async ({ page }) => {
   await register(page, `hm_${stamp()}`);
   const header = page.locator(".topbar");
   await expect(header).toBeVisible();
 
-  // Structural ≤ 2 rows (font-independent, unlike a height threshold headless can't
-  // reproduce): the brand + nav share ROW 1 (their vertical extents overlap), and the
-  // user cluster sits on ROW 2 (its top is at/below the brand's bottom). Pre-fix the nav
-  // was forced to its own full-width row BELOW the user (order:3, flex-basis:100%), so
-  // "brand and nav share a row" fails — a real red-first.
+  // Structural ONE row (font-independent, unlike a height threshold headless can't
+  // reproduce): brand, nav, AND the user cluster all share row 1 — their vertical extents
+  // overlap. Pre-fix the user cluster took its own full-width row 2 (order:2,
+  // flex-basis:100%), so "user shares row 1 with the brand" fails — a real red-first.
   const rows = await page.evaluate(() => {
     const r = (s: string) => {
       const e = document.querySelector(s);
       if (!e) return null;
       const b = e.getBoundingClientRect();
-      return { top: b.top, bottom: b.bottom };
+      return { top: b.top, bottom: b.bottom, left: b.left, right: b.right };
     };
     return { brand: r(".brand"), nav: r(".nav"), user: r(".user") };
   });
@@ -55,8 +55,13 @@ test("app header stays ≤ 2 rows on a phone, all controls reachable (T47)", asy
   // brand & nav on the same row: their vertical spans overlap.
   expect(rows.nav!.top, "nav shares row 1 with the brand").toBeLessThan(rows.brand!.bottom);
   expect(rows.nav!.bottom, "nav shares row 1 with the brand").toBeGreaterThan(rows.brand!.top);
-  // user cluster on the row below.
-  expect(rows.user!.top, "user cluster is on row 2, below the brand").toBeGreaterThanOrEqual(rows.brand!.bottom - 2);
+  // the user cluster is ALSO on row 1 (inline), not stranded on a second line.
+  expect(rows.user!.top, "user cluster shares row 1 with the brand").toBeLessThan(rows.brand!.bottom);
+  expect(rows.user!.bottom, "user cluster shares row 1 with the brand").toBeGreaterThan(rows.brand!.top);
+  // and it's pinned to the right, past the nav.
+  expect(rows.user!.left, "account cluster pinned right of the nav").toBeGreaterThanOrEqual(rows.nav!.right - 1);
+  // The verbose account name is hidden at phone width (avatar-only trigger).
+  await expect(page.locator(".account-name")).toBeHidden();
 
   // Every topbar control genuinely tappable (nothing clipped/occluded). T58 folded
   // profile/version/logout into the single account trigger; the row-2 controls are

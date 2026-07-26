@@ -986,13 +986,16 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 
 /* ---- small screens ----------------------------------------------------- */
 @media (max-width: 640px) {
-  /* T47: keep the app header to TWO tidy rows on a phone (was ~3 — brand alone, then
-     user, then nav). Row 1: compact brand + nav inline; row 2: the user cluster
-     full-width. Nothing clipped; every control stays tappable. */
-  .topbar { gap: .4rem .75rem; flex-wrap: wrap; padding: .55rem .8rem; }
-  .brand { font-size: 1rem; }
-  .nav { order: 1; flex-basis: auto; }
-  .user { order: 2; flex-basis: 100%; margin-left: 0; justify-content: flex-start; gap: .6rem; }
+  /* Phone header: keep it to ONE row — compact brand + nav on the left, the account
+     trigger pinned right. (Was a 2-row split (T47) where the user cluster took a full
+     second row; once T58 made the trigger avatar-only that left a lone avatar stranded
+     on its own line.) The avatar-only trigger (below) guarantees the row fits. */
+  .topbar { gap: .4rem .6rem; flex-wrap: nowrap; padding: .55rem .8rem; }
+  .brand { font-size: 1rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav { flex: 0 0 auto; }
+  .user { margin-left: auto; gap: .5rem; }
+  .account-name { display: none; }
+  .account-trigger { padding: .2rem; }
   /* Version + Get-the-app popovers: clamp to the viewport so they can't run off
      either edge (the version popover once ran 117px off a phone's left; OPS02
      inherits the fix). Fixed insets + max-width + wrap. */
@@ -1548,13 +1551,11 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   display: flex; flex-direction: column; gap: .25rem; font-size: .72rem; color: var(--muted);
 }
 .account-version .mono { font-family: var(--font-mono); white-space: nowrap; }
-/* Phone width: avatar-only trigger + the dropdown clamps to the viewport (T47) —
-   at ≤600px the .user cluster drops to its own left-aligned row, so a right:0 anchor
-   would open the menu off the left edge; pin it with fixed insets like .getapp-popover
-   (which the reused app panel already inherits). */
+/* Phone width: the dropdown clamps to the viewport so a min-width:15rem menu can't run
+   off an edge on a narrow screen. Fixed insets like .getapp-popover (which the reused
+   app panel already inherits). The avatar-only trigger is set at ≤640px above (with the
+   one-row header), so the account cluster stays inline, pinned right. */
 @media (max-width: 600px) {
-  .account-name { display: none; }
-  .account-trigger { padding: .2rem; }
   .account-menu {
     position: fixed; left: .6rem; right: .6rem; top: auto;
     min-width: 0; max-width: calc(100vw - 1.2rem);
