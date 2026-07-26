@@ -97,6 +97,13 @@ export function BandDetail() {
 function ImportSummary({ report, onDismiss }: { report: ImportReport; onDismiss: () => void }) {
   const matched = report.matched ?? [];
   const created = report.created ?? [];
+  const invited = report.invited ?? [];
+  const skipped = report.skipped ?? [];
+  const dropped =
+    (report.droppedLayers ?? 0) +
+    (report.droppedObjects ?? 0) +
+    (report.droppedCues ?? 0) +
+    (report.droppedSelections ?? 0);
   return (
     <section className="panel" data-testid="import-report">
       <div className="panel-head">
@@ -120,6 +127,22 @@ function ImportSummary({ report, onDismiss }: { report: ImportReport; onDismiss:
           <p className="notice" data-testid="import-created">
             New accounts created (no password yet — issue each a reset link below so they can sign
             in): {created.join(", ")}.
+          </p>
+        )}
+        {invited.length > 0 && (
+          <p className="muted" data-testid="import-invited">
+            Invited (they join when they next sign in): {invited.join(", ")}.
+          </p>
+        )}
+        {skipped.length > 0 && (
+          <p className="muted" data-testid="import-skipped">
+            Skipped: {skipped.join(", ")}.
+          </p>
+        )}
+        {dropped > 0 && (
+          <p className="muted" data-testid="import-dropped">
+            {dropped} personal annotation/cue item{dropped === 1 ? "" : "s"} from invited/skipped
+            members were not imported (shared and conductor markings were kept).
           </p>
         )}
       </div>

@@ -22,11 +22,7 @@ async function logout(page: Page) {
   await expect(page).toHaveURL(/\/login$/);
 }
 
-// SECURITY HOLD (2026-07-26): band import is disabled server-side (503) pending the
-// T63 consent fix — see reviews.md. This end-to-end import path is skipped until the
-// route is re-enabled; the export half + the service-layer round-trip stay covered by
-// the Go tests. Re-enable this test when bandImportDisabled flips to false.
-test.skip("export a band, then import it as another user (T62)", async ({ page }) => {
+test("export a band, then import it as another user (T62)", async ({ page }) => {
   const admin = `adm_${stamp()}`;
   await register(page, admin);
 
@@ -52,19 +48,25 @@ test.skip("export a band, then import it as another user (T62)", async ({ page }
   const archivePath = await download.path();
   expect(archivePath).toBeTruthy();
 
-  // A different user imports it → lands on a NEW band with the import report.
+  // A different user imports it → the preview dialog (T63) opens. The source admin already
+  // has an account here, so under the consent model she's listed as an existing member with
+  // the default "invite" — confirm straight through.
   await logout(page);
   const importer = `imp_${stamp()}`;
   await register(page, importer);
   await page.getByTestId("import-band-input").setInputFiles(archivePath!);
+  await expect(page.getByTestId("import-dialog")).toBeVisible();
+  await expect(page.getByTestId("import-dialog")).toContainText(admin); // existing member listed
+  await expect(page.getByTestId(`disposition-${admin}`)).toHaveValue("invite");
+  await page.getByTestId("import-confirm").click();
 
   await expect(page).toHaveURL(/\/bands\/[^/]+$/);
   await expect(page.getByTestId("band-title")).toHaveText(bandName);
   const report = page.getByTestId("import-report");
   await expect(report).toBeVisible();
   await expect(report).toContainText("1 song");
-  // The source admin already had an account → attached (matched), not created.
-  await expect(page.getByTestId("import-matched")).toContainText(admin);
+  // The source admin already had an account → consent-required, so she's INVITED not attached.
+  await expect(page.getByTestId("import-invited")).toContainText(admin);
 
   // The imported band shows the song.
   await expect(page.getByTestId("song-link").filter({ hasText: "Wonderwall" })).toBeVisible();

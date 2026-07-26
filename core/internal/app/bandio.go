@@ -39,8 +39,21 @@ import (
 const BandExportFormatVersion = 1
 
 // MaxImportBytes caps an uploaded band zip (the per-song-file maxUploadBytes is far too
-// small for a whole band).
+// small for a whole band). This bounds the COMPRESSED upload; the decompressed total is
+// bounded separately (maxDecompressedBytes) so a small zip can't inflate to exhaust memory.
 const MaxImportBytes = 512 << 20
+
+// Zip-bomb bounds (T63). vars, not consts, only so tests can dial them low; production
+// never mutates them.
+var (
+	// maxImportEntries caps how many entries a .tband may contain — a bomb of millions of
+	// tiny entries is as dangerous as one huge entry.
+	maxImportEntries = 100_000
+	// maxDecompressedBytes caps the RUNNING TOTAL decompressed across all entries. Enforced
+	// DURING extraction (zip headers can under-report), so a high-ratio DEFLATE bomb is
+	// refused before it fills memory.
+	maxDecompressedBytes = int64(MaxImportBytes)
+)
 
 // --- manifest shapes (band.json) -----------------------------------------------------
 
@@ -137,9 +150,76 @@ type ImportReport struct {
 	Band     Band     `json:"band"`
 	Matched  []string `json:"matched"` // usernames of pre-existing accounts attached
 	Created  []string `json:"created"` // usernames of accounts created (need a reset)
+	Invited  []string `json:"invited"` // usernames given a pending invite (T63)
+	Skipped  []string `json:"skipped"` // usernames neither created nor invited (T63)
 	Songs    int      `json:"songs"`
 	Files    int      `json:"files"`
 	Setlists int      `json:"setlists"`
+	// Personal content dropped because its owner was invited/skipped (T63). Shared and
+	// conductor content is never dropped.
+	DroppedLayers     int `json:"droppedLayers,omitempty"`
+	DroppedObjects    int `json:"droppedObjects,omitempty"`
+	DroppedCues       int `json:"droppedCues,omitempty"`
+	DroppedSelections int `json:"droppedSelections,omitempty"`
+}
+
+// ImportDisposition is what import does (T63) with a manifest member the importer must
+// decide about. SECURITY: a member whose username already belongs to a DIFFERENT account
+// on this server is CONSENT-REQUIRED — only invite or skip; it is NEVER silently attached
+// (the T62 account-takeover fix). A new username may be created, invited, or skipped.
+type ImportDisposition string
+
+const (
+	DispositionCreate ImportDisposition = "create" // mint a passwordless account (new usernames only)
+	DispositionInvite ImportDisposition = "invite" // create a pending invite; drop their personal content
+	DispositionSkip   ImportDisposition = "skip"   // neither create nor invite; drop their personal content
+)
+
+func validDisposition(d ImportDisposition) bool {
+	switch d {
+	case DispositionCreate, DispositionInvite, DispositionSkip:
+		return true
+	}
+	return false
+}
+
+// PreviewMember is one manifest member classified against the target server (T63). The
+// importer (IsCaller) is always attached as the band admin. An Existing account (already
+// on this server, not the importer) is consent-required — invite or skip only. A new
+// username may be created (default), invited, or skipped.
+type PreviewMember struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	Role        Role   `json:"role"`
+	Existing    bool   `json:"existing"`
+	IsCaller    bool   `json:"isCaller"`
+}
+
+// ImportPreview classifies a .tband's members against the target server WITHOUT writing
+// anything (T63), plus the band name + content counts. The importer dispositions each
+// non-caller member (allowed choices depend on Existing).
+type ImportPreview struct {
+	BandName string          `json:"bandName"`
+	Members  []PreviewMember `json:"members"`
+	Songs    int             `json:"songs"`
+	Files    int             `json:"files"`
+	Setlists int             `json:"setlists"`
+}
+
+// classifyMembers projects each manifest member against the target server + caller: is
+// the username already an account here, and is it the importer? Shared by preview + import
+// so the classification (and thus the security rules) can never drift between them.
+func (s *Service) classifyMembers(caller User, man bandManifest) []PreviewMember {
+	out := make([]PreviewMember, 0, len(man.Members))
+	for _, m := range man.Members {
+		pm := PreviewMember{Username: m.Username, DisplayName: m.DisplayName, Role: m.Role}
+		if existing, err := s.repo.GetUserByUsername(m.Username); err == nil {
+			pm.Existing = true
+			pm.IsCaller = existing.ID == caller.ID
+		}
+		out = append(out, pm)
+	}
+	return out
 }
 
 // --- export --------------------------------------------------------------------------
@@ -313,42 +393,55 @@ func sanitizeFilename(name string) string {
 
 // --- import --------------------------------------------------------------------------
 
-// ImportBand creates a NEW band from a .tband zip, owned by (and admin for) the caller.
-// All-or-nothing: the whole manifest is validated before anything is written.
-func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (ImportReport, error) {
-	man, blobs, err := parseBandZip(zipBytes)
-	if err != nil {
-		return ImportReport{}, err
-	}
+// validateImport runs the full all-or-nothing manifest validation (T62): formatVersion,
+// blob presence + hash, every ref resolvable, annotation-layer owners present in the
+// manifest, and — against target-server state — that a would-create member's email does
+// not collide with a different existing account. Writes nothing; shared by import +
+// import-preview (T63) so the rules can never drift between them.
+func (s *Service) validateImport(man bandManifest, blobs map[string][]byte) error {
 	if man.FormatVersion != BandExportFormatVersion {
-		return ImportReport{}, fmt.Errorf("%w: unsupported band export formatVersion %d (this server reads %d)", ErrInvalidInput, man.FormatVersion, BandExportFormatVersion)
+		return fmt.Errorf("%w: unsupported band export formatVersion %d (this server reads %d)", ErrInvalidInput, man.FormatVersion, BandExportFormatVersion)
 	}
-
-	// ---- validate EVERYTHING first (all-or-nothing) ----
-	songIDs := map[string]bool{}    // orig songID
-	fileToSong := map[string]bool{} // orig fileID present
+	songIDs := map[string]bool{} // orig songID
 	fileIDs := map[string]bool{}
 	for _, sg := range man.Songs {
 		songIDs[sg.ID] = true
 		for _, f := range sg.Files {
 			fileIDs[f.ID] = true
-			fileToSong[f.ID] = true
 			if f.BlobHash != "" {
 				data, ok := blobs[f.BlobHash]
 				if !ok {
-					return ImportReport{}, fmt.Errorf("%w: file %q references blob %s not present in the archive", ErrInvalidInput, f.Filename, f.BlobHash)
+					return fmt.Errorf("%w: file %q references blob %s not present in the archive", ErrInvalidInput, f.Filename, f.BlobHash)
 				}
 				if blob.HashOf(data) != f.BlobHash {
-					return ImportReport{}, fmt.Errorf("%w: blob %s content does not match its hash", ErrInvalidInput, f.BlobHash)
+					return fmt.Errorf("%w: blob %s content does not match its hash", ErrInvalidInput, f.BlobHash)
 				}
 			}
 		}
 	}
 	memberByUsername := map[string]manifestMember{}
 	memberByOrigID := map[string]manifestMember{}
+	// Manifest-INTERNAL uniqueness (case-insensitive, matching the repo's EqualFold on
+	// username + email). Without this, two would-create members sharing a username or email
+	// both reach CreateUser/AddMembership and the second fails mid-write, orphaning a band
+	// (all-or-nothing hole — T63). Our own exporter can't emit dups; a crafted zip can.
+	seenUsername := map[string]bool{}
+	seenEmail := map[string]bool{}
 	for _, m := range man.Members {
 		if m.Username == "" {
-			return ImportReport{}, fmt.Errorf("%w: a member has no username", ErrInvalidInput)
+			return fmt.Errorf("%w: a member has no username", ErrInvalidInput)
+		}
+		if lu := strings.ToLower(m.Username); seenUsername[lu] {
+			return fmt.Errorf("%w: duplicate member username %q in the manifest", ErrInvalidInput, m.Username)
+		} else {
+			seenUsername[lu] = true
+		}
+		if m.Email != "" {
+			if le := strings.ToLower(m.Email); seenEmail[le] {
+				return fmt.Errorf("%w: duplicate member email %q in the manifest", ErrInvalidInput, m.Email)
+			} else {
+				seenEmail[le] = true
+			}
 		}
 		// A would-create member (username absent here) whose email belongs to a
 		// DIFFERENT existing account would fail at CreateUser mid-import, after the
@@ -356,7 +449,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 		// against target-server state so nothing is written on conflict.
 		if _, err := s.repo.GetUserByUsername(m.Username); err != nil && m.Email != "" {
 			if existing, err := s.repo.GetUserByEmail(m.Email); err == nil {
-				return ImportReport{}, fmt.Errorf("%w: member %q would be created, but its email %q already belongs to a different account (%q) on this server", ErrInvalidInput, m.Username, m.Email, existing.Username)
+				return fmt.Errorf("%w: member %q would be created, but its email %q already belongs to a different account (%q) on this server", ErrInvalidInput, m.Username, m.Email, existing.Username)
 			}
 		}
 		memberByUsername[m.Username] = m
@@ -365,44 +458,122 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 	for _, sl := range man.Setlists {
 		for _, it := range sl.Items {
 			if !songIDs[it.SongRef] {
-				return ImportReport{}, fmt.Errorf("%w: setlist %q item references unknown song %s", ErrInvalidInput, sl.Name, it.SongRef)
+				return fmt.Errorf("%w: setlist %q item references unknown song %s", ErrInvalidInput, sl.Name, it.SongRef)
 			}
 		}
 	}
 	for _, sel := range man.FileSelections {
 		if _, ok := memberByUsername[sel.MemberUsername]; !ok {
-			return ImportReport{}, fmt.Errorf("%w: file selection references unknown member %q", ErrInvalidInput, sel.MemberUsername)
+			return fmt.Errorf("%w: file selection references unknown member %q", ErrInvalidInput, sel.MemberUsername)
 		}
 		if !songIDs[sel.SongRef] {
-			return ImportReport{}, fmt.Errorf("%w: file selection references unknown song %s", ErrInvalidInput, sel.SongRef)
+			return fmt.Errorf("%w: file selection references unknown song %s", ErrInvalidInput, sel.SongRef)
 		}
 		for _, fr := range sel.FileRefs {
 			if !fileIDs[fr] {
-				return ImportReport{}, fmt.Errorf("%w: file selection references unknown file %s", ErrInvalidInput, fr)
+				return fmt.Errorf("%w: file selection references unknown file %s", ErrInvalidInput, fr)
 			}
 		}
 	}
 	for _, c := range man.SongCues {
 		if _, ok := memberByUsername[c.MemberUsername]; !ok {
-			return ImportReport{}, fmt.Errorf("%w: song cues reference unknown member %q", ErrInvalidInput, c.MemberUsername)
+			return fmt.Errorf("%w: song cues reference unknown member %q", ErrInvalidInput, c.MemberUsername)
 		}
 		if !songIDs[c.SongRef] {
-			return ImportReport{}, fmt.Errorf("%w: song cues reference unknown song %s", ErrInvalidInput, c.SongRef)
+			return fmt.Errorf("%w: song cues reference unknown song %s", ErrInvalidInput, c.SongRef)
 		}
 	}
 	for songRef, ann := range man.Annotations {
 		if !songIDs[songRef] {
-			return ImportReport{}, fmt.Errorf("%w: annotations reference unknown song %s", ErrInvalidInput, songRef)
+			return fmt.Errorf("%w: annotations reference unknown song %s", ErrInvalidInput, songRef)
 		}
 		for _, l := range ann.Layers {
 			if l.FileID != "" && !fileIDs[l.FileID] {
-				return ImportReport{}, fmt.Errorf("%w: annotation layer references unknown file %s", ErrInvalidInput, l.FileID)
+				return fmt.Errorf("%w: annotation layer references unknown file %s", ErrInvalidInput, l.FileID)
 			}
 			if l.OwnerID != "" && l.OwnerID != domain.SharedOwner {
 				if _, ok := memberByOrigID[l.OwnerID]; !ok {
-					return ImportReport{}, fmt.Errorf("%w: annotation layer owner %s is not a member in the manifest", ErrInvalidInput, l.OwnerID)
+					return fmt.Errorf("%w: annotation layer owner %s is not a member in the manifest", ErrInvalidInput, l.OwnerID)
 				}
 			}
+		}
+		// Object UUIDs must be present + unique per song. A crafted empty UUID
+		// (ErrInvalidMutation) or a duplicate involving a tombstone (ErrDeletedRemotely)
+		// would otherwise error mid-`engine.Apply`, after the band/songs/files are written
+		// — an all-or-nothing hole (T63). A real HEAD is keyed by UUID, so it can't repeat.
+		seenUUID := map[string]bool{}
+		for _, o := range ann.Objects {
+			if o.UUID == "" {
+				return fmt.Errorf("%w: annotation object with no uuid in song %s", ErrInvalidInput, songRef)
+			}
+			if seenUUID[o.UUID] {
+				return fmt.Errorf("%w: duplicate annotation object uuid %s in song %s", ErrInvalidInput, o.UUID, songRef)
+			}
+			seenUUID[o.UUID] = true
+		}
+	}
+	return nil
+}
+
+// PreviewImport parses + fully validates a .tband (T62 rules) and classifies its members
+// against the target server WITHOUT writing anything (T63). Any authenticated user may preview.
+func (s *Service) PreviewImport(caller User, zipBytes []byte) (ImportPreview, error) {
+	man, blobs, err := parseBandZip(zipBytes)
+	if err != nil {
+		return ImportPreview{}, err
+	}
+	if err := s.validateImport(man, blobs); err != nil {
+		return ImportPreview{}, err
+	}
+	pv := ImportPreview{
+		BandName: strings.TrimSpace(man.Band.Name),
+		Members:  s.classifyMembers(caller, man),
+		Songs:    len(man.Songs),
+		Setlists: len(man.Setlists),
+	}
+	for _, sg := range man.Songs {
+		pv.Files += len(sg.Files)
+	}
+	return pv, nil
+}
+
+// ImportBand creates a NEW band from a .tband zip, owned by (and admin for) the caller.
+// All-or-nothing: the whole manifest is validated before anything is written.
+//
+// SECURITY (T63): membership is CONSENT-REQUIRED. The importer is the band admin; every
+// other manifest member is dispositioned — a pre-existing account (a username already on
+// this server) may only be invited (default) or skipped, NEVER silently attached (that was
+// the T62 account-takeover vector); a new username may be created (default), invited, or
+// skipped. invite/skip drop that member's personal content (annotations/cues/selections);
+// shared + conductor content is never dropped.
+func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, dispositions map[string]ImportDisposition) (ImportReport, error) {
+	man, blobs, err := parseBandZip(zipBytes)
+	if err != nil {
+		return ImportReport{}, err
+	}
+	if err := s.validateImport(man, blobs); err != nil {
+		return ImportReport{}, err
+	}
+
+	// Classify every member against the target + caller, then validate the dispositions up
+	// front (all-or-nothing). SECURITY (T63): a pre-existing account (other than the importer)
+	// is CONSENT-REQUIRED — it may only be invited or skipped, never created or silently
+	// attached. A new username may be created (default), invited, or skipped.
+	classified := s.classifyMembers(caller, man)
+	byUsername := map[string]PreviewMember{}
+	for _, pm := range classified {
+		byUsername[pm.Username] = pm
+	}
+	for uname, disp := range dispositions {
+		pm, ok := byUsername[uname]
+		if !ok || pm.IsCaller {
+			return ImportReport{}, fmt.Errorf("%w: disposition names %q, which is not a member you choose for", ErrInvalidInput, uname)
+		}
+		if !validDisposition(disp) {
+			return ImportReport{}, fmt.Errorf("%w: unknown disposition %q for member %q", ErrInvalidInput, disp, uname)
+		}
+		if pm.Existing && disp == DispositionCreate {
+			return ImportReport{}, fmt.Errorf("%w: cannot create an account for %q — it already exists here; invite or skip", ErrInvalidInput, uname)
 		}
 	}
 
@@ -417,17 +588,69 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 	}
 
 	// Non-nil slices so the JSON always has arrays (never null) — the UI reads .length.
-	report := ImportReport{Band: band, Matched: []string{}, Created: []string{}}
+	report := ImportReport{Band: band, Matched: []string{}, Created: []string{}, Invited: []string{}, Skipped: []string{}}
 
-	// Members: match by username else create; build orig-id → new-user-id map.
-	memberMap := map[string]string{} // orig member UUID → new user id
-	usernameToNewID := map[string]string{}
+	// Build the orig-id → new-user-id map. A DROPPED member (invited/skipped) has no user
+	// to own content in this band, so we track it and skip its personal annotations/cues/
+	// selections below.
+	memberMap := map[string]string{}       // orig member UUID → new user id (attached members)
+	usernameToNewID := map[string]string{} // username → new user id (attached members)
+	droppedOrigID := map[string]bool{}     // orig member UUID → its content is dropped
+	droppedUsername := map[string]bool{}   // username → its content is dropped
+
+	// invite/skip a member: no membership, drop their personal content. Returns any error.
+	inviteOrSkip := func(m manifestMember, disp ImportDisposition) error {
+		droppedOrigID[m.ID] = true
+		droppedUsername[m.Username] = true
+		if disp == DispositionSkip {
+			report.Skipped = append(report.Skipped, m.Username)
+			return nil
+		}
+		// Pull-based, email-free invite keyed by username (this app has no SMTP); the invitee
+		// sees + accepts it on their next login. Consent lands the membership, not the import.
+		// NOTE: invites carry no role, so an accepted invitee joins as a plain member.
+		inv := Invite{
+			ID: s.newID(), BandID: band.ID, Identifier: m.Username, IdentifierKind: KindUsername,
+			InvitedBy: caller.ID, Status: InvitePending, CreatedAt: now,
+		}
+		if err := s.repo.CreateInvite(inv); err != nil {
+			return err
+		}
+		report.Invited = append(report.Invited, m.Username)
+		return nil
+	}
+
 	for _, m := range man.Members {
-		var uid string
-		if existing, err := s.repo.GetUserByUsername(m.Username); err == nil {
-			uid = existing.ID
+		pm := byUsername[m.Username]
+		switch {
+		case pm.IsCaller:
+			// The importer restoring their own membership — attached as admin (below); their
+			// content lands under them. (They consented by importing.)
+			memberMap[m.ID] = caller.ID
+			usernameToNewID[m.Username] = caller.ID
 			report.Matched = append(report.Matched, m.Username)
-		} else {
+		case pm.Existing:
+			// A DIFFERENT pre-existing account — CONSENT REQUIRED. Never attach/create. The
+			// default is invite; the importer may downgrade to skip.
+			disp := DispositionInvite
+			if d, ok := dispositions[m.Username]; ok {
+				disp = d
+			}
+			if err := inviteOrSkip(m, disp); err != nil {
+				return ImportReport{}, err
+			}
+		default:
+			// A NEW username — create (default) | invite | skip.
+			disp := DispositionCreate
+			if d, ok := dispositions[m.Username]; ok {
+				disp = d
+			}
+			if disp != DispositionCreate {
+				if err := inviteOrSkip(m, disp); err != nil {
+					return ImportReport{}, err
+				}
+				continue
+			}
 			u := User{
 				ID: s.newID(), Username: m.Username, DisplayName: m.DisplayName,
 				Email: m.Email, AvatarKind: m.AvatarKind, PasswordHash: "", CreatedAt: now,
@@ -435,14 +658,10 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 			if err := s.repo.CreateUser(u); err != nil {
 				return ImportReport{}, err
 			}
-			uid = u.ID
+			memberMap[m.ID] = u.ID
+			usernameToNewID[m.Username] = u.ID
 			report.Created = append(report.Created, m.Username)
-		}
-		memberMap[m.ID] = uid
-		usernameToNewID[m.Username] = uid
-		// Add membership with the manifest role — unless this is the importer (handled below).
-		if uid != caller.ID {
-			if err := s.repo.AddMembership(Membership{BandID: band.ID, UserID: uid, Role: m.Role, CreatedAt: now}); err != nil {
+			if err := s.repo.AddMembership(Membership{BandID: band.ID, UserID: u.ID, Role: m.Role, CreatedAt: now}); err != nil {
 				return ImportReport{}, err
 			}
 		}
@@ -502,9 +721,19 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 		}
 		return orig // validated to exist; defensive
 	}
+	// A dropped member (invited/skipped) has no target user to own content, so its layers,
+	// objects, cues, and selections are dropped (T63). Shared/conductor layers (SharedOwner)
+	// and content owned by matched/created members land as in T62. Objects in a dropped
+	// layer go with the layer.
+	droppedLayerIDs := map[string]bool{}
 	for songRef, ann := range man.Annotations {
 		newSongID := songMap[songRef]
 		for _, l := range ann.Layers {
+			if l.OwnerID != "" && l.OwnerID != domain.SharedOwner && droppedOrigID[l.OwnerID] {
+				droppedLayerIDs[l.ID] = true
+				report.DroppedLayers++
+				continue
+			}
 			nl := l
 			nl.FileID = fileMap[l.FileID]
 			nl.OwnerID = remapOwner(l.OwnerID)
@@ -513,6 +742,10 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 			}
 		}
 		for _, o := range ann.Objects {
+			if droppedLayerIDs[o.LayerID] || (o.OwnerID != "" && o.OwnerID != domain.SharedOwner && droppedOrigID[o.OwnerID]) {
+				report.DroppedObjects++
+				continue
+			}
 			no := o
 			no.OwnerID = remapOwner(o.OwnerID)
 			if no.Version == 0 {
@@ -524,8 +757,13 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 		}
 	}
 
-	// Per-member selections + cues (remap song + file refs, keyed by username).
+	// Per-member selections + cues (remap song + file refs, keyed by username). A dropped
+	// member's selections/cues have no owner on this server, so they're dropped too.
 	for _, sel := range man.FileSelections {
+		if droppedUsername[sel.MemberUsername] {
+			report.DroppedSelections++
+			continue
+		}
 		newFiles := make([]string, 0, len(sel.FileRefs))
 		for _, fr := range sel.FileRefs {
 			newFiles = append(newFiles, fileMap[fr])
@@ -535,6 +773,10 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte) (
 		}
 	}
 	for _, c := range man.SongCues {
+		if droppedUsername[c.MemberUsername] {
+			report.DroppedCues++
+			continue
+		}
 		if err := s.repo.SetSongCues(SongCues{UserID: usernameToNewID[c.MemberUsername], SongID: songMap[c.SongRef], Cues: c.Cues}); err != nil {
 			return ImportReport{}, err
 		}
@@ -568,17 +810,40 @@ func parseBandZip(zipBytes []byte) (bandManifest, map[string][]byte, error) {
 	if err != nil {
 		return bandManifest{}, nil, fmt.Errorf("%w: not a valid zip archive", ErrInvalidInput)
 	}
+	if len(zr.File) > maxImportEntries {
+		return bandManifest{}, nil, fmt.Errorf("%w: archive has too many entries (%d > %d)", ErrInvalidInput, len(zr.File), maxImportEntries)
+	}
+
+	// Decompress with a running budget so a high-ratio DEFLATE bomb is refused mid-stream
+	// (the compressed upload is already capped at MaxImportBytes; this bounds the inflated
+	// total). Enforced during the read — a lying header can't get past io.LimitReader.
+	remaining := maxDecompressedBytes
+	readEntry := func(f *zip.File) ([]byte, error) {
+		if f.UncompressedSize64 > uint64(remaining) { // cheap early reject on the honest case
+			return nil, fmt.Errorf("%w: decompressed band archive exceeds %d bytes (possible zip bomb)", ErrInvalidInput, maxDecompressedBytes)
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+		data, err := io.ReadAll(io.LimitReader(rc, remaining+1))
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(data)) > remaining {
+			return nil, fmt.Errorf("%w: decompressed band archive exceeds %d bytes (possible zip bomb)", ErrInvalidInput, maxDecompressedBytes)
+		}
+		remaining -= int64(len(data))
+		return data, nil
+	}
+
 	var man bandManifest
 	haveManifest := false
 	blobs := map[string][]byte{}
 	for _, f := range zr.File {
 		if f.Name == "band.json" {
-			rc, err := f.Open()
-			if err != nil {
-				return bandManifest{}, nil, err
-			}
-			data, err := io.ReadAll(rc)
-			rc.Close()
+			data, err := readEntry(f)
 			if err != nil {
 				return bandManifest{}, nil, err
 			}
@@ -587,12 +852,7 @@ func parseBandZip(zipBytes []byte) (bandManifest, map[string][]byte, error) {
 			}
 			haveManifest = true
 		} else if strings.HasPrefix(f.Name, "blobs/") && !strings.HasSuffix(f.Name, "/") {
-			rc, err := f.Open()
-			if err != nil {
-				return bandManifest{}, nil, err
-			}
-			data, err := io.ReadAll(rc)
-			rc.Close()
+			data, err := readEntry(f)
 			if err != nil {
 				return bandManifest{}, nil, err
 			}

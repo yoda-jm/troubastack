@@ -54,11 +54,42 @@ export type MemberView = {
 
 /** Result of importing a .tband archive (T62): the new band plus a member reconciliation
  * report. `matched` accounts already existed and were attached; `created` accounts were
- * minted with no password (the people need a reset link to sign in). */
+ * minted with no password (the people need a reset link to sign in); `invited`/`skipped`
+ * are the T63 dispositions, and the dropped-* counts are personal content dropped because
+ * its owner was invited/skipped. */
 export type ImportReport = {
   band: Band;
   matched: string[];
   created: string[];
+  invited: string[];
+  skipped: string[];
+  songs: number;
+  files: number;
+  setlists: number;
+  droppedLayers?: number;
+  droppedObjects?: number;
+  droppedCues?: number;
+  droppedSelections?: number;
+};
+
+/** T63 disposition for a member missing on the target server. */
+export type ImportDisposition = "create" | "invite" | "skip";
+
+/** A manifest member classified against the target server (T63). An `existing` account
+ * (other than the importer) is consent-required — it can only be invited or skipped, never
+ * created. `isCaller` is the importer themselves (always the band admin, no choice). */
+export type PreviewMember = {
+  username: string;
+  displayName: string;
+  role: Role;
+  existing: boolean;
+  isCaller: boolean;
+};
+
+/** Preview of a .tband before import (T63): the classified members, plus counts. */
+export type ImportPreview = {
+  bandName: string;
+  members: PreviewMember[];
   songs: number;
   files: number;
   setlists: number;
@@ -357,11 +388,23 @@ export const api = {
     return { blob: await res.blob(), filename: match?.[1] ?? `band-${bandId}.tband.zip` };
   },
 
-  // Import a .tband archive → a NEW band owned by the caller. Returns the reconciliation
-  // report (new band + which member accounts were matched vs freshly created).
-  importBand: (file: File) => {
+  // Preview a .tband before importing (T63): classify members (matched vs missing) and
+  // report counts, without writing anything.
+  previewImport: (file: File) => {
     const form = new FormData();
     form.append("file", file);
+    return upload<ImportPreview>("/api/bands/import:preview", form);
+  },
+
+  // Import a .tband archive → a NEW band owned by the caller. `dispositions` (T63) maps a
+  // missing member's username to create|invite|skip; omitted members default to create.
+  // Returns the reconciliation report.
+  importBand: (file: File, dispositions?: Record<string, ImportDisposition>) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (dispositions && Object.keys(dispositions).length > 0) {
+      form.append("dispositions", JSON.stringify(dispositions));
+    }
     return upload<ImportReport>("/api/bands/import", form);
   },
 

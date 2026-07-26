@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 
@@ -23,6 +24,8 @@ func NewBandIOAPI(svc *app.Service, eng *engine.Engine) *BandIOAPI {
 func (a *BandIOAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.HandlerFunc) {
 	// Export a whole band as a .tband zip (admin-only, gated in the service).
 	mux.HandleFunc("GET /api/bands/{bandId}/export", authed(a.exportBand))
+	// Preview a .tband: classify its members (matched vs missing) without writing (T63).
+	mux.HandleFunc("POST /api/bands/import:preview", authed(a.previewImport))
 	// Import a .tband zip → a NEW band owned by the caller (any authenticated user).
 	mux.HandleFunc("POST /api/bands/import", authed(a.importBand))
 }
@@ -40,46 +43,66 @@ func (a *BandIOAPI) exportBand(w http.ResponseWriter, r *http.Request, u app.Use
 	_, _ = w.Write(data)
 }
 
-// importBand accepts a multipart .tband zip and creates a new band from it.
-// bandImportDisabled is a SECURITY HOLD (2026-07-26, Fable). A deep audit found a
-// critical account-takeover chain: import silently attaches an EXISTING account
-// (matched by username) to the importer's new band as a member with NO consent, and
-// the importer is that band's admin; the admin password-reset (IssuePasswordReset)
-// then returns a plaintext reset token for any "member" of a band you admin. So any
-// authenticated user can take over any account by importing a manifest naming that
-// username. Flip to false only once import requires consent for pre-existing accounts
-// (the T63 invite-on-import model). See reviews.md 2026-07-26. (A var, not a const, so
-// the real handler body below stays reachable to the compiler/vet.)
-var bandImportDisabled = true
-
-func (a *BandIOAPI) importBand(w http.ResponseWriter, r *http.Request, u app.User) {
-	if bandImportDisabled {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
-			"error": "band import is temporarily disabled pending a security fix",
-		})
-		return
-	}
+// readImportZip parses the multipart form and returns the uploaded .tband bytes (the
+// "file" field), size-capped. On any error it writes a 400 and returns ok=false.
+//
+// SECURITY (T63): the account-takeover hold that disabled this route (bandImportDisabled,
+// 2026-07-26) is lifted because import is now CONSENT-REQUIRED — a pre-existing account is
+// never silently attached (svc.ImportBand invites or skips it), so the manifest-names-a-
+// victim → admin-reset chain is closed. See reviews.md.
+func readImportZip(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, app.MaxImportBytes+(1<<20))
 	if err := r.ParseMultipartForm(16 << 20); err != nil {
 		writeErr(w, app.ErrInvalidInput)
-		return
+		return nil, false
 	}
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		writeErr(w, app.ErrInvalidInput)
-		return
+		return nil, false
 	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, app.MaxImportBytes+1))
+	if err != nil || len(data) > app.MaxImportBytes {
+		writeErr(w, app.ErrInvalidInput)
+		return nil, false
+	}
+	return data, true
+}
+
+// previewImport classifies the manifest's members (matched vs missing) without writing (T63).
+func (a *BandIOAPI) previewImport(w http.ResponseWriter, r *http.Request, u app.User) {
+	data, ok := readImportZip(w, r)
+	if !ok {
+		return
+	}
+	pv, err := a.svc.PreviewImport(u, data)
 	if err != nil {
-		writeErr(w, app.ErrInvalidInput)
+		writeErr(w, err)
 		return
 	}
-	if len(data) > app.MaxImportBytes {
-		writeErr(w, app.ErrInvalidInput)
+	writeJSON(w, http.StatusOK, pv)
+}
+
+// importBand accepts a multipart .tband zip (+ an optional per-missing-member disposition
+// map, "dispositions": {username: create|invite|skip}) and creates a new band from it.
+func (a *BandIOAPI) importBand(w http.ResponseWriter, r *http.Request, u app.User) {
+	data, ok := readImportZip(w, r)
+	if !ok {
 		return
 	}
-	report, err := a.svc.ImportBand(u, a.eng, data)
+	dispositions := map[string]app.ImportDisposition{}
+	if raw := r.FormValue("dispositions"); raw != "" {
+		var m map[string]string
+		if err := json.Unmarshal([]byte(raw), &m); err != nil {
+			writeErr(w, app.ErrInvalidInput)
+			return
+		}
+		for k, v := range m {
+			dispositions[k] = app.ImportDisposition(v)
+		}
+	}
+	report, err := a.svc.ImportBand(u, a.eng, data, dispositions)
 	if err != nil {
 		writeErr(w, err)
 		return

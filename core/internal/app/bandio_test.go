@@ -119,22 +119,20 @@ func TestBandExportImport_RoundTrip(t *testing.T) {
 		t.Fatal("empty export")
 	}
 
-	// Import into a FRESH server. Pre-create "leo" (username match) so marie is created.
+	// Import into a FRESH server (no pre-existing accounts) so both members are new and get
+	// the default create disposition — their personal content lands under the new accounts.
 	tgt := newStack()
 	importer, err := tgt.svc.Register("owner", "Owner", "password123", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tgt.svc.Register("leo", "Leo On Target", "password123", "leo@target.com"); err != nil {
-		t.Fatal(err)
-	}
 
-	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes)
+	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil)
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
-	if !contains(rep.Matched, "leo") || !contains(rep.Created, "marie") {
-		t.Fatalf("member report matched=%v created=%v, want leo matched + marie created", rep.Matched, rep.Created)
+	if !contains(rep.Created, "leo") || !contains(rep.Created, "marie") {
+		t.Fatalf("member report created=%v, want both leo + marie created", rep.Created)
 	}
 	if rep.Songs != 1 || rep.Files != 2 || rep.Setlists != 1 {
 		t.Fatalf("counts songs=%d files=%d setlists=%d, want 1/2/1", rep.Songs, rep.Files, rep.Setlists)
@@ -241,7 +239,7 @@ func TestBandImport_AllOrNothing(t *testing.T) {
 	for name, mangle := range cases {
 		tgt := newStack()
 		importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
-		if _, err := tgt.svc.ImportBand(importer, tgt.eng, mangle(good)); err == nil {
+		if _, err := tgt.svc.ImportBand(importer, tgt.eng, mangle(good), nil); err == nil {
 			t.Fatalf("%s: import should have failed", name)
 		}
 		if bands, _ := tgt.repo.BandsForUser(importer.ID); len(bands) != 0 {
@@ -272,7 +270,7 @@ func TestBandImport_EmailCollision_Rejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes); !errors.Is(err, app.ErrInvalidInput) {
+	if _, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil); !errors.Is(err, app.ErrInvalidInput) {
 		t.Fatalf("import err=%v, want ErrInvalidInput (email collision)", err)
 	}
 	// All-or-nothing: no band, and marie was never created.
@@ -281,6 +279,286 @@ func TestBandImport_EmailCollision_Rejected(t *testing.T) {
 	}
 	if _, err := tgt.repo.GetUserByUsername("marie"); err == nil {
 		t.Fatal("marie account was created despite the email collision")
+	}
+}
+
+// TestPreviewImport_ClassifiesMembers: preview reports matched vs missing members and the
+// content counts, and writes NOTHING (T63).
+func TestPreviewImport_ClassifiesMembers(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, src)
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tgt := newStack()
+	importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+	// Pre-create "leo" so it's an existing (consent-required) account; "marie" is absent.
+	if _, err := tgt.svc.Register("leo", "Leo", "password123", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	pv, err := tgt.svc.PreviewImport(importer, zipBytes)
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if pv.BandName != "The Troubadours" || pv.Songs != 1 || pv.Files != 2 || pv.Setlists != 1 {
+		t.Fatalf("preview counts wrong: %+v", pv)
+	}
+	byName := map[string]app.PreviewMember{}
+	for _, m := range pv.Members {
+		byName[m.Username] = m
+	}
+	if len(pv.Members) != 2 {
+		t.Fatalf("members=%+v, want 2 (leo + marie)", pv.Members)
+	}
+	if !byName["leo"].Existing || byName["leo"].IsCaller {
+		t.Fatalf("leo should be existing + not the caller: %+v", byName["leo"])
+	}
+	if byName["marie"].Existing {
+		t.Fatalf("marie should be a new username: %+v", byName["marie"])
+	}
+	// Preview writes nothing.
+	if bands, _ := tgt.repo.BandsForUser(importer.ID); len(bands) != 0 {
+		t.Fatalf("preview created %d bands, want 0", len(bands))
+	}
+}
+
+// TestImportConsent_ExistingAccountInvitedNotAttached is the T63 SECURITY test: a member
+// whose username already belongs to a DIFFERENT account is INVITED by default (consent
+// required), never silently attached, and their personal content is dropped — closing the
+// import→admin→password-reset account-takeover chain (reviews.md 2026-07-26).
+func TestImportConsent_ExistingAccountInvitedNotAttached(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, src) // marie admin; leo owns L-mine + o2 + cues + selection
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tgt := newStack()
+	importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+	// "leo" is a victim account that already exists on this server, unrelated to the band.
+	victim, err := tgt.svc.Register("leo", "Real Leo", "password123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Plain import (no dispositions): marie is new → created; leo EXISTS → invited, NOT attached.
+	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if !contains(rep.Created, "marie") || !contains(rep.Invited, "leo") {
+		t.Fatalf("report created=%v invited=%v, want marie created + leo invited", rep.Created, rep.Invited)
+	}
+	// The victim is NOT silently a member of the importer's band (the takeover fix).
+	if _, err := tgt.repo.GetMembership(rep.Band.ID, victim.ID); err == nil {
+		t.Fatal("existing account was attached without consent — account-takeover vector open")
+	}
+	// The victim's personal content did not land under their account.
+	if rep.DroppedLayers != 1 || rep.DroppedCues != 1 || rep.DroppedSelections != 1 {
+		t.Fatalf("existing member's content not dropped: %+v", rep)
+	}
+}
+
+// TestImportDispositions_Invite: a missing member with the "invite" disposition gets a
+// pending invite (not an account), their personal content is dropped, and shared/created
+// content lands. The invitee then registers → sees the invite → accepts → is a member (T63).
+func TestImportDispositions_Invite(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, src) // marie admin; leo owns L-mine + o2 + cues + selection
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tgt := newStack()
+	importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+	// marie + leo both missing. Disposition: marie→create (default, omitted), leo→invite.
+	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes,
+		map[string]app.ImportDisposition{"leo": app.DispositionInvite})
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if !contains(rep.Created, "marie") || !contains(rep.Invited, "leo") || len(rep.Skipped) != 0 {
+		t.Fatalf("report created=%v invited=%v skipped=%v", rep.Created, rep.Invited, rep.Skipped)
+	}
+	if rep.DroppedLayers != 1 || rep.DroppedObjects != 1 || rep.DroppedCues != 1 || rep.DroppedSelections != 1 {
+		t.Fatalf("dropped counts layers=%d objects=%d cues=%d selections=%d, want 1/1/1/1",
+			rep.DroppedLayers, rep.DroppedObjects, rep.DroppedCues, rep.DroppedSelections)
+	}
+	// leo has no account; is not a member.
+	if _, err := tgt.repo.GetUserByUsername("leo"); err == nil {
+		t.Fatal("leo should not have been created (invited)")
+	}
+	// Only the shared layer + shared object survived (leo's L-mine + o2 dropped).
+	songs, _ := tgt.repo.SongsOfBand(rep.Band.ID)
+	snap, _ := tgt.eng.Head(songs[0].ID)
+	if len(snap.Layers) != 1 || snap.Layers[0].ID != "L-shared" {
+		t.Fatalf("layers=%+v, want only L-shared", snap.Layers)
+	}
+	live := 0
+	for _, o := range snap.Objects {
+		if !o.Deleted {
+			live++
+		}
+	}
+	if live != 1 {
+		t.Fatalf("live objects=%d, want 1 (o1 shared; o2 dropped)", live)
+	}
+	// The invitee joins the band by accepting the pending invite on first sign-in.
+	leo, _ := tgt.svc.Register("leo", "Leo", "password123", "")
+	pend, err := tgt.svc.PendingInvites(leo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inviteID string
+	for _, inv := range pend {
+		if inv.BandID == rep.Band.ID {
+			inviteID = inv.ID
+		}
+	}
+	if inviteID == "" {
+		t.Fatalf("no pending invite to the imported band for leo; pending=%+v", pend)
+	}
+	if _, err := tgt.svc.AcceptInvite(leo, inviteID); err != nil {
+		t.Fatalf("accept invite: %v", err)
+	}
+	if _, err := tgt.repo.GetMembership(rep.Band.ID, leo.ID); err != nil {
+		t.Fatalf("leo not a member after accepting: %v", err)
+	}
+}
+
+// TestImportDispositions_Skip: a "skip" missing member is neither created nor invited;
+// their content is dropped; shared content lands (T63).
+func TestImportDispositions_Skip(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, src)
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tgt := newStack()
+	importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes,
+		map[string]app.ImportDisposition{"leo": app.DispositionSkip, "marie": app.DispositionCreate})
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if !contains(rep.Skipped, "leo") || len(rep.Invited) != 0 {
+		t.Fatalf("report skipped=%v invited=%v", rep.Skipped, rep.Invited)
+	}
+	if _, err := tgt.repo.GetUserByUsername("leo"); err == nil {
+		t.Fatal("leo should not have been created (skipped)")
+	}
+	// No pending invite was minted for a skipped member.
+	leo, _ := tgt.svc.Register("leo", "Leo", "password123", "")
+	pend, _ := tgt.svc.PendingInvites(leo)
+	for _, inv := range pend {
+		if inv.BandID == rep.Band.ID {
+			t.Fatal("skipped member should have no invite")
+		}
+	}
+	if rep.DroppedLayers != 1 || rep.DroppedCues != 1 {
+		t.Fatalf("skip did not drop leo's content: %+v", rep)
+	}
+}
+
+// TestImportDispositions_Invalid: a disposition naming a non-missing member, or an unknown
+// disposition value, is rejected up front (400) with nothing written (T63, all-or-nothing).
+func TestImportDispositions_Invalid(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, src)
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// (a) "create" for a member that already exists on the target is forbidden (an existing
+	// account is consent-required: invite or skip only).
+	tgt := newStack()
+	importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+	if _, err := tgt.svc.Register("leo", "Leo", "password123", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes,
+		map[string]app.ImportDisposition{"leo": app.DispositionCreate}); !errors.Is(err, app.ErrInvalidInput) {
+		t.Fatalf("create on an existing account err=%v, want ErrInvalidInput", err)
+	}
+	if bands, _ := tgt.repo.BandsForUser(importer.ID); len(bands) != 0 {
+		t.Fatalf("%d bands written on invalid disposition, want 0", len(bands))
+	}
+
+	// (b) disposition names a username that isn't a choosable member at all → 400.
+	tgt2 := newStack()
+	importer2, _ := tgt2.svc.Register("owner", "Owner", "password123", "")
+	if _, err := tgt2.svc.ImportBand(importer2, tgt2.eng, zipBytes,
+		map[string]app.ImportDisposition{"nobody": app.DispositionInvite}); !errors.Is(err, app.ErrInvalidInput) {
+		t.Fatalf("disposition on a non-member err=%v, want ErrInvalidInput", err)
+	}
+	if bands, _ := tgt2.repo.BandsForUser(importer2.ID); len(bands) != 0 {
+		t.Fatalf("%d bands written on invalid disposition, want 0", len(bands))
+	}
+
+	// (c) unknown disposition value → 400.
+	tgt3 := newStack()
+	importer3, _ := tgt3.svc.Register("owner", "Owner", "password123", "")
+	if _, err := tgt3.svc.ImportBand(importer3, tgt3.eng, zipBytes,
+		map[string]app.ImportDisposition{"leo": app.ImportDisposition("banish")}); !errors.Is(err, app.ErrInvalidInput) {
+		t.Fatalf("unknown disposition err=%v, want ErrInvalidInput", err)
+	}
+	if bands, _ := tgt3.repo.BandsForUser(importer3.ID); len(bands) != 0 {
+		t.Fatalf("%d bands written on unknown disposition, want 0", len(bands))
+	}
+}
+
+// TestBandImport_ManifestInternalCollisions: a crafted manifest with an internal collision
+// (duplicate case-variant username, duplicate email, or duplicate annotation object uuid)
+// is rejected up front (400) with nothing written — the T63 all-or-nothing hardening that
+// gates re-enabling import (reviews.md 2026-07-26, Condition 2). Our own exporter can't emit
+// these; a hand-edited zip can, and each would otherwise fail mid-write and orphan a band.
+func TestBandImport_ManifestInternalCollisions(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, src)
+	good, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]func(map[string]any){
+		"duplicate username (case-variant)": func(m map[string]any) {
+			members := m["members"].([]any)
+			m["members"] = append(members, map[string]any{
+				"id": "dup-user", "username": "MARIE", "displayName": "Dup", "role": "member",
+			})
+		},
+		"duplicate email": func(m map[string]any) {
+			members := m["members"].([]any)
+			m["members"] = append(members, map[string]any{
+				"id": "dup-mail", "username": "brandnew", "email": "marie@x.com", "displayName": "Dup", "role": "member",
+			})
+		},
+		"duplicate object uuid": func(m map[string]any) {
+			for _, v := range m["annotations"].(map[string]any) {
+				song := v.(map[string]any)
+				objs := song["objects"].([]any)
+				song["objects"] = append(objs, objs[0]) // repeat objs[0].UUID
+				break
+			}
+		},
+	}
+	for name, mut := range cases {
+		bad := retamper(t, good, mut)
+		tgt := newStack()
+		importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+		if _, err := tgt.svc.ImportBand(importer, tgt.eng, bad, nil); !errors.Is(err, app.ErrInvalidInput) {
+			t.Fatalf("%s: import err=%v, want ErrInvalidInput", name, err)
+		}
+		if bands, _ := tgt.repo.BandsForUser(importer.ID); len(bands) != 0 {
+			t.Fatalf("%s: %d bands written, want 0 (all-or-nothing)", name, len(bands))
+		}
 	}
 }
 
