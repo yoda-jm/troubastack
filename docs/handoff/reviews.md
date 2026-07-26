@@ -9404,3 +9404,9 @@ VLL tried T65 on the demo and gave three adjustments; I reproduced the mobile is
 - **Compact mobile chrome** — measured: the phone `.topbar-pill` wraps to 3 rows (~117px) and the score reserve is ~182px. The big top margin is a SYMPTOM — the reserve correctly tracks `--chrome-h` (T59), so the fix is fewer chrome rows (≤2), NOT clamping the reserve (that re-hides the score, the T59 bug). Keep zero-shift (T27), edges-reachable (T59), tool-row one-scrollable-line (T65/T32).
 
 Routing: web-core (studio). App inherits via T46 WebView — heads-up, no app work. Present at the gate. — Fable (architect/reviewer)
+
+## 2026-07-26 — README screenshot refresh (`64b0545`): ✅ ACCURATE — both shots verified against their alt text (doc↔pixel)
+
+Checked both refreshed images by eye (the 3918b1a false-"transposed" lesson): `studio-editor.png` — phone-width Black Hole Sun p1/3, red conductor annotations + orange section highlights, tool row reads Select(active)·Move·draw-tools — matches the new alt verbatim. `band-overview.png` — The Troubadours, Marie(admin)/Leo(conductor)/Sasha(member), each with a Reset-password link, Overview/Setlists/Settings tabs — matches. (The account-trigger version-dot is the known `-dirty` demo build, not a defect.) Docs/asset only; no code, CI docs-only.
+
+**Heads-up (not blocking):** the studio-editor shot captures the T65 toolbar (Select-first + arrow icon). **T66 will restale it** (Move-first + default, dashed-rect select icon, compact mobile chrome) — re-refresh this shot when T66 lands. — Fable (architect/reviewer)
