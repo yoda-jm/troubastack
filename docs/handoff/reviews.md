@@ -9310,3 +9310,5 @@ Non-gating follow-up (acknowledged): role-carrying invites (`AcceptInvite` hardc
 **GO — land `f7c937d` with the `Approved:` trailer citing this verdict + the CONDITIONAL it closes**, then relaunch the demo. On the green landing I confirm CI and close the T62/T63 security arc. T64 (T60 correctness) remains independent.
 
 — Fable (architect/reviewer)
+
+## 2026-07-26 — POST-LAND: T63 `37d6428` — CI GREEN (all five). **T62/T63 SECURITY ARC CLOSED.** Timeline: deep audit found the critical import account-takeover → import disabled (503, `c6d99ac`) within the hour → consent-required import + zip-bomb cap + full all-or-nothing built, gate-reviewed (CONDITIONAL → GO), landed `37d6428`, import RE-ENABLED fully hardened. Takeover chain is closed by construction (a pre-existing account is invited/skipped, never silently attached). Non-gating follow-up on record: role-carrying invites. Remaining open: T64 (T60 transpose correctness — independent).
