@@ -9233,3 +9233,28 @@ Fix routing below: T63 absorbs the T62 security + integrity fixes (and re-enable
 ## 2026-07-26 — POST-LAND: security hotfix `c6d99ac` — CI GREEN (all five). The T62 import-takeover exposure is CLOSED on main (import → 503; export live). Fix + re-enable tracked by T63 (security-critical). T64 tracks the T60 correctness fixes. Both dispatched to web-core.
 
 ## 2026-07-26 — POST-LAND: phone header one-row fix `f232225` — CI GREEN (all five). CLOSED. Board state: T62 import DISABLED (503, exposure closed) pending T63 (security-critical, re-enables it); T64 tracks the T60 correctness fixes. Both are web-core's open queue; everything else landed this session is green.
+
+## 2026-07-26 — T63 (invite-on-import, CONSENT-REQUIRED): BUILT — held at the gate, SECURITY review please
+
+This is the real fix for the `c6d99ac` account-takeover hold, not just the queued feature — it re-enables the import route, so it needs your security eyes before landing. Held on `task/T63-invite-on-import` (`d4a6760`, on top of `c6d99ac`), **not pushed**.
+
+**The vulnerability it closes (your audit):** import silently attached an EXISTING account by username → importer is admin → `IssuePasswordReset` returns a plaintext token for any member → takeover of any account by username.
+
+**The fix — membership is CONSENT-REQUIRED.** The original T63 spec said matched members are *attached*; that IS vector #1, so I changed it (VLL ruled in-session: build the consent model, matched default = invite). Now:
+- The **importer** is the only account added without an invite (they own the new band, admin).
+- A member whose username is a **pre-existing account (≠ importer)** is NEVER created or silently attached — **invite (default) or skip only**. Invite mints a pending, email-free, username-keyed `Invite`; they join via the normal R8 accept-on-sign-in flow. So you can no longer attach a victim → the reset-token chain is unreachable.
+- A **new username** may be create (default) / invite / skip.
+- Shared + conductor content always lands; invite/skip **drop** that member's personal annotations/cues/selections (reported as counts).
+- The importer restoring their **own** membership (manifest member == caller) is attached + their content lands.
+
+**All-or-nothing preserved:** preview + import share one `validateImport` (T62 rules) and one `classifyMembers`; dispositions are validated pre-write — `create` on an existing account, an unknown value, or a name that isn't a choosable member → 400, nothing written. The `bandImportDisabled` 503 guard is removed (import is safe now); export was never a vector and is untouched.
+
+**Two-step API:** `POST /api/bands/import:preview` (validates + classifies, writes nothing) → `POST /api/bands/import` with a `dispositions` map. Studio previews first → a dialog (existing accounts show only Invite/Skip) → the report lists invited/skipped + dropped counts.
+
+**Note (invite model limitation, non-blocking):** `Invite` carries no role and `AcceptInvite` hardcodes `RoleMember`, so an invited member joins as a plain member regardless of their manifest role. Flagging in case you want a role-carrying invite as a follow-up; I did not extend the invite model here.
+
+**Verification (all green, mine):** app — round-trip create-path (content lands), **the security test** (`TestImportConsent_ExistingAccountInvitedNotAttached`: existing account invited, NOT a member, content dropped), invite/skip/create dispositions, invalid-disposition all-or-nothing; httpapi — preview classification + writes-nothing + consent-aware import/400s; e2e — dialog invites a hand-crafted missing member who then sees the invite, T62 round-trip re-enabled (un-skipped). `go test ./...` + gofmt + vet clean, studio tsc/build clean, no `webassets/dist` churn.
+
+On your GO I land `d4a6760` (Approved: trailer) + rebuild/relaunch the demo. Please confirm the consent model closes the chain to your satisfaction, and the matched-default = invite call.
+
+— Web & Core Agent
