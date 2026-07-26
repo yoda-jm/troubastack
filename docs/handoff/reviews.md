@@ -9325,3 +9325,22 @@ Routing: web-core (studio + ink). App gets it free via the T46 WebView — mobil
 ## 2026-07-26 — RULING (VLL): T65 move tool shows on DESKTOP too — the open product choice is decided
 
 VLL: "show me the move tool on desktop too." The one open T65 choice (desktop-suppress vs show-everywhere) is RULED show-everywhere — the Move button is in the desktop toolbar (right after Select), a desktop mouse drag with Move active pans the document. Spec updated (Part A). Not built yet, so no UI to show today; I'll pixel-check the real desktop toolbar + move cursor (light+dark) at the gate. — Fable (architect/reviewer)
+
+## 2026-07-26 — T64 (T60 transposition correctness fixes): BUILT — held at the gate
+
+All seven deep-audit defects + the missing authz tests, one commit `5225c77` on `task/T64-transpose-correctness-fixes` (on top of current main) — **not pushed**. Independent of the T62/T63 security arc, as you flagged. D1 + D2 (the wrong-output ones) prioritized.
+
+- **D1 (HIGH)** — the baker now bakes the GENERATED chart when an item asks to transpose (VLL's ruling: bake the chart), not the default lowest-DisplayOrder PDF. New `Baker.generatedChart`; `FilesOfSong`/`SongFiles` both `SortFiles` so baker + preview resolve the SAME chart, and the warning/checkbox already key on "a generated chart exists" — all four agree. Red-first bake test (PDF@0 + chart@1 → bakes the transposed chart, not the uploaded PDF).
+- **D2 (HIGH)** — `transposeChordRow` tokenizes on `unicode.IsSpace` (matching `isChordRow`'s `strings.Fields`); NBSP/`\v`/`\f` rows transpose every chord, leading NBSP no longer errors. Red-first test.
+- **D3 (MED)** — `transposeWarnings` now surfaces an *eligible-but-failed* transpose via `Service.BakeTransposeSucceeds` (injectable transpose seam for the forced-failure test). Post-D2 the failure is essentially unreachable with valid charts, so this is defensive visibility — I traced `applyObject`/`applyLayer` to confirm dup/empty object-UUID are the only mid-`Apply` error classes.
+- **D4 (MED)** — the chart source textarea is `disabled` during an in-flight transpose Apply. e2e holds the request open and asserts the lock, then the transposed result.
+- **D5 (LOW)** — new `chartpdf.TransposeToKey` spells rewritten roots to the accidental the user TYPED (F#→sharps, Gb→flats), used by editor Apply + item preview + baker, so printed chords match the requested/stored key.
+- **D6 (LOW)** — `TransposeSemitones`: net-zero is a true no-op; a flat chart stays flat (`sourcePrefersFlats`) instead of forced sharps; +n/−n round-trips while flat-dominant.
+- **D7 (LOW)** — `transposeChordRow` reproduces original inter-token whitespace verbatim when undrifted (tabs survive; chord row stays over the tab-keeping lyric row); computed padding only after growth/shrink — all existing alignment guards still pass.
+- **Authz** — negative tests for `chart-source:transpose` + item `chart-preview`: non-member → 403/404, cross-band file/item id → 404.
+
+**Verified (mine):** `go test ./...` green (chartpdf/bake/app/httpapi incl. the new D1/D2/D3/D5/D6/D7 + authz tests), gofmt/vet clean, studio tsc/build clean, `editor-transpose` e2e 4/4 (incl. D4), no `webassets/dist` churn. Red-first confirmed on D1 + D2.
+
+One judgment call to confirm: D5 applies the typed-accidental spelling to the item **preview + baker** too (not just the editor Apply the audit named), so all surfaces agree — flag if you'd rather scope D5 to the Apply path only. On your GO I land `5225c77` (Approved: trailer) + relaunch the demo.
+
+— Web & Core Agent
