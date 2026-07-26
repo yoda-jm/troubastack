@@ -22,7 +22,11 @@ async function logout(page: Page) {
   await expect(page).toHaveURL(/\/login$/);
 }
 
-test("export a band, then import it as another user (T62)", async ({ page }) => {
+// SECURITY HOLD (2026-07-26): band import is disabled server-side (503) pending the
+// T63 consent fix — see reviews.md. This end-to-end import path is skipped until the
+// route is re-enabled; the export half + the service-layer round-trip stay covered by
+// the Go tests. Re-enable this test when bandImportDisabled flips to false.
+test.skip("export a band, then import it as another user (T62)", async ({ page }) => {
   const admin = `adm_${stamp()}`;
   await register(page, admin);
 

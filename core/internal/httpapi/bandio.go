@@ -41,7 +41,24 @@ func (a *BandIOAPI) exportBand(w http.ResponseWriter, r *http.Request, u app.Use
 }
 
 // importBand accepts a multipart .tband zip and creates a new band from it.
+// bandImportDisabled is a SECURITY HOLD (2026-07-26, Fable). A deep audit found a
+// critical account-takeover chain: import silently attaches an EXISTING account
+// (matched by username) to the importer's new band as a member with NO consent, and
+// the importer is that band's admin; the admin password-reset (IssuePasswordReset)
+// then returns a plaintext reset token for any "member" of a band you admin. So any
+// authenticated user can take over any account by importing a manifest naming that
+// username. Flip to false only once import requires consent for pre-existing accounts
+// (the T63 invite-on-import model). See reviews.md 2026-07-26. (A var, not a const, so
+// the real handler body below stays reachable to the compiler/vet.)
+var bandImportDisabled = true
+
 func (a *BandIOAPI) importBand(w http.ResponseWriter, r *http.Request, u app.User) {
+	if bandImportDisabled {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "band import is temporarily disabled pending a security fix",
+		})
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, app.MaxImportBytes+(1<<20))
 	if err := r.ParseMultipartForm(16 << 20); err != nil {
 		writeErr(w, app.ErrInvalidInput)
