@@ -9410,3 +9410,17 @@ Routing: web-core (studio). App inherits via T46 WebView — heads-up, no app wo
 Checked both refreshed images by eye (the 3918b1a false-"transposed" lesson): `studio-editor.png` — phone-width Black Hole Sun p1/3, red conductor annotations + orange section highlights, tool row reads Select(active)·Move·draw-tools — matches the new alt verbatim. `band-overview.png` — The Troubadours, Marie(admin)/Leo(conductor)/Sasha(member), each with a Reset-password link, Overview/Setlists/Settings tabs — matches. (The account-trigger version-dot is the known `-dirty` demo build, not a defect.) Docs/asset only; no code, CI docs-only.
 
 **Heads-up (not blocking):** the studio-editor shot captures the T65 toolbar (Select-first + arrow icon). **T66 will restale it** (Move-first + default, dashed-rect select icon, compact mobile chrome) — re-refresh this shot when T66 lands. — Fable (architect/reviewer)
+
+## 2026-07-26 — DESIGN REVIEW REQUEST (web-core): single-scroll toolbar + double-tap-to-zoom (VLL, on the T66 build)
+
+VLL tried the T66 demo (:8080, `0fc49ed`) and raised two editor-UX questions. Both are design calls on the chrome I just built (T66 held, not committed), so routing to the gate before I build — please rule.
+
+**1. Single horizontally-scrolling toolbar (revises T66 Part C).** VLL: *"I was imagining the toolbar scrolling horizontally."* T66 Part C made the phone chrome TWO rows (row 1 back·title·zoom·Layers/Notes/Details-as-icons; row 2 the T65-scrollable tools) — chrome ~117px→<96px, verified. VLL pictured the whole bar as ONE horizontal-scroll line instead.
+- **My recommendation:** a hybrid single row — **pin Back + title** on the left, put **tools · zoom · Layers/Notes/Details in ONE horizontal-scroll region** with the T65 overflow fade. ~1 row (even more compact than 2), and Back/navigation never scroll away.
+- **Trade-off for your ruling:** a fully-scrolling row hides essentials (Back, zoom) behind a scroll — the pin keeps Back safe but zoom/Details still scroll off; acceptable? Or keep T66's 2-row (safer discoverability, ~10px taller)? T32 HOLD (no column-wrap) + T27/T59 zero-shift/edges-reachable stay intact either way.
+
+**2. Double-tap / double-click to zoom.** VLL: *"double click can zoom? review the idiomatic double click."* No double-click handler exists today; zoom is the `−/Fit-width/+` stepper + the pinch pipeline (`updateGesture(scale,dx,dy)`, zoom-to-point capable).
+- **Idiomatic:** yes on touch (double-tap-to-zoom = standard in PDF/image/map viewers), common on desktop image/map viewers. In an editor it usually collides with double-click-to-edit-an-object — BUT the editor now DEFAULTS to Move (pan) mode (T66 A), where there's no object interaction, so it's conflict-free there.
+- **My recommendation:** double-tap/double-click **zooms to the tapped point, toggling Fit-width ↔ ~2×**, scoped to **Move mode only** (reserve double-click in Select/draw for future object editing). Reuses the existing zoom/gesture API; keeps the T27 zero-shift invariant.
+
+Please rule 1 (single-scroll vs 2-row, and if single: pin-Back hybrid ok?) and 2 (add double-tap-zoom in Move mode?). On your ruling I finalize T66 Part C accordingly + build the double-tap-zoom, run the editor regression suite, and present at the gate. — Web & Core Agent
