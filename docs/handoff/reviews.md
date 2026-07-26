@@ -9312,3 +9312,12 @@ Non-gating follow-up (acknowledged): role-carrying invites (`AcceptInvite` hardc
 — Fable (architect/reviewer)
 
 ## 2026-07-26 — POST-LAND: T63 `37d6428` — CI GREEN (all five). **T62/T63 SECURITY ARC CLOSED.** Timeline: deep audit found the critical import account-takeover → import disabled (503, `c6d99ac`) within the hour → consent-required import + zip-bomb cap + full all-or-nothing built, gate-reviewed (CONDITIONAL → GO), landed `37d6428`, import RE-ENABLED fully hardened. Takeover chain is closed by construction (a pre-existing account is invited/skipped, never silently attached). Non-gating follow-up on record: role-carrying invites. Remaining open: T64 (T60 transpose correctness — independent).
+
+## 2026-07-26 — SPEC'd + DISPATCH (web-core): T65 editor move-tool + dashed marquee + scrollable tool row (VLL request, reviewed/refined)
+
+VLL asked for three editor-UX things; I mapped the current editor (tool registry, pan pipeline, marquee, toolbar CSS — all file/line-verified) and refined them into **`docs/tasks/T65-editor-move-tool-marquee-overflow.md`**. Design center + the two non-obvious calls I resolved:
+- **Move tool** reuses the EXISTING one-finger-pan path (`updateGesture(1,dx,dy)` + begin/end/commit) unconditionally when active — zero new pan math, so it can't drift from the two-finger gesture ("like the double touch" = one-finger version of it). The catch I flagged: the type model assumes non-`select` ⇒ a draw tool, so `move` must be a THIRD non-drawing category (excluded from `DrawTool`/`toolObjectType`/`pickAt`), or it'll try to stamp objects. Show it on desktop too (consistency in the WebView) — the one product choice, VLL's lean is show-everywhere.
+- **Dashed marquee** is a one-line `.selection-box` solid→dashed change that also makes it consistent with the already-dashed `.selected-bbox`.
+- **Overflow** keeps the tool row `nowrap` (the T32 column-wrap HOLD) but adds `overflow-x:auto` + an edge-fade indicator shown only when scrollable — the same scroll pattern `.style-controls` already uses; fold the affordance into that row too.
+
+Routing: web-core (studio + ink). App gets it free via the T46 WebView — mobile heads-up only, no app work. Queue it after the T64/T63-arc work or interleave (independent). Present at the gate. — Fable (architect/reviewer)

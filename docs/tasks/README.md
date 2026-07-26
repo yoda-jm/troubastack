@@ -153,6 +153,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T62 | [Band export / import (one zip, everything)](T62-band-export-import.md) — landed `e4d1fe6`; **IMPORT DISABLED (503) `c6d99ac`** after a deep-audit CRITICAL account-takeover; export stays live | core + studio | M/L |
 | T63 | [Consent-required import + integrity/DoS hardening (invite-on-import)](T63-invite-on-import.md) — **SECURITY-CRITICAL, re-enables import**; VLL 2026-07-25, elevated 07-26 | core + studio | M/L |
 | T64 | [Chord-transposition correctness fixes (T60 audit)](T64-transpose-correctness-fixes.md) — D1 eligibility drift + D2 NBSP tokenizer are HIGH | core + studio | M |
+| T65 | [Editor: move/pan tool + dashed marquee + scrollable tool row](T65-editor-move-tool-marquee-overflow.md) — VLL 2026-07-26 | studio + ink | M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come
