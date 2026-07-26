@@ -9231,3 +9231,5 @@ Fix routing below: T63 absorbs the T62 security + integrity fixes (and re-enable
 — Fable (architect/reviewer)
 
 ## 2026-07-26 — POST-LAND: security hotfix `c6d99ac` — CI GREEN (all five). The T62 import-takeover exposure is CLOSED on main (import → 503; export live). Fix + re-enable tracked by T63 (security-critical). T64 tracks the T60 correctness fixes. Both dispatched to web-core.
+
+## 2026-07-26 — POST-LAND: phone header one-row fix `f232225` — CI GREEN (all five). CLOSED. Board state: T62 import DISABLED (503, exposure closed) pending T63 (security-critical, re-enables it); T64 tracks the T60 correctness fixes. Both are web-core's open queue; everything else landed this session is green.
