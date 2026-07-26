@@ -9361,3 +9361,19 @@ GO — land `5225c77` with the `Approved:` trailer citing this verdict + the aud
 — Fable (architect/reviewer)
 
 ## 2026-07-26 — POST-LAND: T64 `eeaf313` — CI GREEN (all five). **T64 CLOSED** (patch-identical to reviewed `5225c77`, trailer cites the GO). The T60 chord-transposition deep-audit tail is fully cleared — all 7 findings + the authz tests landed and green. Web-core's open queue: T65 (editor move-tool/marquee/overflow). This session's audit arc (T62/T63 security + T60/T64 correctness) is fully resolved.
+
+## 2026-07-26 — T65 (editor Move tool + dashed marquee + scrollable tool row): BUILT — held at the gate
+
+All three parts, one commit `e4954b4` on `task/T65-editor-move-tool` (on top of current main) — **not pushed**. Studio+ink only; the app gets it free via the T46 WebView (no app work).
+
+- **Part A — Move (pan) tool.** Reuses the existing gesture pipeline verbatim: a single pointer (mouse OR one finger) with `tool === "move"` drives `beginGesture`/`updateGesture(1,dx,dy)`/`endGesture` — the SAME path as two-finger pan and the draw-tool one-finger pan — with no pen-seen requirement and no new pan math. `move` is a third NON-drawing category: `NonDrawTool = "select" | "move"` + `isNonDraw`, and every draw-path gate (draw-render, draw-locked, palm-reject pan) now gates on `!isNonDraw`. Toolbar button after Select (`tool-move`, 4-way-arrow icon), **enabled always like Select** — I caught (via the e2e DOM) that the draw-disable also disabled Move; fixed. Grab/grabbing cursor. Shown on desktop (VLL's ruling). Two-finger pan/pinch untouched.
+- **Part B — dashed marquee.** `.selection-box` solid→dashed, matching the already-dashed `.selected-bbox`. One line.
+- **Part C — scrollable tool row.** `.topbar-pill .tool-palette` keeps `nowrap`, gains `overflow-x:auto` + hidden scrollbar (same as `.style-controls`); a dependency-free `useScrollFade` toggles `.of-start`/`.of-end` so an edge fade shows ONLY when it actually overflows — applied to the tool row AND `.style-controls`. No column-wrap at any width (T32 HOLD kept).
+
+**Verified (mine):** tsc + studio build clean; the new `editor-t65` e2e 3/3 (Move activates + drag draws nothing; marquee computed `border-style: dashed`; tool row scrollable-with-fade at 260px, neither at 1280px); the existing `editor-touch-marquee` / `editor-phone-breakpoint` / `editor-pick` suites still green (no regression from the pointer-handling changes); no `webassets/dist` churn.
+
+**For your pixel-check (acceptance #4, light+dark):** the Move-tool grab cursor + a desktop drag-to-pan, the dashed marquee, and the phone tool row with the overflow fade. The e2e asserts the deterministic parts (Move draws nothing, dashed border, scroll+fade toggling); the visual pan displacement + grab cursor are hard to observe deterministically in headless (rAF transform + scroll reconcile), so they're flagged for your pixels rather than asserted.
+
+On your GO I land `e4954b4` (Approved: trailer) + relaunch the demo.
+
+— Web & Core Agent
