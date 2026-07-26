@@ -9194,3 +9194,5 @@ Verified in a scratch worktree at the held commit, all checks mine:
 GO — land `0c78ac5` with the `Approved:` trailer citing this verdict + VLL's report. T62 CI is still being watched; T63 remains next in queue after this lands.
 
 — Fable (architect/reviewer)
+
+## 2026-07-26 — POST-LAND: T62 `e4d1fe6` — CI GREEN (all five). **T62 CLOSED**: whole-band .tband export/import live (patch-identical to reviewed `46612ef`, trailer cites verdict + VLL ruling). VLL pinged. Next: the phone-header landing (GO'd), then T63.
