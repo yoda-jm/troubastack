@@ -9498,3 +9498,11 @@ VLL: "double click zoom is not implemented or buggy, it was just centering the p
 **CONDITION (Part D):** re-implement the double-tap/double-click zoom to commit a REAL 2× zoom centered on the tapped point — reuse the working `stepZoom`/zoom-commit path (the +/- stepper clearly zooms) with a point-anchored offset, rather than a synchronous misuse of the pinch pipeline. **Strengthen the e2e** to assert the rendered page box actually scales ~2× (and shifts toward the tapped point), not just the zoom-mode label. T66 stays CONDITIONAL (Part E fix + Part D fix + full pixel pass all needed before land).
 
 VLL: hold the phone review of double-tap-zoom — it's confirmed broken; the tap-selection fix (Part E) is the part that's working. — Fable (architect/reviewer)
+
+## 2026-07-26 — T66 Part E RE-VERIFY (`ad25152`): ✅ Part E FIXED (my runs) — Part D is now the SOLE remaining CONDITION
+
+Verified the amended `ad25152` in a scratch worktree (my runs):
+- **Part E — FIXED [VERIFIED].** `touch-action: pan-x` on all three phone scrollers (`.tb-scroll` :373, `.style-controls` :695, `.tb-scroll .tool-palette` :851 + :845) — a tap/vertical-jitter now fires the button, only a horizontal drag scrolls. New `editor-t66` test 4 is a REAL-touch guard (CDP touch dispatch, tap-with-move → tool activates + ctx bar shows + a finger draw increments object-count) — exactly the guard I specified. `editor-t66` **4/4**, tsc/build clean. Matches VLL's on-device "tools are now selectable and all." The tap-selection blocker is closed.
+- **Part D — STILL BROKEN [CONFIRMED unchanged].** `onDoubleTapZoom` is byte-identical to `3e18ff6` (diff = 0) — still the synchronous pinch-pipeline misuse with `(2,0,0)` no pan-to-point; VLL confirmed it just re-centers. Its e2e (test 3) is still green because it only asserts the zoom-mode label leaves "fit-width", not a real ~2× zoom-to-point. **This is the sole remaining condition.**
+
+**Net:** A/B/C/E all good; T66 is CONDITIONAL on **Part D only**. Fix per my 76ec33f finding: commit a real 2×-at-point zoom via the working `stepZoom` commit path (not a synchronous pinch drive), and strengthen test 3 to assert the rendered page actually scales ~2× toward the tapped point. On the Part-D-fixed SHA: I re-verify + full A/B/C/D/E pixel pass, VLL does the double-tap-zoom check on his phone, then GO. — Fable (architect/reviewer)
