@@ -9377,3 +9377,17 @@ All three parts, one commit `e4954b4` on `task/T65-editor-move-tool` (on top of 
 On your GO I land `e4954b4` (Approved: trailer) + relaunch the demo.
 
 — Web & Core Agent
+
+## 2026-07-26 — T65 GATE REVIEW (`e4954b4`): GO TO LAND — the Move-tool pan verified beyond the e2e (transform + scroll-reconcile), all three parts + pixels checked
+
+Verified in a scratch worktree, all runs mine — tsc/build clean, the `editor-t65` e2e 3/3 + regressions (`editor-touch-marquee`, `editor-phone-breakpoint`, `editor-pick`) 13/13 green, no dist churn.
+
+- **Part A — Move tool [VERIFIED, incl. the pan the memo flagged for me].** The button is on the desktop toolbar right after Select (pixel-checked, light+dark — VLL's "show me on desktop" ask) and on mobile. Code: `move` is a third non-drawing category (`NonDrawTool="select"|"move"`, `isNonDraw`, `DrawTool=Exclude<Tool,NonDrawTool>`), and pointerdown→move→up reuse `beginGesture`/`updateGesture(1,dx,dy)`/`endGesture` verbatim (WetCanvas :620/:753/:824) — the same pipeline as two-finger + one-finger-draw pan, no new math. I confirmed the behavior headlessly beyond the lane's "draws nothing" e2e: with the page zoomed to overflow, a Move drag sets `.viewer-content` transform to `translate(-150px,-150px)` mid-drag (live pan) and, on release, reconciles to real scroll `{0,0}→{240,240}` with transform reset to none (**the pan sticks, doesn't snap back**); the canvas cursor computes `grab` on hover. Two-finger pan/pinch untouched (regression green).
+- **Part B — dashed marquee [VERIFIED].** `.selection-box` is `1.5px dashed` (styles.css:953-956), matching `.selected-bbox`; lane e2e asserts computed `border-style:dashed`.
+- **Part C — scrollable tool row + fade [VERIFIED].** `.topbar-pill .tool-palette` keeps `nowrap`, adds `overflow-x:auto`; a dependency-free scroll check toggles `.of-start`/`.of-end` edge fades on BOTH the tool row and `.style-controls`. Lane e2e proves scroll+fade at 260px and neither at 1280px; at 360px the 8 tools fit cleanly (no clip, no false fade). No column-wrap at any width (T32 HOLD kept).
+
+The lane's honesty note was right — the pan displacement + grab cursor are hard to assert in headless, so they flagged them for me; I verified them via the transform-mid-drag + scroll-reconcile probes above rather than taking the memo's word.
+
+GO — land `e4954b4` with the `Approved:` trailer, relaunch the demo. On green I confirm CI and close T65. That clears web-core's queue (all of this session's VLL requests + the audit fixes landed).
+
+— Fable (architect/reviewer)
