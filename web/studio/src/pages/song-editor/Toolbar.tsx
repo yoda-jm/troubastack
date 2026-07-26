@@ -10,9 +10,21 @@ import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset, isN
 import { descriptorFor, toolsInOrder } from "../../annotations/registry";
 import { AudienceTag, audienceForZone } from "../../components/AudienceTag";
 
+// Select = a dashed marquee rectangle (T66) — the conventional rubber-band affordance,
+// matching the already-dashed marquee (.selection-box) + selected bbox.
 const SELECT_ICON = (
   <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-    <path d="M3 2l9 4.2-3.7 1.1 2 3.7-1.6.8-2-3.7-2.7 2.6z" fill="currentColor" />
+    <rect
+      x="2.5"
+      y="3.5"
+      width="11"
+      height="9"
+      rx="1"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeDasharray="2 1.6"
+    />
   </svg>
 );
 
@@ -28,8 +40,9 @@ const MOVE_ICON = (
 
 type ToolButton = { tool: Tool; label: string; testid: string; icon: ReactNode };
 const TOOLS: ToolButton[] = [
-  { tool: "select", label: "Select", testid: "tool-select", icon: SELECT_ICON },
+  // T66: Move is first — the editor opens in pan mode; Select follows, then the draw tools.
   { tool: "move", label: "Move", testid: "tool-move", icon: MOVE_ICON },
+  { tool: "select", label: "Select", testid: "tool-select", icon: SELECT_ICON },
   ...toolsInOrder().map((t) => ({
     tool: t.id as Tool,
     label: t.label,
@@ -323,15 +336,16 @@ export function EditorToolbar({
       // tool) — read from the annotation registry (T07). Neutral baseline (Select
       // tool, nothing selected) shows every slot, so picking up a selection only
       // ever HIDES slots (never adds), preserving the stable footprint.
-      const neutral = selectedType == null && tool === "select";
+      // Neutral = a non-drawing tool (Select or Move — T66) with nothing selected.
+      const neutral = selectedType == null && isNonDraw(tool);
       // Contextual toolbar (T27 stage 3): the style row appears only when a draw
-      // tool is active or an object is selected — the neutral (select + nothing
+      // tool is active or an object is selected — the neutral (Select/Move + nothing
       // selected) state shows just the tools, keeping the floating bar compact.
       // Multi-selection is NOT neutral: it shows the row (disabled) so the "N
       // selected" indicator + restyle-lock stay visible.
       if (neutral && !multiSelected) return null;
       const targetType =
-        selectedType ?? (tool !== "select" ? (tool as AnnotationObject["type"]) : null);
+        selectedType ?? (!isNonDraw(tool) ? (tool as AnnotationObject["type"]) : null);
       const controls = targetType ? (descriptorFor(targetType)?.styleControls ?? []) : [];
       const showWidth = neutral || controls.includes("width");
       const showShape = neutral || controls.includes("shapePreset");

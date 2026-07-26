@@ -349,6 +349,10 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .tb-divider { flex: 0 0 auto; width: 1px; height: 1.4rem; background: var(--border); }
 .tb-spring { flex: 1 1 auto; }
+/* T66: the pin-Back wrappers are transparent on desktop (their children are the pill's
+   direct flex items, so the desktop layout is byte-identical to before). The phone block
+   (@≤600px) turns them into real boxes: .tb-nav pinned, .tb-scroll a horizontal-scroll row. */
+.tb-nav, .tb-scroll { display: contents; }
 
 /* the tool cluster sits inline in the pill (shed its card chrome) */
 .topbar-pill .editor-toolbar { display: contents; }
@@ -362,6 +366,11 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      horizontally instead of clipping past the edge. Same pattern as .style-controls;
      hidden scrollbar so it never fattens the slim pill past the T33 height guard. */
   overflow-x: auto; scrollbar-width: none;
+  /* T66 Part E: a finger TAP on a tool button must win over the scroll — pan-x lets the
+     browser scroll on a horizontal DRAG only, so a tap (and vertical gestures) fire the
+     button click. Without this an overflowing row eats the tap as a scroll and the tool
+     never selects (VLL's phone blocker). */
+  touch-action: pan-x;
 }
 .topbar-pill .tool-palette::-webkit-scrollbar { display: none; }
 
@@ -369,17 +378,20 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    classes are toggled from JS by a scroll-position check) — hints "there's more this way".
    Applied to both the tool row and the style controls (which already scrolled, silently). */
 .tool-palette.of-end,
-.ctx-bar .style-controls.of-end {
+.ctx-bar .style-controls.of-end,
+.tb-scroll.of-end {
   -webkit-mask-image: linear-gradient(to right, #000 82%, transparent 100%);
   mask-image: linear-gradient(to right, #000 82%, transparent 100%);
 }
 .tool-palette.of-start,
-.ctx-bar .style-controls.of-start {
+.ctx-bar .style-controls.of-start,
+.tb-scroll.of-start {
   -webkit-mask-image: linear-gradient(to left, #000 82%, transparent 100%);
   mask-image: linear-gradient(to left, #000 82%, transparent 100%);
 }
 .tool-palette.of-start.of-end,
-.ctx-bar .style-controls.of-start.of-end {
+.ctx-bar .style-controls.of-start.of-end,
+.tb-scroll.of-start.of-end {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
   mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
 }
@@ -399,6 +411,8 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   font-weight: 600; font-size: .82rem; padding: .35rem .7rem; border-radius: 999px; margin: 0;
 }
 .pill-btn:hover { border-color: var(--brand); }
+/* T66: the pill buttons carry an icon (shown only on phone) + a text label (desktop). */
+.pill-icon { display: none; }
 .pill-btn.active,
 .pill-btn[aria-pressed="true"] {
   background: var(--brand-tint); border-color: var(--brand); color: var(--brand-strong);
@@ -678,6 +692,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      height and fattens the bar past the T33 height guard — CI red on 0e4381a.
      The strip still scrolls by wheel/touch/drag. */
   scrollbar-width: none;
+  touch-action: pan-x; /* T66 Part E: a tap on a control wins over the horizontal scroll. */
 }
 .ctx-bar .style-controls::-webkit-scrollbar { display: none; }
 /* No text wrapping ANYWHERE in the slim pill: under CI/Windows fallback fonts the
@@ -810,13 +825,38 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      cluster itself stays one row (.topbar-pill .tool-palette is nowrap). Drop the
      elastic spring (it would waste row 1 and force an ugly wrap) + the divider;
      shrink the title and zoom select. */
-  .viewer-chrome.topbar-pill { gap: .3rem; flex-wrap: wrap; row-gap: .35rem; }
-  .topbar-pill .tb-divider,
-  .topbar-pill .tb-spring { display: none; }
-  .tb-title { max-width: 40vw; font-size: .9rem; }
-  .pill-btn { padding: .3rem .5rem; font-size: .78rem; }
-  .topbar-pill .tool-palette button { padding: .25rem .4rem; }
-  .topbar-pill .zoom-select { max-width: 6rem; }
+  /* T66 (RULED): ONE-row phone chrome. Back + title are PINNED left (.tb-nav, never scroll
+     away); everything else (tools · zoom · Layers/Notes/Details) lives in .tb-scroll — a
+     single horizontal-scroll strip with the T65 edge fade. One compact row ⇒ a small
+     --chrome-h ⇒ the T59 score reserve shrinks with it (the top margin follows). */
+  .viewer-chrome.topbar-pill { gap: .3rem; flex-wrap: nowrap; align-items: center;
+    padding: .3rem .4rem; }
+  .topbar-pill .tb-divider, .topbar-pill .tb-spring { display: none; }
+  .topbar-pill .tb-nav { display: flex; align-items: center; gap: .1rem; flex: 0 0 auto; }
+  .tb-title { max-width: 34vw; font-size: .9rem; }
+  /* The scroll strip: nowrap + overflow-x, hidden scrollbar (like .tool-palette/.style-controls). */
+  .topbar-pill .tb-scroll {
+    display: flex; align-items: center; gap: .3rem; flex: 1 1 auto; min-width: 0;
+    overflow-x: auto; scrollbar-width: none;
+    /* T66 Part E (the blocker): a finger TAP on a tool button must fire its click, not be
+       eaten as a scroll drag. pan-x scrolls on a horizontal DRAG only; taps + vertical
+       gestures reach the buttons. Without this the always-scrolling phone bar swallows the
+       tap and the tool never selects (no ctx bar) — exactly VLL's phone repro. */
+    touch-action: pan-x;
+  }
+  .topbar-pill .tb-scroll::-webkit-scrollbar { display: none; }
+  /* Inside the strip the tool row no longer scrolls on its OWN (the strip scrolls it) — its
+     T65 self-scroll + fade is a desktop-only concern now. touch-action stays pan-x so the
+     inner buttons are tappable too (inherited intent; the strip owns the scroll). */
+  .topbar-pill .tb-scroll .tool-palette { overflow-x: visible; flex: 0 0 auto; touch-action: pan-x; }
+  .pill-btn { padding: .25rem .4rem; font-size: .78rem; flex: 0 0 auto; }
+  /* Icon-only actions on phone: the text label costs ~150px across the three buttons. */
+  .topbar-pill .pill-icon { display: inline-flex; }
+  .topbar-pill .pill-label { display: none; }
+  .topbar-pill .zoom-controls { flex: 0 0 auto; gap: .15rem; }
+  .topbar-pill .zoom-controls button { padding: .1rem .35rem; }
+  .topbar-pill .tool-palette button { padding: .2rem .35rem; }
+  .topbar-pill .zoom-select { max-width: 5.5rem; padding: .15rem .3rem; }
 
   /* Drawer as a full-width sheet (overrides the ≤760px near-edge treatment above). */
   .drawer {

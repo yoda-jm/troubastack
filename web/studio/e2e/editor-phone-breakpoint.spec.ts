@@ -86,17 +86,22 @@ test("editor phone breakpoint: chrome bars are full-width sheets with the blur d
   // The desktop wheel/zoom hint is not shown on phones.
   await expect(page.locator(".wheelhint")).toBeHidden();
 
-  // HOLD fix #1: the tool cluster stays INSIDE the top bar as one row — not the
-  // vertical column that spilled over the canvas (the bar wraps; the palette doesn't).
+  // HOLD fix #1 (T32): the tool cluster stays ONE ROW — never the vertical column that
+  // spilled over the canvas. Under T66 the whole chrome is one horizontal-scroll row, so the
+  // palette may extend past the bar's right edge (it scrolls) — but it must not WRAP: its
+  // height is a single row and it sits within the bar vertically.
   const topbar = (await page.locator(".viewer-chrome.topbar-pill").boundingBox())!;
   const palette = (await page.locator(".tool-palette").first().boundingBox())!;
-  expect(palette.x).toBeGreaterThanOrEqual(topbar.x - 1);
   expect(palette.y).toBeGreaterThanOrEqual(topbar.y - 1);
-  expect(palette.x + palette.width).toBeLessThanOrEqual(topbar.x + topbar.width + 1);
   expect(palette.y + palette.height).toBeLessThanOrEqual(topbar.y + topbar.height + 1);
+  expect(palette.height).toBeLessThan(48); // one row of tool buttons, not a wrapped column
 
-  // HOLD fix #2: the Details pill (the only route to song details / T19·T25 in the
-  // fullscreen editor) is reachable — visible and fully within the viewport.
+  // HOLD fix #2: Details (the route to song details / T19·T25) stays REACHABLE. Under T66 it
+  // rides the horizontal-scroll strip (accepted, VLL-ruled), so scroll it into view — then
+  // it's visible and within the viewport.
+  const strip = page.getByTestId("tb-scroll");
+  await strip.evaluate((s) => (s.scrollLeft = s.scrollWidth));
+  await page.waitForTimeout(80);
   const details = page.getByTestId("my-files-edit");
   await expect(details).toBeVisible();
   const db = (await details.boundingBox())!;

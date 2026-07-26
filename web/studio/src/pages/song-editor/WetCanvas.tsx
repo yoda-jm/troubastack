@@ -43,6 +43,13 @@ function capturePointer(el: Element, id: number) {
   }
 }
 
+// T66 Part D: a Move-mode press within this many CSS px of its start is a TAP, not a pan —
+// used both to suppress drift on tap and to pair taps into a double-tap. A real double-tap
+// on a phone lands within DOUBLE_TAP_MS of the first with the finger near the same spot.
+const TAP_SLOP = 8;
+const DOUBLE_TAP_MS = 400;
+const DOUBLE_TAP_DIST = 30;
+
 export function EditCanvas({
   page,
   tool,
@@ -66,6 +73,7 @@ export function EditCanvas({
   onSetColor,
   onDelete,
   beginGesture,
+  onDoubleTapZoom,
   updateGesture,
   endGesture,
 }: {
@@ -106,6 +114,8 @@ export function EditCanvas({
   beginGesture: (clientX: number, clientY: number) => boolean;
   updateGesture: (scaleFactor: number, panDx: number, panDy: number) => void;
   endGesture: () => void;
+  // T66 Part D: double-tap / double-click in Move mode → zoom to the point (Fit-width ↔ 2×).
+  onDoubleTapZoom?: (clientX: number, clientY: number) => void;
 }) {
   // ---- Multi-touch navigation (T27 stage 4) ------------------------------
   // Active pointers by id (client coords), so we can detect a second finger and
@@ -121,6 +131,8 @@ export function EditCanvas({
   // A ONE-finger pan (Select mode, empty space, touch) — reuses the gesture pipeline
   // with scaleFactor 1 (pan, no zoom). Kept separate from the two-finger navRef.
   const panRef = useRef<{ id: number; startX: number; startY: number } | null>(null);
+  // T66 Part D: the last touch tap (Move mode) for double-tap-to-zoom detection.
+  const lastTapRef = useRef<{ t: number; x: number; y: number } | null>(null);
   // Palm-rejection idiom (#4): once a PEN is ever used, treat a finger as navigation
   // even with a draw tool (pen draws, finger pans). A pen-less device (phone) keeps
   // the one-finger-draws default (#2).
@@ -749,9 +761,15 @@ export function EditCanvas({
       }
       return;
     }
-    // ---- One-finger pan (Select empty space): pan only, no zoom. ----
+    // ---- One-finger pan (Move tool / touch-draw-pan): pan only, no zoom. ----
     if (panRef.current && e.pointerId === panRef.current.id) {
-      updateGesture(1, e.clientX - panRef.current.startX, e.clientY - panRef.current.startY);
+      const dx = e.clientX - panRef.current.startX;
+      const dy = e.clientY - panRef.current.startY;
+      // T66 Part D: a TAP jitters a few px. Don't pan below the tap slop, else each tap of a
+      // double-tap-to-zoom drifts the view ("move") — VLL's report. Past the slop it's a real
+      // pan (translate by the full delta — the tiny slop is imperceptible).
+      if (Math.hypot(dx, dy) < TAP_SLOP) return;
+      updateGesture(1, dx, dy);
       return;
     }
 
@@ -822,10 +840,35 @@ export function EditCanvas({
     }
     // ---- End a one-finger pan → commit (scroll reconciles). ----
     if (panRef.current && e.pointerId === panRef.current.id) {
+      const start = panRef.current;
       panRef.current = null;
       if (canvas?.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
       endGesture();
       if (tool === "move" && canvas) canvas.style.cursor = "grab"; // grabbing → grab (T65)
+      // T66 Part D: a Move-mode TAP/CLICK (barely moved — a real pan resets the tracker) that
+      // follows another within DOUBLE_TAP_MS at ~the same spot is a double-tap/double-click →
+      // zoom to the point. This is the SINGLE detector for BOTH mouse and touch (pointer events
+      // unify them); the DOM `dblclick` is intentionally NOT wired, so the browser's synthesized
+      // touch-compat dblclick can't double-fire the zoom (that netted it back to nothing — VLL).
+      if (tool === "move") {
+        const moved = Math.hypot(e.clientX - start.startX, e.clientY - start.startY);
+        if (moved < TAP_SLOP) {
+          const now = performance.now();
+          const last = lastTapRef.current;
+          if (
+            last &&
+            now - last.t < DOUBLE_TAP_MS &&
+            Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_DIST
+          ) {
+            lastTapRef.current = null;
+            onDoubleTapZoom?.(e.clientX, e.clientY);
+          } else {
+            lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+          }
+        } else {
+          lastTapRef.current = null; // a real pan is never a double-tap
+        }
+      }
       return;
     }
 

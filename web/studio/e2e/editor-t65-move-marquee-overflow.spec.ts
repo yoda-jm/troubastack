@@ -103,11 +103,13 @@ test("marquee rectangle is dashed (T65 B)", async ({ page }) => {
 test("tool row scrolls with an overflow fade at narrow width, not wide (T65 C)", async ({
   page,
 }) => {
-  // Very narrow: the 8-tool row can't fit → it scrolls and shows the fade (proves the
-  // mechanism; the exact break width depends on font/button metrics).
+  // Very narrow: the tools + actions can't fit → the chrome's horizontal-scroll strip
+  // scrolls and shows the fade (proves the mechanism; the exact break width depends on
+  // font/button metrics). Under T66 the phone scroller is the pin-Back `.tb-scroll` strip
+  // (on desktop it's display:contents and the .tool-palette self-scrolls as in T65).
   await page.setViewportSize({ width: 260, height: 720 });
   await setup(page, "ov");
-  const row = page.locator(".tool-palette").first();
+  const row = page.locator(".tb-scroll");
 
   const narrow = await row.evaluate((el) => ({
     scrollable: el.scrollWidth > el.clientWidth + 1,

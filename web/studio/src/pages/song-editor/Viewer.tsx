@@ -21,6 +21,7 @@ import {
   DEFAULT_STYLE,
   buildObject,
   isMeaningfulGesture,
+  isNonDraw,
   pointsForTool,
   newUuid,
   type DrawTool,
@@ -138,7 +139,9 @@ export function Viewer({
   }, [bandId, songId]);
 
   // ---- live editing state ----
-  const [tool, setTool] = useState<Tool>("select");
+  // T66: the editor opens in PAN mode — the first thing you do with a score is navigate,
+  // not select. Selecting objects is now an explicit Select-tool choice.
+  const [tool, setTool] = useState<Tool>("move");
   const [style, setStyle] = useState(DEFAULT_STYLE);
   // T51 — the glyph the "Icon" tool stamps next (its id rides in the object's text).
   const [activeGlyph, setActiveGlyph] = useState("mic");
@@ -196,6 +199,9 @@ export function Viewer({
   // panel's top all clear it. Constant across tool changes (stable style-row
   // footprint) → no canvas shift.
   const chromeRef = useRef<HTMLDivElement | null>(null);
+  // T66: the phone chrome's single horizontal-scroll region (tools · zoom · Layers/Notes/
+  // Details). An edge fade (.of-start/.of-end) shows only when it actually overflows.
+  const tbScrollRef = useRef<HTMLDivElement | null>(null);
 
   // ---- refresh MY file strip (getMyFiles) — also after editor changes ----
   // Keeps a sensible selected file: preserves the current one if it survives,
@@ -273,6 +279,26 @@ export function Viewer({
     return () => ro.disconnect();
   }, [status]);
 
+  // T66: toggle .of-start/.of-end on the phone chrome's scroll region so its edge fade shows
+  // only when it can scroll that way (dependency-free; a no-op on desktop where it's
+  // display:contents and never scrolls). Same idiom as the T65 tool-row fade.
+  useEffect(() => {
+    const el = tbScrollRef.current;
+    if (!el) return;
+    const update = () => {
+      el.classList.toggle("of-start", el.scrollLeft > 1);
+      el.classList.toggle("of-end", el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [status]);
+
   const layersById = useMemo(() => {
     const m = new Map<string, AnnotationLayer>();
     for (const l of doc.layers) m.set(l.id, l);
@@ -338,6 +364,7 @@ export function Viewer({
     beginGesture,
     updateGesture,
     endGesture,
+    toggleZoomAtPoint,
   } = usePdfDocument({
     selectedFile,
     isPdf,
@@ -833,9 +860,22 @@ export function Viewer({
     }),
     onDelete: deleteSelected,
   };
-  // The contextual style pill (.ctx) shows only when there is something to style:
-  // a draw tool is active, or one/more objects are selected (mockup behavior).
-  const ctxShown = tool !== "select" || selectedUuids.length > 0;
+  // The contextual style pill (.ctx) shows only when there is something to style: a DRAW
+  // tool is active, or one/more objects are selected. The non-drawing tools (Select, Move
+  // — T66) are neutral: no style bar unless a selection exists (mockup behavior).
+  const ctxShown = !isNonDraw(tool) || selectedUuids.length > 0;
+
+  // T66 Part D: double-tap / double-click in MOVE mode zooms to the tapped point. The
+  // in/out decision is STATELESS — toggleZoomAtPoint reads the ACTUAL current zoom (at/near
+  // fit → zoom IN to 2× at the point; zoomed in → back to fit), so it can never desync into
+  // a bare re-centre the way a private boolean did (VLL: double-tap-at-fit only re-centred).
+  // Scoped to Move so it never collides with object editing in Select/draw. (Touch double-tap
+  // and the browser's synthesized dblclick are de-duped in WetCanvas by pointer type, so this
+  // runs exactly once per gesture.)
+  const onDoubleTapZoom = (clientX: number, clientY: number) => {
+    if (tool !== "move") return;
+    toggleZoomAtPoint(clientX, clientY);
+  };
 
   return (
     <section
@@ -855,17 +895,23 @@ export function Viewer({
           slim glass row over the canvas; pointer-events pass through to the score
           except on the controls. ---- */}
       <div className="viewer-chrome topbar-pill" data-testid="viewer-chrome" ref={chromeRef}>
-        <Link
-          className="tb-back"
-          to={`/bands/${bandId}`}
-          aria-label="Back to band"
-          title="Back to band"
-        >
-          &larr;
-        </Link>
-        <span className="tb-title" data-testid="song-title" title={songTitle}>
-          {songTitle}
-        </span>
+        {/* T66: on phone the pill is ONE row — Back + title PINNED (never scroll away),
+            everything else in a single horizontal-scroll region (.tb-scroll) with the T65
+            fade. Both wrappers are display:contents on desktop, so its layout is unchanged. */}
+        <div className="tb-nav">
+          <Link
+            className="tb-back"
+            to={`/bands/${bandId}`}
+            aria-label="Back to band"
+            title="Back to band"
+          >
+            &larr;
+          </Link>
+          <span className="tb-title" data-testid="song-title" title={songTitle}>
+            {songTitle}
+          </span>
+        </div>
+        <div className="tb-scroll" data-testid="tb-scroll" ref={tbScrollRef}>
         <span className="tb-divider" aria-hidden="true" />
 
         <EditorToolbar part="tools" {...toolbarProps} />
@@ -909,7 +955,12 @@ export function Viewer({
           onClick={() => openDrawer("layers")}
           title="Layers"
         >
-          Layers
+          {/* T66: icon-only on phone (chrome row-count budget), text on desktop. */}
+          <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M8 1.5l6.5 3.3L8 8.1 1.5 4.8 8 1.5z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M1.5 8L8 11.3 14.5 8" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+          </svg>
+          <span className="pill-label">Layers</span>
         </button>
         <button
           type="button"
@@ -919,7 +970,10 @@ export function Viewer({
           onClick={() => openDrawer("annotations")}
           title="Annotations"
         >
-          Notes
+          <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M3 11.2L10 4.2l2 2-7 7H3v-2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+          </svg>
+          <span className="pill-label">Notes</span>
         </button>
         <button
           type="button"
@@ -929,8 +983,15 @@ export function Viewer({
           onClick={() => setEditorOpen((o) => !o)}
           title="Song details & files"
         >
-          Details
+          <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M2 4h8M2 8h5M2 12h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            <circle cx="13" cy="4" r="1.5" fill="currentColor" />
+            <circle cx="9" cy="8" r="1.5" fill="currentColor" />
+            <circle cx="13" cy="12" r="1.5" fill="currentColor" />
+          </svg>
+          <span className="pill-label">Details</span>
         </button>
+        </div>
       </div>
 
       {/* Hidden render-count probe: how many times PDF pages have actually been
@@ -1030,6 +1091,7 @@ export function Viewer({
                   beginGesture={beginGesture}
                   updateGesture={updateGesture}
                   endGesture={endGesture}
+                  onDoubleTapZoom={onDoubleTapZoom}
                 />
               </div>
             ))}
@@ -1073,6 +1135,7 @@ export function Viewer({
                 beginGesture={beginGesture}
                 updateGesture={updateGesture}
                 endGesture={endGesture}
+                  onDoubleTapZoom={onDoubleTapZoom}
               />
             </div>
           )}

@@ -585,6 +585,78 @@ export function usePdfDocument(args: {
     commitWheelZoom();
   }, [commitWheelZoom]);
 
+  // ---- Double-tap / double-click zoom-to-point (T66 Part D) ----
+  // Deliberately NOT the pinch/burst pipeline. A double-tap is instantaneous, so there's no
+  // live gesture to animate; driving begin→update→commit in a single tick raced the CSS
+  // transform against layout on-device and reconciled to a RE-CENTRE, not a zoom-to-point
+  // (VLL's report). Instead reuse the reliable setZoomMode zoom (the +/- stepper path) and
+  // anchor scroll explicitly: size the page canvases to `targetScale` synchronously so the
+  // content size is measurable NOW, place scroll so the tapped content-point (fx,fy) stays
+  // under the cursor, then setZoomMode(mode) commits the crisp re-raster at that same size.
+  // `mode` must render at `targetScale` — "fit-width" only when targetScale IS the fit scale,
+  // else the matching numeric percent.
+  const anchorZoom = useCallback(
+    (clientX: number, clientY: number, targetScale: number, mode: ZoomMode): boolean => {
+      if (!isPdf) return false;
+      const scroll = scrollRef.current;
+      if (!scroll) return false;
+      const cs = getComputedStyle(scroll);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
+      const bL = parseFloat(cs.borderLeftWidth) || 0;
+      const bT = parseFloat(cs.borderTopWidth) || 0;
+      const rect = scroll.getBoundingClientRect();
+      const vx = clientX - rect.left - bL - padL;
+      const vy = clientY - rect.top - bT - padT;
+      const contentW0 = Math.max(1, scroll.scrollWidth - padL - padR);
+      const contentH0 = Math.max(1, scroll.scrollHeight - padT - padB);
+      const fx = (scroll.scrollLeft + vx) / contentW0; // content-fraction under the tap
+      const fy = (scroll.scrollTop + vy) / contentH0;
+      const s = Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, targetScale));
+      // Resize the canvases to the target NOW so scrollWidth/Height reflect the new layout
+      // when we anchor (the setZoomMode re-raster below repaints them crisply at this size).
+      for (let i = 0; i < pageCanvasRefs.current.length; i++) {
+        const sz = pageSizesRef.current[i];
+        const canvas = pageCanvasRefs.current[i];
+        if (!sz || !canvas) continue;
+        canvas.style.width = `${sz.w * s}px`;
+        canvas.style.height = `${sz.h * s}px`;
+      }
+      const contentW = Math.max(1, scroll.scrollWidth - padL - padR);
+      const contentH = Math.max(1, scroll.scrollHeight - padT - padB);
+      scroll.scrollLeft = Math.max(0, fx * contentW - vx); // keep (fx,fy) under the cursor
+      scroll.scrollTop = Math.max(0, fy * contentH - vy);
+      setZoomMode(mode);
+      return true;
+    },
+    [isPdf],
+  );
+
+  // The double-tap zoom TOGGLE — decided STATELESSLY from the actual current zoom, never a
+  // private boolean (a boolean desynced from reality: reach fit via the stepper/pinch while
+  // the flag still read "zoomed" → double-tap re-applied fit while already there → a bare
+  // re-centre, VLL's report). Rule: at/near fit (or zoomed out) → zoom IN to ~2× fit; clearly
+  // zoomed in → back to fit. BOTH directions anchor the tapped content-point (RULED Option A,
+  // 2026-07-27) — symmetric, the universal maps/PDF idiom, and a same-spot double-tap is an
+  // exact inverse (zoom-out restores the pre-zoom fit view, fixing VLL's "fit lands too low").
+  const toggleZoomAtPoint = useCallback(
+    (clientX: number, clientY: number): boolean => {
+      const sz = pageSizesRef.current[0];
+      if (!sz || columnWidth <= 0) return false;
+      const fit = Math.min(columnWidth / sz.w, MAX_FIT_SCALE);
+      const cur = scale > 0 ? scale : fit;
+      if (cur > fit * 1.25) {
+        // zoomed in → back to fit, ANCHORED at the tapped point (stays fit-width mode).
+        return anchorZoom(clientX, clientY, fit, "fit-width");
+      }
+      const target = Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, 2 * fit));
+      return anchorZoom(clientX, clientY, target, Math.round(target * 100)); // → 2× fit at point
+    },
+    [scale, columnWidth, anchorZoom],
+  );
+
   // Bind the non-passive wheel listener once; call the latest handler via a ref.
   const wheelZoomRef = useRef(wheelZoomHandler);
   useEffect(() => {
@@ -620,5 +692,7 @@ export function usePdfDocument(args: {
     beginGesture,
     updateGesture,
     endGesture,
+    // Double-tap / double-click zoom toggle, decided from the actual zoom (T66 Part D).
+    toggleZoomAtPoint,
   };
 }
