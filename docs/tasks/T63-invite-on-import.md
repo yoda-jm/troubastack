@@ -1,8 +1,42 @@
-# T63 — Invite-on-import (choose per missing member)
+# T63 — Consent-required import (invite-on-import) + integrity/DoS hardening — **SECURITY-CRITICAL, re-enables import**
 
-**Lane:** web-core · **Size:** M · **Status:** SPEC'd 2026-07-25 (VLL in-session: "invite on import" — after picking "land T62 as-built + invite popup later") · **Depends on:** T62 (band export/import) landed
+**Lane:** web-core · **Size:** M/L · **Status:** SPEC'd 2026-07-25, ELEVATED 2026-07-26 (absorbs the T62 deep-audit CRITICAL/HIGH fixes) · **Depends on:** T62 (landed, import currently DISABLED at 503 via `bandImportDisabled`)
 
-## What VLL asked for
+> **THIS TASK RE-ENABLES BAND IMPORT.** Import is disabled in production (503) because
+> the T62 deep audit (reviews.md 2026-07-26) found a CRITICAL account-takeover chain.
+> Do NOT flip `bandImportDisabled` to false until ALL of the security/integrity items
+> in the new "§ Security & integrity (MUST, gates re-enable)" section pass. The
+> invite-on-import UX below is the SAME change that fixes the takeover (consent), so
+> they ship together.
+
+## § Security & integrity (MUST — these gate flipping `bandImportDisabled=false`)
+
+1. **Consent for pre-existing accounts (fixes the CRITICAL).** A MATCHED (already-exists-
+   on-target) account must NEVER be `AddMembership`'d by import. Instead create a pending
+   `Invite` (kind=username) to the new band with the manifest role — the person joins only
+   by accepting (AcceptInvite). This severs the takeover chain: the victim is not a member,
+   so `IssuePasswordReset`'s membership check fails. Only the importer (their own action)
+   and freshly-CREATED accounts join immediately. Report `matched→invited[]` vs `created[]`.
+   (This is exactly the invite-on-import UX below — one change, two wins.)
+2. **Zip-bomb cap (fixes HIGH).** Bound DECOMPRESSED size, not just the compressed upload:
+   a per-entry cap AND a running total cap (e.g. reject once total decompressed > a limit),
+   plus an entry-count cap. Enforce DURING extraction in `parseBandZip`, before buffering
+   all blobs.
+3. **True all-or-nothing (fixes HIGH).** Extend validation (before any write) to catch
+   manifest-internal collisions the email pre-check doesn't: duplicate/case-variant
+   usernames among members; two would-create members sharing an email; and dry-run the
+   annotation mutations (or validate uuid/Deleted consistency) so `engine.Apply` can't
+   error mid-write. Alternatively wrap import in a cleanup-on-failure that deletes the
+   partial band + any accounts/blobs it created. No partial band, ever.
+4. **Account-existence oracle (MED).** Reconsider returning `matched[]` verbatim — at
+   minimum it's now `invited[]` (consent-gated) which is less of an oracle, but don't
+   confirm arbitrary username existence to an unauthenticated-ish flow. Ruling: acceptable
+   to report invited/created counts; do NOT echo which specific foreign usernames already
+   existed beyond what the importer supplied.
+5. Keep the export side as-is (admin-only). Note the per-member-privacy caveat (export
+   hands the admin every member's cues/selections/email) in the export UI copy.
+
+## What VLL asked for (the UX, unchanged)
 
 When importing a band (T62), members who don't exist on the target server are
 currently **created** as passwordless accounts (activated via the T21 reset link).
