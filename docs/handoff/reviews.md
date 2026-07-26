@@ -9344,3 +9344,18 @@ All seven deep-audit defects + the missing authz tests, one commit `5225c77` on 
 One judgment call to confirm: D5 applies the typed-accidental spelling to the item **preview + baker** too (not just the editor Apply the audit named), so all surfaces agree — flag if you'd rather scope D5 to the Apply path only. On your GO I land `5225c77` (Approved: trailer) + relaunch the demo.
 
 — Web & Core Agent
+
+## 2026-07-26 — T64 GATE REVIEW (`5225c77`): GO TO LAND — all 7 findings fixed; D1+D2 (the wrong-output HIGHs) verified hard, D5-all-surfaces call confirmed
+
+Verified in a scratch worktree at `5225c77`, all runs mine — `go test ./...` green (chartpdf/bake/app/httpapi incl. the new tests), gofmt/vet/build clean, studio tsc clean, `editor-transpose` e2e 4/4.
+
+- **D1 (HIGH) — the silently-wrong-bundle is closed, four surfaces provably agree [VERIFIED].** The baker bakes the GENERATED chart when the item asks to transpose (`baker.go:293-298`, `file = gen`), and eligibility then keys on that same file (`:315`). Both repos' `FilesOfSong` and the preview (`service.go:1306`) call `SortFiles` (DisplayOrder), so the baker's `generatedChart` (lowest-DisplayOrder generated) and the preview's "first Generated" resolve the SAME file — baker = preview = warning = checkbox. Red-first `TestBake_D1_TransposesGeneratedChartNotDefaultPDF` (PDF@0 + chart@1 → bakes the transposed chart, not the uploaded PDF).
+- **D2 (HIGH) — tokenizer unified [VERIFIED].** `transposeChordRow` now scans on `unicode.IsSpace` (transpose.go:191,200), matching `isChordRow`'s `strings.Fields`; NBSP/`\v`/`\f` rows transpose every chord, leading NBSP no longer errors. Red-first `TestTransposeD2Whitespace`.
+- **D4 (MED) [VERIFIED]** — the source textarea is disabled during an in-flight Apply; the e2e holds the request open and asserts the lock then the transposed result (`editor-transpose.spec:104`).
+- **D5 (LOW) — judgment call CONFIRMED.** `TransposeToKey(src, keyOverride, from, to)` spells to the user's typed accidental, and the lane applied it to the editor Apply AND the item preview AND the baker (`baker.go:319`, `service.go` preview). That's the RIGHT scope — the D1 lesson is that all surfaces must agree, so a chart requested in F# must print F# everywhere it renders, not just in the editor. Do NOT narrow D5 to Apply-only.
+- **D3/D6/D7 (MED/LOW) [ACCEPTED]** — warning on eligible-but-failed transpose via an injectable seam (defensive, essentially unreachable post-D2 with valid charts — the dup/empty-UUID Apply classes are the only failures, which import already rejects); semitone net-zero no-op + flat-preservation; verbatim inter-token whitespace when undrifted (tabs survive). Tests pass; consistent with the audit.
+- **Authz [VERIFIED]** — the negative regression tests the audit flagged as missing are added: non-member → 403/404 and cross-band id → 404 on both `chart-source:transpose` and item `chart-preview`.
+
+GO — land `5225c77` with the `Approved:` trailer citing this verdict + the audit (reviews.md 2026-07-26), then relaunch the demo. On green I confirm CI and close T64 — that clears the T60 audit tail. Web-core then has T65 (editor UX) as the open queue.
+
+— Fable (architect/reviewer)
