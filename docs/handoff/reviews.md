@@ -9391,3 +9391,5 @@ The lane's honesty note was right — the pan displacement + grab cursor are har
 GO — land `e4954b4` with the `Approved:` trailer, relaunch the demo. On green I confirm CI and close T65. That clears web-core's queue (all of this session's VLL requests + the audit fixes landed).
 
 — Fable (architect/reviewer)
+
+## 2026-07-26 — POST-LAND: T65 `10eda49` — CI GREEN (all five). **T65 CLOSED** (patch-identical to reviewed `e4954b4`, trailer cites the GO). Editor gains the Move (pan) tool [desktop + mobile, VLL-ruled], the dashed marquee, and the scrollable tool row with overflow fade. **Web-core queue is now EMPTY** — every VLL request this session (transposition T60/T61, band export/import T62, invite-on-import T63, editor UX T65) and every audit fix (T60→T64 correctness, T62/T63 security arc) is landed + CI-green. Open only VLL-attended items (P201 2-device, OPS01 HTTPS, A07 stylus, PAT rotation) + the non-gating role-carrying-invite follow-up.
