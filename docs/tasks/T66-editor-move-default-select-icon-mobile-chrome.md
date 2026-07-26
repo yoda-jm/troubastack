@@ -21,22 +21,33 @@ The Select button shows an arrow/cursor glyph (`SELECT_ICON`, `Toolbar.tsx:13-17
 
 On a 390px phone the editor's `.viewer-chrome.topbar-pill` wraps into **3 rows** — (1) back + song title, (2) the 8 tools, (3) zoom `− Fit width +` · Layers · Notes · Details — a **~117px pill**, and the score's `scroll-padding-top` reserves **~182px** (measured on the live T65 demo). The large top margin is a SYMPTOM: the reserve correctly tracks `--chrome-h` (the pill height, published by the ResizeObserver at `Viewer.tsx:268`, consumed by `scroll-padding-top`/padding in `styles.css` — the T59 invariant that keeps the score from hiding under the chrome). So **reduce the pill's row count on phone and the margin follows automatically.**
 
-- Target: the phone editor chrome is **≤ 2 rows** (ideally: row 1 = back + title + a compact actions cluster; row 2 = the tools, already single-row-scrollable from T65). Fold zoom + Layers/Notes/Details into something compact on phone — e.g. a single right-aligned actions row shared with the title, or a small overflow/"⋯" menu for Layers/Notes/Details with the zoom stepper kept inline. Executor's layout call; the requirement is fewer rows.
-- **The top margin must shrink materially** (the score sits just below the chrome, à la T59) — do NOT just clamp the reserve smaller than the chrome (that re-hides the score, the T59 bug); shrink the CHROME so the reserve (which tracks `--chrome-h`) shrinks with it.
+- **RULED 2026-07-26 (VLL, after trying the 2-row T66 build): make it ONE horizontally-scrolling row, not two.** VLL: *"I was imagining the toolbar scrolling horizontally."* His direct word supersedes the earlier ≤2-row target. Build the **pin-Back hybrid** (the lane's proposal, approved): **Back (+ the song title) stays pinned** on the left as a fixed navigation anchor; **everything else — the tools, the zoom stepper, Layers/Notes/Details — lives in ONE horizontal-scroll region** with the T65 overflow fade. One compact row (~48px + inset), even smaller than the 2-row version.
+  - Accepted trade-off (VLL's ruling): zoom + Layers/Notes/Details can scroll off behind the fade — that's fine on touch because pinch-zoom and the new double-tap-zoom (Part D) cover zoom, and the fade signals more. Back never scrolls away (pinned). If, on device, the zoom stepper scrolling off feels bad, pin it too as a fast-follow — but ship pin-Back-only first.
+- **The top margin still shrinks from `--chrome-h`** (the score sits just below the chrome, à la T59) — do NOT clamp the reserve below the chrome height (that re-hides the score, the T59 bug); the one-row chrome makes `--chrome-h` small and the reserve follows.
 - **Invariants to keep:** the T27/T42 zero-shift (toggling the ctx bar / a live banner never moves the score — the reserve stays mode-independent), the T59 edges reachable (page-1 top / last-page bottom scroll clear of the chrome), the T65 tool row stays one scrollable line with the overflow fade (no column-wrap — the T32 HOLD), and desktop (>640px) chrome is unchanged.
 - Re-screenshot phone before/after (light+dark) — the reviewer will pixel-verify the row count + margin.
 
+## Part D — double-tap / double-click to zoom (RULED 2026-07-26, VLL: "double click can zoom? review the idiomatic double click")
+
+Approved as idiomatic and conflict-free: double-tap-to-zoom is standard in PDF/image/map viewers, and the usual editor conflict (double-click-to-edit-an-object) doesn't apply because the editor now DEFAULTS to Move mode (Part A) where there's no object interaction.
+
+- **Scope to Move mode ONLY.** In `tool === "move"`, a double-tap (touch) / double-click (mouse) **zooms to the tapped point, toggling Fit-width ↔ ~2×** (a second double-tap zooms back to fit). Reserve double-click in Select/draw modes for future object-editing — do NOT bind it there now.
+- **Reuse the existing zoom pipeline** — the pinch path already zooms-to-point (`updateGesture(scale,dx,dy)` + the commit reconcile); drive the same commit so it re-rasters once and keeps the T27 zero-shift/re-raster-once invariant. Don't add a second zoom mechanism.
+- Guard the double-tap so it doesn't fight a single-tap or a pan-drag (tap-count + small movement threshold); a pan that moved is never a double-tap.
+
 ## Out of scope
 - Desktop toolbar layout (only the move-first reorder + select icon apply there; the row structure is fine).
+- Double-click in Select/draw modes (reserved for future object editing — Part D is Move-mode only).
 - The move-tool pan mechanics, the marquee behavior, the overflow-fade mechanism (all T65, keep).
 - App/iOS native — inherited via the T46 WebView (mobile heads-up; no app work).
 
 ## Acceptance
 1. e2e: the editor opens with `tool-move` active (Move is default); Move is the first palette button; picking Select then still marquee-selects (T43/T65/uxfix green). Red-first on "default tool is move".
 2. Select button renders a dashed-rect icon (assert the SVG has a `stroke-dasharray`, or a snapshot); the marquee stays dashed.
-3. Mobile chrome: at 390px the editor top chrome is ≤ 2 rows and `--chrome-h` / the reserved `scroll-padding-top` are materially smaller than today's ~117/~182px (assert a concrete ceiling, e.g. chrome ≤ ~2 rows tall), with the score's first page reachable (not hidden) and zero-shift intact. No column-wrap at any width.
-4. Reviewer pixel-check (light+dark): phone editor before/after; desktop toolbar move-first + dashed select icon.
-5. `tsc`/build clean; full `editor*` e2e suite green (esp. `editor-phone-breakpoint`, `editor-touch-marquee`, `editor-ctx-thin`, `editor-t65`); no dist churn.
+3. Mobile chrome: at 390px the editor top chrome is ONE row (Back+title pinned, the rest in a single horizontal-scroll region with the T65 fade); `--chrome-h`/`scroll-padding-top` materially smaller than today's ~117/~182px (assert a concrete ceiling ~1 row); score's first page reachable (not hidden), zero-shift intact, no column-wrap at any width. Back stays visible regardless of scroll.
+4. Double-tap/double-click in Move mode zooms to the point (Fit-width↔~2× toggle), re-rasters once; in Select/draw modes double-click does NOT zoom. e2e or a behavior assert on the zoom-toggle.
+5. Reviewer pixel-check (light+dark): phone editor before/after (one-row scrolling bar); desktop toolbar move-first + dashed select icon.
+6. `tsc`/build clean; full `editor*` e2e suite green (esp. `editor-phone-breakpoint`, `editor-touch-marquee`, `editor-ctx-thin`, `editor-t65`, `editor-wheelzoom`); no dist churn.
 
 ## Notes for the executor
 - Part A is the load-bearing behavior change (default tool) — grep all `"select"` / `isNonDraw` / neutral-state sites and make `move` the clean neutral. Part C is where the care is: the margin is downstream of `--chrome-h`, so fix the chrome height, not the reserve. Present at the gate; cite VLL 2026-07-26 (via Fable). Mobile lane: heads-up, WebView inherits it, no app work.

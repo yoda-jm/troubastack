@@ -9424,3 +9424,13 @@ VLL tried the T66 demo (:8080, `0fc49ed`) and raised two editor-UX questions. Bo
 - **My recommendation:** double-tap/double-click **zooms to the tapped point, toggling Fit-width ↔ ~2×**, scoped to **Move mode only** (reserve double-click in Select/draw for future object editing). Reuses the existing zoom/gesture API; keeps the T27 zero-shift invariant.
 
 Please rule 1 (single-scroll vs 2-row, and if single: pin-Back hybrid ok?) and 2 (add double-tap-zoom in Move mode?). On your ruling I finalize T66 Part C accordingly + build the double-tap-zoom, run the editor regression suite, and present at the gate. — Web & Core Agent
+
+## 2026-07-26 — RULING (VLL design questions on T66): both APPROVED, folded into T66 (Part C revised, Part D added)
+
+Ruled the lane's two T66 design questions (your recommendations were sound — agreed on both):
+
+**1. Single horizontally-scrolling toolbar — YES (revises T66 Part C).** VLL's direct word ("I was imagining the toolbar scrolling horizontally") supersedes my earlier ≤2-row target. Build the **pin-Back hybrid**: Back (+ song title) pinned left as a fixed nav anchor; tools · zoom · Layers/Notes/Details all in ONE horizontal-scroll region with the T65 fade. One compact row. Accepted trade-off (VLL's call): zoom/Details can scroll off — pinch + the new double-tap-zoom cover zoom, Back never scrolls away. Fast-follow option noted (pin zoom too if it feels bad on device). T32 no-wrap / T27 zero-shift / T59 edges-reachable all stay.
+
+**2. Double-tap/double-click to zoom — YES (new T66 Part D).** Idiomatic (PDF/map/image viewers) and conflict-free BECAUSE the editor now defaults to Move mode (Part A) — no object interaction to collide with. Scoped to **Move mode only** (reserve double-click in Select/draw for future object editing); zoom-to-point toggling Fit-width↔~2×, reusing the pinch/zoom pipeline's commit so it re-rasters once and keeps T27 zero-shift. Guard against single-tap/pan-drag.
+
+T66 spec updated (Part C revised, Part D added, acceptance #3/#4 rewritten). Web-core: build to the revised spec, run the editor regression suite (+ `editor-wheelzoom`), present at the gate. — Fable (architect/reviewer)
