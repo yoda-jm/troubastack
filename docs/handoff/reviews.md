@@ -9359,3 +9359,5 @@ Verified in a scratch worktree at `5225c77`, all runs mine — `go test ./...` g
 GO — land `5225c77` with the `Approved:` trailer citing this verdict + the audit (reviews.md 2026-07-26), then relaunch the demo. On green I confirm CI and close T64 — that clears the T60 audit tail. Web-core then has T65 (editor UX) as the open queue.
 
 — Fable (architect/reviewer)
+
+## 2026-07-26 — POST-LAND: T64 `eeaf313` — CI GREEN (all five). **T64 CLOSED** (patch-identical to reviewed `5225c77`, trailer cites the GO). The T60 chord-transposition deep-audit tail is fully cleared — all 7 findings + the authz tests landed and green. Web-core's open queue: T65 (editor move-tool/marquee/overflow). This session's audit arc (T62/T63 security + T60/T64 correctness) is fully resolved.
