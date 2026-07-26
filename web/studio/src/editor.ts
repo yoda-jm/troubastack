@@ -22,10 +22,26 @@ import { descriptorFor } from "./annotations/registry";
 // Built-in tools kept as literals for autocomplete; `(string & {})` lets the
 // annotation registry add drawable tools (e.g. the T07 dev arrow) WITHOUT editing
 // this union — so adding a type stays a registry-only change.
-export type Tool = "select" | "freehand" | "line" | "rect" | "ellipse" | "text" | (string & {});
+export type Tool =
+  | "select"
+  | "move"
+  | "freehand"
+  | "line"
+  | "rect"
+  | "ellipse"
+  | "text"
+  | (string & {});
 
-/** Tools that draw a new object (everything but select). */
-export type DrawTool = Exclude<Tool, "select">;
+/** The non-drawing tools: they create no object. `select` marquees + picks; `move` pans
+ *  the document (T65). Everywhere the draw path is gated, gate on isNonDraw — the `(string
+ *  & {})` escape hatch in Tool defeats `Exclude`, so an explicit guard is needed. */
+export type NonDrawTool = "select" | "move";
+export function isNonDraw(tool: Tool): boolean {
+  return tool === "select" || tool === "move";
+}
+
+/** Tools that draw a new object (everything but the non-drawing tools). */
+export type DrawTool = Exclude<Tool, NonDrawTool>;
 
 /** The annotation object type a draw tool produces (names line up 1:1). */
 export function toolObjectType(tool: DrawTool): AnnotationObject["type"] {

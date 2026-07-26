@@ -6,7 +6,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
-import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset } from "../../editor";
+import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset, isNonDraw } from "../../editor";
 import { descriptorFor, toolsInOrder } from "../../annotations/registry";
 import { AudienceTag, audienceForZone } from "../../components/AudienceTag";
 
@@ -16,9 +16,20 @@ const SELECT_ICON = (
   </svg>
 );
 
+// Move/pan (T65): the standard 4-way arrow "move" glyph.
+const MOVE_ICON = (
+  <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+    <path
+      d="M8 1l2.4 2.4-1.4 1.4V7h2.2l-1.4-1.4L12 3.2 14.8 6 12 8.8l-1.2-1.2L12 6.2H9v3l1.4-1.4L12 9.2 9.6 11.6 8 13l-1.6-1.4L5 9.2l1.6 1.6L7 9.4V6.4H4l1.6 1.4L4 9.2 1.2 6.4 4 3.6l1.6 1.6L4 6.4h3V3.4L5.6 4.8 8 1z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 type ToolButton = { tool: Tool; label: string; testid: string; icon: ReactNode };
 const TOOLS: ToolButton[] = [
   { tool: "select", label: "Select", testid: "tool-select", icon: SELECT_ICON },
+  { tool: "move", label: "Move", testid: "tool-move", icon: MOVE_ICON },
   ...toolsInOrder().map((t) => ({
     tool: t.id as Tool,
     label: t.label,
@@ -171,6 +182,29 @@ function StyleMore({
   );
 }
 
+// useScrollFade toggles .of-start/.of-end on a horizontal scroll strip so the CSS edge fade
+// shows ONLY when it actually overflows/can scroll in that direction (T65 Part C). No deps.
+function useScrollFade<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      el.classList.toggle("of-start", el.scrollLeft > 1);
+      el.classList.toggle("of-end", el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+  return ref;
+}
+
 export function EditorToolbar({
   part,
   tool,
@@ -229,10 +263,14 @@ export function EditorToolbar({
   canDeleteSelection: boolean;
   onDelete: () => void;
 }) {
+  // One scroll-fade ref (T65 Part C); only one of the two scroll strips below renders per
+  // instance (the component is called once per `part`), so it binds to whichever mounts.
+  const fadeRef = useScrollFade<HTMLDivElement>();
+
   // The tool cluster (top-bar pill). Keeps `editor-toolbar`/`tool-palette` testids.
   const toolsEl = (
     <div className="editor-toolbar" data-testid="editor-toolbar">
-      <div className="tool-palette" role="toolbar" aria-label="Annotation tools">
+      <div className="tool-palette" role="toolbar" aria-label="Annotation tools" ref={fadeRef}>
         {TOOLS.map((t) => (
           <button
             key={t.tool}
@@ -242,7 +280,7 @@ export function EditorToolbar({
             aria-pressed={tool === t.tool}
             aria-label={t.label}
             title={t.label}
-            disabled={(!canDraw || drawLocked) && t.tool !== "select"}
+            disabled={(!canDraw || drawLocked) && !isNonDraw(t.tool)}
             onClick={() => onTool(t.tool)}
           >
             {t.icon}
@@ -305,6 +343,7 @@ export function EditorToolbar({
           disabled ? " controls-locked" : ""
         }`}
         data-testid="style-controls"
+        ref={fadeRef}
       >
         {/* Shape/type indicator: the selection's type/count, else the draw tool. */}
         <span className="pill style-target" data-testid="style-target">

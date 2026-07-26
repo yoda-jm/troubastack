@@ -17,6 +17,7 @@ import {
   normalizeRect,
   objectBBox,
   pickAt,
+  isNonDraw,
   pointerToPageXY,
   resizeObject,
   translateObject,
@@ -268,7 +269,7 @@ export function EditCanvas({
     const box = { x: 0, y: 0, w: canvas.width / dpr, h: canvas.height / dpr };
 
     const g = gestureRef.current;
-    if (g?.mode === "draw" && g.path.length > 0 && tool !== "select") {
+    if (g?.mode === "draw" && g.path.length > 0 && !isNonDraw(tool)) {
       const wet = buildWet(tool as DrawTool, g.path, style, tool === "icon" ? iconGlyph : "");
       if (wet) renderObjects(ctx, [toInkObject(wet) as InkObject], box);
     } else if (g?.mode === "move" || g?.mode === "resize") {
@@ -497,6 +498,12 @@ export function EditCanvas({
   function updateHoverCursor(e: React.PointerEvent) {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (tool === "move") {
+      // T65: the Move tool shows a grab hand (grabbing is set while a pan is in flight).
+      const want = panRef.current ? "grabbing" : "grab";
+      if (canvas.style.cursor !== want) canvas.style.cursor = want;
+      return;
+    }
     if (tool !== "select") {
       // Draw tools keep their CSS crosshair; nothing to predict on hover.
       if (canvas.style.cursor) canvas.style.cursor = "";
@@ -603,9 +610,21 @@ export function EditCanvas({
 
     // A read-only (locked) focused layer blocks all drawing gestures; selecting
     // is still allowed so the user can browse/select the layer's annotations.
-    if (drawLocked && tool !== "select") return;
+    if (drawLocked && !isNonDraw(tool)) return;
 
     if (e.pointerType === "pen") penSeenRef.current = true;
+
+    // T65 Move tool: a single pointer (mouse OR one finger) pans the document through the
+    // SAME gesture pipeline as two-finger pan — no pen-seen requirement, and it draws/selects
+    // nothing (it's a NonDrawTool). Two-finger pan/pinch is unchanged in every tool.
+    if (tool === "move") {
+      if (beginGesture(e.clientX, e.clientY)) {
+        canvas.setPointerCapture(e.pointerId);
+        panRef.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY };
+        canvas.style.cursor = "grabbing";
+      }
+      return;
+    }
 
     // One-finger PAN via the gesture pipeline, ONLY when a draw tool is armed AND a pen
     // has been seen (palm rejection, #4: pen draws, finger pans; pen-less device keeps
@@ -614,7 +633,7 @@ export function EditCanvas({
     // select block below, same as the mouse. No navigation is lost: two fingers ALWAYS
     // pan/zoom (navRef), which already made one-finger-pan in select mode redundant.
     if (e.pointerType === "touch") {
-      const doPan = tool !== "select" && penSeenRef.current;
+      const doPan = !isNonDraw(tool) && penSeenRef.current;
       if (doPan && beginGesture(e.clientX, e.clientY)) {
         canvas.setPointerCapture(e.pointerId);
         panRef.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY };
@@ -806,6 +825,7 @@ export function EditCanvas({
       panRef.current = null;
       if (canvas?.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
       endGesture();
+      if (tool === "move" && canvas) canvas.style.cursor = "grab"; // grabbing → grab (T65)
       return;
     }
 

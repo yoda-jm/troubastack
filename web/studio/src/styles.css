@@ -357,7 +357,31 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      this it inherits flex-wrap:wrap from the base .tool-palette and, when the bar is
      tight (phone), wraps degenerate into a column floating over the canvas (T32 HOLD). */
   display: flex; align-items: center; gap: .15rem; border: none; padding: 0; margin: 0;
-  flex-wrap: nowrap; flex: 0 0 auto;
+  flex-wrap: nowrap; flex: 0 1 auto;
+  /* T65 Part C: when the tools don't fit (an 8th button on a phone), the row SCROLLS
+     horizontally instead of clipping past the edge. Same pattern as .style-controls;
+     hidden scrollbar so it never fattens the slim pill past the T33 height guard. */
+  overflow-x: auto; scrollbar-width: none;
+}
+.topbar-pill .tool-palette::-webkit-scrollbar { display: none; }
+
+/* T65 Part C: an edge fade shown ONLY when a scroll strip actually overflows (the .of-*
+   classes are toggled from JS by a scroll-position check) — hints "there's more this way".
+   Applied to both the tool row and the style controls (which already scrolled, silently). */
+.tool-palette.of-end,
+.ctx-bar .style-controls.of-end {
+  -webkit-mask-image: linear-gradient(to right, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 82%, transparent 100%);
+}
+.tool-palette.of-start,
+.ctx-bar .style-controls.of-start {
+  -webkit-mask-image: linear-gradient(to left, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to left, #000 82%, transparent 100%);
+}
+.tool-palette.of-start.of-end,
+.ctx-bar .style-controls.of-start.of-end {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
 }
 /* locked-layer hint: float it BELOW the slim pill so it never widens the row, but
    stays a real visible element when locked (specs assert visible/hidden). */
@@ -928,7 +952,8 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .selection-box {
   position: absolute; box-sizing: border-box;
-  border: 1.5px solid var(--accent);
+  /* T65 Part B: dashed marquee (was solid) — matches the dashed .selected-bbox. */
+  border: 1.5px dashed var(--accent);
   background: var(--selection-fill);
 }
 /* Read-only selection: greyed + dashed, with a small lock pinned at the corner. */
