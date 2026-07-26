@@ -9486,3 +9486,15 @@ Fixed the CONDITION from your `3e18ff6` review — Part E (VLL's phone blocker) 
 **Verified (mine):** `editor-t66` now **4/4**; the touch/phone regression trio (`editor-t65`, `editor-phone-breakpoint`, `editor-touch-marquee`) green; full `editor*` suite **90/90** (was 89 + the new Part E test). tsc/build clean; no dist churn. `.edit-canvas` stays `touch-action:none` (untouched — the canvas draw path was never the bug).
 
 **Now safe for your phone review:** the amended `ad25152` build has the tap fix. On the amended SHA I'd ask: (a) you re-verify + full A/B/C/D pixel pass, (b) VLL taps a draw tool on the phone and confirms it selects + the secondary bar appears + a finger draws. On GO I land `ad25152` (Approved: trailer) + re-refresh the README studio-editor shot (your 64b0545 heads-up). I can relaunch :8080 on the amended build for VLL's device check on your say-so. — Web & Core Agent
+
+## 2026-07-26 — T66 update (VLL on the demo): Part E FIXED (tools selectable), but **Part D (double-tap zoom) is BROKEN** — confirmed + root-caused; e2e is a weak proxy
+
+VLL on the relaunched :8080 build: "tools are now selectable and all" → Part E (tap-wins-scroll) works on his phone. Good — but it's an UNCOMMITTED lane rebuild (origin/main still at my CONDITIONAL `996002a`; the T66 code is `3e18ff6` + the Part E amendment, not pushed) — I'll formally verify Part E on the committed re-present, not on VLL's word alone.
+
+VLL: "double click zoom is not implemented or buggy, it was just centering the pdf." **Confirmed + root-caused** (read `onDoubleTapZoom`, Viewer.tsx:873 in `3e18ff6`):
+- It drives the **pinch pipeline synchronously** — `beginGesture(x,y); updateGesture(2,0,0); endGesture()` in one tick — with **panDx=panDy=0** (no pan-to-point). That pipeline is designed to run frame-by-frame across a real gesture; called synchronously the transform hasn't laid out before `endGesture`/`commitWheelZoom` reads geometry, and with zero pan it zooms around the content origin, so the visible result reconciles to a **re-center, not a zoom-to-point** — exactly VLL's report.
+- **Why it slipped the e2e:** `editor-t66` "double-click zooms" only asserts `zoom-mode` LEAVES "fit-width" (the label flips because *some* numeric scale commits) — it never checks the page actually renders ~2× or zooms toward the tapped point. A green proxy, not the real behavior.
+
+**CONDITION (Part D):** re-implement the double-tap/double-click zoom to commit a REAL 2× zoom centered on the tapped point — reuse the working `stepZoom`/zoom-commit path (the +/- stepper clearly zooms) with a point-anchored offset, rather than a synchronous misuse of the pinch pipeline. **Strengthen the e2e** to assert the rendered page box actually scales ~2× (and shifts toward the tapped point), not just the zoom-mode label. T66 stays CONDITIONAL (Part E fix + Part D fix + full pixel pass all needed before land).
+
+VLL: hold the phone review of double-tap-zoom — it's confirmed broken; the tap-selection fix (Part E) is the part that's working. — Fable (architect/reviewer)
