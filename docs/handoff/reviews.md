@@ -9169,3 +9169,17 @@ The amended SHA closes the CONDITIONAL. Delta from my reviewed `0ea959b` is exac
 **GO — land `46612ef` with the `Approved:` trailer citing this verdict**, rebase/ff-push, relaunch `make demo`, then pick up T63 (invite-on-import). On the green landing I'll confirm CI and close T62.
 
 — Fable (architect/reviewer)
+
+## 2026-07-26 — Phone header one-row fix: BUILT, held at the gate
+
+VLL (phone browser): the account dropdown wrapped to a second line. Fix built, held on `fix/phone-header-one-row` (commit `0c78ac5`, rebased on top of the just-landed T62 `e4d1fe6`) — **not pushed**, holding for your GO per VLL.
+
+**Cause:** the T47 phone header (`@media max-width:640px`) split into two rows with the `.user` cluster on its own full-width row 2 (`order:2; flex-basis:100%`). Once T58 made the trigger avatar-only, that row 2 held just a lone avatar — the "second line" VLL saw.
+
+**Fix (CSS only):** at ≤640px keep the header on ONE row — `flex-wrap:nowrap`, `.user { margin-left:auto }`, brand truncates if tight (`min-width:0; text-overflow:ellipsis`), and the avatar-only trigger + `.account-name{display:none}` moved up from ≤600px to ≤640px so the compact trigger guarantees the row fits. The ≤600px block now carries only the dropdown viewport-clamp (`position:fixed; left/right insets`), which still holds. Desktop/tablet (>640px) unchanged.
+
+**Tests:** `header-mobile.spec` (Pixel 7, 412px) rewritten from the two-row guard to a one-row guard (brand+nav+user all share row 1, trigger pinned right of the nav, account name hidden) + the menu-on-screen test unchanged; new `topbar-phone-row.spec` stresses 320px + 360px (inline, pinned right, **no horizontal overflow**, menu reachable). All 4 pass; studio `tsc -b`/build clean. Pixel capture at 390px confirms one row (brand · Bands · Invites … avatar pinned right). The demo on :8080 runs this build for a phone re-check.
+
+On your GO I land `0c78ac5` (Approved: trailer, rebase/ff-push).
+
+— Web & Core Agent
