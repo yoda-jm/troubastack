@@ -22,7 +22,7 @@ night mode, count-in, facing pages, per-role layers.
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| ![The fullscreen canvas-first TroubaStudio editor — Wonderwall (Vocals part): breath-layer cues over the staff, part tabs, and the slim floating tool + style pills sitting just above the score](docs/screenshots/studio-editor.png) | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
+| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — Black Hole Sun (page 1/3): red conductor annotations and orange section highlights over the staff, with the slim floating tool row above the score (Select, the new Move/pan tool, then the draw tools)" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
 
 The full loop works end to end today: **compose → annotate (realtime, multi-user) →
 bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
@@ -66,7 +66,7 @@ same song in two browsers and draw.
 
 Reset the demo data with `rm -rf core/troubadata`.
 
-![Band overview in the warm concert-program design: members with roles and admin password reset, songs, setlists](docs/screenshots/band-overview.png)
+<img src="docs/screenshots/band-overview.png" alt="Band overview in the warm concert-program design: The Troubadours with three members and their roles (Marie admin, Leo conductor, Sasha member), each with an admin password-reset link, above the songs list and the Overview / Setlists / Settings tabs" width="320">
 
 Each member sets their own **song cues** — a small set of tinted instrument/role icons
 per song (Marie's *"Sat @ The Anchor"* below: mic + red electric on Wonderwall, mic on
