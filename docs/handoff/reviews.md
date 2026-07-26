@@ -9229,3 +9229,5 @@ T60 line-count/pagination invariant holds across all 12 intervals (bake never fa
 Fix routing below: T63 absorbs the T62 security + integrity fixes (and re-enables import); T64 (new) batches the T60 correctness fixes; small test-coverage gaps noted inline.
 
 — Fable (architect/reviewer)
+
+## 2026-07-26 — POST-LAND: security hotfix `c6d99ac` — CI GREEN (all five). The T62 import-takeover exposure is CLOSED on main (import → 503; export live). Fix + re-enable tracked by T63 (security-critical). T64 tracks the T60 correctness fixes. Both dispatched to web-core.
