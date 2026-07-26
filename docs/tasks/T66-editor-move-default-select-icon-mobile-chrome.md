@@ -49,5 +49,13 @@ Approved as idiomatic and conflict-free: double-tap-to-zoom is standard in PDF/i
 5. Reviewer pixel-check (light+dark): phone editor before/after (one-row scrolling bar); desktop toolbar move-first + dashed select icon.
 6. `tsc`/build clean; full `editor*` e2e suite green (esp. `editor-phone-breakpoint`, `editor-touch-marquee`, `editor-ctx-thin`, `editor-t65`, `editor-wheelzoom`); no dist churn.
 
+## Part E — REGRESSION GUARD: draw tools must stay clickable + touch-drawable (VLL: "writing tools are not clickable anymore")
+
+VLL reported the writing (draw) tools "not clickable anymore" — on the mobile T66 chrome. I could NOT reproduce it on the deployed :8080 build (draw-tool buttons activate; rect draws — objects incremented — on both desktop and synthetic touch; `.edit-canvas` is correctly `touch-action:none`, styles.css:1050). Prime suspect: the **single-scroll toolbar (Part C)** — a horizontally-scrollable flex row can swallow a real-finger tap as a scroll-drag, so a draw-tool button "taps" but never activates on a real device (synthetic pointer events bypass this). Second suspect: the move-default (Part A) interacting with the draw-enable state.
+
+- **MUST:** in the T66 build, verify on a real touch path that (a) tapping any draw tool in the single-scroll bar ACTIVATES it (aria-pressed flips) even when the bar is mid-scroll / the button is partially in the fade, and (b) a finger draw then creates an object. Add an e2e that taps a draw tool inside the scrolled bar and touch-draws.
+- If the scroll region eats taps: give the tool buttons priority (e.g. a small drag threshold before the row scrolls, or `touch-action: pan-x` on the scroller so a tap still fires as a click) — without breaking the horizontal scroll.
+- Reviewer will re-test draw-on-touch in the T66 build before GO.
+
 ## Notes for the executor
 - Part A is the load-bearing behavior change (default tool) — grep all `"select"` / `isNonDraw` / neutral-state sites and make `move` the clean neutral. Part C is where the care is: the margin is downstream of `--chrome-h`, so fix the chrome height, not the reserve. Present at the gate; cite VLL 2026-07-26 (via Fable). Mobile lane: heads-up, WebView inherits it, no app work.

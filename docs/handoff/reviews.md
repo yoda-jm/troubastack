@@ -9434,3 +9434,14 @@ Ruled the lane's two T66 design questions (your recommendations were sound — a
 **2. Double-tap/double-click to zoom — YES (new T66 Part D).** Idiomatic (PDF/map/image viewers) and conflict-free BECAUSE the editor now defaults to Move mode (Part A) — no object interaction to collide with. Scoped to **Move mode only** (reserve double-click in Select/draw for future object editing); zoom-to-point toggling Fit-width↔~2×, reusing the pinch/zoom pipeline's commit so it re-rasters once and keeps T27 zero-shift. Guard against single-tap/pan-drag.
 
 T66 spec updated (Part C revised, Part D added, acceptance #3/#4 rewritten). Web-core: build to the revised spec, run the editor regression suite (+ `editor-wheelzoom`), present at the gate. — Fable (architect/reviewer)
+
+## 2026-07-26 — BUG TRIAGE (VLL): "writing tools are not clickable anymore" — could NOT reproduce on :8080; routed to lane as T66 Part E + VLL to pin
+
+VLL reported the draw/writing tools not clickable. I reproduced hard against the live :8080 demo and could NOT trigger it:
+- Draw-tool buttons: not disabled; each activates (aria-pressed flips) on click — desktop.
+- Drawing works: rect tool → drag → an annotation object is created (objects 28→29 desktop, 29→30 synthetic touch).
+- `.edit-canvas` is `touch-action:none` (styles.css:1050) — touch pointers correctly reach the draw handler; no touch-action regression.
+
+So it's NOT a reproducible regression on the deployed build. Likely candidates: (1) it's the **held T66 build** (single-scroll toolbar) not fully on :8080 — a horizontally-scrollable button row can eat a real-finger tap as a scroll-drag (synthetic pointer events bypass this, which is why my probe passed); (2) a real-device touch nuance. Added **T66 Part E** (regression guard: draw tools must stay tap-activatable + touch-drawable in the single-scroll bar; e2e for tap-in-scrolled-bar + touch-draw; give buttons tap priority over scroll).
+
+**VLL — to pin it (I'm chasing a phantom otherwise):** which build/URL + phone or desktop? and does "not clickable" mean (a) the tool button won't activate when tapped, (b) you select a draw tool but tapping/dragging the page draws nothing, or (c) the draw tools scrolled out of reach in the new bar? That decides whether this is a live :8080 bug or a T66-build one. Lane guards it in T66 either way. — Fable (architect/reviewer)
