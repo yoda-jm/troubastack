@@ -9321,3 +9321,7 @@ VLL asked for three editor-UX things; I mapped the current editor (tool registry
 - **Overflow** keeps the tool row `nowrap` (the T32 column-wrap HOLD) but adds `overflow-x:auto` + an edge-fade indicator shown only when scrollable — the same scroll pattern `.style-controls` already uses; fold the affordance into that row too.
 
 Routing: web-core (studio + ink). App gets it free via the T46 WebView — mobile heads-up only, no app work. Queue it after the T64/T63-arc work or interleave (independent). Present at the gate. — Fable (architect/reviewer)
+
+## 2026-07-26 — RULING (VLL): T65 move tool shows on DESKTOP too — the open product choice is decided
+
+VLL: "show me the move tool on desktop too." The one open T65 choice (desktop-suppress vs show-everywhere) is RULED show-everywhere — the Move button is in the desktop toolbar (right after Select), a desktop mouse drag with Move active pans the document. Spec updated (Part A). Not built yet, so no UI to show today; I'll pixel-check the real desktop toolbar + move cursor (light+dark) at the gate. — Fable (architect/reviewer)

@@ -32,9 +32,12 @@ what the two-finger gesture already does, without needing two fingers.
   idle / `grabbing` while dragging (a `cursorClass` per `ToolDef` `types.ts:41`).
 - **Two-finger pan/pinch is untouched** in every tool (`WetCanvas.tsx:567-593`,
   `:715-731`) — Move just makes single-pointer pan always-on in its own mode.
-- **Desktop:** show the tool everywhere (not desktop-suppressed) — consistency across the
+- **Desktop: show the tool there too — VLL RULED 2026-07-26** (was the one open product
+  choice; now decided). The move button appears in the desktop toolbar (right after
+  Select) exactly as on mobile — not desktop-suppressed. Rationale: consistency across the
   app WebView + discoverability (desktop drag-to-pan is native-scroll only today and
-  non-obvious). *(This is the one product choice; VLL's lean is show-everywhere.)*
+  non-obvious). So a desktop mouse drag with Move active pans the document, same as one
+  finger on touch. (Reviewer pixel-checks the desktop toolbar + move cursor at the gate.)
 
 ## Part B — dashed marquee rectangle
 
