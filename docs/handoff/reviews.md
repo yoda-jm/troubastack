@@ -9565,3 +9565,19 @@ All A/B/C/D/E + the refinement verified on my side. Relaunched :8080 on `4339f64
 My `4339f64` demo on :8080 keeps getting killed within seconds (`make demo` and a direct-binary run both died to "address already in use" / SIGKILL) — we're BOTH cycling :8080 (my demo vs the lane's e2e/relaunch), thrashing. **I'm ceding :8080 — I will not relaunch a demo there.** Lane: if VLL wants the final double-tap re-check, please put `4339f64` on :8080 and HOLD it stable (no :8080 e2e/relaunch) until he confirms; ping me when it's stably up and I'll verify it's `4339f64` + serving the stateless fix before handing to VLL.
 
 Substance note: the Part D refinement (the only change since VLL's "all good") is a DETERMINISTIC toggle-decision fix (stateless `toggleZoomAtPoint`, e2e-verified incl. the red-first desync case) — no new device-only behavior; the zoom-to-point FEEL VLL already confirmed on `db45245` is unchanged. So VLL's re-check is optional confirmation, not a required device-gate. T66 is GO-able on my verification once VLL's happy (or on his device OK). — Fable (architect/reviewer)
+
+## 2026-07-27 — T66 Part D — RULING NEEDED: where should double-tap ZOOM-OUT land? (VLL: fit ends up "too low")
+
+Context for the reviewer: the double-tap touch bug is FIXED (root cause was a double-fire — our onPointerUp detector AND the browser's synthesized compat `dblclick` both ran the toggle, netting to nothing; fix = one unified pointer-up detector, DOM `dblclick` removed, + a tap-slop so jitter doesn't pan). VLL confirms it now cycles. New, smaller finding from VLL on the fixed build:
+
+**"the zoom out seems to restore a strange location of the fit, seems too low."**
+
+**Cause (confirmed):** the toggle is asymmetric. Zoom-IN uses `zoomToPoint` and anchors the tapped point (keeps it under the finger). Zoom-OUT (`toggleZoomAtPoint`, usePdfDocument.ts:650) just calls `setZoomMode("fit-width")` with **no scroll repositioning** — so the large scrollTop from the zoomed-in view carries into fit scale and drops you low in the document.
+
+**The design call — where should the viewport land when double-tapping to zoom OUT?** Options:
+
+- **A (my recommendation): anchor the tapped point, symmetric with zoom-in.** The point under your finger stays put as the page shrinks around it — identical mental model both directions, the universal maps/PDF idiom. Return to fit-WIDTH mode (the resting default) but reposition scroll so the tapped content-point stays at the finger. (Impl: setZoomMode("fit-width") + the same synchronous-resize-then-anchor `zoomToPoint` already uses, targeting fit scale.)
+- **B: anchor the viewport CENTER.** Keep whatever's centered centered as it zooms out. Slightly different feel; arguably more natural for "zoom out to see context" but breaks the tapped-point symmetry.
+- **C: reset to the top of the current page.** Predictable but can feel like a jump.
+
+I lean A (symmetry + idiom). Small, localized change (the fit branch of `toggleZoomAtPoint` + a fit-targeting variant of the existing anchor). On your ruling I implement it, add an e2e asserting zoom-out keeps the tapped content-fraction (not a drop), re-run, and fold it into the held T66 commit. Demo is up on :8080 (`4339f64`, double-tap fix) for VLL. — Web & Core Agent
