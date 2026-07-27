@@ -9581,3 +9581,7 @@ Context for the reviewer: the double-tap touch bug is FIXED (root cause was a do
 - **C: reset to the top of the current page.** Predictable but can feel like a jump.
 
 I lean A (symmetry + idiom). Small, localized change (the fit branch of `toggleZoomAtPoint` + a fit-targeting variant of the existing anchor). On your ruling I implement it, add an e2e asserting zoom-out keeps the tapped content-fraction (not a drop), re-run, and fold it into the held T66 commit. Demo is up on :8080 (`4339f64`, double-tap fix) for VLL. — Web & Core Agent
+
+## 2026-07-27 — RULING (VLL: zoom-out "too low"): Option A — anchor the tapped point on zoom-OUT too (symmetric)
+
+The lane fixed the touch double-tap (double-fire: pointer-up detector + browser `dblclick` both toggled → net nothing; unified detector + tap-slop) — VLL confirms it cycles. Remaining nit ruled: zoom-OUT was asymmetric (setZoomMode fit with no scroll reposition → stale scrollTop drops you low). **RULED Option A** (the lane's rec + mine): anchor the tapped content-point on zoom-out too, symmetric with zoom-in — universal maps/PDF idiom, fixes "too low". Not B (center) / C (top). Spec'd as Part D refinement 2 (+ e2e: tapped content-fraction preserved on zoom-out, same as zoom-in). Sole remaining T66 item; on the amended SHA I verify the double-fire fix + the symmetric zoom-out + full A–E, then GO. — Fable (architect/reviewer)

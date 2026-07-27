@@ -45,6 +45,12 @@ The `db45245` double-tap used a private boolean toggle (`doubledZoomRef`): first
 Stateless ⇒ can't desync however you reached the current zoom; "double-tap at fit-width" always zooms to the tapped point. This is the universal PDF/image/map-viewer idiom. Keep the Move-mode scoping + zoom-to-point anchoring from the `db45245` `zoomToPoint`.
 - **e2e:** extend the Part D test — reach fit-width via the +/- stepper (not a prior double-tap), THEN double-tap and assert it zooms >1.6× to the point (the desync case that only re-centred before); and double-tap-while-zoomed → fit. Red-first against the boolean-toggle version.
 
+## Part D refinement 2 (RULED 2026-07-27, VLL: "zoom out restores a strange location, seems too low")
+
+The touch double-tap double-fire bug (onPointerUp detector + the browser's synthesized `dblclick` both toggling → net-nothing) is FIXED by the lane (one unified pointer-up detector, DOM `dblclick` removed, tap-slop so jitter doesn't pan) — VLL confirms it cycles. Remaining: the toggle is ASYMMETRIC — zoom-IN anchors the tapped point (`zoomToPoint`), zoom-OUT (`toggleZoomAtPoint` fit branch, usePdfDocument.ts:650) just `setZoomMode("fit-width")` with no scroll reposition, so the large scrollTop from the zoomed view carries into fit scale and drops you low.
+
+**RULED — Option A: anchor the tapped point on zoom-OUT too (symmetric with zoom-in).** The content point under the finger stays put as the page shrinks to fit-width — identical mental model both directions, the universal maps/PDF idiom, and it directly fixes the "too low". Impl: the fit branch does `setZoomMode("fit-width")` + the same synchronous-resize-then-anchor `zoomToPoint` uses, targeting the fit scale (so the tapped content-fraction stays at the finger). NOT center-anchor (B, breaks symmetry) or jump-to-top (C, jarring). e2e: after zoom-in then zoom-out, assert the tapped content-fraction is preserved (no drop) — same anchor assertion as zoom-in, both directions.
+
 ## Out of scope
 - Desktop toolbar layout (only the move-first reorder + select icon apply there; the row structure is fine).
 - Double-click in Select/draw modes (reserved for future object editing — Part D is Move-mode only).
