@@ -35,6 +35,16 @@ Approved as idiomatic and conflict-free: double-tap-to-zoom is standard in PDF/i
 - **Reuse the existing zoom pipeline** — the pinch path already zooms-to-point (`updateGesture(scale,dx,dy)` + the commit reconcile); drive the same commit so it re-rasters once and keeps the T27 zero-shift/re-raster-once invariant. Don't add a second zoom mechanism.
 - Guard the double-tap so it doesn't fight a single-tap or a pan-drag (tap-count + small movement threshold); a pan that moved is never a double-tap.
 
+## Part D refinement (RULED 2026-07-26, VLL: "double tap when already fit width only center the view — do something better, give me what you think is best")
+
+The `db45245` double-tap used a private boolean toggle (`doubledZoomRef`): first tap → 2× zoom-to-point, second → fit. It DESYNCS from the actual zoom — if you reach fit-width another way (the +/- stepper, pinch, fit-page) while the ref still reads "zoomed", a double-tap hits the fit branch and re-applies fit-width while already there → a bare re-centre (VLL's report).
+
+**RULED behavior (drop the toggle ref; decide from the ACTUAL current zoom):** double-tap/double-click in Move mode —
+- **Not zoomed in** (current committed scale ≈ the fit-width scale, within a small epsilon — or in a fit mode): **always zoom IN to ~2× anchored at the tapped point.** Never a bare re-centre.
+- **Zoomed in** (scale meaningfully above fit): **return to fit-width.**
+Stateless ⇒ can't desync however you reached the current zoom; "double-tap at fit-width" always zooms to the tapped point. This is the universal PDF/image/map-viewer idiom. Keep the Move-mode scoping + zoom-to-point anchoring from the `db45245` `zoomToPoint`.
+- **e2e:** extend the Part D test — reach fit-width via the +/- stepper (not a prior double-tap), THEN double-tap and assert it zooms >1.6× to the point (the desync case that only re-centred before); and double-tap-while-zoomed → fit. Red-first against the boolean-toggle version.
+
 ## Out of scope
 - Desktop toolbar layout (only the move-first reorder + select icon apply there; the row structure is fine).
 - Double-click in Select/draw modes (reserved for future object editing — Part D is Move-mode only).

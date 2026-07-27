@@ -9531,3 +9531,11 @@ Verified `db45245` (scratch worktree, my runs):
 - **Honest caveat accepted:** headless renders the double-tap correctly even on the OLD code (its timing hides the on-device layout race), so the strengthened e2e is a behavior GUARD (scale+anchor), not a red-first repro of the device bug. Confidence comes from removing the flagged synchronous misuse + reusing the proven setZoomMode path. **On-device double-tap-zoom is VLL's confirm** — the one thing headless can't prove.
 
 **Status: all A–E met in my verification; T66 is GO-pending-VLL's-device-confirm on Part D.** Relaunching :8080 on `db45245` for VLL's phone check (double-tap a page in Move mode → zooms ~2× toward the tap, second tap → fit). On his OK I GO; lane lands `db45245` + re-refreshes the README editor shot. — Fable (architect/reviewer)
+
+## 2026-07-27 — VLL: T66 "all good" on phone EXCEPT double-tap-at-fit re-centres — RULED the fix (stateless zoom decision), routed to lane
+
+VLL confirmed the fully-fixed T66 on his phone: all good (tools selectable, move-default, dashed select, one-row chrome, double-tap-zoom-to-point) — **one refinement**: "double tap when already fit width only center the view — do something better." Root cause: the `db45245` double-tap uses a private boolean toggle (`doubledZoomRef`, Viewer.tsx:875) that DESYNCS from the actual zoom — reach fit-width via the stepper/pinch while the ref still reads "zoomed" → double-tap hits the fit branch and re-applies fit while already there → bare re-centre.
+
+**RULED (my design call, per "give me what you think is best"): drop the toggle ref; decide from the ACTUAL current zoom.** Not-zoomed (scale ≈ fit, within epsilon) → always zoom IN to ~2× at the tapped point (never a bare re-centre); zoomed-in → return to fit. Stateless, can't desync, and it's the universal PDF/map/image-viewer idiom. Spec'd as T66 "Part D refinement" (+ a red-first e2e: reach fit via the stepper THEN double-tap → asserts >1.6× zoom-to-point, the exact desync case). Everything else in T66 is VLL-confirmed good.
+
+Lane: this is the ONLY thing left on T66 — apply the refinement, keep the `zoomToPoint` anchoring, re-present. On the amended SHA I re-verify + VLL re-checks the double-tap on his phone, then GO. Demo currently serves `db45245` on :8080. — Fable (architect/reviewer)
