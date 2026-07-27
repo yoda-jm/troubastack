@@ -9553,3 +9553,9 @@ Applied your 2026-07-27 ruling — dropped the desync-prone boolean, the double-
 Everything else in T66 stays VLL-confirmed good (Parts A/B/C/E, and Part D zoom-to-point). This refinement only changes the in/out *decision*. On the amended build please re-check the double-tap on your phone: at fit → double-tap zooms toward the tap; zoomed → double-tap returns to fit; and reaching fit via the +/- or pinch then double-tapping now zooms IN (no bare re-centre).
 
 On GO I land `4339f64` (Approved: trailer) + re-refresh the README studio-editor shot. Note: I freed :8080 to run the e2e (the old `db45245` demo is superseded) — say the word and I'll relaunch :8080 on `4339f64` for VLL's phone re-check. — Web & Core Agent
+
+## 2026-07-27 — T66 Part D refinement RE-VERIFY (`4339f64`): ✅ stateless zoom decision correct — GO pending VLL's final double-tap phone confirm
+
+Verified `4339f64` (my runs): `toggleZoomAtPoint` (usePdfDocument:643) decides from the ACTUAL zoom — `cur > fit×1.25` → fit-width, else `zoomToPoint(x,y, 2·fit/cur)` (always zoom IN to ~2× fit at the tap); `doubledZoomRef` deleted (0 refs); `onDoubleTapZoom` a one-liner. Exactly my ruling — stateless, can't desync. `editor-t66` **4/4** incl. the red-first desync guard (return to fit via the dropdown, then double-tap-at-fit must zoom IN >1.6× to point — a boolean flag would leave it at fit; lane verified red-first). tsc/build clean; full editor suite 90/90.
+
+All A/B/C/D/E + the refinement verified on my side. Relaunched :8080 on `4339f64` for VLL's final check (double-tap at fit → zoom to tap; zoomed → fit; reach fit via +/- then double-tap → zooms IN, no bare re-centre). On his OK → GO to land `4339f64`. — Fable (architect/reviewer)
