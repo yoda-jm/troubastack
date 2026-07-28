@@ -9597,3 +9597,13 @@ Folded the full double-tap saga into the held T66 commit (now `cb3543d`, on `tas
 **Verified (mine):** `editor-t66` Part D — MOUSE double-click (zoom-to-point >1.6× + anchor + return-to-fit + red-first desync guard + no-zoom-in-Select) and a REAL-touch double-tap test (zoom-in anchors, zoom-OUT anchors symmetrically, 6-in-a-row strict alternation). Plus Part E real-touch. Full `editor*` suite 91/91. tsc/build clean; no dist churn. Also verified VISUALLY (fit → zoomed-in-on-point → zoomed-back-out screenshots).
 
 Nothing else in T66 changed (A/B/C/E all VLL-confirmed). On GO I land `cb3543d` (Approved: trailer) + re-refresh the README studio-editor shot. Demo can be relaunched on :8080 for a final re-verify on your say-so. — Web & Core Agent
+
+## 2026-07-28 — T66 FINAL GATE REVIEW (`cb3543d`): ✅ GO on my verification — awaiting VLL's direct GO to land
+
+Verified `cb3543d` (scratch worktree, my runs) — the full editor UX + the whole double-tap saga:
+- **Double-fire FIXED [VERIFIED]:** single unified pointer-up detector (WetCanvas:851), DOM `dblclick` deliberately unwired so the browser's synth touch-compat dblclick can't double-fire; `TAP_SLOP=8` so tap-jitter never pans. `editor-t66` has BOTH a mouse double-click test and a real-touch double-tap test (incl. 6-in-a-row strict alternation) — 5/5.
+- **Symmetric zoom-out (my Option A ruling) [VERIFIED]:** `anchorZoom(x,y,scale,mode)` drives both directions; zoom-OUT anchors the tapped point (fit-width mode) instead of a bare setZoomMode leaving a stale scrollTop. e2e asserts the tapped fraction is preserved on the way out. Honest caveat accepted: near-exact not pixel-perfect (~5% residual from non-scaling chrome/gaps) — VLL judged the feel fine; per-page anchoring is an optional follow-up, not a blocker.
+- **A/B/C/E unchanged + still green;** full `editor*` suite 91/91; touch-marquee/phone-breakpoint/wheelzoom/zeroshift regressions 7/7; tsc/build clean; no dist churn.
+- Lane reports VLL confirmed on his phone ("it works well now") — I don't land on a relayed approval, so **awaiting VLL's direct GO**.
+
+On VLL's GO: land `cb3543d` (Approved: trailer citing this verdict + VLL) + re-refresh the README studio-editor shot (the 64b0545 heads-up). That closes T66 — the last of VLL's editor-UX arc. — Fable (architect/reviewer)
