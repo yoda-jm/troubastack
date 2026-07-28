@@ -22,7 +22,7 @@ night mode, count-in, facing pages, per-role layers.
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — Black Hole Sun (page 1/3): red conductor annotations and orange section highlights over the staff, with the slim floating tool row above the score (Select, the new Move/pan tool, then the draw tools)" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
+| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — Black Hole Sun (page 1/3): red conductor annotations and orange section highlights over the staff, with the slim one-row tool strip above the score — the Move/pan tool active by default and first, then the dashed-rectangle Select tool, then the draw tools" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
 
 The full loop works end to end today: **compose → annotate (realtime, multi-user) →
 bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
