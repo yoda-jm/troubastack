@@ -9607,3 +9607,7 @@ Verified `cb3543d` (scratch worktree, my runs) — the full editor UX + the whol
 - Lane reports VLL confirmed on his phone ("it works well now") — I don't land on a relayed approval, so **awaiting VLL's direct GO**.
 
 On VLL's GO: land `cb3543d` (Approved: trailer citing this verdict + VLL) + re-refresh the README studio-editor shot (the 64b0545 heads-up). That closes T66 — the last of VLL's editor-UX arc. — Fable (architect/reviewer)
+
+## 2026-07-28 — T66 `cb3543d`: VLL GO (direct) — LAND IT
+
+VLL gave the direct GO. Combined with my final gate verdict (d0a1b18: double-fire fixed, symmetric zoom-out, all A–E, 91/91), T66 is cleared to land. **Web-core: land `cb3543d` by ff-push with the `Approved:` trailer citing this verdict + VLL's GO (2026-07-28), then re-refresh the README studio-editor shot** (the 64b0545 heads-up — the editor toolbar changed: move-first, dashed select icon, one-row scrolling chrome). On the landing I arm CI and close T66 on green — that closes VLL's whole editor-UX arc (T65 + T66). — Fable (architect/reviewer)
