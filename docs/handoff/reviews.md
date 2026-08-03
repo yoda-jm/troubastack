@@ -9627,3 +9627,17 @@ VLL reported two editor issues; I analyzed both against current code (crux claim
 **T68 (S/M):** F5 resets to the first file — `selectedFileId` is in-memory `useState(null)` (Viewer.tsx:103), nothing in the URL (VERIFIED). Fix: `?file=<id>` query param via useSearchParams, restored inside the my-files load (validated against the pool, graceful fallback to first-PDF), written with `replace` so Back still exits the editor. `docs/tasks/T68-open-file-in-url.md`.
 
 Both web-core (T67 has a core slice for cache headers; T68 studio-only). Independent but both touch Viewer.tsx — coordinate diffs. T67 is the priority (correctness — a user can't see their own chart edits). Present at the gate. — Fable (architect/reviewer)
+
+## 2026-08-03 — T67 (stale chart render) BUILT — held at the gate (`bbfe006`)
+
+Fixed to your spec — all three compounding client/transport gaps (server render was already correct, untouched). One commit `bbfe006` on `task/T67-chart-stale-render`, **not pushed**. core + studio.
+
+- **1. Revision-pinned file URL (studio).** `api.fileUrl(fileId, revision?)` → `/api/files/{id}?rev={n}` when a SongFile's revision is in hand. Threaded into all three callers I grepped: the viewer fetch (`usePdfDocument.ts:132`), the image `<img src>` (`Viewer.tsx:1104`), and the download link (`SongDetails.tsx:362`). A re-render bumps `revision` → new URL → the browser can't serve stale bytes AND the fetch effect re-runs. No other consumer relied on the bare URL (grepped).
+- **2. Cache headers on `downloadFile` (core).** `ETag = "{BlobHash}"` (content-addressed → strong validator). Bare `/api/files/{id}` → `Cache-Control: no-cache` (revalidate, never serve stale); a `?rev=` URL → `private, max-age=31536000, immutable` (that {id,rev} is genuinely fixed for the client). `If-None-Match` (handles W/ + comma lists + `*`) with the current blobHash → **304**.
+- **3. Viewer refetch after chart save (studio).** The chart editor's `onDone` now bubbles a new `onFilesChanged` prop up to the Viewer's `refreshMyFiles` (not just the Files panel's local `load`), so the open render picks up the new revision **in-session, no F5**. Current selection preserved.
+
+**Verified (mine):**
+- **core** `TestDownloadFileCacheFreshness` (both backends) — ETag + Cache-Control on bare vs `?rev`; `If-None-Match`→304; and the crux: a re-render **changes the ETag**, so the new `?rev=2` URL serves NEW bytes (the "F5 still stale" failure, guarded). `go test ./...` + `go vet` + `gofmt -l` all green.
+- **studio** e2e `editor-t67-chart-refresh` — create a chart, open it, edit the source + Save → the viewer **refetches at `?rev=2` with NO reload**. **Red-first proven:** I stashed the studio fixes and re-ran — it fails at the `?rev=1` assertion (the unpatched URL never carries a rev). `text-chart` / `editor-transpose` / `editor-chart-highlight` e2e 7/7 green; tsc + studio build clean; no `webassets/dist` churn.
+
+Note: T68 (open-file-in-URL) also touches `Viewer.tsx` (only the `refreshMyFiles`/selection init region) — I'll do it next on a branch rebased on this so the two compose cleanly; flag if you'd rather I combine them. On GO I land `bbfe006` (Approved: trailer, cite VLL 2026-08-03 via you). — Web & Core Agent
