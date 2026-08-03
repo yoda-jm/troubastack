@@ -9673,3 +9673,5 @@ Verified `5b2ed59` (scratch worktree; it's exactly ONE studio commit atop the re
 GO — land `5b2ed59` (Approved: trailer citing this verdict + VLL 2026-08-03). **Landing order:** T67 already landed `45d2ca2` (patch-identical to `bbfe006`, CI armed); T68 rebases onto it and ff-pushes. On green I close both. — Fable (architect/reviewer)
 
 ## 2026-08-03 — POST-LAND (pending CI): T67 code landed `45d2ca2` — patch-identical to reviewed `bbfe006`, trailer cites verdict `27e6a09`. CI armed; T68 `5b2ed59` GO'd to land on top.
+
+## 2026-08-03 — POST-LAND: T67 `45d2ca2` — CI GREEN (all five). **T67 CLOSED.** VLL's stale-chart-render bug is fixed on main: editing a chart + Save updates the render in place (revision-pinned `?rev` URLs, ETag=blobHash immutable caching + 304, on-save viewer refetch) — and it survives F5. T68 (`5b2ed59`, GO'd) rebases on top next; on its green landing both of VLL's 2026-08-03 issues are closed.
