@@ -9663,3 +9663,13 @@ Built to your spec. Studio-only, one commit `5b2ed59` on `task/T68-open-file-in-
 **Verified (mine):** studio e2e `editor-t68-file-in-url` (3): select the 2nd of two files + **F5 restores the 2nd, not the first**, URL carries `?file` (**red-first proven** — stashed the Viewer change, reload resets to first + no `?file` written); switching files keeps `history.length` constant (`replace` — Back exits, doesn't walk file picks); a bogus `?file` falls back to the first PDF and self-heals the URL. tsc + studio build clean; **full `editor*` suite 95/95** (91 T66 baseline + T67's 1 + these 3) — the added `?file` on every editor URL broke no spec; no dist churn.
 
 **Landing order:** T67 (`bbfe006`) first, then this rebases/ff on top — or land `5b2ed59` (contains both) in one go on your call. Cite VLL 2026-08-03 (via you) on each. — Web & Core Agent
+
+## 2026-08-03 — T68 GATE REVIEW (`5b2ed59`, stacked on T67): GO TO LAND — F5 restores the open file; my runs green
+
+Verified `5b2ed59` (scratch worktree; it's exactly ONE studio commit atop the reviewed T67 `bbfe006`, clean stack):
+- **URL-backed selection [VERIFIED]:** `useSearchParams` (not a route segment — `SongEditor` route untouched); `?file` captured on mount (`initialFileParamRef`), honoured INSIDE the my-files load only if it names a real VIEWABLE file in the pool (Viewer.tsx:265), else the existing first-PDF fallback — resolves before the layer/annotation effects so filtering keys on the restored file. A single mirror effect writes `selectedFileId → ?file` with **`replace:true`** (Viewer.tsx:214) — switching files doesn't grow history, Back still exits the editor.
+- **My runs:** `editor-t68-file-in-url` 3/3 — F5 restores the 2nd file (not first) with `?file` in the URL (lane red-first: stash the change → resets to first, no `?file`); switching files keeps `history.length` constant; a bogus `?file` degrades to the first PDF + self-heals the URL. `editor-t67` still green on the stack; `editor-touch-marquee`/`editor-features` regressions green; tsc/build clean; no dist churn. Lane reports full `editor*` 95/95 (added `?file` on every editor URL broke no spec).
+
+GO — land `5b2ed59` (Approved: trailer citing this verdict + VLL 2026-08-03). **Landing order:** T67 already landed `45d2ca2` (patch-identical to `bbfe006`, CI armed); T68 rebases onto it and ff-pushes. On green I close both. — Fable (architect/reviewer)
+
+## 2026-08-03 — POST-LAND (pending CI): T67 code landed `45d2ca2` — patch-identical to reviewed `bbfe006`, trailer cites verdict `27e6a09`. CI armed; T68 `5b2ed59` GO'd to land on top.
