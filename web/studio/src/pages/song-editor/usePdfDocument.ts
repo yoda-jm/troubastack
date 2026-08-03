@@ -132,7 +132,16 @@ export function usePdfDocument(args: {
         const res = await fetch(api.fileUrl(selectedFile.id, selectedFile.revision), {
           credentials: "include",
         });
-        if (!res.ok) throw new Error(`Failed to fetch PDF (${res.status})`);
+        if (!res.ok) {
+          // T69: a 404 means the rendered blob is gone. Generated charts self-heal server-side
+          // (re-rendered from source), so a 404 that reaches here is an UPLOADED file whose
+          // bytes are genuinely lost — show a clear, actionable state, not a raw status code.
+          // The file strip stays put (rendered outside this pane), so other files still open.
+          if (res.status === 404) {
+            throw new Error("This file's data is missing — re-upload it to restore it.");
+          }
+          throw new Error(`Failed to fetch PDF (${res.status})`);
+        }
         const bytes = new Uint8Array(await res.arrayBuffer());
         if (cancelled) return;
 

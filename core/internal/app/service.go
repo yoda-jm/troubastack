@@ -1464,9 +1464,85 @@ func (s *Service) DownloadSongFile(caller User, fileID string) (SongFile, []byte
 	}
 	data, err := s.blobs.Get(f.BlobHash)
 	if err != nil {
+		// T69: a generated chart's rendered blob is a CACHE of Render(source) — the source is
+		// the source of truth, stored separately. If the blob is missing (orphaned historical
+		// data), re-materialize it from source instead of 404ing. Deterministic render +
+		// content-addressed Put restores the same bytes/hash, so the ?rev URL stays valid; the
+		// revision is NOT bumped (same logical content, just re-cached). An uploaded file whose
+		// bytes are gone has no source to heal from → still 404 (genuinely lost).
+		if healed, hdata, herr := s.healGeneratedBlob(f); herr == nil {
+			return healed, hdata, nil
+		}
 		return SongFile{}, nil, ErrNotFound
 	}
 	return f, data, nil
+}
+
+// healGeneratedBlob re-renders a generated chart's missing PDF from its stored chart source
+// and re-stores it (T69). Returns an error when the file isn't a healable generated chart
+// (not generated, or no stored source), or the re-render/store fails. On success the blob
+// exists again and the returned file/bytes are current; the record's BlobHash is repointed
+// only if the render drifted from the original (revision unchanged either way).
+func (s *Service) healGeneratedBlob(f SongFile) (SongFile, []byte, error) {
+	if !f.Generated {
+		return SongFile{}, nil, fmt.Errorf("%w: not a generated file", ErrNotFound)
+	}
+	source, err := s.repo.GetChartSource(f.ID)
+	if err != nil || source == "" {
+		return SongFile{}, nil, fmt.Errorf("%w: no chart source to re-render from", ErrNotFound)
+	}
+	pdf, err := chartpdf.Render(source)
+	if err != nil {
+		return SongFile{}, nil, fmt.Errorf("re-render failed: %w", err)
+	}
+	hash, err := s.blobs.Put(pdf)
+	if err != nil {
+		return SongFile{}, nil, err
+	}
+	if hash != f.BlobHash {
+		// The render drifted (source or renderer changed since) — repoint the record at the
+		// bytes that now exist. Same logical revision (content re-materialized, not edited).
+		f.BlobHash = hash
+		f.Size = int64(len(pdf))
+		if err := s.repo.UpdateSongFile(f); err != nil {
+			return SongFile{}, nil, err
+		}
+	}
+	return f, pdf, nil
+}
+
+// BlobRepairReport summarizes a repair-blobs pass (T69): how many file records were scanned,
+// how many already had their blob, the ids re-rendered from source, and the ids whose blob is
+// gone and can't be regenerated (uploaded files — bytes genuinely lost, need re-upload).
+type BlobRepairReport struct {
+	Scanned   int
+	Healthy   int
+	Healed    []string
+	Unfixable []SongFile
+}
+
+// RepairMissingBlobs scans every song-file record and re-materializes any generated chart
+// whose rendered blob is missing (from its stored source), reporting uploaded files whose
+// bytes are genuinely lost. The operator entry point for `troubacore repair-blobs` — heals a
+// box in one pass instead of waiting for each file to be viewed (the download-time auto-heal).
+func (s *Service) RepairMissingBlobs() (BlobRepairReport, error) {
+	files, err := s.repo.AllSongFiles()
+	if err != nil {
+		return BlobRepairReport{}, err
+	}
+	rep := BlobRepairReport{Scanned: len(files)}
+	for _, f := range files {
+		if _, err := s.blobs.Get(f.BlobHash); err == nil {
+			rep.Healthy++
+			continue
+		}
+		if _, _, herr := s.healGeneratedBlob(f); herr == nil {
+			rep.Healed = append(rep.Healed, f.ID)
+		} else {
+			rep.Unfixable = append(rep.Unfixable, f)
+		}
+	}
+	return rep, nil
 }
 
 // ---- per-member file selection ----

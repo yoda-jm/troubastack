@@ -408,6 +408,9 @@ type Repo interface {
 	// FilesWithBlob returns every SongFile pointing at blobHash (used to decide
 	// whether a blob is still referenced before dereferencing it on delete).
 	FilesWithBlob(blobHash string) ([]SongFile, error)
+	// AllSongFiles returns every SongFile record across all bands/songs (no order
+	// guarantee). Operator scan for T69's blob-repair pass.
+	AllSongFiles() ([]SongFile, error)
 
 	// Per-member, per-song file selections (personal, not shared).
 	// GetFileSelection returns the caller's saved selection; ErrNotFound if the

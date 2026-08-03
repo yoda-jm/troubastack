@@ -725,6 +725,17 @@ func (r *Repo) FilesWithBlob(blobHash string) ([]app.SongFile, error) {
 	return out, nil
 }
 
+func (r *Repo) AllSongFiles() ([]app.SongFile, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]app.SongFile, 0, len(r.d.Files))
+	for _, f := range r.d.Files {
+		out = append(out, f)
+	}
+	app.SortFiles(out)
+	return out, nil
+}
+
 // ---- file selections (per-member, per-song) ----
 
 func (r *Repo) GetFileSelection(userID, songID string) (app.FileSelection, error) {

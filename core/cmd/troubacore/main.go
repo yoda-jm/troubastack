@@ -48,6 +48,9 @@ func main() {
 		case "gc":
 			runGC(os.Args[2:])
 			return
+		case "repair-blobs":
+			runRepairBlobs(os.Args[2:])
+			return
 		}
 		// Anything else falls through to flag parsing below (flags start with '-');
 		// an unknown non-flag arg is rejected there.
@@ -215,6 +218,42 @@ func runGC(args []string) {
 	}
 	fmt.Printf("gc: keep_revs=%d — scanned %d concert(s), pruned %d old bake revision(s), freed %d bytes.\n",
 		cfg.Bake.KeepRevs, stats.ConcertsScanned, stats.RevsDeleted, stats.BytesFreed)
+}
+
+// runRepairBlobs re-materializes generated charts whose rendered PDF blob is missing from the
+// store — orphaned historical data that 404s on download (T69). Charts re-render from their
+// stored source; uploaded files whose bytes are gone are reported (unrecoverable — re-upload).
+// Heals a box in one pass instead of waiting for each file to be viewed (the download-time
+// auto-heal). Like the other subcommands it opens the SAME repo + blob store the server uses
+// (TROUBA_APP_STORE + data dir); on the file backend run it with the server STOPPED (filerepo
+// is a single-writer whole-file store — a running server would race the write-back).
+func runRepairBlobs(args []string) {
+	if len(args) != 0 {
+		log.Fatalf("usage: troubacore repair-blobs")
+	}
+	cfg, err := config.Load(os.Getenv("TROUBA_CONFIG"), os.Getenv("TROUBA_CONFIG") != "")
+	if err != nil {
+		log.Fatalf("troubacore: %v", err)
+	}
+	appRepo, err := openAppRepo(cfg)
+	if err != nil {
+		log.Fatalf("troubacore: open app repo: %v", err)
+	}
+	blobs, err := openBlobStore(cfg)
+	if err != nil {
+		log.Fatalf("troubacore: open blob store: %v", err)
+	}
+	svc := app.NewService(appRepo).WithBlobStore(blobs)
+	rep, err := svc.RepairMissingBlobs()
+	if err != nil {
+		log.Fatalf("troubacore: repair-blobs: %v", err)
+	}
+	fmt.Printf("repair-blobs: scanned %d file(s) — %d healthy, %d re-rendered from source, %d unrecoverable.\n",
+		rep.Scanned, rep.Healthy, len(rep.Healed), len(rep.Unfixable))
+	for _, f := range rep.Unfixable {
+		fmt.Printf("  UNRECOVERABLE (re-upload needed): %q (id %s, song %s) — blob missing, not a generated chart.\n",
+			f.Filename, f.ID, f.SongID)
+	}
 }
 
 // watchParent exits the process once our original parent dies (PPID changes as
