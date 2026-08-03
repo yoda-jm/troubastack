@@ -157,6 +157,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | ~~T66~~ | ✅ landed `7a70f48` (move-default/first, dashed select, one-row tap-selectable chrome, double-tap zoom-to-point both ways; Fable+VLL approved) | studio | M |
 | T67 | ["Save chart" shows a stale render (revision-agnostic URL + no refetch/cache headers)](T67-chart-save-stale-render.md) — VLL bug 2026-08-03, HIGH | core + studio | M |
 | T68 | [Persist the open file in the URL (F5 keeps your file)](T68-open-file-in-url.md) — VLL 2026-08-03 | studio | S/M |
+| T69 | [Self-heal a generated chart whose rendered PDF blob is missing (404 recovery)](T69-missing-blob-selfheal-chart.md) — VLL prod 404 2026-08-03, HIGH | core + studio | M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come

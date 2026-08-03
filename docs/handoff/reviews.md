@@ -9675,3 +9675,12 @@ GO — land `5b2ed59` (Approved: trailer citing this verdict + VLL 2026-08-03). 
 ## 2026-08-03 — POST-LAND (pending CI): T67 code landed `45d2ca2` — patch-identical to reviewed `bbfe006`, trailer cites verdict `27e6a09`. CI armed; T68 `5b2ed59` GO'd to land on top.
 
 ## 2026-08-03 — POST-LAND: T67 `45d2ca2` — CI GREEN (all five). **T67 CLOSED.** VLL's stale-chart-render bug is fixed on main: editing a chart + Save updates the render in place (revision-pinned `?rev` URLs, ETag=blobHash immutable caching + 304, on-save viewer refetch) — and it survives F5. T68 (`5b2ed59`, GO'd) rebases on top next; on its green landing both of VLL's 2026-08-03 issues are closed.
+
+## 2026-08-03 — VLL production 404 (troubashare, Studio 45d2ca2) DIAGNOSED — orphaned blobs, NOT the new code; spec'd T69 (self-heal)
+
+VLL: `/api/files/{id}` and `/api/files/{id}?rev=4` 404 on his box (files 404, "pdf not found"). Analyzed + REPRODUCED against the exact build he runs (`45d2ca2`):
+- **Not a current-code bug.** `DownloadSongFile` 404s when the file record is gone OR `blobs.Get(BlobHash)` fails. The file shows in the list with rev 4 → record exists → the **blob is missing**. I reproduced re-render-4×, shared-blob edit, delete-file, delete-song on `45d2ca2` — `derefBlob` (checks `FilesWithBlob` after the file is repointed) NEVER orphans a referenced blob; all downloads stayed 200. `gc`/`PruneOutputs` touches only `bakesDir`, never the blob store. So the missing blobs are **orphaned historical data** (older-build deref bug since fixed, or a partial backup/restore that kept the repo but lost blob files).
+- **Recoverable.** The 404'd files are GENERATED charts (they carry a rev) and the chart SOURCE is stored in the repo separate from the blob (`GetChartSource`) — so re-rendering from source restores the missing PDF. Confirmed `listFiles`/`getChartSource` are blob-independent, so the file list + "edit source" still work despite the render 404.
+- **Immediate workaround given to VLL:** open each 404'd chart's source in the editor → click Save chart → `SaveChartSource` re-renders + re-stores the blob → file restored (no new code).
+
+**T69 (HIGH):** make a generated chart un-404-able — (1) auto-heal on download (missing blob + generated + source → re-render + re-store + serve), (2) graceful studio handling for genuinely-lost uploaded files, (3) a `repair-blobs` command to heal a whole box in one pass. `docs/tasks/T69-missing-blob-selfheal-chart.md`. web-core (core + studio). — Fable (architect/reviewer)
