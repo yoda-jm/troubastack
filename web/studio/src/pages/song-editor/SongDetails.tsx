@@ -185,6 +185,7 @@ export function Files({
   songTitle,
   songKey,
   onSongKeyChanged,
+  onFilesChanged,
 }: {
   bandId: string;
   songId: string;
@@ -193,6 +194,9 @@ export function Files({
   // key/semitone path). onSongKeyChanged bubbles up a transpose that also updated the key.
   songKey?: string;
   onSongKeyChanged?: (key: string) => void;
+  // T67: bubbles a pool mutation (esp. a chart re-render — same file id, revision++) up to
+  // the Viewer so it refetches "my files" and the open render updates in-session, no F5.
+  onFilesChanged?: () => void;
 }) {
   const [files, setFiles] = useState<SongFile[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -339,6 +343,7 @@ export function Files({
             onDone={() => {
               setChart(null);
               void load();
+              onFilesChanged?.(); // T67: refetch the viewer so the re-rendered chart shows now
             }}
           />
         )}
@@ -359,7 +364,7 @@ export function Files({
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <a
-                      href={api.fileUrl(f.id)}
+                      href={api.fileUrl(f.id, f.revision)}
                       target="_blank"
                       rel="noreferrer"
                       className="fname"

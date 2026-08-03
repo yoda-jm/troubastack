@@ -129,7 +129,9 @@ export function usePdfDocument(args: {
     setStatus("loading");
     (async () => {
       try {
-        const res = await fetch(api.fileUrl(selectedFile.id), { credentials: "include" });
+        const res = await fetch(api.fileUrl(selectedFile.id, selectedFile.revision), {
+          credentials: "include",
+        });
         if (!res.ok) throw new Error(`Failed to fetch PDF (${res.status})`);
         const bytes = new Uint8Array(await res.arrayBuffer());
         if (cancelled) return;

@@ -1101,7 +1101,7 @@ export function Viewer({
               <img
                 ref={imgRef}
                 className="pdf-canvas image-page"
-                src={api.fileUrl(selectedFile.id)}
+                src={api.fileUrl(selectedFile.id, selectedFile.revision)}
                 alt={selectedFile.filename}
                 onLoad={layoutImageOverlay}
               />
@@ -1340,6 +1340,7 @@ export function Viewer({
                         songTitle={song.title}
                         songKey={song.key}
                         onSongKeyChanged={(k) => onSongSaved({ ...song, key: k })}
+                        onFilesChanged={refreshMyFiles}
                       />
                     </>
                   )}

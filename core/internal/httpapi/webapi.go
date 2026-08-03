@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"troubastack/core/internal/app"
@@ -898,11 +899,42 @@ func (a *WebAPI) downloadFile(w http.ResponseWriter, r *http.Request, u app.User
 		writeErr(w, err)
 		return
 	}
+	// T67 — freshness. The blob is content-addressed by BlobHash, a perfect strong ETag: a
+	// file's bytes for a given revision never change (a chart re-render is a NEW blob +
+	// Revision++, service.go). So a revision-scoped URL (?rev=, set by the studio) is
+	// genuinely immutable → cache it hard; a bare /api/files/{id} must revalidate so it can
+	// never serve stale bytes after an in-place re-render (VLL's stale-after-F5 bug).
+	etag := `"` + f.BlobHash + `"`
+	w.Header().Set("ETag", etag)
+	if r.URL.Query().Get("rev") != "" {
+		w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
+	if ifNoneMatch(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	w.Header().Set("Content-Type", f.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(f.Size, 10))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", f.Filename))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+// ifNoneMatch reports whether an If-None-Match header (a comma-separated list, values
+// possibly weak-prefixed with W/, or the wildcard "*") matches the resource's strong etag.
+func ifNoneMatch(header, etag string) bool {
+	if header == "" {
+		return false
+	}
+	for _, tag := range strings.Split(header, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag == "*" || strings.TrimPrefix(tag, "W/") == etag {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- setlist handlers ----

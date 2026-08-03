@@ -541,7 +541,12 @@ export const api = {
   deleteFile: (bandId: string, songId: string, fileId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/files/${fileId}`),
 
-  fileUrl: (fileId: string) => `/api/files/${fileId}`,
+  // T67 — a re-rendered chart keeps the same file id but bumps `revision`. Pinning the
+  // revision in the URL makes "new render = new URL", so the browser can't serve the stale
+  // cached bytes and the viewer's fetch effect re-runs. Pass the SongFile's revision wherever
+  // one is in hand; the bare form (no revision) is only for callers without a SongFile.
+  fileUrl: (fileId: string, revision?: number) =>
+    revision != null ? `/api/files/${fileId}?rev=${revision}` : `/api/files/${fileId}`,
 
   // ---- per-member file selection ("my files") ----
   // The pool stays shared (listFiles); these endpoints are the caller's own
