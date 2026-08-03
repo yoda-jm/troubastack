@@ -5,7 +5,7 @@
  * data-testids unchanged.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   api,
   type AnnotationLayer,
@@ -100,7 +100,14 @@ export function Viewer({
   // The file strip is MY ordered selection (getMyFiles), not the whole pool.
   const [files, setFiles] = useState<SongFile[]>([]);
   const [customized, setCustomized] = useState(false);
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  // T68: the open file is mirrored into ?file=<id> so a hard refresh restores it instead of
+  // snapping to the first file. Seed from the URL on mount; the initial-load pick validates it
+  // against my pool before use (a stale/foreign id degrades gracefully to the first PDF).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialFileParamRef = useRef<string | null>(searchParams.get("file"));
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(() =>
+    searchParams.get("file"),
+  );
   const [editorOpen, setEditorOpen] = useState(false);
   // Realtime spine (T15): the live doc, visibility, connection status, reject notice
   // and the WS client live in useSongSync; the load-once REST seed below writes
@@ -194,6 +201,19 @@ export function Viewer({
   const isPdf = selectedFile?.contentType === "application/pdf";
   const isImage = selectedFile?.contentType.startsWith("image/") ?? false;
 
+  // T68: mirror the open file into ?file=<id>. Single sync point — every selection path
+  // (strip click, initial load, refresh) funnels through setSelectedFileId. `replace` so
+  // switching files doesn't grow history (Back still exits the editor, not step through file
+  // picks). Guarded to a no-op when already in sync, so it never loops on its own writes.
+  useEffect(() => {
+    const cur = searchParams.get("file");
+    if ((selectedFileId ?? null) === (cur ?? null)) return;
+    const next = new URLSearchParams(searchParams);
+    if (selectedFileId) next.set("file", selectedFileId);
+    else next.delete("file");
+    setSearchParams(next, { replace: true });
+  }, [selectedFileId, searchParams, setSearchParams]);
+
   // The floating chrome bar (T27 stage 3); we publish its measured height as
   // --chrome-h so the scroll column's top padding + scroll-padding + the floating
   // panel's top all clear it. Constant across tool changes (stable style-row
@@ -237,9 +257,15 @@ export function Viewer({
         setDoc(annotations);
         setVisible(defaultVisibility(annotations.layers, myUserId));
 
-        // Default selection: first PDF, else first viewable file.
+        // T68: honour a ?file=<id> from the URL if it names a real, viewable file in my pool
+        // (restored INSIDE the load so it resolves before the layer/annotation effects run);
+        // otherwise the default first-PDF (else first-viewable) pick. A stale/foreign id
+        // degrades to that default — never a blank/wedged viewer.
+        const urlPick = mine.files.find(
+          (f) => f.id === initialFileParamRef.current && isViewable(f),
+        );
         const firstPdf = mine.files.find((f) => f.contentType === "application/pdf");
-        const first = firstPdf ?? mine.files.find(isViewable) ?? null;
+        const first = urlPick ?? firstPdf ?? mine.files.find(isViewable) ?? null;
         if (!first) {
           setStatus("no-file");
           return;
