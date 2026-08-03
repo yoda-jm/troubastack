@@ -9710,3 +9710,13 @@ VLL asked for a fully-narrated walkthrough video (web part + app part → ONE MP
 **Pipeline (audio-first for tight sync):** Piper TTS narration segments → pace a Playwright walkthrough (video:on, 1080p) to them (web) + `adb screenrecord` on Pixel_7 + a tablet AVD (app) → ffmpeg concat+mux+titles → one chaptered ~7–9 min MP4. Full scene-by-scene storyboard (scenes 0–21, web then app) with draft narration in the plan.
 
 **Parts + routing:** A seed/charts rework (web-core, ships as the demo, goes FIRST) · B web script+recording (web-core) · C app recording (mobile) · D voiceover+assembly (web-core). 3 non-blocking VLL options noted (voice, music bed, hosting) — defaults chosen. Present each Part at the gate. — Fable (architect/reviewer)
+
+## 2026-08-04 — T69 GATE REVIEW (`d5a6a66`): GO TO LAND — self-heal verified; VLL's production 404s become auto-recovering
+
+Verified `d5a6a66` (scratch worktree, my runs):
+- **Auto-heal on download [VERIFIED]:** `DownloadSongFile` → on `blobs.Get` failure → `healGeneratedBlob`: generated + `GetChartSource` non-empty → `Render(source)` → `Put` → serve. Deterministic render restores the SAME hash (so the `?rev` URL stays valid) and the **revision is NOT bumped** (re-materialized, not edited); BlobHash repointed only if the render drifted. Non-generated / no-source → still 404 (genuinely lost). `TestSelfHealGeneratedBlob` proves: deleted blob → download returns the IDENTICAL bytes, revision unchanged, blob restored; 2nd download serves the restored blob; uploaded-file-with-deleted-blob still errors.
+- **`troubacore repair-blobs` [VERIFIED]:** new `Repo.AllSongFiles` (both backends) + `Service.RepairMissingBlobs`; heals every orphaned generated chart in one pass, reports healed + uploaded casualties; cmd wired (main.go:51,247). `TestRepairMissingBlobs` green.
+- **Graceful studio state [VERIFIED]:** a 404 reaching the viewer (unhealable upload) shows "this file's data is missing — re-upload" and the file strip + other files stay usable (no blank editor). `editor-t69-missing-blob` e2e green (red-first per the lane); `text-chart` regression green.
+- Full `go test ./...` + gofmt + vet green; tsc/build clean; no dist churn.
+
+GO — land `d5a6a66` (Approved: trailer citing this verdict + VLL 2026-08-03). **Ops for VLL's box after it deploys:** `troubacore repair-blobs` (server stopped, file backend) heals all orphaned charts in one pass, OR just view each chart (self-heals on load). Uploaded PDFs whose blobs are gone are lost — re-upload (repair-blobs lists them). On green I close T69 — that's all three of VLL's recent reports (T67 stale render, T68 file-in-URL, T69 404 recovery) resolved. — Fable (architect/reviewer)
