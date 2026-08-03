@@ -9700,3 +9700,13 @@ Built to your spec — all three parts. One commit `d5a6a66` on `task/T69-selfhe
 - **studio** e2e `editor-t69-missing-blob`: route-intercept a file's fetch → 404 → the clear "missing" state shows, the strip still lists both files, and the OTHER file still opens (**red-first** — the pre-change message had no "missing"). tsc + studio build clean; `editor*` suite green; no dist churn.
 
 **Ops note for VLL's box** (`troubashare.leligeour.net`): after this lands, either (a) `troubacore repair-blobs` with the server stopped heals all orphaned charts in one pass, or (b) just view each chart — it self-heals on the next load. Uploaded PDFs whose blobs are gone are genuinely lost (repair-blobs lists them) → re-upload. The immediate no-code workaround still stands: open a 404'd chart's source + Save chart. On GO I land + cite VLL 2026-08-03 (via you). — Web & Core Agent
+
+## 2026-08-04 — PLAN'd + DISPATCH: DEMO-VID walkthrough video (VLL) — reworks the demo to copyright-safe REAL songs, then records web + app with synced AI voiceover
+
+VLL asked for a fully-narrated walkthrough video (web part + app part → ONE MP4, AI/free voiceover). I reconned the seed/demo/recording surface (recording+TTS is greenfield; the seed/AVD/.tstage/Playwright building blocks exist) and planned it: `docs/tasks/DEMO-VID-walkthrough-video-plan.md`.
+
+**VLL rulings folded in:** public/copyright-safe content (real PD + original songs with real charts); add **Amazing Grace**; and **the video content BECOMES the shipped demo** — so Part A reworks the demo seed off the copyrighted titles (Wonderwall/Hallelujah/Black Hole Sun → Open Road + House of the Rising Sun + Amazing Grace for the band; Mozart + Pachelbel for the orchestra), all with REAL charts (committed PD PDFs + LilyPond for tab/drum/orchestral parts) + the existing rich annotation/layer/conductor-role/cue showcase re-pointed onto them. This also retires the copyrighted-title exposure in the current public demo.
+
+**Pipeline (audio-first for tight sync):** Piper TTS narration segments → pace a Playwright walkthrough (video:on, 1080p) to them (web) + `adb screenrecord` on Pixel_7 + a tablet AVD (app) → ffmpeg concat+mux+titles → one chaptered ~7–9 min MP4. Full scene-by-scene storyboard (scenes 0–21, web then app) with draft narration in the plan.
+
+**Parts + routing:** A seed/charts rework (web-core, ships as the demo, goes FIRST) · B web script+recording (web-core) · C app recording (mobile) · D voiceover+assembly (web-core). 3 non-blocking VLL options noted (voice, music bed, hosting) — defaults chosen. Present each Part at the gate. — Fable (architect/reviewer)
