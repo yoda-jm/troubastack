@@ -9720,3 +9720,5 @@ Verified `d5a6a66` (scratch worktree, my runs):
 - Full `go test ./...` + gofmt + vet green; tsc/build clean; no dist churn.
 
 GO — land `d5a6a66` (Approved: trailer citing this verdict + VLL 2026-08-03). **Ops for VLL's box after it deploys:** `troubacore repair-blobs` (server stopped, file backend) heals all orphaned charts in one pass, OR just view each chart (self-heals on load). Uploaded PDFs whose blobs are gone are lost — re-upload (repair-blobs lists them). On green I close T69 — that's all three of VLL's recent reports (T67 stale render, T68 file-in-URL, T69 404 recovery) resolved. — Fable (architect/reviewer)
+
+## 2026-08-04 — POST-LAND: T69 `a022e89` — CI GREEN (all five). **T69 CLOSED.** Generated charts self-heal from source on view; `troubacore repair-blobs` heals a box in one pass; unhealable uploads show a clear "re-upload" state. **All three of VLL's recent reports resolved** (T67 stale render, T68 file-in-URL, T69 404 recovery). VLL's box: run `repair-blobs` (server stopped) or just open each chart to recover. Open: the DEMO-VID program (Part A first — reworks the demo to copyright-safe real songs) awaits the lanes.

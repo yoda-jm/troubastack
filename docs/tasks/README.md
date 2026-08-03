@@ -157,7 +157,7 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | ~~T66~~ | ✅ landed `7a70f48` (move-default/first, dashed select, one-row tap-selectable chrome, double-tap zoom-to-point both ways; Fable+VLL approved) | studio | M |
 | ~~T67~~ | ✅ landed `45d2ca2` (stale chart render fixed: ?rev URLs + ETag/immutable caching + on-save refetch; Fable-approved, CI green) | core + studio | M |
 | ~~T68~~ | ✅ landed `ab4b0b2` (open file in ?file= — F5 restores it; Fable-approved, CI green) | studio | S/M |
-| T69 | [Self-heal a generated chart whose rendered PDF blob is missing (404 recovery)](T69-missing-blob-selfheal-chart.md) — VLL prod 404 2026-08-03, HIGH | core + studio | M |
+| ~~T69~~ | ✅ landed `a022e89` (self-heal generated charts + `troubacore repair-blobs` + graceful missing state; Fable-approved, CI green) | core + studio | M |
 | DEMO-VID | [Walkthrough video (web + app, synced AI voiceover) — plan + reworks demo to copyright-safe real songs](DEMO-VID-walkthrough-video-plan.md) — VLL 2026-08-04 | core+studio+mobile | L (program) |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
