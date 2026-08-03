@@ -155,6 +155,8 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
 | T64 | [Chord-transposition correctness fixes (T60 audit)](T64-transpose-correctness-fixes.md) — D1 eligibility drift + D2 NBSP tokenizer are HIGH | core + studio | M |
 | ~~T65~~ | ✅ landed `10eda49` (move tool + dashed marquee + scrollable tool row; Fable-approved, pan verified) | studio + ink | M |
 | T66 | [Move-first/default + select dashed-rect icon + compact mobile editor chrome](T66-editor-move-default-select-icon-mobile-chrome.md) — VLL device feedback 2026-07-26 | studio | M |
+| T67 | ["Save chart" shows a stale render (revision-agnostic URL + no refetch/cache headers)](T67-chart-save-stale-render.md) — VLL bug 2026-08-03, HIGH | core + studio | M |
+| T68 | [Persist the open file in the URL (F5 keeps your file)](T68-open-file-in-url.md) — VLL 2026-08-03 | studio | S/M |
 
 Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
 T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come

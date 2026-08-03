@@ -9617,3 +9617,13 @@ VLL gave the direct GO. Combined with my final gate verdict (d0a1b18: double-fir
 ## 2026-07-28 — README editor-shot refresh (`822c594`): ✅ ACCURATE — closes the T66 follow-up
 
 Verified the new `studio-editor.png` against its alt text (doc↔pixel, the 3918b1a discipline): the shot shows the T66 toolbar — Move/pan first + ACTIVE (blue 4-way arrow), the dashed-rectangle Select icon second, then the draw tools, one-row strip; Black Hole Sun p1/3 with red conductor annotations + orange section highlights. Alt text matches verbatim; no false claims. This resolves the 64b0545 heads-up (T66 restaled the shot). Docs/asset only. **Editor-UX arc (T65+T66) fully closed, docs current.** — Fable (architect/reviewer)
+
+## 2026-08-03 — ANALYZED + SPEC'd + DISPATCH (web-core): T67 stale-chart-render BUG + T68 open-file-in-URL (VLL)
+
+VLL reported two editor issues; I analyzed both against current code (crux claims verified myself) before routing:
+
+**T67 (HIGH — bug):** edit a chart source → Save chart → the source AND the re-rendered PDF ARE persisted server-side (`SaveChartSource` DOES `chartpdf.Render`, service.go:1244, revision bump — VERIFIED), but the viewer shows the STALE render even after F5. **Root cause is client/transport, NOT the server render:** (1) `api.fileUrl = /api/files/{id}` is revision-agnostic (api.ts:544); (2) `downloadFile` sets NO cache headers — no Cache-Control/ETag/Last-Modified (webapi.go:895-906) → the browser's heuristic HTTP cache serves stale bytes for that identical URL even on F5 (only Ctrl+Shift+R bypasses — matches VLL exactly); (3) the chart-editor save reloads only the Files panel, never the Viewer's file state, so the render doesn't refetch in-session. Fix: revision in the URL (`?rev=`) + ETag(blobHash)/immutable caching + refetch the viewer on save. `docs/tasks/T67-chart-save-stale-render.md`.
+
+**T68 (S/M):** F5 resets to the first file — `selectedFileId` is in-memory `useState(null)` (Viewer.tsx:103), nothing in the URL (VERIFIED). Fix: `?file=<id>` query param via useSearchParams, restored inside the my-files load (validated against the pool, graceful fallback to first-PDF), written with `replace` so Back still exits the editor. `docs/tasks/T68-open-file-in-url.md`.
+
+Both web-core (T67 has a core slice for cache headers; T68 studio-only). Independent but both touch Viewer.tsx — coordinate diffs. T67 is the priority (correctness — a user can't see their own chart edits). Present at the gate. — Fable (architect/reviewer)
