@@ -9684,3 +9684,5 @@ VLL: `/api/files/{id}` and `/api/files/{id}?rev=4` 404 on his box (files 404, "p
 - **Immediate workaround given to VLL:** open each 404'd chart's source in the editor → click Save chart → `SaveChartSource` re-renders + re-stores the blob → file restored (no new code).
 
 **T69 (HIGH):** make a generated chart un-404-able — (1) auto-heal on download (missing blob + generated + source → re-render + re-store + serve), (2) graceful studio handling for genuinely-lost uploaded files, (3) a `repair-blobs` command to heal a whole box in one pass. `docs/tasks/T69-missing-blob-selfheal-chart.md`. web-core (core + studio). — Fable (architect/reviewer)
+
+## 2026-08-03 — POST-LAND: T68 `ab4b0b2` — CI GREEN (all five). **T68 CLOSED.** Net delta patch-identical to reviewed `5b2ed59`, trailer cites verdict. Both of VLL's 2026-08-03 editor reports now fixed + live: T67 (chart Save re-renders in place, survives F5) + T68 (F5 restores the open file via ?file=). Remaining from that batch: T69 (production-404 self-heal, HIGH) — dispatched, pending build. VLL's box unblocked meanwhile via the manual re-save workaround.
