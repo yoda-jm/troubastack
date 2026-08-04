@@ -9800,3 +9800,5 @@ Owning it: my slice-1b GO under-scrutinized annotation OVERLAP (labels colliding
 - `go test ./...` + gofmt + vet green; annotations-only (charts unchanged); no dist churn.
 
 GO — land `1d9c11f` (Approved: trailer citing this verdict + VLL 2026-08-04) + reseed the demo. Slice 2 (orchestra) + slice 3 (.tstage regen + screenshot/title fixups) still queued. **Self-note:** annotation-PLACEMENT reviews need explicit overlap/collision scrutiny, not just "marks present + roughly on content" — apply to slice 2's orchestral parts. — Fable (architect/reviewer)
+
+## 2026-08-04 — POST-LAND: DEMO-VID slice 1c `ad6835f` — CI GREEN (all five). **Slice 1c CLOSED.** The demo BAND is fully video-ready: copyright-safe real songs, real charts (lead sheet / guitar tab / drum groove), and clean, non-overlapping annotations (margin labels + connectors, chorus bracket, cues ringing real chords, distinct green highlighter). Part A remaining: slice 2 (orchestra Mozart+Pachelbel real parts — reviewer will scrutinize part-annotation overlap), slice 3 (.tstage regen + screenshot/title fixups). Then Parts B/C/D recording.
