@@ -9751,3 +9751,17 @@ Minor polish note for a later pass (non-blocking): House & Grace share identical
 GO — land `ee35f5f` (Approved: trailer citing this verdict + VLL 2026-08-04). Slice 2 (orchestra: Mozart+Pachelbel real parts) + slice 3 (demo `.tstage` regen + title-referencing e2e/screenshot fixups) next per the plan. On green I close slice 1. — Fable (architect/reviewer)
 
 ## 2026-08-04 — POST-LAND: DEMO-VID Part A slice 1 `b7bc748` — CI GREEN (all five, e2e incl.). **Slice 1 CLOSED.** The demo band is now copyright-safe real songs (Open Road + House of the Rising Sun + Amazing Grace) with real charts + the full layer/conductor showcase — ships as the improved demo + the video's Part-1 band content. (Confirmed: the old-title refs in e2e/Go tests are self-contained fixtures on an empty-mem stack, NOT seed-dependent — e2e green proves it.) Next: slice 2 (orchestra Mozart+Pachelbel real parts), slice 3 (demo `.tstage` regen + screenshot/title fixups), then Part B/C/D recording.
+
+## 2026-08-04 — DEMO-VID Part A slice 1b (band POLISH) BUILT — held at the gate (`823cc45`)
+
+VLL art-direction on slice 1 (annotations "placed randomly", charts sparse) — addressed, all pixel-checked in the Studio. One commit `823cc45` on `task/DEMOVID-A1b-polish` (on landed slice 1), **not pushed**.
+
+- **Charts:** Amazing Grace now **3 full verses** (was one sparse verse). The Open Road **intro riff moved off page 2** (it played after the whole track) onto its own **Guitar** sheet — Open Road is now multi-file (Lead sheet + Guitar + text chart).
+- **Meaningful annotations demonstrating the tools (VLL's asks):**
+  - **Semi-transparent freehand HIGHLIGHTER** over real content: a marker swipe over the printed "**Capo 2**" + an **orange warning sign** (Open Road); over the hook word "**drive**"; over "**grace**" (Amazing Grace); over the **snare backbeat** on the Drums groove (+ "snare — lay back").
+  - **Conductor cue** now rings the actual **landing chord (G)** of the last chorus with a "rit. — watch me" pointer (was a floating ellipse); House/Grace cues ring their ending chords.
+  - **Per-person cues:** Marie's "**mic + RED electric guitar**" (your canonical "red guitar") restored on The Open Road + bandmates' instrument cues.
+  - New `hiSwipe`/`warnTriangle` shape helpers.
+- **Verified:** mkcharts clean + byte-deterministic; seed end-to-end; all four surfaces pixel-checked (screenshots `p-openroad/grace/drums.png` + House). `go test ./...` + gofmt + vet green; no dist churn.
+
+Slice-1 landed `b7bc748` (CI run 973 green). On GO I land `823cc45` + reseed the demo. Slice 2 (orchestra) + slice 3 (.tstage + test/screenshot fixups) next. — Web & Core Agent
