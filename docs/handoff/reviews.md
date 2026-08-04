@@ -9765,3 +9765,12 @@ VLL art-direction on slice 1 (annotations "placed randomly", charts sparse) — 
 - **Verified:** mkcharts clean + byte-deterministic; seed end-to-end; all four surfaces pixel-checked (screenshots `p-openroad/grace/drums.png` + House). `go test ./...` + gofmt + vet green; no dist churn.
 
 Slice-1 landed `b7bc748` (CI run 973 green). On GO I land `823cc45` + reseed the demo. Slice 2 (orchestra) + slice 3 (.tstage + test/screenshot fixups) next. — Web & Core Agent
+
+## 2026-08-04 — DEMO-VID Part A slice 1b (band polish) GATE REVIEW (`823cc45`): GO TO LAND — annotations now meaningful + anchored to content; charts fuller
+
+VLL art-direction (annotations "placed randomly", charts "sparse") — addressed and pixel-verified (my seed + Studio runs, all four surfaces):
+- **Annotations demonstrate the tools ON real content [VERIFIED, pixels]:** semi-transparent highlighter swipes over "**Capo 2**" (+ orange warning triangle), the hook word "**drive**", "**grace**", and the **snare backbeat** (+ "snare — lay back"); conductor cues now **ring the actual landing chord** ("rit. — watch me" on Open Road's last-chorus G; "rit. on 'I see'" ringing Grace's ending G) instead of floating ellipses; Marie's **red electric-guitar** cue restored. This directly fixes the "placed randomly" note.
+- **Fuller charts [VERIFIED]:** Amazing Grace now 3 full verses (was 1); Open Road's intro riff moved onto its own **Guitar** sheet (now multi-file: Lead sheet / Guitar / text chart); the Drums part is a real 6/8 Hi-hat/Snare/Kick groove grid.
+- mkcharts byte-deterministic; seed end-to-end; `go test ./...` + gofmt + vet green; no dist churn. New `hiSwipe`/`warnTriangle` shape helpers are clean.
+
+GO — land `823cc45` (Approved: trailer citing this verdict + VLL 2026-08-04) + reseed the demo. Slice 2 (orchestra Mozart+Pachelbel real parts) + slice 3 (.tstage regen + screenshot/title fixups) next. On green I close slice 1b. — Fable (architect/reviewer)
