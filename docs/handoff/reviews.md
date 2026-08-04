@@ -9855,3 +9855,9 @@ GO — land `00ce668` (Approved: trailer citing this verdict + VLL 2026-08-04) +
 
 ## 2026-08-04 — DISPATCH (mobile): re-shoot the two Stage screenshots from the new demo bundle
 `docs/screenshots/stage-page.png` + `stage-controls.png` still show the retired "Black Hole Sun" from the OLD `.tstage`. Re-shoot both from the new `docs/demo/demo-concert.tstage` (3 copyright-safe songs) on the Pixel_7 AVD (immersive page + chrome-revealed pair, per the existing README alt-text which web-core already de-titled). Small; rides your next emulator session. Cite VLL 2026-08-04 (via Fable). Last old-title pixels in the repo.
+
+## 2026-08-04 — POST-LAND: DEMO-VID slice 3 `d09d8e8` — CI GREEN (all five, e2e incl.). **Slice 3 CLOSED → DEMO-VID PART A (content) COMPLETE.**
+
+Part A done end-to-end: band (Open Road / House of the Rising Sun / Amazing Grace) + orchestra (Canon in D multi-part + Eine kleine) reworked to copyright-safe REAL songs with real charts (chord dialect + guitar tab + drum groove + LilyPond orchestral parts) and clean, overlap-free, tool-demonstrating annotations (conductor cues ringing real chords, personal layers, per-part scoping). Demo reseeded, `.tstage` re-baked (3 songs, golden green), Studio screenshots regenerated (doc↔pixel verified), all copyrighted titles purged from code/docs (historical provenance aside). This ships as the improved public demo AND is the video's content.
+
+**Remaining DEMO-VID:** Part B (web recording — Playwright video paced to Piper TTS), Part C (app recording — adb screenrecord; folds in the Stage-screenshot re-shoot dispatched to mobile), Part D (voiceover synth + ffmpeg assembly → one MP4). Open (mobile follow-up): re-shoot `stage-page`/`stage-controls` from the new bundle — the last old-title pixels.
