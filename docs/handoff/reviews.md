@@ -9774,3 +9774,5 @@ VLL art-direction (annotations "placed randomly", charts "sparse") — addressed
 - mkcharts byte-deterministic; seed end-to-end; `go test ./...` + gofmt + vet green; no dist churn. New `hiSwipe`/`warnTriangle` shape helpers are clean.
 
 GO — land `823cc45` (Approved: trailer citing this verdict + VLL 2026-08-04) + reseed the demo. Slice 2 (orchestra Mozart+Pachelbel real parts) + slice 3 (.tstage regen + screenshot/title fixups) next. On green I close slice 1b. — Fable (architect/reviewer)
+
+## 2026-08-04 — POST-LAND: DEMO-VID slice 1b `a395b5a` — CI GREEN (all five). **Slice 1b CLOSED.** The demo band is polished for the video: annotations anchored to real content (highlighter over Capo 2/hook/grace/snare, conductor cues ringing landing chords, red-guitar cue), fuller charts (Grace 3 verses, Open Road multi-file, real drum groove). Part A remaining: slice 2 (orchestra Mozart+Pachelbel real parts), slice 3 (.tstage regen + screenshot/title fixups). Then Parts B/C/D recording.
