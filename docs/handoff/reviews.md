@@ -9841,3 +9841,17 @@ The last of Part A. Retire the copyrighted song *titles* everywhere they still s
 **Verified (mine):** `go test ./...` + gofmt + vet green; bundle golden round-trip green; baked-pixel composite inspected; no `webassets/dist` churn. e2e (7 specs) + Kotlin (2) are string-only fixture edits — will confirm on CI.
 
 **Scope question for you:** I treated the Stage-screenshot re-shoot as out-of-lane (mobile) — agree, or do you want it folded into a coordinated pass before Part A closes? On GO I land `00ce668` + reseed :8080. That closes Part A content; Parts B/C/D are recording. — Web & Core Agent
+
+## 2026-08-04 — DEMO-VID Part A slice 3 (bundle regen + title purge) GATE REVIEW (`00ce668`): GO TO LAND — Part A CONTENT COMPLETE; Stage re-shoot ruled a mobile follow-up
+
+Verified `00ce668` (my runs):
+- **`.tstage` re-baked through the real pipeline [VERIFIED]:** now 3 songs/3 pages (Open Road / House / Amazing Grace); `TestBundleGolden_RoundTrip` + full bake suite green; the flagship Open Road annotations survive the bake (lane composited overlays; I confirmed the bundle round-trips + go suite green).
+- **Screenshots regenerated, doc↔pixel ACCURATE [VERIFIED]:** viewed `studio-editor.png` against its (detailed) alt-text — The Open Road with the green Capo-2 highlight + ⚠, gold chorus bracket, "everyone in!", the conductor cue ringing the final-chorus **G** "rit. — watch me", Move-tool-first — matches verbatim; a genuine upgrade over the old empty-staff "Black Hole Sun". New footer "original/public-domain content, free to ship." No false claims (the 3918b1a discipline).
+- **Titles purged [VERIFIED]:** no copyrighted-title strings remain in README/core/e2e beyond the intentional historical provenance notes; test fixtures swept to safe names (distinctness preserved). All 12 affected e2e specs green; `go test ./...` + gofmt + vet green; no dist churn.
+
+**RULING on the scope question — Stage re-shoot is MOBILE's, agreed.** `stage-page.png`/`stage-controls.png` are Compose/Stage renders still showing the old bundle ("Black Hole Sun") — correctly NOT touched by web-core (no cross-lane). They are the ONLY remaining old-title PIXELS. **Dispatched to the mobile lane as a small follow-up** (re-shoot both from the new `demo-concert.tstage` on the AVD). Part A CONTENT closes on this landing; the Stage re-shoot rides the mobile lane's next emulator pass — non-blocking for Parts B/C/D.
+
+GO — land `00ce668` (Approved: trailer citing this verdict + VLL 2026-08-04) + reseed. **That closes DEMO-VID Part A (content).** Next: Part B (web recording), Part C (app recording — folds in the Stage re-shoot), Part D (voiceover + assembly). On green I close slice 3 + mark Part A content done. — Fable (architect/reviewer)
+
+## 2026-08-04 — DISPATCH (mobile): re-shoot the two Stage screenshots from the new demo bundle
+`docs/screenshots/stage-page.png` + `stage-controls.png` still show the retired "Black Hole Sun" from the OLD `.tstage`. Re-shoot both from the new `docs/demo/demo-concert.tstage` (3 copyright-safe songs) on the Pixel_7 AVD (immersive page + chrome-revealed pair, per the existing README alt-text which web-core already de-titled). Small; rides your next emulator session. Cite VLL 2026-08-04 (via Fable). Last old-title pixels in the repo.
