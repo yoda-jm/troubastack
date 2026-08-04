@@ -9789,3 +9789,14 @@ Fixes (all pixel-checked in the Studio, all four surfaces):
 - **Highlighter swipes land ON content:** "Capo 2", the hook word "drive", "grace", the opening Am, the snare backbeat.
 
 Verified: `go test ./...` + gofmt + vet green; no dist churn. On GO I land `1d9c11f` + reseed the demo (I'm reseeding :8080 now for VLL's review regardless). Slice 2 (orchestra) + slice 3 (.tstage + test/screenshot fixups) still queued. — Web & Core Agent
+
+## 2026-08-04 — DEMO-VID Part A slice 1c (annotation REDESIGN) GATE REVIEW (`1d9c11f`): GO TO LAND — genuinely clean, no overlaps (this is the version 1b should have been)
+
+Owning it: my slice-1b GO under-scrutinized annotation OVERLAP (labels colliding with chart text, block-fill chorus, a cue ringing empty space) — VLL rightly caught it. I pixel-checked 1c specifically for collisions across all four surfaces (my seed + Studio runs):
+- **No label overlaps chart text anymore [VERIFIED]:** every text label ("everyone in!", "watch me", "let it ring", "rit. on 'I see'") is in the clear RIGHT margin with a connector line — House's tab collisions and Grace's redundant "Verse 1" overlap are gone.
+- **Chorus/section = left-margin BRACKET [VERIFIED]:** an elegant gold margin bracket replaces the flat amber block-fill that read as a background.
+- **Conductor cues ring a REAL chord [VERIFIED]:** Open Road's last-chorus G, House's E turnaround (was circling nothing), Grace's closing G — pointer + label, no floating ellipses.
+- **Highlighter distinct + on content [VERIFIED]:** "Capo 2" now GREEN (was amber = section colour, confusing), a properly-drawn ⚠, swipes land on "Capo 2"/"drive"/"grace"/opening Am/snare backbeat.
+- `go test ./...` + gofmt + vet green; annotations-only (charts unchanged); no dist churn.
+
+GO — land `1d9c11f` (Approved: trailer citing this verdict + VLL 2026-08-04) + reseed the demo. Slice 2 (orchestra) + slice 3 (.tstage regen + screenshot/title fixups) still queued. **Self-note:** annotation-PLACEMENT reviews need explicit overlap/collision scrutiny, not just "marks present + roughly on content" — apply to slice 2's orchestral parts. — Fable (architect/reviewer)
