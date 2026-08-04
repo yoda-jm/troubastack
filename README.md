@@ -22,7 +22,7 @@ night mode, count-in, facing pages, per-role layers.
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — The Open Road lead sheet: a green highlight on 'Capo 2' with an orange warning sign, a gold margin bracket on the chorus, and a red conductor cue ringing the final-chorus G chord with 'rit. — watch me', over chords-and-lyrics — with the slim one-row tool strip above the score: the Move/pan tool active by default and first, then the dashed-rectangle Select tool, then the draw tools" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
+| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — The Open Road lead sheet: a green highlight on 'Capo 2' with an orange warning sign, a gold margin bracket on the chorus, and a red conductor cue ringing the final-chorus G chord with 'rit. — watch me', over chords-and-lyrics — with the slim one-row tool strip above the score: the Move/pan tool active by default and first, then the dashed-rectangle Select tool, then the draw tools" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: The Open Road, with chords over lyrics, a green 'Capo 2' highlight, a gold chorus bracket and the 'everyone in!' section note over the chart" width="260"> |
 
 The full loop works end to end today: **compose → annotate (realtime, multi-user) →
 bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
@@ -131,8 +131,8 @@ back the Stage chrome on the right — song drawer, the live **♩ tempo meter**
 layer controls and the page pager:
 
 <p>
-<img src="docs/screenshots/stage-page.png" alt="Immersive Stage page on a portrait tablet: a composited score — chords, section highlights and conductor annotations over the raster" width="300">&nbsp;
-<img src="docs/screenshots/stage-controls.png" alt="The same page with the Stage chrome revealed: song drawer, title + position, the ♩=98 tempo meter, settings, page arrows" width="300">
+<img src="docs/screenshots/stage-page.png" alt="Immersive Stage page on a portrait tablet: The Open Road composited and letterboxed — chords over lyrics, a green 'Capo 2' highlight, a gold chorus bracket and the 'everyone in!' section note" width="300">&nbsp;
+<img src="docs/screenshots/stage-controls.png" alt="The same page with the Stage chrome revealed: the song drawer, the title and 'Song 1/3 · 1/3' position, the 'Encore — everyone in on the last chorus' banner, the settings and exit buttons, and the previous/next page arrows" width="300">
 </p>
 
 ### Build & install
