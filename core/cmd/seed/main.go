@@ -200,23 +200,27 @@ func run(addr, password string) error {
 							"https://www.mutopiaproject.org/ftp/MozartWA/KV525/eine_kleine_nachtmusik/eine_kleine_nachtmusik-a4.pdf",
 						},
 					}},
-				{title: "Air on the G String", artist: "J. S. Bach", key: "D", tempo: 60, tags: []string{"classical", "public-domain"}, notes: "BWV 1068; molto espressivo.",
-					src: pdfSource{
-						cacheName: "air-on-the-g-string.pdf",
-						title:     "Air on the G String",
-						subtitle:  "J. S. Bach (BWV 1068)",
-						pages:     2,
-						// Verified direct public-domain PDF from the Mutopia Project.
-						urls: []string{
-							"https://www.mutopiaproject.org/ftp/BachJS/BWV1068/bach_air_bmv_1068/bach_air_bmv_1068-a4.pdf",
-							"https://www.mutopiaproject.org/ftp/BachJS/BWV1068/bach_air_bmv_1068/bach_air_bmv_1068-let.pdf",
-						},
+				// PUBLIC DOMAIN (Pachelbel, 1680) — the orchestra's MULTI-PART showcase: real,
+				// engraved per-instrument parts (Violin I, Viola, Cello) so multiple players each
+				// open their own desk's part. Rendered from committed LilyPond source
+				// (docs/demo-charts/lilypond/canon-*.ly). Replaces the fetched Bach Air (Pachelbel
+				// is the more legible multi-part piece — DEMO-VID Part A slice 2).
+				{title: "Canon in D", artist: "J. Pachelbel", key: "D", tempo: 56, tags: []string{"classical", "public-domain"}, notes: "Canon over the famous ground bass; Andante.",
+					files: []pdfSource{
+						{cacheName: "canon-violin1.pdf", localPath: "../docs/demo-charts/canon-violin1.pdf", docTitle: "Violin I", title: "Canon in D — Violin I", subtitle: "Pachelbel", pages: 1},
+						{cacheName: "canon-viola.pdf", localPath: "../docs/demo-charts/canon-viola.pdf", docTitle: "Viola", title: "Canon in D — Viola", subtitle: "Pachelbel", pages: 1},
+						{cacheName: "canon-cello.pdf", localPath: "../docs/demo-charts/canon-cello.pdf", docTitle: "Cello", title: "Canon in D — Cello", subtitle: "Pachelbel", pages: 1},
+					},
+					// Cory (cello) curates a personal view of just the cello part.
+					myFilesFor: map[string][]int{
+						"cory": {2},
 					}},
 			},
 			setlist: setlistDef{
 				name: "Spring Concert", eventDate: "2026-05-15", venue: "City Hall", notes: "Strings programme.",
 				overrides: []overrideDef{
 					{song: "Eine kleine Nachtmusik", tempoOverride: 132, notes: "Take the repeat."},
+					{song: "Canon in D", notes: "Watch the tempo — don't rush the bass."},
 				},
 			},
 		},
@@ -570,6 +574,9 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			// Committed band charts (guitar tab / lead sheet) — a light showcase placed for
 			// their known content band, not the staff-relative or orchestral generic layout.
 			im = buildBandChartAnnotations(a.songID, fileID, a.title, userID, conductorID)
+		case "Canon in D":
+			// Committed LilyPond orchestral part (staff at top) — clean placement below it.
+			im = buildCanonAnnotations(a.songID, fileID, userID, conductorID)
 		}
 		var got annotationsImport
 		if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", im, &got); err != nil {

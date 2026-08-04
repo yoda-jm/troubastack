@@ -188,6 +188,49 @@ func (b *builderCtx) warnSign(layerID, keyBase string, x, y float64, st wireStyl
 	b.freehand(layerID, keyBase+"-dot", 0, []wirePoint{{X: x, Y: y + 0.008}, {X: x + 0.001, Y: y + 0.0085}}, st)
 }
 
+// downBow returns a hand-drawn down-bow mark (⊓, a bracket opening downward) centred on (x,y).
+func downBow(x, y float64) []wirePoint {
+	w, h := 0.008, 0.009
+	return []wirePoint{{X: x - w, Y: y}, {X: x - w, Y: y - h}, {X: x + w, Y: y - h}, {X: x + w, Y: y}}
+}
+
+// buildCanonAnnotations places a clean 3-layer showcase on the Canon in D VIOLIN I part (a
+// LilyPond A4: the staff sits near the top ~y 0.11–0.15 with whitespace below). Conductor cue
+// rings the final bar with the label in the clear space below; a "Dynamics" marking and a
+// player's "Bowing" (down-bows + dolce) sit below the staff — nothing overlaps the engraving.
+func buildCanonAnnotations(songID, fileID string, userID map[string]string, conductorID string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+
+	// Conductor cues (red, mandatory) — ring the final bar, "rit. — watch me" from below.
+	cond := b.layer(wireLayer{
+		ID: layerID(songID, "cues"), Name: "Conductor cues",
+		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
+	})
+	condS := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
+	b.shape("ellipse", cond, "cn-ring", 0, []wirePoint{{X: 0.78, Y: 0.106}, {X: 0.865, Y: 0.152}}, condS)
+	b.line(cond, "cn-pt", 0, 0.66, 0.205, 0.82, 0.152, condS)
+	b.text(cond, "cn-rit", 0, 0.595, 0.212, "rit. — watch me", wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.014})
+
+	// Dynamics (shared, amber) — a marking under the opening bars.
+	shared := b.layer(wireLayer{
+		ID: layerID(songID, "shared"), Name: "Dynamics",
+		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
+	})
+	b.text(shared, "cn-dyn", 0, 0.18, 0.198, "mf espr.", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.015})
+
+	// Bowing (personal, owned by the cellist) — down-bow marks over the first two notes + dolce.
+	bow := b.layer(wireLayer{
+		ID: layerID(songID, "bowing"), Name: "Bowing",
+		OwnerID: userID["cory"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings",
+	})
+	bowS := wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.004}
+	b.freehand(bow, "cn-db1", 0, downBow(0.205, 0.093), bowS)
+	b.freehand(bow, "cn-db2", 0, downBow(0.30, 0.093), bowS)
+	b.text(bow, "cn-dolce", 0, 0.18, 0.238, "dolce", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.014})
+	return *im
+}
+
 // buildSongAnnotations assembles ~3 layers (conductor / shared / personal) of
 // meaningful objects for one song, shaped by song title + group kind.
 //

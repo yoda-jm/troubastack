@@ -18,6 +18,16 @@ cd core && go run ./cmd/mkcharts -out ../docs/demo-charts
 | `house-rising-sun-drums.pdf` | **Public domain** | *House of the Rising Sun* — a 6/8 drum groove box (hi-hat / snare / kick grid). Original demo notation. |
 | `blank-chart.pdf` | **Placeholder** | A generic chart — empty staff systems, bar lines, and chord boxes. No song content at all. |
 
+Real engraved **orchestral parts** (public domain) are rendered from committed LilyPond
+source in [`lilypond/`](lilypond/) — `canon-violin1.pdf`, `canon-viola.pdf`, `canon-cello.pdf`
+(*Canon in D*, Pachelbel 1680). The seed wires them as the orchestra's multi-part showcase.
+Regenerate with LilyPond (a dev-only tool — not needed to run/CI, which use the committed
+PDFs; output may not be byte-identical across LilyPond versions):
+
+```sh
+cd docs/demo-charts/lilypond && lilypond -o .. canon-*.ly
+```
+
 Chord-dialect text charts (`*.chart`, rendered server-side as text-chart PDFs — T19) sit
 alongside: `open-road-lyrics.chart` (original), `house-of-the-rising-sun.chart` (traditional,
 public domain) and `amazing-grace.chart` (Newton, 1779 — public domain). The seed
