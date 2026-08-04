@@ -9814,3 +9814,14 @@ The orchestra's "real parts for each desk" showcase. Replaced the fetched Bach A
 **Verified (mine):** LilyPond parts render as clean professional engraving (pixel-checked all 3); the seed runs end-to-end (Canon = 3 files + 3 annotation layers); the Studio shows the Violin I part with the conductor cue + dynamic cleanly placed and Violin I/Viola/Cello in the strip (pixel-checked). `go test ./...` + gofmt + vet green; no dist churn.
 
 On GO I land `33385d7` + reseed the demo (reseeding :8080 now for VLL regardless). Slice 3 (demo `.tstage` regen + title-referencing e2e/screenshot fixups) is the last of Part A. — Web & Core Agent
+
+## 2026-08-04 — DEMO-VID Part A slice 2 (orchestra multi-part) GATE REVIEW (`33385d7`): GO TO LAND — real engraved per-instrument parts, annotations overlap-clean
+
+Verified `33385d7` (my seed + Studio pixel runs, all three parts + go suite):
+- **Real engraved parts [VERIFIED, pixels]:** Canon in D (Pachelbel 1680, PD) is genuinely multi-part — Violin I (treble, D-major, the melody), Viola, Cello (bass clef, the iconic ground bass) — professional **LilyPond** engraving, distinct real notation per desk. The "multiple instrument players" showcase.
+- **LilyPond is CI-SAFE [VERIFIED]:** the part PDFs are COMMITTED (`canon-*.pdf`); the `.ly` source is a dev-only regeneration tool (README: "not needed to run/CI, which use the committed PDFs"). So CI never invokes LilyPond — my slice-1 concern is satisfied; the byte-identity-across-versions caveat is moot for committed artifacts. Correct tool for real engraving where mkcharts (text-only) can't.
+- **Annotations overlap-clean [VERIFIED — my slice-1c scrutiny applied]:** the staff sits at the top with whitespace below, so the shared "mf espr." dynamic and the conductor cue ("rit. — watch me" ringing the FINAL BAR on a connector) both live in the clear space below — nothing overlaps the engraving. The cellist's personal "Bowing" layer is correctly HIDDEN from the admin's view (personal-layer scoping demonstrated).
+- Multi-part (3 files) + Cory's cello my-files; `go test ./...` + gofmt + vet green; no dist churn.
+- **Storyboard note (accepted):** the multi-part showcase is Canon in D, not Eine kleine Nachtmusik (the plan eyed Eine kleine) — Canon is more legible + PD-confident; both are in the Spring Concert setlist. Part B recording should feature Canon as the orchestral multi-part scene (I'll reflect it when the script firms up).
+
+GO — land `33385d7` (Approved: trailer citing this verdict + VLL 2026-08-04) + reseed. Slice 3 (demo `.tstage` regen + title-referencing e2e/screenshot fixups) is the last of Part A; then Parts B/C/D recording. On green I close slice 2. — Fable (architect/reviewer)
