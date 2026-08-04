@@ -162,6 +162,24 @@ func vertBracket(x, yTop, yBot float64) []wirePoint {
 	}
 }
 
+// hiSwipe returns a slightly wavy horizontal freehand path from (x0,y) to (x1,y) — a
+// highlighter stroke over a word/chord (draw it wide + low-opacity to read as a marker).
+func hiSwipe(x0, x1, y float64) []wirePoint {
+	d := x1 - x0
+	return []wirePoint{
+		{X: x0, Y: y}, {X: x0 + d*0.35, Y: y - 0.0015},
+		{X: x0 + d*0.7, Y: y + 0.0015}, {X: x1, Y: y},
+	}
+}
+
+// warnTriangle returns a small hand-drawn warning triangle (apex up) centred on (x,y).
+func warnTriangle(x, y float64) []wirePoint {
+	return []wirePoint{
+		{X: x, Y: y - 0.011}, {X: x + 0.011, Y: y + 0.009},
+		{X: x - 0.011, Y: y + 0.009}, {X: x, Y: y - 0.011},
+	}
+}
+
 // buildSongAnnotations assembles ~3 layers (conductor / shared / personal) of
 // meaningful objects for one song, shaped by song title + group kind.
 //
@@ -242,35 +260,39 @@ func buildOpenRoadAnnotations(songID, fileID string, userID map[string]string, c
 	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
 	b := &builderCtx{songID: songID, fileID: fileID, im: im}
 
-	// Form / sections — flag the chorus (mandatory, amber).
+	// Form / sections (shared, mandatory, amber) — flag the CHORUS block + label it.
 	form := b.layer(wireLayer{
 		ID: layerID(songID, "form"), Name: "Form / sections",
 		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "ro", Mandatory: true,
 	})
-	b.highlight(form, "or-chorus-hi", 0, 0.055, 0.352, 0.955, 0.535, wireStyle{Color: colorShared, Opacity: 0.4})
-	b.text(form, "or-chorus", 0, 0.58, 0.366, "* CHORUS - everyone in", wireStyle{Color: "#B45309", Opacity: 1, FontSize: 0.016})
+	b.highlight(form, "or-chorus-hi", 0, 0.05, 0.362, 0.955, 0.528, wireStyle{Color: colorShared, Opacity: 0.30})
+	b.text(form, "or-chorus", 0, 0.60, 0.372, "CHORUS — everyone in", wireStyle{Color: "#B45309", Opacity: 1, FontSize: 0.015})
 
-	// Conductor cues — rit. + watch-me on the last chorus line (mandatory, conductor role).
+	// Conductor cues (conductor role, mandatory, red) — a rit. into the LAST chorus line:
+	// circle the final landing chord (G) and point "watch me" at it. Placed on real content.
 	cond := b.layer(wireLayer{
 		ID: layerID(songID, "cues"), Name: "Conductor cues",
 		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
 	})
-	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.016}
-	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.004}
-	b.text(cond, "or-rit", 0, 0.60, 0.503, "rit. - watch me", condText)
-	b.shape("ellipse", cond, "or-turn", 0, []wirePoint{{X: 0.60, Y: 0.487}, {X: 0.70, Y: 0.512}}, condStroke)
-	b.line(cond, "or-point", 0, 0.595, 0.505, 0.55, 0.517, condStroke)
+	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.015}
+	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
+	b.text(cond, "or-rit", 0, 0.40, 0.500, "rit. — watch me", condText)
+	b.shape("ellipse", cond, "or-turn", 0, []wirePoint{{X: 0.255, Y: 0.499}, {X: 0.32, Y: 0.520}}, condStroke)
+	b.line(cond, "or-point", 0, 0.395, 0.507, 0.325, 0.510, condStroke)
 
-	// My notes — personal (owned by marie, the singer/admin): capo tick, a circled
-	// chord change, a breathe mark, and a freehand flourish.
+	// My notes (personal, owned by marie the singer) — demonstrates the SEMI-TRANSPARENT
+	// FREEHAND highlighter: a marker swipe over the printed "Capo 2" with an orange warning
+	// sign, another over the hook word "drive", plus a breathe mark before verse 2.
 	mine := b.layer(wireLayer{
 		ID: layerID(songID, "mine"), Name: "My notes",
 		OwnerID: userID["marie"], Zone: "personal", Order: 0, Access: "rw",
 	})
-	b.text(mine, "or-capo", 0, 0.72, 0.052, "capo 2 OK", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.015})
-	b.shape("ellipse", mine, "or-change", 0, []wirePoint{{X: 0.05, Y: 0.312}, {X: 0.30, Y: 0.352}}, wireStyle{Color: colorPersonal, Opacity: 1, Width: 0.0035})
-	b.text(mine, "or-breathe", 0, 0.055, 0.542, "breathe", wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.013})
-	b.freehand(mine, "or-flourish", 0, []wirePoint{{X: 0.80, Y: 0.06}, {X: 0.85, Y: 0.05}, {X: 0.90, Y: 0.065}, {X: 0.93, Y: 0.05}}, wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.004})
+	// Highlight the existing "Capo 2" in the header (semi-transparent orange marker) + a warning.
+	b.freehand(mine, "or-capo-hi", 0, hiSwipe(0.432, 0.495, 0.128), wireStyle{Color: "#F59E0B", Opacity: 0.4, Width: 0.018})
+	b.freehand(mine, "or-capo-warn", 0, warnTriangle(0.515, 0.126), wireStyle{Color: "#EA580C", Opacity: 1, Width: 0.004})
+	// Highlight the hook word "drive" in the first chorus line (semi-transparent yellow marker).
+	b.freehand(mine, "or-hook-hi", 0, hiSwipe(0.105, 0.225, 0.408), wireStyle{Color: "#FACC15", Opacity: 0.4, Width: 0.02})
+	b.text(mine, "or-breathe", 0, 0.70, 0.500, "breathe", wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.014})
 
 	return *im
 }
@@ -284,33 +306,50 @@ func buildBandChartAnnotations(songID, fileID, title string, userID map[string]s
 	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
 	b := &builderCtx{songID: songID, fileID: fileID, im: im}
 
-	// Conductor cues (red, mandatory, conductor role) — in the gap under the meta line.
+	// Per-chart targets: the y of the first content line, the x-span + y of the WORD/chord to
+	// highlight, the section label + cue wording, and where to circle the ending chord.
+	type spot struct {
+		contentY               float64
+		hiX0, hiX1, hiY        float64
+		label, cue, note       string
+		ringX0, ringX1, ringY0 float64
+	}
+	t := spot{contentY: 0.205, hiX0: 0.13, hiX1: 0.26, hiY: 0.222, label: "Verse 1", cue: "watch me — hold the last line", note: "breathe", ringX0: 0.70, ringX1: 0.86, ringY0: 0.20}
+	switch title {
+	case "House of the Rising Sun":
+		// Guitar tab: highlight the opening Am chord over the arpeggio; ring the E turnaround.
+		t = spot{contentY: 0.205, hiX0: 0.155, hiX1: 0.215, hiY: 0.222, label: "Verse — let it ring", cue: "watch me — into the last verse", note: "soft under the vocal", ringX0: 0.845, ringX1: 0.905, ringY0: 0.208}
+	case "Amazing Grace":
+		// Lead sheet: highlight the word "grace"; ring the closing G of verse 1.
+		t = spot{contentY: 0.205, hiX0: 0.115, hiX1: 0.185, hiY: 0.222, label: "Verse 1", cue: "watch me — rit. on 'I see'", note: "breathe", ringX0: 0.255, ringX1: 0.315, ringY0: 0.318}
+	}
+
+	// Conductor cues (red, mandatory, conductor role) — a real cue that rings the ending chord.
 	cond := b.layer(wireLayer{
 		ID: layerID(songID, "conductor"), Name: "Conductor cues",
 		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
 	})
-	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.015}
-	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.004}
-	b.text(cond, "cond-watch", 0, 0.06, 0.145, "watch me — into the last verse", condText)
-	b.text(cond, "cond-rit", 0, 0.75, 0.145, "rit.", condText)
-	b.rect(cond, "cond-box", 0, 0.055, 0.133, 0.66, 0.162, condStroke)
+	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.014}
+	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
+	b.text(cond, "cond-watch", 0, 0.06, 0.145, t.cue, condText)
+	b.shape("ellipse", cond, "cond-ring", 0, []wirePoint{{X: t.ringX0, Y: t.ringY0}, {X: t.ringX1, Y: t.ringY0 + 0.021}}, condStroke)
 
-	// Shared section markings (amber) — a highlight + label over the first content block.
+	// Shared section markings (amber) — highlight + label over the first content block.
 	shared := b.layer(wireLayer{
 		ID: layerID(songID, "shared"), Name: "Section markings",
 		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
 	})
-	sharedText := wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.015}
-	b.highlight(shared, "sh-hi", 0, 0.05, 0.205, 0.95, 0.255, wireStyle{Color: colorShared, Opacity: 0.28})
-	b.text(shared, "sh-verse", 0, 0.06, 0.198, "Verse 1", sharedText)
+	b.highlight(shared, "sh-hi", 0, 0.05, t.contentY, 0.95, t.contentY+0.05, wireStyle{Color: colorShared, Opacity: 0.26})
+	b.text(shared, "sh-verse", 0, 0.06, t.contentY-0.008, t.label, wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.014})
 
-	// Personal "My notes" (blue) — a breathe reminder + a circled spot (owner: the singer).
+	// Personal "My notes" (owner: the singer) — the SEMI-TRANSPARENT FREEHAND highlighter over a
+	// real word/chord + a breathe note.
 	mine := b.layer(wireLayer{
 		ID: layerID(songID, "mine"), Name: "My notes",
 		OwnerID: userID["marie"], Zone: "personal", Order: 0, Access: "rw",
 	})
-	b.text(mine, "my-breathe", 0, 0.06, 0.30, "breathe here", wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.014})
-	b.shape("ellipse", mine, "my-circle", 0, []wirePoint{{X: 0.70, Y: 0.192}, {X: 0.90, Y: 0.228}}, wireStyle{Color: colorPersonal, Opacity: 1, Width: 0.0035})
+	b.freehand(mine, "my-word-hi", 0, hiSwipe(t.hiX0, t.hiX1, t.hiY), wireStyle{Color: "#FACC15", Opacity: 0.4, Width: 0.018})
+	b.text(mine, "my-note", 0, 0.06, 0.30, t.note, wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.014})
 	return *im
 }
 
@@ -399,12 +438,14 @@ func buildDrumPartAnnotations(songID, fileID string) annotationsImport {
 		ID: layerID(songID, "drum-notes"), Name: "Drummer's notes",
 		OwnerID: "_shared_", Zone: "shared", Order: 1, Access: "rw", RoleTag: "drums",
 	})
-	txt := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.018}
-	hi := wireStyle{Color: colorPersonal2, Opacity: 0.28}
+	txt := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.016}
 
-	// The groove grid sits ~0.21–0.31 down the page (title at top, meta line, then the grid).
-	b.text(notes, "drum-feel", 0, 0.06, 0.185, "swung 6/8 — keep it under the vocal", txt)
-	b.highlight(notes, "drum-hh", 0, 0.10, 0.225, 0.62, 0.250, hi)
-	b.text(notes, "drum-open", 0, 0.06, 0.315, "open hat on the last '6' into each verse", txt)
+	// The groove grid sits ~0.21–0.29 down the page (title at top, meta line, then the grid:
+	// count row ~0.21, hi-hat ~0.235, snare ~0.26, kick ~0.285).
+	b.text(notes, "drum-feel", 0, 0.06, 0.185, "swung 6/8 — soft under the vocal", txt)
+	// Semi-transparent freehand highlighter over the SNARE hit on beat 4 (the backbeat).
+	b.freehand(notes, "drum-snare-hi", 0, hiSwipe(0.285, 0.335, 0.262), wireStyle{Color: "#FACC15", Opacity: 0.4, Width: 0.02})
+	b.text(notes, "drum-snare", 0, 0.44, 0.258, "snare — lay back", txt)
+	b.text(notes, "drum-open", 0, 0.06, 0.315, "open the hat on the last '6' into each verse", txt)
 	return *im
 }

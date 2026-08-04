@@ -127,13 +127,20 @@ func run(addr, password string) error {
 				// tab) from docs/demo-charts — the FLAGSHIP annotation showcase (see
 				// buildOpenRoadAnnotations). All demo content is copyright-safe: original
 				// or public-domain (DEMO-VID Part A) — no copyrighted song titles/lyrics.
-				{title: "The Open Road", artist: "", key: "G", tempo: 92, tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + guitar tab. Capo 2.",
-					src: pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2},
-					// A REAL text chart alongside the lead-sheet PDF — the demo shows the
-					// T19 chart type (server-rendered from chart-dialect source), not only PDFs (B10).
+				{title: "The Open Road", artist: "", key: "G", tempo: 92, tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + a guitarist's intro-riff sheet. Capo 2.",
+					files: []pdfSource{
+						{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet", title: "The Open Road", subtitle: "original demo song", pages: 1},
+						{cacheName: "open-road-guitar.pdf", localPath: "../docs/demo-charts/open-road-guitar.pdf", docTitle: "Guitar", title: "The Open Road — Guitar", subtitle: "intro riff", pages: 1},
+					},
+					// A REAL text chart alongside the PDFs — the demo shows the T19 chart type
+					// (server-rendered from chart-dialect source), not only PDFs (B10).
 					textChartPath: "../docs/demo-charts/open-road-lyrics.chart",
+					// Personal cues (T50): Marie sings + plays the RED electric (VLL's canonical
+					// "mic + red guitar" example, shown per-member on setlist rows + in the app).
 					cuesFor: map[string][]cueDef{
-						"marie": {{icon: "guitar-acoustic"}, {icon: "mic"}},
+						"marie": {{icon: "mic"}, {icon: "guitar-electric", color: "#e11d48"}},
+						"leo":   {{icon: "guitar-acoustic"}},
+						"sasha": {{icon: "bass", color: "#2563eb"}},
 					}},
 				// TRADITIONAL / PUBLIC DOMAIN — the MULTI-FILE showcase: real committed
 				// parts (a guitar tab + a drum groove) PLUS a rendered chord chart (text

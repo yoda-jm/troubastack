@@ -30,7 +30,8 @@ func main() {
 		log.Fatalf("mkcharts: %v", err)
 	}
 	for name, build := range map[string]func() *fpdf.Fpdf{
-		"open-road-leadsheet.pdf":    openRoadLeadSheet, // A: ORIGINAL lead sheet + tab
+		"open-road-leadsheet.pdf":    openRoadLeadSheet, // A: ORIGINAL lead sheet
+		"open-road-guitar.pdf":       openRoadGuitar,    // A2: ORIGINAL guitar part (intro riff)
 		"amazing-grace.pdf":          amazingGrace,      // B: PUBLIC DOMAIN (1779 hymn)
 		"blank-chart.pdf":            blankChart,        // C: generic placeholder
 		"house-rising-sun-tab.pdf":   houseTab,          // D: PUBLIC DOMAIN — guitar tab
@@ -152,9 +153,20 @@ func openRoadLeadSheet() *fpdf.Fpdf {
 	y = chordLine(pdf, tr, y, "G             D", "Headlights on a hill we used to know —")
 	_ = chordLine(pdf, tr, y, "Em       C         G", "the only way to stay is letting go.")
 	footer(pdf, tr)
+	return pdf
+}
 
-	// Page 2: the intro riff as guitar tab (ORIGINAL, monospaced).
-	header(pdf, tr, "The Open Road — Intro Riff (Tab)", "original demo song", "Standard tuning (EADGBe)   •   let ring   •   ~92 bpm")
+// openRoadGuitar is the GUITARIST's part — the intro riff as tab, on its own sheet (it plays
+// BEFORE the song, so it belongs with the guitar part, not after the whole lead sheet). The
+// riff, chords and tuning are ORIGINAL. Seeded as a second file in The Open Road's pool.
+func openRoadGuitar() *fpdf.Fpdf {
+	pdf, tr := newDoc("The Open Road — Guitar")
+	header(pdf, tr, "The Open Road — Guitar", "original demo song · intro riff", "Standard tuning (EADGBe)   •   Capo 2   •   let ring   •   ~92 bpm")
+	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetTextColor(150, 90, 30)
+	pdf.SetXY(margin, 50)
+	pdf.Cell(0, 6, tr("Intro riff — play twice, then into Verse 1"))
+	pdf.SetTextColor(0, 0, 0)
 	tabLines := []string{
 		"e|-----------------0-------------------0---------------|",
 		"B|-------0-----------------3-------0-------------3------|",
@@ -163,7 +175,7 @@ func openRoadLeadSheet() *fpdf.Fpdf {
 		"A|-2---------------3-----------------2-----------------|",
 		"E|-3---------------------------------3-----------------|",
 	}
-	yy := 54.0
+	yy := 62.0
 	pdf.SetFont("Courier", "", 10)
 	for _, ln := range tabLines {
 		pdf.SetXY(margin, yy)
@@ -171,11 +183,10 @@ func openRoadLeadSheet() *fpdf.Fpdf {
 		yy += 6
 	}
 	pdf.SetFont("Helvetica", "I", 10)
-	pdf.SetXY(margin, yy+6)
-	pdf.MultiCell(right-margin, 5, tr("Chord shapes under the riff: G (320003) · D (xx0232) · Em (022000) · C (x32010). "+
+	pdf.SetXY(margin, yy+8)
+	pdf.MultiCell(right-margin, 5, tr("Chord shapes: G (320003) · D (xx0232) · Em (022000) · C (x32010). "+
 		"Play the riff twice, then land on G to start Verse 1."), "", "L", false)
 	footer(pdf, tr)
-
 	return pdf
 }
 
@@ -190,9 +201,21 @@ func amazingGrace() *fpdf.Fpdf {
 	y := 50.0
 	y = sectionLabel(pdf, y, "Verse 1")
 	y = chordLine(pdf, tr, y, "G          G7       C     G", "Amazing grace, how sweet the sound,")
-	y = chordLine(pdf, tr, y, "G                    D", "That saved a wretch like me.")
+	y = chordLine(pdf, tr, y, "G                    D", "that saved a wretch like me.")
 	y = chordLine(pdf, tr, y, "G           G7      C      G", "I once was lost, but now am found,")
-	y = chordLine(pdf, tr, y, "Em        D        G", "Was blind, but now I see.")
+	y = chordLine(pdf, tr, y, "Em        D        G", "was blind, but now I see.")
+	y += 3
+	y = sectionLabel(pdf, y, "Verse 2")
+	y = chordLine(pdf, tr, y, "G            G7        C        G", "'Twas grace that taught my heart to fear,")
+	y = chordLine(pdf, tr, y, "G                     D", "and grace my fears relieved.")
+	y = chordLine(pdf, tr, y, "G          G7        C          G", "How precious did that grace appear")
+	y = chordLine(pdf, tr, y, "Em           D          G", "the hour I first believed.")
+	y += 3
+	y = sectionLabel(pdf, y, "Verse 3")
+	y = chordLine(pdf, tr, y, "G          G7         C          G", "Through many dangers, toils and snares,")
+	y = chordLine(pdf, tr, y, "G                    D", "I have already come.")
+	y = chordLine(pdf, tr, y, "G          G7          C            G", "'Tis grace hath brought me safe thus far,")
+	y = chordLine(pdf, tr, y, "Em         D           G", "and grace will lead me home.")
 	y += 4
 	pdf.SetFont("Helvetica", "I", 10)
 	pdf.SetXY(margin, y)
