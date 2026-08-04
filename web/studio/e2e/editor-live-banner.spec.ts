@@ -29,12 +29,12 @@ test("editor shows the LIVE banner when the song's setlist is live", async ({ pa
 
   // A song.
   await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill("Wonderwall");
+  await page.getByTestId("song-title").fill("The Open Road");
   await page.getByTestId("create-song").click();
-  await expect(page.getByTestId("song-link").filter({ hasText: "Wonderwall" })).toBeVisible();
+  await expect(page.getByTestId("song-link").filter({ hasText: "The Open Road" })).toBeVisible();
   const songUrl = await page
     .getByTestId("song-link")
-    .filter({ hasText: "Wonderwall" })
+    .filter({ hasText: "The Open Road" })
     .getAttribute("href");
 
   // A setlist containing the song.
@@ -43,7 +43,7 @@ test("editor shows the LIVE banner when the song's setlist is live", async ({ pa
   await page.getByTestId("setlist-name").fill("Rehearsal");
   await page.getByTestId("create-setlist").click();
   await page.getByTestId("setlist-link").first().click();
-  await page.getByTestId("add-item-song").selectOption({ label: "Wonderwall" });
+  await page.getByTestId("add-item-song").selectOption({ label: "The Open Road" });
   await page.getByTestId("add-item").click();
   await expect(page.getByTestId("item-row")).toHaveCount(1);
 

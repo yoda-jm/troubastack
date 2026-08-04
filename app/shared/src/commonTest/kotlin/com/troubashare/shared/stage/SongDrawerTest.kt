@@ -39,8 +39,8 @@ class SongDrawerTest {
     @Test
     fun songName_usesBakedTitle_elseFallsBackToSongN() {
         // T26: the baked title names the song; an empty title falls back to "Song N".
-        val s = state(song(1, title = "Wonderwall"), song(1), song(1, title = "Hallelujah"))
-        assertEquals(listOf("Wonderwall", "Song 2", "Hallelujah"), s.songs.map { it.name })
+        val s = state(song(1, title = "The Open Road"), song(1), song(1, title = "Amazing Grace"))
+        assertEquals(listOf("The Open Road", "Song 2", "Amazing Grace"), s.songs.map { it.name })
     }
 
     @Test

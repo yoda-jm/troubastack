@@ -22,7 +22,7 @@ night mode, count-in, facing pages, per-role layers.
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — Black Hole Sun (page 1/3): red conductor annotations and orange section highlights over the staff, with the slim one-row tool strip above the score — the Move/pan tool active by default and first, then the dashed-rectangle Select tool, then the draw tools" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: Black Hole Sun with chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
+| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — The Open Road lead sheet: a green highlight on 'Capo 2' with an orange warning sign, a gold margin bracket on the chorus, and a red conductor cue ringing the final-chorus G chord with 'rit. — watch me', over chords-and-lyrics — with the slim one-row tool strip above the score: the Move/pan tool active by default and first, then the dashed-rectangle Select tool, then the draw tools" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: chords, orange section highlights and red conductor annotations over the score raster" width="260"> |
 
 The full loop works end to end today: **compose → annotate (realtime, multi-user) →
 bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
@@ -69,8 +69,8 @@ Reset the demo data with `rm -rf core/troubadata`.
 <img src="docs/screenshots/band-overview.png" alt="Band overview in the warm concert-program design: The Troubadours with three members and their roles (Marie admin, Leo conductor, Sasha member), each with an admin password-reset link, above the songs list and the Overview / Setlists / Settings tabs" width="320">
 
 Each member sets their own **song cues** — a small set of tinted instrument/role icons
-per song (Marie's *"Sat @ The Anchor"* below: mic + red electric on Wonderwall, mic on
-the ballad, …) — shown on the setlist row and flashed on song entry in the app, so a
+per song (Marie's *"Sat @ The Anchor"* below: mic + red electric on The Open Road, mic on
+Amazing Grace, …) — shown on the setlist row and flashed on song entry in the app, so a
 player knows at a glance what to prepare. They ride that member's personal bake.
 
 ![Marie's setlist rows showing her personal song cues as small tinted icons under each title](docs/screenshots/setlist-cues.png)
@@ -131,7 +131,7 @@ back the Stage chrome on the right — song drawer, the live **♩ tempo meter**
 layer controls and the page pager:
 
 <p>
-<img src="docs/screenshots/stage-page.png" alt="Immersive Stage page on a portrait tablet: Black Hole Sun composited — chords, section highlights, conductor annotations, page 1/3" width="300">&nbsp;
+<img src="docs/screenshots/stage-page.png" alt="Immersive Stage page on a portrait tablet: a composited score — chords, section highlights and conductor annotations over the raster" width="300">&nbsp;
 <img src="docs/screenshots/stage-controls.png" alt="The same page with the Stage chrome revealed: song drawer, title + position, the ♩=98 tempo meter, settings, page arrows" width="300">
 </p>
 
@@ -152,9 +152,10 @@ GitHub Actions run (**android** job → `troubashare-debug-apk` artifact) and in
 ### Demo it with zero servers
 
 A baked concert with **real music and real annotations** is committed at
-[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~556 KB — the seeded
-*"Sat @ The Anchor"* setlist: Wonderwall, Hallelujah, Black Hole Sun, and the original
-*The Open Road* lead sheet + tab, flattened by the real bake pipeline; see
+[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~356 KB — the seeded
+*"Sat @ The Anchor"* setlist of copyright-safe music: the original *The Open Road*, the
+traditional *House of the Rising Sun*, and *Amazing Grace* — real lead sheets, tab and
+text charts, flattened by the real bake pipeline; see
 [`docs/demo/README.md`](docs/demo/README.md) for how it's made),
 so you can present the app without running anything. It's the **band-wide bundle** (P205):
 one artifact for the whole band — it carries the roster, every layer owner-tagged, and

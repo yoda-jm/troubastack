@@ -45,7 +45,7 @@ func liveBakeFixture(t *testing.T, clock *time.Time) (*app.AutoBaker, *fakeBaker
 	if err != nil {
 		t.Fatalf("band: %v", err)
 	}
-	song, err := svc.CreateSong(admin, band.ID, "Wonderwall", "Oasis")
+	song, err := svc.CreateSong(admin, band.ID, "The Open Road", "Oasis")
 	if err != nil {
 		t.Fatalf("song: %v", err)
 	}

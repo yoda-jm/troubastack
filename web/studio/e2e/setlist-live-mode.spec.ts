@@ -29,9 +29,9 @@ test("admin toggles rehearsal live mode; the banner shows + persists", async ({ 
 
   // A song, so the setlist isn't empty (not required for the toggle, but realistic).
   await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill("Wonderwall");
+  await page.getByTestId("song-title").fill("The Open Road");
   await page.getByTestId("create-song").click();
-  await expect(page.getByTestId("song-link").filter({ hasText: "Wonderwall" })).toBeVisible();
+  await expect(page.getByTestId("song-link").filter({ hasText: "The Open Road" })).toBeVisible();
 
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();

@@ -24,7 +24,7 @@ func TestAllMemberCues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create band: %v", err)
 	}
-	song, err := svc.CreateSong(admin, band.ID, "Wonderwall", "")
+	song, err := svc.CreateSong(admin, band.ID, "The Open Road", "")
 	if err != nil {
 		t.Fatalf("create song: %v", err)
 	}

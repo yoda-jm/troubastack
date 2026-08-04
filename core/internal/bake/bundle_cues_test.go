@@ -16,7 +16,7 @@ func TestBundleCues_AdditiveCompat(t *testing.T) {
 	const oldJSON = `{
 	  "concertId": "c1",
 	  "songs": [
-	    {"songId": "s1", "sourceRevision": "3", "title": "Wonderwall"}
+	    {"songId": "s1", "sourceRevision": "3", "title": "The Open Road"}
 	  ]
 	}`
 	var oldCB ConcertBundle

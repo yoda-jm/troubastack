@@ -49,7 +49,7 @@ function chipColor(page: Page, icon: string) {
 test("set red guitar + neutral mic, persists across reload, tinted (T50)", async ({ page }) => {
   await register(page, `cue_${stamp()}`);
   await createBandAndOpen(page, `CueBand ${stamp()}`);
-  await createSongAndOpen(page, "Wonderwall");
+  await createSongAndOpen(page, "The Open Road");
   const panel = await openCues(page);
 
   // Pick red, then add the electric guitar → one tinted chip.

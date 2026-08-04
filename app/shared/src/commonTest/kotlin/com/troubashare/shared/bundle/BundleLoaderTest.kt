@@ -146,14 +146,14 @@ class BundleLoaderTest {
         // app ignored on_call; it's consumed since the T26 app half). Empty/absent stay defaulted.
         val manifest = """
             {"concertId":"c1","songs":[
-              {"songId":"s1","title":"Wonderwall","pages":[{"pageRasterRef":"blobs/p0.webp","overlays":[]}]},
+              {"songId":"s1","title":"The Open Road","pages":[{"pageRasterRef":"blobs/p0.webp","overlays":[]}]},
               {"songId":"s2","title":"Encore","onCall":true,"pages":[{"pageRasterRef":"blobs/p1.webp","overlays":[]}]}
             ]}
         """.trimIndent()
         val files = filesWith(manifest, blobs = mapOf("blobs/p0.webp" to "r", "blobs/p1.webp" to "r"))
         val loaded = assertIs<LoadResult.Loaded>(loader.load(DIR, files))
         val (s1, s2) = loaded.bundle.songs
-        assertEquals("Wonderwall", s1.title)
+        assertEquals("The Open Road", s1.title)
         assertEquals(false, s1.onCall)
         assertEquals("Encore", s2.title)
         assertEquals(true, s2.onCall)

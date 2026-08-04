@@ -1,23 +1,26 @@
 # demo-concert bundle — the real-music demo bundle (no server needed)
 
 One **genuinely baked** concert bundle of the seeded band's *"Sat @ The Anchor"* setlist
-(four songs: **Wonderwall**, **Hallelujah**, **Black Hole Sun**, and the original **The
-Open Road** — a real lead sheet + guitar tab with purpose-built annotation layers, see
+(three songs — all copyright-safe original / public-domain music: the original **The Open
+Road**, the traditional **House of the Rising Sun**, and **Amazing Grace** — real lead
+sheets, guitar tab and text charts with purpose-built annotation layers, see
 [`../demo-charts`](../demo-charts/)), flattened by the real server-side bake pipeline
 (invariants I8/I11) per [`../design/08-bundle-container.md`](../design/08-bundle-container.md).
 Install the app (root README → "The mobile app"), share/push a file to the device,
 **Import**, and perform it fully offline.
 
-- **`demo-concert.tstage`** (~556 KB, **12 pages** — Wonderwall 3, Hallelujah 4, Black
-  Hole Sun 3, The Open Road 2) — **PRIMARY: the band-wide bundle (P205)**: ONE artifact
-  that serves the whole band. Each song bakes its **default shared-pool part** (e.g.
-  Wonderwall → *Wonderwall — Score*) and the bundle carries, per the P205 model:
+- **`demo-concert.tstage`** (~356 KB, **3 pages** — one default part per song: The Open
+  Road → *Lead sheet*, House of the Rising Sun → *Guitar tab*, Amazing Grace → *Lead
+  sheet*) — **PRIMARY: the band-wide bundle (P205)**: ONE artifact that serves the whole
+  band. Each song bakes its **default shared-pool part** (the lowest-DisplayOrder file in
+  its pool) and the bundle carries, per the P205 model:
   - the **band roster** (Marie/admin, Leo/conductor, Sasha/member) for view-time
     identity resolution;
   - **every layer, owner-tagged** — shared/conductor layers (owner `""`) plus each
     member's **personal** layers (owner = that member's id);
-  - **every member's song cues** as `member_cues` (keyed by member id) — Wonderwall
-    carries all three members' cues, etc.
+  - **every member's song cues** as `member_cues` (keyed by member id) — The Open Road
+    carries all three members' cues (Marie: mic + red electric; Leo: acoustic; Sasha:
+    bass), etc.
 
   Identity resolves at **view** time in the presenter (P205 Stage 3): a logged-in
   Connect session matching a roster member resolves automatically, otherwise a one-tap
@@ -60,8 +63,9 @@ timestamp) **and the server-assigned `concertId`/`songId`/member UUIDs** — all
 fresh per seed run. Everything else (page rasters, overlays, hashes, structure) is
 deterministic.
 
-The title raster renders *Wonderwall — Score* with a true `—` (the T16 seed-encoding fix
-proving itself in the shipped artifact).
+The charts render true em-dashes — *House of the Rising Sun — Guitar*, the conductor cue
+*"rit. — watch me"* on The Open Road — proving the T16 seed-encoding fix in the shipped
+artifact.
 
 > Historical note: this bundle was originally **hand-baked** (a single *Wonderwall —
 > Vocals* part, pre-T16, with an `â€"` mojibake title). B05 retired the hand-bake; the
@@ -89,3 +93,9 @@ proving itself in the shipped artifact).
 > shared view-resolution vectors run in both the Go and the app commonTest, so print ==
 > screen), so ONE band-wide bundle is enough. `?scope=mine` stays in the API for one
 > overlap release, then retires.
+>
+> Regenerated 2026-08-04 (**DEMO-VID Part A**): the seed's band retired the copyrighted
+> song *titles* (Wonderwall/Hallelujah/Black Hole Sun were only metadata over synthetic
+> placeholder PDFs) for real, copyright-safe music — The Open Road (original), House of
+> the Rising Sun and Amazing Grace (public domain) — with genuine charts and the
+> redesigned annotation showcase. Re-baked from that seed: 3 songs, 3 pages.

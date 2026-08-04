@@ -51,7 +51,7 @@ func TestSongEditAndDelete(t *testing.T) {
 			repo := be.make(t)
 			admin := newClient(t, repo)
 			band := admin.makeBand("alice", "Band")
-			song := admin.makeSong(band.ID, "Wonderwall")
+			song := admin.makeSong(band.ID, "The Open Road")
 
 			// member (bob) joins
 			bob := newClient(t, repo)
@@ -110,7 +110,7 @@ func TestSongFileRenameReorderDelete(t *testing.T) {
 			repo := be.make(t)
 			member := newClient(t, repo)
 			band := member.makeBand("alice", "Band")
-			song := member.makeSong(band.ID, "Wonderwall")
+			song := member.makeSong(band.ID, "The Open Road")
 			base := "/api/bands/" + band.ID + "/songs/" + song.ID + "/files"
 
 			resp, body := member.upload(base, "a.pdf", "application/pdf", smallPDF)

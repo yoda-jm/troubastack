@@ -48,7 +48,7 @@ test("paste lyrics → normalized chart opens in the editor and saves to the poo
 }) => {
   await register(page, `lp_${stamp()}`);
   await createBandAndOpen(page, `LPBand ${stamp()}`);
-  await createSongAndOpen(page, `Wonderwall`);
+  await createSongAndOpen(page, `The Open Road`);
   const panel = await openLyricsDialog(page);
 
   // Messy paste: CRLF, a 4-blank run, and a site-cruft trailer that must be dropped.
@@ -62,7 +62,7 @@ test("paste lyrics → normalized chart opens in the editor and saves to the poo
   const source = panel.getByTestId("chart-source");
   await expect(source).toBeVisible();
   const val = await source.inputValue();
-  expect(val).toContain("# Wonderwall");
+  expect(val).toContain("# The Open Road");
   expect(val).toContain("Today is gonna be the day");
   expect(val).toContain("That they're gonna throw it back to you");
   expect(val).not.toContain("Submit Corrections"); // cruft dropped

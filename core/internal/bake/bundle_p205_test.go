@@ -17,7 +17,7 @@ func TestBundleP205_AdditiveCompat(t *testing.T) {
 	const oldJSON = `{
 	  "concertId": "c1",
 	  "songs": [
-	    {"songId": "s1", "title": "Wonderwall",
+	    {"songId": "s1", "title": "The Open Road",
 	     "pages": [{"pageRasterRef": "blobs/p.png",
 	                "overlays": [{"layerId": "L1", "name": "Conductor cues"}]}]}
 	  ]

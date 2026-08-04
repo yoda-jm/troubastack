@@ -27,9 +27,9 @@ test("bake dialog captures per-layer default-on; toggling one off sends it false
   await page.getByTestId("band-link").first().click();
   const bandId = page.url().split("/bands/")[1];
   await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill("Wonderwall");
+  await page.getByTestId("song-title").fill("The Open Road");
   await page.getByTestId("create-song").click();
-  await page.getByTestId("song-link").filter({ hasText: "Wonderwall" }).first().click();
+  await page.getByTestId("song-link").filter({ hasText: "The Open Road" }).first().click();
   const songId = page.url().split("/songs/")[1];
   const me = await page.evaluate(async () => {
     const r = await fetch("/api/me", { credentials: "include" });
@@ -61,7 +61,7 @@ test("bake dialog captures per-layer default-on; toggling one off sends it false
   await page.getByTestId("setlist-name").fill("Gig");
   await page.getByTestId("create-setlist").click();
   await page.getByTestId("setlist-link").filter({ hasText: "Gig" }).click();
-  await page.getByTestId("add-item-song").selectOption({ label: "Wonderwall" });
+  await page.getByTestId("add-item-song").selectOption({ label: "The Open Road" });
   await page.getByTestId("add-item").click();
 
   // Intercept the bake POST → capture its body; fulfill with a fake concert so the

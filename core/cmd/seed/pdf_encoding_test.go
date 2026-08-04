@@ -32,7 +32,7 @@ func TestEmDashEncodesToCP1252(t *testing.T) {
 // (pdftoppm) — off in CI, so this stays a pure in-memory check by default.
 func TestGeneratePlaceholderPDF(t *testing.T) {
 	b, err := generatePlaceholderPDF(pdfSource{
-		title:    "Wonderwall — Vocals",
+		title:    "The Open Road — Vocals",
 		subtitle: "Oasis — lead vocal",
 		pages:    1,
 	})

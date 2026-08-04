@@ -50,9 +50,9 @@ test("Drawing-on indicator shows 👤 Mine for a personal layer, 👥 Band for s
   await page.getByTestId("band-link").first().click();
   const bandId = page.url().split("/bands/")[1];
   await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill("Wonderwall");
+  await page.getByTestId("song-title").fill("The Open Road");
   await page.getByTestId("create-song").click();
-  await page.getByTestId("song-link").filter({ hasText: "Wonderwall" }).first().click();
+  await page.getByTestId("song-link").filter({ hasText: "The Open Road" }).first().click();
   const songId = page.url().split("/songs/")[1];
   const me = await myId(page);
 

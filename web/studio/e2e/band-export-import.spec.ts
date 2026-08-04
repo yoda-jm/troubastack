@@ -35,9 +35,9 @@ test("export a band, then import it as another user (T62)", async ({ page }) => 
   await expect(page.getByTestId("band-title")).toHaveText(bandName);
 
   await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill("Wonderwall");
+  await page.getByTestId("song-title").fill("The Open Road");
   await page.getByTestId("create-song").click();
-  await expect(page.getByTestId("song-link").filter({ hasText: "Wonderwall" })).toBeVisible();
+  await expect(page.getByTestId("song-link").filter({ hasText: "The Open Road" })).toBeVisible();
 
   // Export from Band settings → download the .tband archive.
   await page.getByTestId("nav-settings").click();
@@ -69,5 +69,5 @@ test("export a band, then import it as another user (T62)", async ({ page }) => 
   await expect(page.getByTestId("import-invited")).toContainText(admin);
 
   // The imported band shows the song.
-  await expect(page.getByTestId("song-link").filter({ hasText: "Wonderwall" })).toBeVisible();
+  await expect(page.getByTestId("song-link").filter({ hasText: "The Open Road" })).toBeVisible();
 });

@@ -51,7 +51,7 @@ func buildSourceBand(t *testing.T, st stack) (admin, member app.User, bandID, so
 	if err := st.repo.AddMembership(app.Membership{BandID: band.ID, UserID: member.ID, Role: app.RoleMember, CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
-	song, err := st.svc.CreateSong(admin, band.ID, "Wonderwall", "Oasis")
+	song, err := st.svc.CreateSong(admin, band.ID, "The Open Road", "Oasis")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func buildSourceBand(t *testing.T, st stack) (admin, member app.User, bandID, so
 	if err != nil {
 		t.Fatal(err)
 	}
-	f2, err := st.svc.CreateTextChart(admin, band.ID, song.ID, "# Wonderwall\n## Verse\nEm7          G\nlyrics here\n")
+	f2, err := st.svc.CreateTextChart(admin, band.ID, song.ID, "# The Open Road\n## Verse\nEm7          G\nlyrics here\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestBandExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("want 1 song, got %d", len(songs))
 	}
 	ns := songs[0]
-	if ns.Title != "Wonderwall" || ns.Key != "G" || ns.Tempo != 87 || ns.Notes != "capo 2" || len(ns.Tags) != 2 {
+	if ns.Title != "The Open Road" || ns.Key != "G" || ns.Tempo != 87 || ns.Notes != "capo 2" || len(ns.Tags) != 2 {
 		t.Fatalf("song metadata not preserved: %+v", ns)
 	}
 	files, _ := tgt.repo.FilesOfSong(ns.ID)

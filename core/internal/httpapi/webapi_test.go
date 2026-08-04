@@ -487,11 +487,11 @@ func TestSongs(t *testing.T) {
 
 			// member creates a song → 201
 			resp, body := member.do(http.MethodPost, "/api/bands/"+band.ID+"/songs",
-				map[string]string{"title": "Wonderwall", "artist": "Oasis"})
+				map[string]string{"title": "The Open Road", "artist": "Oasis"})
 			mustStatus(t, resp, http.StatusCreated)
 			var song app.Song
 			unmarshalField(t, body, "song", &song)
-			if song.Title != "Wonderwall" || song.BandID != band.ID {
+			if song.Title != "The Open Road" || song.BandID != band.ID {
 				t.Fatalf("bad song: %+v", song)
 			}
 
@@ -527,7 +527,7 @@ func TestSongFiles(t *testing.T) {
 			var band app.Band
 			unmarshalField(t, body, "band", &band)
 			_, body = member.do(http.MethodPost, "/api/bands/"+band.ID+"/songs",
-				map[string]string{"title": "Wonderwall"})
+				map[string]string{"title": "The Open Road"})
 			var song app.Song
 			unmarshalField(t, body, "song", &song)
 

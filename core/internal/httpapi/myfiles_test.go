@@ -17,7 +17,7 @@ func myFilesSetup(t *testing.T, c *client, n int) (app.Band, app.Song, []app.Son
 	_, body := c.do(http.MethodPost, "/api/bands", map[string]string{"name": "Band"})
 	var band app.Band
 	unmarshalField(t, body, "band", &band)
-	_, body = c.do(http.MethodPost, "/api/bands/"+band.ID+"/songs", map[string]string{"title": "Wonderwall"})
+	_, body = c.do(http.MethodPost, "/api/bands/"+band.ID+"/songs", map[string]string{"title": "The Open Road"})
 	var song app.Song
 	unmarshalField(t, body, "song", &song)
 

@@ -63,12 +63,12 @@ func TestBandExportImport_HTTP(t *testing.T) {
 	srv := bakeServer(t)
 	admin := &client{t: t, srv: srv}
 	band := admin.makeBand("alice", "Band")
-	song := admin.makeSong(band.ID, "Wonderwall")
+	song := admin.makeSong(band.ID, "The Open Road")
 	base := "/api/bands/" + band.ID
 
 	// A generated text chart so there's real content to move.
 	resp, _ := admin.do(http.MethodPost, base+"/songs/"+song.ID+"/text-charts",
-		map[string]string{"source": "# Wonderwall\n## Verse\nEm7          G\nlyrics\n"})
+		map[string]string{"source": "# The Open Road\n## Verse\nEm7          G\nlyrics\n"})
 	mustStatus(t, resp, http.StatusCreated)
 
 	// Export (admin) → application/zip, non-empty.
@@ -101,8 +101,8 @@ func TestBandExportImport_HTTP(t *testing.T) {
 	_, sb := importer.do(http.MethodGet, "/api/bands/"+newBand.ID+"/songs", nil)
 	var songs []app.Song
 	unmarshalField(t, sb, "songs", &songs)
-	if len(songs) != 1 || songs[0].Title != "Wonderwall" {
-		t.Fatalf("imported band songs = %+v, want [Wonderwall]", songs)
+	if len(songs) != 1 || songs[0].Title != "The Open Road" {
+		t.Fatalf("imported band songs = %+v, want [The Open Road]", songs)
 	}
 
 	// Non-admin export → 403 (export stays live and admin-gated).

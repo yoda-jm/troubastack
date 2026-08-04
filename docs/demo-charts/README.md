@@ -54,9 +54,12 @@ Rendered in the Studio editor (all layers on) — see
 This demonstrates the layer model: mandatory vs. optional, role-targeted visibility, and
 a per-member personal layer, over a realistic chart.
 
-## Why not the "real" songs?
+## Why original + public-domain only?
 
-The seeded band's set names real songs (Wonderwall, Hallelujah, …) as *metadata*, but
-their PDFs are synthetic placeholders — reproducing those songs' actual lyrics/tab/sheet
-would be a copyright violation. These charts give the same realistic look for demos and
-screenshots using only original + public-domain material that is free to ship.
+Reproducing a copyrighted song's actual lyrics, tab or sheet music would be a copyright
+violation, so the demo ships none. Everything here is either **written for this project**
+(*The Open Road*) or **public domain** (*House of the Rising Sun*, *Amazing Grace*, and
+the *Canon in D* orchestral parts) — the same realistic look for demos, screenshots and
+the walkthrough video, using only material that is free to ship. (Earlier seeds named
+real songs as *metadata* over synthetic placeholder PDFs; DEMO-VID Part A retired those
+titles for the real charts above.)
