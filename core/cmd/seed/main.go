@@ -123,56 +123,52 @@ func run(addr, password string) error {
 			members:   []string{"leo", "sasha"},
 			conductor: "leo", // promoted to the conductor role; owns the conductor cues
 			songs: []songDef{
-				{title: "Wonderwall", artist: "Oasis", key: "F#m", tempo: 87, tags: []string{"britpop", "singalong"}, notes: "Capo 2; everyone in on the last chorus.",
-					// Multi-file shared pool: a full score plus per-instrument parts.
-					// Showcases the per-member "my files" feature below.
-					files: []pdfSource{
-						{cacheName: "wonderwall-score.pdf", docTitle: "Score", title: "Wonderwall — Score", subtitle: "Oasis (full score)", pages: 3},
-						{cacheName: "wonderwall-vocals.pdf", docTitle: "Part - Vocals", title: "Wonderwall — Vocals", subtitle: "Oasis (lead vocal)", pages: 2},
-						{cacheName: "wonderwall-guitar.pdf", docTitle: "Part - Guitar", title: "Wonderwall — Guitar", subtitle: "Oasis (rhythm guitar, capo 2)", pages: 2},
-						{cacheName: "wonderwall-bass.pdf", docTitle: "Part - Bass", title: "Wonderwall — Bass", subtitle: "Oasis (bass guitar)", pages: 1},
-					},
-					// Marie (the singer/admin) curates her own view: vocals first, then
-					// the full score, then the guitar part — a non-default subset+order.
-					myFilesFor: map[string][]int{
-						"marie": {1, 0, 2},
-					},
-					// Personal cues (T50): Marie sings + plays the red electric (VLL's
-					// canonical "mic + red guitar" example); the bandmates prep their parts.
-					cuesFor: map[string][]cueDef{
-						"marie": {{icon: "mic"}, {icon: "guitar-electric", color: "#e11d48"}},
-						"sasha": {{icon: "bass", color: "#2563eb"}},
-						"leo":   {{icon: "guitar-acoustic"}},
-					}},
-				{title: "Hallelujah", artist: "Leonard Cohen", key: "C", tempo: 60, tags: []string{"ballad"}, notes: "Slow 6/8; watch the dynamics.",
-					src: pdfSource{cacheName: "hallelujah.pdf", title: "Hallelujah", subtitle: "Leonard Cohen", pages: 4},
-					cuesFor: map[string][]cueDef{
-						"marie": {{icon: "mic"}},
-						"sasha": {{icon: "keys", color: "#7c3aed"}},
-					}},
-				{title: "Black Hole Sun", artist: "Soundgarden", key: "G", tempo: 105, tags: []string{"grunge", "encore"},
-					src: pdfSource{cacheName: "black-hole-sun.pdf", title: "Black Hole Sun", subtitle: "Soundgarden", pages: 3},
-					cuesFor: map[string][]cueDef{
-						"marie": {{icon: "mic"}, {icon: "tambourine"}},
-						"sasha": {{icon: "bass", color: "#2563eb"}},
-					}},
 				// An ORIGINAL demo song with a REAL committed chart (lead sheet + guitar
-				// tab) from docs/demo-charts — so one seeded song shows genuine sheet
-				// content + its purpose-built annotation layers (see buildOpenRoadAnnotations).
+				// tab) from docs/demo-charts — the FLAGSHIP annotation showcase (see
+				// buildOpenRoadAnnotations). All demo content is copyright-safe: original
+				// or public-domain (DEMO-VID Part A) — no copyrighted song titles/lyrics.
 				{title: "The Open Road", artist: "", key: "G", tempo: 92, tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + guitar tab. Capo 2.",
 					src: pdfSource{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet + tab", title: "The Open Road", subtitle: "original demo song", pages: 2},
-					// A REAL text chart alongside the lead-sheet PDF — the demo now shows the
+					// A REAL text chart alongside the lead-sheet PDF — the demo shows the
 					// T19 chart type (server-rendered from chart-dialect source), not only PDFs (B10).
 					textChartPath: "../docs/demo-charts/open-road-lyrics.chart",
 					cuesFor: map[string][]cueDef{
 						"marie": {{icon: "guitar-acoustic"}, {icon: "mic"}},
 					}},
+				// TRADITIONAL / PUBLIC DOMAIN — the MULTI-FILE showcase: real committed
+				// parts (a guitar tab + a drum groove) PLUS a rendered chord chart (text
+				// chart). Members curate their own "my files" view; parts carry their own
+				// per-file annotations (B11). Replaces the old copyrighted multi-file song.
+				{title: "House of the Rising Sun", artist: "Traditional", key: "Am", tempo: 72, tags: []string{"folk", "public-domain"}, notes: "Traditional; soft 6/8, let the arpeggio ring.",
+					files: []pdfSource{
+						{cacheName: "house-rising-sun-tab.pdf", localPath: "../docs/demo-charts/house-rising-sun-tab.pdf", docTitle: "Guitar tab", title: "House of the Rising Sun — Guitar", subtitle: "traditional (guitar tab)", pages: 1},
+						{cacheName: "house-rising-sun-drums.pdf", localPath: "../docs/demo-charts/house-rising-sun-drums.pdf", docTitle: "Drums", title: "House of the Rising Sun — Drums", subtitle: "traditional (drum groove)", pages: 1},
+					},
+					// The rendered chord chart (lead sheet) joins the pool after the parts.
+					textChartPath: "../docs/demo-charts/house-of-the-rising-sun.chart",
+					// Leo (guitar) curates his own focused view: just the guitar tab.
+					myFilesFor: map[string][]int{
+						"leo": {0},
+					},
+					cuesFor: map[string][]cueDef{
+						"marie": {{icon: "mic"}},
+						"leo":   {{icon: "guitar-acoustic"}},
+						"sasha": {{icon: "bass", color: "#2563eb"}},
+					}},
+				// PUBLIC DOMAIN hymn (John Newton, 1779) — a committed lead sheet PLUS a
+				// chord text chart.
+				{title: "Amazing Grace", artist: "Traditional", key: "G", tempo: 72, tags: []string{"hymn", "public-domain"}, notes: "Newton, 1779; gentle 3/4.",
+					src:           pdfSource{cacheName: "amazing-grace.pdf", localPath: "../docs/demo-charts/amazing-grace.pdf", docTitle: "Lead sheet", title: "Amazing Grace", subtitle: "words: John Newton, 1779 (public domain)", pages: 1},
+					textChartPath: "../docs/demo-charts/amazing-grace.chart",
+					cuesFor: map[string][]cueDef{
+						"marie": {{icon: "mic"}},
+						"sasha": {{icon: "keys", color: "#7c3aed"}},
+					}},
 			},
 			setlist: setlistDef{
 				name: "Sat @ The Anchor", eventDate: "2026-07-04", venue: "The Anchor Pub", notes: "60-minute set.",
 				overrides: []overrideDef{
-					{song: "Wonderwall", keyOverride: "Em", notes: "Acoustic intro, capo 2."},
-					{song: "Black Hole Sun", tempoOverride: 98},
+					{song: "House of the Rising Sun", keyOverride: "Bm", notes: "Lift it a tone for the room."},
 					{song: "The Open Road", notes: "Encore — everyone in on the last chorus."},
 				},
 			},
@@ -411,7 +407,10 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			fmt.Printf("     = already has %d file(s)\n", len(fr.Files))
 			// Re-runs reuse the existing PDF; learn its origin from the cache meta
 			// so annotation coords match (generated layout vs fetched/unknown).
-			anns = append(anns, songAnn{songID: songID, title: s.title, generated: !cachedFetched(primary), pages: primary.pages})
+			// "generated" here means a pdf.go STAFF placeholder (known systemTopY layout).
+			// A committed real chart (localPath — Open Road, House, Amazing Grace) is NOT a
+			// staff placeholder, so it takes the generic/known-coord path, not the staff one.
+			anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
 			continue
 		}
 		// Upload every pool file in order, assigning a matching displayOrder so the
@@ -518,7 +517,9 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			}
 			fmt.Printf("     + %s cues: [%s]\n", username, strings.Join(labels, ", "))
 		}
-		anns = append(anns, songAnn{songID: songID, title: s.title, generated: !cachedFetched(primary), pages: primary.pages})
+		// generated = a pdf.go STAFF placeholder (systemTopY layout). A committed real chart
+		// (localPath) is NOT a staff placeholder → generic/known-coord placement.
+		anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
 	}
 
 	// Promote a member to the conductor role BEFORE importing annotations, so the
@@ -555,8 +556,13 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		// it gets chart-specific annotation coords; every other song uses the
 		// generated/fetched-layout builder.
 		im := buildSongAnnotations(a.songID, fileID, a.title, g.kind, userID, conductorID, a.generated, a.pages)
-		if a.title == "The Open Road" {
+		switch a.title {
+		case "The Open Road":
 			im = buildOpenRoadAnnotations(a.songID, fileID, userID, conductorID)
+		case "House of the Rising Sun", "Amazing Grace":
+			// Committed band charts (guitar tab / lead sheet) — a light showcase placed for
+			// their known content band, not the staff-relative or orchestral generic layout.
+			im = buildBandChartAnnotations(a.songID, fileID, a.title, userID, conductorID)
 		}
 		var got annotationsImport
 		if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", im, &got); err != nil {
@@ -564,17 +570,16 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		}
 		fmt.Printf("     + annotations %q: %d layers, %d objects\n", a.title, len(got.Layers), len(got.Objects))
 
-		// B11: give Wonderwall's Vocals + Guitar parts their OWN annotations (the Score
-		// keeps the section-form set above), so switching file tabs visibly demonstrates
-		// per-file scoping (T40) — distinct ink over distinct PDFs. Additive imports;
-		// idempotent by id. adminID (marie) sings + admins The Troubadours.
-		if a.title == "Wonderwall" {
+		// B11: give House of the Rising Sun's DRUMS part its OWN annotations (the first
+		// PDF — the guitar tab — keeps the section-form set above), so switching file tabs
+		// visibly demonstrates per-file scoping (T40) — distinct ink over distinct PDFs.
+		// Additive imports; idempotent by id.
+		if a.title == "House of the Rising Sun" {
 			parts := []struct {
 				filename string
 				build    func(songID, fileID string) annotationsImport
 			}{
-				{"Part - Vocals", func(s, f string) annotationsImport { return buildVocalsAnnotations(s, f, adminID) }},
-				{"Part - Guitar", func(s, f string) annotationsImport { return buildGuitarAnnotations(s, f) }},
+				{"Drums", func(s, f string) annotationsImport { return buildDrumPartAnnotations(s, f) }},
 			}
 			for _, p := range parts {
 				fid, err := pdfFileIDByFilename(admin, bandID, a.songID, p.filename)
@@ -946,16 +951,16 @@ func printGuide(addr, password string, people []person, groups []seededGroup, fe
 	fmt.Fprintln(w, "       • dev/hot-reload SPA :  http://localhost:5173   (make dev)")
 	fmt.Fprintf(w, "       • single binary      :  %s   (make run / make demo)\n", addr)
 	fmt.Fprintln(w, "  2. Log in as  marie / "+password+"  →  The Troubadours")
-	fmt.Fprintln(w, "       'Wonderwall' is a MULTI-FILE song: its shared pool has 4 files")
-	fmt.Fprintln(w, "       (Score, Part - Vocals, Part - Guitar, Part - Bass). Marie has a")
-	fmt.Fprintln(w, "       curated personal 'my files' selection — Part - Vocals → Score →")
-	fmt.Fprintln(w, "       Part - Guitar (a custom subset+order), so her viewer opens to")
-	fmt.Fprintln(w, "       exactly those, in that order, while bandmates see the default all.")
-	fmt.Fprintln(w, "       OPEN a song in the Studio viewer to see its LAYERED ANNOTATIONS")
-	fmt.Fprintln(w, "       on the PDF: conductor cues (red, mandatory), shared section")
-	fmt.Fprintln(w, "       markings (amber Verse/Chorus/Bridge highlights), and a guitarist's")
-	fmt.Fprintln(w, "       'Chords' layer (blue chord names + Capo).")
-	fmt.Fprintln(w, "       Toggle layers on/off, page to p.2 (Outro / D.C.), and zoom in.")
+	fmt.Fprintln(w, "       'House of the Rising Sun' is a MULTI-FILE song: its shared pool has")
+	fmt.Fprintln(w, "       a Guitar tab, a Drums groove, and a rendered chord chart. Leo has a")
+	fmt.Fprintln(w, "       curated personal 'my files' selection — just the Guitar tab — so his")
+	fmt.Fprintln(w, "       viewer opens to that alone, while bandmates see the default all.")
+	fmt.Fprintln(w, "       OPEN 'The Open Road' in the Studio viewer to see its LAYERED")
+	fmt.Fprintln(w, "       ANNOTATIONS on the lead sheet: conductor cues (red, mandatory), a")
+	fmt.Fprintln(w, "       shared Form/Chorus highlight (amber), and Marie's personal 'My")
+	fmt.Fprintln(w, "       notes' (capo, breathe, a circled change). All content is original")
+	fmt.Fprintln(w, "       or public-domain (copyright-safe).")
+	fmt.Fprintln(w, "       Toggle layers on/off and zoom in.")
 	fmt.Fprintln(w, "  3. Log in as  maestro / "+password+"  →  City Chamber Orchestra")
 	fmt.Fprintln(w, "       open a piece for the same layered view — plus a player's green")
 	fmt.Fprintln(w, "       'Bowing/Breath marks' personal layer instead of chords.")

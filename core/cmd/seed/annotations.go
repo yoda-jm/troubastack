@@ -275,6 +275,45 @@ func buildOpenRoadAnnotations(songID, fileID string, userID map[string]string, c
 	return *im
 }
 
+// buildBandChartAnnotations places a light 3-layer showcase (conductor / shared / personal)
+// on a committed BAND chart — the House of the Rising Sun guitar tab or the Amazing Grace
+// lead sheet, both mkcharts A4 with a title block above ~0.17 and content below it. Not the
+// pixel-tuned Open Road showcase; enough to demo the layer model (mandatory conductor cues,
+// shared section highlight, a personal note) over a real chart with sensible placement.
+func buildBandChartAnnotations(songID, fileID, title string, userID map[string]string, conductorID string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+
+	// Conductor cues (red, mandatory, conductor role) — in the gap under the meta line.
+	cond := b.layer(wireLayer{
+		ID: layerID(songID, "conductor"), Name: "Conductor cues",
+		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
+	})
+	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.015}
+	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.004}
+	b.text(cond, "cond-watch", 0, 0.06, 0.145, "watch me — into the last verse", condText)
+	b.text(cond, "cond-rit", 0, 0.75, 0.145, "rit.", condText)
+	b.rect(cond, "cond-box", 0, 0.055, 0.133, 0.66, 0.162, condStroke)
+
+	// Shared section markings (amber) — a highlight + label over the first content block.
+	shared := b.layer(wireLayer{
+		ID: layerID(songID, "shared"), Name: "Section markings",
+		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
+	})
+	sharedText := wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.015}
+	b.highlight(shared, "sh-hi", 0, 0.05, 0.205, 0.95, 0.255, wireStyle{Color: colorShared, Opacity: 0.28})
+	b.text(shared, "sh-verse", 0, 0.06, 0.198, "Verse 1", sharedText)
+
+	// Personal "My notes" (blue) — a breathe reminder + a circled spot (owner: the singer).
+	mine := b.layer(wireLayer{
+		ID: layerID(songID, "mine"), Name: "My notes",
+		OwnerID: userID["marie"], Zone: "personal", Order: 0, Access: "rw",
+	})
+	b.text(mine, "my-breathe", 0, 0.06, 0.30, "breathe here", wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.014})
+	b.shape("ellipse", mine, "my-circle", 0, []wirePoint{{X: 0.70, Y: 0.192}, {X: 0.90, Y: 0.228}}, wireStyle{Color: colorPersonal, Opacity: 1, Width: 0.0035})
+	return *im
+}
+
 // addPersonal adds an instrument-appropriate personal layer for the song's group.
 func addPersonal(b *builderCtx, title, groupKind string, userID map[string]string, generated bool) {
 	if groupKind == "Orchestra" {
@@ -309,20 +348,11 @@ func addPersonal(b *builderCtx, title, groupKind string, userID map[string]strin
 	})
 	penB := wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.020}
 
-	// Pick chords per song; default to a plausible progression.
+	// A plausible default progression (band songs with committed charts use their own
+	// dedicated builders — buildOpenRoadAnnotations / buildBandChartAnnotations — so this
+	// generic staff-relative path only backs any future generated-placeholder band song).
 	chords := []string{"Em", "G", "D", "A"}
-	capo := "Capo 2"
-	switch title {
-	case "Wonderwall":
-		chords = []string{"Em7", "G", "Dsus4", "A7sus4"}
-		capo = "Capo 2"
-	case "Hallelujah":
-		chords = []string{"C", "Am", "F", "G", "E7", "Am"}
-		capo = ""
-	case "Black Hole Sun":
-		chords = []string{"G", "D", "F", "C", "Bb"}
-		capo = ""
-	}
+	capo := ""
 
 	if generated {
 		if capo != "" {
@@ -350,55 +380,31 @@ func addPersonal(b *builderCtx, title, groupKind string, userID map[string]strin
 	}
 }
 
-// ---- B11: per-part annotations for Wonderwall's Vocals + Guitar files ----
+// ---- B11: per-part annotations for House of the Rising Sun's Drums file ----
 //
-// The Score already carries the full section-form annotations (buildSongAnnotations).
-// These give the OTHER parts their own, role-appropriate notes so switching file tabs
-// visibly demonstrates per-file scoping (T40): each part shows different ink over a
-// different PDF. All Wonderwall parts are generated A4 staves, so the systemTopY/pdfLeftX
-// layout constants apply. Layer/object keys are file-distinct so ids never collide with
-// the Score's (import is idempotent by id).
+// The first PDF (the guitar tab) carries the full section-form annotations
+// (buildSongAnnotations). This gives the DRUMS part its own, role-appropriate notes so
+// switching file tabs visibly demonstrates per-file scoping (T40): each part shows
+// different ink over a different PDF. The committed drum-groove PDF (mkcharts) has its
+// groove grid near the top, so coords stay in the upper area (generic, not staff-relative).
+// Layer/object keys are file-distinct so ids never collide with the tab's (idempotent by id).
 
-// buildVocalsAnnotations: the singer's personal "Breath & phrasing" layer (green) on the
-// Vocals part — breath ticks, a phrase highlight, and a soft-dynamic cue.
-func buildVocalsAnnotations(songID, fileID, singerID string) annotationsImport {
+// buildDrumPartAnnotations: a shared "Drummer's notes" layer (green) on the Drums part —
+// a feel note over the groove grid and a soft-dynamics reminder.
+func buildDrumPartAnnotations(songID, fileID string) annotationsImport {
 	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
 	b := &builderCtx{songID: songID, fileID: fileID, im: im}
 
-	breath := b.layer(wireLayer{
-		ID: layerID(songID, "vocals-breath"), Name: "Breath & phrasing",
-		OwnerID: singerID, Zone: "personal", Order: 0, Access: "rw",
+	notes := b.layer(wireLayer{
+		ID: layerID(songID, "drum-notes"), Name: "Drummer's notes",
+		OwnerID: "_shared_", Zone: "shared", Order: 1, Access: "rw", RoleTag: "drums",
 	})
-	txt := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.020}
-	hi := wireStyle{Color: colorPersonal2, Opacity: 0.30}
+	txt := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.018}
+	hi := wireStyle{Color: colorPersonal2, Opacity: 0.28}
 
-	b.text(breath, "voc-breath1", 0, pdfLeftX, systemTopY(1)-0.012, "V  (breath)", txt)
-	b.highlight(breath, "voc-phrase", 0, 0.28, systemTopY(2)-0.004, 0.62, systemBotY(2)+0.004, hi)
-	b.text(breath, "voc-cresc", 0, 0.55, systemTopY(2)-0.012, "cresc.", txt)
-	b.text(breath, "voc-breath2", 0, pdfMargX, systemTopY(3)-0.012, "V", txt)
-	b.text(breath, "voc-soft", 1, pdfLeftX, systemTopY(0)-0.012, "p — softer, let it float", txt)
-	return *im
-}
-
-// buildGuitarAnnotations: a shared "Chords & capo" layer (blue) on the Guitar part —
-// a capo note and chord names over the staves.
-func buildGuitarAnnotations(songID, fileID string) annotationsImport {
-	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
-	b := &builderCtx{songID: songID, fileID: fileID, im: im}
-
-	chords := b.layer(wireLayer{
-		ID: layerID(songID, "guitar-chords"), Name: "Chords & capo",
-		OwnerID: "_shared_", Zone: "shared", Order: 1, Access: "rw",
-	})
-	txt := wireStyle{Color: colorPersonal, Opacity: 1, FontSize: 0.020}
-
-	b.text(chords, "gtr-capo", 0, pdfLeftX, systemTopY(0)-0.014, "Capo 2", txt)
-	for i, c := range []struct {
-		x    float64
-		name string
-	}{{0.14, "Em7"}, {0.34, "G"}, {0.54, "Dsus4"}, {0.74, "A7sus4"}} {
-		b.text(chords, fmt.Sprintf("gtr-ch-%d", i), 0, c.x, systemTopY(1)-0.012, c.name, txt)
-	}
-	b.text(chords, "gtr-ch-outro", 1, 0.14, systemTopY(0)-0.012, "Em7  G  Dsus4  A7sus4", txt)
+	// The groove grid sits ~0.21–0.31 down the page (title at top, meta line, then the grid).
+	b.text(notes, "drum-feel", 0, 0.06, 0.185, "swung 6/8 — keep it under the vocal", txt)
+	b.highlight(notes, "drum-hh", 0, 0.10, 0.225, 0.62, 0.250, hi)
+	b.text(notes, "drum-open", 0, 0.06, 0.315, "open hat on the last '6' into each verse", txt)
 	return *im
 }

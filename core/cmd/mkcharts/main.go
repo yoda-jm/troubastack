@@ -30,9 +30,11 @@ func main() {
 		log.Fatalf("mkcharts: %v", err)
 	}
 	for name, build := range map[string]func() *fpdf.Fpdf{
-		"open-road-leadsheet.pdf": openRoadLeadSheet, // A: ORIGINAL lead sheet + tab
-		"amazing-grace.pdf":       amazingGrace,      // B: PUBLIC DOMAIN (1779 hymn)
-		"blank-chart.pdf":         blankChart,        // C: generic placeholder
+		"open-road-leadsheet.pdf":    openRoadLeadSheet, // A: ORIGINAL lead sheet + tab
+		"amazing-grace.pdf":          amazingGrace,      // B: PUBLIC DOMAIN (1779 hymn)
+		"blank-chart.pdf":            blankChart,        // C: generic placeholder
+		"house-rising-sun-tab.pdf":   houseTab,          // D: PUBLIC DOMAIN — guitar tab
+		"house-rising-sun-drums.pdf": houseDrums,        // E: PUBLIC DOMAIN — drum groove
 	} {
 		if err := write(filepath.Join(*out, name), build()); err != nil {
 			log.Fatalf("mkcharts %s: %v", name, err)
@@ -196,6 +198,94 @@ func amazingGrace() *fpdf.Fpdf {
 	pdf.SetXY(margin, y)
 	pdf.MultiCell(right-margin, 5, tr("Text by John Newton (1779) — public domain. The chord accompaniment above is a "+
 		"simple demo arrangement."), "", "L", false)
+	footer(pdf, tr)
+	return pdf
+}
+
+// --- D: PUBLIC DOMAIN — "House of the Rising Sun" guitar tab ----------------
+//
+// A traditional American folk song (public domain, no known author). The
+// arpeggiated 6/8 fingerpicking pattern below is a plain, generic demo
+// arrangement of the standard Am–C–D–F–Am–E changes — no copyrighted
+// transcription is reproduced.
+
+func houseTab() *fpdf.Fpdf {
+	pdf, tr := newDoc("House of the Rising Sun — Guitar Tab")
+	header(pdf, tr, "House of the Rising Sun — Guitar", "traditional (public domain) · arr. demo",
+		"Key: A minor   •   Tempo: 72 bpm   •   6/8   •   Standard tuning (EADGBe)")
+
+	// One verse of the arpeggiated 6/8 pattern over the standard changes. Each block is
+	// one chord's broken arpeggio (bass note + rolled treble), the classic picking feel.
+	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetTextColor(150, 90, 30)
+	pdf.SetXY(margin, 50)
+	pdf.Cell(0, 6, tr("Verse — arpeggio pattern"))
+	pdf.SetTextColor(0, 0, 0)
+
+	tab := []string{
+		"      Am        C         D         F         Am        E",
+		"e|----0-----|----0-----|----2-----|----1-----|----0-----|----0-----|",
+		"B|--1---1---|--1---1---|--3---3---|--1---1---|--1---1---|--0---0---|",
+		"G|-2-----2--|-0-----0--|-2-----2--|-2-----2--|-2-----2--|-1-----1--|",
+		"D|2---------|2---------|0---------|3---------|2---------|2---------|",
+		"A|0---------|3---------|----------|----------|0---------|2---------|",
+		"E|----------|----------|----------|1---------|----------|0---------|",
+	}
+	yy := 60.0
+	pdf.SetFont("Courier", "", 9)
+	for i, ln := range tab {
+		if i == 0 {
+			pdf.SetTextColor(20, 60, 150)
+		} else {
+			pdf.SetTextColor(0, 0, 0)
+		}
+		pdf.SetXY(margin, yy)
+		pdf.Cell(0, 5, ln)
+		yy += 6
+	}
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Helvetica", "I", 10)
+	pdf.SetXY(margin, yy+6)
+	pdf.MultiCell(right-margin, 5, tr("Chord shapes: Am (x02210) · C (x32010) · D (xx0232) · F (133211) · E (022100). "+
+		"Let each arpeggio ring; keep the 6/8 lilt. Repeat for each verse."), "", "L", false)
+	footer(pdf, tr)
+	return pdf
+}
+
+// --- E: PUBLIC DOMAIN — "House of the Rising Sun" drum groove ---------------
+//
+// A generic 6/8 groove box for the same traditional song — a common way drummers
+// notate a feel (hi-hat / snare / kick grid). Original demo notation.
+
+func houseDrums() *fpdf.Fpdf {
+	pdf, tr := newDoc("House of the Rising Sun — Drum Groove")
+	header(pdf, tr, "House of the Rising Sun — Drums", "traditional (public domain) · arr. demo",
+		"Key: A minor   •   Tempo: 72 bpm   •   6/8   •   swung eighths")
+
+	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetTextColor(150, 90, 30)
+	pdf.SetXY(margin, 50)
+	pdf.Cell(0, 6, tr("Groove — one bar of 6/8 (count: 1 2 3 4 5 6)"))
+	pdf.SetTextColor(0, 0, 0)
+
+	// A monospace groove grid: x = hit, . = rest. Six eighth-note slots.
+	grid := []string{
+		"        1   2   3   4   5   6",
+		"Hi-hat  x   x   x   x   x   x",
+		"Snare   .   .   .   x   .   .",
+		"Kick    x   .   .   .   .   x",
+	}
+	yy := 62.0
+	pdf.SetFont("Courier", "", 12)
+	for _, ln := range grid {
+		pdf.SetXY(margin, yy)
+		pdf.Cell(0, 6, ln)
+		yy += 8
+	}
+	pdf.SetFont("Helvetica", "I", 10)
+	pdf.SetXY(margin, yy+6)
+	pdf.MultiCell(right-margin, 5, tr("Ride the 6/8 with steady eighths on the hi-hat, snare on beat 4, kick on 1 and 6. "+
+		"Open the hi-hat on the last '6' into each verse. Keep it soft under the vocal."), "", "L", false)
 	footer(pdf, tr)
 	return pdf
 }
