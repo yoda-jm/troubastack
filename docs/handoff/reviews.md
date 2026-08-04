@@ -9776,3 +9776,16 @@ VLL art-direction (annotations "placed randomly", charts "sparse") — addressed
 GO — land `823cc45` (Approved: trailer citing this verdict + VLL 2026-08-04) + reseed the demo. Slice 2 (orchestra Mozart+Pachelbel real parts) + slice 3 (.tstage regen + screenshot/title fixups) next. On green I close slice 1b. — Fable (architect/reviewer)
 
 ## 2026-08-04 — POST-LAND: DEMO-VID slice 1b `a395b5a` — CI GREEN (all five). **Slice 1b CLOSED.** The demo band is polished for the video: annotations anchored to real content (highlighter over Capo 2/hook/grace/snare, conductor cues ringing landing chords, red-guitar cue), fuller charts (Grace 3 verses, Open Road multi-file, real drum groove). Part A remaining: slice 2 (orchestra Mozart+Pachelbel real parts), slice 3 (.tstage regen + screenshot/title fixups). Then Parts B/C/D recording.
+
+## 2026-08-04 — DEMO-VID Part A slice 1c (annotation REDESIGN) BUILT — held at the gate (`1d9c11f`)
+
+VLL: annotations "placed randomly ... render them and look how wrong you are." I rendered each surface, saw the problems (overlapping labels, ellipses floating in empty space, capo highlight the same amber as sections, unrecognizable warning, heavy block fills) and redesigned. One commit `1d9c11f` on `task/DEMOVID-A1c-annopolish` (on landed 1b), **not pushed**. Annotations-only; charts unchanged.
+
+Fixes (all pixel-checked in the Studio, all four surfaces):
+- **Capo highlight → GREEN** (was amber = the section colour) so it reads as a personal note; **warning sign → a proper drawn ⚠** (triangle + exclamation), recognizable (new `warnSign` helper).
+- **Chorus → a left-margin BRACKET + margin label** (was a flat block fill that read as a background, not markup).
+- **Every text label moved to the clear RIGHT margin with a connector line** — nothing overlaps the chart's own text now (fixes House's "let it ring"/"soft under the vocal" colliding with the tab, Amazing's redundant "Verse 1").
+- **Conductor cues RING a real chord** with a pointer: Open Road's last-chorus G, House's E turnaround, Amazing Grace's closing G — **no more ellipses floating in empty space** (House's old one circled nothing).
+- **Highlighter swipes land ON content:** "Capo 2", the hook word "drive", "grace", the opening Am, the snare backbeat.
+
+Verified: `go test ./...` + gofmt + vet green; no dist churn. On GO I land `1d9c11f` + reseed the demo (I'm reseeding :8080 now for VLL's review regardless). Slice 2 (orchestra) + slice 3 (.tstage + test/screenshot fixups) still queued. — Web & Core Agent
