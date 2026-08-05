@@ -194,96 +194,77 @@ func downBow(x, y float64) []wirePoint {
 	return []wirePoint{{X: x - w, Y: y}, {X: x - w, Y: y - h}, {X: x + w, Y: y - h}, {X: x + w, Y: y}}
 }
 
-// buildCanonAnnotations places a clean 3-layer showcase on the Canon in D VIOLIN I part (a
-// LilyPond A4: the staff sits near the top ~y 0.11–0.15 with whitespace below). Conductor cue
-// rings the final bar with the label in the clear space below; a "Dynamics" marking and a
-// player's "Bowing" (down-bows + dolce) sit below the staff — nothing overlaps the engraving.
+// The orchestra pieces are REAL, complete multi-page editions (Mutopia): a conductor's full
+// score + separate parts. Per the orchestra workflow, the CONDUCTOR marks up the score (an
+// interpretation / recommendation layer) and each PLAYER marks their own part (bowings, a
+// dynamic). Real engravings are dense, so marks sit in the clear margins ABOVE the first
+// system / BELOW the last staff (no ringing individual notes on a packed page).
+
+// buildCanonAnnotations — the Canon VIOLIN I part (the default part). A few player/conductor
+// notes in the margins around the first system (~y 0.09–0.13).
 func buildCanonAnnotations(songID, fileID string, userID map[string]string, conductorID string) annotationsImport {
 	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
 	b := &builderCtx{songID: songID, fileID: fileID, im: im}
-
-	// Conductor cues (red, mandatory) — ring the final bar, "rit. — watch me" from below.
-	cond := b.layer(wireLayer{
-		ID: layerID(songID, "cues"), Name: "Conductor cues",
-		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
-	})
-	condS := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
-	condT := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.014}
-	b.shape("ellipse", cond, "cn-ring", 0, []wirePoint{{X: 0.78, Y: 0.106}, {X: 0.865, Y: 0.152}}, condS)
-	b.line(cond, "cn-pt", 0, 0.66, 0.205, 0.82, 0.152, condS)
-	b.text(cond, "cn-rit", 0, 0.595, 0.212, "rit. — watch me (last bar)", condT)
-	// A start-of-piece cue: steady tempo, don't rush the famous ground bass (points up to bar 1).
-	b.line(cond, "cn-steady-pt", 0, 0.185, 0.192, 0.185, 0.155, condS)
-	b.text(cond, "cn-steady", 0, 0.10, 0.205, "steady — don't rush", condT)
-
-	// Dynamics (shared, amber) — the opening dynamic + a crescendo hairpin through the phrase.
-	shared := b.layer(wireLayer{
-		ID: layerID(songID, "shared"), Name: "Dynamics",
-		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
-	})
-	amberS := wireStyle{Color: colorShared, Opacity: 1, Width: 0.003}
-	b.text(shared, "cn-dyn", 0, 0.34, 0.198, "mf espr.", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.015})
-	// Crescendo hairpin (two lines opening rightward) under the mid phrase + a "cresc." label.
-	b.line(shared, "cn-cresc1", 0, 0.46, 0.196, 0.62, 0.190, amberS)
-	b.line(shared, "cn-cresc2", 0, 0.46, 0.196, 0.62, 0.202, amberS)
-	b.text(shared, "cn-cresc", 0, 0.63, 0.199, "cresc.", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.014})
-
-	// Bowing (personal, owned by the cellist) — down-bow marks over the first two notes + dolce.
-	bow := b.layer(wireLayer{
-		ID: layerID(songID, "bowing"), Name: "Bowing",
-		OwnerID: userID["cory"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings",
-	})
-	bowS := wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.004}
-	b.freehand(bow, "cn-db1", 0, downBow(0.205, 0.093), bowS)
-	b.freehand(bow, "cn-db2", 0, downBow(0.30, 0.093), bowS)
-	b.text(bow, "cn-dolce", 0, 0.18, 0.238, "dolce", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.014})
+	cond := b.layer(wireLayer{ID: layerID(songID, "cues"), Name: "Conductor cues", OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor"})
+	shared := b.layer(wireLayer{ID: layerID(songID, "shared"), Name: "Dynamics", OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw"})
+	mine := b.layer(wireLayer{ID: layerID(songID, "bowing"), Name: "Bowing (Vln I)", OwnerID: userID["ivan"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings"})
+	// Marks in the inter-system gaps (sys1–2 ≈ y0.13, sys2–3 ≈ y0.20).
+	b.text(cond, "cn-cue", 0, 0.10, 0.130, "watch me — steady, don't rush", wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.013})
+	b.text(shared, "cn-dyn", 0, 0.10, 0.200, "mf, cantabile", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.013})
+	b.text(mine, "cn-bow", 0, 0.52, 0.200, "long, singing bows", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.013})
 	return *im
 }
 
-// buildEineKleineAnnotations places a clean 3-layer showcase on the committed Eine kleine
-// engraving (LilyPond: staff near the top ~y 0.09–0.11, whitespace below — like Canon).
-// Every mark lands on the staff or connects up to it from the clear space below: a start
-// cue "crisp, together", a "cresc." hairpin mid-phrase, the conductor's "rit." ringing the
-// final bar, and the player's down-bows + bowing note. Nothing overlaps the engraving.
+// buildEineKleineAnnotations — the Eine kleine VIOLIN I part (default). Player/conductor notes
+// in the margins around the first system (~y 0.19–0.24; the title block is taller here).
 func buildEineKleineAnnotations(songID, fileID string, userID map[string]string, conductorID string, generated bool) annotationsImport {
 	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
 	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+	cond := b.layer(wireLayer{ID: layerID(songID, "conductor"), Name: "Conductor cues", OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor"})
+	shared := b.layer(wireLayer{ID: layerID(songID, "shared"), Name: "Dynamics", OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw"})
+	mine := b.layer(wireLayer{ID: layerID(songID, "personal-bow"), Name: "Bowing (Vln I)", OwnerID: userID["ivan"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings"})
+	b.text(cond, "ek-cue", 0, 0.10, 0.178, "crisp attacks — watch me", wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.013})
+	b.text(shared, "ek-dyn", 0, 0.10, 0.262, "leggiero — sparkle", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.013})
+	b.text(mine, "ek-bow", 0, 0.46, 0.262, "detache; trills from above", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.013})
+	return *im
+}
 
-	cond := b.layer(wireLayer{
-		ID: layerID(songID, "conductor"), Name: "Conductor cues",
-		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
-	})
-	shared := b.layer(wireLayer{
-		ID: layerID(songID, "shared"), Name: "Dynamics",
-		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
-	})
-	mine := b.layer(wireLayer{
-		ID: layerID(songID, "personal-bow"), Name: "Bowing",
-		OwnerID: userID["cory"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings",
-	})
-	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.015}
-	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
-	amberText := wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.014}
-	amberStroke := wireStyle{Color: colorShared, Opacity: 1, Width: 0.003}
-	greenText := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.014}
-	greenStroke := wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.004}
+// buildScoreConductorAnnotations — the CONDUCTOR'S full score. A "Conductor's marks" layer
+// (tempo/interpretation, mandatory) + an "Interpretation" layer (performance-practice
+// recommendations, shared). Text in the clear margins above the top staff / below the bottom
+// staff of the first system. `piece` selects the piece-specific notes.
+func buildScoreConductorAnnotations(songID, fileID, piece, conductorID string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+	cond := b.layer(wireLayer{ID: layerID(songID, "score-cond"), Name: "Conductor's marks", OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor"})
+	interp := b.layer(wireLayer{ID: layerID(songID, "score-interp"), Name: "Interpretation", OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw"})
+	condT := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.013}
+	amberT := wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.013}
+	if piece == "canon" {
+		// Score system 1: Vln I ~y0.06, Cello (ground bass) ~y0.20–0.23.
+		b.text(cond, "sc-tempo", 0, 0.13, 0.042, "Andante — don't rush the ground bass", condT)
+		b.text(cond, "sc-cue", 0, 0.13, 0.255, "build dynamics over each variation; watch me for the final rit.", condT)
+		b.text(interp, "sc-int", 0, 0.13, 0.272, "Baroque style: light bowing, minimal vibrato — let the bass drive.", amberT)
+	} else {
+		// Eine kleine score system 1 spans 4 staves (~y0.15–0.29); marks go above the top staff
+		// and BELOW the bottom (Cello & DB) staff, not between staves.
+		b.text(cond, "sc-tempo", 0, 0.14, 0.120, "Allegro — light & buoyant; watch every f / p contrast", condT)
+		b.text(cond, "sc-cue", 0, 0.14, 0.305, "unison attacks together; trills from the note above", condT)
+		b.text(interp, "sc-int", 0, 0.14, 0.322, "Classical style: crisp, transparent, leggiero — never heavy.", amberT)
+	}
+	return *im
+}
 
-	// Conductor: start cue on bar 1 (points up to the staff) + the ritardando ringing the LAST bar.
-	b.line(cond, "ek-start-pt", 0, 0.165, 0.165, 0.19, 0.118, condStroke)
-	b.text(cond, "ek-start", 0, 0.055, 0.172, "crisp, together", condText)
-	b.shape("ellipse", cond, "ek-ring", 0, []wirePoint{{X: 0.715, Y: 0.078}, {X: 0.815, Y: 0.122}}, condStroke)
-	b.line(cond, "ek-rit-pt", 0, 0.585, 0.175, 0.76, 0.124, condStroke)
-	b.text(cond, "ek-rit", 0, 0.44, 0.180, "rit. — watch me (last bar)", condText)
-
-	// Shared: a crescendo hairpin under the mid phrase + a "cresc." label.
-	b.line(shared, "ek-cresc1", 0, 0.52, 0.150, 0.68, 0.144, amberStroke)
-	b.line(shared, "ek-cresc2", 0, 0.52, 0.150, 0.68, 0.156, amberStroke)
-	b.text(shared, "ek-cresc", 0, 0.69, 0.152, "cresc.", amberText)
-
-	// Personal (cellist's part-mate): down-bow marks over the opening rockets + a bowing note.
-	b.freehand(mine, "ek-db1", 0, downBow(0.19, 0.075), greenStroke)
-	b.freehand(mine, "ek-db2", 0, downBow(0.245, 0.075), greenStroke)
-	b.text(mine, "ek-bow", 0, 0.055, 0.205, "off the string", greenText)
+// buildCelloBowingAnnotations — a player's personal note on the cello (basso) part (Cory).
+func buildCelloBowingAnnotations(songID, fileID, piece string, userID map[string]string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+	mine := b.layer(wireLayer{ID: layerID(songID, "cello-bow"), Name: "Bowing (Cello)", OwnerID: userID["cory"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings"})
+	note := "let the bass sing — long, steady bows"
+	if piece == "canon" {
+		note = "the ground bass — steady, foundational"
+	}
+	b.text(mine, "vc-bow", 0, 0.10, 0.075, note, wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.013})
 	return *im
 }
 

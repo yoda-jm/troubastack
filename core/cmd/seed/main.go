@@ -111,8 +111,12 @@ func run(addr, password string) error {
 		{"leo", "Leo", "guitar"},
 		{"sasha", "Sasha", "bass"},
 		{"maestro", "Anya", "conductor (orchestra admin)"},
-		{"flora", "Flora", "flute"},
+		{"flora", "Flora", "conductor"},
 		{"cory", "Cory", "cello"},
+		// String section — one player per desk so every part has an owner.
+		{"ivan", "Ivan", "violin I"},
+		{"vera", "Vera", "violin II"},
+		{"mila", "Mila", "viola / violin III"},
 	}
 
 	groups := []groupDef{
@@ -184,36 +188,39 @@ func run(addr, password string) error {
 			name:      "City Chamber Orchestra",
 			kind:      "Orchestra",
 			admin:     "maestro",
-			members:   []string{"flora", "cory"},
+			members:   []string{"flora", "cory", "ivan", "vera", "mila"},
 			conductor: "flora", // promoted to the "conductor" role to show role management
 			songs: []songDef{
-				{title: "Eine kleine Nachtmusik", artist: "W. A. Mozart", key: "G", tempo: 140, tags: []string{"classical", "public-domain"}, notes: "Allegro; K. 525.",
-					// REAL committed engraving (LilyPond, docs/demo-charts/lilypond/eine-kleine.ly) —
-					// the opening theme, so the orchestra's second piece has real notes rather than
-					// the old empty-staff generated placeholder (the Mutopia fetch was unreliable).
-					src: pdfSource{
-						cacheName: "eine-kleine-nachtmusik.pdf",
-						localPath: "../docs/demo-charts/eine-kleine.pdf",
-						docTitle:  "Violin I",
-						title:     "Eine kleine Nachtmusik",
-						subtitle:  "W. A. Mozart (K. 525)",
-						pages:     1,
-					}},
-				// PUBLIC DOMAIN (Pachelbel, 1680) — the orchestra's MULTI-PART showcase: real,
-				// engraved per-instrument parts (Violin I, Viola, Cello) so multiple players each
-				// open their own desk's part. Rendered from committed LilyPond source
-				// (docs/demo-charts/lilypond/canon-*.ly). Replaces the fetched Bach Air (Pachelbel
-				// is the more legible multi-part piece — DEMO-VID Part A slice 2).
-				{title: "Canon in D", artist: "J. Pachelbel", key: "D", tempo: 56, tags: []string{"classical", "public-domain"}, notes: "Canon over the famous ground bass; Andante.",
+				{title: "Eine kleine Nachtmusik", artist: "W. A. Mozart", key: "G", tempo: 140, tags: []string{"classical", "public-domain"}, notes: "Allegro; K. 525 (1st mvt).",
+					// REAL, complete PUBLIC-DOMAIN edition (Mutopia Project, LilyPond typeset): the
+					// full 1st movement as a conductor's full score + separate string parts. Players
+					// open their desk's part; the conductor marks up the score. Committed PDFs.
 					files: []pdfSource{
-						{cacheName: "canon-violin1.pdf", localPath: "../docs/demo-charts/canon-violin1.pdf", docTitle: "Violin I", title: "Canon in D — Violin I", subtitle: "Pachelbel", pages: 1},
-						{cacheName: "canon-viola.pdf", localPath: "../docs/demo-charts/canon-viola.pdf", docTitle: "Viola", title: "Canon in D — Viola", subtitle: "Pachelbel", pages: 1},
-						{cacheName: "canon-cello.pdf", localPath: "../docs/demo-charts/canon-cello.pdf", docTitle: "Cello", title: "Canon in D — Cello", subtitle: "Pachelbel", pages: 1},
+						{cacheName: "ek-violin1.pdf", localPath: "../docs/demo-charts/ek-violin1.pdf", docTitle: "Violin I", title: "Eine kleine Nachtmusik — Violin I", subtitle: "Mozart K.525", pages: 3},
+						{cacheName: "ek-violin2.pdf", localPath: "../docs/demo-charts/ek-violin2.pdf", docTitle: "Violin II", title: "Eine kleine Nachtmusik — Violin II", subtitle: "Mozart K.525", pages: 2},
+						{cacheName: "ek-viola.pdf", localPath: "../docs/demo-charts/ek-viola.pdf", docTitle: "Viola", title: "Eine kleine Nachtmusik — Viola", subtitle: "Mozart K.525", pages: 2},
+						{cacheName: "ek-cello.pdf", localPath: "../docs/demo-charts/ek-cello.pdf", docTitle: "Cello", title: "Eine kleine Nachtmusik — Cello", subtitle: "Mozart K.525", pages: 2},
+						{cacheName: "ek-score.pdf", localPath: "../docs/demo-charts/ek-score.pdf", docTitle: "Full score", title: "Eine kleine Nachtmusik — Score", subtitle: "Mozart K.525 (conductor)", pages: 5},
 					},
-					// Cory (cello) curates a personal view of just the cello part.
-					myFilesFor: map[string][]int{
-						"cory": {2},
-					}},
+					// Each player curates their own desk's part (Ivan=Vln I, Vera=Vln II, Mila=Viola,
+					// Cory=Cello); the conductor works from the full score.
+					myFilesFor: map[string][]int{"ivan": {0}, "vera": {1}, "mila": {2}, "cory": {3}}},
+				// Pachelbel, 1680 — the orchestra's MULTI-PART showcase. REAL, complete edition
+				// (Mutopia Project "Canon per 3 Violini e Basso", LilyPond typeset): a conductor's
+				// full score + the four parts (Violin I/II/III + Cello). The music is public domain;
+				// the TYPESET EDITION is CC-BY 4.0 (© 2015 Michael Fischer v. Mollard, Mutopia) —
+				// attributed in docs/demo-charts/README.md. Committed PDFs.
+				{title: "Canon in D", artist: "J. Pachelbel", key: "D", tempo: 56, tags: []string{"classical", "creative-commons"}, notes: "Canon over the famous ground bass.",
+					files: []pdfSource{
+						{cacheName: "canon-violin1.pdf", localPath: "../docs/demo-charts/canon-violin1.pdf", docTitle: "Violin I", title: "Canon in D — Violin I", subtitle: "Pachelbel", pages: 2},
+						{cacheName: "canon-violin2.pdf", localPath: "../docs/demo-charts/canon-violin2.pdf", docTitle: "Violin II", title: "Canon in D — Violin II", subtitle: "Pachelbel", pages: 2},
+						{cacheName: "canon-violin3.pdf", localPath: "../docs/demo-charts/canon-violin3.pdf", docTitle: "Violin III", title: "Canon in D — Violin III", subtitle: "Pachelbel", pages: 2},
+						{cacheName: "canon-cello.pdf", localPath: "../docs/demo-charts/canon-cello.pdf", docTitle: "Cello", title: "Canon in D — Cello (basso)", subtitle: "Pachelbel", pages: 1},
+						{cacheName: "canon-score.pdf", localPath: "../docs/demo-charts/canon-score.pdf", docTitle: "Full score", title: "Canon in D — Score", subtitle: "Pachelbel (conductor)", pages: 6},
+					},
+					// Each player curates their desk's part (Ivan=Vln I, Vera=Vln II, Mila=Vln III,
+					// Cory=Cello/basso); the conductor works from the full score.
+					myFilesFor: map[string][]int{"ivan": {0}, "vera": {1}, "mila": {2}, "cory": {3}}},
 			},
 			setlist: setlistDef{
 				name: "Spring Concert", eventDate: "2026-05-15", venue: "City Hall", notes: "Strings programme.",
@@ -591,21 +598,26 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		// the set above), so switching file tabs visibly demonstrates per-file scoping (T40) —
 		// distinct ink over distinct PDFs. Additive imports; idempotent by id.
 		{
-			var parts []struct {
+			type partAnn struct {
 				filename string
 				build    func(songID, fileID string) annotationsImport
 			}
+			var parts []partAnn
 			switch a.title {
 			case "House of the Rising Sun":
-				parts = append(parts, struct {
-					filename string
-					build    func(songID, fileID string) annotationsImport
-				}{"Drums", func(s, f string) annotationsImport { return buildDrumPartAnnotations(s, f) }})
+				parts = []partAnn{{"Drums", func(s, f string) annotationsImport { return buildDrumPartAnnotations(s, f) }}}
 			case "The Open Road":
-				parts = append(parts, struct {
-					filename string
-					build    func(songID, fileID string) annotationsImport
-				}{"Guitar", func(s, f string) annotationsImport { return buildOpenRoadGuitarAnnotations(s, f, userID, conductorID) }})
+				parts = []partAnn{{"Guitar", func(s, f string) annotationsImport { return buildOpenRoadGuitarAnnotations(s, f, userID, conductorID) }}}
+			case "Canon in D":
+				parts = []partAnn{
+					{"Full score", func(s, f string) annotationsImport { return buildScoreConductorAnnotations(s, f, "canon", conductorID) }},
+					{"Cello", func(s, f string) annotationsImport { return buildCelloBowingAnnotations(s, f, "canon", userID) }},
+				}
+			case "Eine kleine Nachtmusik":
+				parts = []partAnn{
+					{"Full score", func(s, f string) annotationsImport { return buildScoreConductorAnnotations(s, f, "ek", conductorID) }},
+					{"Cello", func(s, f string) annotationsImport { return buildCelloBowingAnnotations(s, f, "ek", userID) }},
+				}
 			}
 			for _, p := range parts {
 				fid, err := pdfFileIDByFilename(admin, bandID, a.songID, p.filename)

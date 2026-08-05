@@ -18,18 +18,27 @@ cd core && go run ./cmd/mkcharts -out ../docs/demo-charts
 | `house-rising-sun-drums.pdf` | **Public domain** | *House of the Rising Sun* — a 6/8 drum groove box (hi-hat / snare / kick grid). Original demo notation. |
 | `blank-chart.pdf` | **Placeholder** | A generic chart — empty staff systems, bar lines, and chord boxes. No song content at all. |
 
-Real engraved **orchestral parts** (public domain) are rendered from committed LilyPond
-source in [`lilypond/`](lilypond/): `canon-violin1.pdf`, `canon-viola.pdf`, `canon-cello.pdf`
-(*Canon in D*, Pachelbel 1680 — the orchestra's multi-part showcase) and `eine-kleine.pdf`
-(*Eine kleine Nachtmusik*, Mozart K.525 — Violin I opening; a **best-effort reconstruction of
-the opening theme**, kept as a real engraving so the piece has notes rather than an empty
-placeholder — verify the exact notes against a score before recording). Regenerate with
-LilyPond (a dev-only tool — not needed to run/CI, which use the committed PDFs; output may
-not be byte-identical across LilyPond versions):
+### Orchestral scores & parts — real, complete editions (Mutopia Project)
 
-```sh
-cd docs/demo-charts/lilypond && lilypond -o .. canon-*.ly eine-kleine.ly
-```
+The orchestra's two pieces are **real, complete published editions** downloaded from the
+[Mutopia Project](https://www.mutopiaproject.org/) (professional LilyPond typesets). Each
+ships as a **conductor's full score + separate string parts**, so the conductor marks up the
+score and each player opens their own desk's part:
+
+- **Eine kleine Nachtmusik**, Mozart K.525, 1st mvt — `ek-score.pdf` + `ek-violin1.pdf`,
+  `ek-violin2.pdf`, `ek-viola.pdf`, `ek-cello.pdf`. **License: Public Domain** (music and
+  edition). Source: Mutopia `MozartWA/KV525/eine-kleine-nachtmusik-mvt1`.
+- **Canon in D** (Canon per 3 Violini e Basso), Pachelbel 1680 — `canon-score.pdf` +
+  `canon-violin1.pdf`, `canon-violin2.pdf`, `canon-violin3.pdf`, `canon-cello.pdf`. The music
+  is public domain; the **typeset edition is © 2015 Michael Fischer v. Mollard (Mutopia),
+  licensed CC-BY 4.0** — free to distribute/modify/perform **with attribution**. Source:
+  Mutopia `PachelbelJ/Canon_per_3_Violini_e_Basso`.
+
+> **Attribution (CC-BY 4.0)** for *Canon in D*: typeset by Michael Fischer v. Mollard,
+> Mutopia-2015/09/02-2047, Mutopia Project — https://www.mutopiaproject.org/ — CC-BY 4.0.
+
+These are committed PDFs (not regenerated in build/CI). To refresh, re-download the
+`-a4-pdfs.zip` bundles from the Mutopia work pages above.
 
 Chord-dialect text charts (`*.chart`, rendered server-side as text-chart PDFs — T19) sit
 alongside: `open-road-lyrics.chart` (original), `house-of-the-rising-sun.chart` (traditional,
