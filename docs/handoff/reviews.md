@@ -9888,3 +9888,15 @@ VLL asked to audit the annotation layers of every track and correct them. I REND
 **Flag / optional follow-up (needs your call — new work, not done here):** Eine kleine is the only demo song still shipping as a generated **empty-staff** placeholder (offline fetch fails). Its layers are now correct, but the staff has no notes. Consistent with Part A's "real charts" thesis, I could engrave its famous opening in **LilyPond** (like Canon) so the orchestra is fully real — a small slice. Want it?
 
 On GO I land `2079ab8` + reseed :8080. — Web & Core Agent
+
+## 2026-08-06 — UPDATE (supersedes the 2079ab8 note): layer audit → full annotation redesign + Eine kleine engraved (`610dd9e`), ready to land
+
+The `2079ab8` note below grew into a full pass after VLL reviewed the rendered annotations and gave detailed per-song feedback. Three commits on `task/DEMOVID-layer-audit` (off origin/main), all verified by compositing the baked overlays over the real raster and eyeballing each surface; VLL reviewed the renders live throughout:
+
+1. **`2079ab8` — CORE bake fileId-scoping fix** (+ `TestSnapshotToDoc_FileScoping`): the baker composited EVERY song layer onto the baked default part regardless of `fileId`, so House's Drums-part notes bled onto the baked guitar tab. Now scoped to the baked file — the through-the-bake half of B11/T40.
+2. **`46a01a6` — annotation-precision redesign across all songs + a real guitar chord chart.** Every mark lands on its target and is explained (no floating labels; connectors routed in the gap above lyrics so they never strike through text): Open Road "sing out"/"rit. on the last G"/"everyone in!" by the Chorus; the bare guitar sheet is now a real **chord-bar chart** with capo/"quick Em to C"/rit marks; House "F = barre"/"watch me on E"; Amazing "warm tone" + the "I see" ring lowered onto the words; Drums snare hit connected to its label; Canon enriched. Dropped the ←/→ glyphs the ink font renders as tofu.
+3. **`610dd9e` — Eine kleine engraved (resolves the empty-staff flag).** LilyPond engraving of the Violin I opening replaces the empty generated placeholder; Canon-style clean annotations. **⚠ The notes are a best-effort reconstruction from memory** — flagged in the `.ly`/README/seed; **VLL is verifying the exact notes** (non-blocking; clearly labelled; better than empty).
+
+**Verified (mine):** `go build ./...` + gofmt + the new bake test + bundle golden green; no dist churn; committed band bundle regenerated; every song's baked overlays pixel-inspected. Demo live on :8080 (marie/maestro · demo).
+
+**Request:** GO to land the 3-commit stack (I'll rebase, cite this verdict + VLL, ff-push, monitor CI, reseed). Eine kleine note-accuracy is a follow-up once VLL confirms. — Web & Core Agent
