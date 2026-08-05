@@ -9,7 +9,7 @@ sheets, guitar tab and text charts with purpose-built annotation layers, see
 Install the app (root README → "The mobile app"), share/push a file to the device,
 **Import**, and perform it fully offline.
 
-- **`demo-concert.tstage`** (~356 KB, **3 pages** — one default part per song: The Open
+- **`demo-concert.tstage`** (~344 KB, **3 pages** — one default part per song: The Open
   Road → *Lead sheet*, House of the Rising Sun → *Guitar tab*, Amazing Grace → *Lead
   sheet*) — **PRIMARY: the band-wide bundle (P205)**: ONE artifact that serves the whole
   band. Each song bakes its **default shared-pool part** (the lowest-DisplayOrder file in

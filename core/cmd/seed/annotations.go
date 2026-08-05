@@ -231,6 +231,57 @@ func buildCanonAnnotations(songID, fileID string, userID map[string]string, cond
 	return *im
 }
 
+// buildEineKleineAnnotations places a CLEAN, musically-correct 3-layer showcase on Eine
+// kleine Nachtmusik (Mozart, K.525, 1st mvt = Allegro, sonata form). It replaces the
+// generic buildSongAnnotations path, whose pop-song "Verse/Chorus/Bridge" labels and
+// title-box overlap were wrong for a classical piece. Offline the seed renders the
+// generated staff placeholder (the shipped case) — coords are staff-relative there; the
+// rare fetched-PDF case gets a minimal top-area set. Nothing overlaps the title.
+func buildEineKleineAnnotations(songID, fileID string, userID map[string]string, conductorID string, generated bool) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+
+	cond := b.layer(wireLayer{
+		ID: layerID(songID, "conductor"), Name: "Conductor cues",
+		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
+	})
+	shared := b.layer(wireLayer{
+		ID: layerID(songID, "shared"), Name: "Section markings",
+		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
+	})
+	mine := b.layer(wireLayer{
+		ID: layerID(songID, "personal-dyn"), Name: "Dynamics/bowing",
+		OwnerID: userID["flora"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings",
+	})
+	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.016}
+	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
+	sharedText := wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.016}
+	sharedHi := wireStyle{Color: colorShared, Opacity: 0.35}
+	greenText := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.015}
+
+	if generated {
+		// Tempo above the first system (clear of the title/subtitle); sonata sections in the
+		// left margin, one per system; a conductor cue rings a spot on system 1 with the label
+		// out in the right margin; the ending rit. + a player dynamic sit on their own systems.
+		b.text(cond, "ek-tempo", 0, pdfMargX, systemTopY(0)-0.018, "Allegro", condText)
+		b.highlight(shared, "ek-hi", 0, 0.35, systemTopY(0)-0.004, 0.66, systemBotY(0)+0.004, sharedHi)
+		b.text(shared, "ek-exp", 0, pdfMargX, systemTopY(0)+0.004, "Exposition", sharedText)
+		b.shape("ellipse", cond, "ek-ring", 0, []wirePoint{{X: 0.30, Y: systemTopY(1) - 0.008}, {X: 0.40, Y: systemBotY(1) + 0.008}}, condStroke)
+		b.line(cond, "ek-pt", 0, 0.72, (systemTopY(1)+systemBotY(1))/2, 0.405, (systemTopY(1)+systemBotY(1))/2, condStroke)
+		b.text(cond, "ek-cue", 0, 0.73, (systemTopY(1)+systemBotY(1))/2-0.007, "watch the upbeat", condText)
+		b.text(mine, "ek-dolce", 0, pdfMargX, systemTopY(2)+0.004, "dolce", greenText)
+		b.text(shared, "ek-dev", 0, pdfMargX, systemTopY(3)+0.004, "Development", sharedText)
+		b.text(cond, "ek-rit", 0, pdfMargX, systemTopY(4)-0.014, "molto rit. al fine", condText)
+	} else {
+		// Fetched real PDF (unknown layout) — keep a minimal set in the clear top-left area.
+		b.text(cond, "ek-tempo", 0, 0.06, 0.165, "Allegro — crisp attacks", condText)
+		b.text(shared, "ek-exp", 0, 0.06, 0.205, "Exposition", sharedText)
+		b.text(shared, "ek-dev", 0, 0.06, 0.40, "Development", sharedText)
+		b.text(mine, "ek-dolce", 0, 0.06, 0.30, "dolce", greenText)
+	}
+	return *im
+}
+
 // buildSongAnnotations assembles ~3 layers (conductor / shared / personal) of
 // meaningful objects for one song, shaped by song title + group kind.
 //
@@ -389,8 +440,10 @@ func buildBandChartAnnotations(songID, fileID, title string, userID map[string]s
 		// Lead sheet. Green marker on "grace"; a left bracket on verse 1; ring the closing G of
 		// verse 1, "rit. on 'I see'" pointing in from the right.
 		b.freehand(mine, "bc-hi", 0, hiSwipe(0.113, 0.185, 0.222), green)
+		// Shared marking: a left-margin bracket grouping verse 1, with a small label at its
+		// TOP (clear space above the first chord row) — self-explanatory, no floating text.
 		b.freehand(shared, "bc-brk", 0, vertBracket(0.05, 0.19, 0.322), amberBrk)
-		b.text(shared, "bc-lab", 0, 0.74, 0.235, "everyone", amberT)
+		b.text(shared, "bc-lab", 0, 0.07, 0.183, "v.1 — softly", amberT)
 		b.shape("ellipse", cond, "bc-ring", 0, []wirePoint{{X: 0.30, Y: 0.310}, {X: 0.40, Y: 0.332}}, condS)
 		b.line(cond, "bc-pt", 0, 0.54, 0.320, 0.40, 0.322, condS)
 		b.text(cond, "bc-cue", 0, 0.55, 0.313, "rit. on 'I see'", condT)

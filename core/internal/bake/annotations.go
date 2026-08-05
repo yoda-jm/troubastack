@@ -59,12 +59,23 @@ type cliRequest struct {
 	OverlayWidth int            `json:"overlayWidth"`
 }
 
-// snapshotToDoc maps a materialized annotation snapshot to the renderer doc. Only
-// LIVE objects are drawn (tombstones excluded) — same as the dry layer studio and
-// the annotation API expose.
-func snapshotToDoc(snap domain.Snapshot) annotationsDoc {
+// snapshotToDoc maps a materialized annotation snapshot to the renderer doc, scoped
+// to the file being baked. Only LIVE objects are drawn (tombstones excluded) — same
+// as the dry layer studio and the annotation API expose.
+//
+// fileID SCOPING (B11/T40): a multi-file song carries per-file layers (e.g. House of
+// the Rising Sun's guitar-tab layers vs its Drums-part layer). The bake rasterizes ONE
+// file (the default part), so only that file's layers may composite onto it — otherwise
+// another part's ink (drum notes) bleeds onto the baked page. A layer with an empty
+// FileID is song-level (legacy/single-file) and composites onto whatever is baked.
+func snapshotToDoc(snap domain.Snapshot, fileID string) annotationsDoc {
 	doc := annotationsDoc{Layers: []docLayer{}, Objects: []docObject{}}
+	keep := map[string]bool{}
 	for _, l := range snap.Layers {
+		if l.FileID != "" && l.FileID != fileID {
+			continue // another file's part — don't bake it onto this page
+		}
+		keep[l.ID] = true
 		doc.Layers = append(doc.Layers, docLayer{
 			ID:        l.ID,
 			Order:     l.Order,
@@ -73,6 +84,9 @@ func snapshotToDoc(snap domain.Snapshot) annotationsDoc {
 		})
 	}
 	for _, o := range snap.LiveObjects() {
+		if !keep[o.LayerID] {
+			continue // object belongs to a layer scoped to another file
+		}
 		pts := make([]docPoint, len(o.Points))
 		for i, p := range o.Points {
 			pts[i] = docPoint{X: p.X, Y: p.Y}

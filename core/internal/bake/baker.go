@@ -345,7 +345,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 		overlayWidth = pageSizes[0].Width
 	}
 	rendered, err := b.overlays.Render(ctx, cliRequest{
-		Doc:          snapshotToDoc(snap),
+		Doc:          snapshotToDoc(snap, file.ID),
 		Pages:        pageSizes,
 		OverlayWidth: overlayWidth,
 	})

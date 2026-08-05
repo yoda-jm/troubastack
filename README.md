@@ -152,7 +152,7 @@ GitHub Actions run (**android** job → `troubashare-debug-apk` artifact) and in
 ### Demo it with zero servers
 
 A baked concert with **real music and real annotations** is committed at
-[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~356 KB — the seeded
+[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~344 KB — the seeded
 *"Sat @ The Anchor"* setlist of copyright-safe music: the original *The Open Road*, the
 traditional *House of the Rising Sun*, and *Amazing Grace* — real lead sheets, tab and
 text charts, flattened by the real bake pipeline; see

@@ -577,6 +577,10 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		case "Canon in D":
 			// Committed LilyPond orchestral part (staff at top) — clean placement below it.
 			im = buildCanonAnnotations(a.songID, fileID, userID, conductorID)
+		case "Eine kleine Nachtmusik":
+			// Classical piece (Allegro, sonata form) — correct musical markings, no title-box
+			// overlap, instead of the generic pop-song Verse/Chorus/Bridge fallback.
+			im = buildEineKleineAnnotations(a.songID, fileID, userID, conductorID, a.generated)
 		}
 		var got annotationsImport
 		if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", im, &got); err != nil {
