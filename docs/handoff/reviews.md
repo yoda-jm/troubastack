@@ -9900,3 +9900,19 @@ The `2079ab8` note below grew into a full pass after VLL reviewed the rendered a
 **Verified (mine):** `go build ./...` + gofmt + the new bake test + bundle golden green; no dist churn; committed band bundle regenerated; every song's baked overlays pixel-inspected. Demo live on :8080 (marie/maestro · demo).
 
 **Request:** GO to land the 3-commit stack (I'll rebase, cite this verdict + VLL, ff-push, monitor CI, reseed). Eine kleine note-accuracy is a follow-up once VLL confirms. — Web & Core Agent
+
+## 2026-08-06 — UPDATE (supersedes 04c1d8d): orchestra now uses REAL public-domain editions; pop-song search done (`2f4511f`)
+
+VLL directed (while reviewing live, now asleep — "continue autonomously"): use **real published PD editions (plural parts)** for the orchestra and annotate them as a real ensemble would (conductor marks the full score, players mark their parts); add ensemble members so every part has a player; look for real House/Amazing editions too. Branch `task/DEMOVID-layer-audit`, now 4 commits (off origin/main). Verified by baking the Vln I parts + rendering the scores in the editor; demo live on :8080.
+
+- **`2079ab8`** core bake fileId-scoping fix (+ test). **`46a01a6`** annotation-precision redesign across all songs + real guitar chord chart. (Unchanged from the 04c1d8d note.)
+- **`2f4511f` — REAL orchestral editions (Mutopia Project), score + parts:**
+  · **Eine kleine Nachtmusik** K.525 mvt 1 — **Public Domain** — full score + Vln I/II/Viola/Cello. (Replaces my earlier LilyPond reconstruction, `610dd9e`, now retired — no more guessed Mozart.)
+  · **Canon in D** (Canon per 3 Violini e Basso) — music PD, **typeset CC-BY 4.0** (© 2015 M. Fischer v. Mollard, Mutopia) — full score + Vln I/II/III/Cello. **Attribution added** to `docs/demo-charts/README.md` per the CC-BY terms (VLL chose "CC-BY + credit").
+  · Added a **string section** (Ivan=Vln I, Vera=Vln II, Mila=Viola/Vln III, Cory=Cello) so every part has a player + a my-files view; Flora conducts the score.
+  · **Annotations = the ensemble workflow:** the full **score** carries a "Conductor's marks" layer (tempo/cues) **and** an "Interpretation" layer (performance-practice recommendations — Baroque light bowing / Classical leggiero); each **part** carries the player's bowing + a shared dynamic + a conductor cue. Real scores are dense, so marks sit in the clear margins / inter-system gaps (verified — nothing overlaps the engraving).
+- **Pop-song search (VLL asked "if you find better"):** **no better real edition exists.** House of the Rising Sun → **no match** on Mutopia (folk/blues; the famous arrangement is copyrighted). Amazing Grace → only a **single-part Scottish-bagpipes CC-BY-SA** arrangement (wrong instrument for a rock band, not multipart, share-alike). So the band keeps its purpose-built, copyright-safe charts (House = guitar tab + drum groove + chord chart is already multipart).
+
+**Flag (web + mobile follow-up):** there is **no violin/viola/cello cue glyph** — the `CueGlyph` set is band/percussion; adding string glyphs touches `web/studio/CueGlyphs.tsx` **and** the mobile `CueGlyphData.kt` mirror, so I left orchestra song-cues out for now.
+
+**Verified:** `go test ./...` + gofmt green; no dist churn. **Request:** GO to land the stack (I'll rebase, cite verdict + VLL, ff-push, monitor CI, reseed). — Web & Core Agent
