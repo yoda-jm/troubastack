@@ -588,16 +588,25 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		}
 		fmt.Printf("     + annotations %q: %d layers, %d objects\n", a.title, len(got.Layers), len(got.Objects))
 
-		// B11: give House of the Rising Sun's DRUMS part its OWN annotations (the first
-		// PDF — the guitar tab — keeps the section-form set above), so switching file tabs
-		// visibly demonstrates per-file scoping (T40) — distinct ink over distinct PDFs.
-		// Additive imports; idempotent by id.
-		if a.title == "House of the Rising Sun" {
-			parts := []struct {
+		// B11: give a multi-file song's OTHER parts their OWN annotations (the first PDF keeps
+		// the set above), so switching file tabs visibly demonstrates per-file scoping (T40) —
+		// distinct ink over distinct PDFs. Additive imports; idempotent by id.
+		{
+			var parts []struct {
 				filename string
 				build    func(songID, fileID string) annotationsImport
-			}{
-				{"Drums", func(s, f string) annotationsImport { return buildDrumPartAnnotations(s, f) }},
+			}
+			switch a.title {
+			case "House of the Rising Sun":
+				parts = append(parts, struct {
+					filename string
+					build    func(songID, fileID string) annotationsImport
+				}{"Drums", func(s, f string) annotationsImport { return buildDrumPartAnnotations(s, f) }})
+			case "The Open Road":
+				parts = append(parts, struct {
+					filename string
+					build    func(songID, fileID string) annotationsImport
+				}{"Guitar", func(s, f string) annotationsImport { return buildOpenRoadGuitarAnnotations(s, f, userID, conductorID) }})
 			}
 			for _, p := range parts {
 				fid, err := pdfFileIDByFilename(admin, bandID, a.songID, p.filename)

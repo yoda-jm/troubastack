@@ -208,16 +208,25 @@ func buildCanonAnnotations(songID, fileID string, userID map[string]string, cond
 		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
 	})
 	condS := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
+	condT := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.014}
 	b.shape("ellipse", cond, "cn-ring", 0, []wirePoint{{X: 0.78, Y: 0.106}, {X: 0.865, Y: 0.152}}, condS)
 	b.line(cond, "cn-pt", 0, 0.66, 0.205, 0.82, 0.152, condS)
-	b.text(cond, "cn-rit", 0, 0.595, 0.212, "rit. — watch me", wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.014})
+	b.text(cond, "cn-rit", 0, 0.595, 0.212, "rit. — watch me (last bar)", condT)
+	// A start-of-piece cue: steady tempo, don't rush the famous ground bass (points up to bar 1).
+	b.line(cond, "cn-steady-pt", 0, 0.185, 0.192, 0.185, 0.155, condS)
+	b.text(cond, "cn-steady", 0, 0.10, 0.205, "steady — don't rush", condT)
 
-	// Dynamics (shared, amber) — a marking under the opening bars.
+	// Dynamics (shared, amber) — the opening dynamic + a crescendo hairpin through the phrase.
 	shared := b.layer(wireLayer{
 		ID: layerID(songID, "shared"), Name: "Dynamics",
 		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
 	})
-	b.text(shared, "cn-dyn", 0, 0.18, 0.198, "mf espr.", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.015})
+	amberS := wireStyle{Color: colorShared, Opacity: 1, Width: 0.003}
+	b.text(shared, "cn-dyn", 0, 0.34, 0.198, "mf espr.", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.015})
+	// Crescendo hairpin (two lines opening rightward) under the mid phrase + a "cresc." label.
+	b.line(shared, "cn-cresc1", 0, 0.46, 0.196, 0.62, 0.190, amberS)
+	b.line(shared, "cn-cresc2", 0, 0.46, 0.196, 0.62, 0.202, amberS)
+	b.text(shared, "cn-cresc", 0, 0.63, 0.199, "cresc.", wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.014})
 
 	// Bowing (personal, owned by the cellist) — down-bow marks over the first two notes + dolce.
 	bow := b.layer(wireLayer{
@@ -369,7 +378,9 @@ func buildOpenRoadAnnotations(songID, fileID string, userID map[string]string, c
 		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "ro", Mandatory: true,
 	})
 	b.freehand(form, "or-chorus-brk", 0, vertBracket(0.045, 0.378, 0.520), wireStyle{Color: colorShared, Opacity: 1, Width: 0.005})
-	b.text(form, "or-chorus", 0, 0.70, 0.392, "everyone in!", wireStyle{Color: "#B45309", Opacity: 1, FontSize: 0.016})
+	// Label sits right after the printed "Chorus" heading (not floating in the right margin) so
+	// it clearly reads "on the chorus, everyone joins".
+	b.text(form, "or-chorus", 0, 0.215, 0.372, "everyone in!", wireStyle{Color: "#B45309", Opacity: 1, FontSize: 0.015})
 
 	// Conductor cues (conductor role, mandatory, red) — circle the LAST chorus's landing chord
 	// (G) and point "rit. — watch me" at it from the clear space to its right.
@@ -378,9 +389,11 @@ func buildOpenRoadAnnotations(songID, fileID string, userID map[string]string, c
 		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
 	})
 	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
+	// Ring the FINAL landing chord (the last G of the last chorus line) and name it, so the cue
+	// is precise about where the ritardando lands.
 	b.shape("ellipse", cond, "or-turn", 0, []wirePoint{{X: 0.255, Y: 0.499}, {X: 0.32, Y: 0.520}}, condStroke)
-	b.line(cond, "or-point", 0, 0.395, 0.507, 0.325, 0.510, condStroke)
-	b.text(cond, "or-rit", 0, 0.40, 0.498, "rit. — watch me", wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.015})
+	b.line(cond, "or-point", 0, 0.415, 0.509, 0.325, 0.510, condStroke)
+	b.text(cond, "or-rit", 0, 0.42, 0.503, "rit. on the last G", wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.015})
 
 	// My notes (personal, owned by marie) — the SEMI-TRANSPARENT FREEHAND highlighter: a GREEN
 	// marker over the printed "Capo 2" with a ⚠ warning sign, and a YELLOW marker over the hook
@@ -391,8 +404,51 @@ func buildOpenRoadAnnotations(songID, fileID string, userID map[string]string, c
 	})
 	b.freehand(mine, "or-capo-hi", 0, hiSwipe(0.432, 0.492, 0.128), wireStyle{Color: colorPersonal2, Opacity: 0.4, Width: 0.02})
 	b.warnSign(mine, "or-capo-warn", 0.525, 0.126, wireStyle{Color: "#EA580C", Opacity: 1, Width: 0.004})
-	b.freehand(mine, "or-hook-hi", 0, hiSwipe(0.105, 0.225, 0.408), wireStyle{Color: "#FACC15", Opacity: 0.4, Width: 0.02})
+	// YELLOW highlighter over the full hook word "drive, drive" + a personal note (connected) so
+	// the mark is explained, not a bare mid-word swipe.
+	b.freehand(mine, "or-hook-hi", 0, hiSwipe(0.135, 0.285, 0.408), wireStyle{Color: "#FACC15", Opacity: 0.4, Width: 0.02})
+	green := wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.003}
+	// Connector runs in the gap ABOVE the lyric baseline (between the chord row and the words)
+	// so it never strikes through "into the wide unknown".
+	b.line(mine, "or-hook-pt", 0, 0.62, 0.403, 0.30, 0.403, green)
+	b.text(mine, "or-hook-lab", 0, 0.63, 0.398, "sing out", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.014})
 
+	return *im
+}
+
+// buildOpenRoadGuitarAnnotations annotates the guitarist's chart (open-road-guitar.pdf: an
+// intro riff + Verse/Chorus chord-bar charts). Every mark is explained: a green capo reminder
+// on the printed "Capo 2", a shared "quick change" on the Em→C turnaround bar, and the
+// conductor's "rit. on the last bar" ringing the final chorus measure.
+func buildOpenRoadGuitarAnnotations(songID, fileID string, userID map[string]string, conductorID string) annotationsImport {
+	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
+	b := &builderCtx{songID: songID, fileID: fileID, im: im}
+
+	mine := b.layer(wireLayer{
+		ID: layerID(songID, "gtr-mine"), Name: "My notes", OwnerID: userID["leo"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "guitar",
+	})
+	green := wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.003}
+	b.freehand(mine, "gtr-capo-hi", 0, hiSwipe(0.315, 0.385, 0.128), wireStyle{Color: colorPersonal2, Opacity: 0.4, Width: 0.02})
+	// Label ABOVE the highlight (in the gap below the subtitle) with a short down-tick, so the
+	// connector never crosses the rest of the meta line ("~92 bpm · 4/4").
+	b.line(mine, "gtr-capo-pt", 0, 0.375, 0.114, 0.37, 0.125, green)
+	b.text(mine, "gtr-capo-lab", 0, 0.36, 0.109, "capo on!", wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.014})
+
+	// Shared: ring the Em→C turnaround bar (verse, 2nd row, bar 3) and name the quick change.
+	shared := b.layer(wireLayer{
+		ID: layerID(songID, "gtr-shared"), Name: "Section markings", OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
+	})
+	amber := wireStyle{Color: colorShared, Opacity: 1, Width: 0.0035}
+	b.shape("ellipse", shared, "gtr-turn", 0, []wirePoint{{X: 0.505, Y: 0.393}, {X: 0.735, Y: 0.435}}, amber)
+	b.text(shared, "gtr-turn-lab", 0, 0.505, 0.446, "quick Em to C", wireStyle{Color: "#B45309", Opacity: 1, FontSize: 0.014})
+
+	// Conductor: ring the final chorus bar (last G) with the ritardando cue.
+	cond := b.layer(wireLayer{
+		ID: layerID(songID, "gtr-cues"), Name: "Conductor cues", OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
+	})
+	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
+	b.shape("ellipse", cond, "gtr-last", 0, []wirePoint{{X: 0.735, Y: 0.536}, {X: 0.965, Y: 0.578}}, condStroke)
+	b.text(cond, "gtr-last-lab", 0, 0.60, 0.590, "rit. on the last bar", wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.014})
 	return *im
 }
 
@@ -425,28 +481,36 @@ func buildBandChartAnnotations(songID, fileID, title string, userID map[string]s
 	condS := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
 	condT := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.014}
 	green := wireStyle{Color: colorPersonal2, Opacity: 0.4, Width: 0.02}
+	greenT := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.014}
+	greenThin := wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.003}
 
 	switch title {
 	case "House of the Rising Sun":
-		// Guitar tab. Green marker on the opening Am chord; a left bracket on the arpeggio with
-		// "let it ring" in the right margin; ring the E turnaround, "watch me" pointing in.
-		b.freehand(mine, "bc-hi", 0, hiSwipe(0.155, 0.215, 0.212), green)
+		// Guitar tab (chord row Am C D F Am E ≈ x 0.14/0.23/0.32/0.41/0.50/0.59, y 0.204).
+		// Personal: highlight the tricky F BARRE chord, explained.
+		b.freehand(mine, "bc-hi", 0, hiSwipe(0.398, 0.432, 0.204), green)
+		b.text(mine, "bc-hi-lab", 0, 0.375, 0.190, "F = barre", greenT)
+		// Shared: bracket the arpeggio, labelled at its top (not floating in the margin).
 		b.freehand(shared, "bc-brk", 0, vertBracket(0.05, 0.205, 0.325), amberBrk)
-		b.text(shared, "bc-lab", 0, 0.74, 0.255, "let it ring", amberT)
+		b.text(shared, "bc-lab", 0, 0.045, 0.192, "let it ring", amberT)
+		// Conductor: ring the E turnaround and NAME it.
 		b.shape("ellipse", cond, "bc-ring", 0, []wirePoint{{X: 0.555, Y: 0.197}, {X: 0.625, Y: 0.220}}, condS)
 		b.line(cond, "bc-pt", 0, 0.70, 0.192, 0.625, 0.206, condS)
-		b.text(cond, "bc-cue", 0, 0.705, 0.184, "watch me", condT)
+		b.text(cond, "bc-cue", 0, 0.705, 0.184, "watch me on E", condT)
 	case "Amazing Grace":
-		// Lead sheet. Green marker on "grace"; a left bracket on verse 1; ring the closing G of
-		// verse 1, "rit. on 'I see'" pointing in from the right.
-		b.freehand(mine, "bc-hi", 0, hiSwipe(0.113, 0.185, 0.222), green)
-		// Shared marking: a left-margin bracket grouping verse 1, with a small label at its
-		// TOP (clear space above the first chord row) — self-explanatory, no floating text.
+		// Lead sheet (verse 1 lines ≈ y 0.222/0.258/0.295/0.335; "I see" ends line 4).
+		// Personal: highlight the full word "grace" + an explained note (connector runs in the
+		// gap above the lyric baseline).
+		b.freehand(mine, "bc-hi", 0, hiSwipe(0.185, 0.255, 0.222), green)
+		b.line(mine, "bc-hi-pt", 0, 0.60, 0.211, 0.26, 0.211, greenThin)
+		b.text(mine, "bc-hi-lab", 0, 0.61, 0.206, "warm tone", greenT)
+		// Shared: a left-margin bracket grouping verse 1, labelled at its top.
 		b.freehand(shared, "bc-brk", 0, vertBracket(0.05, 0.19, 0.322), amberBrk)
 		b.text(shared, "bc-lab", 0, 0.07, 0.183, "v.1 — softly", amberT)
-		b.shape("ellipse", cond, "bc-ring", 0, []wirePoint{{X: 0.30, Y: 0.310}, {X: 0.40, Y: 0.332}}, condS)
-		b.line(cond, "bc-pt", 0, 0.54, 0.320, 0.40, 0.322, condS)
-		b.text(cond, "bc-cue", 0, 0.55, 0.313, "rit. on 'I see'", condT)
+		// Conductor: ring the words "I see" (line 4) — lowered ONTO the words, not the chord row.
+		b.shape("ellipse", cond, "bc-ring", 0, []wirePoint{{X: 0.275, Y: 0.324}, {X: 0.375, Y: 0.350}}, condS)
+		b.line(cond, "bc-pt", 0, 0.55, 0.337, 0.375, 0.338, condS)
+		b.text(cond, "bc-cue", 0, 0.56, 0.332, "rit. on 'I see'", condT)
 	}
 	return *im
 }
@@ -542,7 +606,9 @@ func buildDrumPartAnnotations(songID, fileID string) annotationsImport {
 	// span x ~0.19–0.44. Text labels sit in the clear space to the RIGHT of the grid (x > 0.50).
 	// A semi-transparent freehand highlighter marks the SNARE hit on beat 4 (the backbeat).
 	b.freehand(notes, "drum-snare-hi", 0, hiSwipe(0.315, 0.365, 0.262), wireStyle{Color: "#FACC15", Opacity: 0.4, Width: 0.02})
-	b.text(notes, "drum-snare", 0, 0.50, 0.258, "snare — lay back", txt)
+	// Connect the label to the highlighted snare hit so the mark is explained, not floating.
+	b.line(notes, "drum-snare-pt", 0, 0.49, 0.262, 0.37, 0.262, wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.003})
+	b.text(notes, "drum-snare", 0, 0.50, 0.258, "snare (beat 4) — lay back", txt)
 	b.text(notes, "drum-soft", 0, 0.50, 0.232, "keep it soft under the vocal", txt)
 	return *im
 }

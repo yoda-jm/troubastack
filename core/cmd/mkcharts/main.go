@@ -159,33 +159,71 @@ func openRoadLeadSheet() *fpdf.Fpdf {
 // openRoadGuitar is the GUITARIST's part — the intro riff as tab, on its own sheet (it plays
 // BEFORE the song, so it belongs with the guitar part, not after the whole lead sheet). The
 // riff, chords and tuning are ORIGINAL. Seeded as a second file in The Open Road's pool.
+// barChart draws `bars` as boxed measures, 4 per line, from (margin, y); each measure
+// shows its chord(s). Returns the y below the chart — a "how many bars of what chord"
+// guitar chart (the format VLL asked for).
+func barChart(pdf *fpdf.Fpdf, tr func(string) string, y float64, bars []string) float64 {
+	const perLine = 4
+	const h = 13.0
+	w := (right - margin) / perLine
+	pdf.SetLineWidth(0.3)
+	for i, ch := range bars {
+		x := margin + float64(i%perLine)*w
+		yy := y + float64(i/perLine)*h
+		pdf.Rect(x, yy, w, h, "D")
+		pdf.SetFont("Helvetica", "B", 13)
+		pdf.SetXY(x, yy+3.5)
+		pdf.CellFormat(w, 6, tr(ch), "", 0, "C", false, 0, "")
+	}
+	rows := (len(bars) + perLine - 1) / perLine
+	return y + float64(rows)*h
+}
+
 func openRoadGuitar() *fpdf.Fpdf {
 	pdf, tr := newDoc("The Open Road — Guitar")
-	header(pdf, tr, "The Open Road — Guitar", "original demo song · intro riff", "Standard tuning (EADGBe)   •   Capo 2   •   let ring   •   ~92 bpm")
+	header(pdf, tr, "The Open Road — Guitar", "original demo song · guitar chart", "Standard tuning (EADGBe)   •   Capo 2   •   ~92 bpm · 4/4")
+
+	// A compact intro riff, then the chord chart (bars per chord) for verse + chorus.
 	pdf.SetFont("Helvetica", "B", 11)
 	pdf.SetTextColor(150, 90, 30)
 	pdf.SetXY(margin, 50)
-	pdf.Cell(0, 6, tr("Intro riff — play twice, then into Verse 1"))
+	pdf.Cell(0, 6, tr("Intro riff — play twice"))
 	pdf.SetTextColor(0, 0, 0)
 	tabLines := []string{
 		"e|-----------------0-------------------0---------------|",
 		"B|-------0-----------------3-------0-------------3------|",
 		"G|---0-------0---------0-------0-------0-----0----------|",
-		"D|-------------------------------------------------2---|",
 		"A|-2---------------3-----------------2-----------------|",
 		"E|-3---------------------------------3-----------------|",
 	}
-	yy := 62.0
-	pdf.SetFont("Courier", "", 10)
+	yy := 60.0
+	pdf.SetFont("Courier", "", 9)
 	for _, ln := range tabLines {
 		pdf.SetXY(margin, yy)
 		pdf.Cell(0, 5, ln)
-		yy += 6
+		yy += 5.2
 	}
+
+	// Verse chord chart — 8 bars.
+	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetTextColor(150, 90, 30)
+	pdf.SetXY(margin, yy+8)
+	pdf.Cell(0, 6, tr("Verse — 8 bars"))
+	pdf.SetTextColor(0, 0, 0)
+	yy = barChart(pdf, tr, yy+16, []string{"G", "D", "Em", "C", "G", "D", "Em  C", "G"})
+
+	// Chorus chord chart — 8 bars.
+	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetTextColor(150, 90, 30)
+	pdf.SetXY(margin, yy+8)
+	pdf.Cell(0, 6, tr("Chorus — 8 bars"))
+	pdf.SetTextColor(0, 0, 0)
+	yy = barChart(pdf, tr, yy+16, []string{"C", "G", "D", "Em", "C", "G", "D", "G"})
+
 	pdf.SetFont("Helvetica", "I", 10)
 	pdf.SetXY(margin, yy+8)
 	pdf.MultiCell(right-margin, 5, tr("Chord shapes: G (320003) · D (xx0232) · Em (022000) · C (x32010). "+
-		"Play the riff twice, then land on G to start Verse 1."), "", "L", false)
+		"Capo 2 (written pitch). Play the riff twice, then Verse."), "", "L", false)
 	footer(pdf, tr)
 	return pdf
 }
