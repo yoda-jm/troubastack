@@ -188,17 +188,16 @@ func run(addr, password string) error {
 			conductor: "flora", // promoted to the "conductor" role to show role management
 			songs: []songDef{
 				{title: "Eine kleine Nachtmusik", artist: "W. A. Mozart", key: "G", tempo: 140, tags: []string{"classical", "public-domain"}, notes: "Allegro; K. 525.",
+					// REAL committed engraving (LilyPond, docs/demo-charts/lilypond/eine-kleine.ly) —
+					// the opening theme, so the orchestra's second piece has real notes rather than
+					// the old empty-staff generated placeholder (the Mutopia fetch was unreliable).
 					src: pdfSource{
 						cacheName: "eine-kleine-nachtmusik.pdf",
+						localPath: "../docs/demo-charts/eine-kleine.pdf",
+						docTitle:  "Violin I",
 						title:     "Eine kleine Nachtmusik",
 						subtitle:  "W. A. Mozart (K. 525)",
-						pages:     4,
-						// Mutopia now ships this edition only as a multi-PDF .zip (no
-						// stable single-PDF URL), so this is best-effort; the generated
-						// fallback covers it when it 404s.
-						urls: []string{
-							"https://www.mutopiaproject.org/ftp/MozartWA/KV525/eine_kleine_nachtmusik/eine_kleine_nachtmusik-a4.pdf",
-						},
+						pages:     1,
 					}},
 				// PUBLIC DOMAIN (Pachelbel, 1680) — the orchestra's MULTI-PART showcase: real,
 				// engraved per-instrument parts (Violin I, Viola, Cello) so multiple players each

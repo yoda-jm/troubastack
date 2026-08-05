@@ -240,12 +240,11 @@ func buildCanonAnnotations(songID, fileID string, userID map[string]string, cond
 	return *im
 }
 
-// buildEineKleineAnnotations places a CLEAN, musically-correct 3-layer showcase on Eine
-// kleine Nachtmusik (Mozart, K.525, 1st mvt = Allegro, sonata form). It replaces the
-// generic buildSongAnnotations path, whose pop-song "Verse/Chorus/Bridge" labels and
-// title-box overlap were wrong for a classical piece. Offline the seed renders the
-// generated staff placeholder (the shipped case) — coords are staff-relative there; the
-// rare fetched-PDF case gets a minimal top-area set. Nothing overlaps the title.
+// buildEineKleineAnnotations places a clean 3-layer showcase on the committed Eine kleine
+// engraving (LilyPond: staff near the top ~y 0.09–0.11, whitespace below — like Canon).
+// Every mark lands on the staff or connects up to it from the clear space below: a start
+// cue "crisp, together", a "cresc." hairpin mid-phrase, the conductor's "rit." ringing the
+// final bar, and the player's down-bows + bowing note. Nothing overlaps the engraving.
 func buildEineKleineAnnotations(songID, fileID string, userID map[string]string, conductorID string, generated bool) annotationsImport {
 	im := &annotationsImport{Layers: []wireLayer{}, Objects: []wireObject{}}
 	b := &builderCtx{songID: songID, fileID: fileID, im: im}
@@ -255,39 +254,36 @@ func buildEineKleineAnnotations(songID, fileID string, userID map[string]string,
 		OwnerID: conductorID, Zone: "conductor", Order: 0, Access: "ro", Mandatory: true, RoleTag: "conductor",
 	})
 	shared := b.layer(wireLayer{
-		ID: layerID(songID, "shared"), Name: "Section markings",
+		ID: layerID(songID, "shared"), Name: "Dynamics",
 		OwnerID: "_shared_", Zone: "shared", Order: 0, Access: "rw",
 	})
 	mine := b.layer(wireLayer{
-		ID: layerID(songID, "personal-dyn"), Name: "Dynamics/bowing",
-		OwnerID: userID["flora"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings",
+		ID: layerID(songID, "personal-bow"), Name: "Bowing",
+		OwnerID: userID["cory"], Zone: "personal", Order: 0, Access: "rw", RoleTag: "strings",
 	})
-	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.016}
+	condText := wireStyle{Color: colorConductor, Opacity: 1, FontSize: 0.015}
 	condStroke := wireStyle{Color: colorConductor, Opacity: 1, Width: 0.0035}
-	sharedText := wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.016}
-	sharedHi := wireStyle{Color: colorShared, Opacity: 0.35}
-	greenText := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.015}
+	amberText := wireStyle{Color: colorShared, Opacity: 1, FontSize: 0.014}
+	amberStroke := wireStyle{Color: colorShared, Opacity: 1, Width: 0.003}
+	greenText := wireStyle{Color: colorPersonal2, Opacity: 1, FontSize: 0.014}
+	greenStroke := wireStyle{Color: colorPersonal2, Opacity: 1, Width: 0.004}
 
-	if generated {
-		// Tempo above the first system (clear of the title/subtitle); sonata sections in the
-		// left margin, one per system; a conductor cue rings a spot on system 1 with the label
-		// out in the right margin; the ending rit. + a player dynamic sit on their own systems.
-		b.text(cond, "ek-tempo", 0, pdfMargX, systemTopY(0)-0.018, "Allegro", condText)
-		b.highlight(shared, "ek-hi", 0, 0.35, systemTopY(0)-0.004, 0.66, systemBotY(0)+0.004, sharedHi)
-		b.text(shared, "ek-exp", 0, pdfMargX, systemTopY(0)+0.004, "Exposition", sharedText)
-		b.shape("ellipse", cond, "ek-ring", 0, []wirePoint{{X: 0.30, Y: systemTopY(1) - 0.008}, {X: 0.40, Y: systemBotY(1) + 0.008}}, condStroke)
-		b.line(cond, "ek-pt", 0, 0.72, (systemTopY(1)+systemBotY(1))/2, 0.405, (systemTopY(1)+systemBotY(1))/2, condStroke)
-		b.text(cond, "ek-cue", 0, 0.73, (systemTopY(1)+systemBotY(1))/2-0.007, "watch the upbeat", condText)
-		b.text(mine, "ek-dolce", 0, pdfMargX, systemTopY(2)+0.004, "dolce", greenText)
-		b.text(shared, "ek-dev", 0, pdfMargX, systemTopY(3)+0.004, "Development", sharedText)
-		b.text(cond, "ek-rit", 0, pdfMargX, systemTopY(4)-0.014, "molto rit. al fine", condText)
-	} else {
-		// Fetched real PDF (unknown layout) — keep a minimal set in the clear top-left area.
-		b.text(cond, "ek-tempo", 0, 0.06, 0.165, "Allegro — crisp attacks", condText)
-		b.text(shared, "ek-exp", 0, 0.06, 0.205, "Exposition", sharedText)
-		b.text(shared, "ek-dev", 0, 0.06, 0.40, "Development", sharedText)
-		b.text(mine, "ek-dolce", 0, 0.06, 0.30, "dolce", greenText)
-	}
+	// Conductor: start cue on bar 1 (points up to the staff) + the ritardando ringing the LAST bar.
+	b.line(cond, "ek-start-pt", 0, 0.165, 0.165, 0.19, 0.118, condStroke)
+	b.text(cond, "ek-start", 0, 0.055, 0.172, "crisp, together", condText)
+	b.shape("ellipse", cond, "ek-ring", 0, []wirePoint{{X: 0.715, Y: 0.078}, {X: 0.815, Y: 0.122}}, condStroke)
+	b.line(cond, "ek-rit-pt", 0, 0.585, 0.175, 0.76, 0.124, condStroke)
+	b.text(cond, "ek-rit", 0, 0.44, 0.180, "rit. — watch me (last bar)", condText)
+
+	// Shared: a crescendo hairpin under the mid phrase + a "cresc." label.
+	b.line(shared, "ek-cresc1", 0, 0.52, 0.150, 0.68, 0.144, amberStroke)
+	b.line(shared, "ek-cresc2", 0, 0.52, 0.150, 0.68, 0.156, amberStroke)
+	b.text(shared, "ek-cresc", 0, 0.69, 0.152, "cresc.", amberText)
+
+	// Personal (cellist's part-mate): down-bow marks over the opening rockets + a bowing note.
+	b.freehand(mine, "ek-db1", 0, downBow(0.19, 0.075), greenStroke)
+	b.freehand(mine, "ek-db2", 0, downBow(0.245, 0.075), greenStroke)
+	b.text(mine, "ek-bow", 0, 0.055, 0.205, "off the string", greenText)
 	return *im
 }
 

@@ -19,13 +19,16 @@ cd core && go run ./cmd/mkcharts -out ../docs/demo-charts
 | `blank-chart.pdf` | **Placeholder** | A generic chart — empty staff systems, bar lines, and chord boxes. No song content at all. |
 
 Real engraved **orchestral parts** (public domain) are rendered from committed LilyPond
-source in [`lilypond/`](lilypond/) — `canon-violin1.pdf`, `canon-viola.pdf`, `canon-cello.pdf`
-(*Canon in D*, Pachelbel 1680). The seed wires them as the orchestra's multi-part showcase.
-Regenerate with LilyPond (a dev-only tool — not needed to run/CI, which use the committed
-PDFs; output may not be byte-identical across LilyPond versions):
+source in [`lilypond/`](lilypond/): `canon-violin1.pdf`, `canon-viola.pdf`, `canon-cello.pdf`
+(*Canon in D*, Pachelbel 1680 — the orchestra's multi-part showcase) and `eine-kleine.pdf`
+(*Eine kleine Nachtmusik*, Mozart K.525 — Violin I opening; a **best-effort reconstruction of
+the opening theme**, kept as a real engraving so the piece has notes rather than an empty
+placeholder — verify the exact notes against a score before recording). Regenerate with
+LilyPond (a dev-only tool — not needed to run/CI, which use the committed PDFs; output may
+not be byte-identical across LilyPond versions):
 
 ```sh
-cd docs/demo-charts/lilypond && lilypond -o .. canon-*.ly
+cd docs/demo-charts/lilypond && lilypond -o .. canon-*.ly eine-kleine.ly
 ```
 
 Chord-dialect text charts (`*.chart`, rendered server-side as text-chart PDFs — T19) sit
