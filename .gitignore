@@ -53,3 +53,8 @@ playwright-report/
 # OPS02: app binaries are dropped into deploy/apps/ for the image build (not committed)
 deploy/apps/*.apk
 core/gen-mirrors
+
+# DEMO-VID Part B — generated recording artifacts (video is a release/hosting artifact, not versioned)
+web/studio/test-results/
+web/studio/walkthrough/output/
+core/troubadata-walkthrough/
