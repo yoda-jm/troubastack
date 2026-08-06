@@ -13,9 +13,12 @@ A Playwright config records the **seeded** demo through the web storyboard at 19
 - `web/studio/playwright.walkthrough.config.ts` — recording config (`video: on`,
   1920×1080). Seeds a file-backed TroubaCore via `walkthrough/global-setup.ts`, serves the
   SPA through Vite, and drives it.
-- `web/studio/walkthrough/walkthrough.spec.ts` — the paced tour of the built demo (Open Road
-  annotations → guitar chord chart → setlist → the orchestra). `beat(seconds)` holds each frame
-  for its narration length so the action lands under the words.
+- `web/studio/walkthrough/walkthrough.spec.ts` — the paced tour of scenes 1–14 with LIVE
+  interactions: create a song + type a chart that renders live, the multi-file pool, the Open
+  Road annotations, drawing on the canvas, transposing a chart, the setlist, baking the concert,
+  and the orchestra's per-desk parts + conductor score. `beat(seconds)` holds each frame for its
+  narration length; fragile steps are wrapped in `soft()` so a selector miss is skipped, never
+  aborting the recording. Produces a ~100s 1920×1080 video.
 
 Produce the video:
 
@@ -24,9 +27,10 @@ cd web/studio && npx playwright test -c playwright.walkthrough.config.ts
 # → test-results/.../video.webm  (1920×1080; a generated artifact, git-ignored)
 ```
 
-**First-cut scope:** the deterministic "show the built demo" spine (scenes 6–14). Follow-ups:
-the build-from-scratch scenes (1–5: create band / invite / write a chart), live interactions
-(draw / transpose / bake), and tightening each scene's dwell to the final TTS timings.
+**Known gaps / follow-ups:** the live layer-toggle beat (scene 7–8) is skipped — the Layers
+pill is found but not actionable in that editor state (the annotations are still *shown*, just
+not toggled on camera); scenes 0/15–21 are Part C/D; and the per-scene dwell times will be
+re-timed to the final TTS lengths in the audio-first assembly pass (Part D).
 
 ## Part D — assembly (this lane, later)
 

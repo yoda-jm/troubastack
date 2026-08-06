@@ -26,6 +26,10 @@ export default defineConfig({
     viewport: { width: 1920, height: 1080 },
     video: { mode: "on", size: { width: 1920, height: 1080 } },
     trace: "retain-on-failure",
+    // Fail individual actions fast so a missed selector inside soft() throws (and is skipped)
+    // rather than hanging until the test timeout.
+    actionTimeout: 12_000,
+    navigationTimeout: 20_000,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1920, height: 1080 } } }],
   webServer: [
