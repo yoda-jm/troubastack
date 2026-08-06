@@ -8,6 +8,16 @@ A single audio-commented video demonstrating how the web app works end-to-end (c
 
 **VLL rulings (2026-08-04):** (1) **public / copyright-safe** content — real public-domain + original songs with real charts (the recommended approach). (2) **Add Amazing Grace** (already a committed PD lead sheet). (3) **The video content BECOMES the shipped demo seed** — reworking the demo to these copyright-safe real songs serves both the video AND fixes the existing demo's copyrighted song titles (Wonderwall/Hallelujah/Black Hole Sun render placeholder PDFs but the *titles* are copyrighted works — off-limits for a public video). So DEMO-VID Part A is also a demo-quality upgrade that ships.
 
+
+## PLAN UPGRADE (VLL, 2026-08-06) — real published editions + a licensing requirement
+
+Content upgraded beyond the original plan (all landed via the layer-audit stack `e9346d9`):
+- **Band (The Troubadours) = 4 songs:** The Open Road (original), House of the Rising Sun + Amazing Grace (traditional/PD, purpose-built charts), **Greensleeves** (real Mutopia voice+guitar edition, **CC-BY-SA 4.0**, David Kastrup — attributed).
+- **Orchestra = real engraved editions:** Eine kleine Nachtmusik (real Mozart edition, multi-part Vln I/II/Vla/Cello + full score) and Canon in D (real published edition, **CC-BY 4.0**, Fischer v. Mollard — attributed). No more empty-staff placeholders.
+- **CORE fix rode along:** bake now scopes overlays per-file (B11/T40 through the bake) — no cross-part annotation bleed.
+
+**LICENSING REQUIREMENT for Part D (video assembly):** the demo now contains CC-BY (Canon) + CC-BY-SA (Greensleeves) editions. The final video is a public distribution → its **credits MUST attribute** both (creator + license name + link). Repo attributions are in `docs/demo-charts/README.md`; recommend a root-README/NOTICE pointer too. Everything else is PD/original (no obligation).
+
 ## Final deliverable
 
 - **One 1080p (1920×1080, 16:9) MP4**, ~7–9 min, **chaptered**: Part 1 web (~5 min) → seamless cut → Part 2 app (~2.5–3 min), with a continuous synced narration track, title cards + lower-thirds, and an optional subtle public-domain music bed.
