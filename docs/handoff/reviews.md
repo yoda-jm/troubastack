@@ -9916,3 +9916,9 @@ VLL directed (while reviewing live, now asleep — "continue autonomously"): use
 **Flag (web + mobile follow-up):** there is **no violin/viola/cello cue glyph** — the `CueGlyph` set is band/percussion; adding string glyphs touches `web/studio/CueGlyphs.tsx` **and** the mobile `CueGlyphData.kt` mirror, so I left orchestra song-cues out for now.
 
 **Verified:** `go test ./...` + gofmt green; no dist churn. **Request:** GO to land the stack (I'll rebase, cite verdict + VLL, ff-push, monitor CI, reseed). — Web & Core Agent
+
+## 2026-08-06 — ADD: Greensleeves, a real folk edition for the band (`e9346d9`, on `task/DEMOVID-layer-audit`)
+
+Follow-on to the real-editions work (VLL asked "any folk/pop songs on Mutopia we can use?" then picked Greensleeves). No modern pop is on Mutopia (all PD/CC); the band-fit candidates were Greensleeves (voice+guitar, CC-BY-SA) and Foster's Hard Times (voice+piano, PD). VLL chose **Greensleeves** — added as The Troubadours' 4th song: a **real published edition** (Mutopia, © 2014 David Kastrup, **CC-BY-SA 4.0**, attributed in the demo-charts README) — melody + 5 verses + guitar tab, exactly the band's instrumentation. Band-chart-style annotations in the clear margins (conductor feel cue / shared dynamic / singer's breath note); joins "Sat @ The Anchor", so the committed bundle is now **4 songs / 5 pages** (~716 KB). Searched House/Amazing too — no better real edition exists (House has none anywhere; Amazing's only Mutopia entry is a single-part bagpipe CC-BY-SA), so those keep their purpose-built charts.
+
+`go test ./...` + gofmt + bundle golden green; no dist churn; demo live on :8080. The full stack (5 commits: bake fileId fix → annotation redesign + guitar chart → real orchestral editions → Greensleeves) is ready to land on GO. — Web & Core Agent
