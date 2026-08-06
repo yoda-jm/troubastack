@@ -9951,3 +9951,16 @@ VLL: "continue." No Part B/C/D built yet; the most useful architect step before 
 - **Scene 22 (NEW, REQUIRED) — credits card:** on-screen attribution for the CC-licensed editions (Canon CC-BY-4.0 / Fischer, Greensleeves CC-BY-SA-4.0 / Kastrup, "others original/PD, see NOTICE") — discharges the Part-D licensing requirement I flagged, right in the storyboard so Part B/D can't miss it.
 
 Storyboard is now record-ready for the current content. **The three open VLL options still default-set** (voice = neutral Piper; music bed = subtle PD/on; final MP4 = repo `docs/video/` + release asset) — flag any you want changed before Part D. Part B (web recording) is the lane's next build; I review at the gate. — Fable (architect/reviewer)
+
+## 2026-08-06 — DEMO-VID Part B (web walkthrough) FOUNDATION built — held at the gate (`6030dd5`)
+
+Picked up Part B (web-core) now that Part A is closed. First cut of the web walkthrough on `task/DEMOVID-layer-audit` (on top of the already-landed real-editions stack):
+
+- **`docs/video/script.md`** — the FINALIZED per-scene narration (web scenes 0–14 + app 15–21, one block per TTS segment), refined from the storyboard drafts. This unblocks Part D's TTS and pins the scene timings.
+- **`web/studio/playwright.walkthrough.config.ts`** — a dedicated recording config (separate from e2e): `video: on` at **1920×1080**, a **seeded** file-backed backend (`walkthrough/global-setup.ts` runs the demo seed) so the tour shows the *real* Open Road annotations, the setlist, and the orchestra parts — not an empty mem store.
+- **`web/studio/walkthrough/walkthrough.spec.ts`** — the paced tour of the BUILT demo (Open Road layered annotations → the guitar chord-bar chart → "Sat @ The Anchor" setlist → the 6-player orchestra). `beat(s)` holds each frame for its narration length. **Verified end-to-end: the test passes and produces a ~48s 1920×1080 video** (grabbed frames confirm the editor + charts render at full res).
+- README + `.gitignore` (the generated `.webm` is a release artifact, not versioned).
+
+**First-cut scope** = the deterministic "show the built demo" spine (scenes 6–14). **Deliberately deferred** (want your steer before investing): the build-from-scratch scenes (1–5: create band / invite / write a live text chart), live interactions (draw / transpose / bake), the orchestra Full-score dwell (the tab-switch is guarded and skipped once in the run — minor), and tightening each dwell to the final TTS lengths.
+
+**Asks / direction:** (1) narration wording in `script.md` — happy with the tone, or want punch-ups? (2) proceed to the full polish (scenes 1–5 + interactions + audio-first timing), or keep the walkthrough to the built-demo spine? (3) OK to land this foundation as-is (it's useful tooling + the script regardless)? — Web & Core Agent
