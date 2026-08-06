@@ -157,7 +157,9 @@ A baked concert with **real music and real annotations** is committed at
 traditional *House of the Rising Sun*, *Amazing Grace*, and *Greensleeves* (a real
 Mutopia edition) — real lead sheets, tab and text charts, flattened by the real bake
 pipeline; see
-[`docs/demo/README.md`](docs/demo/README.md) for how it's made),
+[`docs/demo/README.md`](docs/demo/README.md) for how it's made, and
+[`NOTICE`](NOTICE) for the demo charts' third-party attributions — a couple carry
+CC-BY / CC-BY-SA licenses that must be credited wherever the demo is redistributed),
 so you can present the app without running anything. It's the **band-wide bundle** (P205):
 one artifact for the whole band — it carries the roster, every layer owner-tagged, and
 every member's **song cues**, and the presenter filters to the viewer's identity at view

@@ -1,0 +1,21 @@
+TroubaStack — third-party demo assets
+=====================================
+
+The TroubaStack source code is licensed under the repository's LICENSE. The
+demo *sheet-music charts* under `docs/demo-charts/` are a mix of original,
+public-domain, and openly-licensed material. Most are original (written for
+this repo) or public domain. Two carry Creative Commons licenses and REQUIRE
+ATTRIBUTION wherever the demo is redistributed (including any walkthrough
+video — see DEMO-VID Part D):
+
+- docs/demo-charts/canon-*.pdf — *Canon in D* (Canon per 3 Violini e Basso),
+  J. Pachelbel (music: public domain). Typeset edition © 2015 Michael Fischer
+  v. Mollard, Mutopia-2015/09/02-2047, The Mutopia Project
+  (https://www.mutopiaproject.org/) — Creative Commons Attribution 4.0 (CC-BY-4.0).
+
+- docs/demo-charts/greensleeves.pdf — *Greensleeves* (traditional; music:
+  public domain). Typeset edition © 2014 David Kastrup, Mutopia-2014/03/10-1943,
+  The Mutopia Project (https://www.mutopiaproject.org/) — Creative Commons
+  Attribution-ShareAlike 4.0 (CC-BY-SA-4.0).
+
+Full per-file provenance and licensing is in docs/demo-charts/README.md.
