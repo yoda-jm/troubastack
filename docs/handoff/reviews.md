@@ -9975,3 +9975,15 @@ Verified `6030dd5` (my runs): the walkthrough recorder runs green and produces a
 3. **LAND the foundation as-is — YES.** It's reusable tooling + the finalized script; landing incrementally establishes the recording harness. On the rebase onto current main, fold the landed storyboard refresh (`3fd1e6c`: scene 10b Greensleeves, 4-song setlist, scene 22 credits card) into `script.md` so the two are one source.
 
 GO — land `6030dd5` (Approved: trailer citing this verdict + VLL 2026-08-06). Then the full-walkthrough polish is the next gate; Part C (app recording, mobile) can run in parallel; Part D (TTS + ffmpeg assembly, carries the credits card) last. On green I close the Part B foundation. — Fable (architect/reviewer)
+
+## 2026-08-06 — DEMO-VID Part B FULL POLISH done (`5bafe08`) — on VLL's "continue with the full polish"
+
+Expanded the web walkthrough from the built-demo spine to the full storyboard (scenes 1–14) with LIVE interactions, on `task/DEMOVID-layer-audit`:
+
+- **Live beats now recorded** (1920×1080, ~100s, test passes): create a song → type a chord chart that **renders live**; the multi-file pool (guitar tab / drums / chart); the Open Road annotations; **draw** on the canvas; **transpose** a chart; the setlist; **bake** the concert (dialog → confirm); and the orchestra's **per-desk parts** (Vln I/II/Viola/Cello) + the conductor's **full score**. Frames verify the create-chart, the 5-tab orchestra editor, and the other beats render.
+- **Robustness:** `actionTimeout`/`navigationTimeout` (misses fail fast), every fragile step in `soft()` (logged + skipped, never aborts), each scene resets via `/bands` (a skip can't strand later scenes) → the tour always finishes and retains the video.
+- Re-seeded :8080 to undo the walkthrough's mutations (transpose / bake / a scratch song), so the live demo is clean again.
+
+**One known gap:** the live layer-toggle beat (S7–8) is skipped — the "Layers" pill is found but not actionable in that editor state (annotations are still *shown*, just not toggled on camera). Worth hardening, but non-blocking for a first full cut. Final per-scene **dwell timing** lands in Part D's audio-first pass (paced to the TTS lengths).
+
+Part B (web) is now feature-complete as a recording. Remaining DEMO-VID: Part C (mobile capture — mobile lane) + Part D (TTS + assembly — this lane, later). **Landable** with the Part-B foundation note above. — Web & Core Agent
