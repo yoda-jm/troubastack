@@ -175,6 +175,15 @@ func run(addr, password string) error {
 						"marie": {{icon: "mic"}},
 						"sasha": {{icon: "keys", color: "#7c3aed"}},
 					}},
+				// A REAL published folk edition (Mutopia): Greensleeves for voice + guitar (melody,
+				// lyrics, guitar tab). Music is public domain; the typeset is CC-BY-SA 4.0 (© 2014
+				// David Kastrup, Mutopia) — attributed in docs/demo-charts/README.md.
+				{title: "Greensleeves", artist: "Traditional", key: "Am", tempo: 90, tags: []string{"folk", "creative-commons"}, notes: "Traditional English; 3/4, flowing.",
+					src: pdfSource{cacheName: "greensleeves.pdf", localPath: "../docs/demo-charts/greensleeves.pdf", docTitle: "Voice + guitar", title: "Greensleeves", subtitle: "traditional (Mutopia · David Kastrup, CC-BY-SA 4.0)", pages: 2},
+					cuesFor: map[string][]cueDef{
+						"marie": {{icon: "mic"}},
+						"leo":   {{icon: "guitar-acoustic"}},
+					}},
 			},
 			setlist: setlistDef{
 				name: "Sat @ The Anchor", eventDate: "2026-07-04", venue: "The Anchor Pub", notes: "60-minute set.",
@@ -576,7 +585,7 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		switch a.title {
 		case "The Open Road":
 			im = buildOpenRoadAnnotations(a.songID, fileID, userID, conductorID)
-		case "House of the Rising Sun", "Amazing Grace":
+		case "House of the Rising Sun", "Amazing Grace", "Greensleeves":
 			// Committed band charts (guitar tab / lead sheet) — a light showcase placed for
 			// their known content band, not the staff-relative or orchestral generic layout.
 			im = buildBandChartAnnotations(a.songID, fileID, a.title, userID, conductorID)

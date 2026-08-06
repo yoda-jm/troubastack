@@ -1,17 +1,19 @@
 # demo-concert bundle — the real-music demo bundle (no server needed)
 
 One **genuinely baked** concert bundle of the seeded band's *"Sat @ The Anchor"* setlist
-(three songs — all copyright-safe original / public-domain music: the original **The Open
-Road**, the traditional **House of the Rising Sun**, and **Amazing Grace** — real lead
-sheets, guitar tab and text charts with purpose-built annotation layers, see
+(four songs — copyright-safe original / public-domain / freely-licensed music: the original
+**The Open Road**, the traditional **House of the Rising Sun**, **Amazing Grace**, and
+**Greensleeves** (a real Mutopia voice+guitar edition, CC-BY-SA) — real lead sheets, guitar
+tab and text charts with purpose-built annotation layers, see
 [`../demo-charts`](../demo-charts/)), flattened by the real server-side bake pipeline
 (invariants I8/I11) per [`../design/08-bundle-container.md`](../design/08-bundle-container.md).
 Install the app (root README → "The mobile app"), share/push a file to the device,
 **Import**, and perform it fully offline.
 
-- **`demo-concert.tstage`** (~344 KB, **3 pages** — one default part per song: The Open
+- **`demo-concert.tstage`** (~716 KB, **5 pages** — one default part per song: The Open
   Road → *Lead sheet*, House of the Rising Sun → *Guitar tab*, Amazing Grace → *Lead
-  sheet*) — **PRIMARY: the band-wide bundle (P205)**: ONE artifact that serves the whole
+  sheet*, Greensleeves → *Voice + guitar* (2pp)) — **PRIMARY: the band-wide bundle (P205)**:
+  ONE artifact that serves the whole
   band. Each song bakes its **default shared-pool part** (the lowest-DisplayOrder file in
   its pool) and the bundle carries, per the P205 model:
   - the **band roster** (Marie/admin, Leo/conductor, Sasha/member) for view-time

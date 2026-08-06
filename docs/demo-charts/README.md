@@ -16,7 +16,12 @@ cd core && go run ./cmd/mkcharts -out ../docs/demo-charts
 | `amazing-grace.pdf` | **Public domain** | *Amazing Grace* (words: John Newton, 1779 — long out of copyright). A one-page lead sheet with a simple demo chord accompaniment. |
 | `house-rising-sun-tab.pdf` | **Public domain** | *House of the Rising Sun* (traditional folk, no known author). A one-page guitar tab — a generic demo arrangement of the standard Am–C–D–F–E arpeggio; no copyrighted transcription. |
 | `house-rising-sun-drums.pdf` | **Public domain** | *House of the Rising Sun* — a 6/8 drum groove box (hi-hat / snare / kick grid). Original demo notation. |
+| `greensleeves.pdf` | **CC-BY-SA 4.0** | *Greensleeves* (traditional English, PD music) — a **real published edition** for voice + guitar (melody, 5 verses, guitar tab). Typeset © 2014 David Kastrup (Mutopia). See the attribution below. |
 | `blank-chart.pdf` | **Placeholder** | A generic chart — empty staff systems, bar lines, and chord boxes. No song content at all. |
+
+> **Attribution (CC-BY-SA 4.0)** for *Greensleeves*: typeset by David Kastrup,
+> Mutopia-2014/03/10-1943, Mutopia Project — https://www.mutopiaproject.org/ — CC-BY-SA 4.0
+> (free to distribute/modify/perform with attribution + share-alike).
 
 ### Orchestral scores & parts — real, complete editions (Mutopia Project)
 

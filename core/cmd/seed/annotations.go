@@ -488,6 +488,12 @@ func buildBandChartAnnotations(songID, fileID, title string, userID map[string]s
 		b.shape("ellipse", cond, "bc-ring", 0, []wirePoint{{X: 0.275, Y: 0.324}, {X: 0.375, Y: 0.350}}, condS)
 		b.line(cond, "bc-pt", 0, 0.55, 0.337, 0.375, 0.338, condS)
 		b.text(cond, "bc-cue", 0, 0.56, 0.332, "rit. on 'I see'", condT)
+	case "Greensleeves":
+		// Voice + guitar chart (dense: melody + 5 verse lines + guitar tab). Marks in the clear
+		// margins — above system 1, and in the gap between the tab and system 2.
+		b.text(cond, "bc-cue", 0, 0.09, 0.076, "gently, in 3 — watch the phrase ends", condT)
+		b.text(shared, "bc-lab", 0, 0.09, 0.345, "soft on v.1; build each verse", amberT)
+		b.text(mine, "bc-hi-lab", 0, 0.55, 0.345, "breathe at the line ends", greenT)
 	}
 	return *im
 }

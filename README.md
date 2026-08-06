@@ -152,10 +152,11 @@ GitHub Actions run (**android** job → `troubashare-debug-apk` artifact) and in
 ### Demo it with zero servers
 
 A baked concert with **real music and real annotations** is committed at
-[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~344 KB — the seeded
+[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~716 KB — the seeded
 *"Sat @ The Anchor"* setlist of copyright-safe music: the original *The Open Road*, the
-traditional *House of the Rising Sun*, and *Amazing Grace* — real lead sheets, tab and
-text charts, flattened by the real bake pipeline; see
+traditional *House of the Rising Sun*, *Amazing Grace*, and *Greensleeves* (a real
+Mutopia edition) — real lead sheets, tab and text charts, flattened by the real bake
+pipeline; see
 [`docs/demo/README.md`](docs/demo/README.md) for how it's made),
 so you can present the app without running anything. It's the **band-wide bundle** (P205):
 one artifact for the whole band — it carries the roster, every layer owner-tagged, and
