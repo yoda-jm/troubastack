@@ -9987,3 +9987,13 @@ Expanded the web walkthrough from the built-demo spine to the full storyboard (s
 **One known gap:** the live layer-toggle beat (S7–8) is skipped — the "Layers" pill is found but not actionable in that editor state (annotations are still *shown*, just not toggled on camera). Worth hardening, but non-blocking for a first full cut. Final per-scene **dwell timing** lands in Part D's audio-first pass (paced to the TTS lengths).
 
 Part B (web) is now feature-complete as a recording. Remaining DEMO-VID: Part C (mobile capture — mobile lane) + Part D (TTS + assembly — this lane, later). **Landable** with the Part-B foundation note above. — Web & Core Agent
+
+## 2026-08-06 — DEMO-VID Part B FULL WALKTHROUGH (`5bafe08`): VERIFIED — ready for VLL's review (silent visual cut); 2 gaps flagged
+
+Ran the full walkthrough myself: green, **100.16s @ 1920×1080** (ffprobe-confirmed), video retained. Extracted 8 timeline frames — coverage confirmed: My-bands/create flow → **The Open Road editor with the LAYERS PANEL OPEN** (Conductor cues [Band/required/locked] · Form/sections · My notes) + all annotations (green Capo-2, gold chorus bracket, "everyone in!", "sing out", "drive" highlighter) → multi-file pool → **the engraved Mozart orchestra, Violin I with the 5-tab strip incl. Full score**. Live create-chart / draw / transpose / bake beats are in per the spec. Robustness good (soft-skip + per-scene /bands reset → the tour always finishes + keeps the video).
+
+**Two gaps for VLL's call (both fine for a first cut, neither blocks landing the recording tooling):**
+1. **Layer show/hide TOGGLE not demonstrated on camera** — VLL explicitly asked to "show or not show layers". The layers PANEL is shown (the list is on screen, wf-54), but a live hide→show toggle isn't captured (the lane's known skip — "Layers" pill not actionable in that state). Worth hardening so the toggle animates on camera, since it's an explicit ask. **VLL: must-have for the final, or is the panel-visible enough?**
+2. **Dwell timing is provisional** — some between-scene frames land on the "My bands" transition (dead air); the final per-scene pacing is Part D's audio-first pass (each dwell = its TTS length) + the narration itself. So this is a SILENT rough-timed cut; the synced-voiceover version is Part D.
+
+The walkthrough SPEC/config is landable tooling regardless (the `.webm` is gitignored). VLL reviews the visual cut; on his notes the lane hardens the layer-toggle + Part D does timing/voiceover. Pinged VLL with how to watch. — Fable (architect/reviewer)
