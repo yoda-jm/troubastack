@@ -74,9 +74,10 @@ Each scene: on-screen action → *narration draft (the lane refines wording)* �
 | 8 | Show **shared section markings** (amber Verse/Chorus/Bridge) → toggle; then **Marie's personal 'My notes'** (capo 2 OK, circled change, "breathe", flourish) → toggle | *"Shared section highlights help everyone navigate. And each player keeps private notes — Marie's 'breathe' and capo reminder are hers alone."* | 18 |
 | 9 | Draw a quick annotation live (rectangle/marker) on a section, pick a color, move it with the **Move tool**, double-tap to **zoom** in on it | *"Editing is direct — draw, color, move, zoom. It's a canvas, not a form."* | 12 |
 | 10 | **Transpose** the House-of-the-Rising-Sun chart (T60) — pick a key, preview, apply; chords change | *"Need a different key? Transpose the whole chart in one click — the chords rewrite, the layout stays put so annotations stay anchored."* | 12 |
-| 11 | **Setlists** → create "Sat @ The Anchor" → add the 3 songs → drag-reorder → set a per-item **key override + 'transpose chords'** | *"Songs go into a setlist — drag to reorder, override a key per gig, and the chart transposes just for that show."* | 16 |
+| 10b | (brief) Open **Greensleeves** → the real published voice+guitar edition (melody, verses, tab) with its clean margin cues | *"Real repertoire, real editions — like this published Greensleeves — sit right alongside your own charts."* | 8 |
+| 11 | **Setlists** → create "Sat @ The Anchor" → add the **4 songs** (Open Road, House of the Rising Sun, Amazing Grace, Greensleeves) → drag-reorder → set a per-item **key override + 'transpose chords'** | *"Songs go into a setlist — drag to reorder, override a key per gig, and the chart transposes just for that show."* | 16 |
 | 12 | **Bake** the setlist → the bake dialog (layer defaults) → confirm → a concert bundle is produced, downloadable | *"When it's ready, Marie bakes the setlist into a concert bundle — every part, every layer, frozen for the stage."* | 14 |
-| 13 | (cut) Sign in as **Anya** → **City Chamber Orchestra** → open **Eine kleine Nachtmusik** → show the **per-instrument parts** (Vln I/II, Viola, Cello) and Flora's conductor cues + bowing layer | *"It scales to an orchestra too — Mozart, with real parts for each desk, the conductor's cues on top, and each player's own bowing marks."* | 18 |
+| 13 | (cut) Sign in as **Anya** → **City Chamber Orchestra** → open **Eine kleine Nachtmusik** (real engraved Mozart edition) → flip through the **per-instrument parts** (Vln I/II, Viola, Cello) **and the full score**; show Anya's conductor cues + the player's bowing layer | *"It scales to an orchestra too — a real engraved Mozart edition, a part for every desk plus the conductor's full score, cues on top, and each player's own bowing marks."* | 18 |
 | 14 | Toggle layers on the orchestral part; show a second player's different view of the same song | *"Same score, every musician sees their own layers — nothing more, nothing less."* | 10 |
 
 ## Storyboard — Part 2: the mobile app (TroubaStage), recorded on the emulator/tablet
@@ -90,6 +91,7 @@ Each scene: on-screen action → *narration draft (the lane refines wording)* �
 | 19 | **Night mode** toggle; **count-in** on the tempo chip (visual pulse) | *"Night mode for a dark stage. A silent visual count-in on the tempo."* | 10 |
 | 20 | (tablet AVD) **Facing pages** two-up spread; **per-role layers** — the conductor's view vs a player's | *"On a tablet, facing pages. And every role gets its own view — the conductor sees the cues they wrote; the player sees theirs."* | 14 |
 | 21 | Outro card: logo + "Self-hosted. Open source. Yours." + repo/site | *"Rehearse together, perform offline, on hardware you own. That's TroubaShare."* | 8 |
+| 22 | **Credits card (REQUIRED)** — attribution for the CC-licensed demo editions | *(on-screen text, no narration needed):* "Sheet music: *Canon in D* engraving © Michael Fischer v. Mollard (Mutopia) — CC-BY-4.0. *Greensleeves* engraving © David Kastrup (Mutopia) — CC-BY-SA-4.0. Other charts original or public domain. See NOTICE." | 5 |
 
 *(Durations are estimates; the audio-first pass sets the real timings.)*
 
