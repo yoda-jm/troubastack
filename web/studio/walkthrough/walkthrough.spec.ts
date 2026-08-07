@@ -14,10 +14,24 @@
  * and the layer show/hide toggle — are hard-asserted.
  */
 import { test, expect, Page, Locator } from "@playwright/test";
+import { writeFileSync } from "node:fs";
 
 const PW = "demo";
 const beat = (p: Page, seconds: number) => p.waitForTimeout(seconds * 1000);
 const has = async (l: Locator) => (await l.count()) > 0;
+
+// ---- per-scene sync marks ------------------------------------------------
+// Record the video-relative time each narration scene begins, so Part D (assemble.sh) can fit
+// each scene's footage to its own narration length instead of stretching the whole clip.
+let t0 = 0;
+const marks: { id: string; t: number }[] = [];
+function mark(id: string) {
+  marks.push({ id, t: (Date.now() - t0) / 1000 });
+}
+function writeMarks() {
+  // CWD is web/studio when Playwright runs; write to the repo's video output dir.
+  writeFileSync("../../docs/video/output/scene-marks.json", JSON.stringify(marks, null, 2));
+}
 
 async function soft(label: string, fn: () => Promise<void>) {
   try {
@@ -128,14 +142,17 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   test.setTimeout(300_000);
   const BAND = "The Troubadours";
   const SONG = "The Open Road";
+  t0 = Date.now();
 
-  // ── Prologue: the bandmates need accounts before Marie can invite them ──────
+  // ── S1: the band signs up — accounts, then Marie creates the band ───────────
+  // (Sasha & Leo need accounts before Marie can invite them.)
+  mark("S1");
   await register(page, "sasha", "Sasha");
   await logout(page);
   await register(page, "leo", "Leo");
   await logout(page);
 
-  // ── S1: Marie signs up and creates the band ────────────────────────────────
+  // Marie signs up last and stays logged in to create the band.
   await register(page, "marie", "Marie");
   await beat(page, 3); // her empty /bands — nothing pre-loaded
   await page.getByTestId("new-band-btn").click();
@@ -145,6 +162,7 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   await beat(page, 4); // the band exists; Marie is the admin
 
   // ── S2: invite Leo and Sasha by username ───────────────────────────────────
+  mark("S2");
   await openBand(page, BAND);
   await soft("invite bandmates", async () => {
     for (const who of ["leo", "sasha"]) {
@@ -173,6 +191,7 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   }
 
   // ── S3: Marie promotes Leo to conductor (Settings) ─────────────────────────
+  mark("S3");
   await login(page, "marie");
   await openBand(page, BAND);
   await soft("promote Leo to conductor", async () => {
@@ -190,6 +209,7 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   });
 
   // ── S4: add "The Open Road" and type its chart as plain text ───────────────
+  mark("S4");
   await openBand(page, BAND);
   await soft("create song", async () => {
     await page.getByTestId("new-song-btn").click();
@@ -228,12 +248,14 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   });
 
   // ── S5: the chart is one file in a shared pool ─────────────────────────────
+  mark("S5");
   await soft("show the file pool", async () => {
     await openDetails(page);
     await beat(page, 3); // the Files pool — add tabs, upload PDFs, reorder
   });
 
   // ── S6: Marie tags what she plays — mic + the RED electric guitar ───────────
+  mark("S6");
   await soft("Marie's cues: mic + red guitar", async () => {
     await openDetails(page);
     const mine = page.getByTestId("details-tab-mine");
@@ -253,12 +275,15 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   await closeDetails(page);
 
   // ── S7: THE CAPO — Leo marks his part (REQUIRED: green highlight + ⚠ + note) ─
+  // The actor-switch + navigation (blank pages) belongs to S6's tail; S7 (the capo narration)
+  // must start on the ready canvas, so mark("S7") is placed AFTER the setup, at the drawing.
   await logout(page);
   await login(page, "leo");
   await openSong(page, BAND, SONG);
   await ensureFileShown(page);
   // Draw with a clean canvas: the Details overlay must be closed so clicks land on the page.
   await closeDetails(page);
+  mark("S7");
 
   // Leo needs an editable personal layer that is the ACTIVE draw target — the Pen is disabled
   // until an editable layer is focused for editing.
@@ -280,48 +305,70 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   const vp = page.viewportSize();
   if (vp) {
     const at = (fx: number, fy: number) => ({ x: vp.width * fx, y: vp.height * fy });
-    // 1) green highlighter swipe over the printed "Capo 2"
-    await soft("green capo highlight", async () => {
-      const pen = page.getByTestId("tool-freehand");
-      if (await has(pen)) await pen.click();
-      const color = page.getByTestId("style-color");
-      if (await has(color)) await color.fill("#2E7D32").catch(() => {});
-      const a = at(0.185, 0.435);
-      const b = at(0.305, 0.435);
+    const drag = async (a: { x: number; y: number }, b: { x: number; y: number }, steps = 12) => {
       await page.mouse.move(a.x, a.y);
       await page.mouse.down();
-      await page.mouse.move(b.x, b.y, { steps: 16 });
+      await page.mouse.move(b.x, b.y, { steps });
       await page.mouse.up();
+    };
+    const setColor = async (hex: string) => {
+      const c = page.getByTestId("style-color");
+      if (await has(c)) await c.fill(hex).catch(() => {});
+    };
+    const preset = async (id: string) => {
+      const p = page.getByTestId(id);
+      if (await has(p)) await p.click().catch(() => {});
+      await page.waitForTimeout(120);
+    };
+    // Set a React-controlled range slider (the ctx-bar opacity/width) to an exact value.
+    const setRange = async (testid: string, value: number) => {
+      const el = page.getByTestId(testid);
+      if (!(await has(el))) return;
+      await el.evaluate((node: HTMLInputElement, v: string) => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+        setter.call(node, v);
+        node.dispatchEvent(new Event("input", { bubbles: true }));
+      }, String(value));
+      await page.waitForTimeout(80);
+    };
+    // 1) a GREEN highlighter block over the printed "Capo 2": a filled box at low opacity so
+    //    the text still reads through it (a real marker swipe, not an opaque block).
+    await soft("green capo highlight", async () => {
+      const rect = page.getByTestId("tool-rect");
+      if (await has(rect)) await rect.click();
+      await preset("preset-box"); // filled
+      await setColor("#2E9E4F");
+      await setRange("style-opacity", 0.32);
+      await drag(at(0.168, 0.408), at(0.318, 0.475), 8);
       await beat(page, 2);
     });
-    // 2) a ⚠ warning stamp right of it (the new glyph). Icon stamps are a dragged bbox
-    //    (like rect), not a single click.
+    // 2) a big ⚠ warning stamp right of it (the new glyph; dragged bbox, full opacity)
     await soft("warning stamp", async () => {
       const icon = page.getByTestId("tool-icon");
       if (await has(icon)) await icon.click();
+      await setColor("#EA580C");
+      await setRange("style-opacity", 1);
       const warn = page.getByTestId("icon-pick-warning");
       await expect(warn).toBeVisible({ timeout: 8_000 }); // the ⚠ glyph exists in the palette
       await warn.click();
-      const p1 = at(0.335, 0.41);
-      const p2 = at(0.375, 0.465);
-      await page.mouse.move(p1.x, p1.y);
-      await page.mouse.down();
-      await page.mouse.move(p2.x, p2.y, { steps: 10 });
-      await page.mouse.up();
+      await drag(at(0.335, 0.385), at(0.408, 0.5), 10);
       await beat(page, 2);
     });
-    // 3) a "capo on!" margin note above it (text tool → native prompt)
+    // 3) a bold red "capo on!" note above it (text tool → native prompt)
     await soft("capo note", async () => {
       const text = page.getByTestId("tool-text");
       if (await has(text)) await text.click();
+      await setColor("#D32F2F");
+      await setRange("style-opacity", 1);
       page.once("dialog", (d) => d.accept("capo on!"));
-      const p = at(0.21, 0.33); // on the page (its left edge is ~0.15), above "Capo 2"
+      const p = at(0.20, 0.34); // on the page (its left edge is ~0.15), above "Capo 2"
       await page.mouse.click(p.x, p.y);
       await beat(page, 3);
     });
   }
 
   // ── S8: layers you can show and hide (REQUIRED beat, VLL) ──────────────────
+  mark("S8");
   // The show/hide toggle MUST be on camera: hide Leo's personal layer so the capo ink lifts
   // off the page, then show it again. Mandatory layers (conductor cues) are disabled by design.
   await page.getByTestId("sidebar-toggle").click();
@@ -360,11 +407,14 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   });
   await logout(page);
 
-  // ── S9–S12: back to Marie — edit, transpose, setlist, bake ─────────────────
+  // ── S9: back to Marie — the canvas with everyone's marks ───────────────────
   await login(page, "marie");
   await openSong(page, BAND, SONG);
-  await beat(page, 3); // S9 the canvas with everyone's marks
+  mark("S9");
+  await beat(page, 4); // the canvas with everyone's marks
 
+  // ── S10: transpose ─────────────────────────────────────────────────────────
+  mark("S10");
   await soft("transpose", async () => {
     await openDetails(page);
     const editSrc = page.getByTestId("file-edit-source").first();
@@ -383,6 +433,8 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
     await closeDetails(page);
   });
 
+  // ── S11: build the setlist ─────────────────────────────────────────────────
+  mark("S11");
   await openBand(page, BAND);
   await soft("setlist", async () => {
     const setlists = page.getByRole("link", { name: /setlists/i }).or(page.getByText("Setlists", { exact: true }));
@@ -411,6 +463,8 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
     }
   });
 
+  // ── S12: bake the concert ──────────────────────────────────────────────────
+  mark("S12");
   await soft("bake", async () => {
     const bake = page.getByTestId("bake-setlist");
     if (await has(bake)) {
@@ -425,21 +479,29 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   });
   await logout(page);
 
-  // ── S13–S14: the same app, at orchestra scale (seeded) ─────────────────────
+  // ── S13: the same app, at orchestra scale (seeded) ─────────────────────────
   await login(page, "maestro");
   await openBand(page, "City Chamber Orchestra");
-  await beat(page, 2);
-  await soft("orchestra part + score", async () => {
+  mark("S13");
+  await beat(page, 3);
+  await soft("orchestra part", async () => {
     await page.getByTestId("song-link").filter({ hasText: "Eine kleine" }).first().click();
     await page.waitForLoadState("networkidle");
     await beat(page, 6); // a player's part
+  });
+
+  // ── S14: everyone sees their own view — the conductor's full score ──────────
+  mark("S14");
+  await soft("orchestra score", async () => {
     const score = page.getByText("Full score", { exact: false }).first();
     if (await has(score)) {
       await score.click();
-      await beat(page, 6); // the conductor's score
+      await beat(page, 7); // the conductor's score
     }
   });
 
-  await beat(page, 2);
+  mark("END");
+  await beat(page, 1);
+  writeMarks();
   expect(true).toBe(true);
 });

@@ -66,6 +66,10 @@ def main():
     ap.add_argument("--voice", required=True)
     ap.add_argument("--script", default="docs/video/script.md")
     ap.add_argument("--out", default="docs/video/output/narration")
+    ap.add_argument("--length-scale", type=float, default=1.15,
+                    help="Piper phoneme length; >1 = slower/calmer speech (default 1.15).")
+    ap.add_argument("--sentence-silence", type=float, default=0.55,
+                    help="Seconds of silence after each sentence (default 0.55).")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     scenes = parse_scenes(a.script)
@@ -75,7 +79,10 @@ def main():
     timings = {}
     for sid, text in scenes:
         wav = os.path.join(a.out, f"{sid}.wav")
-        subprocess.run([a.piper, "-m", a.voice, "-f", wav], input=text.encode("utf-8"),
+        subprocess.run([a.piper, "-m", a.voice, "-f", wav,
+                        "--length-scale", str(a.length_scale),
+                        "--sentence-silence", str(a.sentence_silence)],
+                       input=text.encode("utf-8"),
                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         timings[sid] = wav_seconds(wav)
         print(f"{sid}: {timings[sid]:>5}s  {text[:60]}…")
