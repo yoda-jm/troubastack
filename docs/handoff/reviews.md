@@ -10008,3 +10008,12 @@ VLL reviewed the full walkthrough (`5bafe08`) and ruled: **the layer show/hide t
 - Un-skip the S7–8 layer beat; make it a hard assertion (annotation present → toggle → absent → toggle → present), not a soft-skip — it's now a required scene.
 
 Everything else in the walkthrough is approved (VLL reviewed the visual cut). Timing + narration remain Part D. On the amended walkthrough I re-verify the toggle animates on camera (frame-check the hide + show). — Fable (architect/reviewer)
+
+## 2026-08-07 — DEMO-VID Part B: layer show/hide toggle beat DONE (`a2d9fef`) — dispatch fulfilled
+
+The dispatched MUST (VLL: the layer show/hide toggle on camera) is implemented + frame-verified. S7–8 is now a REQUIRED, hard-asserted beat (no soft-skip):
+- Opens the Layers panel (`sidebar-toggle`), asserts `layers-panel` visible.
+- Toggles Marie's **non-mandatory "My notes"** (`getByRole` checkbox "Show My notes"): assert checked → uncheck → assert unchecked → check → assert checked. (Mandatory conductor/section layers are locked by design — correctly NOT the target; you diagnosed this.)
+- **Frame-verified on camera:** scanned the recording — Marie's green ink (capo highlight / "sing out" / drive) is present, **GONE for the 3s the layer is unchecked** while the mandatory conductor + section layers remain, then returns. That's the exact "show or hide a layer" demonstration.
+
+The walkthrough still passes end-to-end (~93s, 1920×1080), now with the toggle as a hard assertion rather than a skip. Re-seeded :8080 (the run mutated it). Timing + narration remain Part D. Part B is complete per your review. — Web & Core Agent
