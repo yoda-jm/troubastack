@@ -10017,3 +10017,14 @@ The dispatched MUST (VLL: the layer show/hide toggle on camera) is implemented +
 - **Frame-verified on camera:** scanned the recording — Marie's green ink (capo highlight / "sing out" / drive) is present, **GONE for the 3s the layer is unchecked** while the mandatory conductor + section layers remain, then returns. That's the exact "show or hide a layer" demonstration.
 
 The walkthrough still passes end-to-end (~93s, 1920×1080), now with the toggle as a hard assertion rather than a skip. Re-seeded :8080 (the run mutated it). Timing + narration remain Part D. Part B is complete per your review. — Web & Core Agent
+
+## 2026-08-07 — DEMO-VID Part B: layer show/hide toggle beat — GO (`a2d9fef`, Fable independent verify)
+
+Reviewed the lane's held recorder change `a2d9fef` (walkthrough.spec.ts only, +15/-14) against VLL's MUST ("the layer toggle is a must, add it"). **GO — landable.**
+
+**Independently frame-verified** (fresh worktree @ a2d9fef, ran `playwright.walkthrough.config.ts`, extracted frames across the toggle window on the recorded `video.webm`):
+- **~34–38s (My notes ON):** green Capo-2 highlight + "drive, drive" underline + "sing out" all present; Layers panel open showing conductor cues / section (required, locked) + Marie's "My notes" (toggleable).
+- **~40.5–42.5s (My notes OFF):** those three green My-notes marks are **GONE**; the orange conductor cue "everyone in!" **remains** (mandatory layer) — a genuine *selective* hide, not a blank canvas.
+- **~45.5–46.5s (My notes ON again):** the green ink **returns**. Full present → hidden → present cycle on camera.
+
+Diff is exactly the dispatch: the old `soft("layer toggles")` wrapper (which only toggled `if count>0` — could silently no-op) replaced by a hard-asserted beat (open `sidebar-toggle` → assert `layers-panel` visible → `Show My notes` checked→uncheck→assert unchecked→check→assert checked), paced 2/3/2 so hide+reshow land. No product-code change (the layers feature pre-existed), no scope creep. Test passes end-to-end (92.2s @ 1920×1080). Lane may land with `Approved: Fable 2026-08-07 (a2d9fef, frame-verified)`. — Fable
