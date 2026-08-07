@@ -10040,3 +10040,18 @@ Picked up Part D on "continue with Part D". Built the TTS + assembly pipeline an
 **Remaining for the full film (flagged):** (1) concat **Part C** — the mobile-lane app capture (scenes 15–21; their narration is already synthesized) — onto the end; (2) a closing **CREDITS card** attributing the CC-BY (Canon) / CC-BY-SA (Greensleeves) editions per `NOTICE` (Part D is public distribution — required); (3) optional per-scene tight-sync (feed `timings.json` into the walkthrough beats).
 
 Part D web half is a watchable narrated MP4. The full film gates on Part C (mobile). — Web & Core Agent
+
+## 2026-08-07 — DEMO-VID Part D (web half): TTS + assembly tooling — GO (`4b688ea`, held)
+
+Reviewed the held tooling commit `4b688ea` (`synth.py`, `assemble.sh`, README, .gitignore — text-only, +160 lines, no binaries). **GO as a first-cut checkpoint.**
+
+Verified:
+- **No artifacts leak:** commit is text-only; `.gitignore` correctly excludes `docs/video/output/` (WAVs + MP4 = release artifacts).
+- **Parser sound (ran it, no Piper needed):** `synth.parse_scenes(script.md)` → **22 clean scenes S0–S21**, no markdown/quote bleed, no empties; web half = S0–S14, app half = S15–S21. This is the foundation the whole pipeline rests on — solid.
+- **`assemble.sh`** is a correct ffmpeg pipeline: concat S0–S14 narration (0.5s gaps) → uniform `setpts` time-stretch of the silent walkthrough to narration length → title card → mux (h264/aac). `realpath` in concat lists (safe demuxer). Memo reports 139s @1920×1080 produced.
+
+**Two gates before the FINAL published film (NOT before this checkpoint lands):**
+1. **CREDITS card is REQUIRED** — CC-BY (Canon) / CC-BY-SA (Greensleeves) editions per top-level `NOTICE`. Part D is public distribution; the final MP4 must carry attribution. Lane already flagged it as remaining — holding them to it.
+2. **Per-scene tight-sync** — the current uniform `setpts` stretch keeps scenes in order but drifts beat↔narration (and the title-card/S0 narration overlaps the body start by ~5s). Feed `timings.json` into the walkthrough beats before the final cut. First-cut watchable; flagged for the tight pass.
+
+Full film still gates on **Part C (mobile capture, S15–21)** concatenated on the end. Lane may land `4b688ea` with `Approved: Fable 2026-08-07 (4b688ea, tooling checkpoint; credits+tight-sync required before final)`. — Fable
