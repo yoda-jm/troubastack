@@ -8,17 +8,22 @@ Assets for the TroubaShare walkthrough video (plan:
 
 ## Part B — web walkthrough recording (this lane)
 
-A Playwright config records the **seeded** demo through the web storyboard at 1920×1080:
+The walkthrough **builds The Troubadours live, on camera, from an empty server** (it does not
+drive pre-seeded data): register the members, create the band, invite them, add "The Open Road"
+and type its chart, tag instrument cues, mark the capo, toggle a layer, transpose, build the
+setlist and bake — converging to the demo you can log into (`marie` / `demo`). Every mark is
+narrated with the *reason* a real band would add it.
 
-- `web/studio/playwright.walkthrough.config.ts` — recording config (`video: on`,
-  1920×1080). Seeds a file-backed TroubaCore via `walkthrough/global-setup.ts`, serves the
-  SPA through Vite, and drives it.
-- `web/studio/walkthrough/walkthrough.spec.ts` — the paced tour of scenes 1–14 with LIVE
-  interactions: create a song + type a chart that renders live, the multi-file pool, the Open
-  Road annotations, drawing on the canvas, transposing a chart, the setlist, baking the concert,
-  and the orchestra's per-desk parts + conductor score. `beat(seconds)` holds each frame for its
-  narration length; fragile steps are wrapped in `soft()` so a selector miss is skipped, never
-  aborting the recording. Produces a ~100s 1920×1080 video.
+- `web/studio/playwright.walkthrough.config.ts` — recording config (`video: on`, 1920×1080).
+  Runs an **isolated** empty TroubaCore on `:8090` (a fresh data dir each run) + its own Vite on
+  `:5273` with HMR off — so it never touches the persistent `:8080` demo.
+- `web/studio/walkthrough/global-setup.ts` — seeds **only the orchestra** (`seed -only
+  orchestra`, real Mutopia editions) for the closing "at orchestra scale" reveal; The Troubadours
+  is built live.
+- `web/studio/walkthrough/walkthrough.spec.ts` — the paced tour. `beat(seconds)` holds each
+  frame for its narration; best-effort steps are wrapped in `soft()`. The two required beats —
+  the capo mark (green highlight + a ⚠ stamp + a "capo on!" note) and the layer show/hide toggle
+  — are hard-asserted. Produces a ~180s 1920×1080 video.
 
 Produce the video:
 
@@ -27,10 +32,8 @@ cd web/studio && npx playwright test -c playwright.walkthrough.config.ts
 # → test-results/.../video.webm  (1920×1080; a generated artifact, git-ignored)
 ```
 
-**Known gaps / follow-ups:** the live layer-toggle beat (scene 7–8) is skipped — the Layers
-pill is found but not actionable in that editor state (the annotations are still *shown*, just
-not toggled on camera); scenes 0/15–21 are Part C/D; and the per-scene dwell times will be
-re-timed to the final TTS lengths in the audio-first assembly pass (Part D).
+**Follow-ups:** scenes 15–21 are the mobile app (Part C); the per-scene dwell times are re-timed
+to the final TTS lengths in the audio-first assembly pass (Part D).
 
 ## Part D — voiceover + assembly (this lane)
 
