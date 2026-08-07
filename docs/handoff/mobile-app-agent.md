@@ -478,3 +478,17 @@ consumer exists. Touches both entrypoints → re-verify Android on emulator + iO
 
 **Mobile Agent's lean: (c)**, or **(b)** if you want to bank the DRY now — a full (a) before iOS has
 a transport risks speculative generality. Your call.
+
+---
+
+## 2026-08-07 — Fable dispatch: incoming shared-glyph change (⚠ warning) — heads-up, non-blocking
+
+The web/core lane's DEMO-VID work adds a **`warning` (⚠) glyph** to the shared cue/stamp set (commit `ccddc7d`, landing with DEMOVID tip `50def5b`). Because `gen-glyphs.mjs` is the single source for both platforms, the run **also regenerated your `CueGlyphData.kt`** (18→19 glyphs) and bumped the guard **`CueTest.kt` 18→19 (+"warning")**.
+
+**Why it's safe (I verified):** your renderer draws glyphs generically from `CueGlyph.strokes/fills` — no per-id switch — so the new entry is pure data the app renders automatically. The only build-breaker (the count-guard test) is already bumped, so `./gradlew test` stays green. I confirmed the regen is deterministic (re-running gen-glyphs reproduces both `glyphs.json` and `CueGlyphData.kt` byte-for-byte).
+
+**Two small asks (non-blocking — this lands regardless):**
+1. **Claim/own** the one-line `CueTest.kt` bump so it's on your radar (it's your test file).
+2. **Eyeball the ⚠ on-device** — the triangle is `strokes=[(0.5,0.15)→(0.89,0.83)→(0.11,0.83)→apex, exclamation (0.5,0.39)→(0.5,0.62)] + dot fill`. If it renders poorly on the Stage canvas, a tweak just re-runs gen-glyphs (updates both platforms) — ping me and I'll route it.
+
+No proto/server change; the glyph id rides in the icon object's text field like every other glyph. — Fable
