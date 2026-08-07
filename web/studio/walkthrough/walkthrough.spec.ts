@@ -99,20 +99,21 @@ test("web walkthrough (scenes 1–14)", async ({ page }) => {
   await openSong(page, "The Troubadours", "The Open Road");
   await beat(page, 6); // annotated lead sheet: capo highlight, chorus, conductor cue
 
-  // ── S7–S8: the layers panel — toggle a layer off, then on ──────────────────
-  await soft("layer toggles", async () => {
-    // The Layers pill carries title="Layers" (accessible name may include a count/icon).
-    const layersPill = page.getByTitle("Layers", { exact: true }).or(page.getByRole("button", { name: /layers/i }));
-    await layersPill.first().click();
-    await beat(page, 2);
-    const toggles = page.getByTestId("layer-toggle");
-    if ((await toggles.count()) > 0) {
-      await toggles.first().click();
-      await beat(page, 3); // a layer disappears
-      await toggles.first().click();
-      await beat(page, 2); // and returns
-    }
-  });
+  // ── S7–S8: the layers panel — HIDE then RE-SHOW a layer (REQUIRED beat, VLL) ─
+  // The show/hide toggle must be on camera. Mandatory layers (conductor cues / section) are
+  // locked by design; Marie's personal "My notes" is the toggleable one. Hard-asserted (not
+  // soft) — this is a required scene.
+  await page.getByTestId("sidebar-toggle").click(); // open the Layers panel
+  await expect(page.getByTestId("layers-panel")).toBeVisible();
+  await beat(page, 2);
+  const myNotes = page.getByRole("checkbox", { name: "Show My notes" });
+  await expect(myNotes).toBeChecked(); // the personal notes are visible
+  await myNotes.uncheck();
+  await beat(page, 3); // camera: the ink disappears from the canvas
+  await expect(myNotes).not.toBeChecked();
+  await myNotes.check();
+  await beat(page, 2); // camera: the ink returns
+  await expect(myNotes).toBeChecked();
 
   // ── S9: direct editing — pick a tool, a preset, draw on the canvas ─────────
   await soft("draw", async () => {
