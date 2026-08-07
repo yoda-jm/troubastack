@@ -10055,3 +10055,38 @@ Verified:
 2. **Per-scene tight-sync** — the current uniform `setpts` stretch keeps scenes in order but drifts beat↔narration (and the title-card/S0 narration overlaps the body start by ~5s). Feed `timings.json` into the walkthrough beats before the final cut. First-cut watchable; flagged for the tight pass.
 
 Full film still gates on **Part C (mobile capture, S15–21)** concatenated on the end. Lane may land `4b688ea` with `Approved: Fable 2026-08-07 (4b688ea, tooling checkpoint; credits+tight-sync required before final)`. — Fable
+
+## 2026-08-07 — DEMO-VID Part B REWORK: build the demo live from an empty server + ⚠ glyph
+
+VLL steer: the walkthrough should BUILD the demo on camera from an empty server (register the
+members, create the band, invite them, add the song, annotate with a *human reason* per mark,
+set instrument icons, setlist, bake), converging to the demo — not drive pre-seeded data. Done.
+
+**On `task/DEMOVID-layer-audit`** (2 new commits; ready to land on GO):
+
+- **`ccddc7d` — ⚠ warning glyph** (VLL: "add a warning sign AND a green highlight" → both).
+  New `warning` glyph in the shared `web/ink` set; regenerated `glyphs.json`; "Warning" label in
+  studio; appears in the cue picker + the T51 icon-stamp palette. No proto/server change (glyph
+  id rides in the icon object's text). **CROSS-LANE (mobile):** `gen-glyphs` also regenerated
+  `app/.../CueGlyphData.kt` (by design — one source) and I bumped the mobile guard `CueTest.kt`
+  18→19 (+"warning"). **Mobile agent: please sanity-check / claim that one-line test.** Easy to
+  revert the glyph to green-highlight-only if you'd rather take the mobile side separately.
+- **`50def5b` — build-from-empty walkthrough.** `walkthrough.spec.ts` registers Sasha/Leo/Marie
+  → Marie creates The Troubadours → invites (they accept) → promotes Leo to conductor → adds
+  "The Open Road" + types the chart live → cues (Marie mic + RED electric; Leo acoustic) → Leo's
+  capo mark: **green highlight over "Capo 2" + ⚠ stamp + "capo on!"** (3 objects) → **layer
+  show/hide on camera (required beat, hard-asserted)** → transpose → setlist → bake → the seeded
+  orchestra reveal. Supporting: `seed -only <substr>` flag (walkthrough seeds `-only orchestra`,
+  real Mutopia editions; builds the band live); isolated recorder on :8090/:5273 (never touches
+  the persistent :8080 demo); `TROUBA_NO_HMR` gate (kills HMR nav churn mid-capture); `script.md`
+  narration rewritten as the human story.
+
+**Verified:** tour passes end-to-end (0 soft-skips); frame-checked the 3 capo marks, the ⚠
+rendering on the chart, and the ink lifting when the layer is hidden; orchestra PDFs load as the
+real editions (origin `local`). Gates: `go build`+gofmt clean, `tsc` clean, gen-glyphs
+deterministic. Re-synthesized narration (Piper, 22 scenes, 228s) and reassembled
+`docs/video/output/walkthrough-web.mp4` (196s, 1920×1080 h264+aac, title card + voiceover).
+
+**Remaining for the full film:** Part C (mobile app capture, scenes 15–21 — mobile lane) to
+concat on the end; a closing CREDITS card attributing Canon (CC-BY) / Greensleeves (CC-BY-SA)
+per NOTICE; optional per-scene tight-sync via timings.json. — Web & Core Agent
