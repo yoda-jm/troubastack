@@ -10090,3 +10090,21 @@ deterministic. Re-synthesized narration (Piper, 22 scenes, 228s) and reassembled
 **Remaining for the full film:** Part C (mobile app capture, scenes 15–21 — mobile lane) to
 concat on the end; a closing CREDITS card attributing Canon (CC-BY) / Greensleeves (CC-BY-SA)
 per NOTICE; optional per-scene tight-sync via timings.json. — Web & Core Agent
+
+## 2026-08-07 — DEMO-VID Part B REWORK (build-from-empty) + ⚠ glyph — GO (`50def5b` tip, `ccddc7d` glyph)
+
+Reviewed the two held commits on the DEMOVID branch (tip `50def5b`, parent `ccddc7d`; they sit on top of my earlier GO'd `a2d9fef`+`4b688ea`, so landing the tip subsumes all four). **GO — landable.** Independently verified, not taken on the lane's report:
+
+**Build gates (scratch worktree @ 50def5b):** `go build ./...` clean, `gofmt -l cmd/seed` clean, `go vet` clean; `tsc -b studio` clean. **gen-glyphs determinism proven:** ran `node web/ink/gen-glyphs.mjs` → rewrites `glyphs.json` (19) AND mobile `CueGlyphData.kt` (19), `git diff` **empty** → committed web+mobile glyph data are byte-identical to a fresh regen from the single authoring source (no hand-edit, no drift; the "one source, both platforms" invariant holds).
+
+**⚠ glyph (`ccddc7d`) — CROSS-LANE, safe by construction:** new `warning` glyph (apex-up triangle + exclamation + dot) in `glyphs.authoring.mjs`; `CueGlyphs.tsx` label; regenerated `glyphs.json` + `CueGlyphData.kt`; `CueTest.kt` count guard 18→19 (+"warning"). Mobile renderer draws glyphs generically from `CueGlyph.strokes/fills` (no per-id switch), so the new entry is pure data the app renders automatically; the only build-breaker (the count guard) is correctly bumped → mobile `./gradlew test` stays green. Keeping web+mobile regenerated atomically in ONE commit is more correct than splitting (no drift window). **Mobile heads-up dispatched** (claim the `CueTest.kt` one-liner + eyeball the ⚠ on-device; non-blocking — a tweak just re-runs gen-glyphs, updating both platforms).
+
+**Seed `-only` (`50def5b`, core):** additive flag; default `""` preserves exact prior seeding (`if only != ""` guard) → no impact on `make demo`/prod. Filters groups by name substring + narrows users; errors on no-match.
+
+**Walkthrough frame-verified (ran the recorder, 173s, passes end-to-end, 0 soft-skips):**
+- Build-from-empty: user's "My bands — not in any bands yet" → live band creation on camera. ✓
+- Capo mark = 3 objects on Leo's "My notes": green "capo on!" note + green highlight over "Capo 2" + the ⚠ glyph, all rendering correctly on the chart (and ⚠ present in the T51 icon-stamp palette). ✓
+- **Layer show/hide on camera — DECISIVE:** frames + a green-pixel metric agree. My notes CHECKED (122s) → all 3 capo objects visible; UNCHECKED (125.6s) → all 3 GONE, only plain "Capo 2" remains (green-excess 1.55→0.08, a 95% collapse); re-CHECKED (127.5s) → restored (metric back to 1.5). Checkbox state matches the canvas. Exactly the toggle VLL made a hard requirement. ✓
+- Orchestra reveal: real engraved **Eine kleine Nachtmusik, Violin 1, Mozart K.525** (Mutopia edition) with red/orange conductor+player annotations. ✓
+
+Narration re-synthesized (Piper, 22 scenes) + reassembled `walkthrough-web.mp4` (196s, 1920×1080 h264+aac). Lane may land with `Approved: Fable 2026-08-07 (50def5b, frame+metric-verified toggle; ⚠ cross-lane safe; mobile heads-up sent)`. Full film still gates on Part C (mobile) + the REQUIRED CC credits card + optional tight-sync. — Fable
