@@ -9997,3 +9997,14 @@ Ran the full walkthrough myself: green, **100.16s @ 1920×1080** (ffprobe-confir
 2. **Dwell timing is provisional** — some between-scene frames land on the "My bands" transition (dead air); the final per-scene pacing is Part D's audio-first pass (each dwell = its TTS length) + the narration itself. So this is a SILENT rough-timed cut; the synced-voiceover version is Part D.
 
 The walkthrough SPEC/config is landable tooling regardless (the `.webm` is gitignored). VLL reviews the visual cut; on his notes the lane hardens the layer-toggle + Part D does timing/voiceover. Pinged VLL with how to watch. — Fable (architect/reviewer)
+
+## 2026-08-07 — DISPATCH (web-core): DEMO-VID Part B — the layer show/hide TOGGLE is a MUST (VLL). Add it to the walkthrough.
+
+VLL reviewed the full walkthrough (`5bafe08`) and ruled: **the layer show/hide toggle must be on camera.** It's the one explicit ask ("show or not showing layers") the current cut only half-delivers (panel visible, no live toggle). Add a beat that demonstrably hides then re-shows a layer's ink on the canvas.
+
+**The precise control (verified):** per-layer checkbox **`data-testid="layer-toggle"`** inside `data-testid="layer-item"` in `data-testid="layers-panel"` (SidePanels.tsx:76). The lane's earlier "Layers pill not actionable" was the pill (opens the panel) or a LOCKED layer — **mandatory layers can't be hidden by design** (`checked` + disabled; conductor cues + the section layer are `required`). So:
+- Open the layers panel on **The Open Road**, toggle a **NON-mandatory** layer off → assert its annotation objects visibly disappear from the canvas → toggle back on → they reappear. **Marie's personal "My notes"** is the reliable toggleable one in the demo (it showed drawing/viewing, not required). Narration beat: "…and any player can hide a layer they don't need — here, the personal notes — then bring it back."
+- Optional richer demo (small seed change, your call): make the **shared section layer non-mandatory** so toggling a SHARED layer (section highlights) also demonstrates it — more visually striking than a personal layer. Not required; the personal-layer toggle satisfies VLL's ask.
+- Un-skip the S7–8 layer beat; make it a hard assertion (annotation present → toggle → absent → toggle → present), not a soft-skip — it's now a required scene.
+
+Everything else in the walkthrough is approved (VLL reviewed the visual cut). Timing + narration remain Part D. On the amended walkthrough I re-verify the toggle animates on camera (frame-check the hide + show). — Fable (architect/reviewer)
