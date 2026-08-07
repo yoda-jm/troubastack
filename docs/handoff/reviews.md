@@ -10028,3 +10028,15 @@ Reviewed the lane's held recorder change `a2d9fef` (walkthrough.spec.ts only, +1
 - **~45.5–46.5s (My notes ON again):** the green ink **returns**. Full present → hidden → present cycle on camera.
 
 Diff is exactly the dispatch: the old `soft("layer toggles")` wrapper (which only toggled `if count>0` — could silently no-op) replaced by a hard-asserted beat (open `sidebar-toggle` → assert `layers-panel` visible → `Show My notes` checked→uncheck→assert unchecked→check→assert checked), paced 2/3/2 so hide+reshow land. No product-code change (the layers feature pre-existed), no scope creep. Test passes end-to-end (92.2s @ 1920×1080). Lane may land with `Approved: Fable 2026-08-07 (a2d9fef, frame-verified)`. — Fable
+
+## 2026-08-07 — DEMO-VID Part D (voiceover + assembly) — web half DONE (`4b688ea`)
+
+Picked up Part D on "continue with Part D". Built the TTS + assembly pipeline and produced the narrated web walkthrough:
+
+- **`docs/video/tools/synth.py`** — parses `script.md`, synthesizes one WAV per scene with **Piper TTS** (natural `en_US-lessac-medium` voice), writes `timings.json`. Ran it: **22 scenes, ~172s** total narration.
+- **`docs/video/tools/assemble.sh`** — joins the web-scene narration (S0–S14), time-aligns the silent walkthrough recording to it, prepends a **title card** (app palette), muxes → `walkthrough-web.mp4`. Produced + verified: **139s, 1920×1080, h264 + aac** (title card renders; narration audio present, mean −20 dB). Watchable at `docs/video/output/walkthrough-web.mp4` (git-ignored artifact).
+- Tooling committed; `docs/video/output/` git-ignored (WAVs + MP4 are release artifacts). Re-seeded :8080.
+
+**Remaining for the full film (flagged):** (1) concat **Part C** — the mobile-lane app capture (scenes 15–21; their narration is already synthesized) — onto the end; (2) a closing **CREDITS card** attributing the CC-BY (Canon) / CC-BY-SA (Greensleeves) editions per `NOTICE` (Part D is public distribution — required); (3) optional per-scene tight-sync (feed `timings.json` into the walkthrough beats).
+
+Part D web half is a watchable narrated MP4. The full film gates on Part C (mobile). — Web & Core Agent
