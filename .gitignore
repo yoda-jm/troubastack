@@ -58,3 +58,6 @@ core/gen-mirrors
 web/studio/test-results/
 web/studio/walkthrough/output/
 core/troubadata-walkthrough/
+
+# DEMO-VID Part D — generated narration WAVs + assembled MP4 (release artifacts, not versioned)
+docs/video/output/

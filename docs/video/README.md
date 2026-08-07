@@ -32,9 +32,22 @@ pill is found but not actionable in that editor state (the annotations are still
 not toggled on camera); scenes 0/15–21 are Part C/D; and the per-scene dwell times will be
 re-timed to the final TTS lengths in the audio-first assembly pass (Part D).
 
-## Part D — assembly (this lane, later)
+## Part D — voiceover + assembly (this lane)
 
-Piper TTS for every segment in `script.md` → ffmpeg concat (web + the mobile-lane app capture)
-+ narration mux + title cards → the single MP4 under `docs/video/`. **The closing credits MUST
-attribute the CC-BY / CC-BY-SA editions** (see the repo `NOTICE`) — the video is a public
-distribution.
+- `tools/synth.py` — parses `script.md`, synthesizes one WAV per scene with **Piper TTS**, and
+  writes `output/narration/timings.json` (scene → seconds).
+- `tools/assemble.sh` — joins the web-scene narration, time-aligns the silent walkthrough
+  recording to it, prepends a title card, and muxes → `output/walkthrough-web.mp4`.
+
+Produce it (Piper in a venv + a voice model, e.g. `en_US-lessac-medium`):
+
+```sh
+python3 docs/video/tools/synth.py --piper <piper> --voice <voice.onnx> --out docs/video/output/narration
+cd web/studio && npx playwright test -c playwright.walkthrough.config.ts   # the silent recording
+docs/video/tools/assemble.sh docs/video/output/narration <test-results/.../video.webm>
+```
+
+**Remaining for the full film:** concat **Part C** (the mobile-lane app capture, scenes 15–21)
+onto the end; optional per-scene tight-sync (feed `timings.json` into the walkthrough beats); and
+the **closing credits MUST attribute the CC-BY / CC-BY-SA editions** (see the repo `NOTICE`) —
+the video is a public distribution. Generated WAVs/MP4 are git-ignored (release artifacts).
