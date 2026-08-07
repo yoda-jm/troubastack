@@ -15,64 +15,82 @@ sets real timings and the on-screen action is paced to land under the words.
 
 ## Part 1 — the web app (TroubaStudio)
 
-**S0 — Title card** · ~8s
-"TroubaShare is a self-hosted app for bands and ensembles — from the rehearsal-room edit to
-the on-stage page turn. Let's build a band from scratch."
+> Everything in Part 1 is **built live, on camera, from an empty server** — we register the
+> band, add the songs, and make every mark ourselves. The end state is exactly the demo you
+> can log into (marie / demo). Each annotation is narrated with the *reason* a real band would
+> add it — that's the point of the tool.
 
-**S1 — Marie creates the band** · ~12s
-"Marie signs in and creates her band, The Troubadours. She's the admin — no accounts to buy,
-no cloud to trust; it all runs on a box the band owns."
+**S0 — Title card** · ~9s
+"This is TroubaShare — a self-hosted app for bands and ensembles. Nothing is pre-loaded here.
+We're going to build a real band from an empty server, and everything we make becomes the demo
+you can log into."
 
-**S2 — Invite the bandmates** · ~16s
-"She invites her bandmates by username — Leo on guitar, Sasha on bass. Each one joins by
-accepting the invite. No email, no onboarding funnel — just the people in the room."
+**S1 — Marie starts a band** · ~13s
+"Marie runs the sign-up — no cloud account, no subscription; the server is a box her band
+owns. She creates The Troubadours, and as the person who set it up, she's the admin."
 
-**S3 — Promote Leo to conductor** · ~12s
-"Roles matter here. Marie promotes Leo to conductor — and that unlocks the conductor's own
-annotation layer, which we'll see in a moment."
+**S2 — Invite the bandmates** · ~15s
+"She invites the other two by username — Leo, who plays guitar, and Sasha on bass. They each
+accept, and now it's a band: three people, one shared space. No email funnel, just the people
+in the room."
 
-**S4 — A text chart, rendered live** · ~18s
-"A song is more than a title. Leo writes a chord chart in plain text — chords over lyrics —
-and TroubaShare renders it to a clean sheet, instantly, right in the browser."
+**S3 — Leo becomes the conductor** · ~12s
+"Leo also runs rehearsals, so Marie promotes him to conductor. That's not just a title — it
+gives Leo a cue layer of his own that the others can see but can't switch off. More on that in
+a minute."
 
-**S5 — Real parts, one shared pool** · ~14s
-"Real parts live together: a lead sheet, a guitar tab, even a drum chart — one shared pool,
-and each player picks the view they need."
+**S4 — A song, typed as plain text** · ~17s
+"Now the music. Marie adds their own song, The Open Road, and types the chart as plain text —
+chords over lyrics, the way you'd scribble it on a napkin. TroubaShare renders it to a clean
+sheet as she types."
 
-**S6 — The flagship: The Open Road** · ~12s
-"The Open Road is the band's own song. Watch the annotations — every mark lives on a layer
-you can show or hide."
+**S5 — One song, all its parts** · ~14s
+"A song isn't one file. She drops in the real parts beside the chart — a guitar tab, a drum
+sheet — all pooled under the one song, so nobody's hunting through email for the right PDF."
 
-**S7 — The conductor's layer (mandatory)** · ~16s
-"The conductor's cues, in red — 'watch me', 'rit. on the last G' — are mandatory: players
-can't hide them. Leo owns this layer, because he's the conductor."
+**S6 — Everyone tags what they play** · ~17s
+"Each player marks what they're actually on. Marie sings and plays the red electric, so she
+tags her part with a mic and a red guitar. Sasha tags his as bass, in blue. Now one glance at
+the setlist tells every player what to pick up for this song."
 
-**S8 — Shared + personal layers** · ~18s
-"Shared section markings help everyone navigate. And each player keeps private notes —
-Marie's capo reminder and her 'sing out' are hers alone; nobody else sees them."
+**S7 — A mark with a reason: the capo** · ~20s
+"Here's the whole idea of the app in one gesture. Leo *always* forgets to put his capo on for
+this one. So on his part he swipes a green highlighter over the printed 'Capo two' and writes
+himself 'capo on!' right in the margin. It's his note, on his layer — a fix for a real
+mistake, not decoration."
 
-**S9 — Direct editing** · ~12s
-"Editing is direct — draw, color, move, zoom. It's a canvas, not a form."
+**S8 — Layers you can show and hide** · ~19s
+"Every mark lives on a layer. Leo's conductor cues, in red, are mandatory — the players can
+see them but can't hide them. The shared section markings anyone can edit. And personal notes,
+like Marie's, are private to her. Watch: hide a layer, and its ink lifts off the page — show
+it again, and it's back. Same sheet, every musician sees only what's theirs."
 
-**S10 — Transpose the chart** · ~12s
-"Need a different key? Transpose the whole chart in one click. The chords rewrite, the layout
-stays put — so every annotation stays anchored exactly where you drew it."
+**S9 — Editing is a canvas** · ~11s
+"Editing is direct — pick a tool, a color, and draw straight on the sheet. Move it, resize it,
+zoom in. It's a canvas, not a form."
 
-**S11 — Build the setlist** · ~16s
-"Songs go into a setlist — drag to reorder, override a key per gig, and the chart transposes
-just for that show."
+**S10 — Transpose in one click** · ~13s
+"Sasha finds it sits low, so Marie transposes the whole chart in one click. The chords rewrite
+into the new key — but the layout holds, so every note and highlight stays anchored exactly
+where it was drawn."
 
-**S12 — Bake the concert** · ~14s
-"When it's ready, Marie bakes the setlist into a concert bundle — every part, every layer,
-every player's cues, frozen for the stage."
+**S11 — Build the setlist** · ~15s
+"For the gig, the songs go into a setlist — The Open Road, then the covers — drag to set the
+running order, and you can override a key for just this show."
 
-**S13 — It scales to an orchestra** · ~18s
-"It scales up, too. Here's the City Chamber Orchestra — Mozart's Eine kleine Nachtmusik, from
-a real published edition: a full score for the conductor, and a separate part for every desk."
+**S12 — Bake the concert** · ~15s
+"When the set is locked, Marie bakes it. TroubaShare freezes every part, every layer, and
+every player's cues into one concert bundle — the exact pages the band will play from, ready
+to go offline."
 
-**S14 — Everyone sees their own view** · ~10s
-"Same music, every musician sees their own layers — the conductor's interpretation on the
-score, each player's bowings on their part. Nothing more, nothing less."
+**S13 — The same app, at orchestra scale** · ~18s
+"And this isn't just for a three-piece. The very same app runs the City Chamber Orchestra —
+Mozart's Eine kleine Nachtmusik, from a real published edition: a full score for the conductor,
+and a separate part on every desk. It's all in the demo, built the same way we just did."
+
+**S14 — Everyone sees their own view** · ~11s
+"Same music, but each musician sees their own layers — the conductor's interpretation on the
+score, each player's own bowings on their part. Nothing more, nothing less."
 
 ## Part 2 — the mobile app (TroubaStage) — recorded on the emulator (Part C)
 

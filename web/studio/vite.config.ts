@@ -46,6 +46,9 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // TROUBA_NO_HMR disables hot-module reload — used by the DEMO-VID walkthrough recorder so
+    // HMR websocket churn can't schedule spurious navigations mid-capture.
+    hmr: process.env.TROUBA_NO_HMR ? false : undefined,
     proxy: {
       "/api": {
         target: API_TARGET,

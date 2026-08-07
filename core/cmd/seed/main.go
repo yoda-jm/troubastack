@@ -21,9 +21,10 @@ import (
 func main() {
 	addr := flag.String("addr", "http://localhost:8080", "base URL of the running troubacore server")
 	password := flag.String("password", "demo", "password set for every demo user")
+	only := flag.String("only", "", "seed only groups whose name contains this substring (case-insensitive), plus just their members; e.g. -only orchestra. Empty = seed everything.")
 	flag.Parse()
 
-	if err := run(*addr, *password); err != nil {
+	if err := run(*addr, *password, *only); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
 }
@@ -101,7 +102,7 @@ type groupDef struct {
 	setlist   setlistDef
 }
 
-func run(addr, password string) error {
+func run(addr, password, only string) error {
 	if err := ensureAssetsDir(); err != nil {
 		return err
 	}
@@ -239,6 +240,38 @@ func run(addr, password string) error {
 				},
 			},
 		},
+	}
+
+	// Optional -only filter: keep just the groups whose name matches, and narrow the
+	// user list to those groups' members. Used by the DEMO-VID walkthrough, which seeds
+	// ONLY the orchestra (for the "it scales" reveal) and builds The Troubadours live
+	// on camera from an empty server.
+	if only != "" {
+		needle := strings.ToLower(only)
+		kept := groups[:0:0]
+		keepUser := map[string]bool{}
+		for _, g := range groups {
+			if !strings.Contains(strings.ToLower(g.name), needle) {
+				continue
+			}
+			kept = append(kept, g)
+			keepUser[g.admin] = true
+			for _, m := range g.members {
+				keepUser[m] = true
+			}
+		}
+		if len(kept) == 0 {
+			return fmt.Errorf("seed: -only %q matched no groups", only)
+		}
+		groups = kept
+		filteredPeople := people[:0:0]
+		for _, p := range people {
+			if keepUser[p.username] {
+				filteredPeople = append(filteredPeople, p)
+			}
+		}
+		people = filteredPeople
+		fmt.Printf(">> -only %q: seeding %d group(s), %d user(s)\n", only, len(groups), len(people))
 	}
 
 	// 1. Register every user (idempotent: skip if already present).
