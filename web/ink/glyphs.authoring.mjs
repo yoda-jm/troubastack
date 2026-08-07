@@ -110,6 +110,11 @@ export const GLYPHS = {
     ["path", "M6 11a6 6 0 0 0 12 0"],
     ["path", "M12 17v4M9 21h6"],
   ],
+  warning: [
+    ["path", "M12 3.6L21.4 20H2.6Z"],
+    ["path", "M12 9.4V14.9"],
+    ["circle", 12, 17.6, 1, true],
+  ],
   note: [
     ["path", "M9 18V6l9-2v10"],
     ["circle", 6.5, 18, 2.5],

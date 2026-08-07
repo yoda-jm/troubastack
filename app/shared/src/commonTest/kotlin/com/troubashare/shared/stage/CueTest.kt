@@ -22,12 +22,12 @@ class CueTest {
 
     @Test
     fun cueGlyphSet_coversTheCuratedContract() {
-        // The 18 curated ids (T50), with the fallback present.
-        assertEquals(18, CUE_GLYPHS.size)
+        // The curated ids (T50; + `warning` for the T51 stamp set), with the fallback present.
+        assertEquals(19, CUE_GLYPHS.size)
         assertTrue(CUE_FALLBACK_ID in CUE_GLYPHS)
         for (id in listOf("guitar-electric", "guitar-acoustic", "guitar-classical", "bass", "ukulele",
                 "autoharp", "melodica", "keys", "cajon", "bongo", "djembe", "guiro", "cuica",
-                "shaker", "egg-shaker", "tambourine", "mic", "note")) {
+                "shaker", "egg-shaker", "tambourine", "mic", "warning", "note")) {
             assertTrue(id in CUE_GLYPHS, "curated id present: $id")
         }
     }

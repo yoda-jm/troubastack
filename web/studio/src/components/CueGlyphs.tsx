@@ -32,6 +32,7 @@ export const CUE_ICON_LABELS: Record<string, string> = {
   "egg-shaker": "Egg shaker",
   tambourine: "Tambourine",
   mic: "Microphone",
+  warning: "Warning",
   note: "Note",
 };
 
