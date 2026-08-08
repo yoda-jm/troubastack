@@ -93,8 +93,12 @@ done < "$work/plan.txt"
 ffmpeg -nostdin -y -f concat -safe 0 -i "$work/vlist.txt" -c copy "$work/silent.mp4" -loglevel error
 ain=(); fc=""; i=0
 for w in "${awavs[@]}"; do ain+=(-i "$w"); fc+="[${i}:a]"; i=$((i+1)); done
+# Concat via the FILTER (each input decoded separately). NB: the concat *demuxer* must never be
+# used on these WAVs — it byte-joins their 44-byte headers and decodes them as audio = white
+# noise. Piper renders near 0 dBFS, so pull the level down before a safety limiter to avoid the
+# AAC encoder clipping (which sounds like harsh noise).
 ffmpeg -nostdin -y "${ain[@]}" \
-  -filter_complex "${fc}concat=n=${i}:v=0:a=1,aresample=44100,alimiter=limit=0.9[a]" \
+  -filter_complex "${fc}concat=n=${i}:v=0:a=1,aresample=44100,volume=-4dB,alimiter=limit=0.9[a]" \
   -map "[a]" -ac 2 "$work/audio.wav" -loglevel error
 mkdir -p "$(dirname "$OUT")"
 ffmpeg -y -i "$work/silent.mp4" -i "$work/audio.wav" \
