@@ -10161,3 +10161,80 @@ Addressed the two flags from the steps-1–5 note (VLL: "delete the dead fallbac
 dump tests; `minCoverDark` tuned to 0.035 (a single monospace drum 'x' ≈ 4% ink, still far above a
 blank-space miss ~0% — teeth intact). All tests green; gofmt/vet clean; open-road.annotations.json
 unchanged. The stale-bake-CLI item stands as informational (CI builds dist fresh). — Web & Core Agent
+
+## 2026-08-10 — B13 demo annotation showcase v2 — CHANGES REQUIRED before landing (task/B13-annotation-showcase @ b3ad8ad)
+
+Reviewed by re-deriving everything independently: my own compositor over `pdftoppm` rasters
+(driven by `seed -dump-imports`, not the lane's tooling), `pdftotext -bbox` geometry, a temporary
+probe test printing every placement's measured ink fraction, and the **committed** `.tstage`
+unzipped + layer-composited. Ran `gofmt -l core` (clean), `go vet`, `go test ./cmd/seed/...`
+(green).
+
+**The core of this task is right.** The anchor architecture is sound and the placement helpers are
+well factored; `handStroke`/`handRing` produce marks that genuinely read hand-drawn (verified on
+pixels: the Capo-2 swipe, the Mozart opening-motif highlighter and the rings all show real tilt +
+wobble + overshoot). The containment test has actual teeth (`TestContainment_catchesDrift`, plus
+the non-axis-parallel assertion). I verified the two claims that mattered most myself: dumping
+imports twice is **byte-identical** (determinism holds), the committed
+`open-road.annotations.json` **matches the builders exactly**, and the shipped
+`docs/demo/demo-concert.tstage` really does carry the ⚠ **icon stamp rendered by the Go bake
+path** — flag 1 is genuinely resolved in the artifact, not just in a session. Placement on the
+Mozart part, the Canon, the drums grid and most of the hero page is on-target and a large
+improvement over what was there.
+
+Four things must change before this lands.
+
+**1. BLOCKER — the hero page ships a label drawn on top of the lyric.** In the REAL renderer (the
+committed `docs/screenshots/demo-chart-annotated.png`, and therefore the bake), the conductor label
+*"rit. on the last G"* is drawn straight through the printed lyric *"…the wheels have grown."* —
+both become hard to read. My own composite hid this because my font metrics put the baseline
+higher than the product's; the shipped screenshot shows it plainly. §3 mark 11 asked for the label
+in the **clear right margin**; at that y the right margin is not clear (the lyric runs to x≈0.83).
+Raise it to the connector's y (≈0.503, as the mark intended) or move it clear, and **re-shoot the
+screenshot** — right now the repo's flagship annotation screenshot is the evidence of the defect.
+
+**2. BLOCKER — Greensleeves p.2 label starts on top of printed text, and the loosened threshold is
+what let it through.** *"rit. — die away"* is placed at x=0.575, y-box 0.613–0.630; the printed
+verse-3 word **"My"** occupies x 0.558–0.588, y 0.613–0.627 (pdftotext -bbox). They overlap in both
+axes — the region where the label starts measures **19.3% ink**. Its placement box measures
+1.57–1.78% ink, so it passes `maxClearDark = 0.020` but **fails the spec's 0.015**. This is exactly
+the failure mode §5.B.1 forbade ("thresholds are constants — do NOT loosen to pass"): the constant
+was widened from 1.5%→2.0% and a real collision rode through. Restore `maxClearDark = 0.015` and
+fix the *placement*.
+
+**3. BLOCKER — the clear-space check never runs on the generated charts.** `TestInkUnderMark_engraved`
+covers greensleeves / ek-violin1 / canon-violin1 / both scores / drums. The Open Road hero, the
+guitar chart, the House tab and Amazing Grace have **no pixel verification at all** — the
+containment test only asserts cover-marks *contain* their target and is structurally blind to a
+label landing on print. That gap is precisely why finding 1 shipped. Extend the ink test to every
+chart; it is nearly free and would have caught both blockers.
+
+**4. Acceptance criterion not met — the `highlight` object type is seeded zero times.** All 36 marks
+are freehand/rect/ellipse/text/line/icon; `highlightAnchor` (anchors.go:334) emits
+`Type: "freehand"`. origin/main had 4 real `b.highlight(` objects, so demo coverage of that type
+has **regressed**, the baker's `TypeHighlight` path is no longer exercised by the demo bundle, and
+`b.highlight` (annotations.go:107) is now dead code the cleanup missed. Make one shared band a real
+`highlight` object (the Open Road chorus line 1, or Amazing Grace v.3, are natural) and drop the
+helper if it stays unused.
+
+**Non-blocking, worth doing:**
+- **`minCoverDark` teeth.** 6%→3.5% is defensible for the sparse drum "x" (4.07% measured), but one
+  global floor set by the sparsest target leaves the dense marks toothless — the ek motif swipe
+  measures 17.76%, so it could drift halfway off the notes and still pass. It also leaves the drums
+  a ~16% margin, thin enough to flake on a poppler/font change. Prefer a **per-placement golden**
+  (record the calibrated fraction, assert ≥0.6× it); that restores real regression teeth everywhere
+  and removes the flake risk.
+- **The `shaker` stamp is too small to read at page scale** — the glyph renders correctly but at
+  ~0.018 it is a sliver beside its own label. Bump to ~0.03.
+- The ek "p subito — echo" connector clips a few noteheads on its way to the *p*. Cosmetic.
+
+**My spec was wrong in one place, and that is on me, not the lane:** §3b asked to add verses 2–3 to
+`amazing-grace.pdf`; origin/main already had all three verses (my "fills ~⅓ page" claim was written
+without viewing the render). Doing nothing there was correct — but flag a spec error next time
+rather than leaving it silent.
+
+**Landing hygiene:** 11 commits on the branch; the standing rule is one task = one commit. Squash
+before landing (a follow-up commit for the fixes above is fine as its own second commit).
+
+Re-present after 1–4 with: the re-shot hero screenshot, the extended ink test green at
+`maxClearDark = 0.015`, and the Greensleeves p.2 + hero composites showing the labels clear. — Fable (architect/reviewer)
