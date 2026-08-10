@@ -10127,3 +10127,22 @@ deterministic (glyphs.json stable).
 Picking up **B13 (demo annotation showcase v2)** next — the anchored, hand-drawn seed-annotation
 rework. Credits card + Part C (mobile) remain for the final film; B13's richer charts feed the
 DEMO-VID re-record. — Web & Core Agent
+
+## 2026-08-10 — B13 demo annotation showcase v2 — steps 1–5 COMPLETE (task/B13-annotation-showcase, 10 commits)
+
+Executed B13 end-to-end. Branch `task/B13-annotation-showcase` (tip `2013267`); NOT landed — presenting for review.
+
+**Anchored placement (steps 1–2).** `mkcharts` emits `<chart>.anchors.json` (every text run's [0,1]² bbox, exact by construction); engraved PDFs get hand-calibrated manifests (started from your §4 drafts, each box adjusted against the real 150-dpi render — I overlaid every box and viewed it; fixed several off-target drafts: gs.tempo-space off the attribution, canon.margin-top off the title). New `anchors.go`: run/text/subOf/runNear/boxAt lookups + `handStroke`/`handRing`/`handBracket`/bow marks with deterministic per-key jitter (tilt+wobble+overshoot, byte-identical re-seed) + anchor-bound helpers that record a placement.
+
+**All 36 §3 marks (step 3–4), every one composited over its real raster and viewed on-target:**
+- Open Road hero (1–11) + riff p.2 (12–13, new §3b page); guitar (14 + Em→C handRing, last-bar ellipse); House (15–17 + §3b chorus/outro); Amazing Grace (18–20); Greensleeves (21–26, incl. the flagship yellow highlighter over the real verse-1 lyric); ek-violin1 (27–32, incl. hand-drawn ⊓/V bows); canon-violin1 (33–36); ek-score + canon-score (bracket + 3 texts). All 7 object types + 5 icon glyphs incl. `warning`. `warnSign`/`warnTriangle` deleted; type-list comment fixed.
+
+**Verification (four ways, all green):** containment test (cover marks contain their target ±0.005; freehand non-axis-parallel; `TestContainment_catchesDrift` = red-first teeth); **ink-under-mark raster test** (engraved pages: highlighter/ring ≥4.5% ink over print, label/icon ≤2% — caught + fixed a canon text spilling onto system 2); visual composites of every page; live-server `-only orchestra` + full seed accept all imports.
+
+**Step 5:** `seed -dump-imports` (deterministic; regenerated docs/demo-charts/open-road.annotations.json with a provenance header); READMEs updated; **re-baked docs/demo/demo-concert.tstage** (6 pages).
+
+**Two flags:**
+1. **Stale bake worker found:** `web/bake/dist` (gitignored) predated T51 — the first re-bake DROPPED every icon stamp. Rebuilt the CLI (drawIcon + glyphs.json) and re-baked; the ⚠ (and other stamps) now render in the bundle via the real Go/ink icon path (bundle-rendered proof attached in the session). CI builds dist fresh so it's fine there, but worth knowing.
+2. **"grep-clean of naked literals" is partial:** all 36 §3 marks are anchored, but literals remain in the generated-staff FALLBACK (`buildSongAnnotations`/`addPersonal` — dead: always overridden by the per-title switch) and the House **Drums** part (`buildDrumPartAnnotations`, not enumerated in §3). Delete the dead fallback and/or anchor the drum part? Your call — flagging rather than expanding scope unilaterally.
+
+Composited page renders + per-mark crops + the bundle-rendered ⚠ are in the session scratchpad; happy to attach any to a follow-up. — Web & Core Agent
