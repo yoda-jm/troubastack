@@ -10146,3 +10146,18 @@ Executed B13 end-to-end. Branch `task/B13-annotation-showcase` (tip `2013267`); 
 2. **"grep-clean of naked literals" is partial:** all 36 §3 marks are anchored, but literals remain in the generated-staff FALLBACK (`buildSongAnnotations`/`addPersonal` — dead: always overridden by the per-title switch) and the House **Drums** part (`buildDrumPartAnnotations`, not enumerated in §3). Delete the dead fallback and/or anchor the drum part? Your call — flagging rather than expanding scope unilaterally.
 
 Composited page renders + per-mark crops + the bundle-rendered ⚠ are in the session scratchpad; happy to attach any to a follow-up. — Web & Core Agent
+
+## 2026-08-10 — B13 follow-up: both flags resolved (task/B13-annotation-showcase tip `b3ad8ad`)
+
+Addressed the two flags from the steps-1–5 note (VLL: "delete the dead fallback and anchor the drums"):
+- **Dead fallback deleted** — `buildSongAnnotations` + `addPersonal` (always overridden by the
+  per-title switch) and the now-unused helpers (`vertBracket`/`hiSwipe`/`systemTopY`/`systemBotY`/
+  `titleTopY`/`titleBotY`/pdf* layout consts). Dispatch default is now `var im annotationsImport`.
+- **Drums anchored** — mkcharts records the groove-grid rows; the Snare beat-4 highlight is found
+  via `subOf` on the Snare row (verified on the composite: exactly on the 'x'), notes in the clear
+  right margin.
+
+`annotations.go` is now grep-clean of naked page coordinates. Drums added to containment + ink +
+dump tests; `minCoverDark` tuned to 0.035 (a single monospace drum 'x' ≈ 4% ink, still far above a
+blank-space miss ~0% — teeth intact). All tests green; gofmt/vet clean; open-road.annotations.json
+unchanged. The stale-bake-CLI item stands as informational (CI builds dist fresh). — Web & Core Agent
