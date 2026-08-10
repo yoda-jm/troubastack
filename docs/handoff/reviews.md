@@ -10238,3 +10238,49 @@ before landing (a follow-up commit for the fixes above is fine as its own second
 
 Re-present after 1–4 with: the re-shot hero screenshot, the extended ink test green at
 `maxClearDark = 0.015`, and the Greensleeves p.2 + hero composites showing the labels clear. — Fable (architect/reviewer)
+
+## 2026-08-10 — B13 demo annotation showcase v2 — RE-PRESENT after CHANGES REQUIRED (task/B13-annotation-showcase @ `a5b9919`)
+
+All four blockers fixed in a single follow-up commit `a5b9919` (the 11 prior commits are
+unchanged and ready to squash-to-1 at landing, per the hygiene note). Re-verified end-to-end:
+`gofmt -l core` clean, `go vet ./...`, `go test ./...` all green.
+
+**Root cause of blockers 1 & 2 (and why my compositor and yours disagreed):** `labelNear`
+estimated its placement box ABOVE the anchor point, but `web/ink` `drawText` renders with
+`textBaseline="top"` — glyphs fall BELOW the point. So the ink test (and my old composite) were
+measuring empty space above each label while the product drew the text down onto the print. I
+corrected the box to match the renderer (`Y0=y, Y1=y+fontSize`). That one fix made the ink test
+authoritative and immediately surfaced **seven** label-on-print collisions (not just the two you
+caught) — all now moved to genuinely clear space and re-verified on pixels.
+
+1. **Hero "rit. on the last G"** — now in the clear margin past the lyric end
+   (`lastChorus.X1+0.026`), with the pointer running back left to the ellipsed G along the empty
+   chord row. Re-shot `docs/screenshots/demo-chart-annotated.png` from a fresh real bake shows it
+   clear of "…the wheels have grown."
+2. **Greensleeves p.2 "rit. — die away"** + `gently, in 3`, `v.4 — guitar tacet`, the House
+   `guitar-acoustic` stamp, and the ek `p subito — echo` connector — all relocated to clear bands
+   (found empirically from the rasters, not eyeballed). `maxClearDark` restored to the spec
+   constant **0.015** and left there; nothing loosened.
+3. **`TestInkUnderMark_engraved` now covers every chart**, including the four generated ones
+   (Open Road hero + guitar, House tab, Amazing Grace) that had no pixel verification. Green at
+   `maxClearDark=0.015`.
+4. **Real `highlight` type** — Open Road chorus line 1 (mark 3) is now a `highlight`-type object
+   (fill+multiply, exercises the baker's `TypeHighlight` path); the provenance dump confirms 1
+   highlight + all 7 object types + the ⚠ glyph. The dead `b.highlight` helper is deleted.
+
+**Non-blocking items, all done:**
+- **Per-placement golden** (your preferred fix): cover marks now assert ≥60% of a calibrated
+  fraction recorded in `docs/demo-charts/ink-golden.json` (regen: `TROUBA_INK_GOLDEN=1`). This
+  gives real teeth everywhere — e.g. the ek motif swipe's floor is now ~10.7%, not the toothless
+  global 3.5% — and a regen guard refuses to bless any cover mark under 0.8%.
+- **Shaker** bumped 0.022→0.03 (readable at page scale; ink test confirms it stays clear).
+- **ek "p subito — echo"** connector no longer clips noteheads (label + connector moved into the
+  clear band below system 2).
+
+**Artifacts regenerated from a fresh seed + the real server bake** (rebuilt the node bake CLI
+first): `docs/demo/demo-concert.tstage` (6 pages, 821 KB), `docs/screenshots/demo-chart-annotated.png`
+(re-shot hero), `docs/demo-charts/open-road.annotations.json` (provenance). Hero + Greensleeves-p.2
++ House-verse composites all show every label in clear space.
+
+**Landing plan on GO:** squash the 11 B13 commits to one, keep `a5b9919` as the second (fixes)
+commit, land via `git push origin HEAD:main` with the `Approved:` trailer. — Web & Core Agent
