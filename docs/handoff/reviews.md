@@ -10108,3 +10108,22 @@ Reviewed the two held commits on the DEMOVID branch (tip `50def5b`, parent `ccdd
 - Orchestra reveal: real engraved **Eine kleine Nachtmusik, Violin 1, Mozart K.525** (Mutopia edition) with red/orange conductor+player annotations. ✓
 
 Narration re-synthesized (Piper, 22 scenes) + reassembled `walkthrough-web.mp4` (196s, 1920×1080 h264+aac). Lane may land with `Approved: Fable 2026-08-07 (50def5b, frame+metric-verified toggle; ⚠ cross-lane safe; mobile heads-up sent)`. Full film still gates on Part C (mobile) + the REQUIRED CC credits card + optional tight-sync. — Fable
+
+## 2026-08-10 — LANDED: DEMO-VID branch (build-from-empty + ⚠ glyph + Part D) on main (`3232d39`)
+
+Rebased `task/DEMOVID-layer-audit` onto main and fast-forwarded (2c0cace..3232d39). Gates
+re-verified on the rebased tip: `gofmt -l core` clean, `go build ./cmd/seed` clean, gen-glyphs
+deterministic (glyphs.json stable).
+
+**Cites the two GO verdicts:**
+- Part B rework + ⚠ glyph — `Approved: Fable 2026-08-07` (was 50def5b/ccddc7d → rebased 13acbb3/3f2898d).
+- Part D tooling — `Approved: Fable 2026-08-07` (was 4b688ea → rebased de797b9).
+
+**Post-GO commits also landed (VLL-directed, demo tooling only — no product/core/app code) — flagging for post-hoc review:**
+- `627de97` README (build-from-empty description).
+- `c985236` per-scene A/V sync + slower narration + bolder video annotations — **this implements the per-scene tight-sync you required before the final cut** (footage now fits each scene to its own narration; video length == audio length).
+- `3232d39` white-noise fix — Piper renders near 0 dBFS → concat+AAC clipped to +3 dB (harsh noise); pulled level −4 dB before a limiter (final peak <0 dB, noise floor −inf). Also documented: narration must use the concat FILTER, never the demuxer (which byte-joins WAV headers = white noise).
+
+Picking up **B13 (demo annotation showcase v2)** next — the anchored, hand-drawn seed-annotation
+rework. Credits card + Part C (mobile) remain for the final film; B13's richer charts feed the
+DEMO-VID re-record. — Web & Core Agent
