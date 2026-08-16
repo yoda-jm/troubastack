@@ -1476,6 +1476,8 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 /* panel toolbar (a disclosure/action strip at the top of a panel body) + list polish */
 .panel-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
 .song-list .song-link-title { font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; }
+.song-filter { width: 100%; box-sizing: border-box; margin-bottom: .75rem; }
+[data-testid="songs-view-more"] { margin-top: .5rem; }
 
 /* T29 — version chip + popover (build-identity / stale-cache detector). */
 /* (T58 retired .version-chip / .version-popover — the build line now lives in the

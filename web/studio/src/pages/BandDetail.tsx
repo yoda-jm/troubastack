@@ -329,12 +329,24 @@ function ResetLinkPanel({ link, onDone }: { link: string; onDone: () => void }) 
   );
 }
 
+// foldText lowercases and strips accents so search matches "tete" ↔ "Tété" etc.
+function foldText(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+const SONGS_PAGE = 12;
+
 function Songs({ bandId }: { bandId: string }) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [limit, setLimit] = useState(SONGS_PAGE);
 
   const load = useCallback(async () => {
     try {
@@ -365,6 +377,10 @@ function Songs({ bandId }: { bandId: string }) {
       setBusy(false);
     }
   }
+
+  const q = foldText(query.trim());
+  const filtered = q ? songs.filter((s) => foldText(`${s.title} ${s.artist ?? ""}`).includes(q)) : songs;
+  const shown = filtered.slice(0, limit);
 
   return (
     <section className="panel">
@@ -411,16 +427,50 @@ function Songs({ bandId }: { bandId: string }) {
             No songs yet — add your first one.
           </p>
         ) : (
-          <ul className="list song-list" data-testid="songs-list">
-            {songs.map((s) => (
-              <li key={s.id}>
-                <Link to={`/bands/${bandId}/songs/${s.id}`} data-testid="song-link">
-                  <span className="song-link-title">{s.title}</span>
-                  {s.artist ? <span className="muted"> — {s.artist}</span> : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <>
+            {songs.length > SONGS_PAGE && (
+              <input
+                type="search"
+                className="song-filter"
+                placeholder="Filter by title or artist…"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setLimit(SONGS_PAGE);
+                }}
+                data-testid="songs-filter"
+                aria-label="Filter songs"
+              />
+            )}
+            {filtered.length === 0 ? (
+              <p className="muted" data-testid="songs-no-match">
+                No songs match “{query}”.
+              </p>
+            ) : (
+              <>
+                <ul className="list song-list" data-testid="songs-list">
+                  {shown.map((s) => (
+                    <li key={s.id}>
+                      <Link to={`/bands/${bandId}/songs/${s.id}`} data-testid="song-link">
+                        <span className="song-link-title">{s.title}</span>
+                        {s.artist ? <span className="muted"> — {s.artist}</span> : null}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                {filtered.length > limit && (
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    data-testid="songs-view-more"
+                    onClick={() => setLimit((l) => l + SONGS_PAGE)}
+                  >
+                    View more ({filtered.length - limit} more)
+                  </button>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
     </section>
