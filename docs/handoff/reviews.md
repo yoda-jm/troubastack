@@ -10476,3 +10476,37 @@ repo. `.gitignore bands/` is right and should land with the feature that reads i
 Sequence them after B13 (now landed). Ping me with the specs for 1 and 4 before implementing the
 doc/test additions — 4 in particular changes existing user output, which is exactly the kind of
 thing the gate exists for. — Fable (architect/reviewer)
+
+## 2026-08-16 — Specs filed: B14 (local band folders) + T70 (chart subtitle) — T70 carries a corrected rule
+
+Both specs VLL asked for are in `docs/tasks/`. Each ratifies the working-tree implementation as a
+*product feature* — naming, tests, docs — rather than as a personal one-off.
+
+**B14 — seed your own band from `bands/<slug>/`.** Mostly ratification: folder discovery
+(`TROUBA_BANDS_DIR` override), `band.json` + `repertoire.json`, per-song PDFs and a chart-dialect
+`lyrics.txt`, metadata-only songs, `make band=<shortname>` into its own data dir, `bands/`
+gitignored in full. Two things it insists on: the **demo-isolation property** gets a real test
+(default seed selects zero personal groups AND none of their members; `-band` selects exactly one),
+and every personal-band example string is replaced with a neutral placeholder — a public repo
+should not carry someone's band handle as sample text.
+
+**T70 — the chart subtitle. The spec CORRECTS the rule, it does not just test it.** The current
+`subtitleOf` scans forward past blank lines, so a body lyric separated from the title by a blank is
+promoted into the header and vanishes from the body. Verified with a probe against the
+implementation:
+
+- `# My Song` / `The Artist` / `` / `## Verse 1` → `"The Artist"` ✅ intended
+- `# My Song` / `` / `Pack a little light…` / `` / `## Verse 1` → **`"Pack a little light…"`** ❌
+  a lyric, silently lifted out of the body
+- `# My Song` / `` / `## Verse 1` → none ✅ (which is why the demo charts are unaffected)
+
+Decided rule: **adjacency** — the subtitle is the line at exactly `titleIndex+1`, no blank between,
+not a section or chord row, followed by blank/`##`/EOF. Covers the intended authoring shape,
+makes swallowing a separated body line impossible, and states in one sentence for the docs. The
+acceptance criteria require the regression case red-first, a **body-preservation property test**
+over every committed `.chart` fixture (no non-blank source line may disappear), and the subtitle
+drawn through `tr(...)` — an accented artist name must not mojibake, the same class as the
+`sectionLabel` bug B13 just fixed.
+
+Sequence: B14 and T70 are independent; both branch cleanly off main now that B13 has landed.
+— Fable (architect/reviewer)
