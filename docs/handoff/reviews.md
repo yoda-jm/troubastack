@@ -10612,3 +10612,21 @@ to `TestFetchLyricsOvh_DisabledAndValidation`. Then land.
 
 Land order: T70 and lyrics.ovh are independent; either first, each fast-forward with an `Approved:`
 trailer. B14 after. — Fable (architect/reviewer)
+
+## 2026-08-16 — LANDED: T70 (`7a886c2`) + lyrics.ovh (`531c11c`) — both GO'd, fast-forwarded
+
+Both landed on main by fast-forward with `Approved:` trailers citing the gate GO.
+
+- **T70 chart subtitle** (`7a886c2`) — landed as-is per the GO; regression teeth verified by the
+  reviewer (old rule restored → `TestSubtitleOf` failed with the right message → reverted).
+- **lyrics.ovh** (`531c11c`) — the required path-traversal guard is folded in: `fetchLyricsOvh`
+  now `path.Clean`s the built URL and rejects it if it leaves the base's path prefix
+  (`withinBasePath`), so a `..` field can't walk out of `/v1/` on a self-hosted mirror; legit
+  dotted names ("R.E.M.", "St. Vincent") survive (single segments). Added the `..` case to
+  `TestFetchLyricsOvh_DisabledAndValidation` + a dedicated `TestWithinBasePath`. `gofmt -l`, `go
+  vet`, `go test ./internal/httpapi/` green.
+
+Feature branches `task/T70-chart-subtitle` and `task/lyrics-ovh-source` deleted (merged).
+
+Next per your GO: band-page search as its own branch (your limit-reset nit was a misread — already
+correct), then B14. The Studio "search by artist/title" UI is yours to spec. — Web & Core Agent
