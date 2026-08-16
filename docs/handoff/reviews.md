@@ -10284,3 +10284,57 @@ first): `docs/demo/demo-concert.tstage` (6 pages, 821 KB), `docs/screenshots/dem
 
 **Landing plan on GO:** squash the 11 B13 commits to one, keep `a5b9919` as the second (fixes)
 commit, land via `git push origin HEAD:main` with the `Approved:` trailer. — Web & Core Agent
+
+## 2026-08-16 — FYI + direction request: "Good Vibes Only" local band + emergent product features (UNCOMMITTED)
+
+VLL asked me to seed his REAL band **Good Vibes Only** (goodvibesonly68.fr — pop/rock covers
+reworked South-American-style; originals by Rémy Heulle and Isabel-as-Nuitarie) into a local
+server, rebuildable on every recreate, kept OUT of the public demo. Doing that pulled in several
+changes that are **general product improvements, not GVO-specific** — sending for your visibility
+and a call on which to formalize as tasks. **Nothing is committed** (VLL wanted it local); it all
+sits uncommitted on the `task/B13-annotation-showcase` working tree (disjoint files from B13,
+EXCEPT `cmd/seed/main.go`, which carries B13's committed +89/-18 *and* GVO's uncommitted +248/-53
+— so this can't cleanly branch off main until B13 lands or we split the file).
+
+**What's there (diffstat vs origin/main, all uncommitted):**
+- **Folder-driven local bands** — `core/cmd/seed/main.go` (+248/-53): `bands/<slug>/band.json`
+  (name, `shortname`, kind, notes, admin, members+instruments) + `repertoire.json` + per-song
+  folders. `loadLocalBands()` discovers them; each is marked `personal` so a plain `seed`/`make
+  demo` SKIPS it; selected via `-band <shortname>`. `make band=<shortname>` boots+seeds one band
+  into `troubadata-<shortname>`. **All of `bands/` is gitignored** (copyrighted covers stay local).
+  Lets ANY user seed their own band from a folder — nothing GVO-specific in code.
+- **chartpdf template (PRODUCT)** — `core/internal/chartpdf/chart.go` (+61): `# Title` now
+  supports a subtitle (artist) in the header + tightened top gap. Safe for demo charts (blank
+  line after title → no subtitle picked up); `chartpdf` tests pass.
+- **lyrics.ovh source (PRODUCT)** — `core/internal/httpapi/lyricsimport.go` (+96) + tests (+22):
+  the lyrics-import endpoint now accepts `{artist,title}` → queries lyrics.ovh (JSON API, ~70%
+  coverage of this repertoire, no bot wall) alongside the URL/paste path; SAME SSRF dial-guard;
+  pure `parseLyricsOvh` + 6 unit tests. (azlyrics/genius are Cloudflare-walled for both the app
+  and my fetcher; lyrics.ovh is the reliable one.)
+- **Band-page song search (PRODUCT, web)** — `web/studio/src/pages/BandDetail.tsx` (+70) +
+  `styles.css`: a filter box (case+accent-insensitive on title+artist; appears once >12 songs),
+  12-at-a-time with a "View more". Typecheck passes.
+- **Seed text-chart-from-lyrics + metadata-only songs** (part of the +248 above): a song with no
+  PDF but a `lyrics.txt` authored in the chart dialect is fed as a text chart; tolerant (a stray
+  char skips one chart, not the whole seed).
+- **`Makefile`** (+29): generic `band` target; `make band=gvo` dispatches via `.DEFAULT_GOAL`
+  when `band` is set. Old hardcoded `gvo` target removed.
+
+**Local data (gitignored, NOT for review):** GVO = 5 members (Vincent/admin bass+drums; Rémy
+drums+vocals; Valentin guitar+vocals; Fred melodica+small-drums+vocals; Isabel autoharp+small-
+drums+vocals). 42 songs — 35 with real lyrics (lyrics.ovh/azlyrics/hand-paste → normalized to the
+chart dialect with heuristic verse/chorus detection), 7 originals as placeholders. Live now via
+`make band=gvo`.
+
+**Direction wanted:**
+1. Items 2–4 (chartpdf header/spacing, lyrics.ovh source, band-page search) are useful product-
+   wide, independent of GVO. Split each into its own task + review/land? I'd sequence them AFTER
+   B13 lands (to disentangle `main.go`).
+2. Folder-driven personal bands + `make band=` — land as a feature, or keep local-only?
+3. Heuristic verse/chorus detection is exact-repeat only; Bad Romance / Marcia Baila come out
+   rough. Fine if we don't land the data, but if the *mechanism* lands, worth a better approach?
+4. If lyrics.ovh lands: Studio's "New chart from lyrics" still only exposes URL/paste — a
+   `{artist,title}` search box is a needed follow-up.
+
+**Also flagged to VLL (security):** the git remote has an embedded GitHub PAT — should be rotated
+and the remote switched to a token-less URL. — Web & Core Agent
