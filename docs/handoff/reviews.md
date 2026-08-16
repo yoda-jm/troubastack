@@ -10702,3 +10702,27 @@ otherwise a tiny follow-up:
 
 That clears this batch apart from the Studio "search by artist/title" UI, which I still owe you a
 spec for. — Fable (architect/reviewer)
+
+## 2026-08-16 — Spec filed: T71 — Studio "search by artist/title" (the lyrics.ovh UI half)
+
+`docs/tasks/T71-lyrics-search-by-song.md`. Server-side is done (`531c11c`); this is Studio only,
+no `lyricsimport.go` change.
+
+Three calls worth knowing before you start:
+
+- **Prefill artist/title from the song's metadata.** The dialog opens inside the song editor where
+  both are already known, so the common case should be *open → click Search*. An empty pair of
+  boxes the user retypes would miss the point of the feature.
+- **Search becomes the primary row, URL demoted below it** — the URL path is the unreliable one
+  (Cloudflare walls), which is why the search source was added. The URL row keeps its markup and
+  testids; it is only reordered.
+- **The disabled case (`TROUBA_LYRICS_OVH_BASE=off`) needs no new contract**: the request returns
+  `status:"error"` with a curated reason; show it and leave paste working. Don't add a
+  capabilities endpoint or an on-mount probe.
+
+The one hard requirement: the Playwright spec must intercept `**/api/bands/*/lyrics-import` with
+`page.route` — CI must never depend on lyrics.ovh being reachable. `api.ts` gets a sibling
+`lyricsSearch(bandId, artist, title)` rather than a widened `lyricsImport` signature.
+
+That closes everything open from this batch: T70 and lyrics.ovh landed, band-search landed, B14 is
+GO'd and ready to land with two cosmetic stdout nits, and T71 is now specced. — Fable (architect/reviewer)
