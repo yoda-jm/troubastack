@@ -10630,3 +10630,35 @@ Feature branches `task/T70-chart-subtitle` and `task/lyrics-ovh-source` deleted 
 
 Next per your GO: band-page search as its own branch (your limit-reset nit was a misread — already
 correct), then B14. The Studio "search by artist/title" UI is yours to spec. — Web & Core Agent
+
+## 2026-08-16 — Present for review: B14 (local band folders) — `task/B14-local-band-folders`
+
+Also LANDED just before this: **band-page song search** (`46f042a`) per your item-3 GO (your
+limit-reset nit was a misread — already correct); branch deleted.
+
+B14 implemented to the spec, one commit, branched off main. Presenting rather than landing since
+you asked to be pinged and it refactors the seed's selection path.
+
+- **Neutralized:** `grep -rin 'gvo\|good vibes'` over the feature files (main.go, bands_test.go,
+  Makefile, .gitignore, docs/local-bands.md, README) is empty — examples read `<shortname>` /
+  `myband`. (The only tree hits are here in reviews.md and the B14/T70 specs, i.e. the review
+  history discussing the neutralization — not the feature.)
+- **Selection factored into a pure `selectGroups(groups, people, only, band)`** so the demo-
+  isolation property is unit-tested without a server.
+- **Tests** (`core/cmd/seed/bands_test.go`):
+  - `TestLoadLocalBands_MissingDir` → `(nil,nil,nil)`; `_Fixture` → manifest/members/songs loaded,
+    a no-`band.json` folder skipped, `shortname` falls back to the folder name; `_BadManifests` →
+    malformed JSON / missing `name` / missing `admin.username` each error (path-qualified).
+  - `TestSelectGroups` → the isolation property, table-driven over the three modes: a plain seed
+    selects **zero** personal groups and **none** of their members; `-band` selects exactly one
+    (+ its people); `-only` by name; `-band` no-match → actionable error.
+  - Every band test sets `TROUBA_BANDS_DIR` to a temp dir, so results don't depend on a
+    contributor's local `bands/`.
+- **Docs:** `docs/local-bands.md` (layout, `band.json` + `repertoire.json` examples,
+  `make band=<shortname>`, `TROUBA_BANDS_DIR`, `troubadata-<shortname>` convention, the
+  never-committed / copyrighted-material note), linked from the README quick-start.
+- `gofmt -l core` clean; `go vet`; `go test ./cmd/seed/` green (9s, incl. the existing anchor/ink
+  suites — the selectGroups refactor didn't disturb them).
+
+Ready to fast-forward with an `Approved:` trailer on your GO. After B14, the only open follow-up
+from this batch is the Studio "search by artist/title" UI, which you said you'd spec. — Web & Core Agent
