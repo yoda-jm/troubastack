@@ -1,5 +1,11 @@
 # TroubaStack top-level dev tasks. See docs/ARCHITECTURE.md for the rules these serve.
-.PHONY: help setup dev run run-api core test studio embed dist e2e check proto app fixtures seed demo
+.PHONY: help setup dev run run-api core test studio embed dist e2e check proto app fixtures seed demo band
+
+# `make band=<shortname>` sets the `band` variable and (with no explicit target) runs the default goal —
+# so when `band` is set, make the `band` target the default. Plain `make` still shows help.
+ifneq ($(band),)
+.DEFAULT_GOAL := band
+endif
 
 help:
 	@echo "TroubaStack — targets:"
@@ -104,6 +110,27 @@ demo: dist
 	trap - EXIT INT TERM; \
 	echo ">>> READY: open http://localhost:8080 (real SPA + seeded data). Ctrl-C to stop; reset: rm -rf core/troubadata"; \
 	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
+
+# Seed + run ONE real, local band by its band.json "shortname":  make band=<shortname>
+# (each band lives in a gitignored bands/<folder>/band.json; NOT demo content). Same one-shot
+# flow as `make demo` but seeds only that band into its OWN data dir, so recreating your server
+# rebuilds it cleanly. Reset: rm -rf core/troubadata-<shortname>
+band: dist
+	@test -n "$(band)" || { echo "usage: make band=<shortname>  (see bands/*/band.json 'shortname')"; exit 2; }
+	@cd core; \
+	echo ">>> seeding band '$(band)' …"; \
+	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata-$(band) ./bin/troubacore & \
+	SEED_CORE=$$!; \
+	trap 'kill $$SEED_CORE 2>/dev/null' EXIT INT TERM; \
+	for i in $$(seq 1 50); do \
+		curl -sf http://localhost:8080/healthz >/dev/null 2>&1 && break; \
+		sleep 0.2; \
+	done; \
+	go run ./cmd/seed -addr http://localhost:8080 -password demo -band "$(band)" || true; \
+	kill $$SEED_CORE 2>/dev/null; wait $$SEED_CORE 2>/dev/null; \
+	trap - EXIT INT TERM; \
+	echo ">>> READY: open http://localhost:8080 (band '$(band)'). Ctrl-C to stop; reset: rm -rf core/troubadata-$(band)"; \
+	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata-$(band) TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
 # Deferred until the contract is codegen'd.
 proto:

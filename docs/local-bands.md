@@ -1,0 +1,78 @@
+# Seed your own band from a local folder
+
+The demo dataset (`make demo`) is fixed, copyright-safe content. To run TroubaStack with **your
+own** band instead — its members and repertoire — drop a folder under `bands/` and seed it. This
+never touches Go code, and **`bands/` is gitignored in full**: real repertoires contain
+copyrighted PDFs and lyrics, so nothing under `bands/` is ever committed.
+
+## Layout
+
+```
+bands/
+  <slug>/                 one folder per band (the slug is your handle for it)
+    band.json             band + members (required)
+    repertoire.json       the song list (optional)
+    <song-slug>/          per-song source files (optional)
+      chart.pdf           sheet music / tab — any *.pdf, uploaded in filename order
+      lyrics.txt          lyrics in the chart dialect (# Title / ## Section / lines)
+```
+
+A song with no PDF and no `lyrics.txt` is created **metadata-only** (title/artist only) — that's
+fine, fill it in later.
+
+### `band.json`
+
+```json
+{
+  "name": "My Band",
+  "shortname": "myband",
+  "kind": "Band",
+  "notes": "optional blurb",
+  "admin":   {"username": "alice", "display": "Alice", "role": "bass + vocals"},
+  "members": [
+    {"username": "bob",  "display": "Bob",  "role": "drums"},
+    {"username": "cara", "display": "Cara", "role": "guitar + vocals"}
+  ]
+}
+```
+
+`name` and `admin.username` are required. `shortname` defaults to the folder name. `kind` defaults
+to `"Band"`.
+
+### `repertoire.json`
+
+```json
+{
+  "songs": [
+    {"slug": "song-one", "title": "Song One", "artist": "…", "key": "G", "tempo": 120,
+     "tags": ["cover"], "notes": ""},
+    {"slug": "song-two", "title": "Song Two", "artist": "…"}
+  ]
+}
+```
+
+Per song, `bands/<slug>/<song-slug>/` supplies the source files (`*.pdf`, `lyrics.txt`).
+
+## Running it
+
+```sh
+make band=myband       # boots a server seeded with ONLY that band, then serves it
+```
+
+- Everyone signs in with the seed password (`demo` by default).
+- The band gets its **own data dir**, `core/troubadata-<shortname>` (e.g. `troubadata-myband`),
+  so recreating the server rebuilds your band cleanly and separately from the demo. Reset with
+  `rm -rf core/troubadata-<shortname>`.
+- `make` with no arguments still prints the help; the `band` target only becomes the default when
+  `band=` is set.
+
+## Isolation from the demo
+
+Every folder-discovered band is **personal**: a plain `make demo` / `go run ./cmd/seed` seeds only
+the built-in demo groups and **never** a personal band or its members. A personal band is built
+only when explicitly selected — `-band <shortname>` (what `make band=` uses) or `-only <name>`.
+
+## Environment
+
+- **`TROUBA_BANDS_DIR`** — override where bands are discovered (default: `bands/` near the repo
+  root). Point it anywhere, e.g. a private directory outside the repo.

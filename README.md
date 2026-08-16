@@ -66,6 +66,10 @@ same song in two browsers and draw.
 
 Reset the demo data with `rm -rf core/troubadata`.
 
+Want to run it with **your own** band instead of the demo? Drop a folder under `bands/` and
+`make band=<shortname>` — see [docs/local-bands.md](docs/local-bands.md). (`bands/` is gitignored:
+your real repertoire never gets committed.)
+
 <img src="docs/screenshots/band-overview.png" alt="Band overview in the warm concert-program design: The Troubadours with three members and their roles (Marie admin, Leo conductor, Sasha member), each with an admin password-reset link, above the songs list and the Overview / Setlists / Settings tabs" width="320">
 
 Each member sets their own **song cues** — a small set of tinted instrument/role icons

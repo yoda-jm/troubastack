@@ -17,6 +17,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -24,6 +25,7 @@ func main() {
 	addr := flag.String("addr", "http://localhost:8080", "base URL of the running troubacore server")
 	password := flag.String("password", "demo", "password set for every demo user")
 	only := flag.String("only", "", "seed only groups whose name contains this substring (case-insensitive), plus just their members; e.g. -only orchestra. Empty = seed everything.")
+	band := flag.String("band", "", "seed only the local band (bands/*/band.json) whose shortname matches; e.g. -band myband. Used by `make band=<shortname>`.")
 	dumpImports := flag.String("dump-imports", "", "write each demo chart's exact annotation import payload to this dir (offline, no server) and exit — provenance for docs/demo-charts/*.annotations.json (B13).")
 	flag.Parse()
 
@@ -34,7 +36,7 @@ func main() {
 		return
 	}
 
-	if err := run(*addr, *password, *only); err != nil {
+	if err := run(*addr, *password, *only, *band); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
 }
@@ -156,9 +158,16 @@ type groupDef struct {
 	conductor string // optional: a member to promote to the "conductor" role
 	songs     []songDef
 	setlist   setlistDef
+	// personal marks a REAL (non-demo) band (discovered from bands/*/band.json) that must stay
+	// OUT of the public demo seed: it is skipped by a plain `seed`/`make demo` run and only built
+	// when explicitly selected (`-only <name>` or `-band <shortname>`). Its members are likewise
+	// registered only then.
+	personal bool
+	// shortname is the band.json "shortname" — a stable handle for `make band=<shortname>`.
+	shortname string
 }
 
-func run(addr, password, only string) error {
+func run(addr, password, only, band string) error {
 	if err := ensureAssetsDir(); err != nil {
 		return err
 	}
@@ -298,36 +307,25 @@ func run(addr, password, only string) error {
 		},
 	}
 
-	// Optional -only filter: keep just the groups whose name matches, and narrow the
-	// user list to those groups' members. Used by the DEMO-VID walkthrough, which seeds
-	// ONLY the orchestra (for the "it scales" reveal) and builds The Troubadours live
-	// on camera from an empty server.
-	if only != "" {
-		needle := strings.ToLower(only)
-		kept := groups[:0:0]
-		keepUser := map[string]bool{}
-		for _, g := range groups {
-			if !strings.Contains(strings.ToLower(g.name), needle) {
-				continue
-			}
-			kept = append(kept, g)
-			keepUser[g.admin] = true
-			for _, m := range g.members {
-				keepUser[m] = true
-			}
-		}
-		if len(kept) == 0 {
-			return fmt.Errorf("seed: -only %q matched no groups", only)
-		}
-		groups = kept
-		filteredPeople := people[:0:0]
-		for _, p := range people {
-			if keepUser[p.username] {
-				filteredPeople = append(filteredPeople, p)
-			}
-		}
-		people = filteredPeople
-		fmt.Printf(">> -only %q: seeding %d group(s), %d user(s)\n", only, len(groups), len(people))
+	// Local, real bands (NOT demo content) are discovered from the gitignored bands/ folder —
+	// one subfolder per band (band.json + repertoire.json + per-song source files). This lets
+	// any user seed THEIR own band's data locally without touching this file; the folders are
+	// never committed. Each is marked `personal`, so a plain `seed`/`make demo` skips it and
+	// `-band <shortname>` (e.g. `make band=<shortname>`) builds it.
+	localBands, localPeople, err := loadLocalBands()
+	if err != nil {
+		return err
+	}
+	groups = append(groups, localBands...)
+	people = append(people, localPeople...)
+
+	// Decide which groups to seed and narrow the user list to their members (see selectGroups).
+	groups, people, err = selectGroups(groups, people, only, band)
+	if err != nil {
+		return err
+	}
+	if only != "" || band != "" {
+		fmt.Printf(">> seeding %d group(s), %d user(s)\n", len(groups), len(people))
 	}
 
 	// 1. Register every user (idempotent: skip if already present).
@@ -357,6 +355,201 @@ func run(addr, password, only string) error {
 	fmt.Printf(">> done. PDFs: %d fetched (public domain), %d generated (fallback).\n\n", fetched, generated)
 	printGuide(addr, password, people, seeded, fetched, generated)
 	return nil
+}
+
+// localBandsDir locates the gitignored folder of real (non-demo) bands relative to the seed's
+// cwd (normally core/). Returns "" if there is none. Override with TROUBA_BANDS_DIR.
+func localBandsDir() string {
+	cands := []string{"../bands", "bands", "../../bands", "../../../bands"}
+	if env := os.Getenv("TROUBA_BANDS_DIR"); env != "" {
+		cands = []string{env}
+	}
+	for _, c := range cands {
+		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+			return c
+		}
+	}
+	return ""
+}
+
+// bandManifest is a band folder's band.json (bands/<slug>/band.json).
+type bandManifest struct {
+	Name      string       `json:"name"`
+	Shortname string       `json:"shortname"`
+	Kind      string       `json:"kind"`
+	Notes     string       `json:"notes"`
+	Admin     bandMember   `json:"admin"`
+	Members   []bandMember `json:"members"`
+}
+type bandMember struct {
+	Username string `json:"username"`
+	Display  string `json:"display"`
+	Role     string `json:"role"`
+}
+
+// selectGroups picks which groups to seed and narrows people to their members:
+//
+//	band != ""  → exactly the local band whose band.json shortname matches (make band=<shortname>)
+//	only != ""  → groups whose name contains the substring (DEMO-VID seeds the orchestra only)
+//	neither     → every DEMO group, but SKIP personal bands (they never enter the public demo)
+//
+// Returns an actionable error when a selector matches nothing. Pure (no I/O) so the demo-isolation
+// property is unit-tested without a server.
+func selectGroups(groups []groupDef, people []person, only, band string) ([]groupDef, []person, error) {
+	needle := strings.ToLower(only)
+	kept := groups[:0:0]
+	keepUser := map[string]bool{}
+	for _, g := range groups {
+		var keep bool
+		switch {
+		case band != "":
+			keep = g.shortname == band
+		case only != "":
+			keep = strings.Contains(strings.ToLower(g.name), needle)
+		default:
+			keep = !g.personal
+		}
+		if !keep {
+			continue
+		}
+		kept = append(kept, g)
+		keepUser[g.admin] = true
+		for _, m := range g.members {
+			keepUser[m] = true
+		}
+	}
+	if len(kept) == 0 {
+		switch {
+		case band != "":
+			return nil, nil, fmt.Errorf("seed: -band %q matched no band (check bands/*/band.json shortname)", band)
+		case only != "":
+			return nil, nil, fmt.Errorf("seed: -only %q matched no groups", only)
+		default:
+			return nil, nil, fmt.Errorf("seed: no groups to seed")
+		}
+	}
+	filteredPeople := people[:0:0]
+	for _, p := range people {
+		if keepUser[p.username] {
+			filteredPeople = append(filteredPeople, p)
+		}
+	}
+	return kept, filteredPeople, nil
+}
+
+// loadLocalBands scans bands/*/band.json and returns one personal groupDef per band (with its
+// folder-driven repertoire) plus the people it references. Missing folder → nothing (demo-only
+// seed). This is the generic hook that lets any user seed their own band from a local folder.
+func loadLocalBands() ([]groupDef, []person, error) {
+	dir := localBandsDir()
+	if dir == "" {
+		return nil, nil, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	var groups []groupDef
+	var people []person
+	seenUser := map[string]bool{}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		bandDir := filepath.Join(dir, e.Name())
+		manPath := filepath.Join(bandDir, "band.json")
+		raw, err := os.ReadFile(manPath)
+		if err != nil {
+			continue // a folder without band.json isn't a band
+		}
+		var man bandManifest
+		if err := json.Unmarshal(raw, &man); err != nil {
+			return nil, nil, fmt.Errorf("parse %s: %w", manPath, err)
+		}
+		if man.Name == "" || man.Admin.Username == "" {
+			return nil, nil, fmt.Errorf("%s: name and admin.username are required", manPath)
+		}
+		kind := man.Kind
+		if kind == "" {
+			kind = "Band"
+		}
+		addPerson := func(m bandMember) {
+			if m.Username == "" || seenUser[m.Username] {
+				return
+			}
+			seenUser[m.Username] = true
+			people = append(people, person{username: m.Username, display: m.Display, role: m.Role})
+		}
+		addPerson(man.Admin)
+		memberNames := make([]string, 0, len(man.Members))
+		for _, m := range man.Members {
+			addPerson(m)
+			memberNames = append(memberNames, m.Username)
+		}
+		songs, err := loadRepertoire(bandDir)
+		if err != nil {
+			return nil, nil, err
+		}
+		shortname := man.Shortname
+		if shortname == "" {
+			shortname = e.Name() // fall back to the folder name
+		}
+		groups = append(groups, groupDef{
+			name: man.Name, kind: kind, admin: man.Admin.Username,
+			members: memberNames, songs: songs, personal: true, shortname: shortname,
+		})
+	}
+	return groups, people, nil
+}
+
+// loadRepertoire reads <bandDir>/repertoire.json into songDefs, attaching any real source PDFs
+// the owner has dropped into <bandDir>/<slug>/. Missing file → no songs.
+func loadRepertoire(bandDir string) ([]songDef, error) {
+	path := filepath.Join(bandDir, "repertoire.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var rep struct {
+		Songs []struct {
+			Slug   string   `json:"slug"`
+			Title  string   `json:"title"`
+			Artist string   `json:"artist"`
+			Key    string   `json:"key"`
+			Tempo  int      `json:"tempo"`
+			Notes  string   `json:"notes"`
+			Tags   []string `json:"tags"`
+		} `json:"songs"`
+	}
+	if err := json.Unmarshal(raw, &rep); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	out := make([]songDef, 0, len(rep.Songs))
+	for _, s := range rep.Songs {
+		if s.Title == "" {
+			continue
+		}
+		sd := songDef{title: s.Title, artist: s.Artist, key: s.Key, tempo: s.Tempo, tags: s.Tags, notes: s.Notes}
+		if s.Slug != "" {
+			pdfs, _ := filepath.Glob(filepath.Join(bandDir, s.Slug, "*.pdf"))
+			sort.Strings(pdfs)
+			for _, p := range pdfs {
+				base := strings.TrimSuffix(filepath.Base(p), filepath.Ext(p))
+				sd.files = append(sd.files, pdfSource{localPath: p, docTitle: base, title: s.Title, subtitle: s.Artist})
+			}
+			// A lyrics.txt authored in the chart dialect (# Title / ## Section / chords over
+			// words) is fed to the song as a REAL text chart via the existing textChartPath path.
+			lyr := filepath.Join(bandDir, s.Slug, "lyrics.txt")
+			if _, e := os.Stat(lyr); e == nil {
+				sd.textChartPath = lyr
+			}
+		}
+		out = append(out, sd)
+	}
+	return out, nil
 }
 
 // seededGroup records what was created for the guide.
@@ -512,50 +705,56 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			sources = []pdfSource{s.src}
 		}
 		primary := sources[0]
+		hasPDF := primary.localPath != "" || primary.cacheName != ""
 
-		// Skip the PDF upload(s) if the song already has files (idempotency).
+		// Metadata-only song — no PDF and no text chart yet (a repertoire entry with nothing in
+		// its folder). The song exists with its title/artist/metadata; nothing to upload.
+		if !hasPDF && s.textChartPath == "" {
+			fmt.Printf("     (metadata only — no source file yet)\n")
+			continue
+		}
+
+		// Idempotency: if the song already has files, leave it as-is.
 		var fr filesResp
 		if err := admin.getJSON("/api/bands/"+bandID+"/songs/"+songID+"/files", &fr); err != nil {
 			return seededGroup{}, 0, 0, err
 		}
 		if len(fr.Files) > 0 {
 			fmt.Printf("     = already has %d file(s)\n", len(fr.Files))
-			// Re-runs reuse the existing PDF; learn its origin from the cache meta
-			// so annotation coords match (generated layout vs fetched/unknown).
-			// "generated" here means a pdf.go STAFF placeholder (known systemTopY layout).
-			// A committed real chart (localPath — Open Road, House, Amazing Grace) is NOT a
-			// staff placeholder, so it takes the generic/known-coord path, not the staff one.
-			anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
+			if hasPDF {
+				anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
+			}
 			continue
 		}
-		// Upload every pool file in order, assigning a matching displayOrder so the
-		// default ordering is deterministic.
-		uploaded := make([]string, 0, len(sources))
-		for i, src := range sources {
-			res, err := resolvePDF(src)
-			if err != nil {
-				return seededGroup{}, 0, 0, err
+		// Upload every pool PDF in order (skipped for a repertoire song that has only a chart).
+		uploaded := make([]string, 0, len(sources)+1)
+		if hasPDF {
+			for i, src := range sources {
+				res, err := resolvePDF(src)
+				if err != nil {
+					return seededGroup{}, 0, 0, err
+				}
+				if res.fetched {
+					fetched++
+				} else {
+					generated++
+				}
+				var fileOut struct {
+					File struct {
+						ID string `json:"id"`
+					} `json:"file"`
+				}
+				if err := admin.uploadFile("/api/bands/"+bandID+"/songs/"+songID+"/files",
+					src.filename(), "application/pdf", res.data, &fileOut); err != nil {
+					return seededGroup{}, 0, 0, fmt.Errorf("upload pdf %q for %q: %w", src.filename(), s.title, err)
+				}
+				if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+fileOut.File.ID,
+					map[string]any{"displayOrder": i}, nil); err != nil {
+					return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for %q: %w", src.filename(), err)
+				}
+				uploaded = append(uploaded, fileOut.File.ID)
+				fmt.Printf("     + file %q (%s, %s, %d bytes)\n", src.filename(), src.cacheName, res.origin, len(res.data))
 			}
-			if res.fetched {
-				fetched++
-			} else {
-				generated++
-			}
-			var fileOut struct {
-				File struct {
-					ID string `json:"id"`
-				} `json:"file"`
-			}
-			if err := admin.uploadFile("/api/bands/"+bandID+"/songs/"+songID+"/files",
-				src.filename(), "application/pdf", res.data, &fileOut); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("upload pdf %q for %q: %w", src.filename(), s.title, err)
-			}
-			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+fileOut.File.ID,
-				map[string]any{"displayOrder": i}, nil); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for %q: %w", src.filename(), err)
-			}
-			uploaded = append(uploaded, fileOut.File.ID)
-			fmt.Printf("     + file %q (%s, %s, %d bytes)\n", src.filename(), src.cacheName, res.origin, len(res.data))
 		}
 
 		// B10: a REAL text chart from committed chart-dialect source — POST /text-charts
@@ -573,14 +772,16 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			}
 			if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+songID+"/text-charts",
 				map[string]string{"source": string(source)}, &chartOut); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("create text chart for %q: %w", s.title, err)
+				// Tolerant: a stray char in one band's lyrics shouldn't abort the whole seed.
+				fmt.Printf("     ! text chart skipped for %q: %v\n", s.title, err)
+			} else {
+				if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+chartOut.File.ID,
+					map[string]any{"displayOrder": len(uploaded)}, nil); err != nil {
+					return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for text chart of %q: %w", s.title, err)
+				}
+				uploaded = append(uploaded, chartOut.File.ID)
+				fmt.Printf("     + text chart %q (rendered from %s)\n", s.title, s.textChartPath)
 			}
-			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+chartOut.File.ID,
-				map[string]any{"displayOrder": len(uploaded)}, nil); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for text chart of %q: %w", s.title, err)
-			}
-			uploaded = append(uploaded, chartOut.File.ID)
-			fmt.Printf("     + text chart %q (rendered from %s)\n", s.title, s.textChartPath)
 		}
 
 		// Curate per-member personal file selections via the my-files endpoint.
@@ -633,8 +834,11 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 			fmt.Printf("     + %s cues: [%s]\n", username, strings.Join(labels, ", "))
 		}
 		// generated = a pdf.go STAFF placeholder (systemTopY layout). A committed real chart
-		// (localPath) is NOT a staff placeholder → generic/known-coord placement.
-		anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
+		// (localPath) is NOT a staff placeholder → generic/known-coord placement. Only PDF-based
+		// songs carry demo annotations; a chart-only repertoire song gets none.
+		if hasPDF {
+			anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
+		}
 	}
 
 	// Promote a member to the conductor role BEFORE importing annotations, so the

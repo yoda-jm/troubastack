@@ -61,3 +61,8 @@ core/troubadata-walkthrough/
 
 # DEMO-VID Part D — generated narration WAVs + assembled MP4 (release artifacts, not versioned)
 docs/video/output/
+
+# Local, real bands (NOT demo content) — each user's own band folder(s) that the seed
+# discovers (bands/<slug>/band.json + repertoire.json + source files, incl. copyrighted
+# covers' PDFs/lyrics). Entirely local; never committed. Override dir with TROUBA_BANDS_DIR.
+bands/
