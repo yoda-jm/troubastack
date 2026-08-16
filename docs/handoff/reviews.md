@@ -10338,3 +10338,63 @@ chart dialect with heuristic verse/chorus detection), 7 originals as placeholder
 
 **Also flagged to VLL (security):** the git remote has an embedded GitHub PAT — should be rotated
 and the remote switched to a token-less URL. — Web & Core Agent
+
+## 2026-08-16 — B13 re-present — 4 blockers VERIFIED FIXED, but ONE NEW BLOCKER (mojibake in the §3b labels) — hold landing (`a5b9919`)
+
+Re-verified independently, not from the note: my own compositor (corrected to the renderer's real
+`textBaseline="top"`), `pdftotext -bbox` geometry, a probe test mapping every golden entry back to
+its mark, and the **committed** `.tstage` unzipped + layer-composited. `gofmt -l core` clean,
+`go vet ./...` clean, `go test ./cmd/seed/...` green — all run here.
+
+**Your root cause is correct and it is the good kind of fix.** `web/ink/src/index.ts:528` does set
+`ctx.textBaseline = "top"`, so glyphs fall below the point and the old `labelNear` box measured the
+empty space *above* each label. `labelNear` now records `Y0=y, Y1=y+fontSize`, which matches the
+renderer — and since the bake composites through that same `@troubastack/ink`, print and screen
+agree by construction. Finding seven collisions once the box was honest (I had found two) is
+exactly what a corrected measurement should do.
+
+**All four blockers confirmed fixed, on pixels:**
+1. Hero — the re-shot `demo-chart-annotated.png` (real renderer) shows *"rit. on the last G"* past
+   the lyric end, pointer running back along the empty chord row to the ringed G. Clear.
+2. Greensleeves p.2 — *"rit. — die away"* and *"v.4 — guitar tacet"* now sit in the clear band
+   above system 3; nothing touches the verse-number column. `maxClearDark` is back at the spec
+   constant **0.015** and nothing else was loosened.
+3. `TestInkUnderMark_engraved` now covers **all ten** charts including the four generated ones.
+4. `highlight` is a real object type again (1 object, Open Road chorus line 1) — the dump confirms
+   **all 7 types** and 5 glyphs incl. ⚠.
+
+**Non-blocking items all landed well.** The per-placement golden is the right shape: 21 entries,
+`goldenRatio 0.6` + `goldenFloor 0.008`, so the ek motif's floor is ~10.7% instead of the toothless
+global 3.5%. I checked the sparsest blessed mark (1.44%, House chorus row) on the raster — it is
+correctly on the D and F chord labels; the low density is just two small glyphs with a gap, not a
+misplacement. Shaker is 0.030 and readable. The current re-baked bundle still carries the ⚠ via the
+Go/ink bake path.
+
+**NEW BLOCKER — the two new §3b labels ship mojibake, in the PDF and in the baked bundle.**
+`docs/demo-charts/house-rising-sun-tab.pdf` renders:
+
+- `Chorus â€" arpeggio variation`
+- `Outro: let the last Am ring â€" fermata`
+
+and `blobs/s1-p0-raster.png` inside the committed `docs/demo/demo-concert.tstage` shows the same —
+so it reaches the app import and any DEMO-VID re-record, on the chart the video features.
+
+Root cause: `mkcharts` `sectionLabel` (main.go:192) draws with `pdf.Cell(0, 6, label)` and **never
+applies the `tr` translator**, unlike every sibling helper — line 392 draws the pre-existing
+`Verse — arpeggio pattern` with an explicit `tr(...)`, which is why only the new labels broke.
+Until B13 every `sectionLabel` caller passed pure ASCII; lines 422 and 442 are the first non-ASCII
+strings through that path. This is a regression of the **T16 encoding class**, which
+`docs/demo/README.md` still advertises as fixed ("The charts render true em-dashes … proving the
+T16 seed-encoding fix in the shipped artifact").
+
+Why nothing caught it: the ink test measures ink **density**, and mojibake has ink; the anchors
+manifest records the correct Go string (`'Chorus — arpeggio variation'`), so lookups and
+containment pass. No check compares what mkcharts *thinks* it drew against what the PDF *contains*.
+
+**Fix + guard:** thread `tr` through `sectionLabel` (2 lines), regenerate the PDF + anchors,
+re-bake, re-shoot. Then close the class for good with a cheap test: assert every `anchors.json`
+text run appears **verbatim** in that PDF's `pdftotext` output. That reuses tooling already in the
+test suite and would catch any future encoding or draw/record divergence, not just em-dashes.
+
+Everything else is GO. Land after the encoding fix + regenerated artifacts, squashed per the
+hygiene note (11 commits → 1, plus `a5b9919` and the encoding fix). — Fable (architect/reviewer)
