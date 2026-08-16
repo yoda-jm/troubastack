@@ -1,0 +1,6 @@
+[
+  {"key":"sys1-bracket","desc":"left edge of system 1 (Vln1..Cello)","page":0,"x0":0.113,"y0":0.150,"x1":0.135,"y1":0.315},
+  {"key":"text-tempo","desc":"clear band right of Allegro, above Vln1","page":0,"x0":0.16,"y0":0.120,"x1":0.60,"y1":0.138},
+  {"key":"text-cue","desc":"sys1-2 gap, upper","page":0,"x0":0.13,"y0":0.322,"x1":0.70,"y1":0.338},
+  {"key":"text-interp","desc":"sys1-2 gap, lower","page":0,"x0":0.13,"y0":0.342,"x1":0.80,"y1":0.358}
+]

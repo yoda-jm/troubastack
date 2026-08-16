@@ -51,25 +51,34 @@ public domain) and `amazing-grace.chart` (Newton, 1779 — public domain). The s
 (`core/cmd/seed`) wires all of these into the demo band **The Troubadours** (DEMO-VID Part A —
 the demo is entirely original/public-domain, no copyrighted song titles or lyrics).
 
-## Meaningful annotations (the showcase)
+## Meaningful annotations (the showcase — B13 v2)
 
-`open-road.annotations.json` layers three *purposeful* annotation sets over the lead
-sheet (page 0), in the exact shape `POST /api/bands/{b}/songs/{s}/annotations/import`
-accepts (page-relative `[0,1]` coords). Substitute `FILE_ID` with the uploaded PDF's id
-and `OWNER_ID` with your user id before importing:
+Every demo chart carries purposeful, **anchored** annotations: positions are computed from
+the layout manifests (`<chart>.anchors.json`) — for generated charts emitted by `mkcharts`,
+for engraved charts hand-calibrated against the real render — so a highlight provably covers
+its word/note (a `cmd/seed` containment + ink-under-mark test enforces it). Freehand marks
+are genuinely hand-drawn (deterministic tilt/wobble). All seven object types appear, plus five
+tintable `icon` stamps (incl. `warning`). The marks are chosen per surface; the full list is
+in `docs/tasks/B13-demo-annotation-showcase-v2.md`.
 
-- **Form / sections** (`mandatory`) — a highlight band + label flagging the **chorus**,
-  so performers can find the form at a glance.
-- **Conductor cues** (`mandatory`, `roleTag: conductor`) — *"rit. — watch me"* on the
-  last chorus line, a circle round the turnaround, and a pointer. Shown by default only
-  to the conductor role; can't be hidden.
-- **My notes** (personal) — *"capo 2 ✓"*, a circled tricky chord change, a *"breathe"*
-  mark before verse 2, and a freehand flourish.
+`open-road.annotations.json` is the **provenance dump** of the hero page's exact import payload
+(the shape `POST /api/bands/{b}/songs/{s}/annotations/import` accepts, page-relative `[0,1]`).
+It is **generated — never hand-edited**: regenerate with
+
+```sh
+go run ./cmd/seed -dump-imports <dir>   # writes <chart>.annotations.json for every chart
+```
+
+The Open Road hero page (screenshot + video) layers: **Form** (mandatory — bracket + amber band
+over the chorus line + "everyone in!"), **Conductor cues** (mandatory, `roleTag: conductor` —
+an ellipse round the last chorus's final G + "rit. on the last G"), and two personal **My notes**
+layers — Marie's (the flagship yellow highlighter over the full "Sing loud…" lyric, a green swipe
+over "Capo 2", a ⚠ stamp) and Sasha's (a translucent blue box round Verse 2 + a shaker stamp).
 
 Rendered in the Studio editor (all layers on) — see
 [`../screenshots/demo-chart-annotated.png`](../screenshots/demo-chart-annotated.png).
 This demonstrates the layer model: mandatory vs. optional, role-targeted visibility, and
-a per-member personal layer, over a realistic chart.
+per-member personal layers, over a realistic chart.
 
 ## Why original + public-domain only?
 

@@ -10,15 +10,71 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/go-pdf/fpdf"
 )
+
+// --- anchor manifest (B13) ------------------------------------------------
+//
+// Every text run mkcharts draws is recorded as its bounding box in [0,1]² page
+// coords, emitted beside each PDF as <name>.anchors.json. The seed places demo
+// annotations by looking these up (page, substring, occurrence) instead of
+// hand-tuned magic numbers, so a highlight provably covers its word. Generated
+// charts are exact by construction (fpdf cursor + GetStringWidth).
+
+const (
+	pageWmm = 210.0 // A4 width  (mm)
+	pageHmm = 297.0 // A4 height (mm)
+)
+
+type anchor struct {
+	Page int     `json:"page"` // 0-indexed
+	Text string  `json:"text"`
+	X0   float64 `json:"x0"`
+	Y0   float64 `json:"y0"`
+	X1   float64 `json:"x1"`
+	Y1   float64 `json:"y1"`
+}
+
+// anchors accumulates the runs of the PDF currently being built; reset per file.
+var anchors []anchor
+
+// rec records a text run's box. (x,y) is its top-left in mm, (w,h) its size in mm.
+func rec(pdf *fpdf.Fpdf, text string, x, y, w, h float64) {
+	anchors = append(anchors, anchor{
+		Page: pdf.PageNo() - 1,
+		Text: text,
+		X0:   x / pageWmm, Y0: y / pageHmm,
+		X1: (x + w) / pageWmm, Y1: (y + h) / pageHmm,
+	})
+}
+
+func writeAnchors(path string) error {
+	// Stable order: page, then top-to-bottom, then left-to-right — deterministic JSON.
+	sort.SliceStable(anchors, func(i, j int) bool {
+		a, b := anchors[i], anchors[j]
+		if a.Page != b.Page {
+			return a.Page < b.Page
+		}
+		if a.Y0 != b.Y0 {
+			return a.Y0 < b.Y0
+		}
+		return a.X0 < b.X0
+	})
+	b, err := json.MarshalIndent(anchors, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(b, '\n'), 0o644)
+}
 
 func main() {
 	out := flag.String("out", "", "output directory for the chart PDFs")
@@ -29,18 +85,30 @@ func main() {
 	if err := os.MkdirAll(*out, 0o755); err != nil {
 		log.Fatalf("mkcharts: %v", err)
 	}
-	for name, build := range map[string]func() *fpdf.Fpdf{
+	builds := map[string]func() *fpdf.Fpdf{
 		"open-road-leadsheet.pdf":    openRoadLeadSheet, // A: ORIGINAL lead sheet
 		"open-road-guitar.pdf":       openRoadGuitar,    // A2: ORIGINAL guitar part (intro riff)
 		"amazing-grace.pdf":          amazingGrace,      // B: PUBLIC DOMAIN (1779 hymn)
 		"blank-chart.pdf":            blankChart,        // C: generic placeholder
 		"house-rising-sun-tab.pdf":   houseTab,          // D: PUBLIC DOMAIN — guitar tab
 		"house-rising-sun-drums.pdf": houseDrums,        // E: PUBLIC DOMAIN — drum groove
-	} {
-		if err := write(filepath.Join(*out, name), build()); err != nil {
+	}
+	// Deterministic order so the run log is stable (each file's bytes are independent anyway).
+	names := make([]string, 0, len(builds))
+	for name := range builds {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		anchors = nil // reset the manifest for this file
+		if err := write(filepath.Join(*out, name), builds[name]()); err != nil {
 			log.Fatalf("mkcharts %s: %v", name, err)
 		}
-		fmt.Println("wrote", name)
+		anchorsPath := filepath.Join(*out, name[:len(name)-len(".pdf")]+".anchors.json")
+		if err := writeAnchors(anchorsPath); err != nil {
+			log.Fatalf("mkcharts %s anchors: %v", name, err)
+		}
+		fmt.Printf("wrote %s (+%d anchors)\n", name, len(anchors))
 	}
 }
 
@@ -84,16 +152,19 @@ func header(pdf *fpdf.Fpdf, tr func(string) string, title, sub, meta string) {
 	pdf.SetFont("Helvetica", "B", 22)
 	pdf.SetXY(margin, 16)
 	pdf.Cell(0, 10, tr(title))
+	rec(pdf, title, margin, 16, pdf.GetStringWidth(tr(title)), 10)
 	if sub != "" {
 		pdf.SetFont("Helvetica", "I", 12)
 		pdf.SetXY(margin, 27)
 		pdf.Cell(0, 7, tr(sub))
+		rec(pdf, sub, margin, 27, pdf.GetStringWidth(tr(sub)), 7)
 	}
 	if meta != "" {
 		pdf.SetFont("Helvetica", "", 10)
 		pdf.SetXY(margin, 35)
 		pdf.SetTextColor(90, 90, 90)
 		pdf.Cell(0, 6, tr(meta))
+		rec(pdf, meta, margin, 35, pdf.GetStringWidth(tr(meta)), 6)
 		pdf.SetTextColor(0, 0, 0)
 	}
 	pdf.SetLineWidth(0.3)
@@ -108,19 +179,24 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, lyric 
 	pdf.SetTextColor(20, 60, 150) // chords in blue, like a real chart
 	pdf.SetXY(margin, y)
 	pdf.Cell(0, 5, chords)
+	rec(pdf, chords, margin, y, pdf.GetStringWidth(chords), 5)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.SetFont("Courier", "", 11)
 	pdf.SetXY(margin, y+5)
 	pdf.Cell(0, 5, tr(lyric))
+	rec(pdf, lyric, margin, y+5, pdf.GetStringWidth(tr(lyric)), 5)
 	return y + 11.5
 }
 
-// sectionLabel prints a section header (e.g. "Verse 1").
-func sectionLabel(pdf *fpdf.Fpdf, y float64, label string) float64 {
+// sectionLabel prints a section header (e.g. "Verse 1"). Like every other text helper it
+// draws through tr (UTF-8 → cp1252, T16) but records the ORIGINAL string as the anchor, so
+// a label carrying an em-dash renders as one and is still found by its Go text.
+func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label string) float64 {
 	pdf.SetFont("Helvetica", "B", 11)
 	pdf.SetTextColor(150, 90, 30)
 	pdf.SetXY(margin, y)
-	pdf.Cell(0, 6, label)
+	pdf.Cell(0, 6, tr(label))
+	rec(pdf, label, margin, y, pdf.GetStringWidth(tr(label)), 6)
 	pdf.SetTextColor(0, 0, 0)
 	return y + 7.5
 }
@@ -135,23 +211,57 @@ func openRoadLeadSheet() *fpdf.Fpdf {
 	// Page 1: lead sheet (chords over original lyrics).
 	header(pdf, tr, "The Open Road", "original demo song", "Key: G major   •   Tempo: 92 bpm   •   4/4   •   Capo 2")
 	y := 50.0
-	y = sectionLabel(pdf, y, "Verse 1")
+	y = sectionLabel(pdf, tr, y, "Verse 1")
 	y = chordLine(pdf, tr, y, "G            D", "Pack a little light for the road ahead,")
 	y = chordLine(pdf, tr, y, "Em           C", "leave the rest of yesterday unsaid.")
 	y = chordLine(pdf, tr, y, "G            D", "Every mile a page we haven't read,")
 	y = chordLine(pdf, tr, y, "Em      C        G", "the open road is calling us instead.")
 	y += 3
-	y = sectionLabel(pdf, y, "Chorus")
+	y = sectionLabel(pdf, tr, y, "Chorus")
 	y = chordLine(pdf, tr, y, "C           G", "So drive, drive into the wide unknown,")
 	y = chordLine(pdf, tr, y, "D              Em", "wherever we are going we're not going alone.")
 	y = chordLine(pdf, tr, y, "C           G", "Sing loud, let the engine and the heart atone —")
 	y = chordLine(pdf, tr, y, "D                 G", "the map is just a rumour once the wheels have grown.")
 	y += 3
-	y = sectionLabel(pdf, y, "Verse 2")
+	y = sectionLabel(pdf, tr, y, "Verse 2")
 	y = chordLine(pdf, tr, y, "G            D", "Coffee going cold and the radio low,")
 	y = chordLine(pdf, tr, y, "Em            C", "counting every town we'll never know.")
 	y = chordLine(pdf, tr, y, "G             D", "Headlights on a hill we used to know —")
 	_ = chordLine(pdf, tr, y, "Em       C         G", "the only way to stay is letting go.")
+	footer(pdf, tr)
+
+	// Page 2 (B13 §3b): the intro riff tab + a performance-note line (marks 12–13 target).
+	pdf.AddPage()
+	pdf.SetFont("Helvetica", "B", 18)
+	pdf.SetXY(margin, 18)
+	pdf.Cell(0, 10, tr("The Open Road — Intro Riff"))
+	rec(pdf, "The Open Road — Intro Riff", margin, 18, pdf.GetStringWidth(tr("The Open Road — Intro Riff")), 10)
+	pdf.SetLineWidth(0.3)
+	pdf.Line(margin, 32, right, 32)
+	y2 := sectionLabel(pdf, tr, 42, "Riff")
+	riff := []string{
+		"e|-----------------0-------------------0---------------|",
+		"B|-------0-----------------3-------0-------------3------|",
+		"G|---0-------0---------0-------0-------0-----0----------|",
+		"A|-2---------------3-----------------2-----------------|",
+		"E|-3---------------------------------3-----------------|",
+	}
+	pdf.SetFont("Courier", "", 9)
+	for i, ln := range riff {
+		pdf.SetXY(margin, y2)
+		pdf.Cell(0, 5, ln)
+		if i == 0 { // anchor the top tab line (mark 12 highlights its bar 1)
+			rec(pdf, ln, margin, y2, pdf.GetStringWidth(ln), 5)
+		}
+		y2 += 5.6
+	}
+	pdf.SetFont("Helvetica", "B", 12)
+	pdf.SetTextColor(150, 90, 30)
+	pdf.SetXY(margin, y2+8)
+	note := "Riff: play 4x, build each time"
+	pdf.Cell(0, 6, tr(note))
+	rec(pdf, note, margin, y2+8, pdf.GetStringWidth(tr(note)), 6)
+	pdf.SetTextColor(0, 0, 0)
 	footer(pdf, tr)
 	return pdf
 }
@@ -174,6 +284,7 @@ func barChart(pdf *fpdf.Fpdf, tr func(string) string, y float64, bars []string) 
 		pdf.SetFont("Helvetica", "B", 13)
 		pdf.SetXY(x, yy+3.5)
 		pdf.CellFormat(w, 6, tr(ch), "", 0, "C", false, 0, "")
+		rec(pdf, ch, x, yy, w, h) // the bar cell (box) — chord centered inside
 	}
 	rows := (len(bars) + perLine - 1) / perLine
 	return y + float64(rows)*h
@@ -237,19 +348,19 @@ func amazingGrace() *fpdf.Fpdf {
 	pdf, tr := newDoc("Amazing Grace — Lead Sheet")
 	header(pdf, tr, "Amazing Grace", "words: John Newton, 1779 (public domain) · arr. demo", "Key: G major   •   Tempo: 72 bpm   •   3/4")
 	y := 50.0
-	y = sectionLabel(pdf, y, "Verse 1")
+	y = sectionLabel(pdf, tr, y, "Verse 1")
 	y = chordLine(pdf, tr, y, "G          G7       C     G", "Amazing grace, how sweet the sound,")
 	y = chordLine(pdf, tr, y, "G                    D", "that saved a wretch like me.")
 	y = chordLine(pdf, tr, y, "G           G7      C      G", "I once was lost, but now am found,")
 	y = chordLine(pdf, tr, y, "Em        D        G", "was blind, but now I see.")
 	y += 3
-	y = sectionLabel(pdf, y, "Verse 2")
+	y = sectionLabel(pdf, tr, y, "Verse 2")
 	y = chordLine(pdf, tr, y, "G            G7        C        G", "'Twas grace that taught my heart to fear,")
 	y = chordLine(pdf, tr, y, "G                     D", "and grace my fears relieved.")
 	y = chordLine(pdf, tr, y, "G          G7        C          G", "How precious did that grace appear")
 	y = chordLine(pdf, tr, y, "Em           D          G", "the hour I first believed.")
 	y += 3
-	y = sectionLabel(pdf, y, "Verse 3")
+	y = sectionLabel(pdf, tr, y, "Verse 3")
 	y = chordLine(pdf, tr, y, "G          G7         C          G", "Through many dangers, toils and snares,")
 	y = chordLine(pdf, tr, y, "G                    D", "I have already come.")
 	y = chordLine(pdf, tr, y, "G          G7          C            G", "'Tis grace hath brought me safe thus far,")
@@ -302,11 +413,38 @@ func houseTab() *fpdf.Fpdf {
 		}
 		pdf.SetXY(margin, yy)
 		pdf.Cell(0, 5, ln)
+		if i == 0 { // anchor the chord-name row (F barre, E turnaround live here)
+			rec(pdf, ln, margin, yy, pdf.GetStringWidth(ln), 5)
+		}
 		yy += 6
 	}
 	pdf.SetTextColor(0, 0, 0)
+
+	// B13 §3b — a Chorus arpeggio variation (D→F adjacent for the "quick change" mark) + an Outro.
+	yy = sectionLabel(pdf, tr, yy+6, "Chorus — arpeggio variation")
+	pdf.SetFont("Courier", "", 9)
+	pdf.SetTextColor(20, 60, 150)
+	chorusRow := "      Am        C         D    F         Am        E"
+	pdf.SetXY(margin, yy)
+	pdf.Cell(0, 5, chorusRow)
+	rec(pdf, chorusRow, margin, yy, pdf.GetStringWidth(chorusRow), 5)
+	pdf.SetTextColor(0, 0, 0)
+	yy += 6
+	chorusTab := []string{
+		"e|----0-----|----0-----|----2-----|----1-----|----0-----|----0-----|",
+		"B|--1---1---|--1---1---|--3--1----|--1---1---|--1---1---|--0---0---|",
+		"G|-2-----2--|-0-----0--|-2--2-----|-2-----2--|-2-----2--|-1-----1--|",
+		"D|2---------|2---------|0--3------|----------|2---------|2---------|",
+	}
+	for _, ln := range chorusTab {
+		pdf.SetXY(margin, yy)
+		pdf.Cell(0, 5, ln)
+		yy += 6
+	}
+	yy = sectionLabel(pdf, tr, yy+4, "Outro: let the last Am ring — fermata")
+
 	pdf.SetFont("Helvetica", "I", 10)
-	pdf.SetXY(margin, yy+6)
+	pdf.SetXY(margin, yy+4)
 	pdf.MultiCell(right-margin, 5, tr("Chord shapes: Am (x02210) · C (x32010) · D (xx0232) · F (133211) · E (022100). "+
 		"Let each arpeggio ring; keep the 6/8 lilt. Repeat for each verse."), "", "L", false)
 	footer(pdf, tr)
@@ -341,6 +479,7 @@ func houseDrums() *fpdf.Fpdf {
 	for _, ln := range grid {
 		pdf.SetXY(margin, yy)
 		pdf.Cell(0, 6, ln)
+		rec(pdf, ln, margin, yy, pdf.GetStringWidth(ln), 6) // anchor each groove-grid row
 		yy += 8
 	}
 	pdf.SetFont("Helvetica", "I", 10)

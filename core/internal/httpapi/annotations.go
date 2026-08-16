@@ -67,7 +67,7 @@ type layerJSON struct {
 type objectJSON struct {
 	UUID      string      `json:"uuid"`
 	LayerID   string      `json:"layerId"`
-	Type      string      `json:"type"` // freehand|rect|ellipse|line|text|highlight
+	Type      string      `json:"type"` // freehand|rect|ellipse|line|text|highlight|icon
 	Points    []pointJSON `json:"points"`
 	Page      int         `json:"page"`
 	Text      string      `json:"text"`

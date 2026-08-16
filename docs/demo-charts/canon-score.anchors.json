@@ -1,0 +1,38 @@
+[
+  {
+    "key": "sys1-bracket",
+    "desc": "left edge of system 1 (Vln I..Cello)",
+    "page": 0,
+    "x0": 0.113,
+    "y0": 0.06,
+    "x1": 0.135,
+    "y1": 0.245
+  },
+  {
+    "key": "text-tempo",
+    "desc": "sys1-2 gap, upper",
+    "page": 0,
+    "x0": 0.13,
+    "y0": 0.243,
+    "x1": 0.6,
+    "y1": 0.253
+  },
+  {
+    "key": "text-cue",
+    "desc": "sys1-2 gap, mid",
+    "page": 0,
+    "x0": 0.13,
+    "y0": 0.256,
+    "x1": 0.7,
+    "y1": 0.266
+  },
+  {
+    "key": "text-interp",
+    "desc": "sys1-2 gap, lower",
+    "page": 0,
+    "x0": 0.13,
+    "y0": 0.269,
+    "x1": 0.8,
+    "y1": 0.279
+  }
+]

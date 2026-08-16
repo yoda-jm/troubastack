@@ -1,0 +1,65 @@
+[
+  {
+    "key": "ek.opening-motif",
+    "desc": "bars 1-2 incl. the f, system 1",
+    "page": 0,
+    "x0": 0.14,
+    "y0": 0.19,
+    "x1": 0.31,
+    "y1": 0.26
+  },
+  {
+    "key": "ek.bow-1",
+    "desc": "first motif attack, above staff",
+    "page": 0,
+    "x0": 0.18,
+    "y0": 0.17,
+    "x1": 0.2,
+    "y1": 0.185
+  },
+  {
+    "key": "ek.bow-2",
+    "desc": "second motif attack, above staff",
+    "page": 0,
+    "x0": 0.235,
+    "y0": 0.17,
+    "x1": 0.255,
+    "y1": 0.185
+  },
+  {
+    "key": "ek.margin-sys1",
+    "desc": "clear band above system 1",
+    "page": 0,
+    "x0": 0.35,
+    "y0": 0.155,
+    "x1": 0.9,
+    "y1": 0.185
+  },
+  {
+    "key": "ek.trill-sys2",
+    "desc": "the tr at system 2 start",
+    "page": 0,
+    "x0": 0.2,
+    "y0": 0.3,
+    "x1": 0.25,
+    "y1": 0.35
+  },
+  {
+    "key": "ek.p-sys2",
+    "desc": "the p under system 2",
+    "page": 0,
+    "x0": 0.64,
+    "y0": 0.345,
+    "x1": 0.67,
+    "y1": 0.36
+  },
+  {
+    "key": "ek.margin-sys2-right",
+    "desc": "clear band above sys 2 right half",
+    "page": 0,
+    "x0": 0.55,
+    "y0": 0.275,
+    "x1": 0.92,
+    "y1": 0.3
+  }
+]

@@ -10,8 +10,8 @@ tab and text charts with purpose-built annotation layers, see
 Install the app (root README → "The mobile app"), share/push a file to the device,
 **Import**, and perform it fully offline.
 
-- **`demo-concert.tstage`** (~716 KB, **5 pages** — one default part per song: The Open
-  Road → *Lead sheet*, House of the Rising Sun → *Guitar tab*, Amazing Grace → *Lead
+- **`demo-concert.tstage`** (**6 pages** — one default part per song: The Open
+  Road → *Lead sheet* (2pp), House of the Rising Sun → *Guitar tab*, Amazing Grace → *Lead
   sheet*, Greensleeves → *Voice + guitar* (2pp)) — **PRIMARY: the band-wide bundle (P205)**:
   ONE artifact that serves the whole
   band. Each song bakes its **default shared-pool part** (the lowest-DisplayOrder file in
@@ -101,3 +101,18 @@ artifact.
 > placeholder PDFs) for real, copyright-safe music — The Open Road (original), House of
 > the Rising Sun and Amazing Grace (public domain) — with genuine charts and the
 > redesigned annotation showcase. Re-baked from that seed: 3 songs, 3 pages.
+>
+> Regenerated 2026-08-10 (**B13 — annotation showcase v2**): every chart's annotations are
+> now **anchored** (positions derived from `docs/demo-charts/*.anchors.json`, never eyeballed)
+> and genuinely hand-drawn, covering all seven object types + five `icon` stamps (incl.
+> `warning`). The Open Road lead sheet gained a page 2 (intro riff), so the band-wide bundle's
+> default parts total **6 pages** (Open Road *Lead sheet* 2pp, House *Guitar tab*, Amazing
+> Grace *Lead sheet*, Greensleeves *Voice + guitar* 2pp). Re-baked from that seed; the baked
+> pages carry the `icon` stamps (rendered by the Go/ink icon path, glyphs.json).
+>
+> Re-baked 2026-08-16 (**B13 encoding fix**): `mkcharts`' `sectionLabel` drew without the
+> cp1252 translator, so B13's two new House-tab labels ("Chorus — arpeggio variation",
+> "Outro: … — fermata") baked in as `â€"` mojibake — a T16-class regression that reached this
+> artifact. Fixed at the source, charts regenerated and the bundle re-baked. Guarded by
+> `TestAnchorTextMatchesPDF`: every recorded anchor must appear verbatim in its rendered PDF,
+> so the manifest and the page can never silently disagree again.

@@ -1,0 +1,38 @@
+[
+  {
+    "key": "canon.rest-2",
+    "desc": "the 2 multi-bar rest marker, system 1",
+    "page": 0,
+    "x0": 0.27,
+    "y0": 0.055,
+    "x1": 0.31,
+    "y1": 0.08
+  },
+  {
+    "key": "canon.first-entry",
+    "desc": "the quarter-note entry, system 1",
+    "page": 0,
+    "x0": 0.37,
+    "y0": 0.075,
+    "x1": 0.72,
+    "y1": 0.115
+  },
+  {
+    "key": "canon.margin-top",
+    "desc": "clear right half of the sys1-2 gap",
+    "page": 0,
+    "x0": 0.6,
+    "y0": 0.115,
+    "x1": 0.9,
+    "y1": 0.135
+  },
+  {
+    "key": "canon.margin-sys2",
+    "desc": "gap between systems 1 and 2",
+    "page": 0,
+    "x0": 0.12,
+    "y0": 0.115,
+    "x1": 0.55,
+    "y1": 0.135
+  }
+]

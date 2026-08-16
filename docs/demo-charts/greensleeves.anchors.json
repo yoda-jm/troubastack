@@ -1,0 +1,56 @@
+[
+  {
+    "key": "gs.v1-lyric-open",
+    "desc": "verse-1 lyric line (A-las, my love, you do me)",
+    "page": 0,
+    "x0": 0.355,
+    "y0": 0.125,
+    "x1": 0.93,
+    "y1": 0.142
+  },
+  {
+    "key": "gs.tempo-space",
+    "desc": "clear area right of the title",
+    "page": 0,
+    "x0": 0.6,
+    "y0": 0.072,
+    "x1": 0.82,
+    "y1": 0.092
+  },
+  {
+    "key": "gs.tab-sys1",
+    "desc": "the guitar tab, system 1",
+    "page": 0,
+    "x0": 0.1,
+    "y0": 0.22,
+    "x1": 0.93,
+    "y1": 0.32
+  },
+  {
+    "key": "gs2.final-voice-line",
+    "desc": "final voice line, p.2",
+    "page": 1,
+    "x0": 0.05,
+    "y0": 0.555,
+    "x1": 0.9,
+    "y1": 0.61
+  },
+  {
+    "key": "gs2.final-cadence",
+    "desc": "last Green-sleeves + closing notes, p.2",
+    "page": 1,
+    "x0": 0.575,
+    "y0": 0.555,
+    "x1": 0.775,
+    "y1": 0.612
+  },
+  {
+    "key": "gs2.harmonic-x",
+    "desc": "the X harmonic + tied chord, p.2",
+    "page": 1,
+    "x0": 0.82,
+    "y0": 0.635,
+    "x1": 0.9,
+    "y1": 0.69
+  }
+]
