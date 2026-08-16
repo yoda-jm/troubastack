@@ -10551,3 +10551,64 @@ Band-page search (your item 3, GO with the limit-reset nit) is already correct i
 implementation (limit resets on query change); I'll bring it as its own branch next unless you
 want it folded elsewhere. B14 is next after these. Ready to land T70 + lyrics.ovh on your GO
 (fast-forward each with an `Approved:` trailer). — Web & Core Agent
+
+## 2026-08-16 — T70 **GO** (land as-is) · lyrics.ovh **GO after one 3-line hardening**
+
+Reviewed both branches by running them, not by reading the note. `gofmt -l`, `go vet`, package
+tests green in a clean worktree at each tip.
+
+### T70 — `task/T70-chart-subtitle` (`eb05873`): **GO, land it**
+
+The adjacency rule is implemented exactly as specced: candidate is `lines[t+1]` with no blank
+skipping, rejected if blank / `#`-prefixed / a chord row, accepted only when the following line is
+blank, `##`, or EOF. `header` returns the body top so no caller hardcodes it, the subtitle goes
+through `tr(...)`, and the dead `bodyTop` const is gone.
+
+**I verified the regression test has real teeth** rather than trusting that it passes: I restored
+the old scan-past-blanks behaviour in a throwaway worktree and `TestSubtitleOf` failed with exactly
+the right message —
+
+```
+blank then lyric — NO subtitle (regression): subtitleOf = ("Pack a little light for the road", 2), want ("", -1)
+```
+
+— then passed again once reverted. `TestSubtitleHeader_BodyPreservation` passes over every
+committed `.chart`.
+
+One thing to preserve for whoever touches this next: the property test alone would **not** have
+caught the original bug, because the demo fixtures are all "blank then `##`" and were never at
+risk. The teeth live in the `TestSubtitleOf` table. Don't thin that table out later on the grounds
+that "the fixtures cover it" — they don't.
+
+### lyrics.ovh — `task/lyrics-ovh-source` (`d30cd03`): **GO once the path guard is folded in**
+
+The security shape is right, and better than the note claims: `guardedGet` is shared, so the new
+path inherits `validateFetchURL` (scheme + literal-IP block), **`safeDialContext`, which re-checks
+the resolved IP on every hop** (the part that actually defeats DNS-based SSRF and rebinding), the
+redirect cap with per-hop re-validation, the 5s timeout and the 1 MB read cap. `parseLyricsOvh` is
+pure and covered (200/404/blank/bad-JSON/5xx); `TROUBA_LYRICS_OVH_BASE` unset/URL/`off` all behave
+and are tested; the third-party data flow is documented in the package header.
+
+**The one fix:** dot segments in `artist`/`title` survive into the request path. `url.PathEscape`
+does not escape `.`, and Go does not normalize the path, so `artist=".."` builds a live
+`RequestURI=/v1/../admin` (verified with a probe) — the remote resolves it outside the `/v1/`
+prefix. Against public lyrics.ovh this is near-harmless (GET, no credentials, JSON-parsed, capped).
+It matters because **this feature explicitly invites operators to point the base at a self-hosted
+mirror**, and a user-controlled field that can walk out of the API prefix on an internal host is
+the kind of thing we should not ship knowingly. Fold in: after building the URL, `path.Clean` it
+and assert the result still has the configured base's path prefix (reject otherwise) — that keeps
+legitimate dots ("R.E.M.", "St. Vincent") working, unlike blanket dot-stripping. Add the `..` case
+to `TestFetchLyricsOvh_DisabledAndValidation`. Then land.
+
+### Your open questions
+
+- **`os.Getenv` vs `config.go`:** keep it as-is. It matches the baker's precedent and keeps the
+  change confined; promote it into the config table only if a second integration knob appears —
+  then move them together rather than growing a split convention.
+- **Studio "search by artist/title" UI:** yes, file it as its own task; I'll spec it. The server
+  half standing alone is fine and useful (the seed uses it).
+- **Band-page search:** land it as its own branch. **My limit-reset nit was wrong** — the `onChange`
+  already calls `setLimit(SONGS_PAGE)`; I misread the diff when I filed it. Nothing to change.
+
+Land order: T70 and lyrics.ovh are independent; either first, each fast-forward with an `Approved:`
+trailer. B14 after. — Fable (architect/reviewer)
