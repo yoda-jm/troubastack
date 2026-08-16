@@ -14,9 +14,20 @@ package httpapi
 // TCP connection (including redirect hops) resolves the host and refuses any private /
 // loopback / link-local / unspecified address. isBlockedIP is the security core and is
 // exhaustively unit-tested.
+//
+// Two request shapes:
+//   - {url}            fetch + scrape that page (azlyrics dedicated extractor, else generic).
+//   - {artist, title}  "search by song": query lyrics.ovh (a free JSON lyrics API) and return
+//                      its lyrics. Same guarded GET; JSON parse instead of HTML.
+//
+// THIRD-PARTY DATA FLOW (be explicit): the {artist, title} path sends the song's artist and
+// title to lyrics.ovh (or whatever TROUBA_LYRICS_OVH_BASE points at). A self-hosted deployment
+// can repoint that env var at a mirror, or set it to "off" to DISABLE the search entirely (the
+// {url}/paste path still works). See lyricsOvhBase.
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -24,6 +35,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -36,7 +49,47 @@ const (
 	lyricsMaxBytes     = 1 << 20 // 1 MB — lyrics are tiny; cap the read.
 	lyricsMaxRedirects = 2
 	lyricsUserAgent    = "troubacore/1.0 (+https://github.com/yoda-jm/troubastack; lyrics import)"
+	// lyrics.ovh is a free JSON lyrics API (GET /v1/{artist}/{title} → {"lyrics": "..."}). It
+	// has no bot wall and good coverage, so it powers the "search by artist/title" path — no URL
+	// to paste. Same honest-GET + SSRF dial guard as the URL path; only the parse differs (JSON).
+	lyricsOvhDefaultBase = "https://api.lyrics.ovh/v1/"
 )
+
+// lyricsOvhBase returns the base URL for the artist/title lyrics search, honoring
+// TROUBA_LYRICS_OVH_BASE (like the baker reads TROUBA_PDFTOPPM/… directly): unset → the public
+// lyrics.ovh default; a URL → point at a self-hosted mirror; "off" (any case) → "" to DISABLE
+// the search entirely (the artist/title path then returns a clean "disabled" error). Note this
+// path sends the song's artist+title to that third-party service — a self-hosted deployment can
+// repoint or disable it here.
+func lyricsOvhBase() string {
+	v := strings.TrimSpace(os.Getenv("TROUBA_LYRICS_OVH_BASE"))
+	switch {
+	case v == "":
+		return lyricsOvhDefaultBase
+	case strings.EqualFold(v, "off"):
+		return ""
+	default:
+		if !strings.HasSuffix(v, "/") {
+			v += "/"
+		}
+		return v
+	}
+}
+
+// withinBasePath reports whether the built URL u, after path.Clean, still sits under base's path
+// prefix — i.e. a dot-segment field ("..") didn't walk out of the API prefix (e.g. /v1/../admin).
+func withinBasePath(base, u string) bool {
+	bu, err := url.Parse(base)
+	if err != nil {
+		return false
+	}
+	pu, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	prefix := strings.TrimSuffix(bu.EscapedPath(), "/") + "/"
+	return strings.HasPrefix(path.Clean(pu.EscapedPath())+"/", prefix)
+}
 
 var (
 	errBlockedHost = errors.New("host resolves to a disallowed (private/loopback) address")
@@ -163,31 +216,102 @@ func classifyFetch(host string, status int, body []byte) lyricsResult {
 	return lyricsResult{Status: "ok", Text: text}
 }
 
-// fetchLyrics validates + fetches + classifies. Any transport error (timeout, DNS,
-// blocked dial) becomes {status:"error"} — never a 500.
-func fetchLyrics(ctx context.Context, rawURL string) lyricsResult {
+// guardedGet performs the honest, SSRF-guarded GET shared by the URL and lyrics.ovh paths and
+// returns the validated URL, HTTP status, and (capped) body. Transport/validation errors are
+// returned so callers can map them to {status:"error"} — never a 500.
+func guardedGet(ctx context.Context, rawURL string) (*url.URL, int, []byte, error) {
 	u, err := validateFetchURL(rawURL)
 	if err != nil {
-		return lyricsResult{Status: "error", Reason: err.Error()}
+		return nil, 0, nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, lyricsFetchTimeout)
-	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return lyricsResult{Status: "error", Reason: "bad request"}
+		return nil, 0, nil, err
 	}
 	req.Header.Set("User-Agent", lyricsUserAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/json")
 	resp, err := lyricsHTTPClient().Do(req)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, lyricsMaxBytes))
+	return u, resp.StatusCode, body, nil
+}
+
+// fetchLyrics validates + fetches + classifies an arbitrary lyrics page URL. Any transport error
+// (timeout, DNS, blocked dial) becomes {status:"error"} — never a 500.
+func fetchLyrics(ctx context.Context, rawURL string) lyricsResult {
+	ctx, cancel := context.WithTimeout(ctx, lyricsFetchTimeout)
+	defer cancel()
+	u, status, body, err := guardedGet(ctx, rawURL)
 	if err != nil {
 		if errors.Is(err, errBlockedHost) {
 			return lyricsResult{Status: "error", Reason: errBlockedHost.Error()}
 		}
+		if errors.Is(err, errBadScheme) || errors.Is(err, app.ErrInvalidInput) {
+			return lyricsResult{Status: "error", Reason: err.Error()}
+		}
 		return lyricsResult{Status: "error", Reason: "could not reach the site"}
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, lyricsMaxBytes))
-	return classifyFetch(u.Hostname(), resp.StatusCode, body)
+	return classifyFetch(u.Hostname(), status, body)
+}
+
+// fetchLyricsOvh queries lyrics.ovh for {artist, title} — the "search by song" path. Same guarded
+// GET; JSON parse instead of HTML extraction.
+func fetchLyricsOvh(ctx context.Context, artist, title string) lyricsResult {
+	artist, title = strings.TrimSpace(artist), strings.TrimSpace(title)
+	if artist == "" || title == "" {
+		return lyricsResult{Status: "error", Reason: "artist and title are required"}
+	}
+	base := lyricsOvhBase()
+	if base == "" {
+		return lyricsResult{Status: "error", Reason: "lyrics search is disabled on this server"}
+	}
+	// A "/" in a field (e.g. "AC/DC") would split the path — space it out; PathEscape the rest.
+	u := base +
+		url.PathEscape(strings.ReplaceAll(artist, "/", " ")) + "/" +
+		url.PathEscape(strings.ReplaceAll(title, "/", " "))
+	// Dot-segment guard: PathEscape does NOT escape "." and Go doesn't normalize request paths,
+	// so a field of ".." would build /v1/../admin and escape the API prefix — dangerous when the
+	// base points at a self-hosted mirror. Reject if the cleaned path leaves the base's prefix;
+	// legitimate dots ("R.E.M.", "St. Vincent") are single segments and survive path.Clean.
+	if !withinBasePath(base, u) {
+		return lyricsResult{Status: "error", Reason: "invalid artist or title"}
+	}
+	ctx, cancel := context.WithTimeout(ctx, lyricsFetchTimeout)
+	defer cancel()
+	_, status, body, err := guardedGet(ctx, u)
+	if err != nil {
+		if errors.Is(err, errBlockedHost) {
+			return lyricsResult{Status: "error", Reason: errBlockedHost.Error()}
+		}
+		return lyricsResult{Status: "error", Reason: "could not reach the lyrics API"}
+	}
+	return parseLyricsOvh(status, body)
+}
+
+// parseLyricsOvh maps a lyrics.ovh response to a lyricsResult. Pure + testable. A 404 (unknown
+// song) is a normal {status:"error"}, not a failure.
+func parseLyricsOvh(status int, body []byte) lyricsResult {
+	if status == http.StatusNotFound {
+		return lyricsResult{Status: "error", Reason: "no lyrics found for that artist/title"}
+	}
+	if status < 200 || status >= 300 {
+		return lyricsResult{Status: "error", Reason: fmt.Sprintf("lyrics API returned HTTP %d", status)}
+	}
+	var payload struct {
+		Lyrics string `json:"lyrics"`
+		Error  string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return lyricsResult{Status: "error", Reason: "lyrics API returned an unexpected response"}
+	}
+	text := normalizeLyrics(payload.Lyrics)
+	if payload.Error != "" || strings.TrimSpace(text) == "" {
+		return lyricsResult{Status: "error", Reason: "no lyrics found for that artist/title"}
+	}
+	return lyricsResult{Status: "ok", Text: text}
 }
 
 func isAzlyricsHost(host string) bool {
@@ -311,9 +435,16 @@ func (a *WebAPI) lyricsImport(w http.ResponseWriter, r *http.Request, u app.User
 		return
 	}
 	var in struct {
-		URL string `json:"url"`
+		URL    string `json:"url"`
+		Artist string `json:"artist"`
+		Title  string `json:"title"`
 	}
 	if !decode(w, r, &in) {
+		return
+	}
+	// "Search by song": artist+title → lyrics.ovh. Otherwise a URL to fetch+scrape.
+	if strings.TrimSpace(in.Artist) != "" && strings.TrimSpace(in.Title) != "" {
+		writeJSON(w, http.StatusOK, fetchLyricsOvh(r.Context(), in.Artist, in.Title))
 		return
 	}
 	if strings.TrimSpace(in.URL) == "" {

@@ -6,6 +6,7 @@ package httpapi
 // verified by hand at the gate (network + Cloudflare are non-deterministic), never in CI.
 
 import (
+	"context"
 	"net"
 	"os"
 	"strings"
@@ -164,5 +165,88 @@ func TestClassifyFetch(t *testing.T) {
 	}
 	if r := classifyFetch("example.com", 500, nil); r.Status != "error" {
 		t.Errorf("500 → %+v, want error", r)
+	}
+}
+
+func TestParseLyricsOvh(t *testing.T) {
+	if r := parseLyricsOvh(200, []byte(`{"lyrics":"First line\r\nSecond line\n\n\n\nThird line"}`)); r.Status != "ok" ||
+		!strings.Contains(r.Text, "First line") || !strings.Contains(r.Text, "Third line") || strings.Contains(r.Text, "\r") {
+		t.Errorf("200+lyrics → %+v, want ok normalized", r)
+	}
+	if r := parseLyricsOvh(404, []byte(`{"error":"No lyrics found"}`)); r.Status != "error" {
+		t.Errorf("404 → %+v, want error", r)
+	}
+	if r := parseLyricsOvh(200, []byte(`{"error":"No lyrics found"}`)); r.Status != "error" {
+		t.Errorf("200+error → %+v, want error", r)
+	}
+	if r := parseLyricsOvh(200, []byte(`{"lyrics":"   "}`)); r.Status != "error" {
+		t.Errorf("200+blank lyrics → %+v, want error", r)
+	}
+	if r := parseLyricsOvh(200, []byte("not json")); r.Status != "error" {
+		t.Errorf("bad json → %+v, want error", r)
+	}
+	if r := parseLyricsOvh(500, nil); r.Status != "error" {
+		t.Errorf("500 → %+v, want error", r)
+	}
+}
+
+func TestLyricsOvhBase(t *testing.T) {
+	t.Setenv("TROUBA_LYRICS_OVH_BASE", "")
+	if got := lyricsOvhBase(); got != lyricsOvhDefaultBase {
+		t.Errorf("unset → %q, want default %q", got, lyricsOvhDefaultBase)
+	}
+	t.Setenv("TROUBA_LYRICS_OVH_BASE", "off")
+	if got := lyricsOvhBase(); got != "" {
+		t.Errorf("off → %q, want \"\" (disabled)", got)
+	}
+	t.Setenv("TROUBA_LYRICS_OVH_BASE", "OFF")
+	if got := lyricsOvhBase(); got != "" {
+		t.Errorf("OFF → %q, want \"\" (disabled, case-insensitive)", got)
+	}
+	t.Setenv("TROUBA_LYRICS_OVH_BASE", "https://lyrics.example.test/v1")
+	if got := lyricsOvhBase(); got != "https://lyrics.example.test/v1/" {
+		t.Errorf("custom base → %q, want trailing-slash-normalized", got)
+	}
+}
+
+func TestFetchLyricsOvh_DisabledAndValidation(t *testing.T) {
+	t.Setenv("TROUBA_LYRICS_OVH_BASE", "") // default base, off-network for these guards
+	if r := fetchLyricsOvh(context.Background(), "", "Song"); r.Status != "error" {
+		t.Errorf("empty artist → %+v, want error", r)
+	}
+	// Dot-segment path traversal must be rejected BEFORE any request (would build /v1/../admin),
+	// so this stays off-network (the guard returns before guardedGet).
+	if r := fetchLyricsOvh(context.Background(), "..", ".."); r.Status != "error" ||
+		!strings.Contains(r.Reason, "invalid") {
+		t.Errorf("dot-segment traversal → %+v, want invalid-artist/title error", r)
+	}
+	t.Setenv("TROUBA_LYRICS_OVH_BASE", "off")
+	if r := fetchLyricsOvh(context.Background(), "The Artist", "The Song"); r.Status != "error" ||
+		!strings.Contains(r.Reason, "disabled") {
+		t.Errorf("disabled → %+v, want error mentioning disabled", r)
+	}
+}
+
+func TestWithinBasePath(t *testing.T) {
+	base := "https://api.lyrics.ovh/v1/"
+	ok := []string{
+		base + "R.E.M./Losing%20My%20Religion", // dotted band name — single segment, survives
+		base + "St.%20Vincent/Cheerleader",
+		base + "AC%20DC/Highway%20to%20Hell",
+	}
+	for _, u := range ok {
+		if !withinBasePath(base, u) {
+			t.Errorf("withinBasePath(%q) = false, want true (legit)", u)
+		}
+	}
+	bad := []string{
+		base + "../admin",
+		base + "../../etc/passwd",
+		"https://api.lyrics.ovh/v1/../secret/x",
+	}
+	for _, u := range bad {
+		if withinBasePath(base, u) {
+			t.Errorf("withinBasePath(%q) = true, want false (escapes /v1/ prefix)", u)
+		}
 	}
 }
