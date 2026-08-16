@@ -3,7 +3,9 @@ package chartpdf
 import (
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -100,6 +102,75 @@ func TestIsChordRow(t *testing.T) {
 	for _, l := range []string{"Pack a little light", "the open road", "So drive"} {
 		if isChordRow(l) {
 			t.Errorf("isChordRow(%q) = true, want false (it's lyrics)", l)
+		}
+	}
+}
+
+func TestSubtitleOf(t *testing.T) {
+	cases := []struct {
+		name    string
+		src     string
+		want    string
+		wantIdx int
+	}{
+		{"adjacent artist", "# My Song\nThe Artist\n\n## Verse 1", "The Artist", 1},
+		{"blank then lyric — NO subtitle (regression)", "# My Song\n\nPack a little light for the road\n\n## Verse 1", "", -1},
+		{"adjacent chord row — none", "# My Song\nAm C G\n\n## Verse 1", "", -1},
+		{"adjacent section — none", "# My Song\n## Verse 1\nlyric", "", -1},
+		{"title at EOF", "# My Song", "", -1},
+		{"no title at all", "just some text\nmore text", "", -1},
+		{"subtitle then chord row — none", "# My Song\nThe Artist\nAm C\nlyric", "", -1},
+		{"subtitle then EOF", "# My Song\nThe Artist", "The Artist", 1},
+		{"subtitle then section", "# My Song\nThe Artist\n## Verse 1", "The Artist", 1},
+	}
+	for _, c := range cases {
+		got, idx := subtitleOf(strings.Split(c.src, "\n"))
+		if got != c.want || idx != c.wantIdx {
+			t.Errorf("%s: subtitleOf = (%q, %d), want (%q, %d)", c.name, got, idx, c.want, c.wantIdx)
+		}
+	}
+}
+
+// normChartLine reduces a source line to its rendered text: strip the `## ` section marker and
+// `**bold**` markers, collapse whitespace (chords are laid out with wide gaps).
+func normChartLine(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "## ")
+	s = strings.ReplaceAll(s, "**", "")
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// TestSubtitleHeader_BodyPreservation is the guard that matters (T70): over every committed
+// .chart fixture, (a) none gains a subtitle — demo charts have a blank after the title, so the
+// adjacency rule lifts nothing out of the body; and (b) every non-blank, non-title source line
+// still appears in the rendered PDF text. A property, not a golden, so it holds as fixtures change.
+func TestSubtitleHeader_BodyPreservation(t *testing.T) {
+	fixtures, _ := filepath.Glob("../../../docs/demo-charts/*.chart")
+	if len(fixtures) == 0 {
+		t.Skip("no .chart fixtures found")
+	}
+	for _, fx := range fixtures {
+		src, err := os.ReadFile(fx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n")
+		if sub, idx := subtitleOf(lines); sub != "" || idx != -1 {
+			t.Errorf("%s: unexpectedly gained subtitle %q (idx %d) — demo charts must be unaffected", fx, sub, idx)
+		}
+		pdf, err := Render(string(src))
+		if err != nil {
+			t.Fatalf("%s: render: %v", fx, err)
+		}
+		got := strings.Join(strings.Fields(pdftotext(t, pdf)), " ")
+		for i, ln := range lines {
+			s := strings.TrimSpace(ln)
+			if s == "" || strings.HasPrefix(s, "# ") {
+				continue // blank or the title line
+			}
+			if want := normChartLine(ln); want != "" && !strings.Contains(got, want) {
+				t.Errorf("%s: line %d %q lost from rendered output", fx, i, s)
+			}
 		}
 	}
 }

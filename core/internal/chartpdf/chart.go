@@ -7,12 +7,26 @@
 // Dialect (deliberately tiny — NOT Markdown):
 //
 //	# Title            document title (first wins; also the PDF metadata title)
+//	<subtitle>         the line DIRECTLY under `# Title` (no blank between) is the
+//	                   artist/subtitle — shown in the header, not the body. A blank
+//	                   line after the title means the body has started (no subtitle).
 //	## Section         a section header (Verse / Chorus / Bridge / …)
 //	<chords>           a line whose tokens are ALL chords renders monospace-bold…
 //	<lyric>            …above the next line as the classic "chords over words"
 //	**bold**           inline bold within a normal text line
 //	(blank line)       paragraph gap
 //	anything else      literal text
+//
+// Subtitle examples — with an artist, and without:
+//
+//	# My Song            # My Song
+//	The Artist
+//	                     ## Verse 1
+//	## Verse 1           …
+//	…
+//
+// The left chart's "The Artist" is adjacent to the title → header subtitle. The
+// right chart has a blank after the title → no subtitle, body starts at Verse 1.
 //
 // Input is ASCII + Latin-1 (the PDF core fonts are cp1252). A few common
 // typographic runes (en/em dash, curly quotes, ellipsis, bullet) are allowed and
@@ -39,7 +53,6 @@ const (
 	pageH      = 297.0
 	margin     = 18.0
 	right      = pageW - margin
-	bodyTop    = 50.0  // first body line, just below the title rule
 	pageBottom = 282.0 // add a page once a line would cross this
 )
 
@@ -63,10 +76,9 @@ func Render(source string) ([]byte, error) {
 	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
 
 	title := firstTitle(lines)
+	subtitle, subIdx := subtitleOf(lines)
 	pdf, tr := newDoc(title)
-	header(pdf, tr, title)
-
-	y := bodyTop
+	y := header(pdf, tr, title, subtitle)
 	page := func(need float64) {
 		if y+need > pageBottom {
 			pdf.AddPage()
@@ -80,6 +92,9 @@ func Render(source string) ([]byte, error) {
 		trimmed := strings.TrimSpace(line)
 
 		switch {
+		case i == subIdx:
+			// Subtitle (artist) — rendered in the header; skip in the body.
+			continue
 		case strings.HasPrefix(trimmed, "# "):
 			// Title line — already rendered in the header; skip.
 			continue
@@ -174,13 +189,55 @@ func newDoc(title string) (*fpdf.Fpdf, func(string) string) {
 	return pdf, tr
 }
 
-func header(pdf *fpdf.Fpdf, tr func(string) string, title string) {
+// header renders the title (and optional subtitle/artist) plus the rule, and returns the y at
+// which the body should start (so callers don't hardcode a body top that ignores the subtitle).
+func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string) float64 {
 	pdf.AddPage()
 	pdf.SetFont("Helvetica", "B", 22)
-	pdf.SetXY(margin, 16)
+	pdf.SetXY(margin, 15)
 	pdf.Cell(0, 10, tr(title))
+	ruleY := 27.0
+	if subtitle != "" {
+		pdf.SetFont("Helvetica", "I", 12)
+		pdf.SetTextColor(90, 90, 90)
+		pdf.SetXY(margin, 26)
+		pdf.Cell(0, 6, tr(subtitle))
+		pdf.SetTextColor(0, 0, 0)
+		ruleY = 34
+	}
 	pdf.SetLineWidth(0.3)
-	pdf.Line(margin, 30, right, 30)
+	pdf.Line(margin, ruleY, right, ruleY)
+	return ruleY + 7
+}
+
+// subtitleOf returns the chart's subtitle (artist) and its line index, or ("", -1). Rule:
+// ADJACENCY — the line at exactly titleIndex+1 (no blank between), when it is not itself a
+// section/`#` line or a chord row, and the line after it is blank / a `##` section / EOF. A blank
+// line after the title means the body has started, so nothing is lifted out of it — this makes it
+// impossible to swallow a body lyric separated from the title by a blank line.
+func subtitleOf(lines []string) (string, int) {
+	t := -1
+	for i, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "# ") {
+			t = i
+			break
+		}
+	}
+	if t < 0 || t+1 >= len(lines) {
+		return "", -1
+	}
+	cand := strings.TrimSpace(lines[t+1])
+	if cand == "" || strings.HasPrefix(cand, "#") || isChordRow(cand) {
+		return "", -1
+	}
+	next := ""
+	if t+2 < len(lines) {
+		next = strings.TrimSpace(lines[t+2])
+	}
+	if next == "" || strings.HasPrefix(next, "##") {
+		return cand, t + 1
+	}
+	return "", -1
 }
 
 // sectionLabel prints a section header (e.g. "Verse 1") and returns the next y.
