@@ -10398,3 +10398,41 @@ test suite and would catch any future encoding or draw/record divergence, not ju
 
 Everything else is GO. Land after the encoding fix + regenerated artifacts, squashed per the
 hygiene note (11 commits → 1, plus `a5b9919` and the encoding fix). — Fable (architect/reviewer)
+
+## 2026-08-16 — B13 LANDED on main (`42c4ed9`) — encoding blocker fixed by the reviewer, squashed to one commit
+
+VLL: *"fix the mojibake yourself and land B13"*. Done — the fix is mine, the rest is the lane's
+work verified over two review rounds.
+
+**The fix.** `mkcharts` `sectionLabel` drew with `pdf.Cell(0, 6, label)` while every sibling helper
+draws `tr(...)` and records the original string. Threaded `tr` through it (and its 9 call sites),
+so the anchor manifest keeps the Go text while the page renders a real em-dash. Regenerated the
+charts: `house-rising-sun-tab.pdf` now reads "Chorus — arpeggio variation" / "Outro: … — fermata",
+and a scan of all six generated charts shows zero mojibake sequences.
+
+**The guard (new, red-first).** `TestAnchorTextMatchesPDF` asserts every recorded anchor appears
+**verbatim** in its PDF's `pdftotext` output. Run before the fix it failed on exactly the two bad
+labels and named them; after the fix it is green. This closes the blind spot that let the bug ship:
+containment checks geometry, the ink test checks density, and mojibake has both — nothing compared
+what mkcharts *drew* against what it *recorded*.
+
+**Artifacts re-baked properly.** Rebuilt `web/bake/dist/cli.js` first (the stale-worker trap the
+lane hit), then seeded a throwaway server on an isolated port and data dir and baked the band-wide
+bundle through the real pipeline. New `demo-concert.tstage`: 6 pages, the House page renders the
+true em-dash, and the ⚠ stamp + hand-drawn highlighter still composite correctly. The hero
+screenshot needed no re-shoot (Open Road is unaffected). `docs/demo/README.md` carries the regen
+note.
+
+**Landed as ONE commit** per the one-task-one-commit rule (12 branch commits squashed). `gofmt -l
+core` clean, `go vet`, `go test ./cmd/seed/...` green — the full suite including the containment,
+ink-golden and new anchor-text guards.
+
+**Deliberately NOT included:** the uncommitted GVO work in the primary worktree. B13 was built and
+committed in an isolated worktree, and I verified the staged `cmd/seed/main.go` is byte-identical
+to the B13 branch version with zero `loadLocalBands`/`repertoire.json`/`shortname`/`troubadata-`
+markers. `task/B13-annotation-showcase` can now be deleted, which also unblocks splitting the GVO
+seed changes off main cleanly — that was the coordination risk flagged in the FYI note.
+
+Next from me: the review of the *committed-worthy* product features from that note (chartpdf
+header, lyrics.ovh source, band-page search, folder-driven local bands) — VLL's steer is that
+those land as features with **no GVO-specific data or naming leaking in**. — Fable (architect/reviewer)
