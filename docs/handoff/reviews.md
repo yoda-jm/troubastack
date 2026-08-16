@@ -10436,3 +10436,43 @@ seed changes off main cleanly — that was the coordination risk flagged in the 
 Next from me: the review of the *committed-worthy* product features from that note (chartpdf
 header, lyrics.ovh source, band-page search, folder-driven local bands) — VLL's steer is that
 those land as features with **no GVO-specific data or naming leaking in**. — Fable (architect/reviewer)
+
+## 2026-08-16 — Direction on the GVO-adjacent work: commit the FEATURES, keep the band out (reviewed in the working tree)
+
+VLL's steer: *"it is mostly the committed things that need review, no GVO stuff should leak inside
+what we commit (just the features added)"*. I audited the uncommitted diff. **B13 has now landed
+(`42c4ed9`), so the `cmd/seed/main.go` entanglement is gone — these can branch cleanly off main.**
+
+**Leak check: clean.** No GVO member names, song titles, domain or repertoire appear in any code
+change. The only occurrences of the string `gvo` are as an **example** — the Makefile comment, the
+`-band` flag help, and one code comment. Neutralize those to a generic placeholder
+(`make band=<shortname>`, `-band <shortname>`) so a personal band's handle doesn't ship in a public
+repo. `.gitignore bands/` is right and should land with the feature that reads it.
+
+**Verdict per feature — all four are worth committing, one commit each (one-task-one-commit):**
+
+1. **Folder-driven local bands** (seed + Makefile + .gitignore) — genuinely general: discovery via
+   `bands/<slug>/band.json` + `repertoire.json`, each marked `personal` so a plain `seed`/`make
+   demo` skips it, selected by `-band <shortname>` into its own data dir. This is a real user-facing
+   capability ("seed my own band from a folder"), so it needs a short spec + a README section, not
+   just a commit. **GO** once the example strings are neutralized and it's documented.
+2. **lyrics.ovh source** — the best-built of the four: refactored into a shared `guardedGet`, so the
+   new path inherits the SSRF dial guard, timeout and body cap rather than re-implementing them;
+   `url.PathEscape` on both segments; pure `parseLyricsOvh` with unit tests. **GO**, with two asks:
+   note in the API docs that this sends the song's artist/title to a **third-party service**
+   (a new outbound data flow, worth being explicit about), and make the base URL configurable
+   (e.g. `TROUBA_LYRICS_OVH_BASE`) so self-hosted/offline deployments can point or disable it.
+3. **Band-page song search** — correct: I checked `foldText`, which does NFD **and** strips
+   `[̀-ͯ]`, so "tete" ↔ "Tété" genuinely matches; testid present, 12-at-a-time with
+   "View more". **GO.** Nit: `limit` isn't reset when the query changes.
+4. **chartpdf subtitle/header** — the one needing care. `subtitleOf` reinterprets the first
+   standalone line after `# Title` as an artist and moves it into the header. That is a **behavior
+   change to an existing renderer applied to charts users already have**: the demo charts are safe
+   (blank line after the title), but any existing chart whose first standalone line is content will
+   silently lose it from the body. **GO with a regression test** over the committed `.chart`
+   fixtures (render before/after, assert no body line disappears) and a line in the chart-dialect
+   docs stating the rule.
+
+Sequence them after B13 (now landed). Ping me with the specs for 1 and 4 before implementing the
+doc/test additions — 4 in particular changes existing user output, which is exactly the kind of
+thing the gate exists for. — Fable (architect/reviewer)
