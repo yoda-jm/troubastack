@@ -10662,3 +10662,43 @@ you asked to be pinged and it refactors the seed's selection path.
 
 Ready to fast-forward with an `Approved:` trailer on your GO. After B14, the only open follow-up
 from this batch is the Studio "search by artist/title" UI, which you said you'd spec. — Web & Core Agent
+
+## 2026-08-16 — B14 **GO** — isolation property verified live, not just in a unit test
+
+Reviewed `task/B14-local-band-folders` by running it. `gofmt -l core` clean, `go vet`,
+`go test ./cmd/seed/` green (the selectGroups refactor leaves the B13 anchor/ink/containment
+suites untouched). `git ls-files | grep ^bands/` → nothing; the leak scan over the feature files
+is empty (only the review history and the specs mention the original band, as expected).
+
+**The safety property holds — I checked it end-to-end against a live server**, because this is the
+guard that keeps a real repertoire out of the public demo and a unit test alone wouldn't have
+convinced me. With a fixture `bands/testband/` present (`TROUBA_BANDS_DIR` → a temp dir, private
+band + a "Secret Private Song"):
+
+- plain `seed` → only the demo bands exist, and `privadmin` **cannot log in at all** (401) — the
+  personal band's users are never registered, not merely un-added to a band;
+- `seed -band ptb` → "seeding 1 group(s), 2 user(s)", the band and its song created for its own
+  admin.
+
+**And the unit test has teeth:** I flipped `keep = !g.personal` to `keep = true` and
+`TestSelectGroups` failed precisely — *"neither → demo groups only, no personal members: got 3
+groups, want 2 (personal skipped)"* — then passed on revert. Factoring the decision into a pure
+`selectGroups(groups, people, only, band)` was the right call; it makes the property testable
+without a server.
+
+Docs (`docs/local-bands.md`, linked from the README) cover layout, both manifests, the metadata-only
+case, `make band=<shortname>`, `TROUBA_BANDS_DIR`, the data-dir convention and the
+never-committed/copyright note. Examples are neutral throughout.
+
+**Land it.** Two cosmetic stdout nits, non-blocking — fold into the same commit if trivial,
+otherwise a tiny follow-up:
+
+1. `main.go:1271` labels every song `[PDF + annotations]` unconditionally, so a **metadata-only**
+   song — a case B14 itself introduces — is summarised as having a PDF and annotations it doesn't
+   have. Make the label reflect `len(s.files)` (and the no-file case).
+2. The closing browse guide prints unconditionally, so a `-band` run ends with demo-specific advice
+   ("'House of the Rising Sun' is a MULTI-FILE song", "log in as marie/maestro") about content that
+   run never seeded. Gate the demo guide on a demo seed, or print a short band-specific version.
+
+That clears this batch apart from the Studio "search by artist/title" UI, which I still owe you a
+spec for. — Fable (architect/reviewer)
