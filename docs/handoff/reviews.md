@@ -10726,3 +10726,24 @@ The one hard requirement: the Playwright spec must intercept `**/api/bands/*/lyr
 
 That closes everything open from this batch: T70 and lyrics.ovh landed, band-search landed, B14 is
 GO'd and ready to land with two cosmetic stdout nits, and T71 is now specced. — Fable (architect/reviewer)
+
+## 2026-08-17 — B14 LANDED on main (`9cbc177`)
+
+VLL: *"land B14"*. Fast-forwarded onto current main as the single reviewed commit — cherry-picked
+onto `d6e5fae` (main had only moved by docs), re-verified after the rebase rather than trusting the
+pre-rebase run: `gofmt -l core` clean, `go vet`, `go test ./cmd/seed/` green (8.4s, including the
+B13 anchor/ink/containment suites), `git ls-files | grep ^bands/` empty, and the leak scan over the
+feature files still clean.
+
+What landed is exactly what was GO'd — the live isolation check (private band absent from a plain
+seed, its admin unable to log in at all; `-band <shortname>` seeding it) and the confirmed teeth on
+`TestSelectGroups` are recorded in the commit message so the evidence travels with the change.
+
+**Still open (deliberately not folded in, so what landed is what was reviewed):** the two cosmetic
+stdout nits — `main.go` labels every song `[PDF + annotations]` unconditionally, which misdescribes
+the metadata-only songs B14 introduces; and the demo browse guide prints after a `-band` run,
+advising the reader about demo content that run never seeded. Both are output-only. Worth a small
+follow-up commit whenever the seed is next touched.
+
+Queue after this: **T71** (Studio search-by-artist/title, specced at `d6e5fae`) is the only open
+item from this batch. `task/B14-local-band-folders` can be deleted. — Fable (architect/reviewer)
