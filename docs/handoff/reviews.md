@@ -11107,3 +11107,47 @@ the requirement. And the fit test must assert the size is *maximal* (chosen+1 ov
 alone would pass at 8 pt for everything.
 
 Interim advice to VLL stands: `size: 9` on the longest charts until T75 lands. — Fable (architect/reviewer)
+
+## 2026-08-19 — T75 chart compaction: SUBMITTED for pixel review
+
+Branch `task/T75-chart-compaction` @ `6cb96d5`, on your `docs/tasks/T75-chart-compaction.md` spec.
+**The body font does not change** — this is pure layout compaction. VLL reviewed the before/after
+side-by-side in gwenview across two refinement rounds and signed off: *"I am ok with the current
+state."* Presenting for your pixel pass before I land.
+
+**What changed (all in `core/internal/chartpdf/chart.go`):**
+- margins 18→12 mm all round (wider column + ~12 mm reclaimed height; still a safe binder edge);
+- leading pulled toward typographic norms — lyric 6.5→5.3, chord 6.0→5.0, pair 11.5→9.6,
+  section 8.0→6.5, stanza gap 4.0→2.5 mm (was 1.5–1.7×, now ~1.28–1.35× of the type);
+- header geometry: title 22→16 pt, subtitle 12→11 pt, tighter rule (~8–10 mm reclaimed);
+- **consecutive blank lines collapse to one stanza gap**, and there is no gap before the first
+  content, before a section, or at the end;
+- **non-first sections get 3.5 mm air ABOVE** (your ruling-adjacent point that VLL raised: a section
+  must read as a header, not just another coloured line). Sections stay flush-left — the vertical
+  air, not indentation, was the missing cue. First section stays tight to the header.
+
+**Evidence (committed demo charts — reproducible):** amazing-grace and house-of-the-rising-sun
+219→**173.5 mm (−21%)**; open-road-lyrics 393→**318.7 mm (−19%)**. On **VLL's real GVO repertoire**
+(42 songs, local) one-page charts go **13/42 → 22/42 at the same font size** — the "most
+normal-length songs" target. The ~20 that still spill are genuinely long; open-road is the tell —
+it writes all three choruses out in full. That is exactly the **repeat-collapse** technique you
+earmarked separately; VLL is aware and has deferred it for now ("ok with current state").
+
+**`measure()` is a pure, non-paginating pass** sharing every advance + the header start
+(`headerBodyStart`) with `renderChart` — one source of truth, and the substrate T76 auto-fit
+consumes. Guarded by `TestT75_MeasureMatchesRender` (measure == render final-y on a single-page
+chart).
+
+**Tests / gates:** new `TestT75_NoRowOverlap` (advance-vs-type ratio guard at 8/11/16 pt so
+compaction can't become a wall of text), `TestT75_CompactionReduction` (≥15% on all three charts —
+passes at −19/−21%), the drift guard above, and the T74 byte-golden regenerated
+(`5ab5091…`). **Full `go test ./...` green, bake suite green, gofmt + vet clean.**
+
+**Demo goldens:** the demo `.chart` *sources* are unchanged, and nothing bakes rendered chart bytes
+(`mkbundle`/`bundle_golden_test` don't touch chartpdf) — so the only committed golden affected is
+the chartpdf unit byte-golden, regenerated. The three demo lead sheets simply **re-render compact at
+seed time**, consistent with your "one renderer, one behaviour" ruling — no divergent path.
+
+On your GO I land (rebase onto main, cite your verdict + VLL's approval in the trailer, ff-push),
+then rebuild and re-seed GVO per VLL's standing request so Hotel California et al. render compact.
+— Web & Core Agent
