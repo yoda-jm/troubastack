@@ -14,8 +14,17 @@
 //	<chords>           a line whose tokens are ALL chords renders monospace-bold…
 //	<lyric>            …above the next line as the classic "chords over words"
 //	**bold**           inline bold within a normal text line
+//	{new_page}         force a page break here (alias {np}) — see "Page breaks" below
 //	(blank line)       paragraph gap
 //	anything else      literal text
+//
+// Page breaks (T77): a line containing only `{new_page}` — or the short alias `{np}`,
+// case-insensitive, surrounding whitespace ignored — forces the following content to the top of the
+// next page. Put it where a player has a free hand (a section end, a rest, an instrumental), not
+// merely where the page happens to fill. It is never printed, and it never makes a blank page: a
+// marker before any content, after all content, or repeated collapses to nothing. Automatic breaks
+// likewise never strand a section header — a heading always travels to the same page as its first
+// line.
 //
 // Subtitle examples — with an artist, and without:
 //
@@ -92,6 +101,15 @@ var extraRunes = map[rune]bool{
 	'…': true, '•': true, // … •
 }
 
+// reNewPage matches a page-break flow marker: exactly `{new_page}` or the alias `{np}`,
+// case-insensitive, surrounding whitespace ignored. Braces (not a bare `key:`) mark it as a
+// positional flow directive — distinct from the header-scoped `size:` metadata — and match ChordPro.
+var reNewPage = regexp.MustCompile(`(?i)^\{(new_page|np)\}$`)
+
+// isNewPageMarker reports whether a whole line is a page-break marker. `{newpage}`, `{new page}`,
+// `{np} x`, `new_page` and `{{np}}` are NOT markers — they are content and render as body text.
+func isNewPageMarker(trimmed string) bool { return reNewPage.MatchString(trimmed) }
+
 // Render parses the chart dialect in source and returns a deterministic A4 PDF.
 func Render(source string) ([]byte, error) {
 	if err := validateChars(source); err != nil {
@@ -109,28 +127,107 @@ func chartLines(source string) []string {
 	return strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
 }
 
-// renderChart draws the chart and returns the pdf + the final body y. The y is the drift guard:
-// it must equal measure(source) for a single-page chart (both walk the same rows with the same
-// advances). T75: consecutive blank lines collapse to one stanza gap, and there is no gap before
-// the first content / a section / at the end.
+// renderChart draws the chart and returns the pdf + the final body y. That y is the drift guard: it
+// must equal measure(source) — both walk the identical body via layout(), the single source of the
+// per-row advances AND of pagination, so they cannot drift, on one page or many.
 func renderChart(source string) (*fpdf.Fpdf, float64, error) {
 	lines := chartLines(source)
 	subtitle, _, bodyPt, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	pdf, tr := newDoc(firstTitle(lines))
 	y := header(pdf, tr, firstTitle(lines), subtitle, scale)
-	page := func(need float64) {
-		if y+need > pageBottom {
-			pdf.AddPage()
+	y = layout(lines, scale, skip, y, layoutOpts{pdf: pdf, tr: tr, paginate: true})
+	return pdf, y, nil
+}
+
+// measure returns the renderer's final body y for the source at its size — the PAGINATED end, so it
+// equals renderChart's returned y across page breaks (the T77 drift guard). Because pagination resets
+// to the top margin, do not read measure() as a height; for "how tall / does it fit" use
+// contentHeight().
+func measure(source string) float64 {
+	lines := chartLines(source)
+	subtitle, _, bodyPt, skip := parseHeader(lines)
+	scale := bodyPt / defaultBodyPt
+	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true})
+}
+
+// contentHeight is the continuous body height the chart occupies on one unbounded page (pagination
+// disabled): contentHeight(source) <= pageBottom iff the whole chart fits a single page. T75's
+// compaction guard and T76's auto-fit fit-test consume this — the honest "how tall is it", distinct
+// from measure()'s paginated end-y.
+func contentHeight(source string) float64 {
+	lines := chartLines(source)
+	subtitle, _, bodyPt, skip := parseHeader(lines)
+	scale := bodyPt / defaultBodyPt
+	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: false})
+}
+
+// placed records one drawn element's page and top y — a test hook (layoutOpts.trace) for asserting
+// pagination: orphan control (a section header is never a page's last element) and the pair rule (a
+// chord+lyric pair never straddles a page).
+type placed struct {
+	page int
+	y    float64
+	kind string // "section" | "pair" | "chord" | "text"
+}
+
+// layoutOpts selects layout()'s mode: draw into pdf (with tr) or not; paginate (reset to the top
+// margin at each break) or accumulate continuously; and optionally record a trace.
+type layoutOpts struct {
+	pdf      *fpdf.Fpdf
+	tr       func(string) string
+	paginate bool
+	trace    *[]placed
+}
+
+// layout walks the body once and returns the final y. It is the SINGLE source of the per-row advances
+// AND of pagination, shared by renderChart (draws), measure (paginated end-y) and contentHeight
+// (continuous). Three break triggers are honored identically:
+//   - an explicit {new_page} marker, applied lazily so a leading / trailing / repeated marker never
+//     makes a blank page;
+//   - an automatic break when the next unit would cross pageBottom;
+//   - section-orphan control: a `## header` reserves room for itself AND its first content line, so a
+//     heading is never stranded at the foot of a page (automatic breaks only — an explicit marker
+//     right after a header is obeyed as written).
+func layout(lines []string, scale float64, skip map[int]bool, y float64, o layoutOpts) float64 {
+	pg := 1
+	newPage := func() {
+		if o.paginate {
+			if o.pdf != nil {
+				o.pdf.AddPage()
+			}
 			y = topMargin
+			pg++
 		}
 	}
-	drew, pendingGap := false, false
+	page := func(need float64) {
+		if o.paginate && y+need > pageBottom {
+			newPage()
+		}
+	}
+	drew, pendingGap, pendingBreak := false, false, false
 	gap := func() {
 		if drew && pendingGap {
 			y += paraGap * scale
 		}
 		pendingGap = false
+	}
+	// applyBreak turns a pending {new_page} into an actual break, lazily — a trailing marker, a
+	// leading marker (drew==false, so never set) and consecutive markers all collapse to no blank
+	// page. Returns whether it broke (the caller then drops the pre-content gap: after a break the
+	// body starts flush at the top margin, per T75).
+	applyBreak := func() bool {
+		if !pendingBreak {
+			return false
+		}
+		pendingBreak, pendingGap = false, false
+		newPage()
+		return true
+	}
+	note := func(kind string) {
+		if o.trace != nil {
+			*o.trace = append(*o.trace, placed{page: pg, y: y, kind: kind})
+		}
 	}
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimRight(lines[i], " \t")
@@ -140,81 +237,75 @@ func renderChart(source string) (*fpdf.Fpdf, float64, error) {
 			// subtitle / directive (header) or the title — never body.
 		case trimmed == "":
 			pendingGap = true
-		case strings.HasPrefix(trimmed, "## "):
-			pendingGap = false // the section's own top-gap replaces any stanza gap before it
+		case isNewPageMarker(trimmed):
+			// consumed, never drawn; break BEFORE the next content (lazily, via applyBreak).
 			if drew {
-				y += sectionTopGap * scale // air above a non-first section
+				pendingBreak, pendingGap = true, false
 			}
-			page(leadSection * scale)
-			y = sectionLabel(pdf, tr, y, strings.TrimSpace(trimmed[3:]), scale)
+		case strings.HasPrefix(trimmed, "## "):
+			broke := applyBreak()
+			pendingGap = false
+			if drew && !broke {
+				y += sectionTopGap * scale // air above a non-first section (not at a fresh page top)
+			}
+			// orphan control: keep the header with its first content line on one page.
+			page(leadSection*scale + firstUnitLead(lines, i, skip)*scale)
+			note("section")
+			y = sectionLabel(o.pdf, o.tr, y, strings.TrimSpace(trimmed[3:]), scale)
 			drew = true
 		case isChordRow(trimmed) && i+1 < len(lines) && isLyric(lines[i+1]):
+			applyBreak()
 			gap()
-			page(leadPair * scale)
+			page(leadPair * scale) // the pair is one unit — never split a chord from its lyric
+			note("pair")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(pdf, tr, y, ch, an, strings.TrimRight(lines[i+1], " \t"), scale)
+			y = chordLine(o.pdf, o.tr, y, ch, an, strings.TrimRight(lines[i+1], " \t"), scale)
 			drew = true
 			i++ // consumed the lyric line
 		case isChordRow(trimmed):
+			applyBreak()
 			gap()
 			page(leadChord * scale)
+			note("chord")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(pdf, tr, y, ch, an, "", scale)
+			y = chordLine(o.pdf, o.tr, y, ch, an, "", scale)
 			drew = true
 		default:
+			applyBreak()
 			gap()
 			page(leadLyric * scale)
-			y = textLine(pdf, tr, y, line, scale)
-			drew = true
-		}
-	}
-	return pdf, y, nil
-}
-
-// measure returns the body's end-y at the source's size WITHOUT pagination — i.e. the height it
-// occupies on one continuous page, so `measure(source) <= pageBottom` iff the chart fits one page.
-// It shares every advance and the header start with renderChart (T76 auto-fit consumes it).
-func measure(source string) float64 {
-	lines := chartLines(source)
-	subtitle, _, bodyPt, skip := parseHeader(lines)
-	scale := bodyPt / defaultBodyPt
-	y := headerBodyStart(subtitle, scale)
-	drew, pendingGap := false, false
-	gap := func() {
-		if drew && pendingGap {
-			y += paraGap * scale
-		}
-		pendingGap = false
-	}
-	for i := 0; i < len(lines); i++ {
-		trimmed := strings.TrimSpace(lines[i])
-		switch {
-		case skip[i], strings.HasPrefix(trimmed, "# "):
-		case trimmed == "":
-			pendingGap = true
-		case strings.HasPrefix(trimmed, "## "):
-			pendingGap = false
-			if drew {
-				y += sectionTopGap * scale
-			}
-			y += leadSection * scale
-			drew = true
-		case isChordRow(trimmed) && i+1 < len(lines) && isLyric(lines[i+1]):
-			gap()
-			y += leadPair * scale
-			drew = true
-			i++
-		case isChordRow(trimmed):
-			gap()
-			y += leadChord * scale
-			drew = true
-		default:
-			gap()
-			y += leadLyric * scale
+			note("text")
+			y = textLine(o.pdf, o.tr, y, line, scale)
 			drew = true
 		}
 	}
 	return y
+}
+
+// firstUnitLead returns the advance of a section's first content line — the unit orphan control keeps
+// with the header. 0 when the section has no content to be stranded from on this page: it is empty,
+// runs straight into another section, hits EOF, or the author placed an explicit {new_page} right
+// after it (an explicit break is obeyed as written, not orphan-protected).
+func firstUnitLead(lines []string, headerIdx int, skip map[int]bool) float64 {
+	for j := headerIdx + 1; j < len(lines); j++ {
+		if skip[j] {
+			continue
+		}
+		t := strings.TrimSpace(lines[j])
+		switch {
+		case t == "":
+			continue
+		case strings.HasPrefix(t, "# "), strings.HasPrefix(t, "## "), isNewPageMarker(t):
+			return 0
+		case isChordRow(t) && j+1 < len(lines) && isLyric(lines[j+1]):
+			return leadPair
+		case isChordRow(t):
+			return leadChord
+		default:
+			return leadLyric
+		}
+	}
+	return 0
 }
 
 // validateChars rejects any rune the cp1252 renderer can't represent (outside
@@ -392,6 +483,10 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 			skip[i] = true // consumed whether or not the value was in range
 			continue
 		}
+		if isNewPageMarker(s) {
+			skip[i] = true // a leading {new_page} in the header block: consumed, never a subtitle
+			continue
+		}
 		nonDirective = append(nonDirective, i)
 	}
 	if len(nonDirective) == 1 {
@@ -412,32 +507,38 @@ func subtitleOf(lines []string) (string, int) {
 
 // sectionLabel prints a section header (e.g. "Verse 1") and returns the next y.
 func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label string, scale float64) float64 {
-	pdf.SetFont("Helvetica", "B", 11*scale)
-	pdf.SetTextColor(150, 90, 30)
-	pdf.SetXY(margin, y)
-	pdf.Cell(0, 6*scale, tr(label)) // T73: through tr() like every other string — an accented section name must not mojibake
-	pdf.SetTextColor(0, 0, 0)
+	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
+		pdf.SetFont("Helvetica", "B", 11*scale)
+		pdf.SetTextColor(150, 90, 30)
+		pdf.SetXY(margin, y)
+		pdf.Cell(0, 6*scale, tr(label)) // T73: through tr() like every other string — an accented section name must not mojibake
+		pdf.SetTextColor(0, 0, 0)
+	}
 	return y + leadSection*scale
 }
 
 // chordLine prints a monospaced blue chord row and the lyric beneath it.
 func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot, lyric string, scale float64) float64 {
-	pdf.SetFont("Courier", "B", 11*scale)
-	pdf.SetTextColor(20, 60, 150)
-	pdf.SetXY(margin, y)
-	pdf.CellFormat(pdf.GetStringWidth(tr(chords)), 5*scale, tr(chords), "", 0, "L", false, 0, "")
-	if annot != "" {
-		// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
-		// play, so render it muted + non-chord, on the same line after the chords.
-		pdf.SetFont("Helvetica", "I", 10*scale)
-		pdf.SetTextColor(120, 120, 120)
-		pdf.CellFormat(0, 5*scale, "  "+tr(annot), "", 0, "L", false, 0, "")
+	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
+		pdf.SetFont("Courier", "B", 11*scale)
+		pdf.SetTextColor(20, 60, 150)
+		pdf.SetXY(margin, y)
+		pdf.CellFormat(pdf.GetStringWidth(tr(chords)), 5*scale, tr(chords), "", 0, "L", false, 0, "")
+		if annot != "" {
+			// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
+			// play, so render it muted + non-chord, on the same line after the chords.
+			pdf.SetFont("Helvetica", "I", 10*scale)
+			pdf.SetTextColor(120, 120, 120)
+			pdf.CellFormat(0, 5*scale, "  "+tr(annot), "", 0, "L", false, 0, "")
+		}
+		pdf.SetTextColor(0, 0, 0)
+		if lyric != "" {
+			pdf.SetFont("Courier", "", 11*scale)
+			pdf.SetXY(margin, y+pairLyricDy*scale)
+			pdf.Cell(0, 5*scale, tr(lyric))
+		}
 	}
-	pdf.SetTextColor(0, 0, 0)
 	if lyric != "" {
-		pdf.SetFont("Courier", "", 11*scale)
-		pdf.SetXY(margin, y+pairLyricDy*scale)
-		pdf.Cell(0, 5*scale, tr(lyric))
 		return y + leadPair*scale
 	}
 	return y + leadChord*scale
@@ -445,18 +546,20 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 
 // textLine renders a normal paragraph line in Helvetica, honoring inline **bold**.
 func textLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, scale float64) float64 {
-	pdf.SetXY(margin, y)
-	bold := false
-	for _, seg := range strings.Split(line, "**") {
-		if seg != "" {
-			if bold {
-				pdf.SetFont("Helvetica", "B", 11*scale)
-			} else {
-				pdf.SetFont("Helvetica", "", 11*scale)
+	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
+		pdf.SetXY(margin, y)
+		bold := false
+		for _, seg := range strings.Split(line, "**") {
+			if seg != "" {
+				if bold {
+					pdf.SetFont("Helvetica", "B", 11*scale)
+				} else {
+					pdf.SetFont("Helvetica", "", 11*scale)
+				}
+				pdf.CellFormat(pdf.GetStringWidth(tr(seg)), 6*scale, tr(seg), "", 0, "L", false, 0, "")
 			}
-			pdf.CellFormat(pdf.GetStringWidth(tr(seg)), 6*scale, tr(seg), "", 0, "L", false, 0, "")
+			bold = !bold
 		}
-		bold = !bold
 	}
 	return y + leadLyric*scale
 }

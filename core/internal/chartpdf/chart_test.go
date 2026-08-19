@@ -353,7 +353,7 @@ func TestT75_CompactionReduction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := measure(string(b))
+		got := contentHeight(string(b)) // continuous height — measure() now paginates (T77)
 		if got > old*0.85 {
 			t.Errorf("%s: %.1f mm, want ≤ %.1f mm (≥15%% shorter than %.1f)", name, got, old*0.85, old)
 		}
@@ -368,7 +368,7 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := string(b)
-	if measure(src) > pageBottom {
+	if contentHeight(src) > pageBottom {
 		t.Skip("fixture no longer single-page")
 	}
 	_, finalY, err := renderChart(src)
@@ -377,5 +377,161 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 	}
 	if diff := finalY - measure(src); diff > 0.01 || diff < -0.01 {
 		t.Errorf("renderer final y %.3f != measure %.3f (drift)", finalY, measure(src))
+	}
+}
+
+// --- T77: {new_page} marker + section-orphan control ---------------------
+
+// traceOf runs the shared layout in paginated trace mode and returns each drawn element's page+y+kind.
+func traceOf(src string) []placed {
+	lines := chartLines(src)
+	subtitle, _, bodyPt, skip := parseHeader(lines)
+	scale := bodyPt / defaultBodyPt
+	var tr []placed
+	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, trace: &tr})
+	return tr
+}
+
+// pageCount renders src and returns the PDF's page count.
+func pageCount(t *testing.T, src string) int {
+	t.Helper()
+	pdf, _, err := renderChart(src)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return pdf.PageCount()
+}
+
+func TestT77_MarkerParsing(t *testing.T) {
+	yes := []string{"{new_page}", "{np}", "{NEW_PAGE}", "{NP}", "  {np}  ", "\t{new_page}\t", "{New_Page}"}
+	no := []string{"{newpage}", "{new page}", "{np} x", "new_page", "{{np}}", "np", "{ np }", "{np", "np}", "a {np}"}
+	for _, s := range yes {
+		if !isNewPageMarker(strings.TrimSpace(s)) {
+			t.Errorf("%q should be a page-break marker", s)
+		}
+	}
+	for _, s := range no {
+		if isNewPageMarker(strings.TrimSpace(s)) {
+			t.Errorf("%q should NOT be a page-break marker (content, not a marker)", s)
+		}
+	}
+}
+
+// A {np} directly under the title must not be lifted out as the subtitle (T70), and must not render.
+func TestT77_MarkerNotSubtitle(t *testing.T) {
+	src := "# Title\n{np}\n\n## Verse\nla la la\n"
+	if sub, _ := subtitleOf(chartLines(src)); sub != "" {
+		t.Errorf("subtitle = %q, want empty (a {np} is not a subtitle)", sub)
+	}
+	// leading marker before any content is a no-op → single page, no blank page.
+	if n := pageCount(t, src); n != 1 {
+		t.Errorf("leading marker produced %d pages, want 1", n)
+	}
+}
+
+func TestT77_MarkerRendersPages(t *testing.T) {
+	one := "# T\n\n## A\nla la la\n"
+	two := "# T\n\n## A\nla la la\n{np}\n## B\nda da da\n"
+	three := "# T\n\n## A\nx\n{np}\n## B\ny\n{new_page}\n## C\nz\n"
+	if n := pageCount(t, one); n != 1 {
+		t.Errorf("no marker: %d pages, want 1", n)
+	}
+	if n := pageCount(t, two); n != 2 {
+		t.Errorf("one marker: %d pages, want 2", n)
+	}
+	if n := pageCount(t, three); n != 3 {
+		t.Errorf("two markers: %d pages, want 3", n)
+	}
+}
+
+// No blank pages: a leading marker, a trailing marker, and consecutive markers each render the same
+// page count as the marker-free chart.
+func TestT77_NoBlankPage(t *testing.T) {
+	base := "# T\n\n## A\nla la la\nmore\n"
+	want := pageCount(t, base)
+	cases := map[string]string{
+		"leading":     "{np}\n" + base,
+		"trailing":    base + "{np}\n",
+		"consecutive": "# T\n\n## A\nla la la\n{np}\n{np}\n{np}\n## B\nmore\n", // one break, not three blank pages
+	}
+	// the consecutive case legitimately spans 2 pages (one real break); assert it is exactly 2.
+	if n := pageCount(t, cases["consecutive"]); n != 2 {
+		t.Errorf("consecutive markers: %d pages, want 2 (collapse to one break)", n)
+	}
+	for _, name := range []string{"leading", "trailing"} {
+		if n := pageCount(t, cases[name]); n != want {
+			t.Errorf("%s marker: %d pages, want %d (no blank page)", name, n, want)
+		}
+	}
+}
+
+// Orphan control: across a scan of lengths that put a section header near the page boundary, a
+// section header and its first content line always land on the SAME page (the header is never
+// stranded at the foot of a page). This test fails on pre-T77 code (which reserved only the header).
+func TestT77_NoOrphanHeader(t *testing.T) {
+	straddled := false
+	for n := 30; n <= 60; n++ {
+		var b strings.Builder
+		b.WriteString("# Orphan\nArtist\n\n")
+		for i := 0; i < n; i++ {
+			b.WriteString("filler line of ordinary length here\n")
+		}
+		b.WriteString("\n## Chorus\nAm       E7\nunder the chords\n")
+		tr := traceOf(b.String())
+		// find the Chorus section and the element immediately after it (its first content).
+		for i, p := range tr {
+			if p.kind == "section" && i+1 < len(tr) {
+				next := tr[i+1]
+				if next.page != p.page {
+					t.Errorf("n=%d: section header on page %d but its first line on page %d (orphaned)", n, p.page, next.page)
+				}
+				if p.page > 1 {
+					straddled = true // we exercised the boundary at least once
+				}
+			}
+		}
+	}
+	if !straddled {
+		t.Errorf("scan never pushed the header past page 1 — test isn't exercising the boundary")
+	}
+}
+
+// The pair rule: over a scan of lengths straddling the boundary, no chord+lyric pair overflows its
+// page (its lyric, at y+pairLyricDy, plus height, always fits) — i.e. a chord is never split from
+// its lyric across a page.
+func TestT77_PairNeverSplit(t *testing.T) {
+	for n := 20; n <= 55; n++ {
+		var b strings.Builder
+		b.WriteString("# Pairs\n\n## Verse\n")
+		for i := 0; i < n; i++ {
+			b.WriteString("Am       E7\nline of lyric beneath the chords\n")
+		}
+		for _, p := range traceOf(b.String()) {
+			if p.kind == "pair" && p.y+leadPair > pageBottom+0.01 {
+				t.Errorf("n=%d: pair at y=%.1f overflows page (y+leadPair=%.1f > %.1f)", n, p.y, p.y+leadPair, pageBottom)
+			}
+		}
+	}
+}
+
+// The drift guard, extended to multi-page: measure() (paginated) equals the renderer's final y even
+// across explicit and automatic breaks.
+func TestT77_MeasureMatchesRender_MultiPage(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("# Multi\n\n## A\n")
+	for i := 0; i < 40; i++ {
+		b.WriteString("a filler lyric line to force an automatic break\n")
+	}
+	b.WriteString("{np}\n## B\nafter an explicit break\nand one more line\n")
+	src := b.String()
+	if pageCount(t, src) < 2 {
+		t.Fatal("fixture is not multi-page")
+	}
+	_, finalY, err := renderChart(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := finalY - measure(src); diff > 0.01 || diff < -0.01 {
+		t.Errorf("multi-page: renderer final y %.3f != measure %.3f (drift)", finalY, measure(src))
 	}
 }
