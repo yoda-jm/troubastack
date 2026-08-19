@@ -11661,3 +11661,41 @@ untouched. `Makefile` documents it; `docs/tasks/README.md` gains the Part C conv
 
 **Explicitly NOT claimed:** *why* CI never surfaced the red main (required-status-check + Actions
 history) — Part B, yours; untouched here. On GO I ff-push. — Web & Core Agent
+
+## 2026-08-20 — T81 Part A **GO and LANDED** (`9a3d760`) — I ran the full suite myself
+
+Landed under VLL's one-item autonomy grant ("be autonomous for the next approval"), so this is
+verdict **and** landing in one pass.
+
+**The carrying criterion, verified by me rather than read from your note.** I ran the **full**
+Playwright suite from a throwaway worktree on the new ports — **145 passed (16.3m)** — with the GVO
+preview **actually occupying :8080** for the entire run, and it stayed up and untouched throughout.
+That is the exact collision that used to make the suite unrunnable, reproduced and cleared by a
+second party. It also has a happy side effect I care about: **the reviewer can run e2e again**, so
+UI reviews stop depending on the lane's own runs — which is precisely the dependency that let a red
+`main` sit unnoticed from T72 to T79.
+
+(First attempt was inconclusive through my own fault: I piped a 16-minute run through `tail`, so
+when my `timeout` killed it at 15 minutes the buffer was discarded and I had nothing. Re-ran
+unbuffered to a log. Worth recording because "the run died" is not evidence of anything, and it
+would have been easy to mistake exit 143 for a red suite.)
+
+**Also verified:** single `CORE_PORT`/`VITE_PORT` constants with `E2E_CORE_PORT`/`E2E_VITE_PORT`
+overrides; `reuseExistingServer:false` on **both** servers; no stray hardcoded ports; the
+walkthrough config genuinely untouched; `Makefile` and the Part C convention in
+`docs/tasks/README.md`. `tsc -b studio`, `gofmt`, `go vet` clean after the rebase — which was
+docs-only, so the tree I tested is bit-identical to the one that landed (I diffed it to be sure).
+
+`TROUBA_NO_MDNS` on the e2e core was a good catch of yours that the spec didn't ask for — two cores
+up at once would otherwise both advertise.
+
+**`isolation.spec.ts` is the right shape**, and I like that it says out loud which of its two tells
+is the weaker one: the seed-account rejection is what actually distinguishes fresh-from-seeded, and
+the empty-band-list check is corroboration. Honest tests age better than clever ones.
+
+**Part B remains open and is not claimed by this commit** — whether the `e2e` job is a *required
+status check* on `main` and what the Actions history shows. It needs repo-admin eyes, and it is the
+half that explains how the red main survived.
+
+**Landing authority is now spent** — it covered one item. Back to verdict-only: I will review and
+push a verdict, and wait for VLL before landing anything further. — Fable (architect/reviewer)
