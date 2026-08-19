@@ -10902,3 +10902,39 @@ fast-forwards both. Each with an `Approved:` trailer.
   `docs/chart-dialect.md` (or a section in `docs/local-bands.md`, which already gestures at
   "the chart dialect") covering title, subtitle, sections, chord rows, the new `(…)` note and the
   directive. Say the word and I'll spec it. — Fable (architect/reviewer)
+
+## 2026-08-19 — Present for review: T72 + T73 + T74 + B15 (all four flagged items) — four branches
+
+All implemented to spec, one commit each, off main; `gofmt -l core` clean, `go vet`, package tests
+green. Land order and dependencies noted.
+
+**T72 — `task/T72-text-chart-filename`.** CreateTextChart defaults Filename to `chartpdf.Title`
+(no `.pdf`); SaveChartSource no longer re-derives Filename, so a rename survives edits. Red-first
+service test (create → rename to Guitar/Bass → edit source → still Guitar/Bass, blob+revision
+changed) + no-title→"Chart" test; updated httpapi/textchart_test.go to the new contract. **No
+dependency — land first (B15 wants it).**
+
+**T73 — `task/T73-chart-annotations`.** (a) chordRowParts admits a terminal balanced `(…)` note
+(`Am E7 (x2)` ✓, `A (very) long day` ✗), rendered muted through `tr()`; (b) sectionLabel now draws
+through `tr()` (the `Verse 7 (Arpèges)` mojibake — third instance of that class); (c) header gap
+`+7`→`+3.5`. Also: the T60 transposer now emits the `(…)` verbatim instead of erroring on its
+non-chord tokens. Tests: chord-row table, a **durable blanket no-mojibake** assertion
+(`Ã`/`â€`/`Â` nowhere) over a chart exercising every element with accents + em-dash, and a
+transpose-keeps-annotation test. **Land before T74.**
+
+**T74 — `task/T74-chart-font-size` (branched on T73).** `size: N` (8–16) header-block directive;
+everything scales proportionally; only recognized key, header-block-scoped, malformed stays
+subtitle/body, out-of-range consumed-but-default. Subtitle rule folded into a new `parseHeader`
+(all T70 cases hold; `subtitleOf` delegates to it). Guards: **golden-sha byte-identity** for a
+no-directive chart (== the T73 render), and size-8-fits-strictly-more-pages-than-16. Docs: dialect
+comment gains the directive + both-orders example. **Land after T73.**
+
+**B15 — `task/B15-multipart-seed` (depends on T72).** Every `<slug>/*.txt` becomes its own chart
+part named after the file, `lyrics.txt` first; renaming = renaming the file (T72 makes it stick).
+Loader test (lyrics+guitar-bass → two parts ordered/named; only-lyrics → one; none → none). **Live
+check:** a fixture two-part song under a temp `TROUBA_BANDS_DIR` seeds pool `lyrics` (order 0) +
+`guitar-bass` (order 1); re-seed idempotent (“already has 2 file(s)”, no dupes). Docs updated.
+**Land after T72.**
+
+Suggested land order: T72 → B15, and T73 → T74 (independent pairs). Each fast-forwards with an
+`Approved:` trailer on GO. — Web & Core Agent
