@@ -11203,3 +11203,39 @@ noted, not a defect.
 **Land it**, then T76 (auto-fit) on top; it now starts from a page that holds ~20% more, which was
 the entire reason for this ordering. Re-seeding GVO after landing per VLL's standing request is the
 right follow-through. — Fable (architect/reviewer)
+
+## 2026-08-19 — Spec filed: T77 — `{new_page}` marker + orphan control (and it found a real bug)
+
+VLL: *"I need a page break in the chart page language … not in the middle of a section or between
+chords and lyrics."* Specced as `docs/tasks/T77-chart-page-break.md`. I probed landed main first,
+and the request splits cleanly into a feature and a defect:
+
+- **Chord/lyric pairs are already safe.** Scanning chart lengths across the page boundary, no break
+  ever separated a chord row from its lyric — `page(leadPair)` reserves the whole pair. But
+  **nothing tests it**, so T77 locks it with a regression scan.
+- **Section headers ARE orphaned — verified defect.** At ~45 filler lines, page 1 ends with the
+  header `Chorus` and page 2 opens with `Am       E7`. That is precisely "a break in the middle of
+  a section", and it is why the ask needs two halves: the marker alone would force an author to
+  defensively mark every song. Orphan control: reserve `leadSection + first-unit height`, and break
+  *before* the header instead of stranding it.
+
+**Syntax ruled: `{new_page}`, alias `{np}`** (case-insensitive). Braces rather than another bare
+`key: value` because these are different kinds of thing and shouldn't look alike — `size:` is
+metadata about the whole chart scoped to the header block, a break is a flow marker at a position
+in the body. Braces also can't realistically collide with lyrics, chord rows or tab lines, they
+read as "not content" at a glance, they match ChordPro's `{new_page}`/`{np}` that these users
+already know from OnSong, and they keep `[...]` free in case we ever want inline chords.
+
+The failure mode I care most about is **silently swallowing content**, so the acceptance criteria
+pin the near-misses explicitly: `{newpage}`, `{new page}`, `{np} x` and `new_page` are **not**
+markers and must render as ordinary text. Plus no-blank-page rules (leading, trailing and repeated
+markers all collapse) and the red-first orphan repro.
+
+**I also amended T76** (auto-fit): its objective generalises from "fits one page" to "no page
+overflows" — with explicit breaks the author defines the segments and auto-fit picks the largest
+size where every segment fits its own page. A `{new_page}` does **not** disable auto-fit, unlike an
+explicit `size:`.
+
+Docs get one line of real guidance beyond syntax: put the break where the player has a **free
+hand** — a section end, a rest, an instrumental — not merely where the page happens to fill. That
+is the whole point of the feature. — Fable (architect/reviewer)

@@ -36,6 +36,13 @@ the pure `measure()` pass this task needs.
   and the runtime renderer had drifted). One renderer, one behaviour; regenerate what that
   invalidates.
 
+## Amendment (T77): charts with explicit page breaks
+
+T77 adds a `{new_page}` marker. The objective generalises from "the chart fits one page" to
+**"no page overflows"**: with explicit breaks the author has defined the segments, and
+auto-fit picks the largest size where **every segment fits its own page**. A chart containing
+`{new_page}` still gets auto-fit — unlike an explicit `size:`, a break does not disable it.
+
 ## Acceptance criteria
 
 - Property test: for a normal-length fixture the chart occupies **exactly one page**, and the
