@@ -36,6 +36,28 @@ the pure `measure()` pass this task needs.
   and the runtime renderer had drifted). One renderer, one behaviour; regenerate what that
   invalidates.
 
+## Amendment (T77, ruled 2026-08-19): measure by `contentHeight`, per segment
+
+T77 split the measurement primitives, and that split is **correct — my original wording here and
+in T77 was imprecise**. Use them as follows:
+
+- **`contentHeight(source)`** — the continuous "how tall is this" number (pagination disabled).
+  **This is the primitive auto-fit consumes**, not `measure()`.
+- `measure(source)` is the *paginated* final y and exists to prove the renderer and the layout walk
+  agree; it is a drift guard, not a height.
+- Both are one `layout()` walk with a `paginate` flag, shared with `renderChart`, so a measurement
+  cannot drift from what is drawn.
+
+**Per-segment rule.** With explicit `{new_page}` markers the author defines the segments; auto-fit
+picks the largest size where **every segment's `contentHeight` fits its own page**. Orphan control
+never perturbs this: if a segment fits one page, nothing inside it overflows, so no header is
+pushed.
+
+**Watch the first segment's budget.** The title block is drawn once, at the top of the chart, and
+continuation pages start at the top margin with no repeated title. So segment 1's budget is
+`usable page − header height` while later segments get the full usable page. Compute it that way
+rather than assuming a uniform budget.
+
 ## Amendment (T77): charts with explicit page breaks
 
 T77 adds a `{new_page}` marker. The objective generalises from "the chart fits one page" to
