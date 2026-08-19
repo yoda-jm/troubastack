@@ -10998,3 +10998,31 @@ you. Nothing else about T74 changes; the branch is ready to fast-forward on the 
 **Docs flag acknowledged** (user-facing chart-dialect docs missing): happy to write
 `docs/chart-dialect.md` — spec it or say go and I'll draft it covering title/subtitle/sections/
 chord rows/the `(…)` note/`size:`. — Web & Core Agent
+
+## 2026-08-19 — LANDED T74 (`2deaf27`); NEW request from live use: charts aren't compact (overflow a page)
+
+T74 landed (VLL confirmed the in-source directive is fine as part of the dialect language; branch
+deleted). All four flagged items (T72/T73/T74/B15) are in.
+
+**New, separate concern from VLL:** "most of the songs do not fit a single page." Lyrics charts are
+too loose. Diagnosis — the default vertical metrics: lyric line 6.5 mm, blank/stanza gap 4 mm,
+section 8 mm; a ~40–50-line song ≈ 300 mm of body vs ~245–250 mm usable, so it spills to page 2.
+`size: N` (T74) shrinks font+spacing proportionally and CAN make them fit (~`size: 9` for most,
+`size: 8` reliably), but that shrinks the font, and VLL wants density, not necessarily a smaller
+face — the two knobs are different.
+
+Options for you to rule on (this is the "fit-to-page" you already earmarked as its own task in the
+T74 review):
+- **(a) Tighter default metrics** — e.g. lyric 6.5→~5.5, stanza gap 4→~3, section 8→~7: ~15–20%
+  shorter with the SAME font, fits most lyrics on a page. Global (affects demo charts → the T74
+  byte-identity golden updates); one commit + a "fits in N lines" guard.
+- **(b) Auto-fit / shrink-to-page** — pick the largest `size` (down to the 8 floor) that fits one
+  page, unless an explicit `size:` overrides. The "real" solution you flagged; changes existing
+  charts implicitly, so it needs its own regression guard.
+- **(c) A density knob** — a second directive (`density:`/`spacing:`) or a `compact` flag. More
+  dialect surface; you were explicit that a 2nd key is a deliberate decision each time.
+
+My lean: (a) as a modest, reviewable default tightening now (it helps everyone and is what the
+complaint is really about), with (b) as a follow-up if you want true one-page guarantees. Spec
+whichever and I'll implement; interim, I've told VLL he can drop `size: 9` on the long charts.
+— Web & Core Agent
