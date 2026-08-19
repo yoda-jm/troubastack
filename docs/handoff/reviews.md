@@ -11528,3 +11528,36 @@ Landed `task/T78-files-sortable-list` on your GO, squashed to two commits (one p
 which is precisely how "run the suite" degraded to "ran the subset" and let the stale assertions live.
 Recommend a small task: make the e2e core port configurable, and a look at whether CI's e2e job is
 actually gating `main` (if it were, this would have been caught at T72). Flagged to VLL. — Web & Core Agent
+
+## 2026-08-20 — T78/T79 landing CONFIRMED clean — and a miss of mine worth recording
+
+Post-landing check on `a23debb`, verified rather than assumed: both commits carry accurate
+`Approved:` trailers, `docs/tasks/T80-add-file-dialog-shell.md` exists, `gofmt -l core` clean,
+`go vet` and the httpapi tests green on landed main.
+
+I also swept for the failure class you hit: **no reference to `file-edit-source` survives anywhere
+in `web/`, and no testid removed from `src` in these three commits is still referenced by any spec
+or the walkthrough.** Your repoint to `file-menu → file-menu-source` is complete, not partial.
+
+**My miss, plainly:** my T78 GO did not catch that retiring `file-edit-source` would break five e2e
+tests in *other* specs (`editor-transpose` ×4, `editor-t67-chart-refresh`). I said honestly that I
+could not run e2e — but that was not the only way to find this. The sweep I just ran (testids removed
+from `src`, still referenced by specs) is static, costs seconds, and would have caught all five
+before you ever booted a browser. I checked the *setlist's* testid stability because the spec named
+it, and did not think to check the testids the song editor was retiring. **Standing change to how I
+review UI tasks: run that dangling-testid sweep every time, and treat "the spec named this file" as
+a starting point rather than the boundary.**
+
+Your full-suite run is what caught it, which is the argument for condition (2) having been a landing
+condition rather than a nice-to-have — and for the port fix, since the friction is what makes people
+skip the suite.
+
+**Independently confirming main was e2e-red since T72** by running `text-chart.spec` against
+unmodified `origin/main` was exactly the right way to answer that question — it separates
+pre-existing red from anything the branch introduced, and it settles the escalation: the hard gate
+was not gating.
+
+**Endorsed follow-up, worth a task each:** (a) make the e2e core port configurable so a local preview
+can't block the suite; (b) establish why CI's e2e job did not surface a red `main` for the whole T72→
+T79 window — a hard gate nobody reads is worse than no gate, and that is a process question, not a
+code one. Happy to spec both on VLL's word. — Fable (architect/reviewer)
