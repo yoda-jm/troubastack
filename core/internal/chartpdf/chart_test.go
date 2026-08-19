@@ -2,7 +2,9 @@ package chartpdf
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,5 +247,74 @@ func TestRender_AnnotationsAndAccents(t *testing.T) {
 		if strings.Contains(text, bad) {
 			t.Errorf("mojibake sequence %q in rendered output\n--- got ---\n%s", bad, text)
 		}
+	}
+}
+
+func TestParseHeaderDirectives(t *testing.T) {
+	cases := []struct {
+		name     string
+		src      string
+		wantSub  string
+		wantPt   float64
+		wantSkip []int
+	}{
+		{"size then artist", "# S\nsize: 13\nThe Artist\n\n## V\nx", "The Artist", 13, []int{1, 2}},
+		{"artist then size", "# S\nThe Artist\nsize: 13\n\n## V\nx", "The Artist", 13, []int{1, 2}},
+		{"case-insensitive, no space", "# S\nSize:14\n\n## V\nx", "", 14, []int{1}},
+		{"out of range: ignored but consumed", "# S\nsize: 99\nThe Artist\n\n## V", "The Artist", 11, []int{1, 2}},
+		{"malformed: not a directive, stays subtitle", "# S\nsize: abc\n\n## V", "size: abc", 11, []int{1}},
+		{"plain artist, no directive", "# S\nThe Artist\n\n## V", "The Artist", 11, []int{1}},
+		{"blank after title: no header", "# S\n\n## V\nx", "", 11, nil},
+	}
+	for _, c := range cases {
+		sub, _, pt, skip := parseHeader(strings.Split(c.src, "\n"))
+		if sub != c.wantSub || pt != c.wantPt {
+			t.Errorf("%s: (sub=%q, pt=%v), want (%q, %v)", c.name, sub, pt, c.wantSub, c.wantPt)
+		}
+		if len(skip) != len(c.wantSkip) {
+			t.Errorf("%s: skip=%v, want indices %v", c.name, skip, c.wantSkip)
+		}
+		for _, i := range c.wantSkip {
+			if !skip[i] {
+				t.Errorf("%s: line %d should be skipped from the body", c.name, i)
+			}
+		}
+	}
+}
+
+// A chart with no directive must render byte-identically to before T74 (the scale-1 path). The
+// golden sha is the T73 render of this exact source (verified equal at the gate).
+func TestRender_NoDirectiveByteStable(t *testing.T) {
+	src := "# Café — Live\nBjörk\n\n## Verse 1\nAm E7 (x2)\nVoilà l'été\n\n## Chorus\nSing it\n"
+	b, err := Render(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "0902294f35f6f11b8aa78d653a84e55982c945f4ccbd387901a78a5838ab7a1f"
+	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != want {
+		t.Errorf("no-directive render sha = %s, want %s (output changed vs pre-T74)", got, want)
+	}
+}
+
+func TestSizeDirective_SmallerFitsMore(t *testing.T) {
+	if _, err := exec.LookPath("pdftotext"); err != nil {
+		t.Skip("pdftotext not available")
+	}
+	body := "\n\n" + strings.Repeat("## Verse\nAm\na line of lyric here\n\n", 70)
+	pages := func(src string) int {
+		pdf, err := Render(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Count(pdftotext(t, pdf), "\f") + 1
+	}
+	small, large := pages("# T\nsize: 8"+body), pages("# T\nsize: 16"+body)
+	if small >= large {
+		t.Errorf("size 8 used %d pages, size 16 used %d — smaller must fit strictly more per page", small, large)
+	}
+	s8, _ := Render("# T\nsize: 8" + body)
+	s16, _ := Render("# T\nsize: 16" + body)
+	if bytes.Equal(s8, s16) {
+		t.Error("size 8 and size 16 produced identical bytes — the directive had no effect")
 	}
 }
