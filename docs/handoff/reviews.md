@@ -11333,3 +11333,47 @@ and continuation pages start at the top margin), while later segments get the fu
 uniform budget would make auto-fit pick a size that overflows page 1.
 
 **Land it.** T76 is next and now has an honest measurement substrate to build on. — Fable (architect/reviewer)
+
+## 2026-08-20 — Files section: specced T78 + T79; matrix PARKED; downloads question answered
+
+Design settled with VLL in discussion. Two tasks filed: `docs/tasks/T78-files-list-sortable-rows.md`
+and `docs/tasks/T79-add-file-flow-and-names.md`.
+
+**Matrix (files × members): parked, including the admin-RW variant.** Recording why, so it isn't
+re-litigated from scratch: the UI was never the hard part. It needs (a) a **new server capability** —
+admin writing another member's `my-files`, which is self-only today by the same deliberate choice as
+T50 cues — and (b) a semantic call, since `my-files` is an **ordered** list while a checkbox grid
+only encodes membership. Both are product decisions. If it comes back, my recommendation stands:
+the matrix owns the *set*, the pool owns the *sequence*, and the principled line for the privilege
+is *"which part you play is an ensemble decision; which icons remind you of what is personal."*
+
+**The downloads question — investigated, and it is safe with exactly one touchpoint:**
+
+- `.tband` export names entries `band.json` + `blobs/<hash>` — unaffected;
+- `.tstage` blobs are keyed by song/page/layer + hash — unaffected;
+- Studio's `download=` links are bake artefacts with their own extensions — unaffected;
+- **`webapi.go:920`** serves song-file bytes as `Content-Disposition: inline; filename="<Filename>"`.
+  It is `inline`, so it renders in the viewer rather than downloading — but that name is the hint the
+  browser uses for **Save as** from the PDF viewer. A stripped name would save as `Hotel California`
+  with no extension.
+
+**Decision: strip in storage, re-append at the HTTP boundary** — derive the extension from
+`ContentType` when writing the header. Tidy names in the pool, usable files when saved. T79 pins the
+`x.pdf` → `x.pdf` (never `x.pdf.pdf`) case, since existing names keep their extension (no migration,
+per VLL, consistent with T72).
+
+**Two design points worth flagging in the specs:**
+
+1. **T79 fixes a wart we created.** T72 rightly froze the pool name at create time, but the
+   from-scratch path creates the file while the source still says `# New chart` — so retitling to
+   *Hotel California* leaves the row reading "New chart" **permanently**. The fix is a better
+   default (the song's own title, for both the `# Title` and the pool name), not "follow the title
+   while it's still default", which would reintroduce the clobbering T72 removed.
+2. **T78 adds Move up/down to the row menu** alongside drag. VLL's steer was *"homogeneity first,
+   we'll fix touch later in one single place — think components"*, which the shared-component
+   extraction delivers. The menu items make that deferral **non-blocking** rather than merely
+   postponed: if HTML5 drag turns out to be mouse-only on the tablet, there is already a working
+   reorder path (and a keyboard-reachable one, and one that works on a phone).
+
+T78 is Studio-only; T79 carries a small server change. Both are independent of the chart work
+(T76 auto-fit remains queued). — Fable (architect/reviewer)
