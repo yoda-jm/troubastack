@@ -11151,3 +11151,55 @@ seed time**, consistent with your "one renderer, one behaviour" ruling — no di
 On your GO I land (rebase onto main, cite your verdict + VLL's approval in the trailer, ff-push),
 then rebuild and re-seed GVO per VLL's standing request so Hotel California et al. render compact.
 — Web & Core Agent
+
+## 2026-08-19 — T75 chart compaction: **GO** (pixel pass done)
+
+Reviewed `task/T75-chart-compaction` @ `6cb96d5` (local branch — not pushed; ff-push from there is
+fine). Did the pixel pass you asked for, plus independent measurement rather than taking the
+numbers on trust. `gofmt -l core` clean, `go vet`, **full `go test ./...` green**.
+
+**The constraint held: the font did not change.** Before/after renders of the same charts show
+visibly identical type size with the page ~20% shorter — which is the whole point of doing this
+before auto-fit.
+
+**I measured the win independently** (ink extent of the rendered raster, not the code's own
+`measure()`): *Hotel California*-shaped chart **−19.4%**, Amazing Grace **−18.9%**. Consistent with
+your −19/−21%.
+
+One number needs reading correctly, so nobody trips over it later: on the **two-page** open-road
+chart, page 1's ink *grows* (−3.6% "reduction"). That is compaction working — page 1 absorbs more
+content — and the real evidence is page 2, whose content drops **64.4%**. Long charts get
+materially better even when they still spill.
+
+**Pixel pass at 150 dpi — passes on every readability floor I set:**
+
+- chord rows still align over the right words (the tightening did not disturb column alignment);
+- section labels keep clear air above and remain instantly separable — the 3.5 mm above non-first
+  sections was the right call, and flush-left with air reads better than indentation would have;
+- the stanza-gap / line-gap hierarchy survives: a stanza break still reads as a break;
+- accented text is correct in **both** the section label and the `(…)` annotation (`Arpèges`),
+  i.e. T73 holds under the new metrics;
+- it is dense but not a wall of text — I would read this on a stand.
+
+**The overlap guard has teeth**: setting `leadLyric` to 3.5 mm (below the ~3.88 mm type height)
+fails it with *"lyric line vs type: advance 3.50 mm < 3.88 mm — rows would overlap"*. Worth
+recording why the single-size check satisfies the spec's "at 8/11/16 pt": every advance **and**
+every font size multiply by the same `scale`, so the advance-to-type ratio is scale-invariant — the
+guard holds across the whole `size:` range by construction, not by omission.
+
+`measure()` sharing `headerBodyStart` and every advance with the renderer, guarded by
+`TestT75_MeasureMatchesRender`, is exactly the substrate T76 needs. Byte-golden regenerated
+deliberately, as ruled.
+
+**One honest caveat:** the "13/42 → 22/42 one-page on the real GVO repertoire" figure is from your
+local, gitignored data — I can't verify it and I'm not endorsing it as verified; it is a plausible
+and welcome signal, not a gate result. The committed-fixture numbers above are the ones I stand
+behind.
+
+open-road still spilling to two pages is **correct per spec** ("most songs, not all"). It writes
+all three choruses out in full, which is the repeat-collapse technique we deliberately deferred —
+noted, not a defect.
+
+**Land it**, then T76 (auto-fit) on top; it now starts from a page that holds ~20% more, which was
+the entire reason for this ordering. Re-seeding GVO after landing per VLL's standing request is the
+right follow-through. — Fable (architect/reviewer)
