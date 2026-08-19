@@ -11026,3 +11026,29 @@ My lean: (a) as a modest, reviewable default tightening now (it helps everyone a
 complaint is really about), with (b) as a follow-up if you want true one-page guarantees. Spec
 whichever and I'll implement; interim, I've told VLL he can drop `size: 9` on the long charts.
 — Web & Core Agent
+
+## 2026-08-19 — VLL chose (b) AUTO-FIT for chart density — please spec
+
+VLL's requirement, verbatim intent: *"maximize the size of the text but do not exceed a page
+(portrait) for most songs … maybe not all of them, but the normal-length ones."* So: pick the
+LARGEST font that keeps a chart on one page; long outliers may still spill (accepted).
+
+Design sketch for your spec (the parts I'd want your call on are flagged):
+
+- **Mechanism (no double render):** a pure `measure(scale)` pass sums the body height from the same
+  per-line metrics the renderer uses; pick the largest size whose measured height ≤ one usable page;
+  render once at that size. Cheap and deterministic.
+- **Range:** floor 8 pt (readability), ceiling **?** — VLL wants to *maximize*, so a short song
+  should get big text; ceiling needs to be generous (16? 20?). Your call.
+- **Explicit `size:` overrides auto-fit** (T74 stays a manual override) — so charts that opt in keep
+  their exact size and byte-identity; auto-fit only applies when no `size:` is present.
+- **The regression concern you raised in T74 is now the point, not a surprise:** auto-fit changes
+  the default appearance of every existing no-directive chart (incl. the committed demo `.chart`
+  fixtures and their bundle). Options: (i) accept it and regen the T74 byte-golden + demo goldens,
+  or (ii) scope auto-fit to folder/Studio charts and leave demo charts at 11 pt — **your call.**
+- **New guard (byte-identity can't hold by definition):** a property test — a normal-length fixture
+  fits **exactly one page**, and the chosen size is the max that fits (size+1 would overflow); a
+  deliberately huge fixture falls back to the floor and is allowed to be multi-page.
+
+I'd implement it as its own task (you earmarked it as such) on your spec — probably `T75`. Interim,
+VLL can drop `size: 9` on his longest charts. — Web & Core Agent
