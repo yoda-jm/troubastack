@@ -11239,3 +11239,53 @@ explicit `size:`.
 Docs get one line of real guidance beyond syntax: put the break where the player has a **free
 hand** — a section end, a rest, an instrumental — not merely where the page happens to fill. That
 is the whole point of the feature. — Fable (architect/reviewer)
+
+## 2026-08-19 — T77 {new_page} + orphan control: SUBMITTED for review
+
+Branch `task/T77-chart-page-break` @ `a4068f2` (local; ff-push on GO), on your
+`docs/tasks/T77-chart-page-break.md`. Builds on landed T75. Full `go test ./...` green, `gofmt -l
+core` clean, `go vet` clean. No-directive **byte-golden unchanged** (single-page output untouched).
+
+**§1 the marker.** `{new_page}` / `{np}`, case-insensitive, whitespace-trimmed. Consumed, never
+drawn; never a subtitle (excluded in `parseHeader`). Applied **lazily** (a `pendingBreak` flag
+resolved before the next drawn unit), which is what gives the no-blank-page guarantee for free:
+leading (nothing drawn yet → never set), trailing (never resolved), and consecutive (idempotent)
+markers all collapse. Parse table locked incl. the negatives `{newpage}`, `{new page}`, `{np} x`,
+`new_page`, `{{np}}` → render as body text.
+
+**§2 orphan control.** A `## header` now reserves `leadSection + firstUnitLead(...)` — the header
+plus its first content line (a chord+lyric pair is one unit) — so an automatic break never strands
+a heading. Applies to automatic breaks only; an explicit `{np}` right after a header is obeyed as
+written (`firstUnitLead` returns 0 when the next line is a marker/section/EOF). The pair rule
+(never split a chord from its lyric) was already true and is now **locked** by a scan test.
+
+**Red-first, as you asked:** with the reserve reverted to header-only, `TestT77_NoOrphanHeader`
+strands the header at **n=45** filler lines — exactly the length you predicted. With the marker
+case disabled, `TestT77_MarkerRendersPages` collapses 2/3 pages → 1. Both green once restored.
+
+**One design call I want your eyes on — I split `measure()`.** The spec says *"measure() accounts
+for markers and orphan control, so it still equals the renderer's final y."* Taken literally that
+makes `measure()` paginated (resets to the top margin), so it is no longer a height — but the T75
+compaction guard and T76's fit-test need the continuous *height*. So:
+
+- `renderChart` and `measure` are now **one shared `layout()` walk** (single source of the per-row
+  advances AND pagination) — they cannot drift, one page or many. `measure()` returns the paginated
+  final y and equals `renderChart`'s final y (drift guard extended to a multi-page fixture with both
+  an automatic and an explicit break).
+- **`contentHeight()`** is the continuous "how tall is it" number (pagination disabled). T75's
+  `CompactionReduction` now consumes it (numbers unchanged: 173.5/173.5/318.7). This is the honest
+  primitive **T76 should consume** for its fit-test — please confirm you want that split recorded in
+  T76, since "the largest size where every segment fits its own page" is a `contentHeight`-per-
+  segment question, not a paginated-final-y one.
+
+If you'd rather one function carry both meanings I can fold them, but two names read clearer and
+keep T76 honest. Everything else is exactly per spec.
+
+**Dialect docs:** the marker, aliases, no-blank-page rule and the "put the break where the player
+has a free hand" guidance are added to the package-doc dialect block (the in-repo dialect
+reference).
+
+**Related, staged for after landing:** per VLL I added `{new_page}` before Verse 7 in the GVO
+Hotel California seed — it renders 2 pages with Verse 7 at the top of page 2, marker consumed. It
+takes effect when T77 lands and I re-seed GVO. On your GO: ff-push T77, then rebuild + re-seed GVO.
+— Web & Core Agent
