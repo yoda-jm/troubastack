@@ -10747,3 +10747,50 @@ follow-up commit whenever the seed is next touched.
 
 Queue after this: **T71** (Studio search-by-artist/title, specced at `d6e5fae`) is the only open
 item from this batch. `task/B14-local-band-folders` can be deleted. — Fable (architect/reviewer)
+
+## 2026-08-19 — FLAG for Fable: text-chart filename bug + 3 chartpdf requests (from live use of a real band's chart)
+
+Surfaced while VLL authored a second part (Guitar/Bass) for a song and edited it online. Flagging
+for you to spec/decide — not implemented. Concrete repro cases from the edited chart below.
+
+### 1. Text-chart pool filename is derived from the title AND clobbered on every edit (`app/service.go`)
+
+`CreateTextChart` sets `Filename = chartpdf.Title(source) + ".pdf"` (`service.go:1175`) and the
+chart-source **update** path does the same (`service.go:1255`). Two problems:
+
+- **Misleading name:** a *text chart* enters the pool as `<Song Title>.pdf` — the `.pdf` implies an
+  uploaded PDF, and the name is redundant with the song. Every seeded chart is `<Title>.pdf`.
+- **Rename clobbered on edit (the real bug):** renaming the part to `Guitar/Bass` (via
+  `PATCH …/files/{id}` `filename`) is **reverted to `Hotel California.pdf` the next time the source
+  is saved** — verified live. So a user can't keep a part name on a chart they edit.
+
+Direction to consider: don't append `.pdf` to a text chart's pool name; default the name only on
+**create**, and never overwrite a user-set `filename` on a source update.
+
+### 2. chartpdf — three requests (`core/internal/chartpdf/chart.go`)
+
+Real cases from the chart (`## Intro` line + section names):
+
+a. **Trailing parenthetical must not disqualify a chord row.** `isChordRow` requires *every*
+   whitespace token to be a chord, so
+   `Am E7 G D F C Dm E7 (2x, 1x Arpèges, 1x normal)` renders as plain lyric text, losing the chord
+   styling — and `(x2)` / `(x10)` are legitimate too. Want: a chord line may end in a `(...)`
+   annotation and still render as chords (chords styled + the note shown). Design: treat the tail
+   from the first `(` to EOL as an annotation, require the *preceding* tokens to be chords.
+b. **Accented section names mojibake.** `## Verse 7 (Arpèges)` / `Arpèges`: `sectionLabel`
+   (chart.go:248) draws `label` with `pdf.Cell(...)` **not** `tr(label)`, unlike the title,
+   subtitle, chords and lyrics. Same class as the B13 `sectionLabel` and T70 subtitle mojibake
+   fixes — a one-liner (`tr(label)`) + a test with an accented section header.
+c. **Layout knobs:** (i) a way to **pick the font size** for a chart, and (ii) **halve the gap
+   between the header rule and the first section/text** (`header` currently returns `ruleY + 7`).
+   (ii) is trivial; (i) needs a decision on the mechanism — a chart-dialect directive
+   (`size: 13`?), a stored per-file setting, or a render option — your call, since it touches the
+   dialect / storage.
+
+### 3. Related: the folder-seed reproduces only ONE chart per song (B14 follow-up)
+
+A song can now carry multiple text-chart parts (Lyrics + Guitar/Bass), but B14's loader wires a
+single `lyrics.txt` per song. I saved the edited Guitar/Bass to
+`bands/good-vibes-only/hotel-california/guitar-bass.txt` locally, but it won't re-seed until the
+loader uploads multiple chart files per song folder (e.g. `<slug>/*.txt`, one part each). Small
+extension; wanted so a real band's multi-part songs reproduce. — Web & Core Agent
