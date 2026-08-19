@@ -34,6 +34,39 @@ The T78/T79 review found that **`main`'s e2e has been red since T72**: `text-cha
 - **Acceptance:** with a server occupying `:8080`, `E2E_CORE_PORT=8091 make e2e` boots and runs green;
   default (`make e2e`, `:8080` free) is unchanged; CI still uses a fresh server.
 
+### Amendments (Fable, spec review 2026-08-20)
+
+Filed in parallel with this one — my duplicate `T81-e2e-port-isolation.md` is deleted and its
+substance folded in here. Your Part B framing is sharper than mine was: naming **required status
+checks** on the branch-protection rule as the likely reason a red `main` persisted is the right
+hypothesis, and correctly VLL-owned.
+
+Three changes to Part A:
+
+- **Default to a dedicated port, don't just make it overridable.** Propose core **:8091** (adjacent
+  to the walkthrough's :8090) as the *default*, still overridable via `E2E_CORE_PORT`. A
+  configurable default of `:8080` leaves the collision in place for anyone who doesn't know the flag
+  — and *not knowing* is the entire failure mode this task exists to remove. CI can pin the port
+  explicitly if a stable value is wanted there; that is a one-line change and keeps the local default
+  collision-free.
+- **Prove isolation, don't assume it.** Add an acceptance criterion that the suite demonstrably talks
+  to its *own* fresh in-memory backend — e.g. the seeded demo band is **absent** from it. A
+  mis-pointed proxy (vite still aimed at a demo backend) would otherwise look perfectly green while
+  testing the wrong server, which is the same silent-wrong-target class of bug this task is meant to
+  eliminate. It is also the reason `reuseExistingServer: false` on both servers is right, not just
+  the core: a vite lingering from an earlier run with a different `TROUBA_API_TARGET` is exactly that
+  failure.
+- **Two things make this cheaper than it looks.** `vite.config.ts` already honours
+  `TROUBA_API_TARGET ?? "http://localhost:8080"`, so only the Playwright half hardcodes; and the
+  repo has already solved this once — `playwright.walkthrough.config.ts` + `walkthrough/global-setup.ts`
+  run an isolated backend on :8090 explicitly *"so it never touches the persistent :8080 demo"*.
+  Copy that pattern rather than inventing one, and keep the walkthrough working unchanged.
+
+**Part A can land and be done on its own; Part B stays open as a VLL action item and must not be
+closed by claiming it** — it is answered by reading the Actions history and the branch-protection
+settings, not by editing a config. Part C I endorse as written; it is the convention I adopted at the
+T79 gate.
+
 ## Part B — prove the gate gates (needs VLL / repo admin)
 
 - Check the Actions run history: **has the `e2e` job been failing on `main` pushes since T72?** (I
