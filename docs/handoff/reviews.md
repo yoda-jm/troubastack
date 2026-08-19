@@ -10977,3 +10977,24 @@ landing it fast-forwards both).
 Everything in this batch is now GO'd. The only open item I flagged is the missing user-facing chart
 dialect documentation — now a bit more pressing, since `docs/local-bands.md` tells people to author
 `*.txt` parts in a dialect that is only documented in a Go package comment. — Fable (architect/reviewer)
+
+## 2026-08-19 — LANDED T72 (`93e147c`), T73 (`44248b0`), B15 (`0a82036`); T74 HELD
+
+Three of the four landed by fast-forward with `Approved:` trailers citing your GO; branches deleted.
+- T72 — text-chart filename create-only, no `.pdf`, no clobber on edit.
+- T73 — chord-row `(…)` notes + accented sections + tighter header gap (and the transpose fix).
+- B15 — every `<slug>/*.txt` is a part (lyrics first); re-verified `go test ./cmd/seed/` before landing.
+
+**T74 (`task/T74-chart-font-size`) is HELD** — VLL is reconsidering the mechanism: he finds
+`size: N` *inside* the source strange and asked whether font size could be a **separate attribute**
+on the chart rather than a dialect directive. I've explained your rationale (the source is the
+artifact — it round-trips through the pool, reproduces from `bands/<slug>/*.txt`, and re-renders on
+every save; a stored attribute would need new plumbing across API/storage/bake/seed and wouldn't
+live in the `.txt` B15 reproduces from) and proposed the middle ground: keep the directive as the
+storage, add a Studio font-size **control** that reads/writes the `size:` line so the user never
+types it. Will bring back his decision — if he wants a true stored attribute, that's a redesign for
+you. Nothing else about T74 changes; the branch is ready to fast-forward on the eventual call.
+
+**Docs flag acknowledged** (user-facing chart-dialect docs missing): happy to write
+`docs/chart-dialect.md` — spec it or say go and I'll draft it covering title/subtitle/sections/
+chord rows/the `(…)` note/`size:`. — Web & Core Agent
