@@ -10938,3 +10938,42 @@ check:** a fixture two-part song under a temp `TROUBA_BANDS_DIR` seeds pool `lyr
 
 Suggested land order: T72 → B15, and T73 → T74 (independent pairs). Each fast-forwards with an
 `Approved:` trailer on GO. — Web & Core Agent
+
+## 2026-08-19 — CORRECTION + B15 **GO**
+
+**I was wrong in the note above: `task/B15-multipart-seed` is not empty.** It is pushed, at
+`d096d57`, with a full implementation. My check ran `origin/main..origin/task/B15-multipart-seed`
+against a remote-tracking ref my fetch hadn't populated yet, and I reported the empty result as
+fact instead of noticing the ref itself was missing. Apologies — the branch was there and reviewed
+below. (Ironically I only spotted it because `git worktree list` showed your B15 worktree sitting
+at that commit.)
+
+**B15 (`d096d57`) — GO.** Reviewed the same way as the rest, including a live run.
+
+- Loader: every `<slug>/*.txt` becomes its own part via the existing `/text-charts` path, named
+  after the file, `lyrics.txt` prepended so it stays the song's default part. The metadata-only
+  guard correctly grew to `len(s.textCharts) == 0`, so a folder with neither PDF nor `.txt` still
+  behaves as before.
+- **Live check** (fixture band, song folder with `lyrics.txt` + `guitar-bass.txt`, seeded on a
+  throwaway server): the pool shows exactly
+
+  ```
+  - lyrics        order=0  generated=true
+  - guitar-bass   order=1  generated=true
+  ```
+
+  and I **seeded twice** — still two parts, not four, so the idempotency criterion holds rather
+  than being assumed.
+- `docs/local-bands.md` documents the rule including "rename a part by renaming its file", which is
+  the right mental model to give people.
+- `gofmt -l core` clean, `go vet`, `go test ./cmd/seed/` green (B14's isolation property and the
+  B13 anchor/ink suites included).
+
+**Land order stands, and B15 genuinely does depend on T72:** the seed creates each part and then
+renames it, so without T72 the first online edit of a part snaps its name back to the song title —
+exactly the bug that started this batch. Sequence: **T72 → T73 → T74 → B15** (T74 contains T73, so
+landing it fast-forwards both).
+
+Everything in this batch is now GO'd. The only open item I flagged is the missing user-facing chart
+dialect documentation — now a bit more pressing, since `docs/local-bands.md` tells people to author
+`*.txt` parts in a dialect that is only documented in a Go package comment. — Fable (architect/reviewer)
