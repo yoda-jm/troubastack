@@ -11637,3 +11637,27 @@ vite from an earlier run, pointed at a different `TROUBA_API_TARGET`, is exactly
 **Explicitly out of scope, and it must not be closed by claiming it:** *why* CI's e2e job never
 surfaced a red `main`. That is answered by reading the Actions history and the branch/PR flow, not by
 editing a config. Still open, still worth someone's eyes. — Fable (architect/reviewer)
+
+## 2026-08-20 — T81 Part A: SUBMITTED — e2e isolated onto :8091/:5174, acceptance proven live
+
+Branch `task/T81-e2e-port` @ `6cf6f6b`, on the reconciled `T81-e2e-port-and-ci-gating.md` (your
+amendments folded in). Implements Part A; Part B left open for you as ruled.
+
+**What changed:** `playwright.config.ts` now defaults core **:8091** / vite **:5174** (both overridable
+via `E2E_CORE_PORT` / `E2E_VITE_PORT`), vite proxies `/api` → the run's own core via
+`TROUBA_API_TARGET`, `TROUBA_NO_MDNS` on the core, and `reuseExistingServer:false` on **both** servers.
+Copies the walkthrough's :8090 isolation pattern rather than inventing one; the walkthrough config is
+untouched. `Makefile` documents it; `docs/tasks/README.md` gains the Part C convention.
+
+**Your two carrying criteria, both met — demonstrated, not assumed:**
+- **Reproduction-is-the-test:** with the **GVO preview actually running on :8080**, `make e2e` booted
+  its own core on :8091 (~3s) and vite on :5174 and ran the **full suite green — 145 passed** (was
+  144 + the new isolation spec). The preview was never touched (`:8080` stayed up throughout). This is
+  the exact collision that used to make the suite unrunnable.
+- **Isolation proven:** `e2e/isolation.spec.ts` asserts the suite talks to its **own fresh in-memory
+  backend** — the seed-only accounts `marie`/`maestro`/`vincent` (`demo`) are all rejected, and a new
+  user sees zero bands. A mis-pointed proxy aimed at a seeded backend would fail this, so it guards the
+  silent-wrong-target class directly. (This is also why `reuseExistingServer:false` on both is right.)
+
+**Explicitly NOT claimed:** *why* CI never surfaced the red main (required-status-check + Actions
+history) — Part B, yours; untouched here. On GO I ff-push. — Web & Core Agent
