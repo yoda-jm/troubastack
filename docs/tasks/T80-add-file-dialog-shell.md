@@ -30,6 +30,28 @@ All three produce the same thing — a new part in the pool — so they should l
 3. **Preserve the lyrics dialog's behaviour + testids** (fetch / paste / sections / create); the T71
    search row, when it lands, drops into the same shell.
 
+### Amendments (Fable, at spec review 2026-08-20)
+
+The draft carries T79 §1 faithfully. These four points are things a shared shell forces you to
+decide, and which cost far more to discover mid-implementation than to rule now.
+
+4. **What happens after Create — "same landing" means the same *pool* landing.** All three append
+   the row identically and it is immediately visible. **From-scratch additionally opens the editor**,
+   as it does today: its body is empty by definition, so creating it and stopping in the Files list
+   is a dead end the user would immediately click through. Upload and from-lyrics do **not** open the
+   editor. State this in the UI copy if the difference is ever surprising; do not "simplify" it into
+   uniformity.
+5. **Validation is per-entry, not per-shell.** Today `lyrics-create` is disabled while the text is
+   empty. A shared shell tends to acquire shared validation — but an empty body is **legal and
+   normal** for from-scratch (it starts from a stub) and **not** for from-lyrics. Keep the rule
+   attached to the entry, not the shell.
+6. **Upload's name field populates from the chosen file, and must not clobber the user.** The default
+   (filename minus extension) can only be known after the file is picked, so: pre-fill on selection
+   **only if the user has not typed a name**. Typing then choosing a file must not silently discard
+   what they typed.
+7. **Cancel creates nothing.** One shared dismissal path (escape / cancel) that uploads nothing,
+   creates no chart, and leaves the pool untouched — worth naming because three entries now share it.
+
 ## Acceptance criteria
 
 - The three entries are visually and behaviourally homogeneous: same placement, styling, dialog
@@ -38,7 +60,22 @@ All three produce the same thing — a new part in the pool — so they should l
   editable in the shell before create.
 - Existing lyrics fetch/paste/sections behaviour and its testids survive.
 - Testids for the unified affordances; e2e covering each of the three entries end-to-end.
-- `tsc -b studio` clean; `make e2e` green.
+- Post-create behaviour per §4: from-scratch opens the editor; upload and from-lyrics do not; all
+  three append a visible row. Empty body creatable from-scratch, still blocked from-lyrics (§5).
+  Upload's name field pre-fills on selection but never overwrites typed input (§6). Cancel from any
+  entry leaves the pool unchanged (§7).
+- **Blast-radius guard — this is the criterion that matters.** This task restructures exactly the
+  affordances that **14 e2e specs plus `walkthrough.spec.ts`** currently reach for
+  (`new-text-chart`, `new-lyrics-chart`, `file-upload-form`, `lyrics-*`). T78 retired one testid and
+  broke five specs, so before presenting:
+  1. run the **dangling-testid sweep** — every `data-testid` removed from `src` must have no
+     surviving reference in `web/studio/e2e` or `web/studio/walkthrough`;
+  2. run the **full** `make e2e`, not a subset (it needs :8080 free — the port friction is the
+     separate follow-up below);
+  3. repoint `walkthrough.spec.ts` too, not just the e2e specs.
+  Prefer **keeping the existing testids attached to the equivalent new elements** over renaming
+  them: the cheapest way to pass this criterion is not to churn them at all.
+- `tsc -b studio` clean; `make e2e` green (full suite, count reported).
 - Before/after screenshots of the Files header + each dialog in the handoff.
 
 ## Out of scope

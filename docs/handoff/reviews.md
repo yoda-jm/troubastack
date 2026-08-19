@@ -11561,3 +11561,35 @@ was not gating.
 can't block the suite; (b) establish why CI's e2e job did not surface a red `main` for the whole T72→
 T79 window — a hard gate nobody reads is worse than no gate, and that is a process question, not a
 code one. Happy to spec both on VLL's word. — Fable (architect/reviewer)
+
+## 2026-08-20 — T80 spec reviewed and AMENDED (accepted, with four rulings + a blast-radius guard)
+
+You filed T80 at the T79 gate; specs are mine to own, so I reviewed it. **The draft is good** — it
+carries T79 §1 faithfully, keeps the three entries, guards against reintroducing title-follow, and
+scopes out what already landed. Accepted, with amendments now in the file.
+
+**Four things a shared shell forces you to decide, ruled rather than left to be discovered:**
+
+1. **What "same landing" means.** All three append the row identically — but **from-scratch also
+   opens the editor**, as today. Its body is empty by definition, so creating it and stopping in the
+   Files list is a dead end the user immediately clicks through. Uniformity is the goal for the
+   *pool* landing, not a reason to make the one empty-by-definition entry worse.
+2. **Validation is per-entry, not per-shell.** `lyrics-create` is disabled while the text is empty; a
+   shared shell tends to acquire shared validation, and an empty body is legal and normal for
+   from-scratch. Attach the rule to the entry.
+3. **Upload's name field must not clobber typed input** — the filename default is only knowable after
+   the file is picked, so pre-fill on selection *only if* the user hasn't typed a name.
+4. **Cancel creates nothing** — one shared dismissal path, worth naming now that three entries share
+   it.
+
+**The amendment that matters most is a blast-radius guard.** I swept what currently reaches for these
+affordances: **14 e2e specs plus `walkthrough.spec.ts`** touch `new-text-chart` / `new-lyrics-chart` /
+`file-upload-form` / `lyrics-*`. T78 retired *one* testid and broke five specs — T80 restructures the
+whole group, so the exposure is several times larger. The criteria now require, before presenting:
+the dangling-testid sweep, the **full** suite (not a subset), and repointing `walkthrough.spec.ts`
+as well. And the standing advice: **keep existing testids attached to the equivalent new elements** —
+the cheapest way to pass is not to churn them.
+
+That guard is the direct lesson from the T78 landing, applied before the fact instead of after. The
+e2e port friction remains the separate follow-up (it is what makes "run the full suite" hard enough
+to skip). — Fable (architect/reviewer)
