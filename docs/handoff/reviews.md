@@ -10842,3 +10842,63 @@ part), `lyrics.txt` first. **Depends on T72**, or the seeded names get clobbered
 
 Suggested order: **T72 → T73 → B15**, with **T74** whenever; T73 and T74 both touch chartpdf, so
 sequence them rather than running them in parallel. — Fable (architect/reviewer)
+
+## 2026-08-19 — T72 **GO** · T73 **GO** · T74 **GO** (B15 branch is empty)
+
+Reviewed all three by running them in a clean worktree — probes, teeth checks and a cross-branch
+byte comparison, not just a green suite. `gofmt -l`, `go vet`, package tests green on each.
+
+**T72 (`679b669`) — GO.** The fix is right: the title-derived name is now create-time only (no
+`.pdf`), and the update path leaves `Filename` alone. **Teeth verified** — restoring the deleted
+line makes the new test fail with the exact user-visible symptom:
+
+```
+filename after source edit = "Hotel California.pdf", want Guitar/Bass — the rename must survive
+```
+
+The `textchart_test.go` change is a legitimate expectation update (it now asserts the name is
+*unchanged* after a save whose `# title` differs), not a weakened assertion.
+
+**T73 (`c4a803a`) — GO.** Both reported cases fixed, verified on rendered output:
+`## Verse 7 (Arpèges)` now extracts as `Verse 7 (Arpèges)`, and the blanket scan finds no `Ã`,
+`â€` or `Â` anywhere. Chord classification behaves exactly as specced — the real line and
+`Am E7 (x2)` are chord rows, while `A (very) long day`, a bare `(x2)` and the unbalanced
+`Am E7 (2x` are not. `chordRowParts` preserving the original spacing of the chord portion is the
+right call: chord-over-word alignment is column-based and would have broken silently otherwise.
+
+Beyond the spec, you found and fixed a genuine second bug: an annotated chord row previously made
+`transposeToken` **error the whole transpose**. Good catch, and the verbatim-annotation test is the
+right shape.
+
+One documented consequence, not a defect: `C (spoken)` classifies as a chord row (one chord token
+plus a terminal parenthetical). That is consistent with today's behaviour — a bare `C` line is
+already a chord row — so it is the existing trade-off, not a new one.
+
+**T74 (`850833b`, stacked on T73) — GO.** The directive is scoped as specced and the awkward cases
+are all right: `size: 99` is ignored **but consumed**, while `size: abc` is *not* a directive and
+stays the subtitle — that distinction was the easy thing to get wrong and the tests pin both.
+`Foo: Bar` remains a subtitle, so no collision.
+
+Two things I checked rather than assumed:
+
+1. **The byte-identical guard is real.** I rendered the same four charts (plain, subtitled,
+   `Foo: Bar`, annotated chord row) on T73 and on T74 and compared SHA-256 — **identical on every
+   one**. A chart with no directive is untouched by this task.
+2. **T70 was generalized, not weakened.** The subtitle rule moved from "the line at `titleIndex+1`,
+   followed by blank/`##`/EOF" to "the single non-directive line in the header block". I walked
+   T70's cases through the new rule — chord-row candidate, two-line block, blank-then-lyric,
+   EOF — and they all land where T70 requires. Both directive orders produce byte-identical PDFs.
+
+**Land order:** T72 (independent) then T73, then T74 — T74 contains `c4a803a`, so landing it
+fast-forwards both. Each with an `Approved:` trailer.
+
+**Two notes, neither blocking:**
+
+- **`task/B15-multipart-seed` has no commits beyond main** — an empty branch. It depends on T72
+  anyway, so it is correctly sequenced after it; just flagging in case you thought it was pushed.
+- **The chart dialect has no user-facing documentation.** It lives in the chartpdf package comment,
+  which is fine for us and invisible to the people who now author charts: the Studio lyrics dialog
+  and, since B14, `bands/<slug>/*.txt`. `size: 13` is undiscoverable there. Worth a short
+  `docs/chart-dialect.md` (or a section in `docs/local-bands.md`, which already gestures at
+  "the chart dialect") covering title, subtitle, sections, chord rows, the new `(…)` note and the
+  directive. Say the word and I'll spec it. — Fable (architect/reviewer)
