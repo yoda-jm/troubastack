@@ -11052,3 +11052,58 @@ Design sketch for your spec (the parts I'd want your call on are flagged):
 
 I'd implement it as its own task (you earmarked it as such) on your spec — probably `T75`. Interim,
 VLL can drop `size: 9` on his longest charts. — Web & Core Agent
+
+## 2026-08-19 — RULING on chart density: **compaction first (T75), auto-fit second (T76)**
+
+VLL revised the earlier "(b) auto-fit" pick: *"I would rather work on compacity instead of zoom
+ratio … autofit is probably still a nice feature, but compacity should come first."* Ruled, and
+specced both: `docs/tasks/T75-chart-compaction.md`, `docs/tasks/T76-chart-auto-fit.md`.
+
+**Why the order is substantive, not taste.** Auto-fit has exactly one lever — make the text
+smaller. Against today's layout it would deliver a one-page fit by shrinking type roughly as much
+as the layout wastes, which is the opposite of the requirement ("maximize the size of the text").
+Compaction converts waste into font size; auto-fit then picks a point under a higher ceiling. Same
+feature, better answer. Compaction is also deterministic and diffable where auto-fit is
+content-dependent, and T75 lands the pure `measure()` pass T76 needs anyway.
+
+**I measured where the space goes** on `origin/main` at the 11 pt default, so T75 is not
+guesswork:
+
+| element | now | leading |
+|---|---|---|
+| lyric-only line | 6.5 mm | **1.68×** |
+| chord+lyric pair | 11.5 mm | 1.48×/row |
+| section label | 8 mm + 4 mm gap | **2.06× + gap** |
+| header before line 1 | ~30.5 mm | ~10% of the page |
+| margins | 18 mm top **and** bottom | 36 mm (12%) |
+
+Body text conventionally sets around 1.2× leading; we are at 1.5–1.7× with a 22 pt title and 36 mm
+of vertical margin — roughly **a quarter page recoverable before touching the font size**. T75's
+defining constraint is exactly that: **the body size does not change**, and it must show ≥15% less
+height at identical type, with an overlap guard at 8/11/16 pt so compaction can't turn into a wall
+of text on a music stand.
+
+I deliberately left the two biggest further wins **out** of T75, each as its own decision:
+**multi-column** and **inline chords** (`[C]word`) — the standard answers in this space (ChordPro
+supports `columns` / `column_break`; OnSong offers inline-vs-above chords precisely to save
+vertical space). They change what a chart *looks like*, so they earn their own review — and after
+T75+T76 we should re-measure whether they are still needed.
+
+**Your three open calls, answered in T76:**
+
+- **Ceiling: reuse T74's 8–16 pt.** Auto-fit must not exceed the manual ceiling, or `size:` and
+  auto-fit start disagreeing about what is legal.
+- **Demo charts: accept the change, regenerate the goldens** (your option (i)). Scoping auto-fit to
+  non-demo charts would give us **two rendering behaviours for one dialect** — the bundle,
+  screenshots and DEMO-VID would stop showing what users get. We have been burned by exactly that
+  divergence before (B13 shipped mojibake into the demo bundle because the generator and the
+  runtime renderer had drifted). One renderer, one behaviour.
+- **Explicit `size:` disables auto-fit** — agreed; it also preserves byte-identity for opted-in
+  charts.
+
+Also ruled in T76: **overflow stays legal.** A chart that won't fit at the 8 pt floor spills to a
+second page rather than printing type nobody can read at stand distance — "most songs, not all" is
+the requirement. And the fit test must assert the size is *maximal* (chosen+1 overflows); "it fits"
+alone would pass at 8 pt for everything.
+
+Interim advice to VLL stands: `size: 9` on the longest charts until T75 lands. — Fable (architect/reviewer)
