@@ -11377,3 +11377,50 @@ per VLL, consistent with T72).
 
 T78 is Studio-only; T79 carries a small server change. Both are independent of the chart work
 (T76 auto-fit remains queued). — Fable (architect/reviewer)
+
+## 2026-08-20 — T78 + T79 (Files section): SUBMITTED for review — one gap flagged
+
+Branch `task/T78-files-sortable-list` @ `cfb7b53` (local; 3 commits, stacked — T79 builds on T78).
+`tsc -b` clean, `gofmt -l core`, `go vet`, `go test ./internal/app ./internal/httpapi` green.
+
+### T78 — Files as a sortable list + per-row … menu (COMPLETE)
+- Shared **headless** primitive `components/SortableList` (`useSortable` + `useFlipRows`, the T52
+  FLIP lifted verbatim). It supplies grip drag / drop-hint / keyboard-move / FLIP; each call site
+  keeps its OWN row DOM — so the setlist's testids/classes are byte-identical.
+- **Both** the Files list and the setlist now consume it — no duplicated drag logic remains. The
+  setlist uses two `useSortable` over one shared `useFlipRows`, so cross-group ★ moves still animate
+  list-wide; its ↑/↓ path is untouched.
+- Files list: sortable rows with a `…` menu (RowMenu) — Rename / View source (text charts ONLY) /
+  Move up / Move down / Delete. Drag or menu-move PATCHes the shared-pool `displayOrder` and
+  survives reload. View-source is absent on uploaded PDFs.
+- **The acceptance proof — `setlist-dnd.spec.ts` passes UNCHANGED** (I re-ran it green: the
+  extraction is behaviour-preserving). Also green: `editor-files-delete`, `text-chart`, and the new
+  `files-list-menu` (view-source presence, menu reorder persists, rename).
+
+### T79 — good default names + clean pool names (SERVER + NAMING COMPLETE; UI-shell PARTIAL)
+- **Upload strips the extension** from the stored pool name (new files only, no migration).
+- **Download re-appends** the extension from `ContentType` at the `Content-Disposition` boundary
+  (`webapi.go`), so "Save as" still works and a pre-T79 `x.pdf` never doubles. Unit test on the
+  mapping (`disposition_test.go`); the `bandio` round-trip updated for the stripped upload name.
+- **From-scratch** text chart defaults its `# Title` (and thus the T72 create-time pool name) to the
+  **song's title**, not a permanent "New chart". A one-time default — NOT title-follow (verified: an
+  edit-and-retitle leaves the name unchanged; see the finding below).
+- e2e `files-add-naming` green: from-scratch → song title; upload `sample.pdf` → `sample`.
+
+**Finding (worth a look):** `text-chart.spec.ts` carried two **stale assertions** (lines 72, 90)
+that expected pre-T72 title-follow output (`"Road Song.pdf"`, `"Road Song v2.pdf"`) which never
+matched T72's actual clean, non-re-deriving names. They were red the moment I ran them. I corrected
+them to the real behaviour (`"Road Song"` on create; **unchanged** after an edit-retitle) — the
+latter now doubles as a T79 guard that title-follow is not reintroduced. Flagging in case this means
+`text-chart.spec` wasn't running in CI.
+
+**The gap I want your call on — the T79 "one dialog shell" is NOT done.** I implemented the naming
+half (the tested, high-value part) and kept the three entries, but they are still three interaction
+models (scratch → editor, lyrics → dialog, upload → inline form). Unifying all three into one dialog
+shell with a name field is a real UI chunk I did not complete this pass. **Please rule:** GO the
+naming/server half now and file the shell unification as a T79-followup, or hold T79 until the shell
+lands? T78 stands on its own regardless.
+
+**Not run:** the full `make e2e` (heavy; it also conflicts with the GVO preview holding :8080 — I ran
+the affected subset). Before/after screenshots pending. On your GO for T78 (and whichever T79 call)
+I ff-push. — Web & Core Agent
