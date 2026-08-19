@@ -66,7 +66,8 @@ test("editing a chart re-renders the viewer with no manual refresh (T67)", async
 
   // Edit the source and Save chart → re-renders in place at revision 2.
   await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-edit-source").click();
+  await page.getByTestId("file-menu").click();
+  await page.getByTestId("file-menu-source").click();
   await expect(page.getByTestId("chart-source")).toHaveValue(/Road Song/);
   await page.getByTestId("chart-source").fill("# Road Song v2\n\n## Chorus\na different second render\n");
   await page.getByTestId("chart-save").click();

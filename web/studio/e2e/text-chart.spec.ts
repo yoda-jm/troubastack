@@ -80,7 +80,8 @@ test("write a text chart → it enters the pool as a generated PDF, editable in 
 
   // Edit the source and re-save: re-renders in place — still exactly one file, and
   // the download name follows the new title.
-  await page.getByTestId("file-edit-source").click();
+  await page.getByTestId("file-menu").click();
+  await page.getByTestId("file-menu-source").click();
   await expect(page.getByTestId("chart-source")).toHaveValue(/Road Song/);
   await page.getByTestId("chart-source").fill("# Road Song v2\n\n## Chorus\nsing it loud\n");
   await page.getByTestId("chart-save").click();

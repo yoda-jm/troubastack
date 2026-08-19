@@ -5,7 +5,7 @@
  * running-order list whose per-song overrides open in an inline editor, and a
  * distinct "Bench (on call)" section (T23).
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ApiError,
@@ -20,6 +20,12 @@ import {
 import { ErrorBanner } from "../components/ErrorBanner";
 import { CueGlyph } from "../components/CueGlyphs";
 import { AudienceTag } from "../components/AudienceTag";
+import {
+  useFlipRows,
+  useSortable,
+  type GripProps,
+  type SortableRowProps,
+} from "../components/SortableList";
 import { BakeDialog } from "./BakeDialog";
 
 export function SetlistDetail() {
@@ -428,52 +434,10 @@ function SetlistMeta({
   );
 }
 
-// T52 — FLIP reorder motion. Rows register their element by id into ONE map (both the
-// running-order and bench lists), so on each commit we measure every tracked row, and
-// for any that moved we apply the inverse translate then transition it to zero — drag,
-// ↑/↓, and ★ cross-group moves all animate uniformly, dependency-free, on every
-// browser. `prefers-reduced-motion` skips the transforms (instant, as before).
 // keyRe: a bare musical key, for the T60 transpose-checkbox greying (UX only — the
 // transpose algorithm lives on the server). Mirrors app.TransposeEligible / ParseKey.
+// (FLIP reorder motion now lives in the shared components/SortableList — useFlipRows.)
 const keyRe = /^[A-G](#|b)?m?$/;
-
-const FLIP_MS = 200;
-function useFlipRows(dep: unknown): (id: string, el: HTMLElement | null) => void {
-  const els = useRef(new Map<string, HTMLElement>());
-  const prev = useRef(new Map<string, DOMRect>());
-  const register = useCallback((id: string, el: HTMLElement | null) => {
-    if (el) els.current.set(id, el);
-    else els.current.delete(id);
-  }, []);
-  useLayoutEffect(() => {
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    const next = new Map<string, DOMRect>();
-    els.current.forEach((el, id) => next.set(id, el.getBoundingClientRect()));
-    if (!reduce) {
-      next.forEach((r, id) => {
-        const p = prev.current.get(id);
-        if (!p) return; // newly mounted row — nothing to animate from
-        const dx = p.left - r.left;
-        const dy = p.top - r.top;
-        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-        const el = els.current.get(id);
-        if (!el) return;
-        // Invert: jump back to the old position with no transition…
-        el.style.transition = "none";
-        el.style.transform = `translate(${dx}px, ${dy}px)`;
-        el.getBoundingClientRect(); // force reflow so the jump is applied before playing
-        // …then play forward to the natural position.
-        requestAnimationFrame(() => {
-          el.style.transition = `transform ${FLIP_MS}ms ease`;
-          el.style.transform = "";
-        });
-      });
-    }
-    prev.current = next;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dep]);
-  return register;
-}
 
 function Items({
   bandId,
@@ -562,43 +526,27 @@ function Items({
     }
   }
 
-  // Drag-to-reorder within a group (the grip handle is the drag source; each row is
-  // a drop target). Same group only — cross-group moves use the ★ / "To order"
-  // buttons. The ↑/↓ buttons remain as a keyboard/fallback path.
-  const dragRef = useRef<{ group: "main" | "bench"; index: number } | null>(null);
-  function onDragStart(group: "main" | "bench", index: number) {
-    dragRef.current = { group, index };
-  }
-  // Only the dragged item's own group is a valid drop zone (cross-group moves use
-  // ★ / "To order"). Used to gate both the drop and its highlight.
-  function canDrop(group: "main" | "bench") {
-    return dragRef.current?.group === group;
-  }
-  async function onDropRow(group: "main" | "bench", to: number) {
-    const d = dragRef.current;
-    dragRef.current = null;
-    if (!d || d.group !== group || d.index === to) return;
-    const arr = group === "main" ? main.slice() : bench.slice();
-    const [moved] = arr.splice(d.index, 1);
-    // The drop hint is the top border of the hovered row (= "land above this
-    // row"). After removing the dragged item, a target BELOW the source shifted up
-    // by one, so insert at to-1 to land where the hint shows; a target above keeps
-    // its index. Without this, downward drops land one slot too low.
-    const insertAt = d.index < to ? to - 1 : to;
-    arr.splice(insertAt, 0, moved);
-    const full = group === "main" ? [...arr, ...bench] : [...main, ...arr];
-    setError(null);
-    try {
-      await api.reorderSetlist(
-        bandId,
-        setlistId,
-        full.map((i) => i.id),
-      );
-      await reload();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to reorder");
-    }
-  }
+  // Drag-to-reorder within a group, via the shared useSortable primitive (T78). The grip is the drag
+  // source, each row a drop target; same-group only (two independent sortables, so hovering the
+  // OTHER group is a no-op — cross-group moves stay on ★ / "To order"). One shared registerRow keeps
+  // FLIP list-wide across both groups. onReorder sends the FULL order (ReorderSetlist rewrites every
+  // position); the ↑/↓ buttons keep their own `move` path.
+  const mainIds = main.map((it) => it.id);
+  const benchIds = bench.map((it) => it.id);
+  const persist = useCallback(
+    async (orderedIds: string[]) => {
+      setError(null);
+      try {
+        await api.reorderSetlist(bandId, setlistId, orderedIds);
+        await reload();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to reorder");
+      }
+    },
+    [bandId, setlistId, reload],
+  );
+  const mainSort = useSortable(mainIds, (ids) => persist([...ids, ...benchIds]), registerRow);
+  const benchSort = useSortable(benchIds, (ids) => persist([...mainIds, ...ids]), registerRow);
 
   return (
     <section className="panel">
@@ -626,13 +574,12 @@ function Items({
               index={i}
               count={main.length}
               cues={cuesBySong.get(item.songId)}
-              registerRef={registerRow}
+              rowProps={mainSort.rowProps(i)}
+              gripProps={mainSort.gripProps(i)}
+              dragOver={mainSort.isDragOver(i)}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
-              onDragStart={onDragStart}
-              onDropRow={onDropRow}
-              canDrop={canDrop}
               reload={reload}
             />
           ))}
@@ -663,13 +610,12 @@ function Items({
               index={i}
               count={bench.length}
               cues={cuesBySong.get(item.songId)}
-              registerRef={registerRow}
+              rowProps={benchSort.rowProps(i)}
+              gripProps={benchSort.gripProps(i)}
+              dragOver={benchSort.isDragOver(i)}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
-              onDragStart={onDragStart}
-              onDropRow={onDropRow}
-              canDrop={canDrop}
               reload={reload}
             />
           ))}
@@ -715,11 +661,10 @@ function ItemRow({
   onMove,
   onRemove,
   onSetOnCall,
-  onDragStart,
-  onDropRow,
-  canDrop,
+  rowProps,
+  gripProps,
+  dragOver,
   reload,
-  registerRef,
 }: {
   group: "main" | "bench";
   label: string;
@@ -732,14 +677,12 @@ function ItemRow({
   onMove: (group: "main" | "bench", index: number, dir: -1 | 1) => void;
   onRemove: (itemId: string) => void;
   onSetOnCall: (itemId: string, onCall: boolean) => void;
-  onDragStart: (group: "main" | "bench", index: number) => void;
-  onDropRow: (group: "main" | "bench", index: number) => void | Promise<void>;
-  canDrop: (group: "main" | "bench") => boolean;
+  rowProps: SortableRowProps;
+  gripProps: GripProps;
+  dragOver: boolean;
   reload: () => Promise<void>;
-  registerRef: (id: string, el: HTMLElement | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
   const [keyOverride, setKeyOverride] = useState(item.keyOverride ?? "");
   const [tempoOverride, setTempoOverride] = useState(
     item.tempoOverride != null && item.tempoOverride !== 0 ? String(item.tempoOverride) : "",
@@ -792,37 +735,19 @@ function ItemRow({
 
   return (
     <div
-      ref={(el) => registerRef(item.id, el)}
+      ref={rowProps.ref}
       className={`row${editing ? " editing" : ""}${dragOver ? " drag-over" : ""}`}
       data-testid={group === "bench" ? "bench-row" : "item-row"}
-      onDragOver={(e) => {
-        if (!canDrop(group)) return; // cross-group hover: not a drop target, no hint
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        setDragOver(true);
-      }}
-      onDragLeave={(e) => {
-        // Only clear when the pointer truly leaves the row — dragleave also fires when
-        // it crosses a CHILD (grip, buttons, cue chips) still inside the row, which
-        // made the blue hint flicker (T52).
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-        void onDropRow(group, index);
-      }}
+      onDragOver={rowProps.onDragOver}
+      onDragLeave={rowProps.onDragLeave}
+      onDrop={rowProps.onDrop}
     >
       <span
         className="grip"
-        draggable
         data-testid="item-grip"
         title="Drag to reorder"
         aria-label="Drag to reorder"
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          onDragStart(group, index);
-        }}
+        {...gripProps}
       >
         ⠿
       </span>

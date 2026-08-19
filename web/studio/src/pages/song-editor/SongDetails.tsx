@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiError, api, type Song, type SongFile } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
+import { RowMenu, RowMenuItem } from "../../components/RowMenu";
+import { useFlipRows, useSortable } from "../../components/SortableList";
 import { normalizeLyrics, detectSections } from "./lyrics";
 import { tokenizeChartLine } from "./chartHighlight";
 
@@ -270,21 +272,36 @@ export function Files({
     }
   }
 
-  async function move(index: number, dir: -1 | 1) {
-    const other = index + dir;
-    if (other < 0 || other >= files.length) return;
-    const a = files[index];
-    const b = files[other];
-    setError(null);
-    try {
-      // Swap display orders.
-      await api.updateFile(bandId, songId, a.id, { displayOrder: b.displayOrder });
-      await api.updateFile(bandId, songId, b.id, { displayOrder: a.displayOrder });
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to reorder");
-    }
-  }
+  // Persist a new pool order (from drag or the …-menu move): PATCH displayOrder only for the files
+  // whose position actually changed, then reload. This is the SHARED pool order (T78) — distinct
+  // from each member's personal my-files order, which this does not touch.
+  const persistOrder = useCallback(
+    async (orderedIds: string[]) => {
+      const byId = new Map(files.map((f) => [f.id, f]));
+      setError(null);
+      try {
+        await Promise.all(
+          orderedIds.map((id, i) => {
+            const f = byId.get(id);
+            return f && f.displayOrder !== i
+              ? api.updateFile(bandId, songId, id, { displayOrder: i })
+              : null;
+          }),
+        );
+        await load();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to reorder");
+      }
+    },
+    [files, bandId, songId, load],
+  );
+
+  const flip = useFlipRows(files);
+  const sortable = useSortable(
+    files.map((f) => f.id),
+    persistOrder,
+    flip,
+  );
 
   return (
     <section className="panel">
@@ -355,20 +372,39 @@ export function Files({
             No files yet — upload a PDF or image, or create a text chart.
           </p>
         ) : (
-          <div className="file-grid" data-testid="files-list">
-            {files.map((f, i) => (
-              <div key={f.id} className={`file${f.generated ? " gen" : ""}`} data-testid="file-row">
-                <div className="ftop">
+          <div className="files-rows" data-testid="files-list">
+            {files.map((f, i) => {
+              const row = sortable.rowProps(i);
+              return (
+                <div
+                  key={f.id}
+                  ref={row.ref}
+                  className={`file-row${f.generated ? " gen" : ""}${sortable.isDragOver(i) ? " drag-over" : ""}`}
+                  data-testid="file-row"
+                  onDragOver={row.onDragOver}
+                  onDragLeave={row.onDragLeave}
+                  onDrop={row.onDrop}
+                >
+                  <span
+                    className="grip"
+                    data-testid="file-grip"
+                    title="Drag to reorder"
+                    aria-label="Drag to reorder"
+                    {...sortable.gripProps(i)}
+                  >
+                    ⠿
+                  </span>
                   <div className="thumb" aria-hidden="true">
                     {f.generated ? "✎" : f.contentType.startsWith("image/") ? "🖼" : "♪"}
                   </div>
-                  <div style={{ minWidth: 0 }}>
+                  <div className="fmain">
                     <a
                       href={api.fileUrl(f.id, f.revision)}
                       target="_blank"
                       rel="noreferrer"
                       className="fname"
                       data-testid="file-download"
+                      draggable={false}
                     >
                       {f.filename}
                     </a>
@@ -379,53 +415,65 @@ export function Files({
                       text chart
                     </span>
                   )}
+                  <RowMenu testId="file-menu" label="File actions">
+                    {(close) => (
+                      <>
+                        <RowMenuItem
+                          testId="file-menu-rename"
+                          onClick={() => {
+                            close();
+                            void rename(f);
+                          }}
+                        >
+                          Rename
+                        </RowMenuItem>
+                        {f.generated && (
+                          <RowMenuItem
+                            testId="file-menu-source"
+                            onClick={() => {
+                              close();
+                              void editChartSource(f);
+                            }}
+                          >
+                            View source
+                          </RowMenuItem>
+                        )}
+                        <RowMenuItem
+                          testId="file-menu-up"
+                          disabled={!sortable.canMoveUp(i)}
+                          onClick={() => {
+                            close();
+                            sortable.move(i, -1);
+                          }}
+                        >
+                          Move up
+                        </RowMenuItem>
+                        <RowMenuItem
+                          testId="file-menu-down"
+                          disabled={!sortable.canMoveDown(i)}
+                          onClick={() => {
+                            close();
+                            sortable.move(i, 1);
+                          }}
+                        >
+                          Move down
+                        </RowMenuItem>
+                        <RowMenuItem
+                          testId="file-menu-delete"
+                          danger
+                          onClick={() => {
+                            close();
+                            void remove(f);
+                          }}
+                        >
+                          Delete
+                        </RowMenuItem>
+                      </>
+                    )}
+                  </RowMenu>
                 </div>
-                <div className="facts">
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    data-testid="file-up"
-                    title="Move up"
-                    disabled={i === 0}
-                    onClick={() => move(i, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    data-testid="file-down"
-                    title="Move down"
-                    disabled={i === files.length - 1}
-                    onClick={() => move(i, 1)}
-                  >
-                    ↓
-                  </button>
-                  {f.generated && (
-                    <button
-                      type="button"
-                      className="btn-sm"
-                      data-testid="file-edit-source"
-                      onClick={() => void editChartSource(f)}
-                    >
-                      Edit source
-                    </button>
-                  )}
-                  <button type="button" className="btn-sm" data-testid="file-rename" onClick={() => rename(f)}>
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    data-testid="file-delete"
-                    title="Delete"
-                    onClick={() => remove(f)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

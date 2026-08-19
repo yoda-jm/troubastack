@@ -417,9 +417,10 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   mark("S10");
   await soft("transpose", async () => {
     await openDetails(page);
-    const editSrc = page.getByTestId("file-edit-source").first();
-    if (await has(editSrc)) {
-      await editSrc.click();
+    const fileMenu = page.getByTestId("file-menu").first();
+    if (await has(fileMenu)) {
+      await fileMenu.click();
+      await page.getByTestId("file-menu-source").first().click();
       await beat(page, 1);
     }
     const key = page.getByTestId("transpose-target-key");
