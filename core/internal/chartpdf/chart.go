@@ -100,16 +100,18 @@ func Render(source string) ([]byte, error) {
 			continue
 		case strings.HasPrefix(trimmed, "## "):
 			page(9)
-			y = sectionLabel(pdf, y, strings.TrimSpace(trimmed[3:]))
+			y = sectionLabel(pdf, tr, y, strings.TrimSpace(trimmed[3:]))
 		case trimmed == "":
 			y += 4 // paragraph gap
 		case isChordRow(trimmed) && i+1 < len(lines) && isLyric(lines[i+1]):
 			page(12)
-			y = chordLine(pdf, tr, y, line, strings.TrimRight(lines[i+1], " \t"))
+			ch, an, _ := chordRowParts(line)
+			y = chordLine(pdf, tr, y, ch, an, strings.TrimRight(lines[i+1], " \t"))
 			i++ // consumed the lyric line
 		case isChordRow(trimmed):
 			page(6)
-			y = chordLine(pdf, tr, y, line, "")
+			ch, an, _ := chordRowParts(line)
+			y = chordLine(pdf, tr, y, ch, an, "")
 		default:
 			page(6)
 			y = textLine(pdf, tr, y, line)
@@ -148,19 +150,46 @@ func firstTitle(lines []string) string {
 	return "Chart"
 }
 
-// isChordRow reports whether every whitespace-separated token on the line is a
-// chord (so the line is a chord row, not lyrics).
+// isChordRow reports whether a line is a chord row (all leading tokens are chords, with an
+// optional trailing "(…)" performance note).
 func isChordRow(s string) bool {
-	fields := strings.Fields(s)
-	if len(fields) == 0 {
-		return false
+	_, _, ok := chordRowParts(s)
+	return ok
+}
+
+// chordRowParts splits a chord row into its chord portion (original spacing preserved, for
+// chord-over-word alignment) and an optional terminal "(…)" annotation. ok is true iff the tokens
+// BEFORE the first "(" are non-empty and all chords, and — when a "(" is present — the line ends
+// with ")". So `Am E7 (x2)` and `Am E7 G (2x, 1x Arpèges)` are chord rows, while `A (very) long
+// day` is not (it doesn't end in ")") and `(x2)` alone is not (no chords precede it).
+func chordRowParts(s string) (chords, annot string, ok bool) {
+	t := strings.TrimRight(s, " \t")
+	if strings.TrimSpace(t) == "" {
+		return "", "", false
 	}
-	for _, f := range fields {
+	idx := strings.IndexByte(t, '(')
+	if idx < 0 {
+		for _, f := range strings.Fields(t) {
+			if !chordToken.MatchString(f) {
+				return "", "", false
+			}
+		}
+		return t, "", true
+	}
+	if !strings.HasSuffix(t, ")") {
+		return "", "", false
+	}
+	chords = strings.TrimRight(t[:idx], " \t")
+	cf := strings.Fields(chords)
+	if len(cf) == 0 {
+		return "", "", false
+	}
+	for _, f := range cf {
 		if !chordToken.MatchString(f) {
-			return false
+			return "", "", false
 		}
 	}
-	return true
+	return chords, strings.TrimSpace(t[idx:]), true
 }
 
 // isLyric reports whether a line can serve as the lyric under a chord row: it is
@@ -207,7 +236,7 @@ func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string) floa
 	}
 	pdf.SetLineWidth(0.3)
 	pdf.Line(margin, ruleY, right, ruleY)
-	return ruleY + 7
+	return ruleY + 3.5 // T73: halve the gap under the rule so the first section sits closer
 }
 
 // subtitleOf returns the chart's subtitle (artist) and its line index, or ("", -1). Rule:
@@ -241,21 +270,28 @@ func subtitleOf(lines []string) (string, int) {
 }
 
 // sectionLabel prints a section header (e.g. "Verse 1") and returns the next y.
-func sectionLabel(pdf *fpdf.Fpdf, y float64, label string) float64 {
+func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label string) float64 {
 	pdf.SetFont("Helvetica", "B", 11)
 	pdf.SetTextColor(150, 90, 30)
 	pdf.SetXY(margin, y)
-	pdf.Cell(0, 6, label)
+	pdf.Cell(0, 6, tr(label)) // T73: through tr() like every other string — an accented section name must not mojibake
 	pdf.SetTextColor(0, 0, 0)
 	return y + 8
 }
 
 // chordLine prints a monospaced blue chord row and the lyric beneath it.
-func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, lyric string) float64 {
+func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot, lyric string) float64 {
 	pdf.SetFont("Courier", "B", 11)
 	pdf.SetTextColor(20, 60, 150)
 	pdf.SetXY(margin, y)
-	pdf.Cell(0, 5, tr(chords))
+	pdf.CellFormat(pdf.GetStringWidth(tr(chords)), 5, tr(chords), "", 0, "L", false, 0, "")
+	if annot != "" {
+		// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
+		// play, so render it muted + non-chord, on the same line after the chords.
+		pdf.SetFont("Helvetica", "I", 10)
+		pdf.SetTextColor(120, 120, 120)
+		pdf.CellFormat(0, 5, "  "+tr(annot), "", 0, "L", false, 0, "")
+	}
 	pdf.SetTextColor(0, 0, 0)
 	if lyric != "" {
 		pdf.SetFont("Courier", "", 11)

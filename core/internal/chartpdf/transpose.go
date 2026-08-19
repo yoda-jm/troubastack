@@ -200,6 +200,13 @@ func transposeChordRow(line string, interval int, flat bool) (string, error) {
 		for i < len(runes) && !unicode.IsSpace(runes[i]) {
 			i++
 		}
+		if runes[start] == '(' {
+			// T73: the terminal "(…)" performance note — prose, never transposed. Emit its
+			// leading whitespace + the rest of the line verbatim and stop.
+			b.WriteString(string(ws))
+			b.WriteString(string(runes[start:]))
+			break
+		}
 		out, err := transposeToken(string(runes[start:i]), interval, flat)
 		if err != nil {
 			return "", err

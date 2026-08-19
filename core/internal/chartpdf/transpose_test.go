@@ -438,3 +438,19 @@ func pitchClasses(src string) []string {
 	}
 	return out
 }
+
+// T73: a chord row ending in a "(…)" performance note transposes its chords and leaves the note
+// verbatim — previously the note's tokens hit transposeToken and errored the whole transpose.
+func TestTranspose_ChordRowAnnotationVerbatim(t *testing.T) {
+	src := "# X\n\n## Intro\nAm E7 (2x, 1x Arpèges, 1x normal)\n"
+	out, err := TransposeSemitones(src, 2)
+	if err != nil {
+		t.Fatalf("transpose errored on an annotated chord row: %v", err)
+	}
+	if !strings.Contains(out, "(2x, 1x Arpèges, 1x normal)") {
+		t.Errorf("annotation not preserved verbatim:\n%s", out)
+	}
+	if strings.Contains(out, "Am ") {
+		t.Errorf("chords not transposed (Am unchanged):\n%s", out)
+	}
+}

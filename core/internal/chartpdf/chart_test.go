@@ -174,3 +174,76 @@ func TestSubtitleHeader_BodyPreservation(t *testing.T) {
 		}
 	}
 }
+
+func TestChordRowParts(t *testing.T) {
+	chordRows := []string{
+		"Am E7",
+		"Am E7 (x2)",
+		"Am E7 G D F C Dm E7 (2x, 1x Arpèges, 1x normal)",
+		"G            D", // spacing preserved
+		"N.C.",
+	}
+	notChordRows := []string{
+		"A (very) long day",         // has "(" but doesn't end in ")"
+		"(x2)",                      // no chords precede the "("
+		"Am E7 (2x",                 // unbalanced
+		"On a dark desert highway,", // lyric
+		"",                          // blank
+	}
+	for _, s := range chordRows {
+		if !isChordRow(s) {
+			t.Errorf("isChordRow(%q) = false, want true", s)
+		}
+	}
+	for _, s := range notChordRows {
+		if isChordRow(s) {
+			t.Errorf("isChordRow(%q) = true, want false", s)
+		}
+	}
+	if ch, an, ok := chordRowParts("Am E7 (x2)"); !ok || ch != "Am E7" || an != "(x2)" {
+		t.Errorf("chordRowParts(\"Am E7 (x2)\") = (%q, %q, %v), want (\"Am E7\", \"(x2)\", true)", ch, an, ok)
+	}
+	if ch, _, _ := chordRowParts("G            D"); ch != "G            D" {
+		t.Errorf("chord spacing not preserved: %q", ch)
+	}
+}
+
+// accentChart exercises accents + an em-dash across the title, subtitle, a section name, a
+// chord-row annotation and a lyric — for the durable no-mojibake assertion.
+const accentChart = `# Café del Mar — Live
+Björk
+
+## Intro
+Am E7 G (2x, 1x Arpèges, 1x normal)
+
+## Verse 7 (Arpèges)
+Am
+Voilà, l'été déjà
+`
+
+func TestRender_AnnotationsAndAccents(t *testing.T) {
+	pdf, err := Render(accentChart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := pdftotext(t, pdf)
+
+	// The accented SECTION header specifically must be intact — the full string only comes from
+	// the header, so this is section-targeted (not satisfied by "Arpèges" appearing in a body line).
+	if !strings.Contains(text, "Verse 7 (Arpèges)") {
+		t.Errorf("accented section header missing/mojibake'd\n--- got ---\n%s", text)
+	}
+	// The chord-row annotation renders (chords + the note on one line).
+	for _, want := range []string{"Am E7 G", "2x, 1x Arpèges, 1x normal"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("chord-row annotation missing %q\n--- got ---\n%s", want, text)
+		}
+	}
+	// THE DURABLE GUARD: no cp1252→UTF-8 mojibake sequence may appear anywhere in the output.
+	// This would have caught all three sectionLabel/subtitle instances.
+	for _, bad := range []string{"Ã", "â€", "Â"} {
+		if strings.Contains(text, bad) {
+			t.Errorf("mojibake sequence %q in rendered output\n--- got ---\n%s", bad, text)
+		}
+	}
+}
