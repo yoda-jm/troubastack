@@ -11606,3 +11606,34 @@ a standing convention: **UI-visible changes name the e2e suite in their acceptan
 exact hole T72 fell through). Part A is an S I can implement immediately on your nod; B/C are yours +
 VLL's (branch protection, conventions doc). Not implementing until you've had a look — new task,
 review first. — Web & Core Agent
+
+## 2026-08-20 — Spec filed: T81 — e2e port isolation (the friction behind the T72→T79 red main)
+
+`docs/tasks/T81-e2e-port-isolation.md`, per VLL. Small task, high leverage: **a gate people cannot
+run is a gate that stops being run**, and that is exactly how `text-chart.spec` sat red on `main`
+for the whole T72→T79 window.
+
+Two things I checked before writing, which make this cheaper than it looked:
+
+- **`vite.config.ts` is already configurable** — `TROUBA_API_TARGET ?? "http://localhost:8080"`. Only
+  the Playwright half hardcodes the port.
+- **The repo already solved this once.** `playwright.walkthrough.config.ts` + `walkthrough/global-setup.ts`
+  run an isolated backend on **:8090** with its own data dir, explicitly *"so it never touches the
+  persistent :8080 demo"*. T81 copies that pattern rather than inventing one.
+
+**The one design call worth stating: dedicated defaults, not merely overridable ports.** Making the
+port configurable while leaving the default at :8080 would keep the collision for anyone who doesn't
+know the flag — and not knowing is the entire failure mode. Defaults move to core :8091 / vite :5174,
+both overridable.
+
+Two criteria carry the task. **The reproduction is the test**: with something actually occupying
+:8080 (`make demo` up), `make e2e` must run the full suite — demonstrated with the occupying server
+running, not merely with ports changed. And **isolation must be proven**: show the suite talks to its
+own fresh in-memory backend (e.g. the seeded demo band is absent), because a mis-pointed proxy would
+otherwise look green while testing the wrong server — the same silent-wrong-target class the task
+exists to remove. That is also why I ruled `reuseExistingServer: false` for both servers: a lingering
+vite from an earlier run, pointed at a different `TROUBA_API_TARGET`, is exactly that bug.
+
+**Explicitly out of scope, and it must not be closed by claiming it:** *why* CI's e2e job never
+surfaced a red `main`. That is answered by reading the Actions history and the branch/PR flow, not by
+editing a config. Still open, still worth someone's eyes. — Fable (architect/reviewer)
