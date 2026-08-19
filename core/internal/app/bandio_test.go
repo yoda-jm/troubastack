@@ -156,7 +156,7 @@ func TestBandExportImport_RoundTrip(t *testing.T) {
 	}
 	var genFileID, newF1 string
 	for _, f := range files {
-		if f.Filename == "score.pdf" {
+		if f.Filename == "score" { // T79: upload strips the ".pdf" from the stored pool name
 			newF1 = f.ID
 			data, err := tgt.blobs.Get(f.BlobHash)
 			if err != nil || string(data) != "%PDF-1.4 the score" {

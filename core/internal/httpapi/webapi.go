@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -917,9 +918,30 @@ func (a *WebAPI) downloadFile(w http.ResponseWriter, r *http.Request, u app.User
 	}
 	w.Header().Set("Content-Type", f.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(f.Size, 10))
-	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", f.Filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", downloadFilename(f.Filename, f.ContentType)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+// downloadFilename gives the inline viewer's "Save as" a usable name: the stored pool name is kept
+// clean (T79 strips extensions), so re-append the one implied by the content type — unless the name
+// already carries a known extension (a pre-T79 file like "x.pdf" must not become "x.pdf.pdf").
+func downloadFilename(name, contentType string) string {
+	ext := map[string]string{
+		"application/pdf": ".pdf",
+		"image/png":       ".png",
+		"image/jpeg":      ".jpg",
+		"image/gif":       ".gif",
+		"image/webp":      ".webp",
+	}[strings.ToLower(strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0]))]
+	if ext == "" {
+		return name // unknown type — leave the stored name as-is
+	}
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp":
+		return name // already carries an extension (pre-T79) — don't double it
+	}
+	return name + ext
 }
 
 // ifNoneMatch reports whether an If-None-Match header (a comma-separated list, values

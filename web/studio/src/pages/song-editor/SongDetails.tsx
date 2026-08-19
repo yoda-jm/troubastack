@@ -315,7 +315,13 @@ export function Files({
             type="button"
             className="btn-sm ghost-btn"
             data-testid="new-text-chart"
-            onClick={() => setChart({ source: "# New chart\n\n## Verse 1\n", baseRevision: 0 })}
+            onClick={() =>
+              // T79: default the stub to the SONG's title (both the `# Title` line and, via T72's
+              // create-time name, the pool row) — so a from-scratch chart lands named after the song
+              // instead of a permanent "New chart". Not "follow the title" (that reintroduces the
+              // clobber T72 removed) — just a better one-time default.
+              setChart({ source: `# ${songTitle?.trim() || "New chart"}\n\n## Verse 1\n`, baseRevision: 0 })
+            }
           >
             ＋ New text chart
           </button>

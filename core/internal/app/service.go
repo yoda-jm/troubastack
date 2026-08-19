@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -1059,6 +1060,13 @@ func (s *Service) UploadSongFile(caller User, bandID, songID, filename, declared
 	filename = strings.TrimSpace(filename)
 	if filename == "" {
 		filename = "file"
+	}
+	// T79: a part is a part — strip the upload's extension from the stored pool name (".pdf"/".png"
+	// is noise; text charts already dropped it in T72). The extension is re-derived from ContentType
+	// at the download boundary, so "Save as" still yields a usable file. New files only — no
+	// migration of existing names. Guard the degenerate ".pdf"-only name (would strip to empty).
+	if base := strings.TrimSuffix(filename, filepath.Ext(filename)); base != "" {
+		filename = base
 	}
 	// Append at the end of the pool: stable, deterministic order across uploads.
 	existing, _ := s.repo.FilesOfSong(songID)

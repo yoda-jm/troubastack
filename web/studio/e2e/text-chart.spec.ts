@@ -69,7 +69,7 @@ test("write a text chart → it enters the pool as a generated PDF, editable in 
   await expect(page.getByTestId("file-row")).toHaveCount(1);
   await expect(page.getByTestId("file-chart-badge")).toBeVisible();
   const dl = page.getByTestId("file-download");
-  await expect(dl).toHaveText("Road Song.pdf");
+  await expect(dl).toHaveText("Road Song"); // T72/T79: clean pool name, no ".pdf"
 
   // The generated file is a real, servable PDF (a text chart is just a pool file).
   const href = await dl.getAttribute("href");
@@ -78,8 +78,9 @@ test("write a text chart → it enters the pool as a generated PDF, editable in 
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("pdf");
 
-  // Edit the source and re-save: re-renders in place — still exactly one file, and
-  // the download name follows the new title.
+  // Edit the source and re-save: re-renders in place — still exactly one file. The pool NAME is a
+  // create-time default that never re-derives (T72), and T79 must not reintroduce title-follow — so
+  // retitling the source to "Road Song v2" leaves the row named "Road Song".
   await page.getByTestId("file-menu").click();
   await page.getByTestId("file-menu-source").click();
   await expect(page.getByTestId("chart-source")).toHaveValue(/Road Song/);
@@ -87,5 +88,5 @@ test("write a text chart → it enters the pool as a generated PDF, editable in 
   await page.getByTestId("chart-save").click();
 
   await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await expect(page.getByTestId("file-download")).toHaveText("Road Song v2.pdf");
+  await expect(page.getByTestId("file-download")).toHaveText("Road Song"); // unchanged: name never re-derives
 });
