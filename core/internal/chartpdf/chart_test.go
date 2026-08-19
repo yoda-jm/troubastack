@@ -290,7 +290,7 @@ func TestRender_NoDirectiveByteStable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "0902294f35f6f11b8aa78d653a84e55982c945f4ccbd387901a78a5838ab7a1f"
+	const want = "5ab509133439819c696da38985f811af8302e689f13b806b28dfea1f6e8dcb4c"
 	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != want {
 		t.Errorf("no-directive render sha = %s, want %s (output changed vs pre-T74)", got, want)
 	}
@@ -316,5 +316,66 @@ func TestSizeDirective_SmallerFitsMore(t *testing.T) {
 	s16, _ := Render("# T\nsize: 16" + body)
 	if bytes.Equal(s8, s16) {
 		t.Error("size 8 and size 16 produced identical bytes — the directive had no effect")
+	}
+}
+
+// T75 — a chord/section row's advance must clear the previous line's type so rows never overlap;
+// scale-invariant (all advances scale together, so this holds at 8/11/16 pt alike).
+func TestT75_NoRowOverlap(t *testing.T) {
+	const typeMM = defaultBodyPt * 25.4 / 72 // ~3.88 mm of type at 11 pt
+	checks := []struct {
+		name       string
+		gap, floor float64
+	}{
+		{"lyric line vs type", leadLyric, typeMM},
+		{"chord-only line vs type", leadChord, typeMM},
+		{"section label vs type", leadSection, typeMM},
+		{"pair: chord clears the lyric below it", pairLyricDy, typeMM},
+		{"pair height clears the lyric", leadPair, pairLyricDy + typeMM},
+	}
+	for _, c := range checks {
+		if c.gap < c.floor {
+			t.Errorf("%s: advance %.2f mm < %.2f mm — rows would overlap", c.name, c.gap, c.floor)
+		}
+	}
+}
+
+// T75 — compaction reclaims ≥15% of body height at the SAME font size, versus origin/main.
+func TestT75_CompactionReduction(t *testing.T) {
+	// origin/main heights (11 pt), measured with the pre-T75 advances (see the handoff).
+	baseline := map[string]float64{
+		"amazing-grace":           219.0,
+		"house-of-the-rising-sun": 219.0,
+		"open-road-lyrics":        393.0,
+	}
+	for name, old := range baseline {
+		b, err := os.ReadFile(filepath.Join("../../../docs/demo-charts", name+".chart"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := measure(string(b))
+		if got > old*0.85 {
+			t.Errorf("%s: %.1f mm, want ≤ %.1f mm (≥15%% shorter than %.1f)", name, got, old*0.85, old)
+		}
+	}
+}
+
+// T75 — measure() is the single source of the per-row advances: for a one-page chart the pure
+// measure equals the renderer's final y (drift guard).
+func TestT75_MeasureMatchesRender(t *testing.T) {
+	b, err := os.ReadFile("../../../docs/demo-charts/amazing-grace.chart")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(b)
+	if measure(src) > pageBottom {
+		t.Skip("fixture no longer single-page")
+	}
+	_, finalY, err := renderChart(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := finalY - measure(src); diff > 0.01 || diff < -0.01 {
+		t.Errorf("renderer final y %.3f != measure %.3f (drift)", finalY, measure(src))
 	}
 }
