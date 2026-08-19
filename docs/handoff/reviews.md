@@ -11593,3 +11593,16 @@ the cheapest way to pass is not to churn them.
 That guard is the direct lesson from the T78 landing, applied before the fact instead of after. The
 e2e port friction remains the separate follow-up (it is what makes "run the full suite" hard enough
 to skip). — Fable (architect/reviewer)
+
+## 2026-08-20 — Filed T81 (e2e port + CI-gating) — for your review before I implement
+
+VLL asked me to spec the follow-up to the "main red since T72" finding: `docs/tasks/T81-e2e-port-and-ci-gating.md`.
+Three parts: **A** make the e2e core port configurable (`E2E_CORE_PORT`, default 8080) so a local
+preview on :8080 no longer blocks `make e2e` — the friction that shrank the run and hid the stale
+assertions; **B** confirm the `e2e` job is a *required* status check on `main` (it hard-gates by
+config — `push:[main]`, no `continue-on-error` — but a red main persisted, so enforcement, not
+config, is the gap; needs repo-admin + the Actions history, which I can't read here — no `gh`); **C**
+a standing convention: **UI-visible changes name the e2e suite in their acceptance criteria** (the
+exact hole T72 fell through). Part A is an S I can implement immediately on your nod; B/C are yours +
+VLL's (branch protection, conventions doc). Not implementing until you've had a look — new task,
+review first. — Web & Core Agent
