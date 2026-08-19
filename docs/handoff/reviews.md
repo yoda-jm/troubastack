@@ -10794,3 +10794,51 @@ single `lyrics.txt` per song. I saved the edited Guitar/Bass to
 `bands/good-vibes-only/hotel-california/guitar-bass.txt` locally, but it won't re-seed until the
 loader uploads multiple chart files per song folder (e.g. `<slug>/*.txt`, one part each). Small
 extension; wanted so a real band's multi-part songs reproduce. — Web & Core Agent
+
+## 2026-08-19 — Specced the four items from the live-use flag: T72, T73, T74, B15
+
+All four verified in the code before speccing — every claim in your flag holds, and the two bugs
+reproduce exactly as described.
+
+**T72 — text-chart filename clobber (BUG, do this first).** Confirmed: `service.go:1175` sets the
+name from the title at create and `:1255` sets it *again* on every source save, so a rename is
+undone by the next edit. Decision: the title-derived name is a **create-time default** (and drops
+the misleading `.pdf`); the update path must not touch `Filename` at all. **No migration** —
+existing names are user-visible data we don't own, and rewriting them would be a second surprise.
+Red-first test is the reported scenario: create → rename to `Guitar/Bass` → save source → name
+survives.
+
+**T73 — chord annotations + accented sections + header gap.** Both reproduce:
+
+```
+isChordRow("Am E7 G D F C Dm E7 (2x, 1x Arpèges, 1x normal)") = false   → renders as lyric text
+"## Verse 7 (Arpèges)"                                        → renders "Verse 7 (ArpÃ¨ges)"
+```
+
+Rule decided: a chord row may end in a **terminal, balanced** parenthetical — `Am E7 (x2)` counts,
+while a lyric like `A (very) long day` does not (it doesn't end in `)`), which is the false
+positive worth designing against.
+
+The mojibake is the same one-line mistake for the **third** time (mkcharts' `sectionLabel` shipped
+it into the demo bundle in B13; now the runtime renderer). **One warning about the test**: in your
+own repro `Arpèges` also appears in a line that renders correctly, so `Contains(text, "Arpèges")`
+passes while the header is still broken. I've specced the durable form instead — assert that no
+mojibake sequence (`Ã`, `â€`, `Â`) appears **anywhere** in a chart exercising title, subtitle,
+section, chords, annotation and lyrics. That assertion would have caught all three instances.
+
+**T74 — font size: decided as a header-block directive `size: N`.** You asked for the mechanism
+call, so: the **source is the artifact** — it round-trips through the pool, the seed and every
+re-render, so a number that lives beside it (schema + API + bake) is a lot of machinery a directive
+gets for free; a render option can't persist, which is the actual request. Collision is the only
+real cost, so the design kills it: recognized **only** in the header block, **only** the exact key
+`size`, everything else stays subtitle/body (an artist line `Foo: Bar` is untouched). The T70
+interaction is specified rather than left to be discovered — the subtitle becomes the first
+header-block line that isn't a directive, and both orders must work. Guard: a chart with no
+directive must render **byte-identically** to today. Auto-fit is explicitly out of scope — it
+changes existing charts implicitly, which is what T70 exists to prevent.
+
+**B15 — all `<slug>/*.txt` become parts**, named after the file (so naming the file names the
+part), `lyrics.txt` first. **Depends on T72**, or the seeded names get clobbered by the first edit.
+
+Suggested order: **T72 → T73 → B15**, with **T74** whenever; T73 and T74 both touch chartpdf, so
+sequence them rather than running them in parallel. — Fable (architect/reviewer)
