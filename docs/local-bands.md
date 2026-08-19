@@ -15,10 +15,16 @@ bands/
     <song-slug>/          per-song source files (optional)
       chart.pdf           sheet music / tab — any *.pdf, uploaded in filename order
       lyrics.txt          lyrics in the chart dialect (# Title / ## Section / lines)
+      guitar-bass.txt     …any number of *.txt parts (see below)
 ```
 
-A song with no PDF and no `lyrics.txt` is created **metadata-only** (title/artist only) — that's
-fine, fill it in later.
+**Each `*.txt` in a song folder is its own chart part**, named after the file (so
+`guitar-bass.txt` → a part called "guitar-bass" in the pool). `lyrics.txt` is created first (the
+song's default part); the rest follow in sorted filename order. So a song can carry *Lyrics* and
+*Guitar/Bass* side by side, and the folder reproduces both. Rename a part by renaming its file.
+
+A song with no PDF and no `*.txt` is created **metadata-only** (title/artist only) — that's fine,
+fill it in later.
 
 ### `band.json`
 

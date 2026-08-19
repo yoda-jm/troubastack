@@ -119,10 +119,21 @@ type songDef struct {
 	// ordered icon+color list. Self-only, so the seeder PUTs each list as that user;
 	// they ride the member's per-member bake (visible when baking "my parts").
 	cuesFor map[string][]cueDef
+	// textCharts are folder-discovered chart parts (B15): each bands/<band>/<slug>/*.txt becomes a
+	// text-chart part named after the file (lyrics.txt first, then sorted). Used by local bands;
+	// demo songs use textChartPath below.
+	textCharts []textPart // (textPart defined below)
 	// textChartPath is an optional committed chart-dialect source (docs/demo-charts/*.chart)
 	// added to the pool as a REAL text chart (T19) — POST /text-charts renders it to a PDF
 	// server-side, so the demo shows the text-chart file type, not only uploaded PDFs (B10).
 	textChartPath string
+}
+
+// textPart is one folder-discovered chart part (B15): a chart-dialect source file and the pool
+// name it gets (the file's basename without .txt).
+type textPart struct {
+	path string
+	name string
 }
 
 // cueDef is one personal song cue (T50): a curated glyph id + an optional "#rrggbb"
@@ -540,11 +551,17 @@ func loadRepertoire(bandDir string) ([]songDef, error) {
 				base := strings.TrimSuffix(filepath.Base(p), filepath.Ext(p))
 				sd.files = append(sd.files, pdfSource{localPath: p, docTitle: base, title: s.Title, subtitle: s.Artist})
 			}
-			// A lyrics.txt authored in the chart dialect (# Title / ## Section / chords over
-			// words) is fed to the song as a REAL text chart via the existing textChartPath path.
-			lyr := filepath.Join(bandDir, s.Slug, "lyrics.txt")
-			if _, e := os.Stat(lyr); e == nil {
-				sd.textChartPath = lyr
+			// B15: every <slug>/*.txt (chart-dialect source) becomes its own text-chart part,
+			// named after the file — lyrics.txt first (the song's default part), then the rest in
+			// sorted order. So a folder can carry Lyrics + Guitar/Bass and reproduce both.
+			txts, _ := filepath.Glob(filepath.Join(bandDir, s.Slug, "*.txt"))
+			sort.Strings(txts)
+			for _, p := range txts {
+				if filepath.Base(p) == "lyrics.txt" {
+					sd.textCharts = append([]textPart{{path: p, name: "lyrics"}}, sd.textCharts...)
+				} else {
+					sd.textCharts = append(sd.textCharts, textPart{path: p, name: strings.TrimSuffix(filepath.Base(p), ".txt")})
+				}
 			}
 		}
 		out = append(out, sd)
@@ -709,7 +726,7 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 
 		// Metadata-only song — no PDF and no text chart yet (a repertoire entry with nothing in
 		// its folder). The song exists with its title/artist/metadata; nothing to upload.
-		if !hasPDF && s.textChartPath == "" {
+		if !hasPDF && s.textChartPath == "" && len(s.textCharts) == 0 {
 			fmt.Printf("     (metadata only — no source file yet)\n")
 			continue
 		}
@@ -782,6 +799,32 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 				uploaded = append(uploaded, chartOut.File.ID)
 				fmt.Printf("     + text chart %q (rendered from %s)\n", s.title, s.textChartPath)
 			}
+		}
+
+		// B15: folder-discovered chart parts — each <slug>/*.txt is its own part, named after the
+		// file (lyrics first). Created via the same /text-charts path, then renamed to the file's
+		// basename (T72 makes that name stick across later edits).
+		for _, part := range s.textCharts {
+			source, rerr := os.ReadFile(part.path)
+			if rerr != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("read chart part %q for %q: %w", part.path, s.title, rerr)
+			}
+			var chartOut struct {
+				File struct {
+					ID string `json:"id"`
+				} `json:"file"`
+			}
+			if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+songID+"/text-charts",
+				map[string]string{"source": string(source)}, &chartOut); err != nil {
+				fmt.Printf("     ! chart part %q skipped for %q: %v\n", part.name, s.title, err)
+				continue
+			}
+			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+chartOut.File.ID,
+				map[string]any{"filename": part.name, "displayOrder": len(uploaded)}, nil); err != nil {
+				return seededGroup{}, 0, 0, fmt.Errorf("name chart part %q for %q: %w", part.name, s.title, err)
+			}
+			uploaded = append(uploaded, chartOut.File.ID)
+			fmt.Printf("     + chart part %q (from %s)\n", part.name, filepath.Base(part.path))
 		}
 
 		// Curate per-member personal file selections via the my-files endpoint.

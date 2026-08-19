@@ -175,3 +175,49 @@ func TestSelectGroups(t *testing.T) {
 		}
 	})
 }
+
+// TestLoadRepertoire_MultipleChartParts (B15): a song folder with lyrics.txt + guitar-bass.txt
+// yields two chart parts, lyrics.txt FIRST, named after the files; only lyrics.txt → one; none → none.
+func TestLoadRepertoire_MultipleChartParts(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "repertoire.json"), []byte(
+		`{"songs":[{"slug":"hc","title":"HC","artist":"E"},{"slug":"only","title":"Only","artist":"X"},{"slug":"none","title":"None","artist":"X"}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writePart := func(slug, file, body string) {
+		bd := filepath.Join(dir, slug)
+		os.MkdirAll(bd, 0o755)
+		if err := os.WriteFile(filepath.Join(bd, file), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writePart("hc", "guitar-bass.txt", "# HC\n\n## V\nAm\n") // sorts before lyrics.txt
+	writePart("hc", "lyrics.txt", "# HC\n\n## V\nx\n")
+	writePart("only", "lyrics.txt", "# Only\n")
+	// "none" has no folder
+
+	songs, err := loadRepertoire(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := map[string]songDef{}
+	for _, s := range songs {
+		by[s.title] = s
+	}
+	hc := by["HC"]
+	if len(hc.textCharts) != 2 {
+		t.Fatalf("HC parts = %d, want 2", len(hc.textCharts))
+	}
+	if filepath.Base(hc.textCharts[0].path) != "lyrics.txt" || hc.textCharts[0].name != "lyrics" {
+		t.Errorf("first part = %+v, want lyrics.txt named 'lyrics'", hc.textCharts[0])
+	}
+	if filepath.Base(hc.textCharts[1].path) != "guitar-bass.txt" || hc.textCharts[1].name != "guitar-bass" {
+		t.Errorf("second part = %+v, want guitar-bass.txt named 'guitar-bass'", hc.textCharts[1])
+	}
+	if len(by["Only"].textCharts) != 1 || by["Only"].textCharts[0].name != "lyrics" {
+		t.Errorf("Only parts = %+v, want one 'lyrics'", by["Only"].textCharts)
+	}
+	if len(by["None"].textCharts) != 0 {
+		t.Errorf("None parts = %d, want 0", len(by["None"].textCharts))
+	}
+}
