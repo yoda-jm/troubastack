@@ -32,8 +32,8 @@ func TestTextChart_CreateEditRegenerate(t *testing.T) {
 			if !f.Generated || f.Revision != 1 || f.ContentType != "application/pdf" {
 				t.Fatalf("created file = %+v, want generated pdf rev 1", f)
 			}
-			if f.Filename != "My Chart.pdf" {
-				t.Fatalf("filename = %q, want \"My Chart.pdf\" (from the # title)", f.Filename)
+			if f.Filename != "My Chart" {
+				t.Fatalf("filename = %q, want \"My Chart\" (the # title, no .pdf — T72)", f.Filename)
 			}
 
 			// It shows up in the pool.
@@ -72,8 +72,10 @@ func TestTextChart_CreateEditRegenerate(t *testing.T) {
 			if f2.ID != f.ID || f2.Revision != 2 {
 				t.Fatalf("after save: id=%q rev=%d, want same id rev 2", f2.ID, f2.Revision)
 			}
-			if f2.Filename != "My Chart v2.pdf" {
-				t.Fatalf("after save filename = %q, want \"My Chart v2.pdf\"", f2.Filename)
+			// T72: a source edit no longer re-derives the name — it keeps the create-time name
+			// ("My Chart"), even though the source's # title changed, so a user rename survives.
+			if f2.Filename != "My Chart" {
+				t.Fatalf("after save filename = %q, want \"My Chart\" unchanged (T72)", f2.Filename)
 			}
 			// Still exactly one file in the pool (edit in place, not a new file).
 			_, lb2 := admin.do(http.MethodGet, base+"/files", nil)

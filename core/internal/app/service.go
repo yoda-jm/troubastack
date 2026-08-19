@@ -1172,7 +1172,7 @@ func (s *Service) CreateTextChart(caller User, bandID, songID, source string) (S
 		ID:           s.newID(),
 		SongID:       songID,
 		BandID:       bandID,
-		Filename:     chartpdf.Title(source) + ".pdf",
+		Filename:     chartpdf.Title(source), // create-time default; no ".pdf" (it's source, not an upload) — T72
 		ContentType:  "application/pdf",
 		Size:         int64(len(pdf)),
 		BlobHash:     hash,
@@ -1252,7 +1252,8 @@ func (s *Service) SaveChartSource(caller User, bandID, songID, fileID string, ba
 	old := f.BlobHash
 	f.BlobHash = hash
 	f.Size = int64(len(pdf))
-	f.Filename = chartpdf.Title(source) + ".pdf"
+	// T72: do NOT re-derive Filename here — the name belongs to the user from create-time; a
+	// source edit updates the blob/size/revision only, so a rename (e.g. "Guitar/Bass") sticks.
 	f.Revision++
 	if err := s.repo.UpdateSongFile(f); err != nil {
 		return SongFile{}, err
