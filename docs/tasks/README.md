@@ -38,6 +38,10 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
    equivalent element, and update specs only when a flow genuinely changed.
 6. Each task lists its own **acceptance criteria**. All of them must pass before the task
    is done. If a criterion is impossible as written, report why rather than approximating.
+   **When a change is observable in the UI (a filename, label, layout, or `data-testid`), the
+   acceptance criteria MUST name the e2e suite (`make e2e`) explicitly** — a user-visible change
+   gated only by `make test` is exactly how a stale e2e assertion rode `main` red unnoticed for the
+   whole T72→T79 window (T81, Part C).
 
 ## Queue state (re-synced 2026-07-18, from the review-gate log)
 

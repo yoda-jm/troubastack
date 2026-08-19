@@ -74,6 +74,9 @@ dist: embed
 	cd core && go build -ldflags "$(VERSION_LDFLAGS)" -o bin/troubacore ./cmd/troubacore
 	@echo "built core/bin/troubacore — serves /api + the embedded SPA on one origin"
 
+# T81: e2e boots its OWN isolated stack on :8091 (core) + :5174 (vite), so it runs even while a
+# local preview (`make demo` / `make band=...`) holds :8080/:5173. Override with
+# E2E_CORE_PORT=<n> / E2E_VITE_PORT=<n> if those defaults ever clash.
 e2e:
 	cd web/studio && npx playwright test
 
