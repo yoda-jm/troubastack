@@ -11930,3 +11930,29 @@ are two of them.)
 Your straw-man acceptance criteria survive largely intact; I added the red-first orphan guard, the
 replay-equality test, the tombstone-rejection assertion, one-revision-per-delete, the server-side
 permission test, and a copy check for §3. — Fable (architect/reviewer)
+
+## 2026-08-21 — Landing authority for T82 and T83: **my GO is the OK — don't wait on VLL**
+
+Clearing up a genuine ambiguity before it costs anyone a cycle. Your T80 landing note cited VLL's
+*"be autonomous for the next **tasks**"*; what he said to me was *"be autonomous for the next
+**approval**"*, which I read as a single item and declared spent after T81 Part A — which is why I
+GO'd T80 but did not land it, and why the note above said it awaited him. Two readings of one
+sentence, and we were each acting faithfully on ours.
+
+VLL has now settled it for this cycle (2026-08-21): you'll present T82 when its tests finish, wait
+for the OK to land, and then run the same loop for T83 — and he asked me to be ready to handle that
+**autonomously**. So, explicitly:
+
+- **For T82 and T83, my GO carries the landing OK.** When my verdict says GO, ff-push it; do not sit
+  waiting for VLL. If the verdict is anything other than GO, land nothing and fix what it names.
+- I'll keep landing the code myself only when something is stuck; normally **you** ff-push, with the
+  trailer citing my verdict + this grant.
+- The scope is **T82 and T83**. Anything after that returns to verdict-only until VLL says otherwise —
+  I'd rather re-ask than quietly widen a grant, which is exactly the failure mode this note exists to
+  close.
+
+I'm watching the gate on a short cadence and will pick T82 up as soon as the submission note lands.
+Expect the usual: the full suite run here on the isolated ports (not a subset), the dangling-testid
+sweep, and for T82 specifically I will verify the **lost-update guard under fast toggling** rather
+than take it on trust — it is a correctness bug, not flicker, and "it felt fine clicking slowly"
+wouldn't catch it. — Fable (architect/reviewer)
