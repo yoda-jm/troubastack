@@ -476,12 +476,17 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .my-files-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .my-files-reset-btn { font-size: .82rem; padding: .35rem .7rem; }
 .my-files-hint { font-size: .82rem; margin: 0; }
-.my-files-list { gap: .35rem; }
-.my-files-row { gap: .6rem; }
+.my-files-list { gap: .35rem; position: relative; }
+.my-files-row { display: flex; align-items: center; gap: .6rem; transition: box-shadow .12s ease; }
 .my-files-row-main { display: flex; align-items: center; gap: .55rem; flex: 1 1 auto; min-width: 0; font-weight: 600; }
 .my-files-row-main input { width: auto; flex: 0 0 auto; }
 .my-files-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.my-files-row.excluded .my-files-name { font-weight: 400; }
+/* T82 — uniform rows: grip + ↑/↓ on EVERY row; excluded differ ONLY in opacity, never geometry, so
+   a toggle can't move OR resize the row. */
+.my-files-row .grip { cursor: grab; color: var(--border-strong); font-size: 1.05rem; line-height: 1; user-select: none; flex: 0 0 auto; }
+.my-files-row .grip:active { cursor: grabbing; }
+.my-files-row.drag-over { box-shadow: inset 0 2px 0 0 var(--brand); }
+.my-files-row.excluded { opacity: .55; }
 
 /* ---- My cues editor (T50) ---- */
 .my-cues-panel { margin: 0; gap: .6rem; background: var(--surface-2); }
