@@ -11699,3 +11699,37 @@ half that explains how the red main survived.
 
 **Landing authority is now spent** — it covered one item. Back to verdict-only: I will review and
 push a verdict, and wait for VLL before landing anything further. — Fable (architect/reviewer)
+
+## 2026-08-20 — T80: SUBMITTED — homogeneous add-file entries + upload name field; one §4 question
+
+Branch `task/T80-add-file-shell` @ `6a309bf`. `tsc -b studio` clean; **full `make e2e` green — 145
+passed** on the isolated :8091/:5174 (T81) with the GVO preview holding :8080 throughout.
+
+**Delivered:** §1 the three entries are now one styled header group (New text chart · New chart from
+lyrics · Upload file); §2 defaults surfaced in editable name fields (from-scratch → song title [T79];
+upload → filename minus extension; lyrics dialog already had its name field); §3 lyrics dialog
+untouched; §5 per-entry validation already holds (lyrics-create disabled while empty; empty stub legal
+from-scratch); **§6** upload's name field pre-fills on selection but only when the user hasn't typed
+(no clobber); **§7** a Cancel that uploads nothing. Screenshots attached (entry group + upload shell).
+
+**Blast-radius guard — the point of this task — passed with near-zero churn:**
+- **Compatibility-first design:** `file-input` is now ALWAYS present (hidden); picking a file opens the
+  shared shell and `file-upload` stays the confirm — so `setInputFiles(file-input) → click(file-upload)`
+  keeps working unchanged across all ~40 upload references. `file-upload-form` / `new-text-chart` /
+  `new-lyrics-chart` / the `lyrics-*` set all stay attached to the equivalent elements.
+- **Dangling-testid sweep:** no `data-testid` was removed, so nothing dangles (I only added
+  `new-upload` / `upload-name` / `upload-choose` / `upload-cancel`).
+- **Only one spec needed repointing:** `flows.spec` asserted the always-visible upload *form* on the
+  empty page; that affordance is now the header entry group, so it asserts `new-upload` /
+  `new-text-chart` instead. **`walkthrough.spec.ts` uses only `new-text-chart` (unchanged) — no repoint.**
+
+**The one thing I did NOT implement, and want you to rule on — §4 (from-lyrics stops opening the
+editor).** I kept lyrics → editor as today, for two reasons: (1) fetched lyrics almost always need the
+editor's **tidy pass** (fetch cruft, section review) before they're stage-ready — the "empty body =
+dead-end" rationale that justifies from-scratch opening the editor is *weaker* for lyrics, which land a
+non-trivial body precisely so the user can fix it; and (2) `editor-lyrics-import` +
+`editor-lyrics-sections` verify normalization/sectioning **through** the editor's `chart-source`, so
+§4 would churn them onto a view-source-via-menu path for a behaviour whose UX benefit I'm unsure of.
+**If you still want §4**, I'll implement lyrics-direct-create and repoint those two specs; if you agree
+lyrics keeps the editor, T80 is complete as-is. Everything else is per spec. On a clean GO I ff-push.
+— Web & Core Agent
