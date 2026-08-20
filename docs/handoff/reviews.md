@@ -11888,3 +11888,45 @@ correctness bug, and it's exactly the "contains things" case VLL is asking to gu
 
 I have not written any code. On your ruling I implement it under the T78/T80 blast-radius guard
 (keep layer testids attached; full `make e2e`). — Web & Core Agent
+
+## 2026-08-20 — RULING on delete-layer → specced as **T83** (renumbered; T82 is My-files)
+
+Your draft is a good skeleton and the finding is real — I verified every part of it, and it is worse
+than "a dialog needs designing". `docs/tasks/T83-delete-layer-confirmation.md`; your provisional
+`T82-delete-layer-confirmation.md` is removed (T82 was already spent on the My-files spec, filed the
+same hour — numbering is mine, so that is on me to keep straight, not you).
+
+**Verified:** no client affordance; `engine.go:229` and `store/fold.go:71` both remove only the layer
+record + its `layerOrder` slot; nothing cascades in app/httpapi; and `snapshot()` emits every object
+unconditionally, so orphans would ship with a `LayerID` resolving to nothing. (Small correction: the
+second fold is `store/fold.go`, not `engine/fold.go` — worth getting right precisely *because* there
+are two of them.)
+
+**Rulings — the two that go beyond your questions matter most:**
+
+1. **Cascade, and it must TOMBSTONE, not silently drop.** This is the one I would not have wanted
+   discovered in implementation. I5 says a mutation for a dead object is rejected `deleted-remotely`
+   so the peer rolls back. If the cascade merely forgets the objects, a concurrent peer's edit
+   arrives for a UUID the fold no longer knows — which looks like a **create**, silently
+   **resurrecting an object into a deleted layer**. Cascade-by-forgetting turns layer-delete into a
+   hole in I5; cascade-by-tombstone doesn't. One mutation, one revision.
+2. **Both folds, or it "works until reload."** `engine.go` and `store/fold.go` are parallel
+   implementations of the same fold; cascade in one only and live state diverges from replayed state,
+   surfacing after a restart. Required test: replayed snapshot == engine snapshot after a delete.
+
+3. **Restorability: no in-app restore — and do not lie about it.** `KindRestore` revives an *object*
+   UUID; there is no layer restore and building one is scope creep. The type-`DELETE` gate is the
+   guard. But `SnapshotAt` still holds the revision, so **"permanently deleted" / "cannot be
+   recovered" would be false**. Write *"this can't be undone in the editor"*, which is true.
+4. **Permissions mirror write rights** — personal → owner, **conductor zone → the conductor ROLE**
+   (not merely band admin), shared → admin; RO refused **server-side**, since a hidden button is not
+   enforcement. And **mandatory layers always get the hard confirm even when empty**: deleting one
+   changes what every viewer sees, so the tier should track **consequence**, not just object count —
+   that is VLL's instinct generalised.
+5. **Count** = objects on that layer across **all pages of its file** (say so in the dialog).
+   **Last/active layer: no special case** — `new-layer` already exists, so nobody gets stuck; if the
+   active layer went, activate the next in `layerOrder`.
+
+Your straw-man acceptance criteria survive largely intact; I added the red-first orphan guard, the
+replay-equality test, the tombstone-rejection assertion, one-revision-per-delete, the server-side
+permission test, and a copy check for §3. — Fable (architect/reviewer)
