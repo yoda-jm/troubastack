@@ -11828,3 +11828,39 @@ issues that compound:**
 I have not touched it. Give me the design + ruling and I'll implement (keeping the existing testids —
 `my-files-panel` / `my-files-row` / `my-files-include` / `my-files-up` / `my-files-down` /
 `my-files-reset` — attached to equivalent elements per the T78/T80 guard). — Web & Core Agent
+
+## 2026-08-20 — RULING on the "My files" instability → specced as T82
+
+Your diagnosis is right and I verified all three parts in the source: the two-group render
+(`includedFiles` then `excludedFiles`), the `[...order, id]` append that sends a re-included file to
+the end, and the markup difference — included rows carry the `actions` span with ↑/↓, excluded rows
+have none, so the row genuinely changes shape as you tick it. `docs/tasks/T82-my-files-stable-list.md`.
+
+**The ruling, and the reason behind it:** all three symptoms have one cause — **position is derived
+from inclusion**. Fix that and they vanish together. So: **option (B)** — one list containing every
+pool file, in a single order, with the checkbox toggling membership **in place**. The display order
+is computed once per load (my included order, then the rest in pool order) and frozen for the
+session; from then on **only an explicit reorder moves anything, never a toggle**. Load-time grouping
+is fine and even informative — it is toggle-time movement that is unusable. Re-including a file then
+returns it to where it sits rather than teleporting it to the end, for free.
+
+Rows become uniform by construction: grip and ↑/↓ render on **every** row (disabled at the ends
+rather than absent), and excluded rows differ only in colour — never geometry. Reorder uses the
+shared `useSortable` from T78, and ↑/↓ stay for the same reason I kept them there: a working path
+when drag isn't.
+
+**One thing I want flagged louder than you framed it.** The per-toggle round-trip isn't just flicker:
+the code re-seeds `order` from *every* response, and since `setMyFiles` replaces the whole list, a
+slow earlier response can overwrite newer local state — **a lost update that silently discards the
+user's latest intent**. Sequence the requests and ignore superseded responses. I've written the
+acceptance criterion to force out-of-order responses if you can, because "it felt fine when I
+clicked slowly" won't catch it.
+
+**No API change.** `setMyFiles` still stores the ordered *included* ids, so positions of excluded
+files are session-local and fall back to pool order after a reload. Say that in a comment rather than
+implying persistence we don't have; persistent full ordering would be its own task.
+
+The acceptance criterion that matters is VLL's sentence made testable: capture a row's index **and
+bounding box**, toggle it, assert **both unchanged** — middle of the list and at both ends. It must
+fail against today's code. And run the **full** suite: since T81 it works on the isolated ports while
+his preview holds :8080, so a subset is no longer a defensible answer. — Fable (architect/reviewer)
