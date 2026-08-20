@@ -176,7 +176,9 @@ test("7. files list renders (empty) on the song page", async ({ page }) => {
   await createSong(page, `FilesSong ${stamp()}`);
   await page.getByTestId("my-files-edit").click(); // files live in the Details panel now (T36)
   await expect(page.getByTestId("files-empty")).toBeVisible();
-  await expect(page.getByTestId("file-upload-form")).toBeVisible();
+  // T80: the add-file affordances are the header entry group; the upload form is an on-demand shell.
+  await expect(page.getByTestId("new-upload")).toBeVisible();
+  await expect(page.getByTestId("new-text-chart")).toBeVisible();
 });
 
 test("8. setlist: create, add two songs, reorder, key override persists", async ({ page }) => {

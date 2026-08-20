@@ -206,6 +206,12 @@ export function Files({
   const [chart, setChart] = useState<chartEdit | null>(null);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // T80 — the upload entry's shell: opens on the "Upload file" entry or on picking a file; carries a
+  // name field pre-filled from the filename (§6) that must never clobber a name the user typed.
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [pickedFile, setPickedFile] = useState<File | null>(null);
+  const [uploadName, setUploadName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -222,15 +228,38 @@ export function Files({
     void load();
   }, [load]);
 
-  async function onUpload(e: FormEvent) {
-    e.preventDefault();
-    const f = fileInput.current?.files?.[0];
-    if (!f) return;
+  function resetUpload() {
+    setUploadOpen(false);
+    setPickedFile(null);
+    setUploadName("");
+    setNameTouched(false);
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  // A file was chosen (via the entry's Choose-file button, OR directly by a test's setInputFiles).
+  // Either way, open the shell and pre-fill the name from the filename WITHOUT its extension — but
+  // only if the user hasn't already typed a name (§6: typing then picking must not discard input).
+  function onFilePicked(e: FormEvent<HTMLInputElement>) {
+    const f = e.currentTarget.files?.[0] ?? null;
+    setPickedFile(f);
+    setUploadOpen(true);
+    if (f && !nameTouched) setUploadName(f.name.replace(/\.[^./\\]+$/, ""));
+  }
+
+  // Add the chosen file to the pool. The server strips the extension (T79); if the user edited the
+  // name field to something else, apply it. `file-upload` stays the confirm button so the existing
+  // `setInputFiles(file-input) → click(file-upload)` flow keeps working unchanged.
+  async function onUpload() {
+    if (!pickedFile) return;
     setError(null);
     setBusy(true);
     try {
-      await api.uploadFile(bandId, songId, f);
-      if (fileInput.current) fileInput.current.value = "";
+      const created = await api.uploadFile(bandId, songId, pickedFile);
+      const desired = uploadName.trim();
+      if (desired && desired !== created.filename) {
+        await api.updateFile(bandId, songId, created.id, { filename: desired });
+      }
+      resetUpload();
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to upload");
@@ -333,15 +362,62 @@ export function Files({
           >
             ＋ New chart from lyrics
           </button>
+          <button
+            type="button"
+            className="btn-sm ghost-btn"
+            data-testid="new-upload"
+            onClick={() => {
+              setUploadOpen(true);
+              fileInput.current?.click();
+            }}
+          >
+            ＋ Upload file
+          </button>
         </div>
       </div>
       <div className="panel-body">
-        <form onSubmit={onUpload} className="inline-form" data-testid="file-upload-form">
-          <input ref={fileInput} type="file" data-testid="file-input" />
-          <button type="submit" className="primary btn-sm" data-testid="file-upload" disabled={busy}>
-            Upload
-          </button>
-        </form>
+        {/* T80 — file-input is ALWAYS present (hidden) so `setInputFiles(file-input)` works without a
+            preceding click; picking a file opens the shared shell. `file-upload` stays the confirm. */}
+        <input
+          ref={fileInput}
+          type="file"
+          data-testid="file-input"
+          hidden
+          onChange={onFilePicked}
+        />
+        {uploadOpen && (
+          <div className="add-file-shell" data-testid="file-upload-form">
+            <label className="field">
+              <span>File name</span>
+              <input
+                data-testid="upload-name"
+                value={uploadName}
+                placeholder={pickedFile ? "" : "choose a file below"}
+                onChange={(e) => {
+                  setUploadName(e.target.value);
+                  setNameTouched(true);
+                }}
+              />
+            </label>
+            <div className="inline-form">
+              <button type="button" className="btn-sm" data-testid="upload-choose" onClick={() => fileInput.current?.click()}>
+                {pickedFile ? `Change file (${pickedFile.name})` : "Choose file"}
+              </button>
+              <button
+                type="button"
+                className="primary btn-sm"
+                data-testid="file-upload"
+                disabled={busy || !pickedFile}
+                onClick={() => void onUpload()}
+              >
+                Add to pool
+              </button>
+              <button type="button" className="ghost-btn btn-sm" data-testid="upload-cancel" onClick={resetUpload}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {lyricsOpen && (
           <LyricsImportDialog

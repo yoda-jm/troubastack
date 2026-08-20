@@ -1463,6 +1463,11 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .file-grid .file .chip { flex: none; align-self: flex-start; }
 .file-grid .facts { display: flex; gap: .3rem; margin-top: auto; align-items: center; flex-wrap: wrap; }
 
+/* T80 — the shared add-file shell (the "Upload file" entry; the lyrics dialog is its sibling). */
+.add-file-shell { border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); padding: .8rem; margin-bottom: .9rem; display: flex; flex-direction: column; gap: .6rem; }
+.add-file-shell .field { display: flex; flex-direction: column; gap: .25rem; }
+.add-file-shell .field span { font-size: .8rem; color: var(--muted); }
+
 /* T78 — Files as a sortable list (shares the setlist row feel + the shared drag primitive). */
 .files-rows { display: flex; flex-direction: column; margin-top: .9rem; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
 .files-rows .file-row { display: flex; align-items: center; gap: .65rem; padding: .55rem .75rem; border-top: 1px solid var(--border); transition: box-shadow .12s ease; }
