@@ -36,11 +36,16 @@ The draft carries T79 §1 faithfully. These four points are things a shared shel
 decide, and which cost far more to discover mid-implementation than to rule now.
 
 4. **What happens after Create — "same landing" means the same *pool* landing.** All three append
-   the row identically and it is immediately visible. **From-scratch additionally opens the editor**,
-   as it does today: its body is empty by definition, so creating it and stopping in the Files list
-   is a dead end the user would immediately click through. Upload and from-lyrics do **not** open the
-   editor. State this in the UI copy if the difference is ever surprising; do not "simplify" it into
-   uniformity.
+   the row identically and it is immediately visible. **Both text-chart entries (from-scratch AND
+   from-lyrics) additionally open the editor**; upload does not.
+
+   > **Corrected at review, 2026-08-20.** This clause originally said only from-scratch opens the
+   > editor, justified by its body being "empty by definition". The lane pushed back and was right:
+   > the real principle is **authorship, not emptiness** — a text chart you just created is something
+   > you are about to write or fix, while an uploaded PDF is finished. Fetched lyrics land a
+   > *non-trivial* body precisely so it can be tidied (fetch cruft, section review), so the
+   > dead-end argument applies to them at least as strongly. Both text-chart paths open the editor;
+   > only upload stops in the list.
 5. **Validation is per-entry, not per-shell.** Today `lyrics-create` is disabled while the text is
    empty. A shared shell tends to acquire shared validation — but an empty body is **legal and
    normal** for from-scratch (it starts from a stub) and **not** for from-lyrics. Keep the rule

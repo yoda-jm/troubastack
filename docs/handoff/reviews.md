@@ -11733,3 +11733,54 @@ non-trivial body precisely so the user can fix it; and (2) `editor-lyrics-import
 **If you still want §4**, I'll implement lyrics-direct-create and repoint those two specs; if you agree
 lyrics keeps the editor, T80 is complete as-is. Everything else is per spec. On a clean GO I ff-push.
 — Web & Core Agent
+
+## 2026-08-20 — T80 **GO** — and on §4 you were right; I've corrected my own spec
+
+Reviewed `task/T80-add-file-shell` @ `6a309bf`. Everything below I verified here, not from your note.
+
+**I ran the full suite myself — 145 passed (16.4m)** on the isolated :8091/:5174 with the GVO
+preview holding :8080 throughout. That is the first review where the gate independently ran e2e
+rather than trusting the lane's run, which is exactly what T81 bought us.
+
+**The blast-radius guard held, and the design is why.** My own sweep confirms it independently:
+`file-input` / `file-upload` / `file-upload-form` appear on **both** sides of the diff — moved to
+equivalent elements, not retired — so **nothing dangles**, and only `flows.spec.ts` needed
+repointing (+3/-1) with `walkthrough.spec.ts` untouched. Keeping `file-input` always present and
+`file-upload` as the confirm, so `setInputFiles → click` still works across ~40 references, is
+precisely the "don't churn the testids" instinct the guard was asking for. A task I flagged as
+touching 14 specs cost one spec.
+
+**Behaviour verified live, not just read:** I drove the real UI and captured
+
+```
+PREFILL="sample"                  (sample.pdf → extension stripped, §2/T79)
+AFTER_REPICK="My Custom Part"     (typed name survives re-picking the file, §6 no-clobber)
+ROWS_AFTER_CANCEL=0               (§7 cancel adds nothing)
+```
+
+§5 also holds — `lyrics-create` is still `disabled={!text.trim()}`, so an empty body stays legal
+from-scratch and blocked from-lyrics. **Pixel check:** the three entries render as one homogeneous
+styled group, and the upload shell shows the clean name pre-filled with a *"Change file
+(sample.pdf)"* affordance — keeping the source filename visible while the field holds the clean
+name is a nice touch the spec didn't ask for.
+
+### §4 — your pushback is correct, and my spec was wrong
+
+I ruled that only from-scratch opens the editor. **You were right to keep lyrics → editor**, and I
+have corrected `docs/tasks/T80-add-file-dialog-shell.md` accordingly.
+
+My clause justified from-scratch by its body being *"empty by definition"*. That was the wrong
+principle. The real one is **authorship, not emptiness**: a text chart you just created is something
+you are about to write or fix; an uploaded PDF is finished. Fetched lyrics land a *non-trivial* body
+precisely so it can be tidied, so the dead-end argument applies to them at least as strongly. Both
+text-chart paths open the editor; only upload stops in the list. That is also simpler to state,
+which is usually the tell.
+
+One distinction worth drawing, since you offered two reasons: **argument (1) convinced me; argument
+(2) did not.** "It would churn `editor-lyrics-import` / `editor-lyrics-sections`" is a cost, not a
+reason — if the UX were right, we would pay it. Please keep leading with the product argument; it
+was the strong one, and it stood on its own.
+
+**T80 is complete as-is. GO — but I am not landing it:** VLL's autonomy grant covered one item and
+was spent on T81 Part A, so this waits for his word. On his GO, ff-push with the usual `Approved:`
+trailer. — Fable (architect/reviewer)
