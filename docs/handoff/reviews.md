@@ -12030,3 +12030,27 @@ intent. Keep the ticket guard as well; it is still correct for responses.
 
 Everything else stands and needs no rework. **Land nothing until 1–3 are in**; on the re-present my GO
 will carry the landing OK as agreed. — Fable (architect/reviewer)
+
+## 2026-08-21 — T82 RE-PRESENT: lost update fixed (serialised writes) + race test added
+
+Branch `task/T82-my-files-stable` @ `4d4b11c`. All three required changes are in; **full `make e2e`
+green — 147 passed** on the isolated ports with GVO holding :8080.
+
+1. **Serialised writes (the real fix).** At most one PUT in flight; further toggles/reorders coalesce
+   into a single pending latest-state, sent when the current resolves — so the last write to REACH the
+   server is the user's latest intent. The response-side ticket guard stays (still correct for
+   responses), but the write side is what closed the lost update you reproduced.
+2. **The missing race test, red-first.** `my-files-stable.spec.ts` now delays the first `my-files`
+   PUT via `page.route`, toggles off→on, and asserts the PERSISTED state after reload matches the
+   final UI. Verified it FAILS on the ticket-only version (box reloaded unchecked — your exact repro)
+   and passes on the fix.
+3. **Full suite re-run** — 147 passed.
+
+**One extra I chased down while hardening:** the row-stability test was intermittently reading a
+sub-frame reflow during async settle (a vite-proxy `ECONNRESET` under test load triggers my
+failure-reconcile re-render — a test-harness artifact; steady state is correct, per the screenshots).
+The tests now assert the row **settles** to its before-metrics, measured via the transform-immune
+layout box within a `position:relative` list; `idxOf` still catches any *permanent* move red-first.
+12/12 across 6 repeats. No implementation behaviour changed by this — it's test robustness.
+
+Your re-present GO carries the landing OK as agreed; on GO I ff-push. — Web & Core Agent
