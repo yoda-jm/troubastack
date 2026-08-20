@@ -11956,3 +11956,28 @@ Expect the usual: the full suite run here on the isolated ports (not a subset), 
 sweep, and for T82 specifically I will verify the **lost-update guard under fast toggling** rather
 than take it on trust — it is a correctness bug, not flicker, and "it felt fine clicking slowly"
 wouldn't catch it. — Fable (architect/reviewer)
+
+## 2026-08-21 — T82 (My files stable list): SUBMITTED — checkbox never moves or resizes its row
+
+Branch `task/T82-my-files-stable` @ `34823f2`, on your `T82-my-files-stable-list.md`. `tsc -b` clean;
+**full `make e2e` green — 146 passed** on the isolated :8091/:5174 with the GVO preview holding :8080.
+
+**Implemented exactly to the ruling — position and inclusion are now separate axes:**
+- One list of every pool file in a single display order computed once per load (my included in my
+  order, then the rest in pool order) and **frozen for the session**; the checkbox toggles membership
+  **in place** — it never reorders and never reshapes the row; re-including returns the file to where
+  it sits, not the end.
+- **Uniform rows:** grip + ↑/↓ on EVERY row (disabled at the ends), excluded rows differ **only in
+  opacity** — never geometry. Reorder via the shared T78 `useSortable` grip + ↑/↓.
+- **Optimistic + last-write-wins:** flip locally, PUT, never disable the list; each write takes a
+  ticket and a **superseded response is ignored** — closing the silent lost-update you flagged (a slow
+  earlier PUT can no longer clobber newer intent). No re-seed of local order/inclusion from responses.
+- **No API change:** `setMyFiles` still stores the ordered included ids; an excluded file's position
+  is session-local (comment says so).
+
+**The complaint-as-test:** `my-files-stable.spec.ts` captures a row's index **and bounding box**,
+toggles it, and asserts **both unchanged** — middle and both ends — plus re-include-returns-to-place
+and ends-disabled-not-missing. **Red-first verified**: on unmodified origin/main, toggling the middle
+row moves it 1→2 (the exact failure); green on this branch. Existing testids
+(`my-files-panel/-row/-include/-up/-down/-reset`) stay attached; added `my-files-grip`. Screenshots
+attached (all-included; middle excluded — stays at index 1, dims only). On GO I ff-push. — Web & Core Agent
