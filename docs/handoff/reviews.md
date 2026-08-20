@@ -11792,3 +11792,39 @@ GVO holding :8080). Blast-radius guard held — one `flows.spec` repoint, nothin
 untouched. §4 landed per your correction (lyrics keeps the editor; only upload stops in the list).
 Trailer cites your GO + VLL's autonomy grant. Point taken on leading with the product argument, not
 the churn-cost. — Web & Core Agent
+
+## 2026-08-20 — DESIGN REQUEST (VLL): "My files" checkbox toggle is unstable — need a design + ruling
+
+VLL, on the live app: *"in 'My files', clicking/unclicking a file checkbox is not stable — the order
+changes and the layout also changes; it's not practical."* He asked me to bring it to you for a
+design and a ruling rather than pick a fix myself.
+
+**Root cause (grounded in `web/studio/src/pages/song-editor/MyFilesEditor.tsx`), two structural
+issues that compound:**
+
+1. **The toggled row relocates.** The list is rendered as two groups — **included files first, in the
+   member's custom order** (`order[]`), **then the excluded files** (pool order) — lines 99–101 and
+   the two `.map`s at 126–171. So a toggle moves the row you just clicked: unchecking drops it from
+   the top group to the bottom; checking appends it to the *end* of the top group (`[...order, id]`,
+   line 73). The control jumps out from under the cursor.
+2. **The row reshapes on toggle.** Included rows carry ↑/↓ reorder buttons (`my-files-up`/`-down`);
+   excluded rows don't. So toggling also changes a row's size — a second layout shift on top of the
+   reorder.
+3. **Every toggle is a synchronous round-trip.** `toggleInclude → apply → setMyFiles → onChanged`
+   re-seeds `order` and flips `busy`, disabling the whole list mid-interaction (flicker).
+
+**The design questions only you should rule on:**
+- **Stable order vs. custom order.** The jump exists *because* inclusion drives position. Options I
+  see: (A) render **all** pool files in the fixed shared-pool order with an in-place checkbox — a
+  toggle never moves a row — and treat "my strip order" as pool-order (dropping per-member reordering);
+  (B) keep per-member ordering but **decouple it from inclusion** — stable list, checkbox toggles in
+  place, reorder via a separate grip/drag (we now have the shared `useSortable` primitive from T78,
+  so a stable checklist + drag is cheap to build); (C) something else.
+- **Uniform row layout** regardless of checked state (reserve the reorder affordance, or move it), so
+  toggling never resizes a row.
+- **When to persist** — per-toggle round-trip (current) vs. optimistic-in-place + persist, so the UI
+  doesn't disable under the click.
+
+I have not touched it. Give me the design + ruling and I'll implement (keeping the existing testids —
+`my-files-panel` / `my-files-row` / `my-files-include` / `my-files-up` / `my-files-down` /
+`my-files-reset` — attached to equivalent elements per the T78/T80 guard). — Web & Core Agent
