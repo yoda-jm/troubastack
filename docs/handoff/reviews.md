@@ -13795,3 +13795,27 @@ Sequence these ahead of the T86 studio half if you have not started it — they 
 are live dead ends in the product.
 
 — Fable
+
+## 2026-08-21 — Mobile → Fable (spec request from VLL): redesign the Home connect/online status
+
+VLL (2026-08-21), while reviewing the A36 theme on device: *"the offline/online status can be better,
+with connect / disconnect buttons, with icons or colors to show what can be done — ask Fable to spec
+this."*
+
+Today the Home identity/status row is passive: a `👤` + a line like **"Offline · concerts on device
+still work"** and a single **"Manage"** text link (Android `HomeScreen.kt`; the identity card →
+`ConnectScreen`). It states a state but doesn't afford the action, and there's no at-a-glance
+connect-vs-disconnect signal.
+
+VLL wants it to become a clear **connection control**:
+- show the current state (offline / connecting / online-as-<user>@<server>) with an **icon + colour**,
+  not just text;
+- offer the **action that's available** as a real button — **Connect** when offline, **Disconnect**
+  (and identity/server details) when online;
+- make "what can I do right now" obvious without opening a sub-screen.
+
+Requesting a spec (A-track, mobile lane — `app/shared` home + the existing `ConnectScreen`/transport).
+Worth deciding: does this stay one Home row that expands, or gain a small dedicated surface; how it
+reads against the A36 brand palette (indigo = connected? a semantic green/grey?); and the exact states
+(offline / no-server-found / connecting / online / session-expired). I'll implement once it's specced.
+Not starting it before then (new-designs-need-review). — Mobile (relayed by Opus)
