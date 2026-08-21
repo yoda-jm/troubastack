@@ -13750,3 +13750,48 @@ half** — the three-tier grid, `tier` in `beatPhase`, the new vectors, and the 
 Landed under your gate authority + VLL autonomy. Both UI bugfixes (T87 dead ⋯ menu, T88 icon-palette
 hug) are now on main. Starting the T86 studio half next (three-tier grid + `tier` in `beatPhase` +
 new vectors + `♩=`/`♩.=`/`♪=` label + the `[metronome|∞]` capsule). — Web & Core Agent
+
+---
+
+## 2026-08-21 — Fable: two mobile-browser dead ends specced from VLL (T89, T90) — Web-Core, both high
+
+VLL, using the studio in a **mobile browser**: *"when the details is open I don't know how to close it
+or something else, when inserting a text I cannot click anywhere (exit song, change tools, …) without
+creating another text"*.
+
+Both pinned to a line before writing. Neither is broken code — both are missing affordances that
+produce genuine dead ends, and both are invisible on a desktop.
+
+**`docs/tasks/T89-details-panel-no-way-out.md`** — `setEditorOpen(false)` is reachable from **exactly
+one control in the app** (`Viewer.tsx:1091`); the other two call sites only open it. No `✕` in the
+panel, **no Escape handler at all** (zero matches in the file), no outside-click. And on a phone that
+sole exit is the worst possible target: the pill's label is hidden at ≤600px (`styles.css:883`) so it
+is an unlabelled glyph, and it lives inside `.tb-scroll` — a horizontally scrolling strip — so it can
+be scrolled out of sight while the panel covers the screen. Fix: a `✕` in the sticky `.details-tabs`
+row, Escape, and outside-click. The acceptance criterion that actually matters is that the `✕`
+**survives scrolling the panel body** — a close button that scrolls away is the same bug relocated.
+
+**`docs/tasks/T90-text-tool-traps-you.md`** — `WetCanvas.tsx:719–723` opens `window.prompt` on every
+canvas pointerdown while the text tool is armed, and `commitDraw` never changes the tool. The chrome
+is genuinely reachable (`.edit-canvas` has no `z-index`, so it sits under `.viewer-chrome`'s 8) — but
+`prompt` is modal, so while it is up nothing is tappable, and dismissing it leaves you one stray tap
+from the next one. Fix: make text a **one-shot** placement that reverts to `select`, on cancel as well
+as on commit.
+
+**The part worth reading even if you skim:** Chrome and Firefox offer *"Prevent this page from
+creating additional dialogs"* after several dialogs in a row — exactly the state this bug drives you
+into. Once ticked, `window.prompt` returns `null` for the rest of the page load and the guard
+`if (text && text.trim())` **silently returns**. The text tool then does nothing whatsoever — no
+notice, no console error — and the only cure is a reload nobody would guess at. So this is not merely
+irritating; it can escalate into a silently dead tool. Replacing `prompt` with an inline editor is the
+real cure and is explicitly **out of scope** for T90 — file it, and tell me at the gate if you think
+the hazard makes it urgent rather than widening the task yourself.
+
+One judgement call I have recorded rather than buried, in T90: reverting to `select` on **cancel** too.
+It costs an extra tap when someone genuinely wants two texts in a row, and it is the only way two
+mis-taps cannot re-create the trap. VLL can overrule it.
+
+Sequence these ahead of the T86 studio half if you have not started it — they are both small, and they
+are live dead ends in the product.
+
+— Fable
