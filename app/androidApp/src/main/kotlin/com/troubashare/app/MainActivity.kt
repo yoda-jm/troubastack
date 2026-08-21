@@ -23,6 +23,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -160,7 +161,11 @@ private fun App() {
     var connecting by remember { mutableStateOf(false) }
 
     if (editing) {
-        EditScreen(storage, onBack = { editing = false })
+        // A36: the studio WebView host keeps its own look — the brand theme is for the NATIVE
+        // screens only, and the embedded studio already carries the website's CSS (VLL: don't
+        // touch the webview). Reset to the M3 baseline the screen was built under (a bare
+        // MaterialTheme would INHERIT the brand scheme, so pass it explicitly).
+        MaterialTheme(colorScheme = lightColorScheme()) { EditScreen(storage, onBack = { editing = false }) }
         return
     }
     if (connecting) {
@@ -271,17 +276,24 @@ private fun App() {
         }
     }
 
-    CompositionLocalProvider(LocalVolumeTurnRegistrar provides volumeTurnRegistrar) {
-        StageHost {
-            StageScreen(
-                opened.vm, opened.decoder, onExit = { selectedDir = null },
-                initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
-                onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
-                onFitModeChange = { storage.putSecret(FIT_MODE_KEY, it.name) },
-                canAutoUpdate = concertId.isNotEmpty(),
-                // Stage 3a-ii: StageScreen shows the "Who are you?" picker / "Switch"; persist the pick per concert.
-                onIdentityChange = { m -> storage.putSecret(idKey, m) },
-            )
+    // A36: concert mode keeps its own performance look + A34's tuned amber/aqua beat — the brand
+    // theme stops at Stage's door (VLL: "don't interact with the concert mode, ok as-is"). Restore
+    // the M3 baseline Stage was designed and approved against (a bare MaterialTheme would INHERIT the
+    // brand scheme, so pass it explicitly), so the brand palette can never re-tint the page well,
+    // the chrome pills or the beat.
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        CompositionLocalProvider(LocalVolumeTurnRegistrar provides volumeTurnRegistrar) {
+            StageHost {
+                StageScreen(
+                    opened.vm, opened.decoder, onExit = { selectedDir = null },
+                    initialColorMode = StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY)),
+                    onColorModeChange = { storage.putSecret(COLOR_MODE_KEY, it.name) },
+                    onFitModeChange = { storage.putSecret(FIT_MODE_KEY, it.name) },
+                    canAutoUpdate = concertId.isNotEmpty(),
+                    // Stage 3a-ii: StageScreen shows the "Who are you?" picker / "Switch"; persist the pick per concert.
+                    onIdentityChange = { m -> storage.putSecret(idKey, m) },
+                )
+            }
         }
     }
     BackHandler { selectedDir = null }
