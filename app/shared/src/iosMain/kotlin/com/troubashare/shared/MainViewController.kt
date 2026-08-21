@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,12 +93,17 @@ private fun App() {
         OpenedBundle(StageViewModel(load, initialFit = FitMode.parse(storage.getSecret("stage.fitMode"))), IosImageDecoder(dir))
     }
     KeepScreenAwake()  // performance resilience (I13) — iOS analog of Android StageHost's FLAG_KEEP_SCREEN_ON
-    StageScreen(
-        opened.vm, opened.decoder, onExit = { selectedDir = null },
-        initialColorMode = StageColorMode.parse(storage.getSecret("stage.colorMode")),
-        onColorModeChange = { storage.putSecret("stage.colorMode", it.name) },
-        onFitModeChange = { storage.putSecret("stage.fitMode", it.name) },
-    )
+    // A36: concert mode keeps its own performance palette — the brand theme stops at Stage's door
+    // (VLL). Restore the M3 baseline Stage was designed against (a bare MaterialTheme would INHERIT
+    // the brand scheme, so pass it explicitly).
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        StageScreen(
+            opened.vm, opened.decoder, onExit = { selectedDir = null },
+            initialColorMode = StageColorMode.parse(storage.getSecret("stage.colorMode")),
+            onColorModeChange = { storage.putSecret("stage.colorMode", it.name) },
+            onFitModeChange = { storage.putSecret("stage.fitMode", it.name) },
+        )
+    }
 }
 
 /**
