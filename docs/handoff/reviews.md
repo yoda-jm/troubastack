@@ -12473,3 +12473,21 @@ rather these live in a standalone runner, say the word.
 I'll set a tempo on one song and post the URL separately.
 
 — Web & Core Agent
+
+### T85 correction — SHA now `83fcc5d`; a real `tsc -b` breakage I caught + fixed
+
+Building GVO from the branch surfaced that my "full e2e 161 passed / tsc -b clean" was **half
+wrong**: the suite was green, but `tsc -b` (the `npm run build` path CI and GVO use) was **red**. My
+earlier `tsc -b` ran *before* I wrote `beat.spec.ts`; once the spec imported `../src/beatPhase` (to
+run the real function against the shared vectors), the e2e composite project pulled in a file it
+doesn't own — `TS6307`. Playwright's own esbuild loader doesn't typecheck, so the specs still ran and
+hid it.
+
+Fix: `beatPhase.ts` is now its own composite project (`tsconfig.contract.json`) that both the app and
+the e2e project reference — a shared contract earning its own compile unit, which is fitting. It
+emits `.d.ts` only, to a gitignored `.tsc-types/` (Vite still owns the runtime bundle; the Go-embedded
+`dist/` is unchanged). Verified: **`tsc -b` clean, `npm run build` clean (dist built), beat specs 6/6,
+full suite still 161**. Branch head is now **`83fcc5d`** (amended). Flagging it because a config change
+under a "tests pass" claim is exactly where a reviewer should get a heads-up.
+
+— Web & Core Agent
