@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { beatPhase, intervalMs, COUNT_IN_BEATS } from "../src/beatPhase";
 
 const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
 interface Vector {
   elapsedMs: number;
@@ -175,4 +176,103 @@ test("editor: the ∞ toggle switches the beat to continuous (T85)", async ({ pa
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   await toggle.click(); // stop
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
+});
+
+// ===========================================================================
+// Frame placement — hug the page on a wide screen, fall back to the viewport.
+// ===========================================================================
+async function uploadPdf(page: Page) {
+  await page.getByTestId("my-files-edit").click();
+  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
+  await page.getByTestId("file-upload").click();
+  await expect(page.getByTestId("file-row")).toHaveCount(1);
+  await page.getByTestId("my-files-edit").click();
+}
+
+async function firstFileId(page: Page, bandId: string, songId: string): Promise<string> {
+  return page.evaluate(
+    async ([b, s]) => {
+      const r = await fetch(`/api/bands/${b}/songs/${s}/files`, { credentials: "include" });
+      const j = (await r.json()) as { files: { id: string }[] };
+      return j.files[0].id;
+    },
+    [bandId, songId] as const,
+  );
+}
+
+async function myUserId(page: Page): Promise<string> {
+  return page.evaluate(async () => {
+    const r = await fetch("/api/me", { credentials: "include" });
+    return ((await r.json()) as { user: { id: string } }).user.id;
+  });
+}
+
+async function importLayer(page: Page, bandId: string, songId: string, fileId: string, me: string) {
+  await page.evaluate(
+    async ([b, s, body]) => {
+      await fetch(`/api/bands/${b}/songs/${s}/annotations/import`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    },
+    [
+      bandId,
+      songId,
+      {
+        layers: [
+          { id: "L-me", fileId, name: "Mine", ownerId: me, zone: "personal", order: 0, access: "rw" },
+        ],
+        objects: [],
+      },
+    ] as const,
+  );
+}
+
+test("editor: the beat frame hugs the page on a wide screen, never past the viewport (T85)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 820 });
+  await register(page, `beathug_${stamp()}`);
+  await createBandAndOpen(page, `HugBand ${stamp()}`);
+  // Create a song with a tempo AND a rendered page (upload + import a layer + reload).
+  await page.getByTestId("new-song-btn").click();
+  await page.getByTestId("song-title").fill(`HugSong ${stamp()}`);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").first().click();
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+  const bandId = page.url().match(/\/bands\/([^/]+)/)![1];
+  const sid = page.url().match(/\/songs\/([^/]+)/)![1];
+  await page.getByTestId("my-files-edit").click();
+  await page.getByTestId("meta-tempo").fill("120");
+  await page.getByTestId("meta-save").click();
+  await expect(page.getByTestId("meta-notice")).toBeVisible();
+  await page.getByTestId("my-files-edit").click();
+  await uploadPdf(page);
+  const fileId = await firstFileId(page, bandId, sid);
+  const me = await myUserId(page);
+  await importLayer(page, bandId, sid, fileId, me);
+  await page.reload();
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible({ timeout: 12000 });
+
+  // Fit-page on a wide screen → the sheet is a narrow centred column.
+  await page.getByTestId("zoom-mode").selectOption("fit-page");
+  await page.waitForTimeout(400);
+
+  const pageBox = (await page.getByTestId("pdf-page").first().boundingBox())!;
+  const scrollBox = (await page.getByTestId("viewer-scroll").boundingBox())!;
+  expect(pageBox.width).toBeLessThan(scrollBox.width * 0.85); // genuinely narrower than the viewport
+
+  await page.getByTestId("beat-toggle").click();
+  await expect(page.getByTestId("beat-frame")).toHaveAttribute("data-beat", /\d+/);
+  const frame = (await page.getByTestId("beat-frame").boundingBox())!;
+
+  // The rail hugs the page (~6px gap each side), not the far viewport edges.
+  expect(Math.abs(frame.x - (pageBox.x - 6))).toBeLessThanOrEqual(4);
+  expect(Math.abs(frame.width - (pageBox.width + 12))).toBeLessThanOrEqual(6);
+  expect(frame.width).toBeLessThan(scrollBox.width * 0.9); // NOT viewport-wide
+  // …and never spills past the viewport (the clamp side of the intersection).
+  expect(frame.x).toBeGreaterThanOrEqual(scrollBox.x - 1);
+  expect(frame.x + frame.width).toBeLessThanOrEqual(scrollBox.x + scrollBox.width + 1);
 });

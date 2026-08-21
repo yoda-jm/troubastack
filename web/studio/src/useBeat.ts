@@ -9,8 +9,48 @@
  * React state, for the control's pressed look.
  */
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
-import { beatFrameStyle } from "./beatFrame";
+import { beatFrameStyle, frameBox } from "./beatFrame";
 import { COUNT_IN_BEATS, decayMs, intervalMs as bpmToIntervalMs } from "./beatPhase";
+
+/** A gap outside the page where the frame sits, so the rail never overlaps the sheet. */
+const FRAME_GAP_PX = 6;
+
+/**
+ * Position the frame at the intersection of the PAGE box and the visible viewport, per side:
+ * where a page edge is on-screen the rail hugs it (a wide monitor keeps the beat near the music,
+ * not out at the far edges); where the page runs off-screen (zoomed in) that side falls back to
+ * the viewport edge. Runs each frame while beating, so it tracks scroll and zoom live.
+ */
+function positionFrame(frame: HTMLDivElement): void {
+  const body = frame.parentElement;
+  if (!body) return;
+  const bodyRect = body.getBoundingClientRect();
+  const scroll = body.querySelector<HTMLElement>(".viewer-scroll");
+  const pages = scroll?.querySelectorAll<HTMLElement>(".pdf-page");
+
+  const v = (scroll ?? body).getBoundingClientRect();
+  let box: { left: number; top: number; right: number; bottom: number };
+  if (pages && pages.length > 0) {
+    // The pages share one centred column, so a single page gives left/right; the column's
+    // vertical extent runs from the first page's top to the last page's bottom. Two reads
+    // regardless of page count — a 20-page part must not force a layout read per page each
+    // frame (Fable's T85b nit, and the shape A35 should port to the tablet).
+    const first = pages[0].getBoundingClientRect();
+    const last = pages[pages.length - 1].getBoundingClientRect();
+    box = frameBox(
+      { left: first.left, top: first.top, right: first.right, bottom: last.bottom },
+      v,
+      FRAME_GAP_PX,
+    );
+  } else {
+    // No page yet — frame the viewport with a small inset (the original behaviour).
+    box = { left: v.left + 8, top: v.top + 8, right: v.right - 8, bottom: v.bottom - 8 };
+  }
+  frame.style.left = `${box.left - bodyRect.left}px`;
+  frame.style.top = `${box.top - bodyRect.top}px`;
+  frame.style.width = `${Math.max(0, box.right - box.left)}px`;
+  frame.style.height = `${Math.max(0, box.bottom - box.top)}px`;
+}
 
 export interface UseBeat {
   running: boolean;
@@ -66,6 +106,7 @@ export function useBeat(bpm: number | null | undefined): UseBeat {
     if (el) {
       const s = beatFrameStyle(elapsed, interval, beats);
       if (s) {
+        positionFrame(el); // hug the page where visible, viewport where not
         el.style.borderWidth = `${s.borderWidth}px`;
         el.style.borderColor = s.borderColor;
         el.style.opacity = String(s.opacity);

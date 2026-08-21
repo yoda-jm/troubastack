@@ -551,17 +551,19 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 /* The body fills the card and is the positioning context for the floating panel. */
 .viewer-body { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
 
-/* T85 — the visual beat. A rounded rail in the padding around the score; width, colour,
-   opacity and glow are driven per-frame by the rAF loop in useBeat (starts invisible).
-   pointer-events:none so it never eats a click on the page. */
+/* T85 — the visual beat. A rounded rail hugging the page (falling back to the viewport
+   edge on any side scrolled off-screen); geometry, width, colour, opacity and glow are all
+   driven per-frame by the rAF loop in useBeat (starts invisible). border-box so the set
+   width/height are the outer edge and the border draws inward. pointer-events:none so it
+   never eats a click on the page. */
 .beat-frame {
   position: absolute;
-  inset: 0.5rem;
+  box-sizing: border-box;
   border-radius: 14px;
   border: 0 solid transparent;
   pointer-events: none;
   z-index: 5;
-  will-change: opacity, border-width, box-shadow;
+  will-change: opacity, border-width, box-shadow, left, top, width, height;
 }
 .beat-controls { display: inline-flex; align-items: center; gap: 2px; }
 .beat-loop { font-size: 1.05rem; line-height: 1; padding-inline: 8px; }
