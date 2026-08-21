@@ -826,3 +826,87 @@ func acceptOnlyInvite(t *testing.T, c *client) {
 	resp, _ := c.do(http.MethodPost, "/api/invites/"+invites[0].ID+"/accept", nil)
 	mustStatus(t, resp, http.StatusOK)
 }
+
+// TestWSLayerDeleteForbidden (T83): deleting a layer is destructive (it cascade-tombstones its
+// objects), so the server enforces write-rights — a member who is not the owner, not a band admin,
+// and (for the conductor zone) not a conductor is rejected "forbidden". A hidden drawer button is not
+// enforcement.
+func TestWSLayerDeleteForbidden(t *testing.T) {
+	band, song, alice, bob, _ := twoMemberBand(t)
+	// Seed a CONDUCTOR-zone layer + an object via the admin's (permissive) import path.
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{
+			Layers:  []annLayer{{ID: "L-cond", FileID: "f1", Name: "Cues", OwnerID: "someone", Zone: "conductor", Order: 0, Access: "ro"}},
+			Objects: []annObject{*objOn("o-c", "L-cond")},
+		})
+	mustStatus(t, resp, http.StatusOK)
+
+	wsB, _, err := bob.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("bob dial: %v", err)
+	}
+	defer wsB.Close()
+	expectSnapshot(t, wsB)
+
+	// Bob (member; not conductor, not owner) deletes the conductor-zone layer → forbidden.
+	sendMut(t, wsB, wsMutation{Kind: "layerDelete", Layer: &annLayer{ID: "L-cond"}})
+	if rej := readMsg(t, wsB); rej.Type != "reject" || rej.Reason != "forbidden" {
+		t.Fatalf("bob layerDelete of conductor zone: type=%q reason=%q, want reject/forbidden", rej.Type, rej.Reason)
+	}
+
+	// HEAD unchanged: the layer and its object both survive.
+	resp, body := bob.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var got annDoc
+	unmarshalField2(t, body, &got)
+	if len(got.Layers) != 1 || len(got.Objects) != 1 {
+		t.Fatalf("forbidden layer-delete must not change HEAD: layers=%d objects=%d", len(got.Layers), len(got.Objects))
+	}
+}
+
+// TestWSLayerDeleteBroadcast (T83): the owner/admin deletes a non-empty layer; every connected client
+// receives a layerDelete echo (NOT a layerUpdate, which would re-add it), and HEAD reflects the
+// cascade — the layer and its object are both gone.
+func TestWSLayerDeleteBroadcast(t *testing.T) {
+	band, song, alice, bob, _ := twoMemberBand(t)
+	// Alice (admin) seeds a SHARED layer + an object; a band admin may delete a shared layer.
+	resp, _ := alice.do(http.MethodPost, "/api/bands/"+band+"/songs/"+song+"/annotations/import",
+		annDoc{
+			Layers:  []annLayer{{ID: "L-sh", FileID: "f1", Name: "Shared", OwnerID: "shared", Zone: "shared", Order: 0, Access: "rw"}},
+			Objects: []annObject{*objOn("o-sh", "L-sh")},
+		})
+	mustStatus(t, resp, http.StatusOK)
+
+	wsA, _, err := alice.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("alice dial: %v", err)
+	}
+	defer wsA.Close()
+	expectSnapshot(t, wsA)
+	wsB, _, err := bob.dialWS(band, song)
+	if err != nil {
+		t.Fatalf("bob dial: %v", err)
+	}
+	defer wsB.Close()
+	expectSnapshot(t, wsB)
+
+	// Alice deletes the shared layer.
+	sendMut(t, wsA, wsMutation{Kind: "layerDelete", Layer: &annLayer{ID: "L-sh"}})
+
+	// Both A and B receive a layerDelete echo naming the layer.
+	for name, ws := range map[string]*websocket.Conn{"alice": wsA, "bob": wsB} {
+		m := readMsg(t, ws)
+		if m.Type != "echo" || m.Mutation.Kind != "layerDelete" || m.Mutation.Layer == nil || m.Mutation.Layer.ID != "L-sh" {
+			t.Fatalf("%s: echo type=%q kind=%q layer=%+v, want echo/layerDelete/L-sh", name, m.Type, m.Mutation.Kind, m.Mutation.Layer)
+		}
+	}
+
+	// HEAD reflects the cascade: the layer and its (now tombstoned) object are both gone.
+	resp, body := bob.do(http.MethodGet, "/api/bands/"+band+"/songs/"+song+"/annotations", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var got annDoc
+	unmarshalField2(t, body, &got)
+	if len(got.Layers) != 0 || len(got.Objects) != 0 {
+		t.Fatalf("after layer-delete cascade: layers=%d objects=%d, want 0/0", len(got.Layers), len(got.Objects))
+	}
+}

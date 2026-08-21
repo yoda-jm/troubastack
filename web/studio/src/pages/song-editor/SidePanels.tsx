@@ -3,7 +3,7 @@
  * Layers panel (visibility toggles, lock, active/focus) and the per-layer
  * Annotation list. Behavior + data-testids unchanged.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { AnnotationLayer, AnnotationObject, Role } from "../../api";
 import { objectLabel } from "../../editor";
 import { Avatar } from "../../components/Avatar";
@@ -21,6 +21,8 @@ export function LayersPanel({
   onFocus,
   canToggleAccess,
   onSetAccess,
+  canDelete,
+  onDelete,
 }: {
   layers: AnnotationLayer[];
   visible: LayerVisibility;
@@ -33,6 +35,10 @@ export function LayersPanel({
   // Whether the viewer may flip THIS layer's lock (shared-zone owner/admin only).
   canToggleAccess: (l: AnnotationLayer) => boolean;
   onSetAccess: (id: string, access: "rw" | "ro") => void;
+  // T83: whether the viewer may delete THIS layer (mirrors server write-rights); onDelete opens the
+  // tiered-confirmation flow (soft when empty, type-DELETE when it holds annotations / is mandatory).
+  canDelete: (l: AnnotationLayer) => boolean;
+  onDelete: (l: AnnotationLayer) => void;
 }) {
   return (
     <aside className="layers-panel" data-testid="layers-panel">
@@ -150,6 +156,20 @@ export function LayersPanel({
                     {l.access === "ro" ? "🔒" : "🔓"}
                   </button>
                 )}
+                {/* T83: delete this layer — permission-gated (mirrors server write-rights). Opens the
+                    tiered confirm: soft when empty, type-DELETE when it holds annotations / is mandatory. */}
+                {canDelete(l) && (
+                  <button
+                    type="button"
+                    data-testid="layer-delete"
+                    className="layer-delete-btn"
+                    title="Delete this layer"
+                    aria-label="Delete layer"
+                    onClick={() => onDelete(l)}
+                  >
+                    🗑
+                  </button>
+                )}
               </li>
             );
           })}
@@ -234,3 +254,76 @@ export function AnnotationList({
   );
 }
 
+
+// T83 — tiered confirmation for deleting a layer. Soft when the layer is empty; a GitHub-style
+// type-DELETE gate when it holds annotations OR is mandatory (deleting a mandatory layer changes what
+// every viewer sees, so the tier tracks CONSEQUENCE, not just object count). The copy says "can't be
+// undone in the editor" — NOT "permanently deleted": the revision history still holds it (§3).
+export function DeleteLayerDialog({
+  layer,
+  objectCount,
+  onConfirm,
+  onCancel,
+}: {
+  layer: AnnotationLayer;
+  objectCount: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const hard = objectCount > 0 || layer.mandatory;
+  const [typed, setTyped] = useState("");
+  const armed = !hard || typed.trim().toUpperCase() === "DELETE";
+  return (
+    <div
+      className="modal-backdrop"
+      data-testid="delete-layer-dialog"
+      role="dialog"
+      aria-modal="true"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+      }}
+    >
+      <div className="modal card">
+        <h3>Delete “{layer.name || "layer"}”?</h3>
+        {hard ? (
+          <>
+            <p data-testid="delete-layer-warning">
+              {objectCount > 0
+                ? `This layer holds ${objectCount} annotation${objectCount === 1 ? "" : "s"} across the file — they will be deleted with it.`
+                : "This is a mandatory layer — deleting it changes what everyone sees."}
+            </p>
+            <p className="muted">
+              This can’t be undone in the editor. Type <strong>DELETE</strong> to confirm.
+            </p>
+            <input
+              data-testid="delete-layer-input"
+              className="delete-layer-input"
+              value={typed}
+              placeholder="DELETE"
+              autoFocus
+              onChange={(e) => setTyped(e.target.value)}
+            />
+          </>
+        ) : (
+          <p data-testid="delete-layer-warning" className="muted">
+            This layer is empty. It can’t be undone in the editor.
+          </p>
+        )}
+        <div className="inline-form">
+          <button
+            type="button"
+            className="danger btn-sm"
+            data-testid="delete-layer-confirm"
+            disabled={!armed}
+            onClick={onConfirm}
+          >
+            Delete layer
+          </button>
+          <button type="button" className="ghost-btn btn-sm" data-testid="delete-layer-cancel" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

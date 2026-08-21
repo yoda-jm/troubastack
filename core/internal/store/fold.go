@@ -78,6 +78,15 @@ func Fold(log []domain.Mutation, revision uint64) domain.Snapshot {
 							break
 						}
 					}
+					// T83: cascade-by-tombstone — mirror the engine fold exactly (engine.go), or live
+					// HEAD and replayed state diverge and the bug only shows after a reload. Objects on
+					// the deleted layer become tombstones (kept in the map/order), not dropped.
+					for id, obj := range objects {
+						if obj.LayerID == m.Layer.ID && !obj.Deleted {
+							obj.Deleted = true
+							objects[id] = obj
+						}
+					}
 				}
 			}
 		}

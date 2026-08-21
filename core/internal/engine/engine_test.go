@@ -3,6 +3,7 @@ package engine_test
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"troubastack/core/internal/domain"
@@ -285,4 +286,91 @@ func uuids(objs []domain.Object) []string {
 		out[i] = o.UUID
 	}
 	return out
+}
+
+// --- T83: delete a layer → cascade-by-tombstone, one revision, no live orphan, replay==HEAD ---
+
+func layerCreate(id, owner string) domain.Mutation {
+	return domain.Mutation{Kind: domain.KindLayerCreate, Layer: &domain.Layer{ID: id, Zone: domain.ZonePersonal, OwnerID: owner, Access: domain.AccessRW}, AuthorID: owner, Summary: "layer " + id}
+}
+func layerDelete(id, owner string) domain.Mutation {
+	return domain.Mutation{Kind: domain.KindLayerDelete, Layer: &domain.Layer{ID: id, Zone: domain.ZonePersonal, OwnerID: owner}, AuthorID: owner, Summary: "delete layer " + id}
+}
+func headRev(t *testing.T, e *engine.Engine) uint64 {
+	t.Helper()
+	snap, err := e.Head(song)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snap.Revision
+}
+
+// assertReplayEqualsHead: the engine's live HEAD equals the store replayed to the same revision
+// (objects incl tombstones, in order, + layers). Guards the "cascade in one fold only" divergence.
+func assertReplayEqualsHead(t *testing.T, e *engine.Engine) {
+	t.Helper()
+	live, err := e.Head(song)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, err := e.SnapshotAt(song, live.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := func(s domain.Snapshot) string {
+		var b strings.Builder
+		for _, o := range s.Objects {
+			fmt.Fprintf(&b, "O:%s/%v/%s;", o.UUID, o.Deleted, o.LayerID)
+		}
+		for _, l := range s.Layers {
+			fmt.Fprintf(&b, "L:%s;", l.ID)
+		}
+		return b.String()
+	}
+	if sig(live) != sig(replay) {
+		t.Fatalf("replay != live HEAD:\n live  =%s\n replay=%s", sig(live), sig(replay))
+	}
+}
+
+func TestLayerDeleteCascadeTombstone(t *testing.T) {
+	backends(t, func(t *testing.T, e *engine.Engine) {
+		mustApply(t, e, layerCreate("L1", "u1"))
+		mustApply(t, e, layerCreate("L2", "u2"))
+		mustApply(t, e, create(obj("a", "L1", "u1", 1)))
+		mustApply(t, e, create(obj("b", "L1", "u1", 1)))
+		mustApply(t, e, create(obj("c", "L2", "u2", 1)))
+		revBefore := headRev(t, e)
+
+		mustApply(t, e, layerDelete("L1", "u1"))
+
+		// One revision per layer-delete (not 1 + N object deletes).
+		if d := headRev(t, e) - revBefore; d != 1 {
+			t.Fatalf("layer-delete took %d revisions, want 1", d)
+		}
+		// No LIVE object references the dead layer; only c (on L2) survives. (Red-first on pre-T83:
+		// a,b stay live on L1.)
+		for _, o := range liveHead(t, e) {
+			if o.LayerID == "L1" {
+				t.Fatalf("live object %s still references deleted layer L1", o.UUID)
+			}
+		}
+		if n := len(liveHead(t, e)); n != 1 {
+			t.Fatalf("live objects = %d, want 1 (only c)", n)
+		}
+		// The layer itself is gone from HEAD.
+		snap, _ := e.Head(song)
+		for _, l := range snap.Layers {
+			if l.ID == "L1" {
+				t.Fatalf("layer L1 still present in HEAD after delete")
+			}
+		}
+		// The cascade wrote TOMBSTONES: a late mutation for a cascaded object is rejected
+		// deleted-remotely, not resurrected as a create (I5 hole closed).
+		mv := obj("a", "L1", "u1", 2)
+		if _, err := e.Apply(song, domain.Mutation{Kind: domain.KindMove, UUID: "a", Object: &mv, BaseVersion: 1, AuthorID: "u1"}); !errors.Is(err, engine.ErrDeletedRemotely) {
+			t.Fatalf("move on cascaded object: err=%v, want ErrDeletedRemotely", err)
+		}
+		// Live HEAD == replay (both folds cascaded identically).
+		assertReplayEqualsHead(t, e)
+	})
 }

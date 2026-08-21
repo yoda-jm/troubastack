@@ -235,6 +235,18 @@ func (se *songEngine) foldOne(m domain.Mutation) {
 						break
 					}
 				}
+				// T83: cascade-by-TOMBSTONE, in this one mutation/revision. Mark every object on the
+				// deleted layer as deleted — kept in the map/order as a tombstone, exactly like
+				// KindDelete, NOT dropped. Dropping the UUID would let a concurrent peer's edit for it
+				// look like a create and resurrect the object into a dead layer; the tombstone instead
+				// makes that mutation ErrDeletedRemotely (engine.go rejects mutations on Deleted
+				// objects), so I5's delete-is-terminal invariant holds.
+				for id, obj := range se.objects {
+					if obj.LayerID == m.Layer.ID && !obj.Deleted {
+						obj.Deleted = true
+						se.objects[id] = obj
+					}
+				}
 			}
 		default:
 			if _, ok := se.layers[m.Layer.ID]; !ok {

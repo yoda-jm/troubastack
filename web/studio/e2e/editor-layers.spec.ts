@@ -693,3 +693,53 @@ test("editor: style controls show live value readouts", async ({ page }) => {
 
   await page.screenshot({ path: "/tmp/ed2-readouts.png", fullPage: true });
 });
+
+// ===========================================================================
+// T83 — delete a layer, with tiered confirmation.
+// ===========================================================================
+
+// A member cannot delete the conductor-zone layer — the affordance is absent (and the server would
+// reject it anyway; see the ws test).
+test("editor: no delete affordance on the foreign conductor layer (T83)", async ({ page }) => {
+  await openConductorOnlySong(page);
+  const cond = page.getByTestId("layer-item").filter({ hasText: "Conductor cues" });
+  await expect(cond).toBeVisible();
+  await expect(cond.getByTestId("layer-delete")).toHaveCount(0);
+});
+
+// Empty layer → SOFT confirm (no type-DELETE gate); deleting it removes it.
+test("editor: delete an empty layer — soft confirm (T83)", async ({ page }) => {
+  await openConductorOnlySong(page);
+  await page.getByTestId("new-layer").click(); // a fresh, empty personal layer I own
+  const before = await page.getByTestId("layer-item").count();
+  const mine = page.getByTestId("layer-item").filter({ has: page.getByTestId("layer-delete") }).first();
+  await mine.getByTestId("layer-delete").click();
+  const dlg = page.getByTestId("delete-layer-dialog");
+  await expect(dlg).toBeVisible();
+  await expect(dlg.getByTestId("delete-layer-input")).toHaveCount(0); // soft: no type-DELETE
+  await dlg.getByTestId("delete-layer-confirm").click();
+  await expect(page.getByTestId("delete-layer-dialog")).toHaveCount(0);
+  await expect(page.getByTestId("layer-item")).toHaveCount(before - 1);
+});
+
+// Non-empty layer → HARD confirm: names the object count, gates the button behind typing DELETE, and
+// deleting it cascade-removes its annotation.
+test("editor: delete a non-empty layer — type DELETE, cascades the annotation (T83)", async ({ page }) => {
+  await openConductorOnlySong(page);
+  await page.getByTestId("new-layer").click();
+  await expect(page.getByTestId("active-layer")).not.toHaveValue("");
+  await page.getByTestId("tool-rect").click();
+  await dragOnPage(page, 0.12, 0.15, 0.36, 0.4);
+  await expect.poll(() => objectCount(page)).toBe(1);
+
+  const mine = page.getByTestId("layer-item").filter({ has: page.getByTestId("layer-delete") }).first();
+  await mine.getByTestId("layer-delete").click();
+  const dlg = page.getByTestId("delete-layer-dialog");
+  await expect(dlg.getByTestId("delete-layer-warning")).toContainText("1 annotation");
+  await expect(dlg.getByTestId("delete-layer-confirm")).toBeDisabled(); // gated until DELETE typed
+  await dlg.getByTestId("delete-layer-input").fill("DELETE");
+  await expect(dlg.getByTestId("delete-layer-confirm")).toBeEnabled();
+  await dlg.getByTestId("delete-layer-confirm").click();
+  await expect(page.getByTestId("delete-layer-dialog")).toHaveCount(0);
+  await expect.poll(() => objectCount(page)).toBe(0); // the annotation cascaded away
+});

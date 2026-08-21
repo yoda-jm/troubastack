@@ -34,7 +34,8 @@ export type MutationKind =
   | "delete"
   | "restore"
   | "layerCreate"
-  | "layerUpdate";
+  | "layerUpdate"
+  | "layerDelete";
 
 /** The wire mutation. version/authorId/seq are server-derived; never sent. */
 export type Mutation = {
@@ -220,6 +221,17 @@ export class SyncClient {
       this.emit();
       return;
     }
+    if (m.kind === "layerDelete") {
+      // T83: the server cascade-tombstones the layer's objects (one revision, carrying only the
+      // layer). Mirror it locally — drop the layer and every live object that was on it — so a peer
+      // sees the layer and its annotations vanish without waiting for a resnapshot.
+      if (m.layer) {
+        this.layers.delete(m.layer.id);
+        for (const [uuid, o] of this.objects) if (o.layerId === m.layer.id) this.objects.delete(uuid);
+      }
+      this.emit();
+      return;
+    }
     const uuid = m.uuid || m.object?.uuid || "";
     if (!uuid) return;
     this.pending.delete(uuid);
@@ -311,5 +323,16 @@ export class SyncClient {
     this.layers.set(layer.id, layer);
     this.emit();
     this.sendMutation({ kind: "layerUpdate", uuid: "", layer, clientTs: Date.now() });
+  }
+
+  /** Optimistically delete a layer AND its objects, and send a layerDelete (T83). The server
+   *  cascade-tombstones the objects in one revision; we mirror by dropping them locally. A server
+   *  reject (insufficient rights) reconciles on the next snapshot, since layer ops aren't in the
+   *  per-object pending/rollback set. */
+  deleteLayer(layer: AnnotationLayer): void {
+    this.layers.delete(layer.id);
+    for (const [uuid, o] of this.objects) if (o.layerId === layer.id) this.objects.delete(uuid);
+    this.emit();
+    this.sendMutation({ kind: "layerDelete", uuid: "", layer, clientTs: Date.now() });
   }
 }

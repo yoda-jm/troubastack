@@ -191,8 +191,29 @@ func (c *conn) authorizeWrite(kind domain.Kind, in mutationJSON) (string, bool) 
 		}
 		return "", true
 
-	case domain.KindLayerReorder, domain.KindLayerDelete:
-		// Not object-affecting; not gated by this write-access rule.
+	case domain.KindLayerReorder:
+		// Not object-affecting (just order); not gated by this write-access rule.
+		return "", true
+
+	case domain.KindLayerDelete:
+		// T83: deleting a layer cascade-tombstones its objects — destructive — so gate it exactly like
+		// layerUpdate (mirror edit rights, don't invent a matrix): the layer OWNER or a band ADMIN, and
+		// a conductor-zone layer requires the conductor ROLE. An RO/foreign layer is refused HERE,
+		// server-side — a hidden drawer button is not enforcement.
+		layerID := ""
+		if in.Layer != nil {
+			layerID = in.Layer.ID
+		}
+		layer, ok := c.hub.eng.Layer(c.songID, layerID)
+		if !ok {
+			return "stale", false
+		}
+		if layer.Zone == domain.ZoneConductor && c.role != roleConductor {
+			return "forbidden", false
+		}
+		if layer.OwnerID != c.authorID && c.role != roleAdmin {
+			return "forbidden", false
+		}
 		return "", true
 
 	case domain.KindCreate:

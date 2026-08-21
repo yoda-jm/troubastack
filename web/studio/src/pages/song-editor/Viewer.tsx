@@ -32,7 +32,7 @@ import { IconGlyphPalette } from "./IconGlyphPalette";
 import { EditCanvas } from "./WetCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
 import { MyCuesEditor } from "./MyCuesEditor";
-import { LayersPanel, AnnotationList } from "./SidePanels";
+import { LayersPanel, AnnotationList, DeleteLayerDialog } from "./SidePanels";
 import { isEditableLayer } from "./helpers";
 import { useSongSync, defaultVisibility } from "./useSongSync";
 import { usePdfDocument, ZOOM_PERCENTS } from "./usePdfDocument";
@@ -568,6 +568,35 @@ export function Viewer({
     },
     [myUserId, myRole],
   );
+
+  // T83: may the viewer DELETE this layer? Mirror the server's write-rights (apply.go): a
+  // conductor-zone layer needs the conductor ROLE; any other zone, the layer's owner or a band admin.
+  // The button is only an affordance — the server enforces the same rule and rejects otherwise.
+  const canDeleteLayer = useCallback(
+    (l: AnnotationLayer): boolean => {
+      if (l.zone === "conductor") return myRole === "conductor";
+      return (myUserId != null && l.ownerId === myUserId) || myRole === "admin";
+    },
+    [myUserId, myRole],
+  );
+  // Objects on a layer, across all pages of the file (objects carry layerId; objectsForFile spans the
+  // file) — the count the hard-confirm dialog names (§5).
+  const layerObjectCount = useCallback(
+    (layerId: string): number => objectsForFile.filter((o) => o.layerId === layerId).length,
+    [objectsForFile],
+  );
+  const [layerToDelete, setLayerToDelete] = useState<AnnotationLayer | null>(null);
+  const confirmDeleteLayer = useCallback(() => {
+    const l = layerToDelete;
+    setLayerToDelete(null);
+    if (!l || !syncRef.current) return;
+    syncRef.current.deleteLayer(l);
+    // If the deleted layer was active/focused, hand off to the next remaining layer (§6: no special
+    // case — new-layer already exists, so nobody is stuck).
+    const next = sortedFileLayers.find((x) => x.id !== l.id)?.id ?? null;
+    setActiveLayerId((cur) => (cur === l.id ? next : cur));
+    setFocusedLayerId((cur) => (cur === l.id ? null : cur));
+  }, [layerToDelete, syncRef, sortedFileLayers]);
 
   // Ensure there's a layer to draw into, creating "My notes" on demand. Returns
   // the layer id to draw into, or null if we can't (no file / not signed in).
@@ -1215,6 +1244,8 @@ export function Viewer({
                     onFocus={focusLayer}
                     canToggleAccess={canToggleLayerAccess}
                     onSetAccess={setLayerAccess}
+                    canDelete={canDeleteLayer}
+                    onDelete={setLayerToDelete}
                   />
                   <EditorToolbar part="layers" {...toolbarProps} />
                 </>
@@ -1235,6 +1266,15 @@ export function Viewer({
           </aside>
         )}
       </div>
+
+      {layerToDelete && (
+        <DeleteLayerDialog
+          layer={layerToDelete}
+          objectCount={layerObjectCount(layerToDelete.id)}
+          onConfirm={confirmDeleteLayer}
+          onCancel={() => setLayerToDelete(null)}
+        />
+      )}
 
       {/* ---- Floating BOTTOM BAR pill: file tabs (parts) + "＋ Add file" · live
           status (N objects · ● live). ---- */}

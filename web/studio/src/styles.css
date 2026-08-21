@@ -1663,3 +1663,11 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
     min-width: 0; max-width: calc(100vw - 1.2rem);
   }
 }
+
+/* T83 — delete-layer affordance + tiered-confirmation modal. */
+.layer-delete-btn { border: 1px solid transparent; background: transparent; cursor: pointer; padding: .1rem .3rem; border-radius: 5px; font-size: .95rem; line-height: 1; opacity: .7; }
+.layer-delete-btn:hover { opacity: 1; background: color-mix(in srgb, var(--error-fg) 12%, transparent); border-color: color-mix(in srgb, var(--error-fg) 30%, transparent); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(0, 0, 0, .45); padding: 1rem; }
+.modal-backdrop .modal { max-width: 30rem; width: 100%; display: flex; flex-direction: column; gap: .7rem; }
+.modal-backdrop .modal h3 { margin: 0; }
+.delete-layer-input { font-family: var(--font-mono); letter-spacing: .08em; }

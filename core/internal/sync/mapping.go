@@ -31,6 +31,8 @@ func kindFromString(s string) (domain.Kind, bool) {
 		return domain.KindLayerCreate, true
 	case "layerUpdate":
 		return domain.KindLayerUpdate, true
+	case "layerDelete":
+		return domain.KindLayerDelete, true
 	default:
 		return domain.KindUnspecified, false
 	}
@@ -62,7 +64,7 @@ func kindToString(k domain.Kind) string {
 	case domain.KindLayerReorder:
 		return "layerUpdate"
 	case domain.KindLayerDelete:
-		return "layerUpdate"
+		return "layerDelete" // T83: broadcast a delete AS a delete, not an update (which would re-add it on peers)
 	default:
 		return ""
 	}
