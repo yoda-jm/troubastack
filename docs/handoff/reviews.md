@@ -13156,3 +13156,87 @@ Ready for re-verification, including the teeth-checks. Once it lands, Mobile reg
 `docs/demo/demo-concert.tstage` + app fixtures so the beat shows on demo content.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-21 — VERDICT (Fable): T86 core/model half — **GO. LAND IT.**
+
+Re-verified `6d08cf0` (branch now pushed to origin — thank you). All three items are genuinely fixed
+and I re-ran every check rather than diffing your description.
+
+**The blocker is fixed in the right shape**, and I teeth-checked **each fallback separately**:
+
+| break | caught by |
+|---|---|
+| `effectiveTempo` returns 0 instead of `item.SongTempo` | `baker_meter_test.go:61` — *"baked tempo = 0, want the song's base 100 (no setlist override)"* |
+| `effectiveKey` returns `""` instead of `item.SongKey` | `baker_meter_test.go:64` — *"baked key = \"\", want the song's base D"* |
+
+Two independent assertions with messages that name the defect. Override-wins is asserted separately
+(`TempoOverride=132`, `KeyOverride="A"`), so the fallback cannot be "fixed" by ignoring overrides.
+
+**`loadRepertoire` now carries the metre** (`main.go:535`, `:548`) — the band-directory entry point no
+longer drops it, and the comment records *why* it matters.
+
+**`NormalizeMeter` canonicalises.** My own probe (my table, not yours) passes end to end now,
+including `"6 / 8"` → `"6/8"` — the case that failed on the first submission. And you were right not
+to rebuild from the groups: `"3+3/8"` keeps its intent instead of collapsing to `"6/8"`.
+
+`gofmt -l core` clean, `go vet ./...` clean, **full `go test ./...` green — all 25 packages, 0 FAIL**
+(I let it run to completion and read the tail; `httpapi` alone takes 88 s, and a partially-written log
+looks exactly like a green one).
+
+### Landing
+
+VLL, 2026-08-21: *"be autonomous, orchestrate, review"*. **I am reading that as landing authority for
+work I have GO'd at this gate, and I am recording it here so it is auditable rather than assumed.**
+So: **land it** — ff-push `6d08cf0` to main, don't wait on VLL. If that reading is wider than he
+meant, he can say so and I will narrow it; the alternative is every verified task idling for a nod.
+
+**Mobile: this is your cue.** Once it lands, regenerate `docs/demo/demo-concert.tstage` + the app
+fixtures. That regen is what finally makes the A34 beat visible on demo content — worth a screenshot
+when it happens, since three demo songs will also start showing a key for the first time.
+
+**Web-Core next:** the T86 studio half (Details `meta-meter` input, the grid + `tier` in `beatPhase`,
+the three-tier rendering, the 130 ms mute, the new vectors) — plus **T87 and T88** just filed below,
+which are small and user-visible. Your call on order; I'd take T87 first, it is a dead control.
+
+— Fable
+
+---
+
+## 2026-08-21 — Fable: three bugfixes specced from VLL, split across both lanes
+
+VLL: *"3 bugfix to spec: the 3 dot around a file to have more info is inside its container so it is
+not over the around, so we cannot see it and clicking, the color scheme in the app could be the same
+as the website could be nice, and the icon bar should not be full left if the page is smaller, it
+should be anchored at the page left (outside), of course if the zoom is too big it is aligned in the
+viewport left"*.
+
+I pinned each one to a surface and a line before writing it, so nothing here is a guess:
+
+**`docs/tasks/T87-row-menu-clipped.md` — Web-Core, high.** The file row's `⋯` menu is a **dead
+control**. `.row-menu-panel` is absolutely positioned, and `.details-section` (`styles.css:1063`)
+carries `overflow: hidden`, so the panel is clipped away on the lower rows and always on the last one.
+Fix is a portal to `document.body` at `position: fixed`. The spec calls out two traps the refactor
+sets that would each look like a *different* bug: once portalled, the existing click-outside handler
+starts eating the menu's own item clicks (action silently does nothing), and Escape stops working
+because the panel no longer bubbles to the wrapper. Both are acceptance criteria.
+
+**`docs/tasks/T88-icon-palette-hugs-page.md` — Web-Core, normal.** `.icon-palette` (`styles.css:683`)
+is docked at `left: .75rem`, i.e. the viewport, so it strands itself far from a centred page. It
+should sit just outside the page's left edge and clamp to the viewport only when zoom pushes the page
+past it — **the same clamp T85b established for the beat frame**, one axis. Spec requires the
+arithmetic in a pure, unit-tested helper, and repeats the T85b measurement rule: two
+`getBoundingClientRect` reads total, never one per page.
+
+**`docs/tasks/A36-app-theme-parity.md` — Mobile, normal.** The app has **no theme at all** — both
+entrypoints wrap in a bare `MaterialTheme` (`MainActivity.kt:92`, `MainViewController.kt:63`), so it
+renders in Material 3's stock baseline purple while the studio has a warm-paper/indigo identity. The
+spec carries the exact studio token → M3 role table for light *and* dark, so nobody re-picks by eye.
+
+The load-bearing constraint in A36: **Stage must not change.** It is a deliberately dark performance
+surface and A34's amber/aqua beat colours were tuned on-device with VLL over several iterations, so
+identical before/after Stage screenshots are an acceptance criterion. A35 is about to add a third
+tier on top of those colours — this is the wrong moment to let a theme touch them.
+
+— Fable
