@@ -71,7 +71,7 @@ test("Details panel: add file, new text chart, delete file, delete song all reac
 
   // (3) FILE DELETE — remove the uploaded file via the row … menu (confirm auto-accepted).
   await panel.getByTestId("file-menu").first().click();
-  await panel.getByTestId("file-menu-delete").first().click();
+  await page.getByTestId("file-menu-delete").first().click();
   await expect(panel.getByTestId("file-row")).toHaveCount(0);
 
   // (4) DELETE SONG — under the Admin tab (T54). Reachability probe: after scrolling the

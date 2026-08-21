@@ -61,19 +61,19 @@ test("Files: … menu — view-source only on charts, menu reorder persists, ren
 
   // View source is present on the text chart's menu, ABSENT on the PDF's menu.
   await chartRow.getByTestId("file-menu").click();
-  await expect(panel.getByTestId("file-menu-source")).toBeVisible();
-  await expect(panel.getByTestId("file-menu-rename")).toBeVisible();
+  await expect(page.getByTestId("file-menu-source")).toBeVisible();
+  await expect(page.getByTestId("file-menu-rename")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await pdfRow.getByTestId("file-menu").click();
-  await expect(panel.getByTestId("file-menu-source")).toHaveCount(0);
-  await expect(panel.getByTestId("file-menu-rename")).toBeVisible();
+  await expect(page.getByTestId("file-menu-source")).toHaveCount(0);
+  await expect(page.getByTestId("file-menu-rename")).toBeVisible();
   await page.keyboard.press("Escape");
 
   // Menu reorder: move the PDF (row 0) DOWN — the chart takes row 0. Persists across reload.
   await expect(panel.getByTestId("file-row").first().getByTestId("file-chart-badge")).toHaveCount(0);
   await pdfRow.getByTestId("file-menu").click();
-  await panel.getByTestId("file-menu-down").click();
+  await page.getByTestId("file-menu-down").click();
   await expect(panel.getByTestId("file-row").first().getByTestId("file-chart-badge")).toHaveCount(1);
   await page.reload();
   await page.getByTestId("my-files-edit").click();
@@ -81,6 +81,76 @@ test("Files: … menu — view-source only on charts, menu reorder persists, ren
 
   // Rename the (now first) chart via the menu → the download link shows the new name.
   await panel.getByTestId("file-row").first().getByTestId("file-menu").click();
-  await panel.getByTestId("file-menu-rename").click();
+  await page.getByTestId("file-menu-rename").click();
   await expect(panel.getByTestId("file-download").first()).toHaveText(/Renamed Part/);
+});
+
+// ===========================================================================
+// T87 — the … menu is portalled, so overflow:hidden on the Details card no longer
+// clips it away on the lower rows (it was a dead control there).
+// ===========================================================================
+async function fourFileRows(page: Page) {
+  const panel = page.getByTestId("details-panel");
+  await page.getByTestId("my-files-edit").click();
+  await expect(panel).toBeVisible();
+  await panel.getByTestId("file-input").setInputFiles(PDF_PATH);
+  await panel.getByTestId("file-upload").click();
+  await expect(panel.getByTestId("file-row")).toHaveCount(1);
+  for (const t of ["AAA", "BBB", "CCC"]) {
+    await panel.getByTestId("new-text-chart").click();
+    await panel.getByTestId("chart-source").fill(`# ${t} Chart\n\n## Verse\nla\n`);
+    await panel.getByTestId("chart-save").click();
+  }
+  await expect(panel.getByTestId("file-row")).toHaveCount(4);
+  return panel;
+}
+
+test("Files: the last row's … menu is in-viewport and actionable, not clipped (T87)", async ({
+  page,
+}) => {
+  page.on("dialog", (d) => void d.accept(d.type() === "prompt" ? "Renamed Last" : undefined));
+  await register(page, `t87_${stamp()}`);
+  await createBandAndOpen(page, `T87Band ${stamp()}`);
+  await createSongAndOpen(page, `T87Song ${stamp()}`);
+  const panel = await fourFileRows(page);
+
+  // Open the LAST row's menu — the one whose downward panel used to fall past the section's
+  // overflow:hidden edge and vanish.
+  const lastRow = panel.getByTestId("file-row").last();
+  await lastRow.getByTestId("file-menu").click();
+  await expect(page.getByTestId("file-menu-rename")).toBeVisible();
+
+  // The portalled panel lies fully within the viewport.
+  const box = (await page.locator(".row-menu-panel").boundingBox())!;
+  const vw = page.viewportSize()!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(vw.width + 1);
+  expect(box.y + box.height).toBeLessThanOrEqual(vw.height + 1);
+
+  // The real regression + trap 1: clicking an item actually performs its action (a clipped
+  // panel's item is unpainted, so the click would not land and the rename would no-op).
+  await page.getByTestId("file-menu-rename").click();
+  await expect(lastRow).toContainText("Renamed Last");
+});
+
+test("Files: … menu closes on Escape (trap 2) and on an outside click (T87)", async ({ page }) => {
+  await register(page, `t87esc_${stamp()}`);
+  await createBandAndOpen(page, `T87EscBand ${stamp()}`);
+  await createSongAndOpen(page, `T87EscSong ${stamp()}`);
+  const panel = await fourFileRows(page);
+  const lastRow = panel.getByTestId("file-row").last();
+  const item = page.getByTestId("file-menu-rename");
+
+  // Escape closes (the portalled panel's keydown doesn't bubble to the component — trap 2).
+  await lastRow.getByTestId("file-menu").click();
+  await expect(item).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(item).toHaveCount(0);
+
+  // A genuine outside click still closes it.
+  await lastRow.getByTestId("file-menu").click();
+  await expect(item).toBeVisible();
+  await panel.getByTestId("file-row").first().click();
+  await expect(item).toHaveCount(0);
 });

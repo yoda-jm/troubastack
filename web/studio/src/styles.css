@@ -1513,9 +1513,11 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .files-rows .file-row .chip { flex: none; }
 
 /* T78 — the row "…" overflow menu (Files list; reusable). */
-.row-menu { position: relative; flex: none; }
+.row-menu { flex: none; } /* T87: panel is portalled/fixed now — no positioned-ancestor needed */
 .row-menu-trigger { font-size: 1.15rem; line-height: 1; }
-.row-menu-panel { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 9.5rem; display: flex; flex-direction: column; padding: .25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+/* T87 — portalled to document.body; JS sets left/top from the trigger rect (position:fixed so no
+   overflow:hidden ancestor can clip it). z-index above the editor chrome/drawer. */
+.row-menu-panel { position: fixed; z-index: 1000; min-width: 9.5rem; display: flex; flex-direction: column; padding: .25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
 .row-menu-item { text-align: left; background: transparent; border: none; color: var(--fg); font: inherit; padding: .4rem .6rem; border-radius: 5px; cursor: pointer; }
 .row-menu-item:hover:not(:disabled) { background: var(--surface-2); }
 .row-menu-item:disabled { opacity: .4; cursor: default; }

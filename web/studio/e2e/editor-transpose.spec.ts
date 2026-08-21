@@ -52,7 +52,7 @@ test("editor transpose G→A rewrites the chords and updates the song key (T60)"
 
   // Re-open the saved (generated) chart's source — Transpose shows for saved charts only.
   await panel.getByTestId("file-menu").click();
-  await panel.getByTestId("file-menu-source").click();
+  await page.getByTestId("file-menu-source").click();
   await expect(panel.getByTestId("chart-editor")).toBeVisible();
 
   // Open Transpose: the target key is prefilled from the song key; "also update key" on.
@@ -88,7 +88,7 @@ test("Transpose is blocked while the chart editor has unsaved edits (dirty guard
   await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nlyric here\n");
   await panel.getByTestId("chart-save").click();
   await panel.getByTestId("file-menu").click();
-  await panel.getByTestId("file-menu-source").click();
+  await page.getByTestId("file-menu-source").click();
   await expect(panel.getByTestId("chart-editor")).toBeVisible();
 
   // Clean: Transpose is available.
@@ -120,7 +120,7 @@ test("the chart source is locked while a transpose Apply is in flight (T64 D4)",
   await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nlyric line\n");
   await panel.getByTestId("chart-save").click();
   await panel.getByTestId("file-menu").click();
-  await panel.getByTestId("file-menu-source").click();
+  await page.getByTestId("file-menu-source").click();
   await expect(panel.getByTestId("chart-editor")).toBeVisible();
 
   await panel.getByTestId("chart-transpose-btn").click();
@@ -161,7 +161,7 @@ test("transpose Preview renders without persisting; the source is untouched unti
   await panel.getByTestId("chart-source").fill("# Song\n## Verse\nG            D\nline of lyrics\n");
   await panel.getByTestId("chart-save").click();
   await panel.getByTestId("file-menu").click();
-  await panel.getByTestId("file-menu-source").click();
+  await page.getByTestId("file-menu-source").click();
   await expect(panel.getByTestId("chart-editor")).toBeVisible();
 
   await panel.getByTestId("chart-transpose-btn").click();
