@@ -21,6 +21,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -222,9 +223,10 @@ private fun Performing(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     // Auto-hide the chrome while nothing modal is open; any re-reveal or opened surface restarts it.
+    // Keep it up while the metronome runs so its FAB stays reachable to toggle off (A34).
     val overlayOpen = drawerState.isOpen || showSettings || showLayers || showRole
-    LaunchedEffect(chromeVisible, overlayOpen) {
-        if (chromeVisible && !overlayOpen) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
+    LaunchedEffect(chromeVisible, overlayOpen, stageBeat.running) {
+        if (chromeVisible && !overlayOpen && !stageBeat.running) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
     }
     // N1 + N7 share ONE transient center-overlay layer (latest-wins): the N1 song-boundary card and the
     // N7 blocked-turn glyph are mutually exclusive per action, so each trigger CLEARS the other and bumps
@@ -408,7 +410,7 @@ private fun Performing(
                 ),
         ) {
             when {
-                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx, stageBeat)
+                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
                 // N4: page/width turns animate as a direction-aware horizontal slide (presentation only —
                 // the turn is still the single goToPage funnel, so swipe/FABs/pedals/keys/volume all
                 // animate identically). Keyed on state.current: a turn mid-animation just retargets, the
@@ -451,10 +453,10 @@ private fun Performing(
             }
         }
 
-        // A34: the visual beat — a pulsing frame on the page border. Above the page (visible), below the
-        // chrome (so ☰/⚙/✕ stay on top and tappable); border-only + no pointer input, so it never
-        // covers the music nor eats a tap. Dark unless a count-in/metronome is running.
-        StageBeatFrame(stageBeat.frame)
+        // A34: the visual beat — a pulsing frame on the page border PLUS a big, faint, tinted beat
+        // number (1 2 3 4 …) in the middle so the player keeps their place. Above the page, below the
+        // chrome (so ☰/⚙/✕ stay on top). Tapping the number stops the metronome. Dark unless running.
+        StageBeatFrame(stageBeat, onStop = stageBeat::stop)
 
         // A2: TOP chrome — ☰ song drawer · centered title+position card · [● Live] · ✕ exit. Fades and
         // slides in on reveal; the A08 meta strip rides inside it (score stays clean when hidden). In
@@ -474,6 +476,8 @@ private fun Performing(
                         modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // A34: the metronome, in the bar where a player looks. Only when the song has a tempo.
+                        if (page.tempo > 0) StageBeatFab(page.tempo, stageBeat)
                         if (canAutoUpdate) StageFab(if (state.autoUpdate) "●" else "○") { vm.setAutoUpdate(!state.autoUpdate) }
                         // Settings lives in the TOP bar, not the bottom: MIUI's bottom gesture zone
                         // intercepts taps flush to the screen bottom, making a bottom ⚙ hard to hit.
@@ -484,10 +488,10 @@ private fun Performing(
                 when {
                     scrollMode -> {}
                     twoUp -> Row(Modifier.fillMaxWidth()) {
-                        Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], stageBeat) } }
-                        Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], stageBeat) } }
+                        Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it]) } }
+                        Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it]) } }
                     }
-                    else -> MetaStrip(page, stageBeat)
+                    else -> MetaStrip(page)
                 }
             }
         }
@@ -845,7 +849,6 @@ private fun ScrollReader(
     cache: PageImageCache,
     colorFilter: androidx.compose.ui.graphics.ColorFilter?,
     widthPx: Int,
-    beat: StageBeat,
 ) {
     val range = songPageRange(state, state.current)
     val songPages = if (range.isEmpty()) emptyList() else state.pages.subList(range.first, range.last + 1)
@@ -857,7 +860,7 @@ private fun ScrollReader(
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(songPages) { index, page ->
             Column(Modifier.fillMaxWidth()) {
-                MetaStrip(page, beat) // renders only on the song's first page
+                MetaStrip(page) // renders only on the song's first page
                 ScrollPage(page, state.visibleFor(page.songId), decoder, cache, colorFilter, widthPx)
             }
         }
@@ -1019,63 +1022,61 @@ private fun MissingLayersBadge(missing: Int, modifier: Modifier = Modifier) {
  * in two-up it's the per-side page index so each half resets independently.
  */
 @Composable
-private fun MetaStrip(page: StagePage, beat: StageBeat) {
+private fun MetaStrip(page: StagePage) {
     if (page.pageInSong != 0) return
-    val prefix = metaStripText(page.displayNotes, page.key, 0) // notes · key; tempo is the chip (A11)
-    val hasTempo = page.tempo > 0
-    if (prefix == null && !hasTempo) return
+    // notes · key only; the tempo/metronome control moved to the top-bar FAB (A34), no chip here.
+    val prefix = metaStripText(page.displayNotes, page.key, 0) ?: return
     Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (prefix != null) {
-                Text(
-                    prefix,
-                    Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-            if (hasTempo) TempoChip(page.tempo, beat)
+            Text(
+                prefix,
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
 
-/**
- * The A08 tempo, as a chip that runs the A34 silent visual beat: **tap = an 8-beat count-in**,
- * **long-press = continuous** (metronome, until tapped off or a page turn). The main channel is the
- * pulsing page-border frame; this chip only echoes it (a filled amber/aqua dot on the lit window vs an
- * idle outline) so the player has feedback at the point they tapped. Read-only, no audio, no
- * full-screen flash (stage lighting). Out-of-range tempo → both gestures are a no-op.
- */
+/** The metronome tint: amber/aqua on the lit beat, the accent while running-but-dark, else the muted
+ *  outline. Shared by the chip and the top-bar FAB so they read identically. */
+@Composable
+private fun beatTint(beat: StageBeat): Color {
+    val f = beat.frame
+    return when {
+        f != null && f.downbeat -> Color(0xFFFFB02E)
+        f != null -> Color(0xFF3EE0D4)
+        beat.running -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.outline
+    }
+}
+
+/** The metronome in the TOP BAR (where a player looks), next to ●/⚙/✕. Same gestures as the chip:
+ *  tap = on/off, long-press = count-in. Styled like [StageFab] but icon-drawn + long-press-capable,
+ *  and it lifts to the accent container while running so "on" is visible even between pulses. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun TempoChip(tempo: Int, beat: StageBeat) {
+private fun StageBeatFab(tempo: Int, beat: StageBeat, size: Dp = 56.dp) {
     val enabled = tempoIntervalMs(tempo) != null
-    Row(
+    val shape = FloatingActionButtonDefaults.shape
+    val container = if (beat.running) Color(0xE6198060) else STAGE_FAB_CONTAINER
+    Box(
         Modifier
+            .size(size)
+            .clip(shape)
+            .background(container)
+            .border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape)
             .combinedClickable(
-                onClick = { if (enabled) beat.tap(tempo) },
-                onLongClick = { if (enabled) beat.toggleContinuous(tempo) },
-            )
-            .padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                onClick = { if (enabled) beat.toggle(tempo) },
+                onLongClick = { if (enabled) beat.countIn(tempo) },
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        Text("♩=$tempo", style = MaterialTheme.typography.labelMedium)
-        val f = beat.frame
-        val dot = if (f != null) 10.dp else 7.dp
-        val color = when {
-            f == null -> MaterialTheme.colorScheme.outline
-            f.downbeat -> Color(0xFFFFB02E)
-            else -> Color(0xFF3EE0D4)
-        }
-        Box(Modifier.size(dot).background(color, CircleShape))
+        MetronomeIcon(beatTint(beat), Modifier.size(size * 0.42f))
     }
 }
 
