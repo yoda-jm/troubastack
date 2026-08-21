@@ -45,10 +45,11 @@ private val OFFBEAT = Color(0xFF3EE0D4) // aqua — grey would read as "off"
 private val BEAT_BASE = 16.dp
 
 /**
- * A silent, read-only beat controller. Tap → an 8-beat count-in; long-press → continuous until a
- * second tap or a page turn. Idle when [beats] is 0. Each start/stop bumps [runToken] so the driver
- * effect (re)starts. The current visual is pushed out through [onFrame] (a snapshot-state setter the
- * Stage owns), so the border recomposes but the controller stays render-agnostic.
+ * A silent, read-only beat controller. [toggle] starts/stops the metronome; the [continuous] (∞)
+ * flag chooses keep-running vs an 8-beat count-in that self-stops. Idle when [beats] is 0. Each
+ * start/stop bumps [runToken] so the driver effect (re)starts. The current visual is pushed out
+ * through [frame]/[beatLabel] (snapshot-state the Stage observes), so the border + centre count
+ * recompose but the controller stays render-agnostic.
  */
 class StageBeat {
     var runToken by mutableStateOf(0)
@@ -97,13 +98,16 @@ class StageBeat {
 }
 
 /**
- * A [StageBeat] plus its frame-clock driver, scoped to [resetKey] (the current page) so a page turn
- * makes a fresh instance and cancels any in-progress count-in. Render [StageBeatFrame] with its frame.
+ * A [StageBeat] plus its frame-clock driver, scoped to [resetKey] — the current SONG, so the beat
+ * keeps ticking across page turns within a song and only a song change makes a fresh instance (its
+ * tempo may differ). Render [StageBeatFrame] with it.
  */
 @Composable
 fun rememberStageBeat(resetKey: Any): StageBeat {
     val beat = remember(resetKey) { StageBeat() }
-    LaunchedEffect(beat.runToken) {
+    // Key on the instance too, not just its token: a fresh (song-change) instance starts at token 0,
+    // which must re-run this effect into the idle branch rather than reuse a running predecessor's.
+    LaunchedEffect(beat, beat.runToken) {
         beat.frame = null
         beat.beatLabel = null
         if (!beat.running) return@LaunchedEffect

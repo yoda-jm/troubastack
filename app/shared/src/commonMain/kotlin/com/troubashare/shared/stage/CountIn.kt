@@ -22,7 +22,7 @@ import kotlin.math.pow
 /** Beats per bar — downbeats fall on beat 0, 4, 8, … */
 const val BEATS_PER_BAR = 4
 
-/** A count-in is two bars of 4/4. Tap = count-in; long-press = continuous (passes a huge count). */
+/** A count-in is two bars of 4/4 — the beat count used when the ∞ (continuous) toggle is OFF. */
 const val COUNT_IN_BEATS = BEATS_PER_BAR * 2
 
 /** Continuous ("keep running") mode: an effectively unbounded beat count. */

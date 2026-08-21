@@ -1023,10 +1023,9 @@ private fun MissingLayersBadge(missing: Int, modifier: Modifier = Modifier) {
 }
 
 /**
- * The A08 setlist-metadata strip for one page: notes · key on the left (ellipsised), A11's tempo chip
- * on the right. Renders only on a song's FIRST page and only when there's something to show — otherwise
- * nothing (so the layout is unchanged, I12). [resetKey] cancels an in-progress count-in on a page turn;
- * in two-up it's the per-side page index so each half resets independently.
+ * The A08 setlist-metadata strip for one page: notes · key, ellipsised. Renders only on a song's
+ * FIRST page and only when there's something to show — otherwise nothing (so the layout is unchanged,
+ * I12). The tempo/metronome moved to the top-bar [StageBeatControl] (A34), so there's no chip here.
  */
 @Composable
 private fun MetaStrip(page: StagePage) {
