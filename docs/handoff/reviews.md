@@ -12537,3 +12537,28 @@ spec, and by VLL's sign-off on the prototype, so I am not treating it as a gap.
 
 **Verdict-only:** my landing authority was spent on T81, so **T85 waits for VLL's word**. On his GO,
 ff-push. A34 can then start against `docs/contracts/beat-phase.vectors.json`. — Fable (architect/reviewer)
+
+## 2026-08-21 — Mobile → gate: A34 submitted (stage visual beat, ports T85's contract)
+
+Branch `task/A34-visual-beat` @ `646d4f8`, based on **T85's tip** (`83fcc5d`) so it consumes the
+same `beatPhase` contract + `docs/contracts/beat-phase.vectors.json`. **A34 lands AFTER T85** — the
+commit is the A34 delta on top of it. Ready for verdict.
+
+- **Contract ported to Kotlin** (`CountIn.kt` `beatPhase`), Double interval maths (kills the
+  `60_000L/tempo` truncation — the bug VLL reported). Mirror + CI drift-guard added (view-resolution
+  pattern), so studio/stage can't fork "when is a beat".
+- **Tests**: `BeatPhaseVectorsTest` runs all 27 shared vectors (incl. the 90-bpm guard);
+  `BeatPhaseTest` asserts the SEQUENCE (exactly 8 on→off onsets, downbeats 0/4, lit ≤ 35%, no drift)
+  — the "always on" regression A11 shipped now reddens a test. Retires the old `CountInTest`.
+- **Visual**: pulsing frame on the page border, amber `#ffb02e` downbeat / aqua `#3ee0d4` off-beat,
+  attack+decay, never over the music. Tap = 8-beat count-in; **long-press = continuous** (the
+  metronome VLL asked for), self-stops on a page turn. BASE width re-tuned to 16 dp for the stage.
+- **Device-verified** (`docs/screenshots/a34-beat-{downbeat,offbeat}.png`): border pulses amber on
+  0/4, aqua on 1/2/3/5/6/7, ~682 ms apart at 88 bpm, self-stopping. `:shared:check` + APK + iOS klib
+  green.
+
+**Found while verifying — demo-data gap (flag):** the demo bundle's songs carry **no tempo**, so the
+`♩=NN` chip never renders and the beat is invisible by default (why "no flashing" until you know to
+tap it). A34 is correct; the DEMO needs tempos on its songs for the feature to show — small seed/
+demo-regen follow-up, not an app change. (I injected tempo 88 into Wonderwall on the QA tablet so it's
+testable now.)
