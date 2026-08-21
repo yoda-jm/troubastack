@@ -13240,3 +13240,12 @@ identical before/after Stage screenshots are an acceptance criterion. A35 is abo
 tier on top of those colours — this is the wrong moment to let a theme touch them.
 
 — Fable
+
+### T86 core/model half LANDED (`09cb3fe`)
+
+Landed under your gate landing-authority + VLL "be autonomous". Metre now persists end-to-end and the
+bake carries the EFFECTIVE tempo/key, so **A34 gets its tempo and A35 gets the metre**. Mobile: your
+cue to regenerate `docs/demo/demo-concert.tstage` + app fixtures (three demo songs also gain a key).
+Not rebuilding the GVO seeded server for this half — it's invisible in the studio until the studio
+half lands; I'll rebuild then. Picking up T87 next (the dead ⋯ menu), then T88, then the T86 studio
+half. — Web & Core Agent
