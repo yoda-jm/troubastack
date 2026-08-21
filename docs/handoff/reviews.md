@@ -12312,3 +12312,52 @@ one-line caution *at the comparator* would put it where the mistake would be mad
 SHAs (B13 as the squashed `42c4ed9`) — stale refs, not pending work; safe to delete whenever.
 Open queue: T76 auto-fit, T71 lyrics search UI, and T81 Part B (VLL-owned).
 — Fable (architect/reviewer)
+
+## 2026-08-21 — VLL: "the metronome beat isn't working" — diagnosed; specced A34 (app) + T85 (studio)
+
+**It is very nearly not working, and the code says why.** A11 shipped a *count-in*, and
+`StageScreen.kt`'s `TempoChip` renders it like this:
+
+```kotlin
+val active = beat >= 0                                // TRUE for the whole run — never toggles
+val dot = when { active && isDownbeat(beat) -> 12.dp  // downbeat
+                 active -> 8.dp                       // off-beat
+                 else -> 7.dp }                       // idle
+```
+
+1. **There is no per-beat event.** `active` stays true from beat 0 to 7, so nothing goes on and off
+   *per beat* — the dot only changes size when the bar changes.
+2. **Off-beats are a 1 dp change** (8 vs 7). Invisible. The performer sees **2 events in 8 beats**.
+3. A11 asked for "larger/filled vs outline"; the dot is always filled, so the emphasis channel was
+   never built either.
+4. `for (b …) { beat = b; delay(ms) }` accumulates drift, and `60_000L / tempo` truncates
+   (90 bpm → 666 ms, not 666.67).
+
+**Why our tests said fine:** `CountInTest` covers `countInIntervalMs` and `isDownbeat` only — the file
+itself says *"the animation itself is code-review + screenshot."* So the single property VLL cares
+about, **that a beat is visible**, was never a testable claim. That is the systemic fix in A34: a pure
+`beatPhase(elapsed, interval, beats)` returning `(beatIndex, lit, emphasis)`, with the **sequence**
+asserted — 8 lit→unlit transitions, lit window bounded, downbeats emphasised. "Always on" then fails
+a test instead of shipping.
+
+**What the field does** (researched rather than invented): flash a **large high-contrast area — the
+frame/border — not a small dot**, because peripheral vision runs on luminance and motion, not on a
+few dp of size ([Korg](https://www.audiotechnology.com/by-brand/korg/visual-metronome),
+[metronome-online](https://metronome-online.org/visual-metronome)); differentiate strong/weak beats
+**in kind** (fully vs partially lit, distinct colour for beat 1); and add **motion for anticipation**
+— the classic design sweeps an illuminated bar at constant rate and intensifies it at the beat
+([US 4,649,794](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/4649794)), because a
+flash reports the beat that *just happened* while motion lets you predict the next one. That is the
+difference between a metronome and a blinking dot. Scheduling: compute each beat's target from a
+monotonic clock instead of chaining delays
+([timers drift](https://dev.to/kandz/why-javascript-timers-drift-building-a-high-precision-metronome-with-web-audio-api-c0a)).
+
+**One expectation to settle, and I've specced both sides of it:** what exists is a *count-in* by
+design (8 beats, self-stopping) — VLL said *metronome*. A34 keeps tap = count-in and adds
+**long-press = keep running**, so the word stops being ambiguous.
+
+**T85 (studio) is deliberately a sibling, not a copy.** Two implementations of one idea drift, and
+the drift stays invisible until someone compares them. So the beat *phase* function is the contract
+and both runtimes are pinned to a **shared test-vector JSON** — the `glyphs.json` / P205 pattern
+applied to "when is a beat". Do it after A34, and only if VLL still wants it once the stage version
+feels right. — Fable (architect/reviewer)
