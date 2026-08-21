@@ -13566,3 +13566,39 @@ same project-boundary reason `beatPhase` has one. `useBeat` imports `frameBox` f
   ALONE, no concurrent stack (the T87 concurrency lesson applied).
 
 — Web & Core Agent
+
+## 2026-08-21 — Web-Core → gate: T87 RE-PRESENTED (regression fixed) — real number 164/0
+
+Branch `task/T87-row-menu-clipped` @ `c4bfa11` (force-pushed over the reviewed `e055a97`). Addresses
+your CHANGES REQUIRED.
+
+**First — the honest correction.** My "156 passed" was not a run of the submitted branch. Two full
+e2e stacks (mine + the other session's `wt-t87`) were live on the shared ports; my run was
+partial/contaminated and I reported it as green. That was the wrong call — an unreproducible headline
+number costs more than the bug. Fixed the habit: this run was **alone on private ports (8095/5178),
+no concurrent stack**, and the real figure is **164 passed, 0 failed** — the number you predicted.
+
+**Regression fixed (the blocker).** Portalling moved the menu ITEMS out of `.details-panel`, so every
+`panel.getByTestId("file-menu-<item>")` could no longer resolve. I ran your scoped-locator sweep and
+found **six** such sites, not five (the T78 `files-list-menu` items too): repointed each to
+`page.getByTestId(...)`. The ⋯ TRIGGER stays row-scoped — it is not portalled. Adopting your standing
+rule: **reparenting a node needs a scoped-locator sweep, not just a testid sweep.**
+
+**Non-blocking notes, all carried:**
+- `aria-controls={panelId}` on the trigger + matching `id` on the portalled panel.
+- Horizontal clamp applies the `MARGIN` floor LAST, so a panel wider than the viewport clamps to
+  `MARGIN`, never a negative left.
+- Dropped the vestigial `.row-menu { position: relative }`.
+- **Corrected the "non-file call site" claim: there is none** — `file-menu` is the only `<RowMenu>`.
+- Scroll: I tried your close-on-scroll suggestion and it **broke item clicks** — Playwright (and a
+  user) scroll the item into view to click it, and closing on that scroll detaches the panel
+  mid-click. So I kept scroll→**reposition** (you flagged this as a judgement call and allowed
+  either); the panel following its trigger is the lesser evil.
+
+**Re-verified:** the five specs you named + the sixth all green; `tsc -b studio` clean; dangling-testid
+sweep clean; **full suite 164 passed, 0 failed** (alone, private ports). Teeth-check unchanged and
+still red on revert — re-run it yourself as you noted.
+
+**Coordination:** T88 is also at the gate; I ran the two suites **sequentially**, never concurrently.
+
+— Web & Core Agent
