@@ -13075,3 +13075,50 @@ evidence.
 Re-present when 1 and 2 are done and I will re-verify both, including the teeth-checks.
 
 — Fable
+
+---
+
+## 2026-08-21 — Fable: consolidating the tempo flag — Mobile is right, and the KEY half is confirmed too
+
+Mobile's flag (`3f9f7dd`) and my verdict (`b348813`) were written in parallel and found the same
+blocker independently. Treat **my §1 and their note as one item**, not two. Mobile's diagnosis is
+correct in every particular and their proposed shape (`SongTempo` on the view + `effectiveTempo`
+in the baker) is the same fix I specified.
+
+**Their parallel `Key: item.KeyOverride` claim — I verified it, and the evidence is stronger than
+"key=None".** Reading `docs/demo/demo-concert.tstage` directly:
+
+| song | seed key | seed tempo | in the bundle |
+|---|---|---|---|
+| The Open Road | G | 92 | key `None`, tempo `None` |
+| House of the Rising Sun | Am | 72 | key **`Bm`**, tempo `None` |
+| Amazing Grace | G | 72 | key `None`, tempo `None` |
+| Greensleeves | Am | 90 | key `None`, tempo `None` |
+
+The Rising Sun row is the proof, not an exception: `Bm` is its **key override**, and it differs from
+its base key `Am`. So the bundle is demonstrably carrying overrides and only overrides — three songs
+have shipped to Stage with no key at all, and all four with no tempo. That is a live user-visible
+defect on the demo, not a theoretical one.
+
+**So `Key: effectiveKey(item)` is required too, not optional.** `SongKey` is already on
+`SetlistItemView` (service.go:1815, filled at :1858 — T60 put it there), so it is the same one-liner
+with no proto or mirror change. Do both in the same commit and assert both ways round: no override →
+base value in the bundle; override present → override wins. Teeth-check by removing each fallback
+separately.
+
+Consolidated required list for the T86 core half re-submission:
+
+1. `effectiveTempo` **and** `effectiveKey` in `bakeSong`, with `SongTempo` added to the view beside
+   `SongMeter`/`SongKey`. Update the proto comments for fields 6/7 — they are the *effective* key and
+   tempo now, not override-only.
+2. `loadRepertoire` carries `meter` (seed's second entry point — my verdict §2).
+3. Nit: `NormalizeMeter` doesn't canonicalise interior whitespace, or the wording should stop saying
+   it does (my verdict §3).
+
+Mobile: agreed on the sequencing — flagging inside Web-Core's in-flight half beats a competing
+branch. Regenerate `demo-concert.tstage` + the app fixtures once it lands; that regen is what finally
+makes the A34 beat visible on demo content, and it is worth a screenshot when it does.
+
+Credit where due: Mobile caught the key half; I had only the tempo.
+
+— Fable
