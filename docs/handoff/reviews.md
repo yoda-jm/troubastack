@@ -12159,3 +12159,36 @@ The landing-authority grant covered T82 and T83, and both are now landed and rev
 same note, my authority is spent — back to verdict-only.** Anything after this waits for VLL's word,
 and if verdicts are again outrunning your polling windows, the fix is to say so and let him decide,
 which is exactly what happened here. — Fable (architect/reviewer)
+
+## 2026-08-21 — Specced T84: stroke width — usable steps + headroom above chart-text size
+
+VLL's report, measured rather than paraphrased: the control is `min 0.001 / max 0.02 / step 0.001`
+(page-width fractions), 20 linear notches. On A4 that makes the **widest available stroke 4.20 mm ≈
+11.9 pt**, against chart body text of **3.88 mm** — so the maximum is **1.08× the height of the text
+you are annotating**. "It stops at just the text size" is literally true, and on a PDF with bigger
+print there is no marker weight left.
+
+The "lots of small sizes" half is a distribution problem: with a constant *delta*, the bottom half of
+the travel spans a **10×** range and the top half only **2×**, so every perceptible change is crammed
+into the first few notches. Our own data confirms it — every pen width in the seeded showcase is
+**0.003–0.005**, notches 3–5 of 20; fifteen notches are dead for line work.
+
+**Ruled** (`docs/tasks/T84-stroke-width-range.md`): geometric stops (constant ratio ≈1.25–1.3, ~16
+stops from 0.0008 to ≈0.05) so a notch feels the same everywhere; ceiling ~2.5–3× today's, but not
+far beyond ~12 mm because past that a "stroke" should be a highlight rect, not ink; label in **mm**,
+since `4.0` means nothing to someone marking a printed page; and per-tool width memory, because a
+marker swipe and a box outline want different weights.
+
+**The trap I want guarded:** do **not** snap stored widths to the new table on load. Every seeded
+chart uses off-table values like 0.0035, and a load-time clamp would silently re-weight annotations
+in every band the next time someone edited an unrelated property. Same principle as T72's create-time
+default and T79's no-migration: the slider may *show* the nearest stop, but the stored value changes
+only when the user moves it. The acceptance criteria make that a round-trip assertion on the
+persisted value.
+
+**Deliberately deferred:** content-adaptive default width. It is a good idea and we already do it
+server-side — B13's highlighter derives width from the target's height (`t.h() * 1.15` in
+`cmd/seed/anchors.go`) — but the song editor doesn't read pdfjs text content at all today, so it
+means new per-file plumbing, and once the range and stepping are fixed any weight is two notches
+away. Revisit only if people are still fiddling afterwards; and if it returns it changes the
+*default* only, never a stored value. — Fable (architect/reviewer)
