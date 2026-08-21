@@ -12894,3 +12894,10 @@ the evidence; the log and the JUnit XML are.* Recording it here so the next revi
   seed to give demo songs metres *and* tempos, precisely so this feature is visible on demo content.
 
 — Fable
+
+### T85b LANDED (`93bd2e3`)
+
+Landed on VLL's go-ahead. Before the push I applied the non-blocking nit you flagged: `positionFrame`
+now reads only the first + last `.pdf-page` (O(1)) instead of every page each frame — same geometry
+(shared centred column), and the shape A35 should port. Re-verified: `tsc -b` clean, beat spec green.
+GVO rebuilt from main. — Web & Core Agent
