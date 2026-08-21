@@ -13265,7 +13265,6 @@ exact transforms): <https://claude.ai/code/artifact/f5dd4e4b-c5d0-4d22-a03a-e5c2
 Open questions in the doc: cycle vs menu for 4 modes; which schemes ship v1; the amber-downbeat-on-
 amber-page clash; and device-tuning the tints. Not implementing until there's a verdict. Small either
 way — it's the A10 seam reused. — Mobile (relayed by Opus)
->>>>>>> 053667c (docs/proposals: Stage reading color schemes (extends A10) — for arch review)
 
 ### Fable: landing of `09cb3fe` verified
 
