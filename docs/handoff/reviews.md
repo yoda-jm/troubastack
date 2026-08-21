@@ -13280,3 +13280,80 @@ so there is nothing to look at there yet. **The visible win this half unlocks is
 gain a key. Flagging so the studio-side reseed isn't forgotten when the studio half lands.
 
 Order confirmed: T87 (dead ⋯ menu) → T88 → T86 studio half. — Fable
+
+---
+
+## 2026-08-21 — RULING (Fable): Stage reading colour schemes — **approved to build**, with three rulings and two interactions you have not accounted for
+
+Reviewed `docs/handoff/proposals/stage-reading-color-schemes.md` (`abe3152`). Good proposal: it reuses
+the seam A10 already built, changes nothing about the bundle (I12), and **Amber night has real
+physiology behind it** — long-wavelength light barely stimulates the rods, which is exactly why pit
+lights, cockpit dials and observatory torches are amber. That is a genuine gigging need, not a
+preference. Build it. Filing it as a proposal instead of building it was the right call.
+
+**Ship all four.** They are one matrix each and the set is coherent; a subset would just mean doing
+this twice.
+
+**I verified your load-bearing claim rather than accepting it.** `StageBeatFrame` is a sibling drawn
+*after* the pages (`StageScreen.kt:462`) and `pageColorFilter()` is passed only into `PageView` /
+`ScrollReader` (`:415`, `:446`, `:451`). So the beat genuinely sits outside the filter. Correct.
+
+### Ruling 1 — the control is **not** a four-way cycle (your Q1)
+
+The deciding argument is not tap count. It is that a cycle **must pass through NORMAL to get from
+Amber back to Night** — and NORMAL is a full-white page. One mistimed tap in a pit blackout floods
+the player and everyone near them with white light and destroys the dark adaptation Amber night
+exists to protect. *A control whose failure mode is precisely the harm the feature prevents is the
+wrong control.*
+
+Use a small picker — either a popup on that button or a row in the ⚙ sheet, where Auto-update already
+lives. **Not a long-press**: A34 removed exactly that gesture because VLL never discovered it.
+
+If VLL wants to keep one tap, the fallback is a **ping-pong** cycle
+(`Normal→Warm→Night→Amber→Night→Warm→Normal`), which never steps from a dark scheme straight to
+white. It is stranger to explain, but it is safe. My preference is the picker.
+
+### Ruling 2 — the amber-on-amber clash is real but you have aimed at the wrong target (your Q3)
+
+Because the beat draws outside the filter, split the question:
+
+- **The border frame** pulses in the padding around the page, over the dark ground — not over ink.
+  Amber on near-black reads fine. **Leave it alone.**
+- **The centre count** draws *over* the page. On an Amber-night page (ink ≈ `#FFBF73`) an amber
+  numeral at 34% alpha is the actual collision. **Fix the number, not the palette** — in Amber night
+  only, tint the centre count with the off-beat colour for every tier, or drop its alpha further.
+
+Do **not** swap the downbeat colour globally. Amber/aqua is a shared visual contract with the studio
+beat, pinned across two runtimes; a scheme-local rendering choice must not reach back into it.
+
+### Interaction 1 (not in your proposal) — A35's third tier will vanish in Amber night
+
+T86/A35 add a **third** beat tier: free subdivisions in grey `#6b7a90` at ~45% opacity, no glow. On a
+black ground beside amber ink, a desaturated blue-grey at 45% is close to invisible — the tier that
+carries the metre's subdivisions would silently disappear in the scheme most likely to be used in a
+pit, which is where an unfamiliar metre most needs it.
+
+**Whoever lands second owns the check**: the three-tier beat must be legible in all four schemes.
+Say in your task which order you intend; I would land A35 first and let this proposal absorb the
+interaction, since A35's colours are already specified and yours are still being tuned.
+
+### Interaction 2 (not in your proposal) — this collides with A36's acceptance criterion
+
+`docs/tasks/A36-app-theme-parity.md` requires **identical before/after Stage screenshots** as its
+regression guard. If both are in flight, A36's screenshots must be taken in a named fixed scheme
+(NORMAL) or they will appear to fail for the wrong reason. And A36's theme must not reach into these
+`ColorMatrix` values — they are performance decisions, not brand decisions.
+
+### One acceptance criterion to add, because it is the whole point
+
+**The persisted scheme must be resolved before the first page raster and its placeholder are
+painted.** If the restore lands a frame late, opening the app in a blackout flashes white — which
+destroys the dark adaptation the feature was built to preserve. Assert it; do not hope for it.
+
+### Your Q4 — yes, device-tune before locking
+
+Same as A34's amber/aqua. Do not lock tints picked on a desktop display; a tablet at stage brightness
+in a dark room is a different instrument. Bring screenshots.
+
+Write it up as a numbered task (**A37**) with the above folded in, and I will review the task before
+you build. — Fable
