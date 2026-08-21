@@ -20,7 +20,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -39,9 +39,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.focusable
@@ -216,17 +218,17 @@ private fun Performing(
     // and auto-hide after a timeout so performance is fullscreen. Starts revealed so the controls are
     // discoverable on entry, then hides itself.
     var chromeVisible by remember { mutableStateOf(true) }
-    // A34: the visual beat (metronome/count-in). Scoped to the current page so a page turn cancels a
-    // running count-in; the tempo chip taps it, the edge frame renders it. Two-up shares one frame.
-    val stageBeat = rememberStageBeat(resetKey = state.current)
+    // A34: the visual beat (metronome/count-in). Scoped to the current SONG, not the page, so the beat
+    // keeps ticking as you turn pages within a song (VLL: navigating must not stop it); a song change —
+    // where the tempo differs — resets it. The FAB taps it, the edge frame + centre count render it.
+    val stageBeat = rememberStageBeat(resetKey = state.currentSong)
     // A15: song-jump navigation drawer, opened from the ☰ menu FAB.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     // Auto-hide the chrome while nothing modal is open; any re-reveal or opened surface restarts it.
-    // Keep it up while the metronome runs so its FAB stays reachable to toggle off (A34).
     val overlayOpen = drawerState.isOpen || showSettings || showLayers || showRole
-    LaunchedEffect(chromeVisible, overlayOpen, stageBeat.running) {
-        if (chromeVisible && !overlayOpen && !stageBeat.running) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
+    LaunchedEffect(chromeVisible, overlayOpen) {
+        if (chromeVisible && !overlayOpen) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
     }
     // N1 + N7 share ONE transient center-overlay layer (latest-wins): the N1 song-boundary card and the
     // N7 blocked-turn glyph are mutually exclusive per action, so each trigger CLEARS the other and bumps
@@ -455,8 +457,9 @@ private fun Performing(
 
         // A34: the visual beat — a pulsing frame on the page border PLUS a big, faint, tinted beat
         // number (1 2 3 4 …) in the middle so the player keeps their place. Above the page, below the
-        // chrome (so ☰/⚙/✕ stay on top). Tapping the number stops the metronome. Dark unless running.
-        StageBeatFrame(stageBeat, onStop = stageBeat::stop)
+        // chrome. Purely visual (no pointer input) so a tap still turns the page / toggles the chrome;
+        // you stop the beat from its FAB. Dark unless running.
+        StageBeatFrame(stageBeat)
 
         // A2: TOP chrome — ☰ song drawer · centered title+position card · [● Live] · ✕ exit. Fades and
         // slides in on reveal; the A08 meta strip rides inside it (score stays clean when hidden). In
@@ -476,8 +479,11 @@ private fun Performing(
                         modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        // A34: the metronome, in the bar where a player looks. Only when the song has a tempo.
-                        if (page.tempo > 0) StageBeatFab(page.tempo, stageBeat)
+                        // A34: the metronome + its ∞ loop toggle, joined into ONE segmented capsule so
+                        // they read as strongly connected. Only when the song has a tempo. Tapping the
+                        // metronome starts it and closes the chrome for a clean page; ∞ = keep-running
+                        // vs count-in.
+                        if (page.tempo > 0) StageBeatControl(page.tempo, stageBeat, onStart = { chromeVisible = false })
                         if (canAutoUpdate) StageFab(if (state.autoUpdate) "●" else "○") { vm.setAutoUpdate(!state.autoUpdate) }
                         // Settings lives in the TOP bar, not the bottom: MIUI's bottom gesture zone
                         // intercepts taps flush to the screen bottom, making a bottom ⚙ hard to hit.
@@ -1055,28 +1061,53 @@ private fun beatTint(beat: StageBeat): Color {
     }
 }
 
-/** The metronome in the TOP BAR (where a player looks), next to ●/⚙/✕. Same gestures as the chip:
- *  tap = on/off, long-press = count-in. Styled like [StageFab] but icon-drawn + long-press-capable,
- *  and it lifts to the accent container while running so "on" is visible even between pulses. */
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+/** The metronome + its ∞ loop toggle, joined into ONE segmented capsule (a shared dark disc with a
+ *  hairline outline and a divider) in the TOP BAR, so they read as one strongly-connected control:
+ *   • left segment = the metronome — tap to start/stop; [onStart] fires on start (caller closes the
+ *     chrome). Lifts to the accent container while running so "on" shows even between pulses.
+ *   • right segment = ∞ — keep-running vs an 8-beat count-in; accent container while on.
+ *  Styled to match [StageFab]. */
 @Composable
-private fun StageBeatFab(tempo: Int, beat: StageBeat, size: Dp = 56.dp) {
+private fun StageBeatControl(tempo: Int, beat: StageBeat, onStart: () -> Unit, height: Dp = 56.dp) {
     val enabled = tempoIntervalMs(tempo) != null
     val shape = FloatingActionButtonDefaults.shape
-    val container = if (beat.running) Color(0xE6198060) else STAGE_FAB_CONTAINER
-    Box(
+    val accent = Color(0xE6198060)
+    Row(
         Modifier
-            .size(size)
+            .height(height)
             .clip(shape)
-            .background(container)
-            .border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape)
-            .combinedClickable(
-                onClick = { if (enabled) beat.toggle(tempo) },
-                onLongClick = { if (enabled) beat.countIn(tempo) },
-            ),
-        contentAlignment = Alignment.Center,
+            .background(STAGE_FAB_CONTAINER)
+            .border(STAGE_FAB_OUTLINE_WIDTH, STAGE_FAB_OUTLINE, shape),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        MetronomeIcon(beatTint(beat), Modifier.size(size * 0.42f))
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .width(height)
+                .background(if (beat.running) accent else Color.Transparent)
+                .clickable {
+                    if (enabled) {
+                        beat.toggle(tempo)
+                        if (beat.running) onStart()
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) { MetronomeIcon(beatTint(beat), Modifier.size(height * 0.42f)) }
+        Box(Modifier.width(STAGE_FAB_OUTLINE_WIDTH).fillMaxHeight().background(STAGE_FAB_OUTLINE.copy(alpha = 0.55f)))
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .width(height)
+                .background(if (beat.continuous) accent else Color.Transparent)
+                .clickable { beat.continuous = !beat.continuous },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "∞",
+                color = if (beat.continuous) Color.White else MaterialTheme.colorScheme.outline,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+        }
     }
 }
 

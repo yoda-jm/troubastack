@@ -2,7 +2,6 @@ package com.troubashare.shared.stage
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -67,21 +66,21 @@ class StageBeat {
     var tempo = 0
         private set
 
+    /** ∞ mode (studio parity — the ∞ loop toggle in the editor): ON → [toggle] keeps the beat running;
+     *  OFF → it's an 8-beat count-in that self-stops. Defaults ON (VLL's preferred "keep it running").
+     *  Affects the NEXT start; a run already going finishes as it started. Set it via the ∞ FAB. */
+    var continuous by mutableStateOf(true)
+
     /** Observable so the chrome-auto-hide (and anything else) can react to start/stop. */
     var beats by mutableStateOf(0)
         private set
 
     val running: Boolean get() = beats > 0
 
-    /** Tap: turn the continuous metronome on, or — if anything is already running — OFF (clears the
-     *  overlay immediately). A metronome you switch on and off. No-op for an out-of-range tempo. */
+    /** Tap the metronome: stop if running, else start — forever ([continuous]) or an 8-beat count-in.
+     *  A metronome you switch on and off. No-op for an out-of-range tempo. */
     fun toggle(tempoBpm: Int) {
-        if (running) stop() else start(tempoBpm, CONTINUOUS_BEATS)
-    }
-
-    /** Long-press: an 8-beat count-in that self-stops; also stops if something is already running. */
-    fun countIn(tempoBpm: Int) {
-        if (running) stop() else start(tempoBpm, COUNT_IN_BEATS)
+        if (running) stop() else start(tempoBpm, if (continuous) CONTINUOUS_BEATS else COUNT_IN_BEATS)
     }
 
     fun stop() {
@@ -158,11 +157,11 @@ fun MetronomeIcon(tint: Color, modifier: Modifier) {
  * The running beat: a pulsing frame on the page border PLUS a big, semi-transparent beat number
  * (1 2 3 4 …) in the middle, both in the beat's colour (amber downbeat / aqua off-beat). The border
  * pulse is a brief transient; the number is held for the whole beat so the player keeps their place.
- * Tapping the number STOPS it (a big, always-reachable off switch — the frame auto-hides, the number
- * doesn't). Nothing renders when idle. [onStop] toggles the metronome off.
+ * Purely visual — it holds NO pointer input, so a tap on the page still turns the page / toggles the
+ * chrome (you stop the beat from its FAB, not by touching the score). Nothing renders when idle.
  */
 @Composable
-fun StageBeatFrame(beat: StageBeat, onStop: () -> Unit, modifier: Modifier = Modifier) {
+fun StageBeatFrame(beat: StageBeat, modifier: Modifier = Modifier) {
     val frame = beat.frame
     val label = beat.beatLabel
     val shape = RoundedCornerShape(10.dp)
@@ -177,7 +176,7 @@ fun StageBeatFrame(beat: StageBeat, onStop: () -> Unit, modifier: Modifier = Mod
         }
         if (label != null) {
             val tint = (if (label == 1) DOWNBEAT else OFFBEAT).copy(alpha = 0.34f)
-            Box(Modifier.fillMaxSize().clickable(onClick = onStop), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("$label", color = tint, fontSize = 168.sp, fontWeight = FontWeight.Bold)
             }
         }
