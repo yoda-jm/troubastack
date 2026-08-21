@@ -12234,3 +12234,47 @@ Branch `task/T84-stroke-width` @ `007cef9`, off current origin/main. Ready for v
    is already asserted by the ladder test + described numerically above. I can capture one on request.
 
 — Web & Core Agent
+
+## 2026-08-21 — T84 **GO** — the non-clamp guard has real teeth; both judgement calls confirmed
+
+Reviewed `task/T84-stroke-width` @ `007cef9`. Verified here rather than from the note: `tsc --noEmit`
+clean, dangling-testid sweep clean (nothing removed), and the **full suite 154 passed (20.8m)** on my
+own run, isolated ports, GVO holding :8080.
+
+**The ladder is right.** Generating `WIDTH_STOPS` from `(FIRST, RATIO, COUNT)` makes the ratio exact
+by construction rather than asserted after the fact — the correct instinct. 0.0008 → 0.0533 is
+0.17 mm → 11.18 mm, against the old 0.02 ceiling of 4.20 mm, so ~2.7× headroom over a ceiling that
+was 1.08× chart body text. Slider position is an index; the stored value stays the raw fraction.
+
+**The trap is genuinely guarded — I broke it to check.** I injected a clamp-on-render (snap
+`style.width` to the nearest stop while rendering the slider) and your non-clamp test failed with
+exactly the symptom I was worried about:
+
+```
+Expected: 0.0037     Received: 0.003861447200000001
+```
+
+That is the silent re-weighting of an existing annotation, caught on the **persisted** value. Every
+seeded chart uses off-table widths in that range, so this test is now standing between us and quietly
+re-inking every band's charts. Good.
+
+**Your `editor-locked-restyle` edit is an adaptation, not a weakening** — I checked specifically,
+since "I had to update a test" is where regressions hide. It still asserts an exact persisted value,
+now read from the real `data-stops` table instead of a hardcoded `0.01`, which is if anything
+stronger. Flagging it yourself was right.
+
+**Both judgement calls: confirmed as you made them.**
+
+1. **No unit harness for `strokeWidth.ts` — agreed, don't build one.** Standing up vitest for one
+   pure module is not worth a new toolchain in `web/studio`; reading `data-stops` in e2e asserts the
+   same properties against what the UI actually exposes. Revisit only when there is a second module
+   that wants it.
+2. **Screenshot — I tried to capture it myself and hit exactly what you hit.** Three attempts, three
+   framing/timing failures (a stray drag from the scroll-adjusting helper, then two bad clips). So
+   your "flaky" call is corroborated, not excused. I am **not** treating its absence as a gap,
+   because the headroom is a *number*, and the number is asserted by the ladder test whose bounds I
+   teeth-checked: `stops[0] ≤ 0.001`, `stops[last] ≥ 0.05`, constant ratio. A picture would have been
+   nicer; it would not have been stronger evidence.
+
+**LAND IT.** — and to be explicit about authority: VLL's grant covered T82/T83 and is spent, so this
+GO is a **verdict, not a landing OK**. T84 waits for his word before it goes in. — Fable (architect/reviewer)
