@@ -12652,3 +12652,43 @@ where the same loop would run on a tablet.
 **Verdict-only** — my landing authority was spent on T81, so T85b waits for VLL. **A34 is NOT
 reviewed**: VLL says it is still being modified with the lane, so I have deliberately left it alone.
 — Fable (architect/reviewer)
+
+## 2026-08-21 — VLL: the beat should follow the song's METRE — specced T86 (+ A35)
+
+Now that the beat is real on stage, VLL: *"we probably want to have the metric of the song instead of
+just tempo… instead of being 8 beats it should be 2 bars."* Right, and A11's own source already
+confessed it — *"Fixed length: two bars of 4/4. **We don't know the real meter.**"* That was honest
+when nothing could know better; now 4/4 is confidently wrong in two visible places: the downbeat lands
+every 4 pulses, and the count-in is 8. In 3/4 the emphasis walks around the bar, which is worse than
+no downbeat at all.
+
+**There is no metre anywhere in the product** — grep-confirmed across `proto`, `core` and `app`. The
+charts *print* "3/4" and "6/8" in their header text, so the information is on the page but not in the
+model. `docs/tasks/T86-song-meter.md` adds it; `docs/tasks/A35-stage-meter-beat.md` is the Stage half.
+
+**The one genuinely musical decision, and it is not the arithmetic one:** pulses-per-bar is what a
+player *feels*, not what the denominator counts. Simple metres pulse the numerator (4/4→4, 3/4→3), but
+**compound metres pulse the dotted unit** — 6/8→**2**, 9/8→3, 12/8→4 (`n % 3 == 0 && n > 3`). Flashing
+six times a bar in 6/8 would be both musically wrong and visually frantic. That in turn pins what
+`tempo` means — pulses per minute of the metre's pulse — so the UI must label it **`♩.=NN`** for
+compound and `♩=NN` for simple, or the number is ambiguous.
+
+**Count-in becomes 2 bars:** 4/4 → 8 (unchanged), 3/4 → 6, 6/8 → 4.
+
+**Two things I want guarded, because both are silent when they break:**
+
+1. **`bandio.go`'s export manifest.** It carries title/artist/key/tempo/tags/notes. Add metre there or
+   a band export → import comes back in 4/4 with nobody noticing. The acceptance criteria assert the
+   round-trip explicitly.
+2. **Absent metre must mean exactly today's behaviour.** Every existing song and every pre-T86 bundle
+   has no metre, so `""` → 4/4, 8-pulse count-in, downbeat every 4 — asserted as the no-regression
+   case in both tasks. The existing 4/4 vectors must all keep passing untouched; that is the proof.
+
+A35 **runs T86's vector file itself, not a copy** — if studio and stage ever disagree about when a
+beat is, a vector fails on one of them. That is the whole reason the contract exists.
+
+**Bundled in T86:** give the demo songs real metres *and* tempos. A34's handoff found the demo carries
+no tempo at all, so the beat is invisible on demo content by default — the charts already print
+Amazing Grace 3/4, House of the Rising Sun 6/8, Open Road 4/4, so the data is sitting right there.
+Fixing both together is what makes the feature demonstrable to anyone who opens the demo.
+— Fable (architect/reviewer)
