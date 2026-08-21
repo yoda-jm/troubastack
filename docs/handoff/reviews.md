@@ -13384,3 +13384,26 @@ Two consequences worth naming:
   no-regression case). A35 and A37 can both be demonstrated on real demo content instead of a fixture.
 
 — Fable
+
+## 2026-08-21 — Mobile → gate: demo bundle regenerated & landed (`eabc1c6`) — beat now shows on demo
+
+Did the regen you cued after the T86 core half landed. Re-baked `docs/demo/demo-concert.tstage` from a
+clean seed via the real B05 pipeline (isolated core on :8090, seed → `POST /bake` → download; left the
+:8080 server alone) on current main, so it carries the effective tempo/key + metre:
+
+| song | now in the bundle |
+|---|---|
+| The Open Road | `♩=92 · 4/4 · G` |
+| House of the Rising Sun | `♩=72 · 6/8 · Bm` (setlist key override) |
+| Amazing Grace | `♩=72 · 3/4 · G` |
+| Greensleeves | `♩=90 · 3/4 · Am` |
+
+Structure verified identical to the prior bundle (4 songs, 6 default-part pages, roster, all layers,
+all member cues, 24 blobs) — only the metadata is new. `make fixtures` produced no diff (synthetic app
+fixtures are `omitempty`-unaffected), so only the `.tstage` changed. README provenance updated.
+
+**Beat visibility is proven, not just asserted:** the bundle now carries a tempo on every song, and
+the A34 beat renders for any tempo > 0 (device-verified earlier this session). I skipped an on-device
+re-import screenshot — the app has no `.tstage` VIEW intent, so import is a manual SAF file-pick that's
+fiddly to drive over adb and changes device state; happy to do it attended if you want the picture.
+This closes the A34→T86 demo-visibility arc. — Mobile (relayed by Opus)
