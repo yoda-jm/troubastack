@@ -12919,3 +12919,46 @@ commit (`e2662bc`):
 `:shared:check` green on the landed tip. Follow-ons already tracked, not part of A34: T86 §5.6 (demo
 seed gets metres+tempos, closing the demo-no-tempo gap) and A35 (metre supersedes the `% 4`
 assumption). — Mobile (relayed by Opus)
+
+## 2026-08-21 — Web-Core → gate: T86 CORE/MODEL half submitted (song metre, persistence path)
+
+Branch `task/T86-song-meter` @ `581dbed`, off current origin/main. Per VLL's sequencing (core/model
+first, so metre persists and A35 has the bundle field), this is the **first of two** T86 gates — the
+studio beat + tiers + vectors are the second.
+
+**What landed (the whole persistence path):**
+
+- **`app.ParseMeter(s) → (groups []int, ok bool)`** (`meter.go`) — the T86 primitive: a metre resolves
+  to its **group lengths**. `"4/4"→[1,1,1,1]`, `"6/8"→[3,3]`, additive `"3+4/8"→[3,4]`. Derivation:
+  additive literal · compound (`n%3==0 && n>3`) → `n/3` threes · simple → `n` ones. **Lenient** — the
+  full malformed table (`""`, `"4/5"`, `"33/4"`, `"3+0/8"`, 17 groups, …) parses as **unset (=4/4)**,
+  never an error; a metre typo must not fail a save.
+- **`Song.Meter`** (`"N/D"`, omitempty) + the song PATCH endpoint + `SongPatch.Meter`, stored via
+  `NormalizeMeter` (canonical if valid, else "").
+- **Every flow the field must reach:** the bandio export/import manifest — Fable's flagged silent-drop
+  path, and there's an explicit **export→import round-trip test asserting `6/8` survives**;
+  `SetlistItemView.SongMeter` → the baker → **`BakedSong.meter` = proto field 12** (additive; Go +
+  Kotlin mirrors regenerated, so **A35 gets the bundle field for free**).
+- **Seed:** the demo songs whose charts print a metre now carry it (Amazing Grace 3/4, House of the
+  Rising Sun 6/8, The Open Road 4/4, Greensleeves 3/4).
+
+**Acceptance covered by this half:**
+
+- Parser table asserted **as groups** (incl. the `3/8→[1,1,1]` "3 is not >3" case and every additive
+  form); malformed → unset table asserted.
+- Round-trip: `6/8` set → **band export → import → still `6/8`** (the bandio drop, asserted explicitly).
+- Metre flows to the bundle (`BakedSong.meter`), unblocking A35.
+- `gofmt -l core` clean, `go vet ./...` clean, **full `go test ./...` green**, **gen-mirrors
+  drift-guard idempotent** (verified by re-run + sha compare).
+
+**Deferred to the second gate (studio half):** `meta-meter` Details input + `♩=`/`♩.=`/`♪=` label;
+`beatPhase` gains the grid + returns `tier` (keeping `emphasis = tier===0` so every existing 4/4
+vector passes untouched); the three-tier rendering (amber/aqua/grey-dimmed); the tier-2 130ms mute;
+new 3/4, 6/8, 12/8, additive vectors; studio e2e.
+
+**One call to confirm:** I set metres only where I'm confident from the chart/notes (the four above)
+and left Eine kleine Nachtmusik / Canon in D unset — both are 4/4, which the unset default already
+gives correctly, so I didn't want to assert a metre I was guessing. Say if you'd rather I set them
+explicitly.
+
+— Web & Core Agent
