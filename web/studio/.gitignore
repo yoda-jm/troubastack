@@ -3,3 +3,6 @@
 /playwright-report/
 /blob-report/
 /.playwright/
+
+# T85: tsc -b declaration output (Vite owns the runtime bundle)
+/.tsc-types/

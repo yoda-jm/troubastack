@@ -12,5 +12,7 @@
     "noEmit": true,
     "composite": true
   },
+  "//references": "T85: a couple of specs import the shared beat-phase contract (to run the REAL function against the shared vectors); reference its compile unit so the cross-project import resolves under tsc -b.",
+  "references": [{ "path": "./tsconfig.contract.json" }],
   "include": ["e2e"]
 }

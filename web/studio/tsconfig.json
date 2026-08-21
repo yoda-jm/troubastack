@@ -2,6 +2,7 @@
   "//": "Root solution file — references the app (browser) and node (config) projects.",
   "files": [],
   "references": [
+    { "path": "./tsconfig.contract.json" },
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" },
     { "path": "./tsconfig.e2e.json" }

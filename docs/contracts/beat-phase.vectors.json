@@ -1,0 +1,49 @@
+{
+  "_comment": [
+    "Shared test vectors for the visual-beat phase contract (T85 studio / A34 stage).",
+    "beatPhase(elapsedMs, intervalMs, beats) -> { beatIndex, lit, emphasis }.",
+    "T85 (web/studio, TS) authors these; A34 (app, Kotlin) implements the same function",
+    "and runs the SAME vectors, so the two renderers cannot silently disagree about when a",
+    "beat happens. Values are hand-derived from the definition, NOT emitted by either impl,",
+    "so an off-by-one in code fails against them (red-first).",
+    "Definition: beatIndex = floor(elapsed/interval); active = elapsed>=0 && beatIndex<beats;",
+    "msSince = elapsed - beatIndex*interval; decay = min(220, interval*0.75);",
+    "litWindow = min(decay, interval*0.3); lit = active && msSince < litWindow;",
+    "emphasis = active && beatIndex % 4 == 0.",
+    "The 666.666... interval (90 bpm) cases guard the app's original Long-truncation bug",
+    "(60000L/90 = 666, not 666.67): at elapsed 1333 the true interval gives beat 1, a",
+    "truncated 666 would give beat 2."
+  ],
+  "cases": [
+    { "elapsedMs": 0,    "intervalMs": 500, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 149,  "intervalMs": 500, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 150,  "intervalMs": 500, "beats": 8, "beatIndex": 0, "lit": false, "emphasis": true },
+    { "elapsedMs": 499,  "intervalMs": 500, "beats": 8, "beatIndex": 0, "lit": false, "emphasis": true },
+    { "elapsedMs": 500,  "intervalMs": 500, "beats": 8, "beatIndex": 1, "lit": true,  "emphasis": false },
+    { "elapsedMs": 650,  "intervalMs": 500, "beats": 8, "beatIndex": 1, "lit": false, "emphasis": false },
+    { "elapsedMs": 1000, "intervalMs": 500, "beats": 8, "beatIndex": 2, "lit": true,  "emphasis": false },
+    { "elapsedMs": 1500, "intervalMs": 500, "beats": 8, "beatIndex": 3, "lit": true,  "emphasis": false },
+    { "elapsedMs": 2000, "intervalMs": 500, "beats": 8, "beatIndex": 4, "lit": true,  "emphasis": true },
+    { "elapsedMs": 3500, "intervalMs": 500, "beats": 8, "beatIndex": 7, "lit": true,  "emphasis": false },
+    { "elapsedMs": 3999, "intervalMs": 500, "beats": 8, "beatIndex": 7, "lit": false, "emphasis": false },
+    { "elapsedMs": 4000, "intervalMs": 500, "beats": 8, "beatIndex": 8, "lit": false, "emphasis": false },
+
+    { "elapsedMs": 0,    "intervalMs": 250, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 74,   "intervalMs": 250, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 75,   "intervalMs": 250, "beats": 8, "beatIndex": 0, "lit": false, "emphasis": true },
+    { "elapsedMs": 250,  "intervalMs": 250, "beats": 8, "beatIndex": 1, "lit": true,  "emphasis": false },
+    { "elapsedMs": 1000, "intervalMs": 250, "beats": 8, "beatIndex": 4, "lit": true,  "emphasis": true },
+
+    { "elapsedMs": 0,    "intervalMs": 600, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 179,  "intervalMs": 600, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 180,  "intervalMs": 600, "beats": 8, "beatIndex": 0, "lit": false, "emphasis": true },
+    { "elapsedMs": 600,  "intervalMs": 600, "beats": 8, "beatIndex": 1, "lit": true,  "emphasis": false },
+    { "elapsedMs": 2400, "intervalMs": 600, "beats": 8, "beatIndex": 4, "lit": true,  "emphasis": true },
+
+    { "elapsedMs": 0,    "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 199,  "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
+    { "elapsedMs": 200,  "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 0, "lit": false, "emphasis": true },
+    { "elapsedMs": 1333, "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 1, "lit": false, "emphasis": false },
+    { "elapsedMs": 3333, "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 4, "lit": false, "emphasis": true }
+  ]
+}

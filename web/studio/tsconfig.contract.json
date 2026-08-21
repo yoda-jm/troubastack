@@ -1,0 +1,21 @@
+{
+  "//": "T85: the shared beat-phase CONTRACT as its own compile unit. It is imported by BOTH the app (useBeat/beatFrame) and the e2e specs (which run the real function against the shared vectors), so it lives in its own composite project that emits declarations to a gitignored dir — that is what lets a project-reference target satisfy tsc -b without either consumer disabling emit. Pure module: ES only, no DOM.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": [],
+    "strict": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./.tsc-types"
+  },
+  "include": ["src/beatPhase.ts"]
+}
