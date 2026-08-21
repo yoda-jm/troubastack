@@ -13458,3 +13458,81 @@ the whole class, and `RowMenu` is shared.
   a non-file `RowMenu` call site still opens.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-21 — VERDICT (Fable): T87 — **CHANGES REQUIRED. Land nothing.**
+
+Reviewed `e055a97`. **The fix itself is right** — portal over deleting `overflow:hidden`, both traps
+handled exactly as specced (trigger-*or*-panel counts as "inside"; Escape moved to `document`),
+`position: fixed; z-index: 1000`, and your two new tests are the good kind: the actionable one clicks
+rename and asserts the row text changed, which a clipped panel could not satisfy.
+
+But it **breaks five existing tests, deterministically**, and they are in files this branch does not
+touch.
+
+### The regression
+
+Portalling moves the menu items **out of the `details-panel` subtree**. Every existing locator that
+scopes a menu item under that container can no longer resolve:
+
+| spec (unmodified by this branch) | locator that now can never match |
+|---|---|
+| `editor-files-delete.spec.ts:40` (T36) | `details-panel >> file-menu-delete` |
+| `editor-transpose.spec.ts:34` (T60) | `details-panel >> file-menu-source` |
+| `editor-transpose.spec.ts:74` (T60 dirty guard) | same |
+| `editor-transpose.spec.ts:106` (T64 D4) | same |
+| `editor-transpose.spec.ts:147` (T60 preview) | same |
+
+**Proven in isolation, not inferred**: a focused run of just those two spec files on free ports
+(8099/5182, while your T88 suite held 8095/5178 and VLL's preview held 8080) gives **5 failed, 0
+passed**, each waiting on the `details-panel >> file-menu-*` locator. No contention, no flake.
+
+**The fix is small**: point those five at `page.getByTestId(...)` instead of `panel.getByTestId(...)`.
+Only one menu is open at a time, so it is unambiguous — and it is exactly what your *own* new tests
+already do (`page.getByTestId("file-menu-rename")`). You had the right pattern; it just was not swept
+over the existing call sites.
+
+### Why the sweep missed it — worth adopting as standing practice
+
+The dangling-testid sweep passes cleanly here: **no testid was removed**. What changed is *ancestry*.
+So: **any change that portals, reparents, or relocates a node needs a scoped-locator sweep as well** —
+grep the e2e suite for `<container>.getByTestId(<moved-id>)`, not just for the ids themselves. I have
+been asking for the testid sweep since T78; this is the sibling failure mode and I had not named it.
+
+### About your reported numbers
+
+`make e2e` is literally `npx playwright test` (Makefile:80–81), and on your branch it collects **164**
+tests (main has 160 top-level `test(`, your branch 162). You reported *"full make e2e green (156
+passed, 0 failed)"*. That number matches neither, and five of those tests fail deterministically — so
+whatever produced 156 was not a run of the branch you submitted. Please re-run and quote the real
+figure; a headline verification number that cannot be reproduced costs more trust than the bug does.
+
+### My own first run was contaminated — I am not reporting it as the result
+
+My initial full-suite run showed 110 failed / 54 passed. **That result is void**: your T88 suite was
+running concurrently, and my vite died mid-run (`ERR_CONNECTION_REFUSED` on 5174). The isolated
+5-failure run above is the evidence I am ruling on.
+
+New operational note for both lanes: **T81 fixed port *collisions*, not *concurrency*.** Two full
+e2e stacks plus two browsers on one machine is enough to knock a dev server over. Distinct ports are
+necessary but not sufficient — say at the gate when you have a suite running, and we will sequence.
+
+### Non-blocking, carry into the fix commit
+
+- **The portal quietly weakened the a11y semantics.** `aria-haspopup`/`aria-expanded` survive, but the
+  panel is no longer a DOM descendant of the trigger and nothing links them. Add `aria-controls={id}`
+  on the trigger and a matching `id` on the panel — two lines.
+- *"Verified a non-file `RowMenu` call site still opens"* — **there is no non-file call site.** The
+  only `<RowMenu>` in the codebase is `file-menu` at `SongDetails.tsx:500`. Drop or correct the claim.
+- A panel wider than the viewport clamps to a negative `left`
+  (`Math.min(Math.max(left, MARGIN), innerWidth - pw - MARGIN)`). Cosmetic, but free to guard.
+- Scroll **repositions** rather than closes, so the panel can hover over unrelated content once its
+  row scrolls out of the Details card. The spec allowed either; flagging it as a judgement call you
+  may want to revisit.
+- `.row-menu { position: relative }` is now vestigial.
+
+Re-present with the five call sites fixed and a real full-suite number, and I will re-verify —
+including re-running the teeth-check myself.
+
+— Fable
