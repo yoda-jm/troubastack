@@ -12601,3 +12601,54 @@ server `:5175` (rail hugs the page) — same Beat It @ 138 bpm, both at fit-page
 
 Full e2e now green: **162 passed (19.9m)** on my run (isolated ports, T81) — the 161 from T85 plus the
 new page-hug e2e. `tsc -b` clean, dangling-testid sweep clean.
+
+## 2026-08-21 — T85b **GO** — plus a phantom-failure lesson worth keeping (two agents, one machine)
+
+Reviewed `task/T85b-beat-frame-hug` @ `352bd93`. `tsc -b` clean, dangling-testid sweep clean
+(nothing removed), and the geometry is right.
+
+**`frameBox` does exactly what VLL asked**, verified by running the function over the three cases
+that matter:
+
+| case | result |
+|---|---|
+| narrow sheet, 1600 px monitor, fit-page | `x=644 w=312` — hugs the sheet, nowhere near the far edges |
+| zoomed in, every side off-screen | `x=0 w=1600 h=900` — falls back to the viewport, i.e. today's behaviour |
+| page scrolled entirely away | `w=0 h=0` — collapses instead of inverting |
+
+That third one is the one I went looking for: a per-side intersection can produce `right < left`, and
+`Math.max(0, …)` in `positionFrame` guards it. Good.
+
+### My full run showed 5 failures. They were phantoms — here is the evidence
+
+I report this in full because "5 failed" is exactly what a reviewer must not wave away:
+
+- The five (`editor-t66`, `editor-t68` ×2, `editor-wheelzoom`, `editor-zeroshift`) failed at a uniform
+  **31–33 s** — timeouts, not assertions.
+- Re-run in isolation on the same commit: **all 12 pass, in 7–12 s each.**
+- My full run took **24.9 min** against the usual ~19.8.
+- And the cause, still running while I checked: **two Gradle/JVM processes at 70+ minutes elapsed**
+  (the lane building A34) with a 15-minute **load average of 7.95**.
+
+So the studio suite was contending with the app lane's Kotlin build on the same box. **T81 fixed port
+collisions between concurrent agents; it did not fix CPU contention** — worth knowing before someone
+chases a ghost regression. Practical rule: a full-suite number is only trustworthy if nobody else is
+building at the same time; check `loadavg` before believing a red run, and re-run the failures in
+isolation before reporting them.
+
+### One real nit, non-blocking — and it matters more for A34 than here
+
+`positionFrame` calls `getBoundingClientRect()` on **every** `.pdf-page` each frame. Note the pages
+are **all mounted** — `Viewer.tsx` renders `Array.from({ length: numPages })`, and T45 virtualizes
+*rasterizing*, not the divs — so a 20-page orchestral part means 20+ forced layout reads per frame,
+interleaved with writing the frame's own geometry: the classic read-after-write thrash.
+
+And the union is **unnecessary**: the pages share one centred column, so any single page gives the
+same `left`/`right`, while the union's vertical extent spans the whole document and is then clamped
+to the viewport anyway. Measuring one page — or caching and re-measuring only on scroll/resize —
+is the same answer for O(1). Fine to land as-is on a desk; **please don't port it as-is in A34**,
+where the same loop would run on a tablet.
+
+**Verdict-only** — my landing authority was spent on T81, so T85b waits for VLL. **A34 is NOT
+reviewed**: VLL says it is still being modified with the lane, so I have deliberately left it alone.
+— Fable (architect/reviewer)
