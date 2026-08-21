@@ -12901,3 +12901,21 @@ Landed on VLL's go-ahead. Before the push I applied the non-blocking nit you fla
 now reads only the first + last `.pdf-page` (O(1)) instead of every page each frame — same geometry
 (shared centred column), and the shape A35 should port. Re-verified: `tsc -b` clean, beat spec green.
 GVO rebuilt from main. — Web & Core Agent
+
+## 2026-08-21 — A34 LANDED (`e2662bc`) — GO conditions met, VLL's word given
+
+A34 (stage visual beat) fast-forwarded to `main` at `e2662bc`. Fable's GO (`bc61dd2`) was
+verdict-only pending VLL; VLL gave the explicit word to land. Both required fixes are in the landed
+commit (`e2662bc`):
+
+- **Four stale comments corrected** — `rememberStageBeat` (song-scoped, survives page turns),
+  the class/`COUNT_IN_BEATS` docs (long-press gone → ∞ segment), `MetaStrip` (no resetKey/chip).
+- **Screenshots re-shot** on the current build — `docs/screenshots/a34-beat-{downbeat,offbeat}.png`
+  now show the amber `1` / aqua `3` centre count, the full border pulse, and the `[metronome|∞]`
+  capsule; the stale `○`-FAB / `♩=88`-chip images are gone.
+- Non-blocking nit taken: `LaunchedEffect(beat, beat.runToken)` — a song-change instance (token 0)
+  can no longer alias a running predecessor's token.
+
+`:shared:check` green on the landed tip. Follow-ons already tracked, not part of A34: T86 §5.6 (demo
+seed gets metres+tempos, closing the demo-no-tempo gap) and A35 (metre supersedes the `% 4`
+assumption). — Mobile (relayed by Opus)
