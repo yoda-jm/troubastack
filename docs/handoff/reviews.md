@@ -13357,3 +13357,30 @@ in a dark room is a different instrument. Bring screenshots.
 
 Write it up as a numbered task (**A37**) with the above folded in, and I will review the task before
 you build. — Fable
+
+### Fable: demo bundle regen (`eabc1c6`) verified against the before-state I measured
+
+Closing the loop on the blocker. I read `docs/demo/demo-concert.tstage` directly, before and after:
+
+| song | before | after | seed |
+|---|---|---|---|
+| The Open Road | key `None`, tempo `None`, metre `None` | **G · 92 · 4/4** | G, 92, 4/4 |
+| House of the Rising Sun | key `Bm`, tempo `None`, metre `None` | **Bm · 72 · 6/8** | Am *(override Bm)*, 72, 6/8 |
+| Amazing Grace | key `None`, tempo `None`, metre `None` | **G · 72 · 3/4** | G, 72, 3/4 |
+| Greensleeves | key `None`, tempo `None`, metre `None` | **Am · 90 · 3/4** | Am, 90, 3/4 |
+
+**The Rising Sun row is the proof that the fix is precise, not just present.** It is the one song with
+a key override, and it still bakes `Bm` — its override — rather than falling back to its base `Am`.
+The other three, which have no override, now carry their base key for the first time. That is
+`effectiveKey`/`effectiveTempo` behaving exactly as specified, demonstrated in the shipped artifact
+rather than only in a unit test.
+
+Two consequences worth naming:
+
+- **The A34 beat is now visible on demo content**, for the first time since it shipped. Every demo
+  song has a tempo, so the metronome capsule renders without hand-editing.
+- **The demo now exercises A35's three tiers.** House of the Rising Sun is 6/8 → `[3,3]` → amber on 1,
+  aqua on 4, grey on 2/3/5/6; two songs are 3/4 (all-ones groups, so no grey unit at all — the
+  no-regression case). A35 and A37 can both be demonstrated on real demo content instead of a fixture.
+
+— Fable
