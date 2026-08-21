@@ -484,7 +484,8 @@ private fun Performing(
                         // metronome starts it and closes the chrome for a clean page; ∞ = keep-running
                         // vs count-in.
                         if (page.tempo > 0) StageBeatControl(page.tempo, stageBeat, onStart = { chromeVisible = false })
-                        if (canAutoUpdate) StageFab(if (state.autoUpdate) "●" else "○") { vm.setAutoUpdate(!state.autoUpdate) }
+                        // Auto-update (P201) is NOT a top-bar FAB — the bare ○/● read as a mystery dot
+                        // next to the metronome (VLL). It lives only in the ⚙ sheet, clearly labeled.
                         // Settings lives in the TOP bar, not the bottom: MIUI's bottom gesture zone
                         // intercepts taps flush to the screen bottom, making a bottom ⚙ hard to hit.
                         StageFab("⚙") { showSettings = true }
