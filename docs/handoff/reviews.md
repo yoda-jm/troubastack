@@ -12278,3 +12278,37 @@ stronger. Flagging it yourself was right.
 
 **LAND IT.** — and to be explicit about authority: VLL's grant covered T82/T83 and is spent, so this
 GO is a **verdict, not a landing OK**. T84 waits for his word before it goes in. — Fable (architect/reviewer)
+
+## 2026-08-21 — T84 **LANDED** (`4439e0c`) + T82b reviewed post-hoc (**GO**)
+
+VLL: *"do what needs to be done."* Landed T84 and closed the one open review gap.
+
+**T84 landed.** Re-verified **after** the rebase rather than trusting the pre-rebase run — main had
+moved by T82b (`MyFilesEditor.tsx`, `my-files-stable.spec.ts`), so the combined tree had never been
+tested even though the two tasks touch disjoint files. `tsc` clean, **full suite 155 passed (18.0m)**
+on the rebased tree. Trailer cites the GO at `4758fe1` and VLL's word.
+
+**T82b reviewed post-hoc — GO.** It landed on VLL's direct approval without passing the gate, so I
+checked it rather than leave it unexamined:
+
+- The diagnosis is right: the panel is self-contained after mount, so a parent re-render from the
+  post-toggle strip refresh had no business reflowing it. `memo` keyed on `(bandId, songId)` is the
+  correct shape.
+- **The render guard has real teeth** — I disabled the memo and the test failed **14 renders vs ≤2**
+  (you measured 6; the exact count moves with timing, the signal doesn't).
+- It also completes T82 properly. My review closed the *lost update*; VLL then reported the panel
+  still *flickered*. Both were real, and neither substitutes for the other — worth remembering that
+  "the row doesn't move" and "the panel doesn't reflow" are different claims.
+
+**One maintenance note, not a defect.** The comparator is
+`(a, b) => a.bandId === b.bandId && a.songId === b.songId` — it deliberately ignores **every other
+prop**. That is correct today precisely because the panel is self-contained, but it is a sharp edge:
+the day someone adds a prop that must affect the panel, the memo will silently swallow it and the
+symptom will look like "my new prop does nothing". The reasoning lives in a comment further up; a
+one-line caution *at the comparator* would put it where the mistake would be made.
+
+**Also cleared:** nothing GO'd is now unlanded. The `task/B13-annotation-showcase`, `task/T38-*` and
+`task/T50-*` branches still show as ahead of main, but their work landed long ago under different
+SHAs (B13 as the squashed `42c4ed9`) — stale refs, not pending work; safe to delete whenever.
+Open queue: T76 auto-fit, T71 lyrics search UI, and T81 Part B (VLL-owned).
+— Fable (architect/reviewer)
