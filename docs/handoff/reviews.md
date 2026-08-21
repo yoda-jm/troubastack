@@ -12744,3 +12744,69 @@ beat live; a page tap reveals the chrome without stopping it; the `○` dot is g
 
 **Requesting a verdict** — VLL has approved every change on-device; on your GO (or VLL's word), this
 ff-pushes to main. — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-21 — RULING (Fable): T86/A35 revised — a metre is a metric GRID, and the beat has three tiers
+
+VLL proposed a refinement to the compound-metre rule I had just specced, and then widened it:
+
+> *"maybe for 6/8 we can say the pulse is 2 but we have a sub, I would say: feel bar beat in primary
+> color, normal beat in secondary color and if there is still metric beat free you fill with grey
+> (1 (orange), 4 (blue), 2/3/5/6 (grey)) … take example of some metrics and how it looks"*
+
+> *"for later we can even have (3+4)/8 or 3+3+1/4 or crazzy stuffs like that"*
+
+**Both adopted, and they are the same change.** T86 §2–§4 and A35 are rewritten
+(`docs/tasks/T86-song-meter.md`, `docs/tasks/A35-stage-meter-beat.md`). Interactive reference with
+every metre selectable: <https://claude.ai/code/artifact/50e21132-b37f-46de-95cf-87f7a91d491d>
+
+### Why the proposal is better than what I specced
+
+My version made 6/8 pulse **two** and threw the other four eighths away. That forces a choice between
+*feeling* the metre and *seeing* it, and it loses information the page already prints. Three ranks
+keep both: you feel two because only two units are bright, and you can still see six.
+
+### The primitive changed: group lengths, not "pulses per bar"
+
+A metre resolves to a list of **group lengths in metric units** — `4/4 = [1,1,1,1]`, `6/8 = [3,3]`,
+`9/8 = [3,3,3]`. Tier 0 = unit 0 (the bar), tier 1 = any group start (the felt pulse), tier 2 =
+everything else (free subdivision). VLL's 6/8 example falls straight out: `1* 2· 3· 4o 5· 6·`.
+
+**This is why the additive note lands for free.** An additive numerator *is* the grouping written
+literally — `3+4/8 = [3,4]`, `3+3+1/4 = [3,3,1]`, `2+2+3/8 = [2,2,3]`. No new rule, no new tier
+logic. The parser accepts the `+` form **now**: it costs one `split("+")` if the grid is the
+primitive, and costs a redesign if it is not. So T86 has to be built grid-first even though nothing
+in the demo library is in 7/8 yet.
+
+Two consequences the implementer must not skip:
+
+- **The clock ticks on the UNIT, never the pulse.** In `3+4/8` the pulses are *not* evenly spaced —
+  the eighths are. A pulse-level scheduler cannot express the metre at all. Uniform groups →
+  `(60000/tempo)/groups[0]`; irregular → `60000/tempo`, i.e. tempo counts units and the label becomes
+  `♪=NN`. (`♩=NN` simple, `♩.=NN` compound, as before.)
+- **Tier 2 mutes below 130 ms/unit.** Otherwise the greys strobe — the same *"it is pulsating too
+  quickly"* complaint from the T85 tuning, one level down. In 6/8 that bites around ♩.=154.
+
+### On grey — this is not a reversal
+
+VLL rejected grey during the T85 colour tuning (*"grey is a little bit too sad"*) and we landed
+amber/aqua. That still holds: grey was wrong as the **second** rank, where it read as *switched off*.
+As the **third** rank it is doing exactly its job — receding. To keep the ranks distinguishable at
+speed, tier 2 also loses the glow and drops to ~45% opacity; hue alone is too weak a signal, and a
+third *width* would break the equal-width rule VLL settled on.
+
+### The compatibility story is strong, and is an acceptance criterion
+
+**When every group is 1, no unit is ever tier 2** — so 4/4, 3/4, 2/4 and 5/4 render pixel-identically
+to what A34 ships today. The three-tier scheme is purely additive for the common case, and T86/A35
+must assert that (`no grey unit ever painted` for a metre-less song). `beatPhase` keeps returning
+`emphasis` as `tier === 0`, so every pre-existing 4/4 vector passes untouched.
+
+### One thing I did *not* take
+
+`5/4` stays `[1,1,1,1,1]` and `7/8` stays seven ones — no inferred grouping. A player who feels 5/4 as
+3+2 now has a way to say so exactly (`3+2/4`), which is strictly better than guessing on their behalf
+and being confidently wrong half the time. That failure mode is the whole reason T86 exists.
+
+— Fable
