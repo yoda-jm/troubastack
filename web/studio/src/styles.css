@@ -681,7 +681,13 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    never covers the score you're stamping onto. Container is click-through (like the
    ctx-bar); only the glyph buttons capture, so drawing anywhere else reaches the canvas. */
 .icon-palette {
-  position: absolute; z-index: 7;
+  /* T88: fixed so JS can place `left` in viewport coordinates just outside the page (hug); the
+     .75rem is only a fallback before measurement / when there is no page. Vertical is unchanged.
+     INVARIANT (Fable T88 review): `top` and `max-height` below are viewport-relative now, and read
+     correctly only because `.viewer` spans the viewport exactly (top:0, height==innerHeight). A
+     banner above the editor or a non-fullbleed layout would drift the palette vertically — move
+     `top`/`max-height` onto a measured offset if that ever changes. */
+  position: fixed; z-index: 7;
   top: calc(var(--chrome-h, 3.5rem) + 3.6rem); left: .75rem;
   max-height: calc(100% - var(--chrome-h, 3.5rem) - 5.5rem); overflow-y: auto;
   display: grid; grid-template-columns: repeat(2, 34px); gap: .2rem;

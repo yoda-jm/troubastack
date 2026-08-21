@@ -24,5 +24,5 @@
   "//references": "T85: beatPhase.ts is owned by tsconfig.contract.json (shared with e2e); exclude it here and resolve it through the reference so it is not compiled by two projects.",
   "references": [{ "path": "./tsconfig.contract.json" }],
   "include": ["src", "../ink/src"],
-  "exclude": ["src/beatPhase.ts"]
+  "exclude": ["src/beatPhase.ts", "src/layout.ts"]
 }

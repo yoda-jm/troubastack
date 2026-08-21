@@ -1122,7 +1122,13 @@ export function Viewer({
 
       {/* T51 — glyph palette for the Icon tool (color/opacity stay in the style row). */}
       {tool === "icon" && toolbarProps.canDraw && (
-        <IconGlyphPalette active={activeGlyph} color={style.color} onPick={setActiveGlyph} />
+        <IconGlyphPalette
+          active={activeGlyph}
+          color={style.color}
+          onPick={setActiveGlyph}
+          // T88: re-measure the page hug when zoom / page count / viewed file changes.
+          reflowKey={`${zoomSelectValue}|${customZoomPercent ?? ""}|${numPages}|${selectedFileId ?? ""}`}
+        />
       )}
 
       {(rejectNotice ?? localNotice) && (

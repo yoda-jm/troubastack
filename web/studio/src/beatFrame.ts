@@ -28,26 +28,8 @@ export interface BeatFrameStyle {
   boxShadow: string;
 }
 
-export interface Edges {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
-
-/**
- * Where the frame sits: hug the PAGE (± `gap`) on each side, but never past the VIEWPORT.
- * Per-side `min`/`max` means a wide monitor keeps the rail next to the music, while any side
- * scrolled off-screen (zoomed in) falls back to the viewport edge — the beat stays framed.
- */
-export function frameBox(page: Edges, viewport: Edges, gap: number): Edges {
-  return {
-    left: Math.max(page.left - gap, viewport.left),
-    top: Math.max(page.top - gap, viewport.top),
-    right: Math.min(page.right + gap, viewport.right),
-    bottom: Math.min(page.bottom + gap, viewport.bottom),
-  };
-}
+// T88: the frame's geometry (Edges, frameBox) moved to ./layout so the icon palette and the e2e
+// unit tests can share it. This module keeps the beat's VISUAL tuning only.
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.max(0, Math.min(255, Math.round(alpha * 255)));

@@ -9,7 +9,8 @@
  * React state, for the control's pressed look.
  */
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
-import { beatFrameStyle, frameBox } from "./beatFrame";
+import { beatFrameStyle } from "./beatFrame";
+import { frameBox } from "./layout";
 import { COUNT_IN_BEATS, decayMs, intervalMs as bpmToIntervalMs } from "./beatPhase";
 
 /** A gap outside the page where the frame sits, so the rail never overlaps the sheet. */

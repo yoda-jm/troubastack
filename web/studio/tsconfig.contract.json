@@ -17,5 +17,5 @@
     "emitDeclarationOnly": true,
     "outDir": "./.tsc-types"
   },
-  "include": ["src/beatPhase.ts"]
+  "include": ["src/beatPhase.ts", "src/layout.ts"]
 }
