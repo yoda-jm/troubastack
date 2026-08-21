@@ -181,3 +181,41 @@ test("My files: out-of-order writes never lose the last toggle (T82 lost-update)
   await page.getByTestId("details-tab-mine").click();
   await expect(page.getByTestId("my-files-row").first().getByTestId("my-files-include")).toBeChecked();
 });
+
+// T82b — a checkbox toggle must re-render the panel ONLY for its own optimistic update. Before the
+// memo wrapper, the parent's post-toggle onChanged (viewer-strip refresh) re-rendered the panel a
+// second time ~200ms later — the reflow the user reported as a flicker. StrictMode double-invokes, so
+// one logical render == +2; the panel must gain exactly its own toggle's render, not the parent's too.
+test("My files: a toggle re-renders the panel once — no parent-driven flicker (T82b)", async ({ page }) => {
+  await register(page, `myfk_${stamp()}`);
+  await page.getByTestId("new-band-btn").click();
+  await page.getByTestId("band-name").fill(`FlkBand ${stamp()}`);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").first().click();
+  await page.getByTestId("new-song-btn").click();
+  await page.getByTestId("song-title").fill(`FlkSong ${stamp()}`);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").first().click();
+
+  await page.getByTestId("my-files-edit").click();
+  for (let i = 0; i < 2; i++) {
+    await page.getByTestId("file-input").setInputFiles(PDF);
+    await page.getByTestId("file-upload").click();
+    await expect(page.getByTestId("file-row")).toHaveCount(i + 1);
+  }
+  await page.reload();
+  await page.getByTestId("my-files-edit").click();
+  await page.getByTestId("details-tab-mine").click();
+  const panel = page.getByTestId("my-files-panel");
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("my-files-row")).toHaveCount(2);
+
+  const before = Number(await panel.getAttribute("data-renders"));
+  await page.getByTestId("my-files-row").first().getByTestId("my-files-include").click();
+  await page.waitForTimeout(800); // let the async onChanged (strip refresh) fully settle
+  const after = Number(await panel.getAttribute("data-renders"));
+  expect(
+    after - before,
+    `panel re-rendered ${after - before}× after one toggle (want <=2: its own optimistic render; more = a parent-driven flicker)`,
+  ).toBeLessThanOrEqual(2);
+});

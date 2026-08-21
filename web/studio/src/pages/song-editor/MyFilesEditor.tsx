@@ -16,11 +16,11 @@
  * is session-local and falls back to pool order after a reload. Persistent full ordering would be an
  * API change and its own task.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type SongFile } from "../../api";
 import { useFlipRows, useSortable } from "../../components/SortableList";
 
-export function MyFilesEditor({
+function MyFilesEditorInner({
   bandId,
   songId,
   selected,
@@ -161,8 +161,14 @@ export function MyFilesEditor({
   const sortable = useSortable(displayOrder, reorder, flip);
   const rows = displayOrder.map((id) => poolById.get(id)).filter((f): f is SongFile => !!f);
 
+  // Render probe (T82b): a toggle must re-render this panel exactly ONCE (its own optimistic
+  // setIncluded). Before the memo wrapper, the parent's post-toggle onChanged (viewer-strip refresh)
+  // re-rendered it a second time — the reflow the user saw as a flicker. Surfaced for the regression test.
+  const renders = useRef(0);
+  renders.current += 1;
+
   return (
-    <section className="my-files-panel card" data-testid="my-files-panel">
+    <section className="my-files-panel card" data-testid="my-files-panel" data-renders={renders.current}>
       <div className="my-files-panel-head">
         <h2>My files</h2>
         <button
@@ -241,3 +247,13 @@ export function MyFilesEditor({
     </section>
   );
 }
+
+// Memoised on (bandId, songId): the panel is fully self-contained after mount (its own local
+// displayOrder/included), so a PARENT re-render — the viewer strip refreshing after each toggle's
+// onChanged — must NOT re-render it. Re-rendering it there caused a visible reflow/flicker in the
+// panel even though nothing inside it had changed. onChanged/onError are stable per song (the panel
+// reads onError via a ref), so freezing on song identity is safe.
+export const MyFilesEditor = memo(
+  MyFilesEditorInner,
+  (a, b) => a.bandId === b.bandId && a.songId === b.songId,
+);
