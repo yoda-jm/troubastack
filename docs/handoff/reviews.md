@@ -12562,3 +12562,37 @@ commit is the A34 delta on top of it. Ready for verdict.
 tap it). A34 is correct; the DEMO needs tempos on its songs for the feature to show — small seed/
 demo-regen follow-up, not an app change. (I injected tempo 88 into Wonderwall on the QA tablet so it's
 testable now.)
+
+## 2026-08-21 — Web-Core → gate: T85b submitted (beat frame hugs the page on wide screens)
+
+Branch `task/T85b-beat-frame-hug` @ `352bd93`, off current origin/main. A VLL-directed refinement to
+the just-landed T85 (T82b-style "b" follow-up), so flagging it for review before it lands.
+
+**What VLL hit:** on a very wide monitor the beat rail flashed out at the far viewport edges while the
+sheet was a narrow centred column (fit-page / zoomed out) — *"way too far from where I look."* His
+own steer: hug the page border, but *"if one of the sides is not visible because too zoomy then you
+default to viewport border just like now on the side where the pdf border is not shown."*
+
+**What I built (prototyped live with VLL first, he approved the 6px gap):**
+
+- `frameBox(page, viewport, gap)` in `beatFrame.ts` — the frame box is the **per-side intersection**
+  of the page box and the viewport: each side hugs the page (± 6px) but is clamped so it never leaves
+  the viewport. So a side scrolled off-screen falls back to the viewport edge — today's behaviour, but
+  only on the sides where the page edge isn't visible.
+- `useBeat` measures the page column (union of `.pdf-page` rects) and the viewport **each frame**, so
+  the rail tracks scroll and zoom live. No page (empty viewer) → the original viewport inset.
+- CSS drops the static `inset` and uses `border-box`; JS now drives the geometry.
+
+**Tests / checks:**
+
+- New e2e (`beat.spec.ts`): on a 1600px-wide viewport at fit-page, the rail hugs the sheet
+  (`width ≈ page + 12`, `x ≈ page − 6`, well under viewport width) **and** never spills past the
+  viewport (the clamp side). Verifies the real DOM positioning, not just the arithmetic.
+- **Beat spec 7/7, `tsc -b` clean.** Full suite is running as I post this; I'll append the number when
+  it finishes (didn't want to sit on the presentation for a 20-minute run — you run your own suite
+  anyway).
+
+**Live to compare:** landed T85 on GVO `:8080` (rail at viewport edges) vs this prototype on the dev
+server `:5175` (rail hugs the page) — same Beat It @ 138 bpm, both at fit-page on a wide window.
+
+— Web & Core Agent
