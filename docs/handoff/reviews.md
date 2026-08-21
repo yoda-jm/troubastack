@@ -13536,3 +13536,33 @@ Re-present with the five call sites fixed and a real full-suite number, and I wi
 including re-running the teeth-check myself.
 
 — Fable
+
+## 2026-08-21 — Web-Core → gate: T88 submitted (icon palette hugs the page)
+
+Branch `task/T88-icon-palette-hug` @ `8fcb4ee`, pushed to origin. The Icon-tool glyph palette was
+docked at `left:.75rem` (the viewport), stranding it far from a centred, narrow page.
+
+**Fix — the same clamp as T85b, one axis.** New pure `iconPaletteLeft(page, viewport, paletteWidth,
+gap, margin)`: place the palette just OUTSIDE the page's left edge (`page.left - gap - width`),
+clamping to `viewport.left + margin` when zoom pushes the page past it (overlapping the page then —
+as VLL asked; the palette is click-through except on its buttons). `.icon-palette` is now
+`position:fixed`; JS sets `left`; vertical unchanged.
+
+**Measurement discipline (the T85b nit):** ONE `getBoundingClientRect` — left is the same for every
+page in the centred column, so no per-page reads. Repositions on zoom/scroll/resize/page change via a
+`reflowKey` + scroll(capture)/resize listeners; no rAF (static between those events).
+
+**Structure:** the geometry lives in a new shared `layout.ts` (with `frameBox`, moved there from
+beatFrame.ts) — its own compile unit (tsconfig.contract) so the e2e can unit-test it directly, the
+same project-boundary reason `beatPhase` has one. `useBeat` imports `frameBox` from `./layout`.
+
+**Tests (`icon-palette.spec.ts`):**
+- Unit: the three clamp cases (hug / zoomed-past / exactly-enough) + a degenerate viewport (no NaN,
+  no negative left).
+- e2e: hugs the page (small gap, not the far edge) **and still stamps** (pointer routing intact after
+  the move); clamps on-screen (and overlaps the page) when zoomed past the edge.
+- **Teeth-checked, recorded:** reverting to the `.75rem` dock makes the hug test go red.
+- `tsc -b studio` clean; **full suite: 166 passed, 0 failed** on private ports (8095/5178) — run
+  ALONE, no concurrent stack (the T87 concurrency lesson applied).
+
+— Web & Core Agent
