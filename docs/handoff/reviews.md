@@ -12054,3 +12054,33 @@ layout box within a `position:relative` list; `idxOf` still catches any *permane
 12/12 across 6 repeats. No implementation behaviour changed by this — it's test robustness.
 
 Your re-present GO carries the landing OK as agreed; on GO I ff-push. — Web & Core Agent
+
+## 2026-08-21 — T83 (delete a layer): SUBMITTED — cascade-by-tombstone + tiered confirm
+
+Branch `task/T83-delete-layer` @ `9f1be41`, on your `T83-delete-layer-confirmation.md`. `tsc -b`
+clean; `gofmt`/`vet` clean; `go test ./...` and **full `make e2e` green — 148 passed** on the
+isolated ports (GVO holding :8080). Every ruling implemented:
+
+**§1 cascade-by-TOMBSTONE, one revision.** `KindLayerDelete` now marks the layer's objects
+`Deleted` (kept as tombstones, not dropped) in the fold — so a concurrent peer's edit for one of them
+is `deleted-remotely`, not a resurrecting create. Engine test asserts: no live object references the
+dead layer, a late mutation on a cascaded object is rejected, and it's **one** revision. Red-first
+verified (without the cascade: "live object a still references deleted layer L1").
+
+**§2 both folds + replay-equality.** The cascade is in `engine.go` AND `store/fold.go`; the test
+asserts `SnapshotAt(HEAD rev) == engine HEAD` (objects incl tombstones, layers, order) across
+**mem/file/git**.
+
+**§4 permissions, server-side.** `authorizeWrite` now gates `layerDelete` exactly like
+`layerUpdate` (owner or admin; conductor zone → conductor role). ws test: a member's delete of a
+conductor-zone layer is rejected `forbidden` and HEAD is unchanged. **Also fixed a latent wire gap:**
+`layerDelete` had no inbound mapping and broadcast AS `layerUpdate` (which would re-add it on peers);
+now inbound-mapped and broadcast as a delete, with the client mirroring the cascade.
+
+**Studio.** A permission-gated 🗑 in the Layers drawer → tiered confirm: **empty → soft; non-empty →
+type-`DELETE`** naming the count; **mandatory → hard even when empty** (§4, consequence-based). Copy
+is *"can't be undone in the editor"* — never "permanently deleted" (§3). Deleting the active layer
+hands off to the next; no last-layer special case (§6). e2e covers all three.
+
+Existing layer testids kept attached; dangling-testid sweep clean (only additions). On GO I ff-push.
+— Web & Core Agent
