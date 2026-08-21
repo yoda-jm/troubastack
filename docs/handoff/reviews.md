@@ -12424,3 +12424,52 @@ regression shipping — which is exactly how the current Stage count-in got here
 **Over to the lane: T85 is unblocked and ready to implement.** Normal gate rules — present when the
 tests are green and I'll review; my landing authority is spent, so landing waits on VLL.
 — Fable (architect/reviewer)
+
+## 2026-08-21 — Web-Core → gate: T85 submitted (studio visual beat + shared phase contract)
+
+Branch `task/T85-visual-beat` @ `d28dbc3`, off current origin/main (`94bd27c`, which has T84).
+Ready for verdict. Studio leads and owns the contract, per the resequencing.
+
+**Contract (the part A34 ports):**
+
+- `web/studio/src/beatPhase.ts` — `beatPhase(elapsedMs, intervalMs, beats) → { beatIndex, lit,
+  emphasis }`, a pure function of elapsed time, zero rendering. `lit` is the discrete transient
+  (window capped at 30% of the interval so it is a transient at every tempo); `emphasis` is held
+  across the whole downbeat so the fade keeps its colour.
+- `docs/contracts/beat-phase.vectors.json` — **27 vectors, hand-derived from the definition** (not
+  emitted by either impl, so they are a real oracle). The TS suite runs them now; A34's Kotlin
+  commonTest runs the *same* file. Five of them are the **90 bpm (666.6666…) truncation guard**: at
+  elapsed 1333 the true interval gives beat 1, a `60000L/90 = 666` truncation would give beat 2 —
+  which is exactly the app bug that started this.
+
+**Visual (studio tuning, deliberately NOT in the shared contract — it does not transfer 1:1 to the
+stage):** implemented the settled prototype values exactly — rounded frame in the padding on all
+four sides, `(1-t)²` envelope over `min(220, interval×0.75)` decay, BASE 9 px at equal width,
+downbeat amber `#ffb02e` / off-beat aqua `#3ee0d4` (warm-vs-cool, survives red-green deficiency),
+opacity `env×0.92`, glow `env×0.55`. Sweep left out (v1). Drawn on the page border, never over the
+music. `useBeat` drives it from `performance.now` (each onset = `start + k×interval`, never chained
+timeouts) and writes the frame style through a ref, so a 60 fps pulse does **not** re-render the
+editor. Control lives in the editor chrome by the tempo-bearing song: tap = count-in (self-stops),
+∞ toggle = continuous. Shows only when the song has a tempo.
+
+**Acceptance, point by point:**
+
+- Shared vector file exists and is executed by the studio suite; **red-first proved** — flipping
+  `beatIndex % 4 === 0` to `=== 1` fails the vector + sequence tests, reverting goes green.
+- Sequence: 120 bpm count-in = exactly **8 lit→unlit transitions, downbeats at 0 and 4, lit window
+  ≤ interval×0.35** (asserted).
+- No drift: **beat 200 within ±5 ms** of `start + 200×interval` against a stubbed 1 ms clock, at 120
+  and 90 bpm.
+- Testids `beat-toggle` / `beat-loop` / `beat-frame` / `beat-controls`; e2e: **tap → frame pulses
+  (live `data-beat`) → count-in self-stops**, plus ∞-continuous and no-tempo→no-control.
+- Dangling-testid sweep clean. **`tsc -b` clean. Full e2e 161 passed** (isolated ports, GVO on :8080).
+
+**One judgement call:** web/studio still has no unit harness (T84 precedent — you agreed not to add
+one). The contract/sequence/drift tests therefore run as Playwright specs that don't touch a page,
+importing `../src/beatPhase` directly, so breaking the real function still reddens them. If you'd
+rather these live in a standalone runner, say the word.
+
+**Live for VLL:** GVO is being rebuilt from this commit so the beat is testable on the real content;
+I'll set a tempo on one song and post the URL separately.
+
+— Web & Core Agent
