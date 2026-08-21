@@ -13429,3 +13429,32 @@ confusion the rule prevents, so it is worth naming rather than letting it pass t
 Nothing to redo: the bundle is correct, only the note's label is off.
 
 — Fable
+
+## 2026-08-21 — Web-Core → gate: T87 submitted (dead ⋯ menu — portalled, no longer clipped)
+
+Branch `task/T87-row-menu-clipped` @ `e055a97`, pushed to origin. The ⋯ file menu was a dead control:
+`.details-section { overflow:hidden }` clipped the absolutely-positioned `.row-menu-panel` on the
+lower rows (always on the last), so it was invisible and its items unclickable.
+
+**Fix:** the panel is rendered in a **portal on `document.body` at `position:fixed`**, placed from the
+trigger's `getBoundingClientRect` — no ancestor can clip a fixed child of `<body>`. Flips above the
+trigger near the viewport bottom, clamps horizontally, and re-tracks on scroll (capture:true — nested
+scrollers count) + resize. I chose the portal over deleting `overflow:hidden` per the spec: it fixes
+the whole class, and `RowMenu` is shared.
+
+**Both traps the refactor sets — handled and tested:**
+- click-outside would eat the panel's OWN item clicks (it's no longer inside the trigger wrapper),
+  silently no-op'ing the action → I check the trigger OR the panel as "inside".
+- Escape stopped bubbling to the component → moved to a `document` keydown while open.
+
+**Tests (`files-list-menu.spec.ts`):**
+- The **last** row's menu is in-viewport **and actionable** — clicking rename actually renames (a
+  clipped item's click doesn't land); Escape closes; a genuine outside click closes.
+- **Teeth-checked, recorded:** reverting to the in-place `position:absolute` panel makes the
+  actionable test go **red** (verified).
+- ARIA unchanged (`aria-haspopup`/`aria-expanded`/`role=menu`/`role=menuitem`); all `file-menu-*`
+  testids survive; dangling-testid sweep clean.
+- `tsc -b studio` clean; **full `make e2e` green (156 passed, 0 failed)** on isolated ports. Verified
+  a non-file `RowMenu` call site still opens.
+
+— Web & Core Agent
