@@ -20,7 +20,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -215,6 +215,9 @@ private fun Performing(
     // and auto-hide after a timeout so performance is fullscreen. Starts revealed so the controls are
     // discoverable on entry, then hides itself.
     var chromeVisible by remember { mutableStateOf(true) }
+    // A34: the visual beat (metronome/count-in). Scoped to the current page so a page turn cancels a
+    // running count-in; the tempo chip taps it, the edge frame renders it. Two-up shares one frame.
+    val stageBeat = rememberStageBeat(resetKey = state.current)
     // A15: song-jump navigation drawer, opened from the ☰ menu FAB.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -405,7 +408,7 @@ private fun Performing(
                 ),
         ) {
             when {
-                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
+                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx, stageBeat)
                 // N4: page/width turns animate as a direction-aware horizontal slide (presentation only —
                 // the turn is still the single goToPage funnel, so swipe/FABs/pedals/keys/volume all
                 // animate identically). Keyed on state.current: a turn mid-animation just retargets, the
@@ -448,6 +451,11 @@ private fun Performing(
             }
         }
 
+        // A34: the visual beat — a pulsing frame on the page border. Above the page (visible), below the
+        // chrome (so ☰/⚙/✕ stay on top and tappable); border-only + no pointer input, so it never
+        // covers the music nor eats a tap. Dark unless a count-in/metronome is running.
+        StageBeatFrame(stageBeat.frame)
+
         // A2: TOP chrome — ☰ song drawer · centered title+position card · [● Live] · ✕ exit. Fades and
         // slides in on reveal; the A08 meta strip rides inside it (score stays clean when hidden). In
         // scroll mode the strip is inline in the column (ScrollReader), so it's omitted here.
@@ -476,10 +484,10 @@ private fun Performing(
                 when {
                     scrollMode -> {}
                     twoUp -> Row(Modifier.fillMaxWidth()) {
-                        Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], resetKey = it) } }
-                        Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], resetKey = it) } }
+                        Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], stageBeat) } }
+                        Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], stageBeat) } }
                     }
-                    else -> MetaStrip(page, resetKey = state.current)
+                    else -> MetaStrip(page, stageBeat)
                 }
             }
         }
@@ -837,6 +845,7 @@ private fun ScrollReader(
     cache: PageImageCache,
     colorFilter: androidx.compose.ui.graphics.ColorFilter?,
     widthPx: Int,
+    beat: StageBeat,
 ) {
     val range = songPageRange(state, state.current)
     val songPages = if (range.isEmpty()) emptyList() else state.pages.subList(range.first, range.last + 1)
@@ -848,7 +857,7 @@ private fun ScrollReader(
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(songPages) { index, page ->
             Column(Modifier.fillMaxWidth()) {
-                MetaStrip(page, resetKey = range.first + index) // renders only on the song's first page
+                MetaStrip(page, beat) // renders only on the song's first page
                 ScrollPage(page, state.visibleFor(page.songId), decoder, cache, colorFilter, widthPx)
             }
         }
@@ -1010,7 +1019,7 @@ private fun MissingLayersBadge(missing: Int, modifier: Modifier = Modifier) {
  * in two-up it's the per-side page index so each half resets independently.
  */
 @Composable
-private fun MetaStrip(page: StagePage, resetKey: Any) {
+private fun MetaStrip(page: StagePage, beat: StageBeat) {
     if (page.pageInSong != 0) return
     val prefix = metaStripText(page.displayNotes, page.key, 0) // notes · key; tempo is the chip (A11)
     val hasTempo = page.tempo > 0
@@ -1032,42 +1041,41 @@ private fun MetaStrip(page: StagePage, resetKey: Any) {
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            if (hasTempo) TempoChip(page.tempo, resetKey = resetKey)
+            if (hasTempo) TempoChip(page.tempo, beat)
         }
     }
 }
 
 /**
- * The A08 tempo, as a tappable chip that runs a silent visual count-in (A11): [COUNT_IN_BEATS] beats
- * at the song's tempo, a corner-of-the-eye pulse dot (downbeats emphasized), self-stopping. [resetKey]
- * (the current page) cancels an in-progress count on a page turn. Read-only, no audio, no full-screen
- * flash (stage lighting). Out-of-range tempo → the tap is a no-op.
+ * The A08 tempo, as a chip that runs the A34 silent visual beat: **tap = an 8-beat count-in**,
+ * **long-press = continuous** (metronome, until tapped off or a page turn). The main channel is the
+ * pulsing page-border frame; this chip only echoes it (a filled amber/aqua dot on the lit window vs an
+ * idle outline) so the player has feedback at the point they tapped. Read-only, no audio, no
+ * full-screen flash (stage lighting). Out-of-range tempo → both gestures are a no-op.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun TempoChip(tempo: Int, resetKey: Any) {
-    var running by remember(resetKey) { mutableStateOf(false) }
-    var beat by remember(resetKey) { mutableStateOf(-1) }
-    LaunchedEffect(running, resetKey) {
-        if (!running) { beat = -1; return@LaunchedEffect }
-        val ms = countInIntervalMs(tempo) ?: run { running = false; return@LaunchedEffect }
-        for (b in 0 until COUNT_IN_BEATS) { beat = b; delay(ms) }
-        beat = -1
-        running = false
-    }
+private fun TempoChip(tempo: Int, beat: StageBeat) {
+    val enabled = tempoIntervalMs(tempo) != null
     Row(
-        Modifier.clickable { if (countInIntervalMs(tempo) != null) running = true }.padding(horizontal = 4.dp),
+        Modifier
+            .combinedClickable(
+                onClick = { if (enabled) beat.tap(tempo) },
+                onLongClick = { if (enabled) beat.toggleContinuous(tempo) },
+            )
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("♩=$tempo", style = MaterialTheme.typography.labelMedium)
-        val active = beat >= 0
-        val dot = when { active && isDownbeat(beat) -> 12.dp; active -> 8.dp; else -> 7.dp }
-        Box(
-            Modifier.size(dot).background(
-                if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                CircleShape,
-            ),
-        )
+        val f = beat.frame
+        val dot = if (f != null) 10.dp else 7.dp
+        val color = when {
+            f == null -> MaterialTheme.colorScheme.outline
+            f.downbeat -> Color(0xFFFFB02E)
+            else -> Color(0xFF3EE0D4)
+        }
+        Box(Modifier.size(dot).background(color, CircleShape))
     }
 }
 

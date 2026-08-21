@@ -94,6 +94,14 @@ jobs:
         run: |
           diff -u core/internal/bake/testdata/view-resolution.vectors.json \
                   app/shared/src/commonTest/resources/view-resolution.vectors.json
+      # A34/T85 visual-beat contract: `beatPhase` is authored in T85 (TS) against
+      # docs/contracts/beat-phase.vectors.json; the app mirrors that file into commonTest
+      # resources and runs the SAME cases in Kotlin. Fail if the two copies drift, so
+      # "when is a beat" can never silently fork between studio and stage.
+      - name: verify A34/T85 beat-phase vectors are in sync across lanes
+        run: |
+          diff -u docs/contracts/beat-phase.vectors.json \
+                  app/shared/src/commonTest/resources/beat-phase.vectors.json
       # bake imports node builtins + @napi-rs/canvas, so it must be installed
       # before the typecheck below resolves its `-p bake` project.
       - name: install bake
