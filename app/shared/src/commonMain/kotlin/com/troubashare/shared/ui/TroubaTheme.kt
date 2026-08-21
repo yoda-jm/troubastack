@@ -74,8 +74,36 @@ private val BrandDark = darkColorScheme(
 )
 
 /**
- * Wrap the app in the brand palette. Light/dark follows the system setting (like the studio follows
- * `prefers-color-scheme`). Use this at BOTH entrypoints in place of a bare `MaterialTheme`.
+ * The user's theme choice (A36 — the Parameters screen's Theme selector). SYSTEM follows the device
+ * (like the studio's `prefers-color-scheme`); LIGHT/DARK force it. Persisted under [KEY].
+ */
+enum class ThemePref {
+    SYSTEM,
+    LIGHT,
+    DARK,
+    ;
+
+    /** Resolve to a concrete dark flag, consulting the system only for [SYSTEM]. */
+    @Composable
+    fun resolveDark(): Boolean = when (this) {
+        SYSTEM -> isSystemInDarkTheme()
+        LIGHT -> false
+        DARK -> true
+    }
+
+    companion object {
+        /** Storage key for the persisted choice. */
+        const val KEY = "app.theme"
+
+        /** Parse a persisted value; anything unknown/absent → SYSTEM. */
+        fun parse(raw: String?): ThemePref = entries.firstOrNull { it.name == raw } ?: SYSTEM
+    }
+}
+
+/**
+ * Wrap the app in the brand palette. Light/dark is driven by [dark] — pass a resolved [ThemePref] so
+ * the Parameters screen can override the system setting. Use this at BOTH entrypoints in place of a
+ * bare `MaterialTheme`.
  */
 @Composable
 fun TroubaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {

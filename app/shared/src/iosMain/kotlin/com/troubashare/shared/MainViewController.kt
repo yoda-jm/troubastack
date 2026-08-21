@@ -37,6 +37,7 @@ import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.ui.TroubaTheme
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
+import com.troubashare.shared.ui.ThemePref
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import org.jetbrains.skia.Image
@@ -62,7 +63,10 @@ import platform.posix.memcpy
  * / `FileBundleFiles`). Stage-only for v1 (IOS02); the WebView editor is out of scope.
  */
 fun MainViewController(): platform.UIKit.UIViewController = ComposeUIViewController {
-    TroubaTheme { App() }
+    // A36: honour the persisted theme choice (there's no Parameters UI on iOS yet — Stage-only v1 —
+    // but the same stored key applies, defaulting to SYSTEM).
+    val themeStore = remember { Storage() }
+    TroubaTheme(dark = ThemePref.parse(themeStore.getSecret(ThemePref.KEY)).resolveDark()) { App() }
 }
 
 private class OpenedBundle(val vm: StageViewModel, val decoder: ImageDecoder)
