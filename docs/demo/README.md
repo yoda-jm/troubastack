@@ -116,3 +116,12 @@ artifact.
 > artifact. Fixed at the source, charts regenerated and the bundle re-baked. Guarded by
 > `TestAnchorTextMatchesPDF`: every recorded anchor must appear verbatim in its rendered PDF,
 > so the manifest and the page can never silently disagree again.
+>
+> Re-baked 2026-08-21 (**T86 core half — tempo/key/metre reach the bundle**): the bake now writes the
+> **effective** tempo and key (setlist override, else the song's base) instead of override-only, and
+> carries the new `meter` field. So the bundle's songs finally ship their metadata — The Open Road
+> `♩=92 · 4/4 · G`, House of the Rising Sun `♩=72 · 6/8 · Bm` (its setlist key override), Amazing
+> Grace `♩=72 · 3/4 · G`, Greensleeves `♩=90 · 3/4 · Am`. This is what makes the **A34 visual beat
+> appear on demo content** (it drives off the song's tempo, which used to bake to 0), and gives A35
+> its metre. Structure otherwise unchanged: 4 songs, 6 default-part pages, roster, all layers, all
+> members' cues.
