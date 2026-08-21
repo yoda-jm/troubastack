@@ -61,6 +61,15 @@ as a testable claim. A pure interval function passing tells you nothing about wh
   ([why timers drift](https://dev.to/kandz/why-javascript-timers-drift-building-a-high-precision-metronome-with-web-audio-api-c0a),
   [don't use setInterval](https://perfecttune.net/articles/why-your-metronome-should-not-use-setinterval.html)).
 
+## The visual is already settled — see T85
+
+The form, envelope, colours and emphasis rule were decided on the prototype with VLL and are written
+up in **T85's "The visual, settled on the prototype"** section: a rounded frame around the page on all
+four sides, an attack+decay envelope (`min(220 ms, interval × 0.75)`, `(1-t)²`), **equal width on
+every beat**, and **amber `#ffb02e` downbeat / aqua `#3ee0d4` off-beat**. Port those, do not
+re-derive them. Expect to re-tune BASE width and brightness for a dark stage at arm's length — the
+numbers move, the language does not.
+
 ## Design (decided)
 
 1. **A real transient per beat.** Each beat lights the indicator for

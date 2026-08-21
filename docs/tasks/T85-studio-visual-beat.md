@@ -44,6 +44,48 @@ We already have the pattern for avoiding that — `glyphs.json` is generated onc
 ink, the Go baker and the app, so "what a `cuica` looks like" has a single source of truth. Do the
 same here for *what a beat is*.
 
+## The visual, settled on the prototype (VLL, 2026-08-21)
+
+Prototyped and reviewed together at
+<https://claude.ai/code/artifact/50e21132-b37f-46de-95cf-87f7a91d491d>. These are decisions, not
+suggestions — implement these values.
+
+**Form — a rounded frame pulsing around the page.** The beat is a frame in the padding *around* the
+sheet, on **all four sides**, with the same corner radius as the page container. It never overlaps
+the music and it is never a full-screen flash. VLL: *"very visual and does not interfere with looking
+at the page content."*
+
+**Envelope — attack + decay, never a square wave.** The first cut flashed a hard 90 ms on/off and
+read as a strobe (*"pulsating too quickly"*). The pulse is now full at the beat and eased away:
+
+```
+decay  = min(220 ms, interval × 0.75)      // clamped so it always clears before the next beat
+env(t) = t >= 1 ? 0 : (1 - t)²             // t = msSinceBeat / decay
+width  = BASE × (0.45 + 0.55 × env)        // BASE = 9 px  (dp in the app)
+opacity= env × 0.92
+glow   = 0 0 (width × 2.4)px rgba(colour, env × 0.55)
+```
+
+**Emphasis — hue at EQUAL width.** Every beat draws the same frame weight; the downbeat differs only
+in colour, so the geometry never moves:
+
+| beat | colour |
+|---|---|
+| downbeat (every 4th) | **amber `#ffb02e`** |
+| off-beat | **aqua `#3ee0d4`** |
+
+Two reasons this pairing is fixed rather than taste. Grey read as *switched off* rather than as a
+beat — both beats need a real colour. And the pair is **warm against cool**, so the distinction rides
+the blue-yellow axis and survives red-green colour deficiency (~1 in 12 men — likely someone in the
+band). Do not substitute a red/green pair.
+
+**Weight — BASE 9 px.** VLL asked for it wider than the first 6 px cut. Keep it a single constant so
+it is one edit to re-tune; the app will almost certainly want a larger value again at stage distance.
+
+**Sweep — not in v1.** A travelling marker gives anticipation, but it is constant peripheral motion
+for a whole song; it was toggled off by default in the prototype and VLL did not pick it. Leave it
+out. Revisit only on request, and then behind a preference.
+
 ## Design (decided)
 
 1. **One contract, two renderers.** The beat *phase* function is the contract:

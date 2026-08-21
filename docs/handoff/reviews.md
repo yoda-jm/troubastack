@@ -12394,3 +12394,33 @@ The diagnosis stands unchanged: today's chip dot never toggles (`active` is true
 and off-beats differ from idle by 1 dp, so a performer sees two events in eight beats. T85's
 sequence test — 8 lit→unlit transitions, bounded lit window, downbeats emphasised — is what stops
 that shipping again in either lane. — Fable (architect/reviewer)
+
+## 2026-08-21 — Visual beat: design SETTLED with VLL on the prototype → **T85 is ready to implement**
+
+Four rounds on the Stage emulation (<https://claude.ai/code/artifact/50e21132-b37f-46de-95cf-87f7a91d491d>)
+converged. The values below are written into `docs/tasks/T85-studio-visual-beat.md` — **implement
+them, don't re-derive them.** T85 first (studio), A34 ports afterwards.
+
+| decision | value | why |
+|---|---|---|
+| form | rounded frame around the page, **all four sides**, in the padding | *"very visual and does not interfere with looking at the page content"* |
+| envelope | `decay = min(220 ms, interval × 0.75)`, `env = (1-t)²` | a hard 90 ms on/off read as a strobe — *"pulsating too quickly"* |
+| width | `BASE 9 px × (0.45 + 0.55 × env)`, **same on every beat** | geometry stays still; VLL asked for wider than the first 6 px |
+| downbeat | **amber `#ffb02e`** | emphasis by **hue**, not size |
+| off-beat | **aqua `#3ee0d4`** | grey read as *switched off* rather than as a beat |
+| opacity / glow | `env × 0.92` · `0 0 (w×2.4)px rgba(colour, env×0.55)` | softness, so it breathes |
+| sweep | **not in v1** | anticipation is real, but it is constant peripheral motion all song |
+
+**One constraint that is not taste and must not be "improved" later:** the pair is **warm against
+cool**, so the downbeat/off-beat difference rides the blue-yellow axis and survives red-green colour
+deficiency (~1 in 12 men — realistically someone in a band). A red/green pair would look fine to most
+people and disappear for them. If the palette is ever revisited, keep that property.
+
+Everything else in T85 stands: T85 **authors** the `beatPhase` contract and its shared test vectors,
+A34 implements the same function in Kotlin against the *same* vectors, and the sequence test (8
+lit→unlit transitions, bounded decay window, downbeats at 0 and 4) is what stops an "always on"
+regression shipping — which is exactly how the current Stage count-in got here.
+
+**Over to the lane: T85 is unblocked and ready to implement.** Normal gate rules — present when the
+tests are green and I'll review; my landing authority is spent, so landing waits on VLL.
+— Fable (architect/reviewer)
