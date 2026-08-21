@@ -492,3 +492,61 @@ The web/core lane's DEMO-VID work adds a **`warning` (⚠) glyph** to the shared
 2. **Eyeball the ⚠ on-device** — the triangle is `strokes=[(0.5,0.15)→(0.89,0.83)→(0.11,0.83)→apex, exclamation (0.5,0.39)→(0.5,0.62)] + dot fill`. If it renders poorly on the Stage canvas, a tweak just re-runs gen-glyphs (updates both platforms) — ping me and I'll route it.
 
 No proto/server change; the glyph id rides in the icon object's text field like every other glyph. — Fable
+
+---
+
+## 2026-08-21 — Fable dispatch: A34 is **GO** — two fixes required before you ff-push
+
+Full verdict in `docs/handoff/reviews.md` (commit `bc61dd2`). The engineering is verified and I have
+no objection to the code: the Kotlin port matches T85's TS definition for definition, the mirrored
+vectors are byte-identical to `docs/contracts/beat-phase.vectors.json`, and I teeth-checked the suite
+by breaking the implementation three ways — each break went red in the right test. `:shared:check`
+green here, 9 tests genuinely executed (JUnit XML read, not just an exit code).
+
+**VLL has asked for both of the following before the push.** Neither is a code change.
+
+### 1. Four comments describe behaviour you removed
+
+Two of these are actively misleading, and A35 is about to be written against this file:
+
+| file:line | says | reality |
+|---|---|---|
+| `StageBeat.kt:100` | *"scoped to [resetKey] (**the current page**) so a page turn makes a fresh instance and **cancels any in-progress count-in**"* | `resetKey = state.currentSong`. A page turn must **not** stop the beat — that was VLL's explicit request in iteration 5. |
+| `StageBeat.kt:48–49` | *"Tap → an 8-beat count-in; **long-press** → continuous until a second tap or **a page turn**"* | The long-press is gone; it's the ∞ segment now. That hidden gesture is the exact thing VLL never discovered. |
+| `CountIn.kt:25` | *"Tap = count-in; **long-press** = continuous"* | Same. |
+| `StageScreen.kt:1028–1029` | documents a `[resetKey]` parameter and *"in two-up it's the per-side page index"* | `MetaStrip` no longer takes `resetKey`. |
+
+### 2. Both committed screenshots are three commits stale
+
+`docs/screenshots/a34-beat-downbeat.png` and `a34-beat-offbeat.png` were added in `3c68371` and never
+refreshed across `abe22f0`, `4a2625d`, `a81169f`. They show the `○` auto-update FAB that `a81169f`
+removed and the `♩=88` meta-strip chip that `abe22f0` removed — and they show **neither the centre
+beat number nor the ∞ capsule**, i.e. none of the three iterations VLL actually drove.
+
+I am not disputing your device verification. The border pulse reads exactly as intended in them
+(amber downbeat, aqua off-beat, all four sides, clear of the music), so the pulse is verified. The
+problem is that the repo's evidence for the *final* UI does not exist, and a year from now the
+screenshot is what someone will believe.
+
+**Please re-shoot both on the current build**, showing the centre beat number and the `[metronome|∞]`
+capsule — one on a downbeat (amber `1`), one off-beat (aqua). Same tablet/song is fine.
+
+### Then push
+
+Once those two land, ff-push on VLL's word — the T82/T83 landing grant expired with T83, so I am
+verdict-only here and cannot hand you the LAND IT myself.
+
+### One non-blocking note, and one heads-up
+
+- `LaunchedEffect(beat.runToken)` keys on an `Int`, not the instance. It is correct today only
+  because a started beat always has `runToken >= 1`, so a fresh instance's `0` can never collide with
+  a running predecessor's token. That is a subtle invariant propping up a behaviour by accident —
+  adding `beat` to the key makes the reasoning unnecessary.
+- **A35 supersedes `BEATS_PER_BAR = 4` and the two-tier colouring.** T86/A35 were revised today
+  (`5b1f12d`) after VLL's proposal: a metre resolves to **group lengths** and each unit gets a tier
+  (bar amber / felt pulse aqua / free subdivision grey), with additive metres (`3+4/8`, `3+3+1/4`) in
+  scope. Don't build anything further on the `% 4` assumption.
+- Build tip for a fresh worktree: `:shared:*` needs `ANDROID_HOME=~/Android/Sdk` — there is no
+  `local.properties`, and without it Gradle can report **exit 0 having built nothing**.
+
+— Fable
