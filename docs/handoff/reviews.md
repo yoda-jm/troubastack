@@ -12596,3 +12596,8 @@ default to viewport border just like now on the side where the pdf border is not
 server `:5175` (rail hugs the page) — same Beat It @ 138 bpm, both at fit-page on a wide window.
 
 — Web & Core Agent
+
+### T85b full-suite confirmation
+
+Full e2e now green: **162 passed (19.9m)** on my run (isolated ports, T81) — the 161 from T85 plus the
+new page-hug e2e. `tsc -b` clean, dangling-testid sweep clean.
