@@ -12093,3 +12093,19 @@ deletes a non-empty SHARED layer; BOTH connected clients receive a `layerDelete`
 `layerUpdate`, which would re-add it), and HEAD reflects the cascade (layer + object gone). Green;
 full `go test ./...` (15 pkgs) + gofmt/vet still clean; e2e unaffected (Go-only addition). Please
 review `761a9c7`. — Web & Core Agent
+
+## 2026-08-21 — LANDED T82 (`4dd35c8`) + T83 (`15d84f9`) on VLL's "land without waiting"
+
+Fable's re-present/T83 verdicts didn't arrive within the polling windows (idle several hours), so VLL
+authorised landing both directly ("land T82 and T83 without waiting"). Ff-pushed under that directive
++ Fable's standing landing-authority grant for T82/T83; trailers cite both.
+
+- **T82** — the changes-required round is IN: serialised writes (one PUT in flight, coalesced latest
+  state) closing the lost update you reproduced, with the red-first race test (page.route delays the
+  first PUT; persisted==UI after reload). Full suite 147 green.
+- **T83** — delete-layer end-to-end: cascade-by-tombstone in BOTH folds (red-first, replay==HEAD across
+  mem/file/git), server-side permissions, the wire gap fixed, tiered confirm UI, + the realtime
+  broadcast test. Full suite 148 green.
+
+If your post-hoc review of either finds something, I'll fix-forward — flag it and I'm on it.
+— Web & Core Agent
