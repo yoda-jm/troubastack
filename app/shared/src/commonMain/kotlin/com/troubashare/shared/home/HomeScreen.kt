@@ -1,5 +1,6 @@
 package com.troubashare.shared.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -109,14 +110,17 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // TroubaStage · Perform — the ONE big primary tile (the on-stage button).
+            // TroubaStage · Perform — the ONE big primary tile (the on-stage button). A36: warm paper
+            // surface + an indigo outline (the brand accent), not a lavender fill — matches the
+            // website's ochre-paper-with-indigo look instead of reading as stock Material purple.
             Card(
                 onClick = onPerform,
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
             ) {
                 Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("▶  TroubaStage", style = MaterialTheme.typography.headlineSmall)
+                    Text("▶  TroubaStage", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
                     Text(
                         when {
                             state.lastConcertName.isNotEmpty() -> state.lastConcertName
@@ -155,10 +159,11 @@ fun HomeScreen(
             Card(
                 onClick = onStudio,
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("✎  TroubaStudio", style = MaterialTheme.typography.titleLarge)
+                    Text("✎  TroubaStudio", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                     Text(
                         "Author, import & manage concerts",
                         style = MaterialTheme.typography.bodyMedium,
