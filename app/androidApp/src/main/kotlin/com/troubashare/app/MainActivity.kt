@@ -37,6 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.troubashare.shared.home.HomeScreen
+import com.troubashare.shared.ui.SettingsScreen
+import com.troubashare.shared.ui.ThemePref
 import com.troubashare.shared.ui.TroubaTheme
 import com.troubashare.shared.home.HomeState
 import com.troubashare.shared.home.Identity
@@ -91,7 +93,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { TroubaTheme { App() } }
+        setContent {
+            // A36: the theme choice lives ABOVE TroubaTheme (it drives it), so hold it here and thread
+            // the setter down to the Parameters screen. Persisted; defaults to SYSTEM.
+            val themeStore = remember { Storage(applicationContext) }
+            var themePref by remember { mutableStateOf(ThemePref.parse(themeStore.getSecret(ThemePref.KEY))) }
+            TroubaTheme(dark = themePref.resolveDark()) {
+                App(themePref = themePref, onThemePref = { themePref = it; themeStore.putSecret(ThemePref.KEY, it.name) })
+            }
+        }
     }
 
     override fun onResume() {
@@ -126,7 +136,7 @@ private data class ConcertEntry(
 private enum class ConcertIntent { Perform, Manage }
 
 @Composable
-private fun App() {
+private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     val context = LocalContext.current.applicationContext
     val storage = remember { Storage(context) }
     val transport = remember { HttpTransport(storage) }
@@ -159,6 +169,26 @@ private fun App() {
     // offline, tap-to-perform) or via TroubaStudio (manage: import/update/edit affordances).
     var manageIntent by rememberSaveable { mutableStateOf(false) }
     var connecting by remember { mutableStateOf(false) }
+    var settings by rememberSaveable { mutableStateOf(false) }
+
+    if (settings) {
+        // A36 Parameters hub. Theme comes from the entrypoint (it drives TroubaTheme); the Stage
+        // reading/colour modes are the SAME persisted keys Stage's ⚙ writes, so editing here sets the
+        // default the next Stage open reads (VLL: keep them in concert mode too — both edit one value).
+        var fitSel by remember { mutableStateOf(FitMode.parse(storage.getSecret(FIT_MODE_KEY))) }
+        var colorSel by remember { mutableStateOf(StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY))) }
+        SettingsScreen(
+            themePref = themePref,
+            onThemePref = onThemePref,
+            fitMode = fitSel,
+            onFitMode = { fitSel = it; storage.putSecret(FIT_MODE_KEY, it.name) },
+            colorMode = colorSel,
+            onColorMode = { colorSel = it; storage.putSecret(COLOR_MODE_KEY, it.name) },
+            onBack = { settings = false },
+        )
+        BackHandler { settings = false }
+        return
+    }
 
     if (editing) {
         // A36: the studio WebView host keeps its own look — the brand theme is for the NATIVE
@@ -209,6 +239,7 @@ private fun App() {
             onResume = { lastDir?.let { selectedDir = it } },
             onStudio = { manageIntent = true; atHome = false },
             onIdentity = { connecting = true },
+            onSettings = { settings = true },
         )
         return
     }

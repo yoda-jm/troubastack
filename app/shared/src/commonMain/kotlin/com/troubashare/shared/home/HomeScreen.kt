@@ -96,6 +96,7 @@ fun HomeScreen(
     onResume: () -> Unit,
     onStudio: () -> Unit,
     onIdentity: () -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier.fillMaxSize()) {
@@ -103,12 +104,15 @@ fun HomeScreen(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Small, muted wordmark — a brand mark, not a headline.
-            Text(
-                "TroubaShare",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // Small, muted wordmark — a brand mark, not a headline — with the Parameters gear on the right.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "TroubaShare",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = onSettings) { Text("⚙  Parameters", style = MaterialTheme.typography.labelLarge) }
+            }
 
             // TroubaStage · Perform — the ONE big primary tile (the on-stage button). A36: warm paper
             // surface + an indigo outline (the brand accent), not a lavender fill — matches the
