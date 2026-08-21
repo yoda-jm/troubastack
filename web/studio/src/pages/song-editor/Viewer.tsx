@@ -43,6 +43,11 @@ import { usePdfDocument, ZOOM_PERCENTS } from "./usePdfDocument";
 
 /** z-order rank for a layer: conductor(0) < shared(1) < personal(2), then by
  *  `order`; within personal, my own layers sort ABOVE other members'. */
+// T84: group tools that share a remembered stroke width — rect and ellipse are both "shapes".
+function toolWidthKey(t: Tool): string {
+  return t === "rect" || t === "ellipse" ? "shape" : t;
+}
+
 function zoneRank(zone: AnnotationLayer["zone"]): number {
   return zone === "conductor" ? 0 : zone === "shared" ? 1 : 2;
 }
@@ -150,6 +155,10 @@ export function Viewer({
   // not select. Selecting objects is now an explicit Select-tool choice.
   const [tool, setTool] = useState<Tool>("move");
   const [style, setStyle] = useState(DEFAULT_STYLE);
+  // T84: remember the draw-default stroke width per tool GROUP (freehand / line / rect+ellipse) for
+  // the session — a marker swipe and a box outline want different weights. Switching tools restores
+  // that group's last width; changing width while drawing records it for the current group.
+  const widthByTool = useRef<Record<string, number>>({});
   // T51 — the glyph the "Icon" tool stamps next (its id rides in the object's text).
   const [activeGlyph, setActiveGlyph] = useState("mic");
   // T54 — Details panel tab by AUDIENCE (Band 👥 / Mine 👤 / Admin). Remembered per
@@ -871,9 +880,10 @@ export function Viewer({
         if (selectionEditable) restyleObject(selectedObject.uuid, next);
         return; // inspect-only selection: controls are disabled, nothing to apply
       }
+      widthByTool.current[toolWidthKey(tool)] = next.width; // T84: remember this tool group's width
       setStyle(next);
     },
-    [selectedObject, selectionEditable, restyleObject],
+    [selectedObject, selectionEditable, restyleObject, tool],
   );
 
 
@@ -888,6 +898,9 @@ export function Viewer({
     onTool: (t: Tool) => {
       setTool(t);
       if (t !== "select") setSelectedUuids([]);
+      // T84: restore this tool group's remembered draw width (freehand vs line vs shape).
+      const remembered = widthByTool.current[toolWidthKey(t)];
+      if (remembered != null) setStyle((s) => ({ ...s, width: remembered }));
     },
     style: effectiveStyle,
     onStyle: applyStyle,

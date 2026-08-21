@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
 import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset, isNonDraw } from "../../editor";
+import { WIDTH_STOPS, nearestStopIndex, widthToMm } from "../../strokeWidth";
 import { descriptorFor, toolsInOrder } from "../../annotations/registry";
 import { AudienceTag, audienceForZone } from "../../components/AudienceTag";
 
@@ -417,16 +418,17 @@ export function EditorToolbar({
             data-testid="style-width"
             aria-label="Stroke width"
             title="Stroke width"
-            min={0.001}
-            max={0.02}
-            step={0.001}
-            value={style.width}
+            min={0}
+            max={WIDTH_STOPS.length - 1}
+            step={1}
+            data-stops={WIDTH_STOPS.join(",")}
+            value={nearestStopIndex(style.width)}
             disabled={disabled || !showWidth}
             tabIndex={showWidth ? undefined : -1}
-            onChange={(e) => onStyle({ ...style, width: Number(e.target.value) })}
+            onChange={(e) => onStyle({ ...style, width: WIDTH_STOPS[Number(e.target.value)] })}
           />
           <span className="style-value" data-testid="style-width-value">
-            {(style.width * 1000).toFixed(1)}
+            {widthToMm(style.width).toFixed(2)} mm
           </span>
         </label>
         {/* Shape style (#5): fill / border(stroke) / blend + presets. Relevant for

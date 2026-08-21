@@ -391,7 +391,13 @@ test("editor: selecting an editable object reflects its style and restyles live"
 
   await setInput("style-color", "#2563eb");
   await setInput("style-opacity", "0.5");
-  await setInput("style-width", "0.01");
+  // T84: the width control is an INDEX into a geometric stop table, not a raw width.
+  // Pick a stop by index and assert the object persists that exact stop value.
+  const widthStops = (await page.getByTestId("style-width").getAttribute("data-stops"))!
+    .split(",")
+    .map(Number);
+  const widthIdx = 8;
+  await setInput("style-width", String(widthIdx));
 
   // The object's persisted style must now reflect the new values.
   await expect
@@ -400,7 +406,7 @@ test("editor: selecting an editable object reflects its style and restyles live"
       const o = doc.objects.find((x) => x.uuid === "obj-editable");
       return o ? `${o.style.color}|${o.style.opacity}|${o.style.width}` : null;
     })
-    .toBe("#2563eb|0.5|0.01");
+    .toBe(`#2563eb|0.5|${widthStops[widthIdx]}`);
 
   // Deselect → controls revert to the draw defaults (still enabled, default red).
   // T27 stage 3: the style row is the contextual .ctx pill, so pick a draw tool to

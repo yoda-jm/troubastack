@@ -743,3 +743,97 @@ test("editor: delete a non-empty layer — type DELETE, cascades the annotation 
   await expect(page.getByTestId("delete-layer-dialog")).toHaveCount(0);
   await expect.poll(() => objectCount(page)).toBe(0); // the annotation cascaded away
 });
+
+// ===========================================================================
+// T84 — stroke width: geometric ladder, mm label, per-tool memory, no clamp.
+// ===========================================================================
+
+test("editor: stroke-width slider is a geometric ladder with headroom (T84)", async ({ page }) => {
+  await openOwnerMultiLayerSong(page);
+  await page.getByTestId("tool-freehand").click();
+  const stops = (await page.getByTestId("style-width").getAttribute("data-stops"))!.split(",").map(Number);
+  expect(stops.length).toBeGreaterThanOrEqual(12);
+  expect(stops[0]).toBeLessThanOrEqual(0.001); // hairline floor
+  expect(stops[stops.length - 1]).toBeGreaterThanOrEqual(0.05); // real marker headroom (old max was 0.02)
+  const ratios = stops.slice(1).map((w, i) => w / stops[i]);
+  const avg = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+  for (const r of ratios) expect(Math.abs(r - avg)).toBeLessThan(0.02); // constant ratio (geometric)
+});
+
+test("editor: stroke-width label reads mm and matches the stop (T84)", async ({ page }) => {
+  await openOwnerMultiLayerSong(page);
+  await page.getByTestId("tool-freehand").click();
+  const slider = page.getByTestId("style-width");
+  const stops = (await slider.getAttribute("data-stops"))!.split(",").map(Number);
+  for (const idx of [0, Math.floor(stops.length / 2), stops.length - 1]) {
+    await slider.fill(String(idx));
+    const label = (await page.getByTestId("style-width-value").textContent())!;
+    expect(label).toMatch(/mm$/);
+    expect(Math.abs(parseFloat(label) - stops[idx] * 210)).toBeLessThan(0.05); // width * A4 width (mm)
+  }
+});
+
+test("editor: stroke width is remembered per tool (T84)", async ({ page }) => {
+  await openOwnerMultiLayerSong(page);
+  const slider = page.getByTestId("style-width");
+  await page.getByTestId("tool-freehand").click();
+  const max = await slider.getAttribute("max");
+  await slider.fill(max!); // wide freehand
+  await expect(slider).toHaveValue(max!);
+  await page.getByTestId("tool-rect").click(); // shape group
+  await slider.fill("0"); // thin shape
+  await page.getByTestId("tool-freehand").click(); // back to freehand
+  await expect(slider).toHaveValue(max!); // freehand is still wide
+});
+
+test("editor: an off-table stored width survives an unrelated edit — no clamp (T84)", async ({ page }) => {
+  await register(page, `wclamp_${stamp()}`);
+  const band = await createBandAndOpen(page, `WBand ${stamp()}`);
+  const songId = await createSongAndOpen(page, `WSong ${stamp()}`);
+  await uploadPdf(page);
+  const fileId = await firstFileId(page, band.id, songId);
+  const me = await myUserId(page);
+  // A rect with an OFF-table width (0.0037, as the seeded charts use) on MY editable layer.
+  const doc = {
+    layers: [{ id: "L-me", fileId, name: "Mine", ownerId: me, zone: "personal", order: 0, access: "rw" }],
+    objects: [
+      {
+        uuid: "o-w",
+        layerId: "L-me",
+        type: "rect",
+        points: [{ x: 0.2, y: 0.25 }, { x: 0.6, y: 0.55 }],
+        page: 0,
+        text: "",
+        style: { color: "#2563eb", opacity: 1, width: 0.0037, fontSize: 0.03 },
+      },
+    ],
+  };
+  expect((await importDoc(page, band.id, songId, doc)).ok).toBeTruthy();
+  await page.reload();
+  await openEditorReady(page);
+
+  // Select the rect via the annotation list (robust; a bare canvas click is flaky),
+  // then change an UNRELATED property (opacity).
+  await openDrawer(page, "annotations");
+  await page.getByTestId("tool-select").click();
+  await page.getByTestId("annotation-item").first().click();
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
+  // Set the slider via React's native value setter so the controlled onChange fires.
+  await page.getByTestId("style-opacity").evaluate((el, v) => {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")!.set!;
+    setter.call(el, v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }, "0.5");
+
+  // The persisted width must be UNCHANGED (0.0037), never snapped to a stop.
+  await expect
+    .poll(async () =>
+      page.evaluate(async ([b, s]) => {
+        const r = await fetch(`/api/bands/${b}/songs/${s}/annotations`, { credentials: "include" });
+        const j = (await r.json()) as { objects: { uuid: string; style?: { width?: number } }[] };
+        return j.objects.find((o) => o.uuid === "o-w")?.style?.width ?? null;
+      }, [band.id, songId] as const),
+    )
+    .toBe(0.0037);
+});
