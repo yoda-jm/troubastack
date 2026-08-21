@@ -209,6 +209,7 @@ type Song struct {
 	Artist    string    `json:"artist,omitempty"`
 	Key       string    `json:"key,omitempty"`
 	Tempo     int       `json:"tempo,omitempty"` // BPM; 0 = unset
+	Meter     string    `json:"meter,omitempty"` // canonical "N/D" (T86); "" = unset = 4/4
 	Tags      []string  `json:"tags,omitempty"`
 	Notes     string    `json:"notes,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`

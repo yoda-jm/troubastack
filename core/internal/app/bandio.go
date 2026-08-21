@@ -90,6 +90,7 @@ type manifestSong struct {
 	Artist string         `json:"artist,omitempty"`
 	Key    string         `json:"key,omitempty"`
 	Tempo  int            `json:"tempo,omitempty"`
+	Meter  string         `json:"meter,omitempty"` // T86 — must ride here or a band export silently drops it
 	Tags   []string       `json:"tags,omitempty"`
 	Notes  string         `json:"notes,omitempty"`
 	Files  []manifestFile `json:"files"`
@@ -263,7 +264,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 	for _, song := range songs {
 		ms := manifestSong{
 			ID: song.ID, Title: song.Title, Artist: song.Artist, Key: song.Key,
-			Tempo: song.Tempo, Tags: song.Tags, Notes: song.Notes,
+			Tempo: song.Tempo, Meter: song.Meter, Tags: song.Tags, Notes: song.Notes,
 		}
 		files, err := s.repo.FilesOfSong(song.ID)
 		if err != nil {
@@ -677,7 +678,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 	for _, sg := range man.Songs {
 		ns := Song{
 			ID: s.newID(), BandID: band.ID, Title: sg.Title, Artist: sg.Artist, Key: sg.Key,
-			Tempo: sg.Tempo, Tags: sg.Tags, Notes: sg.Notes, CreatedAt: now,
+			Tempo: sg.Tempo, Meter: sg.Meter, Tags: sg.Tags, Notes: sg.Notes, CreatedAt: now,
 		}
 		if err := s.repo.CreateSong(ns); err != nil {
 			return ImportReport{}, err

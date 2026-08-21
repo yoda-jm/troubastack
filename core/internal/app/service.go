@@ -921,6 +921,7 @@ type SongPatch struct {
 	Artist *string
 	Key    *string
 	Tempo  *int
+	Meter  *string
 	Tags   *[]string
 	Notes  *string
 }
@@ -953,6 +954,11 @@ func (s *Service) UpdateSong(caller User, bandID, songID string, p SongPatch) (S
 			return Song{}, fmt.Errorf("%w: tempo cannot be negative", ErrInvalidInput)
 		}
 		song.Tempo = *p.Tempo
+	}
+	if p.Meter != nil {
+		// Lenient (T86): store the canonical metre if it parses, else unset — a typo
+		// becomes 4/4, it never fails the save.
+		song.Meter = NormalizeMeter(*p.Meter)
 	}
 	if p.Tags != nil {
 		tags := make([]string, 0, len(*p.Tags))
@@ -1802,6 +1808,8 @@ type SetlistItemView struct {
 	SetlistItem
 	SongTitle  string `json:"songTitle"`
 	SongArtist string `json:"songArtist,omitempty"`
+	SongMeter  string `json:"songMeter,omitempty"` // T86: rides into the bake so the Stage beat knows the metre
+	SongTempo  int    `json:"songTempo,omitempty"` // T86: the song's BASE tempo, so the bake carries it when no setlist override
 	// T60: hints for the Studio transpose checkbox greying — the song's key and whether
 	// it has a generated chart. The client parses the (live-edited) keyOverride itself;
 	// these two don't change while editing, so they ride the view instead of N fetches.
@@ -1849,6 +1857,8 @@ func (s *Service) Setlist(caller User, bandID, setlistID string) (SetlistDetail,
 			v.SongTitle = song.Title
 			v.SongArtist = song.Artist
 			v.SongKey = song.Key
+			v.SongMeter = song.Meter
+			v.SongTempo = song.Tempo
 		}
 		if files, err := s.repo.FilesOfSong(it.SongID); err == nil {
 			for _, f := range files {

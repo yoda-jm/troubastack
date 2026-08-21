@@ -243,15 +243,37 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 // bakeSong bakes one setlist item: pick its default shared-pool PDF, rasterize its
 // pages, render per-layer overlays, and assemble the BakedSong (overrides ride as
 // metadata). A song with no viewable PDF bakes to zero pages (loaders tolerate it).
+// effectiveTempo is the setlist tempo override when set (>0), else the song's base
+// tempo (T86). 0 has always meant "no override", so override semantics are preserved.
+func effectiveTempo(item app.SetlistItemView) int {
+	if item.TempoOverride > 0 {
+		return item.TempoOverride
+	}
+	return item.SongTempo
+}
+
+// effectiveKey is the setlist key override when set, else the song's base key (T86).
+func effectiveKey(item app.SetlistItemView) string {
+	if item.KeyOverride != "" {
+		return item.KeyOverride
+	}
+	return item.SongKey
+}
+
 func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string, layerDefaults map[string]bool) (BakedSong, error) {
 	song := BakedSong{
 		SongID:       item.SongID,
 		SongRev:      1,
 		DisplayNotes: item.Notes,
-		Key:          item.KeyOverride,
-		Tempo:        int32(item.TempoOverride),
-		OnCall:       item.OnCall,    // bench membership rides into the bundle (T23)
-		Title:        item.SongTitle, // real title snapshot → kills the "Song N" fallback (T26)
+		// T86: bake the EFFECTIVE key/tempo — the setlist override when set, else the
+		// song's own value. Baking the override alone left tempo=0 (and key="") for every
+		// song without a per-setlist override, so the Stage beat never appeared. 0/"" have
+		// always meant "no override", so override semantics are unchanged.
+		Key:    effectiveKey(item),
+		Tempo:  int32(effectiveTempo(item)),
+		OnCall: item.OnCall,    // bench membership rides into the bundle (T23)
+		Title:  item.SongTitle, // real title snapshot → kills the "Song N" fallback (T26)
+		Meter:  item.SongMeter, // T86: the song's metre → the Stage beat (A35)
 	}
 	// source_revision = the song's CURRENT head annotation revision. (There is no
 	// per-setlist-item revision pin today — SetlistItem carries no revision, and

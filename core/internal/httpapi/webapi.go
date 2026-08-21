@@ -609,6 +609,7 @@ func (a *WebAPI) updateSong(w http.ResponseWriter, r *http.Request, u app.User) 
 		Artist *string   `json:"artist"`
 		Key    *string   `json:"key"`
 		Tempo  *int      `json:"tempo"`
+		Meter  *string   `json:"meter"`
 		Tags   *[]string `json:"tags"`
 		Notes  *string   `json:"notes"`
 	}
@@ -620,6 +621,7 @@ func (a *WebAPI) updateSong(w http.ResponseWriter, r *http.Request, u app.User) 
 		Artist: in.Artist,
 		Key:    in.Key,
 		Tempo:  in.Tempo,
+		Meter:  in.Meter,
 		Tags:   in.Tags,
 		Notes:  in.Notes,
 	})

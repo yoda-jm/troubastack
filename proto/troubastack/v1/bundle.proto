@@ -45,8 +45,8 @@ message BakedSong {
   // render of the song's annotations. Absent fields take the proto default —
   // loaders already ignore unknowns, so older bundles/loaders are unaffected.
   string display_notes = 5;              // setlist item Notes
-  string key = 6;                        // setlist KeyOverride ("" = song default)
-  int32 tempo = 7;                       // setlist TempoOverride (0 = song default)
+  string key = 6;                        // T86: EFFECTIVE key — setlist KeyOverride, else the song's base key
+  int32 tempo = 7;                       // T86: EFFECTIVE tempo — setlist TempoOverride (if >0), else the song's base tempo
   bool on_call = 8;                      // T23: bench/encore song — baked + jumpable,
                                          // outside the running order; false/absent = main
   // T26: the song's Title at bake time (a bundle is a snapshot; no rename
@@ -66,6 +66,10 @@ message BakedSong {
   // its per-member-bake semantics while `?scope=mine` still exists (and is left EMPTY
   // in band-wide bakes), so an old app degrades to no-cues, never wrong-cues. Additive.
   repeated MemberCues member_cues = 11;
+  // T86: the song's metre as the musician writes it ("4/4", "6/8", additive "3+4/8");
+  // "" = unset = 4/4. Additive like fields 5–11: old bundles stay valid, old loaders
+  // ignore it. The Stage (A35) parses it to drive a metre-aware beat.
+  string meter = 12;
 }
 
 // MemberCues is one member's personal cues for a song in a band-wide bundle (P205).

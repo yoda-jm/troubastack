@@ -110,6 +110,7 @@ type songDef struct {
 	artist     string
 	key        string // musical key (settable on the song page)
 	tempo      int    // BPM
+	meter      string // T86: metre "N/D" ("" = 4/4)
 	tags       []string
 	notes      string
 	src        pdfSource
@@ -208,7 +209,7 @@ func run(addr, password, only, band string) error {
 				// tab) from docs/demo-charts — the FLAGSHIP annotation showcase (see
 				// buildOpenRoadAnnotations). All demo content is copyright-safe: original
 				// or public-domain (DEMO-VID Part A) — no copyrighted song titles/lyrics.
-				{title: "The Open Road", artist: "", key: "G", tempo: 92, tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + a guitarist's intro-riff sheet. Capo 2.",
+				{title: "The Open Road", artist: "", key: "G", tempo: 92, meter: "4/4", tags: []string{"original", "demo"}, notes: "Original demo song — lead sheet + a guitarist's intro-riff sheet. Capo 2.",
 					files: []pdfSource{
 						{cacheName: "open-road-leadsheet.pdf", localPath: "../docs/demo-charts/open-road-leadsheet.pdf", docTitle: "Lead sheet", title: "The Open Road", subtitle: "original demo song", pages: 2},
 						{cacheName: "open-road-guitar.pdf", localPath: "../docs/demo-charts/open-road-guitar.pdf", docTitle: "Guitar", title: "The Open Road — Guitar", subtitle: "intro riff", pages: 1},
@@ -227,7 +228,7 @@ func run(addr, password, only, band string) error {
 				// parts (a guitar tab + a drum groove) PLUS a rendered chord chart (text
 				// chart). Members curate their own "my files" view; parts carry their own
 				// per-file annotations (B11). Replaces the old copyrighted multi-file song.
-				{title: "House of the Rising Sun", artist: "Traditional", key: "Am", tempo: 72, tags: []string{"folk", "public-domain"}, notes: "Traditional; soft 6/8, let the arpeggio ring.",
+				{title: "House of the Rising Sun", artist: "Traditional", key: "Am", tempo: 72, meter: "6/8", tags: []string{"folk", "public-domain"}, notes: "Traditional; soft 6/8, let the arpeggio ring.",
 					files: []pdfSource{
 						{cacheName: "house-rising-sun-tab.pdf", localPath: "../docs/demo-charts/house-rising-sun-tab.pdf", docTitle: "Guitar tab", title: "House of the Rising Sun — Guitar", subtitle: "traditional (guitar tab)", pages: 1},
 						{cacheName: "house-rising-sun-drums.pdf", localPath: "../docs/demo-charts/house-rising-sun-drums.pdf", docTitle: "Drums", title: "House of the Rising Sun — Drums", subtitle: "traditional (drum groove)", pages: 1},
@@ -245,7 +246,7 @@ func run(addr, password, only, band string) error {
 					}},
 				// PUBLIC DOMAIN hymn (John Newton, 1779) — a committed lead sheet PLUS a
 				// chord text chart.
-				{title: "Amazing Grace", artist: "Traditional", key: "G", tempo: 72, tags: []string{"hymn", "public-domain"}, notes: "Newton, 1779; gentle 3/4.",
+				{title: "Amazing Grace", artist: "Traditional", key: "G", tempo: 72, meter: "3/4", tags: []string{"hymn", "public-domain"}, notes: "Newton, 1779; gentle 3/4.",
 					src:           pdfSource{cacheName: "amazing-grace.pdf", localPath: "../docs/demo-charts/amazing-grace.pdf", docTitle: "Lead sheet", title: "Amazing Grace", subtitle: "words: John Newton, 1779 (public domain)", pages: 1},
 					textChartPath: "../docs/demo-charts/amazing-grace.chart",
 					cuesFor: map[string][]cueDef{
@@ -255,7 +256,7 @@ func run(addr, password, only, band string) error {
 				// A REAL published folk edition (Mutopia): Greensleeves for voice + guitar (melody,
 				// lyrics, guitar tab). Music is public domain; the typeset is CC-BY-SA 4.0 (© 2014
 				// David Kastrup, Mutopia) — attributed in docs/demo-charts/README.md.
-				{title: "Greensleeves", artist: "Traditional", key: "Am", tempo: 90, tags: []string{"folk", "creative-commons"}, notes: "Traditional English; 3/4, flowing.",
+				{title: "Greensleeves", artist: "Traditional", key: "Am", tempo: 90, meter: "3/4", tags: []string{"folk", "creative-commons"}, notes: "Traditional English; 3/4, flowing.",
 					src: pdfSource{cacheName: "greensleeves.pdf", localPath: "../docs/demo-charts/greensleeves.pdf", docTitle: "Voice + guitar", title: "Greensleeves", subtitle: "traditional (Mutopia · David Kastrup, CC-BY-SA 4.0)", pages: 2},
 					cuesFor: map[string][]cueDef{
 						"marie": {{icon: "mic"}},
@@ -531,6 +532,7 @@ func loadRepertoire(bandDir string) ([]songDef, error) {
 			Artist string   `json:"artist"`
 			Key    string   `json:"key"`
 			Tempo  int      `json:"tempo"`
+			Meter  string   `json:"meter"` // T86: the real band-directory entry point; drop it here and a metre vanishes silently
 			Notes  string   `json:"notes"`
 			Tags   []string `json:"tags"`
 		} `json:"songs"`
@@ -543,7 +545,7 @@ func loadRepertoire(bandDir string) ([]songDef, error) {
 		if s.Title == "" {
 			continue
 		}
-		sd := songDef{title: s.Title, artist: s.Artist, key: s.Key, tempo: s.Tempo, tags: s.Tags, notes: s.Notes}
+		sd := songDef{title: s.Title, artist: s.Artist, key: s.Key, tempo: s.Tempo, meter: s.Meter, tags: s.Tags, notes: s.Notes}
 		if s.Slug != "" {
 			pdfs, _ := filepath.Glob(filepath.Join(bandDir, s.Slug, "*.pdf"))
 			sort.Strings(pdfs)
@@ -707,9 +709,9 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		songIDByTitle[s.title] = songID
 
 		// Set song metadata (key/tempo/tags/notes) — idempotent PATCH.
-		if s.key != "" || s.tempo != 0 || len(s.tags) > 0 || s.notes != "" {
+		if s.key != "" || s.tempo != 0 || s.meter != "" || len(s.tags) > 0 || s.notes != "" {
 			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID, map[string]any{
-				"key": s.key, "tempo": s.tempo, "tags": s.tags, "notes": s.notes,
+				"key": s.key, "tempo": s.tempo, "meter": s.meter, "tags": s.tags, "notes": s.notes,
 			}, nil); err != nil {
 				return seededGroup{}, 0, 0, fmt.Errorf("set metadata for %q: %w", s.title, err)
 			}

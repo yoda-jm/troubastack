@@ -56,7 +56,8 @@ func buildSourceBand(t *testing.T, st stack) (admin, member app.User, bandID, so
 		t.Fatal(err)
 	}
 	key, tempo, tags, notes := "G", 87, []string{"britpop", "closer"}, "capo 2"
-	if _, err := st.svc.UpdateSong(admin, band.ID, song.ID, app.SongPatch{Key: &key, Tempo: &tempo, Tags: &tags, Notes: &notes}); err != nil {
+	meter := "6/8" // T86: the field bandio must carry, or a band export silently drops it
+	if _, err := st.svc.UpdateSong(admin, band.ID, song.ID, app.SongPatch{Key: &key, Tempo: &tempo, Meter: &meter, Tags: &tags, Notes: &notes}); err != nil {
 		t.Fatal(err)
 	}
 	f1, err := st.svc.UploadSongFile(admin, band.ID, song.ID, "score.pdf", "application/pdf", []byte("%PDF-1.4 the score"))
@@ -147,7 +148,7 @@ func TestBandExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("want 1 song, got %d", len(songs))
 	}
 	ns := songs[0]
-	if ns.Title != "The Open Road" || ns.Key != "G" || ns.Tempo != 87 || ns.Notes != "capo 2" || len(ns.Tags) != 2 {
+	if ns.Title != "The Open Road" || ns.Key != "G" || ns.Tempo != 87 || ns.Meter != "6/8" || ns.Notes != "capo 2" || len(ns.Tags) != 2 {
 		t.Fatalf("song metadata not preserved: %+v", ns)
 	}
 	files, _ := tgt.repo.FilesOfSong(ns.ID)
