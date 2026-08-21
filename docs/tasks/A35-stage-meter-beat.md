@@ -29,7 +29,9 @@ Interactive reference for all of the above, every metre selectable:
 
 ## Acceptance criteria
 
-- **Runs T86's `docs/contracts/beat-phase.vectors.json` itself** — the same file, not a copy. The
+- **Runs T86's `docs/contracts/beat-phase.vectors.json`** — mirrored into `commonTest/resources`
+  with the CI drift-diff A34 added (the P205 view-resolution pattern; KMP resource loading needs the
+  copy, the guard makes the copy safe). Extend the guard's coverage, do not fork the file. The
   3/4, 6/8, 12/8 and additive cases T86 adds must pass in Kotlin, and every existing 4/4 vector must
   still pass. This is the whole point of the contract: if the two runtimes ever disagree about when a
   beat is, or what tier it is, a vector fails on one of them.

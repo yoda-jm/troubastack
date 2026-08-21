@@ -12810,3 +12810,87 @@ must assert that (`no grey unit ever painted` for a metre-less song). `beatPhase
 and being confidently wrong half the time. That failure mode is the whole reason T86 exists.
 
 — Fable
+
+---
+
+## 2026-08-21 — VERDICT (Fable): **A34 — GO**, conditional on two documentation fixes before the push
+
+Reviewed at `a81169f` (4 commits, 2 behind `origin/main` at `5b1f12d`). Verdict-only: the T82/T83
+landing grant expired with T83, so this needs VLL's word or an explicit new grant to ff-push.
+
+### What I verified myself, not took on trust
+
+**The contract port is exact.** Diffed `CountIn.kt`'s `beatPhase`/`decayMs`/`litWindowMs`/`intervalMs`
+against T85's `web/studio/src/beatPhase.ts` line by line — same definitions, same `elapsedMs >= 0`
+guard, same `floor` semantics on negatives (`floor(-0.2).toInt() == -1` matches `Math.floor`).
+
+**The mirrored vectors are byte-identical** to `docs/contracts/beat-phase.vectors.json` (27 cases),
+and the new CI step diffs them. This is the P205 / glyphs.json precedent and it is the right call —
+KMP resource loading needs the copy, the guard is what makes the copy safe. My A35 spec said "the
+same file, not a copy"; **I have corrected A35** to name the mirror+guard pattern instead. That was
+my wording being stricter than the platform allows, not a lane error.
+
+**The suite has teeth — proven, not assumed.** I broke the implementation three ways and confirmed
+each break goes red in the right test:
+
+| break | caught by |
+|---|---|
+| `intervalMs` back to `60_000L / bpm` (the original A11 truncation) | `intervalMs_isDouble_noTruncation`, `noDrift_beatIndexIsComputedNotAccumulated` |
+| `emphasis` on `% 3` instead of `% BEATS_PER_BAR` | `beatPhase_matchesTheSharedVectors` |
+| frame decay overrunning into the next beat (`decay * 1.5`) | `beatFrame_pulsesThenGoesDark` |
+
+`:shared:check` green; `:shared:testDebugUnitTest` executed **9 tests, 0 failures, 0 skipped** (I
+read the JUnit XML — a green exit alone proves nothing here, see below).
+
+**The perf nit is genuinely pre-empted.** `StageBeatFrame` derives everything from `beatFrame(...)`
+and `withFrameNanos`; there is no `getBoundingClientRect`-equivalent geometry read per frame. The
+claim is accurate.
+
+**The beat survives page turns, as VLL asked.** `rememberStageBeat(resetKey = state.currentSong)` —
+scoped to the song, and `StageBeatFrame` holds no pointer input, so a tap still turns the page.
+
+### Required before the push (both are documentation, neither is a code change)
+
+**1. Four comments now describe behaviour you deliberately removed.** In a codebase this
+comment-dense the comments are the design record, and A35 is about to be written against this file:
+
+- `StageBeat.kt:100` — *"scoped to [resetKey] (the current page) so a page turn makes a fresh
+  instance and cancels any in-progress count-in"*. This is the **opposite** of the requirement
+  (`resetKey` is `state.currentSong`, and not stopping on a page turn was the point).
+- `StageBeat.kt:48–49` and `CountIn.kt:25` — *"long-press → continuous"*. The long-press is gone;
+  it is the ∞ segment now. That hidden gesture is exactly what VLL never discovered.
+- `StageScreen.kt:1028–1029` — documents a `resetKey` parameter that `MetaStrip` no longer has.
+
+**2. The committed screenshots are stale by three commits.** Both `docs/screenshots/a34-beat-*.png`
+were added in `3c68371` and never refreshed. They show the `○` auto-update FAB that `a81169f`
+removed and the `♩=88` meta-strip chip that `abe22f0` removed, and they show **no centre beat
+number and no ∞ capsule** — i.e. none of the three iterations VLL actually drove. The border pulse
+itself reads exactly as intended in them (amber downbeat / aqua off-beat, all four sides, clear of
+the music), so the pulse is verified; but the repo's evidence for the *final* UI does not exist.
+Please re-shoot both on the current build.
+
+I am **not** disputing the device verification — I am saying the artifact in the repo contradicts it,
+and a year from now the screenshot is what someone will believe.
+
+### A note on my own process, since it nearly cost me this review
+
+My first Gradle run reported **exit 0 while having built nothing** — it failed on `SDK location not
+found` and the background wrapper still surfaced success. Had I not read the log I would have
+recorded a green suite that never ran. Same family as the T85b `tail` incident: *the exit code is not
+the evidence; the log and the JUnit XML are.* Recording it here so the next reviewer expects it —
+`:shared:*` needs `ANDROID_HOME=~/Android/Sdk` in a fresh worktree (there is no `local.properties`).
+
+### Non-blocking
+
+- `LaunchedEffect(beat.runToken)` keys on an `Int`, not the instance. It is safe today only because a
+  started beat always has `runToken >= 1`, so a fresh instance's `0` can never collide with a running
+  predecessor's token. That is a real invariant holding up a subtle behaviour by accident — add
+  `beat` to the key and the reasoning disappears.
+- **A35 supersedes `BEATS_PER_BAR = 4` and the two-tier colouring.** T86/A35 were revised today
+  (`5b1f12d`): a metre resolves to group lengths and each unit gets a tier (bar / felt pulse / free
+  subdivision), with additive metres like `3+4/8` in scope. Do not build more on the `% 4` assumption
+  than you must.
+- The **demo-no-tempo gap** you flagged is now closed by spec, not left open: T86 §5.6 requires the
+  seed to give demo songs metres *and* tempos, precisely so this feature is visible on demo content.
+
+— Fable
