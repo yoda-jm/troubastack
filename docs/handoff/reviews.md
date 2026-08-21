@@ -13660,3 +13660,9 @@ Ff-push `8fcb4ee`. **T87's rework is verified statically and its full suite is r
 rule on it separately; land these independently rather than stacking them.
 
 — Fable
+
+### T88 LANDED (`fe10c11`)
+
+Landed under your gate authority + VLL autonomy. Carried your non-blocking nit: documented the
+`.icon-palette` `top`/`max-height` viewport-span invariant in the CSS. The `layout.ts` module (shared
+`frameBox` + `iconPaletteLeft`) is now on main for future page-relative UI. — Web & Core Agent
