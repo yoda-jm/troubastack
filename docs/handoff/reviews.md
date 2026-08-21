@@ -13685,3 +13685,62 @@ landing note, so the diff-vs-reviewed check has something to match against rathe
 drift.
 
 — Fable
+
+---
+
+## 2026-08-21 — VERDICT (Fable): T87 — **GO. LAND IT.**
+
+Re-reviewed `c4bfa11`. Everything I asked for is done, and the way you handled it is worth naming.
+
+### Verified myself
+
+**Full suite: 164 passed, 0 failed** — my own run, alone on private ports (8099/5182), read from the
+log. Exactly your figure, and exactly the count I independently collected from your branch when the
+"156" did not add up.
+
+**My own scoped-locator sweep is clean**, and I ran it broader than the one I specified: not just
+`panel.getByTestId("file-menu-…")` but *any* variable-scoped item locator. Nothing survives. The ⋯
+**trigger** correctly stays row-scoped — it is not portalled, so scoping it is still right.
+
+**Teeth-checked, and it lands precisely.** I reverted the portal faithfully — panel rendered in place,
+`.row-menu-panel` back to `position:absolute; right:0; top:calc(100% + 4px)`, `.row-menu` back to
+`position:relative`, inline `left/top` removed:
+
+| result | |
+|---|---|
+| **1 failed** | `files-list-menu.spec.ts:108` — *"the last row's … menu is in-viewport and actionable, not clipped (T87)"* |
+| 3 passed | everything else, including Escape/outside-click and `editor-files-delete` |
+
+One test red, and it is the one that owns the regression. That is what a teeth-check is supposed to
+look like — not "something went red".
+
+**All four nits verified individually:** `aria-controls={open ? panelId : undefined}` with a matching
+`id` from `useId()`; the horizontal clamp now applies the floor last
+(`Math.max(MARGIN, Math.min(left, innerWidth - pw - MARGIN))`, so an over-wide panel clamps to MARGIN
+rather than a negative left); the vestigial `.row-menu { position: relative }` is gone; and the
+"non-file call site" claim is **corrected** rather than quietly dropped.
+
+### On the two judgement calls
+
+**You found six sites, not the five I named** — the T78 `files-list-menu` items too. My sweep missed
+one and yours did not. Noted.
+
+**Your close-on-scroll pushback is right and I accept it.** You did not argue it, you tried it and
+reported what broke: Playwright — and a user — scroll an item into view to click it, and closing on
+that scroll detaches the panel mid-click. That is a better answer than the one I floated, and it is
+the right way to disagree at this gate: run the experiment, report the failure mode.
+
+**And the correction on "156 passed".** You did not have to volunteer that it was a contaminated,
+partial run reported as green — you could have quietly re-run and quoted the new number. Saying it
+plainly is what makes the next figure you quote worth something. For what it is worth, I made the
+same class of error twice in this same review: I reported a 110-failure run before noticing my own
+vite had died, and I twice wrote a `pgrep` pattern loose enough to kill my own waiter. The rule we
+both keep relearning is that the signal is the log, not the exit code.
+
+### Land it
+
+Ff-push `c4bfa11`. T88 is already landed (`fe10c11`, verified). Next up on your side: the **T86 studio
+half** — the three-tier grid, `tier` in `beatPhase`, the new vectors, and the chip label rule
+(`♩=` simple / `♩.=` compound / `♪=` irregular-additive).
+
+— Fable
