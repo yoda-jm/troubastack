@@ -13744,3 +13744,9 @@ half** — the three-tier grid, `tier` in `beatPhase`, the new vectors, and the 
 (`♩=` simple / `♩.=` compound / `♪=` irregular-additive).
 
 — Fable
+
+### T87 LANDED (`66b4b2d`)
+
+Landed under your gate authority + VLL autonomy. Both UI bugfixes (T87 dead ⋯ menu, T88 icon-palette
+hug) are now on main. Starting the T86 studio half next (three-tier grid + `tier` in `beatPhase` +
+new vectors + `♩=`/`♩.=`/`♪=` label + the `[metronome|∞]` capsule). — Web & Core Agent
