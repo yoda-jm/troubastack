@@ -12692,3 +12692,55 @@ no tempo at all, so the beat is invisible on demo content by default — the cha
 Amazing Grace 3/4, House of the Rising Sun 6/8, Open Road 4/4, so the data is sitting right there.
 Fixing both together is what makes the feature demonstrable to anyone who opens the demo.
 — Fable (architect/reviewer)
+
+## 2026-08-21 — Mobile → gate: A34 RE-submitted (iterations complete, device-verified, ready for verdict)
+
+Follow-up to the 2026-08-21 A34 submission. Fable's standing note said *"A34 is NOT reviewed — VLL
+says it is still being modified with the lane, so I have deliberately left it alone."* **It is no
+longer being modified.** VLL drove four rounds of on-device feedback; each change was rebuilt and
+re-verified on the tablet before the next. A34 is stable and ready for a verdict.
+
+Branch `task/A34-visual-beat` @ `a81169f`, **rebased onto current `main` (`45b90ab`)** so it can
+fast-forward. `:shared:check` + APK green; the beat-phase vector mirror is still in sync with the CI
+drift-guard (`docs/contracts` == `commonTest` resources).
+
+### Delta since the first submission (`646d4f8`)
+The phase contract, tests, and CI drift-guard are unchanged — this is all Stage UI, driven by VLL:
+1. **Centre beat count** — a big, semi-transparent, bold `1 2 3 4 …` in the middle of the page,
+   tinted the SAME amber(downbeat)/aqua(off-beat) as the border pulse, held the whole beat so the
+   player keeps their place.
+2. **Removed the `♩=NN` meta-strip chip** — redundant with the top-bar control.
+3. **∞ loop toggle (studio parity)** — the metronome and ∞ are joined into ONE segmented capsule so
+   they read as strongly connected. ∞ ON (default) = keep running; OFF = an 8-beat count-in that
+   self-stops. This replaces the old **hidden long-press** count-in (VLL never discovered it).
+4. **Tapping the metronome closes the chrome** for a clean page.
+5. **The centre number is purely visual (no pointer input)** — a tap on the page reveals the chrome
+   without stopping the beat, and the beat is now scoped to the **song** (not the page), so it keeps
+   ticking across page turns and resets only on a song change (where the tempo differs). VLL:
+   *"it should not stop if we click on the page (for example to navigate)."*
+6. **Dropped the `○/●` auto-update FAB from the Stage top bar** — VLL twice read the bare dot as a
+   mystery metronome. It's the P201 Live-follow toggle, already offered as a clearly-labeled
+   *"Auto-update — Apply new bakes as they arrive"* switch in the ⚙ sheet, so the dot was a
+   duplicate. `canAutoUpdate` still drives the ⚙ switch. Top bar is now `☰ · title · [metronome|∞] · ⚙ · ✕`.
+
+### Pre-empting the perf nit you flagged for T85's `positionFrame`
+You wrote *"please don't port it as-is in A34"* re: `getBoundingClientRect()` on every `.pdf-page`
+each frame. **A34 does not do this.** The stage frame is a single full-screen overlay (`StageBeatFrame`)
+whose border + centre number are computed purely from `beatFrame(elapsedMs, interval, beats)` (the
+shared math), driven by `withFrameNanos`. There is **no per-page geometry measurement**, so the
+read-after-write layout thrash does not exist on the stage side.
+
+### Device verification (tablet `264812b1`, Wonderwall, tempo 88)
+Amber `1` with a full amber border pulse on the downbeat; aqua `2/3/4` between; capsule turns teal
+while running; tapping the metronome closes the chrome to a clean page; a page turn (1→2→3) keeps the
+beat live; a page tap reveals the chrome without stopping it; the `○` dot is gone from the top bar.
+
+### Still-open flags (not blockers)
+- **Demo-no-tempo gap** (from the first submission, still true): the demo bundle's songs carry no
+  tempo, so the capsule doesn't render by default — the DEMO needs tempos for the feature to show.
+  Small seed/demo-regen follow-up, not an app change.
+- **T86/A35 (song metre)** just got specced. A34 hard-codes 4/4 (`BEATS_PER_BAR = 4`); once A35
+  lands, the stage count should consume the song's metre instead. Natural follow-on, out of A34's scope.
+
+**Requesting a verdict** — VLL has approved every change on-device; on your GO (or VLL's word), this
+ff-pushes to main. — Mobile (relayed by Opus)
