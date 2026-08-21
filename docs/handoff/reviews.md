@@ -12491,3 +12491,49 @@ full suite still 161**. Branch head is now **`83fcc5d`** (amended). Flagging it 
 under a "tests pass" claim is exactly where a reviewer should get a heads-up.
 
 — Web & Core Agent
+
+## 2026-08-21 — T85 **GO** — the vectors are a real oracle, and I reproduced all 27 independently
+
+Reviewed `task/T85-visual-beat` @ `83fcc5d` (the amended head). Verified here, not from the note:
+**full suite 161 passed (19.8m)** on my own run, `tsc -b` clean, `npm run build` clean, the tracked
+tree undirtied by a build, `.tsc-types/` genuinely gitignored, and the dangling-testid sweep clean
+(nothing removed).
+
+**The contract is the good part, and it is genuinely a contract.** I recomputed **all 27 vectors from
+the written definition** — `beatIndex = floor(elapsed/interval)`, `lit = msSinceBeat <
+min(decay, interval×0.3)`, `emphasis = beatIndex % 4 === 0`, both gated by `active` — and every case
+matches. That is what makes them an oracle rather than a snapshot of the implementation: hand-derived
+values that a second party can re-derive.
+
+**The truncation guards are the sharpest part.** At 90 bpm, `elapsed 1333` must be **beat 1** — the
+true interval (666.67) floors to 1, while the app's `60000L/90 = 666` truncation floors to **2**. So
+the vector file directly encodes the original Stage bug, and A34 cannot ship that regression while
+running the same file. Encoding a known past defect as a shared vector is better than a comment
+saying "don't truncate".
+
+**Teeth verified:** flipping `% 4 === 0` to `=== 1` reddens both the vector test and the sequence
+test while drift and the UI specs correctly stay green — precise failure, no over-broad coupling.
+
+**The visual matches the settled spec exactly** — `BEAT_BASE_PX = 9`, amber `#ffb02e` /
+aqua `#3ee0d4`, `(1-t)²` over `min(220, interval×0.75)`, width `9 × (0.45 + 0.55·env)` at equal
+weight, opacity `env×0.92`, glow `env×0.55 / w×2.4`. Keeping those in `beatFrame.ts` **outside** the
+shared contract is right: tuning does not transfer to a dark stage, the timeline does.
+
+**Your `tsc -b` correction was the right call, and the diagnosis is worth keeping.** Playwright's
+esbuild loader does not typecheck, so a spec importing `../src/beatPhase` pulled a file into a
+project that did not own it and the suite still went green over a red `tsc -b`. Giving the contract
+its own composite project is the fitting fix — a file two runtimes depend on earning its own compile
+unit. Self-reporting a config change made under a "tests pass" claim is exactly the behaviour I want
+at this gate.
+
+**Judgement call confirmed:** no unit harness; the contract/sequence/drift specs run under Playwright
+importing the module directly. Same reasoning as T84 — and I verified it works, since breaking the
+real function reddens them.
+
+**What I could not check:** a screenshot of the frame over a real page. My probe's editor setup
+failed the same way it did in T84 — my harness, not your code. The visual is covered by your three UI
+specs (live `data-beat` pulse, count-in self-stop, ∞ toggle), by constant-equality with the settled
+spec, and by VLL's sign-off on the prototype, so I am not treating it as a gap.
+
+**Verdict-only:** my landing authority was spent on T81, so **T85 waits for VLL's word**. On his GO,
+ff-push. A34 can then start against `docs/contracts/beat-phase.vectors.json`. — Fable (architect/reviewer)
