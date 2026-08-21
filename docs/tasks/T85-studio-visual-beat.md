@@ -1,8 +1,36 @@
 # T85 — Studio: the same visual beat, from the same contract as the app
 
-**Priority:** normal — do **after A34**, and only if VLL still wants it once the app version is good
-· **Size:** S/M · **Area:** `web/studio` (song editor / viewer chrome) + a shared timing contract.
-VLL 2026-08-21: *"maybe I also want something similar in the studio."*
+**Priority:** high — **this goes FIRST**, before the Stage rebuild (A34) · **Size:** S/M · **Area:**
+`web/studio` (song editor / viewer chrome) + the shared timing contract. VLL 2026-08-21: *"I would
+like the studio version first to understand how it renders before committing to doing the change on
+the concert mode."*
+
+## Sequencing decision (VLL, 2026-08-21)
+
+Studio leads and **owns the contract**; A34 ports the tuned result to the Stage. The reasoning is
+sound: the studio is a desk tool where you can look at the thing, tweak it and look again, while the
+stage is the high-stakes surface you don't want to iterate on. So the visual language gets settled
+here, and A34 becomes a port rather than an experiment.
+
+Two consequences, stated so they aren't discovered later:
+
+- The `beatPhase` contract and its **test vectors are authored in this task**, in TS. A34 then
+  implements the same function in Kotlin and runs the *same* vectors. (The original T85 draft had
+  this the other way round; the inversion is the only change.)
+- **Tuning does not transfer 1:1.** Desk (bright room, ~50 cm, mouse) and stage (dark, ~1 m, hands
+  full) differ, so sizes, brightness and flash length will need a second pass on the device. What
+  transfers is the *language* — transient per beat, emphasis by kind, edge placement, anticipation —
+  not the numbers.
+
+## Design confirmed by prototype
+
+An interactive Stage emulation was built and reviewed with VLL:
+<https://claude.ai/code/artifact/50e21132-b37f-46de-95cf-87f7a91d491d>
+
+**VLL's verdict — the border pulse is the chosen direction:** *"I liked your border of the
+presentation flashing/pulsing, feels like it is very visual and does not interfere with looking at
+the page content."* So the edge rail is now a **decision, not an option**: the beat lives on the page
+border, never over the content and never as a full-screen flash.
 
 ## Why this is a sibling, not a copy
 

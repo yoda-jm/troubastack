@@ -12361,3 +12361,36 @@ the drift stays invisible until someone compares them. So the beat *phase* funct
 and both runtimes are pinned to a **shared test-vector JSON** — the `glyphs.json` / P205 pattern
 applied to "when is a beat". Do it after A34, and only if VLL still wants it once the stage version
 feels right. — Fable (architect/reviewer)
+
+## 2026-08-21 — Visual beat: **studio goes first**, and the border pulse is decided
+
+VLL, after the diagnosis: *"I would like the studio version first to understand how it renders
+before committing to doing the change on the concert mode."* Agreed and re-sequenced — **T85 now
+leads, A34 becomes the port.** The reasoning is good: the studio is a desk tool where you can look at
+the thing, adjust it and look again; the stage is the surface you don't want to experiment on.
+
+I built an interactive **Stage emulation** rather than describing the design in prose —
+<https://claude.ai/code/artifact/50e21132-b37f-46de-95cf-87f7a91d491d>. It mocks concert mode (page,
+metadata strip, tempo chip) and runs **today's rendering and the proposed one off the same clock**,
+so the failure is demonstrable rather than asserted: switch to "Today" and beats 2, 3 and 4 produce
+no visible event at all.
+
+**VLL's verdict fixes the visual language:** *"I liked your border of the presentation
+flashing/pulsing, feels like it is very visual and does not interfere with looking at the page
+content."* The edge rail is therefore a **decision, not an option** — the beat lives on the page
+border, never over the music, never a full-screen flash. Both specs now say so.
+
+**Two consequences written into the specs so they aren't discovered mid-implementation:**
+
+1. **The contract inverts.** `beatPhase` and its test vectors are now authored in **T85 (TS)**; A34
+   implements the same function in Kotlin and runs the *same* vectors. One definition of "when is a
+   beat", two renderers — the `glyphs.json` precedent.
+2. **Tuning does not transfer 1:1.** A lit desk at 50 cm with a mouse is not a dark stage at arm's
+   length with your hands full. What ports is the *language* — transient per beat, emphasis by kind,
+   edge placement, anticipation sweep — not the numbers. Expect a second tuning pass on the device,
+   and don't read that as the design being wrong.
+
+The diagnosis stands unchanged: today's chip dot never toggles (`active` is true for the whole run)
+and off-beats differ from idle by 1 dp, so a performer sees two events in eight beats. T85's
+sequence test — 8 lit→unlit transitions, bounded lit window, downbeats emphasised — is what stops
+that shipping again in either lane. — Fable (architect/reviewer)

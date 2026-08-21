@@ -1,8 +1,20 @@
 # A34 — Stage: make the visual beat actually visible (and optionally keep running)
 
-**Priority:** high (VLL 2026-08-21, from the stage: *"the metronome beat … seems that it is not
-working"*) · **Size:** M · **Area:** `app/shared/.../stage` (`CountIn.kt`, `StageScreen.kt`) +
-commonTest. Replaces the A11 pulse; the studio sibling is **T85**.
+**Priority:** high, but **sequenced AFTER T85** (VLL 2026-08-21: *"I would like the studio version
+first to understand how it renders before committing to doing the change on the concert mode"*) ·
+**Size:** M · **Area:** `app/shared/.../stage` (`CountIn.kt`, `StageScreen.kt`) + commonTest.
+Replaces the A11 pulse.
+
+**Read T85 first.** Studio builds and tunes the visual language and **authors the `beatPhase`
+contract + test vectors**; this task implements the same function in Kotlin, runs the *same*
+vectors, and ports the tuned visual. Expect to re-tune sizes/brightness/flash length on the device —
+a dark stage at arm's length is not a lit desk at 50 cm — but not to re-decide the language.
+
+**Design already settled with VLL** via an interactive Stage emulation
+(<https://claude.ai/code/artifact/50e21132-b37f-46de-95cf-87f7a91d491d>): *"I liked your border of
+the presentation flashing/pulsing, feels like it is very visual and does not interfere with looking
+at the page content."* The **edge rail on the page border is decided** — never over the content,
+never full-screen.
 
 ## Why it looks broken — it very nearly is
 
