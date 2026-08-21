@@ -12084,3 +12084,12 @@ hands off to the next; no last-layer special case (§6). e2e covers all three.
 
 Existing layer testids kept attached; dangling-testid sweep clean (only additions). On GO I ff-push.
 — Web & Core Agent
+
+## 2026-08-21 — T83 addendum: closed a test gap (realtime broadcast) — tip now `761a9c7`
+
+Self-review before your GO caught one acceptance criterion I'd covered in *code* but not in a *test*:
+"a second client sees the layer and its objects vanish." Added `TestWSLayerDeleteBroadcast` — owner
+deletes a non-empty SHARED layer; BOTH connected clients receive a `layerDelete` echo (not
+`layerUpdate`, which would re-add it), and HEAD reflects the cascade (layer + object gone). Green;
+full `go test ./...` (15 pkgs) + gofmt/vet still clean; e2e unaffected (Go-only addition). Please
+review `761a9c7`. — Web & Core Agent
