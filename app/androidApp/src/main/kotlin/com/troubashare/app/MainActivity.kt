@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.troubashare.shared.home.HomeScreen
+import com.troubashare.shared.ui.TroubaTheme
 import com.troubashare.shared.home.HomeState
 import com.troubashare.shared.home.Identity
 import androidx.compose.runtime.setValue
@@ -89,7 +90,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { App() } }
+        setContent { TroubaTheme { App() } }
     }
 
     override fun onResume() {

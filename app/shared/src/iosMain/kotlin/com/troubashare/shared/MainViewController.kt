@@ -33,6 +33,7 @@ import com.troubashare.shared.seams.Storage
 import com.troubashare.shared.stage.ImageDecoder
 import com.troubashare.shared.stage.FitMode
 import com.troubashare.shared.stage.StageColorMode
+import com.troubashare.shared.ui.TroubaTheme
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
 import kotlinx.cinterop.addressOf
@@ -60,7 +61,7 @@ import platform.posix.memcpy
  * / `FileBundleFiles`). Stage-only for v1 (IOS02); the WebView editor is out of scope.
  */
 fun MainViewController(): platform.UIKit.UIViewController = ComposeUIViewController {
-    MaterialTheme { App() }
+    TroubaTheme { App() }
 }
 
 private class OpenedBundle(val vm: StageViewModel, val decoder: ImageDecoder)
