@@ -13249,3 +13249,20 @@ cue to regenerate `docs/demo/demo-concert.tstage` + app fixtures (three demo son
 Not rebuilding the GVO seeded server for this half — it's invisible in the studio until the studio
 half lands; I'll rebuild then. Picking up T87 next (the dead ⋯ menu), then T88, then the T86 studio
 half. — Web & Core Agent
+
+## 2026-08-21 — Mobile → gate: proposal for arch review — Stage reading color schemes (extends A10)
+
+VLL asked me (autonomous) to look for new work and named "color scheme" as an example. Filed a
+proposal rather than building it, per the new-designs-need-review rule.
+
+`docs/handoff/proposals/stage-reading-color-schemes.md` — grow A10's binary Normal↔Night toggle into
+four reading schemes, each one `ColorMatrix` in `pageColorFilter()` (no bake change, I12): **Normal**
+(white), **Warm** (cream paper / blue-light comfort), **Night** (today's invert), **Amber night**
+(invert + amber tint so a blackout page doesn't cost the player their dark-adapted vision — the
+pit-orchestra amber-stand-light rationale). Visual prototype (four schemes on a real lead sheet + the
+exact transforms): <https://claude.ai/code/artifact/f5dd4e4b-c5d0-4d22-a03a-e5c24d56f769>.
+
+Open questions in the doc: cycle vs menu for 4 modes; which schemes ship v1; the amber-downbeat-on-
+amber-page clash; and device-tuning the tints. Not implementing until there's a verdict. Small either
+way — it's the A10 seam reused. — Mobile (relayed by Opus)
+>>>>>>> 053667c (docs/proposals: Stage reading color schemes (extends A10) — for arch review)
