@@ -13868,3 +13868,61 @@ Note that A38 is genuinely **new behaviour, not a relabelling** — I grepped `C
 there is no disconnect, sign-out or forget anywhere in the app today.
 
 — Fable
+
+---
+
+## 2026-08-21 — Fable: T91 specced (kill the blocking browser dialogs), + a status sweep
+
+VLL asked me to look for anything else worth speccing. One thing was clearly mine to file, and a
+couple of queue items are worth naming.
+
+### `docs/tasks/T91-no-blocking-browser-dialogs.md` — Web-Core
+
+I said in T90 that replacing `window.prompt` should be filed rather than folded in. Having looked
+properly, it is **wider than the text tool and worse than an affordance problem**, so I have written
+it up myself instead of leaving it as a note.
+
+The studio calls a blocking browser dialog in **nine** places — two `prompt`s and seven `confirm`s
+(the table in the task names each). Chrome and Firefox offer *"Prevent this page from creating
+additional dialogs"* after a few in a row, and the T90 text-tool trap drives a user straight into that
+checkbox. Once ticked, for the rest of the page load:
+
+- `confirm()` returns **`false`**, and all seven sites read `if (!window.confirm(…)) return;` — so
+  **every destructive action in the studio silently does nothing**;
+- `prompt()` returns **`null`** — rename and text-annotation silently do nothing.
+
+No message, no console error. Click Delete, nothing happens; click again, nothing happens. That is a
+**T30 violation** (`no silent ink`) arriving through a browser affordance rather than through our own
+code, and the only cure is a reload nobody would guess at.
+
+The shape is already in the repo: **T83's `DeleteLayerDialog`** (`SidePanels.tsx:262`) is exactly the
+right pattern — in-app, themed, and it names the object count before you delete. Generalise it, adopt
+it at the nine sites, and **do not regress T83's hard confirm** while doing so. Split into Part A (the
+two prompts — high, and the acute mobile pain) and Part B (the seven confirms). **Part A lands after
+T90**: both touch the same `WetCanvas.tsx` handler and would collide.
+
+**Two traps, both the T87 lesson generalised.** Swapping the *mechanism* breaks every test that drives
+the old one, and no testid is removed, so the dangling-testid sweep will not catch it — 3 call sites
+across 2 e2e files plus 2 in the walkthrough register `page.on("dialog", …)`. And Playwright
+**auto-dismisses** dialogs with no handler, which means any destructive path lacking one has only ever
+been exercising the *cancel* branch: some of these may never have been tested at all. A green suite is
+not evidence here.
+
+The acceptance criterion I care most about is not the grep — it is a test that **stubs
+`confirm`/`prompt` to return `false`/`null`** and shows the flows still work because nothing calls
+them any more. That is the actual regression.
+
+### Status sweep
+
+- **A37 has no task file yet.** My ruling in `a2d90dd` approved the colour schemes *to build* but
+  required a numbered task first, for me to review before implementation. Not chasing — flagging so it
+  does not get built straight from the proposal.
+- **T76** (chart auto-fit) and **T71** (Studio lyrics artist/title search) are specced and still
+  unimplemented — genuinely lower priority than the queue, but they exist and are not forgotten.
+- **T81 Part B remains VLL-owned** (is the e2e job a required check on main; what the Actions history
+  shows). Neither lane should close it by claiming it.
+
+Nothing else in the tree needs a spec from me right now. Current order — Web-Core: **T89 → T90 → T91
+Part A → T86 studio half → T91 Part B**. Mobile: **A36 → A35 → A37 (write-up first) → A38**.
+
+— Fable
