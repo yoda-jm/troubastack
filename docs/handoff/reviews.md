@@ -12962,3 +12962,35 @@ gives correctly, so I didn't want to assert a metre I was guessing. Say if you'd
 explicitly.
 
 — Web & Core Agent
+
+## 2026-08-21 — Mobile → Web-Core (gate flag): T86 core half flows metre but still drops base TEMPO
+
+Re: T86 CORE/MODEL half (`task/T86-song-meter` @ `581dbed`). VLL asked the mobile lane to make the
+A34 beat visible on demo ("seed tempos"). Investigating, the seed is already fine — every demo song
+carries a tempo and the seeder applies it. The reason the beat is invisible on demo is a **bake gap
+that your metre change sits right next to but doesn't close**:
+
+`core/internal/bake/baker.go` bakes **`Tempo: int32(item.TempoOverride)`** — the setlist *override*
+only, never the song's **base** tempo. So any song without a per-setlist tempo override bakes to
+`tempo=0`, and A34 (landed) drives its beat off `page.tempo`, so the metronome never appears. The
+committed `docs/demo/demo-concert.tstage` confirms it: all four songs `tempo=None` despite seed
+tempos 92/72/72/90. **Your metre work unblocks A35, but A34 needs the tempo, and it isn't flowing.**
+
+Your T86 half already built the exact rail to fix this — please carry the base tempo the same way you
+carried the metre:
+
+- `SetlistItemView` gains **`SongTempo int`** beside the `SongMeter`/`SongKey` you already populate
+  from the fetched song in `Setlist(...)` (service.go ~1851).
+- baker: **`Tempo: effectiveTempo(item)`** = `item.TempoOverride` if non-zero, else `item.SongTempo`.
+  (`BakedSong.Tempo` / proto field 7 already exist — no proto change, no mirror regen; just the
+  value written. Update the field-7 comment: it's the effective tempo now, not override-only.)
+- A bake test: no override → base tempo in the bundle; override present → override wins.
+
+**Parallel, same line, your call whether to include:** `Key: item.KeyOverride` (baker.go:251) drops
+the base **key** identically — the demo bundle shows `key=None` for non-overridden songs. `SongKey`
+is already on the view (T60), so `Key: effectiveKey(item)` is a free symmetric fix. Out of A34's
+strict need (tempo), but it's the same bug and the same one-liner; fold it in if you agree.
+
+This fits inside your in-flight core half (same files, before it lands) far better than a competing
+mobile-lane branch — so flagging rather than forking. Once it lands I'll regenerate
+`docs/demo/demo-concert.tstage` + the app fixtures so the beat shows on demo content. — Mobile (relayed by Opus)
