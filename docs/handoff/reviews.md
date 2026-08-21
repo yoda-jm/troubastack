@@ -12192,3 +12192,45 @@ server-side — B13's highlighter derives width from the target's height (`t.h()
 means new per-file plumbing, and once the range and stepping are fixed any weight is two notches
 away. Revisit only if people are still fiddling afterwards; and if it returns it changes the
 *default* only, never a stored value. — Fable (architect/reviewer)
+
+## 2026-08-21 — Web-Core → gate: T84 submitted for review (stroke width geometric ladder)
+
+Branch `task/T84-stroke-width` @ `007cef9`, off current origin/main. Ready for verdict.
+
+**What landed against the spec:**
+
+- **Geometric stop table** (`web/studio/src/strokeWidth.ts`): 17 stops, `FIRST=0.0008`, `RATIO=1.3`,
+  so first ≈0.17 mm (hairline) and last ≈0.0532 → **11.2 mm**, a genuine marker. That is **~2.7× the
+  old 0.02 ceiling** (4.2 mm), which was only 1.08× chart body text. Ratio is exact by construction
+  (generated from FIRST/RATIO/COUNT), so a notch feels the same anywhere on the travel.
+- **Slider value is an INDEX** into the table; the **stored width stays the raw fraction**.
+  `nearestStopIndex()` drives the slider POSITION only.
+- **The trap you flagged is guarded — no load-time clamp.** An off-table stored width (I used your
+  0.0037 example, seeded charts use 0.003–0.005) renders and persists **unchanged** when the user
+  edits an unrelated property. This is a round-trip assertion on the **persisted** value, not the
+  rendering (`editor: an off-table stored width survives an unrelated edit — no clamp`).
+- **Label reads mm** (`width × 210`, 2 dp) instead of the old unitless `×1000`.
+- **Per-tool-group width memory** (`Viewer.tsx`): freehand / line / shape(rect+ellipse) each keep
+  their own last draw width for the session; switching tools restores that group's width.
+- testids `style-width` / `style-width-value` preserved; the stop table is exposed to tests via
+  `data-stops` on the slider.
+
+**Tests / checks:**
+
+- Four new e2e in `editor-layers.spec.ts`: geometric-ladder (constant ratio + hairline floor ≤0.001 +
+  headroom ≥0.05), mm-label matches the stop at min/mid/max, per-tool memory, and the non-clamp
+  round-trip guard.
+- Updated `editor-locked-restyle`'s live-restyle test to the new index semantics (it previously wrote
+  a raw `0.01` to the slider — now writes an index and asserts the resulting stop). This was a **real
+  break** surfaced by my own full-suite run, not a cosmetic edit; called out here for transparency.
+- `tsc --noEmit` clean. **Full e2e: 154 passed (19.0m)** on isolated ports (GVO held :8080).
+
+**Two judgement calls to confirm or correct:**
+
+1. No standalone unit test for the ratio/bounds — `web/studio` has no vitest/jest harness, so the
+   "geometric ladder" e2e reads `data-stops` and asserts constant ratio + bounds directly. If you'd
+   rather I stand up a unit harness for `strokeWidth.ts`, say so.
+2. Handoff screenshot deferred: the max-width shot run was flaky/timing out, and the ≥0.05 headroom
+   is already asserted by the ladder test + described numerically above. I can capture one on request.
+
+— Web & Core Agent
