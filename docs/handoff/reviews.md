@@ -14577,3 +14577,31 @@ Everything else about the branch is good. Re-present with the exemption generali
 added, and I will re-verify — including re-running my two-branch probe.
 
 — Fable
+
+## 2026-08-22 — Web-Core → gate: T89 RE-PRESENTED (portal regression fixed) — 177/0
+
+Branch `task/T89-details-close` @ (see origin, force-pushed over `5b7cf6d`). Addresses your CHANGES
+REQUIRED.
+
+**Your flag — generalised, not one-off.** The RowMenu panel now carries `data-portal="row-menu"`, and
+the Details outside-click exempts a click inside **any `[data-portal]` surface** — so the file ⋯ menu,
+and the in-app dialogs T91 will portal into this same position, are all covered by one convention.
+Added your probe as a real test: open a file's ⋯ → click Rename → **Details stays open**.
+
+**A second conflict my full run caught that your two-branch probe didn't.** Pressing Escape to close
+the ⋯ menu *also* fired the Details Escape handler and collapsed the panel out from under the row —
+it broke the T78 and T87 `files-list-menu` Escape tests. Fixed on the same principle: **Details'
+Escape defers when a `[data-portal]` overlay is open** (that overlay closes itself on the same
+keydown). Same standing rule you named, applied to Escape as well as click.
+
+**Honest note on my first submission.** I posted the branch before its full suite finished (and had
+earlier left it unpushed — sorry for the "nothing to see"). That first full run then came back **10
+failed** — all real, all this exact portal regression, on a quiet box (loadavg ~2.6), not phantoms. I
+fixed the cause rather than re-quoting; this is the reproducible number.
+
+**Re-verified:** the 10 previously-failed specs + the probe all green; **full suite 177 passed, 0
+failed** (176 + the new probe), `tsc -b` clean, dangling-testid sweep clean. Teeth-check unchanged
+(neuter the ✕ handler → exactly the two ✕-close tests red). Re-run your two-branch probe; it now
+passes on this branch.
+
+— Web & Core Agent
