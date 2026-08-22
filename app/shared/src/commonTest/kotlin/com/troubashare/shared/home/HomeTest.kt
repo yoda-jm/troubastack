@@ -2,25 +2,21 @@ package com.troubashare.shared.home
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
-/** A27 — the Home identity line + trailing action, per the 2026-07-18 ruling: one clean line, the raw
- *  server IP:port never here (it's behind Manage), name/band fill in as they become cheaply known. */
+/**
+ * A27/A38 — the Home connection row: status label + primary action, both pure and table-tested. A38
+ * splits the old single Disconnected into **Signed out** (Guest, server known → Sign in) and **Not set
+ * up** (Guest, nothing configured → Connect); the status word is the same ("Guest") but the action
+ * differs. Raw server IP:port is never here (it's behind Manage).
+ */
 class HomeTest {
 
     @Test
-    fun identityLine_disconnected_invitesConnect() {
-        assertEquals("Connect to your band", identityLine(Identity.Disconnected))
-    }
-
-    @Test
-    fun identityLine_connected_isCleanNoServer() {
-        assertEquals("Connected ✓", identityLine(Identity.Connected())) // no raw IP:port
+    fun identityLine_recognized_readsPerformingAs() {
+        assertEquals("Connected ✓", identityLine(Identity.Connected())) // no name yet, no raw IP:port
         assertEquals("Connected · syncing…", identityLine(Identity.Connected(synced = false)))
-    }
-
-    @Test
-    fun identityLine_connected_withNameAndBand_readsPerformingAs() {
-        // The line P205 Stage 3a fills in.
         assertEquals(
             "Performing as Marie · The Troubadours ✓",
             identityLine(Identity.Connected(name = "Marie", band = "The Troubadours", synced = true)),
@@ -29,7 +25,6 @@ class HomeTest {
 
     @Test
     fun identityLine_checking_isTransientProbeLabel() {
-        // A31: shown while Home actively probes the server; resolves to Connected/Offline/Disconnected.
         assertEquals("Checking…", identityLine(Identity.Checking))
     }
 
@@ -43,10 +38,29 @@ class HomeTest {
     }
 
     @Test
-    fun identityAction_connectWhenDisconnected_elseManage() {
-        assertEquals("Connect", identityAction(Identity.Disconnected))
-        assertEquals("Manage", identityAction(Identity.Connected()))
-        assertEquals("Manage", identityAction(Identity.Offline()))
-        assertEquals("Manage", identityAction(Identity.Checking)) // A31: transient — no Connect invite mid-probe
+    fun identityLine_guest_bothVariants_sayGuest() {
+        // A38: the status word is "Guest" for BOTH an expired session and a never-set-up device.
+        assertTrue(identityLine(Identity.SignedOut()).startsWith("Guest"))
+        assertEquals("Guest · The Troubadours", identityLine(Identity.SignedOut(band = "The Troubadours")))
+        assertTrue(identityLine(Identity.NotSetUp).startsWith("Guest"))
+    }
+
+    @Test
+    fun identityAction_matchesTheStatus() {
+        // A38: the action must match the state — the old "always Manage" was the bug.
+        assertEquals("Disconnect", identityAction(Identity.Connected()))
+        assertEquals("Retry", identityAction(Identity.Offline()))
+        assertEquals("Sign in", identityAction(Identity.SignedOut(band = "The Troubadours"))) // server known
+        assertEquals("Connect", identityAction(Identity.NotSetUp)) // nothing set up
+        assertEquals("", identityAction(Identity.Checking)) // disabled, not hidden
+    }
+
+    @Test
+    fun manage_shownExceptFreshInstallAndProbe() {
+        assertTrue(identityHasManage(Identity.Connected()))
+        assertTrue(identityHasManage(Identity.Offline()))
+        assertTrue(identityHasManage(Identity.SignedOut()))
+        assertFalse(identityHasManage(Identity.NotSetUp)) // nothing to manage yet
+        assertFalse(identityHasManage(Identity.Checking))
     }
 }

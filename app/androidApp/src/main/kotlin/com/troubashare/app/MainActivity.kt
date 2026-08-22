@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -74,6 +75,9 @@ private const val POLICIES_KEY = "trouba.update.policies"
 private const val COLOR_MODE_KEY = "stage.colorMode"
 private const val FIT_MODE_KEY = "stage.fitMode" // A14: persisted reading mode (page/width/scroll)
 private const val LAST_CONCERT_KEY = "home.lastConcertDir" // A27: resume-last from the Home landing
+// A38: the persisted server address (written by ConnectScreen on connect; survives signOut). Its
+// presence is how Home tells "Guest, server known → Sign in" apart from "nothing set up → Connect".
+private const val HOME_CORE_URL_KEY = "coreUrl"
 
 /**
  * The thin Android entrypoint (I15). Concerts list (Storage bundlesDir) + the shared [StageScreen],
@@ -198,10 +202,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         MaterialTheme(colorScheme = lightColorScheme()) { EditScreen(storage, onBack = { editing = false }) }
         return
     }
-    if (connecting) {
-        ConnectScreen(storage, transport, onConnected = { connecting = false }, onBack = { connecting = false }, discovery = discovery)
-        return
-    }
+    // A38: Connect is no longer a full-screen page that replaces the view — it's a modal (ConnectDialog)
+    // rendered OVER whichever screen is showing (Home / concert list), so this early return is gone.
 
     // A27/A31: HOME is the task root, TWO branded products. TroubaStage → the concert list in PERFORM
     // intent; TroubaStudio → the SAME list in MANAGE intent (import/update/edit). The identity card →
@@ -215,8 +217,19 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         // Connected / Offline / Disconnected from the RESULT.
         val activity = LocalContext.current.findActivity() as? MainActivity
         var homeIdentity by remember { mutableStateOf<Identity>(Identity.Checking) }
-        LaunchedEffect(activity?.resumeTick?.value) {
-            if (!transport.isConnected) { homeIdentity = Identity.Disconnected; me = null; return@LaunchedEffect }
+        // A38: Retry re-runs the probe without a foreground round-trip; bump this to re-key the effect.
+        var retryTick by remember { mutableStateOf(0) }
+        LaunchedEffect(activity?.resumeTick?.value, retryTick) {
+            // No session cookie → Guest. Split by whether a server was ever configured: known → offer
+            // Sign in (address saved, password only); unknown → offer the full Connect set-up.
+            if (!transport.isConnected) {
+                homeIdentity = if (storage.getSecret(HOME_CORE_URL_KEY) != null) {
+                    Identity.SignedOut(band = me?.band ?: "")
+                } else {
+                    Identity.NotSetUp
+                }
+                return@LaunchedEffect
+            }
             homeIdentity = Identity.Checking
             when (val p = transport.probePresence()) {
                 is Presence.Online -> {
@@ -225,10 +238,13 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 }
                 // Keep last-known `me` so offline auto-match still resolves the performer's own view (I12).
                 Presence.Unreachable -> homeIdentity = Identity.Offline(band = me?.band ?: "")
-                Presence.Unauthorized -> { me = null; homeIdentity = Identity.Disconnected }
+                // A38: expired session on a known server → Guest. KEEP the band (don't null `me`) so
+                // "Sign in" reads as resuming, not starting over — matching the Unreachable branch.
+                Presence.Unauthorized -> homeIdentity = Identity.SignedOut(band = me?.band ?: "")
             }
         }
 
+        var showDisconnect by remember { mutableStateOf(false) }
         HomeScreen(
             state = HomeState(
                 lastConcertName = entries.firstOrNull { it.dir == lastDir }?.label ?: "",
@@ -238,9 +254,42 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             onPerform = { manageIntent = false; atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
             onStudio = { manageIntent = true; atHome = false },
-            onIdentity = { connecting = true },
+            // A38: the primary action routes by the current status.
+            onPrimaryAction = {
+                when (homeIdentity) {
+                    is Identity.Connected -> showDisconnect = true      // confirm before ending a session
+                    is Identity.Offline -> retryTick++                  // re-probe
+                    is Identity.SignedOut, is Identity.NotSetUp -> connecting = true // Sign in / Connect
+                    is Identity.Checking -> {}
+                }
+            },
+            onManage = { connecting = true },
             onSettings = { settings = true },
         )
+        if (showDisconnect) {
+            // A38: Disconnect signs out but keeps the server address (CORE_URL_KEY survives signOut) and
+            // never touches concerts (I12). Confirm first — a silent sign-out mid-gig is worse.
+            AlertDialog(
+                onDismissRequest = { showDisconnect = false },
+                title = { Text("Disconnect?") },
+                text = {
+                    val ofBand = me?.band?.takeIf { it.isNotEmpty() }?.let { " of $it" } ?: ""
+                    Text("You'll sign out$ofBand. Your concerts stay on this device and keep working offline.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        transport.signOut()
+                        homeIdentity = Identity.SignedOut(band = me?.band ?: "")
+                        showDisconnect = false
+                    }) { Text("Disconnect") }
+                },
+                dismissButton = { TextButton(onClick = { showDisconnect = false }) { Text("Cancel") } },
+            )
+        }
+        // A38: Connect is a MODAL overlaying Home (Home stays visible behind), not a full-screen page.
+        if (connecting) {
+            ConnectDialog(storage, transport, discovery, onClose = { connecting = false; retryTick++ })
+        }
         return
     }
 
@@ -254,6 +303,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             onConnect = { connecting = true },
             onHome = { atHome = true }, // A31: visible Home affordance in the top bar
         )
+        // A38: Connect modal also overlays the concert list (Manage → Connect).
+        if (connecting) {
+            ConnectDialog(storage, transport, discovery, onClose = { connecting = false })
+        }
         BackHandler { atHome = true } // A27: system-back from the concert list also returns to Home
         return
     }

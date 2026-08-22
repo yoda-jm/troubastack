@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -44,34 +46,43 @@ import androidx.compose.ui.unit.dp
  * types leak in. I12: the identity card is OPTIONAL — Perform works fully offline with no login.
  */
 
-/** What Home shows about the viewer's connection to a band (the login VLL asked for + P205's future home). */
+/**
+ * What Home shows about the viewer's connection (A38: status and action are two different questions —
+ * *what am I?* is the icon + colour + line; *what can I do?* is [identityAction]).
+ *
+ * Three player-facing statuses — **Recognized** ([Connected]), **Guest** ([SignedOut]/[NotSetUp]),
+ * **Offline** — plus a transient [Checking]. Guest deliberately covers BOTH "session ended on a known
+ * server" and "never set up": as a *status* they're the same (nobody knows who you are), and it's the
+ * honest word — you can keep working (I12). They differ only in the action (Sign in vs Connect).
+ */
 sealed interface Identity {
-    /** Not connected to any server — the line invites "Connect to your band". */
-    data object Disconnected : Identity
-
-    /** A31: transient while Home actively probes the server (short timeout). Resolves to
-     *  Connected / Offline / Disconnected from the probe RESULT — never a cached flag. */
+    /** A38 transient while Home probes the server (short timeout) — a spinner, not a fourth status. */
     data object Checking : Identity
 
-    /** Connected. [name] is empty until P205 Stage 3a resolves "Performing as <name>"; [band] shows
-     *  when cheaply available. The raw server host is NOT here — it lives behind Manage. */
+    /** Recognized — the server knows me. [name] fills in "Performing as <name>"; [band] when known. */
     data class Connected(val name: String = "", val band: String = "", val synced: Boolean = true) : Identity
 
-    /** Known identity but offline — a reassurance, not an error (I12: concerts on device still work). */
+    /** Offline — no server reachable right now. A reassurance, not an error (I12). */
     data class Offline(val band: String = "") : Identity
+
+    /** Guest, server known — the session ended (or a server was configured) but I'm not signed in.
+     *  [band] is kept so "Sign in" reads as resuming, not starting over. Action: **Sign in**. */
+    data class SignedOut(val band: String = "") : Identity
+
+    /** Guest, nothing set up — no server configured yet. Action: **Connect**. */
+    data object NotSetUp : Identity
 }
 
 /** Immutable Home view state (built by the host from Storage/transport/installed bundles). Pure. */
 data class HomeState(
     val lastConcertName: String = "",  // resume target; "" ⇒ no resume affordance
     val concertCount: Int = 0,
-    val identity: Identity = Identity.Disconnected,
+    val identity: Identity = Identity.NotSetUp,
 )
 
 /** The one-line identity label — pure, unit-testable (no Compose). The raw IP:port is never here
  *  (per the ruling it lives behind Manage); name/band fill in as they become cheaply known. */
 fun identityLine(identity: Identity): String = when (identity) {
-    is Identity.Disconnected -> "Connect to your band"
     is Identity.Checking -> "Checking…"
     is Identity.Connected -> buildString {
         append(if (identity.name.isNotEmpty()) "Performing as ${identity.name}" else "Connected")
@@ -83,11 +94,32 @@ fun identityLine(identity: Identity): String = when (identity) {
         if (identity.band.isNotEmpty()) append(" · ").append(identity.band)
         append(" · concerts on device still work")
     }
+    // Guest, both variants: the status word is "Guest" (you can keep working — I12); the band, when
+    // known, makes "Sign in" read as resuming. The distinction lives in the ACTION, not the label.
+    is Identity.SignedOut -> buildString {
+        append("Guest")
+        if (identity.band.isNotEmpty()) append(" · ").append(identity.band)
+    }
+    is Identity.NotSetUp -> "Guest · not connected to a band"
 }
 
-/** The trailing affordance on the identity line: connect when disconnected, else manage the account/server. */
-fun identityAction(identity: Identity): String =
-    if (identity is Identity.Disconnected) "Connect" else "Manage"
+/**
+ * The PRIMARY action for a state — A38: the action must match the status. Recognized → Disconnect,
+ * Offline → Retry, Guest → Sign in (server known) / Connect (nothing set up). Empty while Checking
+ * (the button is shown disabled, not hidden).
+ */
+fun identityAction(identity: Identity): String = when (identity) {
+    is Identity.Connected -> "Disconnect"
+    is Identity.Offline -> "Retry"
+    is Identity.SignedOut -> "Sign in"
+    is Identity.NotSetUp -> "Connect"
+    is Identity.Checking -> ""
+}
+
+/** Whether the row also offers a secondary "Manage" (server/account details behind [ConnectScreen]).
+ *  Not for a fresh install (nothing to manage) nor mid-probe. */
+fun identityHasManage(identity: Identity): Boolean =
+    identity !is Identity.NotSetUp && identity !is Identity.Checking
 
 @Composable
 fun HomeScreen(
@@ -95,7 +127,10 @@ fun HomeScreen(
     onPerform: () -> Unit,
     onResume: () -> Unit,
     onStudio: () -> Unit,
-    onIdentity: () -> Unit,
+    // A38: the PRIMARY connection action for the current status (Disconnect / Retry / Sign in /
+    // Connect) — the host routes it by state. onManage opens the server/account details (ConnectScreen).
+    onPrimaryAction: () -> Unit,
+    onManage: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -179,19 +214,86 @@ fun HomeScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // Identity — one clean line at the bottom; Manage/Connect opens server + account details.
-            Card(onClick = onIdentity, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("👤", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        identityLine(state.identity),
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = onIdentity) { Text(identityAction(state.identity)) }
-                }
+            // A38: the connection control — status (icon + semantic colour + line) plus the action that
+            // matches it. Status colour is deliberately NOT the brand indigo, so "connected" never
+            // looks like "this is a button"; each state also has a distinct icon shape (legible in bad
+            // stage light, and for colour-blind users).
+            ConnectionRow(state.identity, onPrimaryAction = onPrimaryAction, onManage = onManage)
+        }
+    }
+}
+
+// A38 — semantic STATUS colours, their own tokens (NOT derived from A36's indigo brand). Light/dark
+// pairs chosen to read on both the warm-paper and near-black grounds; guest/checking use the neutral.
+private val StatusOnlineLight = androidx.compose.ui.graphics.Color(0xFF2E7D32)
+private val StatusOnlineDark = androidx.compose.ui.graphics.Color(0xFF66BB6A)
+private val StatusOfflineLight = androidx.compose.ui.graphics.Color(0xFFB26A00)
+private val StatusOfflineDark = androidx.compose.ui.graphics.Color(0xFFFFB74D)
+
+@Composable
+private fun statusColor(identity: Identity): androidx.compose.ui.graphics.Color {
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    return when (identity) {
+        is Identity.Connected -> if (dark) StatusOnlineDark else StatusOnlineLight
+        is Identity.Offline -> if (dark) StatusOfflineDark else StatusOfflineLight
+        else -> MaterialTheme.colorScheme.onSurfaceVariant // Guest / Checking → neutral
+    }
+}
+
+/** A distinct icon SHAPE per status (never colour alone): filled dot = recognized, hollow = guest,
+ *  slashed = offline, spinner = checking. */
+@Composable
+private fun StatusIcon(identity: Identity, tint: androidx.compose.ui.graphics.Color) {
+    if (identity is Identity.Checking) {
+        androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), color = tint, strokeWidth = 2.dp)
+        return
+    }
+    androidx.compose.foundation.Canvas(Modifier.size(16.dp)) {
+        val sw = 2.dp.toPx()
+        val r = size.minDimension / 2 - sw
+        when (identity) {
+            is Identity.Connected -> drawCircle(tint, r, center) // filled
+            is Identity.Offline -> { // hollow + slash
+                drawCircle(tint, r, center, style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                drawLine(
+                    tint,
+                    androidx.compose.ui.geometry.Offset(center.x - r * 0.72f, center.y + r * 0.72f),
+                    androidx.compose.ui.geometry.Offset(center.x + r * 0.72f, center.y - r * 0.72f),
+                    strokeWidth = sw,
+                )
+            }
+            else -> drawCircle(tint, r, center, style = androidx.compose.ui.graphics.drawscope.Stroke(sw)) // hollow = guest
+        }
+    }
+}
+
+@Composable
+private fun ConnectionRow(identity: Identity, onPrimaryAction: () -> Unit, onManage: () -> Unit) {
+    val tint = statusColor(identity)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            StatusIcon(identity, tint)
+            Text(
+                identityLine(identity),
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (identityHasManage(identity)) {
+                TextButton(onClick = onManage) { Text("Manage") }
+            }
+            val action = identityAction(identity)
+            if (action.isNotEmpty()) {
+                Button(onClick = onPrimaryAction, enabled = identity !is Identity.Checking) { Text(action) }
             }
         }
     }
