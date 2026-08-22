@@ -1247,6 +1247,7 @@ export function Viewer({
                   onSelect={setSelectedUuids}
                   onFocusLayer={focusLayerOnly}
                   onCommitDraw={commitDraw}
+                  onTextResolved={() => setTool("select")}
                   onCommitMove={commitMove}
                   onCommitResize={commitResize}
                   onReorder={reorderSelected}
@@ -1291,6 +1292,7 @@ export function Viewer({
                 onSelect={setSelectedUuids}
                 onFocusLayer={focusLayerOnly}
                 onCommitDraw={commitDraw}
+                onTextResolved={() => setTool("select")}
                 onCommitMove={commitMove}
                 onCommitResize={commitResize}
                 onReorder={reorderSelected}

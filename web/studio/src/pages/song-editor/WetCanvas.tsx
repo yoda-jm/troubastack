@@ -66,6 +66,7 @@ export function EditCanvas({
   onSelect,
   onFocusLayer,
   onCommitDraw,
+  onTextResolved,
   onCommitMove,
   onCommitResize,
   onReorder,
@@ -101,6 +102,9 @@ export function EditCanvas({
   // WITHOUT activating it — editing stays scoped to the active layer).
   onFocusLayer: (layerId: string) => void;
   onCommitDraw: (tool: DrawTool, page: number, path: PRPoint[], text?: string) => void;
+  // T90 — called after the text prompt resolves (placed OR cancelled), so the caller can disarm the
+  // one-shot text tool. Optional: other draw tools don't use it.
+  onTextResolved?: () => void;
   onCommitMove: (obj: AnnotationObject) => void;
   onCommitResize: (obj: AnnotationObject) => void;
   // Selection-toolbar actions (T27 stage 2) — all act on the single active-editable
@@ -720,6 +724,11 @@ export function EditCanvas({
       // Click → inline prompt → text object at the anchor.
       const text = window.prompt("Text annotation");
       if (text && text.trim()) onCommitDraw("text", page, [pt], text.trim());
+      // T90: text is a ONE-SHOT tool — disarm after the prompt resolves whether we placed or
+      // cancelled, so the next tap selects/deselects instead of opening yet another prompt (the
+      // dead end VLL hit on a phone: every tap was another modal). Revert on cancel too, so two
+      // mis-taps can't re-trap.
+      onTextResolved?.();
       return;
     }
 
