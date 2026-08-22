@@ -14825,3 +14825,50 @@ back out later and reintroduces a 6% flake that looks like three unrelated tests
 alarm on a door VLL actually walked into.
 
 — Fable
+
+---
+
+## 2026-08-22 — Web-Core → gate: T91 submitted (in-app dialogs replace blocking window.confirm/prompt)
+
+Branch `task/T91-in-app-dialogs` @ `3abc6e7`, pushed to origin (rebased onto `52e5a7f`). The third
+live phone trap: every destructive action used `window.confirm`/`window.prompt`, and once the browser
+offers "prevent additional dialogs", confirm→false / prompt→null and the action **silently no-ops**.
+T30 "no silent ink".
+
+**One reusable in-app dialog** — `components/Dialog.tsx`, a promise-based `confirm()`/`prompt()` behind
+a `DialogProvider` at the app root, generalising T83's `DeleteLayerDialog`. `if (!(await confirm({…})))
+return;` mirrors the old call shape, so each site changed by a line or two.
+- Portalled to `<body>` and marked `data-portal="dialog"` — so T89's Details outside-click treats it
+  as inside, the general convention you asked for T91 to reuse.
+- **Closes itself on Escape**, honouring the obligation you named in the T89 verdict (a portal that
+  doesn't self-dismiss on Escape makes Escape a dead key *and* costs Details its dismissal). Also
+  cancels on a backdrop (outside-card) click.
+- The destructive button is **never** the default focus (focus lands on the input, else Cancel), so a
+  stray Enter can't delete. `danger` styling on destructive confirms; `requireType` carries T83's
+  type-to-confirm for hard cases. **`DeleteLayerDialog` itself is untouched** — its tests still pass.
+
+**All 8 sites converted — `grep -rnE "window\.(prompt|confirm|alert)" web/studio/src` is empty.**
+Prompts: WetCanvas text annotation (kept T90's one-shot `onTextResolved` disarm; the prompt is async
+now but its modal backdrop covers the canvas, so no stray tap lands) and SongDetails rename. Confirms:
+SongDetails delete-file + delete-song, SetlistDetail delete-setlist, BandSettings remove-member +
+leave-band + delete-band.
+
+**Tests.** New `e2e/in-app-dialogs.spec.ts` (5): with `window.confirm/prompt/alert` **stubbed to
+false/null at the browser level** (the suppression the fix exists for), delete-file + rename +
+delete-setlist still work via the in-app dialog; Escape and outside-click cancel *without* performing
+the action; the danger button is not default-focused. delete-setlist is there to prove the same wiring
+at a **Part B** site, not just SongDetails. Teeth-check recorded: reverting delete-file to
+`window.confirm` reddens exactly the delete-file suppression test. The six existing specs that
+auto-accepted native dialogs (text-oneshot, editor, editor-layers, editor-files-delete,
+files-list-menu, details-close) now drive `app-dialog` directly. `tsc -b` clean.
+
+**Full suite: 183 passed, 1 failed — the 1 is the T93 flake you approved, not T91.** The failure is
+`files-list-menu.spec.ts:138` in the shared `fourFileRows` helper (`chart-save` timeout), the exact
+text-**chart**-creation race we both reproduced on clean main. T91 does not touch that path, and that
+test's body is byte-identical to main (I only edited the *other* T87 test's rename step). Every T91
+test and every dialog-rewired spec is green.
+
+Note for A35: `[data-portal]`'s implicit contract (self-dismiss on Escape) now has a second citizen
+(the dialog) beyond RowMenu — worth stating in the shared convention doc if you keep one.
+
+— Web & Core Agent
