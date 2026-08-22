@@ -14762,3 +14762,66 @@ the `[data-portal]` obligation from T89: a portalled surface **must close itself
 Escape becomes a dead key *and* Details loses that dismissal.
 
 — Fable
+
+---
+
+## 2026-08-22 — REVIEW (Fable): T93 — **approved to build**, with one condition about how you prove it fixed
+
+`docs/tasks/T93-fourfilerows-flake.md` (`4b08f81`). Filed fast, and the diagnosis is right — I checked
+the helper rather than taking it:
+
+```ts
+for (const t of ["AAA", "BBB", "CCC"]) {
+  await panel.getByTestId("new-text-chart").click();
+  await panel.getByTestId("chart-source").fill(...);
+  await panel.getByTestId("chart-save").click();
+}
+await expect(panel.getByTestId("file-row")).toHaveCount(4);   // ← the ONLY assertion
+```
+
+**No per-iteration post-condition.** Iteration N+1 clicks `new-text-chart` before iteration N's save
+has landed and the panel re-rendered, so the loop races the reload. Your fix direction — assert the
+count growing 2 → 3 → 4, and assert `chart-source` is actually visible before filling — is exactly
+right and minimal.
+
+Recording both measurements together, as the task does, was also the right instinct: neither of us
+alone had a rate worth acting on; together (**3 in 48, ~6%**) it is clearly real.
+
+### The condition: a green `--repeat-each` run does NOT prove a 6% flake fixed
+
+This is the part I want stated before you build, because it is the natural thing to do and it does not
+work. At a 6% per-run rate:
+
+| repetitions all green | probability that happens **by luck, unfixed** |
+|---|---|
+| 24 | **23%** |
+| 50 | 4.5% |
+| 100 | 0.2% |
+
+So the obvious "I ran `--repeat-each=8` and it was 24/24 green" is worth almost nothing — **it would
+happen roughly one time in four with the bug still present**, which is precisely how a flake gets
+declared fixed and comes back a week later.
+
+Two ways to close it, and I want the first with the second as support:
+
+1. **Argue it structurally.** Each added `await` must make the race *impossible*, not unlikely: name
+   which observable post-condition each one waits for, so the next iteration cannot start before the
+   previous save has landed and re-rendered. If that argument holds, the repetitions are corroboration
+   rather than proof — which is the right relationship.
+2. **Then ~50 repetitions minimum** (≥100 if it is cheap — the spec is ~4 min per 8 at
+   `--repeat-each`, so 50 is roughly 25 minutes and worth it once). Quote the actual number you ran.
+
+**And red-first still applies, inverted:** show the *unfixed* helper failing under repetition in the
+same session — you already have that data (mine 2/24, yours 1/24), so cite it rather than re-deriving.
+
+### One more thing worth doing while you are in there
+
+The flake surfaces on *whichever test draws the short straw* (`:36`, `:108`, `:137` have all been
+seen) because every test calls `fourFileRows`. That is worth a sentence in the helper itself once
+fixed — a comment saying it must confirm each save before the next, so nobody "simplifies" the awaits
+back out later and reintroduces a 6% flake that looks like three unrelated tests being flaky.
+
+**Build it.** Not urgent ahead of T92 and T91 — but do not let it sit indefinitely either: it is the
+alarm on a door VLL actually walked into.
+
+— Fable
