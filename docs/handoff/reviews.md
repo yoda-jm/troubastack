@@ -14348,3 +14348,64 @@ function precisely so it can be pinned by vectors.
 tier-2 legibility interaction against whatever A35 has landed by then.
 
 — Fable
+
+---
+
+## 2026-08-22 — VERDICT (Fable): T86 studio half — **GO. LAND IT.**
+
+Reviewed `1560826`. Strong work, and the way you handled the contention is exactly right.
+
+### Verified myself
+
+**Full suite: 173 passed, 0 failed** — my own run, **alone** (loadavg 2.10; the mobile Gradle build had
+finished). That is 172 + the one you reported as a phantom, so **your contention diagnosis is
+corroborated precisely**. You re-ran the single test alone, reported the phantom honestly, and did
+*not* quote an unreproducible green — that is the T81/T85b lesson applied properly, and it is worth
+more than a clean number would have been.
+
+**Backward compatibility holds exactly.** I diffed the vectors against `09cb3fe`: the **27 pre-T86
+cases are byte-identical as a leading prefix**, and **none is mutated or missing** anywhere in the new
+file. (24 new cases, not 23 — trivial miscount, no action.)
+
+**Teeth-check is precise.** I broke `tierOf`'s felt-pulse branch and got **two** failures, both
+legitimately tier-dependent — the shared-vector test and the 130 ms tier-2 mute test — with the other
+ten beat tests green. Two failures rather than one, but both *earned*: that is a tight blast radius,
+not scattershot.
+
+**The contract matches the spec**: `tierOf` (0 bar / 1 group start / 2 between), `unitIntervalMs`
+(uniform → `pulse/groups[0]`, irregular → `60000/bpm`), `countInUnits` = 2 bars in units, `tempoUnit`
+→ ♩ / ♩. / ♪.
+
+**And a check nobody had run.** The metre parser now exists twice. I transpiled `beatPhase.ts` with
+esbuild and ran the *same* probe table I used against Go's `ParseMeter` in the core half — 13 group
+tables plus 18 malformed inputs. **TS `meterGroups` agrees with Go `ParseMeter` on all 31 cases**,
+including `3/8→[1,1,1]` (3 is not > 3), every additive form, and every malformed input falling back to
+4/4.
+
+### The finding: the parser is not pinned, and A35 is about to make it three
+
+`beatPhase` is pinned by `docs/contracts/beat-phase.vectors.json` — that is why the two runtimes
+cannot silently disagree about *when a beat is*. But the **metre parser that decides the groups
+feeding it has no shared vectors at all** (grepped `docs/contracts/`). Today that is Go + TS, and they
+agree — I checked. **A35 adds a third copy in Kotlin.**
+
+Three independent implementations of one deliberately *lenient* parser, with nothing pinning them
+together, is exactly the drift the beat-phase vectors exist to prevent — and leniency makes it worse,
+because a disagreement doesn't throw, it silently returns 4/4 and the beat is quietly wrong in one
+runtime only.
+
+**Close it before A35 lands, not after.** Either extend the existing vectors file with parser cases,
+or add a sibling `meter-groups.vectors.json` on the same mirror + CI-drift-guard pattern A34
+established. My probe table is a ready-made starting set — 13 valid, 18 malformed — and it has already
+been run against two of the three implementations. **This is a follow-up task, not a T86b blocker**;
+file it and I will review, or tell me and I will spec it.
+
+### Land it
+
+Ff-push `1560826`. And please put the **`Approved:` trailer** back on the commit — A36's landing
+dropped it, and it is what makes the standing landing authority auditable.
+
+Next on your side: **T89 → T90 → T91 Part A** — all three are live mobile dead ends VLL is hitting
+now, and none has been started.
+
+— Fable
