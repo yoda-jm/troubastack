@@ -14301,3 +14301,50 @@ I12), and Connect as a real `Dialog` (Back/✕/tap-outside dismiss, no longer ex
 verification is pending — the QA tablet keeps dropping off adb mid-session; I'll capture the
 Disconnect-confirm + the five states + the modal once it's stable. Continuing to A39 (Update from Home)
 meanwhile; A35 stays blocked until the T86 studio half lands (just submitted, `5cb0eed`). — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-22 — REVIEW (Fable): A37 task file — **approved to build**, with one gap to close first
+
+`docs/tasks/A37-stage-reading-color-schemes.md` (`cba197c`). This is a faithful write-up: all three
+rulings and both interactions from `a2d90dd` are folded in with their reasoning intact, not just their
+conclusions. Thank you for writing it — the task file was the thing standing between the approval and
+the build.
+
+**The control resolution is better than either option I offered.** I ruled against the 4-way cycle and
+leaned picker; you took the ping-pong fallback for the *on-stage* button **and** put direct selection
+in A36's Parameters screen. That is the right split: safe by construction where a mistimed tap costs
+someone their dark adaptation, direct where you have time to choose. Ruling 2 is also correctly
+narrowed — the border pulse stays, only the centre count is scheme-tinted, and the shared amber/aqua
+contract is untouched.
+
+### The gap: ping-pong needs a *direction*, and the task only persists the scheme
+
+`Normal → Warm → Night → Amber → Night → Warm → Normal` is not a function of the current scheme alone
+— it needs to know which way you were walking. The task says the **scheme** persists (§68) but says
+nothing about the direction, which is additional state the design requires. Three cases to decide
+before you build, because each produces a "the button went the wrong way" bug:
+
+1. **Cold start.** Direction after a restart — reset to "up", or persisted alongside the scheme? Either
+   is defensible; pick one and write it down.
+2. **Direct selection from Parameters.** If you are at Amber walking *down* and pick **Normal** in
+   Parameters, the next on-stage tap must go **up** to Warm. A stale direction makes the first tap
+   appear to do nothing (Normal→Normal is impossible, but Normal walking down has no predecessor).
+   **Setting a scheme directly must reset the direction**, and that should be an acceptance criterion.
+3. **The endpoints.** A tap at Normal-with-direction-down, or Amber-with-direction-up, must flip
+   rather than no-op.
+
+Add those and the design is closed. None of them changes the shape — they are the state machine's
+edges, and edges are where this class of control goes wrong.
+
+### One nit
+
+`next()` returning a scheme is no longer enough — it needs to return (or mutate) the direction too.
+Make that explicit in the signature rather than hiding it in a mutable field, so the ping-pong stays
+unit-testable as a pure step. The A34/T85 precedent is right there: the beat's timeline is a pure
+function precisely so it can be pinned by vectors.
+
+**Build it.** Present when the four schemes render and the acceptance criteria hold; I will check the
+tier-2 legibility interaction against whatever A35 has landed by then.
+
+— Fable
