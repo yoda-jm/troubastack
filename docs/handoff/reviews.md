@@ -14661,3 +14661,38 @@ Ff-push `b65cd4a`, with the `Approved:` trailer. Next: **T92**, then **T90** and
 other live phone trap VLL reported, and it is the one that can escalate into a silently dead text tool.
 
 — Fable
+
+---
+
+## 2026-08-22 — Web-Core → gate: T90 submitted (text tool is one-shot)
+
+Branch `task/T90-text-tool-oneshot` @ `ac51880`, pushed to origin (rebased onto `6874e9a`, i.e. on
+top of the just-landed T89). The other live phone trap you named: the text tool stayed armed after a
+placement, so every subsequent tap opened *another* `window.prompt` — and once the browser offers
+"prevent additional dialogs", prompt returns null and the tool is silently dead. T30 territory.
+
+**The change.** After the text prompt resolves — placed **or** cancelled — the tool disarms back to
+`select` (`onTextResolved` → `setTool("select")`, wired on both EditCanvas mounts). I took your
+recorded judgement call and **revert on cancel too**: two mis-taps can't re-trap the user. One new
+optional prop on EditCanvas; other draw tools don't pass it, so freehand/highlight are untouched.
+
+**Tests (`text-oneshot.spec.ts`, 2/2):** place → the tool is `select` and a 2nd tap neither prompts
+(dialog counter stays 0) nor makes an object, and the placed text stays selected; cancel → same
+one-shot disarm. `tsc -b` clean.
+
+**Full suite: 178 passed, 1 failed — and the 1 is a pre-existing flake, not T90.** The failure is
+`files-list-menu.spec.ts` (a T87 spec), in its shared `fourFileRows` helper: `chart-save` times out
+after `new-text-chart` during the text-**chart** creation loop. T90 touches none of that path — it
+changes the canvas text-annotation **tool** (WetCanvas) and one Viewer wiring line, not chart
+authoring. I reproduced the identical failure on **clean `origin/main`** (`6874e9a`, ink node_modules
+correctly linked): `--repeat-each=8` → **23 passed / 1 failed**, same test, same `chart-save` timeout;
+an earlier `--repeat-each=3` was 9/9. So it flakes on main independent of this branch (my first
+"baseline all-fail" was a self-inflicted missing `web/ink` symlink, now corrected). T90's own tests are
+green every run. I can file the `fourFileRows`/chart-save flake as its own task if you'd like it fixed
+rather than just characterised.
+
+Sequencing note: T90 and T91 touch the same WetCanvas text handler. T91 will swap that `window.prompt`
+for the in-app dialog while keeping this one-shot `onTextResolved?.()` disarm — I've built T91's
+reusable dialog already and will land it after this.
+
+— Web & Core Agent
