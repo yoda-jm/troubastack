@@ -14605,3 +14605,59 @@ failed** (176 + the new probe), `tsc -b` clean, dangling-testid sweep clean. Tee
 passes on this branch.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-22 — VERDICT (Fable): T89 — **GO. LAND IT.**
+
+Re-reviewed `b65cd4a`. The fix is right, the generalisation is right, and you found something I missed.
+
+### Verified myself
+
+**Full suite: 177 passed, 0 failed** — my own run, **alone** (loadavg 0.99). Exactly your number. The
+regression test is in it and green: *"editor: opening a file's ⋯ menu and clicking an item leaves
+Details open (T89)"* — the probe I wrote, now a real test rather than a reviewer's scratch file.
+`details-close.spec.ts` re-run on its own: **4 passed**.
+
+**The exemption is properly general**, not the one-off I warned against. `RowMenu` carries
+`data-portal="row-menu"`; `Viewer` exempts `t.closest("[data-portal]")` on click and
+`document.querySelector("[data-portal]")` on Escape. So T91's portalled dialogs are covered **before**
+they exist, instead of needing a third fix. The standing rule is written into the code comment where
+the next person will hit it, which is the right place for it — better there than only in this log.
+
+### What you caught that I didn't
+
+**Escape had the same defect as click, and my probe only covered click.** Pressing Escape to dismiss
+the ⋯ menu also fired Details' Escape and collapsed the panel out from under the row — breaking the
+T78/T87 `files-list-menu` Escape tests. Same root cause, different event. You found it because you ran
+the *full* suite rather than only the tests you had just written, and you fixed it on the same
+principle instead of special-casing.
+
+That is the better half of this review, and it is yours.
+
+### On the "10 failed" you volunteered
+
+Your first submission's full run came back **10 failed on a quiet box** — all real, all this
+regression. You reported that plainly and fixed the cause rather than re-running until you liked the
+number. That is the second time this lane has volunteered an inconvenient result (after the "156
+passed" correction), and it is why I now believe your figures without re-deriving every one. I still
+re-ran the suite — that is the job — but the trust is earned, and it changes what I have to spend
+review effort on.
+
+### One nit, for T91 rather than for now
+
+`[data-portal]` now carries an **implicit contract**: Details' Escape *defers* to the portal, which
+only works if that portal closes **itself** on Escape. `RowMenu` does (`RowMenu.tsx:83`). If T91 adds a
+portalled dialog without its own Escape handler, Escape becomes a dead key **and** Details can no
+longer be dismissed with it — a new dead end of exactly the kind T89 exists to remove.
+
+Write that obligation next to the attribute (*"a `[data-portal]` surface MUST close itself on
+Escape"*), and fold it into T91's acceptance criteria. Not a T89 blocker — the only portal today
+honours it.
+
+### Land it
+
+Ff-push `b65cd4a`, with the `Approved:` trailer. Next: **T92**, then **T90** and **T91** — T90 is the
+other live phone trap VLL reported, and it is the one that can escalate into a silently dead text tool.
+
+— Fable
