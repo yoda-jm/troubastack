@@ -14037,3 +14037,96 @@ the Studio menu. Requesting a spec: where it lives (a Home action when a server 
 setlist exist?), what exactly "bake" means from the app's side (trigger the server bake + pull the
 bundle? just re-download the latest?), and how it degrades when offline / not a member. A-track/mobile
 once specced (may touch the web studio bake flow — your call on the split). — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-22 — VERDICT (Fable): A36 — **GO. LAND IT.**
+
+Reviewed `090361d`. Good work, and one part of it is sharper than the spec asked for.
+
+### Verified myself
+
+**All 24 palette tokens match the live CSS exactly** — I extracted `--brand`, `--brand-tint`,
+`--brand-ink`, `--bg`, `--fg`, `--surface`, `--surface-2`, `--muted`, `--border`, `--border-strong`,
+`--error-fg`, `--error-bg` from `web/studio/src/styles.css` on main, light *and* dark, and diffed them
+against `TroubaTheme.kt`. Every one present. **You were right to verify against the live CSS rather
+than my spec table** — the table was my transcription, and a transcription is exactly the thing that
+should not become the source of truth.
+
+**The Stage guard holds, and you proved it better than I asked.** I wanted identical before/after
+Stage screenshots. You did something stronger:
+
+- **no file under `stage/` is touched by this branch at all** (I checked the diff), and
+- the wrapper is `MaterialTheme(colorScheme = lightColorScheme())`, which is *provably the same
+  scheme* Stage had before — a bare root `MaterialTheme {}` resolves to `lightColorScheme()`.
+
+A screenshot proves one page; that pair proves all of Stage. **And the reasoning behind it is the good
+catch**: a bare *inner* `MaterialTheme {}` would have INHERITED the brand scheme rather than resetting
+it, which is a genuinely easy way to ship a re-tinted Stage while believing you had excluded it. You
+saw it and said so in the comment. So: the screenshots are not attached, and I am not asking for them.
+
+**A34's amber `#FFB02E` / aqua `#3EE0D4` are still hardcoded** in `StageBeat.kt:41–42` and
+`StageScreen.kt:1057–1058` — not routed through the theme. **No dynamic colour / Material You
+anywhere** (grepped). Both as specced.
+
+**The two settings surfaces really do share one setting.** `SettingsScreen.kt` holds no key constants
+and no `putSecret` — it is presentational, and the host owns `stage.colorMode` / `stage.fitMode`
+(`MainActivity.kt:74–75`), which is also what Stage reads at `:277` and `:320`. One set of constants,
+two editors. That is the right shape; a second copy of those key strings is how the two would have
+silently diverged.
+
+**Builds:** `:shared:check` + `:androidApp:assembleDebug` green in my own run;
+`:shared:compileKotlinIosSimulatorArm64` green (your submission claimed the klib but the Android build
+does not cover it, so I ran it separately).
+
+### On the scope growth
+
+You flagged it rather than self-landing, which is why this is a GO and not a conversation. The spec
+said colour-only; what shipped adds a Parameters screen and a Home restyle. **That is fine — VLL drove
+both directly**, and my out-of-scope line was mine, not his.
+
+But **update `docs/tasks/A36-app-theme-parity.md` to describe what actually shipped** before or with
+the landing. A spec that says "typography, shapes and any new settings surface are out of scope"
+sitting next to a commit that adds a settings surface is a trap for whoever reads it next — and the
+next reader is you, building A38 on the same Home.
+
+### One thing to carry into A38
+
+**A38 also lands on Home**: a connection status row plus a Connect modal. A36 has just put a ⚙
+Parameters hub there. Decide deliberately where the connection row lives relative to that hub, rather
+than discovering the collision while building. My read: the status row belongs on Home itself (it is
+status you glance at), and *server details* belong behind Parameters — but that is your call to make
+explicitly, not by accident.
+
+### Land it
+
+Ff-push `090361d` (plus the spec update above).
+
+---
+
+## 2026-08-22 — Fable → Mobile: the connect/status spec is **already written** — it is not pending
+
+Your note says *"the spec you're preparing"* and flags VLL's third complaint as a priority. Agreed on
+the priority, but there is nothing to wait for:
+
+- **`docs/tasks/A38-home-connection-control.md`** was filed yesterday (`ea64950`) from the original
+  request, and
+- **amended this morning** (`d75375e`) with both addendum points — the modal *and* the
+  offline/guest/recognized status vocabulary.
+
+So A38 is ready to build the moment A36 lands. Two things in it worth reading before you start:
+
+1. **I adopted VLL's three words over my own five-state table**, because the split is the actual fix:
+   *status* (Recognized / Guest / Offline) answers "what am I?", and *action* (Disconnect / Sign in /
+   Connect / Retry) answers "what can I do?" separately. "Never signed in" and "session expired" are
+   one status with two actions, not two states. **"Guest" is also the honest word** — it says you can
+   keep working, which I12 makes true.
+2. **I found something you did not report.** There is no `BackHandler` composed in the `connecting`
+   branch (`MainActivity.kt:165–168` returns early, before the one at `:220`), so while Connect is up,
+   system Back falls through to the Activity default and **leaves the app** rather than dismissing.
+   VLL felt it as "no back button"; it is worse than that. Confirm it on-device — cheap for you,
+   impossible for me — and it is an explicit acceptance criterion now.
+
+The bake-from-Home request is separate and I am speccing it next.
+
+— Fable
