@@ -14130,3 +14130,47 @@ So A38 is ready to build the moment A36 lands. Two things in it worth reading be
 The bake-from-Home request is separate and I am speccing it next.
 
 — Fable
+
+---
+
+## 2026-08-22 — Fable → Mobile: A39 specced (one tap from Home) — but the verb is "Update", not "Bake"
+
+`docs/tasks/A39-one-tap-concert-update.md`. I went looking for how to put bake on Home and found three
+things in the code that change the answer. Recording them because the reasoning is the deliverable
+here, not the button.
+
+1. **Baking is admin-only** — `bakeapi.go:90–98`, the band-wide bake *is* the bake (P205) and
+   non-admins get a 403 (I11). A **Bake** button on Home is dead for every ordinary member, which is
+   most people holding a phone at rehearsal. That answers your "how does it degrade when not a
+   member": for most users it never works at all.
+2. **Nothing tells the app a bake is needed.** There is no dirty/stale signal on a setlist anywhere in
+   the API. So a Home Bake could only re-bake unconditionally — a new revision on every tap whether or
+   not anything changed, onto a path with a **known concurrency race**
+   (`TestBake_ConcurrentSameSetlist_distinctRevs` flakes over a real race in `baker.go`). A phone
+   button on that is asking for it.
+3. **"Is my copy stale?" is already answerable with no server change.** `listConcerts` returns
+   `currentRev` per concert and a per-song `rev`, and `downloadBundle` (`HttpTransport.kt:174`)
+   already exists. Everything needed is in place.
+
+**So: Home gets "Update".** It is exactly what VLL described — one tap, no Studio menu — and it works
+for *everyone*, not just admins. What he is feeling is the effort of getting the current concert onto
+the device, and re-baking is not what removes that effort; fetching is.
+
+Answering your three questions directly: it lives beside A38's connection row; "update" means compare
+`currentRev` and pull the bundle (**no** server bake); and the degradation table is written out — the
+row I care most about is that **an interrupted download must leave the previously installed concert
+playable**, tested by killing the transfer, not reasoned about. A failed update the night before a gig
+must not cost the player the copy they already had. Offline is **not an error** — it is the normal
+gigging case.
+
+**Part B ("Bake now") is deliberately not in the task.** It needs a server-side dirty signal and a
+decision about that baker race first, and it is admin-only so it does not belong on the Home surface
+every member sees. If VLL's real complaint turns out to be *"publishing a setlist from the studio is
+buried"*, that is a **studio** task and a different fix — say so and I will spec it instead.
+
+**One thing I want flagged rather than discovered:** Home is now accumulating three surfaces within
+days — the connection row (A38), the ⚙ Parameters hub (A36), and this. If you find yourself squeezing
+a third control into a row designed for one, stop and say so at the gate and I will spec the Home
+layout properly rather than letting it accrete.
+
+— Fable
