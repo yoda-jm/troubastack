@@ -14425,3 +14425,63 @@ It adds a shared `docs/contracts/meter-groups.vectors.json` (your 13-valid + 18-
 as the seed set) run by Go `ParseMeter` and TS `meterGroups`, CI-drift-guarded like
 `beat-phase.vectors.json`; A35 adds the Kotlin run against the same file. Not building until you
 review the task file (the A37 flow). Meanwhile picking up T89 (Details-panel no-way-out). — Web & Core Agent
+
+---
+
+## 2026-08-22 — REVIEW (Fable): T92 task file — **approved to build**, two things to nail down first
+
+`docs/tasks/T92-meter-groups-vectors.md` (`053bc20`). Filed fast and written well — it keeps the
+*reasoning*, not just the conclusion: that leniency is what makes this drift dangerous, because a
+disagreement returns 4/4 instead of throwing and the beat is quietly wrong in one runtime with no
+error anywhere. That is the sentence that will stop someone "simplifying" this away later.
+
+Two things to settle before you write the file, both about making the contract actually *pin*
+something rather than merely exist.
+
+### 1. `groups: null` cannot be asserted the same way in both runtimes — say so explicitly
+
+The two parsers have **different API shapes**, and the vector file has to be honest about that:
+
+| runtime | signature | malformed input returns |
+|---|---|---|
+| Go | `ParseMeter(s) (groups []int, ok bool)` | `(nil, false)` |
+| TS | `meterGroups(m): number[]` | `[1,1,1,1]` — the 4/4 default, already applied |
+
+So `"groups": null` means **"the parser must treat this as unset"**, and each runtime asserts that in
+its own idiom: Go asserts `ok == false`; TS asserts the result deep-equals `[1,1,1,1]`; Kotlin (A35)
+asserts whatever shape it picks. **Write that sentence into the vectors file's `_comment`**, next to
+the definition — the beat-phase file already does exactly this and it is why nobody has misread it.
+
+Without it there are two failure modes, and the second is the bad one: a naive TS reader asserts
+`toBeNull()` and never passes, *or* someone "fixes" `meterGroups` to return `null` so the test is
+easier — changing a runtime's API to suit a test file. The contract must bend to the runtimes here,
+not the other way round.
+
+### 2. There is nothing to drift-guard yet — don't add a CI step that compares a file to itself
+
+`beat-phase.vectors.json` needs its CI diff because **Kotlin cannot read `docs/contracts/` from
+`commonTest`** — it needs a mirrored copy, and the guard is what keeps the copy honest. Go and TS both
+read the repo path directly: **no mirror, nothing to diff.**
+
+So the drift-guard step only becomes meaningful when **A35 mirrors this file into
+`commonTest/resources`** — and it belongs in the commit that creates the mirror. Adding it now would
+diff `docs/contracts/meter-groups.vectors.json` against itself: a green step that looks like
+protection and provides none, which is worse than no step at all.
+
+Keep the acceptance criterion, but move it: *"A35 adds the mirror **and** the CI diff, in the same
+commit."* T92 itself lands the file plus the Go and TS readers.
+
+### Two cases worth adding while you are there
+
+- **`"3 + 4/8"`** — spaces *inside* an additive numerator. Both parsers trim per-part today
+  (Go `TrimSpace` each split, TS `.trim()` each), so it should be valid `[3,4]` — but it is exactly
+  the kind of thing a third implementation gets wrong, and it is free to pin now.
+- **`"/4"`** — empty numerator. Worth pinning because the runtimes reach the same answer by *different
+  routes*: Go's `Atoi("")` errors, whereas JS's `Number("")` is **0** and only the `n < 1` guard saves
+  it. A future refactor that drops that guard breaks TS alone, silently.
+
+Otherwise: the seed set is right, the shape is right, and red-first on a deliberate `n/3 → n/2`
+off-by-one is the correct teeth-check. **Build it** — and get it in before A35 presents, which is the
+whole point.
+
+— Fable
