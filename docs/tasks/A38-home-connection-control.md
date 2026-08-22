@@ -49,9 +49,39 @@ stage is exactly where someone glances at this in bad light.
 discovery either yields an address or it doesn't, and an unreachable address is `Unreachable`. Don't
 invent it.
 
-## The state model
+## The state model — status and action are two different things
 
-Split `Identity.Disconnected` into two, and give each state the action it deserves:
+**Revised 2026-08-22** after VLL's addendum (*"there is still an offline/disconnect icon that is not
+clear — guest / recognized / whatever this feeling"*). His three words are a better model than the one
+I first wrote, and the reason is worth stating: **what am I?** and **what can I do?** are separate
+questions, and collapsing them is what makes the row illegible.
+
+**Status — three values, and this is what the icon and colour say:**
+
+| status | meaning to a player | arises from |
+|---|---|---|
+| **Recognized** | the server knows me — *"Performing as Léo · The Troubadours"* | `Presence.Online` |
+| **Guest** | I can use what's on this device, but nobody knows who I am | `Presence.Unauthorized`, **or** no session at all |
+| **Offline** | there's no server to talk to right now | `Presence.Unreachable` |
+
+*(plus **Checking** while the probe is in flight — a spinner, not a fourth identity.)*
+
+Note that **Guest covers both** "never signed in" and "session expired". As a *status* they are the
+same thing — you are unrecognized — which is why one word serves. They differ only in the **action**,
+and that is the second, independent question:
+
+| status | primary action | when |
+|---|---|---|
+| Recognized | **Disconnect** | always |
+| Guest | **Sign in** | a server address is known → password only |
+| Guest | **Connect** | no address known → the full set-up |
+| Offline | **Retry** | always |
+| Checking | *(disabled, not hidden)* | — |
+
+"Guest" is also the honest word: it says you can keep working, which is true (I12) and which
+"Signed out" and "Disconnected" both fail to convey. Use it in the UI.
+
+Split `Identity.Disconnected` accordingly, and give each state the action it deserves:
 
 | state | how it arises | icon | colour | primary action | also |
 |---|---|---|---|---|---|
@@ -68,6 +98,29 @@ reason Offline is not an error state, and it should stay visible.
 Stop doing that: a signed-out user should still see whose band they were in, because that is what
 makes "Sign in" feel like resuming rather than starting over. The `Unreachable` branch already gets
 this right (`me?.band ?: ""`) — match it.
+
+## The Connect flow becomes a modal (VLL, 2026-08-22 addendum)
+
+*"not a modal, and no back button so definitely not a page feel."* Verified — and the real behaviour
+is worse than that reads:
+
+- `ConnectScreen.kt:59` is `Surface(Modifier.fillMaxSize(), color = background)` — a full-screen page.
+- Its only affordance is `TextButton(onClick = onBack) { Text("Cancel") }` at `:96`, bottom row. No
+  top bar, no back arrow.
+- `MainActivity.kt:165–168` swaps it in with `if (connecting) { ConnectScreen(…); return }` — it
+  **replaces** Home rather than overlaying it.
+- **And there is no `BackHandler` in that branch.** The app uses `BackHandler` elsewhere
+  (`MainActivity.kt:220`, `:286`, `EditScreen.kt:78`), but the early `return` at `:167` means none is
+  composed while Connect is showing. So system Back falls through to the Activity default and **leaves
+  the app** instead of dismissing Connect. Please confirm that on-device — it is cheap for you and I
+  cannot run it — but the composition structure says it plainly.
+
+**Make it a real dialog** overlaying Home: a titled surface with an explicit dismiss (**✕** or
+tap-outside), **Cancel** kept, and a **`BackHandler` that dismisses rather than exits**. Home stays
+visible behind it, which is most of what makes it read as a modal rather than a page.
+
+Keep the discovery/server-picking content as-is — this is a container change, not a redesign of what
+is inside it.
 
 ## Disconnect: what it must and must not do
 
@@ -101,6 +154,12 @@ extra tap.
   disconnect, and that Perform still opens one. This is the I12 guard and it must be a test, not a
   claim.
 - Every state distinguishable **without colour** (icon shape differs) — state it and show it.
+- **The three status words appear in the UI**: Recognized (as *"Performing as <name>"*), Guest,
+  Offline. Assert the label for each, and that Guest is reached from *both* an expired session and a
+  never-signed-in device while offering the right action in each case (Sign in vs Connect).
+- **Connect is a dialog**: Home is still visible behind it; ✕/tap-outside and Cancel both dismiss;
+  **system Back dismisses it and does NOT leave the app** — assert that one explicitly, it is the
+  defect being fixed.
 - `Unauthorized` no longer nulls the known band.
 - A36's palette unchanged by this task; the semantic colours are added as their own tokens.
 - `:shared:check` green, `:androidApp:assembleDebug` green, iOS klibs compile. No new dependencies.
