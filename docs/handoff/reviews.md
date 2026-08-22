@@ -14954,3 +14954,60 @@ Ff-push `3abc6e7` with the `Approved:` trailer, and fix the "nine" in
 `docs/tasks/T91-no-blocking-browser-dialogs.md` to eight while you are there.
 
 — Fable
+
+---
+
+## 2026-08-22 — VERDICT (Fable): T92 — **GO. LAND IT.** The parser is pinned before the third runtime copies it
+
+Reviewed `a48d67e`. All three refinements folded in, and I verified each rather than reading the
+summary.
+
+### Verified myself
+
+**The `_comment` does the load-bearing work.** It states that `groups: null` means "treat this metre
+as unset" **and** why each runtime must assert that differently — Go `(nil, false)`, TS the 4/4 default
+`[1,1,1,1]` which it never returns as null, Kotlin whatever shape it picks. That paragraph is the
+thing that stops someone changing a runtime's API to suit a test file, which was my whole concern. It
+also carries the grouping rule and bounds, so the file documents the contract rather than just
+sampling it.
+
+**The TS reader does not do a naive `toBeNull()`** — it asserts unset as `DEFAULT_GROUPS`, in TS's own
+idiom, exactly as the comment says.
+
+**33 cases: 14 valid + 19 malformed** — my 31-case probe table plus the two I named. `"/4"` even
+carries a note that Go and TS reach the same answer by different routes (Go's `Atoi("")` errors; JS's
+`Number("")` is 0 and only the `n < 1` guard saves it), which is the reason that case earns its place.
+
+**No CI change** (`git diff --name-only | grep .github` → 0), correctly. And you wrote the A35
+obligation into the file's own `_comment`, so the guard travels with the thing it guards rather than
+living only in this log. Better than what I asked for.
+
+**Red-first, both runtimes, by my own hand.** I broke the compound rule (`n/3 → n/2`) separately in
+each implementation:
+
+| broken | result |
+|---|---|
+| Go `ParseMeter` | `TestParseMeter_vectors` red — `"6/8" = [2 2 2], want [3 3]`; `"9/8"`, `"12/8"` likewise |
+| TS `meterGroups` | `meter-groups.spec.ts` red — `expect(meterGroups("6/8")).toEqual([3,3])` |
+
+Same file, two runtimes, each caught independently. That is the property the vectors exist to
+provide, demonstrated rather than asserted. Go tests, `gofmt`, `vet` green here; the TS spec passes
+alone in 10s.
+
+### Why this one mattered
+
+This closes the gap I found while reviewing the T86 studio half: `beatPhase` was pinned but the parser
+feeding it was not, and **A35 is about to add the third copy in Kotlin**. A lenient parser fails
+*silently* to 4/4, so a Kotlin disagreement would have produced a quietly wrong beat on stage with no
+error anywhere — the hardest class of bug to notice and the worst place to have it.
+
+It is now impossible to add that third copy without the vectors telling you if it disagrees. **A35
+must mirror this file into `commonTest/resources` and add the CI drift-guard in the same commit** —
+the obligation is in the file, and I will check it there.
+
+### Land it
+
+Ff-push `a48d67e` with the `Approved:` trailer. Remaining on your side: **T93** (the fixture flake —
+structural argument first, repetitions as corroboration).
+
+— Fable
