@@ -136,8 +136,8 @@ test("editor: a non-admin member also gets a working ✕ close (T89)", async ({ 
 
 test("editor: opening a file's ⋯ menu and clicking an item leaves Details open (T89)", async ({ page }) => {
   // The ⋯ menu (RowMenu) portals to <body> but lives inside the Details panel; T89's outside-click
-  // must treat it as inside. This is the regression Fable's two-branch probe caught.
-  page.on("dialog", (d) => void d.accept(d.type() === "prompt" ? "Renamed" : undefined));
+  // must treat it as inside. This is the regression Fable's two-branch probe caught. T91's in-app
+  // rename dialog is also portalled + [data-portal], so it too must not close Details.
   await register(page, `t89p_${stamp()}`);
   await createBand(page, `T89PBand ${stamp()}`);
   await createSong(page, `T89PSong ${stamp()}`);
@@ -149,5 +149,6 @@ test("editor: opening a file's ⋯ menu and clicking an item leaves Details open
   await expect(page.getByTestId("file-row")).toHaveCount(1);
   await page.getByTestId("file-menu").click();
   await page.getByTestId("file-menu-rename").click();
-  await expect(panel).toBeVisible(); // portalled ⋯ item did NOT close Details
+  await expect(page.getByTestId("app-dialog")).toBeVisible(); // in-app rename prompt opened
+  await expect(panel).toBeVisible(); // portalled ⋯ item + [data-portal] dialog did NOT close Details
 });

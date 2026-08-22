@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiError, api, type Song, type SongFile } from "../../api";
+import { useDialogs } from "../../components/Dialog";
 import { ErrorBanner } from "../../components/ErrorBanner";
 import { RowMenu, RowMenuItem } from "../../components/RowMenu";
 import { useFlipRows, useSortable } from "../../components/SortableList";
@@ -217,6 +218,7 @@ export function Files({
   // the Viewer so it refetches "my files" and the open render updates in-session, no F5.
   onFilesChanged?: () => void;
 }) {
+  const { confirm, prompt } = useDialogs(); // T91 — in-app dialogs, not blockable window.* ones
   const [files, setFiles] = useState<SongFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -286,7 +288,12 @@ export function Files({
   }
 
   async function rename(file: SongFile) {
-    const next = window.prompt("New filename", file.filename);
+    const next = await prompt({
+      title: "Rename file",
+      label: "New filename",
+      initial: file.filename,
+      confirmLabel: "Rename",
+    });
     if (!next || next === file.filename) return;
     setError(null);
     try {
@@ -298,7 +305,8 @@ export function Files({
   }
 
   async function remove(file: SongFile) {
-    if (!window.confirm(`Delete "${file.filename}"?`)) return;
+    if (!(await confirm({ title: `Delete “${file.filename}”?`, danger: true, confirmLabel: "Delete" })))
+      return;
     setError(null);
     try {
       await api.deleteFile(bandId, songId, file.id);
@@ -1026,11 +1034,20 @@ export function DeleteSong({
   songId: string;
   onDeleted: () => void;
 }) {
+  const { confirm } = useDialogs(); // T91
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onDelete() {
-    if (!window.confirm("Delete this song? This cannot be undone.")) return;
+    if (
+      !(await confirm({
+        title: "Delete this song?",
+        body: "This cannot be undone.",
+        danger: true,
+        confirmLabel: "Delete song",
+      }))
+    )
+      return;
     setError(null);
     setBusy(true);
     try {

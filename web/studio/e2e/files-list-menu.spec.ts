@@ -36,8 +36,6 @@ async function createSongAndOpen(page: Page, title: string) {
 test("Files: … menu — view-source only on charts, menu reorder persists, rename (T78)", async ({
   page,
 }) => {
-  // rename uses window.prompt, delete uses window.confirm — one handler covers both.
-  page.on("dialog", (d) => void d.accept(d.type() === "prompt" ? "Renamed Part" : undefined));
   await register(page, `t78_${stamp()}`);
   await createBandAndOpen(page, `T78Band ${stamp()}`);
   await createSongAndOpen(page, `T78Song ${stamp()}`);
@@ -82,6 +80,8 @@ test("Files: … menu — view-source only on charts, menu reorder persists, ren
   // Rename the (now first) chart via the menu → the download link shows the new name.
   await panel.getByTestId("file-row").first().getByTestId("file-menu").click();
   await page.getByTestId("file-menu-rename").click();
+  await page.getByTestId("app-dialog-input").fill("Renamed Part"); // T91 in-app prompt
+  await page.getByTestId("app-dialog-confirm").click();
   await expect(panel.getByTestId("file-download").first()).toHaveText(/Renamed Part/);
 });
 
@@ -108,7 +108,6 @@ async function fourFileRows(page: Page) {
 test("Files: the last row's … menu is in-viewport and actionable, not clipped (T87)", async ({
   page,
 }) => {
-  page.on("dialog", (d) => void d.accept(d.type() === "prompt" ? "Renamed Last" : undefined));
   await register(page, `t87_${stamp()}`);
   await createBandAndOpen(page, `T87Band ${stamp()}`);
   await createSongAndOpen(page, `T87Song ${stamp()}`);
@@ -131,6 +130,8 @@ test("Files: the last row's … menu is in-viewport and actionable, not clipped 
   // The real regression + trap 1: clicking an item actually performs its action (a clipped
   // panel's item is unpainted, so the click would not land and the rename would no-op).
   await page.getByTestId("file-menu-rename").click();
+  await page.getByTestId("app-dialog-input").fill("Renamed Last"); // T91 in-app prompt
+  await page.getByTestId("app-dialog-confirm").click();
   await expect(lastRow).toContainText("Renamed Last");
 });
 

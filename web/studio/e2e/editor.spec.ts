@@ -156,10 +156,11 @@ test("editor: draw rect + freehand + text, persists to annotations", async ({ pa
   await dragOnPage(page, 0.15, 0.7, 0.5, 0.8, 12);
   await expect.poll(() => objectCount(page)).toBe(before + 2);
 
-  // Text via the prompt.
-  page.once("dialog", (d) => d.accept("Cue!"));
+  // Text via the in-app prompt (T91).
   await page.getByTestId("tool-text").click();
   await clickOnPage(page, 0.3, 0.4);
+  await page.getByTestId("app-dialog-input").fill("Cue!");
+  await page.getByTestId("app-dialog-confirm").click();
   await expect.poll(() => objectCount(page)).toBe(before + 3);
 
   await page.screenshot({ path: "/tmp/editor.png", fullPage: true });

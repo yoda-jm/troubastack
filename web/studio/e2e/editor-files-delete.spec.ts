@@ -40,7 +40,6 @@ async function createSongAndOpen(page: Page, title: string) {
 test("Details panel: add file, new text chart, delete file, delete song all reachable (T36)", async ({
   page,
 }) => {
-  page.on("dialog", (d) => void d.accept()); // both deletes confirm via window.confirm
   await register(page, `fd_${stamp()}`);
   await createBandAndOpen(page, `FDBand ${stamp()}`);
   const bandUrl = page.url();
@@ -69,9 +68,10 @@ test("Details panel: add file, new text chart, delete file, delete song all reac
   await panel.getByTestId("chart-editor").getByRole("button", { name: "Cancel" }).click();
   await expect(panel.getByTestId("chart-editor")).toHaveCount(0);
 
-  // (3) FILE DELETE — remove the uploaded file via the row … menu (confirm auto-accepted).
+  // (3) FILE DELETE — remove the uploaded file via the row … menu (T91 in-app confirm).
   await panel.getByTestId("file-menu").first().click();
   await page.getByTestId("file-menu-delete").first().click();
+  await page.getByTestId("app-dialog-confirm").click();
   await expect(panel.getByTestId("file-row")).toHaveCount(0);
 
   // (4) DELETE SONG — under the Admin tab (T54). Reachability probe: after scrolling the
@@ -87,5 +87,6 @@ test("Details panel: add file, new text chart, delete file, delete song all reac
   });
   expect(hits, "delete-song must be hittable at the panel tail").toBe(true);
   await del.click();
+  await page.getByTestId("app-dialog-confirm").click(); // T91 in-app confirm
   await expect(page).toHaveURL(bandUrl); // song gone → back on the band page
 });

@@ -1,8 +1,10 @@
 /**
  * T90 — the text tool must be ONE-SHOT. It used to stay armed forever, so on a phone every tap
- * anywhere opened another blocking window.prompt (and, after the browser's "prevent more dialogs",
- * silently did nothing). After the prompt resolves — placed OR cancelled — the tool returns to
- * `select`, so the next tap selects/deselects instead of re-prompting.
+ * anywhere opened another prompt. After the prompt resolves — placed OR cancelled — the tool returns
+ * to `select`, so the next tap selects/deselects instead of re-prompting.
+ *
+ * T91 — the text prompt is now the in-app dialog (components/Dialog.tsx), not a native one, so these
+ * tests drive `app-dialog` directly and assert it does NOT reappear on the second tap.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
@@ -67,18 +69,18 @@ test("editor: text is one-shot — after placing, the tool is select and a secon
   page,
 }) => {
   await editorWithLayer(page, "place");
-  let prompts = 0;
-  page.on("dialog", (d) => {
-    prompts++;
-    void d.accept("Hello");
-  });
+  const dialog = page.getByTestId("app-dialog");
 
   const before = await objectCount(page);
   await page.getByTestId("tool-text").click();
   await expect(page.getByTestId("tool-text")).toHaveAttribute("aria-pressed", "true");
   await clickOnPage(page, 0.35, 0.4);
+  // the in-app text prompt opens; fill and confirm
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId("app-dialog-input").fill("Hello");
+  await dialog.getByTestId("app-dialog-confirm").click();
+  await expect(dialog).toHaveCount(0);
   await expect.poll(() => objectCount(page)).toBe(before + 1);
-  expect(prompts).toBe(1);
 
   // one-shot: reverted to select, and the placed text is still selected (commit path unchanged)
   await expect(page.getByTestId("tool-select")).toHaveAttribute("aria-pressed", "true");
@@ -88,7 +90,7 @@ test("editor: text is one-shot — after placing, the tool is select and a secon
   // the behavioural half that matters: a SECOND tap opens NO prompt and creates NO object
   await clickOnPage(page, 0.62, 0.62);
   await page.waitForTimeout(300);
-  expect(prompts).toBe(1);
+  await expect(dialog).toHaveCount(0); // no prompt reappeared
   expect(await objectCount(page)).toBe(before + 1);
 });
 
@@ -96,23 +98,21 @@ test("editor: cancelling the text prompt also reverts to select and creates noth
   page,
 }) => {
   await editorWithLayer(page, "cancel");
-  let prompts = 0;
-  page.on("dialog", (d) => {
-    prompts++;
-    void d.dismiss(); // cancel
-  });
+  const dialog = page.getByTestId("app-dialog");
 
   const before = await objectCount(page);
   await page.getByTestId("tool-text").click();
   await clickOnPage(page, 0.35, 0.4);
-  await page.waitForTimeout(300);
-  expect(prompts).toBe(1);
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId("app-dialog-cancel").click(); // cancel
+  await expect(dialog).toHaveCount(0);
+  await page.waitForTimeout(200);
   expect(await objectCount(page)).toBe(before); // nothing placed
   await expect(page.getByTestId("tool-select")).toHaveAttribute("aria-pressed", "true"); // reverted on cancel
 
   // second tap: still no prompt, still nothing
   await clickOnPage(page, 0.62, 0.62);
   await page.waitForTimeout(300);
-  expect(prompts).toBe(1);
+  await expect(dialog).toHaveCount(0);
   expect(await objectCount(page)).toBe(before);
 });

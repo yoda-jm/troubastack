@@ -13,6 +13,7 @@ import {
   type Role,
 } from "../api";
 import { useAuth } from "../auth";
+import { useDialogs } from "../components/Dialog";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { InviteLinks } from "../components/InviteLinks";
@@ -139,6 +140,7 @@ function Rename({
 
 function MembersAdmin({ bandId, myRole }: { bandId: string; myRole: Role | null }) {
   const { user } = useAuth();
+  const { confirm } = useDialogs(); // T91
   const navigate = useNavigate();
   const [members, setMembers] = useState<MemberView[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -170,7 +172,7 @@ function MembersAdmin({ bandId, myRole }: { bandId: string; myRole: Role | null 
   }
 
   async function remove(userId: string) {
-    if (!window.confirm("Remove this member?")) return;
+    if (!(await confirm({ title: "Remove this member?", danger: true, confirmLabel: "Remove" }))) return;
     setError(null);
     setBusyId(userId);
     try {
@@ -184,7 +186,7 @@ function MembersAdmin({ bandId, myRole }: { bandId: string; myRole: Role | null 
   }
 
   async function leave() {
-    if (!window.confirm("Leave this band?")) return;
+    if (!(await confirm({ title: "Leave this band?", danger: true, confirmLabel: "Leave" }))) return;
     setError(null);
     setBusyId("self");
     try {
@@ -380,12 +382,21 @@ function ExportBand({ bandId, bandName }: { bandId: string; bandName: string }) 
 }
 
 function DeleteBand({ bandId }: { bandId: string }) {
+  const { confirm } = useDialogs(); // T91
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onDelete() {
-    if (!window.confirm("Delete this band? This cannot be undone.")) return;
+    if (
+      !(await confirm({
+        title: "Delete this band?",
+        body: "This cannot be undone.",
+        danger: true,
+        confirmLabel: "Delete band",
+      }))
+    )
+      return;
     setError(null);
     setBusy(true);
     try {

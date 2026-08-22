@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
+import { useDialogs } from "../../components/Dialog";
 import { renderObjects, type InkObject } from "@troubastack/ink";
 import {
   CORNER_HANDLES,
@@ -121,6 +122,7 @@ export function EditCanvas({
   // T66 Part D: double-tap / double-click in Move mode → zoom to the point (Fit-width ↔ 2×).
   onDoubleTapZoom?: (clientX: number, clientY: number) => void;
 }) {
+  const { prompt } = useDialogs(); // T91 — in-app text prompt, not a blockable native browser prompt
   // ---- Multi-touch navigation (T27 stage 4) ------------------------------
   // Active pointers by id (client coords), so we can detect a second finger and
   // drive a two-finger pinch/pan. `navRef` holds the live two-finger gesture.
@@ -721,14 +723,19 @@ export function EditCanvas({
     }
 
     if (tool === "text") {
-      // Click → inline prompt → text object at the anchor.
-      const text = window.prompt("Text annotation");
-      if (text && text.trim()) onCommitDraw("text", page, [pt], text.trim());
-      // T90: text is a ONE-SHOT tool — disarm after the prompt resolves whether we placed or
-      // cancelled, so the next tap selects/deselects instead of opening yet another prompt (the
-      // dead end VLL hit on a phone: every tap was another modal). Revert on cancel too, so two
-      // mis-taps can't re-trap.
-      onTextResolved?.();
+      // Click → in-app prompt (T91: not a blockable native browser prompt) → text object at the anchor.
+      // The prompt is async now; its modal backdrop covers the canvas, so no stray tap lands while
+      // it is open. `page`/`pt` are captured at press time.
+      void prompt({ title: "Text annotation", placeholder: "Type your note…", confirmLabel: "Add" }).then(
+        (text) => {
+          if (text && text.trim()) onCommitDraw("text", page, [pt], text.trim());
+          // T90: text is a ONE-SHOT tool — disarm after the prompt resolves whether we placed or
+          // cancelled, so the next tap selects/deselects instead of opening yet another prompt (the
+          // dead end VLL hit on a phone: every tap was another modal). Revert on cancel too, so two
+          // mis-taps can't re-trap.
+          onTextResolved?.();
+        },
+      );
       return;
     }
 

@@ -9,6 +9,7 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { AuthProvider } from "./auth";
 import { initShellBridge } from "./bridge";
+import { DialogProvider } from "./components/Dialog";
 import "./styles.css";
 
 const el = document.getElementById("app");
@@ -21,7 +22,9 @@ createRoot(el).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <DialogProvider>
+          <App />
+        </DialogProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

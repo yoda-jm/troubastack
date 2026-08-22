@@ -17,6 +17,7 @@ import {
   type Song,
   type SongCue,
 } from "../api";
+import { useDialogs } from "../components/Dialog";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { CueGlyph } from "../components/CueGlyphs";
 import { AudienceTag } from "../components/AudienceTag";
@@ -978,11 +979,12 @@ function DeleteSetlist({
   setlistId: string;
   onDeleted: () => void;
 }) {
+  const { confirm } = useDialogs(); // T91
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onDelete() {
-    if (!window.confirm("Delete this setlist?")) return;
+    if (!(await confirm({ title: "Delete this setlist?", danger: true, confirmLabel: "Delete" }))) return;
     setError(null);
     setBusy(true);
     try {

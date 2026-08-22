@@ -1,7 +1,7 @@
 # T91 — Replace the studio's blocking browser dialogs (they can silently disable the app)
 
 **Priority:** high for **Part A**, normal for Part B · **Size:** M · **Area:** `web/studio`
-(9 call sites, a shared dialog, e2e + walkthrough). Lane: Web & Core. **After T90**, which touches
+(8 call sites, a shared dialog, e2e + walkthrough). Lane: Web & Core. **After T90**, which touches
 the same line in `WetCanvas.tsx`.
 
 Filed by me rather than left to the lane: I found the hazard while speccing T90 and it is wider than
@@ -9,7 +9,7 @@ that task, so it deserves its own rationale.
 
 ## Why this is not cosmetic
 
-The studio calls a **blocking browser dialog in nine places**:
+The studio calls a **blocking browser dialog in eight places**:
 
 | kind | where |
 |---|---|
@@ -22,7 +22,7 @@ session doing a batch of deletes gets offered it too.
 
 **Once it is ticked, for the rest of the page load:**
 
-- `window.confirm()` returns **`false`** — and every one of those seven sites reads
+- `window.confirm()` returns **`false`** — and every one of those six sites reads
   `if (!window.confirm(…)) return;`, so **every destructive action silently does nothing**;
 - `window.prompt()` returns **`null`** — so rename and text-annotation silently do nothing.
 
@@ -40,7 +40,7 @@ are especially jarring — which is where VLL is hitting the product now.
 
 T83 already established the pattern with **`DeleteLayerDialog`** (`SidePanels.tsx:262`) — an in-app,
 themed, context-carrying dialog. It is purpose-built, not generic. **Generalise it into one reusable
-confirm/prompt** and adopt it at the nine sites.
+confirm/prompt** and adopt it at the eight sites.
 
 - **Do not regress T83.** The layer dialog's hard-confirm behaviour (naming the object count, and the
   stronger confirm for a mandatory layer) is specified behaviour — it either keeps its bespoke dialog
@@ -56,7 +56,7 @@ confirm/prompt** and adopt it at the nine sites.
 hit the trap, and both silently no-op under suppression. **Land after T90**, which makes the text tool
 one-shot — the two changes touch the same handler and would collide.
 
-### Part B (normal) — the seven `confirm`s
+### Part B (normal) — the six `confirm`s
 
 Higher blast radius, lower urgency. Landing Part A first is fine and encouraged.
 

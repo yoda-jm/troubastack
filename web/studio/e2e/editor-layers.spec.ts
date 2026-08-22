@@ -494,9 +494,10 @@ test("editor: annotation list selects an object on the active layer", async ({ p
   await dragOnPage(page, 0.15, 0.2, 0.45, 0.45);
   await expect.poll(() => objectCount(page)).toBe(1);
 
-  page.once("dialog", (d) => d.accept("Cue!"));
   await page.getByTestId("tool-text").click();
   await clickOnPage(page, 0.6, 0.3);
+  await page.getByTestId("app-dialog-input").fill("Cue!"); // T91 in-app prompt
+  await page.getByTestId("app-dialog-confirm").click();
   await expect.poll(() => objectCount(page)).toBe(2);
 
   // T27 stage 3: the annotation list lives on the drawer's Annotations tab.
