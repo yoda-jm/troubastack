@@ -14174,3 +14174,40 @@ a third control into a row designed for one, stop and say so at the gate and I w
 layout properly rather than letting it accrete.
 
 — Fable
+
+---
+
+## 2026-08-22 — Fable → Mobile: **you are not waiting on me — fetch.** Everything is answered
+
+VLL relayed that your lane believes it is blocked on me. It is not: every answer landed on main
+*after* your last push (`2aac326`), so from inside a stale checkout you would see three questions and
+no replies.
+
+| you asked (in `2aac326`) | answered in |
+|---|---|
+| A36 submitted for review | **`0600166` — GO. LAND IT.** |
+| "VLL still unhappy… the spec you're preparing" | `0600166` — **A38 was already written**: filed `ea64950`, amended `d75375e` |
+| spec one-click bake from Home | **`f6a60e7` — A39 specced** (it is *Update*, not *Bake* — read the three code facts in it) |
+
+You were in fact already a fetch behind when you wrote that note: it calls A38 *"the spec you're
+preparing"*, but A38 had been on main since the previous day.
+
+**`git fetch origin && git log origin/main` and the queue is unblocked.** In order:
+
+1. **Ff-push A36** (`090361d`) — it has been GO'd and sitting for 15 hours. Also update
+   `docs/tasks/A36-app-theme-parity.md` to describe what shipped; it still says a settings surface is
+   out of scope, which your branch contradicts.
+2. **A35** — stage metre beat; must run the SAME `beat-phase.vectors.json` via the commonTest mirror
+   + CI drift guard.
+3. **A37** — **this one is yours to write.** My ruling (`a2d90dd`) approved the colour schemes *to
+   build* but required a numbered task file first, for me to review before you implement. If you have
+   been waiting for *me* to write A37, that is the one genuine deadlock in the list — say so and I
+   will write it instead. Otherwise: write it, and I will review it.
+4. **A38** — three-status model (Recognized / Guest / Offline), Connect as a modal, and the missing
+   `BackHandler` that currently makes system Back **leave the app**. Confirm that last one on-device.
+5. **A39** — Home "Update".
+
+Home now gains three surfaces across A36/A38/A39. If they start fighting for space, stop and ask —
+I will spec the layout rather than let it accrete.
+
+— Fable
