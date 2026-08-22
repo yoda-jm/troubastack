@@ -116,6 +116,37 @@ export function Viewer({
     searchParams.get("file"),
   );
   const [editorOpen, setEditorOpen] = useState(false);
+  const detailsPanelRef = useRef<HTMLDivElement>(null);
+  // T89 — the Details panel had ONE exit (the top-bar pill), which on a phone is an unlabelled icon
+  // in a horizontal-scroll strip that can scroll out of view: a dead end. Add Escape + outside-click
+  // close (plus the ✕ in the sticky tabs row below), the way T87's RowMenu closes.
+  useEffect(() => {
+    if (!editorOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // If a nested portalled overlay is open (a file's ⋯ menu, or a T91 dialog), Escape belongs to
+      // IT — it closes itself on the same keydown; don't also collapse the whole panel underneath it.
+      if (document.querySelector("[data-portal]")) return;
+      setEditorOpen(false);
+    };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (detailsPanelRef.current?.contains(t)) return;
+      if (t.closest?.('[data-testid="my-files-edit"]')) return; // the toggle pill handles its own click
+      // A portal makes a child of the panel a DOM stranger: the file row's ⋯ menu (T87) is rendered
+      // INSIDE the panel but portalled to <body>, and the in-app dialogs T91 will add sit there too.
+      // Mark such surfaces [data-portal] and treat a click inside any of them as inside the panel —
+      // otherwise "outside" stops meaning what it looks like (Fable's standing rule, T89 review).
+      if (t.closest?.("[data-portal]")) return;
+      setEditorOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [editorOpen]);
   // Realtime spine (T15): the live doc, visibility, connection status, reject notice
   // and the WS client live in useSongSync; the load-once REST seed below writes
   // through setDoc/setVisible.
@@ -1430,7 +1461,7 @@ export function Viewer({
           Keeps metadata / upload / the T19 chart editor + T25 preview reachable —
           they must NOT regress behind the fullscreen chrome. ---- */}
       {editorOpen && (
-        <div className="details-panel" data-testid="details-panel">
+        <div className="details-panel" data-testid="details-panel" ref={detailsPanelRef}>
           {/* T54 — tabs BY AUDIENCE (global-vs-personal legibility, scheme A): the
               audience split IS the tab structure, so it fixes both the illegible mix
               AND the long-scrolling modal. Band 👥 = shared with everyone (metadata +
@@ -1474,6 +1505,19 @@ export function Viewer({
                       Admin
                     </button>
                   )}
+                  {/* T89 — the panel's own exit, in the sticky tabs row so it survives scrolling the
+                      body. Right-aligned: the Admin tab already has margin-left:auto (stays far
+                      right), so the ✕ sits after it; with no Admin tab the ✕ pushes itself right. */}
+                  <button
+                    type="button"
+                    className={`icon-btn details-close${myRole === "admin" ? "" : " push-right"}`}
+                    data-testid="details-close"
+                    aria-label="Close details"
+                    title="Close details"
+                    onClick={() => setEditorOpen(false)}
+                  >
+                    ✕
+                  </button>
                 </div>
                 <div className="details-tab-body" data-testid={`details-body-${tab}`}>
                   {tab === "band" && (

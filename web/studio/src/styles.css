@@ -940,6 +940,11 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .details-tab.active { background: var(--brand-tint); color: var(--brand-ink); border-color: var(--brand); }
 .details-tab-admin { margin-left: auto; }
 .details-tab-admin.active { background: var(--error-bg); color: var(--error-fg); border-color: var(--warn-border); }
+/* T89 — the panel's ✕ exit, in the sticky tabs row so it stays put while the body scrolls.
+   push-right (no Admin tab) pushes it to the far right; with an Admin tab, that tab's own
+   margin-left:auto already carries the group right and the ✕ sits just after it. */
+.details-close { font-size: 1rem; line-height: 1; padding: .35rem .6rem; align-self: center; }
+.details-close.push-right { margin-left: auto; }
 .details-tab-body { display: flex; flex-direction: column; gap: .6rem; }
 
 .layers-panel {

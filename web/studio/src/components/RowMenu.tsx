@@ -116,6 +116,7 @@ export function RowMenu({
             className="row-menu-panel"
             role="menu"
             id={panelId}
+            data-portal="row-menu"
             ref={panelRef}
             style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999 }}
           >
