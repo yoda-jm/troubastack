@@ -80,12 +80,34 @@ into the theme or leave it deliberately and say why in a comment.
   (`:shared:compileKotlinIosArm64`) — the theme lives in `commonMain`, so both consume it.
 - No new dependencies.
 
+## What actually shipped (2026-08-22, landed `090361d` — GO `0600166`)
+
+The spec said "colour only"; VLL drove it further during on-device review, so the landed branch does
+more than the palette swap. Recording it here so the next reader (A38 builds on this same Home) isn't
+misled by a stale out-of-scope list:
+
+- **`TroubaTheme`** — the light/dark M3 schemes from the studio tokens, at both entrypoints. As specced.
+- **Concert mode (Stage) + the WebView are excluded** — each wrapped in
+  `MaterialTheme(colorScheme = lightColorScheme())` (the M3 baseline Stage was built under), so the
+  brand palette can't re-tint Stage. No file under `stage/` changed (VLL: "concert mode ok as-is;
+  don't touch the webview").
+- **Home restyle** — warm-paper cards with an indigo outline/heading/accent instead of lavender
+  `primaryContainer` fills (VLL: "still feels like before / the webview feels more ochre").
+- **A Parameters screen** (`⚙` on Home, `ui/SettingsScreen.kt`) — VLL: "missing a parameters native
+  content, e.g. to set dark/light theme". Sections: Appearance→Theme (System/Light/Dark, persisted
+  under `app.theme`, drives the theme live) and Stage→Reading/Colour mode, which write the SAME keys
+  Stage's ⚙ writes (VLL: keep them in concert mode too — both editors, one stored default).
+- **`ThemePref`** (SYSTEM/LIGHT/DARK) held above `TroubaTheme` at both entrypoints; iOS honours the
+  same key (no Parameters UI there yet — Stage-only v1).
+
 ## Out of scope
 
-- Typography and shape. The studio pairs a serif display with a system sans; that is a bigger call
-  and a separate task if VLL wants it. **Colour only.**
-- Restyling individual screens beyond what the palette change does on its own.
+- **Typography and shape.** The studio pairs a serif display with a system sans; a bigger call, a
+  separate task if VLL wants it.
+- Update policy in the Parameters screen — it's per-concert today (Manage), not a global toggle; a
+  global default would be a new pref (flagged, not built).
 - The studio side — it is the source of truth here and does not move.
+- The connection status row / Connect modal — that is **A38**, landing on this same Home.
 
 ## Note for whoever does this
 
