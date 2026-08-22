@@ -121,6 +121,7 @@ export type Song = {
   artist?: string;
   key?: string;
   tempo?: number;
+  meter?: string; // T86: canonical "N/D" ("" = unset = 4/4)
   tags?: string[];
   notes?: string;
   createdAt: string;
@@ -148,6 +149,7 @@ export type SongPatch = {
   artist?: string;
   key?: string;
   tempo?: number;
+  meter?: string;
   tags?: string[];
   notes?: string;
 };

@@ -44,6 +44,7 @@ export function Metadata({
   const [artist, setArtist] = useState(song.artist ?? "");
   const [key, setKey] = useState(song.key ?? "");
   const [tempo, setTempo] = useState(song.tempo != null ? String(song.tempo) : "");
+  const [meter, setMeter] = useState(song.meter ?? "");
   const [tags, setTags] = useState((song.tags ?? []).join(", "));
   const [notes, setNotes] = useState(song.notes ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export function Metadata({
         artist,
         key,
         tempo: tempo === "" ? 0 : Number(tempo),
+        meter,
         tags: tagList,
         notes,
       });
@@ -132,6 +134,21 @@ export function Metadata({
                 />
                 <span className="affix">bpm</span>
               </div>
+            </div>
+            <div className="field">
+              <label htmlFor="meta-meter">Metre</label>
+              <input
+                id="meta-meter"
+                data-testid="meta-meter"
+                value={meter}
+                onChange={(e) => setMeter(e.target.value)}
+                placeholder="4/4"
+                inputMode="text"
+                aria-describedby="meta-meter-hint"
+              />
+              <span id="meta-meter-hint" className="hint">
+                e.g. 4/4, 6/8, 3+4/8 — blank = 4/4
+              </span>
             </div>
             <div className="field">
               <label htmlFor="meta-tags">Tags</label>

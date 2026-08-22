@@ -44,6 +44,36 @@
     { "elapsedMs": 199,  "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 0, "lit": true,  "emphasis": true },
     { "elapsedMs": 200,  "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 0, "lit": false, "emphasis": true },
     { "elapsedMs": 1333, "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 1, "lit": false, "emphasis": false },
-    { "elapsedMs": 3333, "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 4, "lit": false, "emphasis": true }
+    { "elapsedMs": 3333, "intervalMs": 666.6666666666666, "beats": 8, "beatIndex": 4, "lit": false, "emphasis": true },
+
+    { "_": "T86 metre cases below carry `groups` and assert `tier` (0 bar / 1 felt pulse / 2 free subdivision). The 4/4 cases above are unchanged and assert no tier — the backward-compat proof." },
+
+    { "elapsedMs": 0,    "intervalMs": 500, "beats": 6, "groups": [1,1,1], "beatIndex": 0, "lit": true,  "tier": 0, "emphasis": true },
+    { "elapsedMs": 500,  "intervalMs": 500, "beats": 6, "groups": [1,1,1], "beatIndex": 1, "lit": true,  "tier": 1, "emphasis": false },
+    { "elapsedMs": 1000, "intervalMs": 500, "beats": 6, "groups": [1,1,1], "beatIndex": 2, "lit": true,  "tier": 1, "emphasis": false },
+    { "elapsedMs": 1500, "intervalMs": 500, "beats": 6, "groups": [1,1,1], "beatIndex": 3, "lit": true,  "tier": 0, "emphasis": true },
+    { "elapsedMs": 3000, "intervalMs": 500, "beats": 6, "groups": [1,1,1], "beatIndex": 6, "lit": false, "tier": 0, "emphasis": false },
+
+    { "elapsedMs": 0,    "intervalMs": 200, "beats": 12, "groups": [3,3], "beatIndex": 0, "lit": true,  "tier": 0, "emphasis": true },
+    { "elapsedMs": 200,  "intervalMs": 200, "beats": 12, "groups": [3,3], "beatIndex": 1, "lit": true,  "tier": 2, "emphasis": false },
+    { "elapsedMs": 400,  "intervalMs": 200, "beats": 12, "groups": [3,3], "beatIndex": 2, "lit": true,  "tier": 2, "emphasis": false },
+    { "elapsedMs": 600,  "intervalMs": 200, "beats": 12, "groups": [3,3], "beatIndex": 3, "lit": true,  "tier": 1, "emphasis": false },
+    { "elapsedMs": 800,  "intervalMs": 200, "beats": 12, "groups": [3,3], "beatIndex": 4, "lit": true,  "tier": 2, "emphasis": false },
+    { "elapsedMs": 1200, "intervalMs": 200, "beats": 12, "groups": [3,3], "beatIndex": 6, "lit": true,  "tier": 0, "emphasis": true },
+
+    { "elapsedMs": 0,   "intervalMs": 100, "beats": 12, "groups": [3,3], "beatIndex": 0, "lit": true,  "tier": 0, "emphasis": true },
+    { "elapsedMs": 100, "intervalMs": 100, "beats": 12, "groups": [3,3], "beatIndex": 1, "lit": false, "tier": 2, "emphasis": false },
+    { "elapsedMs": 300, "intervalMs": 100, "beats": 12, "groups": [3,3], "beatIndex": 3, "lit": true,  "tier": 1, "emphasis": false },
+
+    { "elapsedMs": 0,    "intervalMs": 200, "beats": 24, "groups": [3,3,3,3], "beatIndex": 0, "lit": true, "tier": 0, "emphasis": true },
+    { "elapsedMs": 400,  "intervalMs": 200, "beats": 24, "groups": [3,3,3,3], "beatIndex": 2, "lit": true, "tier": 2, "emphasis": false },
+    { "elapsedMs": 600,  "intervalMs": 200, "beats": 24, "groups": [3,3,3,3], "beatIndex": 3, "lit": true, "tier": 1, "emphasis": false },
+    { "elapsedMs": 1200, "intervalMs": 200, "beats": 24, "groups": [3,3,3,3], "beatIndex": 6, "lit": true, "tier": 1, "emphasis": false },
+
+    { "elapsedMs": 0,    "intervalMs": 250, "beats": 14, "groups": [3,4], "beatIndex": 0, "lit": true, "tier": 0, "emphasis": true },
+    { "elapsedMs": 250,  "intervalMs": 250, "beats": 14, "groups": [3,4], "beatIndex": 1, "lit": true, "tier": 2, "emphasis": false },
+    { "elapsedMs": 750,  "intervalMs": 250, "beats": 14, "groups": [3,4], "beatIndex": 3, "lit": true, "tier": 1, "emphasis": false },
+    { "elapsedMs": 1000, "intervalMs": 250, "beats": 14, "groups": [3,4], "beatIndex": 4, "lit": true, "tier": 2, "emphasis": false },
+    { "elapsedMs": 1750, "intervalMs": 250, "beats": 14, "groups": [3,4], "beatIndex": 7, "lit": true, "tier": 0, "emphasis": true }
   ]
 }

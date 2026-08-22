@@ -37,6 +37,7 @@ import { isEditableLayer } from "./helpers";
 import { useSongSync, defaultVisibility } from "./useSongSync";
 import { usePdfDocument, ZOOM_PERCENTS } from "./usePdfDocument";
 import { useBeat } from "../../useBeat";
+import { meterGroups, tempoUnit } from "../../beatPhase";
 
 // ===========================================================================
 // Viewer
@@ -163,7 +164,7 @@ export function Viewer({
   // T85 — the visual beat, driven by the song's tempo. Tap = count-in (self-stopping);
   // the ∞ toggle keeps it running. The frame pulses on the page border via a ref, so a
   // 60 fps beat never re-renders the editor.
-  const beat = useBeat(song.tempo);
+  const beat = useBeat(song.tempo, song.meter);
   // T51 — the glyph the "Icon" tool stamps next (its id rides in the object's text).
   const [activeGlyph, setActiveGlyph] = useState("mic");
   // T54 — Details panel tab by AUDIENCE (Band 👥 / Mine 👤 / Admin). Remembered per
@@ -1020,37 +1021,46 @@ export function Viewer({
 
         <span className="tb-divider" aria-hidden="true" />
 
-        {/* T85 — visual beat. Only when the song has a tempo; tap counts in and stops
-            itself, the ∞ toggle keeps it running. */}
+        {/* T85/T86 — visual beat. Only when the song has a tempo. One segmented capsule (A34
+            parity): the metronome taps a count-in (∞ off) or a continuous beat (∞ on). The label
+            names the tempo's UNIT — ♩ simple / ♩. compound / ♪ irregular-additive. */}
         {song.tempo ? (
-          <div className="beat-controls" data-testid="beat-controls">
-            <button
-              type="button"
-              className={`pill-btn${beat.running ? " active" : ""}`}
-              data-testid="beat-toggle"
-              aria-pressed={beat.running}
-              title={`Visual beat — ${song.tempo} bpm${beat.continuous ? " (continuous)" : " (count-in)"}`}
-              onClick={() => (beat.running ? beat.stop() : beat.start(beat.continuous))}
-            >
-              <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path d="M6 2h4l3 12H3L6 2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-                <path d="M8 12L12.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                <circle cx="12.5" cy="4.5" r="1.1" fill="currentColor" />
-              </svg>
-              <span className="pill-label">Beat</span>
-            </button>
-            <button
-              type="button"
-              className={`pill-btn beat-loop${beat.continuous ? " active" : ""}`}
-              data-testid="beat-loop"
-              aria-pressed={beat.continuous}
-              aria-label="Keep the beat running"
-              title="Keep the beat running (otherwise it counts in and stops)"
-              onClick={() => beat.setContinuous(!beat.continuous)}
-            >
-              ∞
-            </button>
-          </div>
+          (() => {
+            const unit = tempoUnit(meterGroups(song.meter));
+            const glyph = unit === "dotted-quarter" ? "♩." : unit === "eighth" ? "♪" : "♩";
+            return (
+              <div className="beat-controls beat-capsule" data-testid="beat-controls">
+                <button
+                  type="button"
+                  className={`pill-btn${beat.running ? " active" : ""}`}
+                  data-testid="beat-toggle"
+                  aria-pressed={beat.running}
+                  title={`Visual beat — ${glyph}=${song.tempo}${song.meter ? ` (${song.meter})` : ""}${beat.continuous ? " · continuous" : " · count-in"}`}
+                  onClick={() => (beat.running ? beat.stop() : beat.start(beat.continuous))}
+                >
+                  <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path d="M6 2h4l3 12H3L6 2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                    <path d="M8 12L12.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                    <circle cx="12.5" cy="4.5" r="1.1" fill="currentColor" />
+                  </svg>
+                  <span className="pill-label" data-testid="beat-tempo-label">
+                    {glyph}={song.tempo}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`pill-btn beat-loop${beat.continuous ? " active" : ""}`}
+                  data-testid="beat-loop"
+                  aria-pressed={beat.continuous}
+                  aria-label="Keep the beat running"
+                  title="Keep the beat running (otherwise it counts in and stops)"
+                  onClick={() => beat.setContinuous(!beat.continuous)}
+                >
+                  ∞
+                </button>
+              </div>
+            );
+          })()
         ) : null}
 
         <span className="tb-divider" aria-hidden="true" />

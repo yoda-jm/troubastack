@@ -11,7 +11,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { beatFrameStyle } from "./beatFrame";
 import { frameBox } from "./layout";
-import { COUNT_IN_BEATS, decayMs, intervalMs as bpmToIntervalMs } from "./beatPhase";
+import { countInUnits, decayMs, meterGroups, unitIntervalMs } from "./beatPhase";
 
 /** A gap outside the page where the frame sits, so the rail never overlaps the sheet. */
 const FRAME_GAP_PX = 6;
@@ -64,7 +64,7 @@ export interface UseBeat {
   setContinuous: (v: boolean) => void;
 }
 
-export function useBeat(bpm: number | null | undefined): UseBeat {
+export function useBeat(bpm: number | null | undefined, meter?: string | null): UseBeat {
   const [running, setRunning] = useState(false);
   const [continuous, setContinuousState] = useState(false);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -73,6 +73,8 @@ export function useBeat(bpm: number | null | undefined): UseBeat {
   const continuousRef = useRef(false);
   const bpmRef = useRef(bpm ?? 0);
   bpmRef.current = bpm ?? 0;
+  const meterRef = useRef(meter ?? "");
+  meterRef.current = meter ?? "";
 
   const clearFrame = useCallback(() => {
     const el = frameRef.current;
@@ -95,17 +97,20 @@ export function useBeat(bpm: number | null | undefined): UseBeat {
       stop();
       return;
     }
-    const interval = bpmToIntervalMs(bpmNow);
-    const beats = continuousRef.current ? Infinity : COUNT_IN_BEATS;
+    // T86: the clock ticks on the UNIT, and the count-in is two BARS (in units), both derived
+    // from the song's metre. An unset/invalid metre falls back to 4/4.
+    const groups = meterGroups(meterRef.current);
+    const interval = unitIntervalMs(bpmNow, groups);
+    const beats = continuousRef.current ? Infinity : countInUnits(groups);
     const elapsed = performance.now() - startRef.current;
-    // A count-in self-stops once its last beat has fully faded.
+    // A count-in self-stops once its last unit has fully faded.
     if (!continuousRef.current && elapsed >= beats * interval + decayMs(interval)) {
       stop();
       return;
     }
     const el = frameRef.current;
     if (el) {
-      const s = beatFrameStyle(elapsed, interval, beats);
+      const s = beatFrameStyle(elapsed, interval, beats, groups);
       if (s) {
         positionFrame(el); // hug the page where visible, viewport where not
         el.style.borderWidth = `${s.borderWidth}px`;

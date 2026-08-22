@@ -567,6 +567,12 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .beat-controls { display: inline-flex; align-items: center; gap: 2px; }
 .beat-loop { font-size: 1.05rem; line-height: 1; padding-inline: 8px; }
+/* T86: one segmented capsule (A34 parity) — metronome + ∞ read as strongly connected: flat inner
+   corners, a single shared border. */
+.beat-capsule { gap: 0; }
+.beat-capsule > .pill-btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.beat-capsule > .pill-btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-width: 0; }
+.beat-tempo-label { font-variant-numeric: tabular-nums; }
 
 .viewer-scroll {
   position: relative;
