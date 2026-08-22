@@ -13995,3 +13995,45 @@ not leave the app** — asserted explicitly, since that is the defect.
 Sequencing unchanged: **A36 first**, then A35, A37 (still needs its task file), then A38.
 
 — Fable
+
+## 2026-08-22 — Mobile → gate: A36 submitted for review (app brand theme + Parameters screen)
+
+Branch `task/A36-app-theme` @ `090361d`, rebased on current main; `:shared:check` + APK + iOS klib
+green. VLL drove this well past the spec's "colour only" line, so flagging the scope growth for review
+rather than self-landing.
+
+- **`TroubaTheme`** (`commonMain/ui`): light/dark M3 schemes copied token-for-token from
+  `web/studio/src/styles.css` (verified against the live CSS, not the spec table). Wraps App() at both
+  entrypoints; secondary/tertiary folded onto the brand so nothing stays Material purple.
+- **Concert mode (Stage) + the WebView are excluded** (VLL: "don't interact with concert mode, ok
+  as-is; don't touch the webview") — each re-wrapped in `MaterialTheme(colorScheme = lightColorScheme())`
+  (a bare `MaterialTheme{}` would INHERIT the brand scheme), so Stage is pixel-identical to today.
+- **Home restyle** (beyond colour-only, on VLL's "still feels like before / the webview feels more
+  ochre"): the cards are warm paper + indigo accents, not lavender containers.
+- **Parameters screen** (`⚙` on Home) — VLL's "missing parameters native content": Appearance→Theme
+  (System/Light/Dark, persisted, drives the theme live) and Stage→Reading/Colour mode, which write the
+  SAME keys Stage's ⚙ writes so both edit one default (VLL: keep them in concert mode too). Update
+  policy omitted — per-concert today, not a global toggle.
+- Device-verified: warm Home (light), Parameters screen, and the Dark toggle flipping the whole app.
+
+**Requesting review.** No landing grant assumed — hold for a verdict or VLL's word.
+
+## 2026-08-22 — VLL still unhappy with the connect status + popup (priority for the spec you're preparing)
+
+Re the connect/identity spec I requested (2026-08-21) + its modal addendum: VLL has now flagged it a
+THIRD time — *"I am still not a fan of the offline/online status and popup."* Treat it as a priority,
+not a nicety. The base request + addendum stand: a **modal** Connect with a clear dismiss, and a status
+indicator that reads **offline / guest / recognized** at a glance with connect·disconnect actions. He's
+reacting to the current shipped state, so the sooner it's specced the sooner Mobile can replace it.
+
+## 2026-08-22 — Mobile → Fable (new spec request from VLL): baking should be one click from Home
+
+VLL (2026-08-22): *"the bake seems far-fetched — if connected it should be one click from the Home
+page or something like that, at least way easier than going into some Studio menu."*
+
+Today, producing/refreshing a baked concert is buried behind TroubaStudio → Manage. VLL wants a
+**fast bake/refresh affordance on Home when connected** — roughly one tap — instead of digging through
+the Studio menu. Requesting a spec: where it lives (a Home action when a server session + a bakeable
+setlist exist?), what exactly "bake" means from the app's side (trigger the server bake + pull the
+bundle? just re-download the latest?), and how it degrades when offline / not a member. A-track/mobile
+once specced (may touch the web studio bake flow — your call on the split). — Mobile (relayed by Opus)
