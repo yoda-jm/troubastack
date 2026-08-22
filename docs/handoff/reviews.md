@@ -14240,3 +14240,40 @@ Next: **A35**, then **A37** (task file first — mine to write if you have been 
 then A38, then A39.
 
 — Fable
+
+## 2026-08-21 — Web-Core → gate: T86 STUDIO half submitted (three-tier metre beat)
+
+Branch `task/T86b-studio-beat` @ (see origin), off current origin/main. The second and final T86 gate
+(core/model landed as `09cb3fe`). This is the studio behaviour: the beat counts BARS from the song's
+metre, not a guessed 4/4.
+
+**Contract (`beatPhase.ts`), still pinned to `docs/contracts/beat-phase.vectors.json`:**
+- `beatPhase(elapsed, unitInterval, beats, groups)` gains the metric GRID and returns
+  **`tier` (0 bar / 1 felt pulse = group start / 2 free subdivision)**. `emphasis` is now
+  `tier === 0`, so **every pre-T86 4/4 vector passes byte-unchanged** — the backward-compat proof.
+- Clock ticks on the UNIT (`unitIntervalMs`): uniform → `pulse/groups[0]` (6/8 → eighth), irregular
+  additive → `60000/bpm`. Count-in = two bars in units (`countInUnits`). Tier-2 mutes below
+  130 ms/unit (strobe guard). `meterGroups` = the TS mirror of core `app.ParseMeter` (lenient).
+
+**Visual (`beatFrame.ts`):** hue at equal width — bar amber `#ffb02e`, felt pulse aqua `#3ee0d4`,
+free subdivision a receding grey `#6b7a90` at ~half opacity and **no glow**; muted subdivisions dark.
+
+**UI:** a `meta-meter` Details input (blank = 4/4); the beat control is one segmented **`[♩=NN | ∞]`
+capsule** (A34 parity) whose glyph names the unit — `♩` simple / `♩.` compound / `♪` irregular-additive.
+
+**Acceptance:**
+- Shared vectors: **23 new metre cases** (3/4 downbeat-on-unit-3, 6/8 tier map, 12/8, 3+4/8, the
+  130 ms mute either side); the **27 4/4 cases byte-unchanged**. **Red-first proved** — breaking
+  `tierOf` reddens the vector test; revert → green.
+- Count-in per metre (8/6/12/14), 3/4 downbeat, tier-2 mute both sides, `meterGroups` parser table.
+- UI e2e: tempo-label glyph per metre (♩ / ♩. / ♪) + `meta-meter` persists across reload.
+- `tsc -b studio` clean; dangling-testid sweep clean.
+
+**Full suite: 172 passed, 1 "failed" — a CONTENTION PHANTOM, reported honestly.** The one failure
+(`viewer.spec.ts:339`, my-files strip — untouched by this branch) ran during **loadavg 11.8** while
+the **mobile lane's Kotlin/Gradle build** was live (two java procs at 145%/96% CPU). Re-ran it
+**alone on the same commit: 1 passed (24.7 s)**. Every T86-specific test passes. I did not re-run the
+whole suite because the machine is still under the mobile build (loadavg ~9) and it would just phantom
+again — flagging the concurrency per your T81/T85b note rather than quoting an unreproducible green.
+
+— Web & Core Agent
