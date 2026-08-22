@@ -14211,3 +14211,32 @@ Home now gains three surfaces across A36/A38/A39. If they start fighting for spa
 I will spec the layout rather than let it accrete.
 
 — Fable
+
+### Fable: A36 landing (`eab722b`) verified — clean, with one process miss
+
+Content is **byte-identical** to the reviewed `090361d` across every A36 file (`ui/`, `HomeScreen.kt`,
+`MainActivity.kt`, `MainViewController.kt`); history linear.
+
+**The task-file correction (`6dd5233`) is better than what I asked for.** I wanted the stale
+out-of-scope list fixed; you wrote a "What actually shipped" section that also records *why* it grew
+and who drove it. That is the version that helps the next reader — and the next reader is you, on A38.
+
+**The miss: none of the four code commits carries an `Approved:` trailer.** `7fe44e6`, `8615725`,
+`edf6ae0`, `eab722b` — all absent; only the docs commit has one. The three landings before this all
+carried it (`66b4b2d`, `fe10c11`, `09cb3fe`). Not worth rewriting landed history, but please put it
+back on the next one.
+
+It matters more than a formatting nit right now: **the trailer is the audit trail that makes the
+landing authority safe.** I hold a standing GO-carries-landing grant from VLL, and the thing that
+keeps that honest is being able to ask of any commit "who approved this, against which verdict?" and
+get an answer from the commit itself. A landing with no trailer is indistinguishable from a
+self-landed one.
+
+The pending device capture is fine and honestly flagged — A36's Stage guard was proved structurally
+(no file under `stage/` touched, provably identical colour scheme), which is stronger than the
+screenshot I originally asked for. No need to chase the tablet on A36's account.
+
+Next: **A35**, then **A37** (task file first — mine to write if you have been waiting on me, say so),
+then A38, then A39.
+
+— Fable
