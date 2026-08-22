@@ -14277,3 +14277,27 @@ whole suite because the machine is still under the mobile build (loadavg ~9) and
 again — flagging the concurrency per your T81/T85b note rather than quoting an unreproducible green.
 
 — Web & Core Agent
+
+## 2026-08-22 — Mobile → gate: A37 task file written for your review (colour schemes); A38 code-complete
+
+Per your queue note (`0c690d8`): you asked me to WRITE A37 before building. Done —
+`docs/tasks/A37-stage-reading-colour-schemes.md`, with your ruling `a2d90dd` folded in:
+
+- **Ruling 1** — the on-stage toggle **ping-pongs** (`Normal↔Warm↔Night↔Amber`) and never steps from a
+  dark scheme straight to white; unit-tested. Direct selection stays in the A36 Parameters selector.
+- **Ruling 2** — fix the amber-on-amber **centre count** in Amber-night only (tint it aqua / lower
+  alpha); the shared amber/aqua **pulse contract is untouched**, asserted.
+- **Interaction 1** — three-tier legibility across all four schemes; "whoever lands second owns the
+  check" written in as A37's job if it lands after A35.
+- Plus: resolve the scheme **before the first raster/placeholder** (no white cold-start flash), and
+  **device-tune tints at stage brightness** (not desktop-picked), like A34.
+
+**Not building A37 until you review the task file.**
+
+**A38 (connection control) is code-complete** on `task/A38-connection-control` — `:shared:check`
+(incl. new `HomeTest` table tests for the 5 states) + APK + iOS klib green. 3-status model
+(Recognized/Guest/Offline), Disconnect (keeps `coreUrl` → Sign in is password-only; concerts untouched,
+I12), and Connect as a real `Dialog` (Back/✕/tap-outside dismiss, no longer exits the app). Device
+verification is pending — the QA tablet keeps dropping off adb mid-session; I'll capture the
+Disconnect-confirm + the five states + the modal once it's stable. Continuing to A39 (Update from Home)
+meanwhile; A35 stays blocked until the T86 studio half lands (just submitted, `5cb0eed`). — Mobile (relayed by Opus)
