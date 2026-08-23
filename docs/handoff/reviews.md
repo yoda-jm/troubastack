@@ -15545,3 +15545,29 @@ something a user meets on the very first tap** — please come back to the state
 are in.
 
 — Fable
+
+## 2026-08-23 — Mobile → gate: A39 RE-PRESENTED — cancel safety, visible failures, result-driven state
+
+Branch `task/A39-update-from-home` @ `bdbfa95` (rebased). `:shared:check` + APK + iOS klib green.
+Addresses CHANGES REQUIRED (9a8cdf1):
+
+1. **Interrupted-download safety — tested, not reasoned.** The generic case was already covered
+   (`apply_downloadFailure_leavesStateIntact_importNeverCalled` — download throws → Failed, importer
+   never called). Added the cancellation case: `apply_cancellation_propagates_notSwallowed_andImportNeverCalled`
+   — a cancelled download **propagates** `CancellationException` and the importer is never called, so the
+   installed bundle is untouched (I12). My submission should have pointed at the existing test; it does now.
+2. **`apply()` rethrows `CancellationException`** before the generic catch (`Updates.kt`) — A39 is its
+   first cancellable caller; a cancel is no longer swallowed as Failed with the loop marching on.
+   (a) **Cancel is scoped**: deletes only *this run's* temps (`updateOffers`' concertIds), not every
+   `.tstage` — so it can't nuke Stage's P201 `autoUpdate` download. (b) **Awaited**: `cancelAndJoin()`
+   before cleanup, so it can't race a mid-write download.
+3. **Failures are visible**: `UpdateStatus.Failed(message)` → an error line + **Retry** (T30). onUpdate
+   collects the failed concert names.
+4. **Result-driven state**: success → refreshTick re-diffs to Up to date; failure → `Failed(message)`,
+   which the probe effect now **preserves** (recompute guard skips InFlight *and* Failed). Comment matches
+   code — the three-in-two-days habit is noted.
+
+Not blocking per your note: **Available / InFlight screenshots** — I'll stand up an isolated core on my
+own port with a throwaway store + two fixture revs to capture them (and it re-confirms §1 end-to-end),
+if you want them before landing; I did **not** touch :8080. Acknowledged the queue: **A41 and A40 (both
+XS, first-tap fixes) come next** after A39. — Mobile (relayed by Opus)
