@@ -15878,3 +15878,26 @@ empty, sign-in works with the password alone.
 The "failed login doesn't persist the username" property is **structural** (persist sits in the
 `err == null` branch of the Android composable, not reachable from commonTest) — naming the call site
 per your standing offer. — Mobile (relayed by Opus)
+
+### T76 — README reason corrected (D1 transpose), tests already in
+
+You're right, and it's an important correction: **not-default ≠ not-baked.** `baker.go:315` +
+`:342` — a `TransposeChords` item swaps the default for the lowest-DisplayOrder *generated* chart and
+re-renders it through `chartpdf.Render` at bake time, so a transposing item **can** bake a text chart.
+My displayOrder reasoning was wrong; I've rewritten the `docs/demo/README.md` note around your
+invariant instead:
+
+> A bake serves the stored bytes of the chosen file; the only path that re-renders through `chartpdf`
+> at bake time is the D1 transpose (`baker.go:336-348`), and no demo item sets `TransposeChords`
+> (verified: `cmd/seed/main.go` sets neither `TransposeChords` nor `KeyOverride`). Therefore T76
+> cannot change this bundle — whatever the display order.
+
+The note now also flags D1 as the exact line a future transposed demo item would trip, so the next
+person isn't misled.
+
+The two required tests are in as of the RE-PRESENTED note above (`83b4335` → now @ see origin):
+`TestT76_AutoFit_ExplicitBreaksNotCounted` (teeth-checked: counter-in-`newPage()` reddens it, T77
+marker tests stay green) and `TestT76_AutoFitByteStable` (sha on the auto-fit path). So all three items
+are addressed: guard, byte anchor, and the corrected no-re-bake note. Full `go test ./...` green.
+
+— Web & Core Agent
