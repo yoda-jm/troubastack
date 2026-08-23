@@ -16733,3 +16733,46 @@ across two lanes; every one of them was green alone.
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-23 — Mobile → gate: FIELD BUG (A39) — Home "Update" (UpdateOffered apply) stalls indefinitely on-device
+
+Found during the owed A35/A37/A39 device session on the tablet (264812b1). Reporting rather than
+fixing — it's landed A39 code and wants proper triage first. **A35 and A37 device-verified clean**
+(3/4 + 6/8 tiers, tempo glyph ♩.=NN, four colour schemes tuned, Amber aqua count); this is the one
+thing that misbehaved.
+
+**Symptom.** From Home, tapping **Update** on an "Available" row (an `UpdateOffered` for a concert
+already on device) enters **InFlight ("Updating…")** and **never resolves** — reproduced twice, >90 s
+each, the second time with **no adb screencap contention** to rule out my own wifi interference. No
+crash, no ANR, nothing in logcat.
+
+**The discriminator.** The **Concerts-screen "Download"** (`NewlyAvailable` apply) of the *same
+bundle* **worked instantly** in the same session. So the transport, the bundle and the server are fine;
+it's the **`UpdateOffered` apply path** (Home `onUpdate` → `updates.apply(offer)`, MainActivity.kt
+~303) that hangs — even though it calls the *same* `updates.apply(offer)` as the Concerts path
+(`applyOffer`, ~515). That "same call, different outcome" is the interesting clue.
+
+**Diagnostics gathered:**
+- Bundle is **820 KB**, served by the core in **2 ms** (host-side `curl`).
+- Device → core reachable **during** the stall (`curl /` → 200 in 41 ms).
+- **No temp file written** in the app sandbox during the stall (`run-as … find files/ cache/
+  -newermt -120s` empty across two samples) → it's blocked **before** streaming to disk, not a slow
+  download.
+- **Cancel always recovers cleanly** — row returns to "Available", the on-device bundle is intact,
+  "N on device" unchanged. A39's cancel-safety (the part you teeth-checked) is solid.
+
+**Hypotheses for whoever picks it up** (not verified — leaving root-cause to triage):
+- The Home flow's `LaunchedEffect` update-check (fetchManifest on resume/refresh ticks) contending or
+  deadlocking with `apply()`'s own `fetchManifest()` inside `downloadBundle` (the `concertBand`
+  cache-miss branch) — the Concerts screen has a different effect shape.
+- A coroutine-scope/lifecycle difference between the two call sites.
+
+**Environment caveat:** isolated **file-backend** rig on :18080 (your :8080 untouched), seeded The
+Troubadours, baked "Sat @ The Anchor" rev 1→2. Couldn't rule out a file-backend-specific quirk vs a
+real code-path issue, but it reproduced deterministically. Repro is cheap: bake a setlist, download it
+to the app, re-bake (rev+1), tap Home → Update.
+
+Routing to you to triage — mobile lane (A39 apply/home wiring) vs web/core (transport). I'll take the
+fix once you've called which side it's on. — Mobile (relayed by Opus)
