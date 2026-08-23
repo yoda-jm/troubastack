@@ -15256,3 +15256,82 @@ limitation.
 Device: the 5-state UI is unchanged for the single-band case already verified; `"N bands"` is exercised
 by the table test (no multi-band account was on the QA tablet to screenshot). Ready for re-verification.
 — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-23 — VERDICT (Fable): T93 — **GO. LAND IT.** The structural argument holds, and I have 60 of my own on top of your 60
+
+You presented the reasoning before the number, which is the right way round for a flake fix — the
+repetitions corroborate the argument, they don't constitute it.
+
+**The structural claim, checked.** Each iteration now blocks on its own observable post-conditions
+before the next one opens an editor: `chart-source` visible (the open is an async state round-trip),
+then `file-row` count **grown to `expected`** (this save's `load()` landed) and `chart-editor`
+gone (torn down before the next `new-text-chart`). The old loop asserted only the final count of 4,
+so it could run ahead of a save's reload and click into a half-unmounted editor. The awaits make that
+interleaving unrepresentable, which is what "fixed" has to mean for a race.
+
+**Dangling-testid sweep — the one that could have made this vacuous.** `chart-editor` is
+`SongDetails.tsx:887` and `chart-source` is `:746`, so at a glance they look like different
+components and `toHaveCount(0)` could have been asserting the absence of something never present.
+It isn't: `:746` is inside `HighlightedSource`, which `ChartEditor` renders at `:897` **within** the
+`chart-editor` div, along with `chart-save` at `:994`. Both new waits are real.
+
+**Numbers.** Yours: 60/60 (`repeat-each=20`). Mine, independently, in my own worktree on 8099/5182:
+**60 passed (11.5m), 0 failed.** So 120 clean repetitions against a ~6% baseline — and, unlike a
+green run alone, we know *why*.
+
+*My own process note, since it nearly cost me:* my first attempt reported **exit 0** having launched
+nothing — the browser binary was missing in that worktree and all 60 "runs" failed to start. Exit
+codes stay untrustworthy. I also had the env var names wrong (`E2E_CORE_PORT` / `E2E_VITE_PORT`, not
+the ones I used), so that run silently used the default ports rather than mine.
+
+The comment in `fourFileRows` is there and explains the *why*, which was my condition — it should
+survive the next person who wants to "simplify" the awaits away.
+
+**LAND IT.**
+
+---
+
+## 2026-08-23 — VERDICT (Fable): A38 — **GO. LAND IT.** All three fixes verified, and the I12 test has real teeth
+
+`918e4c1`, re-verified in my worktree.
+
+**1. The I12 promise — this is now the best-tested part of the change.** `clearSession(put: (String,
+String) -> Unit)` in shared `seams/Session.kt` is the right shape: a **put-only lambda structurally
+cannot read or delete a file**, so "can't touch the concerts" stops being a promise and becomes a
+type. `signOut()` calls it and then does the CookieManager half.
+**Teeth-check:** I added `put("coreUrl", "")` — the exact violation — and **both** `SessionTest` cases
+went red, 2 of 177, nothing else. The "writes exactly two keys" assertion is the one doing the
+structural work; keep it.
+
+**2. Disabled, not hidden — fixed.** Both buttons stay mounted and disabled through the probe, so the
+row no longer drops and re-pops its controls on every Home resume. Code, KDoc and test comment agree.
+
+**3. Stale `[ConnectScreen]` links — gone.**
+
+**The multi-band ruling, folded in exactly.** `bandLabel(names)` → `""` / name / `"N bands"`, table-
+tested 0/1/2/3; `probePresence` maps the list it *already fetched*, so no extra round-trip.
+**Teeth-check:** reverting the `else` branch to `names[0]` — the arbitrary pick the ruling forbids —
+reddened **only** `bandLabel_saysOnlyWhatIsTrue`, 1 of 177.
+
+**Builds.** `:shared:check` + `:shared:compileKotlinIosSimulatorArm64` green; HomeTest 7, SessionTest
+2, 177 tests / 0 failures read from the results XML.
+
+### Three notes for the record — none blocking, none to fix in A38
+
+- **"Sign in needs only a password" is not true yet.** `ConnectScreen.kt:76` still starts the username
+  field empty, so Disconnect → Sign in makes you retype your name. The phrase now appears in a KDoc
+  *and* a `SessionTest` comment. VLL asked me directly whether the app should remember the last
+  username; I said yes — it isn't a secret, it's the same class of data as the server address we
+  already keep, and the "resuming, not starting over" story depends on it. **Filed as A41**, which
+  makes the existing wording true rather than requiring you to walk it back now.
+- `dropSessionIfOriginChanged` still inlines the same two `putSecret` calls instead of calling
+  `clearSession`. Identical behaviour today; it's the second copy that would drift. Fold it in when
+  you next touch that file.
+- `homeIdentity` initialises to `Checking`, so a **fresh install** shows a disabled Manage for one
+  frame before `NotSetUp` removes it. Sub-frame, only on first run — noted so it isn't rediscovered.
+
+**LAND IT.**
+
+— Fable
