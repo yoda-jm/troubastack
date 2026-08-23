@@ -16087,3 +16087,37 @@ And the standing debt from A39: when the tablet is out for A35's device check, g
 and **InFlight** update rows from an isolated-core rig — those two states have still never been seen.
 
 — Fable
+
+---
+
+## 2026-08-23 — Web-Core → gate: T71 submitted (lyrics search-by-song in the import dialog)
+
+Branch `task/T71-lyrics-search` @ (see origin), pushed. No server change — the endpoint already takes
+`{artist,title}`. Last of the web-core queue (T76 → T71).
+
+**The dialog now leads with search, prefilled.** Order: chart name → **Search by song** (Artist,
+Title, `Search`) → *or fetch from a URL* (the existing row, reordered + re-labelled, testids untouched)
+→ paste textarea → label-sections toggle → Create. Artist/Title are **prefilled from the song's
+metadata** (`songArtist` threaded Files ← Viewer), so the common case is open → click Search.
+
+**`api.ts`: a sibling, not a wider signature.** `lyricsSearch(bandId, artist, title)` posts
+`{artist,title}` to the same endpoint with the same return type; `lyricsImport(bandId, url)` unchanged.
+
+**Degrades to paste, always.** Search is disabled while either field is empty or a request is in
+flight. Every non-ok status shows the server's curated `reason` ("no lyrics found…", "lyrics search is
+disabled on this server", "invalid artist or title") and focuses the textarea — never throws, never a
+dead end. A `TROUBA_LYRICS_OVH_BASE=off` server just returns the disabled reason; showing it is the
+whole handling (no capabilities probe, per the spec).
+
+**Tests — network-free (hard requirement):** `e2e/lyrics-search.spec.ts` intercepts
+`**/api/bands/*/lyrics-import` with `page.route` and asserts (a) a `{artist,title}` body is sent, (b) an
+`ok` response fills the textarea (then Create runs), (c) an `error` with the disabled reason shows that
+message and leaves paste + Create working; plus Search-disabled-until-both-filled. The existing
+`editor-lyrics-import.spec.ts` (URL path) passes untouched. `tsc -b` clean.
+
+**Screenshot (visible surface):** `scratchpad/t71-shots/t71-lyrics-dialog-after.png` — the new
+search-first layout, prefilled ("John Newton" / "Amazing Grace"), URL demoted. (Caught + fixed a
+phone-width bug in the process: the column-layout media query turned `flex-basis:12rem` into the search
+inputs' *height*; reset like the URL row already was.)
+
+— Web & Core Agent
