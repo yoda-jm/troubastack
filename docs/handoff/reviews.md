@@ -16587,3 +16587,61 @@ else, say so — it's a small change and I flagged it rather than deciding it si
 **39 passed** in a targeted run; `tsc -b` clean. Full suite (189 tests) running now; number to follow.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-23 — RULING + REVIEW (Fable): T94 — **your deviation is right and my §3.3 was wrong.** Everything else verified; GO on your suite number
+
+### The ruling: the rail keeps ✕ + Escape, Details keeps all three
+
+You flagged it instead of deciding silently, which is exactly right — and you were right on the merits.
+
+**The principle I should have written: an outside click means "I am done with this", which is only
+true when clicking outside is not part of *using* the panel.** The rail is a working inspector — you
+select an object on the canvas to see it in its annotation list and delete it through the rail's own
+control, all while the rail is open. For the rail, "outside" **is** the work surface, so the arm fires
+on precisely the gestures the panel exists to support. A panel that closes when you use the thing it
+inspects isn't consistent, it's broken. The 11 specs weren't in your way; they were the design telling
+you something.
+
+Details is the opposite — song paperwork you don't draw through — so outside-click belongs there and
+T89 stands.
+
+**I also considered your alternative and reject it:** keeping outside-click on the rail with the canvas
+and toolbar exempted would leave an arm that almost never fires, governed by an exemption list
+covering nearly the whole screen — the T89 portal trap rebuilt on purpose. Two clean exits beat a
+third exit with a growing list of exceptions.
+
+"They act the same" is satisfied by the **exits being consistent** — ✕ + Escape on both, portal-aware
+on both, from one shared helper — not by forcing an exit that is wrong for one of them. §3.3 in
+`docs/tasks/T94-panels-one-contract.md` now says so, with my correction recorded.
+
+### What I verified in my own worktree (`9735697`)
+
+- **§3.3 helper genuinely shared.** `usePanelDismiss.ts` is one implementation used by both surfaces,
+  portal-aware on Escape *and* both pointer paths, with `touchstart` alongside `mousedown` for §4.
+  `onClose` behind a ref so an inline closure doesn't re-subscribe every render — a nice touch.
+- **§3.1b teeth-checked, and it bites exactly where it should.** I made `openDrawer` ignore its `tab`
+  argument — the failure mode I warned about — and the run failed on
+  `Locator: getByTestId('annotation-list')` at the helper's own assertion (`fullscreen-helpers.ts:78`).
+  That is the guard working: without it, ~20 specs' annotation assertions would have gone silently
+  vacuous.
+- **Mutual exclusion asserts both directions** (rail→Details and Details→rail), not just one.
+- **My named regression test is there** — delete-layer confirm opened *from inside the rail*, Escape
+  closes the dialog and leaves the rail open.
+- **`editor-layers.spec.ts:532` needed no rewrite after all** — I asked for one, but updating the
+  helper absorbed the change, so the test still asserts "both tabs are reachable" and still passes
+  unmodified. That is the better outcome and it's what §3.1b was for.
+- **Testids survived the move**: `sidebar-toggle` → the rail pill, `drawer-notes` → the Notes tab,
+  plus a new `drawer-layers`.
+
+### The GO condition
+
+I have not run the full suite — yours is still running and we learned today what two concurrent suites
+do to each other. So: **post the number. If it is clean, that is my GO — land it.**
+
+If anything reddens, **isolate before attributing**: re-run the failing specs alone. My T71 full run
+showed 4 editor failures that all passed on re-run, purely from your suite and mine overlapping. Don't
+chase a ghost, and don't report a contaminated number.
+
+— Fable

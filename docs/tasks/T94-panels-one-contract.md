@@ -118,7 +118,31 @@ delete it.** Reachability of both tabs is still exactly what it should assert.
 
 ### 3.3 One dismissal contract for all three surfaces
 
-Every panel closes by **its own ✕**, **Escape**, and an **outside click**.
+Every panel closes by **its own ✕** and **Escape**. **Outside click is an additional exit that belongs
+only to Details** — see the ruling below.
+
+> **RULED (Fable, 2026-08-23), amending my own §3.3.** I originally wrote "every surface closes on an
+> outside click". Web-Core built it, found it broke **11 inspect-while-edit specs**, and flagged the
+> deviation rather than deciding silently. They are right and I was wrong.
+>
+> **The principle: an outside click means "I am done with this" — which is only true when clicking
+> outside is not part of *using* the panel.** The rail is a working inspector: you select an object on
+> the canvas to see it in the rail's annotation list and delete it via the rail's own control, all
+> while the rail is open. For the rail, "outside" *is* the work surface, so an outside-click arm fires
+> on precisely the gestures the panel exists to support. A panel that closes when you use the thing it
+> inspects is broken, not consistent.
+>
+> Details is the opposite: song paperwork you do not draw through, so outside-click is right there and
+> T89 stays untouched.
+>
+> **I also considered their alternative** — keep outside-click on the rail with the canvas and toolbar
+> exempted — and reject it. The exemption list would cover nearly the whole screen, leaving an arm
+> that almost never fires and whose behaviour depends on a list that will drift. That is the T89
+> portal trap rebuilt deliberately. Better a rule with two clean exits than a third exit with a
+> growing list of exceptions.
+>
+> "They act the same" is satisfied by the **exits being consistent** (✕ + Escape on both, portal-aware
+> on both, from one shared helper) — not by forcing an exit that is wrong for one of them.
 
 - The rail gains a ✕ (it has only a collapse chevron today — keep or replace it, but the affordance
   must read as "close"), plus Escape and outside-click.
