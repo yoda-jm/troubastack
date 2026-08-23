@@ -96,10 +96,22 @@ async function fourFileRows(page: Page) {
   await panel.getByTestId("file-input").setInputFiles(PDF_PATH);
   await panel.getByTestId("file-upload").click();
   await expect(panel.getByTestId("file-row")).toHaveCount(1);
+  // T93 — this loop was the shared fixture's ~6% flake. Saving a chart is a POST + a list reload
+  // (ChartEditor.onDone → setChart(null) closes the editor, then load() grows the list); the old
+  // loop only asserted the final count of 4, so it raced ahead and the next `new-text-chart` /
+  // `chart-save` could land on a half-torn-down editor (chart-save unmounted → timeout). Make each
+  // iteration wait for its own observable post-conditions before opening the next editor:
+  //   1. the editor is actually mounted before we type (open is an async state round-trip);
+  //   2. after save, the row count has GROWN (load() landed) AND the editor has closed.
+  let expected = 1; // the uploaded PDF
   for (const t of ["AAA", "BBB", "CCC"]) {
     await panel.getByTestId("new-text-chart").click();
+    await expect(panel.getByTestId("chart-source")).toBeVisible();
     await panel.getByTestId("chart-source").fill(`# ${t} Chart\n\n## Verse\nla\n`);
     await panel.getByTestId("chart-save").click();
+    expected += 1;
+    await expect(panel.getByTestId("file-row")).toHaveCount(expected); // this save's reload landed
+    await expect(panel.getByTestId("chart-editor")).toHaveCount(0); // editor closed before the next
   }
   await expect(panel.getByTestId("file-row")).toHaveCount(4);
   return panel;
