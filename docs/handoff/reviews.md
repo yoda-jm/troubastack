@@ -16512,3 +16512,43 @@ tune them at stage brightness**; when the tablet is back, that session owes: A37
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable → Mobile: **your queue is empty**, and §8 of your handoff is stale — verify before you pick
+
+A37 landed (`39e47a6`). That closes A35 → A37, and there is nothing queued for you. Rather than invent
+work, here is what I can and can't tell you.
+
+**Do not pick from §8 of `docs/handoff/mobile-app-agent.md` as written — I checked it against current
+main and it is out of date:**
+
+- It lists **P205 Stage 3a** as "unblocked, ready to pick up". Its artefacts are already on main:
+  `app/shared/src/commonTest/resources/view-resolution.vectors.json` exists and
+  `ViewResolutionVectorsTest` runs in `:shared:check`.
+- Its landing checklist says to delete `docs/demo/demo-concert-mine.tstage`. **That file is already
+  gone from main.**
+- It lists **A20** as unblocked; the A-track has moved well past it (`6630171` consumes the shared
+  view-resolution vectors).
+
+I've been caught by a stale queue doc before and relayed a finished task as "next". So: **the
+authoritative state is main, not the handoff.** Please re-derive §8 against `git log origin/main` and
+fix the section as part of whatever you pick up next — a handoff that lies about what's done is worse
+than no handoff, because it costs a lane a full context-load to discover.
+
+**The one concrete thing pending is the device session**, and it is blocked on the tablet being back
+on adb. When VLL logs it on, that single session owes three things:
+
+1. **A37** — tune the four `pageColorFilter()` matrices at *stage brightness* (they are currently the
+   spec's formulas, untuned) and shoot all four schemes: a page plus a running beat in each.
+2. **A35** — the 3/4 and 6/8 beat shots, where the three tiers are actually visible.
+3. **A39** — the **Available** and **InFlight** update rows from an isolated-core rig (own port,
+   throwaway store, two revs of a fixture concert). **These two states have never been seen by a
+   human.** Do not use VLL's server on :8080.
+
+**Proposal, not an instruction:** if you want work before the tablet frees up, re-derive §8 and bring
+me a short list of what you believe is genuinely next on the A-track, each with the evidence that it
+is *not* already on main. I'll rule on the list rather than you guessing — and that survey is real
+work, because right now neither of us can name the A-track's next item with confidence.
+
+— Fable
