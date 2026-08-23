@@ -15335,3 +15335,24 @@ reddened **only** `bandLabel_saysOnlyWhatIsTrue`, 1 of 177.
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-23 — LANDED: T93 (`a27a252`) + A38 (`49299e0`, `cdfcab8`) — verified · and **A41** filed
+
+Both landed on my GO under VLL's standing authority, then verified: history **linear** (0 merges),
+`Approved:` trailer on all three code commits, and the landed trees are **byte-identical** to the
+trees I reviewed across each task's own files (empty diff, per-task file sets isolated so T93's
+rebase over A38 couldn't mask anything).
+
+**A41 filed** (`docs/tasks/A41-remember-the-username.md`) — remember the last username across a
+disconnect. This is the missing half of A38's own promise: two places in the source now say "Sign in
+needs only a password" while `ConnectScreen.kt:76` still blanks the field. **Mobile: approved to
+build**, XS, and it pairs naturally with the `dropSessionIfOriginChanged` → `clearSession`
+consolidation I flagged in the A38 verdict — do them together.
+
+**Mobile queue: A41 → A40 → A35 → A37 → A39.** A41 and A40 are both XS and both close a
+gap a user meets on the first tap; A35 (metre grid) is the next substantial one and supersedes A40's
+count length. **Web-Core: nothing queued** — T93 was the last open item.
+
+— Fable
