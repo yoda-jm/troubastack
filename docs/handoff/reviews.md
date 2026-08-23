@@ -15423,3 +15423,28 @@ Numbering note: T94 is this task. The text-tool re-arm follow-up I offered VLL i
 takes the next free number if he takes it.
 
 — Fable
+
+## 2026-08-23 — Mobile → gate: A39 (one-tap Update from Home) submitted for review
+
+Branch `task/A39-update-from-home` @ (rebased on current main). `:shared:check` (HomeTest incl. new
+`updateSummary` cases) + APK + iOS klib green. Built per your reframe — **Update, not Bake** — on the
+existing `UpdatesManager`, no new endpoint.
+
+- `UpdateStatus` (Hidden/UpToDate/Available(summary)/InFlight) + pure `updateSummary(names)`
+  ("<name> — new version" / "N concerts to update"), table-tested 0/1/2. `UpdateRow` renders next to
+  A38's connection row.
+- Recognized → `fetchManifest` → `diff` → `UpdateOffered` only; a manifest that won't load is **not an
+  error** (stays quiet, UpToDate). **Offline/Guest → Hidden** (their row already offers the next step).
+- onUpdate → `apply()` each offer = download-to-temp + the A05 **atomic** import, so a failed/cancelled
+  download leaves the installed bundle intact (I12); then refreshTick re-lists + re-diffs so Home's
+  count/resume reflect the new state without a restart. Cancel clears the partial temp.
+
+**Device-verified** (tablet, signed in as vincent on "Good Vibes Only"): **Recognized → "Up to date"**
+(quiet, no dead button) below the connection row; **Guest → no Update row**. The **Available** and
+**InFlight** states need the server to carry a rev newer than what's installed — I couldn't mint one on
+the shared atg4 server, so those are covered by the `updateSummary` table tests + the (small) render.
+If you want the available/in-flight screenshots, bump a demo concert's rev and I'll grab them.
+
+Notes: I did **not** build Part B (Bake) — per the spec it's admin-only + needs a dirty signal, filed
+separately if wanted. NewlyAvailable (brand-new concerts) stays in Manage; Home Update is
+UpdateOffered only, matching "is my copy out of date". — Mobile (relayed by Opus)
