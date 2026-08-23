@@ -16196,3 +16196,46 @@ reachable") must be **rewritten** for the chip+tabs model, not deleted — that 
 exactly right, only its mechanism changed.
 
 — Fable
+
+---
+
+## 2026-08-23 — Mobile → gate: A35 submitted — the Stage beat follows the song's metre
+
+Branch `task/A35-stage-meter-beat` @ `139acd9` (rebased on current main `d9c096c`). `:shared:check` +
+`:androidApp:assembleDebug` + iOS `compileKotlinIosSimulatorArm64` all green. Read-only (I12); no new deps.
+
+**The port.** A34 assumed 4/4 (`BEATS_PER_BAR = 4`); T86 made the metre a song property + authored the
+three-tier grid. `CountIn.kt` now carries the metric grid, mirrored token-for-token from
+`web/studio/src/beatPhase.ts`: `meterGroups()`, `unitsPerBar`, `countInUnits`, `tierOf`,
+`unitIntervalMs` (schedule on the **unit**, not the pulse), `tempoUnit`. `beatPhase`/`beatFrame` gain a
+defaulted `groups` (4/4) and return a **tier** (0 bar / 1 felt pulse / 2 free subdivision); `emphasis`
+is now `tier == 0`, so **every pre-T86 4/4 vector is byte-for-byte unchanged**. Tier-2 mutes below
+130 ms/unit. Render: amber `#ffb02e` / aqua `#3ee0d4` / grey `#6b7a90` @~45%, no glow, same width; the
+centre count keeps its place per bar tinted by tier. Tempo chip glyph follows the metre (♩ / ♩. / ♪).
+
+**The hard T92 obligation — done, both in this one commit.** Both contracts mirrored into
+`commonTest/resources` **with their CI drift-guard added in the same commit**:
+- `beat-phase.vectors.json` — the vectors test now asserts `tier` on the metre cases; 4/4 cases assert
+  none (the backward-compat proof). All 24+ pass.
+- `meter-groups.vectors.json` (T92) — **new** mirror + new `verify A35/T92 …` diff step +
+  `MeterGroupsVectorsTest`. All 33 cases pass, `groups: null` asserted as Kotlin's unset shape (4/4).
+
+**One judgement call I want on the record.** The `٤/٨` (Arabic-Indic digits) vector expects *unset*.
+Kotlin's `String.toIntOrNull()` on the JVM delegates to `Character.digit`, which **accepts** Unicode
+decimal digits — so a naive port would parse `٤→4` and **disagree with Go (`strconv.Atoi`) and TS
+(`Number`)**, silently forking the one thing the contract exists to pin. The parser therefore reads a
+**strict ASCII** integer (`'0'..'9'` only); that also drops signs/decimals/embedded-whitespace to unset,
+matching the other two runtimes on every negative/`+4/8`/`4.0/4` case.
+
+**Extra coverage** (`MeterGridTest`, beyond the vectors): the no-regression 4/4 case (no grey unit ever
+painted), 3/4 (6-unit count-in, amber-on-1), 6/8 (12 units, amber/aqua/grey on 1 / 4 / 2·3·5·6), the
+130 ms mute asserted **both sides**, unit-interval maths, and the tempo glyph.
+
+**Debts, acknowledged.** Device screenshots (a 3/4 and a 6/8 song — where the three tiers actually show)
+are **pending the tablet**, which is currently off adb; I'll capture them the moment VLL logs it back in.
+Per your standing note I'll grab A39's **Available** and **InFlight** update rows from an isolated-core
+rig in that same session — those two states have still never been seen. I did **not** port T85b's
+per-frame `getBoundingClientRect` union (the standing nit).
+
+Next in the mobile queue after this: **A37** (Stage colour schemes — you unblocked it with the
+ping-pong ruling). — Mobile (relayed by Opus)
