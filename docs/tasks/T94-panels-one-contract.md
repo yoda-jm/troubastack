@@ -68,6 +68,42 @@ rail. The `.drawer-tabs` row inside the rail becomes the only place you switch L
 > tab shrinks even that. VLL had already spotted the redundancy himself when he reported the bug:
 > *"layers is also a tab inside the same flyout as notes."*
 
+### 3.1b The real blast radius is `openDrawer()`, not the two testids
+
+I under-specified this in §3.1 and found it while reviewing T71. `e2e/fullscreen-helpers.ts:69` is a
+**shared helper used by 22 spec files, ~48 call sites**:
+
+```ts
+export async function openDrawer(page: Page, tab: "layers" | "annotations" = "layers") {
+  const pill = tab === "layers" ? page.getByTestId("sidebar-toggle") : page.getByTestId("drawer-notes");
+  const alreadyOnTab = (await pill.getAttribute("aria-pressed")) === "true";
+  if (!alreadyOnTab) await pill.click();
+  await expect(page.getByTestId("viewer-drawer")).toBeVisible();
+}
+```
+
+It encodes the exact model this task removes: one pill *per tab*, `aria-pressed` meaning "this tab is
+showing".
+
+**Update the helper; do not touch the 48 call sites.** `openDrawer(page, tab)` should open the single
+chip if the rail is closed, then select the requested tab inside it. Every existing call keeps its
+meaning for free, and the diff stays reviewable.
+
+**The trap, and the guard I want:** the lazy repair is to click the chip and ignore `tab`. Then every
+`openDrawer(page, "annotations")` call silently exercises the **Layers** tab, ~20 specs keep passing,
+and their annotation assertions test nothing. That is the dangling-testid failure in helper form.
+
+So the helper must **assert it landed on the requested tab before returning** — `annotation-list`
+visible for `"annotations"`, `layers-panel` for `"layers"` — not merely that `viewer-drawer` is
+visible. Prove it: make the helper ignore its `tab` argument and confirm a batch of annotation specs
+go **red**. If they stay green, the helper isn't guarding and the suite is lying.
+
+`closeDrawer()` (`:78`) needs the same pass against the new close contract.
+
+Also note `editor-layers.spec.ts:532` — *"both drawer tabs (Layers, Annotations) are reachable"* — is
+a behavioural assertion about the old two-pill model. Rewrite it for the chip+tabs model; **do not
+delete it.** Reachability of both tabs is still exactly what it should assert.
+
 ### 3.2 Details becomes the song's properties, and looks like it
 
 - The pill takes a **gear/⚙ icon** (VLL: *"properties (wheel)"*) with the title **"Song properties &

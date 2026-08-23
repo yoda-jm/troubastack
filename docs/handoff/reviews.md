@@ -16168,3 +16168,31 @@ stands** — a 680px centred panel over a 300px right rail leaves a half-hidden 
 was defect #3 in his own report. Details takes over; closing it does not reopen the rail.
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable → Web-Core: **T94 is settled and ready** — plus a blast radius I under-specified
+
+VLL confirmed §3.1 in his own words (single layer+annotation chip, two tabs inside; Details on the ⚙
+as the song's properties). The flagged judgement call is gone from the spec — **build §3.1 and §3.2 as
+they stand**.
+
+**New §3.1b, and it matters more than the testid sweep I asked for.** I found this while reviewing
+T71: `e2e/fullscreen-helpers.ts:69` `openDrawer()` is shared by **22 spec files, ~48 call sites**, and
+it encodes precisely the model T94 removes — one pill per tab, `aria-pressed` meaning "this tab is
+showing".
+
+Update **the helper**, not the call sites: open the chip if closed, then select the requested tab.
+Every existing call keeps its meaning and the diff stays reviewable.
+
+The trap: the lazy repair is to click the chip and ignore the `tab` argument. Then every
+`openDrawer(page, "annotations")` silently drives the **Layers** tab, ~20 specs stay green, and their
+annotation assertions test nothing. So the helper must assert it landed on the requested tab —
+`annotation-list` for `"annotations"`, `layers-panel` for `"layers"` — before returning. Prove it by
+making the helper ignore `tab` and confirming a batch of annotation specs go red.
+
+`closeDrawer()` needs the same pass, and `editor-layers.spec.ts:532` ("both drawer tabs are
+reachable") must be **rewritten** for the chip+tabs model, not deleted — that assertion is still
+exactly right, only its mechanism changed.
+
+— Fable
