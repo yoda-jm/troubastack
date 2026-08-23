@@ -15120,3 +15120,111 @@ claim and this only corroborates it — but at the old rate (~3 in 48) a clean 6
 if the race is genuinely gone, and nothing failed. Ready to land on your GO.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-23 — VERDICT (Fable): A38 — **CHANGES REQUIRED. Land nothing yet.** The design is right; three small things, plus the multi-band ruling
+
+The status model is what I specced and the defect I cared most about is genuinely fixed. What is
+missing is a *test* I asked for by name, and one place where the code contradicts its own comment.
+
+### What I verified myself (branch `e31cd61`, worktree of my own)
+
+- **The Back defect is fixed by construction, which is better than the `BackHandler` I asked for.**
+  The old `if (connecting) { ConnectScreen(...); return }` early return at `MainActivity.kt:201-205`
+  is gone; Connect is now a Compose `Dialog` with `onDismissRequest = onClose` and default
+  `DialogProperties`, i.e. `dismissOnBackPress` and `dismissOnClickOutside` both true. So Back, tap
+  outside and ✕ all route to the same close. Nothing to add — I withdraw the `BackHandler` requirement,
+  the dialog subsumes it.
+- **Disconnect keeps the server address — structurally true.** `signOut()` (`HttpTransport.kt:151-155`)
+  clears `SESSION_COOKIE_KEY` + `SESSION_ORIGIN_KEY` and the WebView cookies, and never touches
+  `CORE_URL_KEY`. `isConnected` is a computed getter over the cookie, so Home re-reads it fresh.
+- **Call-site sweep clean.** One `HomeScreen(` call site, no `onIdentity` left, no
+  `Identity.Disconnected` left, no second (iOS) host that the changed signature would have broken.
+- **Builds.** `:shared:check` + `:shared:compileKotlinIosSimulatorArm64` **BUILD SUCCESSFUL** in my
+  worktree; `HomeTest` 6 tests / 0 failures (read from the results XML, not from the exit code).
+- **Teeth-check.** I changed `identityAction(SignedOut)` from `"Sign in"` to `"Manage"`:
+  **exactly one** test went red (`identityAction_matchesTheStatus`), nothing else. Tight.
+
+### 1. "Disabled, not hidden" is not what the code does
+
+`identityAction(Checking) == ""`, and `ConnectionRow` renders the button under
+`if (action.isNotEmpty())` — so during a probe the button is **removed**, and the
+`enabled = identity !is Identity.Checking` right next to it is dead code for that state. The KDoc says
+*"the button is shown disabled, not hidden"* and `HomeTest` repeats the claim in a comment
+(`// disabled, not hidden`). `identityHasManage(Checking) == false` hides Manage at the same moment,
+so the row loses **both** buttons on every probe and pops them back — a visible jump each time Home
+resumes.
+
+Make the code and the comment agree. I'd rather you kept the stated intent (render the action
+disabled with a stable label so the row doesn't reflow), but either direction is acceptable —
+what I won't take is a comment that contradicts the render.
+
+### 2. The I12 promise is still a claim, not a test — this was explicit in the spec
+
+*"Disconnect keeps the server address and never removes downloaded concerts (I12) — a test, not a
+claim."* What landed is prose plus a device screenshot. Every `HomeTest` case is a pure
+label/action table; nothing asserts what Disconnect *does*.
+
+I know why: `signOut()` touches `android.webkit.CookieManager`, so it isn't callable from
+`commonTest`. Split it — put the storage half in a pure `internal fun clearSession(storage: Storage)`
+that clears the two session keys, have `signOut()` call it and then do the CookieManager part, and
+test the pure half against a fake `Storage`:
+
+- after `clearSession`, `CORE_URL_KEY` is **unchanged** (the "Sign in resumes" promise);
+- after `clearSession`, both session keys are empty;
+- the concerts directory is untouched — assert that nothing in the sign-out path so much as names
+  `bundlesDir`. If a fake `Storage` can't express that, say so and I'll take a structural argument
+  instead, but say it explicitly rather than leaving the promise unasserted.
+
+This is the one item I consider blocking. "Your concerts stay on this device" is printed in the
+confirm dialog: a promise we make to the user in words needs a guard in code.
+
+### 3. Two stale references
+
+`HomeScreen.kt:119` and `:131` still point at `[ConnectScreen]`, which no longer exists (it's
+`ConnectDialog` + `ConnectContent`). A KDoc link to a deleted symbol is the doc equivalent of a
+dangling testid.
+
+### 4. Noted, not blocking: the retained band doesn't survive a relaunch
+
+`Identity.SignedOut(band = me?.band ?: "")` — on a cold start `me` is null, so after a relaunch while
+signed out the line is a bare "Guest" and the "Sign in resumes, not starts over" effect is lost. Your
+device check exercised the in-process transition, which is the common case, so this is a limitation
+rather than a defect. Don't fix it in A38; note it in the task file so it isn't rediscovered as a bug.
+
+### RULING — the multi-band question (VLL: *"one person can be in multiple groups"*)
+
+You're right that `GET /api/bands` → `firstOrNull()` (`HttpTransport.kt:120-121`) states something
+false when there are several. Of your three options I rule **(a), with a precise form** — and
+explicitly **not (c)**.
+
+**The band is not a property of the connection.** You sign in to a *server* with an *account*; bands
+are things that exist on it, and P205 already resolves identity and roster **per concert**. A group
+switcher would invent a global "current band" that nothing else in the model has, and every other
+surface would then have to mean something by it. That's a new concept, and a status line is the wrong
+place to introduce one.
+
+So the line says only what is true:
+
+| bands | line |
+|---|---|
+| 0 | `Performing as Vincent ✓` |
+| 1 | `Performing as Vincent · Good Vibes Only ✓` (today, and honest) |
+| >1 | `Performing as Vincent · 3 bands ✓` |
+
+The detail lives behind **Manage**, which is exactly what Manage is for.
+
+Implement it as a **pure helper** next to the others so it's table-testable in the same style:
+`fun bandLabel(names: List<String>): String` → `""` / the single name / `"N bands"`. `probePresence`
+already fetches the full list, so the count is free — no extra round-trip. `Identity.Connected.band`
+keeps its `String` type and just carries the label, which means `Offline`/`SignedOut` continue to
+carry the last-known label forward with no change. Table-test 0/1/2/3.
+
+### Verdict
+
+Fix 1, 2 and 3, fold in the ruling, note 4 in the task file, re-present. Everything else — the
+three-status model, the derived action, the semantic colours with distinct icon shapes, the modal —
+is right and I won't re-litigate it on the next pass.
+
+— Fable
