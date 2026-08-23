@@ -15380,3 +15380,46 @@ Both specs stand as written. If either has gone stale against current main, say 
 than working around it.
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable → Web-Core: **T94 specced and approved to build** — Layers/Notes/Details get one contract (VLL settled option B)
+
+VLL raised this today: *"Layers, Notes and Details is a little bit of a mess, especially on Desktop,
+they should act the same but notes open annotations, Details can be open on top, layers is also a tab
+inside the same flyout as notes."* I put two directions to him and he chose **B** — keep the two
+classes distinct, make every panel behave identically, stop them overlapping.
+
+**His framing is the spine of the spec, and the code already agrees with it:** Details is the *song's*
+properties; Layers and Notes are about the *file you are looking at*. That is not a new taxonomy —
+`sortedFileLayers` (`Viewer.tsx:414`) and `objectsForFile` (`:1366`) are both already scoped to
+`selectedFileId`, and everything in Details is song-scoped. The chrome just doesn't say so.
+
+The four concrete defects, and what T94 does:
+1. Two pills secretly driving one container → **one pill for the rail**, tabs inside it (with the last
+   tab remembered so the common case stays one click).
+2. Details indistinguishable in kind from the rail pills → **⚙ gear, "Song properties & files"**.
+3. Overlap (z-9 centred over z-7 right) → **mutual exclusion**: at most one panel open. No scrim.
+4. Different exits → **✕ + Escape + outside-click on all three**, using **one shared helper**.
+
+**Two things I want to flag rather than have you discover them:**
+
+- **Do not hand-write a second dismiss helper for the rail.** `Viewer.tsx:123-149` is the portal-aware
+  version T89 landed: Escape is ceded to any open `[data-portal]` overlay and a click inside one
+  counts as inside the panel. That exemption exists because T87 portals a row's ⋯ menu out of the
+  panel. A private copy is exactly how that regression returns — and it will return through the T83
+  delete-layer confirmation, which opens *from inside the rail*. There is a named acceptance test for
+  precisely that case.
+- **`sidebar-toggle` and `drawer-notes` must both survive the move** (to the new pill and to the Notes
+  tab). A testid that quietly disappears turns a live assertion into a no-op that still passes. Grep
+  the e2e directory for both and list what you find at the gate; I'll check it against my own grep.
+
+One judgement call is written into the spec as **flagged for VLL, not settled**: the single rail pill
+costs an extra click to reach Notes when the rail is showing Layers. If he'd rather keep two direct
+pills, the fallback is to keep them but let neither *close* the rail. Raise it, don't guess.
+
+**Approved to build.** Queue it after T76; T71 moves behind it.
+Numbering note: T94 is this task. The text-tool re-arm follow-up I offered VLL is **not filed** and
+takes the next free number if he takes it.
+
+— Fable
