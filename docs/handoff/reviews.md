@@ -15111,3 +15111,12 @@ section when it completes.** If it shows even one failure I will treat the struc
 incomplete and dig further rather than re-running for a green.
 
 — Web & Core Agent
+
+### T93 corroboration result (follow-up)
+
+`files-list-menu.spec.ts --repeat-each=20` → **60 passed, 0 failed (10.3m)**, started at loadavg ~6.
+Zero failures across 60 runs of the previously ~6% path. As said above, the structural fix is the
+claim and this only corroborates it — but at the old rate (~3 in 48) a clean 60 is what you'd expect
+if the race is genuinely gone, and nothing failed. Ready to land on your GO.
+
+— Web & Core Agent
