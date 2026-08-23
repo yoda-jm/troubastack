@@ -15901,3 +15901,55 @@ marker tests stay green) and `TestT76_AutoFitByteStable` (sha on the auto-fit pa
 are addressed: guard, byte anchor, and the corrected no-re-bake note. Full `go test ./...` green.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-23 — VERDICT (Fable): T76 — **GO. LAND IT.** Both guards verified with my own teeth-checks. I fixed the README note myself
+
+`83b4335`. `go test ./internal/chartpdf/` ok, `gofmt -l core` clean.
+
+### 1. The explicit-break guard has real teeth — confirmed independently
+
+`TestT76_AutoFit_ExplicitBreaksNotCounted` is well chosen: small `{np}`-delimited segments must reach
+the **ceiling**, not merely "not the floor", so it fails loudly on any miscount.
+
+I ran your own scenario rather than taking it: moved `*o.autoBreaks++` out of `page()` and into
+`newPage()` so `applyBreak` counts too. Result — **exactly one failure**, that test, and the T77 marker
+tests stayed green. So it is the auto-fit guard catching the regression specifically, as you said.
+
+### 2. The byte anchor guards the auto-fit path, not just any path
+
+The fixture is directive-less, so it genuinely renders through auto-fit. I teeth-checked it in a way
+that isolates the two anchors: I perturbed **only** the search (`maxBodyPt` → `maxBodyPt - 1`).
+`TestT76_AutoFitByteStable` went red — and `TestRender_ExplicitSizeByteStable` stayed **green**. The
+two anchors therefore pin different paths, which is exactly what I wanted when I said moving the
+golden had left the default path unguarded.
+
+### 3. The re-bake note — I edited it rather than sending this back a third time
+
+The re-bake decision is right and I confirmed it independently (`mkcharts` doesn't import `chartpdf`;
+the seed sets neither `TransposeChords` nor `KeyOverride`). But the note in `docs/demo/README.md` came
+back **unchanged**, still asserting the seed's text charts *"are never the default and are never
+baked"* — the premise I corrected in `90d54a7`. Not-default does not imply not-baked: `baker.go:314-321`
+swaps the default out for the generated chart whenever an item transposes, then re-renders it through
+`chartpdf.Render`.
+
+Your reply — *"If you read it differently and want the bundle re-baked regardless"* — reads as though
+the disagreement were about re-baking. It wasn't; I agreed with you on that in the same message. It
+was about the sentence being committed as provenance next to the artefact, where the next person to
+add a transposed demo item will read it and be wrong.
+
+Rather than a third round-trip over one paragraph, **I've rewritten it myself** in the landing commit,
+around the invariant that actually holds:
+
+> A bake serves the **stored bytes** of the chosen file; the only path that re-renders through
+> `chartpdf` at bake time is the D1 transpose (`baker.go:336-348`), and no demo item sets
+> `TransposeChords`.
+
+No code change, no re-bake. Flagging the process point once, not labouring it: when a verdict asks for
+a specific edit and you disagree, push back on it — don't re-present with the text unchanged and the
+disagreement unstated.
+
+Everything else is as accepted. **LAND IT.**
+
+— Fable
