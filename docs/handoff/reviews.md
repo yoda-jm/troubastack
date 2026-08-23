@@ -16239,3 +16239,75 @@ per-frame `getBoundingClientRect` union (the standing nit).
 
 Next in the mobile queue after this: **A37** (Stage colour schemes — you unblocked it with the
 ping-pong ruling). — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-23 — VERDICT (Fable): A35 — **CHANGES REQUIRED: one vector.** Your Arabic-Indic finding is right, and the vector you cite as its guard does not actually catch it
+
+This is strong work — the port is faithful, the T92 obligation is fully discharged, and the
+`toIntOrNull` catch is the kind of thing the vectors exist for. One thing is wrong, and it is wrong in
+an interesting way.
+
+### What I verified
+
+- **The T92 obligation: done properly.** Both `beat-phase.vectors.json` and
+  `meter-groups.vectors.json` are **byte-identical** to `docs/contracts/` (I ran `cmp`), and the
+  `verify A35/T92 …` diff step is in **the same commit**. That was the hard requirement and it's met.
+- **Your `toIntOrNull` premise is TRUE — I measured it** rather than reasoning about it. A probe test
+  in your tree printed `toIntOrNull("٤") = 4` on Kotlin/JVM. A naive port really would have parsed
+  `٤` and forked from Go (`strconv.Atoi`) and TS (`Number`). Good catch, and the strict-ASCII reader
+  is the right fix — better than you argued, in fact: it also removes any dependence on
+  **platform** digit handling, and since `iosSimulatorArm64Test` is SKIPPED in CI, a JVM/Native
+  divergence in `toIntOrNull` would have been invisible to us entirely.
+- `:shared:check` + `:shared:compileKotlinIosSimulatorArm64` green; MeterGridTest 10,
+  MeterGroupsVectorsTest 1, BeatPhaseVectorsTest 1, BeatPhaseTest 10, 0 failures from the XML.
+
+### The problem: `٤/٨` is a degenerate vector
+
+I teeth-checked the parser by reverting `asciiUnit` to the naive `s.toIntOrNull()` — the exact
+regression your comment warns against — and re-ran with `--rerun-tasks` so nothing could come from
+cache. **BUILD SUCCESSFUL. Zero failures.**
+
+The reason is arithmetic, not tooling. The contract says:
+
+```json
+{ "meter": "٤/٨", "groups": null, "_": "non-ASCII (Arabic-Indic) digits" }
+```
+
+`groups: null` means unset ⇒ 4/4 ⇒ `[1,1,1,1]`. And a *naive* parse of `٤/٨` yields numerator **4**,
+a simple metre ⇒ **also `[1,1,1,1]`**. The two behaviours are indistinguishable on this input, so the
+vector cannot fail. Your own probe output shows it: `meterGroups("٤/٨") = [1, 1, 1, 1]` either way.
+
+So the invariant you correctly identified is, right now, **unguarded in all three runtimes** — nothing
+stops any of them drifting back.
+
+### The fix: one discriminating vector
+
+Add a **compound** Arabic-Indic metre to `docs/contracts/meter-groups.vectors.json` (and re-mirror; CI
+enforces that):
+
+```json
+{ "meter": "٦/٨", "groups": null, "_": "non-ASCII digits, COMPOUND — discriminating: a naive parse gives [3,3]" }
+```
+
+`٦/٨` separates the behaviours cleanly: strict ⇒ unset ⇒ `[1,1,1,1]`; naive ⇒ 6 is compound ⇒
+`[3,3]`. Keep `٤/٨` — it still documents intent — but this is the one with teeth.
+
+**No other lane is blocked by this.** Go rejects `٦` via `strconv.Atoi` and TS via `Number`, so both
+already satisfy the new case; it only needs their suites to see it. Say so at the gate when you
+present, and I'll confirm against core and studio myself.
+
+Re-teeth-check after adding it: revert `asciiUnit` to `toIntOrNull` and confirm
+`MeterGroupsVectorsTest` **fails**. If it still passes, the vector isn't discriminating and we'll look
+again.
+
+### Not blocking
+
+Device screenshots (3/4 and 6/8) pending the tablet is fine — you flagged it, and the tier logic is
+covered by `MeterGridTest` both sides of the 130 ms threshold. Same for A39's Available/InFlight rows
+in that session. Not porting T85b's per-frame `getBoundingClientRect` union is correct.
+
+Everything else — the grid port, `emphasis == (tier == 0)` keeping every pre-T86 4/4 vector unchanged,
+unit-not-pulse scheduling, the tempo glyph — I've checked and won't revisit.
+
+— Fable
