@@ -483,7 +483,7 @@ private fun Performing(
                         // they read as strongly connected. Only when the song has a tempo. Tapping the
                         // metronome starts it and closes the chrome for a clean page; ∞ = keep-running
                         // vs count-in.
-                        if (page.tempo > 0) StageBeatControl(page.tempo, stageBeat, onStart = { chromeVisible = false })
+                        if (page.tempo > 0) StageBeatControl(page.tempo, page.meter, stageBeat, onStart = { chromeVisible = false })
                         // Auto-update (P201) is NOT a top-bar FAB — the bare ○/● read as a mystery dot
                         // next to the metronome (VLL). It lives only in the ⚙ sheet, clearly labeled.
                         // Settings lives in the TOP bar, not the bottom: MIUI's bottom gesture zone
@@ -1054,8 +1054,7 @@ private fun MetaStrip(page: StagePage) {
 private fun beatTint(beat: StageBeat): Color {
     val f = beat.frame
     return when {
-        f != null && f.downbeat -> Color(0xFFFFB02E)
-        f != null -> Color(0xFF3EE0D4)
+        f != null -> tierColor(f.tier) // amber bar / aqua felt pulse / grey subdivision (A35)
         beat.running -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.outline
     }
@@ -1065,11 +1064,12 @@ private fun beatTint(beat: StageBeat): Color {
  *  hairline outline and a divider) in the TOP BAR, so they read as one strongly-connected control:
  *   • left segment = the metronome — tap to start/stop; [onStart] fires on start (caller closes the
  *     chrome). Lifts to the accent container while running so "on" shows even between pulses.
- *   • right segment = ∞ — keep-running vs an 8-beat count-in; accent container while on.
+ *   • right segment = ∞ — keep-running vs a two-bar count-in; accent container while on.
  *  Styled to match [StageFab]. */
 @Composable
-private fun StageBeatControl(tempo: Int, beat: StageBeat, onStart: () -> Unit, height: Dp = 56.dp) {
+private fun StageBeatControl(tempo: Int, meter: String, beat: StageBeat, onStart: () -> Unit, height: Dp = 56.dp) {
     val enabled = tempoIntervalMs(tempo) != null
+    val groups = remember(meter) { meterGroups(meter) }
     val shape = FloatingActionButtonDefaults.shape
     val accent = Color(0xE6198060)
     Row(
@@ -1087,7 +1087,7 @@ private fun StageBeatControl(tempo: Int, beat: StageBeat, onStart: () -> Unit, h
                 .background(if (beat.running) accent else Color.Transparent)
                 .clickable {
                     if (enabled) {
-                        beat.toggle(tempo)
+                        beat.toggle(tempo, groups)
                         if (beat.running) onStart()
                     }
                 },

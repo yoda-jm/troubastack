@@ -109,11 +109,11 @@ class BeatPhaseTest {
         val interval = 500.0
         val atBeat = beatFrame(0.0, interval, COUNT_IN_BEATS)!!
         assertTrue(atBeat.env > 0.99f, "full envelope at the beat")
-        assertTrue(atBeat.downbeat, "beat 0 is a downbeat")
+        assertEquals(0, atBeat.tier, "unit 0 is the bar (tier 0)")
         // decay(500) = min(220, 375) = 220 → dark once msSinceBeat ≥ 220
         assertNull(beatFrame(220.0, interval, COUNT_IN_BEATS), "dark between pulses")
         assertNull(beatFrame(499.0, interval, COUNT_IN_BEATS), "still dark just before the next beat")
-        assertFalse(beatFrame(500.0, interval, COUNT_IN_BEATS)!!.downbeat, "beat 1 is an off-beat")
+        assertEquals(1, beatFrame(500.0, interval, COUNT_IN_BEATS)!!.tier, "unit 1 is a felt pulse (tier 1) in 4/4")
         assertNull(beatFrame(-1.0, interval, COUNT_IN_BEATS), "dark before start")
         assertNull(beatFrame(COUNT_IN_BEATS * interval, interval, COUNT_IN_BEATS), "dark after the count")
     }

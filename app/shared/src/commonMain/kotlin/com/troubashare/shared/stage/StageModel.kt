@@ -91,6 +91,7 @@ data class StagePage(
     val displayNotes: String = "",
     val key: String = "",
     val tempo: Int = 0,
+    val meter: String = "",         // A35: the song's metre (proto 12); "" ⇒ 4/4 (pre-T86 bundles)
 )
 
 /**
@@ -236,6 +237,7 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
                     displayNotes = song.displayNotes,
                     key = song.key,
                     tempo = song.tempo,
+                    meter = song.meter,
                 ),
             )
         }
@@ -283,11 +285,19 @@ private fun blobKey(songId: String, page: Int, ref: String): String = "$songId#$
  * empty fields; tempo 0 is omitted. Returns null when nothing to show (⇒ no strip renders, layout
  * unchanged). Visual one-line truncation is the caller's job (Text maxLines=1 + ellipsis).
  */
-internal fun metaStripText(displayNotes: String, key: String, tempo: Int): String? {
+internal fun metaStripText(displayNotes: String, key: String, tempo: Int, meter: String = ""): String? {
     val parts = buildList {
         if (displayNotes.isNotBlank()) add(displayNotes.trim())
         if (key.isNotBlank()) add(key.trim())
-        if (tempo > 0) add("♩=$tempo") // ♩=N (quarter-note); a display, not a click track
+        // A35: the beat-note glyph follows the metre — ♩ simple · ♩. compound · ♪ irregular-additive.
+        if (tempo > 0) {
+            val note = when (tempoUnit(meterGroups(meter))) {
+                TempoUnit.DOTTED_QUARTER -> "♩."
+                TempoUnit.EIGHTH -> "♪"
+                TempoUnit.QUARTER -> "♩"
+            }
+            add("$note=$tempo") // a display, not a click track
+        }
     }
     return if (parts.isEmpty()) null else parts.joinToString("  ·  ")
 }
@@ -300,7 +310,7 @@ internal fun metaStripText(displayNotes: String, key: String, tempo: Int): Strin
 internal fun songMetaLine(state: StageState, songIndex: Int): String? {
     val song = state.songs.getOrNull(songIndex) ?: return null
     val page = state.pages.getOrNull(song.firstPage) ?: return null
-    return metaStripText(page.displayNotes, page.key, page.tempo)
+    return metaStripText(page.displayNotes, page.key, page.tempo, page.meter)
 }
 
 /**

@@ -35,14 +35,28 @@ import kotlin.math.floor
  * is the STAGE renderer + a tiny controller. Driven off [withFrameNanos] so the phase is derived from
  * the frame clock — not accumulated `delay()` calls, which drift under load (the A11 bug).
  *
- * Colours are amber-vs-aqua (warm/cool, survives red-green deficiency); the base width is re-tuned
- * LARGER than the studio's 9 px desk value, for a dark stage at arm's length. Read-only (I12).
+ * A35/T86 — the beat follows the song's METRE (see CountIn.kt's grid). Three tiers, each its own colour:
+ * amber bar · aqua felt-pulse · grey free-subdivision. Amber-vs-aqua is warm/cool (survives red-green
+ * deficiency); grey reads as texture, not "off". The base width is re-tuned LARGER than the studio's
+ * 9 px desk value, for a dark stage at arm's length. Read-only (I12).
  */
-private val DOWNBEAT = Color(0xFFFFB02E) // amber — every 4th beat
-private val OFFBEAT = Color(0xFF3EE0D4) // aqua — grey would read as "off"
+private val TIER0 = Color(0xFFFFB02E) // amber — the bar (downbeat, unit 0)
+private val TIER1 = Color(0xFF3EE0D4) // aqua — a felt pulse (group start)
+private val TIER2 = Color(0xFF6B7A90) // grey — a free subdivision (muted, no glow)
+
+/** The colour for a metric [tier] (0 bar · 1 felt pulse · 2 free subdivision). Package-visible so the
+ *  metronome-icon tint (StageScreen) echoes the same three colours as the frame. */
+internal fun tierColor(tier: Int): Color = when (tier) {
+    0 -> TIER0
+    1 -> TIER1
+    else -> TIER2
+}
 
 /** Peak frame weight for the stage. Wider than the desk's 9 px — read from across a room, hands full. */
 private val BEAT_BASE = 16.dp
+
+/** The centre count for one unit: its [number] (1-based within the bar) and its metric [tier]. */
+data class BeatMark(val number: Int, val tier: Int)
 
 /**
  * A silent, read-only beat controller. [toggle] starts/stops the metronome; the [continuous] (∞)
@@ -59,12 +73,18 @@ class StageBeat {
     var frame by mutableStateOf<BeatFrame?>(null)
         internal set
 
-    /** The beat-in-bar number to show, 1..4, held for the WHOLE beat while running (null = idle). Cycles
-     *  1 2 3 4 1 2 3 4 so the player can keep their place; distinct from [frame]'s brief pulse. */
-    var beatLabel by mutableStateOf<Int?>(null)
+    /** The unit-in-bar mark to show, held for the WHOLE unit while running (null = idle): the number
+     *  (1..unitsPerBar) so the player keeps their place, plus its [BeatMark.tier] so the centre count
+     *  is tinted like the frame (amber 1 / aqua felt pulse / grey subdivision). Distinct from [frame]'s
+     *  brief pulse. Cycles per bar (4/4: 1 2 3 4; 6/8: 1 2 3 4 5 6). */
+    var beatLabel by mutableStateOf<BeatMark?>(null)
         internal set
 
     var tempo = 0
+        private set
+
+    /** The metre grid this run beats to (group lengths in units); 4/4 default. Set on [start]. */
+    var groups by mutableStateOf(DEFAULT_GROUPS)
         private set
 
     /** ∞ mode (studio parity — the ∞ loop toggle in the editor). **Defaults OFF (A40):** tapping the
@@ -80,10 +100,11 @@ class StageBeat {
 
     val running: Boolean get() = beats > 0
 
-    /** Tap the metronome: stop if running, else start — forever ([continuous]) or an 8-beat count-in.
-     *  A metronome you switch on and off. No-op for an out-of-range tempo. */
-    fun toggle(tempoBpm: Int) {
-        if (running) stop() else start(tempoBpm, if (continuous) CONTINUOUS_BEATS else COUNT_IN_BEATS)
+    /** Tap the metronome: stop if running, else start — forever ([continuous]) or a two-bar count-in
+     *  under [meter]'s grid (4/4→8 units, 3/4→6, 6/8→12). A metronome you switch on and off. No-op for
+     *  an out-of-range tempo. [meter] defaults to 4/4, so a call site without a metre beats as before. */
+    fun toggle(tempoBpm: Int, meter: List<Int> = DEFAULT_GROUPS) {
+        if (running) stop() else start(tempoBpm, meter, if (continuous) CONTINUOUS_BEATS else countInUnits(meter))
     }
 
     fun stop() {
@@ -91,9 +112,10 @@ class StageBeat {
         runToken++
     }
 
-    private fun start(tempoBpm: Int, count: Int) {
+    private fun start(tempoBpm: Int, meter: List<Int>, count: Int) {
         if (tempoIntervalMs(tempoBpm) == null) return
         tempo = tempoBpm
+        groups = meter
         beats = count
         runToken++
     }
@@ -113,7 +135,9 @@ fun rememberStageBeat(resetKey: Any): StageBeat {
         beat.frame = null
         beat.beatLabel = null
         if (!beat.running) return@LaunchedEffect
-        val interval = intervalMs(beat.tempo)
+        val groups = beat.groups
+        val perBar = unitsPerBar(groups)
+        val interval = unitIntervalMs(beat.tempo, groups)   // schedule on the UNIT, not the pulse (A35)
         val beats = beat.beats
         var startNanos = -1L
         while (true) {
@@ -127,8 +151,9 @@ fun rememberStageBeat(resetKey: Any): StageBeat {
                     beat.beatLabel = null
                     done = true
                 } else {
-                    beat.frame = beatFrame(elapsedMs, interval, beats)         // brief border pulse
-                    beat.beatLabel = beatIndex % BEATS_PER_BAR + 1             // 1..4, held the whole beat
+                    beat.frame = beatFrame(elapsedMs, interval, beats, groups) // brief border pulse
+                    val u = beatIndex % perBar
+                    beat.beatLabel = BeatMark(u + 1, tierOf(u, groups))        // held the whole unit
                 }
             }
             if (done) break
@@ -160,9 +185,10 @@ fun MetronomeIcon(tint: Color, modifier: Modifier) {
 }
 
 /**
- * The running beat: a pulsing frame on the page border PLUS a big, semi-transparent beat number
- * (1 2 3 4 …) in the middle, both in the beat's colour (amber downbeat / aqua off-beat). The border
- * pulse is a brief transient; the number is held for the whole beat so the player keeps their place.
+ * The running beat: a pulsing frame on the page border PLUS a big, semi-transparent unit number
+ * (1 2 3 … per bar) in the middle, both in the unit's TIER colour (amber bar / aqua felt pulse / grey
+ * subdivision). The border pulse is a brief transient; the number is held for the whole unit so the
+ * player keeps their place.
  * Purely visual — it holds NO pointer input, so a tap on the page still turns the page / toggles the
  * chrome (you stop the beat from its FAB, not by touching the score). Nothing renders when idle.
  */
@@ -174,16 +200,22 @@ fun StageBeatFrame(beat: StageBeat, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize()) {
         if (frame != null) {
             val env = frame.env.coerceIn(0f, 1f)
-            val color = if (frame.downbeat) DOWNBEAT else OFFBEAT
+            val color = tierColor(frame.tier)
             val width = BEAT_BASE * (0.45f + 0.55f * env)
-            // soft outer halo + crisp inner frame — they "breathe" rather than snap.
-            Box(Modifier.fillMaxSize().border(width * 1.7f, color.copy(alpha = env * 0.28f), shape))
-            Box(Modifier.fillMaxSize().padding(3.dp).border(width, color.copy(alpha = env * 0.92f), shape))
+            if (frame.tier == 2) {
+                // free subdivision: a single flat frame at ~45% opacity, NO halo/glow — texture, not a
+                // pulse (spec A35 §4). Same width as the bar/pulse so the grid reads as one thing.
+                Box(Modifier.fillMaxSize().padding(3.dp).border(width, color.copy(alpha = env * 0.45f), shape))
+            } else {
+                // bar + felt pulse: soft outer halo + crisp inner frame — they "breathe" rather than snap.
+                Box(Modifier.fillMaxSize().border(width * 1.7f, color.copy(alpha = env * 0.28f), shape))
+                Box(Modifier.fillMaxSize().padding(3.dp).border(width, color.copy(alpha = env * 0.92f), shape))
+            }
         }
         if (label != null) {
-            val tint = (if (label == 1) DOWNBEAT else OFFBEAT).copy(alpha = 0.34f)
+            val tint = tierColor(label.tier).copy(alpha = 0.34f)
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("$label", color = tint, fontSize = 168.sp, fontWeight = FontWeight.Bold)
+                Text("${label.number}", color = tint, fontSize = 168.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
