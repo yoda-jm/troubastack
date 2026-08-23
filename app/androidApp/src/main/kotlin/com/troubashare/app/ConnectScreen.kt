@@ -73,7 +73,9 @@ private fun ConnectContent(
 ) {
     val scope = rememberCoroutineScope()
     var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
-    var username by remember { mutableStateOf("") }
+    // A41: seed the last username so Sign in after a Disconnect needs only a password. The password
+    // field is never seeded (below) — the secret stays unpersisted.
+    var username by remember { mutableStateOf(storage.getSecret(LAST_USERNAME_KEY) ?: "") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -135,7 +137,12 @@ private fun ConnectContent(
                             "Couldn't reach the server"
                         }
                         busy = false
-                        if (err == null) onDone() else error = err
+                        if (err == null) {
+                            storage.putSecret(LAST_USERNAME_KEY, username.trim()) // A41: remember on SUCCESS only
+                            onDone()
+                        } else {
+                            error = err
+                        }
                     }
                 },
             ) { Text(if (busy) "Connecting…" else "Connect") }

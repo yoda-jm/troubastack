@@ -32,6 +32,10 @@ import java.io.File
 
 private const val CORE_URL_KEY = "coreUrl"                       // shared with A06's Edit screen
 private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080"     // emulator → host
+// A41: the last username, remembered so Sign in after a Disconnect needs only a password. Like the
+// server address it's not a secret and survives sign-out; but it belongs to a server, so it's cleared
+// when the origin changes (below). Package-visible so ConnectScreen seeds + persists it.
+internal const val LAST_USERNAME_KEY = "lastUsername"
 // A38: SESSION_COOKIE_KEY / SESSION_ORIGIN_KEY + clearSession() moved to shared seams/Session.kt so the
 // sign-out storage half is unit-tested (the I12 promise). The cookie is a bare name=value and the
 // server URL is user-editable, so it stays BOUND to its issuing origin (SESSION_ORIGIN_KEY) and is only
@@ -71,8 +75,8 @@ internal fun sessionCookieFor(storage: Storage, url: String): String? {
  */
 internal fun dropSessionIfOriginChanged(storage: Storage, newUrl: String) {
     if (originOf(newUrl) != storage.getSecret(SESSION_ORIGIN_KEY).orEmpty()) {
-        storage.putSecret(SESSION_COOKIE_KEY, "")
-        storage.putSecret(SESSION_ORIGIN_KEY, "")
+        clearSession(storage::putSecret)              // A38 review: consolidated onto the tested helper
+        storage.putSecret(LAST_USERNAME_KEY, "")      // A41: the remembered username belongs to a server
         android.webkit.CookieManager.getInstance().removeAllCookies(null)
     }
 }
