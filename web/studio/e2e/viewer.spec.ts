@@ -309,7 +309,8 @@ test("viewer: PDF + annotation layers render, toggle + zoom (screenshots)", asyn
   // Screenshot 3: zoomed.
   await page.screenshot({ path: "/tmp/view-zoom.png", fullPage: true });
 
-  // Collapse the layers sidebar → PDF gets the full width; panel disappears.
+  // Collapse the file rail → PDF gets the full width; panel disappears. T94: the single pill toggles
+  // the rail (it stays open through the zoom edits above — the rail has no outside-click dismiss).
   await page.getByTestId("sidebar-toggle").click();
   await expect(page.getByTestId("layers-panel")).toHaveCount(0);
   await page.getByTestId("sidebar-toggle").click();

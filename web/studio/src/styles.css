@@ -651,7 +651,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: saturate(150%) blur(12px);
 }
-.drawer-tabs { display: flex; gap: .2rem; align-items: center; padding: .45rem .5rem 0; }
+/* T94 — the tabs row is the rail's sticky header: it is a flex sibling ABOVE the scrolling
+   .drawer-body, so the tabs and the ✕ stay put while the body scrolls (the §4 reachable-close rule). */
+.drawer-tabs { display: flex; gap: .2rem; align-items: center; padding: .45rem .5rem 0; flex: 0 0 auto; }
 .drawer-tab {
   flex: 1 1 auto; border: none; background: transparent; color: var(--muted);
   font-weight: 600; font-size: .84rem; padding: .45rem; margin: 0;
@@ -659,11 +661,12 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .drawer-tab:hover { color: var(--fg); }
 .drawer-tab.active { color: var(--brand-strong); border-bottom-color: var(--brand); }
-.drawer-collapse {
+/* T94 — the rail's ✕ close (was a ▲ collapse chevron; now reads unambiguously as "close"). */
+.drawer-close {
   flex: 0 0 auto; width: 1.9rem; border: none; background: transparent; color: var(--muted);
-  border-radius: 8px; font-size: .8rem; padding: .3rem; margin: 0;
+  border-radius: 8px; font-size: .9rem; line-height: 1; padding: .3rem; margin: 0 0 .1rem .2rem;
 }
-.drawer-collapse:hover { background: var(--surface-2); color: var(--fg); }
+.drawer-close:hover { background: var(--surface-2); color: var(--fg); }
 .drawer-body {
   padding: .7rem .8rem; overflow: auto;
   display: flex; flex-direction: column; gap: .8rem;

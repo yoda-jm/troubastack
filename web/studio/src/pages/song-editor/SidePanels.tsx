@@ -3,7 +3,7 @@
  * Layers panel (visibility toggles, lock, active/focus) and the per-layer
  * Annotation list. Behavior + data-testids unchanged.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AnnotationLayer, AnnotationObject, Role } from "../../api";
 import { objectLabel } from "../../editor";
 import { Avatar } from "../../components/Avatar";
@@ -273,10 +273,22 @@ export function DeleteLayerDialog({
   const hard = objectCount > 0 || layer.mandatory;
   const [typed, setTyped] = useState("");
   const armed = !hard || typed.trim().toUpperCase() === "DELETE";
+  // T94 — this dialog is `data-portal`, and the convention is that a portalled surface MUST close
+  // itself on Escape (so the rail/Details it opened from cedes Escape and does not collapse under it).
+  // A document-level listener makes that hold regardless of where focus sits (the soft, input-less
+  // variant would otherwise never receive the backdrop's onKeyDown).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
   return (
     <div
       className="modal-backdrop"
       data-testid="delete-layer-dialog"
+      data-portal="delete-layer-dialog"
       role="dialog"
       aria-modal="true"
       onKeyDown={(e) => {

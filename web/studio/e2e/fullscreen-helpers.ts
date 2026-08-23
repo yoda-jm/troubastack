@@ -64,24 +64,25 @@ export async function scrollFracIntoBand(
   return box;
 }
 
-/** Open the on-demand drawer to a tab (default Layers), if not already on it.
- *  Idempotent: does nothing when the wanted tab is already showing. */
+/** Open the on-demand file rail to a tab (default Layers), if not already on it. T94: one pill opens
+ *  the rail, the Layers/Notes tabs switch inside it. Idempotent. */
 export async function openDrawer(page: Page, tab: "layers" | "annotations" = "layers"): Promise<void> {
-  const pill = tab === "layers" ? page.getByTestId("sidebar-toggle") : page.getByTestId("drawer-notes");
-  const alreadyOnTab = (await pill.getAttribute("aria-pressed")) === "true";
-  if (!alreadyOnTab) await pill.click();
+  const railPill = page.getByTestId("sidebar-toggle");
+  if ((await railPill.getAttribute("aria-pressed")) !== "true") await railPill.click();
   await expect(page.getByTestId("viewer-drawer")).toBeVisible();
+  const tabBtn = page.getByTestId(tab === "layers" ? "drawer-layers" : "drawer-notes");
+  if ((await tabBtn.getAttribute("aria-pressed")) !== "true") await tabBtn.click();
+  // T94 §3.1b — ASSERT we landed on the requested tab. Without this, a helper that ignored `tab`
+  // would make every openDrawer(page,"annotations") silently exercise Layers and ~20 specs' annotation
+  // assertions would test nothing (a dangling-testid failure in helper form).
+  await expect(page.getByTestId(tab === "layers" ? "layers-panel" : "annotation-list")).toBeVisible();
 }
 
-/** Dismiss the drawer if open, so a following canvas gesture (draw / resize / drag)
- *  on the right side of the score is not intercepted by the floating panel. */
+/** Dismiss the rail if open, so a following canvas gesture (draw / resize / drag) on the right side
+ *  of the score is not intercepted by the floating panel. T94: the single pill toggles the rail. */
 export async function closeDrawer(page: Page): Promise<void> {
   if (!(await page.getByTestId("viewer-drawer").count())) return;
-  for (const id of ["sidebar-toggle", "drawer-notes"]) {
-    if ((await page.getByTestId(id).getAttribute("aria-pressed")) === "true") {
-      await page.getByTestId(id).click();
-      break;
-    }
-  }
+  const railPill = page.getByTestId("sidebar-toggle");
+  if ((await railPill.getAttribute("aria-pressed")) === "true") await railPill.click();
   await expect(page.getByTestId("viewer-drawer")).toHaveCount(0);
 }

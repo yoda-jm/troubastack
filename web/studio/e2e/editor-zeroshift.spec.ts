@@ -132,8 +132,9 @@ test("editor: opening/closing the drawer does NOT shift the canvas (panel-toggle
   await openDrawer(page, "annotations");
   expect(sameBox(base, await pageBox(page))).toBeTruthy();
 
-  // Close it again → back to baseline, no move.
-  await page.getByTestId("drawer-notes").click(); // aria-pressed → toggles closed
+  // Close it again → back to baseline, no move. T94: the single rail pill toggles the rail closed
+  // (drawer-notes is now a tab inside the rail, not a pill that closes it).
+  await page.getByTestId("sidebar-toggle").click();
   await expect(page.getByTestId("viewer-drawer")).toHaveCount(0);
   expect(sameBox(base, await pageBox(page))).toBeTruthy();
 });

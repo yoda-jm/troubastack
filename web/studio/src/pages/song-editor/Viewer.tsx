@@ -36,6 +36,7 @@ import { LayersPanel, AnnotationList, DeleteLayerDialog } from "./SidePanels";
 import { isEditableLayer } from "./helpers";
 import { useSongSync, defaultVisibility } from "./useSongSync";
 import { usePdfDocument, ZOOM_PERCENTS } from "./usePdfDocument";
+import { usePanelDismiss } from "./usePanelDismiss";
 import { useBeat } from "../../useBeat";
 import { meterGroups, tempoUnit } from "../../beatPhase";
 
@@ -117,36 +118,8 @@ export function Viewer({
   );
   const [editorOpen, setEditorOpen] = useState(false);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
-  // T89 — the Details panel had ONE exit (the top-bar pill), which on a phone is an unlabelled icon
-  // in a horizontal-scroll strip that can scroll out of view: a dead end. Add Escape + outside-click
-  // close (plus the ✕ in the sticky tabs row below), the way T87's RowMenu closes.
-  useEffect(() => {
-    if (!editorOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      // If a nested portalled overlay is open (a file's ⋯ menu, or a T91 dialog), Escape belongs to
-      // IT — it closes itself on the same keydown; don't also collapse the whole panel underneath it.
-      if (document.querySelector("[data-portal]")) return;
-      setEditorOpen(false);
-    };
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (detailsPanelRef.current?.contains(t)) return;
-      if (t.closest?.('[data-testid="my-files-edit"]')) return; // the toggle pill handles its own click
-      // A portal makes a child of the panel a DOM stranger: the file row's ⋯ menu (T87) is rendered
-      // INSIDE the panel but portalled to <body>, and the in-app dialogs T91 will add sit there too.
-      // Mark such surfaces [data-portal] and treat a click inside any of them as inside the panel —
-      // otherwise "outside" stops meaning what it looks like (Fable's standing rule, T89 review).
-      if (t.closest?.("[data-portal]")) return;
-      setEditorOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDown);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDown);
-    };
-  }, [editorOpen]);
+  // T89's Details dismiss contract (Escape + outside-click, portal-aware) is now the shared
+  // usePanelDismiss hook (T94), applied below to BOTH Details and the file rail so they can't drift.
   // Realtime spine (T15): the live doc, visibility, connection status, reject notice
   // and the WS client live in useSongSync; the load-once REST seed below writes
   // through setDoc/setVisible.
@@ -233,12 +206,29 @@ export function Viewer({
   // picks the Layers vs Annotations face. Toggled from the top-bar pills. Starts
   // closed so the canvas owns the viewport (mockup default).
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // T94 §3.5: "annotations" is the CODE name for the tab the UI calls "Notes". The identifier and
+  // AnnotationList stay; only the user-facing word is Notes. drawerTab persists for the editing
+  // session, so reopening the rail returns to the last tab (§3.1).
   const [drawerTab, setDrawerTab] = useState<"layers" | "annotations">("layers");
-  // Open the drawer to a specific tab; clicking the already-open tab closes it.
-  const openDrawer = useCallback((tab: "layers" | "annotations") => {
-    setSidebarOpen((open) => !(open && drawerTab === tab));
-    setDrawerTab(tab);
-  }, [drawerTab]);
+  const railRef = useRef<HTMLElement>(null);
+  // T94 §3.4 — at most one of {rail, Details} is open. Opening either closes the other; there is no
+  // "restore the rail behind Details" (two overlapping panels was the reported mess).
+  const closeDetails = useCallback(() => setEditorOpen(false), []);
+  const closeRail = useCallback(() => setSidebarOpen(false), []);
+  const openDetails = useCallback(() => {
+    setSidebarOpen(false);
+    setEditorOpen(true);
+  }, []);
+  const toggleRail = useCallback(() => {
+    setEditorOpen(false); // §3.4: opening (or toggling) the rail never leaves Details open
+    setSidebarOpen((open) => !open);
+  }, []);
+  // T94 §3.3 — ONE dismissal helper for both floating surfaces (extracted from T89). Details keeps
+  // ✕ + Escape + outside-click; the RAIL opts out of outside-click (last arg false) because it is a
+  // working inspector used WHILE clicking the score/toolbar — an outside-click arm dismisses it
+  // mid-edit. Both keep ✕ + Escape. [gate flag: documented deviation from §3.3.]
+  usePanelDismiss(editorOpen, closeDetails, detailsPanelRef, "my-files-edit");
+  usePanelDismiss(sidebarOpen, closeRail, railRef, "sidebar-toggle", false);
 
   const selectedFile = useMemo(
     () => files.find((f) => f.id === selectedFileId) ?? null,
@@ -1096,47 +1086,42 @@ export function Viewer({
 
         <span className="tb-divider" aria-hidden="true" />
 
+        {/* T94 §3.1 — ONE pill opens/closes the file rail; Layers ↔ Notes switch on the tab row inside
+            it (that row is unavoidable once the rail is open, so a second top-bar pill was redundant).
+            "This file" names the SCOPE — the rail inspects the file you are viewing. `sidebar-toggle`
+            keeps its testid here; `drawer-notes` moves to the Notes tab inside the rail. */}
         <button
           type="button"
-          className={`pill-btn${sidebarOpen && drawerTab === "layers" ? " active" : ""}`}
+          className={`pill-btn${sidebarOpen ? " active" : ""}`}
           data-testid="sidebar-toggle"
-          aria-pressed={sidebarOpen && drawerTab === "layers"}
-          onClick={() => openDrawer("layers")}
-          title="Layers"
+          aria-pressed={sidebarOpen}
+          aria-expanded={sidebarOpen}
+          onClick={toggleRail}
+          title="This file — layers & notes"
         >
           {/* T66: icon-only on phone (chrome row-count budget), text on desktop. */}
           <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
             <path d="M8 1.5l6.5 3.3L8 8.1 1.5 4.8 8 1.5z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
             <path d="M1.5 8L8 11.3 14.5 8" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
           </svg>
-          <span className="pill-label">Layers</span>
+          <span className="pill-label">This file</span>
         </button>
-        <button
-          type="button"
-          className={`pill-btn${sidebarOpen && drawerTab === "annotations" ? " active" : ""}`}
-          data-testid="drawer-notes"
-          aria-pressed={sidebarOpen && drawerTab === "annotations"}
-          onClick={() => openDrawer("annotations")}
-          title="Annotations"
-        >
-          <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <path d="M3 11.2L10 4.2l2 2-7 7H3v-2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-          </svg>
-          <span className="pill-label">Notes</span>
-        </button>
+        {/* T94 §3.2 — Details is the SONG's properties, not a peer of the file rail: a ⚙ gear, and it
+            takes over the screen (opening it closes the rail, §3.4). */}
         <button
           type="button"
           className={`pill-btn${editorOpen ? " active" : ""}`}
           data-testid="my-files-edit"
           aria-expanded={editorOpen}
-          onClick={() => setEditorOpen((o) => !o)}
-          title="Song details & files"
+          onClick={() => (editorOpen ? setEditorOpen(false) : openDetails())}
+          title="Song properties & files"
         >
-          <svg className="pill-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <path d="M2 4h8M2 8h5M2 12h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            <circle cx="13" cy="4" r="1.5" fill="currentColor" />
-            <circle cx="9" cy="8" r="1.5" fill="currentColor" />
-            <circle cx="13" cy="12" r="1.5" fill="currentColor" />
+          <svg className="pill-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+            <path fill="currentColor" d="M12 8a4 4 0 100 8 4 4 0 000-8zm0 6a2 2 0 110-4 2 2 0 010 4z" />
+            <path
+              fill="currentColor"
+              d="M19.4 13a7.6 7.6 0 000-2l2-1.6-2-3.4-2.4 1a7.3 7.3 0 00-1.7-1L14.9 2h-3.8l-.4 2.6a7.3 7.3 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.6 2 3.4 2.4-1a7.3 7.3 0 001.7 1l.4 2.6h3.8l.4-2.6a7.3 7.3 0 001.7-1l2.4 1 2-3.4-2-1.6z"
+            />
           </svg>
           <span className="pill-label">Details</span>
         </button>
@@ -1197,7 +1182,7 @@ export function Viewer({
               <button
                 type="button"
                 className="link-button"
-                onClick={() => setEditorOpen(true)}
+                onClick={openDetails}
               >
                 choose some
               </button>
@@ -1314,11 +1299,14 @@ export function Viewer({
             → opening/closing it never shifts the score. The Layers tab hosts layer
             management (active layer, +New layer, Edit-this-layer, Delete). ---- */}
         {sidebarOpen && (
-          <aside className="drawer open" data-testid="viewer-drawer">
+          <aside className="drawer open" data-testid="viewer-drawer" ref={railRef}>
+            {/* T94 — sticky tabs row: the two tabs are the only Layers↔Notes switch (the top-bar pill
+                just opens/closes the rail), plus a ✕ that survives scrolling the rail body (§4). */}
             <div className="drawer-tabs">
               <button
                 type="button"
                 className={`drawer-tab${drawerTab === "layers" ? " active" : ""}`}
+                data-testid="drawer-layers"
                 aria-pressed={drawerTab === "layers"}
                 onClick={() => setDrawerTab("layers")}
               >
@@ -1327,19 +1315,21 @@ export function Viewer({
               <button
                 type="button"
                 className={`drawer-tab${drawerTab === "annotations" ? " active" : ""}`}
+                data-testid="drawer-notes"
                 aria-pressed={drawerTab === "annotations"}
                 onClick={() => setDrawerTab("annotations")}
               >
-                Annotations
+                Notes
               </button>
               <button
                 type="button"
-                className="drawer-collapse"
+                className="drawer-close icon-btn"
+                data-testid="drawer-close"
                 aria-label="Close panel"
                 title="Close"
                 onClick={() => setSidebarOpen(false)}
               >
-                ▲
+                ✕
               </button>
             </div>
             <div className="drawer-body">
@@ -1422,7 +1412,7 @@ export function Viewer({
             type="button"
             className="part add-file"
             data-testid="add-file"
-            onClick={() => setEditorOpen(true)}
+            onClick={openDetails}
             title="Add or choose files"
           >
             ＋ Add file
