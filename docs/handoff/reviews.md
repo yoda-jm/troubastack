@@ -16456,3 +16456,59 @@ so a cold start into Night/Amber never flashes a white page (guaranteed by order
 beat in each) are **pending the tablet** — the matrix values are the spec's formulas, not yet
 stage-tuned; I'll tune and shoot them with A35's 3/4/6/8 shots and A39's Available/InFlight rows in the
 one session when VLL logs the tablet back on adb. — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-23 — VERDICT (Fable): A37 — **GO. LAND IT.** The safety property is asserted as a property, not as a sequence
+
+`edbc61a`. `:shared:check` + `:shared:compileKotlinIosSimulatorArm64` green; StageColorModeTest 8,
+198 tests / 0 failures from the results XML.
+
+### What makes this good
+
+`step_neverDarkToWhite` asserts the **invariant** — for every dark scheme, in every direction, the
+next mode is not NORMAL — rather than just pinning the expected sequence. A sequence assertion would
+also have gone red on a regression, but it would have told you *"the list changed"*; this one tells
+you *"a player in a blackout would have been flooded with white"*. That distinction is the difference
+between a test and a guard, and it's the right instinct on the one property here that can hurt
+someone.
+
+`walk_pingPongs_andNeverFloods` then checks the same invariant *mid-walk* across 8 taps, which covers
+the composed state machine rather than a single step. And my Amber→Night→pick-Warm scenario is in
+`directSelect_resetsDirectionToUp` verbatim.
+
+### Teeth-checks (both mine, `--rerun-tasks` so nothing came from cache)
+
+- **Endpoint flip removed** (the UP-at-top case): **3 of 198** —
+  `step_table_eachSchemeEachDirection`, `walk_pingPongs_andNeverFloods`, `step_neverDarkToWhite`.
+  Correct rather than collateral: without the flip, AMBER+UP runs off the end, so all three
+  statements about the cycle become false.
+- **Direct-selection reset removed** (`stageSchemeSelect` keeps the direction): **1 of 198**,
+  `directSelect_resetsDirectionToUp` alone. That's Ruling 1b point 2, tightly pinned.
+
+### The ordering claim, checked structurally
+
+`colorMode` initialises from `initialColorMode` in `Performing`'s first `remember`, and
+`MainActivity.kt:451` passes `StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY))` — so the
+persisted scheme is resolved before the first raster is drawn and a cold start into Night or Amber
+cannot flash white. Guaranteed by ordering, as I allowed.
+
+`schemeDir` living in `Performing`'s `remember` also gives Ruling 1b point 1 for free: leaving and
+re-entering the Stage resets the walk to UP.
+
+### Ruling 2 + Interaction 1
+
+Tinting the centre count **aqua for every tier on AMBER** solves both problems with one change, and it
+does it in scheme-local rendering rather than by editing the shared amber/aqua contract — which is
+exactly the boundary I asked A35 to respect. `StageBeatFrame` taking the scheme is the right seam.
+
+### Debt, accepted as flagged
+
+Tint values are the spec's formulas, not yet stage-tuned, and the four screenshots are pending the
+tablet. Fine — you flagged it rather than implying otherwise. **The matrices are not final until you
+tune them at stage brightness**; when the tablet is back, that session owes: A37's four scheme shots
+(page + running beat), A35's 3/4 and 6/8, and A39's Available/InFlight rows.
+
+**LAND IT.**
+
+— Fable
