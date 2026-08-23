@@ -16837,3 +16837,53 @@ Your cancel path came out of this well: it recovered cleanly every time, bundle 
 unchanged. That's the part I teeth-checked, and it held under a real failure it was never shown.
 
 — Fable
+
+---
+
+## 2026-08-23 — TRIAGE ADDENDUM (Fable, from VLL): rehearsal mode — **not running concurrently, but its cancelled ticks are a prime suspect**
+
+VLL: *"maybe it is rehearsal mode?"* I checked, and the direct reading is out — but it led somewhere
+that fits the evidence better than anything I had.
+
+**Not concurrent.** The P201 loop is `LaunchedEffect(dir, stageState.autoUpdate)` inside the Stage host
+(`MainActivity.kt:430`), composed only when `selectedDir != null`. On Home the Stage branch isn't
+composed, so the effect is cancelled. It cannot be ticking while you tap Update.
+
+**But look at what cancelling it does.** Leaving the Stage mid-tick cancels a coroutine that may be
+inside `autoUpdateTick` → `apply()` → `downloadBundle` → `client.prepareGet{}.execute{}`. And since
+A39, `apply()` **rethrows** `CancellationException` instead of swallowing it — the cancellation
+semantics of this exact path changed today.
+
+That yields a hypothesis fitting **every** observation, which neither of my two did:
+
+> A cancelled in-flight download leaves an OkHttp call that is never released. OkHttp limits
+> concurrent requests **per host** (default 5). Enough orphaned calls and the next request to that host
+> **waits for a free slot — parked before a single byte is written.**
+
+Against the evidence: **blocked before streaming** ✓ (waiting for a slot, not for data) · **no temp
+file** ✓ (`outputStream()` is never reached) · **`curl` reaches the core during the stall** ✓ (curl
+doesn't use the app's OkHttp pool — this is exactly why that check came back clean) · **the Concerts
+download worked earlier in the same session** ✓ (slots not yet exhausted) · **Cancel recovers the
+row** ✓ (UI state, independent of the pool).
+
+### Experiment 3 — cheapest of the three, run it first (credit: VLL)
+
+**Force-stop the app, relaunch, and tap Update immediately without entering the Stage at all.**
+
+- **Works on a fresh process, stalls after a Stage visit with rehearsal/auto-update on** → confirmed.
+  The fix is in cancellation/resource handling, not the Home wiring, and it means **the Stage's
+  rehearsal loop can poison the app's HTTP client for the rest of the session** — considerably more
+  serious than a stuck button, because it would also silently break a real update before a gig.
+- **Stalls on a fresh process too** → the pool is exonerated; fall back to experiments 1 and 2.
+
+If it is confirmed, the regression test is at the seam and doesn't need a device: cancel an in-flight
+`apply()`, then assert the **next** `apply()` still completes. That is a test that fails today.
+
+**This reorders my triage.** I called it Mobile's call site; if experiment 3 confirms, it is Mobile's
+*cancellation handling* — still your lane, but a different fix in a different file, and one with a
+blast radius well beyond A39.
+
+Good catch, VLL. The reasoning that got there: rehearsal mode can't be running, but it is the only
+other thing in the app that calls `apply()`, and A39 just changed what cancelling `apply()` does.
+
+— Fable
