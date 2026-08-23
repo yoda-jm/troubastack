@@ -68,6 +68,7 @@ import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
 import com.troubashare.shared.stage.resolveIdentity
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -250,8 +251,9 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     homeIdentity = Identity.Connected(name = p.displayName, band = p.band)
                     // A39: Recognized → is any INSTALLED concert out of date? (UpdateOffered only; a
                     // manifest that won't load is not an error — just don't nag.) Skip while an update
-                    // is already running so a background resume doesn't stomp the in-flight row.
-                    if (homeUpdate !is UpdateStatus.InFlight) {
+                    // is running OR after a failure, so a background resume doesn't stomp the in-flight
+                    // row or silently erase the "couldn't update" message before the user retries.
+                    if (homeUpdate !is UpdateStatus.InFlight && homeUpdate !is UpdateStatus.Failed) {
                         val manifest = runCatching { updates.fetchManifest() }.getOrNull()
                         if (manifest == null) {
                             homeUpdate = UpdateStatus.UpToDate
@@ -303,18 +305,43 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 if (offers.isNotEmpty() && updateJob == null) {
                     homeUpdate = UpdateStatus.InFlight
                     updateJob = scope.launch {
-                        offers.forEach { updates.apply(it) } // Failed → old bundle kept; re-diff re-offers it
+                        // Apply each offer; COLLECT failures so we can say something (T30: never swallow
+                        // a gesture silently). apply() rethrows CancellationException, so Cancel stops the
+                        // loop here rather than being turned into a Failed and marching to the next offer.
+                        val failed = mutableListOf<String>()
+                        offers.forEachIndexed { i, offer ->
+                            if (updates.apply(offer) is ImportResult.Failed) {
+                                failed += updateNames.getOrNull(i) ?: "a concert"
+                            }
+                        }
                         updateJob = null
-                        homeUpdate = UpdateStatus.UpToDate    // leave InFlight so the effect can recompute
-                        refreshTick++                         // re-list concerts + re-diff for the true state
+                        if (failed.isEmpty()) {
+                            refreshTick++ // all installed → re-list + re-diff resolves the row to Up to date
+                        } else {
+                            // Result-driven (not an optimistic UpToDate): show the failure; the guard keeps
+                            // it until the user retries. Any that DID succeed are on disk; refreshTick is
+                            // skipped so the message survives (count refreshes on next Home entry).
+                            val more = if (failed.size > 1) " +${failed.size - 1} more" else ""
+                            homeUpdate = UpdateStatus.Failed("Couldn't update ${failed.first()}$more — try again")
+                        }
                     }
                 }
             },
             onCancelUpdate = {
-                updateJob?.cancel(); updateJob = null
-                // The atomic importer never ran, so the installed bundle is intact; clear the partial temp.
-                runCatching { java.io.File(storage.tempDir()).listFiles()?.forEach { if (it.name.endsWith(".tstage")) it.delete() } }
-                homeUpdate = if (updateNames.isEmpty()) UpdateStatus.UpToDate else UpdateStatus.Available(updateSummary(updateNames))
+                val job = updateJob
+                scope.launch {
+                    job?.cancelAndJoin() // AWAIT completion before cleanup, so we don't race a mid-write download
+                    updateJob = null
+                    // Delete ONLY this run's temps (not every *.tstage — Stage's P201 autoUpdate uses the
+                    // same temp dir). The atomic importer never ran, so the installed bundle is intact.
+                    runCatching {
+                        val dir = storage.tempDir().trimEnd('/')
+                        updateOffers.forEach { o ->
+                            (o as? Availability.UpdateOffered)?.let { java.io.File("$dir/${it.concertId}.tstage").delete() }
+                        }
+                    }
+                    homeUpdate = if (updateNames.isEmpty()) UpdateStatus.UpToDate else UpdateStatus.Available(updateSummary(updateNames))
+                }
             },
         )
         if (showDisconnect) {

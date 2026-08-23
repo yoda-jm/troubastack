@@ -154,6 +154,10 @@ sealed interface UpdateStatus {
 
     /** A download+install is running — cancellable (bundles are large, this may be venue wifi). */
     data object InFlight : UpdateStatus
+
+    /** An update attempt failed — say so (T30: never swallow a gesture silently). [message] is shown
+     *  in the row; the button retries. */
+    data class Failed(val message: String) : UpdateStatus
 }
 
 /** What's waiting to update, for [UpdateStatus.Available] — pure/testable. One concert names it; several
@@ -300,6 +304,17 @@ private fun UpdateRow(status: UpdateStatus, onUpdate: () -> Unit, onCancel: () -
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Text("Updating…", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                     TextButton(onClick = onCancel) { Text("Cancel") }
+                }
+                is UpdateStatus.Failed -> {
+                    Text(
+                        status.message,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(onClick = onUpdate) { Text("Retry") }
                 }
                 is UpdateStatus.Hidden -> {}
             }

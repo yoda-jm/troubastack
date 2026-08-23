@@ -131,6 +131,11 @@ class UpdatesManager(
         return try {
             transport.downloadBundle(concertId, dest)
             importBundle(dest)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            // A39 is the first CANCELLABLE caller of apply() (Home's Cancel). CancellationException IS an
+            // Exception, so the generic catch below would turn a cancel into Failed and let the caller's
+            // loop carry on to the next offer. Rethrow so cancellation actually stops the work.
+            throw e
         } catch (e: Exception) {
             ImportResult.Failed("couldn't download the concert (${e.message ?: "network error"})")
         }

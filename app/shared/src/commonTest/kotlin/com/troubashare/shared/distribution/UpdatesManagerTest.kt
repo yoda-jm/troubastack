@@ -6,6 +6,7 @@ import com.troubashare.shared.bundle.ImportResult
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -120,6 +121,21 @@ class UpdatesManagerTest {
         val r = m.apply(Availability.NewlyAvailable("a"))
         assertIs<ImportResult.Failed>(r)
         assertTrue(!imported, "a failed download must never reach the importer (old bundle untouched)")
+    }
+
+    @Test
+    fun apply_cancellation_propagates_notSwallowed_andImportNeverCalled() = runTest {
+        // A39: Home's Cancel is the first cancellable caller of apply(). A CancellationException from
+        // the download must PROPAGATE (so the caller's per-offer loop stops) rather than be caught and
+        // turned into Failed — and, like any interrupted download, must never reach the importer, so the
+        // installed bundle is untouched (I12).
+        val t = FakeTransport(onDownload = { _, _ -> throw kotlin.coroutines.cancellation.CancellationException("cancelled") })
+        var imported = false
+        val m = manager(t, onImport = { imported = true })
+        assertFailsWith<kotlin.coroutines.cancellation.CancellationException> {
+            m.apply(Availability.UpdateOffered("a", 1uL, 2uL))
+        }
+        assertTrue(!imported, "a cancelled download must never reach the importer")
     }
 
     @Test
