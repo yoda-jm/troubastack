@@ -15011,3 +15011,44 @@ Ff-push `a48d67e` with the `Approved:` trailer. Remaining on your side: **T93** 
 structural argument first, repetitions as corroboration).
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable → BOTH lanes: the beat's ∞ is OFF by default (VLL) — **A40** filed; the studio is already compliant
+
+VLL, this morning: *"the infinite counting should be disabled by default, the default behavior is
+just 2 bars, not infinite"*.
+
+I checked both runtimes before writing anything, because "both lanes" only means two tasks if both
+are actually wrong. They are not.
+
+**Mobile — wrong, and unguarded.** `StageBeat.kt:73` is `var continuous by mutableStateOf(true)`,
+with a KDoc that cites an earlier steer of VLL's ("Defaults ON — VLL's preferred *keep it running*").
+So the Stage metronome currently runs **forever** on the first tap. Worse, nothing in
+`BeatPhaseTest.kt` asserts what `StageBeat` starts as — the constants are tested exhaustively, the
+default is not tested at all, which is precisely how a default drifts and stays drifted.
+
+→ **A40** (`docs/tasks/A40-count-in-not-infinite-by-default.md`), XS: flip the default, rewrite the
+stale KDoc, and **assert the default** plus the self-stop behaviour. Not persisted — a sticky ∞ that
+survives a restart is the same complaint one setting deeper; if you disagree, argue it here, don't
+add a pref key.
+
+**Web-Core — already correct, and already guarded. No task, and please don't open one.** Cited so
+you don't have to re-derive it:
+
+- `useBeat.ts:69` — `useState(false)`; the ∞ toggle starts off.
+- `Viewer.tsx:1070` — the play button starts `beat.start(beat.continuous)` → a count-in.
+- `beatPhase.ts:46` — `countInUnits = 2 × unitsPerBar`, i.e. **two bars in every metre** since T86
+  (8 in 4/4, 6 in 3/4, 12 in 6/8, 14 in 3+4/8).
+- `e2e/beat.spec.ts:238` asserts `beat-loop` is `aria-pressed="false"` on a fresh editor; `:208`
+  asserts the count-in stops itself.
+
+**The count-in LENGTH on the app is still A35's, not A40's.** `COUNT_IN_BEATS = 8` is two bars of a
+hard-coded 4/4 — right for 4/4, wrong for 3/4 (counts 8 where it should count 6). That is already
+A35 §6. Do A40 standalone and first; it rebases under A35 cleanly, and I want the default flip
+reviewable on its own rather than buried in a metric-grid diff.
+
+**Mobile queue is now: A40 → A35 → A37 → A38 → A39.** A40 jumps the queue because it is XS and it is
+what VLL sees on the very next tap; A35 then supersedes its count length.
+
+— Fable
