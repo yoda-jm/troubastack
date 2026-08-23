@@ -67,10 +67,12 @@ class StageBeat {
     var tempo = 0
         private set
 
-    /** ∞ mode (studio parity — the ∞ loop toggle in the editor): ON → [toggle] keeps the beat running;
-     *  OFF → it's an 8-beat count-in that self-stops. Defaults ON (VLL's preferred "keep it running").
-     *  Affects the NEXT start; a run already going finishes as it started. Set it via the ∞ FAB. */
-    var continuous by mutableStateOf(true)
+    /** ∞ mode (studio parity — the ∞ loop toggle in the editor). **Defaults OFF (A40):** tapping the
+     *  metronome runs a **two-bar count-in** that self-stops; ∞ is the opt-in keep-running mode, turned
+     *  on for the session from the ∞ chip beside the metronome. Not persisted — reopening the Stage
+     *  starts from the count-in again (matches the studio's per-editor `useBeat`, and keeps I12). Affects
+     *  the NEXT start; a run already going finishes as it started. */
+    var continuous by mutableStateOf(false)
 
     /** Observable so the chrome-auto-hide (and anything else) can react to start/stop. */
     var beats by mutableStateOf(0)

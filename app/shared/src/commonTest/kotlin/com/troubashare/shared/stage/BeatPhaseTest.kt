@@ -15,6 +15,24 @@ import kotlin.test.assertTrue
 class BeatPhaseTest {
 
     @Test
+    fun stageBeat_defaultsToCountIn_notInfinite() {
+        // A40: the default must be the two-bar count-in, not ∞. A default sitting wrong is invisible
+        // without this assertion — flipping `continuous` back to true reddens exactly this.
+        assertFalse(StageBeat().continuous, "the metronome must count in and stop by default; ∞ is opt-in")
+    }
+
+    @Test
+    fun toggle_usesTheCountInBeatCount() {
+        // A40 (Fable): the flag default alone would pass even if toggle() ignored it — pin the WIRING
+        // too. A default tap arms a count-in; with ∞ on it arms the continuous count.
+        val b = StageBeat()
+        b.toggle(120)
+        assertEquals(COUNT_IN_BEATS, b.beats, "a default toggle must arm a count-in, not an endless run")
+        b.stop(); b.continuous = true; b.toggle(120)
+        assertEquals(CONTINUOUS_BEATS, b.beats, "with the opt-in on, toggle must arm the continuous count")
+    }
+
+    @Test
     fun intervalMs_isDouble_noTruncation() {
         // the original bug: 60000/90 truncated to 666 instead of 666.67 (drifts a bar every ~40 s).
         assertEquals(666.6666, intervalMs(90), 1e-3)
