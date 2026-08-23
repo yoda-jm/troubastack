@@ -116,10 +116,22 @@ fun identityAction(identity: Identity): String = when (identity) {
     is Identity.Checking -> ""
 }
 
-/** Whether the row also offers a secondary "Manage" (server/account details behind [ConnectScreen]).
- *  Not for a fresh install (nothing to manage) nor mid-probe. */
+/** Whether the row also offers a secondary "Manage" (server/account details, reached via the Connect
+ *  modal). Not for a fresh install (nothing to manage) nor mid-probe. */
 fun identityHasManage(identity: Identity): Boolean =
     identity !is Identity.NotSetUp && identity !is Identity.Checking
+
+/**
+ * The band segment of the Recognized line — A38 multi-band ruling (VLL: "one person can be in multiple
+ * groups"). The connection has no single "current" band (P205 resolves band+roster **per concert**),
+ * so the line says only what's true: nothing for none, the name for one, a **count** for several. The
+ * per-band detail lives behind Manage — a status line is the wrong place to invent a "current band".
+ */
+fun bandLabel(names: List<String>): String = when (names.size) {
+    0 -> ""
+    1 -> names[0]
+    else -> "${names.size} bands"
+}
 
 @Composable
 fun HomeScreen(
@@ -128,7 +140,7 @@ fun HomeScreen(
     onResume: () -> Unit,
     onStudio: () -> Unit,
     // A38: the PRIMARY connection action for the current status (Disconnect / Retry / Sign in /
-    // Connect) — the host routes it by state. onManage opens the server/account details (ConnectScreen).
+    // Connect) — the host routes it by state. onManage opens the server/account details (Connect modal).
     onPrimaryAction: () -> Unit,
     onManage: () -> Unit,
     onSettings: () -> Unit,
@@ -288,12 +300,17 @@ private fun ConnectionRow(identity: Identity, onPrimaryAction: () -> Unit, onMan
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (identityHasManage(identity)) {
-                TextButton(onClick = onManage) { Text("Manage") }
+            // A38: keep BOTH buttons present across the probe, DISABLED while Checking, so the row
+            // doesn't reflow/pop each time Home resumes. Checking only ever resolves to a state that
+            // has Manage + an action (a no-cookie start goes straight to Guest, never through Checking),
+            // so mirroring that layout while probing is safe. "Disabled, not hidden."
+            val checking = identity is Identity.Checking
+            if (identityHasManage(identity) || checking) {
+                TextButton(onClick = onManage, enabled = !checking) { Text("Manage") }
             }
             val action = identityAction(identity)
-            if (action.isNotEmpty()) {
-                Button(onClick = onPrimaryAction, enabled = identity !is Identity.Checking) { Text(action) }
+            if (action.isNotEmpty() || checking) {
+                Button(onClick = onPrimaryAction, enabled = !checking) { Text(if (checking) "…" else action) }
             }
         }
     }

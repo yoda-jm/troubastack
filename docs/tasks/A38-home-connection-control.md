@@ -171,3 +171,11 @@ extra tap.
 - Auto-reconnect or background retry. *Retry* is a button the player presses; a background reconnect
   loop on stage is a different design with different risks.
 - Multi-server / server switching.
+
+## Known limitation (accepted, not a bug — Fable's review, 2026-08-23)
+
+The retained band on the Guest line comes from the in-memory `me` (`SignedOut(band = me?.band ?: "")`).
+On a **cold start while signed out**, `me` is null, so the line is a bare "Guest" and the "Sign in
+resumes, not starts over" cue is lost until the next successful probe. The common case (signing out
+within a session) keeps the band; persisting the last-known band across process death is out of scope
+for A38. Noted here so it isn't rediscovered as a defect.

@@ -4,7 +4,11 @@ import com.troubashare.shared.bundle.AvailableConcert
 import com.troubashare.shared.bundle.AvailableConcerts
 import com.troubashare.shared.distribution.ManifestTransport
 import com.troubashare.shared.distribution.originOf
+import com.troubashare.shared.home.bandLabel
+import com.troubashare.shared.seams.SESSION_COOKIE_KEY
+import com.troubashare.shared.seams.SESSION_ORIGIN_KEY
 import com.troubashare.shared.seams.Storage
+import com.troubashare.shared.seams.clearSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -28,13 +32,10 @@ import java.io.File
 
 private const val CORE_URL_KEY = "coreUrl"                       // shared with A06's Edit screen
 private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080"     // emulator → host
-// Package-visible: EditScreen seeds this same session into the WebView's CookieManager so a Connect
-// login flows into the web editor (one login, not two).
-internal const val SESSION_COOKIE_KEY = "sessionCookie"
-// The origin the session was issued by. The session cookie is a bare name=value and the server URL
-// is user-editable, so we BIND the cookie to its origin and only ever replay it to a matching one —
-// otherwise logging into A then pointing at B would leak A's session to B (ktor AND the Edit WebView).
-internal const val SESSION_ORIGIN_KEY = "sessionOrigin"
+// A38: SESSION_COOKIE_KEY / SESSION_ORIGIN_KEY + clearSession() moved to shared seams/Session.kt so the
+// sign-out storage half is unit-tested (the I12 promise). The cookie is a bare name=value and the
+// server URL is user-editable, so it stays BOUND to its issuing origin (SESSION_ORIGIN_KEY) and is only
+// ever replayed to a matching one — otherwise logging into A then pointing at B would leak A's session.
 
 /** The logged-in member as the app needs it for P205 identity (id → roster auto-match; name/band → Home). */
 data class CurrentIdentity(val userId: String, val displayName: String, val band: String)
@@ -117,9 +118,11 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
                 when {
                     me.status.isSuccess() -> {
                         val body = me.body<MeResp>().user
-                        val band = client.get("$baseUrl/api/bands") { header("Cookie", ck) }
-                            .body<Bands>().bands.firstOrNull()?.name ?: ""
-                        Presence.Online(body.id, body.displayName, band)
+                        // A38 multi-band ruling: carry a LABEL, not an arbitrary firstOrNull() — the
+                        // count is free (we already fetch the whole list). bandLabel: ""/name/"N bands".
+                        val names = client.get("$baseUrl/api/bands") { header("Cookie", ck) }
+                            .body<Bands>().bands.map { it.name }.filter { it.isNotEmpty() }
+                        Presence.Online(body.id, body.displayName, bandLabel(names))
                     }
                     me.status == HttpStatusCode.Unauthorized -> Presence.Unauthorized
                     else -> Presence.Unreachable // 5xx / unexpected — treat as not-usable
@@ -149,8 +152,7 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
     /** Clear the persisted session (Storage is overwrite-only, so empty == signed out) — and drop it
      *  from the Edit WebView's shared cookie jar too, so signing out signs out everywhere. */
     fun signOut() {
-        storage.putSecret(SESSION_COOKIE_KEY, "")
-        storage.putSecret(SESSION_ORIGIN_KEY, "")
+        clearSession(storage::putSecret) // the tested storage half — keeps CORE_URL_KEY, touches no files
         android.webkit.CookieManager.getInstance().removeAllCookies(null)
     }
 
