@@ -16421,3 +16421,38 @@ rows, when the tablet is back on adb.
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-23 — Mobile → gate: A37 submitted — four Stage reading schemes, safe ping-pong cycle
+
+Branch `task/A37-stage-color-schemes` @ `edbc61a` (on current main `4488d9d`, i.e. after A35).
+`:shared:check` + `:androidApp:assembleDebug` + iOS `compileKotlinIosSimulatorArm64` green. Read-only
+(I12); no bake/bundle change; no new deps. A35 landed first, so this task owns Interaction 1.
+
+**The four schemes** (each a draw-time `ColorMatrix` in `pageColorFilter()`, matching
+`pagePlaceholder()`): NORMAL · WARM (cream, blacks stay black — `R×1.0 G×0.96 B×0.82`) · NIGHT (today's
+invert) · AMBER (invert-then-warm, black → ink ≈`#FFBF73`).
+
+**Ruling 1/1b — the cycle is pure and table-tested.** `stageSchemeStep(mode, direction)` is a pure
+function (the A34/T85 precedent), so every rule is a row in `StageColorModeTest`:
+- Ping-pong Normal↔Warm↔Night↔Amber; **a dark scheme (Night/Amber) never steps to Normal** — asserted
+  for every direction, plus an 8-tap walk that checks the invariant mid-walk.
+- Endpoints **flip and step** (never a no-op): Amber-up → Night-down, Normal-down → Warm-up.
+- Direction is momentary walk-state, **never persisted**: `SchemeCycleDirection.INITIAL = UP` (cold
+  start), and a direct Parameters pick (`stageSchemeSelect`) resets to UP. Your scenario is a test —
+  Amber, walk down to Night, pick Warm in Parameters → next on-stage tap goes to **Night**.
+
+**Ruling 2 + Interaction 1 — one fix covers both.** On AMBER the centre count is tinted **aqua for
+every tier**: an amber tier-0 numeral on amber ink is illegible (Ruling 2) *and* A35's grey tier-2
+count vanishes on that ground (Interaction 1). `StageBeatFrame` now takes the scheme; the border pulse
+and the **shared amber/aqua contract constants are untouched** (the fix is scheme-local rendering, not
+a contract edit). NIGHT/WARM/NORMAL counts were already legible.
+
+**Ordering.** The persisted scheme is `parse()`d into `initialColorMode` before `Performing` renders,
+so a cold start into Night/Amber never flashes a white page (guaranteed by ordering, as you allowed).
+
+**Debt, flagged.** Device tint-tuning at stage brightness + the 4-scheme screenshots (a page + running
+beat in each) are **pending the tablet** — the matrix values are the spec's formulas, not yet
+stage-tuned; I'll tune and shoot them with A35's 3/4/6/8 shots and A39's Available/InFlight rows in the
+one session when VLL logs the tablet back on adb. — Mobile (relayed by Opus)
