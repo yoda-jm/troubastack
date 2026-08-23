@@ -78,6 +78,7 @@ data class HomeState(
     val lastConcertName: String = "",  // resume target; "" ⇒ no resume affordance
     val concertCount: Int = 0,
     val identity: Identity = Identity.NotSetUp,
+    val update: UpdateStatus = UpdateStatus.Hidden, // A39
 )
 
 /** The one-line identity label — pure, unit-testable (no Compose). The raw IP:port is never here
@@ -133,6 +134,36 @@ fun bandLabel(names: List<String>): String = when (names.size) {
     else -> "${names.size} bands"
 }
 
+/**
+ * A39 — one tap from Home to pull the current concert(s) onto the device. Fable's reframe: this is
+ * **Update** (fetch a newer baked rev), not Bake — baking is admin-only and there's no dirty signal,
+ * whereas "is my copy out of date?" is answerable from `currentRev` with no server change.
+ *
+ * Only meaningful when Recognized; the host sets [Hidden] for Offline/Guest (their row already offers
+ * the right next step) and when there's nothing newer it's [UpToDate] (quiet, no dead button).
+ */
+sealed interface UpdateStatus {
+    /** Not shown — Offline / Guest / nothing to update. */
+    data object Hidden : UpdateStatus
+
+    /** Recognized and current — a quiet reassurance, no action. */
+    data object UpToDate : UpdateStatus
+
+    /** Recognized and something is newer — [summary] says what's waiting; one tap downloads+installs. */
+    data class Available(val summary: String) : UpdateStatus
+
+    /** A download+install is running — cancellable (bundles are large, this may be venue wifi). */
+    data object InFlight : UpdateStatus
+}
+
+/** What's waiting to update, for [UpdateStatus.Available] — pure/testable. One concert names it; several
+ *  are counted (the per-concert detail lives in Manage, like [bandLabel]). */
+fun updateSummary(names: List<String>): String = when (names.size) {
+    0 -> ""
+    1 -> "${names[0]} — new version"
+    else -> "${names.size} concerts to update"
+}
+
 @Composable
 fun HomeScreen(
     state: HomeState,
@@ -144,6 +175,9 @@ fun HomeScreen(
     onPrimaryAction: () -> Unit,
     onManage: () -> Unit,
     onSettings: () -> Unit,
+    // A39: pull the newer bake(s) / cancel an in-flight update. No-ops when the update row is Hidden.
+    onUpdate: () -> Unit = {},
+    onCancelUpdate: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier.fillMaxSize()) {
@@ -231,6 +265,44 @@ fun HomeScreen(
             // looks like "this is a button"; each state also has a distinct icon shape (legible in bad
             // stage light, and for colour-blind users).
             ConnectionRow(state.identity, onPrimaryAction = onPrimaryAction, onManage = onManage)
+
+            // A39: one-tap Update, shown only when Recognized (the host sets Hidden otherwise).
+            UpdateRow(state.update, onUpdate = onUpdate, onCancel = onCancelUpdate)
+        }
+    }
+}
+
+@Composable
+private fun UpdateRow(status: UpdateStatus, onUpdate: () -> Unit, onCancel: () -> Unit) {
+    if (status is UpdateStatus.Hidden) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when (status) {
+                is UpdateStatus.UpToDate -> Text(
+                    "Up to date",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                is UpdateStatus.Available -> {
+                    Text(status.summary, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Button(onClick = onUpdate) { Text("Update") }
+                }
+                is UpdateStatus.InFlight -> {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("Updating…", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onCancel) { Text("Cancel") }
+                }
+                is UpdateStatus.Hidden -> {}
+            }
         }
     }
 }

@@ -43,6 +43,8 @@ import com.troubashare.shared.ui.ThemePref
 import com.troubashare.shared.ui.TroubaTheme
 import com.troubashare.shared.home.HomeState
 import com.troubashare.shared.home.Identity
+import com.troubashare.shared.home.UpdateStatus
+import com.troubashare.shared.home.updateSummary
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +67,7 @@ import com.troubashare.shared.stage.StageColorMode
 import com.troubashare.shared.stage.StageScreen
 import com.troubashare.shared.stage.StageViewModel
 import com.troubashare.shared.stage.resolveIdentity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -209,8 +212,17 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // intent; TroubaStudio → the SAME list in MANAGE intent (import/update/edit). The identity card →
     // Connect. I12 intact: Home never gates Stage — perform works fully offline with no login.
     if (atHome && selectedDir == null) {
-        val entries = remember { listConcerts(storage).filter { !it.damaged } }
+        // A39: refreshTick re-lists concerts after an Update installs, so the count/resume reflect the
+        // new state without a restart.
+        var refreshTick by remember { mutableStateOf(0) }
+        val entries = remember(refreshTick) { listConcerts(storage).filter { !it.damaged } }
         val lastDir = remember(entries) { storage.getSecret(LAST_CONCERT_KEY)?.takeIf { d -> entries.any { it.dir == d } } }
+        val scope = rememberCoroutineScope()
+        // A39: the Home Update state, the offers to apply, and their names for the summary.
+        var homeUpdate by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Hidden) }
+        var updateOffers by remember { mutableStateOf<List<Availability>>(emptyList()) }
+        var updateNames by remember { mutableStateOf<List<String>>(emptyList()) }
+        var updateJob by remember { mutableStateOf<Job?>(null) }
 
         // A31: LIVE connection status — never the cached cookie flag. Probe the server on entry AND on
         // every foreground resume (resumeTick); show "Checking…" while it's in flight, then resolve to
@@ -219,7 +231,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         var homeIdentity by remember { mutableStateOf<Identity>(Identity.Checking) }
         // A38: Retry re-runs the probe without a foreground round-trip; bump this to re-key the effect.
         var retryTick by remember { mutableStateOf(0) }
-        LaunchedEffect(activity?.resumeTick?.value, retryTick) {
+        LaunchedEffect(activity?.resumeTick?.value, retryTick, refreshTick) {
             // No session cookie → Guest. Split by whether a server was ever configured: known → offer
             // Sign in (address saved, password only); unknown → offer the full Connect set-up.
             if (!transport.isConnected) {
@@ -228,6 +240,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 } else {
                     Identity.NotSetUp
                 }
+                homeUpdate = UpdateStatus.Hidden // A39: no Update for Guest — Sign in is the next step
                 return@LaunchedEffect
             }
             homeIdentity = Identity.Checking
@@ -235,12 +248,28 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 is Presence.Online -> {
                     me = CurrentIdentity(userId = p.userId, displayName = p.displayName, band = p.band)
                     homeIdentity = Identity.Connected(name = p.displayName, band = p.band)
+                    // A39: Recognized → is any INSTALLED concert out of date? (UpdateOffered only; a
+                    // manifest that won't load is not an error — just don't nag.) Skip while an update
+                    // is already running so a background resume doesn't stomp the in-flight row.
+                    if (homeUpdate !is UpdateStatus.InFlight) {
+                        val manifest = runCatching { updates.fetchManifest() }.getOrNull()
+                        if (manifest == null) {
+                            homeUpdate = UpdateStatus.UpToDate
+                        } else {
+                            val offers = updates.diff(manifest).filterIsInstance<Availability.UpdateOffered>()
+                            val nameOf = manifest.concerts.associate { it.concertId to it.name }
+                            updateOffers = offers
+                            updateNames = offers.map { nameOf[it.concertId]?.takeIf { n -> n.isNotEmpty() } ?: it.concertId }
+                            homeUpdate = if (offers.isEmpty()) UpdateStatus.UpToDate
+                            else UpdateStatus.Available(updateSummary(updateNames))
+                        }
+                    }
                 }
                 // Keep last-known `me` so offline auto-match still resolves the performer's own view (I12).
-                Presence.Unreachable -> homeIdentity = Identity.Offline(band = me?.band ?: "")
+                Presence.Unreachable -> { homeIdentity = Identity.Offline(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden }
                 // A38: expired session on a known server → Guest. KEEP the band (don't null `me`) so
                 // "Sign in" reads as resuming, not starting over — matching the Unreachable branch.
-                Presence.Unauthorized -> homeIdentity = Identity.SignedOut(band = me?.band ?: "")
+                Presence.Unauthorized -> { homeIdentity = Identity.SignedOut(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden }
             }
         }
 
@@ -250,6 +279,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 lastConcertName = entries.firstOrNull { it.dir == lastDir }?.label ?: "",
                 concertCount = entries.size,
                 identity = homeIdentity,
+                update = homeUpdate,
             ),
             onPerform = { manageIntent = false; atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
@@ -265,6 +295,27 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             },
             onManage = { connecting = true },
             onSettings = { settings = true },
+            // A39: one tap → download+install the newer bake(s). apply() downloads to a temp then does
+            // the A05 ATOMIC import, so a failure/cancel leaves the installed bundle intact (I12). On
+            // completion, bump refreshTick to re-list + re-diff (→ UpToDate, or Available if any failed).
+            onUpdate = {
+                val offers = updateOffers
+                if (offers.isNotEmpty() && updateJob == null) {
+                    homeUpdate = UpdateStatus.InFlight
+                    updateJob = scope.launch {
+                        offers.forEach { updates.apply(it) } // Failed → old bundle kept; re-diff re-offers it
+                        updateJob = null
+                        homeUpdate = UpdateStatus.UpToDate    // leave InFlight so the effect can recompute
+                        refreshTick++                         // re-list concerts + re-diff for the true state
+                    }
+                }
+            },
+            onCancelUpdate = {
+                updateJob?.cancel(); updateJob = null
+                // The atomic importer never ran, so the installed bundle is intact; clear the partial temp.
+                runCatching { java.io.File(storage.tempDir()).listFiles()?.forEach { if (it.name.endsWith(".tstage")) it.delete() } }
+                homeUpdate = if (updateNames.isEmpty()) UpdateStatus.UpToDate else UpdateStatus.Available(updateSummary(updateNames))
+            },
         )
         if (showDisconnect) {
             // A38: Disconnect signs out but keeps the server address (CORE_URL_KEY survives signOut) and

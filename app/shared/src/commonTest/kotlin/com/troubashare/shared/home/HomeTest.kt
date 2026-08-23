@@ -65,6 +65,14 @@ class HomeTest {
     }
 
     @Test
+    fun updateSummary_namesOneCountsMany() {
+        // A39: one concert names it; several are counted (detail lives in Manage).
+        assertEquals("", updateSummary(emptyList()))
+        assertEquals("Sat @ The Anchor — new version", updateSummary(listOf("Sat @ The Anchor")))
+        assertEquals("2 concerts to update", updateSummary(listOf("Sat @ The Anchor", "Spring Concert")))
+    }
+
+    @Test
     fun manage_shownExceptFreshInstallAndProbe() {
         assertTrue(identityHasManage(Identity.Connected()))
         assertTrue(identityHasManage(Identity.Offline()))
