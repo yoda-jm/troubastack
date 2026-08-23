@@ -125,3 +125,16 @@ artifact.
 > appear on demo content** (it drives off the song's tempo, which used to bake to 0), and gives A35
 > its metre. Structure otherwise unchanged: 4 songs, 6 default-part pages, roster, all layers, all
 > members' cues.
+>
+> **Not re-baked 2026-08-23 (T76 — chart auto-fit): the bundle is unaffected, on purpose.** T76 makes
+> the server-side text-chart renderer (`chartpdf`) auto-fit the font size. The invariant that makes
+> this bundle immune is about *bake time*, not display order: **a bake serves the stored bytes of the
+> chosen file; the only path that re-renders through `chartpdf` during a bake is the D1 transpose**
+> (`baker.go:336-348`, reached when an item sets `TransposeChords`), **and no demo item sets
+> `TransposeChords`** (nor `KeyOverride`) — `cmd/seed/main.go` sets neither. So nothing in this bundle
+> is re-rendered at bake, and T76 cannot change it, *whatever the display order*. (Note: "not the
+> default part" would **not** be enough — D1 swaps the default out for the lowest-DisplayOrder
+> *generated* chart and re-renders it, so a transposing item can bake a text chart; ours simply never
+> transposes.) The seed's real T19 text charts do now auto-fit when first rendered, but that is at
+> `POST /text-charts` time, not bake time. Recorded so nobody re-bakes a compliant artifact — and so
+> the day someone adds a transposed item to the demo, they know that is the line that changes it.

@@ -252,24 +252,28 @@ func TestRender_AnnotationsAndAccents(t *testing.T) {
 
 func TestParseHeaderDirectives(t *testing.T) {
 	cases := []struct {
-		name     string
-		src      string
-		wantSub  string
-		wantPt   float64
-		wantSkip []int
+		name        string
+		src         string
+		wantSub     string
+		wantPt      float64
+		wantSizeSet bool // T76: a `size:` directive (in range or not) disables auto-fit
+		wantSkip    []int
 	}{
-		{"size then artist", "# S\nsize: 13\nThe Artist\n\n## V\nx", "The Artist", 13, []int{1, 2}},
-		{"artist then size", "# S\nThe Artist\nsize: 13\n\n## V\nx", "The Artist", 13, []int{1, 2}},
-		{"case-insensitive, no space", "# S\nSize:14\n\n## V\nx", "", 14, []int{1}},
-		{"out of range: ignored but consumed", "# S\nsize: 99\nThe Artist\n\n## V", "The Artist", 11, []int{1, 2}},
-		{"malformed: not a directive, stays subtitle", "# S\nsize: abc\n\n## V", "size: abc", 11, []int{1}},
-		{"plain artist, no directive", "# S\nThe Artist\n\n## V", "The Artist", 11, []int{1}},
-		{"blank after title: no header", "# S\n\n## V\nx", "", 11, nil},
+		{"size then artist", "# S\nsize: 13\nThe Artist\n\n## V\nx", "The Artist", 13, true, []int{1, 2}},
+		{"artist then size", "# S\nThe Artist\nsize: 13\n\n## V\nx", "The Artist", 13, true, []int{1, 2}},
+		{"case-insensitive, no space", "# S\nSize:14\n\n## V\nx", "", 14, true, []int{1}},
+		{"out of range: ignored but consumed, still disables auto-fit", "# S\nsize: 99\nThe Artist\n\n## V", "The Artist", 11, true, []int{1, 2}},
+		{"malformed: not a directive, stays subtitle, auto-fit stays on", "# S\nsize: abc\n\n## V", "size: abc", 11, false, []int{1}},
+		{"plain artist, no directive", "# S\nThe Artist\n\n## V", "The Artist", 11, false, []int{1}},
+		{"blank after title: no header", "# S\n\n## V\nx", "", 11, false, nil},
 	}
 	for _, c := range cases {
-		sub, _, pt, skip := parseHeader(strings.Split(c.src, "\n"))
+		sub, _, pt, sizeSet, skip := parseHeader(strings.Split(c.src, "\n"))
 		if sub != c.wantSub || pt != c.wantPt {
 			t.Errorf("%s: (sub=%q, pt=%v), want (%q, %v)", c.name, sub, pt, c.wantSub, c.wantPt)
+		}
+		if sizeSet != c.wantSizeSet {
+			t.Errorf("%s: sizeSet=%v, want %v", c.name, sizeSet, c.wantSizeSet)
 		}
 		if len(skip) != len(c.wantSkip) {
 			t.Errorf("%s: skip=%v, want indices %v", c.name, skip, c.wantSkip)
@@ -282,17 +286,20 @@ func TestParseHeaderDirectives(t *testing.T) {
 	}
 }
 
-// A chart with no directive must render byte-identically to before T74 (the scale-1 path). The
-// golden sha is the T73 render of this exact source (verified equal at the gate).
-func TestRender_NoDirectiveByteStable(t *testing.T) {
-	src := "# Café — Live\nBjörk\n\n## Verse 1\nAm E7 (x2)\nVoilà l'été\n\n## Chorus\nSing it\n"
+// An explicit `size: 11` must render byte-identically to the pre-T74 scale-1 path (the golden sha is
+// the T73 render of this source). T76 note: this used to be the NO-directive chart, but auto-fit now
+// re-sizes a directive-less chart, so the byte-stability guarantee moves to the explicit-size path —
+// `size: 11` disables auto-fit and reproduces exactly the old default render (the directive line is
+// header-scoped and never drawn, so the bytes are unchanged).
+func TestRender_ExplicitSizeByteStable(t *testing.T) {
+	src := "# Café — Live\nsize: 11\nBjörk\n\n## Verse 1\nAm E7 (x2)\nVoilà l'été\n\n## Chorus\nSing it\n"
 	b, err := Render(src)
 	if err != nil {
 		t.Fatal(err)
 	}
 	const want = "5ab509133439819c696da38985f811af8302e689f13b806b28dfea1f6e8dcb4c"
 	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != want {
-		t.Errorf("no-directive render sha = %s, want %s (output changed vs pre-T74)", got, want)
+		t.Errorf("size:11 render sha = %s, want %s (scale-1 output changed vs pre-T74)", got, want)
 	}
 }
 
@@ -367,7 +374,10 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	src := string(b)
+	// Pin size: 11 so renderChart does not auto-fit (T76) — the drift guard compares the renderer and
+	// the pure layout walk at the SAME size; auto-fit would render at its chosen size while measure()
+	// stays at the parsed size, and they would differ for a reason that is not drift.
+	src := strings.Replace(string(b), "\n", "\nsize: 11\n", 1)
 	if contentHeight(src) > pageBottom {
 		t.Skip("fixture no longer single-page")
 	}
@@ -385,7 +395,7 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 // traceOf runs the shared layout in paginated trace mode and returns each drawn element's page+y+kind.
 func traceOf(src string) []placed {
 	lines := chartLines(src)
-	subtitle, _, bodyPt, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	var tr []placed
 	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, trace: &tr})
@@ -518,7 +528,10 @@ func TestT77_PairNeverSplit(t *testing.T) {
 // across explicit and automatic breaks.
 func TestT77_MeasureMatchesRender_MultiPage(t *testing.T) {
 	var b strings.Builder
-	b.WriteString("# Multi\n\n## A\n")
+	// size: 16 pins the size (no T76 auto-fit — the drift guard compares renderer vs layout at ONE
+	// size) and, at 16 pt, the 40 filler lines overflow one page, so this still exercises an automatic
+	// break inside segment A as well as the explicit {np} break into segment B.
+	b.WriteString("# Multi\nsize: 16\n\n## A\n")
 	for i := 0; i < 40; i++ {
 		b.WriteString("a filler lyric line to force an automatic break\n")
 	}
@@ -533,5 +546,152 @@ func TestT77_MeasureMatchesRender_MultiPage(t *testing.T) {
 	}
 	if diff := finalY - measure(src); diff > 0.01 || diff < -0.01 {
 		t.Errorf("multi-page: renderer final y %.3f != measure %.3f (drift)", finalY, measure(src))
+	}
+}
+
+// --- T76: auto-fit — pick the largest size that keeps a chart on one page -----------------
+
+// chosenSize is the size auto-fit would pick for a directive-less chart (test hook).
+func chosenSize(src string) float64 {
+	lines := chartLines(src)
+	sub, _, _, _, skip := parseHeader(lines)
+	return autoFitBodyPt(lines, sub, skip)
+}
+
+// A normal-length chart with no directive fits on exactly one page, and the size auto-fit picks is
+// MAXIMAL — one point larger overflows. "It fits" alone would pass at 8 pt for everything, so the
+// maximality half is the real assertion.
+func TestT76_AutoFit_OnePageAndMaximal(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("# Normal Song\nArtist Name\n\n")
+	for _, sec := range []string{"Verse 1", "Chorus", "Verse 2", "Bridge"} {
+		b.WriteString("## " + sec + "\n")
+		for i := 0; i < 4; i++ {
+			b.WriteString("Am        C        G\na line of the song goes here\n")
+		}
+		b.WriteString("\n")
+	}
+	src := b.String()
+
+	if n := pageCount(t, src); n != 1 {
+		t.Fatalf("auto-fit chart used %d pages, want exactly 1", n)
+	}
+	chosen := chosenSize(src)
+	if chosen <= minBodyPt {
+		t.Errorf("normal chart auto-fit to the floor (%.0f pt) — expected a larger size", chosen)
+	}
+	// Maximal: one point larger must overflow to a second page (unless we are already at the ceiling).
+	if int(chosen) < maxBodyPt {
+		bigger := strings.Replace(src, "\n", fmt.Sprintf("\nsize: %d\n", int(chosen)+1), 1)
+		if n := pageCount(t, bigger); n == 1 {
+			t.Errorf("chosen size %.0f pt is not maximal — %d pt also fits one page", chosen, int(chosen)+1)
+		}
+	}
+}
+
+// A chart too long to fit even at the floor falls back to minBodyPt, is allowed to be multi-page, and
+// loses no content (T70 body-preservation must hold at the floor too).
+func TestT76_AutoFit_OverlongFallsToFloor(t *testing.T) {
+	const lyric = "a line of lyric that is reasonably long here"
+	var b strings.Builder
+	b.WriteString("# Very Long\n\n")
+	for i := 0; i < 120; i++ {
+		b.WriteString("## Section\nAm\n" + lyric + "\n\n")
+	}
+	src := b.String()
+
+	if got := chosenSize(src); int(got) != minBodyPt {
+		t.Errorf("over-long chart chose %.0f pt, want the floor %d", got, minBodyPt)
+	}
+	pdf, _, err := renderChart(src)
+	if err != nil {
+		t.Fatalf("render over-long: %v", err)
+	}
+	if pdf.PageCount() < 2 {
+		t.Errorf("over-long chart rendered %d page(s), want multi-page at the floor", pdf.PageCount())
+	}
+	if _, err := exec.LookPath("pdftotext"); err == nil {
+		out, err := Render(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(pdftotext(t, out), lyric) {
+			t.Error("over-long chart lost body content at the floor (body-preservation)")
+		}
+	}
+}
+
+// An explicit size: disables auto-fit — it renders at exactly that size regardless of fit, even when
+// auto-fit would have chosen the ceiling.
+func TestT76_ExplicitSizeDisablesAutoFit(t *testing.T) {
+	short := "# Short\n\n## V\nla la la\n"
+	if got := chosenSize(short); int(got) != maxBodyPt {
+		t.Fatalf("a tiny chart should auto-fit to the ceiling %d, got %.0f", maxBodyPt, got)
+	}
+	auto, err := Render(short)
+	if err != nil {
+		t.Fatal(err)
+	}
+	forced, err := Render("# Short\nsize: 8\n\n## V\nla la la\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(auto, forced) {
+		t.Error("size: 8 rendered identically to auto-fit — an explicit size did not disable auto-fit")
+	}
+}
+
+// Auto-fit is deterministic: the same source renders to the same bytes across runs (same input →
+// same chosen size → same bytes), so charts stay byte-stable in CI and the demo bundle.
+func TestT76_AutoFit_Deterministic(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("# Determinism\nArtist\n\n")
+	for i := 0; i < 30; i++ {
+		b.WriteString("C        G\nsome lyric content on this line\n")
+	}
+	src := b.String()
+	a, err := Render(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := Render(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a, c) {
+		t.Error("auto-fit render is not deterministic across runs")
+	}
+}
+
+// T76 — auto-fit must count only AUTOMATIC breaks, never explicit {new_page} markers. A chart split
+// into small segments by markers must auto-fit to a LARGE size (each segment fits with room to spare)
+// and still render one page per segment. If explicit breaks were miscounted as automatic, the
+// fit-test would see a break at every size and slam every hand-paginated chart to the 8 pt floor.
+// Teeth-check: move the `*o.autoBreaks++` from page() into newPage() (so applyBreak counts too) and
+// this test reddens (chosen drops to the floor) while the T77 page-count tests stay green.
+func TestT76_AutoFit_ExplicitBreaksNotCounted(t *testing.T) {
+	src := "# Segmented\n\n## A\nla la la\n{np}\n## B\nda da da\n{np}\n## C\nna na na\n"
+	if chosen := chosenSize(src); int(chosen) != maxBodyPt {
+		t.Errorf("small marked segments should auto-fit to the ceiling %d pt, got %.0f — explicit {new_page} breaks miscounted as automatic?", maxBodyPt, chosen)
+	}
+	if n := pageCount(t, src); n != 3 {
+		t.Errorf("two {new_page} markers rendered %d pages, want 3 (marker page count must survive auto-fit)", n)
+	}
+}
+
+// T76 — pin a sha on the AUTO-FIT path, the path essentially every real (directive-less) chart takes.
+// TestT76_AutoFit_Deterministic only catches in-process nondeterminism; this catches drift across
+// versions. It matters because bakes are content-addressed: a silent byte change re-renders and
+// re-revs every concert containing a text chart. This breaks intentionally when the layout is
+// legitimately tuned — the same cost we accept on the explicit-size path (ExplicitSizeByteStable).
+func TestT76_AutoFitByteStable(t *testing.T) {
+	src := "# Anchor Song\nArtist\n\n## Verse\nAm        C\na short line of lyric here\n\n## Chorus\nF         G\nanother line to sing along\n"
+	b, err := Render(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "8da14f04976177ab3fe348e510f9fd459c75b5eafe0efd12fcd364d81bebbf0c"
+	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != want {
+		t.Errorf("auto-fit render sha = %s, want %s (auto-fit output drifted)", got, want)
 	}
 }

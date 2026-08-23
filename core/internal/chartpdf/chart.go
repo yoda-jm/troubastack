@@ -132,7 +132,10 @@ func chartLines(source string) []string {
 // per-row advances AND of pagination, so they cannot drift, on one page or many.
 func renderChart(source string) (*fpdf.Fpdf, float64, error) {
 	lines := chartLines(source)
-	subtitle, _, bodyPt, skip := parseHeader(lines)
+	subtitle, _, bodyPt, sizeSet, skip := parseHeader(lines)
+	if !sizeSet {
+		bodyPt = autoFitBodyPt(lines, subtitle, skip) // T76: largest size that keeps every segment on its page
+	}
 	scale := bodyPt / defaultBodyPt
 	pdf, tr := newDoc(firstTitle(lines))
 	y := header(pdf, tr, firstTitle(lines), subtitle, scale)
@@ -146,7 +149,7 @@ func renderChart(source string) (*fpdf.Fpdf, float64, error) {
 // contentHeight().
 func measure(source string) float64 {
 	lines := chartLines(source)
-	subtitle, _, bodyPt, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true})
 }
@@ -157,9 +160,37 @@ func measure(source string) float64 {
 // from measure()'s paginated end-y.
 func contentHeight(source string) float64 {
 	lines := chartLines(source)
-	subtitle, _, bodyPt, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: false})
+}
+
+// autoFitBodyPt returns the largest integer point size in [minBodyPt, maxBodyPt] at which the chart
+// needs no automatic page break — i.e. every {new_page}-delimited segment fits its own page (T76).
+// It searches ceiling-down and returns the first that fits, so the result is deterministic (same
+// input → same size → same bytes). If even the floor overflows, it returns the floor: overflow to a
+// second page is allowed rather than printing type too small to read on a stand ("most songs, not
+// all"). Used only when no manual `size:` was given — a manual size disables auto-fit (parseHeader
+// sizeSet).
+func autoFitBodyPt(lines []string, subtitle string, skip map[int]bool) float64 {
+	for pt := maxBodyPt; pt > minBodyPt; pt-- {
+		if fitsAt(lines, subtitle, skip, float64(pt)) {
+			return float64(pt)
+		}
+	}
+	return minBodyPt
+}
+
+// fitsAt reports whether the chart body fits at bodyPt with NO automatic page break. It runs the same
+// paginated layout the renderer uses (starting the first segment below the header, later segments at
+// the top margin) and counts automatic breaks: zero means every segment fit its own page. Using the
+// real layout — not a raw height compare — means orphan control and the never-split-a-pair rule are
+// honoured exactly as they will be drawn, so a size fits here iff it renders on its segments' pages.
+func fitsAt(lines []string, subtitle string, skip map[int]bool, bodyPt float64) bool {
+	scale := bodyPt / defaultBodyPt
+	auto := 0
+	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, autoBreaks: &auto})
+	return auto == 0
 }
 
 // placed records one drawn element's page and top y — a test hook (layoutOpts.trace) for asserting
@@ -178,6 +209,10 @@ type layoutOpts struct {
 	tr       func(string) string
 	paginate bool
 	trace    *[]placed
+	// autoBreaks, when non-nil, counts AUTOMATIC page breaks (content crossing pageBottom) — NOT
+	// explicit {new_page} breaks. T76 auto-fit's fit-test: a size fits iff it forces zero automatic
+	// breaks, i.e. every {new_page}-delimited segment fits its own page (segment 1 under the header).
+	autoBreaks *int
 }
 
 // layout walks the body once and returns the final y. It is the SINGLE source of the per-row advances
@@ -202,6 +237,9 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 	}
 	page := func(need float64) {
 		if o.paginate && y+need > pageBottom {
+			if o.autoBreaks != nil {
+				*o.autoBreaks++ // an automatic break: this size did not fit the segment (T76)
+			}
 			newPage()
 		}
 	}
@@ -443,6 +481,13 @@ func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scal
 // impossible to swallow a body lyric separated from the title by a blank line.
 const defaultBodyPt = 11.0
 
+// T74/T76 body-size range: the manual `size:` bounds AND auto-fit's search range — one bounded range
+// for the dialect, so a manual `size:` and an auto-fit size can never disagree about what is legal.
+const (
+	minBodyPt = 8  // readability floor; below it we accept overflow rather than print unreadable type
+	maxBodyPt = 16 // ceiling; auto-fit never exceeds the manual maximum
+)
+
 // reSizeDirective matches a `size: N` header-block directive (case-insensitive key). Any other
 // `key: value` line is NOT a directive — it stays subtitle/body — so an artist like "Foo: Bar"
 // is unaffected. Adding a second key later is a deliberate decision (T74).
@@ -458,7 +503,7 @@ var reSizeDirective = regexp.MustCompile(`(?i)^size\s*:\s*(\d+)$`)
 // it is not a chord row. Zero or ≥2 non-directive lines → no subtitle (a title running straight
 // into body is not a header). Both `size`/artist orders work; `size: 99`/`size: abc` don't set a
 // size but the numeric one is still consumed.
-func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, skip map[int]bool) {
+func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, sizeSet bool, skip map[int]bool) {
 	bodyPt, subIdx, skip = defaultBodyPt, -1, map[int]bool{}
 	t := -1
 	for i, l := range lines {
@@ -477,7 +522,11 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 			break // end of the header block
 		}
 		if m := reSizeDirective.FindStringSubmatch(s); m != nil {
-			if n, _ := strconv.Atoi(m[1]); n >= 8 && n <= 16 {
+			// The author opted into a manual size — auto-fit (T76) defers to that intent whether or
+			// not the value is in range, so a `size:` chart renders byte-identically to its T74/T75
+			// output rather than being silently re-sized.
+			sizeSet = true
+			if n, _ := strconv.Atoi(m[1]); n >= minBodyPt && n <= maxBodyPt {
 				bodyPt = float64(n)
 			}
 			skip[i] = true // consumed whether or not the value was in range
@@ -501,7 +550,7 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 
 // subtitleOf is retained for the T70 tests: the subtitle text + index only.
 func subtitleOf(lines []string) (string, int) {
-	s, i, _, _ := parseHeader(lines)
+	s, i, _, _, _ := parseHeader(lines)
 	return s, i
 }
 
