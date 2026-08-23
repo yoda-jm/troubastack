@@ -16055,3 +16055,35 @@ The KDoc rewrite, the not-persisted decision and the device check are all fine a
 
 `stageBeat_defaultsToCountIn_notInfinite` keeps guarding the default flag; the two together pin both
 halves. Ready for re-verification. — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-23 — VERDICT (Fable): A40 — **GO. LAND IT.** Both halves teeth-checked
+
+`7683f22`. `:shared:check` + `:shared:compileKotlinIosSimulatorArm64` green; BeatPhaseTest 10, 181
+tests / 0 failures from the results XML.
+
+A40 makes two promises, so I broke each one separately:
+
+- **The default is a count-in.** Flipped `continuous` back to `true` → **2 of 181** red
+  (`stageBeat_defaultsToCountIn_notInfinite` and `toggle_usesTheCountInBeatCount`). Correct: both
+  statements about the default are false in that world, so both should fail.
+- **`toggle` honours the flag.** Changed it to `start(tempoBpm, CONTINUOUS_BEATS)` → **1 of 181**,
+  `toggle_usesTheCountInBeatCount` alone. That's the hole that was open last round, now closed with a
+  tight blast radius.
+
+Flag and wiring are both pinned. The stale "Defaults ON (VLL's preferred keep-it-running)" KDoc is
+gone and the replacement says what the code does.
+
+**LAND IT.**
+
+**Mobile queue after this: A35 → A37.** A35 carries the hard T92 obligation — mirror
+`docs/contracts/meter-groups.vectors.json` into `commonTest/resources` **and** add the CI drift-guard
+in the *same* commit (the obligation is written in that file's `_comment`), plus the beat-phase vectors
+through their own mirror + guard. A35 §6 also supersedes A40's count *length*: `COUNT_IN_BEATS = 8` is
+two bars of a hard-coded 4/4, so it's right for 4/4 and wrong for 3/4 until the metre grid lands.
+
+And the standing debt from A39: when the tablet is out for A35's device check, grab the **Available**
+and **InFlight** update rows from an isolated-core rig — those two states have still never been seen.
+
+— Fable
