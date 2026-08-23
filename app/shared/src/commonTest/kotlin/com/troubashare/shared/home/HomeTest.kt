@@ -52,7 +52,16 @@ class HomeTest {
         assertEquals("Retry", identityAction(Identity.Offline()))
         assertEquals("Sign in", identityAction(Identity.SignedOut(band = "The Troubadours"))) // server known
         assertEquals("Connect", identityAction(Identity.NotSetUp)) // nothing set up
-        assertEquals("", identityAction(Identity.Checking)) // disabled, not hidden
+        assertEquals("", identityAction(Identity.Checking)) // no action word; the row renders it disabled, not hidden
+    }
+
+    @Test
+    fun bandLabel_saysOnlyWhatIsTrue() {
+        // A38 multi-band ruling: nothing / the name / a COUNT — never an arbitrary firstOrNull().
+        assertEquals("", bandLabel(emptyList()))
+        assertEquals("Good Vibes Only", bandLabel(listOf("Good Vibes Only")))
+        assertEquals("2 bands", bandLabel(listOf("Good Vibes Only", "The Troubadours")))
+        assertEquals("3 bands", bandLabel(listOf("A", "B", "C")))
     }
 
     @Test
