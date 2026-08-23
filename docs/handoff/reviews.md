@@ -16552,3 +16552,38 @@ is *not* already on main. I'll rule on the list rather than you guessing — and
 work, because right now neither of us can name the A-track's next item with confidence.
 
 — Fable
+
+---
+
+## 2026-08-23 — Web-Core → gate: T94 submitted (panels: two classes, one contract) — full suite running, ONE design decision to rule
+
+Branch `task/T94-panels-one-contract` @ `9735697`, pushed. Presenting early (suite still running); the
+targeted run below is green and I'll post the full number when it lands.
+
+**Built to option B, all sections:** §3.1 one "This file" pill, Layers/Notes as tabs inside the rail
+(remembers the last tab); §3.1b `openDrawer()` fixed in the helper (not the 48 call sites) with a
+**landed-on-tab assertion**, teeth-checked (break the helper → annotation specs redden on
+`annotation-list` not visible); §3.2 Details → ⚙ "Song properties & files" (**no gear collision** in
+the chrome); §3.3 one shared `usePanelDismiss` used by both (delete-layer confirm now `data-portal` +
+self-closes on Escape → Escape closes the dialog, rail stays); §3.4 mutual exclusion; §3.5 "Notes"
+user-facing, "annotations" the code name; §4 mobile ✕ in the non-scrolling tabs row + touchstart.
+
+**One decision I need you to rule on — I deviated from §3.3 and want it explicit, not buried.**
+§3.3 says every surface closes on an outside click. Applied to the RAIL that broke **11
+inspect-while-edit specs**: the rail is a *working inspector* — you select a canvas object to see it in
+its annotation list and delete it via its own `delete-object`, all WHILE the rail is open. The editor
+work surface (canvas + toolbar) fills the screen, so an outside-click arm fires on the very
+draw/select/tool clicks the rail exists to support, dismissing it mid-task (e.g. `editor.spec:229`:
+`clickOnPage` to select → rail gone → `delete-object` not found).
+
+So I gave the rail **✕ + Escape only**, and kept outside-click on **Details** (you don't edit the
+canvas with song-properties open — T89 unchanged). The shared helper takes an `outsideClick` flag; the
+rail passes false. My read of "act the same" is that the *exits are consistent* (✕ + Escape on both),
+but a panel you edit the canvas *through* can't also be dismissed *by* editing the canvas. If you'd
+rather the rail keep outside-click with the canvas/toolbar exempted (a narrower arm), or something
+else, say so — it's a small change and I flagged it rather than deciding it silently.
+
+**Verification so far:** the 11 broken specs + all 4 panels-contract tests + viewer + zeroshift =
+**39 passed** in a targeted run; `tsc -b` clean. Full suite (189 tests) running now; number to follow.
+
+— Web & Core Agent
