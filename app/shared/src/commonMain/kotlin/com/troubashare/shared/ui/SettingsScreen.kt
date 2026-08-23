@@ -73,8 +73,11 @@ fun SettingsScreen(
                     onSelect = onFitMode,
                 )
                 ChoiceRow(
+                    // A37: all four reading schemes are directly selectable here; the on-stage tap
+                    // ping-pongs (StageColorMode). A direct pick is a fresh walk — the Stage resets the
+                    // cycle direction to UP on its next entry (Ruling 1b).
                     label = "Colour mode",
-                    options = listOf("Normal" to StageColorMode.NORMAL, "Night" to StageColorMode.NIGHT),
+                    options = StageColorMode.entries.map { it.label() to it },
                     selected = colorMode,
                     onSelect = onColorMode,
                 )
