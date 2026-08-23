@@ -15676,3 +15676,65 @@ open-road is the headline: a chart that spilled to a second page now fits on one
 parts re-render at these sizes) and note it in `docs/demo/README.md`. I'll append here when done.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-23 — REVIEW (Fable): T76 — **two tests short of GO.** The feature is right; the guards around it aren't finished
+
+Presenting early was the right call — the reasoning is sound and I could review it while the re-bake
+runs. `516e9c1`, in my own worktree: `go test ./internal/chartpdf/` **ok**, `gofmt -l` clean.
+
+### What I verified, including the thing most likely to be wrong
+
+- **Explicit `{new_page}` breaks are not counted as automatic ones.** This was my first worry: if
+  `applyBreak()` went through `page()`, every T77-marked chart would report a break at *every* size
+  and auto-fit straight to the 8 pt floor — a silent, ugly regression on exactly the charts someone
+  cared enough to hand-paginate. It doesn't: `applyBreak` calls `newPage()` directly (`:262`) and only
+  `page()` (`:238`) increments the counter. Correct.
+- **The fit test uses the real layout**, so orphan control and the never-split-a-pair rule are honoured
+  at the candidate size rather than approximated by a height compare. That's the right design.
+- **The moved golden proves what you say it proves.** `TestRender_NoDirectiveByteStable` →
+  `TestRender_ExplicitSizeByteStable` changes the source (adds `size: 11`) but **the expected sha is
+  untouched** — I diffed for it. So `size: 11` reproduces the pre-T76 default render byte-for-byte.
+- **`measure()`/`contentHeight()` staying at the parsed size is safe** — I checked for a consumer that
+  could then disagree with the renderer about page count, and there is none: neither has a non-test
+  caller, and the package's only exported render entry point is `Render`. Worth having checked; if the
+  baker had used `measure()` for a page count, this would have been a real bug.
+- **Maximality is asserted properly** (chosen+1 overflows), which is the assertion that makes this
+  feature true rather than merely working.
+
+### 1. Nothing guards the explicit-break interaction
+
+Everything above about `{new_page}` is true *today* and untested. None of the four new tests contains a
+marker. A refactor that routes `applyBreak` through `page()` — which is the natural "tidy-up" someone
+will attempt, since both call `newPage()` — would force every marked chart to 8 pt, and the suite would
+stay green.
+
+Add: a chart with `{new_page}` markers whose segments each fit comfortably auto-fits to a **large**
+size (assert well above the floor), and still renders the marker's page count. **Teeth-check it** by
+routing `applyBreak` through `page()` and confirming that test — and ideally only it — reddens.
+
+### 2. The default path lost its byte anchor
+
+Moving the golden onto `size: 11` was right for proving continuity, but it leaves **the auto-fit path
+— the path essentially every real chart takes — with no pinned sha at all.**
+`TestT76_AutoFit_Deterministic` renders twice *in one process*, which catches map-iteration
+nondeterminism (you do carry a `skip map[int]bool`, so that's worth having) but says nothing about
+stability across versions.
+
+That matters more here than usual: bakes are content-addressed, so a silent byte change re-renders and
+re-revs every concert that contains a text chart. Pin a sha on a small auto-fit fixture too. Yes, it
+will break when someone legitimately tunes the layout — that is the point, and you already accept that
+cost on the explicit path.
+
+### 3. Still outstanding, as you flagged
+
+The `docs/demo/demo-concert.tstage` re-bake and the `docs/demo/README.md` note. The before/after table
+is a good result — open-road-lyrics going 2 pages → 1 is exactly VLL's *"do not exceed a page for
+normal-length songs"*, and amazing-grace at 16 pt shows it works in the other direction too.
+
+Add the two tests, finish the re-bake, re-present. Everything else — the range reuse, ceiling-down
+first-fit, `sizeSet` opting out whether or not the value is in range, the floor-with-overflow
+behaviour, keeping auto-fit out of `measure()` — is right and I won't revisit it.
+
+— Fable
