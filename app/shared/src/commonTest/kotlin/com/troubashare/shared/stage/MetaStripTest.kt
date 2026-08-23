@@ -34,4 +34,14 @@ class MetaStripTest {
     fun negativeTempoOmitted() {
         assertEquals("Em", metaStripText("", "Em", -1))
     }
+
+    @Test
+    fun tempoGlyphFollowsTheMetre() {
+        // A35: the beat-note glyph names what the tempo counts — ♩ simple, ♩. compound, ♪ irregular.
+        assertEquals("♩=120", metaStripText("", "", 120, "4/4"))
+        assertEquals("♩=120", metaStripText("", "", 120, ""), "unset metre ⇒ 4/4 ⇒ quarter (pre-T86 bundles)")
+        assertEquals("♩.=120", metaStripText("", "", 120, "6/8"))
+        assertEquals("♩.=120", metaStripText("", "", 120, "12/8"))
+        assertEquals("♪=120", metaStripText("", "", 120, "3+4/8"))
+    }
 }

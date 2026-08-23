@@ -102,6 +102,14 @@ jobs:
         run: |
           diff -u docs/contracts/beat-phase.vectors.json \
                   app/shared/src/commonTest/resources/beat-phase.vectors.json
+      # A35/T92 metre-parser contract: docs/contracts/meter-groups.vectors.json pins ParseMeter across
+      # three runtimes (Go app, TS studio, Kotlin app). Go and TS read the contract path directly; the
+      # app mirrors it into commonTest resources and runs the SAME cases in Kotlin. Fail if the two
+      # copies drift, so the grouping rule can never silently fork between server, studio and stage.
+      - name: verify A35/T92 meter-groups vectors are in sync across lanes
+        run: |
+          diff -u docs/contracts/meter-groups.vectors.json \
+                  app/shared/src/commonTest/resources/meter-groups.vectors.json
       # bake imports node builtins + @napi-rs/canvas, so it must be installed
       # before the typecheck below resolves its `-p bake` project.
       - name: install bake
