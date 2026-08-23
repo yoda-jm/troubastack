@@ -43,56 +43,55 @@ queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity 
    gated only by `make test` is exactly how a stale e2e assertion rode `main` red unnoticed for the
    whole T72→T79 window (T81, Part C).
 
-## Queue state (re-synced 2026-07-18, from the review-gate log)
+## Queue state
 
-- **Done & landed:** T01–T13, T16, **T19 (text charts)**, T20, T21, **T22**
-  (deterministic listings), **CFG01** (config file), **T23** (encore/bench — server
-  side; drawer grouping is the open A-track follow-up), **T25** (chart preview),
-  **T28** (hidden-layer draw swallow), **T15** (Viewer split), **T27 COMPLETE**
-  (canvas-first editor, all 4 stages: wheel-zoom · z-order/selection toolbar ·
-  fullscreen · touch grammar, landed 2026-07-10), **T29** (build identity), **T30**
-  (no silent ink), **T31** (bake z-order parity, landed 2026-07-10), **T32**
-  (insecure-origin uuid + global error visibility — the plain-HTTP field bug,
-  landed 2026-07-10), **T33** (thin ctx pill, landed 2026-07-10), **T34** (touch stuck-in-nav fix, landed 2026-07-11), **T26 + T23 COMPLETE**
-  (song titles + encore/bench, both halves, app half landed 2026-07-11) ·
-  A01–A06, **A08–A15 (the full
-  Stage ergonomics + reading arc)** · **B01, B02, B03 (complete), B04, B05, B06 (core slice),
-  B07 (per-member bake)** · IOS01, IOS02, IOS04 (+ the IOS03 prep runbook) · the seed
-  page-doubling fix + the demo bundle regen (12 true pages) · **B08 + B09** (concurrent-same-setlist bakes always produce distinct, downloadable revs). The FULL product loop —
-  **compose → bake → offer → download → import → perform** — is in-app; I13's
-  explicit tier is ✅.
-- **Landed 2026-07-12 → 07-18:** **T50** (personal song cues, per-member self-only) ·
-  **Scheme A** — one 👥 Band / 👤 Mine vocabulary: **T54** (audience-tabbed Details),
-  **T55** (draw-time zone chip), **T56** (web vocabulary sweep) + app **A26** (settings
-  sweep), **A27** (Home refinements) · **P205 Stage 1** (bake dialog + `default_on`
-  capture, `df0f3be`) + **Stage 2** (band-wide bake becomes THE bake; demo → one
-  band-wide bundle + a temporary `-mine` bridge; `ed1966c`) · **T57** (concert → printable
-  A4 PDF, the paper fallback; the shared view-resolution vectors so print == screen;
-  `0ebb346`) · the **editor-zorder flaky-e2e fix** (reproduced under load, budget-only fix;
-  `a6c4d84`) · demo bundles refreshed band-wide (`24acb93`).
-- **Open, unblocked:** **P201** (rehearsal live mode — spec
-  REFRESHED 2026-07-12, unblocked, ready when VLL says go). **OPS01** unattended slice
-  landed `3662468` (remaining: VLL's attended HTTPS bring-up + release APK). **P203**
-  DECIDED 2026-07-11: re-affirm mirrors (closed-not-adopted). **P202** closed
-  2026-07-10 (safe slice `5ceba9f`; rest → deferred P204).
-  Journey/gap analysis: [`docs/USER-JOURNEY.md`](../USER-JOURNEY.md).
-- **P205 — COMPLETE (2026-07-23).** Acceptance PASSED on-device 2026-07-19; Stage 3a/3b
-  landed (mobile A29/A30: app view-time identity + personal-layer filtering; the shared
-  view-resolution vectors run in both Go and app commonTest → print == screen). The
-  `-mine` demo bridge deleted (2026-07-19); the `?scope=mine` bakeapi retirement landed
-  `1284752` (2026-07-23, on VLL's release-cadence declaration) — band-wide is THE bake;
-  old `~user` variant concerts keep read-compat (list/download only, never minted).
-- **Open, ATTENDED only:** the **T27 device pass** (iOS pinch-guard + pen/finger
-  feel — rides A07's tablet stylus session; the phone-breakpoint cosmetics +
-  reduced-blur fallback LANDED 2026-07-10 `f90a7ca`, plus the two viewport device
-  caveats to check), **T24**
-  (chartpdf/mkcharts convergence — regenerates pixel-verified demo artifacts), the
-  **B07 device screenshot pair** (tab vs score, rides the next attended emulator batch).
-- **Blocked on the human:** A07 (tablet stylus spike), IOS03 impl (Mac + Apple
-  credentials), credential rotation for the git remote.
-- **Closed without landing:** T14 (panelize measured ~10px and reverted; superseded by T17).
-  **T17** (single-row toolbar / style disclosure — superseded by **T27** canvas-first editor,
-  design-reviewed 2026-07-08; its zero-shift-e2e-first requirement carries into T27).
+**Do not enumerate landed work here.** This section used to be a hand-maintained list of everything
+that had shipped; it was last re-synced **2026-07-18** and by 2026-08-23 it was a month behind — it
+still listed P201 as "open, unblocked" (landed), described P205 as the newest arc (the T50–T94 and
+A26–A41 arcs came after it), and named a `-mine` demo bridge that no longer exists. Both lanes' handoff
+docs pointed here as authoritative, so both were navigating by a map of a month ago.
+
+A list of what has landed is data git already holds, and a copy of it will always rot. So this section
+now records **only what git cannot tell you**, and tells you how to derive the rest.
+
+### Deriving current state (do this, don't trust a list)
+
+- **What landed, and why it was accepted:** `docs/handoff/reviews.md` — the review-gate log, newest at
+  the bottom. Every task has a submission and a verdict; a landed task's verdict ends with "LAND IT"
+  and its code commits carry an `Approved:` trailer.
+- **What is on main right now:** `git log origin/main --oneline` and, for one task,
+  `git log origin/main --grep='(T94)'`.
+- **What is queued for a lane:** the most recent Fable entry in `reviews.md` naming that lane's queue.
+  If a handoff doc and `reviews.md` disagree, **`reviews.md` and main win** — and fix the handoff.
+
+### Blocked on the human (git cannot know these)
+
+- **One attended device session** (tablet on adb) owes three things: **A37** — tune the four
+  `pageColorFilter()` matrices at *stage brightness*, they are currently the spec's untuned formulas,
+  and shoot all four schemes; **A35** — the 3/4 and 6/8 beat shots, where the three tiers are visible;
+  **A39** — the **Available** and **InFlight** update rows from an **isolated** core rig (own port,
+  throwaway store, two revs). Those two A39 states have never been seen by a human. **:8080 is VLL's
+  preview — never use it for this.**
+- **A07** — tablet stylus spike.
+- **IOS03 impl** — blocked on a Mac + Apple credentials (§11 of the mobile handoff is a runbook, not a
+  buildable task).
+- **T81 Part B** — VLL-owned. A lane must not close it by claiming it.
+- Credential rotation for the git remote.
+
+### Open, and worth knowing
+
+- **T24** (converge `cmd/mkcharts` onto `internal/chartpdf`) — ruled **parked, rider-only** (`7dd9f6b`).
+  Worth re-reading after **T76**: auto-fit now applies to `chartpdf` output but *not* to mkcharts'
+  own fpdf drawing, so the two renderers have drifted further apart, and `docs/demo/README.md`
+  now documents that gap as load-bearing for why the demo bundle needs no re-bake.
+
+### Closed without landing (decisions, not omissions)
+
+- **T14** — panelize measured ~10px and was reverted; superseded by T17.
+- **T17** — single-row toolbar / style disclosure; superseded by **T27** (canvas-first editor). Its
+  zero-shift-e2e-first requirement carried into T27.
+- **P203** — re-affirm the mirrors (closed, not adopted).
+- **P202** — closed; the safe slice landed, the rest deferred to **P204**.
 
 ## Index
 

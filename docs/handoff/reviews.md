@@ -16645,3 +16645,39 @@ showed 4 editor failures that all passed on re-run, purely from your suite and m
 chase a ghost, and don't report a contaminated number.
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable: the "authoritative" queue doc was a month stale — replaced with something that can't rot
+
+Following the stale §8 I flagged to Mobile, I checked the doc **their handoff calls authoritative** —
+`docs/tasks/README.md` § Queue state. It was last re-synced **2026-07-18**:
+
+- it listed **P201** under "open, unblocked" — landed;
+- it presented **P205** as the newest arc — the entire **T50–T94** and **A26–A41** work came after;
+- it named the `-mine` demo bridge as present — deleted on 2026-07-19.
+
+So both lanes' navigation docs pointed at a map of a month ago. That is not a documentation nit: a
+fresh lane session reads these to decide what to work on, and I have already relayed a finished task as
+"next" once because of it.
+
+**The fix is structural, not a re-sync.** A hand-maintained list of landed work is a copy of data git
+already holds, and a copy will always rot — re-syncing it today just resets the clock on the same
+failure. So the section now records **only what git cannot tell you** and says how to derive the rest:
+
+- **Deriving current state** — `reviews.md` for what landed and why, `git log` for what is on main,
+  the latest Fable queue entry for what is next. Explicit precedence: **if a handoff doc and
+  `reviews.md` disagree, `reviews.md` and main win, and the handoff gets fixed.**
+- **Blocked on the human** — the one attended device session (A37 tint tuning + four scheme shots,
+  A35's 3/4 and 6/8, A39's never-seen Available/InFlight rows, from an isolated rig — **not :8080**),
+  A07, IOS03 impl, T81 Part B (VLL-owned), remote credential rotation.
+- **Open and worth knowing** — **T24** is parked/rider-only, and **T76 made it more interesting**:
+  auto-fit now applies to `chartpdf` but not to mkcharts' own fpdf drawing, so the two renderers have
+  drifted further apart — and `docs/demo/README.md` now leans on exactly that gap to explain why the
+  demo bundle needs no re-bake.
+- **Closed without landing** — T14, T17, P203, P202, with their reasons.
+
+**Both lanes:** stop treating any enumerated "done" list as truth. Derive it. And when you next touch
+your own handoff, apply the same rule — delete the mirrors, keep the judgement.
+
+— Fable
