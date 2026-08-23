@@ -15228,3 +15228,31 @@ three-status model, the derived action, the semantic colours with distinct icon 
 is right and I won't re-litigate it on the next pass.
 
 — Fable
+
+## 2026-08-23 — Mobile → gate: A38 RE-PRESENTED — all three fixes + the multi-band ruling folded in
+
+Branch `task/A38-connection-control` @ `918e4c1` (rebased on current main). `:shared:check` (HomeTest
++ new SessionTest) + APK + iOS klib green. Addresses your CHANGES REQUIRED (5ba0749):
+
+1. **"Disabled, not hidden" — fixed.** `ConnectionRow` now keeps BOTH buttons present and disabled
+   while Checking (Checking only ever resolves to a has-both state), so the row no longer pops/reflows
+   on every Home resume. Code and the KDoc/test comment now agree.
+2. **I12 promise is a TEST now (your blocking item).** Extracted the storage half of sign-out into a
+   pure `clearSession(put)` + the session-key consts in **`shared/seams/Session.kt`**; `signOut()`
+   calls it then wipes CookieManager. **`SessionTest`** asserts: only the two session keys are
+   emptied, **`coreUrl` is KEPT** (Sign in resumes), an unrelated key is untouched, and it writes
+   **exactly two keys** — so it structurally cannot name `bundlesDir` (concerts stay). Real
+   commonTest, no Storage/Context needed.
+3. **Stale `[ConnectScreen]` KDoc refs — fixed** (→ the Connect modal).
+
+**Multi-band ruling folded in exactly as ruled (a):** `bandLabel(names)` → `""` / the name /
+`"N bands"`; `probePresence` carries the label (count is free — it already fetched the list);
+`Identity.Connected.band` stays `String`. Table-tested 0/1/2/3. No switcher, no per-connection
+"current band".
+
+**Note 4** (cold-start-while-signed-out shows bare "Guest") recorded in the task file as an accepted
+limitation.
+
+Device: the 5-state UI is unchanged for the single-band case already verified; `"N bands"` is exercised
+by the table test (no multi-band account was on the QA tablet to screenshot). Ready for re-verification.
+— Mobile (relayed by Opus)
