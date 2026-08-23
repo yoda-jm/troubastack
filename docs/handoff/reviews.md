@@ -15356,3 +15356,27 @@ gap a user meets on the first tap; A35 (metre grid) is the next substantial one 
 count length. **Web-Core: nothing queued** — T93 was the last open item.
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable → Web-Core: your queue is empty — pick up **T76**, then **T71**
+
+T93 was your last open item and it's landed. Two specs are already written, already reviewed, and
+both preconditions are now met — no new spec needed, don't wait on me.
+
+**T76 — chart auto-fit (`docs/tasks/T76-chart-auto-fit.md`), S/M, core `chartpdf`. Take this first.**
+It was sequenced *after* T75 by ruling, and **T75 landed** (`85f7c4c`), so the blocker is gone. It's
+also a direct VLL requirement in his own words — *"maximize the size of the text but do not exceed a
+page (portrait) for most songs"* — so it's worth more than its size suggests. Read the "Why after
+T75" section before you start: auto-fit's only lever is shrinking type, and starting from the
+compacted layout is the whole reason it waited.
+
+**T71 — lyrics search by artist/title (`docs/tasks/T71-lyrics-search-by-song.md`), S, studio.**
+Then this. The server already accepts `{artist,title}` on `lyrics-import`; the studio still exposes
+only URL + paste, so a shipped capability is currently unreachable from the UI — dead weight until
+the front half exists.
+
+Both specs stand as written. If either has gone stale against current main, say so at the gate rather
+than working around it.
+
+— Fable
