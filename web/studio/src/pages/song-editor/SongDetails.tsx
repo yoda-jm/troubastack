@@ -203,6 +203,7 @@ export function Files({
   bandId,
   songId,
   songTitle,
+  songArtist,
   songKey,
   onSongKeyChanged,
   onFilesChanged,
@@ -210,6 +211,7 @@ export function Files({
   bandId: string;
   songId: string;
   songTitle?: string;
+  songArtist?: string; // T71: prefills the lyrics-search artist field
   // T60: the song's current key drives the ChartEditor's Transpose control (prefill +
   // key/semitone path). onSongKeyChanged bubbles up a transpose that also updated the key.
   songKey?: string;
@@ -448,6 +450,8 @@ export function Files({
           <LyricsImportDialog
             bandId={bandId}
             defaultName={songTitle ?? ""}
+            defaultArtist={songArtist ?? ""}
+            defaultTitle={songTitle ?? ""}
             onCancel={() => setLyricsOpen(false)}
             onCreate={(source) => {
               setLyricsOpen(false);
@@ -602,21 +606,53 @@ export function Files({
 function LyricsImportDialog({
   bandId,
   defaultName,
+  defaultArtist,
+  defaultTitle,
   onCreate,
   onCancel,
 }: {
   bandId: string;
   defaultName: string;
+  defaultArtist: string;
+  defaultTitle: string;
   onCreate: (source: string) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(defaultName);
+  const [artist, setArtist] = useState(defaultArtist); // T71: prefilled from the song's metadata
+  const [title, setTitle] = useState(defaultTitle);
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [labelSections, setLabelSections] = useState(false); // T38: opt-in, default OFF
   const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // T71: search lyrics.ovh by artist/title — the primary path (the URL path is Cloudflare-gated).
+  // Every non-ok outcome degrades to paste, showing the server's curated reason; never throws.
+  async function onSearch() {
+    if (!artist.trim() || !title.trim() || searching) return;
+    setMsg(null);
+    setSearching(true);
+    try {
+      const r = await api.lyricsSearch(bandId, artist.trim(), title.trim());
+      if (r.status === "ok" && r.text) {
+        setText(r.text);
+        setMsg("Found — review the lyrics below, then create the chart.");
+      } else {
+        setMsg(
+          (r.reason ? r.reason + " — " : "No lyrics found — ") + "paste the lyrics below instead.",
+        );
+        textRef.current?.focus();
+      }
+    } catch {
+      setMsg("Search failed — paste the lyrics below instead.");
+      textRef.current?.focus();
+    } finally {
+      setSearching(false);
+    }
+  }
 
   async function onFetch() {
     if (!url.trim() || fetching) return;
@@ -652,16 +688,48 @@ function LyricsImportDialog({
         <span>Chart name</span>
         <input data-testid="lyrics-name" value={name} onChange={(e) => setName(e.target.value)} />
       </label>
-      <div className="inline-form lyrics-fetch-row">
-        <input
-          data-testid="lyrics-url"
-          placeholder="Paste an azlyrics (or any) song URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <button type="button" className="btn-sm" data-testid="lyrics-fetch" disabled={fetching} onClick={() => void onFetch()}>
-          {fetching ? "Fetching…" : "Fetch from URL"}
-        </button>
+      {/* T71: search by song is the primary path (prefilled from the song's metadata). */}
+      <div className="lyrics-search-row">
+        <span className="lyrics-row-label">Search by song</span>
+        <div className="inline-form">
+          <input
+            data-testid="lyrics-artist"
+            aria-label="Artist"
+            placeholder="Artist"
+            value={artist}
+            onChange={(e) => setArtist(e.target.value)}
+          />
+          <input
+            data-testid="lyrics-title"
+            aria-label="Title"
+            placeholder="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <button
+            type="button"
+            className="primary btn-sm"
+            data-testid="lyrics-search"
+            disabled={searching || !artist.trim() || !title.trim()}
+            onClick={() => void onSearch()}
+          >
+            {searching ? "Searching…" : "Search"}
+          </button>
+        </div>
+      </div>
+      <div className="lyrics-fetch-row-wrap">
+        <span className="lyrics-row-label">or fetch from a URL</span>
+        <div className="inline-form lyrics-fetch-row">
+          <input
+            data-testid="lyrics-url"
+            placeholder="Paste an azlyrics (or any) song URL"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button type="button" className="btn-sm" data-testid="lyrics-fetch" disabled={fetching} onClick={() => void onFetch()}>
+            {fetching ? "Fetching…" : "Fetch from URL"}
+          </button>
+        </div>
       </div>
       {msg && (
         <p className="muted" data-testid="lyrics-fetch-msg">

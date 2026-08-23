@@ -457,6 +457,17 @@ export const api = {
       { url },
     ),
 
+  // T71: the search sibling of lyricsImport — same endpoint, same return type, different intent.
+  // Posts {artist,title} so the server queries lyrics.ovh instead of scraping a URL. A non-"ok"
+  // status (no match / disabled / invalid) is a NORMAL outcome the UI degrades to paste for, never
+  // thrown — kept as a separate call, not a boolean/union param on lyricsImport.
+  lyricsSearch: (bandId: string, artist: string, title: string) =>
+    request<{ status: "ok" | "blocked" | "error"; text?: string; reason?: string }>(
+      "POST",
+      `/api/bands/${bandId}/lyrics-import`,
+      { artist, title },
+    ),
+
   // Render a chart to PDF bytes WITHOUT persisting (T25 preview). Returns the PDF
   // Blob; throws ApiError with the server's message (e.g. bad chars) on failure.
   previewTextChart: async (bandId: string, songId: string, source: string): Promise<Blob> => {

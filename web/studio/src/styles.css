@@ -188,6 +188,10 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 /* T38: opt-in "label verses & choruses" toggle in the lyrics dialog. */
 .lyrics-sections-toggle { display: flex; align-items: flex-start; gap: .5rem; font-size: .85rem; color: var(--muted); margin: .1rem 0; }
 .lyrics-sections-toggle input { flex: 0 0 auto; width: auto; margin-top: .15rem; }
+/* T71: search-by-song is the primary import row; the URL row is demoted below it. Each carries a
+   small label so the two accelerators read as distinct paths, not one confusing form. */
+.lyrics-search-row, .lyrics-fetch-row-wrap { display: flex; flex-direction: column; gap: .3rem; }
+.lyrics-row-label { font-size: .8rem; color: var(--muted); }
 
 /* T39: "Lyrics & chords" editor — syntax-highlight overlay. A colored <pre> sits exactly
    behind a transparent-text <textarea>; the wrap owns the border so the two text boxes
@@ -1110,9 +1114,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   }
   .inline-form { flex-direction: column; align-items: stretch; }
   .inline-form input, .inline-form select, .inline-form button { width: 100%; }
-  /* T37: in the column layout, flex-basis:12rem would set the text input's HEIGHT;
-     reset it so the lyrics URL field keeps a natural height at phone width. */
-  .lyrics-fetch-row input { flex: 0 0 auto; }
+  /* T37/T71: in the column layout, flex-basis:12rem would set the text input's HEIGHT;
+     reset it so the lyrics URL field AND the T71 search fields keep a natural height at phone width. */
+  .lyrics-fetch-row input, .lyrics-search-row input { flex: 0 0 auto; }
   .list li { flex-wrap: wrap; }
 }
 

@@ -1529,6 +1529,7 @@ export function Viewer({
                         bandId={bandId}
                         songId={songId}
                         songTitle={song.title}
+                        songArtist={song.artist}
                         songKey={song.key}
                         onSongKeyChanged={(k) => onSongSaved({ ...song, key: k })}
                         onFilesChanged={refreshMyFiles}
