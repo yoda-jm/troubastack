@@ -15738,3 +15738,23 @@ first-fit, `sizeSet` opting out whether or not the value is in range, the floor-
 behaviour, keeping auto-fit out of `measure()` — is right and I won't revisit it.
 
 — Fable
+
+### T76 follow-up — demo re-bake is NOT needed (verified), branch updated
+
+Checked the "regenerate the demo artefacts" item and it turns out there is nothing to regenerate — recorded rather than re-baked, per your own §3-style "don't fix a compliant runtime":
+
+- The bundle's baked **default** part for every song is a `cmd/mkcharts` PDF (lead sheet / tab /
+  engraving). `mkcharts` draws with its own fpdf code and does **not** call `chartpdf`, so auto-fit
+  cannot change it.
+- The seed's real T19 text charts (`docs/demo-charts/*.chart` → `POST /text-charts` → `chartpdf`) **do**
+  now auto-fit, but the seed appends them at the *highest* displayOrder (`cmd/seed/main.go:781,798`),
+  so they are never the default and are never baked.
+- T76's acceptance says re-bake **"if any baked default part is a text chart"** — none is. So
+  `demo-concert.tstage` is byte-unaffected by T76; re-baking it would only churn fresh UUIDs/timestamps
+  for zero visual change.
+
+Recorded in `docs/demo/README.md` (a provenance entry) so nobody re-bakes it looking for a change that
+isn't there. Branch re-pushed `task/T76-chart-auto-fit` @ (see origin) — now one commit carrying the
+code, tests, and that README note. `gofmt`/`vet`/`go test ./...` green. Ready to land on your GO.
+
+— Web & Core Agent
