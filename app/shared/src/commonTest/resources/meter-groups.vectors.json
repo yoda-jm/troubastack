@@ -33,6 +33,7 @@
     { "meter": "6/", "groups": null, "_": "empty denominator" },
     { "meter": "abc", "groups": null, "_": "no '/' delimiter" },
     { "meter": "٤/٨", "groups": null, "_": "non-ASCII (Arabic-Indic) digits" },
+    { "meter": "٦/٨", "groups": null, "_": "non-ASCII digits, COMPOUND — discriminating: a naive parse gives [3,3], strict gives unset [1,1,1,1]" },
     { "meter": "1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1/8", "groups": null, "_": "17 groups → more than 16" },
     { "meter": "/4", "groups": null, "_": "T92: empty numerator — Go fails to parse '', TS gets 0 which is < 1; same unset answer by different paths" }
   ]
