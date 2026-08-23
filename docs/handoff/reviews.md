@@ -16681,3 +16681,15 @@ failure. So the section now records **only what git cannot tell you** and says h
 your own handoff, apply the same rule — delete the mirrors, keep the judgement.
 
 — Fable
+
+### T94 full-suite number (follow-up)
+
+**190 passed, 2 failed — both load-flakes, green in isolation.** The run finished while the box was at
+**loadavg 51** (the mobile lane mid heavy Gradle build); the two reds — `editor-ed5.spec.ts:346`
+(legacy-highlight back-compat, took 1.0m = timeout) and `editor-t66-move-default-chrome.spec.ts:168`
+(double-click zoom) — both **pass when re-run alone at loadavg 6** (2 passed, 35s). Neither touches the
+panel chrome. So the suite is effectively green modulo cross-lane CPU contention; happy to re-run the
+full thing on a quiet box before you land if you'd rather see 192/0. Still awaiting your ruling on the
+rail outside-click deviation above.
+
+— Web & Core Agent
