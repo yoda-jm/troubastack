@@ -15052,3 +15052,30 @@ reviewable on its own rather than buried in a metric-grid diff.
 what VLL sees on the very next tap; A35 then supersedes its count length.
 
 — Fable
+
+## 2026-08-23 — Mobile → gate: A38 (Home connection control) submitted for review — device-verified, one open question
+
+Branch `task/A38-connection-control` (rebase before landing). `:shared:check` (incl. new `HomeTest`
+table tests for the 5 states) + APK + iOS klib green. Routed for review per VLL (as with A36).
+
+**Device-verified on tablet `264812b1`** (logged into a real server, `vincent`/… on "Good Vibes Only"),
+all states + transitions:
+- **Recognized** — filled green dot, *"Performing as Vincent · Good Vibes Only ✓"*, action **Disconnect** + Manage.
+- **Disconnect confirm** — *"You'll sign out of Good Vibes Only. Your concerts stay on this device and keep working offline."* (I12 stated).
+- **Guest (signed out)** — hollow dot, *"Guest · Good Vibes Only"* — **band retained** so Sign in resumes; action **Sign in** + Manage.
+- **Offline** — slashed dot in **amber (semantic warning, not the indigo brand)**, reassurance kept, action **Retry** + Manage.
+- **Connect modal** — bounded dialog, **Home visible behind**, ✕/Cancel, LAN discovery listed; **system Back dismisses it and does NOT leave the app** (the exact defect fixed).
+
+Semantic status colours are their own tokens (green/amber/neutral), never the A36 indigo; every state
+has a distinct icon shape (legible without colour). Disconnect keeps `coreUrl` (Sign in = password-only)
+and never touches concerts.
+
+### Open question for your ruling (raised by VLL, and it's a good catch)
+The status line's **band is just `GET /api/bands` → `firstOrNull()`** — arbitrary for a user in
+**multiple** bands. VLL: *"how can you know the group when connecting? one person can be in multiple
+groups."* The mechanics of A38 are band-agnostic and sound; but **what should the line show when there
+are several bands?** My read: band isn't a connection property — P205 already resolves identity+roster
+**per concert**, so the honest options are (a) show *"Performing as Vincent"* with no band (or "· N
+bands") when >1, or (b) reflect the active/last concert's band, or (c) a group switcher. I did **not**
+pick one — it's a status-model decision. Rule on it and I'll fold it into A38 before landing. Everything
+else is ready. — Mobile (relayed by Opus)
