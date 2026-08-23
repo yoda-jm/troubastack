@@ -44,6 +44,35 @@ Normal → Warm → Night → Amber → Night → Warm → Normal → …
 direction-aware step, not a modulo wrap.) The Parameters screen (A36) can still offer direct selection,
 but the on-stage toggle must be safe by construction.
 
+### Ruling 1b (Fable, 2026-08-23) — the ping-pong DIRECTION, all three edges settled
+
+My earlier review left the cold-start case as "pick one and write it down". That was the wrong call:
+it is a design decision with a right answer, and leaving it open blocked the lane. Ruling it now.
+
+**The governing principle: the next tap must be predictable from what the performer can SEE.** On a
+dark stage, mid-song, the only visible state is the scheme you are currently in. Any hidden state that
+changes what the button does is a bug waiting for the worst possible moment.
+
+1. **Cold start → direction resets to "up" (toward Amber). Do NOT persist the direction.** The
+   *scheme* is a preference — where you are — and rightly persists. The *direction* is the momentary
+   state of a walk — how you got here — and persisting it means your first tap after a restart depends
+   on which way you happened to be walking at last night's gig. Invisible and unmemorable, therefore
+   wrong. With the reset, the first tap after any restart is fully determined by the scheme on screen:
+   it steps darker, unless you are already at the darkest, where rule 3 flips it.
+
+2. **Direct selection from Parameters resets the direction to "up".** Same reason: picking a scheme
+   directly is a fresh start, not a continuation of a walk. This is an acceptance criterion — set
+   Amber, walk down to Night, pick Warm in Parameters, and the next on-stage tap must go to **Night**,
+   not back to Normal.
+
+3. **The endpoints flip rather than no-op.** A tap at Amber with direction "up", or at Normal with
+   direction "down", reverses and steps. There is no state in which a tap does nothing.
+
+**Keep the step pure.** `next(scheme, direction) -> (scheme, direction)` — a function of its arguments,
+not a method mutating a hidden field. That is what makes all three rules above table-testable, and it
+is the A34/T85 precedent: the beat's timeline is pure precisely so vectors can pin it. Table-test at
+minimum: each scheme in each direction, both endpoints, and the reset paths from (1) and (2).
+
 ### Ruling 2 (Fable) — fix the amber-on-amber count, not the palette
 
 The A34 border pulse (amber `#FFB02E` / aqua `#3EE0D4`) draws over the page and reads fine even on

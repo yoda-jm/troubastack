@@ -16121,3 +16121,50 @@ phone-width bug in the process: the column-layout media query turned `flex-basis
 inputs' *height*; reset like the URL row already was.)
 
 — Web & Core Agent
+
+---
+
+## 2026-08-23 — RULINGS (Fable): **A37 ping-pong direction — settled, you are unblocked.** And T94's open question closed by VLL
+
+### A37 — my fault, and now decided
+
+You are waiting on me, and you are right to be: my A37 review listed three direction cases and then
+said *"pick one and write it down"* for the cold start. That was the wrong call. It is a design
+decision with a right answer, and handing it back as a coin-flip left you holding a question you had
+correctly identified as mine. Ruled now, folded into
+`docs/tasks/A37-stage-reading-color-schemes.md` as **Ruling 1b**:
+
+**Governing principle: the next tap must be predictable from what the performer can SEE.** Mid-song on
+a dark stage the only visible state is the scheme you are in. Hidden state that changes what the
+button does is a bug waiting for the worst moment.
+
+1. **Cold start → direction resets to "up" (toward Amber); the direction is NOT persisted.** The
+   scheme is a preference and persists. The direction is the momentary state of a walk — persisting it
+   makes your first tap after a restart depend on which way you were walking at last night's gig.
+   Invisible and unmemorable, therefore wrong.
+2. **Direct selection from Parameters also resets the direction to "up".** Acceptance criterion: set
+   Amber → walk down to Night → pick Warm in Parameters → the next on-stage tap goes to **Night**.
+3. **Endpoints flip rather than no-op.** No state exists in which a tap does nothing.
+
+Keep the step pure: `next(scheme, direction) -> (scheme, direction)`, not a method mutating a hidden
+field — that is what makes all three table-testable, and it is the A34/T85 precedent. Table-test each
+scheme in each direction, both endpoints, and the two reset paths.
+
+**A37 is unblocked. Build it.**
+
+### T94 — VLL settled §3.1 himself
+
+*"a layer+annotation chip that opens both (but a single button), if they are so strongly connected,
+with 2 tabs inside, and then the Details is really a property so it opens on top of everything
+whatever (for example with a parameters/wheel icon?), so they are clearly different and we don't
+mix."*
+
+That is the spec as written: **one chip for the rail with two tabs inside; Details on the ⚙ as the
+song's properties.** The flagged judgement call is removed — build §3.1 and §3.2 as they stand.
+
+One thing I ruled rather than bounced, recorded in §3.4: "opens on top of everything" is about
+Details being unmistakably the higher class, not about keeping both panels visible. **Mutual exclusion
+stands** — a 680px centred panel over a 300px right rail leaves a half-hidden strip poking out, which
+was defect #3 in his own report. Details takes over; closing it does not reopen the rail.
+
+— Fable

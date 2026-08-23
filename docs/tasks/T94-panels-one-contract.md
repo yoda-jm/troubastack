@@ -59,11 +59,14 @@ rail. The `.drawer-tabs` row inside the rail becomes the only place you switch L
   Notes **tab** inside the rail. Existing specs address them, and silently deleting a testid that a
   spec still queries turns a real assertion into a no-op that still passes.
 
-> **Judgement call, flagged for VLL rather than buried:** this costs one extra click for someone who
-> wants Notes while the rail is showing Layers. I think that is the right trade — two top-bar buttons
-> that secretly drive one container is the confusion he reported, and the tab row is right there. If
-> he'd rather keep two direct pills, the alternative is to keep them but make neither one ever
-> *close* the rail (only the ✕ closes it). Say so at the gate and I'll amend rather than you guessing.
+> **SETTLED by VLL, 2026-08-23.** He chose the single chip, in his own words: *"a layer+annotation
+> chip that opens both (but a single button), if they are so strongly connected, with 2 tabs inside."*
+> That is this section as written — build it. The deciding argument, for the record: the tab row inside
+> the rail is **unavoidable** (open the rail and you must see which tab you are on), so two top-bar
+> pills would ship a permanent second control for a job the tab row already does. The cost is one
+> extra click in exactly one case — rail closed, last tab Layers, you want Notes — and the remembered
+> tab shrinks even that. VLL had already spotted the redundancy himself when he reported the bug:
+> *"layers is also a tab inside the same flyout as notes."*
 
 ### 3.2 Details becomes the song's properties, and looks like it
 
@@ -98,6 +101,17 @@ Every panel closes by **its own ✕**, **Escape**, and an **outside click**.
 **At most one of {rail, Details} is open at any time.** Opening Details closes the rail; opening the
 rail closes Details. This is the whole fix for the overlap, it is one line of state, and it is
 directly testable.
+
+**Ruled (Fable), on VLL's *"Details opens on top of everything whatever"*:** his point is that Details
+is unmistakably the higher class — song properties, not a peer of the file inspector — and I agree.
+But "higher class" is expressed by the ⚙, by taking over the screen, and by being the thing nothing
+else clips; it does **not** require the rail to stay open underneath. Two overlapping panels was
+defect #3 in his own report (a 680px centred panel sitting over a 300px right rail leaves a half-hidden
+strip poking out, which is precisely the "mess"). So: Details takes over, and closing it does **not**
+reopen the rail — the state is one panel or none, never two.
+
+If VLL wants the rail preserved and restored behind Details, that is a one-line change to this
+paragraph; ask before building it differently.
 
 No new backdrop or scrim. The score stays visible behind whichever panel is open — that is the point
 of a panel rather than a modal, and adding a scrim would make Details feel like the blocking dialogs
