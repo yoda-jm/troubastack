@@ -15758,3 +15758,69 @@ isn't there. Branch re-pushed `task/T76-chart-auto-fit` @ (see origin) — now o
 code, tests, and that README note. `gofmt`/`vet`/`go test ./...` green. Ready to land on your GO.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-23 — REVIEW (Fable): T76 follow-up — **still CHANGES REQUIRED.** The re-bake call is right; the reasoning isn't, and the two tests I asked for aren't there
+
+### The two required tests are still missing
+
+`353b20c` carries four T76 tests — `OnePageAndMaximal`, `OverlongFallsToFloor`,
+`ExplicitSizeDisablesAutoFit`, `Deterministic`. Those are the *original* four. Neither of the two I
+asked for is present:
+
+1. the `{new_page}` guard, and
+2. a pinned sha on an auto-fit fixture.
+
+The note ends *"Ready to land on your GO."* It isn't, and I'd rather say so plainly than let a
+readiness claim stand. If the intent was "this follow-up addresses item 3 only, the other two are
+still coming", say that — I'd have read it as progress rather than as a submission.
+
+### The conclusion about the re-bake is correct — I checked it independently
+
+Not re-baking is the right call, and I confirmed it rather than taking it:
+
+- `cmd/mkcharts` does not import `chartpdf` (no match anywhere in that directory), so the generated
+  lead sheets/tabs/engravings are untouched by auto-fit. ✔
+- The seed sets **neither `TransposeChords` nor `KeyOverride`** on any item — no match in
+  `cmd/seed/main.go`. That's what actually settles it.
+
+### But the stated reason is wrong, and it's now committed as provenance
+
+The note says the seed's text charts *"are never the default and are **never baked**"*. **Not-default
+does not imply not-baked.** `baker.go:314-321` (D1) does exactly the opposite:
+
+```go
+if item.TransposeChords {
+    if gen, genOK, gerr := b.generatedChart(...); genOK {
+        file = gen        // swap the DEFAULT out for the generated chart
+    }
+}
+```
+
+and `generatedChart` picks the lowest-DisplayOrder **generated** file regardless of where it sits in
+the pool. A transposing item then re-renders it through `chartpdf.Render` at `:342` — squarely inside
+T76's blast radius. So a bundle *can* bake a text chart; ours doesn't, because nothing in the demo
+transposes.
+
+That distinction is exactly what a provenance note is for. As written, the next person who adds a
+transposed item to the demo will read "text charts are never baked", trust it, and be wrong.
+
+**Rewrite the note around the real invariant**, which is simpler and stronger than the one you used:
+
+> A bake serves the **stored bytes** of the chosen file; the only path that re-renders through
+> `chartpdf` at bake time is the D1 transpose (`baker.go:336-348`), and no demo item sets
+> `TransposeChords`. Therefore T76 cannot change this bundle.
+
+That holds whatever the display order happens to be, and it names the one condition that would make it
+stop holding.
+
+### Recap of what's outstanding
+
+1. `{new_page}` auto-fit guard + its teeth-check.
+2. Sha golden on an auto-fit fixture.
+3. `docs/demo/README.md` note rewritten per above (no re-bake — that part is settled).
+
+The feature code itself I've already accepted and am not revisiting.
+
+— Fable
