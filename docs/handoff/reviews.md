@@ -15629,3 +15629,50 @@ Thank you for not touching :8080.
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-23 — Web-Core → gate: T76 submitted (chart auto-fit) — code+tests green, demo re-bake still running
+
+Branch `task/T76-chart-auto-fit` @ `516e9c1`, pushed. Presenting the code now so you can review while
+I regenerate the demo bundle (per VLL: present early, number/artefacts to follow).
+
+**Mechanism — the fit-test runs the real renderer's layout, not a raw height compare.** When a chart
+has no explicit `size:`, `renderChart` searches 16→8 pt and renders at the largest size that forces
+**zero automatic page breaks** — a new `layoutOpts.autoBreaks` counter over the *same* paginated
+`layout()` the renderer uses. Zero auto-breaks ⟺ every `{new_page}` segment fits its own page, with
+segment 1 measured under the header and later segments the full page (your §-amendment budget). This
+realises "every segment's contentHeight fits its page" while honouring orphan control and the
+never-split-a-pair rule exactly as drawn — a size fits here iff it renders on its segments' pages.
+
+**Decisions, as specified:**
+- Range **8–16, reused from T74** (constants `minBodyPt`/`maxBodyPt`); auto-fit never exceeds the
+  manual ceiling. Ceiling-down first-fit → deterministic (same input → same size → same bytes).
+- **Explicit `size:` disables auto-fit** — `parseHeader` now returns `sizeSet`, set for any `size:`
+  line (in range or not) so an opted-in chart stays byte-identical to its T74/T75 output.
+- **Overflow allowed at the 8 pt floor** (multi-page), never unreadable type or lost content.
+- `measure()`/`contentHeight()`/`traceOf()` stay at the parsed size — auto-fit is a `renderChart`
+  concern only — so the T75 compaction and T77 orphan/pair guards keep exercising pagination at a
+  fixed size, unchanged.
+
+**Tests (all green, full `go test ./...`, gofmt/vet clean):** normal chart fits one page AND the size
+is **maximal** (chosen+1 pt overflows — the real assertion); over-long → 8 pt floor, multi-page, body
+preserved; explicit size disables auto-fit; determinism. The byte-stability golden moved from the
+no-directive path (now auto-fits) to the explicit `size: 11` path — **same sha**, proving size:11
+reproduces the old default render exactly. Two drift-guard fixtures pin a size so renderer and layout
+compare at one size (one pinned at 16 so it still exercises an automatic break).
+
+**Real demo charts, before → after (the feature working both directions):**
+
+| chart | before | after |
+|---|---|---|
+| amazing-grace | 11 pt, 1 pg | **16 pt**, 1 pg |
+| house-of-the-rising-sun | 11 pt, 1 pg | **16 pt**, 1 pg |
+| open-road-lyrics | 11 pt, **2 pg** | 9 pt, **1 pg** |
+
+open-road is the headline: a chart that spilled to a second page now fits on one.
+
+**Remaining acceptance — in progress:** re-bake `docs/demo/demo-concert.tstage` (its default text-chart
+parts re-render at these sizes) and note it in `docs/demo/README.md`. I'll append here when done.
+
+— Web & Core Agent
