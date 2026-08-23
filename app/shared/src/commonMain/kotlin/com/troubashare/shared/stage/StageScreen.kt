@@ -204,6 +204,10 @@ private fun Performing(
     onIdentityChange: (String) -> Unit = {},
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
+    // A37: the ping-pong walk DIRECTION — momentary walk-state, never persisted. A fresh Stage entry
+    // (cold start, or returning from a direct pick in Parameters) resets it to UP, so the first tap is
+    // always predictable from the scheme on screen (Ruling 1b).
+    var schemeDir by remember { mutableStateOf(SchemeCycleDirection.INITIAL) }
     val cache = remember { PageImageCache() }
     val page = state.currentPage ?: return
     var showLayers by remember { mutableStateOf(false) }
@@ -459,7 +463,7 @@ private fun Performing(
         // number (1 2 3 4 …) in the middle so the player keeps their place. Above the page, below the
         // chrome. Purely visual (no pointer input) so a tap still turns the page / toggles the chrome;
         // you stop the beat from its FAB. Dark unless running.
-        StageBeatFrame(stageBeat)
+        StageBeatFrame(stageBeat, colorMode)
 
         // A2: TOP chrome — ☰ song drawer · centered title+position card · [● Live] · ✕ exit. Fades and
         // slides in on reveal; the A08 meta strip rides inside it (score stays clean when hidden). In
@@ -572,7 +576,12 @@ private fun Performing(
         onFitMode = { vm.setFitMode(it); onFitModeChange(it) },
         onLayers = { showSettings = false; showLayers = true },
         onRole = { showSettings = false; showRole = true },
-        onToggleColor = { colorMode = colorMode.next(); onColorModeChange(colorMode) },
+        onToggleColor = {
+            val step = stageSchemeStep(colorMode, schemeDir) // A37: ping-pong, never dark→white
+            colorMode = step.mode
+            schemeDir = step.direction
+            onColorModeChange(colorMode)
+        },
         onSwitchIdentity = { showSettings = false; switchIdentity = true },
         onDismiss = { showSettings = false },
     )
@@ -756,7 +765,7 @@ private fun SettingsSheet(
             // CURRENT song only (per-song, A1). Order reflects that: Role, then day/night, then Layers.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = onRole, modifier = Modifier.weight(1f)) { Text(if (state.role.isEmpty()) "Role" else "Role: ${state.role}") }
-                OutlinedButton(onClick = onToggleColor, modifier = Modifier.weight(1f)) { Text(if (colorMode == StageColorMode.NIGHT) "Night" else "Day") }
+                OutlinedButton(onClick = onToggleColor, modifier = Modifier.weight(1f)) { Text(colorMode.label()) }
                 if (state.layers.isNotEmpty()) OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Layers…") }
             }
             // Scheme-A sweep: auto-update lives in the sheet (not just the ● chrome FAB) and is

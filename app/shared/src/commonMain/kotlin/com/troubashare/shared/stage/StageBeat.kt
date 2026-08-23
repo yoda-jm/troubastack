@@ -193,7 +193,7 @@ fun MetronomeIcon(tint: Color, modifier: Modifier) {
  * chrome (you stop the beat from its FAB, not by touching the score). Nothing renders when idle.
  */
 @Composable
-fun StageBeatFrame(beat: StageBeat, modifier: Modifier = Modifier) {
+fun StageBeatFrame(beat: StageBeat, colorMode: StageColorMode = StageColorMode.NORMAL, modifier: Modifier = Modifier) {
     val frame = beat.frame
     val label = beat.beatLabel
     val shape = RoundedCornerShape(10.dp)
@@ -213,7 +213,12 @@ fun StageBeatFrame(beat: StageBeat, modifier: Modifier = Modifier) {
             }
         }
         if (label != null) {
-            val tint = tierColor(label.tier).copy(alpha = 0.34f)
+            // A37 Ruling 2: on AMBER the page ground is amber ink — an amber tier-0/tier-2 numeral is
+            // illegible, and A35's grey tier-2 vanishes (Interaction 1). Tint the centre count with the
+            // aqua (felt-pulse) colour for EVERY tier there; cool-on-warm reads cleanly and the number
+            // still keeps your place. The border PULSE and the shared amber/aqua contract are untouched.
+            val countTier = if (colorMode == StageColorMode.AMBER) 1 else label.tier
+            val tint = tierColor(countTier).copy(alpha = 0.34f)
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("${label.number}", color = tint, fontSize = 168.sp, fontWeight = FontWeight.Bold)
             }
