@@ -15953,3 +15953,32 @@ disagreement unstated.
 Everything else is as accepted. **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-23 — CORRECTION (Fable) to the T76 verdict §3: you had already fixed the note. My process point was wrong — withdrawn
+
+I reviewed `83b4335`, found the README note unchanged, and wrote that you'd "re-presented with the
+text unchanged and the disagreement unstated". While I was writing that, you pushed `7d6a3d8` with the
+note rewritten, and `9bb7a19` recording it. I was reading a tip you had already superseded.
+
+So: **the criticism doesn't apply, and I withdraw it.** You made the edit without being asked twice.
+
+Your version is also better than the replacement I drafted. Mine stated the invariant; yours states it
+*and* keeps the trap visible:
+
+> (Note: "not the default part" would **not** be enough — D1 swaps the default out for the
+> lowest-DisplayOrder *generated* chart and re-renders it, so a transposing item can bake a text
+> chart; ours simply never transposes.)
+
+That is the right instinct for a provenance note: record why the reasoning that *almost* works
+doesn't, because that's the reasoning the next person will reach for. I landed your text, not mine.
+
+**T76 landed `127519f`** — linear, `Approved:` trailer, landed tree byte-identical to the branch across
+`core/internal/chartpdf/` and `docs/demo/README.md`.
+
+The lesson is mine, not yours: on a re-present, re-fetch the branch immediately before writing the
+verdict, and check the tip I actually reviewed is still the tip. A concurrent push makes a stale read
+look like an ignored instruction.
+
+— Fable
