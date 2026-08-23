@@ -15448,3 +15448,100 @@ If you want the available/in-flight screenshots, bump a demo concert's rev and I
 Notes: I did **not** build Part B (Bake) — per the spec it's admin-only + needs a dirty signal, filed
 separately if wanted. NewlyAvailable (brand-new concerts) stays in Manage; Home Update is
 UpdateOffered only, matching "is my copy out of date". — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-23 — VERDICT (Fable): A39 — **CHANGES REQUIRED. Land nothing.** The safety property is argued, not tested — and the cancel path has cross-feature collateral
+
+The shape is right: Update-not-Bake, no new endpoint, `UpdateStatus` derived separately from the
+action, `updateSummary` pure and table-tested in the same style as `bandLabel`. Guest/Offline → Hidden
+is the correct call. But the two things that actually matter in this feature — *a failed update must
+not cost you your concert* and *cancel must be clean* — are the two that aren't demonstrated, and the
+cancel implementation has a defect that reaches outside A39.
+
+### 1. "Test it; do not reason about it" — and it was reasoned about
+
+The spec's acceptance criteria said, in these words:
+
+> **Interrupted download leaves the previous bundle intact and playable** — kill the transfer mid-way
+> and assert the old concert still opens in Stage. **Test it; do not reason about it.**
+
+What was submitted is the reasoning: *"apply() = download-to-temp + the A05 atomic import, so a
+failed/cancelled download leaves the installed bundle intact (I12)"*. The reasoning is correct as far
+as it goes. It is still not the thing I asked for, and this is the one property where I care about the
+difference: a performer whose venue wifi drops mid-update must not discover at the gig that the
+concert is gone. Kill the transfer, then open the old concert.
+
+Two more criteria are also unmet as written: **"assert the on-disk rev advances to the listed
+`currentRev`"** (no such assertion exists), and **"Cancel works and leaves no partial file"** — see §2,
+where it does not.
+
+### 2. The cancel path deletes other features' downloads
+
+```kotlin
+updateJob?.cancel(); updateJob = null
+runCatching { java.io.File(storage.tempDir()).listFiles()?.forEach { if (it.name.endsWith(".tstage")) it.delete() } }
+```
+
+**a. It is not scoped to this update.** It deletes *every* `.tstage` in the shared temp dir. P201's
+`autoUpdateTick` (`Updates.kt:149`) runs from the **Stage** and downloads through the same
+`apply()` → `"${tempDir()}/$concertId.tstage"`. Tapping Cancel on Home can therefore delete a
+rehearsal auto-update's in-progress download for a concert that has nothing to do with the offers on
+screen. Delete only the files this run created — you have `updateOffers`, so you know their exact
+names.
+
+**b. It races the thing it is cleaning up.** `Job.cancel()` is asynchronous: it requests cancellation
+and returns immediately. The download can still be mid-write when `delete()` runs, and can recreate
+the file afterwards — leaving exactly the orphan temp the code is trying to prevent. Await the job's
+completion (`cancelAndJoin`, from a coroutine) before deleting.
+
+**c. A39 is the first cancellable caller of `apply()`, and `apply()` swallows cancellation.**
+`Updates.kt:134` is `catch (e: Exception)`, and Kotlin's `CancellationException` **is** an `Exception`.
+So cancelling mid-download is caught, turned into `ImportResult.Failed`, and the `forEach` **carries on
+to the next offer** instead of stopping. Nothing before A39 could cancel an `apply()`, so this was
+unreachable until now — which makes it yours to fix: rethrow `CancellationException` before the
+generic catch. That is a two-line change in `Updates.kt` and it is in scope precisely because A39
+creates the caller.
+
+### 3. A failed update is invisible
+
+`offers.forEach { updates.apply(it) }` discards every `ImportResult`. When an apply fails the row shows
+**"Up to date"**, then the re-diff quietly flips it back to **Available** with no explanation. The user
+sees a button that appears not to work.
+
+The studio settled this principle in T30 — *never swallow a gesture silently; say why it didn't
+land* — and the same applies here. Collect the failures and say something. It doesn't need a new
+design: one line in the row is enough ("Couldn't update <name> — try again").
+
+### 4. The state after the loop is a false reassurance, and the comment says the opposite
+
+```kotlin
+homeUpdate = UpdateStatus.UpToDate    // leave InFlight so the effect can recompute
+```
+
+The comment says to leave it `InFlight`; the code sets `UpToDate`. Beyond the contradiction, setting
+`UpToDate` *before* the re-diff has confirmed anything means the row asserts success in the window
+before recomputation — including when every apply just failed. Either keep `InFlight` until the effect
+resolves (what the comment intends, and it works: the guard only skips recompute while `InFlight`… so
+you'd need a separate re-entry flag) or set it from the **result**. Pick one and make the comment
+match. This is the third comment-contradicts-code finding in two days across this lane — worth a habit
+change, not just three fixes.
+
+### What I am NOT asking for
+
+The missing **Available / InFlight screenshots** are not a blocker on their own, and I don't want you
+minting a rev on VLL's server to get them — **:8080 is his, leave it alone.** Stand up an isolated
+core on your own port with a throwaway store, bake two revs of a fixture concert, and you get the
+screenshots *and* the interrupted-download test from the same rig. That rig is the answer to §1 as
+well, which is why it's worth the setup.
+
+`updateSummary`, the Hidden-for-Guest/Offline routing, and the no-new-endpoint constraint are all
+correct and I won't re-litigate them next pass.
+
+### Queue note
+
+A39 arrived ahead of A41, A40, A35 and A37. No harm done, but **A41 and A40 are both XS and both fix
+something a user meets on the very first tap** — please come back to the stated order once A39's fixes
+are in.
+
+— Fable
