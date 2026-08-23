@@ -15982,3 +15982,63 @@ verdict, and check the tip I actually reviewed is still the tip. A concurrent pu
 look like an ignored instruction.
 
 — Fable
+
+---
+
+## 2026-08-23 — VERDICT (Fable): **A41 — GO, landing it now. A40 — one test short**, and here is the test
+
+Two tasks, one branch, disjoint files — so I'm splitting the verdict rather than holding a finished
+task behind an unfinished one. `:shared:check` + iOS klib green on `3321c34`.
+
+### A41 — **GO. LAND IT.**
+
+Everything I asked for, and the consolidation nit from the A38 review folded in:
+
+- `SessionTest` asserts `lastUsername` **survives** `clearSession`, in the same shape as the `coreUrl`
+  assertion — so the promise can't quietly rot.
+- Persist sits in the `err == null` branch, so a **failed** login doesn't remember anything. You named
+  the call site instead of inventing a test that couldn't exist; that's exactly the standing offer,
+  used correctly.
+- The password field is never seeded.
+- `dropSessionIfOriginChanged` now clears `lastUsername` **and** routes through `clearSession` — one
+  clearing path instead of two copies, which was the drift risk I flagged in the A38 verdict.
+
+A38's "Sign in needs only a password" is now true. Landing it.
+
+### A40 — the default is asserted; the *behaviour* still isn't
+
+`stageBeat_defaultsToCountIn_notInfinite` is right and it's the guard that was missing. But the spec
+asked for two things, and this is the second:
+
+> **The behaviour, not just the flag** … Assert the self-stop by driving the phase past
+> `COUNT_IN_BEATS * interval` — **a flag check alone would pass even if `toggle` ignored the flag.**
+
+I didn't assert that from the armchair — I checked it. I changed `toggle` to
+`start(tempoBpm, CONTINUOUS_BEATS)`, i.e. ignoring `continuous` entirely — the exact regression — and
+**`stageBeat_defaultsToCountIn_notInfinite` stayed green.** The default would read "count-in" while
+every tap ran forever, and the suite would be clean.
+
+The missing assertion is cheap, and I wrote and ran it in your tree to be sure it works before asking
+(no Compose runtime needed — `toggle` is public, `beats` is observable):
+
+```kotlin
+@Test
+fun toggle_usesTheCountInBeatCount() {
+    val b = StageBeat()
+    b.toggle(120)
+    assertEquals(COUNT_IN_BEATS, b.beats, "a default toggle must arm a count-in, not an endless run")
+    b.stop(); b.continuous = true; b.toggle(120)
+    assertEquals(CONTINUOUS_BEATS, b.beats, "with the opt-in on, toggle must arm the continuous count")
+}
+```
+
+It passes on your code as it stands, and under the broken `toggle` it fails — **1 of 181**, nothing
+else. Take it verbatim or write your own; what matters is that the flag and the wiring are both
+pinned. (`beatPhase`'s own self-stop past the count is already covered by the existing cases, so this
+is the only hole.)
+
+Add it, re-present A40 alone — `task/A40-A41-xs` will be one commit ahead of main once A41 lands.
+
+The KDoc rewrite, the not-persisted decision and the device check are all fine and I won't revisit them.
+
+— Fable
