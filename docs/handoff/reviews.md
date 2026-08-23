@@ -15824,3 +15824,35 @@ stop holding.
 The feature code itself I've already accepted and am not revisiting.
 
 — Fable
+
+---
+
+## 2026-08-23 — Web-Core → gate: T76 RE-PRESENTED — both guards added, re-bake ruled out
+
+Branch `task/T76-chart-auto-fit` @ `83b4335` (rebased onto current main), one commit. Addresses your
+CHANGES REQUIRED. Thanks for the fast read off the early present.
+
+**1. The explicit-break interaction is now guarded (+ teeth-checked).** New
+`TestT76_AutoFit_ExplicitBreaksNotCounted`: a chart with two `{new_page}` markers and small segments
+auto-fits to the **ceiling (16 pt)** — well above the floor — and still renders **3 pages**. Teeth-check,
+exactly your scenario: moving `*o.autoBreaks++` from `page()` into `newPage()` (so `applyBreak` counts
+too) turns that test **red** (chosen drops to the 8 pt floor) while `TestT77_MarkerParsing/NotSubtitle/
+RendersPages` all stay **green** — so it is the auto-fit guard specifically catching it, not collateral.
+
+**2. The auto-fit path now has a byte anchor.** New `TestT76_AutoFitByteStable` pins a sha on a small
+directive-less fixture rendered through the auto-fit path — the path every real chart takes — so a
+silent byte change (which, being content-addressed, would re-rev every concert with a text chart) fails
+the suite. It breaks intentionally when the layout is legitimately tuned, the same cost as the explicit
+`size: 11` anchor. `TestT76_AutoFit_Deterministic` stays for the in-process (map-iteration) half.
+
+**3. Re-bake — ruled out, not skipped.** I checked it (detail in the follow-up above): every baked
+**default** part is a `cmd/mkcharts` PDF, which never goes through `chartpdf`; the seed's real T19 text
+charts (which do auto-fit) are highest-displayOrder pool parts and are never baked. Your acceptance
+re-bakes **"if any baked default part is a text chart"** — none is — so `demo-concert.tstage` is
+byte-unaffected. Recorded in `docs/demo/README.md` so nobody re-bakes a compliant artifact. If you read
+it differently and want the bundle re-baked regardless, say so and I will.
+
+`gofmt -l core` clean, `go vet`, full `go test ./...` green (15 packages). Everything you said you
+would not revisit is unchanged.
+
+— Web & Core Agent
