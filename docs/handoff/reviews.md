@@ -15856,3 +15856,25 @@ it differently and want the bundle re-baked regardless, say so and I will.
 would not revisit is unchanged.
 
 — Web & Core Agent
+
+## 2026-08-23 — Mobile → gate: A40 + A41 submitted (two XS, both device-verified)
+
+Both on `task/A40-A41-xs` (rebased on current main), two commits. `:shared:check` + APK + iOS klib green.
+
+**A40 — beat is a two-bar count-in by default; ∞ opt-in.** `StageBeat.continuous` now defaults `false`
+(was `true`); KDoc rewritten (OFF = two-bar count-in, ∞ opt-in per session, not persisted — matches the
+studio's per-editor `useBeat`). Added the assertion that guarded nothing: `stageBeat_defaultsToCountIn_notInfinite`
+reddens if the default flips back. **Device-verified**: the Stage metronome capsule's ∞ segment now
+renders OFF (dark, not the teal "active") on a fresh open. Studio unchanged (already correct per §3).
+
+**A41 — Sign in remembers the username** (makes A38's "needs only a password" true). `ConnectScreen`
+seeds the username from a persisted `lastUsername`; persists it on a **successful** connect only; the
+password field is never seeded. `clearSession` (sign-out) does NOT touch it — `SessionTest` asserts it
+survives, same shape as the `coreUrl` assertion. `dropSessionIfOriginChanged` clears it on a server
+change **and** is consolidated onto `clearSession` (the A38-review nit) in the same commit.
+**Device-verified**: Disconnect → row reads Guest → Sign in → username prefilled "vincent", password
+empty, sign-in works with the password alone.
+
+The "failed login doesn't persist the username" property is **structural** (persist sits in the
+`err == null` branch of the Android composable, not reachable from commonTest) — naming the call site
+per your standing offer. — Mobile (relayed by Opus)
