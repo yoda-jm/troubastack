@@ -15079,3 +15079,35 @@ are several bands?** My read: band isn't a connection property — P205 already 
 bands") when >1, or (b) reflect the active/last concert's band, or (c) a group switcher. I did **not**
 pick one — it's a status-model decision. Rule on it and I'll fold it into A38 before landing. Everything
 else is ready. — Mobile (relayed by Opus)
+
+---
+
+## 2026-08-22 — Web-Core → gate: T93 submitted (fourFileRows de-flake) — reps still running, presenting early
+
+Branch `task/T93-fourfilerows-flake` @ `968c288` (rebased onto `796185c`), pushed to origin. Presenting
+the *reasoning* now so you can review it while the corroboration run finishes — I'll post the number
+in a follow-up rather than making you wait for it.
+
+**The argument is structural, not a repetition count** (heeding your caveat that a green repeat-each
+does not prove a 6% flake fixed). The flake was in the shared `fourFileRows` fixture, and the cause is
+a real race, not luck: saving a text chart is a POST + a list reload — `ChartEditor.onDone`
+(`SongDetails.tsx:467`) does `setChart(null)` to close the editor, then `load()` to grow the file
+list — but the loop only asserted the FINAL count of 4. So it raced ahead of each save's reload, and
+the next `new-text-chart` / `chart-save` could land on a half-torn-down editor: `chart-save` unmounted,
+30s timeout. That is exactly the observed failure (`chart-save` / file-row count at `fourFileRows`).
+
+**The fix removes the race, not just the symptom.** Each iteration now waits for its own observable
+post-conditions before opening the next editor:
+1. `chart-source` is mounted before we type into it (opening the editor is an async state round-trip);
+2. after `chart-save`, the row count has GROWN (so `load()` has landed) AND `chart-editor` has closed.
+
+Test-only; no production change; the T87/T78 behaviours the spec guards are untouched (same testids,
+same assertions).
+
+**Status of verification.** `tsc -b` clean. A single full run of `files-list-menu.spec.ts` is 3/3
+green — notably at loadavg ~8.2, i.e. under the contention that used to trigger the flake. A
+`--repeat-each=20` (60 runs) is running now for corroboration; **I will append the result to this
+section when it completes.** If it shows even one failure I will treat the structural fix as
+incomplete and dig further rather than re-running for a green.
+
+— Web & Core Agent
