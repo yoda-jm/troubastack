@@ -19944,3 +19944,64 @@ branched; that's now bitten two branches today, both harmlessly, but check it ra
 a failure on Home reads as a sentence rather than a stack trace.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T101 COMPLETE (touch text-prompt) — **reproduced, root-caused, fixed**
+
+Branch `task/T101-text-prompt-mobile` (`ee3d06c`). Two files: `Dialog.tsx` (+`text-touch-placement.spec.ts`).
+Leading with the reproduction, per your acceptance #1 — I did **not** build on your hypothesis unproven.
+
+**Reproduction — deterministic emulation, and it confirms your hypothesis exactly.** A phone viewport
+(`hasTouch`, 412×915), text tool armed, tap to place. The load-bearing variable turned out to be **where**
+you tap:
+
+- **OFF-CENTRE tap** (event log, whole-document capture):
+  `pointerdown@edit-canvas` (opens the prompt) → `touchstart/pointerup/touchend@edit-canvas` →
+  **`mousedown@app-dialog`** → dialog gone. The compat mousedown the browser fires after `touchend`
+  lands on the just-mounted **backdrop**, whose dismiss handler cancels the prompt with the very tap
+  that opened it. `SAW-OPEN: false` — it never even rendered a frame.
+- **CENTRE tap**, same code: the compat mousedown is `mousedown@app-dialog-input` — it lands on the
+  dialog **card**, which never cancels. Dialog survives. **This is why every repro at/near centre passed**
+  (yours at desktop-viewport, and my own first probe). The bug needs the tap to be off the centred card.
+
+Your Pixel-5 harness wasn't lying about being broken — but the mechanism *is* exercisable in Playwright:
+a synthetic `touchscreen.tap` **does** synthesise the compat `mousedown/mouseup/click` after `touchend`
+(I verified in the log). The trick was the off-centre placement, not the device.
+
+**Root cause.** `WetCanvas.tsx:725` opens the in-app prompt on **pointerdown** (finger still down);
+`Dialog.tsx` dismissed the backdrop on **`onMouseDown`**. On touch those two collide via the post-`touchend`
+compatibility mouse events. Exactly the T90+T91 *interaction* you flagged as the suspect.
+
+**Fix — and a false start I want on the record.** My first instinct was to dismiss on `onPointerDown`
+(compat mouse events aren't pointer events, so they'd be ignored). It fixes the bug **but regresses**
+`in-app-dialogs.spec.ts:106`: dismissing on pointerdown unmounts the `[data-portal]` backdrop *early*, and
+the trailing `mousedown` then lands as a real outside-click that **collapses the Details panel** (T89) — I
+ground-truthed it via console (`settle=false`, file kept, but `file-row=0` because the panel closed, not
+because anything was deleted). So the shipped fix keeps dismissing on **mousedown** (preserving the
+`[data-portal]` shield and the original timing) but **only when the press started on the backdrop** — a
+`pointerdown` recorded it. A compat mousedown synthesised from touch has *no* preceding backdrop
+pointerdown, so it's ignored; genuine mouse and touch outside-dismissals both carry one and still work.
+
+**Acceptance:**
+- **Touch-driven test on the text-placement path** (`text-touch-placement.spec.ts`), phone viewport — the
+  environment the whole T90/T91 suite skipped (all `page.mouse.click` at desktop; the T99
+  `crypto.randomUUID` blind-spot shape). **Teeth-checked:** reverting to a plain `onMouseDown` reddens it
+  (`toBeVisible` → element not found). The off-centre tap is commented as load-bearing so nobody
+  "simplifies" it to centre and quietly guts it.
+- **T90 one-shot holds** (`text-oneshot` green — reverts to `select`, second tap opens nothing).
+  **T91 holds** — no native prompt; the change is purely *which* backdrop press dismisses.
+- **No regressions:** `text-touch-placement`, `in-app-dialogs`, `text-oneshot`, `details-close`,
+  `editor-files-delete`, `editor-layers`, `files-list-menu` — **32 specs green**. `typecheck` + `vite build`
+  clean.
+- **Full `make e2e` running now** — I'll post the number (present-early; the change is narrow).
+
+**One reusable harness note** (you asked for it if the mobile harness needed fixing): a fresh worktree has
+no `node_modules`; the studio dev server also pulls the sibling `web/ink` package, so a trustworthy
+mobile-viewport run needs **both** `web/studio/node_modules` and `web/ink/node_modules` symlinked from a
+populated checkout (else vite dies on `perfect-freehand`). That, plus closing the side drawer (it covers the
+canvas at phone width), is what a working phone harness needs — the pieces mine was missing.
+
+Main has moved since I branched (A43) — I'll **rebase** before landing on your GO.
+
+— Web-Core (as Vincent Le Ligeour)
