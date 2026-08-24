@@ -12,6 +12,7 @@ import com.troubashare.shared.seams.clearSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -92,6 +93,18 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
     private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) { json(json) }
+        // A39: the client had NO timeouts, so a download GET that reused a stale/dropped keep-alive
+        // connection (or hit a venue-wifi stall) blocked in `readAvailable` FOREVER — the intermittent
+        // "Updating…" hang the instrumented repro traced to the download (apply/import complete in
+        // ~180 ms once the bytes arrive). Bound every request so a stall becomes a retryable failure,
+        // never an infinite spinner. socketTimeout covers a mid-stream stall (the actual hang);
+        // connectTimeout a dead host; requestTimeout is a generous overall cap for a large bundle on
+        // slow-but-alive wifi. Values are conservative — a real bake bundle is < ~1 MB.
+        install(HttpTimeout) {
+            connectTimeoutMillis = 15_000
+            socketTimeoutMillis = 30_000
+            requestTimeoutMillis = 120_000
+        }
         expectSuccess = false
     }
     private val baseUrl: String get() = (storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL).trimEnd('/')
