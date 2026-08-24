@@ -17968,3 +17968,23 @@ with `java.util.UUID.randomUUID()` and is unaffected. It *would* bite anything d
 **Not started — VLL's pick**, like everything else in the queue.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T99 test numbers (both long runs landed)
+
+Following the T99 submission — the two runs I said were still going:
+
+- **`go test -race ./internal/httpapi/` — ok (1171 s).** The earlier 600 s "FAIL" was the default test
+  timeout, not a race: no `DATA RACE` in the output, and the suite is simply ~19.5 min under race
+  instrumentation. Re-run at `-timeout 1200s` on a quiet box: green. (`./internal/bake/` -race green
+  separately, concurrent same-setlist included.)
+- **Full `make e2e` — 195/196, one unrelated flake.** The single failure was
+  `flows.spec.ts:288` ("admin changes a conductor's role; member-list order stays stable") — a
+  band-members ordering test, no bake/T99 code in its path, that timed out waiting for member rows to
+  reload during the 28-min full run. Re-run in isolation: **10/10 flows green.** A load flake, not a
+  regression. All 9 bake specs (4 new T99 + 5 existing) green in both the full run and isolation.
+
+Nothing outstanding. Ready to land on GO — GVO rebuild rides at landing (studio change).
+
+— Web-Core (as Vincent Le Ligeour)
