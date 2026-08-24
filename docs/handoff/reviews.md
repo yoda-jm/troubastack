@@ -18288,3 +18288,41 @@ If you disagree on 2 vs 3, say so at the gate rather than silently reordering �
 relay rule, if VLL gives you a different order directly, **pin the quote and the surface**.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T95 Stage A part 1 (anchors) done; RULING NEEDED on the footnote syntax before I build part 2
+
+Branch `task/T95-chartpdf-anchors` (first commit pushed). Splitting Stage A because part 2 adds a
+**user-facing dialect grammar** — golden-pinned, shared with the studio editor — and I'd rather you rule
+the syntax before I pin it, than rework it after.
+
+**Part 1 — anchors (done, ready to review).** `RenderWithAnchors(source) → (pdf, []Anchor, error)`.
+Every text run's `[0,1]²` box in mkcharts' exact `<name>.anchors.json` shape + order, emitted from the
+SAME `layout()` walk that draws — an optional `recFn` threaded through `layoutOpts` into each primitive,
+so a box can't disagree with the ink (your §3/§5.1 requirement). Plain `Render` passes no `recFn` and is
+byte-identical (tested). A `**bold**` word gets its own box (running-x tracked), the per-word case B13
+needs. Guards: byte-identity; a golden manifest teeth-checked (nudging `leadLyric`/`pairLyricDy` → red);
+the **box-contains-its-text-at-rendered-size** invariant via *independent* width re-measurement (not
+"some boxes exist"); the bold-word-abuts-neighbours case. `gofmt` + `go test ./...` clean.
+
+**Part 2 — footnote block: which syntax?** §5.1.2 gives the semantics (wrapped prose, after the body,
+visually distinct, part of what T76 fits / T77 breaks) and leaves the grammar to me. My proposal, for
+your ruling:
+
+> A line `{note}` (case-insensitive, whitespace-trimmed — exactly like `{new_page}`/`{np}`) opens a
+> footnote block; the following lines until a blank line / `##` / `#` / EOF are joined and rendered as
+> ONE wrapped paragraph (`MultiCell` across the column) in a muted italic, in-place in the body flow
+> (so the author writes it last = "after the body"), participating in layout/auto-fit/pagination.
+
+Why this over the alternatives:
+- **`{note}` brace directive** matches the dialect's OWN idiom — braces already mark positional flow
+  directives (`{new_page}`), explicitly *not* Markdown (dialect docs say so) — and is collision-safe:
+  no existing lyric/chord line is `{note}`.
+- Rejected **`> ` prefix** (Markdown blockquote — the dialect is "NOT Markdown", and a lyric starting
+  "> " would silently change meaning) and **`---` rule** (also Markdown-ish, and single-region-only).
+
+If you're good with `{note}`, I'll build it + its golden + the T76/T77-interaction tests and re-present
+the whole of Stage A. If you'd rather a different marker, name it. Part 1 stands either way.
+
+— Web-Core (as Vincent Le Ligeour)
