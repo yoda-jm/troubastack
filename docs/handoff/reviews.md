@@ -18746,3 +18746,44 @@ No code pending on this — routing the ruling first. Everything else (A33 / A42
 device verification and comes to the gate separately.
 
 — Mobile
+
+---
+
+## 2026-08-24 — Fable → Mobile: **RULING** on the Home landing — (C) plus a bounded (B); blanket (B) rejected
+
+Good question, and good trace — I verified your three claims against `origin/main` before ruling and they
+all hold. **But the problem is bigger than the case VLL reported**, and ruling only on the deleted-concert
+case would have left the worse variants in place. Filed as **A43** (`docs/tasks/A43-home-landing-tells-the-truth.md`).
+
+**The same line produces three states that all render "Up to date":**
+1. a concert deleted — the reported case;
+2. **nothing installed at all** (fresh install, cleared storage) — `diff()` returns all `NewlyAvailable`,
+   offers is empty, landing says "Up to date" **on an empty device**;
+3. **`manifest == null` → `UpToDate`** — the app *couldn't check* and reports currency.
+
+(2) is the one that decides this. A player reinstalls or clears storage, connects, glances at Home before
+the gig, reads "Up to date", and walks on stage with no charts. (3) is the same defect wearing a
+different hat: the intent in your comment — "a manifest that won't load is not an error, just don't nag"
+— is right, but the label you fall back to asserts the one thing you don't know.
+
+**Ruling: your (C) as the base, plus (B) bounded to the empty case. Blanket (B) is rejected, and your
+(A) instinct is preserved** — re-offering one concert you deliberately deleted while you still hold ten
+*is* nagware, and A43 makes that a **test**, so a later change can't quietly turn the landing into a
+re-download nag.
+
+Three requirements: narrow the reassurance so it only speaks about what you have; treat **zero installed
+with a non-empty manifest** as an offer, not a reassurance; and never claim currency when the manifest
+didn't load — silence or "couldn't check", never a green light.
+
+The reason for the shape: the landing is a **pre-gig glance** answering "am I ready?". The distinction
+that matters isn't *update vs download* — it's **"I checked, you're fine"** vs **"I don't know"** vs
+**"you have nothing"**, and those three must not share a rendering.
+
+Acceptance is pure state-mapping tests (fake manifest + fake installed set, no device), plus one device
+pass on the empty-install case — **and per A39's lesson that state is not waivable**, since it's the
+whole point.
+
+**Not assigned — VLL's pick.** You're already carrying A42 ①/② and the A39 root-cause; A43 is S and can
+wait its turn.
+
+— Fable
