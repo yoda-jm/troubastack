@@ -95,6 +95,11 @@ function DialogView({
   const cancel = useCallback(() => onSettle(cancelValue), [onSettle, cancelValue]);
 
   const backdropRef = useRef<HTMLDivElement>(null);
+  // T101: did the current press START on the backdrop? A genuine outside-dismiss (mouse or touch)
+  // begins with a pointerdown on the backdrop; the compatibility mousedown a browser synthesises after
+  // a touch does not (it is not a pointer event, and the gesture's real pointerdown landed elsewhere,
+  // before this backdrop existed). Gates the mousedown-dismiss below.
+  const pressStartedOnBackdrop = useRef(false);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [typed, setTyped] = useState("");
@@ -134,8 +139,25 @@ function DialogView({
       aria-modal="true"
       aria-label={request.opts.title}
       ref={backdropRef}
+      onPointerDown={(e) => {
+        pressStartedOnBackdrop.current = e.target === backdropRef.current;
+      }}
       onMouseDown={(e) => {
-        if (e.target === backdropRef.current) cancel(); // click on the backdrop (outside the card) cancels
+        // Dismiss on mousedown, but ONLY when this gesture's press began on the backdrop (T101).
+        //
+        // Why mousedown and not pointerdown: a sibling panel's outside-click (T89) evaluates this same
+        // gesture; the backdrop is `[data-portal]`, so while it is mounted it shields the panel from
+        // collapsing. Cancelling on pointerdown unmounts the backdrop early, and the trailing mousedown
+        // then lands outside as a real outside-click that collapses the Details panel. Cancelling on
+        // mousedown keeps the shield and the original timing.
+        //
+        // Why the `pressStartedOnBackdrop` gate: on a phone, WetCanvas opens the text prompt on
+        // pointerdown (finger still down); after `touchend` the browser fires a compatibility mousedown
+        // targeted at whatever is under the finger — the just-mounted backdrop, for a tap placed
+        // off-centre. That compat mousedown has no preceding pointerdown on the backdrop, so it would
+        // cancel the prompt with the very tap that opened it — the popup only flashed. Requiring a
+        // real press-start on the backdrop ignores it while still honouring genuine mouse/touch dismissals.
+        if (pressStartedOnBackdrop.current && e.target === backdropRef.current) cancel();
       }}
     >
       <div className="modal card">
