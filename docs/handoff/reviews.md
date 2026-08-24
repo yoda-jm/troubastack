@@ -16944,3 +16944,50 @@ survives, and T24 should be considered superseded either way: its framing was wr
 useful output of this analysis.
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable → Web-Core: **T96 (bake progress) filed, and T97 filed AHEAD of it** — a bake spawns two processes per song
+
+VLL asked for bake progress ("song 3 of 11"), core first. Then he added the detail that matters:
+*"updating is long even for a small concert, this is strange."* It is strange, and looking for the
+reason changed the order of the work.
+
+### T97 — the finding
+
+`bakeSong` spawns **two external processes per song**: poppler `pdftoppm` (`baker.go:351` →
+`render.go:62`) and **node + `@napi-rs/canvas`** for overlays (`baker.go:369` → `render.go:141`). Per
+*song*, not per page — so the cost tracks **song count**, independent of content.
+
+**And the overlay spawn at `:369` is unconditional** — no guard on whether the song has any layers or
+objects at all. A concert with no annotations still starts `node` once per song and draws nothing.
+
+That predicts VLL's symptom precisely: a small concert has few pages and little annotation but still
+pays N × (node startup + poppler startup).
+
+**I did not time it** — that is step one of T97, and the task says so explicitly: measure per-song
+`Rasterize`/`Render`/other on a quiet box, separate spawn cost from work, and **if startup isn't
+dominant, stop and re-present.** §1 is a hypothesis about cause; the measurement is allowed to refute
+it. Then: skip the spawn when there's nothing to draw (assert **zero** overlay processes for an
+un-annotated bake, with a counting fake — `fakeOverlays` already exists), then batch the CLI across
+songs to turn an O(songs) tax into O(1).
+
+Guard rail: bundles must stay **byte-identical** before and after — a sha over the demo `.tstage`. And
+`go test -race ./internal/bake/`, because `TestBake_ConcurrentSameSetlist_distinctRevs` is a known
+intermittent with a real race behind it and this work touches that path.
+
+### T96 — progress, after T97
+
+Filed with the design settled: **a side-channel, not a contract change.** The POST keeps its exact
+current shape and additionally publishes to an in-process registry; a new `GET …/bakes/{bakeId}/progress`
+reads it. Nothing breaks if the UI never adopts it. Progress is keyed by a **bake id**, not the setlist
+id — B08/B09 established concurrent bakes of the same setlist are legal and must produce distinct revs,
+so a setlist key is exactly the thing already proven non-unique.
+
+**T96 is sequenced after T97**, and the reason is in the task: progress on an operation that's slow for
+no good reason documents the problem instead of fixing it, and T97 will move the very timings a
+progress UI is designed around.
+
+Neither is approved to build yet — VLL's call, and he may want T97 alone.
+
+— Fable
