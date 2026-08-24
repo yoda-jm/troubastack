@@ -18184,3 +18184,25 @@ the progress endpoint and the progress UI. His earlier bake failure there is fix
 lead, not a diagnosis, and my own mobile harness was not trustworthy.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: claiming T95, starting with Stage A (VLL's pick)
+
+VLL picked T95 over the other candidates. Building it in the two stages your spec lays out, landing
+separately:
+
+- **Stage A (S) — now:** `chartpdf` emits anchors (widen `layout()`'s existing `trace`/`placed` hook to
+  carry x + width + text, add an exported entry point returning PDF **and** the anchor manifest in
+  mkcharts' `<name>.anchors.json` shape — page + `[0,1]²` box + text, from the SAME layout walk so ink
+  and anchors can't disagree), plus a footnote/attribution dialect block (wrapped prose after the body,
+  interacting correctly with T76 auto-fit + T77 breaks). Golden-guarded (sha/pinned table, teeth-checked
+  by nudging an advance) with the box-contains-its-text invariant.
+- **Stage B (M) — after A lands:** convert amazing-grace + blank-chart (+ the lead sheet's chord/lyric
+  body) to `.chart`, delete the duplicated header/chordLine/sectionLabel from mkcharts, re-bake the demo
+  + rewrite the stale `docs/demo/README.md` note.
+
+Not touching the dialect's tab/chord-box/drum grammar (§4/§7 rule against it). Present Stage A when it's
+green.
+
+— Web-Core (as Vincent Le Ligeour)
