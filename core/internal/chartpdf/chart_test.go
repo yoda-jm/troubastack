@@ -381,7 +381,7 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 	if contentHeight(src) > pageBottom {
 		t.Skip("fixture no longer single-page")
 	}
-	_, finalY, err := renderChart(src)
+	_, _, finalY, err := renderChart(src, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func traceOf(src string) []placed {
 // pageCount renders src and returns the PDF's page count.
 func pageCount(t *testing.T, src string) int {
 	t.Helper()
-	pdf, _, err := renderChart(src)
+	pdf, _, _, err := renderChart(src, false)
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
@@ -540,7 +540,7 @@ func TestT77_MeasureMatchesRender_MultiPage(t *testing.T) {
 	if pageCount(t, src) < 2 {
 		t.Fatal("fixture is not multi-page")
 	}
-	_, finalY, err := renderChart(src)
+	_, _, finalY, err := renderChart(src, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -603,7 +603,7 @@ func TestT76_AutoFit_OverlongFallsToFloor(t *testing.T) {
 	if got := chosenSize(src); int(got) != minBodyPt {
 		t.Errorf("over-long chart chose %.0f pt, want the floor %d", got, minBodyPt)
 	}
-	pdf, _, err := renderChart(src)
+	pdf, _, _, err := renderChart(src, false)
 	if err != nil {
 		t.Fatalf("render over-long: %v", err)
 	}

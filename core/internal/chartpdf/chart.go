@@ -58,6 +58,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -115,11 +116,62 @@ func Render(source string) ([]byte, error) {
 	if err := validateChars(source); err != nil {
 		return nil, err
 	}
-	pdf, _, err := renderChart(source)
+	pdf, _, _, err := renderChart(source, false)
 	if err != nil {
 		return nil, err
 	}
 	return output(pdf)
+}
+
+// Anchor is one drawn text run's bounding box in [0,1]² page coordinates, plus the run's ORIGINAL
+// (pre-cp1252) text and 0-indexed page. It mirrors mkcharts' `<name>.anchors.json` shape (B13)
+// EXACTLY, so the demo seed's page+substring+occurrence lookup places a highlight over a chartpdf
+// chart's word identically. Anchors come from the SAME layout walk that draws the ink
+// (RenderWithAnchors), so a box cannot disagree with what is on the page (T95 §3/§5.1).
+type Anchor struct {
+	Page int     `json:"page"` // 0-indexed
+	Text string  `json:"text"`
+	X0   float64 `json:"x0"`
+	Y0   float64 `json:"y0"`
+	X1   float64 `json:"x1"`
+	Y1   float64 `json:"y1"`
+}
+
+// recFn records one drawn text run: (x,y) its top-left in mm, (w,h) its size in mm. nil in the
+// measure/contentHeight passes (no drawing, so no anchors) and in a plain Render (no manifest asked).
+type recFn func(text string, x, y, w, h float64)
+
+// RenderWithAnchors renders the chart to a deterministic A4 PDF AND returns the anchor manifest for
+// every text run it drew, in mkcharts' shape and order (page, then top-to-bottom, then left-to-right).
+// `Render` is exactly this minus the manifest — same bytes.
+func RenderWithAnchors(source string) ([]byte, []Anchor, error) {
+	if err := validateChars(source); err != nil {
+		return nil, nil, err
+	}
+	pdf, anchors, _, err := renderChart(source, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	out, err := output(pdf)
+	if err != nil {
+		return nil, nil, err
+	}
+	sortAnchors(anchors)
+	return out, anchors, nil
+}
+
+// sortAnchors orders the manifest deterministically: page, then top-to-bottom, then left-to-right —
+// identical to mkcharts' writeAnchors, so the two backends' manifests are directly comparable.
+func sortAnchors(a []Anchor) {
+	sort.SliceStable(a, func(i, j int) bool {
+		if a[i].Page != a[j].Page {
+			return a[i].Page < a[j].Page
+		}
+		if a[i].Y0 != a[j].Y0 {
+			return a[i].Y0 < a[j].Y0
+		}
+		return a[i].X0 < a[j].X0
+	})
 }
 
 // chartLines splits a source into lines (CRLF-normalized).
@@ -130,7 +182,7 @@ func chartLines(source string) []string {
 // renderChart draws the chart and returns the pdf + the final body y. That y is the drift guard: it
 // must equal measure(source) — both walk the identical body via layout(), the single source of the
 // per-row advances AND of pagination, so they cannot drift, on one page or many.
-func renderChart(source string) (*fpdf.Fpdf, float64, error) {
+func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, error) {
 	lines := chartLines(source)
 	subtitle, _, bodyPt, sizeSet, skip := parseHeader(lines)
 	if !sizeSet {
@@ -138,9 +190,21 @@ func renderChart(source string) (*fpdf.Fpdf, float64, error) {
 	}
 	scale := bodyPt / defaultBodyPt
 	pdf, tr := newDoc(firstTitle(lines))
-	y := header(pdf, tr, firstTitle(lines), subtitle, scale)
-	y = layout(lines, scale, skip, y, layoutOpts{pdf: pdf, tr: tr, paginate: true})
-	return pdf, y, nil
+	var anchors []Anchor
+	var rec recFn
+	if collect {
+		// The anchor box is in [0,1]² of the A4 page; the run's page is fpdf's current page (0-idx),
+		// so a run recorded straight after its Cell/CellFormat lands on the page it drew onto.
+		rec = func(text string, x, y, w, h float64) {
+			anchors = append(anchors, Anchor{
+				Page: pdf.PageNo() - 1, Text: text,
+				X0: x / pageW, Y0: y / pageH, X1: (x + w) / pageW, Y1: (y + h) / pageH,
+			})
+		}
+	}
+	y := header(pdf, tr, firstTitle(lines), subtitle, scale, rec)
+	y = layout(lines, scale, skip, y, layoutOpts{pdf: pdf, tr: tr, paginate: true, rec: rec})
+	return pdf, anchors, y, nil
 }
 
 // measure returns the renderer's final body y for the source at its size — the PAGINATED end, so it
@@ -208,6 +272,7 @@ type layoutOpts struct {
 	pdf      *fpdf.Fpdf
 	tr       func(string) string
 	paginate bool
+	rec      recFn // T95: when set (draw+anchor pass), each primitive records its text runs' boxes
 	trace    *[]placed
 	// autoBreaks, when non-nil, counts AUTOMATIC page breaks (content crossing pageBottom) — NOT
 	// explicit {new_page} breaks. T76 auto-fit's fit-test: a size fits iff it forces zero automatic
@@ -289,7 +354,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			// orphan control: keep the header with its first content line on one page.
 			page(leadSection*scale + firstUnitLead(lines, i, skip)*scale)
 			note("section")
-			y = sectionLabel(o.pdf, o.tr, y, strings.TrimSpace(trimmed[3:]), scale)
+			y = sectionLabel(o.pdf, o.tr, y, strings.TrimSpace(trimmed[3:]), scale, o.rec)
 			drew = true
 		case isChordRow(trimmed) && i+1 < len(lines) && isLyric(lines[i+1]):
 			applyBreak()
@@ -297,7 +362,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			page(leadPair * scale) // the pair is one unit — never split a chord from its lyric
 			note("pair")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(o.pdf, o.tr, y, ch, an, strings.TrimRight(lines[i+1], " \t"), scale)
+			y = chordLine(o.pdf, o.tr, y, ch, an, strings.TrimRight(lines[i+1], " \t"), scale, o.rec)
 			drew = true
 			i++ // consumed the lyric line
 		case isChordRow(trimmed):
@@ -306,14 +371,14 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			page(leadChord * scale)
 			note("chord")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(o.pdf, o.tr, y, ch, an, "", scale)
+			y = chordLine(o.pdf, o.tr, y, ch, an, "", scale, o.rec)
 			drew = true
 		default:
 			applyBreak()
 			gap()
 			page(leadLyric * scale)
 			note("text")
-			y = textLine(o.pdf, o.tr, y, line, scale)
+			y = textLine(o.pdf, o.tr, y, line, scale, o.rec)
 			drew = true
 		}
 	}
@@ -455,17 +520,23 @@ func headerBodyStart(subtitle string, scale float64) float64 {
 	return ruleY + 3*scale
 }
 
-func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scale float64) float64 {
+func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scale float64, rec recFn) float64 {
 	pdf.AddPage()
 	pdf.SetFont("Helvetica", "B", 16*scale)
 	pdf.SetXY(margin, topMargin)
 	pdf.Cell(0, 8*scale, tr(title))
+	if rec != nil {
+		rec(title, margin, topMargin, pdf.GetStringWidth(tr(title)), 8*scale)
+	}
 	ruleY := topMargin + 9*scale
 	if subtitle != "" {
 		pdf.SetFont("Helvetica", "I", 11*scale)
 		pdf.SetTextColor(90, 90, 90)
 		pdf.SetXY(margin, topMargin+8*scale)
 		pdf.Cell(0, 5*scale, tr(subtitle))
+		if rec != nil {
+			rec(subtitle, margin, topMargin+8*scale, pdf.GetStringWidth(tr(subtitle)), 5*scale)
+		}
 		pdf.SetTextColor(0, 0, 0)
 		ruleY = topMargin + 14*scale
 	}
@@ -555,24 +626,30 @@ func subtitleOf(lines []string) (string, int) {
 }
 
 // sectionLabel prints a section header (e.g. "Verse 1") and returns the next y.
-func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label string, scale float64) float64 {
+func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label string, scale float64, rec recFn) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Helvetica", "B", 11*scale)
 		pdf.SetTextColor(150, 90, 30)
 		pdf.SetXY(margin, y)
 		pdf.Cell(0, 6*scale, tr(label)) // T73: through tr() like every other string — an accented section name must not mojibake
+		if rec != nil {
+			rec(label, margin, y, pdf.GetStringWidth(tr(label)), 6*scale)
+		}
 		pdf.SetTextColor(0, 0, 0)
 	}
 	return y + leadSection*scale
 }
 
 // chordLine prints a monospaced blue chord row and the lyric beneath it.
-func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot, lyric string, scale float64) float64 {
+func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot, lyric string, scale float64, rec recFn) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Courier", "B", 11*scale)
 		pdf.SetTextColor(20, 60, 150)
 		pdf.SetXY(margin, y)
 		pdf.CellFormat(pdf.GetStringWidth(tr(chords)), 5*scale, tr(chords), "", 0, "L", false, 0, "")
+		if rec != nil {
+			rec(chords, margin, y, pdf.GetStringWidth(tr(chords)), 5*scale)
+		}
 		if annot != "" {
 			// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
 			// play, so render it muted + non-chord, on the same line after the chords.
@@ -585,6 +662,9 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 			pdf.SetFont("Courier", "", 11*scale)
 			pdf.SetXY(margin, y+pairLyricDy*scale)
 			pdf.Cell(0, 5*scale, tr(lyric))
+			if rec != nil {
+				rec(lyric, margin, y+pairLyricDy*scale, pdf.GetStringWidth(tr(lyric)), 5*scale)
+			}
 		}
 	}
 	if lyric != "" {
@@ -594,10 +674,11 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 }
 
 // textLine renders a normal paragraph line in Helvetica, honoring inline **bold**.
-func textLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, scale float64) float64 {
+func textLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, scale float64, rec recFn) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetXY(margin, y)
 		bold := false
+		x := margin // track the cursor so each **bold** segment gets its own box at the right x
 		for _, seg := range strings.Split(line, "**") {
 			if seg != "" {
 				if bold {
@@ -605,7 +686,12 @@ func textLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, sc
 				} else {
 					pdf.SetFont("Helvetica", "", 11*scale)
 				}
-				pdf.CellFormat(pdf.GetStringWidth(tr(seg)), 6*scale, tr(seg), "", 0, "L", false, 0, "")
+				w := pdf.GetStringWidth(tr(seg))
+				pdf.CellFormat(w, 6*scale, tr(seg), "", 0, "L", false, 0, "")
+				if rec != nil {
+					rec(seg, x, y, w, 6*scale)
+				}
+				x += w
 			}
 			bold = !bold
 		}
