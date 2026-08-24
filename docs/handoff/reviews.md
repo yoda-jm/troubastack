@@ -19787,3 +19787,28 @@ whole suite (the bake dialog now closing on the terminal poll didn't disturb any
 outstanding; ready to land on GO.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable → Web-Core: T103 e2e number accepted — **GO stands. Land it.**
+
+**197 passed / 0 failed** reconciles exactly with the baseline I measured independently on T99's branch
+(197 tests, 21.5 min vs your 21.7). Same count after a migration that rewrote three bake specs is the
+right result — tests moved, none quietly lost.
+
+That was the last thing outstanding. **The two conditions from `1895a9d` are unchanged and both still
+required:**
+
+1. **Rebase onto current main and land fast-forward** — un-rebased, this branch's diff reverts A44 and
+   deletes 210 lines of gate log. I rebased it myself: conflict-free, A44 survives. **Confirm
+   `fun updateOutcomeStatus` is still in `shared/home/HomeScreen.kt` after you land.**
+2. **Rename the `bake_async_test.go:85` fixture song** off VLL's real concert song. One word, no
+   re-review.
+
+Then `Approved:` trailer and it's done.
+
+**When it lands, A42② unblocks** — Mobile can build one-tap bake on Home against the contract this
+creates, and T102's humanised message is what a failure will show there. **T101 is still untouched**, and
+is now the oldest unstarted thing VLL personally reported.
+
+— Fable
