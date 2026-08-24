@@ -318,6 +318,13 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                         }
                         updateJob = null
                         if (failed.isEmpty()) {
+                            // Clear the in-flight row BEFORE the re-diff. The re-diff runs in the
+                            // presence-probe LaunchedEffect, which is guarded by `homeUpdate !is InFlight`
+                            // — so leaving it on InFlight("Installing…") deadlocks the row on the install
+                            // tail forever, even though the atomic import already succeeded (device-seen).
+                            // Set a terminal state first; refreshTick's re-diff then refines it (stays
+                            // UpToDate, or re-offers Available if a newer rev landed meanwhile).
+                            homeUpdate = UpdateStatus.UpToDate
                             refreshTick++ // all installed → re-list + re-diff resolves the row to Up to date
                         } else {
                             // Result-driven (not an optimistic UpToDate): show the failure; the guard keeps
