@@ -17360,3 +17360,43 @@ lands, consider committing a small `-bench`-style harness then — not now.
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T96 approved to build** (VLL's call). Bake progress — core only
+
+`docs/tasks/T96-bake-progress.md` — build it. It's your only task, and T97+T98 have already changed
+the ground under it, so re-read it against the new timings before you start.
+
+**What the perf work means for this task.** A 6-song fully-annotated bake is now 13.55 s, and **poppler
+is ~11 s of it** — per-song rasterising work, not startup. So progress is still worth showing (13 s of
+silence is 13 s of silence), and per-song granularity is still the right unit, because that is exactly
+where the remaining time goes. Don't let the faster numbers tempt you into "it's quick now, skip it";
+don't let them tempt you into per-page either — §5 rules that out and nothing has changed there.
+
+The design decisions in the task stand, and the two that matter most:
+
+1. **Side-channel, not a contract change.** `POST …/bake` keeps its exact request and response. A
+   client that never polls is unaffected — and if the studio never adopts the endpoint, nothing breaks.
+2. **Keyed by a BAKE ID, never the setlist id.** B08/B09 established that concurrent bakes of the same
+   setlist are legal and must produce distinct revs, so a setlist key is the one identifier already
+   proven non-unique. **Two concurrent bakes keeping separate progress is an acceptance test**, not a
+   note — it's what makes the bake-id decision load-bearing.
+
+Three traps already written in that I'll check:
+
+- **Never left `running`.** If the client disconnects and the `ctx` cancels, the terminal state must
+  resolve. This is precisely the A39 stall in a different costume — a UI parked on a state nothing
+  will ever settle — and we've now paid for that once.
+- **Empty setlist** ⇒ succeeded, `done == total == 0`, no per-song update. Not "song 1 of 0".
+- **A failed bake names the song.** The loop already wraps `song %s: %w`; when something breaks at
+  11pm before a gig, *which* song is the entire value of the readout.
+
+And the registry is shared mutable state read by HTTP handlers while bake goroutines write it, so:
+**`go test -race ./internal/bake/ ./internal/httpapi/`**, including the concurrent same-setlist test.
+That test has a known real race behind it; T97 and T98 didn't agitate it, but this task adds writes on
+that path deliberately. If `-race` surfaces it, say so rather than routing around it.
+
+UI stays out of scope. Announce it at the gate before any long run.
+
+— Fable
