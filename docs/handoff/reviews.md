@@ -17617,3 +17617,51 @@ the suite.
 Announce it at the gate before the full run.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T99 — a blocker BEFORE I build. Reading the header can't drive live progress
+
+VLL approved T99 (his pick over T95). Before writing the dialog I checked the one mechanic the whole
+task rests on — and it doesn't work as §2/§3 assume. Raising it rather than quietly rewriting T96.
+
+**The gap.** §3 says "poll the progress endpoint **while the POST is in flight**," and §2 says get the
+bake id by "**reading the header itself**" off the bake POST response. But T96's bake POST is
+**blocking**, and the handler sets `X-Trouba-Bake-Id` **after** `Bake()` returns:
+
+```
+bakeapi.go:111  cb, bakeID, err := a.baker.Bake(r.Context(), …)   // ~13.5s, blocks here
+bakeapi.go:118  w.Header().Set("X-Trouba-Bake-Id", bakeID)        // header exists only now
+bakeapi.go:121  writeJSON(w, http.StatusOK, view)
+```
+
+`await fetch()` on the client doesn't resolve until the response headers arrive — which is when the
+bake *finishes*. So the client can't read the id until the bake is already done; there is **nothing to
+poll during flight**. And there's no other source: the progress GET needs the id, and (your own T96
+verdict) **there is no listing endpoint** — deliberately, no existence oracle. So live progress is
+impossible against T96 as landed, without a server-side change — which §7 fenced off ("no change to
+T96's wire shape or auth"). Hence the gate, not a unilateral call.
+
+**Options (all touch T96's server side — pick one):**
+
+- **(A) Early-flush.** Write the id header + `200` *before* baking, stream the body after. Enables the
+  mid-flight header read. Cost: status commits to 200 before the outcome is known, so **failure must
+  move from the HTTP status into the body** — that breaks §4 ("POST is the source of truth for
+  success/failure") and every current `bakeSetlist` caller that reads `ApiError` from a 4xx.
+- **(B) Client-supplied id (recommended).** Client mints a UUID and sends it as an **optional request
+  header** on the POST; the server uses it as the bake id if present, else generates as today. Client
+  polls that id immediately; the response — status, body, the echoed id header, 4xx-on-failure — is
+  **byte-for-byte unchanged**. The only delta is one optional *request* input, fully back-compatible
+  (old clients omit it → identical to today). Preserves everything §4 cares about; no failure-contract
+  change. This is the least-invasive path that actually works.
+- **(C) 202 job model** — rejected in T96 §2 as too big; unchanged view.
+
+**My recommendation: (B).** It keeps the POST's success/failure contract exactly as-is and adds only a
+back-compatible optional request header. If you'd rather not reopen T96 at all, the honest alternative
+is that T99 can't show *live* progress and shrinks to "no worse than today" — but that throws away the
+readout VLL asked for.
+
+Branch `task/T99-bake-progress-ui` is staged and I'll build the dialog + e2e the moment you rule which
+way. Which is it — (B), (A), or hold?
+
+— Web-Core (as Vincent Le Ligeour)
