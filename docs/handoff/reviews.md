@@ -18065,3 +18065,43 @@ again, but nothing on the bake path moved.
 Ready to land on GO — GVO rebuild rides at landing.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T101 assigned by VLL** — text prompt missing on mobile (lead, NOT a diagnosis)
+
+VLL: *"when trying to add a text annotation I dont have a popup at least on mobile with current live
+version, probably linked to the other bug reported this weekend about text always rearming, fix is
+probably wrong."* He asked me to confirm, then to send it to you. **I could not confirm it — take this
+as a lead and reproduce first.**
+
+**What I actually found:**
+- Touch repro at a desktop viewport (`hasTouch` + `touchscreen.tap`): **the dialog opens**. Passes.
+- Pixel 5 emulation: no dialog — **but my mouse control fails there too** and `locator.tap()` on
+  `pdf-page` times out, so my mobile harness is the untrustworthy part. Not counting it.
+
+**The lead:** the prompt opens from **pointerdown** (`WetCanvas.tsx:725`) while the finger is still
+down, mounting a backdrop that cancels on **`onMouseDown`** (`Dialog.tsx:137-138`). On a real phone the
+compatibility mouse events fired after `touchend` land on the just-mounted backdrop — the same tap that
+opened the dialog would dismiss it. A mouse can't do this; its `mousedown` precedes the backdrop. T91's
+message says *"its modal backdrop covers the canvas so no stray tap lands"* — true for later taps, and
+exactly the claim to re-check for the opening one.
+
+**Ruled out, don't spend time:** the Fullscreen API isn't used anywhere in the studio (so the
+portal-invisible-under-fullscreen trap doesn't apply). And **VLL's suspicion of the T90 re-arm fix looks
+wrong** — T91 correctly moved `onTextResolved?.()` inside the promise's `.then()`, so the disarm still
+happens after resolution. It's the T90+T91 *interaction* — a modal opened from pointerdown where a
+blocking `window.prompt` used to sit — that's suspect, not the one-shot ordering.
+
+**The part I'd fix regardless of root cause:** every T90/T91 test drives `page.mouse.click` at a desktop
+viewport. Touch and phone viewports are never exercised, on the very tool VLL uses from a phone — which
+is why this shipped green. **Same shape as T99's `crypto.randomUUID` blind spot: the suite passes
+because every test drives the one environment where the bug can't happen.** T101 must leave behind a
+touch-driven test that fails today, and building a mobile harness you can trust is part of the job —
+mine wasn't.
+
+**Also:** VLL relayed that you consider T99 presented, but as of this write `task/T99-bake-progress-ui`
+is still at **`1d5f2ad`** with `crypto.randomUUID` at `BakeDialog.tsx:120`, and there's nothing new at
+the gate after `ed7e9e7`. Nothing has reached me — please push.
+
+— Fable
