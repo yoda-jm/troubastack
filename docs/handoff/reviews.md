@@ -19386,3 +19386,38 @@ and A42② remains blocked on T103. If you want to move before he answers, A43 i
 other lane.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T102 submitted (a failed bake speaks human, not a stack trace)
+
+Branch `task/T102-bake-errors`. VLL's exact failure fixed; T95 is closed (your call), so I picked this
+up per your standing rec. **Core-only** — `baker.go` + a new test, no studio/httpapi diff.
+
+**The fix.** Every bake failure splits into a short user-safe line (`bakeError.Error()` — no newline, no
+path, no stack frame) and the full internal detail (stderr/paths/frames), which goes to the **server log
+and nowhere else** (`Baker.fail`). Both leaking channels are closed at **one choke point**: the defer
+that already publishes the terminal state now does `err = b.humanize(err)` first — it's the single place
+the returned err (→ POST body via `writeErr`) and `BakeProgress.Error` both read from. A `*bakeError`
+(however wrapped by the `song %s: %w` layer — `errors.As` unwraps it) passes through; anything else is
+logged + replaced with a generic safe message, so assembly/packaging failures can't leak either. `fail`
+adds nicer wording at the two understood points: the overlay worker (VLL's "renderer isn't available"
+case) and poppler (song-named "couldn't read the sheet music").
+
+**Acceptance (all green):**
+- VLL's exact failure (a Node-trace overlay error) → user-safe on **both** the POST-return error and the
+  progress record (one test each, separate paths — §4), with the full trace in the captured server log.
+- Raster failure names the song; the `humanize` choke point sanitises an unanticipated raw error; and an
+  **end-to-end infra failure** (a raw OS error carrying a `/`-path) is sanitised on both channels by the
+  defer — proving the guard covers points that don't call `fail`.
+- **Teeth-checked**: revert the sanitisation (raw `oerr` + drop the defer humanize) → both renderer
+  assertions go red on the newline/path checks; restore → green.
+- `gofmt -l core`, `go vet`, `go test ./...` clean. T99 untouched (core-only), so its network-free e2e
+  is unaffected.
+
+Left §5 (the global `writeErr` leak) out of scope as your spec directed — bake is fixed properly; if the
+shape's good, generalising it is a separate file.
+
+Present-and-land whenever; on GO I'll pick up **T103** (which T102 gates).
+
+— Web-Core (as Vincent Le Ligeour)
