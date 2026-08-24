@@ -3,6 +3,8 @@ package bake
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -44,6 +46,13 @@ type Baker struct {
 	// (nil in production) letting the B08 test deterministically publish a concurrent
 	// rev in the window between our nextRev and our claim/publish.
 	afterNextRev func()
+	// progress is the T96 bake-progress registry (nil ⇒ progress publishing is a no-op,
+	// e.g. a bare struct-literal Baker in a legacy test). newBakeID mints the per-bake id
+	// (nil ⇒ the package default); onProgress is a TEST SEAM (nil in production) that
+	// observes every publish so a test can assert the running sequence, not just the end.
+	progress   *progressRegistry
+	newBakeID  func() string
+	onProgress func(id string, p BakeProgress)
 }
 
 // New builds a Baker with the real poppler + web/bake shell-out steps. A missing
@@ -55,13 +64,46 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 		dpi = 150
 	}
 	return &Baker{
-		svc:      svc,
-		eng:      eng,
-		raster:   popplerRasterizer{bin: cfg.Pdftoppm, dpi: dpi},
-		overlays: nodeOverlayRenderer{node: cfg.Node, cli: cfg.BakeCLI},
-		bakesDir: cfg.BakesDir,
-		now:      func() int64 { return time.Now().Unix() },
+		svc:       svc,
+		eng:       eng,
+		raster:    popplerRasterizer{bin: cfg.Pdftoppm, dpi: dpi},
+		overlays:  nodeOverlayRenderer{node: cfg.Node, cli: cfg.BakeCLI},
+		bakesDir:  cfg.BakesDir,
+		now:       func() int64 { return time.Now().Unix() },
+		progress:  newProgressRegistry(nil),
+		newBakeID: newBakeID,
 	}
+}
+
+// newBakeID mints an unguessable, per-bake identifier (16 random bytes, hex). NOT the
+// setlist id: concurrent bakes of one setlist are legal (B08/B09) and must not share a
+// progress slot, so the key has to be unique per bake, not per setlist.
+func newBakeID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
+
+// publish records the latest progress for a bake to the registry (if any) and notifies
+// the test observer (if any). Non-blocking by construction: a map write under a short
+// mutex, never I/O — a slow observer can't slow a bake (T96 §3.1).
+func (b *Baker) publish(bakeID, bandID, setlistID string, p BakeProgress) {
+	if b.progress != nil {
+		b.progress.set(bakeID, bandID, setlistID, p)
+	}
+	if b.onProgress != nil {
+		b.onProgress(bakeID, p)
+	}
+}
+
+// Progress returns a bake's latest progress, scoped to the band+setlist that owns it —
+// an unknown/expired id or a cross-band request reports ok=false (the edge maps that to
+// 404). Same authorisation as the bake: the HTTP edge additionally gates on band admin.
+func (b *Baker) Progress(bandID, setlistID, bakeID string) (BakeProgress, bool) {
+	if b.progress == nil {
+		return BakeProgress{}, false
+	}
+	return b.progress.get(bakeID, bandID, setlistID)
 }
 
 // concertSep separates a setlist id from a member id in a per-member variant
@@ -93,11 +135,35 @@ func ParseConcertID(id string) (setlistID, userID string, isVariant bool) {
 // computes as today). When non-nil, every overlay gets an explicit DefaultOn
 // (mandatory layers are forced on regardless). Keyed by name (the concert-level view
 // the dialog shows: "Cues · Form · My notes").
-func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, layerDefaults map[string]bool) (ConcertBundle, error) {
+func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, layerDefaults map[string]bool) (bundle ConcertBundle, bakeID string, err error) {
+	// T96 — publish "song N of M" progress as we go. The POST contract is unchanged; this is
+	// a side channel keyed by a per-bake id (returned to the caller, exposed via GET …/progress).
+	mint := b.newBakeID
+	if mint == nil {
+		mint = newBakeID
+	}
+	bakeID = mint()
+	var done, total int
+	var curSong string
+	// Terminal state on EVERY exit: an error, or a client disconnect that cancels ctx, must
+	// never leave the bake stuck on "running" forever (the A39 stall). Fires on each return.
+	defer func() {
+		if err != nil {
+			b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeFailed, Done: done, Total: total, Song: curSong, Error: err.Error()})
+			return
+		}
+		b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeSucceeded, Done: total, Total: total, Song: curSong})
+	}()
+
 	detail, err := b.svc.Setlist(actor, bandID, setlistID)
 	if err != nil {
-		return ConcertBundle{}, err
+		return ConcertBundle{}, bakeID, err
 	}
+	total = len(detail.Items)
+	// An immediate running snapshot so a poller that arrives before the first song sees
+	// "running 0/N" rather than a 404. An empty setlist emits only this + the terminal
+	// succeeded (0/0), never a "song 1 of 0".
+	b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeRunning, Done: 0, Total: total})
 	// The band-wide bake is THE bake (P205); the personal "?scope=mine" variant was
 	// retired. ParseConcertID still reads old `${setlistID}~${userID}` variant concerts
 	// for listing/download (read-compat), but no new ones are minted.
@@ -105,7 +171,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	name := detail.Setlist.Name
 	concertDir := filepath.Join(b.bakesDir, concertID)
 	if err := os.MkdirAll(concertDir, 0o755); err != nil {
-		return ConcertBundle{}, err
+		return ConcertBundle{}, bakeID, err
 	}
 
 	// Claim a rev ATOMICALLY (B04 finding 1): create the staging dir `<rev>.tmp`
@@ -115,7 +181,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	// forever — hence the local increment rather than a plain re-scan. No mutex.
 	rev, err := b.nextRev(concertID)
 	if err != nil {
-		return ConcertBundle{}, err
+		return ConcertBundle{}, bakeID, err
 	}
 	if b.afterNextRev != nil {
 		b.afterNextRev()
@@ -136,7 +202,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 			break
 		}
 		if !os.IsExist(mkErr) {
-			return ConcertBundle{}, mkErr
+			return ConcertBundle{}, bakeID, mkErr
 		}
 		rev++ // another bake holds this rev's stage — try the next number
 	}
@@ -150,10 +216,10 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 
 	blobsDir := filepath.Join(stageDir, "blobs")
 	if err := os.MkdirAll(blobsDir, 0o755); err != nil {
-		return ConcertBundle{}, err
+		return ConcertBundle{}, bakeID, err
 	}
 
-	bundle := ConcertBundle{
+	bundle = ConcertBundle{
 		ConcertID:  concertID,
 		Name:       name,
 		ConcertRev: rev,
@@ -169,23 +235,34 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	staged := make([]stagedSong, 0, len(detail.Items))
 	var batch []overlaySong
 	for si, item := range detail.Items {
+		// Publish BEFORE the song's work (poppler dominates a bake, T97/T98) so the readout
+		// names the song being baked, not the one just finished: done advances 1..N here.
+		done, curSong = si+1, item.SongTitle
+		b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeRunning, Done: done, Total: total, Song: curSong})
 		st, req, berr := b.stageSong(ctx, si, bandID, actor, item)
 		if berr != nil {
-			return ConcertBundle{}, fmt.Errorf("song %s: %w", item.SongID, berr)
+			return ConcertBundle{}, bakeID, fmt.Errorf("song %s: %w", item.SongID, berr)
 		}
 		staged = append(staged, st)
 		if req != nil {
 			batch = append(batch, *req)
 		}
 	}
+	// T96/T98 tail: phase 1 is done (done==total), but the bake is NOT finished — the single
+	// overlay RenderBatch (T98) + assembly + .tstage packaging still run (~2.4s of a ~13.5s bake).
+	// Publish a running update that CLEARS the song, so a poller reads "finishing", not "still baking
+	// song N". done==total must never imply finished; only the terminal state (below) says finished.
+	curSong = ""
+	b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeRunning, Done: total, Total: total})
 	overlaysByKey, oerr := b.overlays.RenderBatch(ctx, batch)
 	if oerr != nil {
-		return ConcertBundle{}, oerr
+		return ConcertBundle{}, bakeID, oerr
 	}
 	for _, st := range staged {
 		song, aerr := b.assembleSong(st, overlaysByKey[st.overlayKey], blobsDir, layerDefaults)
 		if aerr != nil {
-			return ConcertBundle{}, fmt.Errorf("song %s: %w", st.song.SongID, aerr)
+			done, curSong = st.si+1, detail.Items[st.si].SongTitle // name the failing song in the terminal state
+			return ConcertBundle{}, bakeID, fmt.Errorf("song %s: %w", st.song.SongID, aerr)
 		}
 		bundle.Songs = append(bundle.Songs, song)
 	}
@@ -228,26 +305,26 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		bundle.ConcertRev = rev
 		manifest, err := bundle.MarshalCanonical()
 		if err != nil {
-			return ConcertBundle{}, err
+			return ConcertBundle{}, bakeID, err
 		}
 		if err := os.WriteFile(filepath.Join(stageDir, "bundle.json"), manifest, 0o644); err != nil {
-			return ConcertBundle{}, err
+			return ConcertBundle{}, bakeID, err
 		}
 		if err := WriteTstage(tstageStage, stageDir, time.Unix(bundle.BakedAt, 0)); err != nil {
-			return ConcertBundle{}, err
+			return ConcertBundle{}, bakeID, err
 		}
 		revName := strconv.FormatUint(rev, 10)
 		if err := os.Rename(stageDir, filepath.Join(concertDir, revName)); err == nil {
 			// Won `<rev>/`. We are its sole owner, so we alone place `<rev>.tstage`.
 			if err := os.Rename(tstageStage, filepath.Join(concertDir, revName+".tstage")); err != nil {
-				return ConcertBundle{}, err
+				return ConcertBundle{}, bakeID, err
 			}
 			published = true
-			return bundle, nil
+			return bundle, bakeID, nil
 		} else if _, statErr := os.Stat(filepath.Join(concertDir, revName)); statErr != nil {
 			// Rename failed for a reason OTHER than the target already existing.
 			_ = os.Remove(tstageStage)
-			return ConcertBundle{}, err
+			return ConcertBundle{}, bakeID, err
 		}
 		// `<rev>` was published by a concurrent bake — drop OUR uniquely-named staged
 		// .tstage (never the shared published one) and re-claim the next free rev.

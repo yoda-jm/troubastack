@@ -43,7 +43,7 @@ func TestConcertPDF_ValidAndPageCount(t *testing.T) {
 		bakesDir: t.TempDir(),
 		now:      func() int64 { return 1700000000 },
 	}
-	if _, err := b.Bake(context.Background(), bandID, setlistID, u, nil); err != nil {
+	if _, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil); err != nil {
 		t.Fatalf("bake: %v", err)
 	}
 
@@ -87,7 +87,7 @@ func TestComposePage_OverlayCompositingAndFilter(t *testing.T) {
 		bakesDir: t.TempDir(),
 		now:      func() int64 { return 1700000000 },
 	}
-	cb, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}

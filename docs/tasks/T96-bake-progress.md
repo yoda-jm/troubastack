@@ -108,3 +108,19 @@ makes a single step feel stuck, per-page is a follow-up inside `bakeSong` — do
 - Per-page progress (§5).
 - Turning the bake into a background job, or persisting progress across a server restart. In-memory is
   correct here: progress is only interesting while someone is waiting.
+
+## 8. Implementation decisions (build-time, per Fable's ef024ea)
+
+- **Anchor (T98 moved it).** T98 split the per-song loop into `stageSong` (phase 1) → one
+  `RenderBatch` → `assembleSong` (phase 3). §3.1's "before `bakeSong`" now names the **phase-1 stage
+  loop**: `done` advances 1..N there, publishing before each song's (poppler-dominant) work.
+- **`done == total` does NOT mean finished — the state field does.** T98 gave the bake a tail (one
+  RenderBatch + assembly, ~2.4s of ~13.5s). The per-song counter reaches N-of-N while that tail still
+  runs. `succeeded` is published ONLY from a deferred terminal step, never at the end of phase 1, so
+  state stays `running` through the tail. Chosen signal for the tail: a `running` update with
+  `done == total` and an **empty `song`** ("finishing"), rather than adding a phase field — the wire
+  shape stays `{state,done,total,song,error}`. `song` is the song being baked in phase 1, and empty
+  during the finalize; a UI reads "finishing", not "still baking song N". The sequence test asserts
+  this song-less `done == total` running update precedes the terminal.
+- **Auth: admin-only** (mirrors the bake, which is admin-only I11) via the same `GetBand` check; the
+  registry is additionally band+setlist scoped so a cross-band admin can't read another band's bake id.

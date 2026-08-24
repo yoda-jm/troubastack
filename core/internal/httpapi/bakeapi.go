@@ -30,6 +30,7 @@ func NewBakeAPI(svc *app.Service, baker *bake.Baker) *BakeAPI {
 
 func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.HandlerFunc) {
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/bake", authed(a.bake))
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/bakes/{bakeId}/progress", authed(a.bakeProgress))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts", authed(a.listConcerts))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/bundle", authed(a.downloadBundle))
 	mux.HandleFunc("GET /api/bands/{bandId}/concerts/{concertId}/pdf", authed(a.concertPDF))
@@ -107,14 +108,45 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&in)
 	}
-	cb, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, in.LayerDefaults)
+	cb, bakeID, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, in.LayerDefaults)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
+	// T96: expose the bake id so a caller can read GET …/bakes/{bakeId}/progress. The bake
+	// POST contract is otherwise unchanged (a client that ignores this header is unaffected).
+	w.Header().Set("X-Trouba-Bake-Id", bakeID)
 	view := viewOf(bandID, cb)
 	view.Warnings = a.transposeWarnings(u, bandID, r.PathValue("setlistId"))
 	writeJSON(w, http.StatusOK, view)
+}
+
+// bakeProgress reports a running/finished bake's "song N of M" (T96). SAME authorisation
+// as the bake it observes — band admin (a bake is admin-only, I11) — reusing GetBand, not
+// a new access rule. An unknown, expired, or cross-band bake id is a 404: "no progress"
+// and "not yours" are one answer, so this never confirms a bake id to an outsider.
+func (a *BakeAPI) bakeProgress(w http.ResponseWriter, r *http.Request, u app.User) {
+	if a.baker == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "bake not configured"})
+		return
+	}
+	bandID := r.PathValue("bandId")
+	_, role, err := a.svc.GetBand(u, bandID)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if role != app.RoleAdmin {
+		writeErr(w, app.ErrForbidden)
+		return
+	}
+	p, ok := a.baker.Progress(bandID, r.PathValue("setlistId"), r.PathValue("bakeId"))
+	if !ok {
+		// Distinct from an empty 200: "I lost/never had your progress" ≠ "running, 0 done".
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such bake"})
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }
 
 // transposeWarnings names the items that asked for a chord transpose but weren't

@@ -100,7 +100,7 @@ func TestBake_TransposesChartOrWarns(t *testing.T) {
 	if _, err := svc.UpdateSetlistItem(u, band.ID, sl.ID, item.ID, app.SetlistItemPatch{KeyOverride: &over, TransposeChords: &yes}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
+	if _, _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
 		t.Fatalf("transposed bake failed: %v", err)
 	}
 	if string(captured) != string(wantTransposed) {
@@ -116,7 +116,7 @@ func TestBake_TransposesChartOrWarns(t *testing.T) {
 		t.Fatal(err)
 	}
 	captured = nil
-	if _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
+	if _, _, err := newBaker().Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
 		t.Fatalf("degraded bake must not fail: %v", err)
 	}
 	if string(captured) != string(wantStored) {
@@ -187,7 +187,7 @@ func TestBake_D1_TransposesGeneratedChartNotDefaultPDF(t *testing.T) {
 		svc: svc, eng: eng, raster: recordRaster{png: png, lastPDF: &captured},
 		overlays: fakeOverlays{png: png}, bakesDir: t.TempDir(), now: func() int64 { return 1700000000 },
 	}
-	if _, err := baker.Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
+	if _, _, err := baker.Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
 		t.Fatalf("bake failed: %v", err)
 	}
 	if string(captured) == string(uploaded) {

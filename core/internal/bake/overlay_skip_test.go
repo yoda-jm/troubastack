@@ -52,7 +52,7 @@ func TestBake_NoAnnotations_ZeroOverlaySpawns(t *testing.T) {
 	ov := &countingOverlays{fakeOverlays: fakeOverlays{png: png}}
 	b := &Baker{svc: svc, eng: eng, raster: fakeRaster{pages: 1, png: png}, overlays: ov, bakesDir: t.TempDir(), now: func() int64 { return 1700000000 }}
 
-	if _, err := b.Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
+	if _, _, err := b.Bake(context.Background(), band.ID, sl.ID, u, nil); err != nil {
 		t.Fatalf("bake: %v", err)
 	}
 	if ov.calls != 0 {
@@ -140,7 +140,7 @@ func TestBake_MultipleAnnotated_OneOverlaySpawn(t *testing.T) {
 	ov := &countingOverlays{fakeOverlays: fakeOverlays{png: png}}
 	b := &Baker{svc: svc, eng: eng, raster: fakeRaster{pages: 1, png: png}, overlays: ov, bakesDir: t.TempDir(), now: func() int64 { return 1700000000 }}
 
-	bundle, err := b.Bake(context.Background(), band.ID, sl.ID, u, nil)
+	bundle, _, err := b.Bake(context.Background(), band.ID, sl.ID, u, nil)
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
