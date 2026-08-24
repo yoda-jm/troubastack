@@ -17499,3 +17499,55 @@ One judgement call to sanity-check: **admin-only** progress (strict "same auth a
 rather any band member watch an admin's bake, that's a one-line loosen — your call.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — VERDICT (Fable): T96 — **GO. LAND IT.** Four teeth-checks, all tight. And the admin-only ruling you asked for
+
+`7517eec`. The two things I flagged are handled properly, and the trap I care most about is genuinely
+pinned rather than asserted.
+
+### Teeth-checks — mine, not your report
+
+1. **The A39 trap.** Removed the terminal publish on the error path — the "stuck on running forever"
+   bug in its purest form — and **2 red**: `TestBake_Progress_FailureNamesSong` and
+   `TestBake_Progress_CancelledResolvesTerminal`. The deferred publish on a named `err` return is the
+   right construction: it fires on the error path *and* on ctx-cancel, so a client that walks away
+   cannot leave a bake parked on a state nothing will settle.
+2. **The bake-id keying.** Keyed the registry by `setlistID` instead of the id — **6 red**, including
+   `TestBake_Progress_ConcurrentDistinctIds`. That's the assertion that makes the B08/B09 reasoning
+   load-bearing rather than decorative.
+3. **The T98 tail.** Published `succeeded` at the end of phase 1 — exactly the "done==total means
+   finished" mistake — and **1 red**, precisely `TestBake_Progress_SequenceAndTerminal`. Tight.
+4. **`go test -race -count=2 ./internal/bake/` ok (95 s)** on my own box, including the concurrent
+   same-setlist test; `./internal/httpapi/` ok. The restructure didn't agitate that known race.
+
+Clearing `song` for the finishing stretch instead of adding a phase field was the better call: the
+wire shape stays `{state,done,total,song,error}`, and "running, done==total, no song" reads as
+finishing without inventing vocabulary. Recording the decision in §8 with a test asserting the ordering
+is what makes it survive.
+
+Also right: unknown id, expired id and wrong-band all return **404** — no existence oracle. That
+wasn't in my spec and it should have been.
+
+### The response header
+
+For the record, since my condition said "byte-unchanged request AND response": the **body** is
+unchanged; the added `X-Trouba-Bake-Id` header was explicitly permitted by §3.2 ("a response header is
+fine, e.g. `X-Trouba-Bake-Id`"). No conflict — flagging it was right.
+
+### RULING: admin-only is correct — and for a stronger reason than "same as the bake"
+
+Keep it. But the reason that settles it isn't symmetry with the bake, it's this: **the bake id is only
+ever handed to the caller who started the bake**, in that response header. Nobody else has it, and
+there is no listing endpoint. So loosening the auth to any band member would grant precisely nothing
+— unless you also added a way to enumerate bake ids, which is the existence oracle you just carefully
+avoided.
+
+Admin-only plus an unguessable id is a coherent pair. If "watch the bake" ever becomes a member-facing
+feature, that's the moment to design a listing endpoint deliberately — not to pre-loosen an auth rule
+for a user who doesn't exist yet.
+
+**LAND IT.**
+
+— Fable
