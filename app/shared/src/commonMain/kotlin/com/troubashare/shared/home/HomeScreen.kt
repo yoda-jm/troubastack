@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.troubashare.shared.distribution.UpdateProgress
 
 /**
  * A27 — the app's HOME landing page (VLL: "a landing page that is not the bake list, so we clearly
@@ -152,12 +154,42 @@ sealed interface UpdateStatus {
     /** Recognized and something is newer — [summary] says what's waiting; one tap downloads+installs. */
     data class Available(val summary: String) : UpdateStatus
 
-    /** A download+install is running — cancellable (bundles are large, this may be venue wifi). */
-    data object InFlight : UpdateStatus
+    /** A download+install is running — cancellable (bundles are large, this may be venue wifi). A42 ①:
+     *  [fraction] is the download progress in 0..&lt;1 when a Content-Length is known, or null =
+     *  indeterminate (unknown total, or the install tail); [label] is the human line ("Downloading
+     *  12.3 / 45.6 MB" / "Installing…"). Never 1f — the terminal state is [UpToDate], not a full bar. */
+    data class InFlight(val fraction: Float? = null, val label: String = "Updating…") : UpdateStatus
 
     /** An update attempt failed — say so (T30: never swallow a gesture silently). [message] is shown
      *  in the row; the button retries. */
     data class Failed(val message: String) : UpdateStatus
+}
+
+/**
+ * A42 ① — the PURE map from an [UpdateProgress] to the [UpdateStatus.InFlight] the row renders, so the
+ * whole "honest bar" contract is unit-testable without a device:
+ *  - a known total ⇒ a determinate fraction, CAPPED just below full (never 1f before the swap — a bar
+ *    sitting at 100% is the display that reads as "hung"),
+ *  - an unknown total (contentLength ≤ 0) ⇒ null ⇒ the row stays indeterminate (NEVER a fabricated
+ *    fraction — an invented bar is worse than an honest spinner),
+ *  - the install tail ⇒ null + "Installing…" (genuinely not a percentage).
+ */
+fun inFlightStatus(p: UpdateProgress): UpdateStatus.InFlight = when (p) {
+    is UpdateProgress.Downloading ->
+        if (p.contentLength > 0L) {
+            val f = (p.bytesRead.toDouble() / p.contentLength).coerceIn(0.0, 0.99).toFloat()
+            UpdateStatus.InFlight(fraction = f, label = "Downloading ${humanBytes(p.bytesRead)} / ${humanBytes(p.contentLength)}")
+        } else {
+            UpdateStatus.InFlight(fraction = null, label = "Downloading ${humanBytes(p.bytesRead)}")
+        }
+    UpdateProgress.Installing -> UpdateStatus.InFlight(fraction = null, label = "Installing…")
+}
+
+/** Compact human byte size for the download readout (decimal MB/KB, one dp). Pure. */
+internal fun humanBytes(n: Long): String = when {
+    n >= 1_000_000L -> "${(n / 100_000L) / 10.0} MB"
+    n >= 1_000L -> "${n / 1_000L} KB"
+    else -> "$n B"
 }
 
 /** What's waiting to update, for [UpdateStatus.Available] — pure/testable. One concert names it; several
@@ -301,8 +333,14 @@ private fun UpdateRow(status: UpdateStatus, onUpdate: () -> Unit, onCancel: () -
                     Button(onClick = onUpdate) { Text("Update") }
                 }
                 is UpdateStatus.InFlight -> {
-                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Text("Updating…", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    val f = status.fraction
+                    if (f != null) {
+                        // A42 ①: determinate download bar (only when Content-Length was known).
+                        LinearProgressIndicator(progress = { f }, modifier = Modifier.size(width = 96.dp, height = 4.dp))
+                    } else {
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    }
+                    Text(status.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     TextButton(onClick = onCancel) { Text("Cancel") }
                 }
                 is UpdateStatus.Failed -> {

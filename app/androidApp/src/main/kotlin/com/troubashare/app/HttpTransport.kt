@@ -190,7 +190,11 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         return AvailableConcerts(all)
     }
 
-    override suspend fun downloadBundle(concertId: String, destPath: String) {
+    override suspend fun downloadBundle(
+        concertId: String,
+        destPath: String,
+        onBytes: (bytesRead: Long, contentLength: Long) -> Unit,
+    ) {
         val ck = cookie() ?: throw IllegalStateException("not connected")
         val bandId = concertBand[concertId]
             ?: run { fetchManifest(); concertBand[concertId] }
@@ -200,13 +204,22 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
             header("Cookie", ck)
         }.execute { resp ->
             if (!resp.status.isSuccess()) throw IllegalStateException("download failed (${resp.status.value})")
+            // A42 ①: Content-Length for a determinate bar; ≤0 (absent/unparseable/chunked) ⇒ the UI
+            // stays indeterminate — never fabricate a fraction.
+            val total = resp.headers["Content-Length"]?.toLongOrNull() ?: -1L
             val channel = resp.bodyAsChannel()
+            var read = 0L
+            onBytes(0L, total)
             File(destPath).outputStream().use { out ->
                 val buf = ByteArray(64 * 1024)
                 while (true) {
                     val n = channel.readAvailable(buf, 0, buf.size)
                     if (n < 0) break
-                    if (n > 0) out.write(buf, 0, n)
+                    if (n > 0) {
+                        out.write(buf, 0, n)
+                        read += n
+                        onBytes(read, total)
+                    }
                 }
             }
         }

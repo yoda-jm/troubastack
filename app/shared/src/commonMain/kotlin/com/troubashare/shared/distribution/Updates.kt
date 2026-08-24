@@ -54,8 +54,25 @@ interface ManifestTransport {
     /** Cheap metadata-only manifest call (a few KB); the server's `GET …/concerts` shape (I1). */
     suspend fun fetchManifest(): AvailableConcerts
 
-    /** Stream a concert's `.tstage` to [destPath] (no full-file-in-memory). Throws on network/IO error. */
-    suspend fun downloadBundle(concertId: String, destPath: String)
+    /** Stream a concert's `.tstage` to [destPath] (no full-file-in-memory). [onBytes] is invoked as
+     *  data arrives with (running total read, Content-Length) — a `contentLength` ≤ 0 means the total
+     *  is UNKNOWN (no/unparseable header) and the UI must stay indeterminate, never fabricate a
+     *  fraction (A42 ①). Throws on network/IO error. */
+    suspend fun downloadBundle(
+        concertId: String,
+        destPath: String,
+        onBytes: (bytesRead: Long, contentLength: Long) -> Unit = { _, _ -> },
+    )
+}
+
+/**
+ * A42 ① — the progress of an [UpdatesManager.apply]: the download (with byte counts) then a coarse,
+ * genuinely-not-a-percentage install phase. Emitted purely so the state machine is unit-testable off a
+ * fake transport (no device). `Downloading.contentLength` ≤ 0 ⇒ total unknown ⇒ indeterminate.
+ */
+sealed interface UpdateProgress {
+    data class Downloading(val bytesRead: Long, val contentLength: Long) : UpdateProgress
+    data object Installing : UpdateProgress
 }
 
 /**
@@ -121,7 +138,7 @@ class UpdatesManager(
      * to [importBundle] (A05's atomic swap). On any failure returns [ImportResult.Failed] and the
      * installed bundle is left untouched. `SongChanged` is unsupported in B03.
      */
-    suspend fun apply(offer: Availability): ImportResult {
+    suspend fun apply(offer: Availability, onProgress: (UpdateProgress) -> Unit = {}): ImportResult {
         val concertId = when (offer) {
             is Availability.UpdateOffered -> offer.concertId
             is Availability.NewlyAvailable -> offer.concertId
@@ -129,7 +146,10 @@ class UpdatesManager(
         }
         val dest = "${tempDir().trimEnd('/')}/$concertId.tstage"
         return try {
-            transport.downloadBundle(concertId, dest)
+            transport.downloadBundle(concertId, dest) { read, total ->
+                onProgress(UpdateProgress.Downloading(read, total))
+            }
+            onProgress(UpdateProgress.Installing) // A42 ①: download done → the coarse install tail
             importBundle(dest)
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             // A39 is the first CANCELLABLE caller of apply() (Home's Cancel). CancellationException IS an

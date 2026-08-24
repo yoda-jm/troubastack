@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.troubashare.shared.home.HomeScreen
+import com.troubashare.shared.home.inFlightStatus
 import com.troubashare.shared.ui.SettingsScreen
 import com.troubashare.shared.ui.ThemePref
 import com.troubashare.shared.ui.TroubaTheme
@@ -303,14 +304,15 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             onUpdate = {
                 val offers = updateOffers
                 if (offers.isNotEmpty() && updateJob == null) {
-                    homeUpdate = UpdateStatus.InFlight
+                    homeUpdate = UpdateStatus.InFlight()
                     updateJob = scope.launch {
                         // Apply each offer; COLLECT failures so we can say something (T30: never swallow
                         // a gesture silently). apply() rethrows CancellationException, so Cancel stops the
                         // loop here rather than being turned into a Failed and marching to the next offer.
+                        // A42 ①: forward apply's progress into the InFlight row (download bar → install tail).
                         val failed = mutableListOf<String>()
                         offers.forEachIndexed { i, offer ->
-                            if (updates.apply(offer) is ImportResult.Failed) {
+                            if (updates.apply(offer) { p -> homeUpdate = inFlightStatus(p) } is ImportResult.Failed) {
                                 failed += updateNames.getOrNull(i) ?: "a concert"
                             }
                         }

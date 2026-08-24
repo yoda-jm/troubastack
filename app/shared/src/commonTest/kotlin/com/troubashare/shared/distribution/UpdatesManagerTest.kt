@@ -23,7 +23,7 @@ class UpdatesManagerTest {
     ) : ManifestTransport {
         var downloads = 0
         override suspend fun fetchManifest() = manifest
-        override suspend fun downloadBundle(concertId: String, destPath: String) {
+        override suspend fun downloadBundle(concertId: String, destPath: String, onBytes: (Long, Long) -> Unit) {
             downloads++; onDownload(concertId, destPath)
         }
     }
@@ -111,6 +111,28 @@ class UpdatesManagerTest {
         val r = m.apply(Availability.UpdateOffered("a", 1uL, 2uL))
         assertIs<ImportResult.Imported>(r)
         assertEquals(1, t.downloads)
+    }
+
+    @Test
+    fun apply_emitsDownloadBytesThenInstalling() = runTest {
+        // A42 ①: apply forwards the transport's byte counts as Downloading, then exactly one Installing
+        // right before the importer runs — the sequence the InFlight row renders.
+        val transport = object : ManifestTransport {
+            override suspend fun fetchManifest() = AvailableConcerts()
+            override suspend fun downloadBundle(concertId: String, destPath: String, onBytes: (Long, Long) -> Unit) {
+                onBytes(0, 100); onBytes(50, 100); onBytes(100, 100)
+            }
+        }
+        val seen = mutableListOf<UpdateProgress>()
+        val m = UpdatesManager(
+            transport = transport, tempDir = { "/tmp" }, installedRevs = { emptyMap() },
+            importBundle = { ImportResult.Imported("c") }, readPolicies = { null }, writePolicies = {},
+        )
+        assertIs<ImportResult.Imported>(m.apply(Availability.NewlyAvailable("c")) { seen += it })
+        assertEquals(UpdateProgress.Downloading(0, 100), seen.first())
+        assertEquals(UpdateProgress.Downloading(100, 100), seen[2])
+        assertEquals(UpdateProgress.Installing, seen.last())
+        assertEquals(1, seen.count { it == UpdateProgress.Installing }, "exactly one install phase")
     }
 
     @Test

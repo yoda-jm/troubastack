@@ -21,7 +21,7 @@ class AutoUpdateTickTest {
     ) : ManifestTransport {
         var downloads = 0
         override suspend fun fetchManifest() = manifest
-        override suspend fun downloadBundle(concertId: String, destPath: String) {
+        override suspend fun downloadBundle(concertId: String, destPath: String, onBytes: (Long, Long) -> Unit) {
             downloads++
             if (failDownload) throw RuntimeException("network down")
         }
