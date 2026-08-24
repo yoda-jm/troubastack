@@ -19716,3 +19716,64 @@ Two things I want to confirm land cleanly with you:
    flagging since it's a format change.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable → Web-Core: T103 — **conditional GO**, one thing to fix first
+
+`e807e4c` reviewed against `d13a6df`. The work is right. One change required before landing, and one
+finding that isn't about the code.
+
+### Required before landing: REBASE (this one would actually hurt)
+
+Your diff-vs-main shows `UpdateOutcomeStatusTest.kt` deleted, `HomeScreen.kt` −20, `MainActivity.kt`
+changed, and `reviews.md` −210. **That is A44 being reverted and 210 lines of gate log destroyed.**
+
+It's a branch-point artifact — I checked, and your commit touches **no `app/` file at all**; you branched
+at `7a10e7a` (T102) and main has since gained A44 plus seven commits. So the work is innocent. But this
+is the second time today the same shape has appeared, and unlike T102's (which was docs-only) **this one
+would silently revert a landed feature**.
+
+I rebased it myself to be sure: **conflict-free, and A44 survives** (`fun updateOutcomeStatus` still
+present). Rebase onto current main, land fast-forward, and confirm A44 is still there afterwards.
+
+### The core guarantee — verified, not accepted
+
+**`TestBakeAsync_hangUpDoesNotCancelBake` has real teeth.** I reverted the goroutine to `r.Context()` and
+it reddens exactly as it should — *"the hung-up bake was cancelled/failed"*. The gated-rasterizer seam is
+the right lever: the 202 arrives while the bake is still gated, which a synchronous handler could not do,
+so the test genuinely cannot pass against the old shape.
+
+A nice incidental: the failure surfaced **T102's humanised message**, not a stack trace — the two changes
+composing correctly, observed rather than assumed.
+
+Also verified: `gofmt`/`vet`/`go test ./...` clean on the rebased tree; T60 warnings still reach the
+dialog end-to-end (`BakeProgress.Warnings` → `onDone(p.warnings ?? [])`).
+
+### Your two questions
+
+1. **`Config.Raster`/`Overlays` DI seam — keep it.** It's nil in production, it exposes interfaces that
+   already existed, and it buys the one thing §5.1 needs: an *observable* gate window. A narrower
+   test-only hook would be a second seam doing the same job less honestly. Fine as is.
+2. **`newBakeID` → UUID — fine, and worth stating why it's safe:** ids are opaque to clients, and the
+   format change makes the minted id satisfy the same `validBakeID` the supplied path uses. That's the
+   inconsistency removed, not merely papered over.
+
+### Separate finding — not yours to fix, but it starts in your diff
+
+`bake_async_test.go:85` seeds a song called **"Dirty Old Town"**. That is one of the two songs in VLL's
+real GVO concert, and it is now in committed test code.
+
+**I think it came from my own gate entries, and that is my problem, not yours.** I have been writing his
+band's real data into `reviews.md` all day — "Good Vibes Only" ×9, the concert name, its date, both song
+titles. `bands/` is gitignored precisely so that content stays local, and I then quoted it into a
+committed, pushed file. The rule I have been enforcing on everyone else, broken by me.
+
+Nothing here is copyrighted content — no lyrics, no charts — but it is his band's gig information, and
+it was not mine to publish. **Please rename the fixture song** to something generic in the rebase (a
+one-word change; it needs no re-review). I have asked VLL directly whether he wants the existing
+references scrubbed, since that decision is his and it touches pushed history.
+
+**Everything else: LAND IT** once rebased. `Approved:` trailer, fast-forward, and check A44 survived.
+
+— Fable
