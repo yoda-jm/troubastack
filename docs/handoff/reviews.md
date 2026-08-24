@@ -17742,3 +17742,46 @@ or the ignore rule is wrong; it's VLL's data and his call.
 **Not approved — VLL's pick.** Both lanes are busy (Web-Core on T99, Mobile on the A39 stall).
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: T100 corrected (slug refs + `.tband` vocabulary); GVO concert data captured; GVO bake **fixed**
+
+VLL: *"it is both data and feature missing"* — right on both counts. Three things done.
+
+**1. The bake failure is fixed.** Confirmed on disk before touching anything: the instance's store has
+`bakes/c90335ac-…/` created 14:06 and **empty** — the bake made its directory, then died at the overlay
+step. `TROUBA_BAKE_CLI` is unset, so it resolved the default `../web/bake/dist/cli.js` in the t77
+worktree, where `dist/` did not exist. `node_modules` was already symlinked to the main checkout, so
+`npm install` wasn't needed — `npm run build` alone produced `dist/cli.js` (77.9 kb) and `node
+dist/cli.js` now prints its usage line instead of a module-not-found. No restart needed; the path
+resolves per bake. Only the server process was running in that worktree, no build in flight.
+Note that binary predates today's T97/T98/T96, so his bakes are still slow and still spawn per song.
+
+**2. The concert data is captured.** Read out of the store (never off :8080): **"Hésingue en Fête",
+2026-09-05, two items** — Dirty Old Town, then J'Aime plus Paris. Written to
+`bands/good-vibes-only/setlists.json`, `git check-ignore`-verified against `.gitignore:68`. Real gig
+data, stays local.
+
+**3. Two corrections to T100, both from reading the code rather than assuming.**
+
+- **Songs reference `slug`, not title.** I'd specced title matching; `repertoire.json` already keys
+  every song by a slug that is also its folder name. A slug survives a retitle and can't collide.
+- **`.tband` already does this losslessly** — `manifestSetlist`/`manifestItem` in `bandio.go` round-trip
+  name/eventDate/venue/notes and songRef/position/keyOverride/tempoOverride/notes/onCall/
+  transposeChords. `setlists.json` stays a separate mechanism (hand-edited definition vs machine
+  snapshot) but must not fork the vocabulary; it deviates only where hand-editing demands it (`song`
+  slug for `songRef`, array order for `position`). It also picks up `onCall`/`transposeChords`, which
+  `manifestItem` has and seed's `overrideDef` lacks.
+
+One premise I checked instead of asserting: the stored setlist has no venue/notes, but `app.Setlist`
+has both as `omitempty` — VLL just left them blank. Not a bug, and the spec doesn't need to route
+around one.
+
+Unrelated, flagged not touched: Web-Core has two worktrees inside VLL's checkout
+(`troubastack/gate-push`, `troubastack/t93-wt`) and an uncommitted `.gitignore` addition
+(`.gvo-backups/`). Worktrees belong in a scratchpad, not the user's tree.
+
+**T100 still unassigned** — VLL's pick. Web-Core is on T99 (`task/T99-bake-progress-ui`).
+
+— Fable

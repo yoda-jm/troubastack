@@ -38,11 +38,23 @@ So this is a small feature, not a config edit.
 - Separate because `band.json` is identity, `repertoire.json` is the song list, and a concert is a
   third thing with its own lifecycle (it changes per gig; the repertoire doesn't).
 
-Mirror the existing `setlistDef` so the two paths can't drift: `name`, `eventDate` (ISO
-`yyyy-mm-dd`), `venue`, `notes`, and per-item `overrides` (`song` title match, `keyOverride`,
-`tempoOverride`, `notes`). **Match songs by title against the band's own repertoire**, exactly as
-`overrideDef` already does — a title that isn't in the repertoire is an error naming the title, not a
-silent skip.
+**Reference songs by `slug`, not by title.** `repertoire.json` already keys every song by a `slug`
+that is also its folder name (`dirty-old-town`, `jaime-plus-paris`). A slug is stable across a retitle
+and unambiguous across two songs with the same name; matching on a display title is neither. An
+unknown slug is an error naming the slug — silently dropping a song from a gig list is the worst
+failure this task can have.
+
+**Match the `.tband` manifest's field names exactly** (`core/internal/app/bandio.go`). `ExportBand`/
+`ImportBand` already round-trip setlists losslessly through `manifestSetlist` {name, eventDate, venue,
+notes, items} and `manifestItem` {songRef, position, keyOverride, tempoOverride, notes, onCall,
+transposeChords}. `setlists.json` is a hand-edited *definition* where `.tband` is a machine *snapshot*,
+so they stay separate mechanisms — but the vocabulary must not fork. Two deliberate deviations, both
+in service of hand-editing: `song` (a repertoire slug) replaces `songRef` (an internal songID), and
+**array order replaces explicit `position`**. Everything else keeps the manifest's name and meaning.
+
+Note that `onCall` and `transposeChords` exist in `manifestItem` but *not* in seed's `overrideDef`.
+Support them in `setlists.json` — a gig list that can't mark an on-call song is missing the thing that
+makes it a gig list.
 
 `groupDef.setlist` is a single `setlistDef` today; widen the local path to seed **each** entry. Keep
 the demo path working unchanged.
@@ -59,10 +71,10 @@ the demo path working unchanged.
 ## 4. Acceptance criteria
 
 - `make band=gvo` (or any local band) with a `setlists.json` creates each setlist with its items in
-  order, and applies the overrides.
+  array order, and applies the overrides.
 - **A missing `setlists.json` is normal**, not an error — the band seeds exactly as it does today. This
   is the back-compat case and it needs a test.
-- **A title not in the repertoire fails loudly, naming the title.** Silently dropping a song from a gig
+- **A slug not in the repertoire fails loudly, naming the slug.** Silently dropping a song from a gig
   list is the worst possible failure here.
 - **A plain `seed` still skips personal bands** — assert it, since this task adds new data to the thing
   being skipped.
@@ -82,3 +94,14 @@ his call whether a repertoire of titles-and-artists is safe to commit.
 - Baking those setlists, or anything about the bake.
 - Committing any GVO content.
 - A UI for editing local band folders.
+
+## 7. The data is already written
+
+`bands/good-vibes-only/setlists.json` exists (gitignored) and holds VLL's concert as read off the
+running instance's store on 2026-08-24: **"Hésingue en Fête", 2026-09-05, two items** — `dirty-old-town`
+then `jaime-plus-paris` — no venue, no notes, no overrides. It is the acceptance fixture: when this
+task lands, `make band=gvo` must recreate exactly that setlist.
+
+Two caveats for whoever implements this. It is a **snapshot** — VLL may have added songs since, so
+re-read the store rather than trusting the file's contents. And venue/notes are empty because he left
+them blank in the UI, **not** because the field is missing: `app.Setlist` has both, `omitempty`.
