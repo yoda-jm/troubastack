@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/go-pdf/fpdf"
+
+	"troubastack/core/internal/chartpdf"
 )
 
 // --- anchor manifest (B13) ------------------------------------------------
@@ -88,10 +90,15 @@ func main() {
 	builds := map[string]func() *fpdf.Fpdf{
 		"open-road-leadsheet.pdf":    openRoadLeadSheet, // A: ORIGINAL lead sheet
 		"open-road-guitar.pdf":       openRoadGuitar,    // A2: ORIGINAL guitar part (intro riff)
-		"amazing-grace.pdf":          amazingGrace,      // B: PUBLIC DOMAIN (1779 hymn)
-		"blank-chart.pdf":            blankChart,        // C: generic placeholder
+		"blank-chart.pdf":            blankChart,        // C: generic placeholder (converges later)
 		"house-rising-sun-tab.pdf":   houseTab,          // D: PUBLIC DOMAIN — guitar tab
 		"house-rising-sun-drums.pdf": houseDrums,        // E: PUBLIC DOMAIN — drum groove
+	}
+	// T95 Stage B: charts the dialect CAN express are the .chart source of truth, rendered through the
+	// productized `chartpdf` (so they inherit its auto-fit/compaction/breaks) rather than a duplicate
+	// hand-drawn mkcharts builder. Their `.pdf` + `.anchors.json` are regenerated from `<base>.chart`.
+	chartBuilds := map[string]string{
+		"amazing-grace": "amazing-grace.chart", // B: PUBLIC DOMAIN (1779 hymn)
 	}
 	// Deterministic order so the run log is stable (each file's bytes are independent anyway).
 	names := make([]string, 0, len(builds))
@@ -110,6 +117,43 @@ func main() {
 		}
 		fmt.Printf("wrote %s (+%d anchors)\n", name, len(anchors))
 	}
+	chartNames := make([]string, 0, len(chartBuilds))
+	for base := range chartBuilds {
+		chartNames = append(chartNames, base)
+	}
+	sort.Strings(chartNames)
+	for _, base := range chartNames {
+		if err := writeChartFromSource(*out, base, chartBuilds[base]); err != nil {
+			log.Fatalf("mkcharts %s: %v", base, err)
+		}
+	}
+}
+
+// writeChartFromSource renders a committed `.chart` dialect source through chartpdf and writes
+// <base>.pdf + <base>.anchors.json — the SAME renderer + anchor manifest the server produces, so a
+// demo annotation placed against these anchors lands on the live-rendered chart identically (T95 §3).
+func writeChartFromSource(outDir, base, chartFile string) error {
+	src, err := os.ReadFile(filepath.Join(outDir, chartFile))
+	if err != nil {
+		return fmt.Errorf("read chart source: %w", err)
+	}
+	pdf, chAnchors, err := chartpdf.RenderWithAnchors(string(src))
+	if err != nil {
+		return fmt.Errorf("render chart: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, base+".pdf"), pdf, 0o644); err != nil {
+		return err
+	}
+	// chartpdf.Anchor already carries the exact json tags of the manifest; write it verbatim + sorted.
+	b, err := json.MarshalIndent(chAnchors, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(outDir, base+".anchors.json"), append(b, '\n'), 0o644); err != nil {
+		return err
+	}
+	fmt.Printf("wrote %s.pdf via chartpdf (+%d anchors)\n", base, len(chAnchors))
+	return nil
 }
 
 func write(path string, pdf *fpdf.Fpdf) error {
@@ -335,41 +379,6 @@ func openRoadGuitar() *fpdf.Fpdf {
 	pdf.SetXY(margin, yy+8)
 	pdf.MultiCell(right-margin, 5, tr("Chord shapes: G (320003) · D (xx0232) · Em (022000) · C (x32010). "+
 		"Capo 2 (written pitch). Play the riff twice, then Verse."), "", "L", false)
-	footer(pdf, tr)
-	return pdf
-}
-
-// --- B: PUBLIC DOMAIN — "Amazing Grace" (John Newton, 1779) -----------------
-//
-// A hymn published in 1779; its text is long out of copyright (public domain).
-// Only a simple demo chord accompaniment is added.
-
-func amazingGrace() *fpdf.Fpdf {
-	pdf, tr := newDoc("Amazing Grace — Lead Sheet")
-	header(pdf, tr, "Amazing Grace", "words: John Newton, 1779 (public domain) · arr. demo", "Key: G major   •   Tempo: 72 bpm   •   3/4")
-	y := 50.0
-	y = sectionLabel(pdf, tr, y, "Verse 1")
-	y = chordLine(pdf, tr, y, "G          G7       C     G", "Amazing grace, how sweet the sound,")
-	y = chordLine(pdf, tr, y, "G                    D", "that saved a wretch like me.")
-	y = chordLine(pdf, tr, y, "G           G7      C      G", "I once was lost, but now am found,")
-	y = chordLine(pdf, tr, y, "Em        D        G", "was blind, but now I see.")
-	y += 3
-	y = sectionLabel(pdf, tr, y, "Verse 2")
-	y = chordLine(pdf, tr, y, "G            G7        C        G", "'Twas grace that taught my heart to fear,")
-	y = chordLine(pdf, tr, y, "G                     D", "and grace my fears relieved.")
-	y = chordLine(pdf, tr, y, "G          G7        C          G", "How precious did that grace appear")
-	y = chordLine(pdf, tr, y, "Em           D          G", "the hour I first believed.")
-	y += 3
-	y = sectionLabel(pdf, tr, y, "Verse 3")
-	y = chordLine(pdf, tr, y, "G          G7         C          G", "Through many dangers, toils and snares,")
-	y = chordLine(pdf, tr, y, "G                    D", "I have already come.")
-	y = chordLine(pdf, tr, y, "G          G7          C            G", "'Tis grace hath brought me safe thus far,")
-	y = chordLine(pdf, tr, y, "Em         D           G", "and grace will lead me home.")
-	y += 4
-	pdf.SetFont("Helvetica", "I", 10)
-	pdf.SetXY(margin, y)
-	pdf.MultiCell(right-margin, 5, tr("Text by John Newton (1779) — public domain. The chord accompaniment above is a "+
-		"simple demo arrangement."), "", "L", false)
 	footer(pdf, tr)
 	return pdf
 }

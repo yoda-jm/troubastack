@@ -167,8 +167,8 @@ func TestSubtitleHeader_BodyPreservation(t *testing.T) {
 		got := strings.Join(strings.Fields(pdftotext(t, pdf)), " ")
 		for i, ln := range lines {
 			s := strings.TrimSpace(ln)
-			if s == "" || strings.HasPrefix(s, "# ") {
-				continue // blank or the title line
+			if s == "" || strings.HasPrefix(s, "# ") || isNewPageMarker(s) || isFootnoteMarker(s) {
+				continue // blank, the title line, or a consumed flow marker ({new_page}/{footnote})
 			}
 			if want := normChartLine(ln); want != "" && !strings.Contains(got, want) {
 				t.Errorf("%s: line %d %q lost from rendered output", fx, i, s)

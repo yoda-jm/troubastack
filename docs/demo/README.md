@@ -138,3 +138,14 @@ artifact.
 > transposes.) The seed's real T19 text charts do now auto-fit when first rendered, but that is at
 > `POST /text-charts` time, not bake time. Recorded so nobody re-bakes a compliant artifact — and so
 > the day someone adds a transposed item to the demo, they know that is the line that changes it.
+>
+> Re-baked 2026-08-24 (**T95 Stage B — amazing-grace converges onto chartpdf**): Amazing Grace's lead
+> sheet used to be a hand-drawn `mkcharts` PDF that duplicated what the productized `chartpdf` renderer
+> can already draw. It is now the chart-dialect source `docs/demo-charts/amazing-grace.chart` (its
+> attribution is a real `{footnote}` block, T95 Stage A), and `mkcharts` **regenerates
+> `amazing-grace.pdf` by rendering that source through `chartpdf`** — so its stored bytes changed and
+> the bundle IS re-baked. (This is a change to the stored file itself, not the T76 bake-time
+> re-render the note above rules out — that invariant still holds; the demo still transposes nothing.)
+> Its anchor manifest is regenerated from the same `chartpdf.RenderWithAnchors`, so the demo highlights
+> land on the new render identically (`TestAnchorTextMatchesPDF` + the ink test guard both green).
+> Structure unchanged: 4 songs, 6 default-part pages.

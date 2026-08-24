@@ -244,11 +244,12 @@ func run(addr, password, only, band string) error {
 						"leo":   {{icon: "guitar-acoustic"}},
 						"sasha": {{icon: "bass", color: "#2563eb"}},
 					}},
-				// PUBLIC DOMAIN hymn (John Newton, 1779) — a committed lead sheet PLUS a
-				// chord text chart.
+				// PUBLIC DOMAIN hymn (John Newton, 1779). T95 Stage B: its lead sheet is the
+				// chart-dialect source amazing-grace.chart, rendered through chartpdf (mkcharts
+				// regenerates amazing-grace.pdf from it) — no longer a duplicate hand-drawn mkcharts
+				// chart plus a separate text chart.
 				{title: "Amazing Grace", artist: "Traditional", key: "G", tempo: 72, meter: "3/4", tags: []string{"hymn", "public-domain"}, notes: "Newton, 1779; gentle 3/4.",
-					src:           pdfSource{cacheName: "amazing-grace.pdf", localPath: "../docs/demo-charts/amazing-grace.pdf", docTitle: "Lead sheet", title: "Amazing Grace", subtitle: "words: John Newton, 1779 (public domain)", pages: 1},
-					textChartPath: "../docs/demo-charts/amazing-grace.chart",
+					src: pdfSource{cacheName: "amazing-grace.pdf", localPath: "../docs/demo-charts/amazing-grace.pdf", docTitle: "Lead sheet", title: "Amazing Grace", subtitle: "words: John Newton, 1779 (public domain)", pages: 1},
 					cuesFor: map[string][]cueDef{
 						"marie": {{icon: "mic"}},
 						"sasha": {{icon: "keys", color: "#7c3aed"}},
