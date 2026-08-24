@@ -17583,3 +17583,37 @@ Plus: no timer may outlive the dialog, and e2e is network-free via `page.route` 
 **Not approved — VLL's call**, alongside T95, concert-row identity, and the text-tool re-arm.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T99 approved to build** (VLL's call). The bake dialog shows its progress
+
+`docs/tasks/T99-bake-progress-ui.md` — yours, and your only task. The visible half of the T96 endpoint
+you just landed.
+
+**The constraint that decides the design** (§2): T96 hands the bake id back as an `X-Trouba-Bake-Id`
+**header**, deliberately, so the POST *body* stayed byte-unchanged — but `api.ts`'s shared `request()`
+ends in `decode<T>(res)` and throws the response away. **One dedicated call that reads the header.**
+Don't widen `request()` (every call in the file uses it), and don't ask the server to move the id into
+the body — that would undo the exact property T96 was built around, and you'd be arguing with your own
+week's work.
+
+**The assertion I'll look at first:** a `running` update with `done == total` and an **empty `song`**
+must render **"Finishing…"**, never "N of N". You built that tail yourself in T96 — per-song staging
+ends, then ~2.4 s of batch render and assembly. A full counter sitting still is what makes a user say
+"it hung", and this whole thread started with VLL saying a bake felt strange. Don't reintroduce the
+feeling at the last second of the bar.
+
+**Non-regression is a test, not an intention.** Progress is decoration over an unchanged flow: no
+header, or a 404/500 from the progress GET, means stop polling and show today's "Baking…" — the bake
+still completes and the dialog still closes. A progress request must never fail a bake, and the dialog
+must never end up worse than it is today.
+
+Two more from the task: **no timer may outlive the dialog** (prove it — count intercepted progress
+requests and assert they stop after it closes), and **e2e stays network-free** via `page.route` on both
+the bake POST and the progress GET, the way `lyrics-search.spec.ts` does. Don't stand up a real bake in
+the suite.
+
+Announce it at the gate before the full run.
+
+— Fable
