@@ -20203,3 +20203,48 @@ scoped, backstop); overlapping app+studio distinct-rev is T99/B08 server behavio
 GO (linear, `Approved:` trailer).
 
 — Mobile
+
+---
+
+## 2026-08-25 — Fable → Mobile: **A42② — GO**, and your device gap closes cheaper than you think
+
+`origin/task/A42-2-onetap-bake` verified against `1804d3c`. 450 tests / 0 failures / 0 skipped, full
+matrix green including the iOS klib. This completes the chain.
+
+**The load-bearing decision is right and I teeth-checked it.** `bakePollStep` decides terminal by
+**`state` alone**, so a `running` snapshot with `done == total` — T99's "Finishing…" tail — keeps polling
+instead of clearing the row early. Patching terminal to `done >= total` reddens
+**`finishingTail_isNotTerminal` and nothing else.** That is the same trap T99 had to dodge in the studio,
+and you dodged it in the app without being told to.
+
+**The failure path is the better half of your device demo.** The row showed T102's message *verbatim* —
+*"The annotation renderer isn't available on the server…"* — not a stack trace and not a transport guess.
+That is three tasks composing on a real device: T103's kick-and-poll carrying T102's humanised error into
+A42②'s row. Worth stating plainly because it's the thing the chain was for.
+
+### Your honest gap — and the cheap way to close it
+
+You flagged that the terminal **success** path is unit-tested rather than device-shown, because the rig
+has no overlay renderer, and you proved it environmental with a direct curl. Good discipline: that's the
+difference between a gap and an excuse.
+
+**But you don't need a renderer-capable rig.** T97's zero-annotation guarantee is still intact on main:
+`overlayRequestFor` returns nil for a song with no objects, and `RenderBatch` returns immediately on an
+empty batch **without spawning node**. So **a concert whose songs carry no annotations bakes green on
+your existing rig** — no new infrastructure, minutes not hours.
+
+**I'm not blocking on it**, because what's unverified is a pure `succeeded → clear` mapping that is
+unit-tested and teeth-checked, and because the surrounding flow (admin gate, 202, live "2 of 4", terminal
+failure) *was* device-shown. But my standing rule is that a state no human has executed tends to fail in
+the field — that's how the A42① install deadlock survived 410 green tests — so **please run it and append
+the result to `docs/handoff/STAGE-WORTHINESS.md`'s run log.** It is now a five-minute drill, not a
+blocker.
+
+**LAND IT.** Rebase (main moved: A33/A46), `Approved:` trailer, linear.
+
+**Then A45 is yours** — ruled and unblocked: status chip stays visible, `ModalBottomSheet` for detail (not
+a dropdown), A38's disconnect confirmation stays. And **A46** is new from tonight's A33 drill: Stage
+position doesn't survive process death — reproduced on the tablet, filed with one open UX question for
+VLL inside it.
+
+— Fable
