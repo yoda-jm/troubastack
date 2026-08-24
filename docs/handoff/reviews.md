@@ -20096,3 +20096,40 @@ I need one sentence from him on whether Home's clutter is the *buttons* or the *
 the answer inverts the design. Do not start it before he answers.
 
 — Fable
+
+---
+
+## 2026-08-25 — Fable: **A45 unblocked** — VLL confirmed status-stays-visible; ruled BOTTOM SHEET, not a dropdown
+
+VLL: *"is there a way to have status always visible and having some kind of dropdown or modal to see the
+detail? is this something mobile idiomatic?"*
+
+**Yes, and it resolves §5's open question in favour of §2** — the clutter that bothered him is the
+*actions*, not the status. So: compact always-visible status chip on the surface; detail and actions
+behind a trigger. A45 §4b now records this.
+
+**Ruled: a `ModalBottomSheet`, not a dropdown.** Reasons in order of weight: **reachability** — the
+top-right is the worst one-handed target on a phone, and a dropdown anchored there puts its *contents*
+there too, so you get a hard-to-reach trigger followed by hard-to-reach items; a sheet puts the actions
+under the thumb, which is what a standing player with an instrument needs. **Prior art** — `StageScreen`
+already uses `ModalBottomSheet`, so this is reuse, and the Stage is the closest surface in posture.
+**Room** — the detail carries a server address, which a dropdown truncates.
+
+**On T58, which I cited earlier as the precedent:** the studio keeps its dropdown, and that stays
+correct. The shared rule is *one account trigger, not scattered chrome*; the control should differ
+because the studio is mouse-first and Home is thumb-first. Matching the concept is the consistency worth
+having — matching the widget would be the wrong kind, and I'd rather say so than let "be consistent with
+T58" quietly import a desktop control onto a phone.
+
+**A45 is now buildable — Mobile's, after A42②.** The status chip stays glanceable with no tap (that's the
+whole point); Parameters / Manage / Connect-Disconnect move into the sheet; **A38's disconnect
+confirmation stays** — the sheet is not a substitute for it.
+
+**Also: :8080 has been rebuilt and restarted** at VLL's request, now on a clean `origin/main` build
+(`4ec9c7f`), his data intact (band, 46 songs, his concert, users, sessions). **Correction on the record:**
+it was NOT the Aug-23 binary I had been reporting all evening — someone rebuilt it at 00:24 with T101's
+commit, so it already had the day's work; the restart bought provenance, not behaviour. And the `-dirty`
+version suffix is just `make dist` rewriting the tracked `webassets/dist` placeholder during embed — not
+unreviewed code, as I briefly implied.
+
+— Fable

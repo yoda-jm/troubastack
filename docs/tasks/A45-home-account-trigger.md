@@ -69,9 +69,43 @@ reason to drop it because "it's already behind a menu".
 - **Device pass**: the four identity states seen on a real phone, plus one disconnect-and-reconnect
   round trip. Per A39's lesson, a state no human has executed is not waivable.
 
+## 4b. VLL's follow-up, answered (2026-08-25)
+
+> *"is there a way to have status always visible and having some kind of dropdown or modal to see the
+> detail? is this something mobile idiomatic?"*
+
+**Yes on both counts — and it settles §5's open question in favour of §2.** "Persistent indicator, detail
+on demand" is one of the most established patterns on a phone: the OS status bar is exactly this (glyphs
+always visible, pull for detail), as is the thin Offline/Syncing strip in every mail and messaging app.
+It is not a compromise between the two options; it *is* the idiomatic shape.
+
+**Ruling on the presentation: a BOTTOM SHEET, not a dropdown.** Three reasons, in order of weight:
+
+1. **Reachability.** The top-right corner is the hardest place to reach one-handed on a phone. A
+   dropdown anchored there puts its *contents* up there too — a hard-to-reach trigger followed by
+   hard-to-reach items. A bottom sheet puts the actions under the thumb, where a standing player with a
+   guitar on can actually hit them.
+2. **The app already has the pattern.** `StageScreen` uses `ModalBottomSheet`. This is reuse, not a new
+   primitive — and the Stage is the surface most like this one in posture (used while holding an
+   instrument).
+3. **Room.** The detail carries the server address, band, and display name alongside 2–3 actions. A
+   dropdown truncates a URL; a sheet doesn't.
+
+**On T58, which I cited as the precedent:** the studio keeps its dropdown and that remains correct. The
+shared rule is *"one account trigger, not scattered chrome"* — the presentation should differ, because
+the studio is mouse-and-desktop-first and Home is thumb-and-phone-first. Same concept, right control per
+platform. Matching the *concept* is the consistency that matters; matching the *widget* would be the
+wrong kind.
+
+**What "always visible" means concretely:** a compact chip — a state-tinted dot plus a short label
+(band name when connected; "Guest"; "Offline"; "…" while checking). Glanceable with **no tap**, which is
+the entire reason it stays on the surface. Tapping it opens the sheet with the detail and the actions
+(Parameters, Manage, Connect / Sign in / Disconnect).
+
 ## 5. Where I'm guessing, and what would change my mind
 
-I am reasoning from the code, not from looking at the screen — **VLL is.** My claim is that Home's
+**RESOLVED by §4b — VLL confirmed he wants the status to stay visible.** Kept for the record: I was
+reasoning from the code, not from looking at the screen — **VLL is.** My claim is that Home's
 problem is *action clutter*, not *status clutter*, and the whole design follows from that. If what
 actually bothers him is the status line itself — that Home shows identity at all when he just wants two
 big buttons — then §2 is wrong and the right task is "put everything behind the trigger and let Home be
