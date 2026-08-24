@@ -6,9 +6,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/png" // register PNG decoder for image.DecodeConfig
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -53,6 +55,10 @@ type Baker struct {
 	progress   *progressRegistry
 	newBakeID  func() string
 	onProgress func(id string, p BakeProgress)
+	// logf writes the FULL internal failure detail (stderr, resolved binary/script paths, stack
+	// frames) to the server log — and nowhere else (T102). Injectable so a test can capture it;
+	// defaults to log.Printf.
+	logf func(format string, args ...any)
 }
 
 // New builds a Baker with the real poppler + web/bake shell-out steps. A missing
@@ -72,7 +78,44 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 		now:       func() int64 { return time.Now().Unix() },
 		progress:  newProgressRegistry(nil),
 		newBakeID: newBakeID,
+		logf:      log.Printf,
 	}
+}
+
+// bakeError is a bake failure split in two (T102): Error() is the SHORT, user-safe message that may
+// reach the browser + the app (one line, no paths, no stack frames), while the full internal detail
+// was already logged server-side by Baker.fail. A band member reading Error() learns whether it's
+// their problem or the server's — and never sees a stderr blob.
+type bakeError struct{ human string }
+
+func (e *bakeError) Error() string { return e.human }
+
+// fail logs the full internal detail to the server log and returns a bakeError carrying only `human`.
+// Use it at a failure point where the cause is understood; the returned error can be wrapped freely —
+// humanize finds it through errors.As.
+func (b *Baker) fail(human string, detail error) error {
+	if b.logf != nil {
+		b.logf("bake failed: %s — %v", human, detail)
+	}
+	return &bakeError{human: human}
+}
+
+// humanize is the single choke point that guarantees no raw error reaches the wire: a *bakeError
+// (however wrapped) passes through unchanged, and anything else is logged and replaced with a generic
+// user-safe message. Applied to Bake's error return in the defer, so BOTH the POST body and
+// BakeProgress.Error carry only human text — even from a failure point that didn't compose its own.
+func (b *Baker) humanize(err error) error {
+	if err == nil {
+		return nil
+	}
+	var be *bakeError
+	if errors.As(err, &be) {
+		return be
+	}
+	if b.logf != nil {
+		b.logf("bake failed (unsanitised): %v", err)
+	}
+	return &bakeError{human: "The bake failed. Ask an admin to check the server — the log has the details."}
 }
 
 // newBakeID mints an unguessable, per-bake identifier (16 random bytes, hex). NOT the
@@ -157,6 +200,11 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	// never leave the bake stuck on "running" forever (the A39 stall). Fires on each return.
 	defer func() {
 		if err != nil {
+			// T102: sanitise the escaping error ONCE, here — it's the single point both channels read
+			// from (the returned err → POST body via writeErr; err.Error() → BakeProgress.Error). So a
+			// failed bake never ships a stderr blob or a server path to a band member, on either path —
+			// even from a failure point (assemble, packaging) that didn't compose its own message.
+			err = b.humanize(err)
 			b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeFailed, Done: done, Total: total, Song: curSong, Error: err.Error()})
 			return
 		}
@@ -264,7 +312,9 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeRunning, Done: total, Total: total})
 	overlaysByKey, oerr := b.overlays.RenderBatch(ctx, batch)
 	if oerr != nil {
-		return ConcertBundle{}, bakeID, oerr
+		// VLL's exact failure (the overlay CLI missing): the raw error is a Node stack trace + absolute
+		// server paths. Log that; tell the user the renderer is unavailable and whose problem it is.
+		return ConcertBundle{}, bakeID, b.fail("The annotation renderer isn't available on the server. Ask an admin to check the bake setup.", oerr)
 	}
 	for _, st := range staged {
 		song, aerr := b.assembleSong(st, overlaysByKey[st.overlayKey], blobsDir, layerDefaults)
@@ -472,7 +522,8 @@ func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.
 
 	rasters, err := b.raster.Rasterize(ctx, pdf)
 	if err != nil {
-		return stagedSong{}, nil, err
+		// poppler's stderr + its binary path; the user gets a one-line, song-named reason instead.
+		return stagedSong{}, nil, b.fail(fmt.Sprintf("Couldn't read the sheet music for %q — the file may be damaged.", item.SongTitle), err)
 	}
 	pageSizes := make([]pageSize, 0, len(rasters))
 	for i, r := range rasters {
