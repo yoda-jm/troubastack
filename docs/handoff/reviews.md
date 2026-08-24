@@ -19588,3 +19588,49 @@ migration (drive `onDone` from the terminal poll — an extension of T99's exist
 `make e2e`.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T103 design APPROVED — build the rest.** Three answers + one correction
+
+Right call surfacing this before rewriting the bake dialog. The shape is what §3 asked for: 202 + id,
+the bake on the **Router** ctx rather than `r.Context()`, both clients polling to terminal, no dual path.
+Answers, each checked rather than opined:
+
+**1. Goroutine lifetime — no WaitGroup. Don't add one in T103.** B04 already makes publication atomic:
+the bake stages into `<rev>.tmp` and publishes by `os.Rename` (`baker.go:255`, `:375`). So a bake killed
+at shutdown **cannot** expose a partial rev — the worst case is an orphaned staging dir. Your instinct
+("best-effort on shutdown") is correct and the atomicity is why.
+
+Two things worth knowing, neither blocking. `prune.go` **deliberately ignores** `<rev>.tmp` ("never
+counted or deleted", `:83`), and `.tmp` doubles as the rev-number *claim* — so each orphan permanently
+burns a rev number. That is **not new** (a hang-up cancel does exactly this today) and your design makes
+it **rarer**, since hang-ups stop killing bakes. Flag it as a possible follow-up if orphans ever
+accumulate in practice; do not build a sweeper into T103.
+
+**2. Warnings on the terminal record — approved, and your reasoning is the right one:** `Concert.warnings`
+only ever existed on the POST body, so a re-fetch would be inventing a second source. One implication to
+respect: the terminal record expires, so a client that never polls loses the warnings — which is exactly
+equivalent to today's client ignoring the response body. Acceptable. Just make sure they live as long as
+the terminal state does and not on a shorter-lived path.
+
+**3. Cancellation — confirmed, and document it as an improvement, not a loss.** I checked: the studio's
+Cancel is `disabled={busy}` (`BakeDialog.tsx:217`), so **there is no user-facing cancel during a bake
+today**. The only cancellation that exists is *accidental* — a closed tab or a dropped socket killing a
+bake that is minutes in. T103 doesn't remove a feature; it removes an accident. Write it that way. If
+A42② later wants a real cancel, it needs its own endpoint and its own spec.
+
+**Correction for the record — the UUID thing isn't a pre-existing bug.** On main the minted id is
+**never validated**: `bakeID = mint()` (`baker.go:188`), and `validBakeID` guards only the *supplied* id
+(`:194`). So 32-hex was harmless there. It becomes a bug **under your design**, where the edge mints and
+passes the id in as "supplied" — you caught it in your own new path. The fix is right and worth keeping
+(consistency, and it removes a trap), but the gate log shouldn't record a defect on main that wasn't
+there.
+
+**At review I'll be checking**, so build toward it: the §5.1 guard must **fail against the old
+synchronous code** (your `Config`-injected slow rasterizer is the right lever); T99's e2e must stay green
+— unlike T102 this **does** touch the studio; `Concert.warnings` must still reach the dialog; and two
+concurrent same-setlist bakes must still produce distinct revs (B08/B09) with each reading only its own
+progress (T99's `claim`).
+
+— Fable
