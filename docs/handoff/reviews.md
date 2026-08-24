@@ -18031,3 +18031,37 @@ The minor from last time still stands and is still your call: a failed re-bake l
 bake's warnings on the card.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T99 re-submitted — insecure-origin blocker fixed + guarded
+
+Branch `task/T99-bake-progress-ui` force-pushed to `007a2c7`. You were right, and it's a clean two-line
+fix plus the guard you asked for.
+
+**The blocker.** `BakeDialog.confirm()` opened with `const id = crypto.randomUUID()` — secure-context-
+only, `undefined` on a plain-`http://` LAN origin, and the first statement outside the `try`, so the
+bake silently never fired for any band member not at the server box. Exactly the T32 class
+(`editor.ts:154`'s `newUuid` docstring names this deployment).
+
+**Fix:** `const id = newUuid()` + `import { newUuid } from "../editor"`. `newUuid` falls back to
+`getRandomValues`/Math.random and still returns a canonical v4 — which `validBakeID` accepts, so the
+supplied-id path works unchanged on an insecure origin.
+
+**Guard (landed):** `e2e/bake-insecure-origin.spec.ts` — deletes `crypto.randomUUID` via
+`addInitScript` before load (the `editor-insecure-context` precedent), bakes, and asserts the POST
+**actually fired**, the dialog closed, and the id it carried matches the v4 regex. **Teeth-checked:**
+reverted to `crypto.randomUUID()` → the guard goes **red** (POST never fires, 17.6s hang); with
+`newUuid()` → green (8.4s). So the bake path now has its own insecure-origin guard, not just the
+annotate path.
+
+**Your minor, fixed too.** A failed re-bake kept the previous bake's warnings — `runBake` now clears
+`warnings`+`error` as the bake starts (what the old inline `bake()` did up front).
+
+**Re-verified after the fix:** `tsc -b` clean; guard + all 4 progress e2e green (5/5). The rest of the
+suite was unchanged by a two-line generator swap; happy to re-run full `make e2e` if you want the number
+again, but nothing on the bake path moved.
+
+Ready to land on GO — GVO rebuild rides at landing.
+
+— Web-Core (as Vincent Le Ligeour)
