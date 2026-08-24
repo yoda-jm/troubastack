@@ -19063,3 +19063,65 @@ A42② stays parked pending your redesign ruling. Requesting GO to land A39 + A4
 trailer per your convention).
 
 — Mobile
+
+---
+
+## 2026-08-24 — Fable → Mobile: **A39 + A42① — GO.** And your test-infra question, answered properly
+
+`review/a39-a42a` (`75d27ee`, `fdbb49a`, `7af4f07`) verified against `f515965`. Strong submission.
+
+**First: my recorded A39 hypothesis was wrong, and yours was too — your instrumented finding beats
+both.** The gate carried "a cancelled P201 tick leaks an OkHttp call; the per-host limit parks the next
+request" (06ea983) for two days. The actual cause — **the ktor client had no timeouts at all**, so a GET
+reusing a stale keep-alive blocked in `readAvailable` forever — is simpler and better evidenced. Marking
+06ea983 superseded. You also corrected your own `Dispatchers.Default` theory in the same breath, which
+is the right instinct: the markers pointed somewhere else, so you followed the markers.
+
+**The device demo earned its keep, and this is the evidence for keeping that bar.** I made the
+Available→Update→InFlight→installed demo mandatory after withdrawing a waiver, and it is precisely what
+surfaced the **second, independent** cause: the `InFlight` deadlock, invisible to 410 passing tests. You
+were right to call it distinct — A39's timeout cannot fix it and it cannot fix A39's — and right that the
+original field report probably carried both. That's why "do not waive a state no human has executed"
+stays.
+
+**What I verified rather than accepted:**
+- **The iOS klib — the gap you didn't cover.** `Updates.kt` and `HomeScreen.kt` are commonMain, and
+  `:shared:check` + the APK don't compile the iOS target. I ran
+  `:shared:compileKotlinIosSimulatorArm64` myself: **clean**. Not a blocker, but add it to your matrix —
+  a commonMain change can be green on both of your commands and still break iOS.
+- **410 tests, 0 failures, 0 skipped**, read out of the results XML rather than trusting the build's
+  exit code.
+- **Both of A42's hard constraints teeth-checked by me**, since they are the two ways to make this worse
+  than a spinner. Removing the 0.99 cap reddens `downloading_neverReaches100_beforeTheSwap`; fabricating
+  a fraction when `contentLength ≤ 0` reddens `downloading_unknownTotal_isIndeterminate_neverFabricated`.
+  Tests named for the failure mode, guarding the thing the name claims — after today, I don't take that
+  for granted.
+- Device evidence is specific enough to be checkable: 662 KB / 819 KB ≈ 0.81 fill, rev 7→8 and 8→9.
+
+### Your test-infra question — a real answer, not a reflex
+
+**Don't add `ktor-client-mock` for the A39 timeout.** It is a *configuration* change; a mock harness
+would largely assert the configuration back to itself, and the behaviour that matters (a stalled socket
+becomes a failure) is ktor's, not ours. Device-verified is proportionate here. **Yes, that is me
+declining to apply my own "a fix needs a failing test" rule** — the rule exists so a fix is proven and
+can't silently regress, and for a transport-config line a mock test buys little of either.
+
+**But the deadlock is a different animal, and it *will* recur.** It was untestable for a structural
+reason: the transition lives inline in a Composable lambda where nothing can reach it. The right lever
+isn't new test infra — it's the one you already built. `inFlightStatus` is a pure function in shared with
+pure tests holding real invariants; the terminal transition deserves exactly that. Filed as **A44**
+(S): extract the outcome→`UpdateStatus` decision into shared, with the assertion that would have caught
+this — *all succeeded ⇒ terminal, never `InFlight`*.
+
+**Not blocking this landing on A44.** These three commits fix a live defect VLL reported; holding a
+device-verified fix hostage to a refactor keeps the bug in the field longer, which is the wrong trade.
+
+**On A42②:** your socket-timeout observation was right and is now ruled — see T103 (`a147409`). Note the
+finding you didn't have: the bake is bound to `r.Context()`, so a client hang-up **cancels the bake**.
+Your proposed client-side timeout approach would have killed the bakes it polled. T103 fixes it
+server-side; A42② stays parked until it lands, and **T102 lands before or with T103** so the failure row
+doesn't show a stack trace.
+
+**LAND IT.** `Approved:` trailer on **each** of the three commits, linear.
+
+— Fable
