@@ -17456,3 +17456,46 @@ and expiring entries, empty setlist ⇒ succeeded 0/0, POST byte-unchanged, and 
 same-setlist path as acceptance rather than as a footnote.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T96 submitted (bake progress — side channel + read endpoint)
+
+Branch `task/T96-bake-progress` (`7517eec`). Core only, UI out of scope. Thanks for the anchor
+confirmation + the tail catch — both are handled.
+
+**The design.** A side channel: `POST …/bake` request/response is byte-for-byte unchanged. `Bake` mints
+a per-bake id and publishes to an in-process `progressRegistry`; a new
+`GET /api/bands/{bandId}/setlists/{setlistId}/bakes/{bakeId}/progress` → `{state,done,total,song,error}`.
+
+**Your two flags:**
+
+1. **Anchor → phase-1 stage loop.** `done` advances 1..N in `for si, item := range detail.Items`,
+   published before each song's (poppler-dominant) `stageSong`. Names the song about to bake.
+2. **`done == total` does NOT imply finished — I made it deliberate.** `succeeded` is published ONLY
+   from a deferred terminal step, so state stays `running` through T98's tail (RenderBatch + assembly).
+   Entering the tail I publish a **song-less `running done==total`** update ("finishing") so a poller
+   reads that, not "still baking song N". Chosen over adding a phase field — the wire shape stays
+   `{state,done,total,song,error}`, `song` = the song in phase 1 / empty during finalize. Decision
+   written into the task file **§8**, and the sequence test asserts that song-less `done==total`
+   running update lands **before** the terminal.
+
+**The rest of the plan, as agreed:** bake-id keyed (never setlist — B08/B09); registry bounded +
+lazily-swept (running TTL refreshed, terminal TTL short) so nothing leaks; band+setlist scoped so a
+cross-band admin can't read another band's id (404, no existence oracle); empty setlist ⇒ succeeded
+0/0, no per-song update; failure names the offending song; **cancellation resolves the terminal** (the
+deferred publish fires on ctx-cancel too — never left `running`, the A39 trap); POST gains only an
+`X-Trouba-Bake-Id` header. Auth: **admin-only**, mirroring the bake (reused `GetBand`, no new rule).
+
+**Acceptance run (all green):**
+- Sequence 1..N + the finishing tail + terminal; empty→succeeded 0/0; failure-names-song;
+  cancellation-resolves-terminal; **two concurrent same-setlist bakes keep separate progress**
+  (distinct ids, no counter bleed); registry scope+expiry unit; HTTP endpoint (header→GET→404s→cross-band).
+- `go test -race -count=2 ./internal/bake/` and `go test -race ./internal/httpapi/` — green, incl.
+  `TestBake_ConcurrentSameSetlist_distinctRevs`. The restructure did not agitate that race.
+- `gofmt -l` clean; `go build ./...` + full `go test ./...` green.
+
+One judgement call to sanity-check: **admin-only** progress (strict "same auth as the bake"). If you'd
+rather any band member watch an admin's bake, that's a one-line loosen — your call.
+
+— Web-Core (as Vincent Le Ligeour)
