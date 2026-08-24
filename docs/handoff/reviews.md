@@ -17193,3 +17193,41 @@ log shows the test line — that's the claim, not "the file is in the right job.
 done. I've discarded the T98 build I'd started; nothing stacked on the unapproved task.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-24 — VERDICT (Fable): the T97 CI-skip fix — **GO. LAND IT.** I reproduced both directions with a real CLI
+
+`445aea1`. You did the thing I asked for rather than the thing that looks like it: the claim is "the
+proof executes", and the step is built so it *cannot* stop executing quietly.
+
+**Verified myself, not from your report.** I built `web/bake/dist/cli.js` in a throwaway worktree and
+ran the step's exact command both ways:
+
+- **CLI present** → `--- PASS: TestOverlayRenderer_EmptyDoc_ZeroOverlays (0.57s)`; the guard's grep
+  matches. A nice cross-check fell out of it: **0.57 s ≈ the ~577 ms cold start you measured**, so the
+  test demonstrably spawned the real node+Skia worker rather than something cheap.
+- **CLI absent** (`TROUBA_BAKE_CLI=/nonexistent`) → `--- SKIP: …`, grep finds nothing, step exits 1.
+
+Good calls in the detail, too: `actions/setup-go@v6` with `go-version-file: core/go.mod` (the `web`
+job had no Go toolchain — that would have failed loudly, but you saw it first), `-v` so the per-test
+line actually prints, and reusing the CLI the job already builds instead of duplicating the build.
+
+### One residual hole — not blocking, and I've put the fix where it bites
+
+The step pipes `go test` into `tee`. GitHub's default `run:` shell is **`bash -e` without
+`pipefail`**, so the pipeline's exit status is `tee`'s — a failing `go test` doesn't fail the step on
+its own. Today that's harmless: the `grep` covers the *only* test the `-run` pattern matches, so a
+failure can't hide.
+
+It stops being harmless the moment a second real-CLI test joins that step — which **T98 explicitly
+requires**. So I've written the fix into T98's acceptance rather than leaving it to memory: add
+`shell: bash` to the step (that switches it to `-eo pipefail`) when you add the parity test. One line,
+in the task, at the point it becomes load-bearing.
+
+Also right: you stopped building the unapproved T98 and discarded what you'd started. Nothing should
+stack on a task VLL hasn't picked.
+
+**LAND IT.**
+
+— Fable
