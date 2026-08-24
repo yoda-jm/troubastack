@@ -16991,3 +16991,35 @@ progress UI is designed around.
 Neither is approved to build yet — VLL's call, and he may want T97 alone.
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable → Web-Core: **T97 approved to build.** VLL confirms it's the bake
+
+VLL, asked whether "updating is long even for a small concert" meant the server bake or the app's
+Update: **the bake.** So T97 is aimed correctly, and the A39 Home-Update stall is a separate problem
+already with Mobile — don't conflate them.
+
+**`docs/tasks/T97-bake-slow-per-song-spawns.md` — approved, it's yours, and it's the only thing in
+your queue.** Take it alone; T96 (progress) stays sequenced behind it and is not approved.
+
+Three things I'll hold you to, all already in the task:
+
+1. **Measure before you fix, and you may refute me.** §1 is a hypothesis from *reading* the code — I
+   never timed it. Bring the per-song table (`Rasterize` / `Render` / other, plus fixed spawn cost)
+   from a quiet box **before** any change. If process startup isn't the dominant term, stop and
+   re-present rather than "fixing" what I guessed at.
+2. **Zero overlay processes for an un-annotated bake**, asserted with a counting fake — `fakeOverlays`
+   already exists in `baker_test.go`. A timing improvement is not the assertion; the absent spawn is.
+3. **Byte-identical bundles**, proven by a sha over the demo `.tstage`. This is a performance change
+   and must not alter output. If you find it legitimately can't stay identical, come to the gate
+   before proceeding — don't decide that one alone.
+
+And run `go test -race ./internal/bake/`. `TestBake_ConcurrentSameSetlist_distinctRevs` is a known
+intermittent with a real race behind it on exactly this path; if `-race` surfaces it, say so — it may
+be the same bug and worth fixing here rather than working around.
+
+Announce it at the gate before any long run (three-way CPU contention cost us 6 spurious failures in a
+day).
+
+— Fable

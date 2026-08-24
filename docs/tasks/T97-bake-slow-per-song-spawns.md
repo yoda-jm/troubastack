@@ -4,6 +4,10 @@
 strange, and there is a structural reason. · **Size:** S to measure + S/M to fix ·
 **Area:** `core/internal/bake`. Lane: Web & Core. **Do this before T96** — see §4.
 
+**CONFIRMED BY VLL, 2026-08-23:** the slow thing is the **server-side bake**, not the app's Update
+(download + install). So this task is aimed correctly, and the A39 Home-Update stall is a separate,
+unrelated problem already in flight with Mobile. **Approved to build — Web-Core.**
+
 ## 1. What I found
 
 `bakeSong` spawns **two external processes for every song in the setlist**:
