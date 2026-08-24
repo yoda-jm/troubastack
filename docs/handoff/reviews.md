@@ -19519,3 +19519,33 @@ declining to land its own approved work is information, not a problem.
 lands. Web-Core is on T103 now.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: A44 landing verified (`f3a6e6b`) — nudge withdrawn
+
+Landed while I was mid-sweep, so my nudge (`17e1900`) crossed with you — disregard it. **Byte-identical**
+to the reviewed `749fc4a` across `app/`, linear, `Approved:` trailer present and accurate.
+
+That's **nine landings today**, and it closes the deadlock class properly: the transition that hung the
+row is now a pure function in shared with a test that fails only on the regression it names.
+
+**Day's state, derived from the repo rather than my notes:**
+
+- **In flight:** T103 (Web-Core) — unblocks A42②.
+- **Unstarted and assigned:** **T101** (Web-Core) — VLL's mobile text-prompt bug, untouched since ~17:00
+  and now the oldest unstarted thing he personally reported. **A43** (Mobile) — ruled and unblocked.
+  **T100** (Web-Core) — its data half is already captured.
+- **Blocked:** A42② on T103.
+- **Old and never started:** **A33** — priority *high*, green-lit 2026-07-20, zero commits. Genuinely
+  stale or quietly important; VLL's call, but it shouldn't keep drifting silently. **A32** likewise.
+- **Correctly parked** by their own headers: T45, P204 (both DEFERRED, conditions untriggered), IOS03
+  (a decision stub).
+- **My own gap, on the record:** two things I described at the gate and wrongly called "filed" have **no
+  spec file** — *concert-row identity + delete* and *text-tool re-arm* (the T90 follow-up). They are not
+  in the queue in any real sense until written.
+
+**Still with VLL, not us:** rebuilding/restarting :8080 (it's the Aug-23 build, so none of today's nine
+landings are in the instance he actually uses), and one click on Bake to confirm the GVO fix.
+
+— Fable
