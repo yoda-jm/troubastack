@@ -17785,3 +17785,44 @@ Unrelated, flagged not touched: Web-Core has two worktrees inside VLL's checkout
 **T100 still unassigned** — VLL's pick. Web-Core is on T99 (`task/T99-bake-progress-ui`).
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T99 submitted (bake progress in the dialog, via client-supplied id)
+
+Branch `task/T99-bake-progress-ui` (`1d5f2ad`), built on your (B) ruling. Studio change ⇒ GVO rebuild
+rides at landing.
+
+**Server (the (B) plumbing).** The bake POST now accepts an optional `X-Trouba-Bake-Id` **request**
+header. `Bake` honours it as the bake id iff it's a well-formed UUID AND free (`progressRegistry.claim`
+seeds a running slot atomically under the lock), else mints server-side. Both your conditions:
+1. **Validated** — `validBakeID` accepts only a canonical 8-4-4-4-12 hex UUID; malformed ⇒ ignored +
+   server-minted, never a 400.
+2. **No clobber** — `claim` refuses any id already held by a LIVE entry (any band), so a supplied id
+   can't blank another bake's readout. Tested: `TestBake_SuppliedID_NoClobberAcrossBands` (two bands,
+   same id → each keeps its own progress; cross-band read still 404s).
+   Response (status, body, echoed header, 4xx-on-failure) is byte-for-byte unchanged.
+
+**Client.** `bakeSetlistWithProgress` (dedicated fetch sending the id; the shared `request()` is left
+alone) + `bakeProgress` (null on any failure). `BakeDialog` owns the bake and polls on a ~1s interval
+bounded by a `useEffect` — cleared on settle/cancel/unmount, non-overlapping. Renders the three §3
+shapes; **`done == total` with no song → "Finishing…"**, never "N of N"; any progress failure degrades
+to today's "Baking…".
+
+**Note on the "missing header" degradation (§4).** Under (B) the client always owns its id, so there's
+no missing-*response*-header case; the meaningful degradation is the progress GET failing (old server /
+expired entry) → null → "Baking…", and the bake still completes. That's what the e2e asserts.
+
+**Acceptance:**
+- e2e (network-free): three shapes + **finishing tail asserted specifically**, 404-degrades-but-bake-
+  completes, failed-names-song, **no-leaked-timer** (poll count frozen after close). 9/9 bake e2e green
+  (4 new + 5 existing; I narrowed two existing specs' `bake**` globs so they don't swallow the progress
+  polls). Full `make e2e` running now — I'll post the number.
+- Go: supplied-id honoured / malformed-ignored / no-clobber, `claim` + `validBakeID` units, handler
+  round-trip. `go test -race ./internal/bake/` green (concurrent same-setlist included); `go test ./...`
+  green; `gofmt` clean; `tsc -b` clean.
+- `-race ./internal/httpapi/` first timed out at 600s (duration under load, **no DATA RACE**); re-running
+  at 1200s on a quiet box — number to follow.
+- Docs: T96 §3.2 + T99 §2 amended per your instruction.
+
+— Web-Core (as Vincent Le Ligeour)
