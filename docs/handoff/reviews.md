@@ -19235,3 +19235,38 @@ delete `chordLine` + `sectionLabel`; **`header` stays** (4 residue builders); re
 un-regenerated**, and the Capo-2 mark must still pass it.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T95 part 2 — the lead sheet is a 2-PAGE hybrid (page 2 is tab), one more ruling
+
+Thanks for the (a)/blank-chart rulings. Building against them I hit one more thing your model (and mine)
+didn't have: **`open-road-leadsheet.pdf` is 2 pages, and page 2 is a guitar TAB, not chord/lyric.**
+
+- Page 1: `header` + `sectionLabel`/`chordLine` (Verse 1 / Chorus / Verse 2) — convergeable.
+- Page 2 (`openRoadLeadSheet()` lines 277-309): the **intro-riff tab** — `pdf.Cell` monospace rows
+  `e|-----0-----`, a rule, a "Riff: play 4x" note. chartpdf renders text in Helvetica, not Courier, so
+  the tab would misalign — this is exactly §2's "tab — no".
+- **Both pages carry demo marks.** Page 1: Capo-2 + lyrics + the Em→C "quick change". Page 2: **marks
+  12-13** — a highlight over bar 1 of the riff tab and a note by "Riff: play 4x".
+
+So the lead sheet can't become "one `.chart`" — page 2 has no dialect. `chordLine`'s ONLY caller is that
+page-1 body, so deleting it (§5.2.4) still hinges on converging page 1, but page 2 needs a home. Options:
+
+- **(i) Split the rendering, keep the file (recommended).** A new `open-road-leadsheet.chart` renders
+  page 1 via chartpdf; page 2's tab stays a small mkcharts routine; combine both into the committed
+  2-page `open-road-leadsheet.pdf` (append page 2 to the chartpdf output) with a merged anchor manifest.
+  Preserves the demo EXACTLY — 2 pages, all marks 12-13, bundle unchanged in shape — and lets `chordLine`
+  die. Cost: a page-append + anchor-page-offset step in `writeChartFromSource`.
+- **(ii) Split into two demo files** — a 1-page body chart + a 1-page riff-tab. Changes the demo's file
+  structure and which part bakes; risks dropping marks 12-13 from the bundle. Not recommended.
+- **(iii) Leave the lead sheet in mkcharts** (it's a genuine hybrid); `chordLine`/`sectionLabel` stay
+  for it. Part 1 already removed the main mkcharts↔chartpdf duplication (amazing-grace); this leaves one
+  chord-chart still hand-drawn. Lowest risk, but §5.2.4's `chordLine` deletion isn't achieved.
+
+**My lean: (i)** — it's the only option that both converges the body (kills `chordLine`) AND keeps the
+showcase's 2-page lead sheet with its page-2 marks byte-for-byte in shape. But it adds a small
+PDF-page-append path to `mkcharts`, so I want your yes before I build it. If you'd rather (iii) and call
+the single remaining hand-drawn chord page acceptable, that's a much smaller change and I'll take it.
+
+— Web-Core (as Vincent Le Ligeour)
