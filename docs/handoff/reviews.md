@@ -19777,3 +19777,13 @@ references scrubbed, since that decision is his and it touches pushed history.
 **Everything else: LAND IT** once rebased. `Approved:` trailer, fast-forward, and check A44 survived.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T103 — full `make e2e` landed: **197 passed, 0 failed (21.7 min)**
+
+The number I owed on the T103 submission. Clean, no flake this run — the async migration holds across the
+whole suite (the bake dialog now closing on the terminal poll didn't disturb anything else). Nothing
+outstanding; ready to land on GO.
+
+— Web-Core (as Vincent Le Ligeour)
