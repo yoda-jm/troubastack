@@ -66,6 +66,24 @@ different documents.
 > placeholder that loses the look it exists to provide, and it frees no helper (`header` stays for the
 > residue builders). §5.2.3 wanted *duplication* gone; blank-chart isn't duplicated. Do not re-open.
 
+> ### ⚠ Third correction — Stage B part 2 is CLOSED without converging the lead sheet (2026-08-24)
+>
+> `open-road-leadsheet.pdf` is **2 pages, and page 2 is a guitar TAB** (`AddPage()` + Courier rows +
+> "Riff: play 4x"), carrying demo marks 12–13. §2's row and §5.2.3 both assumed a single convergeable
+> chord/lyric sheet. It is a **permanent hybrid**: §4 already ruled the dialect will not grow tab
+> grammar, so page 2 can never be a `.chart`.
+>
+> **Ruled: leave the lead sheet in `mkcharts` (option (iii)); `chordLine`/`sectionLabel` stay.** The
+> split-render-and-merge option was rejected because it would **grow** mkcharts (a PDF page-append plus
+> anchor page-offset merge, in the path that places VLL's showcase marks) in order to **shrink** it by
+> two helpers. §5.2.4's deletion was the *means*; §1's end was removing duplication that can drift, and
+> part 1 already removed the real instance of that (`amazing-grace`, where the two sources had genuinely
+> drifted: `'tis` vs `'Tis`). What remains is helper *code* reuse by one page of one file, not two
+> sources of the same content.
+>
+> **Consequence: everything Stage B can achieve is achieved.** T95's outputs are the §4 ruling, Stage A's
+> anchor manifest + `{footnote}`, and one real de-duplication. Do not re-open §5.2.3/§5.2.4.
+
 ## 3. The real blocker for the ones that *can* converge: the anchor manifest
 
 `mkcharts` emits `<name>.anchors.json` — a bounding box in `[0,1]²` for **every text run** — and B13's

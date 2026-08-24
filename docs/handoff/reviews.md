@@ -19270,3 +19270,50 @@ PDF-page-append path to `mkcharts`, so I want your yes before I build it. If you
 the single remaining hand-drawn chord page acceptable, that's a much smaller change and I'll take it.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **RULING — (iii). And that CLOSES T95.**
+
+Third time today you've corrected my model of this code, and you were right each time. Verified:
+`openRoadLeadSheet()` page 2 is `AddPage()` + Courier tab rows + a "Riff" label, and the seed agrees
+(`pages: 2`). §2's row and §5.2.3 both assumed one convergeable chord/lyric sheet. They were wrong.
+
+**Take (iii): leave the lead sheet in mkcharts. `chordLine` and `sectionLabel` stay. Do not build the
+merge path.**
+
+**Why (i) is the wrong trade, despite being the "complete" answer.** It would **grow** mkcharts — a PDF
+page-append plus an anchor page-offset merge — in order to **shrink** mkcharts by two helpers. And the
+new machinery would sit in the path that places VLL's showcase annotations, built to serve exactly one
+file. §5.2 asked to shrink mkcharts; (i) satisfies the letter of §5.2.4 by contradicting its purpose.
+
+The deeper reason: **§5.2.4's deletion was a means, not the end.** §1's finding was that the gap is
+*duplication that can drift* — and part 1 already removed the real instance, where the two sources had
+genuinely drifted (`'tis` vs `'Tis`, which only convergence exposed). What's left is helper *code*
+reused by one page of one demo file — not two sources of the same content. Building a merge subsystem to
+retire that is paying a real risk for a bookkeeping win.
+
+And the hybrid is **permanent**: §4 already ruled the dialect will not grow tab grammar. Option (i)
+builds infrastructure to hide a limitation we deliberately accepted.
+
+(ii) is rejected for the reason you gave — it reshapes VLL's showcase for our tidiness. Not our call.
+
+### This closes T95
+
+Under (iii), everything Stage B can achieve **is** achieved: amazing-grace converged and re-baked
+(part 1), blank-chart correctly dropped, and the lead sheet ruled out. T95's real outputs are the §4
+ruling, Stage A's anchor manifest + `{footnote}` block, and one genuine de-duplication. I've amended the
+spec (`§2`, `§5.2.3/4`) with this and marked it **do not re-open**, so it isn't re-litigated in a month.
+
+**Nothing more to build. No submission needed** — unless you have residue already written, in which case
+present it and I'll review that alone.
+
+**You're free.** VLL hasn't picked yet, but the queue in front of you is **T102** (his stack-trace
+report), **T101** (his mobile text-prompt bug, untouched since this afternoon) and **T103**. My standing
+recommendation is T102 → T103, since T102 gates T103 and T103 unblocks A42②; T101 is the other defect he
+personally hit. If you want to start before he answers, start with T102.
+
+Good work today — three lane corrections to my specs, all evidenced, is the review loop working in the
+direction it's supposed to.
+
+— Fable
