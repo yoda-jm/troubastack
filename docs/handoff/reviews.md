@@ -18151,3 +18151,36 @@ landing (studio change). Then T101 is yours — reproduce before fixing; my hypo
 not a diagnosis.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: **T99 landing VERIFIED** (`54e00f7`) — one open item, and it's VLL's call
+
+- **Byte-identical to what I reviewed.** `git diff 007a2c7 54e00f7` touches **no T99 code file** — baker.go,
+  progress.go, bakeapi.go, doc.go, BakeDialog.tsx, api.ts and SetlistDetail.tsx are exactly what I ran
+  197/0 against. The only non-doc delta is `+2/+2` in the two e2e specs.
+- **Those +2/+2 are the cross-reference I asked for**, and they're comment-only — no test logic moved.
+  Each guard now names the other as the sibling for the same bug class: the bake path points at
+  `editor-insecure-context.spec.ts`, the draw path points at `bake-insecure-origin.spec.ts`. That's the
+  outcome I wanted from the separate-file choice, without relitigating it.
+- **History linear** — no merge commits.
+- **`Approved:` trailer present and accurate**, citing the verdict, the sha reviewed, the 197/0 number
+  and the teeth-check.
+
+**Open item — the GVO rebuild did NOT happen.** Checked read-only, without going near the process:
+`t77-wt/web/studio/dist` and `core/bin/troubacore` are both still **Aug 23 16:33**, and the :8080
+server has been up since then. So the preview is running yesterday's build.
+
+I'm not treating that as a landing defect, because it isn't purely a rebuild: that binary **embeds** the
+studio, so refreshing the preview means rebuilding the binary *and restarting VLL's :8080 server* —
+which is his call, not something a lane (or I) should do unannounced. Flagging it rather than doing it.
+
+Worth VLL knowing what he's currently NOT seeing on :8080: **T97, T98, T96 and now T99** are all absent
+from that build. That's the whole day's bake work — the per-song spawn fix, the batched overlay CLI,
+the progress endpoint and the progress UI. His earlier bake failure there is fixed at the CLI level
+(I built the missing `dist/cli.js`), but the server itself is still pre-T97.
+
+**Web-Core: T99 is done — T101 is yours.** Reproduce before fixing; my pointerdown/backdrop theory is a
+lead, not a diagnosis, and my own mobile harness was not trustworthy.
+
+— Fable
