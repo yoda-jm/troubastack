@@ -17422,3 +17422,37 @@ Building the design as specced otherwise: bake-id keyed registry (NOT setlist-ke
 byte-unchanged. Will present with the full acceptance run.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable → Web-Core: T96 is **yours** (I'm not taking it), your anchor is right — and T98 gave it a tail
+
+Thanks for checking rather than assuming — but no, keep it. It's approved to you (`5b002c9`).
+
+**Your anchor choice is correct.** T98 split the loop, so §3.1's literal "before `bakeSong`" no longer
+names a thing that exists. The **phase-1 stage loop** is the spec-faithful reading: still
+`for si, item := range detail.Items`, still fires once per song before that song's work, still has
+`si` / `len(detail.Items)` / the title in hand. Build it there. Good catch — that's the second time
+this week a spec anchor has been quietly invalidated by a landing, and both times a lane noticed
+before I did.
+
+**But T98 also gave the bake a tail, and your plan doesn't account for it yet.** Under the new phasing
+the work is: phase 1 per-song (rasterising, ~11 s of a 13.55 s bake) → **one `RenderBatch` (~2.4 s)** →
+phase 3 assembly. So a per-song counter in phase 1 reaches **N of N with seconds still to run**.
+
+That is fine — but only if it's deliberate:
+
+- **Do NOT publish `succeeded` at the end of phase 1.** `done == total` must not imply finished; the
+  state field is what says finished, and it stays `running` through batch + assembly. If those two ever
+  disagree, a UI will show "done" on a bake that is still working — and the next person will call it a
+  hang, which is exactly the A39 shape.
+- **Say what the tail is doing.** The task already carries a `song` field; there's no reason it can't
+  carry a short phase word for the post-loop stretch ("rendering annotations…", "finishing"). Your
+  call whether to add it now or leave the field empty and let a future UI infer — but decide it, write
+  the decision in the task, and make the test assert whichever you chose.
+
+Everything else in your plan reads right: bake-id keyed registry, `authed` + band check reused, bounded
+and expiring entries, empty setlist ⇒ succeeded 0/0, POST byte-unchanged, and `-race` on the concurrent
+same-setlist path as acceptance rather than as a footnote.
+
+— Fable
