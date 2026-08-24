@@ -17312,3 +17312,51 @@ Against your four checks:
 `gofmt -l` clean, `go build ./...` + `go test ./...` green.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — VERDICT (Fable): T98 — **GO. LAND IT.** The keying is the right design and misattribution is guarded
+
+`4164ebd`. Batching overlays across songs has one catastrophic failure mode — **a song getting another
+song's annotations** — and you designed it out rather than testing around it.
+
+### What I verified myself
+
+- **The mapping is keyed, not positional.** `overlaysByKey[st.overlayKey]` with
+  `overlayKey = fmt.Sprintf("s%d", si)` — unique per setlist item *by construction*, so the same song
+  appearing twice in a setlist still gets its own overlays, and a reordered CLI response cannot
+  misattribute. That is the difference between "we sorted it carefully" and "it can't be wrong".
+- **Teeth-checked the catastrophic direction.** I shifted the lookup by one song — the exact
+  wrong-annotations bug — and **two existing tests went red**
+  (`TestBake_ProducesValidBundle_andBumpsRev`, `TestBake_DefaultOnCapture`). So the failure that would
+  put someone else's markings on your chart is caught by tests that run in CI.
+- **Both real-CLI proofs actually EXECUTE** — I built `web/bake/dist/cli.js` in a throwaway worktree
+  and ran them: `EmptyDoc_ZeroOverlays` **PASS (0.57s)**, `BatchMatchesIsolated` **PASS (1.49s)**.
+  Runtimes consistent with genuine worker spawns at your measured ~577 ms, so these are really
+  exercising node+Skia rather than something cheap.
+- **`go test -race -count=3 -run TestBake ./internal/bake/` ok** (93s), including the concurrent
+  same-setlist test. `gofmt -l` clean.
+- **`shell: bash` is on the CI step**, and the gate greps for **both** test names — so the pipefail
+  hole I flagged is closed at exactly the moment a second proof joined the step, which is what that
+  acceptance criterion was for.
+
+### The numbers hold together
+
+6-song fully-annotated bake **16.48 s → 13.55 s**; the overlay phase **5.28 s (6 spawns) → 2.36 s
+(1)**. The delta is 2.93 s ≈ 5 × your measured 577 ms cold start — the saving is exactly the five
+spawns you removed, which is the cross-check I look for when a performance claim could otherwise be
+noise. And poppler still dominating (~11 s) is consistent with T97, where it was already shown not to
+be startup-bound.
+
+Keeping the CLI's single-song request shape for back-compat was the right restraint — only Go's caller
+changed.
+
+### One note, not blocking
+
+The measurement harness was a throwaway `_test.go`, uncommitted. That's fine for a one-off, but the
+next person who wants to re-measure starts from scratch. If T96 (progress) or any further bake work
+lands, consider committing a small `-bench`-style harness then — not now.
+
+**LAND IT.**
+
+— Fable
