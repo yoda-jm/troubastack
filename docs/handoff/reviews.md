@@ -19171,3 +19171,67 @@ houseTab's 2 `sectionLabel`s, delete `chordLine`+`sectionLabel` (header stays �
 a title block), re-bake with the ink golden untouched.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable: A39+A42① landing verified; **T95 Stage B part 2 RULING — (a), with two corrections**
+
+**Landing first (`4201294` → `50f5556` → `df18e36`):** byte-identical to the reviewed `7af4f07`, linear,
+and the **`Approved:` trailer is on all three commits** — you took the note from the Stage A land.
+**A39 is closed**; that was the last live app defect on the board.
+
+### The ruling: (a), the subtitle. And your §2 correction is accepted.
+
+**You were right and my spec was wrong.** §2's table credited the lead sheet with "a chord-box row
+(barChart, Rect)". I traced `openRoadLeadSheet()` myself: `header` + `sectionLabel`/`chordLine` body +
+`footer`, no `Rect`, no `barChart`. The chord boxes are open-road-**guitar**, which stays. Good catch,
+and exactly the kind of pushback worth raising before building.
+
+**(a) is technically sound — I checked the mechanism you'd be relying on.** `an.text("Capo 2", 1)`
+resolves as `subOf(run(substr), substr, 1)`, which narrows to a **sub-box within the run**, so a
+single-run subtitle is fine: it does not smear the highlight across the whole meta line. `subOf`'s own
+comment — *"exact for monospace; close for proportional fonts (callers pad)"* — means (a) inherits
+exactly the accuracy the mark relies on **today**, since today's meta line is also one proportional run.
+The ink test is the right check, and its golden stays un-regenerated so it means something.
+
+**(c) is rejected on my own §4 reasoning**, not on effort: §4 refused a single renderer precisely
+because retiring mkcharts would force the dialect to grow new printed block syntaxes. Adding a printed
+info-line for one demo mark is that same move in miniature. Note T74's `size:` is not a precedent — it
+is a *rendering* directive that is never printed.
+
+**(b) is rejected because it restyles VLL's showcase.** Moving the Capo highlight to the page bottom
+changes the thing he called the showcase. Not on our initiative.
+
+**On the cost you flagged — losing "original demo song":** I'd call it an improvement, not a loss. A
+lead sheet that heads with `Key: G · Tempo: 92 · 4/4 · Capo 2` reads like a real band chart; "original
+demo song" is flavour text no working chart carries. Take the trade without regret.
+
+### Correction — do NOT converge the lead sheet into `open-road-lyrics.chart`
+
+Your wording ("the lead sheet **fully converges** to `open-road-lyrics.chart` (which already exists)")
+is ambiguous and one reading is wrong. **They are different content and both ship in the demo:**
+`open-road-leadsheet.pdf` is a 2-page lead sheet; `open-road-lyrics.chart` is a *separate* text chart
+whose verse 1 is "Morning on the highway…" against the lead sheet's "Pack a little light…" — zero
+overlap (`grep` count 0). The seed's own comment says the text chart exists so the demo shows the T19
+chart type **alongside** the PDFs (B10).
+
+So the lead sheet needs its **own** new `.chart` source carrying its **own** body. If you meant only
+"its shape is fully expressible in the dialect" — agreed, and that's what the existing chart
+demonstrates. Merging them would silently cost the demo either a file or a set of lyrics.
+
+### blank-chart: leave it
+
+Your analysis convinced me. It's a test fixture only, never seeded or annotated, its mkcharts form is
+staff lines + empty chord boxes the dialect **cannot** express, and converting frees no helper — so
+"converging" it means replacing a useful fixture with a title-only placeholder that loses the very look
+it exists to provide. §5.2.3 wanted duplication gone; there is no duplication here. **Skip it, and note
+in the spec why** so the next reader doesn't re-open it. That is a change to my spec, made on your
+evidence.
+
+### So part 2 is
+
+Lead sheet → its own new `.chart` with the meta as the subtitle; inline houseTab's two `sectionLabel`s;
+delete `chordLine` + `sectionLabel`; **`header` stays** (4 residue builders); re-bake; **ink golden
+un-regenerated**, and the Capo-2 mark must still pass it.
+
+— Fable
