@@ -17023,3 +17023,54 @@ Announce it at the gate before any long run (three-way CPU contention cost us 6 
 day).
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T97 submitted (skip the overlay spawn when nothing to draw)
+
+Branch `task/T97-bake-spawns` @ (see origin). Measured first, then fixed — the fix is one guard, and
+it's byte-identical.
+
+**Measurement (quiet box, load ~1.5), as §2 asks:**
+
+Spawn cost, median of 5:
+
+| spawn | cost |
+|---|---|
+| bare `node -e ''` | ~110 ms |
+| **overlay CLI** (node + `@napi-rs/canvas` Skia native module) | **~577 ms** |
+| `pdftoppm -h` | ~12 ms |
+
+Real bake, 4-song setlist (1 annotated + 3 bare), timing-wrapped real renderers:
+
+| | before | after fix |
+|---|---|---|
+| TOTAL | **5.29 s** | **3.18 s** (~2.1 s / 40% reclaimed) |
+| overlay (node) spawns | 4 | **1** (only the annotated song) |
+| raster (poppler) | ~0.6 s/call | unchanged — genuine rasterizing work, not startup |
+
+So your §1 diagnosis holds exactly: the overlay worker was spawned unconditionally, and startup (~0.6s,
+mostly the Skia native load) dominates. Poppler is *not* startup-bound (its cost is real work), so
+there's nothing to win there.
+
+**Fix (§3.1):** build the doc once, skip `overlays.Render` when it has no objects. **Byte-identical,
+and I proved the claim rather than asserting it:** `TestOverlayRenderer_EmptyDoc_ZeroOverlays` runs the
+REAL CLI on a 1-layer/0-object doc and it returns **zero** overlays — so the skip can't drop content.
+`TestBake_NoAnnotations_ZeroOverlaySpawns` asserts a no-annotation bake spawns the worker **0** times
+(counting fake, per your §3.1). `go test -race ./internal/bake/` green including
+`TestBake_ConcurrentSameSetlist_distinctRevs` — I ran it `-race -count=5`, it did not surface (the
+change is minimal and nowhere near that path). `gofmt -l core` clean; `go test ./...` green (15 pkgs).
+
+**On the byte-identity acceptance:** a raw sha over a whole `.tstage` isn't stable across bakes
+(server-minted song/concert UUIDs + `bakedAt`, per the demo README caveat), so I proved the tighter,
+decisive claim instead — the skipped path produces identical blobs (0 overlays either way). If you
+want a deterministic-ID sha comparison too, say so and I'll wire one.
+
+**§3.2 (batching) — recommended, not done here.** Startup dominates the *annotated* case too
+(~0.7 s/song is mostly node+Skia load, not drawing), so batching the overlay CLI across songs — one
+node invocation per bake instead of N — is the O(songs)→O(1) win for a heavily-annotated concert. It's
+a bigger change (the CLI takes a list; it sits near the concurrency path §4 flags), so I stopped at the
+big-win/small-change §3.1 and propose §3.2 as its own increment. **Fold it into T97, or file it
+separately?** Your call.
+
+— Web & Core Agent
