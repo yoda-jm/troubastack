@@ -59,6 +59,11 @@ func TestFootnote_boxContainsWrappedLineText(t *testing.T) {
 			strings.Contains(a.Text, "attribution") || strings.Contains(a.Text, "wrapping path")) {
 			continue
 		}
+		// POSITION: every footnote line is drawn at the left margin — re-derived, not read from the box.
+		if gotX := a.X0 * pageW; math.Abs(gotX-margin) > 0.05 {
+			t.Errorf("wrapped footnote line %q: box LEFT = %.3fmm, drawn at margin %.3fmm (position drift)", a.Text, gotX, margin)
+		}
+		// SIZE: independent re-measure of the width.
 		gotW := (a.X1 - a.X0) * pageW
 		wantW := m.GetStringWidth(tr(a.Text))
 		if math.Abs(gotW-wantW) > 0.05 {
@@ -70,6 +75,35 @@ func TestFootnote_boxContainsWrappedLineText(t *testing.T) {
 	}
 	if wrapped == 0 {
 		t.Fatal("no footnote line actually wrapped — the invariant wasn't exercised on a wrapped line")
+	}
+}
+
+// A GOLDEN for the wrapped footnote lines — pins the full box (incl. Y), so a VERTICAL position drift
+// of a wrapped line reddens here even though the width-and-left-edge invariant above wouldn't see it.
+// Teeth-checked with a +2mm y nudge to drawFootnoteLine's rec.
+func TestFootnote_goldenWrappedBoxes(t *testing.T) {
+	anchors := footnoteAnchors(t, wrapFootnoteChart)
+	var fn []Anchor
+	for _, a := range anchors {
+		if strings.Contains(a.Text, "Newton") || strings.Contains(a.Text, "wraps") ||
+			strings.Contains(a.Text, "attribution") || strings.Contains(a.Text, "wrapping path") {
+			fn = append(fn, a)
+		}
+	}
+	want := []Anchor{
+		{Page: 0, Text: "Words by John Newton (1725-1807), 1779; a public-domain hymn. This attribution line is intentionally long so that it wraps across", X0: 0.0571, Y0: 0.1407, X1: 0.9201, Y1: 0.1549},
+		{Page: 0, Text: "the body column several times to exercise the wrapping path.", X0: 0.0571, Y0: 0.1549, X1: 0.4672, Y1: 0.1690},
+	}
+	if len(fn) != len(want) {
+		t.Fatalf("got %d footnote lines, want %d:\n%+v", len(fn), len(want), fn)
+	}
+	const eps = 0.0005
+	for i, w := range want {
+		g := fn[i]
+		if g.Text != w.Text || math.Abs(g.X0-w.X0) > eps || math.Abs(g.Y0-w.Y0) > eps ||
+			math.Abs(g.X1-w.X1) > eps || math.Abs(g.Y1-w.Y1) > eps {
+			t.Errorf("footnote line %d:\n got  %+v\n want %+v", i, g, w)
+		}
 	}
 }
 

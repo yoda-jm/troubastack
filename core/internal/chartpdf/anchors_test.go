@@ -3,6 +3,7 @@ package chartpdf
 import (
 	"bytes"
 	"math"
+	"sort"
 	"testing"
 
 	"github.com/go-pdf/fpdf"
@@ -66,33 +67,34 @@ func TestAnchors_golden(t *testing.T) {
 	}
 }
 
-// The invariant that matters for B13: every box actually SPANS the text it names at the size rendered
-// — not "some boxes exist". We re-measure each run's width independently (fresh fpdf, same font) and
-// assert it equals the box width. Teeth: record a constant or wrong-scaled width and this fails.
-func TestAnchors_boxContainsItsTextAtRenderedSize(t *testing.T) {
+// The invariant that matters for B13: every box actually SPANS the text it names, at the size AND the
+// PLACE it was rendered — not "some boxes exist", and not "right width, wrong place". We independently
+// re-derive each run's LEFT EDGE (a full-line run starts at `margin`; a `**bold**` segment starts at
+// `margin` + the measured width of the segments before it on its line) and its WIDTH (fresh fpdf, same
+// font), and assert both against the recorded box. Teeth: drift a recorded box's POSITION or width →
+// the re-derived left edge / width no longer matches → red. (The golden pins the full box incl. Y.)
+func TestAnchors_boxSpansItsTextAtItsPosition(t *testing.T) {
 	_, anchors, err := RenderWithAnchors(anchorFixture)
 	if err != nil {
 		t.Fatalf("RenderWithAnchors: %v", err)
 	}
-	// The fixture auto-fits; derive the same scale the renderer used so the re-measure font matches.
 	lines := chartLines(anchorFixture)
 	subtitle, _, _, _, skip := parseHeader(lines)
 	scale := autoFitBodyPt(lines, subtitle, skip) / defaultBodyPt
 
-	// font+size a run is drawn in, by its text (enough to disambiguate the fixture's runs).
-	fontOf := func(a Anchor) (fam, style string, ptmm float64) {
+	fontOf := func(text string) (fam, style string, ptmm float64) {
 		switch {
-		case a.Text == "Amazing Grace":
+		case text == "Amazing Grace":
 			return "Helvetica", "B", 16 * scale
-		case a.Text == "John Newton, 1779":
+		case text == "John Newton, 1779":
 			return "Helvetica", "I", 11 * scale
-		case a.Text == "Verse 1":
+		case text == "Verse 1":
 			return "Helvetica", "B", 11 * scale
-		case a.Text == "G        G7      C   G":
+		case text == "G        G7      C   G":
 			return "Courier", "B", 11 * scale
-		case a.Text == "A-ma-zing grace, how sweet the sound":
+		case text == "A-ma-zing grace, how sweet the sound":
 			return "Courier", "", 11 * scale
-		case a.Text == "saved":
+		case text == "saved":
 			return "Helvetica", "B", 11 * scale // the **bold** word
 		default:
 			return "Helvetica", "", 11 * scale // plain text-line segments
@@ -101,21 +103,83 @@ func TestAnchors_boxContainsItsTextAtRenderedSize(t *testing.T) {
 	m := fpdf.New("P", "mm", "A4", "")
 	m.AddPage()
 	tr := m.UnicodeTranslatorFromDescriptor("")
+	measure := func(text string) float64 {
+		fam, style, pt := fontOf(text)
+		m.SetFont(fam, style, pt)
+		return m.GetStringWidth(tr(text))
+	}
+
+	// Group by visual line (same Y0) and re-derive each segment's expected left edge along the line.
+	const eps = 0.05 // mm
+	byLine := map[int64][]Anchor{}
+	var order []int64
 	for _, a := range anchors {
-		if a.X1 <= a.X0 || a.Y1 <= a.Y0 {
-			t.Errorf("degenerate box for %q: %+v", a.Text, a)
+		if a.X1 <= a.X0 || a.Y1 <= a.Y0 || a.X0 < 0 || a.Y0 < 0 || a.X1 > 1 || a.Y1 > 1 {
+			t.Errorf("degenerate/off-page box for %q: %+v", a.Text, a)
 			continue
 		}
-		if a.X0 < 0 || a.Y0 < 0 || a.X1 > 1 || a.Y1 > 1 {
-			t.Errorf("off-page box for %q: %+v", a.Text, a)
+		key := int64(math.Round(a.Y0 * 1e6))
+		if _, ok := byLine[key]; !ok {
+			order = append(order, key)
 		}
-		fam, style, pt := fontOf(a)
-		m.SetFont(fam, style, pt)
-		wantW := m.GetStringWidth(tr(a.Text))
-		gotW := (a.X1 - a.X0) * pageW
-		if math.Abs(gotW-wantW) > 0.05 { // mm
-			t.Errorf("box width for %q = %.3fmm, but the text renders %.3fmm wide", a.Text, gotW, wantW)
+		byLine[key] = append(byLine[key], a)
+	}
+	for _, key := range order {
+		line := byLine[key]
+		sort.SliceStable(line, func(i, j int) bool { return line[i].X0 < line[j].X0 })
+		expX := margin // first run on a line starts at the left margin — re-derived, not read from the box
+		for _, a := range line {
+			gotX := a.X0 * pageW
+			if math.Abs(gotX-expX) > eps {
+				t.Errorf("box LEFT for %q = %.3fmm, but its text is drawn at %.3fmm (position drift)", a.Text, gotX, expX)
+			}
+			w := measure(a.Text)
+			gotW := (a.X1 - a.X0) * pageW
+			if math.Abs(gotW-w) > eps {
+				t.Errorf("box WIDTH for %q = %.3fmm, but the text renders %.3fmm wide", a.Text, gotW, w)
+			}
+			expX += w // the next segment on this line begins where this one ends
 		}
+	}
+	// One independent Y anchor: the title is drawn at the top margin. A global vertical drift moves it.
+	for _, a := range anchors {
+		if a.Text == "Amazing Grace" {
+			if got := a.Y0 * pageH; math.Abs(got-topMargin) > eps {
+				t.Errorf("title top = %.3fmm, want the top margin %.3fmm (vertical drift)", got, topMargin)
+			}
+		}
+	}
+}
+
+// Blocker 1 (aaf7522): the chord row's performance-note run must be anchored too — a `(x2)` isn't
+// something to play, but it IS drawn text, and mkcharts anchors every run. Its box must span the note
+// glyphs at their real position (after the chords + the two-space lead-in).
+func TestAnchors_chordAnnotationIsAnchored(t *testing.T) {
+	src := "# T\nsize: 11\n\n## Verse 1\nC       G  (x2)\nsome words here\n"
+	_, anchors, err := RenderWithAnchors(src)
+	if err != nil {
+		t.Fatalf("RenderWithAnchors: %v", err)
+	}
+	var annot *Anchor
+	for i := range anchors {
+		if anchors[i].Text == "(x2)" {
+			annot = &anchors[i]
+		}
+	}
+	if annot == nil {
+		t.Fatalf("the performance note `(x2)` was not anchored; anchors: %+v", anchors)
+	}
+	// Its box spans the note at the annot font, and sits to the RIGHT of the chords (not at the margin).
+	m := fpdf.New("P", "mm", "A4", "")
+	m.AddPage()
+	m.SetFont("Helvetica", "I", 10) // annot font at scale 1
+	tr := m.UnicodeTranslatorFromDescriptor("")
+	gotW := (annot.X1 - annot.X0) * pageW
+	if wantW := m.GetStringWidth(tr("(x2)")); math.Abs(gotW-wantW) > 0.05 {
+		t.Errorf("annot box width = %.3fmm, text renders %.3fmm", gotW, wantW)
+	}
+	if annot.X0*pageW <= margin+1 {
+		t.Errorf("annot left = %.3fmm, should sit after the chords, not at the margin", annot.X0*pageW)
 	}
 }
 

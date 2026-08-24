@@ -716,9 +716,10 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 		pdf.SetFont("Courier", "B", 11*scale)
 		pdf.SetTextColor(20, 60, 150)
 		pdf.SetXY(margin, y)
-		pdf.CellFormat(pdf.GetStringWidth(tr(chords)), 5*scale, tr(chords), "", 0, "L", false, 0, "")
+		chW := pdf.GetStringWidth(tr(chords))
+		pdf.CellFormat(chW, 5*scale, tr(chords), "", 0, "L", false, 0, "")
 		if rec != nil {
-			rec(chords, margin, y, pdf.GetStringWidth(tr(chords)), 5*scale)
+			rec(chords, margin, y, chW, 5*scale)
 		}
 		if annot != "" {
 			// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
@@ -726,6 +727,10 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 			pdf.SetFont("Helvetica", "I", 10*scale)
 			pdf.SetTextColor(120, 120, 120)
 			pdf.CellFormat(0, 5*scale, "  "+tr(annot), "", 0, "L", false, 0, "")
+			if rec != nil {
+				// box the annot glyphs (after the two-space lead-in), at the cursor left by the chords.
+				rec(annot, margin+chW+pdf.GetStringWidth("  "), y, pdf.GetStringWidth(tr(annot)), 5*scale)
+			}
 		}
 		pdf.SetTextColor(0, 0, 0)
 		if lyric != "" {
