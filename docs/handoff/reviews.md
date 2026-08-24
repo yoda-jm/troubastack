@@ -18386,3 +18386,70 @@ really be confused with annotation vocabulary, make that case and I'll listen �
 real to me, and it's cheapest to fix before the golden pins it.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T95 Stage A part 1 — NOT GO.** Two fixes, both small; the design is right
+
+`8cac68b` reviewed against `8d45aab`. The architecture is exactly what §3/§5.1 asked for, and I verified
+the part that mattered most rather than trusting it: **the shape and order really are mkcharts'**. I
+diffed `Anchor` against `cmd/mkcharts`'s `anchor` — field names, JSON tags, 0-indexed `pdf.PageNo()-1`,
+`[0,1]²` normalisation by 210/297, and the page→Y0→X0 `SliceStable` sort — all identical. B13's
+page+substring+occurrence lookup will resolve against these. Threading `recFn` through `layoutOpts` so
+each primitive records right after its own `Cell`/`CellFormat` is the correct way to make ink and boxes
+inseparable. `gofmt`, `go vet`, `go test ./...` all green.
+
+Two things block it. Both are the same species: **a guard that doesn't cover what it says it covers.**
+
+### 1. BLOCKER — a drawn run has no anchor, so "every text run" isn't true
+
+The chord row's **performance annotation** (`(x2)`, `(2x, 1x Arpèges)`) is drawn — `CellFormat(0, …,
+"  "+tr(annot), …)` in `chordLine` — and **never recorded**. I proved it rather than reading it:
+
+```
+src: "# T\n\n## Verse 1\nC       G  (x2)\nsome words here\n"
+anchors: "T", "Verse 1", "C       G", "some words here"
+→ the annot run "(x2)" is DRAWN but has NO anchor
+```
+
+Note the chord anchor is `"C       G"` — the annotation is correctly split off the chord text, then
+dropped on the floor. Whether B13 ever anchors on `(x2)` is not the point: the doc comment claims
+"every text run it drew", and a manifest with a silent hole is the kind of thing the next person builds
+on. Record it (its x is the running cursor after the chords, mind the two-space lead-in), or state in
+the comment that annotations are deliberately excluded and why. I'd record it.
+
+### 2. BLOCKER — `boxContainsItsTextAtRenderedSize` does not check that the box contains its text
+
+It checks **width only**. There is no position assertion anywhere in it — so a box of exactly the right
+size in the wrong place passes. Proof: I shifted one recorded box 2 mm right of its ink (right width,
+wrong place) and ran that test alone:
+
+```
+--- PASS: TestAnchors_boxContainsItsTextAtRenderedSize
+```
+
+A highlight 2 mm off its word is precisely the B13 failure this invariant exists to prevent, and the
+test named for it is blind to it. **Credit where due: the golden did catch my drift** — so this
+wouldn't have shipped silently for that fixture. But the golden is a change-detector pinned to one
+chart; the invariant is the thing that generalises, and right now it doesn't.
+
+Make it assert position independently — not by restating the drawing code, but by re-deriving it: every
+full-line run (title, subtitle, section, chords, lyric, first text segment) must start at exactly
+`margin`; a `**bold**` segment must start at `margin` + the measured width of the segments before it —
+which is a genuine independent check, since it re-measures rather than trusting the recorded x. Then
+teeth-check it with a positional nudge, the way you teeth-checked the golden with an advance nudge.
+
+**This compounds into Part 2, which is why I want it fixed first.** My ruling (`8d45aab`) requires
+extending this invariant to a wrapped line. If it inherits width-only checking it will guard nothing
+there either — and wrapping is exactly where position drifts, because the width the wrapper chose and
+the width you re-measure come from different code paths.
+
+### Not blocking
+
+`sortAnchors` is called in `RenderWithAnchors` but not in `renderChart`, so the slice is unsorted until
+the public entry point sorts it. Correct as written, and the only caller is that entry point — worth a
+one-line note so a future second caller doesn't inherit an unsorted manifest by surprise.
+
+Fix those two, re-present part 1 and part 2 together if you prefer. The design needs no rework.
+
+— Fable
