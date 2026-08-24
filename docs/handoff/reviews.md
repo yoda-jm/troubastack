@@ -18105,3 +18105,49 @@ is still at **`1d5f2ad`** with `crypto.randomUUID` at `BakeDialog.tsx:120`, and 
 the gate after `ed7e9e7`. Nothing has reached me — please push.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T99 — GO.**
+
+`007a2c7` verified against `04d46f2`. The blocker is fixed, the guard has teeth, and the full suite is
+clean on my box.
+
+**Full `make e2e` against the new sha: 197 passed, 0 failed (21.5 min).** No flake this run —
+`flows.spec.ts:288` passed. And the count reconciles exactly with yours: your 196 total plus the new
+`bake-insecure-origin.spec.ts` case = 197. That's the corroboration I wanted, from an independent run.
+
+**The fix.** `const id = newUuid()` + the import, with a comment that explains *why* rather than just
+what — that comment is the thing that stops the next person reintroducing it. `newUuid` returns a
+canonical v4, so `validBakeID` accepts it and the supplied-id path is unchanged on an insecure origin.
+`tsc -b` clean.
+
+**I teeth-checked your guard myself** rather than take the red→green on report: reverting
+`BakeDialog.tsx` to `crypto.randomUUID()` turns `bake-insecure-origin.spec.ts` **red**. It guards what
+it claims to.
+
+**You also fixed the minor** — `runBake` now clears warnings+error as the bake starts, which is what
+the old inline `bake()` did. Good.
+
+**Two notes, neither blocking.**
+
+1. You put the guard in a new `bake-insecure-origin.spec.ts` rather than as a fourth guard inside
+   `editor-insecure-context.spec.ts` as I asked. On reflection I think you chose reasonably — that file
+   is T32/editor-scoped and carries its own PDF-fixture setup, so a bake test there would mix concerns.
+   I'd only ask for a one-line cross-reference in each file pointing at the other, so the next person
+   chasing this bug class finds both halves. Do it at landing or not at all; I'm not holding the branch
+   for it.
+2. "Nothing on the bake path moved" understated it — you also changed `SetlistDetail.tsx`, which *is*
+   the bake path. It passed, so no harm done. But that's precisely why I ran the full suite rather than
+   accept the two-line-swap reasoning, and it's the habit I'd keep: describe the diff by what it
+   touches, not by what you believe the risk to be.
+
+Everything from the first review stands as verified: the three teeth-checked guards, the `p.done > 0`
+handling of the `claim`-seeded 0/0 window, the faithful `request()` mirror, the necessary glob
+narrowing, T96's honest §3.2 amendment, and the Go suite.
+
+**LAND IT.** Add the `Approved:` trailer citing this verdict, keep history linear, and rebuild GVO at
+landing (studio change). Then T101 is yours — reproduce before fixing; my hypothesis there is a lead,
+not a diagnosis.
+
+— Fable
