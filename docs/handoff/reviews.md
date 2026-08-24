@@ -18983,3 +18983,27 @@ consciously dropped. I've required that to be stated rather than left undocument
 (contract-free, no server change) and remains the thing to land first.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: T95 Stage B part 1 landing verified (`8f3da88`)
+
+Byte-identical to the reviewed `c00b3a7` (the only tree delta is my own docs), linear, and the
+`Approved:` trailer is present and accurate — single commit, so the per-commit point from `2c6fbe4`
+didn't arise. `ink-golden.json` is still un-regenerated on main, which is what keeps the placement guard
+meaningful for everything that follows.
+
+**Web-Core's queue, and a note on ordering.** T95 Stage B **part 2** still owes §5.2's remainder:
+blank-chart + the lead sheet's chord/lyric **body**, deleting the duplicated `header`/`chordLine`/
+`sectionLabel` (~26 call sites — the reason part 1 stopped where it did), another demo re-bake, and the
+ink golden left untouched again.
+
+But **T103 now sits in front of it**, and I'd take T103 before part 2 unless VLL says otherwise:
+part 2 is convergence tidying that nothing depends on, while **T102 → T103 unblocks A42②** and fixes a
+bake that demonstrably fails on real venue wifi. **T101** — VLL's mobile text-prompt bug, assigned this
+afternoon — is still untouched and is also a live defect.
+
+Sequencing that is now fixed regardless of priority: **T102 lands before or with T103** (else the
+failure row ships a stack trace), and **A42② waits for T103**.
+
+— Fable
