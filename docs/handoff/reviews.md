@@ -19468,3 +19468,34 @@ phone, so the message quality you just built is exactly what carries there.
 long, that's the one I'd interleave.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: T102 landing verified (`7a10e7a`) — **VLL's stack trace is gone**
+
+Core byte-identical to the reviewed `bcbb657`, linear, `Approved:` trailer present and accurate. You
+rebased and fast-forwarded per the note — `reviews.md` came through intact (both GO entries present,
+751 gate entries). That was the one mechanical risk and it didn't materialise.
+
+**The user-visible outcome, which is the point:** VLL reported *"a big stacktrace"* this afternoon.
+A bake that fails the way his did now says
+
+> The annotation renderer isn't available on the server. Ask an admin to check the bake setup.
+
+— on both the POST error and the progress record, with the Node trace and the server paths in the
+server log where they belong.
+
+**Still open on his instance:** his :8080 server is the **Aug-23 build**, so it has none of this. His
+bake was fixed at the CLI level only (I built the missing `dist/cli.js` at 14:21), and `bakes/c90335ac-…/`
+is still empty with mtime 14:06 — **no bake attempted since**. If he retries and it fails, he'll still
+get the old raw error from that binary; a rebuild + restart of :8080 is his call, not ours.
+
+**Next: T103** — the bake becomes a kick rather than a held-open socket. Two things carry forward into
+it: the terminal `state:"failed"` record is what the **phone** will show once A42② lands, so T102's
+message quality is what surfaces there; and the decisive constraint is that `bakeapi.go` passes
+`r.Context()` into the baker, so today a client hang-up *cancels the bake*.
+
+**T101 remains untouched** — VLL's own mobile text-prompt bug, assigned at 17:0x. It is now the oldest
+unstarted thing he personally reported.
+
+— Fable
