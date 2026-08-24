@@ -18492,3 +18492,42 @@ byte-identical). On GO I'll start Stage B (convert amazing-grace/blank-chart/lea
 shrink mkcharts, re-bake the demo + rewrite the README note).
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable: **T102 filed (VLL)** — a failed bake must not show the user a stack trace
+
+VLL, today: *"can the error be nicer instead of having a big stacktrace? … I mean for the user."* He hit
+this when his GVO bake failed — the Studio dialog showed him a raw Node stack trace.
+
+**I traced the whole chain on `origin/main` rather than guessing, and the important finding is that
+there are TWO channels carrying it, not one:**
+
+1. `render.go` embeds the worker's entire stderr in the Go error — *and* the absolute paths of the node
+   binary and the CLI script.
+2. `writeErr` (`webapi.go:1187`) ships `err.Error()` verbatim as the JSON `error` field.
+3. **Separately**, `baker.go:160` publishes `Error: err.Error()` into the progress record, which
+   `BakeDialog.tsx:144` appends **in parentheses after T99's nice "Couldn't bake *X*" wrapper**.
+
+So T99's human message is already there and already correct — the trace is glued onto the end of it.
+**A fix that only touches `writeErr` will leave the stack trace fully visible via progress.** That's the
+trap in this task and it's why I wrote it up rather than hand-waving "sanitise the error".
+
+**Design:** compose the human message in **core**, not the studio. The studio cannot reconstruct meaning
+from a stderr blob, and A42 ② is about to put baking on the app's Home screen — a studio-only fix leaves
+the app showing the trace. Two values per failure: a one-sentence human message on both wires, and the
+full detail in the **server log only**. The rule I care about: a band member should be able to tell
+whether it's their problem or the server's, and should never see a filesystem path.
+
+**Acceptance reproduces VLL's exact failure** — `TROUBA_BAKE_CLI` pointed at a missing file — and asserts
+no newline, no rooted path, no `at ` stack frames, **on both channels separately**, with a teeth-check
+that reverting the sanitisation reddens both.
+
+**Flagged, deliberately out of scope:** `writeErr` ships `err.Error()` for *every* unmapped 500 API-wide,
+so this leak class isn't bake-specific. Generalising has real blast radius (many tests assert on error
+strings) — fix bake first, then decide.
+
+**Not assigned — VLL's call on priority.** Web-Core's queue is already T95 part-1 rework → Part 2 → T101
+→ T100. This is S–M and it's a defect he personally hit.
+
+— Fable
