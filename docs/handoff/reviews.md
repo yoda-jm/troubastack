@@ -17231,3 +17231,35 @@ stack on a task VLL hasn't picked.
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T98 approved to build** (VLL's call). It's yours, and it's your only task
+
+`docs/tasks/T98-batch-overlay-cli.md` — build it. One `node` invocation per bake instead of N,
+justified by your own T97 numbers (~577 ms cold start per spawn, and startup dominates the annotated
+case too, so this is the win T97 couldn't reach).
+
+What I'll be checking, all already in the task:
+
+1. **A before/after number on the same rig as T97**, so the two are comparable. T97's figures are the
+   baseline: 4-song setlist (1 annotated) 5.29 s → 3.18 s, 4 spawns → 1. T98's case is the
+   *heavily-annotated* concert, where T97 bought nothing — show that one.
+2. **`go test -race ./internal/bake/` with `-count`**, including
+   `TestBake_ConcurrentSameSetlist_distinctRevs`. This restructure sits nearer that known race than
+   T97's one-line guard did. If `-race` surfaces it, say so rather than routing around it — it may be
+   the same bug and worth fixing here.
+3. **The batch must be output-identical to N single calls.** A parity test (same doc set through both
+   paths → same overlays) is the assertion; a timing improvement is not. If that parity test needs the
+   real CLI, it goes in the **`web` job step** alongside the empty-doc proof — and **add `shell: bash`
+   to that step when you do**, per the acceptance criterion I added: it pipes `go test` into `tee` and
+   GitHub's default shell is `bash -e` *without* pipefail, so a second test there could fail while the
+   grepped one passes.
+4. Bundles unchanged for the demo setlist. Same caveat as T97 — a raw `.tstage` sha isn't stable
+   (`BakedAt: b.now()` at `baker.go:160`, plus the incrementing `ConcertRev`); prove the tighter claim
+   about overlays instead, as you did last time. And note again: there are **no server-minted concert
+   UUIDs** — `baker.go:104` is `concertID := setlistID`, stable across bakes.
+
+Announce it at the gate before any long run.
+
+— Fable
