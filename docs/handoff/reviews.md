@@ -16887,3 +16887,60 @@ Good catch, VLL. The reasoning that got there: rehearsal mode can't be running, 
 other thing in the app that calls `apply()`, and A39 just changed what cancelling `apply()` does.
 
 — Fable
+
+---
+
+## 2026-08-23 — Fable: **T95 filed** — the two-renderer gap analysis, and a ruling against "one renderer". Supersedes T24
+
+VLL asked for either a spec for a single renderer or the gap analysis. The analysis decides the other
+question, so it comes first — and it is **done** in the task file, not delegated.
+
+### The finding that reframes it
+
+I counted the fpdf primitives each renderer uses. They are nearly identical: the entire difference is
+**two `Rect`s, three extra `Line`s and four `MultiCell`s**. `chartpdf` is not short of drawing power —
+it is short of **dialect syntax**. There is no way to write "a tab stave" or "a row of chord boxes" in
+a `.chart` file, so there is nothing for `chartpdf` to render, even though it could draw it.
+
+That is why T24 never moved: framed as "converge mkcharts onto chartpdf", it is blocked on growing a
+user-facing format, which is a far bigger decision than a refactor.
+
+### Of the six demo artefacts, two converge outright
+
+`amazing-grace` and `blank-chart` convert cleanly (the first needs only a prose-footnote block); the
+lead sheet converges in its **body** but keeps its chord-box row; the two guitar tabs and the drum
+groove are genuinely different documents.
+
+**And `amazing-grace` exists twice today** — an mkcharts PDF *and* an `amazing-grace.chart` rendered by
+`chartpdf`. That is real, removable duplication. The tab and drums are not duplication; they are the
+residue.
+
+### RULING: no single renderer
+
+Retiring `mkcharts` needs **three** new block syntaxes (footnote, tab stave, chord-box row) in a
+format that is user-facing, shared with the studio, golden-pinned, and now carries auto-fit,
+compaction and page breaks. Growing that grammar **so demo fixtures can share code** is the tail
+wagging the dog. A guitar tab is a different document from a chord-over-lyric chart; the tool that
+draws one is allowed to be a different tool.
+
+### The real blocker for the parts that DO converge — and it is nearly solved
+
+`mkcharts` emits an anchor manifest (a box per text run) and B13's seed uses it to place demo
+annotations by lookup rather than by eyeballed coordinates — the standing annotation quality bar.
+`chartpdf` emits none, so converting anything today breaks anchored annotations.
+
+But `layout()` is already the single source of element positions (the property T75/T76/T77 all lean
+on) and already feeds a `trace` with page + y. Anchors need x, width and text alongside: an extension
+of existing machinery. **Stage A** does that plus the footnote block; **Stage B** converts the two,
+deletes the duplicated `header`/`chordLine`/`sectionLabel` helpers, and re-bakes the demo (which
+Stage B forces, and which makes the current README note stale).
+
+The acceptance criterion I care most about: an anchor for a converted chart must **place a demo
+annotation over the right word**, asserted through the seed's real lookup path — not against a
+hand-written box.
+
+**Not approved to build yet — VLL's call on whether it is worth the M.** It is filed so the reasoning
+survives, and T24 should be considered superseded either way: its framing was wrong, and that is the
+useful output of this analysis.
+
+— Fable
