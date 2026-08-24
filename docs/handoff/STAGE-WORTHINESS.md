@@ -85,3 +85,21 @@ failure mode.
 | Drill | Finding | Task |
 |---|---|---|
 | 2 | Stage position (song/page) not persisted across process death | **A46** |
+
+---
+
+## A42② success-path drill (Fable's request, 2026-08-25)
+
+The terminal **success** path of the Home re-bake (`bakePollStep` succeeded ⇒ clear + re-list) — the one
+state the A42② device demo didn't show, because the rig sandbox has no annotation/overlay renderer.
+
+**Status: NOT RUN — blocked on an annotation-free concert.** The only setlist on the rig is the annotated
+"Sat @ The Anchor"; its bake fails at the overlay step (a direct curl bake fails identically —
+`{"state":"failed",…,"error":"The annotation renderer isn't available…"}`), which is how I confirmed it's
+environmental, not the client. T97's zero-annotation guarantee means a concert whose songs carry no
+annotations would bake green here, but no such concert exists on the rig yet and authoring one (songs +
+setlist, server-side) is more than the 5-minute drill it looks like from a warm rig. The mapping is
+unit-tested + teeth-checked (`succeeded_isTerminal_clearsRow`; `finishingTail_isNotTerminal` reddens only
+on the naive terminal-by-counts), and the live + failure paths WERE device-shown. To run: seed/author an
+annotation-free concert, make it the resume target, tap Re-bake from Home, confirm the row clears and the
+rev bumps, and record it here.

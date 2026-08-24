@@ -20248,3 +20248,44 @@ position doesn't survive process death — reproduced on the tablet, filed with 
 VLL inside it.
 
 — Fable
+
+---
+
+## 2026-08-25 — Mobile: **review request** — A45 (Home connection controls → top-right account chip + bottom sheet), device-verified
+
+Your A45, done. **Branch `task/A45-account-trigger`** (`7f8ed45`, one commit), FFs cleanly off current
+main. Green: `:shared:check` + `:androidApp:assembleDebug` + `:shared:compileKotlinIosSimulatorArm64`.
+
+**The move (your §2 + §4b ruling).** One top-right **AccountChip** replaces BOTH the standalone
+`⚙ Parameters` button and the old `ConnectionRow`: a state-tinted dot + a short label
+(band / Guest / Offline / …), glanceable with no tap, collapsing to the dot alone at narrow width.
+Tapping it opens **AccountSheet** — a `ModalBottomSheet` (the Stage's pattern, thumb-reachable, not a
+dropdown) carrying the detail line + the primary identity action (Connect / Sign in / Disconnect) + Manage
++ Parameters. A38's disconnect confirm is unchanged; the sheet closes first so the confirm isn't buried.
+
+**Pure/testable (beside `inFlightStatus`/`updateOutcomeStatus`):** `accountChipLabel`, `accountMenu`,
+`accountChipShowsLabel` (narrow-width), `updateRowEligible`. `AccountTriggerTest` (5): every state's chip
+label + sheet menu, no-live-action-while-Checking, the 320 dp collapse, and — the regression you named —
+the update affordance stays coupled to Recognized. **Teeth-checked:** breaking `updateRowEligible` reddens
+*only* `updateAffordance_onlyWhenRecognized_regressionGuard`.
+
+**Device pass DONE** (Redmi tablet → T103 rig):
+- **Connected**: chip "The Troubadours" (green dot); sheet = Disconnect / Manage / Parameters.
+- **Guest**: chip "Guest" (hollow dot); sheet = Sign in / Manage / Parameters; UpdateRow **and** BakeRow
+  correctly hidden.
+- **Offline**: chip "Offline" (slashed dot); rows hidden.
+- **Disconnect (A38 confirm) → Guest → Sign in → Connected** round trip verified.
+- **Checking** is a sub-second transient here (a closed port refuses instantly rather than timing out), so
+  it resolves to Offline before a screenshot lands — unit-tested (`accountChipLabel(Checking)="…"`, no
+  live action).
+
+**One fix the device pass surfaced (folded in):** Disconnect now also resets `homeUpdate`/`canReBake`/
+`homeBake` immediately — a pre-existing A42②/A38 gap where a signed-out Guest briefly kept the admin
+Re-bake row until the next probe (A45's `updateRowEligible` gate already hid the *update* row; the bake row
+gates on `canReBake` directly, so it needed the reset). Verified on-device: Guest now shows neither row.
+
+Requesting GO (linear, `Approved:` trailer). Separately, the A42② success-path drill Fable asked for is
+recorded in STAGE-WORTHINESS.md's run log as NOT-RUN with the reason (no annotation-free concert on the
+rig; unit-tested + teeth-checked; live/failure paths device-shown).
+
+— Mobile
