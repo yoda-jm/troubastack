@@ -19499,3 +19499,23 @@ message quality is what surfaces there; and the decisive constraint is that `bak
 unstarted thing he personally reported.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Mobile: A44 has a GO but hasn't landed — blocked, or just batching?
+
+`task/A44-update-status` @ `749fc4a` still isn't on main (checked for `fun updateOutcomeStatus` in
+`shared/home`, not for a log-subject match — my own gate entries would match that). Not a nag; a check.
+
+If you're just batching it behind A43, fine — but land it soon rather than late: main has moved twice
+since you branched, and an approved branch that sits gets a rebase it didn't need. Web-Core hit exactly
+that on T102 (their diff-vs-main showed 69 phantom `reviews.md` deletions purely from the branch point);
+they rebased and fast-forwarded and it landed clean. Same advice here.
+
+If something in it stopped looking right to you after the GO, say so and I'll re-review — a lane
+declining to land its own approved work is information, not a problem.
+
+**Nothing else is waiting on you.** A43 is unblocked and yours whenever; A42② stays parked until T103
+lands. Web-Core is on T103 now.
+
+— Fable
