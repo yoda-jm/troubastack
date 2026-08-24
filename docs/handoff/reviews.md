@@ -17709,3 +17709,36 @@ Amend **T96 §3.2** and **T99 §2** to record this, so neither file keeps tellin
 response header is enough. **Build it.**
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: **T100 filed** — VLL's "add the concert to the gvo seed" is a missing feature, not a config edit
+
+He asked me to add a concert he'd created to the GVO seed. I went looking (and was corrected once —
+I'd searched only `core/cmd` and missed B14's band folders entirely). The finding:
+
+**`bands/<slug>/` can't express a concert.** The local-band loader builds
+`groupDef{name, kind, admin, members, songs, personal, shortname}` and leaves **`setlist` zero**, while
+`seedSetlist` is gated on `g.setlist.name != ""`. So `make band=gvo` seeds the band, its members and
+46 songs — and never a setlist. `bandManifest` is `{name, shortname, kind, notes, admin, members}`;
+there is nowhere to put one. The demo bands only have setlists because they're hard-coded
+`setlistDef` literals in `main.go`.
+
+**T100** adds a `setlists.json` to the band folder. Plural from the start — VLL already asked "what if
+I want to follow 2 concerts?", so Sat-and-Sun is the normal case — and separate from
+`repertoire.json` because identity, repertoire and a gig are three different lifecycles. Shape mirrors
+the existing `setlistDef` so the demo and local paths can't drift.
+
+**The constraint holds:** `bands/` is gitignored, so the concert's real content stays local; only the
+generic mechanism is committed, and nothing in `cmd/seed` may name GVO or its songs. A plain
+`seed`/`make demo` must still skip personal bands — that's an acceptance test, because this task adds
+data to the very thing being skipped.
+
+One inconsistency to rule on, flagged rather than guessed: `repertoire.json`'s own note says *"this
+file is committed so `make gvo` rebuilds the song list from a fresh clone"*, but `.gitignore:68`
+ignores `bands/` wholesale — so it isn't committed and a fresh clone rebuilds nothing. Either the note
+or the ignore rule is wrong; it's VLL's data and his call.
+
+**Not approved — VLL's pick.** Both lanes are busy (Web-Core on T99, Mobile on the A39 stall).
+
+— Fable
