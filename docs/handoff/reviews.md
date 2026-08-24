@@ -17551,3 +17551,35 @@ for a user who doesn't exist yet.
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: **T99 filed** — the bake dialog shows the progress T96 already publishes (VLL asked)
+
+`docs/tasks/T99-bake-progress-ui.md`. The visible half of T96, which was core-only by design.
+
+**Where it stands:** the dialog's entire feedback during a ~13.5 s bake is the submit button flipping
+to "Baking…" (`BakeDialog.tsx:150`). No count, no song, no sense of movement.
+
+**The one real constraint, and it decides the design.** T96 hands the bake id back as an
+`X-Trouba-Bake-Id` **header**, deliberately, so the POST **body** stayed byte-unchanged — but
+`api.ts`'s shared `request()` ends in `decode<T>(res)` and throws the response away. So: **don't**
+widen `request()` (every call in the file uses it), and **don't** ask the server to move the id into
+the body (that undoes the exact property T96 was built around). One dedicated call that reads the
+header itself, leaving `bakeSetlist` alone.
+
+**The state that matters** is the T98 tail: per-song staging is ~11 s of the 13.5 s, then ~2.4 s of
+batch render + assembly — so the counter really does reach N-of-N with seconds left. T96 publishes a
+song-less `running` update exactly so the client can say **"Finishing…"**. Rendering `done == total`
+as "11 of 11" would look frozen, and "why did it hang at the end" is the complaint this task exists to
+prevent. That's the assertion I'll look for first.
+
+**Non-regression is explicit:** progress is decoration over an unchanged flow. Missing header, or a
+404/500 from the progress GET, means stop polling and show today's "Baking…" — a progress request must
+never fail a bake. The dialog must never end up worse than it is now, and that's a test, not a hope.
+Plus: no timer may outlive the dialog, and e2e is network-free via `page.route` (the
+`lyrics-search.spec.ts` precedent) rather than standing up a real bake.
+
+**Not approved — VLL's call**, alongside T95, concert-row identity, and the text-tool re-arm.
+
+— Fable
