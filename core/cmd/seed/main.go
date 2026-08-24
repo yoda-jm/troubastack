@@ -106,8 +106,11 @@ type person struct {
 // the exact order that member should see them (a non-default subset+order). The
 // seeder PUTs this via the my-files endpoint as that user.
 type songDef struct {
-	title      string
-	artist     string
+	title  string
+	artist string
+	// slug is the song's identity inside a LOCAL band folder (bands/<band>/<slug>/) — the key
+	// setlists.json references (T100). Empty for demo songs, which have no folder.
+	slug       string
 	key        string // musical key (settable on the song page)
 	tempo      int    // BPM
 	meter      string // T86: metre "N/D" ("" = 4/4)
@@ -146,10 +149,12 @@ type cueDef struct {
 
 // overrideDef is a per-setlist-item override (settable on the setlist page).
 type overrideDef struct {
-	song          string // song title to match
-	keyOverride   string
-	tempoOverride int
-	notes         string
+	song            string // song title to match
+	keyOverride     string
+	tempoOverride   int
+	notes           string
+	onCall          bool // T100: mirrors .tband manifestItem.onCall
+	transposeChords bool // T100: mirrors .tband manifestItem.transposeChords
 }
 
 // setlistDef is a setlist to create for a group, with optional item overrides.
@@ -159,6 +164,10 @@ type setlistDef struct {
 	venue     string
 	notes     string
 	overrides []overrideDef
+	// items is an EXPLICIT, ORDERED item list (T100 — a local band's setlists.json). When set it
+	// replaces "every song the group has, in group order": a gig is a SUBSET in a chosen order, and
+	// each entry may carry the same overrides. Empty ⇒ the demo behaviour, unchanged.
+	items []overrideDef
 }
 
 // groupDef is a band or orchestra to create.
@@ -169,7 +178,7 @@ type groupDef struct {
 	members   []string
 	conductor string // optional: a member to promote to the "conductor" role
 	songs     []songDef
-	setlist   setlistDef
+	setlists  []setlistDef
 	// personal marks a REAL (non-demo) band (discovered from bands/*/band.json) that must stay
 	// OUT of the public demo seed: it is skipped by a plain `seed`/`make demo` run and only built
 	// when explicitly selected (`-only <name>` or `-band <shortname>`). Its members are likewise
@@ -264,13 +273,13 @@ func run(addr, password, only, band string) error {
 						"leo":   {{icon: "guitar-acoustic"}},
 					}},
 			},
-			setlist: setlistDef{
+			setlists: []setlistDef{{
 				name: "Sat @ The Anchor", eventDate: "2026-07-04", venue: "The Anchor Pub", notes: "60-minute set.",
 				overrides: []overrideDef{
 					{song: "House of the Rising Sun", keyOverride: "Bm", notes: "Lift it a tone for the room."},
 					{song: "The Open Road", notes: "Encore — everyone in on the last chorus."},
 				},
-			},
+			}},
 		},
 		{
 			name:      "City Chamber Orchestra",
@@ -310,13 +319,13 @@ func run(addr, password, only, band string) error {
 					// Cory=Cello/basso); the conductor works from the full score.
 					myFilesFor: map[string][]int{"ivan": {0}, "vera": {1}, "mila": {2}, "cory": {3}}},
 			},
-			setlist: setlistDef{
+			setlists: []setlistDef{{
 				name: "Spring Concert", eventDate: "2026-05-15", venue: "City Hall", notes: "Strings programme.",
 				overrides: []overrideDef{
 					{song: "Eine kleine Nachtmusik", tempoOverride: 132, notes: "Take the repeat."},
 					{song: "Canon in D", notes: "Watch the tempo — don't rush the bass."},
 				},
-			},
+			}},
 		},
 	}
 
@@ -503,16 +512,88 @@ func loadLocalBands() ([]groupDef, []person, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		// T100: the band's concerts, if it defines any. Missing file ⇒ nil ⇒ seeds as before.
+		setlists, err := loadSetlists(bandDir, songs)
+		if err != nil {
+			return nil, nil, err
+		}
 		shortname := man.Shortname
 		if shortname == "" {
 			shortname = e.Name() // fall back to the folder name
 		}
 		groups = append(groups, groupDef{
 			name: man.Name, kind: kind, admin: man.Admin.Username,
-			members: memberNames, songs: songs, personal: true, shortname: shortname,
+			members: memberNames, songs: songs, setlists: setlists, personal: true, shortname: shortname,
 		})
 	}
 	return groups, people, nil
+}
+
+// loadSetlists reads <bandDir>/setlists.json into setlistDefs — a local band's concerts (T100).
+//
+// Shape mirrors the .tband manifest (app.manifestSetlist / manifestItem) so the hand-edited definition
+// and the machine snapshot never fork a vocabulary: name, eventDate, venue, notes, and per-item
+// keyOverride / tempoOverride / notes / onCall / transposeChords. Two deliberate deviations, both for
+// hand-editing: `song` is a REPERTOIRE SLUG (not an internal songID), and ARRAY ORDER replaces an
+// explicit `position`.
+//
+// A missing file is normal — the band seeds exactly as it did before. An unknown slug is a hard error
+// naming the slug: silently dropping a song from a gig list is the worst thing this can do.
+func loadSetlists(bandDir string, songs []songDef) ([]setlistDef, error) {
+	path := filepath.Join(bandDir, "setlists.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // no concerts defined: not an error
+		}
+		return nil, err
+	}
+	var doc struct {
+		Setlists []struct {
+			Name      string `json:"name"`
+			EventDate string `json:"eventDate"`
+			Venue     string `json:"venue"`
+			Notes     string `json:"notes"`
+			Items     []struct {
+				Song            string `json:"song"` // a repertoire slug
+				KeyOverride     string `json:"keyOverride"`
+				TempoOverride   int    `json:"tempoOverride"`
+				Notes           string `json:"notes"`
+				OnCall          bool   `json:"onCall"`
+				TransposeChords bool   `json:"transposeChords"`
+			} `json:"items"`
+		} `json:"setlists"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	titleBySlug := make(map[string]string, len(songs))
+	for _, sd := range songs {
+		if sd.slug != "" {
+			titleBySlug[sd.slug] = sd.title
+		}
+	}
+	out := make([]setlistDef, 0, len(doc.Setlists))
+	for _, sl := range doc.Setlists {
+		if strings.TrimSpace(sl.Name) == "" {
+			return nil, fmt.Errorf("%s: a setlist has no name", path)
+		}
+		def := setlistDef{name: sl.Name, eventDate: sl.EventDate, venue: sl.Venue, notes: sl.Notes}
+		for _, it := range sl.Items {
+			title, ok := titleBySlug[it.Song]
+			if !ok {
+				// Loud, and it names the slug: a gig list that quietly loses a song is the failure
+				// this task exists to prevent.
+				return nil, fmt.Errorf("%s: setlist %q references unknown song slug %q (not in repertoire.json)", path, sl.Name, it.Song)
+			}
+			def.items = append(def.items, overrideDef{
+				song: title, keyOverride: it.KeyOverride, tempoOverride: it.TempoOverride,
+				notes: it.Notes, onCall: it.OnCall, transposeChords: it.TransposeChords,
+			})
+		}
+		out = append(out, def)
+	}
+	return out, nil
 }
 
 // loadRepertoire reads <bandDir>/repertoire.json into songDefs, attaching any real source PDFs
@@ -546,7 +627,7 @@ func loadRepertoire(bandDir string) ([]songDef, error) {
 		if s.Title == "" {
 			continue
 		}
-		sd := songDef{title: s.Title, artist: s.Artist, key: s.Key, tempo: s.Tempo, meter: s.Meter, tags: s.Tags, notes: s.Notes}
+		sd := songDef{title: s.Title, artist: s.Artist, key: s.Key, tempo: s.Tempo, meter: s.Meter, tags: s.Tags, notes: s.Notes, slug: s.Slug}
 		if s.Slug != "" {
 			pdfs, _ := filepath.Glob(filepath.Join(bandDir, s.Slug, "*.pdf"))
 			sort.Strings(pdfs)
@@ -999,9 +1080,13 @@ func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error)
 		}
 	}
 
-	// Build a setlist (showcases setlists + per-item overrides).
-	if g.setlist.name != "" {
-		if err := seedSetlist(admin, bandID, g.setlist, titles, songIDByTitle); err != nil {
+	// Build the group's setlists (demo: one showcase list; a local band: each entry of its
+	// setlists.json, T100). Order is the file's order, so "Sat" and "Sun" seed as written.
+	for _, sl := range g.setlists {
+		if sl.name == "" {
+			continue
+		}
+		if err := seedSetlist(admin, bandID, sl, titles, songIDByTitle); err != nil {
 			return seededGroup{}, 0, 0, err
 		}
 	}
@@ -1221,6 +1306,17 @@ func seedSetlist(admin *apiClient, bandID string, sd setlistDef, orderedTitles [
 	if err := admin.getJSON("/api/bands/"+bandID+"/setlists/"+setlistID, &detail); err != nil {
 		return err
 	}
+	// T100: when the definition carries an explicit ORDERED item list, it replaces "every song the
+	// group has": a gig is a subset in a chosen order. Each entry doubles as that item's override.
+	overrides := sd.overrides
+	if len(sd.items) > 0 {
+		orderedTitles = make([]string, 0, len(sd.items))
+		for _, it := range sd.items {
+			orderedTitles = append(orderedTitles, it.song)
+		}
+		overrides = sd.items
+	}
+
 	itemBySong := map[string]string{}
 	for _, it := range detail.Items {
 		itemBySong[it.SongID] = it.ID
@@ -1241,7 +1337,7 @@ func seedSetlist(admin *apiClient, bandID string, sd setlistDef, orderedTitles [
 		fmt.Printf("     + %d songs added to setlist\n", len(orderedTitles))
 	}
 
-	for _, ov := range sd.overrides {
+	for _, ov := range overrides {
 		songID, ok := songIDByTitle[ov.song]
 		if !ok {
 			continue
@@ -1259,6 +1355,12 @@ func seedSetlist(admin *apiClient, bandID string, sd setlistDef, orderedTitles [
 		}
 		if ov.notes != "" {
 			body["notes"] = ov.notes
+		}
+		if ov.onCall {
+			body["onCall"] = true
+		}
+		if ov.transposeChords {
+			body["transposeChords"] = true
 		}
 		if len(body) == 0 {
 			continue
@@ -1330,13 +1432,20 @@ func printGuide(addr, password string, people []person, groups []seededGroup, fe
 				fmt.Fprintf(w, "          • %s's \"my files\": %s\n", username, strings.Join(titles, " → "))
 			}
 		}
-		if sl := g.def.setlist; sl.name != "" {
+		for _, sl := range g.def.setlists {
+			if sl.name == "" {
+				continue
+			}
 			when := sl.eventDate
 			if sl.venue != "" {
 				when = strings.TrimSpace(when + " @ " + sl.venue)
 			}
+			n := len(g.def.songs) // demo: the whole group list becomes the setlist
+			if len(sl.items) > 0 {
+				n = len(sl.items) // T100: an explicit gig list is a SUBSET
+			}
 			fmt.Fprintf(w, "      ♪ setlist \"%s\" (%s) — %d songs, with key/tempo overrides\n",
-				sl.name, when, len(g.def.songs))
+				sl.name, when, n)
 		}
 	}
 	fmt.Fprintln(w)

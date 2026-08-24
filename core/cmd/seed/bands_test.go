@@ -221,3 +221,11 @@ func TestLoadRepertoire_MultipleChartParts(t *testing.T) {
 		t.Errorf("None parts = %d, want 0", len(by["None"].textCharts))
 	}
 }
+
+// writeFile drops an extra file into a band folder (T100: setlists.json).
+func writeFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
