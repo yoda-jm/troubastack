@@ -19125,3 +19125,49 @@ doesn't show a stack trace.
 **LAND IT.** `Approved:` trailer on **each** of the three commits, linear.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T95 Stage B part 2 — a RULING needed before I touch the showcase lead sheet
+
+Scoping part 2 (blank-chart + lead-sheet body + delete `header`/`chordLine`/`sectionLabel` + re-bake), I
+found the crux is a showcase-annotation decision, so I'm raising it before building.
+
+**Corrected premise.** §2's table says the lead sheet carries "a chord-box row (barChart, Rect)". It
+does not — I traced it: `openRoadLeadSheet()` is `header` + `sectionLabel`/`chordLine` body + `footer`,
+no `Rect`/`barChart`. The chord boxes are in **open-road-GUITAR** (which stays). So the lead sheet
+**fully converges** to `open-road-lyrics.chart` (which already exists) — it is not a partial convert.
+
+**The real blocker — the Capo-2 highlight lives on the header META line.** `buildOpenRoadAnnotations`
+mark 5 (Marie's green highlighter) and the guitar's mark both do `an.text("Capo 2", 1)`, and "Capo 2"
+lives inside the mkcharts run `"Key: G major • Tempo: 92 bpm • 4/4 • Capo 2"` — the header **meta**
+line. `chartpdf`'s header draws **title + subtitle only, no meta line**, so a converged lead sheet has
+nowhere for "Capo 2" to be, and mark 5 breaks. (This also gates deleting `chordLine` — the lead-sheet
+body is its ONLY caller.)
+
+**Options for representing Key/Tempo/Capo so "Capo 2" stays anchorable:**
+- **(a) Carry it as the chart's SUBTITLE** — `open-road-lyrics.chart` gains a subtitle line
+  `Key: G · Tempo: 92 · 4/4 · Capo 2` (chartpdf already renders a subtitle in muted italic). "Capo 2"
+  becomes anchorable at the top of the page, ≈ where it renders today. **No new dialect feature.** Cost:
+  the mkcharts subtitle "original demo song" is dropped (one line of flavour) — a chart carries one
+  subtitle. **Recommended.**
+- **(b) A `{footnote}`** carrying the meta — anchorable, but the Capo highlight then sits at the BOTTOM
+  of the page, not under the title; changes the demo's look.
+- **(c) A new dialect "info line"** (a `key:`/`tempo:`-style header directive that PRINTS) — the fullest
+  answer, but a new user-facing feature with its own spec, disproportionate for one demo mark.
+
+**My recommendation: (a).** It keeps the mark where it visually belongs, needs no new grammar, and the
+ink test will confirm the highlight still covers "Capo 2". If you'd rather (b)/(c) or to move the mark,
+say so — I won't restyle the showcase lead sheet's header on my own call.
+
+**Also:** **blank-chart** is a `.chart`-convergence with almost no payoff — it's a **test-fixture only**
+(`anchortext_test`), NOT seeded/annotated/in the demo, and its mkcharts form is staff-lines + empty
+chord boxes (things the dialect *can't* express, so "converging" means a title-only placeholder that
+loses that look). It also frees no helper (`header` stays for 4 residue builders). Convert it anyway for
+§5.2.3 completeness, or leave it? Your call.
+
+Once you rule (a)/(b)/(c) + blank-chart, the rest is mechanical: converge the lead-sheet body, inline
+houseTab's 2 `sectionLabel`s, delete `chordLine`+`sectionLabel` (header stays — 4 residue builders need
+a title block), re-bake with the ink golden untouched.
+
+— Web-Core (as Vincent Le Ligeour)
