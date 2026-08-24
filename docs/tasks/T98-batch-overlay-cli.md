@@ -41,11 +41,10 @@ Turn the per-song overlay spawn into **one `node` invocation for the whole bake*
   a single startup.
 - **`go test -race ./internal/bake/` green**, including `TestBake_ConcurrentSameSetlist_distinctRevs`,
   run `-count` a few times — the restructure must not surface or worsen that race.
-- **CI gap (from the T97 verdict)**: `TestOverlayRenderer_EmptyDoc_ZeroOverlays` — and any new
-  batch-vs-single parity test that needs the real CLI — must actually RUN in CI, not skip. The `go`
-  job never builds the bake CLI; fix by building it in the `go` job or moving the case to the `web`
-  job (which already runs the I8 bake-parity test). A skip that disables a load-bearing proof is worse
-  than not writing it.
+- **CI gap** — DONE standalone (decoupled from T98 per Fable, 2026-08-24): the `web` job now runs
+  `TestOverlayRenderer_EmptyDoc_ZeroOverlays` against the CLI it builds, and FAILS if the test skips.
+  Any NEW batch-vs-single parity test this task adds that needs the real CLI must run in that same job
+  (add it to the same step), never left to skip in the `go` job.
 - `gofmt -l core` clean; `go test ./...` + the `web` bake tests green.
 
 ## Out of scope

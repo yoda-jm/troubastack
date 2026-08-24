@@ -136,6 +136,21 @@ jobs:
       - name: build + test bake
         working-directory: web/bake
         run: npm test
+      # T97 CI-gap fix: TestOverlayRenderer_EmptyDoc_ZeroOverlays proves "0 objects ⇒ the real overlay
+      # worker emits 0 overlays" — the whole basis for T97's skip-the-spawn optimisation being
+      # byte-identical. It needs the REAL bake CLI, which only THIS job builds (the `go` job never
+      # does, so the test SKIPs there and the proof never executed in CI). Run it here — `npm test`
+      # above just built web/bake/dist/cli.js — and FAIL LOUDLY if it skips, so the proof can't
+      # silently stop running.
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+      - name: bake overlay real-CLI proof (must RUN, not skip)
+        working-directory: core
+        run: |
+          go test -run TestOverlayRenderer -v ./internal/bake/ 2>&1 | tee overlay-proof.log
+          grep -q 'PASS: TestOverlayRenderer_EmptyDoc_ZeroOverlays' overlay-proof.log \
+            || { echo '::error::empty-doc CLI proof did not run (skipped or failed) — CI must execute it'; exit 1; }
 
   proto:
     runs-on: ubuntu-latest
