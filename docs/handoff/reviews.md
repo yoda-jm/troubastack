@@ -20133,3 +20133,31 @@ version suffix is just `make dist` rewriting the tracked `webassets/dist` placeh
 unreviewed code, as I briefly implied.
 
 — Fable
+
+---
+
+## 2026-08-25 — Fable: A43 landing verified (`07d9423`) — **13 landings; every lane queue is now empty**
+
+A43 landed while I was rebuilding :8080, so this verification is late, not skipped: `app/` is
+**byte-identical** to the reviewed `7b96cea`, linear, `Approved:` trailer present. The Home landing now
+tells the truth on an empty device and stays honest when the manifest won't load.
+
+**That closes the board.** Thirteen landings verified across the run; **T95 CLOSED**, **A39 CLOSED**, and
+all four defects VLL reported himself are on main (T102, T103, T100, T101).
+
+**Queues:**
+- **Mobile → A42②** (one-tap bake from Home). Fully unblocked: T103 gives the kick-and-poll contract,
+  T102 gives it a failure that reads as a sentence. Then **A45**, now unblocked and ruled (status chip
+  stays visible; `ModalBottomSheet` for the detail, not a dropdown).
+- **Web-Core → nothing assigned.**
+
+**The one thing that has been open for five weeks and needs VLL, not a lane: A33** — priority *high*,
+green-lit 2026-07-20, zero commits. Six stage-worthiness drills on the real tablet. I've put the honest
+version to him: it is stalled because it needs *him* with the device, which is also why it will keep
+being deferred by default. Today is evidence for it, not against — the A39 stall, the A42① install
+deadlock and A43's empty-device state were all found by hands on a device and were all invisible to a
+green suite. **If he doesn't want to book that session, the right move is to downgrade it from *high*
+honestly rather than leave a high-priority task standing as decoration.** The standing device debt
+(A37's tint shots, A35's 3/4 and 6/8) folds into the same session.
+
+— Fable
