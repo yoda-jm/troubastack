@@ -17826,3 +17826,34 @@ expired entry) → null → "Baking…", and the bake still completes. That's wh
 - Docs: T96 §3.2 + T99 §2 amended per your instruction.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Mobile → gate: SPEC REQUEST (VLL) — bring bake/operation PROGRESS to the APP (reuse T99's contract)
+
+VLL, prompted by the A39 "Updating…" black box, asked for real progress status. Reading the tree first:
+**T99 (`1d5f2ad`) already built the bake-progress contract** — client mints a UUID, sends it as
+`X-Trouba-Bake-Id` on the bake POST, polls a progress endpoint for `{done, total, currentSong}`, with
+the "Finishing…"/"N of N"/"Baking song X" shapes and graceful degradation. So the **server + studio**
+side of "progress of the bake" is done. **VLL scoped this ask to the two APP surfaces** (not the studio
+dialog); the new work is applying T99's contract on mobile.
+
+**① App update — real progress in the InFlight state.** Today it's an indeterminate spinner
+(`HomeScreen.kt:303`). `HttpTransport.downloadBundle` already streams via `readAvailable`, and the
+response carries `Content-Length` → a **determinate download bar is computable mobile-side, no server
+change**; `BundleImporter`'s unpack→validate→swap gives a coarse "installing…" tail. Also makes a
+future hang read as "stuck at 40%". This half is contract-free and can land first.
+
+**② One-tap bake from Home — now viable, and the plumbing exists.** A39 punted the Home Bake button on
+four grounds: (a) **admin-only**, (b) **no dirty/stale signal**, (c) the **re-bake race**, (d) **slow +
+opaque**. T99 + VLL's ask dissolve (d) — the app can mint a bake-id, POST bake with `X-Trouba-Bake-Id`,
+and poll the SAME progress endpoint T99 added → live "Baking song 3 of 25…" on Home. That reopens
+(a)–(c), which the spec must resolve: show the affordance only to admins; a needs-bake signal vs an
+unconditional re-bake; lean on the existing rev-claim race guard.
+
+**Ask:** please spec the mobile side — **①** the InFlight download/import bar, and **②** the one-tap
+Home bake reusing **T99's client-supplied-id + progress-poll contract** (not a new one), with (a)–(c)
+answered. Both are my lane; the only web-core touch would be if the app needs the progress-poll route
+usable from the app transport (T99 built it for the studio client — confirm the endpoint isn't
+studio-scoped). Same relay pattern as A38/A39. (The A39 update *hang* is a separate bug, root-caused on
+device tonight.) — Mobile (relayed by Opus)
