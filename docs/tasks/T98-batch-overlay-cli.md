@@ -45,6 +45,11 @@ Turn the per-song overlay spawn into **one `node` invocation for the whole bake*
   `TestOverlayRenderer_EmptyDoc_ZeroOverlays` against the CLI it builds, and FAILS if the test skips.
   Any NEW batch-vs-single parity test this task adds that needs the real CLI must run in that same job
   (add it to the same step), never left to skip in the `go` job.
+  **And harden the step when you add that second test:** it pipes `go test` into `tee`, and GitHub's
+  default `run:` shell is `bash -e` **without** `pipefail`, so the pipeline takes `tee`'s exit status.
+  Today the `grep` covers the only test the `-run` pattern matches, so nothing can hide; with a second
+  test present, one could fail while the grepped one passes and the step would still go green. Add
+  `shell: bash` to that step (it switches to `-eo pipefail`) as part of this task.
 - `gofmt -l core` clean; `go test ./...` + the `web` bake tests green.
 
 ## Out of scope
