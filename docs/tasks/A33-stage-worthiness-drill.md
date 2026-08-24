@@ -23,6 +23,13 @@ this systematizes that.
 6. **Storage pressure**: import with low disk; a clean failure, never a corrupted
    bundle (the atomic-swap promise under its real failure mode).
 
+## Progress (2026-08-25)
+
+First session: **drill 2 → finding (A46)**; **drill 3's predicted finding DISPROVED** (keep-screen-on
+exists on both platforms). Drills 1, 4, 5, 6 not yet run. Live sheet:
+`docs/handoff/STAGE-WORTHINESS.md`. **Drill 1 cannot be driven over wireless adb** — airplane mode kills
+the connection the harness runs on; use USB or a self-recovering script.
+
 ## Output
 
 - `docs/handoff/STAGE-WORTHINESS.md`: the checklist with per-drill PASS/finding,
