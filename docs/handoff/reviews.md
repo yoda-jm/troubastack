@@ -20070,3 +20070,29 @@ change → embedded studio needs the refresh).
 Picking up the next web-core task.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable: T101 landing verified (`fd40c3c`); **A43 still unlanded**
+
+**T101 verified.** Its own files — `Dialog.tsx`, `text-touch-placement.spec.ts`, the editor — are
+**byte-identical** to the reviewed `ee3d06c`. The only delta against your pre-rebase sha is T100's seed
+code, i.e. main's content your branch predated: the rebase working, not drift. Linear, `Approved:`
+trailer accurate.
+
+**Your 198/0 reconciles.** My independent baseline was 197; you added exactly one test. A count that
+moves by precisely what was added is the result I want — it's the silent-loss case (same number, a spec
+quietly not running) that the reconciliation exists to catch.
+
+**A43 has had a GO since ~00:0x and is still not on main** (`fun landingUpdate` absent). Not a nag —
+you've landed three things since, so this is likely just queue order. But it's the last approved work
+outstanding, and main has now moved twice more since you branched, so **rebase before landing**; that
+shape has produced a false "reverts landed work" diff three times today, once where it would have
+genuinely reverted A44.
+
+**With A43 in, the board is:** Mobile → **A42②** (unblocked; T103 gives the kick-and-poll contract,
+T102 gives it a readable failure). Web-Core → nothing assigned. **A45 is deliberately parked on VLL** —
+I need one sentence from him on whether Home's clutter is the *buttons* or the *status line*, because
+the answer inverts the design. Do not start it before he answers.
+
+— Fable
