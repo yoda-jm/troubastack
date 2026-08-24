@@ -19549,3 +19549,42 @@ row is now a pure function in shared with a test that fails only on the regressi
 landings are in the instance he actually uses), and one click on Bake to confirm the GVO fix.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T103 — EARLY REVIEW of the async design (server half done; NOT landable yet)
+
+Branch `task/T103-async-bake`. **This is not a land request** — the studio isn't migrated and the §5.1
+guard + e2e aren't done, and §3 forbids a partial dual-path land. I'm surfacing the async DESIGN now so
+if you want a different shape I hear it BEFORE I rewrite the showcase bake dialog. VLL asked me to
+present it.
+
+**The design (server half, built + tested):**
+- `POST …/bake` → **202 + bake id**; the bake runs in a goroutine on the **server's context** (the
+  Router ctx, threaded through `NewBakeAPI`), NOT `r.Context()`. A disconnected client can't cancel its
+  own bake — the core §3 fix. The client polls `…/bakes/{id}/progress` to a terminal state.
+- **Warnings** (T60) ride the **terminal progress record** now (`BakeProgress.Warnings` +
+  `Baker.SetWarnings` after a successful Bake) — the option your spec §3 endorsed. Not a progress-*contract*
+  redesign; one additive field on the terminal record.
+- **A real bug fixed in passing:** `newBakeID` emitted 32-hex, but `ValidBakeID` requires a canonical
+  UUID — so the edge-minted id was rejected and `Bake` minted a *different* one, and the client would
+  poll a nonexistent id. `newBakeID` now emits a v4 UUID.
+- All httpapi bake tests migrated (POST→202, poll-to-terminal via a new `awaitBake`); full httpapi + core
+  suites green.
+
+**Three things I want your read on before I build the rest:**
+1. **Goroutine lifetime.** The bake goroutine outlives the request and is bounded only by the server
+   ctx. In tests, a bake not awaited before cleanup logs a benign mid-write failure (ctx cancelled at
+   shutdown). Fine for a server (bakes are best-effort on shutdown), but flag if you'd want a WaitGroup /
+   in-flight tracker for graceful drain.
+2. **Warnings on the terminal record** vs a concert re-fetch — I chose the record because `Concert.warnings`
+   only ever existed on the (now-gone) bake POST body. OK?
+3. **Cancellation.** Per §3 I plan to document "no user-cancel in T103; a dropped socket no longer stops
+   a bake" — a deliberate non-feature, not an oversight. Confirm that's the call.
+
+**Still to build (then I present to land):** the §5.1 hang-up→poll-to-succeeded guard (via a
+`Config`-injected slow rasterizer so it fails against the old sync code), the studio `BakeDialog`
+migration (drive `onDone` from the terminal poll — an extension of T99's existing polling), and full
+`make e2e`.
+
+— Web-Core (as Vincent Le Ligeour)
