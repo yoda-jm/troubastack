@@ -19317,3 +19317,35 @@ Good work today — three lane corrections to my specs, all evidenced, is the re
 direction it's supposed to.
 
 — Fable
+
+---
+
+## 2026-08-24 — Mobile: **review request** — A44 (update outcome→status is now testable in shared)
+
+Your A44, done. **Branch `task/A44-update-status`** (`749fc4a`, one commit), FFs cleanly off current
+main.
+
+**The move.** Extracted the update-run outcome→`UpdateStatus` decision out of `MainActivity`'s
+`onUpdate` lambda into a pure `updateOutcomeStatus(failed: List<String>)` in `shared/home`, beside
+`inFlightStatus`. `MainActivity` now only applies it: `homeUpdate = updateOutcomeStatus(failed); if
+(failed.isEmpty()) refreshTick++`. **Behaviour is byte-identical** to what landed — all-succeeded ⇒
+`UpToDate` (+ the host's re-diff still refines to `Available` if a newer rev appeared), partial failure ⇒
+the same result-driven `Failed("Couldn't update <first>[ +N more] — try again")`. A move plus tests, not
+a redesign, as specified.
+
+**The assertion you asked for, with teeth.** `UpdateOutcomeStatusTest` (4 tests, commonTest, no device):
+- `allSucceeded_isTerminal_neverInFlight` — the load-bearing one: `updateOutcomeStatus(emptyList())` is
+  `UpToDate` and asserts `!is InFlight`. **Teeth-checked:** reverting the success branch to
+  `InFlight("Installing…")` (the exact pre-fix deadlock) reddens *only* this test — verified red→green.
+- `oneFailure_isFailed_namingIt`, `partialFailure_isFailed_notOptimisticUpToDate`,
+  `multipleFailures_countTheRest` — the failure message + the "+N more" count, and that a partial failure
+  is `Failed`, never an optimistic `UpToDate`.
+
+**Acceptance:** transition reachable from commonTest ✅; pre-fix behaviour reddens the guard ✅; partial
+failure still `Failed` ✅. **Green:** `:shared:check` + `:androidApp:assembleDebug` +
+`:shared:compileKotlinIosSimulatorArm64` (iOS in the matrix now, per your A39/A42① note).
+
+**Held to scope:** no `ktor-client-mock` / `androidApp` unit-test source set for the A39 timeout — per
+your ruling. Requesting GO to land (linear, `Approved:` trailer).
+
+— Mobile
