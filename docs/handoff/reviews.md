@@ -17263,3 +17263,52 @@ What I'll be checking, all already in the task:
 Announce it at the gate before any long run.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T98 submitted (batch the overlay worker across all songs of a bake)
+
+Branch `task/T98-batch-overlay` (commit `4164ebd`), off `origin/main` `99bd954`. Building your
+approval + VLL's call. One `node` spawn per bake instead of N.
+
+**The change.** The baker's per-song loop is now three phases: (1) `stageSong` — metadata + poppler
+rasters, returning one `*overlaySong` request per song that has objects to draw (zero-object songs
+return `nil`, T97's guarantee unchanged); (2) one `RenderBatch(ctx, []overlaySong)` — a single
+`node cli --in --out` carrying `{songs:[{key,doc,pages,overlayWidth}]}`, CLI renders each song into
+`out/<key>/` and writes a keyed `index.json`; (3) `assembleSong` writes each song's rasters + its
+keyed overlay slice into the bundle (the old assembly loop moved **verbatim**). `RenderBatch` spawns
+nothing for an empty batch, so a no-annotation bake stays at 0 spawns. The CLI keeps its single-song
+request shape for back-compat (only Go's caller changed).
+
+Against your four checks:
+
+1. **Before/after, same rig as T97 (heavily-annotated case).** Real toolchain (pdftoppm 26.05 @150
+   DPI + the built node CLI), 6-song setlist, **all six annotated** — the case T97 bought nothing for:
+   - full bake, batched (T98): **13.55 s**
+   - full bake, per-song (pre-T98, counterfactual): **16.48 s**  → **−2.93 s**
+   - the delta is entirely the overlay phase: **2.36 s (1 spawn) vs 5.28 s (6 spawns)**, 2.24× on the
+     phase, ~0.59 s saved per additional annotated song. Poppler dominates the rest of the bake (~11 s
+     for six multi-page charts) and is untouched — which is exactly why the win lives in the overlay
+     phase. (Isolated CLI-only cross-check, 4 songs: 2806 ms → 1050 ms, 2.67×.) Measurement was a
+     throwaway `_test.go` over `docs/demo-charts/*.pdf`, not committed.
+
+2. **`go test -race -count=5 ./internal/bake/` incl. `TestBake_ConcurrentSameSetlist_distinctRevs`** —
+   green, exit 0, both runs. The restructure kept the rev-claim path byte-identical (staging is
+   sequential; the win is O(1) spawns, not parallelism), so it did **not** agitate that race.
+
+3. **Batch = N single calls (output-identical).** `TestOverlayRenderer_BatchMatchesIsolated` (real
+   CLI): song A rendered alone vs in an A+B batch → identical `ContentHash` **and** identical PNG
+   bytes, B isolated. Plus `TestBake_MultipleAnnotated_OneOverlaySpawn` (injected counter): 3 annotated
+   songs ⇒ exactly **1** spawn, and every song still gets its overlay. Both real-CLI proofs are
+   grep-gated in the `web` CI job, and I added **`shell: bash`** to that step per your acceptance note
+   (the `go test | tee` pipe now runs under `-eo pipefail`, and both test names must appear as `PASS`
+   or the step fails).
+
+4. **Bundles unchanged.** Assembly code is byte-for-byte the same (moved into `assembleSong`), song
+   order preserved (staged in `detail.Items` order, assembled in that order), and per-song overlays are
+   byte-identical by check 3 — so a bundle is identical for the same input modulo the known-volatile
+   `BakedAt`/`ConcertRev`. And yes — `baker.go:104` is still `concertID := setlistID`, no minted UUIDs.
+
+`gofmt -l` clean, `go build ./...` + `go test ./...` green.
+
+— Web-Core (as Vincent Le Ligeour)
