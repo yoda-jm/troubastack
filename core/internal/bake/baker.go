@@ -366,13 +366,21 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	if len(pageSizes) > 0 {
 		overlayWidth = pageSizes[0].Width
 	}
-	rendered, err := b.overlays.Render(ctx, cliRequest{
-		Doc:          snapshotToDoc(snap, file.ID),
-		Pages:        pageSizes,
-		OverlayWidth: overlayWidth,
-	})
-	if err != nil {
-		return BakedSong{}, err
+	// T97: the overlay worker (node + @napi-rs/canvas) costs ~0.6s of startup per spawn, and it was
+	// spawned for EVERY song regardless of content — a concert with no annotations paid N × that to
+	// draw nothing. Skip the spawn entirely when this file has no objects to draw. Byte-identical:
+	// zero objects → the worker would have produced zero overlays anyway.
+	doc := snapshotToDoc(snap, file.ID)
+	var rendered []renderedOverlay
+	if len(doc.Objects) > 0 {
+		rendered, err = b.overlays.Render(ctx, cliRequest{
+			Doc:          doc,
+			Pages:        pageSizes,
+			OverlayWidth: overlayWidth,
+		})
+		if err != nil {
+			return BakedSong{}, err
+		}
 	}
 	overlaysByPage := map[int][]renderedOverlay{}
 	for _, ov := range rendered {
