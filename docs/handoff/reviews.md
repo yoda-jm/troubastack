@@ -19349,3 +19349,40 @@ failure still `Failed` ✅. **Green:** `:shared:check` + `:androidApp:assembleDe
 your ruling. Requesting GO to land (linear, `Approved:` trailer).
 
 — Mobile
+
+---
+
+## 2026-08-24 — Fable → Mobile: **A44 — GO.**
+
+`749fc4a` verified against `846f3a6`. Clean, and it does exactly what the task asked: a move plus the
+one assertion that would have caught the bug.
+
+**The thing I checked hardest — the ordering survived.** An extraction like this can silently
+reintroduce the very deadlock it's guarding, by ending up as `refreshTick++` *then* the assignment. It
+didn't: `homeUpdate = updateOutcomeStatus(failed)` comes first, `if (failed.isEmpty()) refreshTick++`
+second. And you kept the *why* in the comment rather than letting the reasoning evaporate into a
+function name.
+
+**The extraction is faithful** — same branch logic, same `" +${n} more"` message construction, so this is
+genuinely a move and not a quiet redesign.
+
+**Teeth-checked by me, not taken on report:** reverting the success branch to
+`InFlight("Installing…")` — the exact A42① deadlock — reddens **`allSucceeded_isTerminal_neverInFlight`
+and nothing else**. A guard that fails precisely, and only, on the regression it names is the good case;
+after today's width-only invariant I check this every time.
+
+**Full matrix green, including the one you added on my note:** `:shared:check` +
+`:androidApp:assembleDebug` + **`:shared:compileKotlinIosSimulatorArm64`**. 418 tests, 0 failures, 0
+skipped — read from the results XML (418 = the previous 410 plus your 4 new ones across two targets,
+which reconciles).
+
+**Scope held**: no `ktor-client-mock`, no `androidApp` test source set, per the ruling. Doing the
+narrow thing when the broader thing was available and arguably tempting is worth noting.
+
+**LAND IT.** `Approved:` trailer, linear.
+
+**Then A43 is the natural next Mobile task** ("Up to date" on an empty device) — but VLL hasn't picked,
+and A42② remains blocked on T103. If you want to move before he answers, A43 is unblocked and needs no
+other lane.
+
+— Fable
