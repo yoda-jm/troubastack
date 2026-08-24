@@ -35,14 +35,36 @@ blocked on growing a user-facing format, which is a much bigger decision than a 
 | mkcharts output | what it draws beyond the dialect | converges? |
 |---|---|---|
 | `amazing-grace` | a wrapped prose footnote (public-domain attribution) | **yes**, with §5.1 |
-| `open-road-leadsheet` | header rule (chartpdf already draws one); a **chord-box row** (`barChart`, `Rect`) | body yes, boxes no |
+| `open-road-leadsheet` | header rule (chartpdf already draws one); a **header META line** (`Key: … • Capo 2`) | **yes** — see the ⚠ below |
 | `open-road-guitar` | **tab staves** (monospace rows + rules) + footnote | no |
 | `house-rising-sun-tab` | **tab staves** + footnote | no |
 | `house-rising-sun-drums` | **groove grid** (staff lines, bar lines, legend box) | no — and shouldn't |
-| `blank-chart` | nothing | **yes**, trivially |
+| `blank-chart` | staff lines + empty chord boxes | **N/A — dropped**, see ⚠ below |
 
 So of six artefacts: **two converge outright**, one converges in its body, three are genuinely
 different documents.
+
+> ### ⚠ Two corrections to this table (2026-08-24, on Web-Core's evidence)
+>
+> **The lead sheet has NO chord-box row.** `openRoadLeadSheet()` is `header` + `sectionLabel`/`chordLine`
+> body + `footer` — no `Rect`, no `barChart`. Those are in open-road-**guitar**, which stays on mkcharts.
+> So the lead sheet converges **fully**. Its real obstacle is different: mkcharts' `header` takes a third
+> **meta** line (`"Key: G major • Tempo: 92 bpm • 4/4 • Capo 2"`) that chartpdf's header has no slot for —
+> and B13's showcase mark anchors on `"Capo 2"` inside it. **Ruled: carry the meta as the chart's
+> SUBTITLE** (option (a)); the mark stays near the top, no new grammar. A printed "info line" directive
+> was rejected on §4's own reasoning — that is exactly the dialect growth §4 refused. Moving the mark to
+> a `{footnote}` was rejected as restyling VLL's showcase.
+>
+> **The lead sheet must NOT be merged into `open-road-lyrics.chart`.** They are different content and the
+> demo ships both: the chart's verse 1 is "Morning on the highway…" against the lead sheet's "Pack a
+> little light…". The seed keeps the text chart deliberately so the demo shows the T19 chart type
+> *alongside* the PDFs (B10). The lead sheet needs its **own** new `.chart` source.
+>
+> **`blank-chart` is dropped from this task.** It is a **test fixture only** (`anchortext_test`) — never
+> seeded, never annotated, not in the demo — and its mkcharts form is staff lines + empty chord boxes,
+> which the dialect **cannot** express. "Converging" it would replace a useful fixture with a title-only
+> placeholder that loses the look it exists to provide, and it frees no helper (`header` stays for the
+> residue builders). §5.2.3 wanted *duplication* gone; blank-chart isn't duplicated. Do not re-open.
 
 ## 3. The real blocker for the ones that *can* converge: the anchor manifest
 
@@ -98,7 +120,7 @@ before.
 
 ### 5.2 Stage B (M) — converge the two that converge, shrink mkcharts
 
-3. Convert `amazing-grace` and `blank-chart` to `.chart` sources rendered through `chartpdf`, and the
+3. Convert `amazing-grace` (done, Stage B part 1) to a `.chart` source rendered through `chartpdf`, and the
    lead sheet's **chord/lyric body** likewise (its chord-box row stays in `mkcharts`). They then
    inherit T75 compaction, T76 auto-fit, T77 breaks and transpose **permanently**, instead of being
    frozen at whatever `mkcharts` hardcoded.
