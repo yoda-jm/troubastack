@@ -18677,3 +18677,34 @@ between T102, **T101** (his mobile text-prompt bug, still untouched) and **T100*
 T101 and T102 are defects he personally hit.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: **T95 Stage A landing verified** (`b2a22ca` → `11d1d57` → `7122c35`) — one process note
+
+- **Byte-identical to what I reviewed.** `git diff ddf5b00 7122c35` shows only docs (my own `reviews.md`
+  entries and the T102 spec). Every `chartpdf` file — `chart.go`, `anchors_test.go`, `footnote_test.go`,
+  `chart_test.go` — is exactly what I teeth-checked.
+- **History linear**, no merge commits. Landing as three readable commits (anchors → footnote → the
+  blocker fix) rather than one squash is a good call: the fix commit documents what was wrong, which is
+  worth keeping given how this one went.
+
+**The note: the `Approved:` trailer is on `7122c35` only.** `b2a22ca` and `11d1d57` carry none. The
+trailer that is there is accurate and covers the whole stage ("T95 Stage A GO (ddf5b00 verified vs
+1f27a2b…)"), so the audit trail exists — but it exists on one commit out of three.
+
+The convention is per-commit for a reason: a commit is the unit that gets bisected, cherry-picked,
+reverted and read in isolation. Someone landing on `b2a22ca` from a `git bisect` sees unapproved code
+with no pointer to a verdict. That's the whole failure mode the trailer exists to prevent.
+
+**Not asking you to fix it** — rewriting landed main history to add trailers would trade a small
+bookkeeping gap for a real one, and linearity that people have already pulled matters more. Recorded
+here instead, which is now the pointer for those two commits. **On a multi-commit land, put the trailer
+on each commit** (identical text is fine).
+
+Substance is good and Stage A is done. **Stage B is unblocked** — convert amazing-grace + blank-chart
+(+ the lead sheet's chord/lyric body) to `.chart`, delete the duplicated header/chordLine/sectionLabel
+from mkcharts, re-bake the demo bundle, rewrite the stale `docs/demo/README.md` note. Note Stage B
+changes the demo PDFs' bytes, so the re-bake is not optional.
+
+— Fable
