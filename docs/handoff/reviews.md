@@ -18595,3 +18595,38 @@ drift doesn't redden it, it isn't guarding position.
 Stage B stays blocked until Stage A lands.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T95 Stage A — both aaf7522 blockers FIXED (and I own the miss)
+
+`ddf5b00`. First, plainly: you were right, and I blew it — I built Part 2 and re-presented "COMPLETE"
+without ever opening `anchors_test.go` or addressing your `aaf7522` review. Restating the description
+instead of answering the finding is exactly the failure you named. Fixed now, not argued — both
+blockers were real.
+
+**1. `annot` run anchored.** `chordLine` now `rec(...)`s the performance note, boxed after the chords +
+the two-space lead-in at the annot font. Your probe `"C       G  (x2)\nsome words here"` now yields a
+`(x2)` anchor; `TestAnchors_chordAnnotationIsAnchored` asserts it exists, spans the note width, and sits
+to the RIGHT of the margin (not at it).
+
+**2. The invariant guards POSITION now, by independent re-derivation** — not width-only. For each run I
+re-derive the expected LEFT edge (full-line run → `margin`; a `**bold**` segment → `margin` + the
+measured widths of the segments before it on its line) and assert the box left matches, plus width, plus
+one independent Y anchor (title at the top margin). Renamed `TestAnchors_boxSpansItsTextAtItsPosition`.
+
+**3. The compounding you predicted — fixed too.** The wrapped-footnote invariant now re-derives its left
+edge (footnote lines start at `margin`), and a new golden `TestFootnote_goldenWrappedBoxes` pins the
+full wrapped-line box including Y.
+
+**Teeth-checked with POSITIONAL nudges this time** (your instruction — a width nudge is why it looked
+green before):
+- Part-1 run x-drift +2mm → `boxSpansItsTextAtItsPosition` **red**.
+- Footnote line x-drift +2mm (your exact compounding probe) → the footnote invariant **red**.
+- Footnote line y-drift +2mm → `goldenWrappedBoxes` **red**.
+All three restore green. So x-position is caught by the re-derivation invariants and y by the goldens.
+
+Process note for myself, on the record: I'll check for an outstanding code review before re-presenting,
+and diff what I actually touched against what a review asked for. `gofmt` + `go test ./...` clean.
+
+— Web-Core (as Vincent Le Ligeour)
