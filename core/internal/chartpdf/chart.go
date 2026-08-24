@@ -15,6 +15,7 @@
 //	<lyric>            …above the next line as the classic "chords over words"
 //	**bold**           inline bold within a normal text line
 //	{new_page}         force a page break here (alias {np}) — see "Page breaks" below
+//	{footnote}         open a footnote/attribution block (alias {fn}) — see "Footnotes" below
 //	(blank line)       paragraph gap
 //	anything else      literal text
 //
@@ -25,6 +26,15 @@
 // marker before any content, after all content, or repeated collapses to nothing. Automatic breaks
 // likewise never strand a section header — a heading always travels to the same page as its first
 // line.
+//
+// Footnotes (T95): a line containing only `{footnote}` — or the alias `{fn}`, case-insensitive,
+// surrounding whitespace ignored (same discipline as `{new_page}`; `{fn} x` and `{{fn}}` stay literal
+// body text) — opens a footnote/attribution block for public-domain credits, "capo" / chord-shape
+// notes, and the like. The following lines up to the NEXT blank line (or a `#`/`##`/other marker/EOF)
+// are one paragraph, wrapped to the body column and rendered in a smaller muted italic, visually
+// distinct from lyrics. It is drawn IN PLACE (write it last for "after the body") and is just another
+// block: it counts toward T76 auto-fit and paginates under T77 like any content. `**bold**` is NOT
+// interpreted inside a footnote — the asterisks are literal.
 //
 // Subtitle examples — with an artist, and without:
 //
@@ -88,6 +98,12 @@ const (
 	leadSection   = 6.5 // section label row (was 8.0)
 	sectionTopGap = 3.5 // air ABOVE a non-first section, so it reads as a header, not a line
 	paraGap       = 2.5 // stanza break (was 4.0); collapsed so consecutive blanks = one gap
+
+	// T95 footnote block ({footnote}/{fn}): wrapped prose, smaller + muted italic, visually distinct
+	// from lyrics. leadFootnote is one wrapped line's advance; footnoteTopGap is the air above the block.
+	footnotePt     = 9.0 // point size at scale 1 (body is 11)
+	leadFootnote   = 4.2 // one wrapped footnote line's advance
+	footnoteTopGap = 3.5 // air above the footnote block
 )
 
 // chordToken matches a single chord like G, Em, C#m7, Dsus4, A7sus4, F/G, N.C.
@@ -110,6 +126,14 @@ var reNewPage = regexp.MustCompile(`(?i)^\{(new_page|np)\}$`)
 // isNewPageMarker reports whether a whole line is a page-break marker. `{newpage}`, `{new page}`,
 // `{np} x`, `new_page` and `{{np}}` are NOT markers — they are content and render as body text.
 func isNewPageMarker(trimmed string) bool { return reNewPage.MatchString(trimmed) }
+
+// reFootnote matches a footnote-block opener: exactly `{footnote}` or the alias `{fn}`,
+// case-insensitive, surrounding whitespace ignored — same brace-directive discipline as reNewPage
+// (T95, Fable's ruling). `{fn} x` and `{{fn}}` are NOT markers; they stay literal body text.
+var reFootnote = regexp.MustCompile(`(?i)^\{(footnote|fn)\}$`)
+
+// isFootnoteMarker reports whether a whole line opens a footnote block.
+func isFootnoteMarker(trimmed string) bool { return reFootnote.MatchString(trimmed) }
 
 // Render parses the chart dialect in source and returns a deterministic A4 PDF.
 func Render(source string) ([]byte, error) {
@@ -332,6 +356,22 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			*o.trace = append(*o.trace, placed{page: pg, y: y, kind: kind})
 		}
 	}
+	// getMeasurer returns an fpdf to size footnote wrapping with. In the draw pass the real doc IS the
+	// measurer (identical metrics); in a measure/fit pass (o.pdf == nil) a throwaway is created lazily —
+	// only if a footnote is actually reached, so a footnote-free chart pays nothing. Core-font metrics
+	// are instance-independent, so the wrap is identical to what the draw pass produces (the drift guard).
+	var measurer *fpdf.Fpdf
+	var measureTr func(string) string
+	getMeasurer := func() (*fpdf.Fpdf, func(string) string) {
+		if o.pdf != nil {
+			return o.pdf, o.tr // draw pass: measure with the real doc + its translator
+		}
+		if measurer == nil {
+			measurer = newMeasurer()
+			measureTr = measurer.UnicodeTranslatorFromDescriptor("") // same cp1252 mapping ⇒ same widths
+		}
+		return measurer, measureTr
+	}
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimRight(lines[i], " \t")
 		trimmed := strings.TrimSpace(line)
@@ -345,6 +385,36 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			if drew {
 				pendingBreak, pendingGap = true, false
 			}
+		case isFootnoteMarker(trimmed):
+			// {footnote}/{fn}: the following non-blank lines up to a blank / #/## / another marker / EOF
+			// are ONE paragraph (a blank line ends it), rendered as wrapped muted-italic prose IN PLACE.
+			var para []string
+			j := i + 1
+			for ; j < len(lines); j++ {
+				t := strings.TrimSpace(lines[j])
+				if t == "" || strings.HasPrefix(t, "#") || isNewPageMarker(t) || isFootnoteMarker(t) {
+					break
+				}
+				para = append(para, t)
+			}
+			i = j - 1 // consume the paragraph (the loop's i++ steps past the last gathered line)
+			if len(para) == 0 {
+				break // a bodyless {footnote}: consumed, draws nothing (like a trailing {new_page})
+			}
+			applyBreak()
+			gap()
+			if drew {
+				y += footnoteTopGap * scale // air above the block (unless it opens a fresh page)
+			}
+			// **bold** is LITERAL inside a footnote (documented): the asterisks render as text, so a
+			// wrapped attribution can't accidentally trip Part 1's per-bold-word anchoring.
+			mpdf, mtr := getMeasurer()
+			for _, wl := range footnoteLines(mpdf, mtr, strings.Join(para, " "), scale) {
+				page(leadFootnote * scale)
+				note("footnote")
+				y = drawFootnoteLine(o.pdf, o.tr, y, wl, scale, o.rec)
+			}
+			drew = true
 		case strings.HasPrefix(trimmed, "## "):
 			broke := applyBreak()
 			pendingGap = false
@@ -697,6 +767,60 @@ func textLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, sc
 		}
 	}
 	return y + leadLyric*scale
+}
+
+// newMeasurer returns a throwaway A4 fpdf used only to size footnote wrapping in the draw-free
+// measure/fit passes. Core-font metrics are instance-independent, so its GetStringWidth matches the
+// real document's — the wrap it computes is the wrap that will be drawn.
+func newMeasurer() *fpdf.Fpdf {
+	m := fpdf.New("P", "mm", "A4", "")
+	m.AddPage()
+	return m
+}
+
+// footnoteLines wraps a footnote paragraph to the body column at the footnote font, returning the
+// ORIGINAL-text lines (widths measured through tr(), so cp1252 metrics are exact and the lines match
+// what drawFootnoteLine renders). A single word wider than the column overflows on its own line rather
+// than looping. `m` is the measurer (the real doc when drawing, a throwaway otherwise).
+func footnoteLines(m *fpdf.Fpdf, tr func(string) string, text string, scale float64) []string {
+	m.SetFont("Helvetica", "I", footnotePt*scale)
+	colW := right - margin
+	var lines []string
+	cur := ""
+	for _, w := range strings.Fields(text) {
+		try := w
+		if cur != "" {
+			try = cur + " " + w
+		}
+		if cur == "" || m.GetStringWidth(tr(try)) <= colW {
+			cur = try
+		} else {
+			lines = append(lines, cur)
+			cur = w
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	return lines
+}
+
+// drawFootnoteLine draws one already-wrapped footnote line in muted italic and records its anchor;
+// nil pdf = advance only (measure mode). Every wrapped line advances by leadFootnote in BOTH modes, so
+// measure() and the renderer agree on the block's height (the T77 drift guard). **bold** is not parsed
+// here — inside a footnote the asterisks are literal (documented in the dialect header).
+func drawFootnoteLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, scale float64, rec recFn) float64 {
+	if pdf != nil {
+		pdf.SetFont("Helvetica", "I", footnotePt*scale)
+		pdf.SetTextColor(100, 100, 100)
+		pdf.SetXY(margin, y)
+		pdf.Cell(0, leadFootnote*scale, tr(line))
+		if rec != nil {
+			rec(line, margin, y, pdf.GetStringWidth(tr(line)), leadFootnote*scale)
+		}
+		pdf.SetTextColor(0, 0, 0)
+	}
+	return y + leadFootnote*scale
 }
 
 func output(pdf *fpdf.Fpdf) ([]byte, error) {
