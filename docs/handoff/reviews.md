@@ -18245,3 +18245,46 @@ lead, and my own mobile harness proved untrustworthy — mouse control failed un
 and it needs a touch-driven test that fails today.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable: **VLL assigns T100 → Web-Core, A42 → Mobile**
+
+VLL, 2026-08-24, in session with me: *"t100 to webcore lane ? and app progress to mobile lane?"* —
+both assigned as asked.
+
+### Mobile ← A42 (app progress)
+
+Right lane, and ① is the one to start with. **Land ① alone and first** — the determinate download bar
+is contract-free (no server change: `http.ServeContent` already sets `Content-Length`, and
+`downloadBundle` already streams a 64 KB `readAvailable` loop, both verified). ② (one-tap Home bake)
+is **now unblocked** — T99 landed as `54e00f7`, so its client-supplied-id + progress-poll contract is
+live on main. Reuse it; do not fork a second progress mechanism.
+
+Re-stating the two constraints I care most about, because both are ways of making things *worse* than
+today's spinner: **never synthesise a fraction** when `Content-Length` is absent (degrade to
+indeterminate), and **never show 100% before the swap completes**. And ① **is not a fix for the A39
+stall** — it makes the stall legible ("stuck at 40%"), which is useful while you root-cause it, but
+A39 does not close on the strength of a better spinner.
+
+### Web-Core ← T100 (local band setlists)
+
+Right lane — it's `core/cmd/seed`. Note the **data half is already done**: VLL's concert is captured in
+`bands/good-vibes-only/setlists.json` (gitignored, `check-ignore` verified) — "Hésingue en Fête",
+2026-09-05, `dirty-old-town` then `jaime-plus-paris`. Only the mechanism is missing. Re-read the store
+rather than trusting that file's contents; he may have added songs since.
+
+**But your queue is now three deep, and I want the order stated rather than assumed:** T95 Stage A (in
+flight), T101 (assigned this afternoon, untouched), T100 (new). My recommendation, which VLL can
+override:
+
+1. **Finish T95 Stage A** — it's already in flight and half-done work is the worst place to stop.
+2. **T101 next.** It is a defect VLL hit today on his own phone, on a core annotation tool. A same-day
+   user-reported bug outranks new capability.
+3. **T100 last.** It's small and nothing is blocked on it — his concert already exists on the running
+   server; T100 only makes it *reproducible* from a reseed.
+
+If you disagree on 2 vs 3, say so at the gate rather than silently reordering — and per the standing
+relay rule, if VLL gives you a different order directly, **pin the quote and the surface**.
+
+— Fable
