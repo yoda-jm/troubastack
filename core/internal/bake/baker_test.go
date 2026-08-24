@@ -49,16 +49,20 @@ func (f fakeRaster) Rasterize(context.Context, []byte) ([][]byte, error) {
 	return out, nil
 }
 
-// fakeOverlays returns one overlay per doc layer on page 0 (mimics web/bake).
+// fakeOverlays returns one overlay per doc layer on page 0 per song (mimics web/bake), keyed by song.
 type fakeOverlays struct{ png []byte }
 
-func (f fakeOverlays) Render(_ context.Context, req cliRequest) ([]renderedOverlay, error) {
-	var out []renderedOverlay
-	for _, l := range req.Doc.Layers {
-		out = append(out, renderedOverlay{
-			Page: 0, LayerID: l.ID, Order: int32(l.Order), Mandatory: l.Mandatory,
-			RoleTag: l.RoleTag, ContentHash: Sha256Hex(f.png), PNG: f.png,
-		})
+func (f fakeOverlays) RenderBatch(_ context.Context, songs []overlaySong) (map[string][]renderedOverlay, error) {
+	out := map[string][]renderedOverlay{}
+	for _, s := range songs {
+		var ovs []renderedOverlay
+		for _, l := range s.Doc.Layers {
+			ovs = append(ovs, renderedOverlay{
+				Page: 0, LayerID: l.ID, Order: int32(l.Order), Mandatory: l.Mandatory,
+				RoleTag: l.RoleTag, ContentHash: Sha256Hex(f.png), PNG: f.png,
+			})
+		}
+		out[s.Key] = ovs
 	}
 	return out, nil
 }

@@ -59,6 +59,19 @@ type cliRequest struct {
 	OverlayWidth int            `json:"overlayWidth"`
 }
 
+// T98 — the overlay worker renders EVERY song of a bake in one node process (its ~0.6s Skia startup
+// is paid once, not per song). overlaySong is a cliRequest plus a key so CORE can route each song's
+// overlays back after the single spawn; cliBatchRequest is what the CLI reads.
+type overlaySong struct {
+	Key          string         `json:"key"`
+	Doc          annotationsDoc `json:"doc"`
+	Pages        []pageSize     `json:"pages"`
+	OverlayWidth int            `json:"overlayWidth"`
+}
+type cliBatchRequest struct {
+	Songs []overlaySong `json:"songs"`
+}
+
 // snapshotToDoc maps a materialized annotation snapshot to the renderer doc, scoped
 // to the file being baked. Only LIVE objects are drawn (tombstones excluded) — same
 // as the dry layer studio and the annotation API expose.

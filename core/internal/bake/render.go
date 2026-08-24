@@ -33,10 +33,11 @@ type renderedOverlay struct {
 	PNG         []byte
 }
 
-// OverlayRenderer renders the transparent per-layer annotation overlays for a
-// request via @troubastack/ink (the ONE renderer, I8) — never in Go.
+// OverlayRenderer renders the transparent per-layer annotation overlays via @troubastack/ink (the ONE
+// renderer, I8) — never in Go. T98: RenderBatch takes ALL of a bake's songs and returns their overlays
+// keyed by song key, so the worker's ~0.6s startup is paid once per bake instead of once per song.
 type OverlayRenderer interface {
-	Render(ctx context.Context, req cliRequest) ([]renderedOverlay, error)
+	RenderBatch(ctx context.Context, songs []overlaySong) (map[string][]renderedOverlay, error)
 }
 
 // ---- poppler pdftoppm rasterizer ----------------------------------------
@@ -106,22 +107,34 @@ type nodeOverlayRenderer struct {
 	cli  string // path to web/bake/dist/cli.js (TROUBA_BAKE_CLI)
 }
 
-// The manifest the troubabake CLI writes (web/bake/src/cli.ts).
-type cliManifest struct {
-	Pages []struct {
-		Index    int `json:"index"`
-		Overlays []struct {
-			LayerID     string `json:"layerId"`
-			File        string `json:"file"`
-			Order       int32  `json:"order"`
-			Mandatory   bool   `json:"mandatory"`
-			RoleTag     string `json:"roleTag"`
-			ContentHash string `json:"contentHash"`
-		} `json:"overlays"`
-	} `json:"pages"`
+// The batch manifest the troubabake CLI writes (web/bake/src/cli.ts): one entry per song, each
+// overlay `file` path namespaced by song key so CORE reads them uniformly from the out dir.
+type cliOverlay struct {
+	LayerID     string `json:"layerId"`
+	File        string `json:"file"`
+	Order       int32  `json:"order"`
+	Mandatory   bool   `json:"mandatory"`
+	RoleTag     string `json:"roleTag"`
+	ContentHash string `json:"contentHash"`
+}
+type cliPage struct {
+	Index    int          `json:"index"`
+	Overlays []cliOverlay `json:"overlays"`
+}
+type cliBatchManifest struct {
+	Songs []struct {
+		Key   string    `json:"key"`
+		Pages []cliPage `json:"pages"`
+	} `json:"songs"`
 }
 
-func (r nodeOverlayRenderer) Render(ctx context.Context, req cliRequest) ([]renderedOverlay, error) {
+// RenderBatch spawns the overlay worker ONCE for every song in the bake and returns each song's
+// overlays keyed by its song key. An empty batch spawns nothing (T97's zero-annotation guarantee
+// generalises: only songs with objects reach here).
+func (r nodeOverlayRenderer) RenderBatch(ctx context.Context, songs []overlaySong) (map[string][]renderedOverlay, error) {
+	if len(songs) == 0 {
+		return map[string][]renderedOverlay{}, nil
+	}
 	dir, err := os.MkdirTemp("", "trouba-overlay-")
 	if err != nil {
 		return nil, err
@@ -129,7 +142,7 @@ func (r nodeOverlayRenderer) Render(ctx context.Context, req cliRequest) ([]rend
 	defer os.RemoveAll(dir)
 
 	reqPath := filepath.Join(dir, "request.json")
-	reqBytes, err := json.Marshal(req)
+	reqBytes, err := json.Marshal(cliBatchRequest{Songs: songs})
 	if err != nil {
 		return nil, err
 	}
@@ -149,27 +162,31 @@ func (r nodeOverlayRenderer) Render(ctx context.Context, req cliRequest) ([]rend
 	if err != nil {
 		return nil, fmt.Errorf("web/bake worker wrote no index.json: %w", err)
 	}
-	var man cliManifest
+	var man cliBatchManifest
 	if err := json.Unmarshal(manifestBytes, &man); err != nil {
 		return nil, fmt.Errorf("web/bake index.json malformed: %w", err)
 	}
-	var out []renderedOverlay
-	for _, page := range man.Pages {
-		for _, ov := range page.Overlays {
-			png, rerr := os.ReadFile(filepath.Join(outDir, ov.File))
-			if rerr != nil {
-				return nil, fmt.Errorf("web/bake overlay %s missing: %w", ov.File, rerr)
+	result := make(map[string][]renderedOverlay, len(man.Songs))
+	for _, song := range man.Songs {
+		var out []renderedOverlay
+		for _, page := range song.Pages {
+			for _, ov := range page.Overlays {
+				png, rerr := os.ReadFile(filepath.Join(outDir, ov.File))
+				if rerr != nil {
+					return nil, fmt.Errorf("web/bake overlay %s missing: %w", ov.File, rerr)
+				}
+				out = append(out, renderedOverlay{
+					Page:        page.Index,
+					LayerID:     ov.LayerID,
+					Order:       ov.Order,
+					Mandatory:   ov.Mandatory,
+					RoleTag:     ov.RoleTag,
+					ContentHash: ov.ContentHash,
+					PNG:         png,
+				})
 			}
-			out = append(out, renderedOverlay{
-				Page:        page.Index,
-				LayerID:     ov.LayerID,
-				Order:       ov.Order,
-				Mandatory:   ov.Mandatory,
-				RoleTag:     ov.RoleTag,
-				ContentHash: ov.ContentHash,
-				PNG:         png,
-			})
 		}
+		result[song.Key] = out
 	}
-	return out, nil
+	return result, nil
 }

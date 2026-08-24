@@ -161,10 +161,31 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		BakedBy:    actor.DisplayName,
 	}
 
+	// T98 — two phases so the overlay worker spawns ONCE, not once per song. Phase 1: stage every
+	// song (metadata + rasters) and collect the overlay requests for songs that have something to
+	// draw. Phase 2: one RenderBatch for the whole bake. Phase 3: assemble each song with its
+	// overlays. Kept SEQUENTIAL — the win is O(1) spawns, not parallelism (T97 §3.3), and this path
+	// has a known race (TestBake_ConcurrentSameSetlist_distinctRevs) we must not agitate.
+	staged := make([]stagedSong, 0, len(detail.Items))
+	var batch []overlaySong
 	for si, item := range detail.Items {
-		song, berr := b.bakeSong(ctx, si, bandID, actor, item, blobsDir, layerDefaults)
+		st, req, berr := b.stageSong(ctx, si, bandID, actor, item)
 		if berr != nil {
 			return ConcertBundle{}, fmt.Errorf("song %s: %w", item.SongID, berr)
+		}
+		staged = append(staged, st)
+		if req != nil {
+			batch = append(batch, *req)
+		}
+	}
+	overlaysByKey, oerr := b.overlays.RenderBatch(ctx, batch)
+	if oerr != nil {
+		return ConcertBundle{}, oerr
+	}
+	for _, st := range staged {
+		song, aerr := b.assembleSong(st, overlaysByKey[st.overlayKey], blobsDir, layerDefaults)
+		if aerr != nil {
+			return ConcertBundle{}, fmt.Errorf("song %s: %w", st.song.SongID, aerr)
 		}
 		bundle.Songs = append(bundle.Songs, song)
 	}
@@ -260,7 +281,23 @@ func effectiveKey(item app.SetlistItemView) string {
 	return item.SongKey
 }
 
-func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView, blobsDir string, layerDefaults map[string]bool) (BakedSong, error) {
+// stagedSong is a song after phase 1 (metadata + rasters), waiting for its overlays from the one
+// batch render before phase 3 assembles the blobs (T98).
+type stagedSong struct {
+	si           int
+	song         BakedSong
+	rasters      [][]byte
+	nameByLayer  map[string]string
+	ownerByLayer map[string]string
+	overlayKey   string // "" for a metadata-only song or one with nothing to draw
+	metadataOnly bool
+}
+
+// stageSong does everything up to the overlay render: metadata, snapshot, member cues, file
+// resolve/transpose, rasterize, and building the overlay doc. It returns the staged state plus the
+// overlay request for the batch — nil when the song has no PDF or no objects to draw (T97's skip
+// generalised: a song with nothing to draw never enters the batch, so it costs no spawn).
+func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView) (stagedSong, *overlaySong, error) {
 	song := BakedSong{
 		SongID:       item.SongID,
 		SongRev:      1,
@@ -281,7 +318,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	// pinning is added later, prefer the pin here.)
 	snap, err := b.eng.Head(item.SongID)
 	if err != nil {
-		return BakedSong{}, err
+		return stagedSong{}, nil, err
 	}
 	song.SourceRevision = snap.Revision
 
@@ -291,7 +328,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	// empty so an old app degrades to no-cues, never wrong-cues (the ruled compat guard).
 	mcs, mcerr := b.svc.AllMemberCues(actor, bandID, item.SongID)
 	if mcerr != nil {
-		return BakedSong{}, mcerr
+		return stagedSong{}, nil, mcerr
 	}
 	for _, mc := range mcs {
 		cues := make([]SongCue, 0, len(mc.Cues))
@@ -303,10 +340,10 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 
 	file, ok, err := b.defaultFile(actor, bandID, item.SongID)
 	if err != nil {
-		return BakedSong{}, err
+		return stagedSong{}, nil, err
 	}
 	if !ok {
-		return song, nil // no PDF to bake — metadata-only song
+		return stagedSong{si: si, song: song, metadataOnly: true}, nil, nil // no PDF to bake — metadata-only song
 	}
 	// D1: when the item asks to transpose, bake the GENERATED chart — the exact file the
 	// playlist preview shows and the bake-warning / Studio checkbox key on. Otherwise, with
@@ -314,14 +351,14 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	// while the band previewed the transposed chart — a silently wrong gig bundle.
 	if item.TransposeChords {
 		if gen, genOK, gerr := b.generatedChart(actor, bandID, item.SongID); gerr != nil {
-			return BakedSong{}, gerr
+			return stagedSong{}, nil, gerr
 		} else if genOK {
 			file = gen
 		}
 	}
 	_, pdf, err := b.svc.DownloadSongFile(actor, file.ID)
 	if err != nil {
-		return BakedSong{}, err
+		return stagedSong{}, nil, err
 	}
 
 	// T60 surface 2: burn the chart transposed to the item's key override, band-wide,
@@ -350,13 +387,13 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 
 	rasters, err := b.raster.Rasterize(ctx, pdf)
 	if err != nil {
-		return BakedSong{}, err
+		return stagedSong{}, nil, err
 	}
 	pageSizes := make([]pageSize, 0, len(rasters))
 	for i, r := range rasters {
 		cfg, _, derr := image.DecodeConfig(bytes.NewReader(r))
 		if derr != nil {
-			return BakedSong{}, fmt.Errorf("decode page %d raster: %w", i, derr)
+			return stagedSong{}, nil, fmt.Errorf("decode page %d raster: %w", i, derr)
 		}
 		pageSizes = append(pageSizes, pageSize{Index: i, Width: cfg.Width, Height: cfg.Height})
 	}
@@ -366,31 +403,10 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 	if len(pageSizes) > 0 {
 		overlayWidth = pageSizes[0].Width
 	}
-	// T97: the overlay worker (node + @napi-rs/canvas) costs ~0.6s of startup per spawn, and it was
-	// spawned for EVERY song regardless of content — a concert with no annotations paid N × that to
-	// draw nothing. Skip the spawn entirely when this file has no objects to draw. Byte-identical:
-	// zero objects → the worker would have produced zero overlays anyway.
-	doc := snapshotToDoc(snap, file.ID)
-	var rendered []renderedOverlay
-	if len(doc.Objects) > 0 {
-		rendered, err = b.overlays.Render(ctx, cliRequest{
-			Doc:          doc,
-			Pages:        pageSizes,
-			OverlayWidth: overlayWidth,
-		})
-		if err != nil {
-			return BakedSong{}, err
-		}
-	}
-	overlaysByPage := map[int][]renderedOverlay{}
-	for _, ov := range rendered {
-		overlaysByPage[ov.Page] = append(overlaysByPage[ov.Page], ov)
-	}
-
-	// T53: the rendered overlay carries no name; look it up from the source snapshot's
-	// layers so the baked LayerImage can label the layer for the viewer.
-	// P205: also carry each layer's owner (member id, or "" for band-shared) so a
-	// band-wide bundle can be filtered to the viewer's identity at view time.
+	// T53: the rendered overlay carries no name; look it up from the source snapshot's layers so the
+	// baked LayerImage can label the layer for the viewer. P205: also carry each layer's owner (member
+	// id, or "" for band-shared) so a band-wide bundle can be filtered to the viewer's identity at view
+	// time. Computed in stage; consumed in assembly.
 	nameByLayer := map[string]string{}
 	ownerByLayer := map[string]string{}
 	for _, l := range snap.Layers {
@@ -399,9 +415,31 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 			ownerByLayer[l.ID] = l.OwnerID
 		}
 	}
+	st := stagedSong{si: si, song: song, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer}
+	// T97/T98: a song enters the overlay batch only if it has objects to draw. Zero objects → no spawn
+	// contribution, and (byte-identical) the worker would have produced zero overlays anyway.
+	doc := snapshotToDoc(snap, file.ID)
+	if len(doc.Objects) == 0 {
+		return st, nil, nil
+	}
+	st.overlayKey = fmt.Sprintf("s%d", si)
+	return st, &overlaySong{Key: st.overlayKey, Doc: doc, Pages: pageSizes, OverlayWidth: overlayWidth}, nil
+}
 
-	for i, r := range rasters {
-		rasterRef := fmt.Sprintf("blobs/s%d-p%d-raster.png", si, i)
+// assembleSong writes the song's rasters + its batched overlays into the bundle blobs and returns the
+// completed BakedSong. `overlays` is this song's slice from RenderBatch (nil for a metadata-only song
+// or one that drew nothing).
+func (b *Baker) assembleSong(st stagedSong, overlays []renderedOverlay, blobsDir string, layerDefaults map[string]bool) (BakedSong, error) {
+	if st.metadataOnly {
+		return st.song, nil
+	}
+	song := st.song
+	overlaysByPage := map[int][]renderedOverlay{}
+	for _, ov := range overlays {
+		overlaysByPage[ov.Page] = append(overlaysByPage[ov.Page], ov)
+	}
+	for i, r := range st.rasters {
+		rasterRef := fmt.Sprintf("blobs/s%d-p%d-raster.png", st.si, i)
 		if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(rasterRef)), r, 0o644); err != nil {
 			return BakedSong{}, err
 		}
@@ -409,7 +447,7 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 		ovs := overlaysByPage[i]
 		sort.Slice(ovs, func(a, b int) bool { return ovs[a].Order < ovs[b].Order })
 		for _, ov := range ovs {
-			ref := fmt.Sprintf("blobs/s%d-p%d-%s.png", si, i, safeName(ov.LayerID))
+			ref := fmt.Sprintf("blobs/s%d-p%d-%s.png", st.si, i, safeName(ov.LayerID))
 			if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(ref)), ov.PNG, 0o644); err != nil {
 				return BakedSong{}, err
 			}
@@ -420,14 +458,13 @@ func (b *Baker) bakeSong(ctx context.Context, si int, bandID string, actor app.U
 				Order:       ov.Order,
 				Mandatory:   ov.Mandatory,
 				RoleTag:     ov.RoleTag,
-				Name:        nameByLayer[ov.LayerID],
-				Owner:       ownerByLayer[ov.LayerID], // P205: "" = shared; member id = personal
+				Name:        st.nameByLayer[ov.LayerID],
+				Owner:       st.ownerByLayer[ov.LayerID], // P205: "" = shared; member id = personal
 			}
-			// P205 default_on capture (bake dialog): when the dialog ran, stamp an
-			// explicit default-on per layer (mandatory always on); otherwise leave it
-			// absent so the viewer computes as today.
+			// P205 default_on capture (bake dialog): when the dialog ran, stamp an explicit default-on
+			// per layer (mandatory always on); otherwise leave it absent so the viewer computes as today.
 			if layerDefaults != nil {
-				on := ov.Mandatory || layerDefaults[nameByLayer[ov.LayerID]]
+				on := ov.Mandatory || layerDefaults[st.nameByLayer[ov.LayerID]]
 				li.DefaultOn = &on
 			}
 			page.Overlays = append(page.Overlays, li)

@@ -28,23 +28,50 @@
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { renderOverlays, type AnnotationsDoc, type PageSize } from "./render.js";
 
-interface BakeCliRequest {
+interface SongInput {
   doc: AnnotationsDoc;
   pages: PageSize[];
   overlayWidth: number;
+}
+// T98 — a request is either a single song (back-compat) or a batch of keyed songs. The batch form
+// lets CORE render every song's overlays in ONE node process instead of paying the ~0.6s Skia startup
+// per song.
+interface BakeCliRequest extends Partial<SongInput> {
+  songs?: (SongInput & { key: string })[];
+}
+
+interface PageManifest {
+  index: number;
+  overlays: { layerId: string; file: string; order: number; mandatory: boolean; roleTag: string; contentHash: string }[];
 }
 
 function log(msg: string): void {
   process.stderr.write(`troubabake: ${msg}\n`);
 }
 
-/** Keep on-disk names inside the output dir: layer ids are opaque strings. */
-function safeLayerId(id: string): string {
+/** Keep on-disk names inside the output dir: layer ids / song keys are opaque strings. */
+function safeName(id: string): string {
   return id.replace(/[^A-Za-z0-9._-]/g, "_") || "unnamed";
+}
+
+// renderSong renders one song's overlays under rootOut, folding `prefix` (a "<key>/" subdir for batch,
+// "" for single) into every manifest `file` path so CORE reads them uniformly from the root.
+async function renderSong(song: SongInput, rootOut: string, prefix: string): Promise<PageManifest[]> {
+  const overlays = renderOverlays(song.doc, song.pages, { width: song.overlayWidth });
+  const pages = new Map<number, PageManifest["overlays"]>();
+  for (const ov of overlays) {
+    const file = `${prefix}p${ov.page}-${safeName(ov.layerId)}.png`;
+    await mkdir(dirname(join(rootOut, file)), { recursive: true });
+    await writeFile(join(rootOut, file), ov.png);
+    let list = pages.get(ov.page);
+    if (!list) pages.set(ov.page, (list = []));
+    list.push({ layerId: ov.layerId, file, order: ov.order, mandatory: ov.mandatory, roleTag: ov.roleTag, contentHash: ov.contentHash });
+  }
+  return [...pages.keys()].sort((a, b) => a - b).map((index) => ({ index, overlays: pages.get(index)! }));
 }
 
 async function main(): Promise<void> {
@@ -61,43 +88,39 @@ async function main(): Promise<void> {
   }
 
   const req = JSON.parse(await readFile(values.in, "utf8")) as BakeCliRequest;
-  if (!req.doc || !Array.isArray(req.pages) || !(req.overlayWidth > 0)) {
-    log("request.json must have { doc, pages: [...], overlayWidth > 0 }");
-    process.exitCode = 2;
-    return;
-  }
-
-  const overlays = renderOverlays(req.doc, req.pages, { width: req.overlayWidth });
-
   const outDir = values.out;
   await mkdir(outDir, { recursive: true });
 
-  // Group overlays by page for the manifest, preserving render (z) order.
-  const pages = new Map<number, { layerId: string; file: string; order: number; mandatory: boolean; roleTag: string; contentHash: string }[]>();
-  for (const ov of overlays) {
-    const file = `p${ov.page}-${safeLayerId(ov.layerId)}.png`;
-    await writeFile(join(outDir, file), ov.png);
-    let list = pages.get(ov.page);
-    if (!list) pages.set(ov.page, (list = []));
-    list.push({
-      layerId: ov.layerId,
-      file,
-      order: ov.order,
-      mandatory: ov.mandatory,
-      roleTag: ov.roleTag,
-      contentHash: ov.contentHash,
-    });
+  if (Array.isArray(req.songs)) {
+    // BATCH: one process renders every song; outputs are namespaced by song key.
+    const songs: { key: string; pages: PageManifest[] }[] = [];
+    let total = 0;
+    for (const s of req.songs) {
+      if (!s.key || !s.doc || !Array.isArray(s.pages) || !(s.overlayWidth > 0)) {
+        log("each batch song must have { key, doc, pages: [...], overlayWidth > 0 }");
+        process.exitCode = 2;
+        return;
+      }
+      const pages = await renderSong(s, outDir, `${safeName(s.key)}/`);
+      total += pages.reduce((n, p) => n + p.overlays.length, 0);
+      songs.push({ key: s.key, pages });
+    }
+    await writeFile(join(outDir, "index.json"), JSON.stringify({ songs }, null, 2) + "\n");
+    log(`wrote ${total} overlay(s) across ${songs.length} song(s) to ${outDir}`);
+    return;
   }
 
-  const manifest = {
-    overlayWidth: req.overlayWidth,
-    pages: [...pages.keys()]
-      .sort((a, b) => a - b)
-      .map((index) => ({ index, overlays: pages.get(index)! })),
-  };
+  // SINGLE (back-compat): unchanged manifest shape at the root.
+  const { doc, pages: reqPages, overlayWidth } = req;
+  if (!doc || !Array.isArray(reqPages) || typeof overlayWidth !== "number" || !(overlayWidth > 0)) {
+    log("request.json must have { doc, pages: [...], overlayWidth > 0 } or { songs: [...] }");
+    process.exitCode = 2;
+    return;
+  }
+  const pages = await renderSong({ doc, pages: reqPages, overlayWidth }, outDir, "");
+  const manifest = { overlayWidth, pages };
   await writeFile(join(outDir, "index.json"), JSON.stringify(manifest, null, 2) + "\n");
-
-  log(`wrote ${overlays.length} overlay(s) across ${manifest.pages.length} page(s) to ${outDir}`);
+  log(`wrote overlays across ${pages.length} page(s) to ${outDir}`);
 }
 
 main().catch((err) => {
