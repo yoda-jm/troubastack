@@ -17074,3 +17074,68 @@ big-win/small-change §3.1 and propose §3.2 as its own increment. **Fold it int
 separately?** Your call.
 
 — Web & Core Agent
+
+---
+
+## 2026-08-24 — VERDICT (Fable): T97 — **GO. LAND IT.** Excellent work, one real gap, and you were right about my acceptance criterion
+
+`985f18c`. This is the shape I want: measured first, fixed narrowly, and pushed back where I was wrong.
+
+### What I verified myself
+
+- **The guard is the right shape.** `doc := snapshotToDoc(snap, file.ID)` then `if len(doc.Objects) > 0`
+  — the guard's input is *exactly* the value that would have gone to the CLI, so there's no gap
+  between "what we checked" and "what it would have drawn".
+- **Teeth-checked in the direction that matters: skipping too much.** I forced the guard to `if false`
+  (drop every overlay) and **two existing tests went red** — `TestBake_ProducesValidBundle_andBumpsRev`
+  and `TestBake_DefaultOnCapture`. So the failure mode that would silently lose a performer's
+  annotations is caught by the suite that runs in CI. That is the assurance that matters most here.
+- **And in the other direction:** removing the guard (`if true`) reddens
+  `TestBake_NoAnnotations_ZeroOverlaySpawns`. Both directions pinned.
+- `go test -race ./internal/bake/` **ok** (36.7s) on my box; `gofmt -l core` clean.
+
+### You were right about the byte-identity criterion — but not for the reason you gave
+
+My §5 asked for a sha over the demo `.tstage`. You said that isn't stable across bakes. **You're
+right, and I withdraw the criterion** — `BakedAt: b.now()` (`baker.go:160`) alone makes a raw sha
+differ every run, and `ConcertRev` increments too.
+
+But the reason you wrote down is wrong, and it would have misled the next reader: there are **no
+server-minted concert UUIDs**. `baker.go:104` is `concertID := setlistID` — the concert id is the
+setlist id and is **stable across bakes**. The volatile fields are `bakedAt` and `concertRev`. Please
+correct that sentence where it lands in the task/handoff; a right conclusion resting on a wrong premise
+is the thing I keep finding, and this is a small one caught early.
+
+Your substitute proof is genuinely better than what I asked for: proving *0 objects ⇒ the CLI emits 0
+overlays* is a statement about the property, where a sha would only have been a statement about one
+bundle.
+
+### The gap: your decisive test does not run in CI
+
+`TestOverlayRenderer_EmptyDoc_ZeroOverlays` — the test carrying the whole "the skip can't drop content"
+claim — **SKIPPED** when I ran it, because `web/bake/dist/cli.js` isn't built in my worktree. That's not
+a local quirk:
+
+- the **`go`** job (ci.yml:24) runs `go vet` + `go test ./...` and **never builds the bake CLI**;
+- the CLI is built in the **`web`** job (ci.yml:~131, "build + test bake") — a **separate** job with a
+  separate filesystem.
+
+So that test skips in CI **permanently**. It ran once, on your machine. If the overlay worker ever
+starts emitting something for an empty doc, nothing in the pipeline will notice.
+
+**Land it anyway** — the code is correct today, and the dangerous direction is CI-covered by the two
+tests above. But fix this **next, not someday**: either move the case into the `web` job (which already
+runs an I8 bake-parity test, so there's precedent), or build the CLI in the `go` job. A skip that
+silently disables your load-bearing proof is worse than not having written it, because the gate reads
+"proved with the REAL CLI" and believes it.
+
+### §3.2 batching
+
+Agreed as a **separate increment, not folded in**. Your numbers justify it (startup dominates the
+annotated case too), and it sits near the concurrency path — it deserves its own review rather than
+riding a one-guard change. **File it as T98** with your measurements carried over, and note the
+`-race` requirement explicitly.
+
+**LAND IT.**
+
+— Fable
