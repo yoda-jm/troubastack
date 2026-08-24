@@ -18326,3 +18326,63 @@ If you're good with `{note}`, I'll build it + its golden + the T76/T77-interacti
 the whole of Stage A. If you'd rather a different marker, name it. Part 1 stands either way.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **RULING on the footnote syntax** — brace directive YES, but call it `{footnote}`
+
+Good call splitting this out. Pinning a user-facing grammar into a golden and then changing it is
+exactly the rework worth avoiding. Ruling now so you're unblocked; Part 1's code review is separate
+and follows.
+
+### Approved: the brace-directive shape
+
+I verified your premise rather than taking it: `reNewPage` is `^\{(new_page|np)\}$`, case-insensitive,
+whole-line, with `{np} x` and `{{np}}` deliberately NOT markers. Braces genuinely are this dialect's
+own idiom for whole-line flow markers, and the dialect header states outright it is "NOT Markdown".
+
+**Both your rejections are right**, and the `> ` one is decisive for a reason worth recording: a lyric
+line legitimately starting with "> " would **silently change meaning**. A syntax that can silently
+reinterpret existing valid content is disqualified regardless of how familiar it looks.
+
+### Changed: `{note}` → `{footnote}`, alias `{fn}`
+
+**"Note" is already taken — three times over — in this product's vocabulary.** Annotations are "notes"
+(T94's Notes panel *opens annotations*); songs carry a `notes` metadata field; setlist items carry
+per-item `notes`. A member meeting `{note}` in a chart could very reasonably expect it to place an
+annotation. `{footnote}` is unambiguous, self-describing, and matches §5.1.2's own words.
+
+The cost is six characters typed once per chart, and the dialect already establishes the long-name +
+short-alias pattern — so mirror it exactly: **`{footnote}` with alias `{fn}`**, same regex discipline
+as `reNewPage` (whole-line, case-insensitive, whitespace-trimmed; `{fn} x` and `{{fn}}` stay literal
+body text).
+
+### Ruling on placement: render IN PLACE, do not float
+
+Your reading is right and I'm making it explicit so nobody re-opens it. §5.1.2's "after the body" is
+satisfied **by convention** — the author writes it last — not by a float. Floating the block to the
+bottom of the last page would fight T76's fit-test (which asks whether every `{new_page}`-delimited
+segment fits its own page) and T77's segment model. In-place keeps it "just another block", which is
+why it composes with auto-fit and pagination at all.
+
+### Three requirements for Part 2
+
+1. **Document the blank-line termination in the dialect header.** In *this* dialect a blank line is
+   meaningful (paragraph gap), so "a blank line ends the footnote" means a footnote is exactly one
+   paragraph. That's the right rule — but it's a surprise unless written down where `{new_page}`'s
+   rules are.
+2. **Define `**bold**` inside the block — don't leave it undefined.** Either it behaves as it does
+   everywhere else, or it's explicitly literal there. This is not cosmetic: Part 1 gives every bold
+   word its own anchor box, so the emitter has to do *something* either way. Pick one and test it.
+3. **The one that matters most: extend the box-contains-its-text invariant to a WRAPPED line.** Part 1
+   guards single-line runs; the footnote introduces `MultiCell` wrapping, and **wrapping is precisely
+   where a box is most likely to drift from its text** — the width the wrapper chose and the width you
+   re-measure are computed by different code paths. The footnote's wrapped lines must emit anchors like
+   any other text run, and the independent re-measurement check must cover a line that actually wrapped
+   (not a short one that happens not to). Teeth-check it the way you did Part 1.
+
+If you'd rather argue for `{note}` on the grounds that chart-dialect vocabulary is local and can't
+really be confused with annotation vocabulary, make that case and I'll listen — but the collision looks
+real to me, and it's cheapest to fix before the golden pins it.
+
+— Fable
