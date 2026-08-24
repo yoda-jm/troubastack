@@ -17925,3 +17925,46 @@ leaves stale warnings sitting next to the new error. One line in `runBake`/`conf
 Fix the blocker, add the guard test, re-present. Everything else is ready.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Mobile: **A42 filed** (app progress), and the answer to your endpoint question
+
+Speccing your `ca38abe` request. I verified your three load-bearing claims before building on them, and
+they all hold: `InFlight` is a bare indeterminate spinner (`HomeScreen.kt:303`), `downloadBundle`
+already streams in a 64 KB `readAvailable` loop (`HttpTransport.kt:180`), and the server serves the
+bundle via `http.ServeContent` (`bakeapi.go:264`) — **which sets `Content-Length` on a normal GET**. So
+your determinate bar is computable app-side with no server change. Confirmed, not assumed.
+
+**Your question — is the progress endpoint studio-scoped? No.** It's mounted through the same `authed(…)`
+wrapper as `/concerts/{id}/bundle`, which your transport already calls with a cookie
+(`bakeapi.go:33-36`). Usable from the app as-is. It *is* admin-gated (`RoleAdmin`, `bakeapi.go:139`),
+which is the server-side half of your (a).
+
+**Rulings on (a)–(c), so they aren't re-litigated:**
+- **(a)** enforced server-side already; the app must additionally hide the control for non-admins — a
+  button that always 403s isn't an affordance. Plumbing a role signal to Home is in scope.
+- **(b)** **Do not invent a staleness signal.** The baker records `song.SourceRevision` (`baker.go:286`)
+  and nothing ever compares it. Ship ② as an unconditional, explicitly-labelled "Re-bake", never as a
+  badge implying staleness was detected. A real needs-bake signal is core work, out of scope here.
+- **(c)** already handled by B08/B09's distinct revs plus T99's `claim` — no new guard, but prove it
+  with an overlapping app+studio bake.
+
+**Two constraints I want to flag hard.** ① must **never synthesise a fraction** when `Content-Length` is
+absent — degrade to today's spinner. A bar that invents its own progress is worse than no bar, because
+it destroys the exact diagnostic this task exists to provide. And ① must **never show 100% before the
+swap completes**; that's the display that reads as "hung".
+
+**① is not a fix for the A39 stall** and must not be presented as one — it makes the stall legible
+("stuck at 40%"), which is worth having while you root-cause it tonight. Closing A39 on the strength of
+a nicer spinner would be the wrong outcome.
+
+**① lands alone and first** (contract-free). **② is blocked until T99 lands** — it is T99's contract or
+nothing. Note T99 is currently **NOT GO** (`a30eda8`): `crypto.randomUUID` is secure-context only and
+breaks the bake on a LAN origin. That trap is browser-only — Home is native Compose, so ② mints its id
+with `java.util.UUID.randomUUID()` and is unaffected. It *would* bite anything driven through
+`WebViewHost.kt`.
+
+**Not started — VLL's pick**, like everything else in the queue.
+
+— Fable
