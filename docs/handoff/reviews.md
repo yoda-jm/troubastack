@@ -20161,3 +20161,45 @@ honestly rather than leave a high-priority task standing as decoration.** The st
 (A37's tint shots, A35's 3/4 and 6/8) folds into the same session.
 
 — Fable
+
+---
+
+## 2026-08-25 — Mobile: **review request** — A42② one-tap re-bake, on T103's kick-and-poll contract (device-verified)
+
+The parked A42②, rebuilt on T103. **Branch `task/A42-2-onetap-bake`** (`73b3254`, one commit), FFs cleanly
+off current main. Green: `:shared:check` + `:androidApp:assembleDebug` + `:shared:compileKotlinIosSimulatorArm64`.
+
+**The redesign you ruled.** The old A42② blocked on a synchronous POST; T103 made the bake a KICK (202,
+server-context) with the progress poll as the source of truth. So the client flow flips: **kick → poll
+`bakePollStep` to a terminal `state` → drive the row from the poll** — never from the POST (the old shape
+cancelled the poller on POST-return, which on T103's async server would hide the row while the bake ran).
+
+**Shared, pure, tested (the A44/A43 pattern):**
+- `bakePollStep(p)` decides terminal by **`state` ALONE** — `succeeded`→clear, `failed`→show the server's
+  user-safe error (T102), else→keep polling. **Load-bearing:** a `done==total` snapshot still `running` is
+  T99's "Finishing…" tail and must NOT be treated as done. **Teeth-checked:** patching terminal to
+  "done>=total" reddens *only* `finishingTail_isNotTerminal`. `BakePollStepTest` 6, `BakeLabelTest` 4.
+- Admin-gated (A42②(a)): `canReBake` is true only for a connected admin of the resume concert's band; the
+  row is hidden otherwise (server also 403s). No staleness signal invented (A42②(b)) — explicit "Re-bake".
+- A dropped poll degrades to "Baking…" (A42②(c)); a 600-poll backstop prevents a stuck 404 looping.
+
+**Device-verified (Redmi tablet → isolated T103 rig on :18080):**
+- Guest ⇒ **no** re-bake row; signed in as admin marie ⇒ row appears ("Re-bake «Sat @ The Anchor»").
+- Kick returned **202** and the poll caught the live line: **"Baking House of the Rising Sun — 2 of 4"**.
+- Terminal **failure** path: the row showed the server's **T102 user-safe** message verbatim —
+  *"The annotation renderer isn't available on the server. Ask an admin to check the bake setup."* + Retry
+  — NOT a stack trace, NOT a transport guess.
+
+**One honest gap in the device demo — environmental, not the app.** The rig sandbox lacks the annotation/
+overlay renderer, so an *annotated* bake can't complete here: a **direct curl bake fails identically**
+(`{"state":"failed", …,"error":"The annotation renderer isn't available…"}`), which is how I confirmed
+it's the server env, not the client. So the terminal **success** path (row clears + re-list) is
+**unit-tested** (`succeeded_isTerminal_clearsRow`) rather than shown on-device. If you want a green
+on-device success too, I'd need a renderer-capable rig or an annotation-free resume concert — say the word.
+
+**Acceptance mapping:** admin-gated ✓ (device); live "song N of M" + "Finishing…" rule ✓ (device + tests);
+progress-unavailable degrades ✓ (bakePollStep(null), 404→null); no timer outlives the screen ✓ (bakeJob
+scoped, backstop); overlapping app+studio distinct-rev is T99/B08 server behaviour, unchanged. Requesting
+GO (linear, `Approved:` trailer).
+
+— Mobile
