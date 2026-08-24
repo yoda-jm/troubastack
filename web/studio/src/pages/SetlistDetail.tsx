@@ -211,7 +211,6 @@ function BakeCard({
   myRole: Role | null;
 }) {
   const [concerts, setConcerts] = useState<Concert[]>([]);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]); // T60: per-song bake warnings
   // P205: the bake dialog is open (true) or not. Baking goes THROUGH the dialog so
@@ -235,20 +234,21 @@ function BakeCard({
     void load();
   }, [load]);
 
-  async function bake(layerDefaults: Record<string, boolean>) {
-    setDialog(false);
-    setBusy(true);
-    setError(null);
+  // T99: baking runs INSIDE the dialog now (it polls progress and shows "song N of M").
+  // The dialog calls onBake to fire the POST — carrying the id it minted so it can poll —
+  // and hands us the concert on success; we surface warnings + refresh as the inline bake did.
+  function runBake(layerDefaults: Record<string, boolean>, bakeId: string) {
+    // Clear the previous bake's warnings/error as the new one starts (the old inline bake did
+    // this up front); otherwise a FAILED re-bake leaves stale warnings next to the new error.
     setWarnings([]);
-    try {
-      const concert = await api.bakeSetlist(bandId, setlistId, layerDefaults);
-      setWarnings(concert.warnings ?? []);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Bake failed");
-    } finally {
-      setBusy(false);
-    }
+    setError(null);
+    return api.bakeSetlistWithProgress(bandId, setlistId, bakeId, layerDefaults);
+  }
+  function onBakeDone(concert: Concert) {
+    setError(null);
+    setWarnings(concert.warnings ?? []);
+    setDialog(false);
+    void load();
   }
 
   const bandConcert = concerts.find((c) => c.concertId === setlistId) ?? null;
@@ -269,10 +269,10 @@ function BakeCard({
               type="button"
               className="primary"
               data-testid="bake-setlist"
-              disabled={busy}
+              disabled={dialog}
               onClick={() => setDialog(true)}
             >
-              {busy ? "Baking…" : "Bake setlist"}
+              Bake setlist
             </button>
             <AudienceTag audience="band" />{/* T56: the shared band bundle */}
             {bandConcert && (
@@ -329,7 +329,8 @@ function BakeCard({
           bandId={bandId}
           setlistId={setlistId}
           songIds={songIds}
-          onConfirm={(layerDefaults) => void bake(layerDefaults)}
+          onBake={runBake}
+          onDone={onBakeDone}
           onCancel={() => setDialog(false)}
         />
       )}

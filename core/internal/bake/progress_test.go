@@ -103,7 +103,7 @@ func TestBake_Progress_SequenceAndTerminal(t *testing.T) {
 	rec := newProgRec()
 	b := progBaker(t, svc, eng, fakeRaster{pages: 1, png: tinyPNG(t, 40, 56)}, rec)
 
-	_, id, err := b.Bake(context.Background(), band, sl, u, nil)
+	_, id, err := b.Bake(context.Background(), band, sl, u, nil, "")
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestBake_Progress_EmptySetlist(t *testing.T) {
 	rec := newProgRec()
 	b := progBaker(t, svc, eng, fakeRaster{pages: 1, png: tinyPNG(t, 40, 56)}, rec)
 
-	_, id, err := b.Bake(context.Background(), band, sl, u, nil)
+	_, id, err := b.Bake(context.Background(), band, sl, u, nil, "")
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestBake_Progress_FailureNamesSong(t *testing.T) {
 	rec := newProgRec()
 	b := progBaker(t, svc, eng, errRaster{err: fmt.Errorf("boom")}, rec)
 
-	_, id, err := b.Bake(context.Background(), band, sl, u, nil)
+	_, id, err := b.Bake(context.Background(), band, sl, u, nil, "")
 	if err == nil {
 		t.Fatal("bake should have failed (raster errors)")
 	}
@@ -211,7 +211,7 @@ func TestBake_Progress_CancelledResolvesTerminal(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // client gone before the first song
-	_, id, err := b.Bake(ctx, band, sl, u, nil)
+	_, id, err := b.Bake(ctx, band, sl, u, nil, "")
 	if err == nil {
 		t.Fatal("cancelled bake should error")
 	}
@@ -240,7 +240,7 @@ func TestBake_Progress_ConcurrentDistinctIds(t *testing.T) {
 		wg.Add(1)
 		go func(k int) {
 			defer wg.Done()
-			_, ids[k], errs[k] = b.Bake(context.Background(), band, sl, u, nil)
+			_, ids[k], errs[k] = b.Bake(context.Background(), band, sl, u, nil, "")
 		}(k)
 	}
 	wg.Wait()
@@ -297,5 +297,137 @@ func TestProgressRegistry_ScopeAndExpiry(t *testing.T) {
 	now = now.Add(2 * time.Minute) // now 6 min > terminal TTL
 	if _, ok := r.get("id1", "bandA", "sl1"); ok {
 		t.Fatal("a terminal entry past its TTL must be evicted (no unbounded growth)")
+	}
+}
+
+// ---- T99/B: client-supplied bake id ----
+
+// A well-formed, free supplied id is honoured, so the client can poll progress under the id it chose.
+func TestBake_SuppliedID_HonouredAndReadable(t *testing.T) {
+	svc, eng, u, band, sl := seedN(t, 2)
+	rec := newProgRec()
+	b := progBaker(t, svc, eng, fakeRaster{pages: 1, png: tinyPNG(t, 40, 56)}, rec)
+	supplied := "11111111-2222-4333-8444-555555555555"
+
+	_, id, err := b.Bake(context.Background(), band, sl, u, nil, supplied)
+	if err != nil {
+		t.Fatalf("bake: %v", err)
+	}
+	if id != supplied {
+		t.Fatalf("effective id = %q, want the supplied %q", id, supplied)
+	}
+	if p, ok := b.Progress(band, sl, supplied); !ok || p.State != BakeSucceeded {
+		t.Errorf("progress under supplied id = %+v ok=%v, want succeeded", p, ok)
+	}
+}
+
+// A malformed supplied id is ignored — the server mints its own, and the junk never becomes a key.
+func TestBake_SuppliedID_MalformedIgnored(t *testing.T) {
+	svc, eng, u, band, sl := seedN(t, 1)
+	rec := newProgRec()
+	b := progBaker(t, svc, eng, fakeRaster{pages: 1, png: tinyPNG(t, 40, 56)}, rec)
+
+	_, id, err := b.Bake(context.Background(), band, sl, u, nil, "not-a-uuid; DROP TABLE")
+	if err != nil {
+		t.Fatalf("bake: %v (a bad progress hint must never fail a bake)", err)
+	}
+	if id == "not-a-uuid; DROP TABLE" {
+		t.Fatal("malformed supplied id was honoured")
+	}
+	if _, ok := b.Progress(band, sl, "not-a-uuid; DROP TABLE"); ok {
+		t.Error("malformed id became a registry key")
+	}
+	if _, ok := b.Progress(band, sl, id); !ok {
+		t.Error("server-minted fallback id is not readable")
+	}
+}
+
+// Fable's condition 2: two bands, the SAME supplied id — neither clobbers the other's readout.
+func TestBake_SuppliedID_NoClobberAcrossBands(t *testing.T) {
+	svc := app.NewService(memrepo.New())
+	svc.WithBlobStore(blob.NewMem())
+	eng := engine.New(memstore.New().(store.HistoryAware))
+	u, _ := svc.Register("admin", "Admin", "password123", "")
+	mk := func(name string) (string, string) {
+		band, _ := svc.CreateBand(u, name)
+		sl, _ := svc.CreateSetlist(u, band.ID, "Gig", "", "", "")
+		song, _ := svc.CreateSong(u, band.ID, "S", "")
+		if _, err := svc.UploadSongFile(u, band.ID, song.ID, "s.pdf", "application/pdf", []byte("%PDF-1.4 fixture")); err != nil {
+			t.Fatalf("upload: %v", err)
+		}
+		if _, err := svc.AddSetlistItem(u, band.ID, sl.ID, song.ID); err != nil {
+			t.Fatalf("add: %v", err)
+		}
+		return band.ID, sl.ID
+	}
+	bandA, slA := mk("A")
+	bandB, slB := mk("B")
+	rec := newProgRec()
+	b := progBaker(t, svc, eng, fakeRaster{pages: 1, png: tinyPNG(t, 40, 56)}, rec)
+	supplied := "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+
+	_, idA, errA := b.Bake(context.Background(), bandA, slA, u, nil, supplied)
+	_, idB, errB := b.Bake(context.Background(), bandB, slB, u, nil, supplied)
+	if errA != nil || errB != nil {
+		t.Fatalf("bakes: %v / %v", errA, errB)
+	}
+	if idA != supplied {
+		t.Fatalf("band A didn't get the free supplied id: %q", idA)
+	}
+	if idB == supplied {
+		t.Fatal("band B clobbered band A's supplied id (must mint its own on collision)")
+	}
+	if p, ok := b.Progress(bandA, slA, idA); !ok || p.State != BakeSucceeded {
+		t.Errorf("band A progress lost/clobbered: %+v ok=%v", p, ok)
+	}
+	if p, ok := b.Progress(bandB, slB, idB); !ok || p.State != BakeSucceeded {
+		t.Errorf("band B progress lost: %+v ok=%v", p, ok)
+	}
+	if _, ok := b.Progress(bandB, slB, idA); ok {
+		t.Error("band B could read band A's progress by id (cross-band leak)")
+	}
+}
+
+func TestProgressRegistry_Claim(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	r := newProgressRegistry(func() time.Time { return now })
+	if !r.claim("id1", "bandA", "sl1") {
+		t.Fatal("claim of a free id should succeed")
+	}
+	if r.claim("id1", "bandA", "sl1") {
+		t.Fatal("claim of a taken id must fail")
+	}
+	if r.claim("id1", "bandB", "sl2") {
+		t.Fatal("claim must fail regardless of band — no cross-band clobber")
+	}
+	now = now.Add(31 * time.Minute) // past the running TTL
+	if !r.claim("id1", "bandB", "sl2") {
+		t.Fatal("an expired id should be reclaimable")
+	}
+}
+
+func TestValidBakeID(t *testing.T) {
+	good := []string{
+		"11111111-2222-4333-8444-555555555555",
+		"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+	}
+	bad := []string{
+		"", "not-a-uuid",
+		"11111111-2222-4333-8444-55555555555",   // too short
+		"11111111-2222-4333-8444-5555555555555", // too long
+		"11111111_2222_4333_8444_555555555555",  // wrong separators
+		"11111111-2222-4333-8444-55555555555g",  // non-hex
+		"1111111112222433384445555555555555556", // no dashes
+	}
+	for _, s := range good {
+		if !validBakeID(s) {
+			t.Errorf("valid UUID rejected: %q", s)
+		}
+	}
+	for _, s := range bad {
+		if validBakeID(s) {
+			t.Errorf("invalid id accepted: %q", s)
+		}
 	}
 }

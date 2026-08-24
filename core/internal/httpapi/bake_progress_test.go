@@ -64,3 +64,45 @@ func TestBakeProgress_endpoint(t *testing.T) {
 		t.Fatalf("cross-band admin read another band's bake progress, got 200")
 	}
 }
+
+// T99/B: the handler honours a client-supplied X-Trouba-Bake-Id REQUEST header — it echoes it back and
+// the progress is readable under it (the round-trip the network-free e2e can't exercise).
+func TestBakeProgress_suppliedIdHonoured(t *testing.T) {
+	srv := bakeServer(t)
+	admin := &client{t: t, srv: srv}
+	band := admin.makeBand("alice", "Band")
+
+	_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists", map[string]string{"name": "Gig"})
+	var sl app.Setlist
+	unmarshalField(t, body, "setlist", &sl)
+	base := "/api/bands/" + band.ID + "/setlists/" + sl.ID
+
+	supplied := "12345678-1234-4234-8234-123456789abc"
+	req, err := http.NewRequest(http.MethodPost, srv.URL+base+"/bake", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	for _, ck := range admin.jar {
+		req.AddCookie(ck)
+	}
+	req.Header.Set("X-Trouba-Bake-Id", supplied)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("bake POST: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("bake status = %d, want 200", resp.StatusCode)
+	}
+	if got := resp.Header.Get("X-Trouba-Bake-Id"); got != supplied {
+		t.Fatalf("echoed bake id = %q, want the supplied %q", got, supplied)
+	}
+	// The client can read progress under the id IT chose.
+	resp2, pbody := admin.do(http.MethodGet, base+"/bakes/"+supplied+"/progress", nil)
+	mustStatus(t, resp2, http.StatusOK)
+	var state string
+	unmarshalField(t, pbody, "state", &state)
+	if state != "succeeded" {
+		t.Errorf("progress under supplied id = %q, want succeeded", state)
+	}
+}

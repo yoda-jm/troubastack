@@ -67,7 +67,9 @@ test("bake dialog captures per-layer default-on; toggling one off sends it false
   // Intercept the bake POST → capture its body; fulfill with a fake concert so the
   // flow completes without a real (poppler) bake.
   let body: { layerDefaults?: Record<string, boolean> } | null = null;
-  await page.route("**/setlists/*/bake**", async (route) => {
+  // T99: match ONLY the bake POST, not the dialog's new `…/bakes/{id}/progress` polls (which a
+  // trailing `bake**` would also swallow and clobber the captured body with a null-body GET).
+  await page.route("**/setlists/*/bake", async (route) => {
     body = route.request().postDataJSON();
     await route.fulfill({
       status: 200,

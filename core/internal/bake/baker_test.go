@@ -129,7 +129,7 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 		now:      func() int64 { return 1700000000 },
 	}
 
-	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestBake_ProducesValidBundle_andBumpsRev(t *testing.T) {
 	}
 
 	// Re-bake bumps concert_rev monotonically.
-	cb2, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	cb2, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 	if err != nil {
 		t.Fatalf("re-bake: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestBake_DefaultOnCapture(t *testing.T) {
 	}
 	// nil → absent (legacy).
 	b, u, bandID, setlistID := mk()
-	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 	if err != nil {
 		t.Fatalf("bake(nil): %v", err)
 	}
@@ -228,7 +228,7 @@ func TestBake_DefaultOnCapture(t *testing.T) {
 	}
 	// Dialog turned "Marks" OFF → explicit default_on=false on that overlay.
 	b2, u2, bandID2, setlistID2 := mk()
-	cb2, _, err := b2.Bake(context.Background(), bandID2, setlistID2, u2, map[string]bool{"Marks": false})
+	cb2, _, err := b2.Bake(context.Background(), bandID2, setlistID2, u2, map[string]bool{"Marks": false}, "")
 	if err != nil {
 		t.Fatalf("bake(off): %v", err)
 	}
@@ -238,7 +238,7 @@ func TestBake_DefaultOnCapture(t *testing.T) {
 	}
 	// Dialog turned "Marks" ON → default_on=true.
 	b3, u3, bandID3, setlistID3 := mk()
-	cb3, _, err := b3.Bake(context.Background(), bandID3, setlistID3, u3, map[string]bool{"Marks": true})
+	cb3, _, err := b3.Bake(context.Background(), bandID3, setlistID3, u3, map[string]bool{"Marks": true}, "")
 	if err != nil {
 		t.Fatalf("bake(on): %v", err)
 	}
@@ -289,7 +289,7 @@ func TestBake_BenchSortsAfterMain_flagsOnCall(t *testing.T) {
 		bakesDir: t.TempDir(),
 		now:      func() int64 { return 1700000000 },
 	}
-	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestBake_MemberCuesInjected(t *testing.T) {
 	}
 
 	// Shared band bake: cues are personal → none ride.
-	shared, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	shared, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 	if err != nil {
 		t.Fatalf("shared bake: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestBake_BandWide_CarriesEveryMember(t *testing.T) {
 		bakesDir: t.TempDir(),
 		now:      func() int64 { return 1700000000 },
 	}
-	cb, _, err := b.Bake(context.Background(), band.ID, sl.ID, admin, nil)
+	cb, _, err := b.Bake(context.Background(), band.ID, sl.ID, admin, nil, "")
 	if err != nil {
 		t.Fatalf("band-wide bake: %v", err)
 	}
@@ -508,7 +508,7 @@ func TestBake_ConcurrentSameSetlist_distinctRevs(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			res[i], _, errs[i] = b.Bake(context.Background(), bandID, setlistID, u, nil)
+			res[i], _, errs[i] = b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 		}(i)
 	}
 	wg.Wait()
@@ -604,7 +604,7 @@ func TestBake_PublishReclaimsOnConcurrentPublish(t *testing.T) {
 			// hookless copy so it doesn't recurse. Same goroutine → t.Errorf is safe.
 			a := *b
 			a.afterNextRev = nil
-			ab, _, err := a.Bake(context.Background(), bandID, setlistID, u, nil)
+			ab, _, err := a.Bake(context.Background(), bandID, setlistID, u, nil, "")
 			if err != nil {
 				t.Errorf("inner bake A failed: %v", err)
 				return
@@ -613,7 +613,7 @@ func TestBake_PublishReclaimsOnConcurrentPublish(t *testing.T) {
 		})
 	}
 
-	bb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	bb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 	if err != nil {
 		t.Fatalf("B must re-claim, not fail, when its rev was published concurrently: %v", err)
 	}

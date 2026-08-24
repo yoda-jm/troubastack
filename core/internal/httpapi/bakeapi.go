@@ -108,13 +108,16 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&in)
 	}
-	cb, bakeID, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, in.LayerDefaults)
+	// T99/B: a client may supply its own bake id via the request header so it can poll progress
+	// while THIS POST is still in flight (the response header alone arrives too late — the bake is
+	// synchronous). The baker validates + de-conflicts it; a bad/colliding one is ignored, never a 400.
+	cb, bakeID, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, in.LayerDefaults, r.Header.Get("X-Trouba-Bake-Id"))
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	// T96: expose the bake id so a caller can read GET …/bakes/{bakeId}/progress. The bake
-	// POST contract is otherwise unchanged (a client that ignores this header is unaffected).
+	// T96: echo the effective bake id (the supplied one if honoured, else server-minted) so a caller
+	// can read GET …/bakes/{bakeId}/progress. The bake POST response is otherwise unchanged.
 	w.Header().Set("X-Trouba-Bake-Id", bakeID)
 	view := viewOf(bandID, cb)
 	view.Warnings = a.transposeWarnings(u, bandID, r.PathValue("setlistId"))

@@ -51,6 +51,12 @@ Three options were considered; take the third.
    never slow a bake.
 2. **A bake id, returned from the POST.** Generate it at the start of `Bake` and return it to the
    caller (a response header is fine, e.g. `X-Trouba-Bake-Id`, or a field alongside the bundle).
+   **⚠️ AMENDED (T99/B): a response header identifies a *finished* bake but cannot drive a *running*
+   one.** The POST is synchronous, so its headers arrive only when the bake is over — a client cannot
+   read the id in time to watch its own bake. Live progress therefore needs the id known up front:
+   T99 landed **(B) client-supplied id** — the caller may send its own bake id in an optional
+   `X-Trouba-Bake-Id` *request* header, which `Bake` honours if well-formed and free (else mints one).
+   The response is byte-unchanged. See T99 §2.
    **Do not key progress by setlist id.** B08/B09 established that concurrent bakes of the *same*
    setlist are legal and must produce distinct revs — so a setlist key is exactly the thing already
    proven not to be unique, and two simultaneous bakes would overwrite each other's progress.

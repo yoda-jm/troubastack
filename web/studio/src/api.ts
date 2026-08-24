@@ -218,6 +218,16 @@ export type Concert = {
   warnings?: string[];
 };
 
+/** T96/T99 — a bake's live progress. `done` advances 1..total; `song` names the song
+ *  being baked (empty during the finishing tail); `error` names the failing song. */
+export type BakeProgress = {
+  state: "running" | "succeeded" | "failed";
+  done: number;
+  total: number;
+  song?: string;
+  error?: string;
+};
+
 // ---- annotations (view-only) ----
 
 export type AnnotationZone = "conductor" | "shared" | "personal";
@@ -750,6 +760,37 @@ export const api = {
       `/api/bands/${bandId}/setlists/${setlistId}/bake`,
       layerDefaults ? { layerDefaults } : undefined,
     ),
+
+  // T99/B: bake while polling progress. The caller supplies its OWN bake id (a request
+  // header) so it can read GET …/progress from the instant this POST is fired — the id
+  // in the RESPONSE header arrives too late, the bake being synchronous. A dedicated fetch
+  // (not the shared `request()`, which discards headers): the POST body/response are
+  // otherwise identical to bakeSetlist, and an old server that ignores the header simply
+  // has no matching progress entry (the poll 404s → we degrade to today's "Baking…").
+  bakeSetlistWithProgress: (
+    bandId: string,
+    setlistId: string,
+    bakeId: string,
+    layerDefaults?: Record<string, boolean>,
+  ): Promise<Concert> => {
+    const headers: Record<string, string> = { "X-Trouba-Bake-Id": bakeId };
+    if (layerDefaults) headers["Content-Type"] = "application/json";
+    return fetch(`/api/bands/${bandId}/setlists/${setlistId}/bake`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: layerDefaults ? JSON.stringify({ layerDefaults }) : undefined,
+    }).then((res) => decode<Concert>(res));
+  },
+
+  // T99: read a running/finished bake's progress. Any failure (404 expired/unknown, 5xx,
+  // network) resolves to null — a progress request must NEVER surface an error for a bake
+  // that is otherwise fine; the caller stops polling and falls back to "Baking…".
+  bakeProgress: (bandId: string, setlistId: string, bakeId: string): Promise<BakeProgress | null> =>
+    request<BakeProgress>(
+      "GET",
+      `/api/bands/${bandId}/setlists/${setlistId}/bakes/${bakeId}/progress`,
+    ).catch(() => null),
   listConcerts: (bandId: string) =>
     request<{ concerts: Concert[] }>("GET", `/api/bands/${bandId}/concerts`).then(
       (r) => r.concerts,

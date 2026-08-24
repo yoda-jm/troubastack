@@ -11,6 +11,8 @@
  *     SECURE even over plain HTTP — so this bug class was invisible by construction.
  *  3. The global error backstop surfaces any uncaught error / unhandled rejection as a
  *     dismissible banner (VLL: "it is not normal to just die silently").
+ *
+ * Sibling guard for the SAME bug class on the BAKE path (T99): `bake-insecure-origin.spec.ts`.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";

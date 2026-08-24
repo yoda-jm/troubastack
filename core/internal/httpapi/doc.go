@@ -88,7 +88,7 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 	var onCommit func(songID string)
 	if baker != nil {
 		ab := app.NewAutoBaker(svc, func(ctx context.Context, bandID, setlistID string, actor app.User) error {
-			_, _, err := baker.Bake(ctx, bandID, setlistID, actor, nil) // shared band bake (P205: no dialog → legacy defaults)
+			_, _, err := baker.Bake(ctx, bandID, setlistID, actor, nil, "") // shared band bake (P205: no dialog → legacy defaults)
 			return err
 		}, nil, 0)
 		go ab.Run(ctx, time.Second) // stops when ctx is cancelled (server shutdown / test cleanup)

@@ -135,7 +135,7 @@ func ParseConcertID(id string) (setlistID, userID string, isVariant bool) {
 // computes as today). When non-nil, every overlay gets an explicit DefaultOn
 // (mandatory layers are forced on regardless). Keyed by name (the concert-level view
 // the dialog shows: "Cues · Form · My notes").
-func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, layerDefaults map[string]bool) (bundle ConcertBundle, bakeID string, err error) {
+func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.User, layerDefaults map[string]bool, suppliedBakeID string) (bundle ConcertBundle, bakeID string, err error) {
 	// T96 — publish "song N of M" progress as we go. The POST contract is unchanged; this is
 	// a side channel keyed by a per-bake id (returned to the caller, exposed via GET …/progress).
 	mint := b.newBakeID
@@ -143,6 +143,14 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		mint = newBakeID
 	}
 	bakeID = mint()
+	// T99/B: a caller may supply its OWN bake id, so it can poll progress from the instant it fires the
+	// POST rather than only after this blocking bake returns (the response header — T96's original
+	// mechanism — arrives too late to watch a running bake). Honour it only if it's a well-formed UUID
+	// AND currently free; a malformed or in-flight-colliding id is ignored in favour of the server-minted
+	// one — never an error (a progress hint must not fail a bake, nor clobber another bake's readout).
+	if b.progress != nil && validBakeID(suppliedBakeID) && b.progress.claim(suppliedBakeID, bandID, setlistID) {
+		bakeID = suppliedBakeID
+	}
 	var done, total int
 	var curSong string
 	// Terminal state on EVERY exit: an error, or a client disconnect that cancels ctx, must

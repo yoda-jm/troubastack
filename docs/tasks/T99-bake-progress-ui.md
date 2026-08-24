@@ -17,21 +17,32 @@ T96 already publishes everything needed, per song, and `GET
 /api/bands/{bandId}/setlists/{setlistId}/bakes/{bakeId}/progress` returns
 `{state, done, total, song, error}`.
 
-## 2. The one real constraint: the bake id is in a header, and `api.ts` throws headers away
+## 2. The one real constraint: the bake POST is synchronous, so its RESPONSE header is too late
 
-T96 returns the id as an **`X-Trouba-Bake-Id` response header** on the bake POST — deliberately, so the
-response **body** stayed byte-unchanged. But `api.ts`'s shared `request()` ends in `decode<T>(res)`:
-it returns the parsed body and discards the response entirely.
+**⚠️ AMENDED after the gate (Fable's RULING, 2026-08-24): the original framing below was wrong.**
+It assumed the client could get the bake id by *reading the `X-Trouba-Bake-Id` response header*. But the
+bake POST is synchronous (`bakeapi.go` blocks in `Bake()` for ~13.5 s, then sets the header at `:118`),
+so `await fetch()` doesn't resolve — the header doesn't exist — until the bake is **over**. There is
+nothing to poll during flight. And there's no listing endpoint to learn the id another way (T96, no
+existence oracle). Reading the response header can *identify a finished bake*; it cannot *watch a
+running one*.
 
-So there are three ways to get the id out, and only one is right:
+**Resolution — (B) client-supplied id.** The client mints its own UUID and sends it as an **optional
+`X-Trouba-Bake-Id` *request* header** on the bake POST; the server uses it as the bake id if it's a
+well-formed UUID and currently free, else mints one (malformed/colliding is ignored, never a 400, never
+a clobber of another bake's readout). The client polls that id from the instant it fires the POST. The
+**response — status, body, echoed id header, 4xx-on-failure — is byte-for-byte unchanged**; the only
+delta is one optional request input, so an old server ignoring it behaves exactly as today (the poll
+404s → degrade to "Baking…"). This preserves everything §4 cares about (the POST stays the source of
+truth for success/failure).
 
-- ❌ **Widen `request()` to return headers** — it is used by every call in the file; changing its
-  return shape to serve one caller is a large blast radius for a progress readout.
-- ❌ **Ask the server to put the id in the body** — that undoes the exact property T96 was built
-  around (the POST body is unchanged, so nothing that ignores progress can break). Don't reopen it.
-- ✅ **One dedicated call** — e.g. `bakeSetlistWithProgress(...)` returning `{ concert, bakeId }`,
-  reading the header itself. `bakeSetlist` stays as it is for any other caller. Small, local, and it
-  leaves the shared helper alone.
+Implementation: a **dedicated `bakeSetlistWithProgress(bandId, setlistId, bakeId, layerDefaults?)`** —
+its own `fetch` that sets the request header (the shared `request()` discards headers and is left
+alone), plus `bakeProgress(...)` that GETs the endpoint and resolves `null` on any failure. `bakeSetlist`
+stays for any other caller.
+
+*(Original three options — widen `request()` ❌, id-in-body ❌, read the response header ✅ — are
+superseded: the third couldn't work against a synchronous POST.)*
 
 ## 3. What to show
 

@@ -50,7 +50,7 @@ func TestBake_BaseTempoAndKeyReachBundle_T86(t *testing.T) {
 		bakesDir: t.TempDir(),
 		now:      func() int64 { return 1700000000 },
 	}
-	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil)
+	cb, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
 	if err != nil {
 		t.Fatalf("bake: %v", err)
 	}

@@ -80,6 +80,50 @@ func (r *progressRegistry) set(id, bandID, setlistID string, p BakeProgress) {
 	r.entries[id] = progressEntry{prog: p, bandID: bandID, setlistID: setlistID, expires: r.now().Add(ttl)}
 }
 
+// claim reserves a caller-supplied bake id (T99/B) IF no LIVE entry already holds it,
+// seeding an initial running slot scoped to this band+setlist and returning true. A
+// supplied id that collides with an in-flight bake — even in another band — is refused,
+// so a client cannot blank another bake's readout by replaying its id; the caller mints
+// a server-side id instead. (Expired entries are swept first, so a stale id is reusable.)
+func (r *progressRegistry) claim(id, bandID, setlistID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweepLocked()
+	if _, exists := r.entries[id]; exists {
+		return false
+	}
+	r.entries[id] = progressEntry{
+		prog:      BakeProgress{State: BakeRunning},
+		bandID:    bandID,
+		setlistID: setlistID,
+		expires:   r.now().Add(r.runningTTL),
+	}
+	return true
+}
+
+// validBakeID accepts only a canonical 8-4-4-4-12 hex UUID (what crypto.randomUUID mints,
+// 36 chars). An arbitrary client string must never become a registry map key — that is
+// unbounded key growth + log-injection surface for free (T99, Fable's condition 1).
+func validBakeID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+			continue
+		}
+		isHex := (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+		if !isHex {
+			return false
+		}
+	}
+	return true
+}
+
 // get returns a bake's progress, but only to a caller scoped to the SAME band+setlist.
 // An unknown id, an expired id, or a band/setlist mismatch all report ok=false — the
 // handler maps that to 404, so "no such bake" and "not yours" are indistinguishable to
