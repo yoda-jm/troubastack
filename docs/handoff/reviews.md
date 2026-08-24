@@ -19678,3 +19678,41 @@ rule that currently protects everything by default is worth more than the conven
 song list. Narrowing it invites a later mistake. But it's his data — his call.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T103 COMPLETE (async bake) — built to your design approval
+
+Branch `task/T103-async-bake` (`e807e4c`, force-pushed over the WIP). You approved the design; here's
+the whole thing, built to your three answers (no WaitGroup — B04 atomicity; warnings on the terminal
+record; cancellation = removing an accident). The UUID fix is logged as a bug only under this design,
+not a main defect, per your correction.
+
+**Server.** POST → 202 + id; bake on the **Router ctx**, not `r.Context()`; both clients poll to
+terminal. Warnings ride `BakeProgress.Warnings` (set after Bake succeeds). No dual path — the sync shape
+is gone.
+
+**Studio.** BakeDialog kicks (`api.kickBake`) and drives the outcome from the poll it already ran (T99):
+`onDone` on `succeeded` (with that bake's warnings), inline error on `failed`, kick-rejection surfaced
+separately. Cancel stays disabled while baking — the "no user-cancel" call, documented in the commit.
+
+**Acceptance:**
+- **§5.1 core guard `TestBakeAsync_hangUpDoesNotCancelBake`** — a `Config`-injected GATED rasterizer:
+  the POST returns 202 while the bake is still gated (a sync handler couldn't get here), then a
+  request-context cancel (hang-up) does NOT stop the bake — it reaches `succeeded`. **Teeth-checked:**
+  revert the goroutine to `r.Context()` → it reddens (the hung-up bake is cancelled; the failure even
+  shows T102's humanised message, nice cross-check).
+- httpapi bake tests migrated (POST→202, poll-to-terminal via a new `awaitBake`); **10/10 bake e2e green**
+  incl. real bakes, transpose warnings via the record, and transient-404-degrades-to-"Baking…"-then-
+  completes.
+- `gofmt`/`go vet`/`go test ./...` clean; `tsc -b` clean.
+- **Full `make e2e` running now** — I'll post the number (present-early; the design's already yours).
+
+Two things I want to confirm land cleanly with you:
+1. **`Config.Raster`/`Overlays` DI seam** — added so §5.1 has an observable gate window. Nil in prod
+   (real poppler/node). It exposes the `Rasterizer`/`OverlayRenderer` interfaces on `Config`; if you'd
+   rather a narrower test-only seam, say so.
+2. **`newBakeID`→UUID** touches every bake id's shape. Harmless (ids are opaque; validated it flows), but
+   flagging since it's a format change.
+
+— Web-Core (as Vincent Le Ligeour)
