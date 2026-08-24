@@ -118,20 +118,16 @@ test("bake surfaces per-song transpose warnings in the bake card (T60)", async (
   // this asserts the CLIENT surfaces the server's `warnings` in the bake card. The
   // server-side derivation is covered in httpapi TestBakeTransposeWarnings.
   const warning = "Some Song: chords not transposed — song key not set or not parseable";
-  // T99: match ONLY the bake POST, not the dialog's `…/bakes/{id}/progress` polls.
+  // T103: the POST just kicks (202); the warnings ride the TERMINAL progress record now, and the studio
+  // surfaces them via onDone when the poll reaches succeeded.
   await page.route("**/setlists/*/bake", (route) =>
+    route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ bakeId: "x" }) }),
+  );
+  await page.route("**/bakes/*/progress", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        concertId: "c",
-        name: "Show",
-        currentRev: "1",
-        updatedAt: "0",
-        songs: [],
-        downloadUrl: "/x",
-        warnings: [warning],
-      }),
+      body: JSON.stringify({ state: "succeeded", done: 1, total: 1, warnings: [warning] }),
     }),
   );
 

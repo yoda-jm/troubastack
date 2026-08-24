@@ -30,6 +30,10 @@ type BakeProgress struct {
 	Total int       `json:"total"`
 	Song  string    `json:"song,omitempty"`
 	Error string    `json:"error,omitempty"`
+	// Warnings carries T60's per-song transpose warnings on the TERMINAL succeeded record (T103):
+	// the async bake POST returns before the bake finishes, so these no longer ride the POST body —
+	// the client reads them here when the poll reaches `succeeded`.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // progressEntry is a registry slot: the snapshot plus the band/setlist it belongs to
@@ -122,6 +126,20 @@ func validBakeID(s string) bool {
 		}
 	}
 	return true
+}
+
+// setWarnings attaches T60 warnings to an existing (terminal) record, scoped to band+setlist. A no-op
+// if the id is unknown/expired or scoped elsewhere — warnings are decoration, never worth a failure.
+func (r *progressRegistry) setWarnings(id, bandID, setlistID string, warnings []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweepLocked()
+	e, ok := r.entries[id]
+	if !ok || e.bandID != bandID || e.setlistID != setlistID {
+		return
+	}
+	e.prog.Warnings = warnings
+	r.entries[id] = e
 }
 
 // get returns a bake's progress, but only to a caller scoped to the SAME band+setlist.

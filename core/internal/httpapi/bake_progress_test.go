@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"troubastack/core/internal/app"
 )
@@ -24,18 +25,10 @@ func TestBakeProgress_endpoint(t *testing.T) {
 	unmarshalField(t, body, "setlist", &sl)
 
 	base := "/api/bands/" + band.ID + "/setlists/" + sl.ID
-	resp, _ := admin.do(http.MethodPost, base+"/bake", nil)
-	mustStatus(t, resp, http.StatusOK)
-	bakeID := resp.Header.Get("X-Trouba-Bake-Id")
-	if bakeID == "" {
-		t.Fatal("bake response missing X-Trouba-Bake-Id header (T96)")
-	}
-
+	// T103: the bake is a KICK (202 + id); poll to the terminal record — the outcome source of truth.
+	bakeID, pbody := awaitBake(t, admin, band.ID, sl.ID)
 	progURL := base + "/bakes/" + bakeID + "/progress"
 
-	// Admin reads the terminal progress for its own bake.
-	resp, pbody := admin.do(http.MethodGet, progURL, nil)
-	mustStatus(t, resp, http.StatusOK)
 	var state string
 	var done, total int
 	unmarshalField(t, pbody, "state", &state)
@@ -46,7 +39,7 @@ func TestBakeProgress_endpoint(t *testing.T) {
 	}
 
 	// Unknown bake id → 404 (distinct from an empty 200).
-	resp, _ = admin.do(http.MethodGet, base+"/bakes/deadbeefdeadbeef/progress", nil)
+	resp, _ := admin.do(http.MethodGet, base+"/bakes/deadbeefdeadbeef/progress", nil)
 	mustStatus(t, resp, http.StatusNotFound)
 
 	// A non-admin member cannot read progress — SAME authorisation as the bake (admin-only).
@@ -91,18 +84,28 @@ func TestBakeProgress_suppliedIdHonoured(t *testing.T) {
 		t.Fatalf("bake POST: %v", err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("bake status = %d, want 200", resp.StatusCode)
+	if resp.StatusCode != http.StatusAccepted { // T103: the async kick returns 202, not 200
+		t.Fatalf("bake status = %d, want 202", resp.StatusCode)
 	}
 	if got := resp.Header.Get("X-Trouba-Bake-Id"); got != supplied {
 		t.Fatalf("echoed bake id = %q, want the supplied %q", got, supplied)
 	}
-	// The client can read progress under the id IT chose.
-	resp2, pbody := admin.do(http.MethodGet, base+"/bakes/"+supplied+"/progress", nil)
-	mustStatus(t, resp2, http.StatusOK)
-	var state string
-	unmarshalField(t, pbody, "state", &state)
-	if state != "succeeded" {
-		t.Errorf("progress under supplied id = %q, want succeeded", state)
+	// The client can read progress under the id IT chose — poll it to the terminal state.
+	progURL := base + "/bakes/" + supplied + "/progress"
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		r, pbody := admin.do(http.MethodGet, progURL, nil)
+		if r.StatusCode == http.StatusOK {
+			var state string
+			unmarshalField(t, pbody, "state", &state)
+			if state == "succeeded" {
+				return
+			}
+			if state == "failed" {
+				t.Fatalf("supplied-id bake failed: %v", pbody)
+			}
+		}
+		time.Sleep(30 * time.Millisecond)
 	}
+	t.Fatal("supplied-id bake did not reach succeeded")
 }

@@ -242,11 +242,13 @@ function BakeCard({
     // this up front); otherwise a FAILED re-bake leaves stale warnings next to the new error.
     setWarnings([]);
     setError(null);
-    return api.bakeSetlistWithProgress(bandId, setlistId, bakeId, layerDefaults);
+    return api.kickBake(bandId, setlistId, bakeId, layerDefaults); // T103: kick; the dialog polls to terminal
   }
-  function onBakeDone(concert: Concert) {
+  function onBakeDone(warnings: string[]) {
+    // T103: the outcome arrived via the terminal progress record — warnings ride it now, not the
+    // (async) POST body. Reload to pick up the new concert rev.
     setError(null);
-    setWarnings(concert.warnings ?? []);
+    setWarnings(warnings);
     setDialog(false);
     void load();
   }

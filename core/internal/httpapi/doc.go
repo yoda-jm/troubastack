@@ -73,7 +73,7 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 
 	// Bake orchestration (I11): admin bakes a setlist → .tstage; members list +
 	// download baked concerts. baker may be nil in tests that don't exercise bake.
-	NewBakeAPI(svc, baker).Mount(mux, web.auth)
+	NewBakeAPI(ctx, svc, baker).Mount(mux, web.auth)
 
 	// Downloadable native app binaries (OPS02): the server image can carry the app
 	// so a band installs it from its own server. Unauthenticated (pre-account members

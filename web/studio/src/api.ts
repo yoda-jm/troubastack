@@ -226,6 +226,7 @@ export type BakeProgress = {
   total: number;
   song?: string;
   error?: string;
+  warnings?: string[]; // T103: T60 transpose warnings ride the terminal `succeeded` record now
 };
 
 // ---- annotations (view-only) ----
@@ -767,12 +768,17 @@ export const api = {
   // (not the shared `request()`, which discards headers): the POST body/response are
   // otherwise identical to bakeSetlist, and an old server that ignores the header simply
   // has no matching progress entry (the poll 404s → we degrade to today's "Baking…").
-  bakeSetlistWithProgress: (
+  // T103: KICK the bake. The POST returns 202 promptly (it no longer holds the socket for the whole
+  // multi-minute bake — venue wifi killed that), so this resolves as soon as the bake is accepted; the
+  // caller polls `bakeProgress` to the terminal state for the OUTCOME. A non-2xx (auth/validation)
+  // still throws an ApiError so the dialog can surface it. The bake id is client-minted so polling can
+  // start immediately.
+  kickBake: (
     bandId: string,
     setlistId: string,
     bakeId: string,
     layerDefaults?: Record<string, boolean>,
-  ): Promise<Concert> => {
+  ): Promise<void> => {
     const headers: Record<string, string> = { "X-Trouba-Bake-Id": bakeId };
     if (layerDefaults) headers["Content-Type"] = "application/json";
     return fetch(`/api/bands/${bandId}/setlists/${setlistId}/bake`, {
@@ -780,7 +786,9 @@ export const api = {
       credentials: "include",
       headers,
       body: layerDefaults ? JSON.stringify({ layerDefaults }) : undefined,
-    }).then((res) => decode<Concert>(res));
+    }).then(async (res) => {
+      if (!res.ok) await decode<void>(res); // 202 ⇒ accepted; anything else throws with the server message
+    });
   },
 
   // T99: read a running/finished bake's progress. Any failure (404 expired/unknown, 5xx,

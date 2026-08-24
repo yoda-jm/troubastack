@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -22,10 +23,13 @@ import (
 type BakeAPI struct {
 	svc   *app.Service
 	baker *bake.Baker
+	// ctx is the SERVER's lifetime context (T103). The async bake runs on it, NOT the request's, so a
+	// client that hangs up — a long bake over venue/power-saving wifi — no longer cancels its own bake.
+	ctx context.Context
 }
 
-func NewBakeAPI(svc *app.Service, baker *bake.Baker) *BakeAPI {
-	return &BakeAPI{svc: svc, baker: baker}
+func NewBakeAPI(ctx context.Context, svc *app.Service, baker *bake.Baker) *BakeAPI {
+	return &BakeAPI{svc: svc, baker: baker, ctx: ctx}
 }
 
 func (a *BakeAPI) Mount(mux *http.ServeMux, authed func(authedHandler) http.HandlerFunc) {
@@ -108,20 +112,24 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&in)
 	}
-	// T99/B: a client may supply its own bake id via the request header so it can poll progress
-	// while THIS POST is still in flight (the response header alone arrives too late — the bake is
-	// synchronous). The baker validates + de-conflicts it; a bad/colliding one is ignored, never a 400.
-	cb, bakeID, err := a.baker.Bake(r.Context(), bandID, r.PathValue("setlistId"), u, in.LayerDefaults, r.Header.Get("X-Trouba-Bake-Id"))
-	if err != nil {
-		writeErr(w, err)
-		return
+	// T103: baking is a KICK, not a held-open socket. Decide the bake id up front so the 202 can return
+	// it (the client polls GET …/bakes/{id}/progress for the outcome — the single source of truth). A
+	// long bake used to hold the connection for minutes and die when the client's wifi dropped it.
+	setlistID := r.PathValue("setlistId")
+	bakeID := r.Header.Get("X-Trouba-Bake-Id") // honour a valid client-supplied id (T99/B), now optional
+	if !bake.ValidBakeID(bakeID) {
+		bakeID = bake.NewBakeID()
 	}
-	// T96: echo the effective bake id (the supplied one if honoured, else server-minted) so a caller
-	// can read GET …/bakes/{bakeId}/progress. The bake POST response is otherwise unchanged.
+	// Run on the SERVER's context, not r.Context(): a disconnected client must NOT cancel the bake.
+	// On success, publish T60's transpose warnings onto the terminal progress record (the client reads
+	// them there now, since there's no synchronous response body to carry them).
+	go func() {
+		if _, _, berr := a.baker.Bake(a.ctx, bandID, setlistID, u, in.LayerDefaults, bakeID); berr == nil {
+			a.baker.SetWarnings(bandID, setlistID, bakeID, a.transposeWarnings(u, bandID, setlistID))
+		}
+	}()
 	w.Header().Set("X-Trouba-Bake-Id", bakeID)
-	view := viewOf(bandID, cb)
-	view.Warnings = a.transposeWarnings(u, bandID, r.PathValue("setlistId"))
-	writeJSON(w, http.StatusOK, view)
+	writeJSON(w, http.StatusAccepted, map[string]string{"bakeId": bakeID})
 }
 
 // bakeProgress reports a running/finished bake's "song N of M" (T96). SAME authorisation

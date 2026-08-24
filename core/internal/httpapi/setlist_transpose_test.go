@@ -99,10 +99,10 @@ func TestBakeTransposeWarnings(t *testing.T) {
 		map[string]any{"keyOverride": "D", "transposeChords": true})
 	mustStatus(t, resp, http.StatusOK)
 
-	// Band bake succeeds (metadata-only song ⇒ no rasterize) and reports the warning.
-	resp, bb := admin.do(http.MethodPost, slBase+"/bake", nil)
-	mustStatus(t, resp, http.StatusOK)
-	warns := bakeWarnings(t, bb)
+	// Band bake succeeds (metadata-only song ⇒ no rasterize); the warning now rides the TERMINAL
+	// progress record (T103 — there's no synchronous response body to carry it).
+	_, term := awaitBake(t, admin, band.ID, sl.ID)
+	warns := bakeWarnings(t, term)
 	if len(warns) != 1 || !strings.Contains(warns[0], "no text chart on this song") {
 		t.Fatalf("bake warnings = %v, want one 'no text chart' warning", warns)
 	}
@@ -110,9 +110,8 @@ func TestBakeTransposeWarnings(t *testing.T) {
 	// Turning transpose off → no warning (the field is omitempty ⇒ absent).
 	resp, _ = admin.do(http.MethodPatch, slBase+"/items/"+item.ID, map[string]any{"transposeChords": false})
 	mustStatus(t, resp, http.StatusOK)
-	resp, bb2 := admin.do(http.MethodPost, slBase+"/bake", nil)
-	mustStatus(t, resp, http.StatusOK)
-	if warns2 := bakeWarnings(t, bb2); len(warns2) != 0 {
+	_, term2 := awaitBake(t, admin, band.ID, sl.ID)
+	if warns2 := bakeWarnings(t, term2); len(warns2) != 0 {
 		t.Fatalf("no-transpose bake should have no warnings, got %v", warns2)
 	}
 }

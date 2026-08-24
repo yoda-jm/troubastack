@@ -2,9 +2,11 @@ package httpapi_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/app/blob"
@@ -15,6 +17,41 @@ import (
 	"troubastack/core/internal/store"
 	"troubastack/core/internal/store/memstore"
 )
+
+// awaitBake kicks the async bake (T103: POST returns 202 + the bake id) and polls the progress endpoint
+// to a terminal state, returning the bake id + the terminal progress record. Fails the test on `failed`
+// or timeout. This is the shape every client now uses: the poll is the source of truth for the outcome.
+func awaitBake(t *testing.T, c *client, band, sl string) (string, map[string]json.RawMessage) {
+	t.Helper()
+	resp, _ := c.do(http.MethodPost, "/api/bands/"+band+"/setlists/"+sl+"/bake", nil)
+	mustStatus(t, resp, http.StatusAccepted)
+	id := resp.Header.Get("X-Trouba-Bake-Id")
+	if id == "" {
+		t.Fatal("bake 202 carried no X-Trouba-Bake-Id header")
+	}
+	prog := "/api/bands/" + band + "/setlists/" + sl + "/bakes/" + id + "/progress"
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		r, body := c.do(http.MethodGet, prog, nil)
+		if r.StatusCode == http.StatusOK {
+			var state string
+			unmarshalField(t, body, "state", &state)
+			switch state {
+			case "succeeded":
+				return id, body
+			case "failed":
+				var e string
+				if _, ok := body["error"]; ok {
+					unmarshalField(t, body, "error", &e)
+				}
+				t.Fatalf("bake failed: %s", e)
+			}
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	t.Fatal("bake did not reach a terminal state in time")
+	return "", nil
+}
 
 // bakeServer builds ONE server with a real Baker (temp bakesDir) that all clients
 // share — so an admin's bake is visible to a member's list/download. Bakes here use
@@ -52,27 +89,15 @@ func TestBakeEndpoints_authAndFlow(t *testing.T) {
 
 	bakeURL := "/api/bands/" + band.ID + "/setlists/" + sl.ID + "/bake"
 
-	// Non-admin member cannot bake (admin gate, I11).
+	_ = bakeURL
+	// Non-admin member cannot bake (admin gate, I11 — auth happens before the async kick, still 403).
 	resp, _ := member.do(http.MethodPost, bakeURL, nil)
 	mustStatus(t, resp, http.StatusForbidden)
 
-	// Admin bakes → rev 1. currentRev is canonical (uint64 as a JSON STRING) so the
-	// app deserializes it with A02's AvailableConcert mirror (B03).
-	resp, cbody := admin.do(http.MethodPost, bakeURL, nil)
-	mustStatus(t, resp, http.StatusOK)
-	var rev string
-	unmarshalField(t, cbody, "currentRev", &rev)
-	if rev != "1" {
-		t.Fatalf("first bake currentRev = %q, want \"1\"", rev)
-	}
-
-	// Re-bake bumps the rev.
-	resp, cbody = admin.do(http.MethodPost, bakeURL, nil)
-	mustStatus(t, resp, http.StatusOK)
-	unmarshalField(t, cbody, "currentRev", &rev)
-	if rev != "2" {
-		t.Fatalf("re-bake currentRev = %q, want \"2\"", rev)
-	}
+	// Admin bakes → rev 1, then re-bakes → rev 2. Each is now a KICK (202) whose outcome the poll
+	// reports; the published concert's currentRev is verified via the concerts list below.
+	awaitBake(t, admin, band.ID, sl.ID)
+	awaitBake(t, admin, band.ID, sl.ID)
 
 	// Member lists concerts (member-only) and sees this one, in the AvailableConcert
 	// manifest shape: currentRev string, a songs array, downloadUrl.

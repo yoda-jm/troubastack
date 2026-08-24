@@ -6,7 +6,7 @@
  * confirm the choice rides to the baker as `layerDefaults` (name → default-on).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, api, type BakeProgress, type Concert } from "../api";
+import { ApiError, api, type BakeProgress } from "../api";
 import { newUuid } from "../editor";
 import { AudienceTag, audienceForZone } from "../components/AudienceTag";
 
@@ -30,8 +30,11 @@ export function BakeDialog({
   // onBake runs the actual bake POST (carrying the supplied id) and resolves with the
   // concert; the dialog owns the progress polling around it, so its lifecycle — and every
   // interval — is bounded by the dialog's own mount. onDone hands the concert to the parent.
-  onBake: (layerDefaults: Record<string, boolean>, bakeId: string) => Promise<Concert>;
-  onDone: (concert: Concert) => void;
+  // onBake KICKS the bake (T103) — it resolves once the bake is accepted (202), NOT when it finishes.
+  // The dialog then drives its outcome from the progress poll: onDone fires on the terminal `succeeded`
+  // record, carrying that bake's T60 warnings for the parent to surface.
+  onBake: (layerDefaults: Record<string, boolean>, bakeId: string) => Promise<void>;
+  onDone: (warnings: string[]) => void;
   onCancel: () => void;
 }) {
   const [layers, setLayers] = useState<LayerRow[] | null>(null);
@@ -92,10 +95,12 @@ export function BakeDialog({
     setOn((s) => ({ ...s, [name]: !s[name] }));
   }
 
-  // Poll progress WHILE the bake POST is in flight. Tied to the dialog's mount: when busy
-  // flips false (settled) or the dialog unmounts, the effect cleanup clears the interval —
-  // no timer outlives the dialog (T99 §5). Overlapping ticks are skipped via inFlight.
+  // T103: the poll is now the SOURCE OF TRUTH for the outcome (the async POST only kicks the bake). It
+  // runs while busy, tied to the dialog's mount — when busy flips false (terminal) or the dialog
+  // unmounts, the cleanup clears the interval, so no timer outlives the dialog (T99 §5). Overlapping
+  // ticks are skipped via inFlight; `settled` guards the one-shot terminal handoff against a double tick.
   const inFlight = useRef(false);
+  const settled = useRef(false);
   useEffect(() => {
     if (!busy || !bakeId) return;
     let stopped = false;
@@ -104,7 +109,17 @@ export function BakeDialog({
       inFlight.current = true;
       try {
         const p = await api.bakeProgress(bandId, setlistId, bakeId);
-        if (!stopped && p) setProgress(p); // null ⇒ 404/error: keep the last line, degrade to "Baking…"
+        if (stopped || !p) return; // null ⇒ 404/error: keep the last line, degrade to "Baking…"
+        setProgress(p);
+        if (settled.current) return;
+        if (p.state === "succeeded") {
+          settled.current = true;
+          onDone(p.warnings ?? []); // parent surfaces warnings + reloads + unmounts us
+        } else if (p.state === "failed") {
+          settled.current = true;
+          setBusy(false); // stop polling; keep the dialog open so the failure is visible + retryable
+          setError(p.song ? `Couldn't bake “${p.song}”.${p.error ? ` (${p.error})` : ""}` : (p.error ?? "Bake failed"));
+        }
       } finally {
         inFlight.current = false;
       }
@@ -115,7 +130,7 @@ export function BakeDialog({
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [busy, bakeId, bandId, setlistId]);
+  }, [busy, bakeId, bandId, setlistId, onDone]);
 
   async function confirm() {
     // newUuid, NOT crypto.randomUUID: the latter is secure-context-only and is `undefined`
@@ -130,21 +145,18 @@ export function BakeDialog({
     }
     setError(null);
     setProgress(null);
+    settled.current = false;
     setBakeId(id);
     setBusy(true);
     try {
-      const concert = await onBake(on, id);
-      onDone(concert); // parent reloads + unmounts us; the effect cleanup stops polling
+      // T103: only KICK the bake (resolves on the 202). The polling effect above drives the outcome —
+      // onDone on `succeeded`, an inline error on `failed`. A rejection here is a start-up failure
+      // (auth/validation), not a bake failure, so surface it and stop.
+      await onBake(on, id);
     } catch (err) {
-      setBusy(false); // stops polling; the dialog stays open so the failure is visible + retryable
-      // Name the failing song from the server's terminal progress (the POST error carries the
-      // song id; progress carries the human title), falling back to the POST error message.
-      const finalP = await api.bakeProgress(bandId, setlistId, id).catch(() => null);
-      if (finalP?.state === "failed" && finalP.song) {
-        setError(`Couldn't bake “${finalP.song}”.${finalP.error ? ` (${finalP.error})` : ""}`);
-      } else {
-        setError(err instanceof ApiError ? err.message : "Bake failed");
-      }
+      setBusy(false);
+      settled.current = true;
+      setError(err instanceof ApiError ? err.message : "Couldn't start the bake.");
     }
   }
 

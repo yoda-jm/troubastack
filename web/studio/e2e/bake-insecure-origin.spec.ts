@@ -61,12 +61,12 @@ test("insecure origin (no crypto.randomUUID): the bake still fires, with a valid
   await page.route("**/setlists/*/bake", async (route) => {
     posted = true;
     suppliedId = route.request().headers()["x-trouba-bake-id"];
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ concertId: "c", name: "c", currentRev: "1", updatedAt: "0", songs: [], downloadUrl: "/x" }),
-    });
+    await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ bakeId: suppliedId }) });
   });
+  // T103: the outcome comes from the poll now — report succeeded so the dialog closes.
+  await page.route("**/bakes/*/progress", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ state: "succeeded", done: 1, total: 1 }) }),
+  );
 
   await page.getByTestId("bake-setlist").click();
   await page.getByTestId("bake-dialog-confirm").click();

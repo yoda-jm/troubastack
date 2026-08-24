@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +31,11 @@ type Config struct {
 	Node     string // node binary
 	BakeCLI  string // path to web/bake/dist/cli.js
 	DPI      int    // raster DPI (default 150)
+	// Raster/Overlays inject the two shell-out steps — DEPENDENCY INJECTION, nil in production (the real
+	// poppler + node CLI are used). A test uses this to substitute a controllable rasterizer, e.g. one
+	// that blocks so the T103 "a hung-up client does not cancel the bake" race has an observable window.
+	Raster   Rasterizer
+	Overlays OverlayRenderer
 }
 
 // Baker turns a setlist into a downloadable .tstage (I11): resolve songs →
@@ -69,11 +73,19 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 	if dpi == 0 {
 		dpi = 150
 	}
+	var raster Rasterizer = popplerRasterizer{bin: cfg.Pdftoppm, dpi: dpi}
+	if cfg.Raster != nil {
+		raster = cfg.Raster
+	}
+	var overlays OverlayRenderer = nodeOverlayRenderer{node: cfg.Node, cli: cfg.BakeCLI}
+	if cfg.Overlays != nil {
+		overlays = cfg.Overlays
+	}
 	return &Baker{
 		svc:       svc,
 		eng:       eng,
-		raster:    popplerRasterizer{bin: cfg.Pdftoppm, dpi: dpi},
-		overlays:  nodeOverlayRenderer{node: cfg.Node, cli: cfg.BakeCLI},
+		raster:    raster,
+		overlays:  overlays,
 		bakesDir:  cfg.BakesDir,
 		now:       func() int64 { return time.Now().Unix() },
 		progress:  newProgressRegistry(nil),
@@ -118,13 +130,17 @@ func (b *Baker) humanize(err error) error {
 	return &bakeError{human: "The bake failed. Ask an admin to check the server — the log has the details."}
 }
 
-// newBakeID mints an unguessable, per-bake identifier (16 random bytes, hex). NOT the
-// setlist id: concurrent bakes of one setlist are legal (B08/B09) and must not share a
-// progress slot, so the key has to be unique per bake, not per setlist.
+// newBakeID mints an unguessable, per-bake identifier as a canonical v4 UUID. NOT the setlist id:
+// concurrent bakes of one setlist are legal (B08/B09) and must not share a progress slot. The UUID
+// SHAPE matters for T103: the async edge mints one via NewBakeID and hands it back to Bake as a
+// self-supplied id, which is honoured only if ValidBakeID accepts it — so a minted id must itself be a
+// well-formed UUID.
 func newBakeID() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])
-	return hex.EncodeToString(b[:])
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // publish records the latest progress for a bake to the registry (if any) and notifies
@@ -136,6 +152,20 @@ func (b *Baker) publish(bakeID, bandID, setlistID string, p BakeProgress) {
 	}
 	if b.onProgress != nil {
 		b.onProgress(bakeID, p)
+	}
+}
+
+// NewBakeID mints a fresh, unguessable per-bake id — exported so the async HTTP edge (T103) can put
+// the id in the 202 response BEFORE kicking the bake, then hand the SAME id to Bake as its (self-)
+// supplied id. ValidBakeID reports whether a client-supplied id is a canonical UUID the edge may reuse.
+func NewBakeID() string         { return newBakeID() }
+func ValidBakeID(s string) bool { return validBakeID(s) }
+
+// SetWarnings attaches T60 transpose warnings to a finished bake's terminal record so the polling
+// client can read them once it sees `succeeded` (T103 — they no longer ride the async POST body).
+func (b *Baker) SetWarnings(bandID, setlistID, bakeID string, warnings []string) {
+	if b.progress != nil && len(warnings) > 0 {
+		b.progress.setWarnings(bakeID, bandID, setlistID, warnings)
 	}
 }
 
