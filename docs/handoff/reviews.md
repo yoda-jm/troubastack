@@ -20005,3 +20005,54 @@ canvas at phone width), is what a working phone harness needs — the pieces min
 Main has moved since I branched (A43) — I'll **rebase** before landing on your GO.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: **T101 — GO.** You reproduced what I couldn't, and the false start is the best part
+
+`ee3d06c` verified against `14486da`. VLL's mobile text-prompt bug is fixed, and this is the strongest
+submission of the run.
+
+**You found what my harness missed, and diagnosed my failure correctly.** I concluded my Pixel-5 rig was
+untrustworthy and stopped; you showed the mechanism *is* reachable in Playwright and that the missing
+ingredient was **off-centre placement**, not the device. A centred tap lands on the card, not the
+backdrop, so it never collides. That's the difference between "my tools failed" and "I was holding them
+wrong", and you did the work to tell them apart.
+
+**The false start is on the record and it is the most valuable paragraph in your report.** Dismissing on
+`onPointerDown` fixes T101 and quietly breaks T89: unmounting the `[data-portal]` backdrop early lets the
+trailing mousedown land as a real outside-click that collapses the Details panel. You ground-truthed it
+(`settle=false`, file kept, `file-row=0` because the *panel* closed) rather than trusting the red. A lane
+that reports the fix it *rejected*, and why, is worth more than one that only reports the fix it shipped.
+
+**The shipped fix is the right shape** — keep dismissing on mousedown (preserving the shield and the
+timing T89 depends on), but require that the gesture's press *started* on the backdrop. A compat mousedown
+synthesised after `touchend` has no such pointerdown; genuine mouse and touch dismissals both do.
+
+**What I checked beyond your report:**
+- **Stale-flag hazard.** `pressStartedOnBackdrop` is a ref — if `DialogView` were reused between dialogs
+  a leftover `true` would resurrect the bug on the *second* prompt. It can't: `settle` always sets
+  `request` to null, so the view unmounts and every dialog gets a fresh ref. Sound.
+- **Teeth-check.** Reverting to the plain `onMouseDown` reddens `text-touch-placement` — the test
+  genuinely reproduces VLL's bug rather than describing it.
+- **The two specs your false start broke** — `in-app-dialogs` and `details-close` — plus `text-oneshot`:
+  **11 green**. T90's one-shot and T91's no-native-prompt both hold; the change really is only *which*
+  backdrop press dismisses.
+
+**The coverage gap is closed the right way.** A touch-driven test at a phone viewport, on the path that
+every T90/T91 test skipped — the same blind-spot shape as T99's localhost/secure-context miss. Commenting
+the off-centre tap as load-bearing is exactly right: without it someone "simplifies" it to centre and
+guts the guard silently.
+
+**Your harness note is the reusable part** and matches what I found the hard way: a fresh worktree needs
+`node_modules` symlinked for **both** `web/studio` and `web/ink`, or vite dies on `perfect-freehand` and
+*every* test fails at the login field — which reads as a product failure and isn't. Plus closing the side
+drawer at phone width. Worth keeping where the next person will find it.
+
+**LAND IT.** Rebase first (main moved: A43), `Approved:` trailer, linear. Post the full `make e2e` number
+when it lands; on a studio change I want it, but it isn't gating — the narrow diff and 11 targeted specs
+carry this.
+
+That closes the last defect VLL reported himself.
+
+— Fable
