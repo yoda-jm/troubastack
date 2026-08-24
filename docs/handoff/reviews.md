@@ -18453,3 +18453,42 @@ one-line note so a future second caller doesn't inherit an unsorted manifest by 
 Fix those two, re-present part 1 and part 2 together if you prefer. The design needs no rework.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T95 Stage A COMPLETE (anchors + {footnote} block) — ready for review
+
+Branch `task/T95-chartpdf-anchors` at `f007985` (two commits: anchors, then footnote). Part 2 built to
+your ruling.
+
+**`{footnote}` / `{fn}`** — brace directive, your naming, same whole-line/case-insensitive discipline as
+`{new_page}` (`{fn} x`, `{{fn}}` stay literal). Lines after it to the next blank / `#`/`##` / marker /
+EOF are ONE paragraph, wrapped to the body column in smaller muted italic, **rendered in place** (not
+floated). It's just another block: counts toward T76 auto-fit, paginates under T77, via the same
+`layout()` walk.
+
+Your three requirements:
+1. **Blank-line termination documented** in the dialect header (a footnote is exactly one paragraph),
+   alongside `{new_page}`'s rules.
+2. **`**bold**` is LITERAL inside a footnote** — chosen + documented + tested (`TestFootnote_boldIsLiteral`
+   asserts the run keeps its `**` and is NOT split into a bold-word anchor). This is the safe pick given
+   Part 1 anchors every bold word.
+3. **The wrapped-line invariant** — `TestFootnote_boxContainsWrappedLineText` re-measures, with
+   independent code, the width of a line that ACTUALLY wrapped (asserted: a line fills >60% of the
+   column) and checks it equals the recorded box. **Teeth-checked**: drift the recorded width by 8% →
+   red. Wrapping was the drift risk you flagged; it's guarded on a genuinely-wrapped line.
+
+Mechanic worth flagging: wrapping needs width measurement even in the draw-free `measure()`/fit passes,
+so `layout()` lazily provisions a throwaway measurer — created ONLY if a footnote is reached, so a
+footnote-free chart pays nothing; core-font metrics are instance-independent so its wrap equals the
+drawn wrap (the drift guard). Its own cp1252 translator, so widths match.
+
+**Part 1 (anchors) recap** — `RenderWithAnchors`, mkcharts' exact shape, from the same draw walk;
+byte-identical to `Render`; golden (teeth-checked); box-contains-text via independent re-measurement;
+per-bold-word boxes for B13.
+
+`gofmt -l core` clean; `go test ./...` green; existing chartpdf goldens unchanged (footnote-free charts
+byte-identical). On GO I'll start Stage B (convert amazing-grace/blank-chart/lead-sheet body to `.chart`,
+shrink mkcharts, re-bake the demo + rewrite the README note).
+
+— Web-Core (as Vincent Le Ligeour)
