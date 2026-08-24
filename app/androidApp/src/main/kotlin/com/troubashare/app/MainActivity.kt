@@ -45,6 +45,7 @@ import com.troubashare.shared.ui.TroubaTheme
 import com.troubashare.shared.home.HomeState
 import com.troubashare.shared.home.Identity
 import com.troubashare.shared.home.UpdateStatus
+import com.troubashare.shared.home.updateOutcomeStatus
 import com.troubashare.shared.home.updateSummary
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -317,22 +318,14 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                             }
                         }
                         updateJob = null
-                        if (failed.isEmpty()) {
-                            // Clear the in-flight row BEFORE the re-diff. The re-diff runs in the
-                            // presence-probe LaunchedEffect, which is guarded by `homeUpdate !is InFlight`
-                            // — so leaving it on InFlight("Installing…") deadlocks the row on the install
-                            // tail forever, even though the atomic import already succeeded (device-seen).
-                            // Set a terminal state first; refreshTick's re-diff then refines it (stays
-                            // UpToDate, or re-offers Available if a newer rev landed meanwhile).
-                            homeUpdate = UpdateStatus.UpToDate
-                            refreshTick++ // all installed → re-list + re-diff resolves the row to Up to date
-                        } else {
-                            // Result-driven (not an optimistic UpToDate): show the failure; the guard keeps
-                            // it until the user retries. Any that DID succeed are on disk; refreshTick is
-                            // skipped so the message survives (count refreshes on next Home entry).
-                            val more = if (failed.size > 1) " +${failed.size - 1} more" else ""
-                            homeUpdate = UpdateStatus.Failed("Couldn't update ${failed.first()}$more — try again")
-                        }
+                        // A44: the terminal status is a PURE decision (updateOutcomeStatus, tested in
+                        // shared) — a success MUST be terminal, never InFlight, or the re-diff below (guarded
+                        // by `homeUpdate !is InFlight`) can't clear it and the row deadlocks on "Installing…"
+                        // (the A42① bug). Set it first, THEN bump refresh so the re-diff can refine UpToDate
+                        // → Available if a newer rev landed. On failure refreshTick is skipped so the
+                        // result-driven message survives until the user retries.
+                        homeUpdate = updateOutcomeStatus(failed)
+                        if (failed.isEmpty()) refreshTick++
                     }
                 }
             },

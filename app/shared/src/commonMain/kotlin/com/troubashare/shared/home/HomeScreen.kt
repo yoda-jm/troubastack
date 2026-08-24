@@ -200,6 +200,26 @@ fun updateSummary(names: List<String>): String = when (names.size) {
     else -> "${names.size} concerts to update"
 }
 
+/**
+ * A44 — the PURE terminal status for a FINISHED update run, lifted out of MainActivity's `onUpdate`
+ * lambda so it's reachable from commonTest. The A42① deadlock lived exactly here, inline in a Composable
+ * where no test could touch it: a successful run left the row on `InFlight("Installing…")` and the
+ * re-diff that would clear it is itself guarded by `homeUpdate !is InFlight` — so the row hung forever.
+ *
+ * [failed] is the display names of the concerts whose apply FAILED (empty ⇒ every offer installed). The
+ * load-bearing invariant: **all-succeeded is TERMINAL ([UpToDate]), NEVER [InFlight]** — an InFlight tail
+ * here re-creates the deadlock. A partial failure yields the result-driven [Failed] message (never an
+ * optimistic UpToDate); the row's guard keeps that message until the user retries. The host still bumps
+ * its refresh after a clean run so the re-diff can refine [UpToDate] → [Available] if a newer rev landed.
+ */
+fun updateOutcomeStatus(failed: List<String>): UpdateStatus =
+    if (failed.isEmpty()) {
+        UpdateStatus.UpToDate
+    } else {
+        val more = if (failed.size > 1) " +${failed.size - 1} more" else ""
+        UpdateStatus.Failed("Couldn't update ${failed.first()}$more — try again")
+    }
+
 @Composable
 fun HomeScreen(
     state: HomeState,
