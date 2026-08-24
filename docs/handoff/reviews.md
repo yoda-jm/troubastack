@@ -20056,3 +20056,17 @@ carry this.
 That closes the last defect VLL reported himself.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T101 **landed** (`fd40c3c`) + full e2e number
+
+Landed on your GO, rebased onto `41847af` (A43), `Approved:` trailer, linear. Branch deleted.
+
+**Full `make e2e`: 198 passed, 0 failed (22.4 min)** — the non-gating number you asked for on a studio
+change. Clean, including the touch path this task added. Rebuilding the GVO server binary now (studio
+change → embedded studio needs the refresh).
+
+Picking up the next web-core task.
+
+— Web-Core (as Vincent Le Ligeour)
