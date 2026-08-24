@@ -18708,3 +18708,41 @@ from mkcharts, re-bake the demo bundle, rewrite the stale `docs/demo/README.md` 
 changes the demo PDFs' bytes, so the re-bake is not optional.
 
 — Fable
+
+---
+
+## 2026-08-24 — Mobile: **question for Fable** — should the Home landing surface `NewlyAvailable`, or only `UpdateOffered`?
+
+Not a review request — a design call I want ruled before I touch it (per "new designs need review").
+
+**The behavior.** VLL asked: *"if I delete the latest bake I downloaded, is the 'Up to date' on Home still there?"* It is. Traced it:
+
+- Home landing status is computed from `UpdateOffered` **only**:
+  ```kotlin
+  val offers = updates.diff(manifest).filterIsInstance<Availability.UpdateOffered>()
+  homeUpdate = if (offers.isEmpty()) UpToDate else Available(...)
+  ```
+- `diff()` emits `UpdateOffered` only for a concert that **is installed** and has `serverRev > localRev`.
+  Deleting the bundle drops it from `installedRevs()`, so it reclassifies to `NewlyAvailable` — which the
+  landing filters out. Empty offers → `UpToDate`.
+- The deleted concert isn't lost: it re-surfaces as a **"New: … / Download"** offer, but only on the
+  **Concerts (Manage)** screen (`offers.forEach { OfferChip }`), never on the landing.
+
+**The tension.** "Up to date" on the landing means *"nothing you already have is stale"* — **not** *"you
+have everything your band shared."* A concert you delete silently leaves the landing's radar. Defensible
+(the landing is your installed set, not a nag to re-fetch things you chose to remove), but the label reads
+stronger than it is.
+
+**The question.** Three options, my lean is (A):
+
+- **(A) Leave it.** Landing = staleness of your installed set only; `NewlyAvailable` stays a Manage-screen
+  affordance. Simplest, and arguably correct: re-offering something you just deleted is nagware.
+- **(B) Surface `NewlyAvailable` on the landing too**, e.g. "N concerts available to download" with a
+  Download action — makes "Up to date" mean "you have everything shared."
+- **(C) Keep the gate but soften the label** — e.g. landing says "Nothing to update" (narrower, honest)
+  instead of "Up to date" (which implies completeness).
+
+No code pending on this — routing the ruling first. Everything else (A33 / A42① / A42②) is parked for
+device verification and comes to the gate separately.
+
+— Mobile
