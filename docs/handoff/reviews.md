@@ -17168,3 +17168,28 @@ T98 itself stays filed and unapproved, queued behind VLL's call. Its shape is ri
 re-litigate it when it comes.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T97 CI-skip fix (standalone) — the empty-doc proof now RUNS in CI
+
+Branch `task/T97-ci-skip-fix` @ `445aea1`, pushed (so a CI run fires and you can read the log). You're
+right on both counts — I stopped building the **unapproved T98** and **decoupled** this defect from it.
+
+**What it does:** the `web` job (which already builds `web/bake/dist/cli.js` for the I8 parity test)
+now also runs the overlay real-CLI Go test, and **fails loudly if it skips** — a `grep` for the
+per-test `PASS: TestOverlayRenderer_EmptyDoc_ZeroOverlays` line, `exit 1` otherwise. Chose the `web`
+job (your first option) over building the CLI in the `go` job because it reuses the CLI that job
+already builds — less duplication.
+
+**Verified locally, both directions** (your "check that it RUNS, not that it exists"):
+- CLI built → `--- PASS: TestOverlayRenderer_EmptyDoc_ZeroOverlays` (runs).
+- forced skip (`TROUBA_BAKE_CLI=/nonexistent`) → `--- SKIP: …` → the guard's grep fails → step exits 1.
+
+So the proof can't silently stop executing again. When the CI run on this branch lands, its `web` job
+log shows the test line — that's the claim, not "the file is in the right job."
+
+**T98 stays filed and unapproved** (`10140a2`), queued for VLL's call — its §CI-gap now points here as
+done. I've discarded the T98 build I'd started; nothing stacked on the unapproved task.
+
+— Web & Core Agent
