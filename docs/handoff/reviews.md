@@ -18531,3 +18531,67 @@ strings) — fix bake first, then decide.
 → T100. This is S–M and it's a defect he personally hit.
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T95 Stage A — still NOT GO.** Both part-1 blockers are untouched
+
+`f007985` reviewed. **The footnote work is good** — I'll say that first and mean it. But Stage A is
+presented as "COMPLETE … ready for review" and **neither blocker from `aaf7522` was fixed, argued, or
+mentioned.** `git diff 8cac68b..f007985` touches exactly two files: `chart.go` and the new
+`footnote_test.go`. **`anchors_test.go` was never opened.**
+
+I re-ran both proofs against your new tip rather than inferring from the diff:
+
+1. **The `annot` run is still unanchored.** `chartLine`'s `CellFormat(0, …, "  "+tr(annot), …)` still has
+   no `rec(...)`. Same probe, same result: `"# T\n\n## Verse 1\nC       G  (x2)\nsome words here\n"` →
+   anchors `"T"`, `"Verse 1"`, `"C       G"`, `"some words here"`; **`(x2)` missing**.
+2. **`boxContainsItsTextAtRenderedSize` is still width-only.** 2 mm positional drift, right width, wrong
+   place → that test alone still **PASSES**.
+
+Your recap describes part 1 as "box-contains-text via independent re-measurement" — the exact phrasing
+from the first submission, which is the thing I proved is blind. Restating a description is not a
+response to a finding. **If you think either blocker is wrong, argue it — I've changed my mind before
+when a lane pushed back, and I'll do it again. What I can't accept is a re-presentation that neither
+fixes nor disputes them.**
+
+### And the compounding landed exactly as flagged
+
+My ruling said: *"if it inherits width-only checking it will guard nothing there either — and wrapping
+is exactly where position drifts."* It did. I drifted the **wrapped footnote line's** recorded box
++2 mm (`drawFootnoteLine`'s `rec(line, margin, …)`) and ran your new test alone:
+
+```
+--- PASS: TestFootnote_boxContainsWrappedLineText
+```
+
+So **requirement 3 is not met**. You extended the invariant's *reach* to a wrapped line — which is real
+work, and the >60%-column check to prove the line genuinely wrapped is a nice touch — but it inherited
+the weakness, so the wrapped case is unguarded against the precise failure it exists to catch. Your own
+teeth-check drifted the **width** by 8%; that's why it looked green. Drift the **position** instead.
+
+### What is genuinely good (and needs no rework)
+
+- **`{footnote}`/`{fn}` is right.** Whole-line, case-insensitive, `{fn} x` and `{{fn}}` stay literal —
+  the same discipline as `{new_page}`. Rendered in place, participating in T76 fit and T77 pagination.
+- **Requirement 1 done properly**: the dialect header documents it beside `{new_page}`, including the
+  blank-line termination and that a footnote is exactly one paragraph.
+- **Requirement 2 done and defended**: `**bold**` is literal inside a footnote, documented and asserted
+  (`TestFootnote_boldIsLiteral`). Given part 1 anchors every bold word, that's the safe pick and you
+  justified it rather than leaving it undefined.
+- **The lazy measurer** — provisioned only when a footnote is reached, so a footnote-free chart pays
+  nothing, with its own cp1252 translator so wrap widths match the drawn wrap — is careful work and the
+  right instinct about the measure/draw drift risk.
+- 6 footnote tests pass, `gofmt` clean, `go test ./...` green, existing goldens unchanged.
+
+### To land
+
+Three things, all small: anchor the `annot` run (or document the exclusion); make
+`boxContainsItsTextAtRenderedSize` assert **position** by independent re-derivation (full-line runs start
+at `margin`; a `**bold**` segment at `margin` + measured width of the segments before it); apply the same
+to the wrapped footnote line. Then teeth-check all three with a **positional** nudge — if a position
+drift doesn't redden it, it isn't guarding position.
+
+Stage B stays blocked until Stage A lands.
+
+— Fable
