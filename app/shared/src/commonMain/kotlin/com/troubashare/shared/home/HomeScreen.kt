@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.troubashare.shared.distribution.Availability
 import com.troubashare.shared.distribution.UpdateProgress
 
 /**
@@ -148,11 +149,13 @@ sealed interface UpdateStatus {
     /** Not shown — Offline / Guest / nothing to update. */
     data object Hidden : UpdateStatus
 
-    /** Recognized and current — a quiet reassurance, no action. */
+    /** Recognized and there's nothing to fetch — a quiet, NARROW reassurance ("Nothing to update"), never
+     *  a claim of completeness (A43: it must not read as "you have everything you were sent"). */
     data object UpToDate : UpdateStatus
 
-    /** Recognized and something is newer — [summary] says what's waiting; one tap downloads+installs. */
-    data class Available(val summary: String) : UpdateStatus
+    /** Recognized and something is fetchable — [summary] says what's waiting, [action] is the button verb
+     *  ("Update" a stale copy, or "Download" onto an empty device — A43). One tap downloads+installs. */
+    data class Available(val summary: String, val action: String = "Update") : UpdateStatus
 
     /** A download+install is running — cancellable (bundles are large, this may be venue wifi). A42 ①:
      *  [fraction] is the download progress in 0..&lt;1 when a Content-Length is known, or null =
@@ -219,6 +222,58 @@ fun updateOutcomeStatus(failed: List<String>): UpdateStatus =
         val more = if (failed.size > 1) " +${failed.size - 1} more" else ""
         UpdateStatus.Failed("Couldn't update ${failed.first()}$more — try again")
     }
+
+/** What's NOT on this device yet, for [UpdateStatus.Available] in the empty-device case (A43) — pure. */
+fun downloadSummary(names: List<String>): String = when (names.size) {
+    0 -> ""
+    1 -> "${names[0]} — not on this device"
+    else -> "${names.size} concerts to download"
+}
+
+/** The Home landing's update row + the offers its button will act on. Bundled so the whole decision is
+ *  one pure return value (A43). */
+data class LandingUpdate(
+    val status: UpdateStatus,
+    val offers: List<Availability> = emptyList(),
+    val names: List<String> = emptyList(),
+)
+
+/**
+ * A43 — the Home landing is a **pre-gig glance** answering "am I ready?", so its row must never overstate
+ * what the app knows. Three states that used to all render "Up to date" are separated here, as a PURE
+ * decision testable off a fake manifest + fake diff (VLL: *"if I delete the latest bake, is 'Up to date'
+ * still there?"* — it was, and worse: an EMPTY device and an UNREADABLE manifest read as current too).
+ *
+ * [manifestSize] is the number of concerts the band's manifest lists, or **null** if it couldn't be
+ * fetched. [offered] are installed-but-stale concerts (A39); [newlyAvailable] are manifest concerts not
+ * on the device. Rules, in order:
+ *  1. **Couldn't check ([manifestSize] == null) ⇒ [Hidden]** — make NO currency claim; silence, never a
+ *     green light (keeps the "don't nag on a transient failure" intent).
+ *  2. **Stale installed ⇒ [Available] "Update"** — A39, unchanged.
+ *  3. **Every listed concert is missing (empty device) while the band HAS concerts ⇒ [Available]
+ *     "Download"** — an empty device is not "up to date". This is the ONLY place the landing surfaces
+ *     [Availability.NewlyAvailable] (bounded B; blanket re-offering is nagware).
+ *  4. **Otherwise ⇒ [UpToDate]** — the quiet, narrow reassurance. A partial set with one deleted concert
+ *     lands here (still-quiet: the deleted one is a Manage-screen download, not a landing nag).
+ */
+fun landingUpdate(
+    manifestSize: Int?,
+    offered: List<Availability.UpdateOffered>,
+    newlyAvailable: List<Availability.NewlyAvailable>,
+    nameOf: (String) -> String,
+): LandingUpdate = when {
+    manifestSize == null -> LandingUpdate(UpdateStatus.Hidden)
+    offered.isNotEmpty() -> {
+        val names = offered.map { nameOf(it.concertId) }
+        LandingUpdate(UpdateStatus.Available(updateSummary(names)), offered, names)
+    }
+    // Zero of the band's concerts installed (every listed one is NewlyAvailable) — offer the download.
+    manifestSize > 0 && newlyAvailable.size == manifestSize -> {
+        val names = newlyAvailable.map { nameOf(it.concertId) }
+        LandingUpdate(UpdateStatus.Available(downloadSummary(names), action = "Download"), newlyAvailable, names)
+    }
+    else -> LandingUpdate(UpdateStatus.UpToDate)
+}
 
 @Composable
 fun HomeScreen(
@@ -343,14 +398,16 @@ private fun UpdateRow(status: UpdateStatus, onUpdate: () -> Unit, onCancel: () -
         ) {
             when (status) {
                 is UpdateStatus.UpToDate -> Text(
-                    "Up to date",
+                    // A43: narrowed — speaks only about what you have (nothing stale), never "you have
+                    // everything you were sent". The empty-device / couldn't-check cases never land here.
+                    "Nothing to update",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 is UpdateStatus.Available -> {
                     Text(status.summary, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Button(onClick = onUpdate) { Text("Update") }
+                    Button(onClick = onUpdate) { Text(status.action) } // A43: "Update" or "Download"
                 }
                 is UpdateStatus.InFlight -> {
                     val f = status.fraction

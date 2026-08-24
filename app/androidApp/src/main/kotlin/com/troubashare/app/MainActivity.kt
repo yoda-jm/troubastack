@@ -38,7 +38,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.troubashare.shared.home.HomeScreen
+import com.troubashare.shared.home.downloadSummary
 import com.troubashare.shared.home.inFlightStatus
+import com.troubashare.shared.home.landingUpdate
 import com.troubashare.shared.ui.SettingsScreen
 import com.troubashare.shared.ui.ThemePref
 import com.troubashare.shared.ui.TroubaTheme
@@ -256,17 +258,21 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     // is running OR after a failure, so a background resume doesn't stomp the in-flight
                     // row or silently erase the "couldn't update" message before the user retries.
                     if (homeUpdate !is UpdateStatus.InFlight && homeUpdate !is UpdateStatus.Failed) {
+                        // A43: the landing tells the truth — the honest state is a PURE decision
+                        // (landingUpdate, tested in shared). manifest == null ⇒ couldn't check ⇒ no
+                        // currency claim; zero of the band's set installed ⇒ offer the download; a stale
+                        // installed copy ⇒ Update (A39); otherwise the narrow "Nothing to update".
                         val manifest = runCatching { updates.fetchManifest() }.getOrNull()
-                        if (manifest == null) {
-                            homeUpdate = UpdateStatus.UpToDate
-                        } else {
-                            val offers = updates.diff(manifest).filterIsInstance<Availability.UpdateOffered>()
-                            val nameOf = manifest.concerts.associate { it.concertId to it.name }
-                            updateOffers = offers
-                            updateNames = offers.map { nameOf[it.concertId]?.takeIf { n -> n.isNotEmpty() } ?: it.concertId }
-                            homeUpdate = if (offers.isEmpty()) UpdateStatus.UpToDate
-                            else UpdateStatus.Available(updateSummary(updateNames))
-                        }
+                        val diffed = manifest?.let { updates.diff(it) }.orEmpty()
+                        val nameOf = manifest?.concerts?.associate { it.concertId to it.name }.orEmpty()
+                        val landing = landingUpdate(
+                            manifestSize = manifest?.concerts?.size,
+                            offered = diffed.filterIsInstance<Availability.UpdateOffered>(),
+                            newlyAvailable = diffed.filterIsInstance<Availability.NewlyAvailable>(),
+                        ) { id -> nameOf[id]?.takeIf { it.isNotEmpty() } ?: id }
+                        updateOffers = landing.offers
+                        updateNames = landing.names
+                        homeUpdate = landing.status
                     }
                 }
                 // Keep last-known `me` so offline auto-match still resolves the performer's own view (I12).
@@ -339,10 +345,23 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     runCatching {
                         val dir = storage.tempDir().trimEnd('/')
                         updateOffers.forEach { o ->
-                            (o as? Availability.UpdateOffered)?.let { java.io.File("$dir/${it.concertId}.tstage").delete() }
+                            // A43: cover NewlyAvailable too (an empty-device download is cancellable now),
+                            // not just UpdateOffered — apply() writes both to $dir/$concertId.tstage.
+                            val cid = when (o) {
+                                is Availability.UpdateOffered -> o.concertId
+                                is Availability.NewlyAvailable -> o.concertId
+                                is Availability.SongChanged -> o.concertId
+                            }
+                            java.io.File("$dir/$cid.tstage").delete()
                         }
                     }
-                    homeUpdate = if (updateNames.isEmpty()) UpdateStatus.UpToDate else UpdateStatus.Available(updateSummary(updateNames))
+                    // Restore the offer row we cancelled, matching its verb (A43: Download vs Update).
+                    homeUpdate = when {
+                        updateOffers.isEmpty() -> UpdateStatus.UpToDate
+                        updateOffers.any { it is Availability.NewlyAvailable } ->
+                            UpdateStatus.Available(downloadSummary(updateNames), action = "Download")
+                        else -> UpdateStatus.Available(updateSummary(updateNames))
+                    }
                 }
             },
         )
