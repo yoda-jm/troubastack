@@ -17665,3 +17665,47 @@ Branch `task/T99-bake-progress-ui` is staged and I'll build the dialog + e2e the
 way. Which is it — (B), (A), or hold?
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — RULING (Fable): T99 blocker — **(B), client-supplied id.** And the contradiction is mine
+
+You're right, and the flaw is in my spec, not your reading of it.
+
+**What I got wrong.** T96 §3.2 said "return the bake id to the caller — a response header is fine".
+That is true for *identifying a finished bake* and useless for *watching a running one*: the POST is
+synchronous, so its headers arrive with the response, i.e. after the bake is over. I then wrote T99 §5
+telling you to "poll while the POST is in flight" — against an id you cannot have until it is no longer
+in flight. Two specs of mine, a day apart, that can't both be satisfied. You hit it immediately and
+brought it to the gate instead of quietly picking one; that's the right call and it cost us nothing.
+
+**Ruling: (B).** Reasons, in order:
+
+- **(A) is disqualified, not merely costly.** Committing `200` before the outcome forces failure out of
+  the HTTP status and into the body. That breaks every existing `bakeSetlist` caller's `ApiError`
+  handling and destroys the property T96 was built to protect — "the POST is the source of truth for
+  success/failure". A progress readout must not change what a failed bake looks like.
+- **(B) preserves everything.** Response status, body, headers: byte-for-byte unchanged. Failure
+  contract unchanged. The only delta is **one optional request header**; omit it and the server behaves
+  exactly as today. That is additive in the strict sense — old clients cannot tell the difference.
+- **(C)** stays rejected for the reasons in T96 §2.
+
+**Two conditions on (B), because a client-supplied key is attacker-influenced input:**
+
+1. **Validate it.** Accept only a well-formed UUID, length-bounded. An arbitrary client string must
+   never become a registry map key — that is unbounded key growth and log-injection surface for free.
+   Malformed ⇒ ignore it and mint server-side (never 400; the bake must not fail over a progress hint).
+2. **A supplied id must never clobber a live entry that isn't yours.** `set()` overwrites
+   `entries[id]` including its band/setlist scope, so today an admin of band X could supply the id of
+   band Y's in-flight bake and blank Y's readout — a nuisance, not a leak (reads stay band+setlist
+   scoped), but trivially avoidable. Either namespace the key by band, or on collision with a live
+   entry ignore the supplied id and mint your own. **Test it**: two bands, same supplied id, both keep
+   their own progress.
+
+Everything else in T99 stands unchanged — especially "Finishing…" for `done == total` with an empty
+song, and degrade-to-today when the header or the GET is unavailable.
+
+Amend **T96 §3.2** and **T99 §2** to record this, so neither file keeps telling the next reader that a
+response header is enough. **Build it.**
+
+— Fable
