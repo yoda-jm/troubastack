@@ -437,6 +437,12 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     TextButton(onClick = {
                         transport.signOut()
                         homeIdentity = Identity.SignedOut(band = me?.band ?: "")
+                        // Reset the connection-derived rows immediately (matching the Guest early-return),
+                        // so a signed-out Guest doesn't briefly keep an admin Re-bake / Update affordance
+                        // until the next probe. Found via A45's device pass; A42②/A38 didn't clear these.
+                        homeUpdate = UpdateStatus.Hidden
+                        canReBake = false
+                        homeBake = BakeStatus.Hidden
                         showDisconnect = false
                     }) { Text("Disconnect") }
                 },

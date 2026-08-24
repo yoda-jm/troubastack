@@ -20,7 +20,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -129,6 +138,47 @@ fun identityAction(identity: Identity): String = when (identity) {
  *  modal). Not for a fresh install (nothing to manage) nor mid-probe. */
 fun identityHasManage(identity: Identity): Boolean =
     identity !is Identity.NotSetUp && identity !is Identity.Checking
+
+/**
+ * A45 — the SHORT label for the always-visible top-right account chip (a state-tinted dot + this text,
+ * glanceable with NO tap; the full detail + actions live in the bottom sheet the chip opens). Band name
+ * when Recognized (the one thing a player wants at a glance before a gig), else the status word; "…"
+ * while probing. Distinct from [identityLine], which is the fuller sentence shown inside the sheet.
+ */
+fun accountChipLabel(identity: Identity): String = when (identity) {
+    is Identity.Connected -> identity.band.ifEmpty { identity.name.ifEmpty { "Connected" } }
+    is Identity.Offline -> "Offline"
+    is Identity.SignedOut -> "Guest"
+    is Identity.NotSetUp -> "Guest"
+    is Identity.Checking -> "…"
+}
+
+/**
+ * A45 — what the account bottom sheet offers for a given [identity]. Parameters is always present
+ * (chrome, not account); [manage] follows [identityHasManage]; [primaryAction] is [identityAction]
+ * (""/blank while Checking ⇒ the sheet shows it disabled, never a live action mid-probe — the row's
+ * "disabled, not hidden" rule, A38). Disconnect still routes through A38's confirm dialog at the host.
+ */
+data class AccountMenu(
+    val manage: Boolean,
+    val primaryAction: String,
+    val settings: Boolean = true,
+)
+
+fun accountMenu(identity: Identity): AccountMenu =
+    AccountMenu(manage = identityHasManage(identity), primaryAction = identityAction(identity))
+
+/**
+ * A45 regression guard: the Home update affordance is only ever eligible when **Recognized** — the host
+ * forces [UpdateStatus.Hidden] for Offline / Guest / Checking, and `UpdateRow` gates on that. Moving the
+ * connection controls into the account sheet must not change this coupling (a player who is Offline or a
+ * Guest must not be offered an update). Pure, so the relationship is pinned by a test.
+ */
+fun updateRowEligible(identity: Identity): Boolean = identity is Identity.Connected
+
+/** A45: the account chip shows its text label only when the header has room; below this it collapses to
+ *  the dot alone (T58's phone-width behaviour), so the header never overflows at 320 dp. Pure/testable. */
+fun accountChipShowsLabel(availableWidthDp: Int): Boolean = availableWidthDp >= 360
 
 /**
  * The band segment of the Recognized line — A38 multi-band ruling (VLL: "one person can be in multiple
@@ -298,19 +348,28 @@ fun HomeScreen(
     onReBake: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // A45: the account sheet — the ONE top-right trigger's detail + actions (Parameters / Manage /
+    // Connect·Sign in·Disconnect). Opened by the chip; state is local to Home.
+    var showAccount by remember { mutableStateOf(false) }
     Surface(modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Small, muted wordmark — a brand mark, not a headline — with the Parameters gear on the right.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "TroubaShare",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = onSettings) { Text("⚙  Parameters", style = MaterialTheme.typography.labelLarge) }
+            // A45: small muted wordmark (left) + the ONE top-right account chip (right) — a state-tinted
+            // dot + a short label, glanceable with no tap; it replaces the standalone ⚙ Parameters button
+            // and the old ConnectionRow, moving the ACTIONS into a bottom sheet while the STATUS stays
+            // visible (T58 concept, phone-shaped). Collapses to the dot alone at narrow width.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val showLabel = accountChipShowsLabel(maxWidth.value.toInt())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "TroubaShare",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    AccountChip(state.identity, showLabel = showLabel, onClick = { showAccount = true })
+                }
             }
 
             // TroubaStage · Perform — the ONE big primary tile (the on-stage button). A36: warm paper
@@ -378,18 +437,28 @@ fun HomeScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // A38: the connection control — status (icon + semantic colour + line) plus the action that
-            // matches it. Status colour is deliberately NOT the brand indigo, so "connected" never
-            // looks like "this is a button"; each state also has a distinct icon shape (legible in bad
-            // stage light, and for colour-blind users).
-            ConnectionRow(state.identity, onPrimaryAction = onPrimaryAction, onManage = onManage)
-
-            // A39: one-tap Update, shown only when Recognized (the host sets Hidden otherwise).
-            UpdateRow(state.update, onUpdate = onUpdate, onCancel = onCancelUpdate)
+            // A39: one-tap Update, shown only when Recognized. A45: gate on updateRowEligible so the
+            // status↔update coupling (Hidden for Offline/Guest) survives the connection-controls move —
+            // pinned by a test. UpdateRow itself still returns early on a Hidden status (e.g. manifest
+            // unreadable while Connected).
+            if (updateRowEligible(state.identity)) {
+                UpdateRow(state.update, onUpdate = onUpdate, onCancel = onCancelUpdate)
+            }
 
             // A42②: one-tap re-bake — shown only to an admin of the resume concert's band (canReBake).
             BakeRow(state.bake, state.canReBake, state.lastConcertName, onReBake = onReBake)
         }
+    }
+    if (showAccount) {
+        AccountSheet(
+            identity = state.identity,
+            onSettings = { showAccount = false; onSettings() },
+            onManage = { showAccount = false; onManage() },
+            // A38: Disconnect (and every primary action) routes through the host, which keeps the
+            // disconnect confirmation dialog. Close the sheet first so the confirm isn't behind it.
+            onPrimaryAction = { showAccount = false; onPrimaryAction() },
+            onDismiss = { showAccount = false },
+        )
     }
 }
 
@@ -541,38 +610,76 @@ private fun StatusIcon(identity: Identity, tint: androidx.compose.ui.graphics.Co
     }
 }
 
+/**
+ * A45 — the ONE top-right account trigger (T58's concept). A state-tinted [StatusIcon] dot + a short
+ * label ([accountChipLabel]), glanceable with no tap; collapses to the dot alone when [showLabel] is
+ * false (narrow width). Tapping opens [AccountSheet]. Looks like a chip, not a button — the status colour
+ * is deliberately not the brand indigo.
+ */
 @Composable
-private fun ConnectionRow(identity: Identity, onPrimaryAction: () -> Unit, onManage: () -> Unit) {
-    val tint = statusColor(identity)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+private fun AccountChip(identity: Identity, showLabel: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StatusIcon(identity, tint)
-            Text(
-                identityLine(identity),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            // A38: keep BOTH buttons present across the probe, DISABLED while Checking, so the row
-            // doesn't reflow/pop each time Home resumes. Checking only ever resolves to a state that
-            // has Manage + an action (a no-cookie start goes straight to Guest, never through Checking),
-            // so mirroring that layout while probing is safe. "Disabled, not hidden."
-            val checking = identity is Identity.Checking
-            if (identityHasManage(identity) || checking) {
-                TextButton(onClick = onManage, enabled = !checking) { Text("Manage") }
+            StatusIcon(identity, statusColor(identity))
+            if (showLabel) {
+                Text(
+                    accountChipLabel(identity),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 160.dp),
+                )
             }
-            val action = identityAction(identity)
-            if (action.isNotEmpty() || checking) {
-                Button(onClick = onPrimaryAction, enabled = !checking) { Text(if (checking) "…" else action) }
+        }
+    }
+}
+
+/**
+ * A45 — the account bottom sheet the chip opens (a `ModalBottomSheet`, reusing the Stage's pattern:
+ * thumb-reachable actions, per §4b — not a top-anchored dropdown). Detail line + the actions that used to
+ * sit on the surface: the primary identity action (Connect / Sign in / Disconnect), Manage, Parameters.
+ * The action is disabled — not hidden — while Checking (A38), and Disconnect still confirms at the host.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountSheet(
+    identity: Identity,
+    onSettings: () -> Unit,
+    onManage: () -> Unit,
+    onPrimaryAction: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val menu = accountMenu(identity)
+    val checking = identity is Identity.Checking
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState()) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatusIcon(identity, statusColor(identity))
+                Text(identityLine(identity), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            }
+            if (menu.primaryAction.isNotEmpty() || checking) {
+                Button(onClick = onPrimaryAction, enabled = !checking, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (checking) "…" else menu.primaryAction)
+                }
+            }
+            if (menu.manage) {
+                TextButton(onClick = onManage, modifier = Modifier.fillMaxWidth()) { Text("Manage") }
+            }
+            if (menu.settings) {
+                TextButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) { Text("⚙  Parameters") }
             }
         }
     }
