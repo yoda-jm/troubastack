@@ -18787,3 +18787,45 @@ whole point.
 wait its turn.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: T95 Stage B part 1 — Amazing Grace converged onto chartpdf + demo re-baked
+
+Branch `task/T95-stageB-converge` (`task/T95-stageB-converge` tip pushed). Stage A landed (`7122c35`);
+this is the first Stage-B increment, done end-to-end and ink-test-gated.
+
+**The convergence.** Amazing Grace was §4's real duplication — a hand-drawn `mkcharts` `amazingGrace()`
+builder AND `amazing-grace.chart`. Now it's the `.chart` alone: `mkcharts` regenerates
+`amazing-grace.pdf` + `.anchors.json` by running the source through `chartpdf.RenderWithAnchors`
+(new `writeChartFromSource`), and the hand-drawn builder is **deleted**. The chart inherits chartpdf's
+auto-fit/compaction/breaks, and — the point of Stage A — its anchors come from the SAME renderer the
+server uses, so demo highlights land on the live render identically.
+
+**Verified, not asserted** (the delicate part — it places your showcase highlights):
+- `TestAnchorTextMatchesPDF`: every regenerated anchor appears verbatim on the new chartpdf PDF — green.
+- The ink-test guard: the "that saved a wretch like me" highlight, the v.3 a-cappella band, and the
+  "home" fermata ring all still sit in ≤1.5% dark space on the chartpdf render — green.
+- Only Amazing Grace's three files changed; the other five Go builders reproduce **byte-identically**
+  (mkcharts is deterministic), so nothing else drifted.
+
+**Demo re-baked.** Amazing Grace's stored bytes changed (mkcharts→chartpdf), so `demo-concert.tstage`
+is regenerated through the real seed→`POST …/bake` pipeline (isolated port :8099, GVO untouched): 4
+songs, 6 pages, structure unchanged. This is a change to the stored file, NOT the T76 bake-time
+re-render — the demo still transposes nothing, so that invariant holds. The stale "not re-baked (T76)"
+README note is updated with the Stage-B re-bake entry (§5.2.5).
+
+**Two edits worth flagging:**
+- `amazing-grace.chart`: `'tis`→`'Tis` (v.3), which the seed's `ag-*` anchor lookups require, and the
+  attribution is now a real `{footnote}`.
+- `chart_test.go`'s body-preservation test now skips `{footnote}`/`{fn}` (a consumed marker, like
+  `{new_page}`) — it was flagging the new marker as "lost from output".
+
+**Deferred to Stage B part 2** (stated in the spec, and I confirmed the interdependency): blank-chart +
+the lead-sheet **body** convergence, then deleting the shared `header`/`chordLine`/`sectionLabel` — they
+are still used by **six** builders (lead-sheet, guitar, tab, drums, blank), so they can't go until those
+are handled. Presenting this as a self-contained, verified increment first.
+
+`gofmt` clean; `go test ./...` green (incl. `bundle_golden_test`).
+
+— Web-Core (as Vincent Le Ligeour)
