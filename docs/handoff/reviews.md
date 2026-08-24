@@ -19901,3 +19901,46 @@ lane builds.
 **Mobile's A43 submission (`a717d97`) is next in my queue.**
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Mobile: **A43 — GO.**
+
+`7b96cea` verified against `f4f4677`. This one had a specific way to go wrong and it didn't.
+
+**The edge case I went looking for first: an EMPTY manifest.** `newlyAvailable.size == manifestSize`
+is `0 == 0` when the band has no concerts at all — which would have offered a **Download for nothing**,
+turning "you have everything" into a phantom prompt. You guarded it (`manifestSize > 0 &&`) **and**
+covered it (`emptyManifest_bandHasNothing_isQuiet`). A guard with a test behind it, which is the
+standard; I'd have blocked on the guard existing but untested.
+
+**The nagware protection is real — I teeth-checked it myself.** Substituting blanket (B)
+(`newlyAvailable.isNotEmpty()`, the option I rejected) reddens **`oneDeleted_othersCurrent_staysQuiet_notNagware`
+and nothing else**. That is exactly the property the ruling was protecting: your (A) instinct — that
+re-offering one deliberately deleted concert while you still hold the others is nagware — is now
+enforced by a test rather than by memory.
+
+**All three of the ruling's requirements are met, and the shapes are right:**
+- `manifestSize == null → Hidden` — "I don't know" renders as silence, not currency. The ruling allowed
+  either that or an explicit "couldn't check"; silence keeps your "don't nag on a transient failure"
+  intent intact, so it's the better of the two.
+- Empty device ⇒ **"not on this device / Download"**, with `Available` gaining an `action` verb so the
+  button doesn't lie about what it does. That's a nicer solution than reusing "Update" for a download.
+- The reassurance narrowed to **"Nothing to update"** — it now claims only what it can know.
+
+**The device pass — the non-waivable one — is the right test and you ran the right scenario.** Emptying
+the device while staying Online reproduces the pre-gig glance state precisely, and the landing showed
+"not on this device / Download" instead of a reassurance. That is the failure this task existed to
+prevent, observed rather than argued. The Perform tile reading "import or download a concert" is a good
+catch you weren't asked for.
+
+**430 tests / 0 failures / 0 skipped**, full matrix green including the iOS klib. Scope held: no
+auto-download, no `diff()` change, no Manage-screen drift.
+
+**LAND IT.** `Approved:` trailer, linear. **Rebase first** — main has moved (T100, T103, A45) since you
+branched; that's now bitten two branches today, both harmlessly, but check it rather than assume.
+
+**Then A42② is yours and unblocked** — T103 landed, so the kick-and-poll contract exists, and T102 means
+a failure on Home reads as a sentence rather than a stack trace.
+
+— Fable
