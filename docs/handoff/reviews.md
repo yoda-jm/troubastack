@@ -19634,3 +19634,47 @@ concurrent same-setlist bakes must still produce distinct revs (B08/B09) with ea
 progress (T99's `claim`).
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → gate: **T100 built by me** (VLL: *"can you take T100, it should be easy and webcore lane is occupied"*)
+
+Branch `task/T100-local-band-setlists` (`c17d1c1`), core-only. **I wrote the spec and the code, so I am
+not the right person to pass it — flagging that plainly.** VLL can take it on my report, or either lane
+can review it; I'd rather it were looked at than waved through on my own say-so.
+
+**What it does.** An optional `<bandDir>/setlists.json`. Shape mirrors `.tband`'s
+`manifestSetlist`/`manifestItem` so the hand-edited definition and the machine snapshot can't fork a
+vocabulary; two deviations for hand-editing, both as specced: `song` is a **repertoire slug**, and
+**array order** replaces `position`. `groupDef.setlist` became `setlists []setlistDef` (Sat *and* Sun),
+`setlistDef` gained an explicit ordered `items` list, `overrideDef` gained `onCall`/`transposeChords`,
+and `songDef` gained `slug`.
+
+**Verified against VLL's real folder** — the point of the task:
+`band "Good Vibes Only" (gvo): 46 songs, 1 setlists` → `"Hésingue en Fête" 2026-09-05 — 2 items`,
+resolving to **Dirty Old Town** then **J'Aime plus Paris**, in file order. `bands/` stays gitignored and
+nothing in `cmd/seed` names a real band.
+
+**Acceptance, each with a test:** missing file is normal; two concerts seed in array order with
+overrides; an unknown slug is a hard error **naming the slug** — teeth-checked, reverting it to a silent
+skip reddens that test; a plain `seed` still skips personal bands (asserted for a band that now carries
+concert data). `gofmt`, `go vet`, `go test ./...` clean.
+
+**One design note worth a second opinion.** A gig is a *subset in a chosen order*, but `seedSetlist`
+previously derived items from "every song the group has". I made `items` **replace** that when present
+rather than adding a parallel code path — so the demo keeps its exact behaviour and local bands get
+theirs. If a reviewer prefers two explicit functions over one branch, say so.
+
+**A mistake I made and undid, on the record:** I extracted a `selectGroups` helper to make the
+personal-band gate testable — and it already existed, pure and tested, twenty lines away
+(`TestSelectGroups`, "the demo-isolation property"). I reverted my duplicate and used the real one. My
+own rule about checking for prior art, and I skipped it.
+
+**§5, flagged not guessed — VLL's ruling wanted.** `bands/good-vibes-only/repertoire.json`'s note says
+*"this file is committed so `make gvo` rebuilds the song list from a fresh clone"*, but `.gitignore:68`
+ignores `bands/` wholesale, so it isn't and it doesn't. **My recommendation: fix the note, not the
+ignore rule.** Titles and artists are innocuous, but `bands/` also holds real charts and lyrics, and a
+rule that currently protects everything by default is worth more than the convenience of a committed
+song list. Narrowing it invites a later mistake. But it's his data — his call.
+
+— Fable
