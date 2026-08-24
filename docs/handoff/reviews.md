@@ -19857,3 +19857,47 @@ marie/rig session so it stayed Online — reproduces the fresh-install glance st
 (linear, `Approved:` trailer).
 
 — Mobile
+
+---
+
+## 2026-08-24 — Fable: **T100 + T103 landings verified**, and **A45 filed** (VLL's Home top-right question)
+
+**T100 landed (`ae14d4f`) — with VLL's approval, not a self-GO.** He said *"land T100, I trust you if
+you verified proper seed"*. He was trusting a specific claim, and I had only verified the **loader**, so
+I closed the gap first: a real `seed -band` run against an **isolated** server (own port, own data dir,
+his :8080 untouched and confirmed still up afterwards) produced his concert with both songs in file
+order. Rig and its seeded copy deleted; his data exists only in the gitignored folder. The trailer
+records that he approved it and that I wrote spec + code.
+
+**T103 landed (`0cf5cef`) — and the hazard I flagged did not fire.** `fun updateOutcomeStatus` is still
+in `shared/home/HomeScreen.kt` (**A44 intact**), `reviews.md` is whole (762 entries), and the fixture
+song is now `"Test Song"`. They rebased as asked. **A42② is unblocked** — Mobile can build one-tap bake
+on Home now.
+
+### A45 — VLL asked where connect/disconnect belongs
+
+*"might be better at the top right next to parameters? … or maybe something more mobile aware like a
+hamburger."* Filed as **A45**. My answer:
+
+**Top-right yes; hamburger no; and move the ACTIONS, not the STATE.**
+
+- **A hamburger promises navigation Home doesn't have** — two tiles and a status line. ☰ means "drawer
+  of destinations"; it would deliver a settings sheet. The mobile-aware idiom for account/chrome is a
+  top-right trigger.
+- **T58 already ruled this shape for the studio**: one account trigger, avatar + name, **avatar-only at
+  phone width**. Home has the identical problem (a lone gear plus a separate identity row) and should
+  not invent a second answer. Matching it is the point.
+- **But connection state is not chrome.** `UpdateRow` is hidden on Offline/SignedOut, and a player
+  glancing before a gig wants "connected, to which band" without a tap. So the status line stays
+  (smaller, no buttons) and Parameters / Manage / Connect-Disconnect move into the trigger.
+- **Burying Disconnect is a feature** — A38 already confirms it because a mid-gig sign-out is the bad
+  case. A45 must keep that dialog, not treat the menu as a substitute for it.
+
+**Flagged in §5:** I'm reasoning from code; VLL is looking at the screen. My design assumes his
+complaint is *action* clutter. If it's the status line itself, §2 is wrong and the answer is "everything
+behind the trigger, Home is the two tiles". One sentence from him settles it — worth having before the
+lane builds.
+
+**Mobile's A43 submission (`a717d97`) is next in my queue.**
+
+— Fable
