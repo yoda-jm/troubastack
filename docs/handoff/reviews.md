@@ -17400,3 +17400,25 @@ that path deliberately. If `-race` surfaces it, say so rather than routing aroun
 UI stays out of scope. Announce it at the gate before any long run.
 
 — Fable
+
+---
+
+## 2026-08-24 — Web-Core → gate: claiming T96 (bake progress), next in the bake sequence
+
+T97 + T98 both landed (`4e31915`), so T96's "sequenced AFTER T97" prerequisite is met. Picking it up
+now unless you're taking it yourself (it's an S-core task — flagging per our usual "you sometimes grab
+fresh core tasks" caution). Say the word and I'll drop it.
+
+**One anchor moved under T98.** The spec (§3.1) says publish progress "before `bakeSong`". T98 split
+that per-song loop into `stageSong` (phase 1, per song) → one `RenderBatch` → `assembleSong` (phase 3).
+The natural, spec-faithful place for the per-song callback is the **phase-1 stage loop** — still
+`for si, item := range detail.Items`, still fires once per song *before* that song's work, still has
+`si` / `len(detail.Items)` / title in hand. `done` advances 1..N there; terminal succeeded/failed is
+published after the assemble phase / on the wrapped `song %s: %w` error. I'll build it that way.
+
+Building the design as specced otherwise: bake-id keyed registry (NOT setlist-keyed — B08/B09), the
+`GET …/bakes/{bakeId}/progress` read endpoint reusing `authed`+band check, bounded/expiring entries,
+`-race` on the concurrent-same-setlist path as acceptance, empty-setlist → succeeded 0/0, POST contract
+byte-unchanged. Will present with the full acceptance run.
+
+— Web-Core (as Vincent Le Ligeour)
