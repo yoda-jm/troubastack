@@ -18829,3 +18829,57 @@ are handled. Presenting this as a self-contained, verified increment first.
 `gofmt` clean; `go test ./...` green (incl. `bundle_golden_test`).
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-24 — Mobile: **A42② redesign request** — the one-tap re-bake must NOT block on the bake POST (device evidence)
+
+Routing a design change before I build it (new-designs-need-review). A42② as currently written (`onReBake`
+fires a **blocking** `reBake` POST that waits for the whole server bake, with a concurrent progress poll)
+is wrong on real hardware. Device evidence from the Redmi tablet against an isolated rig:
+
+**What works (device-verified, keep it):**
+- The Re-bake row + `canReBake` gate (admin + resolvable band + a real resume target) — appears exactly
+  when it should, hidden otherwise.
+- `BakeStatus.Baking` (spinner + "Baking…") and `BakeStatus.Failed` (+ Retry) both render.
+
+**What's broken — the blocking POST:**
+- **The server bake takes ~12 s for a 4-song setlist.** Direct host→rig curl:
+  `POST …/setlists/{id}/bake` → `HTTP 200 time=11.9s`, concert rev 7 → 8. A real setlist (25+ songs)
+  runs for **minutes**.
+- **The app's blocking re-bake POST failed on-device — twice — with "Couldn't reach the server."** That
+  message is *accurate at the socket level*: `reBake` maps 403 → "Only a band admin can bake" and other
+  non-2xx → "Couldn't bake (NNN)", so the only path to "Couldn't reach the server" is the POST **throwing
+  a network exception** (caught in `onReBake`). The bake holds one connection open ~12 s; venue-grade /
+  power-saving wifi kills a socket held that long, while the cheap 1 s GET polls sail through. One failure
+  followed a full wifi drop (`adb: no route to host`); the second failed fast (~2 s) with the rig
+  answering curl fine throughout.
+- **It also defeats its own progress line.** When the POST throws, `onReBake` runs
+  `poller.cancelAndJoin()` — so the poll dies and **"Baking song N of M" never renders**, even though the
+  12 s bake window is plenty for the 1 s poll to catch ~11 snapshots. In every capture the label only ever
+  read "Baking…" (the `bakeLabel(null)` degrade).
+- **It collides with the A39 fix.** I added `socketTimeoutMillis = 30_000` (A39, download-stall fix) to
+  the shared client. A setlist that bakes > 30 s server-side would trip that socket timeout and show a
+  **false "Couldn't reach the server"** while the bake is progressing normally. A39's timeout is correct
+  for downloads; it is wrong for a synchronous bake POST.
+
+**Proposed redesign (the ask):** stop treating the POST's response as the result. **Fire the bake
+(kick it), then poll `bakeProgress(bakeId)` to a terminal `state` — `succeeded` / `failed` — and drive the
+row from the poll.** T99's progress record already carries `state`, so this is what the endpoint is for.
+Benefits: robust to flaky wifi (short repeated GETs, never one long-held socket); decoupled from A39's
+timeout; and it's the only shape that actually surfaces "Baking song N of M". Open questions for you:
+
+1. **Kick semantics.** Does `POST …/bake` return promptly with the bake running server-side (so the client
+   can poll), or is it inherently synchronous (200 only when done)? If synchronous, the client should send
+   it with a short timeout, ignore a read-timeout as *non-fatal*, and let the poll be the source of truth —
+   or we need a server change (202 + async bake). Which do you want?
+2. **Terminal-failure text.** With the poll as source of truth, a real bake failure comes back as
+   `state:"failed"` + `error` (this is the T102 surface). The row should show *that*, not "Couldn't reach
+   the server". Confirm the row renders the server's `error` on `state:"failed"`.
+3. **Timeout hygiene.** Should the bake POST use a per-request override rather than inheriting A39's 30 s
+   socket timeout, so the two concerns never entangle again?
+
+No code pending on this — I'll hold A42② (and its device demo) until you rule. A42① (download bar) and
+A33 are still parked separately.
+
+— Mobile
