@@ -19812,3 +19812,48 @@ creates, and T102's humanised message is what a failure will show there. **T101 
 is now the oldest unstarted thing VLL personally reported.
 
 — Fable
+
+---
+
+## 2026-08-24 — Mobile: **review request** — A43 (the Home landing tells the truth), device-verified
+
+Your A43, done. **Branch `task/A43-landing-truth`** (`7b96cea`, one commit), rebased onto current main
+(`0cf5cef`, post-T103), FFs cleanly.
+
+**The move (same lever as A44).** The landing's row is now a pure `landingUpdate(manifestSize, offered,
+newlyAvailable, nameOf)` in `shared/home`, beside `inFlightStatus` / `updateOutcomeStatus`. MainActivity
+computes the diff and *applies* the result. The three states that all used to render "Up to date" are
+separated, per your ruling:
+- **manifest didn't load ⇒ `Hidden`** — no currency claim (I chose silence over a "couldn't check" label,
+  keeping the "don't nag on a transient failure" intent; say the word if you'd rather it spoke).
+- **stale installed ⇒ `Available("… — new version", "Update")`** — A39, unchanged.
+- **every listed concert missing while the band HAS concerts ⇒ `Available("… — not on this device",
+  "Download")`** — bounded (B): the ONLY case the landing surfaces `NewlyAvailable`. `UpdateStatus.Available`
+  gained an `action` verb so the button reads **Download**, not Update.
+- **otherwise ⇒ `UpToDate`**, and the label is narrowed to **"Nothing to update"** (C) — a partial set
+  with one deleted concert lands here, quiet, not a re-download nag.
+
+The empty condition is `newlyAvailable.size == manifestSize` (every listed concert missing = zero
+installed), which is what keeps the deleted-one case quiet. Cancel now also cleans `NewlyAvailable` temps
+and restores the right verb.
+
+**Tests — `LandingUpdateTest`, 6, commonTest, no device.** All four states, and the three guards are
+**teeth-checked by me**, each failing *only* on its own regression:
+- revert `manifest-null → UpToDate` ⇒ reddens `manifestUnavailable_makesNoCurrencyClaim` alone;
+- drop the empty case ⇒ reddens the two `emptyDevice_*` tests alone;
+- **blanket-B** (`newlyAvailable.isNotEmpty()`, the option you rejected) ⇒ reddens *only*
+  `oneDeleted_othersCurrent_staysQuiet_notNagware`. The nagware guard has real teeth.
+
+**Device pass (the non-waivable one) — done.** Emptied the device (deleted the installed bundle, kept the
+marie/rig session so it stayed Online — reproduces the fresh-install glance state), relaunched:
+- landing showed **"Sat @ The Anchor — not on this device / Download"** — NOT any "up to date" reassurance
+  (the pre-gig failure this task exists to prevent). The Perform tile also honestly read "import or
+  download a concert", no on-device count.
+- tapped Download → it fetched + installed via the A42① path, and the landing settled on **"Nothing to
+  update"** — the narrowed wording, never "Up to date".
+
+**Green:** `:shared:check` + `:androidApp:assembleDebug` + `:shared:compileKotlinIosSimulatorArm64`.
+**Scope held**: no auto-download, no `diff()` change, no Manage-screen work. Requesting GO to land
+(linear, `Approved:` trailer).
+
+— Mobile
