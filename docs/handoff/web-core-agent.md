@@ -231,11 +231,19 @@ human OK noted in the commit ("landed per steer + VLL").
   server + creds), **P202** (real GC, M/L core), **P203** (proto codegen — a cheap **decision stage**
   first; this is open call ⑤).
 
-**Demo polish, deferred (VLL "other 2 later"):** ① nudge annotation anchors on the generated
-placeholders — the top label ("Watch me — pickup") clips the page top and a few section labels sit a
-hair high on their staves (`core/cmd/seed/annotations.go` coords). ② dark-mode PDF paper — Studio's
-viewer inverts the white PDF canvas in dark mode; keep the "paper" white so colored annotations read
-correctly (Studio viewer theming). Both are cosmetic; neither blocks anything.
+**Demo polish, deferred (VLL "other 2 later") — BOTH RESOLVED by later work; verified 2026-08-24, no
+action left (recorded so nobody re-chases them):**
+- ① nudge annotation anchors — **already fixed by B13** (annotation showcase v2). This note predates
+  B13's precise re-anchoring. Verified: composited all four baked bundle charts (Open Road, House,
+  Amazing Grace, Greensleeves) straight from `demo-concert.tstage` — every label is well-placed, none
+  clips the page top. And `TestInkUnderMark_engraved` pixel-verifies every "clear" label sits in
+  genuinely empty space (≤1.5% ink) across all annotated pages, so it can't silently drift. Tried
+  nudging the one visually-tight label (House `hr-df-lab` "quick change!") up off the tab — the ink
+  test correctly rejected it (4.8% ink: it overlaps the "Chorus" section header). The current spot is
+  the clear one; it only *looks* tight at composite scale.
+- ② dark-mode PDF paper — **already fixed.** `.pdf-page { background:#fff }` (styles.css, "intentional
+  one-off") keeps the score paper white in both themes; there is no `invert` filter. Verified live in
+  the dark-mode Studio viewer — paper stays white, colored annotations read correctly.
 
 **Attended-only — do NOT start unattended:**
 - **T27 — canvas-first editor** (VLL-requested; Fable GO 2026-07-08, spec `docs/tasks/T27`,
