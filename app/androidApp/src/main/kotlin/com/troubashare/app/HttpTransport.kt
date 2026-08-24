@@ -2,6 +2,7 @@ package com.troubashare.app
 
 import com.troubashare.shared.bundle.AvailableConcert
 import com.troubashare.shared.bundle.AvailableConcerts
+import com.troubashare.shared.distribution.BakeProgress
 import com.troubashare.shared.distribution.ManifestTransport
 import com.troubashare.shared.distribution.originOf
 import com.troubashare.shared.home.bandLabel
@@ -223,5 +224,53 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
                 }
             }
         }
+    }
+
+    @Serializable private data class BandDetail(val myRole: String = "")
+
+    /** The bandId that owns [concertId], populating the cache via [fetchManifest] once if needed. */
+    private suspend fun bandIdFor(concertId: String): String? =
+        concertBand[concertId] ?: run { runCatching { fetchManifest() }; concertBand[concertId] }
+
+    /** A42②: does the signed-in user ADMIN the band that owns [concertId]? Gates the Home Re-bake
+     *  affordance (the server also 403s a non-admin — this just hides a control that would only fail). */
+    suspend fun isBandAdmin(concertId: String): Boolean {
+        val ck = cookie() ?: return false
+        val bandId = bandIdFor(concertId) ?: return false
+        return runCatching {
+            val resp = client.get("$baseUrl/api/bands/$bandId") { header("Cookie", ck) }
+            resp.status.isSuccess() && resp.body<BandDetail>().myRole == "admin"
+        }.getOrElse { false }
+    }
+
+    /** A42② / T103: KICK a re-bake of [concertId]'s setlist, sending [bakeId] so the caller can poll
+     *  progress. The POST returns promptly (202 Accepted) — the bake runs on the SERVER's context, so a
+     *  dropped client no longer cancels it. Returns null on a successful kick, else a human message. The
+     *  OUTCOME is NOT here — the caller polls [bakeProgress] to a terminal state (the source of truth). */
+    suspend fun reBake(concertId: String, bakeId: String): String? {
+        val ck = cookie() ?: return "You're not connected"
+        val bandId = bandIdFor(concertId) ?: return "Unknown concert"
+        val resp = client.post("$baseUrl/api/bands/$bandId/setlists/$concertId/bake") {
+            header("Cookie", ck)
+            header("X-Trouba-Bake-Id", bakeId)
+        }
+        return when {
+            resp.status.isSuccess() -> null // 202 Accepted — kicked
+            resp.status == HttpStatusCode.Forbidden -> "Only a band admin can bake"
+            else -> "Couldn't start the bake (${resp.status.value})"
+        }
+    }
+
+    /** A42② / T99: poll a running bake's progress by [bakeId]; null on 404/expired/old-server/any failure
+     *  so the caller degrades to a plain "Baking…" (T99 §4) — the bake still completes server-side. */
+    suspend fun bakeProgress(concertId: String, bakeId: String): BakeProgress? {
+        val ck = cookie() ?: return null
+        val bandId = bandIdFor(concertId) ?: return null
+        return runCatching {
+            val resp = client.get("$baseUrl/api/bands/$bandId/setlists/$concertId/bakes/$bakeId/progress") {
+                header("Cookie", ck)
+            }
+            if (resp.status.isSuccess()) resp.body<BakeProgress>() else null
+        }.getOrNull()
     }
 }

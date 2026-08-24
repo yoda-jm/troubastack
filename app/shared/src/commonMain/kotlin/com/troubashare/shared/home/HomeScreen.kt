@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.troubashare.shared.distribution.Availability
+import com.troubashare.shared.distribution.BakeStatus
 import com.troubashare.shared.distribution.UpdateProgress
 
 /**
@@ -82,6 +83,10 @@ data class HomeState(
     val concertCount: Int = 0,
     val identity: Identity = Identity.NotSetUp,
     val update: UpdateStatus = UpdateStatus.Hidden, // A39
+    // A42②: one-tap re-bake. [canReBake] is true only for a connected ADMIN of the resume concert's band
+    // (the row is hidden otherwise); [bake] is the live re-bake status driven by the progress poll.
+    val canReBake: Boolean = false,
+    val bake: BakeStatus = BakeStatus.Hidden,
 )
 
 /** The one-line identity label — pure, unit-testable (no Compose). The raw IP:port is never here
@@ -289,6 +294,8 @@ fun HomeScreen(
     // A39: pull the newer bake(s) / cancel an in-flight update. No-ops when the update row is Hidden.
     onUpdate: () -> Unit = {},
     onCancelUpdate: () -> Unit = {},
+    // A42②: one-tap re-bake of the resume concert (admin only — the row is hidden unless canReBake).
+    onReBake: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier.fillMaxSize()) {
@@ -379,6 +386,9 @@ fun HomeScreen(
 
             // A39: one-tap Update, shown only when Recognized (the host sets Hidden otherwise).
             UpdateRow(state.update, onUpdate = onUpdate, onCancel = onCancelUpdate)
+
+            // A42②: one-tap re-bake — shown only to an admin of the resume concert's band (canReBake).
+            BakeRow(state.bake, state.canReBake, state.lastConcertName, onReBake = onReBake)
         }
     }
 }
@@ -432,6 +442,56 @@ private fun UpdateRow(status: UpdateStatus, onUpdate: () -> Unit, onCancel: () -
                     Button(onClick = onUpdate) { Text("Retry") }
                 }
                 is UpdateStatus.Hidden -> {}
+            }
+        }
+    }
+}
+
+/**
+ * A42 ② — the admin re-bake affordance + live progress line. Nothing for a non-admin (canReBake=false)
+ * and no bake running — a control that can only 403 is not an affordance. When idle it's an explicit,
+ * unconditional "Re-bake" (there is no honest staleness signal — A42②(b) — so it never implies one);
+ * while running it shows T99's live line via [bakePollStep]; on failure it shows the server's user-safe
+ * message (T102) with a retry.
+ */
+@Composable
+private fun BakeRow(status: BakeStatus, canReBake: Boolean, concertName: String, onReBake: () -> Unit) {
+    if (status is BakeStatus.Hidden && !canReBake) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when (status) {
+                is BakeStatus.Hidden -> {
+                    Text(
+                        if (concertName.isNotEmpty()) "Re-bake «$concertName»" else "Re-bake concert",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(onClick = onReBake) { Text("Re-bake") }
+                }
+                is BakeStatus.Baking -> {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text(status.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                }
+                is BakeStatus.Failed -> {
+                    Text(
+                        status.message,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(onClick = onReBake) { Text("Retry") }
+                }
             }
         }
     }

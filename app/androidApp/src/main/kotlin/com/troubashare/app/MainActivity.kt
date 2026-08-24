@@ -59,6 +59,9 @@ import com.troubashare.shared.bundle.BundleLoader
 import com.troubashare.shared.bundle.ImportResult
 import com.troubashare.shared.bundle.LoadResult
 import com.troubashare.shared.distribution.Availability
+import com.troubashare.shared.distribution.BakeStatus
+import com.troubashare.shared.distribution.bakeLabel
+import com.troubashare.shared.distribution.bakePollStep
 import com.troubashare.shared.distribution.Freeze
 import com.troubashare.shared.distribution.UpdatePolicy
 import com.troubashare.shared.distribution.UpdatesManager
@@ -228,6 +231,12 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         var updateOffers by remember { mutableStateOf<List<Availability>>(emptyList()) }
         var updateNames by remember { mutableStateOf<List<String>>(emptyList()) }
         var updateJob by remember { mutableStateOf<Job?>(null) }
+        // A42②: the Home re-bake row. canReBake gates on the signed-in user being an ADMIN of the resume
+        // concert's band; homeBake is the live row; bakeJob is the running kick+poll (T103: the POST kicks
+        // and the progress poll is the source of truth for the outcome).
+        var canReBake by remember { mutableStateOf(false) }
+        var homeBake by remember { mutableStateOf<BakeStatus>(BakeStatus.Hidden) }
+        var bakeJob by remember { mutableStateOf<Job?>(null) }
 
         // A31: LIVE connection status — never the cached cookie flag. Probe the server on entry AND on
         // every foreground resume (resumeTick); show "Checking…" while it's in flight, then resolve to
@@ -246,6 +255,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     Identity.NotSetUp
                 }
                 homeUpdate = UpdateStatus.Hidden // A39: no Update for Guest — Sign in is the next step
+                canReBake = false // A42②: no re-bake for Guest
                 return@LaunchedEffect
             }
             homeIdentity = Identity.Checking
@@ -274,12 +284,20 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                         updateNames = landing.names
                         homeUpdate = landing.status
                     }
+                    // A42②: offer Re-bake only to an ADMIN of the resume concert's band (the server also
+                    // 403s a non-admin — this just hides a control that would only fail). Skip while a bake
+                    // is running so a background probe doesn't flip the row out from under it.
+                    if (bakeJob == null) {
+                        val resumeCid = entries.firstOrNull { it.dir == lastDir }?.concertId ?: ""
+                        canReBake = resumeCid.isNotEmpty() &&
+                            runCatching { transport.isBandAdmin(resumeCid) }.getOrDefault(false)
+                    }
                 }
                 // Keep last-known `me` so offline auto-match still resolves the performer's own view (I12).
-                Presence.Unreachable -> { homeIdentity = Identity.Offline(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden }
+                Presence.Unreachable -> { homeIdentity = Identity.Offline(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden; canReBake = false }
                 // A38: expired session on a known server → Guest. KEEP the band (don't null `me`) so
                 // "Sign in" reads as resuming, not starting over — matching the Unreachable branch.
-                Presence.Unauthorized -> { homeIdentity = Identity.SignedOut(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden }
+                Presence.Unauthorized -> { homeIdentity = Identity.SignedOut(band = me?.band ?: ""); homeUpdate = UpdateStatus.Hidden; canReBake = false }
             }
         }
 
@@ -290,6 +308,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 concertCount = entries.size,
                 identity = homeIdentity,
                 update = homeUpdate,
+                canReBake = canReBake, // A42②
+                bake = homeBake, // A42②
             ),
             onPerform = { manageIntent = false; atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
@@ -361,6 +381,44 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                         updateOffers.any { it is Availability.NewlyAvailable } ->
                             UpdateStatus.Available(downloadSummary(updateNames), action = "Download")
                         else -> UpdateStatus.Available(updateSummary(updateNames))
+                    }
+                }
+            },
+            // A42②: one-tap re-bake of the resume concert (admin only — canReBake). T103: the POST is a
+            // KICK that returns 202; the PROGRESS POLL is the source of truth for the outcome. So we kick,
+            // then poll bakePollStep to a terminal state and drive the row from THAT — never from the POST
+            // (the old blocking shape cancelled the poller and, on T103's async server, would hide the row
+            // while the bake ran). A dropped socket no longer cancels the bake (server context), so a lost
+            // poll just degrades to "Baking…"; a hard backstop keeps a stuck 404 from looping forever.
+            onReBake = {
+                val cid = entries.firstOrNull { it.dir == lastDir }?.concertId ?: ""
+                if (cid.isNotEmpty() && bakeJob == null) {
+                    homeBake = BakeStatus.Baking(bakeLabel(null)) // "Baking…" until the first poll answers
+                    bakeJob = scope.launch {
+                        val bakeId = java.util.UUID.randomUUID().toString()
+                        val kickErr = runCatching { transport.reBake(cid, bakeId) }
+                            .getOrElse { "Couldn't reach the server" }
+                        if (kickErr != null) {
+                            homeBake = BakeStatus.Failed(kickErr)
+                            bakeJob = null
+                            return@launch
+                        }
+                        // Poll to a terminal state (bakePollStep decides on `state`, tested in shared).
+                        var step = bakePollStep(null)
+                        var polls = 0
+                        while (!step.done && isActive && polls < 600) { // ~10 min backstop; real bakes end far sooner
+                            delay(1000)
+                            polls++
+                            step = bakePollStep(runCatching { transport.bakeProgress(cid, bakeId) }.getOrNull())
+                            homeBake = step.status
+                        }
+                        bakeJob = null
+                        // Success (or the backstop after a kicked bake that ran server-side) ⇒ clear + re-list
+                        // so the new rev shows; a failure keeps its message until the user retries.
+                        if (step.status !is BakeStatus.Failed) {
+                            homeBake = BakeStatus.Hidden
+                            refreshTick++
+                        }
                     }
                 }
             },
