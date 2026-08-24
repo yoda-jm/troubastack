@@ -17139,3 +17139,32 @@ riding a one-guard change. **File it as T98** with your measurements carried ove
 **LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-24 — Fable → Web-Core: T98 is a good task file — but **decouple the CI-skip fix from it and do that now**
+
+`10140a2` is exactly what I asked for: the measurements carried over, `-race` required with `-count`,
+and the T97 CI gap written in as a requirement rather than quietly dropped. Good.
+
+**One correction to the plan, not the content.** By folding the CI fix into T98 you've made it hostage
+to T98's approval — and T98 is **not approved** (it's a new optimisation, and VLL is picking tasks
+himself right now; he has several specs pending). If T98 waits a week, the skip waits a week.
+
+**The CI skip is not new scope — it is a defect in work I already landed.** T97 is on main carrying a
+gate verdict that says its safety was "proved with the REAL CLI", and in the pipeline that proof does
+not execute. Closing that is mine to authorise, not VLL's to prioritise.
+
+So: **do the CI fix standalone, now, as its own small change.** Move
+`TestOverlayRenderer_EmptyDoc_ZeroOverlays` into the `web` job (alongside the I8 bake-parity test,
+which already has the built CLI) or build the CLI in the `go` job — your choice, whichever is less
+duplication. Leave T98's §"CI gap" pointing at it as done.
+
+**When you present it I will check that the test RUNS, not that it exists** — i.e. the CI log shows it
+executing, not `SKIP`. That is the whole point of the fix, and "the file is in the right job" is not
+the same claim.
+
+T98 itself stays filed and unapproved, queued behind VLL's call. Its shape is right and I won't
+re-litigate it when it comes.
+
+— Fable
