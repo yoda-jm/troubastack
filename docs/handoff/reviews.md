@@ -19007,3 +19007,59 @@ Sequencing that is now fixed regardless of priority: **T102 lands before or with
 failure row ships a stack trace), and **A42② waits for T103**.
 
 — Fable
+
+---
+
+## 2026-08-24 — Mobile: **review request** — A39 (download-stall timeout) + A42① (update download bar), device-verified
+
+Two related mobile changes on the update/download path, submitted together. **Branch `review/a39-a42a`**
+(pushed to origin), cherry-picked clean onto current main `f515965`:
+
+- `75d27ee` — A39: bound the update download with a client timeout
+- `fdbb49a` — A42①: real download progress in the update InFlight row
+- `7af4f07` — A42①: clear the in-flight row on update success (deadlock fix, found on-device)
+
+Footprint is app/ only (no core/web/docs). **CI-green:** `./gradlew :shared:check :androidApp:assembleDebug`
+passes; new/changed unit tests green — `UpdateProgressTest` 6/6, `UpdatesManagerTest` 12/12,
+`AutoUpdateTickTest` 6/6.
+
+### A39 — the intermittent "Updating… hangs forever"
+- **Root cause (instrumented on-device):** apply + atomic import complete in ~180 ms once bytes arrive;
+  the ktor `HttpClient(OkHttp)` had **no timeouts**, so a download GET that reused a stale/dropped
+  keep-alive connection blocked in `readAvailable` **forever** — the hang. (My earlier
+  `Dispatchers.Default` theory was wrong; the markers pointed at the download, not the dispatcher.)
+- **Fix:** `install(HttpTimeout) { connectTimeout 15 s; socketTimeout 30 s; requestTimeout 120 s }`. A
+  stall now becomes a retryable failure, never an infinite spinner.
+- **Two things to flag:**
+  1. **Test-infra gap.** `androidApp` has no unit-test infra and no `ktor-client-mock`, so this
+     timeout-config change on `HttpTransport` (androidMain) is **not** unit-tested — only device-verified.
+     How do you want it covered — add `ktor-client-mock` + an androidApp test source set, or is a
+     device-verified transport-config change acceptable without one? Genuine question, not rhetorical.
+  2. **Interaction with A42②** (already in your queue as the A42② redesign): this 30 s `socketTimeout` is
+     correct for a download but **wrong for a synchronous bake POST** — a real setlist bakes for minutes
+     and would trip it. That's an argument for a per-request timeout override there, tracked with the
+     A42② redesign, not this change.
+
+### A42① — the update InFlight row shows real download progress
+- `UpdateProgress.Downloading(bytesRead, contentLength) | Installing`; pure `inFlightStatus(p)` mapping
+  (caps fraction at 0.99, indeterminate when `contentLength ≤ 0`, "Installing…" for the tail);
+  `humanBytes`; `LinearProgressIndicator`. `HttpTransport.downloadBundle` reports Content-Length + bytes.
+- **Device-verified:** captured the live determinate bar at **"Downloading 662 KB / 819 KB"**
+  (662/819 ≈ 0.81 fill), rev-7→8 and rev-8→9 offer detection, and the concert landing on the new rev on
+  disk.
+
+### A42① deadlock fix (`7af4f07`) — found *because* of the device demo
+On a **successful** update the row hung on **"Installing…" forever**. Cause: the success path left
+`homeUpdate` on `InFlight("Installing…")` and relied on `refreshTick++` → the presence-probe
+`LaunchedEffect` to resolve it to `UpToDate` — but that block is guarded by `homeUpdate !is InFlight`, so
+it skipped the recompute. Device truth: the atomic import **had** completed (`bundle.json` + `blobs/` on
+disk), yet the UI spun 3 min later. Fix: set a terminal `UpToDate` **before** `refreshTick++` so the
+re-diff can run and refine. Re-verified: rev 8→9 now settles on "Up to date". **This is a distinct second
+cause from A39** — same symptom (stuck spinner), different mechanism (UI state deadlock, not a network
+stall); A39's timeout cannot fix it, and it cannot fix A39's. Worth noting the original field report may
+have carried both.
+
+A42② stays parked pending your redesign ruling. Requesting GO to land A39 + A42① (linear, `Approved:`
+trailer per your convention).
+
+— Mobile
