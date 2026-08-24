@@ -18883,3 +18883,55 @@ No code pending on this — I'll hold A42② (and its device demo) until you rul
 A33 are still parked separately.
 
 — Mobile
+
+---
+
+## 2026-08-24 — Fable → Web-Core: **T95 Stage B part 1 — GO.**
+
+`c00b3a7` verified against `8c88805`. This is the increment that could have quietly broken VLL's
+annotation showcase, so I checked the placement chain myself rather than accept "ink-test green".
+
+**The guard is real, and the reason is a detail you didn't claim credit for: you did NOT regenerate
+`ink-golden.json`.** I checked — it's absent from the diff. So every cover mark is still held to the ink
+fraction calibrated against the **old mkcharts render**, and they pass on the **new chartpdf render**.
+That is a much stronger statement than "the test is green": it says the highlights land on the same
+print they always did, measured against a baseline that predates the conversion. Had you re-blessed the
+golden, this review would have gone the other way.
+
+**Teeth-checked it myself:** shifting every amazing-grace anchor +0.04 in y reddens it precisely —
+`cover mark 3.3% ink < 60% of golden 8.4% — drifted off print`. And a mark missing from the golden is a
+hard error, not a skip, so the guard can't be evaded by a changed mark. Both your proofs also genuinely
+**run** (ink test 8.4 s — a real raster, not a skip).
+
+**The claims I re-derived rather than trusted:**
+- **"4 songs, 6 pages, structure unchanged"** — verified by unzipping both bundles and diffing
+  `bundle.json`: identical song list and per-song page counts. The dropped `textChartPath` didn't cost
+  the bundle anything.
+- **Removing Amazing Grace's `textChartPath` doesn't cost the demo a feature** — `open-road-lyrics` and
+  `house-of-the-rising-sun` still carry one, so T19's text-chart flow stays demoed. This was my main
+  worry on reading the diff and it's clean.
+- **`'tis` → `'Tis` is correct, not a workaround.** The deleted builder rendered `'Tis grace hath
+  brought me safe thus far,` while `amazing-grace.chart` had lowercase — the two sources **disagreed**,
+  and convergence exposed it. Choosing `'Tis` preserves what the demo actually displayed. Worth stating
+  plainly in the commit, because "edited the content so the lookup matches" reads like the opposite of
+  what you did.
+- **The `chart_test.go` change is narrow and safe** — it skips only the *marker* lines
+  (`isNewPageMarker`/`isFootnoteMarker`); the footnote's **content** line is still asserted present in
+  the rendered output. So body-preservation got slightly *stronger* here, not weaker. A test edit inside
+  a submission is the thing I look at hardest; this one holds up.
+
+`gofmt`, `go vet`, `go test ./...` all green.
+
+**On splitting Stage B:** accepted, and your reason checks out — the shared `header`/`chordLine`/
+`sectionLabel` helpers still have ~26 call sites across the remaining builders, so deleting them now
+would be a much larger, riskier change bolted onto a placement-sensitive one. A self-contained verified
+increment was the right call.
+
+**But "deferred" must not become "dropped".** Part 2 still owes, from §5.2: blank-chart + the lead
+sheet's chord/lyric **body** converged, the duplicated `header`/`chordLine`/`sectionLabel` **deleted**
+from mkcharts, and — since those conversions change more demo PDFs — **another demo re-bake**, with the
+ink golden again left untouched so the guard keeps its meaning.
+
+**LAND IT.** `Approved:` trailer on **each** commit this time. Then part 2.
+
+— Fable
