@@ -86,6 +86,16 @@ now records **only what git cannot tell you**, and tells you how to derive the r
 
 ### Open, and worth knowing
 
+- **T106–T113 — the audit pack.** Filed 2026-08-25 from `docs/project-audit-2026-08-25.md`, in VLL's
+  own ordering. These exist because of the audit's §7 finding: 266 commits fixed what users *feel* and
+  touched none of the critical security/correctness items, since nothing routed that class into this
+  queue. Several are **gates, not fixes** — `-race`, a docker build — because in this repo a gate is
+  permanent and a fix rots. **Sequence: T106 first** (it may redden CI, so the rest land on top);
+  **T108 before T112** (splitting routes moves e2e around); T113 is independent and XS.
+  Deferred from the same audit while the instance is LAN-only: rate limiting, `CheckOrigin`, security
+  headers (C6/C7) — they re-enter the day it is exposed. C2 (credential rotation) is VLL's alone.
+
+
 - **T24** (converge `cmd/mkcharts` onto `internal/chartpdf`) — **superseded by T95**, which re-examined
   it with evidence and **ruled against a single renderer**: retiring mkcharts would force the chart
   dialect to grow tab, chord-box and drum grammars it has no business carrying. T95 then converged the

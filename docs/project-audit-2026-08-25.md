@@ -7,6 +7,11 @@
 
 **Sizing legend used throughout:** **XS** ≤ ½ day · **S** ~1 day · **M** 2–5 days · **L** 1–3 weeks · **XL** 1+ month.
 
+**📋 Filed tags (added 2026-08-25, after the audit was written).** A finding tagged 📋 has a spec in
+`docs/tasks/` and is queued; untagged findings are recorded but **not** routed to a lane — which is
+exactly the gap §7 describes. Tags follow the repo's ✅/🎯 honesty convention rather than colour, so the
+audit stays greppable and diffable. First pack: **T106–T113**, filed from VLL's own ordering.
+
 ---
 
 ## 1. What it is
@@ -78,14 +83,27 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 
 | # | Finding | Where |
 |---|---|---|
-| C1 | **No LICENSE file** — `NOTICE` references one that doesn't exist; the code is legally "all rights reserved" while the repo is public with badges. | repo root |
-| C2 | **Credential embedded in the `origin` remote URL**, with one documented leak into tool output. Self-flagged for weeks, still unrotated. | git config; `docs/handoff/mobile-app-agent.md` |
-| C3 | **Sessions never expire and are stored in plaintext**, in a world-readable `app.json` (`0o644`) that also holds every bcrypt hash. Cookie's 30-day cap is client-side only. | `core/internal/app/app.go:137`, `service.go:141`, `filerepo.go:187` |
-| C4 | **Confirmed data race** on `conn.dropped` (written under lock, read without; guards a `close(chan)` → double-close panic path) — and **CI never runs `-race`**. | `core/internal/sync/sync.go:157` vs `conn.go:221`; `ci.yml` |
+| C1 📋 **T113** | **No LICENSE file** — `NOTICE` references one that doesn't exist; the code is legally "all rights reserved" while the repo is public with badges. | repo root |
+| C2 ⚠️ *VLL only* | **Credential embedded in the `origin` remote URL**, with one documented leak into tool output. Self-flagged for weeks, still unrotated. | git config; `docs/handoff/mobile-app-agent.md` |
+| C3 📋 **T107** *(file-mode half)* | **Sessions never expire and are stored in plaintext**, in a world-readable `app.json` (`0o644`) that also holds every bcrypt hash. Cookie's 30-day cap is client-side only. | `core/internal/app/app.go:137`, `service.go:141`, `filerepo.go:187` |
+| C4 📋 **T106** — *see note below* | **Confirmed data race** on `conn.dropped` (written under lock, read without; guards a `close(chan)` → double-close panic path) — and **CI never runs `-race`**. | `core/internal/sync/sync.go:157` vs `conn.go:221`; `ci.yml` |
 | C5 | **Page-image cache used concurrently despite documented single-thread invariant** — `decodeCached`/`pin` called from `Dispatchers.Default` in three places; two-up + prefetch can corrupt the LRU mid-gig. | `app/shared/.../stage/StageScreen.kt:309,887,947`, `LruCache.kt:9` |
-| C6 | **No rate limiting anywhere**, open registration with no off switch, and `minPasswordLen = 1` (not even enforced on register). | `core/internal/app/service.go:161` |
-| C7 | **Cross-site WebSocket hijacking surface:** `CheckOrigin` returns `true` unconditionally; no CSRF tokens; zero security headers (no CSP/nosniff/HSTS); `image/svg+xml` accepted + served `inline` → stored-XSS path on the cookie's origin. | `sync/conn.go:138`, `webapi.go:169,919`, `service.go:1024–1056` |
-| C8 | **The production Docker image is never built by CI** — the least-tested artifact in an otherwise five-way-gated repo. | `ci.yml`, `Dockerfile` |
+| C6 *(deferred — LAN-only)* | **No rate limiting anywhere**, open registration with no off switch, and `minPasswordLen = 1` (not even enforced on register). | `core/internal/app/service.go:161` |
+| C7 *(deferred — LAN-only)* | **Cross-site WebSocket hijacking surface:** `CheckOrigin` returns `true` unconditionally; no CSRF tokens; zero security headers (no CSP/nosniff/HSTS); `image/svg+xml` accepted + served `inline` → stored-XSS path on the cookie's origin. | `sync/conn.go:138`, `webapi.go:169,919`, `service.go:1024–1056` |
+| C8 📋 **T111** | **The production Docker image is never built by CI** — the least-tested artifact in an otherwise five-way-gated repo. | `ci.yml`, `Dockerfile` |
+
+> **📋 Correction to C4 (added 2026-08-25, on filing T106).** Re-reading main before writing the spec:
+> `readPump`'s teardown calls `c.hub.unregister(c)` *before* reading `c.dropped`, and `unregister`
+> (`sync.go:121`) acquires the same `r.mu` that `broadcast` holds when it writes the flag — and deletes
+> the conn from `r.conns` there. That is a happens-before edge, so the write is either visible to the
+> read or unreachable. `sendTo` already guards with `recover()`. **The audit overstates this as a
+> confirmed race.** What remains true, and is what T106 fixes: the safety is *emergent* — it depends on
+> three separate facts holding together, is stated nowhere at the read site, and is pinned by no test.
+> T106 installs `-race` as the arbiter first and lets the detector, not an argument, decide.
+>
+> **⚠️ C2 is VLL's to act on** — no lane can rotate his credential.
+> **C6/C7 deferred:** the instance is LAN-only for now (VLL, 2026-08-25). They re-enter the queue the
+> day it is exposed, and that is the trigger to write down, not a date.
 
 ### 4.2 High
 
@@ -116,13 +134,13 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 - App `sync/SyncClient` is 3 `TODO()`-throwing stubs in `commonMain`; the InkOverlay seam is `TODO()` on **both** platforms; the promised golden ink-parity test for native is "not yet written".
 
 **Testing gaps (the asymmetry):**
-- **Studio and ink have zero unit tests** — 713 lines of hit-testing geometry and the single authoritative renderer are validated only through a long serial browser suite (`workers:1`, `retries:0` — one flake reds the push; ~20 min on CI now). The 39 `waitForTimeout` sleeps flagged in the deep-dive were removed on main (T93 de-flake) — the flake vector is gone, the single-point-of-failure config remains.
-- e2e copy-paste debt got *worse* on main: 77 of 81 specs define their own `register()` helper; a registration-flow change is a 77-file edit.
-- `internal/sync` (the WS hub) has **zero in-package tests**; `:androidApp` has no test source set (pure functions like `sessionCookieFor`, `safeSegment` untested); iOS tests compile but never execute; **no visual regression** anywhere; no coverage measurement.
+- 📋 **T110** — **Studio and ink have zero unit tests** — 713 lines of hit-testing geometry and the single authoritative renderer are validated only through a long serial browser suite (`workers:1`, `retries:0` — one flake reds the push; ~20 min on CI now). The 39 `waitForTimeout` sleeps flagged in the deep-dive were removed on main (T93 de-flake) — the flake vector is gone, the single-point-of-failure config remains.
+- 📋 **T108** — e2e copy-paste debt got *worse* on main: 77 of 81 specs define their own `register()` helper; a registration-flow change is a 77-file edit.
+- 📋 **T109** — `internal/sync` (the WS hub) has **zero in-package tests**; `:androidApp` has no test source set (pure functions like `sessionCookieFor`, `safeSegment` untested); iOS tests compile but never execute; **no visual regression** anywhere; no coverage measurement.
 
 **iOS parity:** an iOS user has **no way to get a bundle onto the device** (no import, no Connect/login/download); no Home IA; identity re-prompts every entry; `ConcertEntry`/`listConcerts` duplicated between Android and iOS entry points with divergent shapes.
 
-**Frontend delivery:** one **755 KB JS chunk + 1.34 MB pdf.js worker** downloaded by every visitor including `/login` — still zero code splitting on main (no `React.lazy`, no manualChunks) on a product meant to run off a garage laptop over Wi-Fi. Text annotation entry moved from `window.prompt()` to a proper in-app dialog on main (T90/T91/T101 — a real fix), but the dialog uses a single-line `<input>`, so the latent multi-line divergence remains: `textBBox` counts `\n` lines, ink's `drawText` still renders one `fillText` line. Editor is pointer-only — no arrow-nudge/Delete/Escape keyboard path.
+**Frontend delivery:** 📋 **T112** — one **755 KB JS chunk + 1.34 MB pdf.js worker** downloaded by every visitor including `/login` — still zero code splitting on main (no `React.lazy`, no manualChunks) on a product meant to run off a garage laptop over Wi-Fi. Text annotation entry moved from `window.prompt()` to a proper in-app dialog on main (T90/T91/T101 — a real fix), but the dialog uses a single-line `<input>`, so the latent multi-line divergence remains: `textBBox` counts `\n` lines, ink's `drawText` still renders one `fillText` line. Editor is pointer-only — no arrow-nudge/Delete/Escape keyboard path.
 
 **Tooling / release:** no ESLint/Prettier/biome, no ktlint/detekt (only Go gets format gating); no Dependabot/Renovate, no CodeQL/secret scanning; buf unpinned in CI; no `concurrency: cancel-in-progress`, no `timeout-minutes` on 4 of 5 jobs; Playwright browsers re-downloaded every run. **No tags, no releases, no changelog, no registry image, no signed APK** — `git describe` degrades to a bare SHA.
 
