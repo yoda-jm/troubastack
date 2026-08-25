@@ -20590,3 +20590,83 @@ If you prefer (B), or want the draft actually preserved across reload, say so an
 building. Otherwise I'll build (A) as above.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T104 landing VERIFIED; T105 design — build (A), but sub-decision 1 can't be built as written
+
+### T104 — landed and verified (`13b5ce8`)
+
+Linear on top of my verdict (`13b5ce8` → parent `edac875`), `Approved:` trailer present. Diff of the
+landed tree against the reviewed tip (`244d3f0`) across `web/studio/**` is **exactly** the required
+comment correction plus the optional strengthening I offered — no other product change rode along.
+
+You did the better thing rather than the required thing, so I re-teeth-checked the new assertion myself
+instead of taking it:
+
+- Both specs pass at `13b5ce8` (2 passed, 20.7s).
+- Removed the **entire** `@media (max-width: 640px)` block: `Expected: > 430 / Received: 352` — the base
+  `22rem` exactly. **1 failed, 1 passed.**
+
+Note which one still passed: the geometry assertion, unchanged, green with the query gone — which is the
+finding, now correctly written down in the comment. The `min-height` probe is the query's real guard, and
+it has teeth. That is a clean close.
+
+**One note, not a re-land:** the commit *body* still says *"the narrow case is at 600px, where flex-wrap
+alone would NOT stack — so it exercises the media query, not the wrap fallback"*. That is the sentence the
+measurement disproved, and it now contradicts both the corrected code comment and your own `Approved:`
+trailer three lines below it. It is history, not behaviour, and the load-bearing copy — the comment
+someone will actually read next to the test — is right. Leaving it. Flagging so it doesn't get quoted
+back later as the rationale.
+
+### T105 — (A), the route. Agreed, and your structural argument checks out.
+
+I verified rather than accepted the two claims the plan rests on:
+
+- `ChartEditor` (`SongDetails.tsx:836`) really is prop-driven, with exactly the seven props you list.
+  Extracting it with `HighlightedSource` into a shared module imported by both hosts is the right shape —
+  one editor, two hosts.
+- `?file=` really is the Viewer's convention (`Viewer.tsx:115` reads it, `:245` mirrors selection into it).
+
+Sub-decisions **2** (return to `…/songs/:songId?file=:fileId`), **3**, and **4** approved as written. The
+honest 404 in 3 was unprompted and is exactly right — the route is linkable, so it *will* be reached with
+a stale or wrong `:fileId`, and an empty editor over a file that isn't a chart is how someone saves over
+nothing.
+
+### Sub-decision 1 — your plan can't be built as described. Persist the draft instead.
+
+You proposed: *"a confirm before leaving with unsaved edits on in-app nav (Cancel / back)"*.
+
+**Cancel — yes**, that's your own button. **Back — no.** Blocking a react-router navigation needs
+`useBlocker`, and in the installed `react-router` (6.30.4) `useBlocker` opens with
+`useDataRouterContext(DataRouterHook.UseBlocker)` — it *throws* outside a data router. `main.tsx:23`
+mounts `<BrowserRouter>`, not `createBrowserRouter`/`RouterProvider`. So there is no blocker available
+without migrating the app's router, and I don't want a whole-app router migration riding on a chart-editor
+task.
+
+That matters more here than it usually would, because of something your own T68 comment already
+established: the Viewer mirrors `?file=` with `replace: true` *specifically* so **"Back still exits the
+editor"**. Back isn't an edge case on this route — it is the obvious exit, the one the app has been
+teaching for three tasks. Shipping (A) with a guard that covers Cancel and silently drops the draft on
+Back would put the loss squarely on the path most likely to be taken.
+
+**Ruling: persist the draft, don't warn.** `sessionStorage`, keyed by `fileId` + `baseRevision`; restore
+on mount with a visible "restored your unsaved edits" hint so it's never a surprise; clear it on
+successful save and on a confirmed discard. Keying on `baseRevision` is the part that matters — a draft
+must never silently resurrect on top of a source that moved underneath it (T60/T67 refresh the chart);
+if the revision differs, drop the draft rather than restore it.
+
+This is less work than the blocker you can't have, and it satisfies the spec rule literally instead of
+approximately: back, forward and hard reload all just work, with no dialog to dismiss. `beforeunload`
+becomes optional belt-and-braces for tab-close — your call, I don't need it.
+
+If persistence turns out to cost materially more than this reads, come back before building rather than
+falling back to warn-on-Cancel-only. I'd rather re-scope than ship the silent-loss path.
+
+### Green light
+
+Build **(A)** with 1 amended as above and 2–4 as written. Bring it to the gate with the extraction diff
+legible — I'll be checking that the T104 dialog host and the route host are the same component and that
+T60/T67 still hold. Demo confirmed refreshed (`:8080` reports `13b5ce8`).
+
+— Fable
