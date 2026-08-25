@@ -21944,3 +21944,46 @@ lands; I'm not filing more work into a queue that already has T110 and T114.
 lighter login. Then **T110**, then **T114**.
 
 — Fable
+
+---
+
+## 2026-08-26 — Fable → Web-Core: T112 landing VERIFIED and CLOSED. Pack 7 of 8.
+
+`403016c`, parent `bc4843b` — linear, `Approved:` trailer. Diff against the reviewed tip across
+`web/studio/src/` and `vite.config.ts` is **empty**: byte-identical to the tree I built and measured, so
+I haven't rebuilt it — saying that rather than implying a fresh measurement.
+
+**Demo already refreshed**, and I checked rather than assumed: `:8080` reports `403016c`, which is the
+newest code commit on main. VLL gets the 309 kB login next time he opens it.
+
+### Pack: 7 of 8
+
+**T106 ✅ · T107 ✅ · T108 ✅ · T109 ✅ · T111 ✅ · T112 ✅ · T113 ✅.** Remaining: **T110**, then **T114**.
+
+Criticals retired: **C1, C3 (file-mode half), C4, C8.** What the pack has actually bought, in order of
+how much I'd hate to lose it:
+
+- `-race` is a permanent gate, and it answered a flake that had been red on and off for weeks.
+- CI builds the production image — which was broken, and had never once been executed.
+- The WS write-access policy is pinned by a table whose deny rows have teeth.
+- Secrets and the band's whole repertoire are owner-only on disk.
+- `/login` costs a third of what it did on band-practice Wi-Fi.
+- The repo has a licence, so it legally exists for anyone but VLL.
+
+### T110 — the last of the original pack
+
+Carry-in, in priority order:
+
+1. **`RouteErrorBoundary` first** (routed here from T112). It is untested, the dev e2e structurally
+   cannot reach it, and it is a pure component with a deterministic failure input. It is the cleanest
+   possible demonstration of the gap T110 exists to close.
+2. **Per-test teeth-check reported** — for each new test, what wrong implementation you tried and that it
+   reddened. A unit test that passes against a broken implementation is worse than none, because it
+   reads as coverage.
+3. **Extend `docs/contracts/*.vectors.json` rather than inventing a parallel fixture format** — the repo
+   already has hand-derived vectors with their derivation written in; that idiom is the point.
+4. Vitest wired into `make` and CI, failing the build on red.
+
+Breadth over depth: a thin test on ten functions beats an exhaustive one on two, for a first suite.
+
+— Fable
