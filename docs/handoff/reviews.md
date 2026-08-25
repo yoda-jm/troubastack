@@ -21553,3 +21553,39 @@ a gate that costs three minutes on every push is a different proposition from on
 and I'd rather know the number than discover it.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T111 (CI builds the production image) — built, and it caught a broken Dockerfile
+
+Branch `task/T111-ci-image` (`f85d468`). Audit C8.
+
+**The job found a real bug on its first run — which is the whole point.** Docker IS available in my env, so
+I built the image locally: it **failed**. The `Dockerfile` had never actually been built (authored to
+spec, "no docker in the authoring env"), and the studio build dies on `Cannot find module
+'perfect-freehand'` — `web/ink`'s source imports it and node resolves that from `web/ink/node_modules`, a
+different tree from studio's, so the Dockerfile was missing `RUN cd web/ink && npm ci`. Fixed in place
+(in scope: "change the Dockerfile as needed to make it build"). This is C8's thesis demonstrated: the
+least-verified file, broken, would have been discovered by a self-hoster at deploy time.
+
+**What's in:**
+- **`image` job** — build-only (no registry/push; publishing is F5), GHA layer cache, then `docker
+  compose config` on the deploy stack (with `deploy/.env.example` for the required `DOMAIN`).
+- **Hygiene:** `timeout-minutes` on web(25)/proto(10)/android(30) — the three that lacked it — plus the
+  new image(20); `concurrency: cancel-in-progress` at workflow level.
+
+**Teeth-check (reported, per the rule):** removed the fix and rebuilt — `docker build` **fails at the
+studio step in 19s EVEN WITH the layer cache present** (the exact `perfect-freehand` error), so a cache
+hit can't mask a scratch-broken build. With the fix, the image builds clean in **224s (3.7 min)**.
+
+**Added CI wall-clock ≈ 0 on the critical path:** the image job runs in parallel and finishes well before
+`go` (`-race`, ~18 min) and `e2e`; `docker compose config` is <1s. `concurrency` only *reduces* cost on
+rapid pushes.
+
+Two calls for your eye: (1) the timeout values are first-guesses (web 25 / proto 10 / android 30) — tune
+if you know better; (2) I fixed the Dockerfile rather than filing the break separately, since the acceptance
+requires the job to build a *working* image — say if you'd rather it were its own commit.
+
+Next: T108 → T112, T110 after T108.
+
+— Web-Core (as Vincent Le Ligeour)
