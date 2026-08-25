@@ -13,18 +13,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { scrollFracIntoBand } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
+import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
-
-async function register(page: Page, username: string, password = "secret123") {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill(password);
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
 
 async function myUserId(page: Page): Promise<string> {
   return page.evaluate(async (): Promise<string> => {
@@ -32,25 +23,6 @@ async function myUserId(page: Page): Promise<string> {
     const j = (await r.json()) as { user: { id: string } };
     return j.user.id;
   });
-}
-
-async function createBandAndOpen(page: Page, bandName: string): Promise<{ url: string; id: string }> {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(bandName);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(bandName);
-  const url = page.url();
-  return { url, id: url.split("/bands/")[1] };
-}
-
-async function createSongAndOpen(page: Page, title: string): Promise<string> {
-  await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill(title);
-  await page.getByTestId("create-song").click();
-  await page.getByTestId("song-link").filter({ hasText: title }).click();
-  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
-  return page.url().split("/songs/")[1];
 }
 
 async function uploadPdf(page: Page) {

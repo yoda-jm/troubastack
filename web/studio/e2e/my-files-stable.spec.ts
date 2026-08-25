@@ -6,18 +6,9 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { stamp, register } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(u);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
 
 type Metrics = { dx: number; dy: number; width: number; height: number };
 

@@ -7,25 +7,7 @@
  * loop is covered by the Go tests (B01 parity + B02 orchestration).
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, username: string, password = "secret123") {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill(password);
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-
-async function createBandAndOpen(page: Page, bandName: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(bandName);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(bandName);
-}
+import { stamp, register, createBandAndOpen } from "./setup-helpers";
 
 test("admin bakes a setlist → download link + history appear", async ({ page }) => {
   await register(page, `bake_${stamp()}`);

@@ -11,33 +11,7 @@
  * one already exercised by the bake Go/e2e tests — no new toolchain here.
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`D ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-
-async function createBandAndOpen(page: Page, name: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(name);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: name }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(name);
-}
-
-async function createSongAndOpen(page: Page, title: string) {
-  await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill(title);
-  await page.getByTestId("create-song").click();
-  await page.getByTestId("song-link").filter({ hasText: title }).click();
-  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
-}
+import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
 
 test("write a text chart → it enters the pool as a generated PDF, editable in place", async ({
   page,

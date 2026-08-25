@@ -11,19 +11,11 @@
  */
 import { test, expect, type Page, type CDPSession } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { stamp, register } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 const STYLE = { color: "#e11d48", opacity: 1, width: 0.004, fontSize: 0.04 };
 
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`D ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
 async function myUserId(page: Page) {
   return page.evaluate(async () => {
     const r = await fetch("/api/me", { credentials: "include" });

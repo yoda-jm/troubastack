@@ -9,8 +9,7 @@
  *   2. a newly-registered user sees an empty band list — no pre-seeded bands exist here.
  */
 import { test, expect } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+import { stamp } from "./setup-helpers";
 
 test("e2e backend is fresh + isolated, not a seeded preview (T81)", async ({ page }) => {
   // 1) Seed-only accounts must be rejected — proof this is not the :8080 demo/GVO server.

@@ -8,19 +8,9 @@
  * (2026-07-26) asked for it inline — one row. This guard now encodes that.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { stamp, register } from "./setup-helpers";
 
 test.use({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true });
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill("Marie");
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
 
 // elementFromPoint reachability: the element (or a descendant) is what's actually on top
 // at its own center — i.e. nothing clips/occludes it (the T33-era class-killer probe).

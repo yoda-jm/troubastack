@@ -7,8 +7,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { openDrawer, closeDrawer, clearBand } from "./fullscreen-helpers";
 import { iconPaletteLeft } from "../src/layout";
+import { stamp, register, createBandAndOpen } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
 // ===========================================================================
@@ -39,21 +39,6 @@ test("layout: iconPaletteLeft never returns NaN or a negative left (T88)", () =>
 // ===========================================================================
 // Helpers.
 // ===========================================================================
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`Display ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-async function createBandAndOpen(page: Page, name: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(name);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: name }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(name);
-}
 // Upload the PDF, reload (auto-selects the file → the page renders), then add an editable layer so
 // the Icon tool is enabled. Leaves the layers drawer closed for a clean canvas.
 async function iconSongReady(page: Page) {

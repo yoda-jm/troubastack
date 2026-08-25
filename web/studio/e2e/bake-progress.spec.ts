@@ -5,8 +5,7 @@
  * page.route (the lyrics-search precedent), so no real (poppler) bake is stood up.
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+import { stamp } from "./setup-helpers";
 
 // Build a band + one song + a one-item setlist, and land on the setlist page ready to bake.
 async function setupBakeable(page: Page): Promise<void> {

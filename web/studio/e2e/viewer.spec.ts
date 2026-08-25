@@ -12,8 +12,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { openDrawer } from "./fullscreen-helpers";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { stamp, register } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
 // These callbacks run in the browser on a real <canvas>. Locator.evaluate hands
@@ -26,15 +26,6 @@ const pixelSum = (c: Element) => {
   for (let i = 0; i < d.length; i++) s += d[i];
   return s;
 };
-
-async function register(page: Page, username: string, password = "secret123") {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill(password);
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
 
 /** A rich annotation doc: 2 layers (conductor + a personal layer owned by me),
  *  every object type, spread across page 0 and page 1, varied color/opacity/size. */

@@ -5,17 +5,7 @@
  * are locked on. Red-first: pre-P205 baking has no dialog.
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`D ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
+import { stamp, register } from "./setup-helpers";
 
 test("bake dialog captures per-layer default-on; toggling one off sends it false (P205)", async ({
   page,

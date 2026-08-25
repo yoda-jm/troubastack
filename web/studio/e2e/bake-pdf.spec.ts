@@ -6,25 +6,7 @@
  * application/pdf body.
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, username: string, password = "secret123") {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill(password);
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-
-async function createBandAndOpen(page: Page, bandName: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(bandName);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(bandName);
-}
+import { stamp, register, createBandAndOpen } from "./setup-helpers";
 
 test("admin downloads a concert PDF (paper fallback)", async ({ page }) => {
   await register(page, `pdf_${stamp()}`);

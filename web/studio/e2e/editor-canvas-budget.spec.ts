@@ -11,22 +11,13 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { stamp, register } from "./setup-helpers";
 
 // A high-DPI viewport so the raster (scale × dpr) is large enough to hit the cap.
 test.use({ viewport: { width: 900, height: 1200 }, deviceScaleFactor: 2 });
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 const MAX_SIDE = 4096;
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`D ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
 
 test("raster canvases stay within the GPU side cap + rendered at high zoom (T44)", async ({ page }) => {
   await register(page, `cb_${stamp()}`);

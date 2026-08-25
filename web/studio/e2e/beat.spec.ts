@@ -17,8 +17,8 @@ import {
   meterGroups,
   DEFAULT_GROUPS,
 } from "../src/beatPhase";
+import { stamp, register, createBandAndOpen } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
 interface Vector {
@@ -163,22 +163,6 @@ test("beat contract: meterGroups mirrors the core parser (T86)", () => {
 // ===========================================================================
 // Studio UI — tap the beat, the frame pulses, a count-in stops itself.
 // ===========================================================================
-async function register(page: Page, username: string, password = "secret123") {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill(password);
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-
-async function createBandAndOpen(page: Page, bandName: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(bandName);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(bandName);
-}
 
 async function createSongWithTempo(page: Page, title: string, bpm: number) {
   await page.getByTestId("new-song-btn").click();

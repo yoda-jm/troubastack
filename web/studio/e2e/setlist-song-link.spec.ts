@@ -4,24 +4,8 @@
  * (grip-only) is unaffected.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { stamp, register, createBandAndOpen } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`D ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-async function createBandAndOpen(page: Page, name: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(name);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: name }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(name);
-}
 async function addSong(page: Page, bandUrl: string, title: string) {
   await page.goto(bandUrl);
   await page.getByTestId("new-song-btn").click();

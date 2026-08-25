@@ -7,34 +7,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { clearBand, openDrawer } from "./fullscreen-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
 
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
-async function register(page: Page, username: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-async function createBandAndOpen(page: Page, name: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(name);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: name }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(name);
-  return page.url().split("/bands/")[1];
-}
-async function createSongAndOpen(page: Page, title: string) {
-  await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill(title);
-  await page.getByTestId("create-song").click();
-  await page.getByTestId("song-link").filter({ hasText: title }).click();
-  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
-  return page.url().split("/songs/")[1];
-}
 async function uploadPdf(page: Page) {
   await page.getByTestId("my-files-edit").click();
   await page.getByTestId("file-input").setInputFiles(PDF_PATH);
@@ -79,7 +55,7 @@ async function icons(page: Page, bandId: string, songId: string): Promise<Obj[]>
 
 test("place a blue shaker icon → persists across reload; moves (T51)", async ({ page }) => {
   await register(page, `icn_${stamp()}`);
-  const bandId = await createBandAndOpen(page, `IcnBand ${stamp()}`);
+  const { id: bandId } = await createBandAndOpen(page, `IcnBand ${stamp()}`);
   const songId = await createSongAndOpen(page, "Slide Away");
   await uploadPdf(page);
   await page.reload(); // fresh load auto-selects the uploaded file → the page renders

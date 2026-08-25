@@ -6,17 +6,7 @@
  * unchanged. Signal is a URL param (not the JS bridge) → testable in plain Playwright.
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`D ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
+import { stamp, register } from "./setup-helpers";
 
 test("embedded=1 hides the topbar + logout, and survives SPA navigation (T46)", async ({ page }) => {
   await register(page, `em_${stamp()}`);

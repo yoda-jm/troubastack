@@ -5,17 +5,7 @@
  * panel) and version.spec (the build line + mismatch dot).
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, username: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
+import { stamp, register } from "./setup-helpers";
 
 test("account menu opens, shows the display name, and closes (click-again + Escape + outside)", async ({
   page,

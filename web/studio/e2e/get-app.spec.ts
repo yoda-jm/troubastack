@@ -7,20 +7,10 @@
  * ios entry rides the manifest, then flips to a live download.
  */
 import { test, expect, type Page } from "@playwright/test";
-
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+import { stamp, register } from "./setup-helpers";
 
 /** Open the top-right account menu (the "Get the app" item lives inside it now). */
 const openMenu = (page: Page) => page.getByTestId("account-trigger").click();
-
-async function register(page: Page, username: string, password = "secret123") {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill(password);
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/); // lands on the shell topbar
-}
 
 const androidEntry = {
   platform: "android",

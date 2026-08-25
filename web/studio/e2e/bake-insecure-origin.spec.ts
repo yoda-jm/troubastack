@@ -10,8 +10,8 @@
  * Sibling guard for the SAME bug class on the annotate/draw path: `editor-insecure-context.spec.ts`.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { stamp } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 // Emulate the insecure LAN origin: crypto.randomUUID absent (getRandomValues stays). Re-runs

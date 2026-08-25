@@ -13,35 +13,13 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
 
 // Touch must be enabled for the browser to emit touch → pointer(type:touch) events.
 test.use({ hasTouch: true });
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
-async function register(page: Page, username: string, password = "secret123") {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(username);
-  await page.getByTestId("displayName").fill(`Display ${username}`);
-  await page.getByTestId("password").fill(password);
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-async function createBandAndOpen(page: Page, bandName: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(bandName);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: bandName }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(bandName);
-}
-async function createSongAndOpen(page: Page, title: string) {
-  await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill(title);
-  await page.getByTestId("create-song").click();
-  await page.getByTestId("song-link").filter({ hasText: title }).click();
-  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
-}
 async function uploadPdf(page: Page) {
   // T36: file management moved into the editor's Details panel — open it to reach the
   // upload form, then close it so the canvas is unobstructed for whatever follows.

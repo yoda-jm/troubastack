@@ -8,32 +8,9 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
 
-const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
-
-async function register(page: Page, u: string) {
-  await page.goto("/register");
-  await page.getByTestId("username").fill(u);
-  await page.getByTestId("displayName").fill(`Display ${u}`);
-  await page.getByTestId("password").fill("secret123");
-  await page.getByTestId("submit").click();
-  await expect(page).toHaveURL(/\/bands$/);
-}
-async function createBandAndOpen(page: Page, name: string) {
-  await page.getByTestId("new-band-btn").click();
-  await page.getByTestId("band-name").fill(name);
-  await page.getByTestId("create-band").click();
-  await page.getByTestId("band-link").filter({ hasText: name }).click();
-  await expect(page.getByTestId("band-title")).toHaveText(name);
-}
-async function createSongAndOpen(page: Page, title: string) {
-  await page.getByTestId("new-song-btn").click();
-  await page.getByTestId("song-title").fill(title);
-  await page.getByTestId("create-song").click();
-  await page.getByTestId("song-link").filter({ hasText: title }).click();
-  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
-}
 
 // Register → band → song → upload a PDF → create a text chart. Returns the ids so the route/API can be
 // addressed directly (cold navigation and the honest-404 both need a real file id).
