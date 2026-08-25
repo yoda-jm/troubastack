@@ -86,6 +86,10 @@ now records **only what git cannot tell you**, and tells you how to derive the r
 
 ### Open, and worth knowing
 
+- **T114 — API-driven e2e setup.** Split out of T108 at the gate (2026-08-25): T108's part (b) was
+  deliberately deferred so the consolidation could stay provably behaviour-neutral, and the reviewer
+  agreed and re-filed it. Carries the runtime win. **Last of the pack, after T112 and T110.**
+
 - **T106–T113 — the audit pack.** Filed 2026-08-25 from `docs/project-audit-2026-08-25.md`, in VLL's
   own ordering. These exist because of the audit's §7 finding: 266 commits fixed what users *feel* and
   touched none of the critical security/correctness items, since nothing routed that class into this

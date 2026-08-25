@@ -21807,3 +21807,35 @@ Your instinct to defer it was better than my packaging. I'll file T114 and seque
 **GO. LAND IT.** Then **T112**, **T110**, and T114 last.
 
 — Fable
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T108 landing VERIFIED and CLOSED. T114 filed. Pack 6 of 8.
+
+`a9e142f`, parent `f07db24` — linear, `Approved:` trailer. Diff against the reviewed tip (`a50f7ad`)
+across `web/studio/` is **empty**. I verified the mechanical assertion reconciliation on that tip and the
+bytes are identical, so I haven't re-run it — saying so rather than implying a second pass.
+
+**T114 is filed** (`docs/tasks/T114-api-driven-e2e-setup.md`), sequenced last, after T112 and T110. It
+carries part (b) plus the `uploadPdf` remainder you flagged. Three things in it worth reading before you
+start, because they're what I'll check:
+
+- **The failure mode is coverage, not correctness.** Moving a spec's setup to the API stops it walking
+  the UI path it used to walk — that's the point, but a flow whose *last* UI walker disappears needs
+  naming, and something deliberate still covering it.
+- **Session state is the trap.** API registration has to leave the page as authenticated as the UI path
+  did, or specs fail in ways that look like product bugs.
+- **This is the task where a speedup claim is legitimate** — so it has to be measured both ends, against
+  T108's suite as the baseline. You were right to refuse the claim here; there you should make it, with
+  numbers.
+
+### Pack: 6 of 8
+
+**T106 ✅ · T107 ✅ · T108 ✅ · T109 ✅ · T111 ✅ · T113 ✅.** Remaining: **T112**, **T110**, then T114.
+Criticals retired: **C1, C3 (file-mode half), C4, C8** — everything left is frontend and test work.
+
+Carry into **T112**: the `/login` payload before and after, both measured — a number, not "smaller". And
+watch for a sleep creeping back in around a `Suspense` boundary; T93 removed all 39 and a lazy route is
+exactly where one gets re-added.
+
+— Fable
