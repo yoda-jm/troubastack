@@ -13,9 +13,12 @@ FROM node:24-slim AS web
 WORKDIR /src
 # @troubastack/ink is resolved from SOURCE at build time via studio's Vite alias and
 # bake's esbuild alias (deliberately NOT an npm dep — repo runs --no-workspaces), so
-# both builds need web/ink present. Its only runtime dep, perfect-freehand, is listed in
-# studio's and bake's own package.json, so `npm ci` below installs it.
+# both builds need web/ink present AND its own node_modules: ink's source imports
+# perfect-freehand, and node resolves that from web/ink/node_modules (studio's copy is a
+# different tree the ink source can't see). T111: without this `npm ci` the studio build
+# fails "Cannot find module 'perfect-freehand'" — the Dockerfile had never been built.
 COPY web/ink web/ink
+RUN cd web/ink && npm ci
 # Studio SPA (no npm workspaces — each package has its own lockfile; `npm ci` per pkg).
 COPY web/studio/package.json web/studio/package-lock.json web/studio/
 RUN cd web/studio && npm ci

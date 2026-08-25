@@ -20,6 +20,12 @@ on:
 permissions:
   contents: read
 
+# T111: a newer push to the same ref cancels the older run's whole matrix, so a burst of pushes doesn't
+# queue N full CI runs (image build + e2e make this expensive). The default group already scopes per-ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   go:
     runs-on: ubuntu-latest
@@ -62,6 +68,7 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -162,6 +169,7 @@ jobs:
 
   proto:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -193,6 +201,7 @@ jobs:
 
   android:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       # JDK 21 = the Kotlin/AGP compile toolchain pinned in app/gradle/libs.versions.toml, so the
@@ -259,3 +268,42 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: e2e
         run: make e2e
+
+  # T111 (C8): build the artifact users actually run. Until now CI gated six ways but never built the
+  # production image or checked the compose stack — the least-verified files in a heavily-verified repo,
+  # and the ones a self-hoster deploys. Build-only: no registry, no push (publishing is audit F5).
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      # A GHA layer cache keeps this off the critical path when nothing Docker-related changed, but it
+      # cannot mask a broken build: a changed (or broken) instruction invalidates the cache from that
+      # layer down, so a Dockerfile that can't build from scratch still fails the job.
+      - name: build production image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: troubacore:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Validate the compose stack so a malformed compose or a dangling variable fails here, not on the
+      # host. Uses the committed example env for the required variables (DOMAIN).
+      - name: validate deploy compose
+        # `docker compose config` exits non-zero on malformed YAML, but an UNSET ${VAR} is only a warning
+        # (rc=0) that renders a blank string — so a typo'd variable would sail through CI and the container
+        # start blank. Catch BOTH: fail on invalid compose, and fail if any variable is unset (T111).
+        run: |
+          out=$(docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config 2>&1) || {
+            echo "$out"
+            echo "::error::deploy compose is invalid"
+            exit 1
+          }
+          if echo "$out" | grep -qi 'variable is not set'; then
+            echo "$out" | grep -i 'variable is not set'
+            echo "::error::deploy compose references an unset variable — a typo, or a missing entry in deploy/.env.example"
+            exit 1
+          fi
