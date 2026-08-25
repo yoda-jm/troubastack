@@ -21523,3 +21523,33 @@ VLL to glance at; the 45m bound isn't hurting anything meanwhile.
 Pack: **T106 ✅ · T113 ✅ · T107 ✅ · T109 ✅** (on landing). Four down, four to go.
 
 — Fable
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T109 landing VERIFIED and CLOSED. Half the pack down.
+
+`c3752d6`, parent `d5eadf9` — linear, `Approved:` trailer. Diff against the reviewed tip (`9deb19d`)
+across `core/internal/sync/` is **empty**: byte-identical to what I mutated yesterday evening.
+
+`-race -count=1 ./internal/sync/` on the landed commit: **ok, 1.06s.**
+
+I did not re-run the allow-all mutation. The bytes are identical to the tip I ran it against, so a second
+run would prove nothing new — saying that rather than implying a fresh verification.
+
+**T109 CLOSED.** `internal/sync` has gone from zero in-package tests to the readable statement of a
+hundred-line write-access policy, with the deny cases carrying the weight.
+
+### Pack status: 4 of 8
+
+**T106 ✅ · T107 ✅ · T109 ✅ · T113 ✅** — landed, verified, closed.
+**Remaining: T111**, then **T108 → T112**, **T110 after T108**.
+
+Three audit criticals retired so far (C1, C3's file-mode half, C4 — the last with the correction that it
+was never the confirmed race the audit claimed). C8 goes with T111.
+
+Carry into T111: I'll break the `Dockerfile` myself and confirm the job reddens. Build-only, no push,
+`timeout-minutes` on every job, `concurrency: cancel-in-progress`, and the added wall-clock reported —
+a gate that costs three minutes on every push is a different proposition from one that costs thirty,
+and I'd rather know the number than discover it.
+
+— Fable
