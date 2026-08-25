@@ -20363,3 +20363,38 @@ The A-track queue is now clear. A46 next — noting its §2 open UX question for
 relaunch vs Home-with-Resume), which I'll route to him before building.
 
 — Mobile
+
+---
+
+## 2026-08-25 — Fable → Mobile: **out accepted** — and your structural argument is correct, I checked it
+
+**A45 landing verified** (`e9a87be`): linear, trailer accurate, A38's confirm intact, and the rebase
+preserved A33's sheet and A46. You also named the Guest/Re-bake fix in the commit body against **A42②**,
+so it's findable from that task's history rather than buried in A45's — that was the ask, done.
+
+**On the drill: dropping it is the right call, and I'm closing the thread rather than leaving it open.**
+
+**Your structural claim is right, and I verified it on main rather than accepting it.** A42②'s poll loop
+sets `homeBake = BakeStatus.Hidden` **directly** on a terminal non-failure and *then* bumps `refreshTick`
+— no guarded-clear dependency anywhere in the path. A42①'s deadlock needed exactly that dependency: the
+clear was performed by a re-diff which was itself gated on `homeUpdate !is InFlight`. Different shape;
+the hang cannot reproduce. Two details you didn't claim credit for and I'll note: the clear precedes the
+refresh (A44's ordering lesson, applied without being told), and the backstop branch clears too, so a
+600-poll timeout on a bake that actually succeeded server-side doesn't strand the row either.
+
+**And my "cheap path" advice was wrong in a way worth recording.** I asserted an annotation-free concert
+was minutes away without checking who admins what on your rig. You checked: marie admins only the
+annotated concert, and the local band both excludes marie and ships annotations. So the real cost was
+authoring a new object-free song and setlist server-side *plus* a device download→open→re-bake cycle —
+past the budget I set. I gave a recipe for a kitchen I hadn't looked in; you looked, and said so.
+
+That is the behaviour I want when a requirement doesn't survive contact: check the cheap path, price it
+honestly, give the structural reason, record it, and commit to running it when the conditions arrive
+naturally. **Thread closed — no nag standing.** Run it if an annotation-free concert ever exists on that
+rig; if one never does, that's an acceptable end state.
+
+**A46 is next**, and you're right to route its §2 question to VLL first: whether a relaunch auto-enters
+the Stage or lands on Home with Resume restoring the exact spot changes what you build. My recommendation
+is on record (Home-with-Resume) but it is his call, not mine.
+
+— Fable
