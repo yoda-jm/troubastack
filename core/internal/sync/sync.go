@@ -121,10 +121,19 @@ func (h *Hub) register(c *conn) {
 func (h *Hub) unregister(c *conn) {
 	r := c.room
 	if r == nil {
+		// A conn that never joined a room still has a live send channel + write pump; close it so the
+		// pump exits and nothing leaks (T106). In practice readPump only runs post-register, but this
+		// path must not be the one place the channel is left open.
+		c.closeSend()
 		return
 	}
 	r.mu.Lock()
 	delete(r.conns, c)
+	// Close the send channel HERE, under r.mu, right after removing c from the room (T106). broadcast
+	// holds r.mu whenever it sends to a conn, so serialising the close with r.mu makes it structurally
+	// impossible for broadcast to be mid-send to c while the channel closes — the send-on-closed panic
+	// (broadcast's `c.send <- frame` has no recover) is retired, not merely ordered-around in readPump.
+	c.closeSend()
 	empty := len(r.conns) == 0
 	r.mu.Unlock()
 
@@ -152,9 +161,11 @@ func (r *room) broadcast(frame []byte) {
 		select {
 		case c.send <- frame:
 		default:
-			close(c.send)
+			// Slow consumer: drop it from the room, then close its send channel (ends its write pump) —
+			// both under r.mu, the same discipline as unregister, so a close never races a send. closeSend
+			// is the exactly-once guard shared with unregister's teardown (T106).
 			delete(r.conns, c)
-			c.dropped = true
+			c.closeSend()
 		}
 	}
 }

@@ -3,6 +3,7 @@ package sync
 import (
 	"encoding/json"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -127,9 +128,22 @@ type conn struct {
 	authorID string
 	// role is the author's band role ("admin"|"conductor"|"member"), resolved at
 	// upgrade time. It gates the conductor zone (#3) and layer-access changes (#4).
-	role    string
-	send    chan []byte
-	dropped bool
+	role string
+	send chan []byte
+	// sendClosed guards close(send) so it happens EXACTLY once. Both closers — broadcast dropping a slow
+	// consumer, and unregister tearing a conn down — close under r.mu, so a close never races a send; the
+	// CAS additionally makes the two closers idempotent with respect to each other (whichever wins the
+	// drop/teardown race closes; the other no-ops). This used to be a plain bool whose safety was merely
+	// emergent across three separate call sites (T106).
+	sendClosed atomic.Bool
+}
+
+// closeSend closes the send channel at most once. Idempotent and safe to call from either
+// closer, in any order.
+func (c *conn) closeSend() {
+	if c.sendClosed.CompareAndSwap(false, true) {
+		close(c.send)
+	}
 }
 
 // upgrader accepts same-origin upgrades. CheckOrigin is permissive here because the
@@ -216,11 +230,10 @@ func (c *conn) sendSnapshot() error {
 // of the socket. On any read error (close, timeout) it tears the connection down.
 func (c *conn) readPump() {
 	defer func() {
+		// unregister removes c from its room AND closes c.send, both under r.mu (T106), so there is no
+		// ordering left here to get wrong — broadcast can never be mid-send while the channel closes.
 		c.hub.unregister(c)
 		_ = c.ws.Close()
-		if !c.dropped {
-			close(c.send)
-		}
 	}()
 
 	c.ws.SetReadLimit(maxMessage)

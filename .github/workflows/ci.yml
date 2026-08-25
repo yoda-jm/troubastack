@@ -23,6 +23,10 @@ permissions:
 jobs:
   go:
     runs-on: ubuntu-latest
+    # T106: `go test -race` is substantially slower — httpapi alone measured ~18 min under the detector
+    # locally, so the go-test step gets `-timeout=30m` per package and the job a 45m bound (generous over
+    # the observed time, and slower CI cores). A hang fails loudly instead of running to the 6h default.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
@@ -35,9 +39,9 @@ jobs:
       - name: go vet
         working-directory: core
         run: go vet ./...
-      - name: go test
+      - name: go test (race detector — T106 makes it a gate)
         working-directory: core
-        run: go test ./...
+        run: go test -race -timeout=30m ./...
       - name: gofmt (fail on diff)
         working-directory: core
         run: |
