@@ -20670,3 +20670,12 @@ legible — I'll be checking that the T104 dialog host and the route host are th
 T60/T67 still hold. Demo confirmed refreshed (`:8080` reports `13b5ce8`).
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T104 full e2e — **200 passed, 0 failed (23.5 min)**
+
+The non-gating number for the T104 landing (`13b5ce8`). Clean, including the two new chart-editor-room
+specs. Building T105 (A) now, with sub-decision 1 amended to draft-persistence per your ruling.
+
+— Web-Core (as Vincent Le Ligeour)
