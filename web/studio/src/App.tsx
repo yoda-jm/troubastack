@@ -2,6 +2,7 @@
  * Route table for the non-canvas Studio pages. The canvas/annotation editor at
  * /bands/:bandId/songs/:songId is a deferred placeholder (see SongEditor).
  */
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { Login } from "./pages/Login";
@@ -10,17 +11,26 @@ import { ResetPassword } from "./pages/ResetPassword";
 import { Bands } from "./pages/Bands";
 import { BandDetail } from "./pages/BandDetail";
 import { BandSettings } from "./pages/BandSettings";
-import { SongEditor } from "./pages/SongEditor";
-import { ChartEditorPage } from "./pages/ChartEditorPage";
 import { Setlists } from "./pages/Setlists";
 import { SetlistDetail } from "./pages/SetlistDetail";
 import { Invites } from "./pages/Invites";
 import { Profile } from "./pages/Profile";
 import { Join } from "./pages/Join";
+import { RouteFallback, RouteErrorBoundary } from "./components/RouteBoundary";
+
+// T112: the annotation editor + its chart-editor route pull in pdf.js and the whole drawing canvas —
+// ~half the bundle, and code that nobody reaching /login needs. Load them only when an editor route is
+// actually visited, behind the Suspense boundary below.
+const SongEditor = lazy(() => import("./pages/SongEditor").then((m) => ({ default: m.SongEditor })));
+const ChartEditorPage = lazy(() =>
+  import("./pages/ChartEditorPage").then((m) => ({ default: m.ChartEditorPage })),
+);
 
 export function App() {
   return (
-    <Routes>
+    <RouteErrorBoundary>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       {/* Public: a one-time reset link lands here (the token is the credential). */}
@@ -41,8 +51,10 @@ export function App() {
         <Route path="/join/:token" element={<Join />} />
       </Route>
 
-      <Route path="/" element={<Navigate to="/bands" replace />} />
-      <Route path="*" element={<Navigate to="/bands" replace />} />
-    </Routes>
+          <Route path="/" element={<Navigate to="/bands" replace />} />
+          <Route path="*" element={<Navigate to="/bands" replace />} />
+        </Routes>
+      </Suspense>
+    </RouteErrorBoundary>
   );
 }

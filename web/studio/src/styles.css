@@ -1745,3 +1745,8 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .modal-backdrop .modal { max-width: 30rem; width: 100%; display: flex; flex-direction: column; gap: .7rem; }
 .modal-backdrop .modal h3 { margin: 0; }
 .delete-layer-input { font-family: var(--font-mono); letter-spacing: .08em; }
+
+/* T112: the lazy-route loading fallback + failed-chunk error screen (RouteBoundary). */
+.route-fallback, .route-error { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .6rem; min-height: 60vh; text-align: center; padding: 2rem; }
+.route-error h2 { margin: 0; }

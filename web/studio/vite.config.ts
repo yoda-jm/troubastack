@@ -72,5 +72,18 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    // T112: split so app code and heavy deps cache independently across deploys, and so pdf.js is its
+    // own chunk pulled in only with the (lazy) editor route rather than riding the entry bundle.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          pdfjs: ["pdfjs-dist"],
+        },
+      },
+    },
+    // Set to a number the build actually MEETS (T112 §2d) — the pdf.js chunk is legitimately large and
+    // now off the initial path; this is not a limit chosen to silence a warning on shipped-to-/login code.
+    chunkSizeWarningLimit: 450,
   },
 });

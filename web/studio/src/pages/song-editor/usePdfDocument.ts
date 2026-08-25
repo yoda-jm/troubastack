@@ -17,14 +17,16 @@
  *  - The dry overlay is the ONLY committed-object render path (renderObjects).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import * as pdfjs from "pdfjs-dist";
-// Vite resolves ?url to the emitted asset path; PDF.js needs its worker URL.
+// T112: pdf.js is ~360 kB and is only needed once a PDF is actually opened. Import its TYPES statically
+// (erased at build — no chunk), and `import("pdfjs-dist")` its runtime lazily at the getDocument call, so
+// the pdf.js chunk is fetched on PDF-open, not merely on entering the editor route.
+import type * as pdfjs from "pdfjs-dist";
+// Vite resolves ?url to the emitted asset path; PDF.js needs its worker URL. A ?url import is just the
+// string path — it does not pull the worker onto the initial path.
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { renderObjects, type InkObject } from "@troubastack/ink";
 import { api, type AnnotationLayer, type AnnotationObject, type SongFile } from "../../api";
 import { toInkObject, compareObjectZ, rasterDpr, budgetedRasterDpr, type LayerVisibility } from "./helpers";
-
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 // Discrete percentage stops the −/+ buttons step through.
 export const ZOOM_PERCENTS = [50, 75, 100, 125, 150, 200, 300];
@@ -145,7 +147,10 @@ export function usePdfDocument(args: {
         const bytes = new Uint8Array(await res.arrayBuffer());
         if (cancelled) return;
 
-        const loadingTask = pdfjs.getDocument({ data: bytes });
+        // T112: lazily pull pdf.js only now, when a PDF is actually being opened.
+        const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
+        GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        const loadingTask = getDocument({ data: bytes });
         const pdfDoc = await loadingTask.promise;
         if (cancelled) {
           void pdfDoc.destroy();
