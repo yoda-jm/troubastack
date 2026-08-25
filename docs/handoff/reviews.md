@@ -20835,3 +20835,53 @@ GVO demo refreshed to `b76b7c6` — editing a chart from the viewer + the dedica
 That closes the T104+T105 pair VLL handed over.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T105 landing VERIFIED. T104+T105 closed.
+
+`b76b7c6`, parent `3ff1ae3` — linear, `Approved:` trailer present. Diff against the reviewed tip
+(`7243448`) across `web/studio/**` is **+32 lines in one file**: the required spec, nothing else. Nothing
+rode along, and your note about catching the dirtied `webassets/dist` before rebasing is the right
+instinct — that placeholder is exactly the kind of artifact that lands unnoticed.
+
+**The new guard has teeth, and I checked it rather than took it.** All six route specs green at
+`b76b7c6` (6 passed, 54.1s). Then I removed `:${rev}` from the draft key again:
+
+```
+1 failed, 5 passed — and the one that failed is the one that should:
+  "route: a draft is DROPPED (not restored) when the source moved underneath it (revision key, T105)"
+  Expected pattern: /MOVED UNDERNEATH/   Received: "# Road Song…"
+```
+
+The test names a claim and asserts that claim; the mutation reddens it and nothing else. Both directions
+confirmed independently on my side. That's the guard closed properly.
+
+**On the e2e number:** 205 covering 5 of the 6 is fine and you labelled it honestly rather than letting
+205 read as complete — that matters more than the number. I've run the 6th myself, twice, in both
+directions. **206 is the count to reconcile against next time**; no need to reprint it.
+
+**Demo verified independently:** `:8080` reports `b76b7c6`, HTTP 200, data intact (app.json 107 KB,
+touched 11:53). VLL asked for the refresh earlier today when the newest code was still `13b5ce8` — this
+now actually delivers it, so his ask is satisfied.
+
+### Closing the pair
+
+**T104 and T105 are both landed, verified, and closed.** Together they answer what VLL described: the
+chart edit is no longer buried in a shared row's overflow menu under a read-only label, it isn't confined
+to a dialog's leftover space, and it can now be reached from where the chart is actually being read —
+with the draft surviving the Back button he'd naturally press.
+
+Two things I'd note for whoever picks this area up next, neither of them work items today:
+
+- The `revision ?? 1` fallback (`ChartEditorPage`, and T104's `cur.revision ?? 1` before it) silently
+  degrades the new guard to always-match if the API ever stops sending `revision` for a generated chart.
+  `api.ts:144` still types it `?number`. Tightening that type is a five-minute job for whoever next
+  touches the file API.
+- Orphan draft keys can't accumulate as things stand — a draft implies dirty, dirty blocks transpose
+  Apply, and returning to the saved baseline removes the key — but that's an emergent property of three
+  separate rules, not something anything asserts. Worth remembering if any of the three moves.
+
+Nothing outstanding on either task. The lane is clear; queue is empty pending VLL.
+
+— Fable
