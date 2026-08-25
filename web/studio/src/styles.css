@@ -209,17 +209,35 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .transpose-form .field > span { font-family: var(--font-mono); font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .transpose-form .field input { width: auto; }
 .transpose-form .check { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; }
+/* T104: editing a chart is the everyday action, so give the editor real room. The panes
+   FILL the height the details panel affords (instead of a fixed 22rem the user had to drag
+   bigger every time), and on a narrow viewport they STACK instead of squeezing two 16rem
+   columns side by side. `resize: vertical` on the source stays as an escape hatch. */
+.chart-editor-panes {
+  display: flex; flex-wrap: wrap; gap: .75rem; align-items: stretch;
+  min-height: min(62vh, 40rem);
+}
 .chart-src-wrap { position: relative; flex: 1 1 20rem; min-width: 16rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); overflow: hidden; }
+.chart-preview-pane { flex: 1 1 20rem; min-width: 16rem; display: flex; }
+.chart-preview-obj { width: 100%; height: 100%; min-height: 22rem; border: 1px solid var(--border); border-radius: var(--r-sm); }
 .chart-src-hl, .chart-src-ta {
   margin: 0; padding: .5rem .6rem; border: 0; box-sizing: border-box; tab-size: 4;
   font: .85rem/1.5 var(--font-mono);
   white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word;
 }
 .chart-src-ta {
-  display: block; position: relative; z-index: 1; width: 100%; min-height: 22rem;
+  display: block; position: relative; z-index: 1; width: 100%; height: 100%; min-height: 22rem;
   resize: vertical; background: transparent; color: transparent; caret-color: var(--fg);
 }
 .chart-src-hl { position: absolute; inset: 0; z-index: 0; overflow: auto; pointer-events: none; color: var(--fg); }
+@media (max-width: 640px) {
+  .chart-editor-panes { flex-direction: column; min-height: 0; }
+  .chart-src-wrap, .chart-preview-pane { min-width: 0; flex: 1 1 auto; }
+  .chart-src-ta { min-height: 55vh; }
+  .chart-preview-obj { min-height: 45vh; }
+}
+/* T104: the one-click Edit affordance on a generated-chart row (beside the "text chart" chip). */
+.file-edit-btn { flex: none; white-space: nowrap; }
 .hl-title, .hl-section { color: var(--accent); font-weight: 700; }
 .hl-chord { color: var(--ok-fg); font-weight: 700; }
 .hl-bold { color: var(--fg); font-weight: 700; }

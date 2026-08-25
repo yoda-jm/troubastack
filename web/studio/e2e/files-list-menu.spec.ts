@@ -57,14 +57,18 @@ test("Files: … menu — view-source only on charts, menu reorder persists, ren
   const pdfRow = panel.getByTestId("file-row").filter({ hasNot: page.getByTestId("file-chart-badge") });
   const chartRow = panel.getByTestId("file-row").filter({ has: page.getByTestId("file-chart-badge") });
 
-  // View source is present on the text chart's menu, ABSENT on the PDF's menu.
+  // T104: the Edit-chart affordance is a one-click ROW control now (not a menu item) — present on
+  // the text chart row, ABSENT on the PDF row (there is nothing to edit on a PDF). This is the same
+  // type-awareness the old "View source" menu item carried, moved onto the row.
+  await expect(chartRow.getByTestId("file-chart-edit")).toBeVisible();
+  await expect(pdfRow.getByTestId("file-chart-edit")).toHaveCount(0);
+
+  // Rename remains in each row's ⋯ menu, on both file types.
   await chartRow.getByTestId("file-menu").click();
-  await expect(page.getByTestId("file-menu-source")).toBeVisible();
   await expect(page.getByTestId("file-menu-rename")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await pdfRow.getByTestId("file-menu").click();
-  await expect(page.getByTestId("file-menu-source")).toHaveCount(0);
   await expect(page.getByTestId("file-menu-rename")).toBeVisible();
   await page.keyboard.press("Escape");
 

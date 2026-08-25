@@ -81,8 +81,7 @@ test("write a text chart → it enters the pool as a generated PDF, editable in 
   // Edit the source and re-save: re-renders in place — still exactly one file. The pool NAME is a
   // create-time default that never re-derives (T72), and T79 must not reintroduce title-follow — so
   // retitling the source to "Road Song v2" leaves the row named "Road Song".
-  await page.getByTestId("file-menu").click();
-  await page.getByTestId("file-menu-source").click();
+  await page.getByTestId("file-chart-edit").click(); // T104: one-click row control, no menu
   await expect(page.getByTestId("chart-source")).toHaveValue(/Road Song/);
   await page.getByTestId("chart-source").fill("# Road Song v2\n\n## Chorus\nsing it loud\n");
   await page.getByTestId("chart-save").click();

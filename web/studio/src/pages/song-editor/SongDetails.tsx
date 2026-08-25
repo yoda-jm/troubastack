@@ -526,6 +526,20 @@ export function Files({
                       text chart
                     </span>
                   )}
+                  {/* T104: for a generated chart the source IS the file, so editing is the primary
+                      verb — one click on the row, not buried in the ⋯ menu under a "View source"
+                      label. On PDFs there is nothing to edit, so it stays chart-only. */}
+                  {f.generated && (
+                    <button
+                      type="button"
+                      className="btn-sm file-edit-btn"
+                      data-testid="file-chart-edit"
+                      title="Edit chart"
+                      onClick={() => void editChartSource(f)}
+                    >
+                      ✎ Edit chart
+                    </button>
+                  )}
                   <RowMenu testId="file-menu" label="File actions">
                     {(close) => (
                       <>
@@ -538,17 +552,6 @@ export function Files({
                         >
                           Rename
                         </RowMenuItem>
-                        {f.generated && (
-                          <RowMenuItem
-                            testId="file-menu-source"
-                            onClick={() => {
-                              close();
-                              void editChartSource(f);
-                            }}
-                          >
-                            View source
-                          </RowMenuItem>
-                        )}
                         <RowMenuItem
                           testId="file-menu-up"
                           disabled={!sortable.canMoveUp(i)}
@@ -960,17 +963,17 @@ function ChartEditor({
           chord lines over words.
         </p>
       </div>
-      <div className="chart-editor-panes" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+      <div className="chart-editor-panes">
         {/* D4: lock the source while a transpose Apply is in flight — typing mid-round-trip
             would be clobbered by the setSource/setSavedSource on completion. */}
         <HighlightedSource value={source} onChange={setSource} disabled={transposing} />
-        <div style={{ flex: "1 1 20rem", minWidth: "16rem" }}>
+        <div className="chart-preview-pane">
           {previewUrl ? (
             <object
               data-testid="chart-preview"
               data={previewUrl}
               type="application/pdf"
-              style={{ width: "100%", height: "22rem", border: "1px solid var(--border, #ccc)" }}
+              className="chart-preview-obj"
             >
               <a href={previewUrl}>Open preview PDF</a>
             </object>
