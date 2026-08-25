@@ -89,6 +89,11 @@ jobs:
       - name: install ink
         working-directory: web/ink
         run: npm ci --no-workspaces
+      # T110: browser-free unit tests for studio + ink pure functions (geometry, stroke width, DPR budget).
+      # Fails the build on red, like every other gate. Fast — runs before the heavier tsc/build below.
+      - name: unit tests (vitest)
+        working-directory: web/studio
+        run: npm run test:unit
       # T50/T51 glyph contract: the runtime glyphs.json AND the app mirror CueGlyphData.kt
       # are GENERATED from the hand-authored SVG primitives (glyphs.authoring.mjs) by one
       # generator. Regenerate and fail if either committed output drifts — one source of

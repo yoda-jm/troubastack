@@ -1,5 +1,5 @@
 # TroubaStack top-level dev tasks. See docs/ARCHITECTURE.md for the rules these serve.
-.PHONY: help setup dev run run-api core test studio embed dist e2e check proto app fixtures seed demo band
+.PHONY: help setup dev run run-api core test test-web studio embed dist e2e check proto app fixtures seed demo band
 
 # `make band=<shortname>` sets the `band` variable and (with no explicit target) runs the default goal —
 # so when `band` is set, make the `band` target the default. Plain `make` still shows help.
@@ -15,6 +15,7 @@ help:
 	@echo "  run      single binary: real SPA + API on :8080 (empty, in-memory)"
 	@echo "  run-api  API only from source (serves the SPA placeholder) — backend dev"
 	@echo "  test     run Go tests (engine + stores + http API)"
+	@echo "  test-web browser-free vitest units for studio + ink pure functions"
 	@echo "  e2e      Playwright end-to-end (boots core + vite + chromium)"
 	@echo "  dist     build SPA -> embed -> core/bin/troubacore"
 	@echo "  check    go vet + gofmt"
@@ -53,6 +54,11 @@ core:
 
 test:
 	cd core && go test -race -timeout=30m ./...
+
+# T110: browser-free unit tests for the pure functions in studio + ink (vitest). Fast — no vite server,
+# no chromium. Complements `e2e` (which stays for what only a browser can reach).
+test-web:
+	cd web/studio && npm run test:unit
 
 studio:
 	cd web/studio && npm run build

@@ -106,12 +106,14 @@ export type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 // Coordinate helpers
 // ---------------------------------------------------------------------------
 
-function toPx(p: InkPoint, page: PageRect): [number, number] {
+// T110: exported for unit testing (pure, no ctx).
+export function toPx(p: InkPoint, page: PageRect): [number, number] {
   return [page.x + p.x * page.w, page.y + p.y * page.h];
 }
 
 /** Stroke width in device px: style.width is a fraction of the page width. */
-function strokePx(style: InkStyle, page: PageRect): number {
+// T110: exported for unit testing (pure, no ctx).
+export function strokePx(style: InkStyle, page: PageRect): number {
   // Guard a sane minimum so a hairline never disappears.
   return Math.max(0.5, style.width * page.w);
 }

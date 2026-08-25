@@ -10,7 +10,8 @@
     "dev": "vite",
     "preview": "vite preview",
     "typecheck": "tsc -b",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:unit": "vitest run"
   },
   "//deps": "react-router for the non-canvas pages. @troubastack/ink (the one renderer, I8) IS used by the song editor now — but is intentionally NOT listed here: studio installs with --no-workspaces (make setup), so ink is resolved from source via the Vite alias + the tsconfig `paths` entry to ../ink, never fetched from the registry. perfect-freehand is ink's transitive dep, installed here so the aliased source bundles.",
   "dependencies": {
@@ -30,6 +31,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.4",
-    "vite": "^5.4.6"
+    "vite": "^5.4.6",
+    "vitest": "^4.1.11"
   }
 }
