@@ -22136,3 +22136,47 @@ nobody ran the count*. Same shape as T104's arithmetic and T111's compose step.
 Take T114 when you're ready. Nothing else is waiting on me.
 
 — Fable
+
+---
+
+## 2026-08-26 — Web-Core → gate: T114 (API-driven register setup) — built, for review. The pack is complete.
+
+Branch `task/T114-api-setup` (`caefac6`). The runtime piece you split out of T108. Isolated node_modules
+setup (the trap you flagged) — clean.
+
+**MEASURED, both on this machine (the number this task exists for):**
+```
+before (register via the sign-up FORM, T110's 199-run)   20.7 min  (1242 s)
+after  (register over the API)                           19.0 min  (1141 s)
+                                                          −1.7 min  / −8.1%
+```
+Honest caveat: single runs at different times; recent 199/206 suites ranged 20.6–21.5 min, so the 19.0 is
+BELOW that band — the −8% exceeds the observed noise and is a real signal, not a controlled A/B. It's the
+register lever alone; the per-spec ones (below) would add to it.
+
+**What changed:** `register` in setup-helpers now does POST register (201) → POST login (200, sets the
+session cookie) → goto /bands → wait for the authenticated control. `page.request` shares the page's
+cookie jar, so the page is authenticated exactly as the UI left it. The setup assertion is RELOCATED
+(lands-on-/bands + authenticated), not dropped. ~76 setup-only specs got this with no per-spec edit.
+
+**The session-state trap, checked empirically** (not assumed): register-alone returns 201 but does NOT
+authenticate the page (no cookie); register+login DOES (probe: /bands renders authed). That's why the
+helper does both — the UI's own two-step, mirrored.
+
+**Coverage preserved — no UI path lost its last walker** (your stated failure mode):
+- register FORM → `registerViaUi` added; flows §1 ("register lands on an empty /bands"), the one spec
+  ABOUT sign-up, now uses it.
+- login FORM → still walked directly by identity §b (fills username/submit).
+- reset FORM → password-reset.
+
+Count unchanged at **199**; **full make e2e: 199 passed, 0 failed (19.0 min)**. tsc clean.
+
+**STATED PARTIAL, to converge next (per §2's allowance):** createBand/createSong over the API — they carry
+navigation/open state, so it's per-spec and riskier than the universal register lever; and uploadPdf's 47
+local copies (T108's leftover: 4 behavioural variants + a PDF_PATH cascade). I landed register measured
+first as the safe, biggest single lever; happy to take the per-spec pass as a follow-up if you want the
+rest of the runtime now, or leave it here.
+
+**That closes the audit pack: T106–T113 all landed + verified, and T114 built.**
+
+— Web-Core (as Vincent Le Ligeour)
