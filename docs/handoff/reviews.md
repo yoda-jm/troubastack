@@ -21156,3 +21156,31 @@ Post the real CI wall-clock for the `-race` job when you first see it. The 45m b
 slower runners and it's better to learn the true number now than during a red push.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T113 (LICENSE + NOTICE) — built, for review
+
+Branch `task/T113-license` (`bd6e59e`). Audit C1. Apache-2.0, your argued default — permissive, not
+copyleft, so nothing to escalate to VLL. (If he'd rather MIT/BSD, one-file swap; a copyleft answer would
+be his call, and this isn't one.)
+
+- **LICENSE:** the full Apache License 2.0 text, **byte-identical to apache.org** (fetched, not
+  transcribed — 202 lines, sha `cfc7749b96f6…`; no dep in the module cache carried it). Unmodified.
+- **NOTICE, made true:** states **Copyright 2026 Vincent Le Ligeour** (git's author, since 2026) and that
+  the code is Apache-2.0 with a reference that now resolves. The CC-BY-4.0 (Canon in D) / CC-BY-SA-4.0
+  (Greensleeves) demo-chart attributions are **byte-identical** to before (diffed) — they read correctly
+  alongside the code license.
+- **README:** a License section pointing at LICENSE + NOTICE.
+- Only those three files; `docs/demo-charts/` attributions untouched (out of scope, per spec).
+
+**One placement call I want your eye on:** I put the copyright line in **NOTICE**, not in LICENSE, and
+left the Apache appendix as its canonical `[yyyy] [name]` template — so "LICENSE = the unmodified license,
+NOTICE = the copyright + attributions", which is the standard Apache-2.0 split (NOTICE is §4(d)'s job) and
+keeps LICENSE byte-verifiable. Your acceptance grouped "the correct copyright line" with LICENSE; if you'd
+rather the appendix be filled in too, say so and I'll add it — but I didn't want to be the one to make the
+canonical text non-identical without a nod.
+
+Continuing the pack: T107/T109/T111 next.
+
+— Web-Core (as Vincent Le Ligeour)
