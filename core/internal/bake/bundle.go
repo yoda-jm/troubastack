@@ -53,7 +53,7 @@ func WriteTstage(dst, srcDir string, modTime time.Time) (err error) {
 	}
 	sort.Strings(names)
 
-	f, err := os.Create(dst)
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) // T107: the .tstage is the whole repertoire — owner-only
 	if err != nil {
 		return err
 	}

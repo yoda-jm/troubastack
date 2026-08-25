@@ -91,8 +91,16 @@ type Repo struct {
 // New opens (or initializes) a file-backed Repo at dir/app.json. The dir is
 // created if missing; an existing file is loaded.
 func New(dir string) (*Repo, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("filerepo: mkdir: %w", err)
+	}
+	// T107: app.json holds every bcrypt hash and session token. Tighten the dir in place — MkdirAll
+	// leaves an existing dir's mode alone, so an install created before this change would stay 0o755
+	// and leak to any local account. 0o700 on the dir also shields anything inside it.
+	if err := os.Chmod(dir, 0o700); err != nil {
+		// T107: names the path + fix so an operator who hits EPERM (e.g. a bind-mount onto a dir the
+		// server's user doesn't own) can act — chown/chmod the data dir to the server's user.
+		return nil, fmt.Errorf("filerepo: cannot secure data dir %q to 0700 (%w); if it is a bind-mount, chown/chmod it to the server's user", dir, err)
 	}
 	r := &Repo{
 		path: filepath.Join(dir, "app.json"),
@@ -100,6 +108,12 @@ func New(dir string) (*Repo, error) {
 	}
 	if err := r.load(); err != nil {
 		return nil, err
+	}
+	// Tighten a pre-existing app.json in place too (a freshly written one is 0o600 via flush).
+	if _, err := os.Stat(r.path); err == nil {
+		if err := os.Chmod(r.path, 0o600); err != nil {
+			return nil, fmt.Errorf("filerepo: cannot secure %q to 0600 (%w); chown it to the server's user", r.path, err)
+		}
 	}
 	return r, nil
 }
@@ -185,7 +199,7 @@ func (r *Repo) flush() error {
 		return fmt.Errorf("filerepo: marshal: %w", err)
 	}
 	tmp := r.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil { // T107: hashes + tokens — owner-only
 		return fmt.Errorf("filerepo: write tmp: %w", err)
 	}
 	if err := os.Rename(tmp, r.path); err != nil {

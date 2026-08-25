@@ -99,8 +99,13 @@ type File struct {
 
 // NewFile opens (creating if needed) a file-backed blob store under dir.
 func NewFile(dir string) (*File, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("blob: mkdir: %w", err)
+	}
+	// T107: blobs are user content (uploaded PDFs/images). Tighten the dir in place (0o700) — it shields
+	// blobs written 0o644 before this change; new blobs are written 0o600 in Put.
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("blob: cannot secure blob dir %q to 0700 (%w); if it is a bind-mount, chown/chmod it to the server's user", dir, err)
 	}
 	return &File{dir: dir}, nil
 }
@@ -119,7 +124,7 @@ func (f *File) Put(data []byte) (string, error) {
 		return h, nil // already stored
 	}
 	tmp := dst + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, data, 0o600); err != nil { // T107: user content — owner-only
 		return "", fmt.Errorf("blob: write tmp: %w", err)
 	}
 	if err := os.Rename(tmp, dst); err != nil {

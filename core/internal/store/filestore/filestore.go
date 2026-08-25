@@ -94,13 +94,15 @@ func (f *File) load(songID string) (*loaded, error) {
 
 func (f *File) append(songID string, r record) error {
 	path := f.songPath(songID)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	// T107: annotation history is user content. New dirs 0o700, new files 0o600. Pre-existing trees are
+	// additionally shielded by the DataDir the file app store tightens to 0o700 in place (same root).
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(f.dir, "blobs"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(f.dir, "blobs"), 0o700); err != nil {
 		return err
 	}
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}

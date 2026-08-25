@@ -256,7 +256,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	concertID := setlistID
 	name := detail.Setlist.Name
 	concertDir := filepath.Join(b.bakesDir, concertID)
-	if err := os.MkdirAll(concertDir, 0o755); err != nil {
+	if err := os.MkdirAll(concertDir, 0o700); err != nil {
 		return ConcertBundle{}, bakeID, err
 	}
 
@@ -283,7 +283,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 			continue
 		}
 		stageDir = filepath.Join(concertDir, revName+".tmp")
-		mkErr := os.Mkdir(stageDir, 0o755)
+		mkErr := os.Mkdir(stageDir, 0o700)
 		if mkErr == nil {
 			break
 		}
@@ -301,7 +301,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	}()
 
 	blobsDir := filepath.Join(stageDir, "blobs")
-	if err := os.MkdirAll(blobsDir, 0o755); err != nil {
+	if err := os.MkdirAll(blobsDir, 0o700); err != nil {
 		return ConcertBundle{}, bakeID, err
 	}
 
@@ -395,7 +395,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		if err != nil {
 			return ConcertBundle{}, bakeID, err
 		}
-		if err := os.WriteFile(filepath.Join(stageDir, "bundle.json"), manifest, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(stageDir, "bundle.json"), manifest, 0o600); err != nil {
 			return ConcertBundle{}, bakeID, err
 		}
 		if err := WriteTstage(tstageStage, stageDir, time.Unix(bundle.BakedAt, 0)); err != nil {
@@ -606,7 +606,7 @@ func (b *Baker) assembleSong(st stagedSong, overlays []renderedOverlay, blobsDir
 	}
 	for i, r := range st.rasters {
 		rasterRef := fmt.Sprintf("blobs/s%d-p%d-raster.png", st.si, i)
-		if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(rasterRef)), r, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(rasterRef)), r, 0o600); err != nil {
 			return BakedSong{}, err
 		}
 		page := PageImages{PageRasterRef: rasterRef, RasterHash: Sha256Hex(r)}
@@ -614,7 +614,7 @@ func (b *Baker) assembleSong(st stagedSong, overlays []renderedOverlay, blobsDir
 		sort.Slice(ovs, func(a, b int) bool { return ovs[a].Order < ovs[b].Order })
 		for _, ov := range ovs {
 			ref := fmt.Sprintf("blobs/s%d-p%d-%s.png", st.si, i, safeName(ov.LayerID))
-			if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(ref)), ov.PNG, 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(ref)), ov.PNG, 0o600); err != nil {
 				return BakedSong{}, err
 			}
 			li := LayerImage{
