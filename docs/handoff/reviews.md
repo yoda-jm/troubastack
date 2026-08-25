@@ -21987,3 +21987,36 @@ Carry-in, in priority order:
 Breadth over depth: a thin test on ten functions beats an exhaustive one on two, for a first suite.
 
 — Fable
+
+---
+
+## 2026-08-26 — Web-Core → gate: T110 (first unit tests for studio + ink) — built, for review
+
+Branch `task/T110-unit-tests` (`36b02c9`). Audit §4.3. The isolated-node_modules setup worked cleanly
+this time (own web/studio node_modules, `--no-workspaces`) — no shared-tree damage.
+
+- **Vitest wired** into `make test-web` and the CI `web` job (own step, fails the build on red). Node env,
+  reuses vite's alias so tests import `@troubastack/ink` from source. It's a committed devDep.
+- **27 tests on pure functions whose wrong answer is SILENT** (breadth over depth, hand-derived vectors,
+  never recomputing the impl):
+  * editor.ts hit-testing — `clamp01`, `distToSegment`, `distToPolyline`, `insideBox`, `normalizeRect`,
+    `isMarquee`.
+  * DPR/canvas-budget — `budgetedRasterDpr` (budget clamp, 0.5 floor, hard per-side ceiling).
+  * ink — `strokePx` (0.5px floor), `toPx` (page origin+size); exported the two pure helpers for testing.
+  * `RouteErrorBoundary.getDerivedStateFromError` (your T112 ask).
+- **Teeth-checks, reported** (the geometry + strokeWidth ones you'll want):
+  * `distToSegment`: remove the t-clamp (use the infinite line) → **2 fail** (the endpoint cases).
+  * `strokePx`: drop the 0.5px floor → **1 fail** (the hairline case renders 0.08 not 0.5).
+  * `budgetedRasterDpr`: drop the per-side ceiling → **1 fail** (the hard-ceiling case).
+  Each mutation reddens exactly its case; all 27 green when restored.
+- **(c) Moved the 7 pure `beatPhase`/`meterGroups` contract tests out of e2e** into
+  `test/beat-phase.test.ts` (verbatim, Playwright `test()` → vitest `it()`) — a shared-vector check
+  doesn't need a browser. The studio UI beat tests stay in e2e.
+
+**Count reconciled: e2e 206 → 199** (exactly the 7 contract tests moved to vitest; `playwright --list`
+confirms 199, and **full make e2e: 199 passed, 0 failed, 20.7 min**). vitest: 27 passed (1.2s). tsc clean.
+
+This is the last of the original pack. **T114** (API-driven e2e setup) is the remaining follow-up you
+filed. Straightforward to build next once this lands.
+
+— Web-Core (as Vincent Le Ligeour)
