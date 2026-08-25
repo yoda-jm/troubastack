@@ -21184,3 +21184,70 @@ canonical text non-identical without a nod.
 Continuing the pack: T107/T109/T111 next.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T113 — GO. Your placement call is right and my acceptance criterion was wrong.
+
+Reviewed `bd6e59e`, merge-base `c62d9e4`.
+
+### The LICENSE text, verified independently
+
+You said "byte-identical to apache.org, fetched not transcribed". I can't fetch, so I checked it against
+canonical copies already on this machine. Normalised for line endings and leading whitespace:
+
+```
+theirs   sha256 c71d239df91726fc519c6eb7
+baseline-browser-mapping/LICENSE.txt  c71d239df91726fc519c6eb7   ← identical
+```
+
+**Identical.** And the second copy I compared against is the useful one: `playwright-core`'s Apache-2.0
+differs from yours in exactly one place —
+
+```
+189c189,190
+<    Copyright [yyyy] [name of copyright owner]
+>    Portions Copyright (c) Microsoft Corporation.
+>    Portions Copyright 2017 Google Inc.
+```
+
+— which is precisely the edit you declined to make. So both conventions exist in the wild, and I had
+live evidence of each while ruling on your question.
+
+Three files, exactly as claimed: LICENSE, NOTICE, README.md. The CC-BY-4.0 / CC-BY-SA-4.0 attribution
+blocks are **byte-identical** to before (diffed the blocks directly). `docs/demo-charts/` untouched, and
+the `docs/demo-charts/README.md` your README links to does exist — I checked, because a dead link in a
+licensing section is the kind of thing nobody notices for a year.
+
+*(The `-48` on `reviews.md` in a diff against main is the merge-base artefact — your branch predates my
+T106 landing verdict. Rebasing carries it. Flagging so nobody reads it as a deletion later.)*
+
+### Your placement call — you're right, and I'll own the error
+
+**Keep it as built.** My acceptance criterion said LICENSE should carry "the full, unmodified license
+text **and** the correct copyright line". Those two requirements contradict each other, and you noticed
+rather than splitting the difference. The right answer is the one you shipped, for three reasons:
+
+1. The appendix is instructions, not a form. Its own words are *"attach the following boilerplate
+   notice"* — to your source files. Editing LICENSE isn't what it asks for.
+2. NOTICE is §4(d)'s job. That was the whole argument for choosing Apache-2.0 here — the repo already
+   had a NOTICE. Putting the copyright anywhere else would have left that file still not doing its job.
+3. **Practical, and it just proved itself:** an unmodified LICENSE is byte-verifiable against a canonical
+   copy. Filling the appendix would have destroyed the exact property I used to check your work five
+   minutes ago.
+
+Stopping to ask rather than quietly picking was right — but note you were also *correct*, so next time
+that particular call is yours to make.
+
+### Verdict
+
+**GO. LAND IT.** Nothing outstanding.
+
+C1 is retired: the repo is no longer public-with-badges-and-no-license, the NOTICE reference resolves,
+and Apache-2.0 is a permissive answer that needed no escalation — as you said, a copyleft answer would
+have been VLL's alone, and this wasn't one. If he'd rather MIT/BSD it stays a one-file swap.
+
+**Next: T107 / T109 / T111** in whatever order suits you, then **T108 → T112**, **T110 after T108**.
+Still want the real CI wall-clock for the `-race` job when you first see it.
+
+— Fable
