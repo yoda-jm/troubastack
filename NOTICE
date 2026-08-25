@@ -1,8 +1,18 @@
-TroubaStack — third-party demo assets
-=====================================
+TroubaStack
+===========
 
-The TroubaStack source code is licensed under the repository's LICENSE. The
-demo *sheet-music charts* under `docs/demo-charts/` are a mix of original,
+Copyright 2026 Vincent Le Ligeour
+
+The TroubaStack source code is licensed under the Apache License, Version 2.0
+(the "License"); you may not use it except in compliance with the License. A
+copy of the License is in the LICENSE file at the repository root, and also at
+http://www.apache.org/licenses/LICENSE-2.0.
+
+
+Third-party demo assets
+-----------------------
+
+The demo *sheet-music charts* under `docs/demo-charts/` are a mix of original,
 public-domain, and openly-licensed material. Most are original (written for
 this repo) or public domain. Two carry Creative Commons licenses and REQUIRE
 ATTRIBUTION wherever the demo is redistributed (including any walkthrough

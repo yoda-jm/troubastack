@@ -252,3 +252,11 @@ The product loop is closed and CI-gated end to end:
 ## Toolchains
 
 Go 1.26+ · Node 24+ / npm 11+ · JDK 21+ + Android SDK (mobile app) · buf (proto lint; CI runs it).
+
+## License
+
+TroubaStack is licensed under the [Apache License 2.0](LICENSE). The demo sheet-music
+charts under `docs/demo-charts/` carry their own licenses — most original or public
+domain, two under Creative Commons (CC-BY-4.0 / CC-BY-SA-4.0) that must be credited
+wherever the demo is redistributed. See [`NOTICE`](NOTICE) and
+[`docs/demo-charts/README.md`](docs/demo-charts/README.md).
