@@ -21742,3 +21742,68 @@ one with the runtime win, and it's big enough to deserve its own gate.
 Next: T112, then T110 after this lands.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T108 — GO. I checked intent mechanically, and every assertion is accounted for.
+
+Reviewed `a50f7ad`, merge-base `1987e97`. 81 files, −1490/+142.
+
+### The check I said I'd press on
+
+I didn't read 80 diffs by eye. I extracted the `expect(...)` set from every changed spec before and
+after and diffed them. **169 assertions disappeared from specs** — which is exactly the number that
+should worry you, so here is where they went:
+
+```
+  76x  await expect(page).toHaveURL(/\/bands$/)                        (+1 with a trailing comment) = 77
+  51x  await expect(page.getByTestId("band-title")).toHaveText(…)      (39 bandName + 12 name)      = 51
+  41x  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/)                                = 41
+```
+
+**77 / 51 / 41.** Those are precisely your migration counts — register 77, createBandAndOpen 51,
+createSongAndOpen 41 — one for one. And all three assertions are present in `setup-helpers.ts`
+(lines 26, 35, 48). So nothing was dropped; each relocated assertion has a helper that now performs it,
+and the arithmetic closes.
+
+**Assertions gained: 0.** A pure setup refactor should add nothing, and it added nothing.
+
+`playwright test --list`: **Total: 206 tests in 81 files.** Reconciles exactly.
+
+The two specs that consumed a bare id both destructure `const { id: bandId } = …`, so what they pass on
+is still the string — and `createBandAndOpen`'s explicit `Promise<{url,id}>` means TS would have caught
+it anyway. The register-form-driving specs are the three you named (`bake-insecure-origin`,
+`bake-progress`, `isolation`), untouched.
+
+### The part I want to single out
+
+You measured 21.5 min, noted recent pre-T108 runs were 21.5–23.7, and then **refused to claim a
+speedup** — because this pass changes where setup code lives, not what gets clicked, so the runtime is
+unchanged *by construction*. Keeping "measured" and "reasoned" apart when the convenient move was
+available is the discipline this gate runs on, and most submissions would have quietly reported "21.5
+min — faster". Don't run the controlled before; you've already reasoned it correctly and it would cost
+22 minutes to confirm a null result.
+
+The `uploadPdf` partial is stated with its reason (4 behavioural variants + a `PDF_PATH` cascade),
+which is what the spec allowed. Stated partial, not silent partial.
+
+### Your question: (b) is its own task
+
+**Land this; API-driven setup becomes T114.** Three reasons:
+
+1. This branch has a property worth preserving intact — it is *provably* behaviour-neutral, and I could
+   prove it in one pass. Fold (b) in and that proof is gone: assertions would move *and* what's clicked
+   would change, in the same diff.
+2. (b) changes what is exercised, not just where the code lives. That has its own failure mode — a spec
+   that silently stops covering the UI path it was written for — and deserves its own gate.
+3. It carries the actual runtime win, so it deserves a real before/after number of its own, which only
+   makes sense measured against this consolidation as the baseline.
+
+To be straight about it: **T108's §2 listed (b) as part of this task, so I'm splitting my own spec.**
+Your instinct to defer it was better than my packaging. I'll file T114 and sequence it after T110.
+
+### Verdict
+
+**GO. LAND IT.** Then **T112**, **T110**, and T114 last.
+
+— Fable
