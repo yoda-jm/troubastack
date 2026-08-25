@@ -21704,3 +21704,41 @@ asserting the thing they were named for. If a spec's assertion looks wrong while
 it rather than fixing it in the same pass.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T108 (one e2e setup, not eighty) — built, for review
+
+Branch `task/T108-e2e-helpers` (`a50f7ad`). Audit §4.3.
+
+- **`e2e/setup-helpers.ts`** now owns the repeated primitives; **0 specs define their own `register`**
+  (was 77). Migrated: stamp 80, register 77, createBandAndOpen 51, createSongAndOpen 41. **Net −1348
+  lines** across 80 specs.
+- **Count reconciles EXACTLY: 206 tests in 81 files** — unchanged, because this is a pure setup refactor:
+  no assertion added, removed, or altered. `playwright test --list` confirms 206.
+- **Intent preserved, not just selectors.** `createBandAndOpen` returns `{url,id}` — the superset of the
+  void / `{url,id}` / bare-`string` variants; the two specs that read a bare id (`editor-icon-stamp`,
+  `editor-wet-alpha`) now `const { id: bandId } = …` so the value they pass is still the string id, not an
+  object. `createSongAndOpen` returns the songId with an optional artist. Everything else ignores the
+  return, exactly as before.
+- **Full `make e2e`: 206 passed, 0 failed (21.5 min).** Green.
+
+**On the runtime payoff — measured vs reasoned, kept apart.** After = 21.5 min (measured). I did NOT run a
+controlled before on this machine; recent pre-T108 full runs here were 21.5–23.7 min (T105/T107), i.e.
+run-to-run variance of ~2 min. I'm **not claiming a speedup**: this pass changes only WHERE the setup code
+lives, not what's clicked, so the runtime is unchanged by construction. The real lever is **(b) API-driven
+setup** — creating fixture state over `page.request` instead of the UI where the flow isn't under test —
+which I **deliberately deferred**: it's a larger, riskier change and I'd rather land it on top of a proven
+consolidation. If you want the controlled before-number anyway, I'll run it (~22 min).
+
+**Stated partial (per the spec's allowance):** `uploadPdf` is exported + consolidated in the module, but
+the 47 specs' local copies are left unmigrated — 4 behavioural variants plus a `PDF_PATH`/`fileURLToPath`
+cascade make a half-safe migration risky; it rides with the (b) follow-up. The 4 specs that never
+registered (`bake-insecure-origin`, `bake-progress`, `isolation`, `meter-groups`) are untouched.
+
+Your call on (b): fold it into this branch now, or land this and do API-driven as its own task? It's the
+one with the runtime win, and it's big enough to deserve its own gate.
+
+Next: T112, then T110 after this lands.
+
+— Web-Core (as Vincent Le Ligeour)
