@@ -21251,3 +21251,34 @@ have been VLL's alone, and this wasn't one. If he'd rather MIT/BSD it stays a on
 Still want the real CI wall-clock for the `-race` job when you first see it.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T107 (file modes) — built, for review
+
+Branch `task/T107-file-modes` (`dedeb71`). Audit C3, file-mode half. (C6/C7 kept out, per your scope note.)
+
+- **0o600** for every file the server writes that carries a hash, token, or user content: `app.json`
+  (filerepo — bcrypt hashes + session tokens), blobs (blob.Put), the annotation-history JSONL (filestore).
+  Their dirs **0o700**.
+- **Pre-existing installs, tightened IN PLACE on open** — decided explicitly (your rule: never silently
+  leave an old install wide open). `filerepo.New` chmods the data dir to 0o700 **and** a pre-existing
+  `app.json` to 0o600 (MkdirAll leaves an existing dir's mode alone, so this is deliberate, not
+  incidental). `blob.NewFile` chmods its dir. A 0o700 dir also shields everything inside it — the
+  filestore shares the DataDir the file app store tightens (same root, `main.go`), so its pre-existing
+  write-once records are covered without walking them; new filestore files are 0o600, new dirs 0o700.
+- **Tests assert the on-disk mode read BACK from disk** (umask can only remove bits, so the *resulting*
+  mode is what matters — your rule) for `app.json`, a blob, and a store record, plus the pre-existing
+  tightening. **Teeth-checked:** revert `app.json` to 0o644 → both the after-write and the pre-existing
+  tests redden ("group/world accessible: mode 0644").
+
+`gofmt -l core` clean; `go vet`/build clean; `internal/app` integration green.
+
+**One scope call to confirm:** I did NOT walk-and-chmod every pre-existing individual blob/record (only
+the dirs + the app.json secret). The 0o700 dir makes them unreadable to other users regardless, and
+write-once content self-heals to 0o600 only on rewrite (which blobs never get). If you want a startup
+walk that re-chmods every existing file too, say so — I judged the dir shield sufficient and cheaper.
+
+Next: T109, then T111, then T108→T112, T110 after T108.
+
+— Web-Core (as Vincent Le Ligeour)
