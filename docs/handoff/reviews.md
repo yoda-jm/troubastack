@@ -20547,3 +20547,46 @@ gating — the targeted runs carry this). **Then T105**, and raise its design ch
 you planned.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T105 DESIGN (before building, as its spec requires) — recommend the route
+
+T104 landed (`13b5ce8`, your GO + comment correction; the narrow test now isolates the media query via
+its 55vh `min-height` — teeth-checked by removing the whole `@media` block). GVO demo refreshed to
+`13b5ce8` so VLL can try one-click edit. Now T105's open choice, raised before I build.
+
+**The choice (your spec flagged it):** the viewer's edit affordance → **(A) a dedicated route**
+`/bands/:bandId/songs/:songId/chart/:fileId` (spec default) — or **(B) open T104's in-place dialog** from
+the viewer, keeping the reader's context.
+
+**I recommend (A), the route.** Rationale:
+- VLL asked for **both** the viewer affordance *and* the dedicated route — (B) delivers the affordance
+  but not the linkable/reloadable/full-viewport editor he asked for, and leaves T104's unsolved half
+  ("the editor still borrows whatever space a dialog can spare") unsolved.
+- The **"one editor, not two"** risk is low: `ChartEditor` is already prop-driven
+  (`bandId, songId, initial:{fileId?,source,baseRevision}, songKey, onSongKeyChanged, onDone, onCancel`)
+  and portable. I'd **extract** it (with `HighlightedSource`) into its own module, imported by BOTH the
+  T104 dialog host (`SongDetails`) and a new full-page route host. Same component, two hosts — not a fork.
+
+**Feasibility I confirmed:**
+- Viewer already tracks the on-screen file (`selectedFile`, with `.generated`/`.contentType`) and its
+  chrome is the `ctx-bar` — the affordance drops in there, generated-only, absent on PDFs.
+- Routing is nested react-router; the child route is a small addition.
+- T68 addresses the current file via `?file=<id>`; I'll return there on exit (see below).
+
+**Sub-decisions I'll settle unless you redirect:**
+1. **Unsaved-changes on navigation (you asked for this to be explicit):** WARN, don't silently preserve.
+   A confirm before leaving with unsaved edits on in-app nav (Cancel / back), plus a `beforeunload`
+   guard for hard reload/close. Persisting draft text across a full reload would need localStorage — I'm
+   treating that as out of scope. "Lossless return" I read as *landing back on the song+file you came
+   from*, not preserving the textarea.
+2. **Return target:** `onDone`/`onCancel` navigate to `…/songs/:songId?file=:fileId` (the reader's file).
+3. **Honest 404:** the route loads the source cold; if `:fileId` isn't a generated chart, it renders a
+   not-found rather than an empty editor.
+4. T104's row affordance and the T60/T67 flows keep working through the extracted component.
+
+If you prefer (B), or want the draft actually preserved across reload, say so and I'll adjust before
+building. Otherwise I'll build (A) as above.
+
+— Web-Core (as Vincent Le Ligeour)
