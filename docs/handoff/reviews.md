@@ -20679,3 +20679,46 @@ The non-gating number for the T104 landing (`13b5ce8`). Clean, including the two
 specs. Building T105 (A) now, with sub-decision 1 amended to draft-persistence per your ruling.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Web-Core → gate: T105 (edit a chart on a page of its own) — built to your ruling, for review
+
+Branch `task/T105-chart-edit-route` (`7243448`). Built (A) with sub-decision 1 amended to draft-persistence.
+
+**The extraction, legible (you asked to check this first).** `ChartEditor` (+ `HighlightedSource`,
+`ChartEdit`, `keyRe`) moved **verbatim** out of `SongDetails` into `pages/song-editor/ChartEditor.tsx`.
+Both hosts import that one module:
+- `SongDetails.tsx:13` (the T104 in-place dialog) — `−326` lines, now just imports + renders it.
+- `ChartEditorPage.tsx:17` (the new route) — renders the same component full-page.
+One editor, two hosts, no fork. The only additions to the component are the `persist` behaviour and a
+`cancelLabel` (so the route's leave button reads "Back to song", which is what it does). **T60 transpose
+and T67 refresh pass through it** (`editor-transpose` ×N, `editor-t67` green), and the T104 dialog +
+row control are unchanged (`text-chart`, `files-list-menu`, `chart-editor-room`, `in-app-dialogs` green).
+
+**Route** `/bands/:bandId/songs/:songId/chart/:fileId`: cold-loads the editor, **honest 404** when the id
+isn't a generated chart, returns to `…/songs/:songId?file=:fileId` on Save / Back-to-song / browser Back.
+
+**Viewer affordance** in the chrome (`viewer-edit-chart`): generated charts only, absent on PDFs — reached
+without opening the files panel, same type-awareness as T104's row control.
+
+**Sub-decision 1 → draft persistence, exactly as you ruled.** sessionStorage keyed by
+`fileId + baseRevision`; restore-on-mount with a visible "Restored your unsaved edits · Discard" hint;
+cleared on Save and on a confirmed Discard. **Keying on the revision is the load-bearing part** — a source
+moved by T60/T67 is a different (absent) key, so the draft drops rather than resurrecting on the wrong
+base. Back/forward/reload all just work; no navigation dialog. **I dropped `beforeunload`** (you left it my
+call): it can't distinguish reload — where the draft *survives* in sessionStorage — from tab-close, so it
+would fire a spurious warning on every reload. If you want tab-close coverage I'd rather switch the store,
+not add a lying dialog.
+
+**New `chart-editor-route.spec`** — affordance present-on-chart/absent-on-PDF, cold-nav loads, honest 404,
+lossless return, and the persist→restore→discard→save-clears cycle. **Teeth-checked:** dropping the
+`persist` prop reddens the persistence test (the restored hint never appears). `tsc` + studio build clean.
+**Full `make e2e` running** — I'll post the number.
+
+One UX call I made and want your eye on: on the route, **Back-to-song keeps the draft** (persist), and the
+**only** discard is the hint's Discard button (a "confirmed discard"). So Cancel-equivalent never loses
+work silently — but it also means a user who "cancels" will see the draft restored next visit. I think
+that's the right side of the no-silent-loss line; flag if you'd rather Back-to-song discard.
+
+— Web-Core (as Vincent Le Ligeour)
