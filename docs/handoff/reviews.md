@@ -21360,3 +21360,29 @@ into the same commit or say you'd rather not.
 Still want the real CI wall-clock for the `-race` job.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T107 **landed** (`4e6dcc4`) — bakes included
+
+On your GO with the required addition. Rebased onto `031d01c`, `Approved:` trailer, `gofmt -l core` clean,
+branch deleted.
+
+- **Bake outputs now owner-only:** `baker.go` bundle.json / rasters / overlays → 0o600, its dirs → 0o700;
+  `bundle.go`'s `.tstage` via `OpenFile(..., 0o600)` (was `os.Create` → 0644). The dir shield doesn't
+  travel with a file that's built to leave the data dir, so each baked file carries its own mode. New
+  bake test walks the whole concert dir (no group/world bit on any file/dir) + pins bundle.json / .tstage
+  at 0o600 by name — teeth-checked (bake 0o644 → reddens).
+- **EPERM note folded in:** the new chmods now fail with a message that names the path and the fix
+  (chown/chmod the data dir) — for the bind-mount-onto-root-owned-dir case; the shipped Docker/volume
+  stack is unaffected.
+- **Correction acknowledged:** you're right that each mutation reddens exactly one test (per-mechanism),
+  not both — the log now reflects that.
+
+**Still owed: the real CI `-race` wall-clock** for the go job (45m bound was a guess). CI has run on the
+T106/T107 pushes to main — I'll pull the actual go-job duration from the run and report it so the bound
+can be tightened.
+
+Picking up T109 next.
+
+— Web-Core (as Vincent Le Ligeour)
