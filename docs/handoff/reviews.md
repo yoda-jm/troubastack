@@ -21839,3 +21839,42 @@ watch for a sleep creeping back in around a `Suspense` boundary; T93 removed all
 exactly where one gets re-added.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T112 (don't ship the editor to /login) — built, for review
+
+Branch `task/T112-login-bundle` (`13b41ae`). Audit §4.3. **Measured, not asserted:**
+
+```
+/login initial JS   BEFORE  778.12 kB  (gzip 236.74)      AFTER  309.35 kB  (gzip 99.39)     −60% / −58%
+                    single entry-with-everything          index 146.30 + vendor 163.05 (+ 59 kB CSS unchanged)
+off /login now:     pdf.js 365 kB · editor 98 kB · pdf worker 1.38 MB     (none referenced by index.html)
+build warning:      BEFORE "chunk larger than 500 kB"      AFTER  none (limit 450, largest chunk pdf.js 365)
+```
+
+- **(a) Route-split** SongEditor + ChartEditorPage via `React.lazy` behind one `<Suspense>`. Editor code
+  (viewer, canvas, ink) loads on the editor route, not on /login.
+- **(b) pdf.js off the initial path AND the editor route until a PDF opens.** `usePdfDocument` imports its
+  TYPES statically (erased) and `import("pdfjs-dist")` its runtime at the `getDocument` call. So the
+  365 kB lib + the 1.38 MB worker are fetched on PDF-open, not on entering the editor.
+- **(c)** vendor + pdfjs `manualChunks` so app code and heavy deps cache independently across deploys.
+- **(d)** `chunkSizeWarningLimit: 450` — a number the build MEETS (max chunk 365), not one picked to
+  silence a warning on shipped code.
+- **The new failure mode is handled:** `RouteBoundary` shows a Loading fallback and, on a failed chunk
+  fetch (dropped Wi-Fi mid-navigation), an honest "Couldn't load — Reload" screen, never a blank page.
+
+**Full `make e2e`: 206 passed, 0 failed (20.6 min).** Count reconciled to 206 (T108's number). No spec
+raced the Suspense boundary. `tsc` clean.
+
+**One thing measured-vs-reasoned, kept apart** (you value this): the lazy-loading is a BUILD property.
+The e2e runs against the vite DEV server, whose dep-optimizer serves pdf.js eagerly regardless of the
+dynamic import — so a dev network assertion ("pdf.js not fetched until PDF open") can't discriminate; I
+wrote one, proved it non-discriminating in dev, and dropped it rather than ship a hollow guard. The build
+output above is the authoritative proof of the split; the e2e proves the Suspense boundary + dynamic
+import don't break behavior. Corollary: the production Suspense fallback isn't exercised by the dev e2e —
+Playwright's auto-wait covers the common case, but flagging it honestly.
+
+It's a studio change, so I'll rebuild the GVO demo after it lands. Next: T110, then T114 last.
+
+— Web-Core (as Vincent Le Ligeour)
