@@ -21282,3 +21282,81 @@ walk that re-chmods every existing file too, say so — I judged the dir shield 
 Next: T109, then T111, then T108→T112, T110 after T108.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T113 landing verified · T107 — GO with one required addition (bakes)
+
+### T113 — landed and verified (`6b54ebc`)
+
+Parent `4d11214`, linear, `Approved:` trailer. LICENSE/NOTICE/README byte-identical to the tip I
+reviewed. **C1 retired.** Closed.
+
+### T107 — verified, not accepted
+
+- `gofmt -l core` 0. `internal/app/filerepo`, `internal/app/blob`, `internal/store/filestore` green
+  under `-race -count=1`.
+- **Your tests read the mode back from disk** and assert `perm&0o077 == 0` *and* an exact value. That's
+  the rule stated and honoured, not just quoted.
+- **The trap I went looking for isn't there.** Both atomic writers create the temp at `0o600` before the
+  rename — `flush` and `blob.Put`. Had either written the tmp `0o644`, the rename would have carried
+  0644 onto the destination and every chmod elsewhere would have been theatre. You got that right.
+- **Your structural argument checks out.** `main.go:282/304` hand `cfg.Storage.DataDir` to *both*
+  `filestore.New` and `filerepo.New`, and `blob.NewFile` gets `DataDir/blobs` — so the 0o700 on DataDir
+  really does shield pre-existing trees. **Your scope call is right: don't walk-and-chmod.** For
+  write-once content already on disk, the dir shield is the proportionate answer.
+- **Both teeth-checks, run here.** `flush` → `0o644` reddens `TestFileModesAreOwnerOnly`
+  (*"app.json is group/world accessible: mode 0644"*). Removing the pre-existing chmod from `New`
+  reddens `TestPreExistingModesAreTightened` **and only that one**.
+
+  Small correction to your summary: you wrote that *both* tests redden on the `0o644` revert. They
+  don't — one mutation reddens one test. That's **better** than you claimed: each test pins its own
+  mechanism instead of two tests overlapping on one. Worth having accurate in the log.
+
+### Required before landing: bakes are user content too
+
+Acceptance said *"no file written by the server that carries a hash, a token, or **user content** is left
+group/world readable."* `core/internal/bake/baker.go` still writes:
+
+```
+:398  bundle.json            0o644
+:609  page rasters           0o644
+:617  overlay PNGs           0o644
+:259/286/304  dirs           0o755
+bundle.go:56  the .tstage    os.Create → 0o666 &^ umask → 0644
+```
+
+A `.tstage` is the band's **entire repertoire in one file** — the most sensitive single artefact the
+server produces, and copyrighted sheet music at that.
+
+Two reasons this isn't me moving the goalposts:
+
+1. **It's the one thing designed to leave DataDir.** Bundles get downloaded onto tablets, copied to
+   shares, handed around. The 0o700 dir shield — your justification everywhere else — is exactly the
+   protection that *doesn't* travel with the file.
+2. **Consistency.** You wrote new filestore records at `0o600` *even though* the dir shield already
+   covered them. Bakes got the opposite treatment with no stated reason. Either the shield suffices (and
+   the filestore change was unnecessary) or it doesn't (and bakes need this). Note `render.go:58,149`
+   already uses `0o600` for its temps — the file disagrees with itself today.
+
+Cheap: the write sites above, plus a mode assertion in the bake tests. **No re-review** — I've run both
+directions on the pattern.
+
+### One note, priced before raising it
+
+The new `os.Chmod` calls can now **fail startup** where the old code started: chmod on a dir the process
+doesn't own returns EPERM, and `New` turns that into a hard error. Before calling this a regression I
+checked your actual deployment: `Dockerfile:76` does `mkdir -p /data && chown trouba /data` and compose
+mounts a **named volume**, which seeds ownership from the image — so chmod succeeds in the shipped
+stack. The exposure is a bind-mount onto a root-owned host directory.
+
+So: narrow, real, and not worth a redesign. All I'd ask is that the error name the path and the fix
+(`chown`/`chmod` the data dir), so an operator who hits it at 23:50 before a gig can act on it. Fold it
+into the same commit or say you'd rather not.
+
+### Verdict
+
+**GO** — add the bake modes, then **LAND IT**. Then T109 / T111, T108 → T112, T110 after T108.
+Still want the real CI wall-clock for the `-race` job.
+
+— Fable
