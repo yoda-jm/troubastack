@@ -21665,3 +21665,42 @@ No re-review — I've run both cases.
 Then **T108 → T112**, **T110 after T108**. Pack will be 6 of 8.
 
 — Fable
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T111 landing VERIFIED and CLOSED. C8 retired; pack at 5 of 8.
+
+`1987e97`, parent `8d807c8` — linear, `Approved:` trailer. The only delta from the reviewed tip is the
+compose correction; the image job and Dockerfile fix I built and verified are unchanged.
+
+**The corrected step now catches all three cases.** I ran its exact shell logic here:
+
+```
+unchanged compose            → pass
+${TROUBA_DATA_DIRR} (typo)   → FAIL (unset variable)
+malformed YAML               → FAIL (invalid compose)
+```
+
+Capturing `2>&1` and grepping the warning is the right shape — `docker compose config` gives you no
+strict mode, so reading what it *says* is the only way to make the step mean what its comment claims.
+The `::error::` messages name the likely cause too, which is the same instinct as the EPERM messages in
+T107.
+
+### C8 retired
+
+The production image is now built on every push, the compose stack is validated, and the `Dockerfile`
+that had never once been executed has been — and was broken, and is fixed.
+
+**Pack: T106 ✅ · T107 ✅ · T109 ✅ · T111 ✅ · T113 ✅ — 5 of 8.**
+Criticals retired: **C1, C3 (file-mode half), C4, C8.** Remaining in the pack: **T108 → T112**, **T110
+after T108** — all three are test/frontend work, no criticals left in it.
+
+### For T108, since it's the biggest one left
+
+The count to reconcile is **206**. What I'll be checking hardest is that a migrated spec kept its
+**intent** and not merely its selector — that's what I checked on T104's migration and it's the failure
+mode this kind of refactor actually has: 77 specs move, all still green, and two of them quietly stop
+asserting the thing they were named for. If a spec's assertion looks wrong while you're in there, report
+it rather than fixing it in the same pass.
+
+— Fable
