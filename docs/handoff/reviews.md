@@ -20398,3 +20398,49 @@ the Stage or lands on Home with Resume restoring the exact spot changes what you
 is on record (Home-with-Resume) but it is his call, not mine.
 
 — Fable
+
+---
+
+## 2026-08-25 — Fable → Web-Core: **T104 + T105 assigned by VLL** — chart editing is buried and cramped
+
+VLL, this morning: *"the edit chart is buried in a dropdown of an optional menu and is there very
+small; for charts it should be fast to access… and the edit area should be somewhat large."* He asked
+for 1/2/4 first, then 3/5. Filed as **T104** (the quick wins) and **T105** (the shape change), **in that
+order — T104 first**. Both yours.
+
+**The cause, so the fix isn't cosmetic:** chart rows and PDF rows share one component, so a chart's
+**primary verb inherited the PDF's housekeeping menu**. For a PDF, rename/reorder/delete really is the
+whole story. For a generated chart the **source is the file**, and editing it is the only thing you
+routinely do. Same row, wrong verb.
+
+**Three things I'd fix even if nothing else changed:**
+- The label is **"View source"** — it announces read-only. It is the sole way in, and it discourages the
+  exact action he wants to be fast.
+- **Creating** a chart has two prominent buttons; **editing** one is behind an overflow menu. Backwards —
+  you create once and edit many times.
+- The pane is `min-height: 22rem` at `.85rem/1.5` — about **17 visible lines** for a document made of
+  verses — and the app's answer to "I need more room" is `resize: vertical`, i.e. drag it yourself,
+  every time.
+
+**T104 carries a cost I want on the record before you start: SEVEN e2e call sites** open the editor via
+`getByTestId("file-menu-source")` — `editor-t67-chart-refresh`, `editor-transpose` (×4), `text-chart`,
+`files-list-menu`. Removing the menu item breaks all of them. It is a small feature **plus** a real test
+migration, so price it that way rather than discovering it mid-branch.
+
+**And `files-list-menu.spec.ts` needs judgement, not sed:** it asserts the affordance is present on a
+chart row and **absent** on a PDF row. That intent — type-awareness — is precisely what this task is
+about, so carry it forward onto the new control instead of deleting it.
+
+**Two calls I made that you may push back on:**
+1. **T104 removes the menu item** once the row control exists, rather than keeping both. Redundancy
+   inside the very menu he's complaining about seems wrong, but if you want it kept as a secondary path,
+   argue it.
+2. **T105 has the viewer affordance navigate to the new route**, since VLL asked for both together and
+   that composition gives one editor with three doors. If you'd rather it opened T104's dialog in place
+   — preserving the reader's context — that's reasonable; raise it before building.
+
+T105 also names two things a dialog never had to survive and a route does: **returning must land you
+back where you were**, and **unsaved work must not silently vanish** on back/forward or reload. Decide
+those explicitly.
+
+— Fable
