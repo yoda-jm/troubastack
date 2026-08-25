@@ -238,6 +238,19 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 }
 /* T104: the one-click Edit affordance on a generated-chart row (beside the "text chart" chip). */
 .file-edit-btn { flex: none; white-space: nowrap; }
+
+/* T105: the "restored your unsaved edits" hint on the route host (draft came back from sessionStorage). */
+.chart-restored {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  margin: 0 0 .6rem; padding: .45rem .7rem;
+  border: 1px solid var(--warn-fg, var(--border)); border-radius: var(--r-sm);
+  background: var(--warn-bg, var(--surface-2)); color: var(--warn-fg, var(--fg));
+  font-size: .85rem; font-weight: 600;
+}
+/* T105: the full-page chart editor route — the editor gets the whole viewport, not a dialog's leftovers. */
+.chart-route-page { display: flex; flex-direction: column; gap: .8rem; }
+.chart-route-back { align-self: flex-start; font-size: .9rem; }
+.chart-route-page .chart-editor { margin: 0; }
 .hl-title, .hl-section { color: var(--accent); font-weight: 700; }
 .hl-chord { color: var(--ok-fg); font-weight: 700; }
 .hl-bold { color: var(--fg); font-weight: 700; }

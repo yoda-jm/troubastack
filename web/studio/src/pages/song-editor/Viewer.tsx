@@ -1086,6 +1086,26 @@ export function Viewer({
 
         <span className="tb-divider" aria-hidden="true" />
 
+        {/* T105 — for a generated text chart the source IS the file, so offer to edit it from where you
+            are reading it, without opening the files panel. Navigates to the dedicated editor route.
+            Absent on PDFs (nothing to edit) — the type-awareness mirrors T104's row control. */}
+        {selectedFile?.generated && (
+          <Link
+            to={`/bands/${bandId}/songs/${songId}/chart/${selectedFile.id}`}
+            className="pill-btn"
+            data-testid="viewer-edit-chart"
+            title="Edit this chart"
+          >
+            <svg className="pill-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+              />
+            </svg>
+            <span className="pill-label">Edit chart</span>
+          </Link>
+        )}
+
         {/* T94 §3.1 — ONE pill opens/closes the file rail; Layers ↔ Notes switch on the tab row inside
             it (that row is unavoidable once the rail is open, so a second top-bar pill was redundant).
             "This file" names the SCOPE — the rail inspects the file you are viewing. `sidebar-toggle`

@@ -11,6 +11,7 @@ import { Bands } from "./pages/Bands";
 import { BandDetail } from "./pages/BandDetail";
 import { BandSettings } from "./pages/BandSettings";
 import { SongEditor } from "./pages/SongEditor";
+import { ChartEditorPage } from "./pages/ChartEditorPage";
 import { Setlists } from "./pages/Setlists";
 import { SetlistDetail } from "./pages/SetlistDetail";
 import { Invites } from "./pages/Invites";
@@ -33,6 +34,8 @@ export function App() {
         <Route path="/bands/:bandId/setlists" element={<Setlists />} />
         <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />
         <Route path="/bands/:bandId/songs/:songId" element={<SongEditor />} />
+        {/* T105: the dedicated full-page chart editor, reachable from the viewer and linkable. */}
+        <Route path="/bands/:bandId/songs/:songId/chart/:fileId" element={<ChartEditorPage />} />
         <Route path="/invites" element={<Invites />} />
         <Route path="/me" element={<Profile />} />
         <Route path="/join/:token" element={<Join />} />
