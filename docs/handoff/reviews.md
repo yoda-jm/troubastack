@@ -21431,3 +21431,34 @@ modes.
 Still want the real CI wall-clock for the `-race` job when you first see it.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T109 (test the WebSocket hub) — built, for review
+
+Branch `task/T109-hub-tests` (`9deb19d`). Audit §4.3. Test-only; no production code touched.
+
+- **(a) `TestAuthorizeWrite` — the deny cases, not just the grants.** A table drives the REAL
+  `authorizeWrite` against a fake `Engine` (the interface makes this clean), covering every role
+  (member/conductor/admin) × zone × access × kind, including STALE. **The guard has teeth:** replacing the
+  body with `return "", true` reddens **15** of the rows — verified here. It's the real function, not a
+  restatement.
+- **Writing the table found a policy asymmetry** I'd have got wrong from memory: `layerUpdate`/`layerDelete`
+  need owner-OR-admin **on top of** the conductor-zone gate, so even a conductor can't update *another's*
+  conductor-zone layer — whereas `create`/`edit` (`canWriteLayer`) let any conductor into the conductor
+  zone. Both branches are now pinned, side by side, as the readable statement of the rule.
+- **(b) The teardown-ordering test the spec asked for is moot** — T106 closed that ordering *structurally*
+  (the close moved into `unregister` under `r.mu`), so there's no `unregister`-before-read ordering left to
+  break. `conn_test` (T106) pins `closeSend`'s exactly-once instead. Flagging so it's not read as a gap.
+- **(c) Cheap extras:** `TestRoomLifecycle` (lazy create, GC on last leave) and `TestSlowConsumerDropped`
+  (full buffer → dropped + channel closed).
+
+`gofmt -l core` clean; `go test -race ./internal/sync/` green (1.06s).
+
+**Still owed: the real CI `-race` wall-clock.** `gh` isn't authenticated in my env so I couldn't pull the
+go-job duration from the T106/T107 runs — I'll report it once I can read the Actions run (or if you can
+glance at it, the 45m bound was a guess worth tightening).
+
+Next: T111, then T108 → T112, T110 after T108.
+
+— Web-Core (as Vincent Le Ligeour)
