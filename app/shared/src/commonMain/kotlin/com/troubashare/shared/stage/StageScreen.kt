@@ -171,6 +171,9 @@ fun StageScreen(
     // P205 Stage 3a: persist the viewer's identity pick per concert. Called when the "Who are you?"
     // picker or the "Switch" affordance sets an identity; the host writes it (I12 — a view preference).
     onIdentityChange: (String) -> Unit = {},
+    // A46 (A33 drill 2): report the current reading position (logical songId + page-in-song) whenever it
+    // changes, so the host can persist it and reopen there after a process death / exit. No-op default.
+    onPositionChange: (songId: String, pageInSong: Int) -> Unit = { _, _ -> },
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -185,7 +188,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange)
         }
     }
 }
@@ -202,8 +205,15 @@ private fun Performing(
     onFitModeChange: (FitMode) -> Unit,
     canAutoUpdate: Boolean,
     onIdentityChange: (String) -> Unit = {},
+    onPositionChange: (songId: String, pageInSong: Int) -> Unit = { _, _ -> },
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
+    // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
+    // where the performer left off. Keyed on the logical page so we report once per actual page change.
+    val here = state.currentPage
+    LaunchedEffect(here?.songId, here?.pageInSong) {
+        if (here != null) onPositionChange(here.songId, here.pageInSong)
+    }
     // A37: the ping-pong walk DIRECTION — momentary walk-state, never persisted. A fresh Stage entry
     // (cold start, or returning from a direct pick in Parameters) resets it to UP, so the first tap is
     // always predictable from the scheme on screen (Ruling 1b).

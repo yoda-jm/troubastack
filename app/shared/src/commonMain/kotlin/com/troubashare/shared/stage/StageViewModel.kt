@@ -9,14 +9,28 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class StageViewModel(loadResult: LoadResult, role: String = "", identity: String = "", initialFit: FitMode = FitMode.FIT_PAGE) {
+class StageViewModel(
+    loadResult: LoadResult,
+    role: String = "",
+    identity: String = "",
+    initialFit: FitMode = FitMode.FIT_PAGE,
+    // A46 (A33 drill 2): the persisted reading POSITION for this concert (logical songId + page-in-song),
+    // so reopening lands where the performer left off, not page 0. "" ⇒ start at the top (old behaviour).
+    initialSongId: String = "",
+    initialPageInSong: Int = 0,
+) {
 
     // P205 Stage 3a: the loaded bundle is retained so setIdentity can re-derive cues + the default
     // seed for a newly-picked identity (applyUpdate swaps it for a fresh rev).
     private var result: LoadResult = loadResult
 
     // A14: the reading mode is a persisted global preference; the entrypoint seeds it here (A10 pattern).
-    private val _state = MutableStateFlow(stageStateFrom(loadResult, role, identity).copy(fitMode = initialFit))
+    // A46: also seed the persisted reading position (resolveStartPage survives a re-bake reorder).
+    private val _state = MutableStateFlow(
+        stageStateFrom(loadResult, role, identity).let { s ->
+            s.copy(fitMode = initialFit, current = resolveStartPage(s, initialSongId, initialPageInSong))
+        },
+    )
     val state: StateFlow<StageState> = _state.asStateFlow()
 
     fun next() = goToPage(_state.value.current + 1)

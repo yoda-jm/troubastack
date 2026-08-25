@@ -207,6 +207,25 @@ internal fun stageStateFrom(result: LoadResult, role: String, identity: String =
     is LoadResult.Loaded -> buildLoaded(result.bundle, result.issues, role, identity)
 }
 
+/**
+ * A46 (found by A33 drill 2): resolve a saved reading position — the LOGICAL (songId, pageInSong) — back
+ * to a global page index in [state], so reopening a concert (cold start, process death, or the A27
+ * "Resume" button) lands back where the performer left off instead of page 0. Keyed on the logical
+ * position (not the raw index) so it survives a re-bake that reorders songs/pages:
+ *  - exact (song + page-in-song) if it still exists;
+ *  - else, if the song is still present but that page is gone (a shorter re-bake), **clamp to the song's
+ *    LAST page** — never off the end, and closer to where the performer was than its first (A46 §3);
+ *  - else (song removed, or nothing saved) ⇒ 0.
+ * Never returns an out-of-range index. Empty [songId]/empty [state] ⇒ 0. Pure/testable.
+ */
+internal fun resolveStartPage(state: StageState, songId: String, pageInSong: Int): Int {
+    if (state.pages.isEmpty() || songId.isEmpty()) return 0
+    val exact = state.pages.indexOfFirst { it.songId == songId && it.pageInSong == pageInSong }
+    if (exact >= 0) return exact
+    val lastOfSong = state.pages.indexOfLast { it.songId == songId }
+    return if (lastOfSong >= 0) lastOfSong else 0
+}
+
 private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: String, identity: String): StageState {
     // Refs flagged missing/empty for a specific (song,page) — used to mark a page's RASTER unavailable.
     val badRefs: Set<String> = issues

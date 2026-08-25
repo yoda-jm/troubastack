@@ -486,11 +486,27 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // picker/switch calls vm.setIdentity + onIdentityChange (below) to persist.
     val identity = remember(dir, me?.userId) { resolveIdentity(roster, storage.getSecret(idKey), autoUserId = me?.userId ?: "") }
 
+    // A46 (A33 drill 2): the persisted reading POSITION for this concert (logical "songId#pageInSong"), so a
+    // process death / exit / A27-Resume reopens where the performer left off, not page 0. Read once at
+    // open; guarded on a known concertId so a local/unknown bundle just starts at the top.
+    val posKey = "stage.pos.$concertId"
+    val initialPos = remember(dir) {
+        (if (concertId.isEmpty()) null else storage.getSecret(posKey))
+            ?.split('#', limit = 2)?.takeIf { it.size == 2 }
+    }
+
     val opened = remember(dir, identity) {
         OpenedBundle(
             // A14: seed the persisted reading mode (page/width/scroll) into the VM (A10 pattern).
             // Stage 3a-ii: seed the resolved identity — picks this member's layers + cues.
-            StageViewModel(loadResult, identity = identity, initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY))),
+            // A46: seed the persisted reading position (resolves the logical page in the current bundle).
+            StageViewModel(
+                loadResult,
+                identity = identity,
+                initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY)),
+                initialSongId = initialPos?.get(0) ?: "",
+                initialPageInSong = initialPos?.get(1)?.toIntOrNull() ?: 0,
+            ),
             AndroidImageDecoder(File(dir)),
         )
     }
@@ -539,6 +555,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     canAutoUpdate = concertId.isNotEmpty(),
                     // Stage 3a-ii: StageScreen shows the "Who are you?" picker / "Switch"; persist the pick per concert.
                     onIdentityChange = { m -> storage.putSecret(idKey, m) },
+                    // A46 (A33 drill 2): persist the reading position per concert on every page move.
+                    onPositionChange = { s, p -> if (concertId.isNotEmpty()) storage.putSecret(posKey, "$s#$p") },
                 )
             }
         }
