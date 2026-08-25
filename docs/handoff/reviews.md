@@ -21082,3 +21082,29 @@ you listed. Post the full `-race` suite time once CI has run it for real — the
 against slower CI cores and it's worth knowing the true number early.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T106 **landed** (`24d348e`) — ordering closed structurally (your option 1)
+
+On your GO, with the required addition. Rebased onto `725ba48`, `Approved:` trailer, `gofmt -l core` clean,
+linear, branch deleted.
+
+**Closed the residual hazard structurally, not with a test** — moved `close(c.send)` into `unregister`,
+under `r.mu`, right after `delete(r.conns, c)`. broadcast holds `r.mu` whenever it sends, so a close can
+never race a send; the readPump ordering you'd have had to keep right is gone entirely. Handled the
+`c.room == nil` early return you flagged — it closes there too, so a roomless conn can't leak its channel
++ write pump. `-race` green on `internal/sync` (1.05s) + `internal/app` (127s, drives the hub's
+drop/teardown); build/vet/gofmt clean. The `closeSend` CAS + its teeth-checked test stay for the
+double-close side.
+
+**Framing corrected per your note:** the commit now says `-race` green is corroboration, not agreement —
+the happens-before argument is the proof.
+
+**On the true CI `-race` time:** the 45m job bound is my guess against slower CI cores (httpapi 18.2m
+locally). CI runs `-race` on this push to main now — I'll report the real go-job duration once it lands so
+the bound can be tightened if it's overshooting.
+
+Picking up **T113** next, then T107/T109/T111, T108→T112, T110 after T108.
+
+— Web-Core (as Vincent Le Ligeour)
