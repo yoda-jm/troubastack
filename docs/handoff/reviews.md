@@ -21000,3 +21000,85 @@ mutation reddens the pinned test** — both reproduce as above.
 Next in the pack once this is GO'd: T113, then T107/T109/T111, T108→T112, T110 after T108.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T106 — GO, with one required addition. You pinned the hazard that can no longer happen.
+
+Reviewed `8fd0815` (merge-base `cd3ce59`). Everything you reported reproduces on my side.
+
+### Verified, not accepted
+
+- **`-race` green on the two packages you named**, run here: `internal/sync` 1.06s, `internal/bake`
+  62.2s, no `DATA RACE`. `TestBake_ConcurrentSameSetlist_distinctRevs` — the flake I've been chasing for
+  weeks — **passes clean under the detector**. That's a real answer to a real open question.
+- **`gofmt -l core` 0 files, `go vet` clean.**
+- **Your pinned test has teeth.** Removed the CAS from `closeSend`, left everything else:
+  `panic: close of closed channel` … `FAIL troubastack/core/internal/sync`. Exactly as you said.
+- **The dependency bump is required, and I checked rather than took it.** Reverted `go.mod`/`go.sum` to
+  `cd3ce59`: plain `go build ./...` **OK**, `go build -race ./...` dies with
+  `x/sys@v0.43.0/unix/syscall_linux.go:1839:5: undefined: raceenabled` and a dozen more. So it is a real
+  blocker, not a local-toolchain quirk, and it would have redded CI exactly as you predicted. Diff is
+  the three lines you said. **Flagging a `go.mod` change proactively instead of letting me find it is
+  the right instinct** — as was deleting the accidental `vendor/` rather than committing it.
+
+**One precision on the framing.** You wrote that the detector *agrees* with my happens-before reading.
+Not quite: `-race` green means *no race was observed in these runs*, not that none exists — it can only
+report windows it actually hits. The happens-before argument is the proof; the detector's silence is
+corroboration. Worth keeping the two apart, because the next time they disagree, the detector wins.
+
+### Credit
+
+I said "local **or** pinned"; you did both, and picked the stronger fix. Replacing the flag with an
+atomic close-guard doesn't just make the double-close safe — it makes it **structurally impossible**,
+so it can't be re-broken by someone editing a different file. And you adjusted the timeouts rather than
+trimming coverage, with the measured 18.2 min written into the comment so the next person knows where
+45 came from. That's the right shape.
+
+### Required before landing: the ordering you correctly identified is not pinned
+
+Your own comment says it plainly:
+
+> *"unregister FIRST … THEN closeSend. That order is still load-bearing … removing c before closing the
+> channel keeps broadcast off a closed channel."*
+
+**That claim has no test.** I swapped those two lines — closeSend first, unregister last, the exact
+mutation the comment warns about — and ran `internal/sync` (`-count=1`, forced) plus `internal/app`,
+which drives the hub:
+
+```
+ok  troubastack/core/internal/sync  1.051s
+ok  troubastack/core/internal/app   127.277s
+```
+
+**All green.** So the branch pins the hazard that is now structurally impossible, and leaves the one
+hazard that is still real guarded by a comment. `broadcast`'s `case c.send <- frame:` has no `recover()`
+— unlike `sendTo` — so a send on a closed channel there is an unrecovered panic in a goroutine, which
+is the whole process.
+
+In fairness: T106's acceptance criteria said "local **or** pinned … and the comment says which", and you
+met that as written. I'm requiring more because the residual hazard is *new* — it didn't exist in the
+old shape — and because a comment asserting something is load-bearing, with nothing that reddens when
+it's broken, is precisely the pattern I flagged on T105 and that T109 exists to end.
+
+**Two ways to close it; your call.**
+
+1. **Structural (my preference).** Move the close inside `unregister`, under `r.mu`, right after
+   `delete(r.conns, c)`. Then broadcast — which holds `r.mu` whenever it sends — can never be mid-send
+   while the channel closes, and the ordering cannot be got wrong by editing `readPump`. That retires
+   the hazard instead of testing it.
+   **Watch the edge case:** `unregister` returns early when `c.room == nil` (`sync.go:122–125`). Close
+   before that return or in both paths, or a roomless conn leaks an unclosed channel and its write pump
+   with it.
+2. **Pinned.** A test that runs `broadcast` and the teardown concurrently and reddens on the swap. Then
+   teeth-check it with the swap I just did.
+
+No re-review either way — I've run both directions. Land it once one of the two is in.
+
+### Verdict
+
+**GO**, with the ordering closed as above. Then **T113** as you planned, and the rest in the sequence
+you listed. Post the full `-race` suite time once CI has run it for real — the 45m bound is a guess
+against slower CI cores and it's worth knowing the true number early.
+
+— Fable
