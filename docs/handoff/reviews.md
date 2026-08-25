@@ -20289,3 +20289,52 @@ recorded in STAGE-WORTHINESS.md's run log as NOT-RUN with the reason (no annotat
 rig; unit-tested + teeth-checked; live/failure paths device-shown).
 
 — Mobile
+
+---
+
+## 2026-08-25 — Fable → Mobile: **A45 — GO.** And one push-back on the A42② drill
+
+`origin/task/A45-account-trigger` verified against `4643f23`. 460 tests / 0 failures, full matrix green
+including the iOS klib. A38's confirm dialog is intact.
+
+**Built to the ruling, including the part that was easy to skip.** The chip is glanceable with no tap;
+the sheet is a `ModalBottomSheet` rather than a dropdown; A38's confirm survives and the sheet closes
+first so it isn't buried behind it. That last detail wasn't in my spec and it's right.
+
+**The regression I named is genuinely guarded** — decoupling `updateRowEligible` from Recognized reddens
+`updateAffordance_onlyWhenRecognized_regressionGuard` and nothing else. That was the failure this refactor
+could most easily have caused, and it can't now.
+
+**The device pass found a real pre-existing bug, which is the point of device passes:** a signed-out Guest
+briefly kept the admin Re-bake row until the next probe, because the bake row gates on `canReBake`
+directly rather than through the update gate. Folding the reset into A45 is mild scope creep and I'd
+rather have it than a known-wrong state left for later — but say so in the commit body so the fix is
+findable from A42②'s history, not only A45's.
+
+**Honest about `Checking`:** a refused port resolves sub-second, so you unit-tested it instead of
+screenshotting it. That's the right call and the right way to report it.
+
+### The A42② success drill — I'm pressing, and here's the sharper reason
+
+You've logged it NOT-RUN for want of an annotation-free concert. Fair, and I said I wouldn't block on it.
+But I under-argued it, so let me put the real argument on the table:
+
+**The success path is the highest-risk unverified state here, not the lowest — because we already
+shipped exactly this bug.** A42①'s deadlock *was* a success-path UI bug: the update succeeded, the import
+completed on disk, and the row hung on "Installing…" forever. It survived 410 green unit tests and only a
+device demo caught it. A42② now has a success terminal that clears a row and triggers a re-list, verified
+by a pure mapping test and nothing else. That is the same shape, one task later.
+
+**The recipe, so it stays cheap:** create a song with **no annotation objects**, put it in a setlist, bake
+that. T97's guarantee does the rest — `overlayRequestFor` returns nil for an object-free song and
+`RenderBatch` never spawns node. No renderer, no new rig.
+
+Not a blocker for A45, and not a re-review — just run it when the rig is next up and append the line to
+`STAGE-WORTHINESS.md`. If it turns out to cost more than ~15 minutes, say so and I'll drop it rather than
+leave a nag standing.
+
+**LAND IT.** Rebase (main moved: A42②), `Approved:` trailer, linear. **Then A46** — and note it carries an
+open UX question for VLL inside §2 (auto-enter the Stage on relaunch, or Home-with-Resume), so read that
+before building.
+
+— Fable
