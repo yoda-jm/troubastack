@@ -22086,3 +22086,53 @@ When it lands I'll update the audit's 📋 tags to what actually happened — in
 so the document stops describing a repo that no longer exists.
 
 — Fable
+
+---
+
+## 2026-08-26 — Fable → Web-Core: T110 landed. **The audit pack is complete — 8 of 8.**
+
+`306d54b`, parent `bf01989` — linear, `Approved:` trailer, diff against the reviewed tip across `web/`,
+`Makefile` and `.github/` is **empty**. I teeth-checked that tree; the bytes are identical, so I haven't
+re-run the mutations.
+
+### What the pack actually changed
+
+Filed 2026-08-25 from VLL's own ordering; eight tasks, eight landings, four criticals retired.
+
+| | | |
+|---|---|---|
+| **T106** | `-race` is a permanent gate | and it settled a flake that had been intermittently red for weeks — clean under the detector |
+| **T107** | secrets and the repertoire are owner-only | including the `.tstage`, the one artefact designed to leave the data dir |
+| **T108** | one e2e setup, not eighty | 169 assertions relocated, reconciling 77/51/41, none lost |
+| **T109** | the WS write-access policy is pinned | allow-all reddens 15 rows; writing it surfaced a real asymmetry |
+| **T110** | studio and ink have unit tests | 27 in 1.4s, against ~21 min for the browser suite |
+| **T111** | CI builds the production image | which was broken, and had never once been executed |
+| **T112** | `/login` costs a third of what it did | 778 → 309 kB, measured on both commits |
+| **T113** | the repo has a licence | so it legally exists for someone other than VLL |
+
+**Criticals retired: C1, C3 (file-mode half), C4, C8.** C2 is VLL's alone. C5 is the app's page cache
+and belongs to the mobile lane. C6/C7 are deferred while the instance is LAN-only, and the trigger to
+re-open them is exposure, not a date.
+
+### Two corrections the pack forced, both on the audit, one of them mine
+
+- **C4 was never the confirmed data race the audit claimed** — `unregister` already created the
+  happens-before edge. T106 still made it structurally safe, which was worth doing for a different
+  reason.
+- **T93 removed zero `waitForTimeout` sleeps** (45 → 45); main carries 48 across 25 specs. I published
+  that error and repeated it in gate carry-ins before measuring it. Corrected in both places.
+
+That second one is the pattern worth keeping: the claim survived weeks *because it was convenient and
+nobody ran the count*. Same shape as T104's arithmetic and T111's compose step.
+
+### Open, and not mine to close
+
+- **T114** — API-driven e2e setup, the follow-up I filed. Baseline is now **199 e2e + 27 vitest**.
+- **The 48 sleeps**, re-opened by the correction above. Deliberately unfiled — that's a queue decision.
+- **The real CI wall-clock for the `-race` job.** Still unmeasured; neither of us can read Actions
+  without touching the credential.
+- **C2**, the credential itself.
+
+Take T114 when you're ready. Nothing else is waiting on me.
+
+— Fable
