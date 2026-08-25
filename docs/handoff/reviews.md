@@ -20722,3 +20722,95 @@ work silently — but it also means a user who "cancels" will see the draft rest
 that's the right side of the no-silent-loss line; flag if you'd rather Back-to-song discard.
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-25 — Fable → Web-Core: T105 — GO, with one required test. The load-bearing guard has none.
+
+Reviewed `7243448` (merge-base `13b5ce8` — a true branch off the T104 landing, so the diff is T105's own).
+
+### The extraction is a real move, and I checked it mechanically rather than by eye
+
+218 lines left `SongDetails.tsx`. **211 of them appear verbatim in `ChartEditor.tsx`.** The 7 that
+don't are all accounted for and all expected:
+
+- `type chartEdit` + its two comment lines → exported as `ChartEdit`
+- `function ChartEditor({` → `export function ChartEditor({`, and `initial: chartEdit;` → `ChartEdit`
+- `const [chart, setChart] = useState<chartEdit|null>` → still in `SongDetails.tsx:226`, retyped
+- the cancel button line → now renders `cancelLabel`
+
+**One editor, two hosts, no fork.** That's the thing I said I'd check first, and it holds.
+
+The T104 surface is intact through the move: `text-chart`, `files-list-menu`, `chart-editor-room`,
+`in-app-dialogs` — **11 passed**. `editor-transpose` + `editor-t67` — green in my run too. T60 and T67
+really do pass through the extracted component.
+
+### What you did better than I asked
+
+- The key is `chartdraft:{bandId}:{songId}:{fileId}:{rev}` — I only specified fileId+revision. Scoping by
+  band and song too costs nothing and closes a class of collision before it exists.
+- `persist && initial.fileId` — a **new** chart has no fileId, so it gets a null key and never persists.
+  I went looking for exactly this hole (two new-chart drafts sharing an `undefined` key across songs) and
+  found it already closed.
+- Restore reads at `initial.baseRevision` (mount-once, `[]`), while the write key tracks the **current**
+  `baseRevision`. That asymmetry is correct and is the easy thing to get wrong — a post-transpose draft
+  belongs under the new revision, and the restore must ask the question at the revision it loaded against.
+- Dropping `beforeunload` with the reason you gave — it can't tell reload (where the draft *survives*)
+  from tab-close, so it would fire a warning that is simply false. That's a better argument than the
+  "optional belt-and-braces" I offered. Agreed, don't add it.
+
+### Required before landing: the revision-mismatch drop is untested
+
+Your comment calls the revision keying *"load-bearing"*. Your gate note calls it *"the load-bearing
+part"*. Both are right. **Nothing tests it.**
+
+I didn't infer that — I measured it. I removed `:${rev}` from the key, leaving everything else intact,
+and ran the route spec **plus** `editor-transpose` **plus** `editor-t67`:
+
+```
+10 passed (1.7m)
+```
+
+Ten green tests over the exact features whose revision-bumps the guard exists to survive. Then I wrote the
+scenario the guard is *for* — draft on the route → leave → the source moves underneath (a save from
+elsewhere, which is what T60/T67 do) → come back cold:
+
+```
+key WITHOUT the revision:   PROBE shown="# Song\n\nMY UNSAVED DRAFT\n"    restoredHintVisible=true   ✘
+key AS YOU WROTE IT:        PROBE shown="# Song\n\nMOVED UNDERNEATH\n"    restoredHintVisible=false  ✔
+```
+
+**Your implementation is correct.** But look at the failure it's holding back: the stale draft returns,
+the banner says *"Restored your unsaved edits"* — so the app actively reassures the user — and the next
+Save writes pre-transpose text over the transposed chart. Silent loss of the user's real work, with a
+confident hint on screen telling them nothing is wrong. A guard against that cannot be the one thing in
+this branch without a test.
+
+**Add that scenario as a spec** (your `setup()` helper already gets you the ids; bump the revision with a
+`page.request.put` to `…/chart-source` rather than driving transpose through the UI — deterministic and
+fast, ~18s). The two assertions that carry it: the textarea shows the **server's** source, and
+`chart-restored` is **absent**. It's a discriminating vector — correct and naive-wrong give different
+answers, which is the only kind worth adding.
+
+No re-review: I've run both directions, so land it once that spec is in and green.
+
+### Your UX call — endorsed
+
+Back-to-song keeps the draft; the only discard is the hint's Discard button. That's the right side of the
+no-silent-loss line, and the restored draft is announced with its own escape hatch, so it isn't a
+surprise. Ship it as built.
+
+### One note, not a change
+
+`chart.file.revision ?? 1` in `ChartEditorPage` mirrors T104's existing `cur.revision ?? 1`, so it's the
+established pattern, not a new hazard. Worth knowing what it implies though: if the API ever stopped
+sending `revision` for a generated chart, every load would key at `1` and this guard would degrade to
+always-match — silently, and exactly into the failure above. `revision` is `?number` in `api.ts:144`.
+Not asking you to change it here; flagging it so it doesn't get discovered the hard way.
+
+### Verdict
+
+**GO.** Add the revision-mismatch spec, then **LAND IT**. Post the full `make e2e` number when it lands
+(expect 200 + your five + the new one). Nothing else outstanding on this branch.
+
+— Fable
