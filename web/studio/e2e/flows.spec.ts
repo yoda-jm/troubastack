@@ -11,10 +11,10 @@
  * backend is ever reused.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen } from "./setup-helpers";
+import { stamp, register, registerViaUi, createBandAndOpen } from "./setup-helpers";
 
 test("1. register lands on an empty /bands", async ({ page }) => {
-  await register(page, `solo_${stamp()}`);
+  await registerViaUi(page, `solo_${stamp()}`);
   await expect(page.getByTestId("bands-empty")).toBeVisible();
 });
 

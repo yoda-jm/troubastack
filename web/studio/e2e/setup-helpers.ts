@@ -16,8 +16,27 @@ export const stamp = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 /** The committed sample PDF used by the upload helper. */
 export const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
-/** Register a new user through the UI; lands on /bands. `password` defaults to the common test value. */
+/** Register a logged-in user over the API — the fast path (T114) for the many specs that merely NEED a
+ *  user, not the ones testing the sign-up flow (those use registerViaUi). The endpoints mirror the UI:
+ *  register (201, creates the user) then login (200, sets the session cookie the page's /api/me auth
+ *  check reads). Then land on /bands and wait for the authenticated first render — no cookie-only
+ *  half-logged-in state, and no sleep. `page.request` shares the page's cookie jar, so the page is
+ *  authenticated afterward exactly as the UI flow left it. */
 export async function register(page: Page, username: string, password = "secret123") {
+  const reg = await page.request.post("/api/auth/register", {
+    data: { username, displayName: `Display ${username}`, password },
+  });
+  if (!reg.ok()) throw new Error(`register: ${reg.status()} ${await reg.text()}`);
+  const login = await page.request.post("/api/auth/login", { data: { username, password } });
+  if (!login.ok()) throw new Error(`login: ${login.status()} ${await login.text()}`);
+  await page.goto("/bands");
+  await expect(page).toHaveURL(/\/bands$/);
+  await expect(page.getByTestId("new-band-btn")).toBeVisible(); // authenticated + first render settled
+}
+
+/** Register through the UI — for the ONE spec that is ABOUT the sign-up flow (flows §1). Kept so the
+ *  register FORM keeps a UI walker after `register` moved to the API (T114). */
+export async function registerViaUi(page: Page, username: string, password = "secret123") {
   await page.goto("/register");
   await page.getByTestId("username").fill(username);
   await page.getByTestId("displayName").fill(`Display ${username}`);
