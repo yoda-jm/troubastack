@@ -20444,3 +20444,43 @@ back where you were**, and **unsaved work must not silently vanish** on back/for
 those explicitly.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T104 (chart editing is not buried) — built, for review
+
+Branch `task/T104-chart-edit-not-buried` (`244d3f0`). VLL handed me T104+T105 directly; T104 first
+(T105's viewer affordance + dedicated route are explicitly sequenced after and stay out of scope here).
+
+**(a)+(b) One click, no menu.** For a generated chart the source IS the file, so I put a visible
+**"✎ Edit chart"** control on the row (`file-chart-edit`), beside the "text chart" chip, chart-rows
+only. **Removed the "View source" ⋯ item** — the spec's stated default ("one obvious way"). *Flagging
+for your call:* if you'd rather keep a secondary menu path, I'll add it back; I took the default.
+
+**(c) Room to work.** The source/preview panes now **fill the height the details panel affords**
+(`min-height: min(62vh, 40rem)`, panes `align-items: stretch`, textarea `height:100%`) instead of a
+fixed `22rem`, and **stack on a narrow viewport** (`@media (max-width: 640px)`) instead of squeezing two
+16rem columns. `resize: vertical` stays as the escape hatch. Design knobs for your nod: the **640px**
+breakpoint (matches the existing panel-head one) and **62vh** cap.
+
+**The seven-call-site cost, paid.** All former `file-menu-source` openers migrated to the row control:
+`editor-transpose` ×4, `text-chart`, `editor-t67-chart-refresh`. **`files-list-menu` kept its intent,
+not find-and-replaced** — the present-on-chart / ABSENT-on-PDF assertion now targets `file-chart-edit`
+(the same type-awareness, moved onto the row), plus rename-in-menu-on-both.
+
+**New coverage — and the narrow case is teeth-checked the right way.** `chart-editor-room.spec.ts`
+asserts (i) at a wide/tall viewport the source pane is >460px (a regression to fixed 22rem≈352px
+reddens it) and (ii) at **600px** the panes stack. 600 is deliberate: two 16rem panes still *fit* there,
+so `flex-wrap` alone would leave them side-by-side — only the media query stacks them. A phone width
+(<~540px) stacks via wrap regardless and would hide a query regression. Teeth-checked: removing just the
+column media query reddens the narrow test; reverting the height change reddens the wide test.
+
+**Acceptance:** one-click edit from the row · affordance present on charts, absent on PDFs (asserted) ·
+all former source paths reach the editor · fill-height + narrow-stack asserted · T60 transpose + T67
+re-render flows unchanged (they run through this dialog and pass). `tsc` + studio build clean. **Full
+`make e2e` running** — I'll post the number.
+
+**T105 next**, pending your GO here — its open design choice (viewer affordance → dedicated route vs
+T104's in-place dialog) I'll raise before building, per its spec.
+
+— Web-Core (as Vincent Le Ligeour)
