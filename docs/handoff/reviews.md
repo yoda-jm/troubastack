@@ -20885,3 +20885,68 @@ Two things I'd note for whoever picks this area up next, neither of them work it
 Nothing outstanding on either task. The lane is clear; queue is empty pending VLL.
 
 — Fable
+
+---
+
+## 2026-08-25 — Fable → Web-Core: the audit pack, T106–T113. Start with T106.
+
+`docs/project-audit-2026-08-25.md` landed (`44a66f1`). VLL picked the order; these are specced and on
+main (`438a108`). They are yours — Mobile is untouched by this pack.
+
+**Sequence, and it matters:**
+
+1. **T106 — `-race`, first.** It may turn CI red, so everything else should land on top of it rather
+   than underneath. Read its §1 before you touch `conn.dropped`.
+2. **T113** whenever you like — XS, independent, and it unblocks everything external.
+3. **T107**, **T109**, **T111** — independent of each other.
+4. **T108 before T112.** Splitting routes moves the e2e suite around; do the helper module first.
+5. **T110** after T108, so new unit tests aren't written against a setup you're about to replace.
+
+### The one thing to read carefully: T106 corrects the audit
+
+The audit files C4 as a *confirmed* data race on `conn.dropped`. I don't think it is, and I wrote why
+into both the spec and the audit itself: `readPump`'s defer calls `unregister` **before** reading the
+flag, and `unregister` (`sync.go:121`) takes the same `r.mu` that `broadcast` holds when writing it,
+deleting the conn from `r.conns` there. That's a happens-before edge. `sendTo` already guards with
+`recover()`.
+
+**So don't open by fixing it.** Install `-race`, run it, and bring me the output — the detector is a
+better arbiter than either of our readings, and if the suite is green under it, *that is the result*,
+not a failure. My standing suspicion for the first red: `TestBake_ConcurrentSameSetlist_distinctRevs`,
+which has flaked for weeks and is believed to be a genuine `baker.go` race. Check it first.
+
+What survives regardless is worth the work: the flag's safety is **emergent** — three separate facts
+holding together, stated nowhere at the read site, pinned by no test. Make it local or pin it.
+
+### What I'll be checking at the gate
+
+- **T106:** the `-race` summary line, pass or fail, verbatim. Any race reported is fixed or filed with
+  a named reason — not silenced.
+- **T109:** that the `authorizeWrite` table **reddens when the policy is replaced with an unconditional
+  allow**. A permission test that only asserts grants is the classic hollow guard, and I will run that
+  mutation myself.
+- **T110:** the teeth-check per new test — what wrong implementation you tried and that it reddened. A
+  test that doesn't discriminate guards nothing.
+- **T111:** that a broken `Dockerfile` actually reds the job. Teeth-check it.
+- **T108/T112:** the suite count reconciled against **206**, and for T112 the measured `/login` bytes
+  before and after. A number, not "smaller".
+- **T108 specifically:** that migrated specs kept their **intent**, not just their selector. That is
+  what I checked on T104's migration and it is what I'll check here.
+
+### Scope notes
+
+**C6/C7 are deliberately not in this pack.** The instance is LAN-only for now (VLL, today), so rate
+limiting, `CheckOrigin` and security headers are deferred — they re-enter the queue the day it's
+exposed. Don't fold them into T107 opportunistically; if you think one is cheap enough to ride along,
+raise it rather than doing it.
+
+**C2 is VLL's alone** — no lane can rotate his credential.
+
+**The nested worktrees the audit flags (`gate-push/`, `t93-wt/`) and `core/gvo-8080.log` are mine, not
+a task.** I'll clean up my own mess; leave them alone.
+
+T113 has exactly one input — which license — and I've argued a default in its §3 (Apache-2.0, because
+this repo already carries a `NOTICE`, which is an Apache-2.0 construct). If you read the answer as
+copyleft, stop and raise it; that one is a product decision, not a lane call.
+
+— Fable
