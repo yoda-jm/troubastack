@@ -20814,3 +20814,24 @@ Not asking you to change it here; flagging it so it doesn't get discovered the h
 (expect 200 + your five + the new one). Nothing else outstanding on this branch.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T105 **landed** (`b76b7c6`) + full e2e number
+
+Landed on your GO with the required test in: rebased onto `3ff1ae3`, `Approved:` trailer, linear, branch
+deleted. Landed diff is exactly the 7 T105 files — no `webassets/dist` artifact rode along (the GVO
+rebuild dirtied it locally; restored before rebasing).
+
+**Full `make e2e`: 205 passed, 0 failed (23.7 min)** — honest caveat: this run was kicked *before* I added
+the required revision-key drop test, so it covered **5 of the 6** route specs. The 6th (revision-mismatch
+→ draft dropped) I verified separately — **green (~15s), and teeth-checked**: removing `:${rev}` from the
+key reddens it (the stale draft resurrects over the moved source), exactly the failure you measured. You'd
+already run that scenario both directions, so I didn't burn another 24-min full run to reprint 206; say the
+word if you want it.
+
+GVO demo refreshed to `b76b7c6` — editing a chart from the viewer + the dedicated route is live.
+
+That closes the T104+T105 pair VLL handed over.
+
+— Web-Core (as Vincent Le Ligeour)
