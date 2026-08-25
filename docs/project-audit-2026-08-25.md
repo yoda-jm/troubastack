@@ -3,7 +3,7 @@
 **Date:** 2026-08-25 · **Audited version:** `origin/main` @ `088cf4f` (2026-08-25, "T105 landing verified").
 **Method:** four parallel deep-dive passes (Go core, web, mobile app, docs/CI/deploy) over the checked-out tree (`f27b755`), then every finding re-verified against `origin/main` — 266 commits newer. Line numbers cite the deep-dive tree; each was confirmed still present (or marked fixed) on main.
 
-> **What the 266-commit delta changed:** bake is now asynchronous with per-song progress (T96/T97/T98/T99/T103) and its errors are sanitised at a single choke point (T102); studio's blocking `window.prompt`/`confirm` dialogs were replaced by an in-app dialog (T90/T91/T101); the chart editor was extracted from `SongDetails` onto its own route (T104/T105); all 39 e2e `waitForTimeout` sleeps were removed (T93); a third shared cross-language contract landed (metre vectors, T92); the app gained the visual beat, reading color schemes, download timeout/progress, one-tap update/re-bake, an honest Home landing, and an account chip (A34–A45). **Every critical finding below was re-checked and remains open on main.**
+> **What the 266-commit delta changed:** bake is now asynchronous with per-song progress (T96/T97/T98/T99/T103) and its errors are sanitised at a single choke point (T102); studio's blocking `window.prompt`/`confirm` dialogs were replaced by an in-app dialog (T90/T91/T101); the chart editor was extracted from `SongDetails` onto its own route (T104/T105); **[CORRECTED 2026-08-25 — see note in §4.3]** T93 de-flaked the shared `fourFileRows` fixture; the `waitForTimeout` sleeps were **not** removed; a third shared cross-language contract landed (metre vectors, T92); the app gained the visual beat, reading color schemes, download timeout/progress, one-tap update/re-bake, an honest Home landing, and an account chip (A34–A45). **Every critical finding below was re-checked and remains open on main.**
 
 **Sizing legend used throughout:** **XS** ≤ ½ day · **S** ~1 day · **M** 2–5 days · **L** 1–3 weeks · **XL** 1+ month.
 
@@ -134,7 +134,13 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 - App `sync/SyncClient` is 3 `TODO()`-throwing stubs in `commonMain`; the InkOverlay seam is `TODO()` on **both** platforms; the promised golden ink-parity test for native is "not yet written".
 
 **Testing gaps (the asymmetry):**
-- 📋 **T110** — **Studio and ink have zero unit tests** — 713 lines of hit-testing geometry and the single authoritative renderer are validated only through a long serial browser suite (`workers:1`, `retries:0` — one flake reds the push; ~20 min on CI now). The 39 `waitForTimeout` sleeps flagged in the deep-dive were removed on main (T93 de-flake) — the flake vector is gone, the single-point-of-failure config remains.
+- 📋 **T110** — **Studio and ink have zero unit tests** — 713 lines of hit-testing geometry and the single authoritative renderer are validated only through a long serial browser suite (`workers:1`, `retries:0` — one flake reds the push; ~20 min on CI now). **📋 CORRECTION (2026-08-25, while reviewing T112).** This audit twice stated that T93 removed the
+  `waitForTimeout` sleeps. **It did not.** Measured on the T93 commit itself: **45 occurrences before,
+  45 after — it removed zero.** T93 replaced racing with explicit per-iteration assertions in ONE shared
+  fixture (`fourFileRows`), which is a different fix. **`origin/main` today carries 48 `waitForTimeout`
+  calls across 25 e2e specs.** So the sleep-based flake vector is **not** gone and remains an open
+  finding; the single-point-of-failure config (`workers:1, retries:0`) is unchanged. The reviewer
+  published this error and repeated it in several gate entries before catching it.
 - 📋 **T108** — e2e copy-paste debt got *worse* on main: 77 of 81 specs define their own `register()` helper; a registration-flow change is a 77-file edit.
 - 📋 **T109** — `internal/sync` (the WS hub) has **zero in-package tests**; `:androidApp` has no test source set (pure functions like `sessionCookieFor`, `safeSegment` untested); iOS tests compile but never execute; **no visual regression** anywhere; no coverage measurement.
 
