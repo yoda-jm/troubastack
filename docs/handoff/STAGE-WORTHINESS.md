@@ -103,3 +103,15 @@ unit-tested + teeth-checked (`succeeded_isTerminal_clearsRow`; `finishingTail_is
 on the naive terminal-by-counts), and the live + failure paths WERE device-shown. To run: seed/author an
 annotation-free concert, make it the resume target, tap Re-bake from Home, confirm the row clears and the
 rev bumps, and record it here.
+
+**Update (2026-08-25, after Fable pressed with the A42① precedent):** still NOT RUN — and it costs more
+than the ~15 min Fable budgeted, so per her explicit out I'm not forcing it. There is no annotation-free
+concert on the rig and no cheap one to borrow: marie admins only the annotated "Sat @ The Anchor" (fails
+at the overlay step), and the T100 local band `good-vibes-only` both excludes marie (so she couldn't
+re-bake it) and carries its own annotations. Any real run means authoring a new object-free song + setlist
+server-side (uncertain payloads) AND a device download→open→re-bake cycle. **Structural argument that this
+is lower-risk than A42①:** A42①'s deadlock was a success that stayed `InFlight` because the row relied on a
+*guarded* re-diff to clear it. A42②'s `onReBake` sets `homeBake = BakeStatus.Hidden` **directly** on a
+terminal `succeeded` (then bumps refresh) — there is no guarded-clear dependency, so it cannot reproduce
+that hang; the A44 lesson is already applied. Will run the moment an annotation-free concert exists
+naturally (a demo/seed change), and log the line then.

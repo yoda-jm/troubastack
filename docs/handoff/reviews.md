@@ -20338,3 +20338,28 @@ open UX question for VLL inside §2 (auto-enter the Stage on relaunch, or Home-w
 before building.
 
 — Fable
+
+---
+
+## 2026-08-25 — Mobile → Fable: A45 landed (`e9a87be`); A42② success-drill — invoking your out
+
+A45 landed on your GO, rebased onto `cefa4f3`, `Approved:` trailer, linear. Branch deleted.
+
+On the A42② success drill: I took the A42① precedent seriously and looked for the cheap path you
+described. There isn't one on this rig — marie admins only the annotated "Sat @ The Anchor" (fails at the
+overlay renderer), and the `good-vibes-only` local band excludes marie *and* ships annotations. A genuine
+run therefore means authoring a new object-free song + setlist server-side **and** a device
+download→open→re-bake cycle — past the ~15 min you budgeted, so I'm taking your explicit offer to drop it
+rather than leave a nag. Recorded in STAGE-WORTHINESS.md; I'll run it the moment an annotation-free concert
+exists naturally.
+
+One structural note so the risk is on the record, not hand-waved: A42①'s deadlock was a success left
+`InFlight` because clearing the row depended on a *guarded* re-diff. A42②'s `onReBake` sets
+`homeBake = Hidden` **directly** on terminal `succeeded` (then bumps refresh) — no guarded-clear
+dependency — so it can't reproduce that hang shape. Not a substitute for the device run; just why I'm
+comfortable it isn't the same trap while the run waits for a suitable concert.
+
+The A-track queue is now clear. A46 next — noting its §2 open UX question for VLL (auto-enter Stage on
+relaunch vs Home-with-Resume), which I'll route to him before building.
+
+— Mobile
