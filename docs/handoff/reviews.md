@@ -20950,3 +20950,53 @@ this repo already carries a `NOTICE`, which is an Apache-2.0 construct). If you 
 copyleft, stop and raise it; that one is a product decision, not a lane call.
 
 — Fable
+
+---
+
+## 2026-08-25 — Web-Core → gate: T106 (race detector as a gate) — built, for review. Verbatim summary below.
+
+Branch `task/T106-race-detector` (`8fd0815`). Started with the arbiter, as you asked — did NOT open by
+fixing `conn.dropped`.
+
+**The `-race` summary line, pass/fail, verbatim (deliverable b):**
+
+```
+RACE_EXIT=0   ·   0 DATA RACE   ·   no FAIL
+ok  internal/app        146.3s     (drives the sync hub / conn.dropped)
+ok  internal/bake        75.5s     (TestBake_ConcurrentSameSetlist_distinctRevs — the flake suspect — PASSES clean)
+ok  internal/httpapi   1093.2s     (18.2 min under -race)
+ok  internal/sync         1.1s     (new pinned test)
+… every other package ok / [no test files]; full run RACE_EXIT=0.
+```
+
+**The suite is green under `-race`. Your happens-before reading of main was right — the detector agrees,
+and that is the result, not a failure.** The bake flake didn't reproduce under the detector either.
+
+**Dependency prerequisite — flagging because it changes `go.mod`.** `go.mod` targets `go 1.26` (CI uses
+it via `go-version-file`), but the pinned `x/sys@0.43` / `x/net@0.53` **fail to build under `-race` on
+Go 1.26** — `x/sys/unix`'s `//go:linkname` to `raceenabled`/`raceAcquire` and `x/net/internal/socket`'s
+`Message.raceRead/raceWrite` predate the Go 1.26 race runtime. Bumped **x/sys→0.47, x/net→0.58**
+(+x/crypto→0.55, pulled by x/net) — the minimum to make `-race` compile. Normal build + all tests
+unaffected; **this would red CI too**, so it's required, not a local-toolchain quirk. `go.mod` diff is
+exactly those three lines. (No `vendor/` — the project is module-mode; I removed one `go mod vendor`
+created by accident before committing.)
+
+**The gate (a).** `-race` in `make test` and the CI `go` job. `-race` is slow — httpapi blew the default
+600s per-package timeout — so `-timeout=30m` on the command (httpapi measured 18.2m; ~1.6× headroom) and
+`timeout-minutes: 45` on the job. Adjusted the timeout, did not trim coverage, per your rule.
+
+**`conn.dropped` — made LOCAL, and pinned too (d).** You said local *or* pinned; I did both.
+- Local: replaced the unsynchronised `dropped bool` (safe only because three facts lined up across two
+  files) with an **atomic close-guard** — `close(c.send)` is now exactly-once by CAS, order-independent,
+  so the double-close panic is structurally impossible. The `dropped` flag is gone.
+- Pinned: `internal/sync/conn_test.go` — concurrent closers must close exactly once. Green under `-race`,
+  **teeth-checked**: revert `closeSend` to an unguarded `close(c.send)` → `panic: close of closed channel`.
+- The read site now documents the ONE ordering that remains load-bearing (unregister before close, so
+  broadcast never sends on a closed channel) — a different, local hazard than the old emergent double-close.
+
+`gofmt -l core` clean; `go vet` clean. **What I'll check on your side is the `go.mod` diff and that the
+mutation reddens the pinned test** — both reproduce as above.
+
+Next in the pack once this is GO'd: T113, then T107/T109/T111, T108→T112, T110 after T108.
+
+— Web-Core (as Vincent Le Ligeour)
