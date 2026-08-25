@@ -2,7 +2,8 @@
 
 Each `Txx-*.md` file in this directory is a **self-contained task** written so a competent
 coding agent (or human) can execute it without reading the whole repo history. Files are
-numbered in **priority order** — do them top-down unless a task says otherwise.
+numbered **in the order they were filed**, not in priority order — priority lives in each spec's
+own header and, authoritatively, in the review gate (`docs/handoff/reviews.md`).
 
 `docs/ARCHITECTURE.md` now tags each invariant **✅ enforced today** or **🎯 target**; this
 queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity test).
@@ -66,12 +67,17 @@ now records **only what git cannot tell you**, and tells you how to derive the r
 
 ### Blocked on the human (git cannot know these)
 
-- **One attended device session** (tablet on adb) owes three things: **A37** — tune the four
-  `pageColorFilter()` matrices at *stage brightness*, they are currently the spec's untuned formulas,
-  and shoot all four schemes; **A35** — the 3/4 and 6/8 beat shots, where the three tiers are visible;
-  **A39** — the **Available** and **InFlight** update rows from an **isolated** core rig (own port,
-  throwaway store, two revs). Those two A39 states have never been seen by a human. **:8080 is VLL's
-  preview — never use it for this.**
+- **One attended device session** (tablet on adb) owes: **A37** — tune the four `pageColorFilter()`
+  matrices at *stage brightness* (they are still the spec's untuned formulas) and shoot all four
+  schemes; **A35** — the 3/4 and 6/8 beat shots, where the three tiers are visible.
+  **A39's debt is discharged** — its **Available** and **InFlight** rows were finally seen by a human
+  during A42①'s device pass (`"Downloading 662 KB / 819 KB"`, rev 7→8 and 8→9 offer detection).
+  **:8080 is VLL's preview — never use it for device work.**
+- **A33's remaining drills** — the stage-worthiness sheet is live at
+  `docs/handoff/STAGE-WORTHINESS.md`. Drill 2 ran and produced **A46**; drill 3's predicted finding was
+  **disproved**. Drills **1, 4, 5, 6** are open and each needs something a lane cannot conjure: drill 1
+  needs **USB adb** (airplane mode kills a wireless harness's own connection), 4 needs a bundle
+  generator, 5 an isolated rig, 6 a storage-quota shim — **never fill the real device**.
 - **A07** — tablet stylus spike.
 - **IOS03 impl** — blocked on a Mac + Apple credentials (§11 of the mobile handoff is a runbook, not a
   buildable task).
@@ -80,10 +86,11 @@ now records **only what git cannot tell you**, and tells you how to derive the r
 
 ### Open, and worth knowing
 
-- **T24** (converge `cmd/mkcharts` onto `internal/chartpdf`) — ruled **parked, rider-only** (`7dd9f6b`).
-  Worth re-reading after **T76**: auto-fit now applies to `chartpdf` output but *not* to mkcharts'
-  own fpdf drawing, so the two renderers have drifted further apart, and `docs/demo/README.md`
-  now documents that gap as load-bearing for why the demo bundle needs no re-bake.
+- **T24** (converge `cmd/mkcharts` onto `internal/chartpdf`) — **superseded by T95**, which re-examined
+  it with evidence and **ruled against a single renderer**: retiring mkcharts would force the chart
+  dialect to grow tab, chord-box and drum grammars it has no business carrying. T95 then converged the
+  one file that genuinely could (amazing-grace) and **closed**. Read T95's §2 table and its three
+  correction notes before re-opening this line of thinking.
 
 ### Closed without landing (decisions, not omissions)
 
@@ -93,88 +100,42 @@ now records **only what git cannot tell you**, and tells you how to derive the r
 - **P203** — re-affirm the mirrors (closed, not adopted).
 - **P202** — closed; the safe slice landed, the rest deferred to **P204**.
 
-## Index
+## Index — list the files, don't read a list
 
-| # | Task | Area | Size |
-|---|---|---|---|
-| T01 | [Fix web workspace typecheck breakage](T01-fix-web-workspace-typecheck.md) | web | S |
-| T02 | [GitHub Actions CI](T02-github-actions-ci.md) | infra | S |
-| T03 | [UI: one accent color + dark-mode fixes](T03-ui-design-tokens-dark-mode.md) | studio CSS | S |
-| T04 | [UI: simplify pages (progressive disclosure, lists)](T04-ui-simplify-pages.md) | studio | M |
-| T05 | [UI: compress the song-editor chrome](T05-ui-editor-chrome.md) | studio | M/L |
-| T06 | [Low-latency wet-ink drawing path](T06-wet-ink-performance.md) | studio | M |
-| T07 | [Annotation-type descriptor registry](T07-annotation-type-registry.md) | web | M |
-| T08 | [Close the REST-import authorization gap](T08-rest-import-authorization.md) | core | S/M |
-| ~~T09~~ | ✅ CLOSED 2026-07-22 (`5dab274`) — [the codegen program](T09-proto-reconciliation.md): gen-mirrors, 5 guarded artifacts, buf breaking; I1 flipped ✅ | proto/core/web/app | M (was S) |
-| T10 | [Split SongEditor.tsx](T10-split-song-editor.md) | studio | L |
-| T11 | [Remove dead wiring in core](T11-core-dead-wiring.md) | core | S |
-| T12 | [Make ARCHITECTURE.md enforcement claims honest](T12-docs-honesty.md) | docs | S |
-| T13 | [e2e: RO-vs-RW footprint shifts ~27px in CI headless](T13-e2e-rorw-footprint-ci.md) | studio | S/M |
-| T14 | [Editor chrome: reach the ≤220px target (panelize)](T14-editor-chrome-panelize.md) | studio | M |
-| T15 | [Split Viewer.tsx into pdf/overlay/sync hooks (T10 part 2)](T15-viewer-hooks-split.md) | studio | M |
-| T16 | [Seed PDFs render em-dashes as mojibake](T16-seed-pdf-encoding.md) | core seed | XS |
-| T17 | [Editor chrome: collapse the style bar behind a disclosure (≤220px)](T17-editor-style-disclosure.md) — **superseded by T27** | studio | M |
-| T18 | [De-dup the Go ConcertBundle mirrors (bake ↔ mkbundle)](T18-dedup-bundle-mirrors.md) | core | XS |
-| T19 | [Text charts: write formatted docs in Studio, bake like PDFs](T19-text-charts.md) | core + studio | M/L |
-| T20 | [Duplicate a setlist](T20-setlist-duplicate.md) | core + studio | S |
-| T21 | [Password reset (admin-assisted)](T21-password-reset.md) | core + studio | S |
-| T22 | [Deterministic list ordering (songs lexicographic + sweep)](T22-deterministic-listings.md) | core | S |
-| T23 | [Encore/bench songs: baked + jumpable, outside the order](T23-encore-bench-songs.md) | core + proto + studio | M/L |
-| T24 | [Converge cmd/mkcharts onto internal/chartpdf (T19 deferral)](T24-chartpdf-mkcharts-converge.md) | core + demo artifacts | S/M |
-| T25 | [Chart editor: rendered PDF preview pane (T19 decision 3)](T25-chart-editor-preview.md) | core + studio | S |
-| T26 | [Carry song titles in the baked bundle (kill "Song N")](T26-bundle-song-titles.md) — landed (both halves) | proto + core + app | S |
-| T27 | [Canvas-first editor (supersedes T17; pairs with T15)](T27-canvas-first-editor.md) | studio | L (staged) |
-| T28 | [Drawing on a hidden layer silently swallows the annotation](T28-hidden-layer-draw-swallow.md) — landed | studio | XS/S |
-| T29 | [Embed the git version: /api/version + info modal](T29-build-version-visibility.md) — landed | core + studio | XS/S |
-| T30 | [No silent ink: can’t-commit states are visible](T30-no-silent-ink.md) — landed | studio | S |
-| T31 | [Bake ignores per-object z-order (I8 parity)](T31-bake-zorder-parity.md) — landed | web/bake | XS/S |
-| T32 | [`crypto.randomUUID` missing on plain-HTTP origins + global error visibility](T32-insecure-context-uuid.md) — landed | studio | XS/S |
-| T33 | [Thin the ctx style pill to the main bar's height](T33-thin-ctx-bar.md) — landed | studio | S/M |
-| T34 | [Touch editor stuck in nav (stale pointer entry)](T34-stuck-nav-stale-pointer.md) — landed | studio | XS/S |
-| T35 | [Slow freehand at reduced opacity shows dark bands (wet alpha-stacking)](T35-wet-alpha-stacking.md) — landed | studio | S |
-| T36 | [Files + Delete song reachable in the editor (clipped-Details rest)](T36-details-panel-files-delete.md) — landed | studio | S/M |
-| T37 | [New chart from lyrics: best-effort fetch + paste fallback](T37-lyrics-paste-import.md) — landed | core+studio | S/M |
-| B10 | [Seed a text-chart lyrics file into the demo (not only PDFs)](B10-demo-text-chart.md) — landed | core seed + demo | XS/S |
-| T38 | [Auto-label verses/choruses on lyrics import (opt-in)](T38-lyrics-auto-sections.md) — landed | studio | S |
-| T39 | [Rich pseudo-md source editor (dialect highlighting)](T39-chart-live-preview.md) — landed | studio | S/M |
-| T40 | [Scope annotations to the on-screen file (cross-file bleed)](T40-annotation-fileid-scope.md) — landed | studio | S |
-| B11 | [Demo per-file annotations (each part its own notes)](B11-demo-per-file-annotations.md) — landed | core seed + demo | S |
-| T41 | mobile raster-DPR clamp (black-page mitigation) — landed `c694906` | studio | S |
-| T42 | ctx-bar scroll headroom (annotate page top) — landed `adccae4` | studio | XS |
-| T43 | [One-finger marquee-select in Select mode on touch](T43-touch-marquee-select.md) — landed | studio | S |
-| ~~T44~~ | ✅ landed `e6a45cf` (desync gate + budget + recovery; VLL-confirmed black-gone) | studio | S |
-| T45 | [Page virtualization (deferred)](T45-page-virtualization.md) — DEFERRED | studio | M/L |
-| ~~T46~~ | ✅ landed `2175b31` (embedded mode — Q1 arc complete with A16) | studio | S |
-| ~~T50~~ | ✅ web/core landed (`1ebc785`+`0f1ef99`); A20 app half remains | proto/core/studio (+app) | M |
-| ~~T52~~ | ✅ landed `1dcfe34` (FLIP setlist-reorder motion + drag-hint flicker fix) | studio | S |
-| ~~B12~~ | ✅ landed `7fe2d6e` (seed personal song cues; demo bundles regen `fa41ebb`) | core (seed) / demo | XS |
-| T51 | [Icon stamp annotation tool (tinted glyphs on the score)](T51-icon-stamp-tool.md) — shares T50's `web/ink/glyphs.json` | ink/core/studio | M |
-| ~~T48~~ | ✅ landed `b046ad5` (fullbleed editor fits visible viewport — svh fix; ruled inline, no spec file) | studio | S |
-| CFG01 | [Configuration file for troubacore (INI, generated example)](CFG01-configuration-file.md) | core | S/M |
-| ~~T60~~ | ✅ fully retired (A `050ce8c`+`babb093` engine · B `19a9509`+`9abf83e` editor · C `eb5e062`+`14a43dc` setlist bake-time · riders `f056361`) | core + studio | M |
-| ~~T61~~ | ✅ landed `5df594f` (title → song editor via real Link; grip-only reorder survives; Fable-approved) | studio | S |
-| T62 | [Band export / import (one zip, everything)](T62-band-export-import.md) — landed `e4d1fe6`; **IMPORT DISABLED (503) `c6d99ac`** after a deep-audit CRITICAL account-takeover; export stays live | core + studio | M/L |
-| T63 | [Consent-required import + integrity/DoS hardening (invite-on-import)](T63-invite-on-import.md) — **SECURITY-CRITICAL, re-enables import**; VLL 2026-07-25, elevated 07-26 | core + studio | M/L |
-| T64 | [Chord-transposition correctness fixes (T60 audit)](T64-transpose-correctness-fixes.md) — D1 eligibility drift + D2 NBSP tokenizer are HIGH | core + studio | M |
-| ~~T65~~ | ✅ landed `10eda49` (move tool + dashed marquee + scrollable tool row; Fable-approved, pan verified) | studio + ink | M |
-| ~~T66~~ | ✅ landed `7a70f48` (move-default/first, dashed select, one-row tap-selectable chrome, double-tap zoom-to-point both ways; Fable+VLL approved) | studio | M |
-| ~~T67~~ | ✅ landed `45d2ca2` (stale chart render fixed: ?rev URLs + ETag/immutable caching + on-save refetch; Fable-approved, CI green) | core + studio | M |
-| ~~T68~~ | ✅ landed `ab4b0b2` (open file in ?file= — F5 restores it; Fable-approved, CI green) | studio | S/M |
-| ~~T69~~ | ✅ landed `a022e89` (self-heal generated charts + `troubacore repair-blobs` + graceful missing state; Fable-approved, CI green) | core + studio | M |
-| DEMO-VID | [Walkthrough video (web + app, synced AI voiceover) — plan + reworks demo to copyright-safe real songs](DEMO-VID-walkthrough-video-plan.md) — VLL 2026-08-04 | core+studio+mobile | L (program) |
+There is no hand-maintained index here any more, for the same reason "Queue state" no longer enumerates
+landed work: a copy of what the filesystem already knows will always rot. This section used to table
+T01–T69 with inline "— landed" notes while the tree had reached **T105, A46, B15** — roughly sixty
+tasks missing, and status annotations frozen at whatever day someone last touched them.
 
-Dependencies: T02 depends on T01 (CI can't go green while the workspace fails typecheck).
-T05 and T06 both touch `SongEditor.tsx` — do not run them in parallel. T10 should come
-after T05/T06 have landed. T13 fell out of T02 (the e2e job is `continue-on-error`
-until T13 fixes the CI-only layout shift and re-enables hard gating). T14 fell out of
-T05 (the remaining chrome height). **T14 update:** its "panelize" approach (move
-layer picker, fold zoom) was tried and measured at only ~10px (372→~363) and reverted
-— the chrome is dominated by the always-reserved style bar (~90px) + the sticky app
-shell (~160px), not the layer/zoom controls. The ≤220 goal is superseded by **T17**
-(collapse the style bar behind a disclosure). T15 came out of T10 (the deferred sync-sensitive
-Viewer split — run it attended, on an unloaded machine, since its safety net is a full
-e2e pass). T14/T15 both live in the song editor — don't run them in parallel. Everything
-else is independent.
+```
+ls docs/tasks/                          # every task, by number
+git log origin/main --grep='(T94)'      # did one task land, and in what
+git show origin/main:docs/handoff/reviews.md | tail -200   # the gate: submissions + verdicts
+```
+
+**Numbers are filing order, not priority.** A task's priority is in its own header; what a lane should
+do *next* is the most recent Fable entry in `reviews.md`. If a doc and `reviews.md` disagree,
+**`reviews.md` and main win.**
+
+What follows is only the part git cannot tell you: how tasks constrain each other.
+
+### Cross-task constraints
+
+**None are currently binding.** The paragraph that used to live here sequenced T01/T02/T05/T06/T10/T13/
+T14/T15 — every one of which has landed, and the CI e2e job it warned about (`continue-on-error` until
+T13) now hard-gates. Its one durable fact, that T14's "panelize" approach measured ~10 px and was
+reverted, is recorded under *Closed without landing* above; it was duplicated here.
+
+Constraints do recur, so state them **in the task that has one** rather than here, where they outlive
+their cause. The recurring shapes worth naming:
+
+- **Two tasks editing the same file** should not run in parallel (the song editor and the bake pipeline
+  have both produced this).
+- **A task whose only safety net is a full `make e2e`** should run attended on an unloaded machine —
+  three-way contention has produced spurious reds that were all green in isolation.
+- **A task that renames or moves a UI affordance** owes the e2e migration in its own estimate: check
+  `grep -rn 'getByTestId("<id>")' web/studio/e2e` before sizing it. T104 is the current example — seven
+  call sites reach the chart editor through one menu item's testid.
 
 ## App track (A-series) — the Kotlin/Compose mobile app
 
@@ -190,23 +151,7 @@ role (for layer default visibility) is a local preference, not an identity. Auth
 only in the Studio webview (A06) and the future downloader. See A04 for the full
 contract.
 
-| # | Task | Area | Size |
-|---|---|---|---|
-| A01 | [Wire the Gradle build (KMP compiles, CI gates it)](A01-wire-gradle-build.md) | app | M |
-| A02 | [Concert-bundle model + resilient loader](A02-bundle-model-and-loader.md) | app/docs | M |
-| A03 | [Fixture bundle generator + demo bundle](A03-fixture-bundle-generator.md) | core tool + app | S/M |
-| A04 | [TroubaStage presenter (resilient, read-only)](A04-troubastage-presenter.md) | app | L |
-| A05 | [Android Storage actual + `.tstage` import](A05-android-storage-and-import.md) | app | M |
-| A06 | [WebViewHost actual: Studio in the app](A06-android-webview-studio-host.md) | app + studio | M |
-| A07 | [Native wet-ink overlay — **BLOCKED**](A07-native-ink-overlay.md) | app | L |
-| A08 | [Stage shows setlist metadata (notes/key/tempo)](A08-stage-setlist-metadata.md) | app | XS/S |
-| A09 | [Stage: hardware page turns (pedals/volume keys)](A09-stage-hardware-page-turn.md) | app | S |
-| A10 | [Stage night mode (inverted score)](A10-stage-night-mode.md) | app | S/M |
-| A11 | [Stage: visual count-in at the song's tempo](A11-stage-visual-count-in.md) | app | XS/S |
-| A12 | [Stage: facing pages (two-up) in landscape](A12-stage-facing-pages.md) | app | S/M |
-| A13 | [Stage: volume keys turn by spread in two-up (A12 defect)](A13-stage-volume-spread-turn.md) | app | XS/S |
-| A14 | [Stage: continuous-scroll reading mode](A14-stage-continuous-scroll.md) | app | M |
-| A15 | [Stage: song-jump navigation drawer](A15-stage-song-drawer.md) | app | S |
+The A-series files are `A01`…`A46` — `ls docs/tasks/A*.md`. Ordering that still binds:
 
 A-track ordering: strictly A01 → A02 → A03 → A04 → A05. A06 needs only A01 and may run
 in parallel with A02–A05 (different files). A07 is **blocked** until T06 lands *and* the
@@ -233,18 +178,7 @@ landed** (bake → download works, live-verified at review); B03's server slice 
 and its app half is the open piece — after it, no manual file transfer is needed at all.
 B05 retires the hand-baked `docs/demo` bundle now that the real pipeline exists.
 
-| # | Task | Area | Size |
-|---|---|---|---|
-| B01 | [web/bake: headless overlay renderer + the I8 parity test](B01-bake-worker.md) | web/bake | M/L |
-| B02 | [Core bake orchestration + Studio "Bake" button](B02-bake-orchestration.md) | core + studio + proto | L |
-| B03 | [Distribution: in-app downloads, offers, freeze](B03-distribution-and-updates.md) | app + core | L |
-| B04 | [Bake robustness: atomic rev publication + concurrency guard](B04-bake-write-atomicity.md) | core | XS/S |
-| B05 | [Regenerate the demo bundle via the real pipeline](B05-regenerate-demo-bundle.md) | core + docs | XS/S |
-| B06 | [LAN auto-discovery of the band server (mDNS)](B06-lan-discovery.md) | core + app | S/M |
-| B07 | [Per-member bake: "Leo sees his tab on stage"](B07-per-member-bake.md) | core + app + studio | L |
-| B08 | [Bake rev-claim race: publish rename vs concurrent rev](B08-bake-revclaim-race.md) — landed | core | XS/S |
-| B09 | [Bake re-claim can orphan/mismatch a published .tstage (B08 tail)](B09-bake-reclaim-tstage.md) | core | XS/S |
-| OPS01 | [Production serving: TLS, service, backup, release APK](OPS01-production-serving.md) | deploy | M |
+The B-series files are `B01`…`B15` (plus `OPS01`/`OPS02`) — `ls docs/tasks/B*.md`.
 
 Two design decisions are resolved *inside* the specs (don't relitigate without cause):
 setlist overrides ride as bundle-manifest metadata (B02); app auth reuses session login
