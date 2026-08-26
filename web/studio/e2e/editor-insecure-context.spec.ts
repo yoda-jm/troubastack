@@ -95,7 +95,7 @@ test("insecure origin (no crypto.randomUUID): drawing still commits an object", 
   await expect(page.getByTestId("reject-notice")).toHaveCount(0);
 });
 
-test("global error backstop: uncaught error + rejection surface a dismissible banner", async ({
+test("global error backstop: uncaught error + rejection surface a dismissible banner", { tag: "@smoke" }, async ({
   page,
 }) => {
   await register(page, `ge_${stamp()}`); // lands on /bands with the Shell mounted

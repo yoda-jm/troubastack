@@ -9,7 +9,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { stamp, register, createBandAndOpen } from "./setup-helpers";
 
-test("admin bakes a setlist → download link + history appear", async ({ page }) => {
+test("admin bakes a setlist → download link + history appear", { tag: "@smoke" }, async ({ page }) => {
   await register(page, `bake_${stamp()}`);
   await createBandAndOpen(page, `BakeBand ${stamp()}`);
 

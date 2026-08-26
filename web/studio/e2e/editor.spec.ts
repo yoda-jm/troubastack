@@ -90,7 +90,7 @@ async function openEditorReady(page: Page) {
   await openDrawer(page, "layers");
 }
 
-test("editor: draw rect + freehand + text, persists to annotations", async ({ page }) => {
+test("editor: draw rect + freehand + text, persists to annotations", { tag: "@smoke" }, async ({ page }) => {
   await register(page, `editor_${stamp()}`);
   const band = await createBandAndOpen(page, `EditBand ${stamp()}`);
   const songId = await createSongAndOpen(page, `EditSong ${stamp()}`);
@@ -132,7 +132,7 @@ test("editor: draw rect + freehand + text, persists to annotations", async ({ pa
   expect(doc.objects.some((o) => o.type === "text")).toBeTruthy();
 });
 
-test("editor realtime: user A draws → user B sees it without reload", async ({ browser }) => {
+test("editor realtime: user A draws → user B sees it without reload", { tag: "@smoke" }, async ({ browser }) => {
   const ctxA: BrowserContext = await browser.newContext();
   const ctxB: BrowserContext = await browser.newContext();
   const a = await ctxA.newPage();

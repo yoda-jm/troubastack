@@ -30,7 +30,7 @@ test("a. profile edit persists across reload", async ({ page }) => {
   await expect(page.getByTestId("current-user")).toHaveText(newName);
 });
 
-test("b. change password, logout, login with the new password", async ({ page }) => {
+test("b. change password, logout, login with the new password", { tag: "@smoke" }, async ({ page }) => {
   const username = `pw_${stamp()}`;
   await register(page, username, "originalpw");
   await page.getByTestId("account-trigger").click(); // T58: profile is a menu entry now
@@ -57,7 +57,7 @@ test("b. change password, logout, login with the new password", async ({ page })
   await expect(page).toHaveURL(/\/bands$/);
 });
 
-test("c. admin creates an invite link; second user joins via /join/<token>", async ({
+test("c. admin creates an invite link; second user joins via /join/<token>", { tag: "@smoke" }, async ({
   browser,
 }) => {
   const adminCtx = await browser.newContext();

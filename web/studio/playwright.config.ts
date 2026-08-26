@@ -24,8 +24,17 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: 0,
-  reporter: [["list"]],
+  // T117: retries are for an INFRASTRUCTURE blip — the Go webServer cold-compile, the teardown
+  // ECONNRESET, runner load — a single-shot event one retry clears. NOT to quiet a real flake.
+  // CI only (locally a flake must surface immediately). ONE, not two: at retries=2 a 10% flake goes
+  // green ~999 runs in 1000 (1 - p^(n+1)) and stops telling you — the concealment we don't want.
+  retries: process.env.CI ? 1 : 0,
+  // On CI: `github` annotates flaky/failed inline on the PR, and the `json` report feeds the
+  // flaky-warning step. A retried pass scores `flaky` — a distinct outcome from `passed`, never a
+  // silent green.
+  reporter: process.env.CI
+    ? [["list"], ["github"], ["json", { outputFile: "playwright-report.json" }]]
+    : [["list"]],
   timeout: 30_000,
   expect: { timeout: 10_000 },
   use: {

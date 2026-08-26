@@ -13,12 +13,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { stamp, register, registerViaUi, createBandAndOpen } from "./setup-helpers";
 
-test("1. register lands on an empty /bands", async ({ page }) => {
+test("1. register lands on an empty /bands", { tag: "@smoke" }, async ({ page }) => {
   await registerViaUi(page, `solo_${stamp()}`);
   await expect(page.getByTestId("bands-empty")).toBeVisible();
 });
 
-test("2. create a band, open it, I am admin", async ({ page }) => {
+test("2. create a band, open it, I am admin", { tag: "@smoke" }, async ({ page }) => {
   await register(page, `owner_${stamp()}`);
   const bandName = `Band ${stamp()}`;
 
@@ -81,7 +81,7 @@ test("3. invite a second user; they accept and gain access", async ({ browser })
   await inviteeCtx.close();
 });
 
-test("4. create a song; clicking it opens the annotation editor", async ({ page }) => {
+test("4. create a song; clicking it opens the annotation editor", { tag: "@smoke" }, async ({ page }) => {
   await register(page, `songwriter_${stamp()}`);
   const bandName = `Songs ${stamp()}`;
   const songTitle = `Tune ${stamp()}`;
@@ -106,7 +106,7 @@ test("4. create a song; clicking it opens the annotation editor", async ({ page 
   await expect(page.getByTestId("tool-rect")).toBeVisible();
 });
 
-test("5. logout redirects to /login; guarded routes redirect when logged out", async ({ page }) => {
+test("5. logout redirects to /login; guarded routes redirect when logged out", { tag: "@smoke" }, async ({ page }) => {
   await register(page, `leaver_${stamp()}`);
 
   await page.getByTestId("account-trigger").click(); // T58: logout is a menu entry now
@@ -164,7 +164,7 @@ test("7. files list renders (empty) on the song page", async ({ page }) => {
   await expect(page.getByTestId("new-text-chart")).toBeVisible();
 });
 
-test("8. setlist: create, add two songs, reorder, key override persists", async ({ page }) => {
+test("8. setlist: create, add two songs, reorder, key override persists", { tag: "@smoke" }, async ({ page }) => {
   await register(page, `setlist_${stamp()}`);
   await createBandAndOpen(page, `SetBand ${stamp()}`);
   const bandUrl = page.url();

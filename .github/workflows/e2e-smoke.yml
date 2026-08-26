@@ -1,0 +1,55 @@
+# T117 — the fast SMOKE gate on BRANCH pushes. `ci.yml` runs the full matrix (incl. the whole e2e
+# suite) on `push:[main]` + `pull_request`; that already covers the smoke set at the landing point.
+# This workflow adds the one thing that was missing: a fast signal on a task branch BEFORE it lands,
+# to catch CI-ENVIRONMENT DIVERGENCE — green on the dev box, broken in the runner (Go webServer cold
+# compile, install skew, headless quirks). It is NOT a logic gate: both lanes run the full suite
+# locally before presenting, so logic errors are already dead by the time this runs.
+#
+# branches-ignore main → no redundant smoke run on the landing push (ci.yml's full suite covers it).
+# Concurrency: a separate group from ci.yml. If a branch ALSO has an open PR, the branch push runs
+# smoke here and the PR runs full in ci.yml — they don't dedupe (different workflows). Accepted: this
+# repo lands by ff-push and rarely opens PRs, and each is independently cancel-in-progress.
+name: e2e-smoke
+
+on:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    # The full e2e job caps at 20m; the ~11-test smoke subset is a fraction of that.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/studio/package-lock.json
+      - name: install studio
+        working-directory: web/studio
+        run: npm ci --no-workspaces
+      - name: install ink
+        working-directory: web/ink
+        run: npm ci --no-workspaces
+      - name: install playwright chromium
+        working-directory: web/studio
+        run: npx playwright install --with-deps chromium
+      - name: e2e smoke
+        run: make e2e-smoke
+      # Retries (CI=1) score a fail-then-pass as `flaky`; surface it even on a green run.
+      - name: flaky visibility
+        if: always()
+        working-directory: web/studio
+        run: node ../../.github/scripts/flaky-warn.mjs

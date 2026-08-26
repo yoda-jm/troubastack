@@ -276,6 +276,12 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: e2e
         run: make e2e
+      # T117: retries (CI=1) score a fail-then-pass as `flaky` — surface it even on a green run so a
+      # retried pass is never a silent green. `if: always()` so it also reports after a failing run.
+      - name: flaky visibility
+        if: always()
+        working-directory: web/studio
+        run: node ../../.github/scripts/flaky-warn.mjs
 
   # T111 (C8): build the artifact users actually run. Until now CI gated six ways but never built the
   # production image or checked the compose stack — the least-verified files in a heavily-verified repo,

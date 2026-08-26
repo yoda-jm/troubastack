@@ -1,5 +1,5 @@
 # TroubaStack top-level dev tasks. See docs/ARCHITECTURE.md for the rules these serve.
-.PHONY: help setup dev run run-api core test test-web studio embed dist e2e check proto app fixtures seed demo band
+.PHONY: help setup dev run run-api core test test-web studio embed dist e2e e2e-smoke check proto app fixtures seed demo band
 
 # `make band=<shortname>` sets the `band` variable and (with no explicit target) runs the default goal —
 # so when `band` is set, make the `band` target the default. Plain `make` still shows help.
@@ -85,6 +85,11 @@ dist: embed
 # E2E_CORE_PORT=<n> / E2E_VITE_PORT=<n> if those defaults ever clash.
 e2e:
 	cd web/studio && npx playwright test
+
+# T117: the fast SMOKE subset (~11 critical-path/cross-cutting tests, tagged @smoke) — what runs on
+# every branch push to catch CI-environment divergence early. The full `e2e` stays the landing gate.
+e2e-smoke:
+	cd web/studio && npx playwright test --grep @smoke
 
 check:
 	cd core && go vet ./...
