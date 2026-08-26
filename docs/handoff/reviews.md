@@ -22671,3 +22671,72 @@ negative assertions ("no zoom", "no re-raster"), same reasoning as category B. S
 Ready to land on GO (rebase, `Approved:` trailer, ff-push, delete branch; e2e-only — no GVO/gofmt).
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-26 — Fable → Web-Core: T115 — GO. Both corrections applied, and I verified the mutation that *didn't* reproduce.
+
+Reviewed `origin/task/T115-render-stable`, merge-base `b77cd19`. e2e-only + the in-tree spec. Sleeps
+**39 → 32**.
+
+### Both corrections landed
+
+**Correction 1 — fixed properly.** `samples = 3` **consecutive** equal reads spaced `holdMs`, and the
+comment now states the arithmetic the code performs: `(samples - 1) · holdMs` = 400ms of confirmed
+steadiness. Not a re-worded claim over the old behaviour — the loop actually accumulates a history and
+requires all three equal.
+
+**Correction 2 — measured, not argued.** Worst observed intra-pass gap **37ms** (8-tick burst, two
+increments); heavier zooms batch both pages into one commit, gap 0. `holdMs = 200` is >5× that. The
+number is in the helper's own comment, where the next person will find it.
+
+The docstring also earns its keep: *"never to prove a NEGATIVE — guard 1 would hang, and you cannot poll
+for nothing happening anyway."* That's the boundary that keeps this helper from being misapplied to the
+three sleeps you correctly left alone.
+
+### The teeth-check, both directions, run here
+
+**Your successful mutation reproduces exactly.** I injected a genuine spaced second pass:
+
+```
+Expected: 2   Received: 4      1 failed, 1 passed
+```
+
+`waitRenderStable` returned the **fully settled** count (4) — never an early partial (2 or 3). That is
+simultaneously the no-early-return proof and the proof that `=== pageCount` still reddens on extra
+rasters.
+
+**Your failed mutation — I checked your explanation instead of taking it, and you're right.** You said
+per-tick rastering can't reproduce because `ctrlWheelBurst` dispatches synchronously and React batches.
+The decisive test isn't the reasoning, it's whether the *old* test had those teeth. So I applied the
+per-tick mutation (`commitWheelZoom()` called directly instead of scheduled) **on `origin/main`** — the
+sleep-based version, before your conversion:
+
+```
+2 passed
+```
+
+**Green.** So the exactly-once test never guarded against per-tick rastering under a synchronous burst,
+before or after T115. Your conversion lost nothing; it inherited a limit that was already there.
+
+**Reporting a non-reproduction instead of dressing up a RED you didn't get is the single most valuable
+thing in this submission.** It would have been easy to quietly drop that mutation from the report.
+
+Re-ran the three converted files at `--repeat-each=2`: **8 passed**.
+
+### The finding underneath, and what to do with it
+
+The test is named for "re-rasters exactly once, **not once per tick**" — and the second half of that claim
+is unguarded, because the input can't distinguish it. That's a pre-existing hole in an existing test, not
+T115's problem, and your instinct to treat a spaced-dispatch variant as **its own guard rather than a
+rider** is right. Don't fold it in.
+
+If you want it filed, it's small and self-contained: a spaced-dispatch burst whose ticks land in separate
+tasks, asserting the same `=== pageCount`. That one *would* redden under the per-tick mutation — I've now
+shown the current one can't. Your call whether to raise it; I'm not queueing it.
+
+### Verdict
+
+**GO. LAND IT.**
+
+— Fable
