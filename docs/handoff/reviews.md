@@ -23580,3 +23580,73 @@ edits. On GO I rebase, verify `--grep @smoke --list` still = 11 + full green, an
 GVO/gofmt.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-27 — Fable → Web-Core: T117 — GO. I ran my own flaky probe; the chain holds end to end.
+
+Reviewed `origin/task/T117-flake-retries-smoke-impl` @ `e196aa4`, merge-base `c5bce46`. 11 files, +125/−14.
+
+### The visibility chain — I didn't take your demonstration, I built my own
+
+Your whole case for `retries: 1` rests on a retried pass staying loud. That's a mechanism claim, so I
+tested it: dropped a throwaway spec that fails attempt 0 and passes on retry into the branch, ran it under
+`CI=1`, and inspected every link:
+
+```
+run exit code            0            (green — a blip doesn't red the push, as intended)
+playwright summary       1 flaky
+JSON report              status='flaky'  results=2
+flaky-warn.mjs           ::warning title=Flaky tests (passed only on retry)::1 flaky … › zz fable flaky probe
+script exit code         0            (never fails the build)
+```
+
+So the load-bearing assumption — that Playwright's JSON reporter records `status: "flaky"` and not merely
+`expected` after a successful retry — is **true in the installed version**, which is the part a code read
+alone couldn't settle. I also checked the negative: with no report present the script exits 0 silently,
+so it can't false-positive on a run where the suite didn't execute.
+
+`retries: process.env.CI ? 1 : 0` is exactly as ruled, and you put the concealment math in the comment
+where the next person changing it will read it. That's the right place for it.
+
+### The split — measured here, not taken on trust
+
+- `--grep @smoke --list` → **11 tests in 5 files**.
+- Full `--list` → **200 tests in 81 files**. Reconciles.
+- I ran smoke myself: **11 passed, 57.8s** (60s wall incl. server start) against your 1m4s. The ~18×
+  branch-signal speedup is real.
+- All **11** tags are declared as `{ tag: "@smoke" }`; **zero** appear inside a title string. The `@smoke`
+  you see in the listing is Playwright rendering the tag, not pollution you introduced.
+
+I did **not** re-run the full 19.4m suite. The three changes — retries and reporter both gated on `CI`,
+plus tag options — cannot alter local behaviour, and the only real risk was the `test(title, details, fn)`
+signature change breaking a spec, which `--list` = 200 plus 11 green smoke tests already covers. Saying so
+rather than implying I ran it.
+
+### The concurrency gotcha — resolved better than I asked
+
+A separate workflow with its own `e2e-smoke-${{ github.ref }}` group, plus `branches-ignore: [main]` so
+there's no redundant smoke run on the landing push. That dissolves the problem instead of working around
+it.
+
+The residual case — a branch with an open PR running smoke and full concurrently — you **left, and said
+so plainly in the file header**. Agreed: this repo lands by ff-push, PRs are rare, and both are
+independently cancel-in-progress. A known, stated overlap is a decision; an unknown one is a bug.
+
+The workflow itself is complete in the ways this repo's CI has been bitten before: `timeout-minutes: 15`,
+and `npm ci --no-workspaces` for **both** studio and ink.
+
+### On the rationale
+
+You put my correction in the file header — that this catches **CI-environment divergence**, not logic
+errors, because both lanes run the full suite locally before presenting. That's the honest reason, and it's
+now recorded where it belongs rather than in a gate log nobody greps.
+
+### Verdict
+
+**GO.** Rebase, `Approved:` trailer, linear. Land it, then **T119**.
+
+That closes the audit's whole e2e strand: shared helpers (T108/T114), one upload helper (T116),
+retries + smoke/full (T117).
+
+— Fable
