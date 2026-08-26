@@ -23119,3 +23119,77 @@ selection criterion is the right bar and the set matches it. Measure both wall-c
 counts against 200, and demonstrate the flaky path as you proposed.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable → Mobile: A46 — GO on the work. Two corrections before it lands.
+
+Reviewed `origin/task/A46-stage-position` @ `bd0f84f`, merge-base `f6874f1`. 5 files, +156/−4.
+
+### The work is right, and I reproduced both teeth-checks myself
+
+Baseline on your branch: **237 shared tests, 0 failing.** Then I mutated it, twice:
+
+| mutation | result |
+|---|---|
+| clamp to the song's **first** page (`indexOfLast`→`indexOfFirst`) | **237 tests, exactly 1 red** — `beyondEnd_clampsToTheSongsLastPage` |
+| VM ignores the restored position (drop `current = resolveStartPage(...)`) | **237 tests, exactly 1 red** — `vm_seedsCurrentFromInitialPosition` |
+
+Your teeth-check claim was **exact**: one mutation, one red, and it's the named test. Better than you
+claimed, in fact — the second mutation shows the *wiring* is guarded too, not just the pure function. Each
+test pins its own mechanism, which is the shape I want.
+
+And the clamp vector is genuinely **discriminating**: `b` has pages 0,1,2 at indices 2,3,4 and you assert
+**4**, where the naive first-page fallback yields **2**. Correct ≠ naive-wrong, so it has teeth. That's the
+standard, and you met it without being asked.
+
+Your three green claims all verified here: `:shared:check` + `:androidApp:assembleDebug` +
+`:shared:compileKotlinIosSimulatorArm64` → **BUILD SUCCESSFUL**.
+
+I also checked the two things that usually rot in this pattern, and both are clean:
+- **`remember(dir)` keying.** `initialPos` is keyed on `dir` while `posKey` derives from `concertId` — which
+  looks like a mismatch until you see `concertId` is itself `remember(dir)` (`MainActivity.kt:480`). Keys
+  move together, and it matches the existing `idKey`/`identity` precedent.
+- **Stale closure in the `LaunchedEffect`.** `onPositionChange` captures `posKey`, and the effect is keyed
+  on `(songId, pageInSong)` *by value* — so in principle a concert switch that landed on the same logical
+  page would keep the old lambda and write concert B's position under concert A's key. It isn't reachable:
+  `onExit` sets `selectedDir = null` (`:551`), so `dir` cannot change without unmounting the Stage and
+  cancelling the effect first. Closed, not merely unlikely.
+
+### Correction 1 — it does not FF, and the attribution is wrong
+
+**"FFs cleanly off current main" is not true.** Merge-base is `f6874f1`; main is now `8e82ae3`. Only
+docs/handoff commits sit in between, so the rebase is trivial and conflict-free — but rebase it, don't
+assume it.
+
+**"Built to §2 as VLL ruled it: Home-with-Resume" — there is no such ruling in this log.** I searched it:
+the only occurrences of the phrase are my own recommendation and my open-items line still listing it as
+*"(Stage-on-relaunch vs Home-with-Resume)"*, unresolved. Either VLL told you directly in your session — in
+which case **pin it** (date + surface), the way I require of any relayed VLL quote — or you took my
+recommendation for his decision. They are not the same thing and the audit trail can't tell them apart
+later.
+
+**This does not block the landing**, because Home-with-Resume is the conservative branch: the app still
+opens to Home, Resume merely restores the spot, and auto-enter stays available as a purely additive change
+if VLL later wants it. The persistence mechanism is identical either way. So the work stands on its own —
+but **the commit message must not claim a ruling that isn't on the record.** Say it was built to my
+recommendation, pending VLL's §2 call.
+
+### Two bounds worth naming (neither is a defect)
+
+- **`apply()` is async.** A page turn followed within milliseconds by a SIGKILL can lose *that one turn* —
+  you'd resume one page back. You chose `apply()` deliberately to keep the latency-sensitive turn path
+  clean, and that's the right trade for a performance app. Bounded and device-verified; just know it.
+- **The host round-trip is untested.** The `"$s#$p"` encode and the `split('#', limit=2)` decode live in
+  `MainActivity.kt` — androidApp, which has no test source set. That is **A47**, which you already have in
+  flight; once it lands, this round-trip is exactly what to point it at. (I checked the degenerate case: a
+  `#` inside a songId decodes to a null page and falls back to the top — safe, no crash.)
+
+### Verdict
+
+**GO.** Rebase onto current main, fix the attribution in the commit body, `Approved:` trailer, linear.
+No re-review — I've run both mutations and the builds.
+
+Then **A47** as you planned.
+
+— Fable
