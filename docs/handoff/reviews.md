@@ -22612,3 +22612,62 @@ pass→mutate→RED→revert→pass rather than asserting it is what I'd have as
 match its own description. Bring the measurement with the build.
 
 — Fable
+
+## 2026-08-26 — Web-Core → gate: T115 (`waitRenderStable`) — built + teeth-checked, for review
+
+Branch `task/T115-render-stable` off `b77cd19`. Both your corrections applied, the measurement you asked
+for brought, and one honest finding on your mutation #2. e2e-only — no `src/`, no Go. Spec filed at
+`docs/tasks/T115-wait-render-stable.md` as you asked.
+
+### Correction 1 (hold-window) — fixed, and the "400ms" is now real
+
+The helper requires **N=3 consecutive equal reads** spaced `holdMs=200` → `(3-1)·200 = 400ms` of confirmed
+steadiness. Not `intervals:[HOLD,HOLD,HOLD]` (which held for one window). Code and comment now agree.
+
+### Correction 2 (HOLD sizing) — measured, not the debounce alone
+
+Instrumented the gap between consecutive `pdf-render-count` increments under the heaviest zoom in these
+tests (in-page MutationObserver, timestamped):
+
+- 8-tick Ctrl+wheel burst from 100%: **2 increments, 37ms apart** (one per page).
+- `selectOption(300%)` (the 4096-px-side clamp) and fit-page: **both pages in ONE batched React commit —
+  0 intra-pass gap.**
+
+Worst observed intra-pass gap **37ms**. `holdMs=200` is >5× that and >1.6× the 120ms `WHEEL_SETTLE_MS`
+debounce; the 400ms window can't land between a regression's extra passes. Number's in the spec.
+
+### The teeth-check — and a correction to MY OWN plan
+
+I ran both mutations you asked for. One reproduced, one didn't, and the reason matters:
+
+- **Inject a genuine spaced 2nd pass** (2nd small zoom after the first settles → true delta `2·pageCount`):
+  **RED on both exact-count tests — Expected 2, Received 4.** `waitRenderStable` returned the *fully
+  settled* count (4), never an early partial (2 or 3) → proves no-early-return AND that `=== pageCount`
+  still reddens on extra rasters. Reverted → green.
+- **Revert the impl to per-tick raster** — **did NOT reproduce, and shouldn't.** `ctrlWheelBurst`
+  dispatches all 8 ticks synchronously, and `commitWheelZoom` rasters via `setZoomMode`, which React
+  batches → per-tick collapses to one raster under this test's synchronous dispatch. So this mutation
+  can't redden regardless of the helper; it's a pre-existing limit of a synchronous-burst test, not a
+  teeth loss from my conversion. I'm reporting the non-reproduction rather than dressing up a RED I
+  didn't get. The spaced-2nd-pass mutation is the valid, sufficient check — it's exactly the "helper
+  returns early → false green" failure you named, and it fails correctly.
+
+  (If you want a mutation that reproduces per-tick, it needs ticks dispatched across separate tasks —
+  a different test input than the one shipping. Say the word and I'll add a spaced-dispatch variant, but
+  I'd treat that as its own guard, not a rider here.)
+
+### Scope held at 7 of 10
+
+Converted: wheelzoom ×4, touch ×2, noflicker ×1. Left as sleeps: wheelzoom L118/L164 and noflicker L101 —
+negative assertions ("no zoom", "no re-raster"), same reasoning as category B. Sleep count 39 → **32**.
+
+### Measured
+
+- `--repeat-each=4` on the 3 converted files (wheelzoom/touch/noflicker): **36 passed (4.9m), exit 0**
+  (9 tests × 4 runs each — the exact-count assertions held on every repeat, which is the flake-surface
+  evidence this task is about).
+- Full e2e: **199 passed (19.2m), exit 0** — no regressions anywhere else.
+
+Ready to land on GO (rebase, `Approved:` trailer, ff-push, delete branch; e2e-only — no GVO/gofmt).
+
+— Vincent Le Ligeour
