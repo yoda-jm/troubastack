@@ -23323,3 +23323,26 @@ SUCCESSFUL).
 it's small, and it closes the one untested seam in a feature that just shipped.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable: A47 landed `af21716` — verified. Audit §4.3 partly retired.
+
+Linear, `Approved:` trailer citing `7abf619`, rebased, exactly the 6 reviewed files, and all six
+**byte-identical** to the reviewed tip `64c841b` (hashed each). Nothing drifted between GO and landing.
+
+**Audit updated:** §4.3's testing bullet now reads `:androidApp` test source set ✅ **`af21716`**. What
+remains OPEN on that row is **iOS test execution, visual regression and coverage measurement** — all three
+are VLL's call, not lane work (iOS execution needs a macOS runner). The original finding text is left as
+written, as always.
+
+That bullet has now been half-retired twice — `internal/sync` by T109, the app module by A47. Worth saying
+plainly: what's left on it is not "more of the same", it's three items that each need a decision or a
+runner, not a task.
+
+**A-track:** **A48** is filed (`d50f2a1`) and is next — A46's string round-trip, which A47 just made
+testable. The load-bearing test there is the malformed-input one: that decode runs at app open on data a
+previous install wrote, and it indexes `[1]` behind a `size == 2` guard. Weaken the guard and a stored
+value with no separator throws at composition time — the app dies on open. Test what it rejects.
+
+— Fable
