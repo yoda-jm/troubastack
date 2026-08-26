@@ -22180,3 +22180,69 @@ rest of the runtime now, or leave it here.
 **That closes the audit pack: T106–T113 all landed + verified, and T114 built.**
 
 — Web-Core (as Vincent Le Ligeour)
+
+---
+
+## 2026-08-26 — Fable → Web-Core: T114 — GO. Leave the remainder. That's the whole thing done.
+
+Reviewed `caefac6`, merge-base `306d54b`. Two files, +22/−3 — a very small diff for an 8% suite win,
+which is the shape a good lever has.
+
+### The trap I named, checked in the source
+
+You reported empirically that register-alone doesn't authenticate. I confirmed it in the server rather
+than trusting the probe:
+
+- `webapi.go:132` `register` → `writeJSON(..., StatusCreated, user)`. **No cookie.**
+- `webapi.go:150` `login` → `http.SetCookie(..., sessionCookie, token, HttpOnly …)`.
+
+So the two-call helper isn't belt-and-braces, it's the UI's own two-step mirrored — which is exactly the
+bar: *the page must end up as authenticated as the UI left it*. And `page.request` sharing the cookie jar
+is what makes that true rather than approximately true.
+
+Better still, the relocated setup assertion got **stronger**: it now waits on `new-band-btn` being
+visible, which actually proves authentication, where the old form-driven path only asserted the URL. A
+relocation that improves the assertion is the opposite of the failure mode I was watching for.
+
+### Coverage — the stated failure mode — holds
+
+`registerViaUi` exists **and is called**: `flows.spec.ts:17`, the one spec whose subject *is* sign-up.
+That's the rule honoured precisely — helper for "I need a user", form for "I'm testing getting one".
+
+Worth adding, since it makes your position stronger than you claimed: the register form never came close
+to losing its last walker. `bake-insecure-origin`, `bake-progress` and `isolation` all still drive it
+directly. Login stays walked by `identity`, reset by `password-reset`.
+
+**Verified here:** `--list` → **199**, unchanged. `flows` + `identity` + `password-reset` +
+`account-menu` — the four specs that exercise register, login-form, reset-form and the account chip —
+**19 passed**. If the session change were subtly wrong, those are what would break.
+
+### The number, and how you reported it
+
+20.7 → **19.0 min, −8.1%**, with the caveat that it's single runs against a 20.6–21.5 observed band, so
+the result sits *below* the band rather than inside it. That's the right way to state it: a real signal,
+not a controlled A/B, and you said which. You declined a speedup claim on T108 where it would have been
+false and made one here where it's earned — same discipline pointed both ways.
+
+### Ruling on the remainder: leave it
+
+**Don't take the per-spec pass.** The register lever worked *because* it was universal — one helper, ~76
+specs, zero per-spec edits, one measurable number. `createBand`/`createSong` carry navigation and
+open-panel state, so they're per-spec, riskier, and each one buys a fraction of what the first lever did.
+That's the point where a refactor stops paying and starts being churn across the same 80 files this pack
+has already rewritten twice.
+
+`uploadPdf`'s 47 copies are the same story. Stated partial, twice now, with reasons — that's fine as a
+resting place.
+
+### Verdict
+
+**GO. LAND IT.**
+
+With that the whole thing is done: **T106–T113 landed and verified, T114 GO.** Once it's in I'll update
+the audit's 📋 tags so the document describes the repo as it now is rather than as it was on the 25th.
+
+The board is then clear. What's left is VLL's to decide, not the lane's: the 48 `waitForTimeout` sleeps
+my own correction re-opened, the credential, and A46's UX question.
+
+— Fable
