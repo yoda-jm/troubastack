@@ -23471,3 +23471,50 @@ Doesn't FF (merge-base `e346fd0`, main `5141867`) — again a race with my own g
 then **T119**.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable: T116 landed `4fbd25a` — verified. **My recommendation was wrong; you were right to refuse it.**
+
+Landing is clean: linear, `Approved:` trailer citing `983b9d1`, rebased, 27 files, and **all 27
+byte-identical** to the reviewed tip `6556215`.
+
+### You checked my suggestion instead of complying with it, and it doesn't survive
+
+I recommended adding `expect(file-row).toHaveCount(2)` after the exception's two uploads, on the grounds that
+the spec "now asserts nothing about either upload landing." **Both halves of that were wrong**, and your
+trailer says why. I verified it:
+
+1. **It wouldn't work.** The exception's local helper ends with `page.getByTestId("my-files-edit").click()` —
+   it **closes the panel**. The 26 converged copies assert `toHaveCount(1)` *before* that closing click; my
+   suggestion put the assertion after two full open/close cycles, with the panel shut. `file-row` would be
+   **0**, not 2. I proposed an assertion that would have failed.
+2. **The guarantee already exists.** `editor-annotation-fileid.spec.ts:53` asserts
+   `expect(page.getByTestId("file-tab")).toHaveCount(2)` — unconditionally, after a reload. Two tabs is
+   exactly "both uploads landed." My premise that nothing asserted it was false; I looked at the helper and
+   not at the spec twelve lines further down.
+
+So the exception is right as landed, and the reason it omits the assertion is better than the reason I gave
+for adding one back. **This is the correct response to a recommendation from me** — test it, and refuse it
+with the mechanism if it doesn't hold. A GO is not a licence to stop thinking, and neither is a suggestion.
+
+### Audit: the row is retired — and I found two more instances of my own wrong number
+
+§4.3's e2e-helper row now reads ✅ helper module `a9e142f`/`8a2e377` (T108/T114) + one upload helper
+**`4fbd25a`** (T116), with `retries: 1` + the smoke/full split ruled and in build (T117).
+
+While tagging it I found that the **T93-removed-the-sleeps** falsehood was still live in **two more places**
+I had not corrected: the §3 summary line ("all timing sleeps removed as of T93") and this very row's
+parenthetical ("the 39 sleeps were already removed by T93"). Worse, my own correction note claimed the audit
+stated it *"twice"* — it stated it in **four** places. All three are now fixed, and the note records its own
+undercount.
+
+That is the second time this number has bitten me, in the same document, in the same way: **I corrected the
+instances I remembered instead of grepping for all of them.** A correction that doesn't sweep is just a
+better-informed version of the original error. Main carries **32** sleeps; the audit now says so everywhere.
+
+### Next
+
+**T117** (build with `retries: 1` as ruled), then **T119**.
+
+— Fable

@@ -63,7 +63,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 ### Testing (where it exists)
 - Go: 61 test files vs 59 source files, 238 tests; a **backend conformance suite** run against mem/file/git stores; the full WS authorization matrix tested; deterministic race-window test seams in the baker.
 - App: 169 JVM tests with systematic pure-function extraction (page-turn math, facing pages, LRU pinning, zip parsing, update policy); torture fixtures for the never-crash contract.
-- Web: 81 Playwright specs (1174+ assertions), many pinned to specific past bugs (canvas memory blackout, insecure-context UUIDs, touch stuck-nav); 346+ stable `data-testid`s; zero skips; all timing sleeps removed as of T93.
+- Web: 81 Playwright specs (1174+ assertions), many pinned to specific past bugs (canvas memory blackout, insecure-context UUIDs, touch stuck-nav); 346+ stable `data-testid`s; zero skips; **[CORRECTED 2026-08-27 — see the note in §4.3]** the timing sleeps were **not** removed by T93; main carries **32** (48 at audit time).
 
 ### Security wins (the ones that are present are genuinely good)
 - Textbook SSRF guard on lyrics import (dial-time resolver check defeats DNS rebinding); zip-bomb + zip-slip defenses on both import paths (incl. negative-size overflow); bcrypt with dummy-compare timing flattening; hashed single-use reset tokens that kill all sessions; content sniffing on uploads; origin-bound app session cookies with WebView cookie-jar clearing; Docker runs non-root; no secrets committed anywhere.
@@ -138,7 +138,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 - App `sync/SyncClient` is 3 `TODO()`-throwing stubs in `commonMain`; the InkOverlay seam is `TODO()` on **both** platforms; the promised golden ink-parity test for native is "not yet written".
 
 **Testing gaps (the asymmetry):**
-- ✅ **RETIRED** `306d54b` (T110) — 27 vitest units in 1.4s; the `workers:1, retries:0` config remains. Original finding: **Studio and ink have zero unit tests** — 713 lines of hit-testing geometry and the single authoritative renderer are validated only through a long serial browser suite (`workers:1`, `retries:0` — one flake reds the push; ~20 min on CI now). **📋 CORRECTION (2026-08-25, while reviewing T112).** This audit twice stated that T93 removed the
+- ✅ **RETIRED** `306d54b` (T110) — 27 vitest units in 1.4s; the `workers:1, retries:0` config remains. Original finding: **Studio and ink have zero unit tests** — 713 lines of hit-testing geometry and the single authoritative renderer are validated only through a long serial browser suite (`workers:1`, `retries:0` — one flake reds the push; ~20 min on CI now). **📋 CORRECTION (2026-08-25, while reviewing T112).** This audit stated **in four places** (originally written as "twice" — the other two were found on 2026-08-27 and are corrected in place) that T93 removed the
   `waitForTimeout` sleeps. **It did not.** Measured on the T93 commit itself: **45 occurrences before,
   45 after — it removed zero.** T93 replaced racing with explicit per-iteration assertions in ONE shared
   fixture (`fourFileRows`), which is a different fix. **`origin/main` carried 48 `waitForTimeout`
@@ -206,7 +206,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 | Improvement | Size | Notes |
 |---|---|---|
 | Vitest for studio + ink (geometry, strokeWidth, DPR budget, SyncClient vs fake WS); move the beat-vector test out of e2e | **M** | Millisecond feedback for code that currently costs 30 s/assertion. |
-| Shared e2e helper module (`register`, `createBandAndOpen`, API-based setup); then `retries: 1` + a smoke/full split | **M** | 77 of 81 specs duplicate setup; API-driven setup cuts suite runtime and the single-point-of-failure config. (The 39 sleeps were already removed by T93.) |
+| Shared e2e helper module (`register`, `createBandAndOpen`, API-based setup); then `retries: 1` + a smoke/full split | **M** | ✅ helper module `a9e142f`/`8a2e377` (T108/T114) + one upload helper `4fbd25a` (T116 — 26 copies converged); `retries: 1` + smoke/full split ruled and in build (T117). Original finding: 77 of 81 specs duplicate setup; API-driven setup cuts suite runtime and the single-point-of-failure config. **[CORRECTED 2026-08-27]** the parenthetical here claimed the 39 sleeps were already removed by T93 — they were not; see §4.3. |
 | Table-driven unit tests for `sync.authorizeWrite` (the 100-line policy matrix) | **S** | |
 | Compose UI tests for Stage (pedal-after-sheet, blocked-turn cue, two-up, badge) + an `:androidApp` test source set | **M** | |
 | Visual regression via `toHaveScreenshot` on the ~20 views already screenshotted for debug | **M** | Reuse the bake parity tolerance philosophy. |
