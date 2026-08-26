@@ -22452,3 +22452,94 @@ Ten landings verified since yesterday: **T106–T114 plus the sweep.** Nothing i
 scoped it, and whether it's worth a session is VLL's call like everything else on the open list.
 
 — Fable
+
+## 2026-08-26 — Web-Core → gate: T115 spec — `waitRenderStable`, for review BEFORE I build it
+
+You ruled category A its own task, spec-first, teeth-checked. Here is the spec. Nothing built yet — this
+is the design + the teeth-check protocol for your GO. (Deflake sweep already landed `a35adee`.)
+
+### Scope — 7 of the 10 "A" sleeps, not 10
+
+The three I am NOT touching, because they are negative assertions in disguise (a poll for *nothing*):
+
+- `editor-wheelzoom` L118 — plain wheel → `renderCount === before` (no zoom, no raster).
+- `editor-wheelzoom` L164 — overlay edit → `renderCount === afterZoom` (no re-raster).
+- `editor-noflicker` L101 — move → renders unchanged (the no-flicker guard itself).
+
+These stay as sleeps, same reasoning as B. **T115 converts the 7 where a render IS expected:**
+
+| test | sleep | role |
+|---|---|---|
+| wheelzoom L100, L149 | 300 | settle the `selectOption("100")` raster before capturing `before` |
+| wheelzoom L125 | 400 | wait out the burst re-raster before `after-before === pageCount` |
+| wheelzoom L153 | 400 | settle the burst before capturing `afterZoom` |
+| editor-touch L53 | 300 | settle baseline (pinch test) |
+| editor-touch L72 | 500 | wait out the pinch re-raster before `after-before === pageCount` |
+
+### The primitive
+
+```ts
+// Wait until PDF rasterization has QUIESCED after an action that is expected to render:
+// (1) at least one new pass has landed since `since`, then (2) the count holds steady across a
+// full settle window. Never returns at `since` (would race an unstarted raster) and never returns
+// mid-climb (the steady-hold is longer than the inter-pass gap).
+async function waitRenderStable(page: Page, since: number): Promise<number> {
+  await expect.poll(() => renderCount(page)).toBeGreaterThan(since);        // a pass has begun+landed
+  let last = -1;
+  await expect
+    .poll(async () => { const n = await renderCount(page); const held = n === last; last = n; return held; },
+          { intervals: [HOLD, HOLD, HOLD] })                                // steady across ≥2 windows
+    .toBe(true);
+  return renderCount(page);
+}
+```
+
+Usage keeps each test's own exact-count assertion — the helper only replaces the blind wait:
+
+```ts
+const before = await renderCount(page);
+await ctrlWheelBurst(page, 8, -40);
+const after = await waitRenderStable(page, before);
+expect(after - before).toBe(pageCount);   // unchanged assertion, unchanged teeth
+```
+
+### Why it cannot silently weaken the ten (your named risk)
+
+The failure you flagged is a quiescence window that returns **mid-climb**, letting a per-tick-raster
+regression read `pageCount` on its way to `N·pageCount` and pass. Two guards:
+
+1. **`> since` first.** The buggy per-tick impl still has to *finish* climbing to be steady; the helper
+   returns only after the count HOLDS. A steady N·pageCount then fails `=== pageCount` — RED, teeth intact.
+2. **HOLD ≥ the render debounce.** `usePdfDocument.ts:41` sets `WHEEL_SETTLE_MS = 120` — the burst
+   commits one raster 120ms after the last tick. HOLD = a safe multiple of that (proposing 200ms × ≥2
+   intervals = ≥400ms steady) so the steady-hold cannot land in a gap between per-tick passes. I'll
+   derive it from that exported/known constant, not a guess, and cite the line in the diff.
+
+### Teeth-check protocol — per converted exact-count test (L125, L72), stated up front
+
+The helper is only trustworthy if the assertion still reddens for the regression it guards. For **each**
+of the two exactly-once tests I will, as a throwaway local mutation (never committed):
+
+1. **Inject a second real pass** — a second `ctrlWheelBurst` / pinch immediately before the assertion, so
+   the true settled delta becomes `2·pageCount`. Expected: **RED** (`waitRenderStable` settles at
+   2·pageCount, `=== pageCount` fails). If it stays green, the helper returned early — reject the design.
+2. **Revert the impl invariant** — temporarily make the raster fire per-tick (bump `renderNonce` inside
+   the wheel handler instead of on settle). Expected: **RED**. This is the actual regression the test
+   exists to catch; it must survive the conversion.
+
+For the four **settle-baseline** conversions (L100/L149/L53 + L153's capture), the teeth live in the
+downstream `=== pageCount`; the check is that capturing `before`/`afterZoom` via `waitRenderStable`
+instead of the sleep still reddens under mutation #2. I'll record the before/after of each mutation in
+the gate note — pass→(mutate)→RED→(revert)→pass — not just assert it.
+
+### Verification & landing
+
+- Full e2e green + `--repeat-each=4` on the 3 converted spec files (wheelzoom, touch — the flake-surface
+  claim), measured, reported honestly.
+- e2e-only; no `src/`, no Go. On GO I'll file the formal `docs/tasks/T115.md` if you want it in-tree, or
+  land the conversion directly — your call.
+
+Building nothing until you GO the design (esp. HOLD sizing + the teeth protocol). If you'd rather own the
+spec yourself, say so and I'll implement to yours instead.
+
+— Vincent Le Ligeour
