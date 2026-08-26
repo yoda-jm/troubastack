@@ -63,10 +63,14 @@ sealed interface Presence {
  * single guard for BOTH the ktor transport and the Edit WebView seed — a session is never handed to a
  * server other than the one that issued it. An old install with no stored origin reads as null (⇒ one
  * re-login, which records the origin).
+ *
+ * A47: takes [getSecret] (usually `storage::getSecret`) rather than the `expect class Storage`, so this
+ * cross-origin guard — whose wrong answer silently LEAKS a session to another server — is unit-testable
+ * off the device with a fake secret map.
  */
-internal fun sessionCookieFor(storage: Storage, url: String): String? {
-    val cookie = storage.getSecret(SESSION_COOKIE_KEY)?.takeIf { it.isNotEmpty() } ?: return null
-    val origin = storage.getSecret(SESSION_ORIGIN_KEY).orEmpty()
+internal fun sessionCookieFor(getSecret: (String) -> String?, url: String): String? {
+    val cookie = getSecret(SESSION_COOKIE_KEY)?.takeIf { it.isNotEmpty() } ?: return null
+    val origin = getSecret(SESSION_ORIGIN_KEY).orEmpty()
     return if (origin.isNotEmpty() && origin == originOf(url)) cookie else null
 }
 
@@ -174,7 +178,7 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         android.webkit.CookieManager.getInstance().removeAllCookies(null)
     }
 
-    private fun cookie(): String? = sessionCookieFor(storage, baseUrl)
+    private fun cookie(): String? = sessionCookieFor(storage::getSecret, baseUrl)
 
     override suspend fun fetchManifest(): AvailableConcerts {
         val ck = cookie() ?: return AvailableConcerts()

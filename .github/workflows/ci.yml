@@ -219,9 +219,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       # ubuntu-latest ships the Android SDK preinstalled with ANDROID_HOME set, so AGP finds it
       # without a local.properties or an explicit sdkmanager step. Add SDK setup only if this fails.
-      - name: shared check + assemble debug APK
+      - name: shared check + androidApp unit tests + assemble debug APK
         working-directory: app
-        run: ./gradlew :shared:check :androidApp:assembleDebug
+        # A47: :androidApp:test runs the app module's JVM unit tests (sessionCookieFor / safeSegment) and
+        # fails the build on red — the module had no test source set before, so this code had never been
+        # executed by a test on any machine.
+        run: ./gradlew :shared:check :androidApp:test :androidApp:assembleDebug
       # iOS klibs cross-compile on Linux (no Mac needed) — type-checks the iosMain seam actuals
       # (Storage/WebViewHost + the zip reader) on every push. Linking a framework + running a
       # simulator still needs macOS; that's IOS02's job (manual-trigger macOS runner).

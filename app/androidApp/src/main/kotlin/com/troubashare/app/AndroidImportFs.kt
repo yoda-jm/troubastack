@@ -38,7 +38,7 @@ class AndroidImportFs(private val storage: Storage) : ImportFs {
 }
 
 /** Reduce an arbitrary id to one safe filename segment (no separators, no dot-only names). */
-private fun safeSegment(id: String): String {
+internal fun safeSegment(id: String): String {
     val cleaned = id.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }.joinToString("")
     return cleaned.ifBlank { "bundle" }
 }

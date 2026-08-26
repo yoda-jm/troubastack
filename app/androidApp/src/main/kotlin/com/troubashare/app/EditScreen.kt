@@ -69,7 +69,7 @@ fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null
         // Seed the app's Connect session (B03) into the WebView so Edit doesn't re-prompt: the session
         // is an app-side ktor cookie; the WebView has its own jar. sessionCookieFor() returns it ONLY
         // when it was issued by this origin, so another server's session never leaks to a typed URL.
-        seedSessionCookie(serverUrl, sessionCookieFor(storage, serverUrl))
+        seedSessionCookie(serverUrl, sessionCookieFor(storage::getSecret, serverUrl))
         state = WebViewHost.State.Loading
         host.load(loadUrl)
     }

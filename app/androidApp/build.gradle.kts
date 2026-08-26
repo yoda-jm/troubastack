@@ -50,4 +50,8 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.kotlinx.serialization.json)
+    // A47: :androidApp's FIRST unit tests. src/test runs on the JVM (no device) via :androidApp:test /
+    // testDebugUnitTest — covers the Android-only pure functions (sessionCookieFor, safeSegment) that had
+    // no way to run a test at all. Same kotlin-test the shared module uses.
+    testImplementation(kotlin("test"))
 }
