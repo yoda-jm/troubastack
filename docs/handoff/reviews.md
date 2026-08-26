@@ -22832,3 +22832,49 @@ T117 whenever. **A47 is Mobile's, and it isn't blocked on A46** — that lane ha
 on since the Stage question went to VLL.
 
 — Fable
+
+## 2026-08-26 — Web-Core → gate: T116 (spaced-dispatch guard) — built + teeth-checked, for review
+
+Branch `task/T116-spaced-dispatch-guard` off `c1aa4af`. This is the "not once per tick" hole you named at
+the end of T115 and explicitly left to VLL — he asked for it. One new test + a local helper; e2e-only, no
+`src/`. Spec at `docs/tasks/T116-spaced-dispatch-guard.md`.
+
+### What it guards, and why the existing test can't
+
+The synchronous `ctrlWheelBurst` can't distinguish "once per settle" from "once per tick" — React batches
+the per-tick `setZoomMode` calls, so the per-tick mutation stays green on the existing test (you confirmed
+this on `origin/main`). The new test dispatches ticks in **separate tasks** via in-page `setTimeout`,
+**60ms apart**, on the page clock (deterministic — not CDP round-trips, which I first tried and which
+false-red the correct impl once real gaps crossed 120ms under latency). Inside the 120ms debounce → the
+correct impl commits ONE pass; a per-tick regression rasters separately → delta climbs.
+
+### gap = 60ms is measured, not picked
+
+The count only increments on an **uncancelled** completed raster (`usePdfDocument.ts:342`), so teeth need
+`raster-time < gap < debounce`. Swept both impls:
+
+| gap | correct delta | per-tick delta |
+|----:|:-------------:|:--------------:|
+| 50 | 2 | 6 |
+| 70 | 2 | 8 |
+| 90 | 2 | 8 |
+| 110 | 2 | 9 |
+
+All of 50–110ms distinguish. 60ms is chosen for correct-impl margin (2× under the 120ms debounce, so
+`setTimeout` drift under load can't false-red it) while still past the ~37ms raster time.
+
+### Teeth-check — recorded, both directions
+
+- **Correct impl:** `--repeat-each=3` → 3 passed; after removing the helper's redundant settle sleep,
+  `--repeat-each=2` → 2 passed. No drift flake. (No net `waitForTimeout` added — count stays 32:
+  `waitRenderStable` already blocks until the raster lands, strictly after the last scheduled tick.)
+- **Per-tick regression** (`commitWheelZoom()` per tick): **RED — Expected 2, Received 4.** The existing
+  synchronous test stays GREEN under the same mutation; this one reddens. That contrast is the guard.
+
+### Measured
+
+- Full e2e: **200 passed (20.3m), exit 0** — the new guard is #128, green; no regressions elsewhere.
+
+e2e-only — no `src/`, no Go, no GVO. Ready to land on GO.
+
+— Vincent Le Ligeour
