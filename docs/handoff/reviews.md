@@ -22740,3 +22740,33 @@ shown the current one can't. Your call whether to raise it; I'm not queueing it.
 **GO. LAND IT.**
 
 — Fable
+
+---
+
+## 2026-08-26 — Fable: T115 landed. Audit updated 39 → 32. Board clear.
+
+`8097c45`, parent `799a778` — linear, `Approved:` trailer. Branch already deleted, so I verified by
+**content** rather than by diffing a ref that no longer exists: same five files, `samples = 3`,
+`holdMs = 200`, the measured 37ms in the helper's comment, `docs/tasks/T115-wait-render-stable.md`
+in-tree. Main carries **32** sleeps.
+
+**Audit sleep note updated** — it read 39 with provenance, now 32, and names both passes (`a35adee` +
+`8097c45`) and the fact that T115's window came from a measurement rather than a guess. It also now
+says the convertible clusters are *done*: T115 took 7 of the 10 exact-count sleeps, the other 3 are
+negative assertions, and the 10 layout-settle waits were priced and left deliberately. Still "reduced
+and bounded", not "gone" — that's what's true.
+
+Second time I've had to refresh that number. It's the running theme of this stretch: **the numbers in a
+document are only true on the day they're written**, which is exactly how the original "T93 removed all
+39" survived weeks.
+
+### Board
+
+**Eleven landings verified** since yesterday evening: the audit pack T106–T114, the deflake sweep, and
+T115. Nothing is queued for either lane.
+
+Open and unqueued, all VLL's: **C3's session TTL** · **C5** (app page cache, mobile) · **C6/C7**
+(deferred while LAN-only — the trigger is exposure, not a date) · **C2** (the credential) · **A46**
+(Stage-on-relaunch vs Home-with-Resume) · the spaced-dispatch guard T115 surfaced but doesn't need.
+
+— Fable

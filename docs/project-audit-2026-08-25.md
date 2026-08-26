@@ -142,13 +142,16 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
   `waitForTimeout` sleeps. **It did not.** Measured on the T93 commit itself: **45 occurrences before,
   45 after — it removed zero.** T93 replaced racing with explicit per-iteration assertions in ONE shared
   fixture (`fourFileRows`), which is a different fix. **`origin/main` carried 48 `waitForTimeout`
-  calls across 25 e2e specs when this correction was written.** **UPDATE (2026-08-26, `a35adee`):** a
-  deflake sweep converted **9** of them to real awaits — polls on a delta or a definite target, each
-  keeping its original assertion — leaving **39**, every one documented by category in `reviews.md`.
+  calls across 25 e2e specs when this correction was written.** **UPDATE (2026-08-26, `a35adee` + `8097c45`):** two
+  passes converted **16** of them to real awaits — polls on a delta or a definite target, each keeping
+  its original assertion — leaving **32**, every one documented by category in `reviews.md`. The second
+  pass (T115) added a shared `waitRenderStable` for the exact-count raster tests, sized off a **measured**
+  worst intra-pass gap of 37ms rather than a guess.
   Of those 39, categories B (negative assertions), C (temporal) and D (gesture pacing) are **not
   convertible even in principle**: you cannot poll for nothing having happened, and a delay that *is*
-  the input cannot be removed without changing the test. The remaining convertible cluster (10
-  exact-count quiescence) is **T115**. So the sleep-based flake vector is **reduced and bounded**, not
+  the input cannot be removed without changing the test. The convertible clusters are now done: T115 took 7 of
+  the 10 exact-count sleeps (the other 3 are negative assertions), and the 10 layout-settle waits were
+  priced and deliberately left. So the sleep-based flake vector is **reduced and bounded**, not
   gone; the single-point-of-failure config (`workers:1, retries:0`) is unchanged. The reviewer
   published this error and repeated it in several gate entries before catching it.
 - ✅ **RETIRED** `a9e142f` (T108) + `8a2e377` (T114, register over the API, −8% suite) — e2e copy-paste debt got *worse* on main: 77 of 81 specs define their own `register()` helper; a registration-flow change is a 77-file edit.
