@@ -19,6 +19,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { clearBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { waitRenderStable } from "./render-helpers";
 
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
@@ -94,10 +95,11 @@ test("editor: a Ctrl+wheel burst zooms but re-rasters exactly once (not per tick
   await page.reload();
   await openEditorReady(page);
 
-  // Pin an explicit zoom so the base scale is deterministic; let it settle.
+  // Pin an explicit zoom so the base scale is deterministic; wait for the 100% re-raster to settle
+  // (T115) rather than sleeping, so `before` is captured on a quiesced count.
+  const baseline = await renderCount(page);
   await page.getByTestId("zoom-mode").selectOption("100");
-  await expect.poll(() => renderCount(page)).toBeGreaterThan(0);
-  await page.waitForTimeout(300);
+  await waitRenderStable(page, baseline);
 
   const pageCount = await page.getByTestId("pdf-page").count();
   const before = await renderCount(page);
@@ -121,8 +123,10 @@ test("editor: a Ctrl+wheel burst zooms but re-rasters exactly once (not per tick
 
   // Now a fast Ctrl+wheel burst: many ticks, all inside the settle window.
   await ctrlWheelBurst(page, 8, -40);
-  // Wait past the settle debounce and give the single re-raster time to land.
-  await page.waitForTimeout(400);
+  // Wait for the single re-raster to LAND and QUIESCE (T115) — not a fixed sleep. This is what
+  // keeps the exactly-once teeth: a per-tick regression climbs past pageCount and only THEN settles,
+  // so the delta below fails; the wait never returns mid-climb.
+  const afterZoom = await waitRenderStable(page, before);
 
   // Zoom changed (zoomed IN → a percentage above 100).
   const zoomVal = await page.getByTestId("zoom-mode").inputValue();
@@ -130,7 +134,6 @@ test("editor: a Ctrl+wheel burst zooms but re-rasters exactly once (not per tick
 
   // …but the PDF re-rasterized exactly ONCE (one pass = one bump per page),
   // NOT once per wheel tick. This is the decouple-visual-zoom invariant.
-  const afterZoom = await renderCount(page);
   expect(afterZoom - before).toBe(pageCount);
 });
 
@@ -144,14 +147,14 @@ test("editor: after a wheel-zoom settles, an annotation edit still does NOT re-r
   await page.reload();
   await openEditorReady(page);
 
+  const baseline = await renderCount(page);
   await page.getByTestId("zoom-mode").selectOption("100");
-  await expect.poll(() => renderCount(page)).toBeGreaterThan(0);
-  await page.waitForTimeout(300);
+  await waitRenderStable(page, baseline);
 
-  // Zoom in with a Ctrl+wheel burst and let it fully settle + re-raster.
+  // Zoom in with a Ctrl+wheel burst; wait for the re-raster to land + quiesce (T115).
+  const beforeBurst = await renderCount(page);
   await ctrlWheelBurst(page, 8, -40);
-  await page.waitForTimeout(400);
-  const afterZoom = await renderCount(page);
+  const afterZoom = await waitRenderStable(page, beforeBurst);
 
   // Draw + move an annotation at the new scale.
   await page.getByTestId("new-layer").click();

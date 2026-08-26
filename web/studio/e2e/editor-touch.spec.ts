@@ -14,6 +14,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { waitRenderStable } from "./render-helpers";
 
 // Touch must be enabled for the browser to emit touch → pointer(type:touch) events.
 test.use({ hasTouch: true });
@@ -47,10 +48,10 @@ test("editor: a two-finger pinch zooms but re-rasters exactly once (not per tick
   await page.reload();
   await openEditorReady(page);
 
-  // Deterministic base scale; let the first raster settle.
+  // Deterministic base scale; wait for the 100% re-raster to settle (T115), not a fixed sleep.
+  const baseline = await renderCount(page);
   await page.getByTestId("zoom-mode").selectOption("100");
-  await expect.poll(() => renderCount(page)).toBeGreaterThan(0);
-  await page.waitForTimeout(300);
+  await waitRenderStable(page, baseline);
 
   const pageCount = await page.getByTestId("pdf-page").count();
   const before = await renderCount(page);
@@ -68,8 +69,9 @@ test("editor: a two-finger pinch zooms but re-rasters exactly once (not per tick
     gestureSourceType: "touch",
   });
 
-  // Wait past the settle debounce + the single re-raster.
-  await page.waitForTimeout(500);
+  // Wait for the single re-raster to LAND and QUIESCE (T115) — the wait never returns mid-climb, so
+  // a per-pinch-tick regression (delta > pageCount) still reddens the assertion below.
+  const after = await waitRenderStable(page, before);
 
   // The zoom changed (a fit/percent readout above 100%).
   const zoomVal = await page.getByTestId("zoom-mode").inputValue();
@@ -77,6 +79,5 @@ test("editor: a two-finger pinch zooms but re-rasters exactly once (not per tick
 
   // …and the PDF re-rasterized exactly ONCE (one pass = one bump per page), NOT
   // once per pinch move tick — the stage-1 decouple invariant, on touch.
-  const after = await renderCount(page);
   expect(after - before).toBe(pageCount);
 });

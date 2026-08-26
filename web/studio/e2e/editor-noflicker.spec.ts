@@ -18,6 +18,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { clearBand, openDrawer } from "./fullscreen-helpers";
 import { fileURLToPath } from "node:url";
 import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { waitRenderStable } from "./render-helpers";
 
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
@@ -76,11 +77,11 @@ test("editor: adding/moving an annotation does NOT re-rasterize the PDF (no flic
   await page.reload();
   await openEditorReady(page);
 
-  // Pin an EXPLICIT zoom so fit-width math can't be blamed; let it settle.
+  // Pin an EXPLICIT zoom so fit-width math can't be blamed; wait for the re-render at the new scale
+  // to finish and the count to stabilize (T115), rather than sleeping.
+  const baseline = await renderCount(page);
   await page.getByTestId("zoom-mode").selectOption("100");
-  // Let the (re)render at the new scale finish and the count stabilize.
-  await expect.poll(() => renderCount(page)).toBeGreaterThan(0);
-  await page.waitForTimeout(300);
+  await waitRenderStable(page, baseline);
 
   const sizeBefore = await pageCanvasSize(page);
   const rendersBefore = await renderCount(page);
