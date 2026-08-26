@@ -15,11 +15,9 @@
  * Sibling guard for the SAME bug class on the BAKE path (T99): `bake-insecure-origin.spec.ts`.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { fileURLToPath } from "node:url";
 import { clearBand, openDrawer } from "./fullscreen-helpers";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from "./setup-helpers";
 
-const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 const V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 // Emulate an insecure origin: crypto.randomUUID is absent (getRandomValues stays).
@@ -33,15 +31,6 @@ const deleteRandomUUID = (page: Page) =>
     }
   });
 
-async function uploadPdf(page: Page) {
-  // T36: file management moved into the editor's Details panel — open it to reach the
-  // upload form, then close it so the canvas is unobstructed for whatever follows.
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
-  await page.getByTestId("file-upload").click();
-  await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await page.getByTestId("my-files-edit").click();
-}
 async function openEditorReady(page: Page) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();
   await expect(page.getByTestId("edit-canvas").first()).toBeVisible();

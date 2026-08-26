@@ -10,13 +10,10 @@
  * test: a very dense stroke stores far fewer points than dispatched (the filter).
  */
 import { test, expect, type Page } from "@playwright/test";
-import { fileURLToPath } from "node:url";
 import { openDrawer, closeDrawer } from "./fullscreen-helpers";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from "./setup-helpers";
 
 test.use({ hasTouch: true });
-
-const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
 async function shimPointerCapture(page: Page) {
   await page.addInitScript(() => {
@@ -31,15 +28,6 @@ async function shimPointerCapture(page: Page) {
       };
     }
   });
-}
-async function uploadPdf(page: Page) {
-  // T36: file management moved into the editor's Details panel — open it to reach the
-  // upload form, then close it so the canvas is unobstructed for whatever follows.
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
-  await page.getByTestId("file-upload").click();
-  await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await page.getByTestId("my-files-edit").click();
 }
 async function armFreehand(page: Page, opacity: number) {
   await expect(page.getByTestId("pdf-page").first()).toBeVisible();

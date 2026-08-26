@@ -13,10 +13,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { scrollFracIntoBand, openDrawer, closeDrawer } from "./fullscreen-helpers";
-import { fileURLToPath } from "node:url";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
-
-const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
+import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from "./setup-helpers";
 
 async function myUserId(page: Page): Promise<string> {
   return page.evaluate(async (): Promise<string> => {
@@ -24,16 +21,6 @@ async function myUserId(page: Page): Promise<string> {
     const j = (await r.json()) as { user: { id: string } };
     return j.user.id;
   });
-}
-
-async function uploadPdf(page: Page) {
-  // T36: file management moved into the editor's Details panel — open it to reach the
-  // upload form, then close it so the canvas is unobstructed for whatever follows.
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
-  await page.getByTestId("file-upload").click();
-  await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await page.getByTestId("my-files-edit").click();
 }
 
 async function firstFileId(page: Page, bandId: string, songId: string): Promise<string> {

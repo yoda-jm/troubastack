@@ -15,6 +15,7 @@ import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-h
 
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
+// T116 exception: this spec uploads two files, so it can't use the shared uploadPdf (which asserts exactly one file-row). Kept local, assertion intentionally omitted.
 async function uploadPdf(page: Page) {
   await page.getByTestId("my-files-edit").click();
   await page.getByTestId("file-input").setInputFiles(PDF_PATH);

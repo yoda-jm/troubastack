@@ -16,21 +16,11 @@
  * to page centre.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { fileURLToPath } from "node:url";
 import { clearBand, openDrawer, closeDrawer } from "./fullscreen-helpers";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from "./setup-helpers";
 
 test.use({ hasTouch: true, viewport: { width: 412, height: 915 } }); // a phone, the surface VLL uses
 
-const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
-
-async function uploadPdf(page: Page) {
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
-  await page.getByTestId("file-upload").click();
-  await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await page.getByTestId("my-files-edit").click();
-}
 const objectCount = (page: Page) =>
   page.getByTestId("object-count").innerText().then((t) => parseInt(t, 10));
 

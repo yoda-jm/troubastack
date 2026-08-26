@@ -16,21 +16,8 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { clearBand, openDrawer } from "./fullscreen-helpers";
-import { fileURLToPath } from "node:url";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from "./setup-helpers";
 import { waitRenderStable } from "./render-helpers";
-
-const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
-
-async function uploadPdf(page: Page) {
-  // T36: file management moved into the editor's Details panel — open it to reach the
-  // upload form, then close it so the canvas is unobstructed for whatever follows.
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
-  await page.getByTestId("file-upload").click();
-  await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await page.getByTestId("my-files-edit").click();
-}
 
 async function dragOnPage(page: Page, fx: number, fy: number, tx: number, ty: number, steps = 8) {
   const pageEl = page.getByTestId("pdf-page").first();

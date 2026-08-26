@@ -5,10 +5,7 @@
  * free vitest suite in T110 — see test/beat-phase.test.ts.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { fileURLToPath } from "node:url";
-import { stamp, register, createBandAndOpen } from "./setup-helpers";
-
-const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
+import { stamp, register, createBandAndOpen, uploadPdf } from "./setup-helpers";
 
 // Studio UI — tap the beat, the frame pulses, a count-in stops itself.
 // ===========================================================================
@@ -84,13 +81,6 @@ test("editor: the ∞ toggle switches the beat to continuous (T85)", async ({ pa
 // ===========================================================================
 // Frame placement — hug the page on a wide screen, fall back to the viewport.
 // ===========================================================================
-async function uploadPdf(page: Page) {
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
-  await page.getByTestId("file-upload").click();
-  await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await page.getByTestId("my-files-edit").click();
-}
 
 async function firstFileId(page: Page, bandId: string, songId: string): Promise<string> {
   return page.evaluate(

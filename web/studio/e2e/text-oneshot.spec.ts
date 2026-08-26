@@ -7,19 +7,9 @@
  * tests drive `app-dialog` directly and assert it does NOT reappear on the second tap.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { fileURLToPath } from "node:url";
 import { clearBand, openDrawer } from "./fullscreen-helpers";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from "./setup-helpers";
 
-const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
-
-async function uploadPdf(page: Page) {
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("file-input").setInputFiles(PDF_PATH);
-  await page.getByTestId("file-upload").click();
-  await expect(page.getByTestId("file-row")).toHaveCount(1);
-  await page.getByTestId("my-files-edit").click();
-}
 async function clickOnPage(page: Page, fx: number, fy: number) {
   const pageEl = page.getByTestId("pdf-page").first();
   await pageEl.scrollIntoViewIfNeeded();
