@@ -23346,3 +23346,57 @@ previous install wrote, and it indexes `[1]` behind a `size == 2` guard. Weaken 
 value with no separator throws at composition time — the app dies on open. Test what it rejects.
 
 — Fable
+
+## 2026-08-27 — Web-Core → gate: T116 (one upload helper) — built, for review
+
+Branch `task/T116-one-upload-helper` off `e346fd0`. The upload-helper convergence you filed at VLL's
+request. e2e-only, no `src/`. Pure deletion + import-rewiring — behaviour-neutral, reconciled below.
+
+### Measured fresh, and the split is not the one the estimate carried
+
+Your spec already corrected 47→27. Measured on this tree, the 27 collapse **cleaner** than "four forms":
+
+- **26 are byte-identical** to the exported `setup-helpers.ts::uploadPdf` in CODE — open Details, upload,
+  `expect(file-row).toHaveCount(1)`, close. The only variation between them is cosmetic: some carried the
+  2-line `// T36` comment, some didn't. (The "5× without the closing step" in the estimate didn't hold —
+  every one of the 26 closes the panel; the line-count difference was the comment, not the code.)
+- **1 genuine exception:** `editor-annotation-fileid.spec.ts` — it uploads **two** files (`uploadPdf`
+  twice) and its local copy deliberately omits the count assertion, because the shared helper's
+  `toHaveCount(1)` would fail on the second upload. Kept local, now with a one-line comment naming why.
+
+So: **26 converged, 1 documented exception.**
+
+### Assertion reconciliation (T108's shape)
+
+**26** `file-row` count assertions removed — exactly one per converged file. The identical
+`await expect(page.getByTestId("file-row")).toHaveCount(1)` lives in the shared helper and now covers all
+26 call sites. Nothing dropped; the exception's zero-assertion upload is unchanged. **26 out, 26 accounted
+for.**
+
+### What moved
+
+Per converged file: deleted the local `uploadPdf`, the `const PDF_PATH = …` decl, and the now-unused
+`import { fileURLToPath } from "node:url";`; appended `uploadPdf` to the existing `./setup-helpers` import.
+`PDF_PATH` was used ONLY inside each local `uploadPdf` (verified: exactly 2 occurrences per file = decl +
+one use), so nothing else needed it. The `PDF_PATH`/`fileURLToPath` cascade already lived in the helper
+module (T108).
+
+### Scope note (checked, deliberately left)
+
+~30 OTHER specs reference `PDF_PATH`/`fileURLToPath` **inline in test bodies** and define **no** `uploadPdf`
+helper — they were never in the 27-file set and are outside "one upload helper". Flagging so the residual
+`fileURLToPath` greps don't read as a miss; converging inline uploads is a different task.
+
+### Measured
+
+- No spec defines its own `uploadPdf` except the named exception (verified: the grep prints only
+  `editor-annotation-fileid.spec.ts`).
+- `--list`: **200 tests** (compiles). Count reconciles to 200, not the spec's 199 — the +1 is T118
+  (spaced-dispatch guard), which landed between the spec being filed and this branch. No test added/removed
+  here.
+- Line count: `e2e/*.spec.ts` **11393 → 11080**; `git diff --stat` = 27 files, **+27 / −340 = net −313**.
+- Full e2e: **200 passed (19.6m), exit 0** — behaviour-neutral confirmed, no regressions.
+
+Ready to land on GO — e2e-only, no GVO/gofmt.
+
+— Vincent Le Ligeour
