@@ -22941,3 +22941,79 @@ and the suffix updated. No re-review; I've run both directions.
 Then **T116 as filed** — the 27 `uploadPdf` copies, still waiting.
 
 — Fable
+
+## 2026-08-27 — Web-Core → gate: T117 design — retries + smoke/full split, for review BEFORE I wire CI
+
+Spec-first, because the two live decisions here are the ones you told me to *argue*: what retries are
+FOR, and the smoke selection criterion + trigger (a repo-policy change). Concrete proposal below; I'll
+build + measure both wall-clocks on GO. Worktree `task/T117-flake-retries-smoke` off `f6874f1` is ready.
+
+### (a) Retries — what they're FOR, and kept visible
+
+**Rationale:** retries are for an **infrastructure blip that would otherwise cost a 19-min re-run** — the
+Go webServer cold-compiling on the runner, the vite ws `ECONNRESET` we see every run at teardown, runner
+load. They are **NOT** to make a real flake quieter; a test that only passes on retry is a flake that
+stopped telling you.
+
+**So:** `retries: process.env.CI ? 2 : 0`. On CI only — locally a flake must surface immediately so the
+dev fixes the cause. Zero locally keeps `make e2e` honest.
+
+**Kept visible (your hard rule):** Playwright already scores a fail-then-pass as **`flaky`**, a distinct
+outcome from `passed` — the run stays green but the summary says `N flaky`. On top of that:
+- add the **`github` reporter** on CI → every flaky/failed test gets an inline PR annotation;
+- a post-e2e step reads the JSON report and, if `flaky > 0`, emits a **`::warning::` with the test names**
+  (loud, but not a red — an infra blip shouldn't red the push; that's the whole point). Zero-tolerance
+  would just re-create the problem retries exist to solve.
+- **Demonstrated**, per your rule: a throwaway spec that fails on attempt 1 and passes on 2 → I'll show it
+  surfaces as `flaky` + annotation + warning, not a silent green.
+
+### (b) Smoke/full split
+
+**Selection criterion (the defensible bar):** a test is **smoke** iff it exercises a *critical-path user
+journey* or a *cross-cutting invariant whose failure means the app is broken for everyone* — not a narrow
+correctness edge. Proposed smoke set (~11):
+
+| test | what its failure means |
+|---|---|
+| flows §1 register → /bands | can't sign up |
+| flows §2 create+open band (admin) | can't create a band |
+| flows §4 create song → editor opens | can't create a song / editor dead |
+| flows §8 setlist create/add/reorder | setlists broken |
+| flows §5 logout + guarded-route redirect | auth guard broken |
+| editor.spec draw rect/freehand/text persists | the editor's core doesn't save |
+| editor.spec realtime A→B echo | live sync dead (the product's point) |
+| bake: admin bakes a setlist → link | the bake pipeline is down |
+| identity §b change password → re-login | auth mutation broken |
+| identity §c invite link → second user joins | multi-user access broken |
+| editor-insecure-context global error backstop | the SPA white-screens instead of showing a banner |
+
+**What smoke catches:** "auth/band/song/setlist/editor/bake/realtime/invite is fundamentally broken", and
+"the app white-screens". **What only full catches:** pick geometry, the zoom exact-count invariants, phone
+chrome/breakpoints, locked-layer semantics, transpose, lyrics import/search, per-file annotation
+isolation, touch gestures, panel/drawer contracts, cues/meter/wet-alpha — narrow correctness that doesn't
+take the whole app down.
+
+**Mechanism:** Playwright test **tags** — `test("…", { tag: "@smoke" }, …)` on those 11 (clean titles,
+not string pollution); `e2e:smoke` = `playwright test --grep @smoke`. Confirmed: installed Playwright is
+**1.61.0**, the `{ tag }` option is supported.
+
+**Trigger** (given this repo lands by ff-push to `main`, and CI currently runs only on `push:[main]` +
+`pull_request`):
+- **smoke** e2e on **every branch push** (add branches to the push trigger) → a fast pre-landing signal
+  where today there is none;
+- **full** e2e on **`push:[main]` + PR**, exactly as today → the complete gate at the landing point.
+- retries (CI) on both.
+
+This is the split that actually helps *this* workflow: the agent/dev gets a ~few-minute "is it
+fundamentally broken" answer on the task branch before landing, and `main` still gets the full 20-min
+regression gate.
+
+### On GO I will
+
+Tag the 11, wire the two jobs + the flaky-visibility step, demonstrate the flaky path, and **measure**:
+smoke wall-clock + count, full wall-clock + count, reconciled against 200. e2e/CI-only; no `src/`, no Go.
+
+Two things I want your ruling on specifically: **retries=2** (vs 1), and **smoke-on-all-branch-pushes**
+(the CI-load implication). If you'd rather smoke stay on the existing triggers, say so and I'll scope it there.
+
+— Vincent Le Ligeour
