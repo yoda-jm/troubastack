@@ -169,3 +169,62 @@ test("editor: after a wheel-zoom settles, an annotation edit still does NOT re-r
   // The edit is overlay-only: no re-raster, even at the zoomed scale.
   expect(await renderCount(page)).toBe(afterZoom);
 });
+
+// A "spaced" burst: ticks fired in SEPARATE tasks via in-page setTimeout, `gapMs` apart, on the PAGE
+// clock (deterministic — not CDP round-trip latency). ctrlWheelBurst fires all ticks in ONE
+// synchronous task, which React batches, so a per-tick raster regression collapses to a single
+// raster and is invisible to it; spacing the ticks lets a per-tick regression raster separately.
+// gapMs stays INSIDE the 120ms WHEEL_SETTLE_MS window (usePdfDocument.ts), so the correct debounced
+// impl still commits exactly ONE pass.
+async function ctrlWheelSpaced(page: Page, ticks: number, deltaY: number, gapMs: number) {
+  await page.getByTestId("viewer-scroll").evaluate(
+    (el, { n, dy, gap }) => {
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      for (let i = 0; i < n; i++)
+        setTimeout(
+          () =>
+            el.dispatchEvent(
+              new WheelEvent("wheel", { deltaY: dy, ctrlKey: true, clientX: cx, clientY: cy, bubbles: true, cancelable: true }),
+            ),
+          i * gap,
+        );
+    },
+    { n: ticks, dy: deltaY, gap: gapMs },
+  );
+  // No sleep to "let the ticks fire": the caller's waitRenderStable blocks until a raster lands
+  // (~one debounce past the LAST scheduled tick), which is strictly after all ticks have dispatched.
+}
+
+test("editor: wheel ticks spread over time (separate tasks) re-raster exactly once, not per tick (T118)", async ({
+  page,
+}) => {
+  // The exactly-once test above fires its burst SYNCHRONOUSLY, so React batches the per-tick
+  // setZoomMode calls and a per-tick raster regression is indistinguishable from the debounced path
+  // (verified: the per-tick mutation stays green on that test). This guards the "not once per tick"
+  // half directly — 5 ticks 60ms apart, each in its own task but all inside the 120ms settle window:
+  // the debounced impl commits ONE pass; a per-tick regression rasters ~5×, so the delta climbs past
+  // pageCount and this reddens. (Teeth verified for T118: RED under the per-tick mutation.)
+  await register(page, `wzs_${stamp()}`);
+  await createBandAndOpen(page, `WZSBand ${stamp()}`);
+  await createSongAndOpen(page, `WZSSong ${stamp()}`);
+  await uploadPdf(page);
+  await page.reload();
+  await openEditorReady(page);
+
+  const baseline = await renderCount(page);
+  await page.getByTestId("zoom-mode").selectOption("100");
+  await waitRenderStable(page, baseline);
+
+  const pageCount = await page.getByTestId("pdf-page").count();
+  const before = await renderCount(page);
+
+  await ctrlWheelSpaced(page, 5, -30, 60);
+  const after = await waitRenderStable(page, before);
+
+  // Zoom actually changed (a spaced burst still zooms in).
+  expect(parseInt(await page.getByTestId("zoom-mode").inputValue(), 10)).toBeGreaterThan(100);
+  // …and it was exactly ONE debounced pass, NOT one raster per tick.
+  expect(after - before).toBe(pageCount);
+});
