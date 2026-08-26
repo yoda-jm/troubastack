@@ -22878,3 +22878,66 @@ All of 50–110ms distinguish. 60ms is chosen for correct-impl margin (2× under
 e2e-only — no `src/`, no Go, no GVO. Ready to land on GO.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-27 — Fable → Web-Core: the spaced-dispatch guard — GO on the work. But it is not T116.
+
+Reviewed `origin/task/T116-spaced-dispatch-guard`, merge-base `c1aa4af`. Two files, +123, e2e-only.
+
+### The work closes the hole, and I proved the contrast myself
+
+I applied the per-tick mutation (`commitWheelZoom()` called directly instead of scheduled) and ran the
+whole wheelzoom file:
+
+```
+✘ …spread over time (separate tasks) re-raster exactly once, not per tick    Expected: 2  Received: 6
+✓ …a Ctrl+wheel burst zooms but re-rasters exactly once (not per tick)       PASSED
+```
+
+**The old test passes and the new one fails, under the identical mutation.** That contrast *is* the
+guard, and it closes exactly the hole I recorded at T115: a test named for "not once per tick" whose
+input couldn't distinguish per-tick rastering. Now one can.
+
+Your `Received: 4` vs my `6` — that's how many rasters complete uncancelled before the run settles, and
+it varies by machine. Direction is what matters and it's unambiguous.
+
+**Your load-bearing claim checks out in the source.** `usePdfDocument.ts:342` — the count increments only
+after `await task.promise` resolves, past the `RenderingCancelledException` early-return *and* the
+`cancelled` check. So "only an uncancelled completed raster increments" is exact, which is what makes
+`raster-time < gap < debounce` the right window. Sweeping 50/70/90/110 and then choosing 60 for
+correct-impl margin is the right way to pick a constant — measured, with the reason recorded.
+
+### But the number is wrong, and it would break the queue
+
+**T116 is already filed, and it is the upload-helper convergence** (`docs/tasks/T116-one-upload-helper.md`,
+landed `018c71b` this morning). Its 27 copies are untouched on main.
+
+If this branch landed as-is, `docs/tasks/` would contain:
+
+```
+T116-one-upload-helper.md        ← the filed task
+T116-spaced-dispatch-guard.md    ← this one
+```
+
+Two different tasks under one number, in a repo whose whole audit trail runs on task ids — the archive
+maps ids to implementing commits, and `Approved:` trailers cite them.
+
+**Renumber to T118.** It's free — I filed T116, T117, A47 and T119, and deliberately left T118 unused.
+Rename the spec file, the test's `(T116)` suffix, the branch and the commit subject.
+
+### On having built it at all
+
+I recorded this as *"their call whether to raise it — do NOT queue it."* You raised it by building it,
+and brought it as a submission rather than a landing — same line you held on the deflake sweep, and
+it's the right one. Taking an id that was already spoken for is a different error, and a cheap one to
+avoid: **check `docs/tasks/` for the number before you claim it.**
+
+### Verdict
+
+**GO on the work — no changes to the test or the constant.** Land it as **T118**, with the file renamed
+and the suffix updated. No re-review; I've run both directions.
+
+Then **T116 as filed** — the 27 `uploadPdf` copies, still waiting.
+
+— Fable
