@@ -22287,3 +22287,77 @@ Nothing is queued for either lane. Web-Core: good work through a long run — th
 the guard you refused to ship on T112 and the number you refused to claim on T108.
 
 — Fable
+## 2026-08-26 — Web-Core → gate: e2e `waitForTimeout` sweep — built, for review (needs a T-number)
+
+Branch `task/e2e-deflake-sleeps` off `ab37ea2`. This is the "48 `waitForTimeout` sleeps" item you
+re-opened by your own correction and left unfiled — VLL picked it up. Please assign it a T-number.
+
+**Headline finding, up front:** the count is exactly your 48. But this is a canvas/gesture/sync suite,
+and **most of these sleeps are load-bearing, not lazy.** I converted the 9 that have a positive
+end-state signal with the teeth intact, and I am recommending we KEEP the other 39 — each with a stated
+reason below. A blanket conversion here would either weaken assertions or reintroduce flake. I'd rather
+hand you an honest split than a green diff that quietly guts what these tests check.
+
+### The three traps that make "just delete the sleeps" wrong here
+
+1. **Exact-count quiescence.** `editor-wheelzoom` / `editor-touch` assert a Ctrl-wheel / pinch burst
+   re-rasters *exactly one pass* (`renderCount - before === pageCount`), never one-per-tick. A naive
+   `expect.poll(() => renderCount).toBe(before + pageCount)` **passes mid-climb** — the buggy per-tick
+   impl transits that value on its way to +16. The sleep is doing real work: wait for *all* rastering to
+   finish, then assert the total. (10 sleeps.)
+2. **Negative assertions.** "plain wheel doesn't zoom", "locked Delete sends no write", chart-highlight's
+   literal `// longer than any debounce would be` → `chart-preview` count 0. A poll that checks "still
+   unchanged" passes on tick 1 and proves nothing — the exact guard-with-no-teeth failure. (11 sleeps.)
+3. **Temporal properties.** metronome still running after 2.5s; `bake-progress` proving no leaked poll
+   timer fires over >2 intervals; `my-files-stable` synchronising with a deliberately-injected 2.5s
+   delayed write; `hidden-layer-draw` proving a highlight survives the ~2s sync echo. Real time must
+   pass. (5 sleeps.)
+
+### CONVERTED — 9 sleeps → real awaits (positive end-state, teeth preserved)
+
+| File | was | now |
+|---|---|---|
+| editor-t66 (finger draw) | `waitForTimeout(250)` | `expect.poll(count).toBeGreaterThan(before)` |
+| editor-t66 (page clears chrome) | `waitForTimeout(150)` | `expect.poll(geometry).toBe(true)` |
+| editor-t66 (strip scroll-end) | `waitForTimeout(80)` | poll `scrollLeft` reached end |
+| editor-phone-breakpoint (strip scroll-end) | `waitForTimeout(80)` | poll `scrollLeft` reached end |
+| editor-scroll-overscan `scrollTo` | `waitForTimeout(120)` | poll `scrollTop === min(target,max)` |
+| editor-scroll-overscan `scrollToBottom` | `waitForTimeout(120)` | poll `scrollTop` at max |
+| beat (fit-page column) | `waitForTimeout(400)` | poll page width < 85% viewport |
+| editor-canvas-budget (300% re-raster) | `waitForTimeout(1500)` | poll `pdf-render-count` bumped, then the ≤4096 clamp checks |
+| box-render (box ink rendered) | `waitForTimeout(500)` | poll a painted pixel *inside* the bbox, then the outside-leak scan |
+
+The last two are the pattern I'd highlight: each *keeps* its real assertion (≤4096 clamp / no ink leak
+outside the bbox) — I only replaced the "assume it's rendered by now" sleep with "poll until it's
+actually rendered." Early-pass is correct in every one of the nine; none can pass before the awaited
+thing is true.
+
+### KEPT — 39 sleeps, by category (my recommendation: leave them)
+
+- **A · Exact-count quiescence (10):** editor-wheelzoom ×6, editor-touch ×2, editor-noflicker ×2.
+- **B · Negative assertions (11):** editor-t65 (pan makes no object), editor-locked-restyle, editor-active-layer (locked drag+Delete), editor-chart-highlight (no auto-render), panels-contract (rail survives outside-click), text-oneshot ×3, my-files-stable (bounded re-render count), editor-wet-alpha (bake settle before a transient-spike pixel read).
+- **C · Temporal (5):** beat (metronome keeps running), bake-progress (no leaked timer), my-files-stable (injected 2.5s delayed write), editor-hidden-layer-draw ×2 (survives the sync echo / tool change).
+- **D · Gesture pacing (3):** editor-t66 ×3 — spacing between double-taps so the detector sees them as separate gestures; merging them changes the input.
+- **E · Layout/scroll settle in geometry helpers (10):** fullscreen-helpers, editor-active-layer ×2, editor-layers ×2, editor-pick, editor-zeroshift, editor-t65 (viewport resize), text-touch-placement (compat mouse events after touch), icon-palette ×2 (settle after a zoom change before measuring palette position). These re-measure a boundingBox after a *relative* `scrollBy`/resize; converting needs before+delta+clamp math for a ~60–120ms defensive wait — low flake, low payoff. I left them rather than churn.
+
+### Measured
+
+Full e2e (chromium, workers:1): **199 passed (19.1m), exit 0** — commit `2f038b4`. Every touched spec
+green (box-render, editor-canvas-budget, editor-scroll-overscan ×3, editor-t66 ×5, editor-phone-breakpoint,
+beat). Against the T114 baseline of 19.0m that's **+0.1m — within run-to-run noise**, exactly as expected:
+this is a **flake-surface** change (9 fixed sleeps → real awaits), not a speed play. Reported measured,
+not reasoned.
+
+### One follow-up I can take if you want it
+
+Category **A** is the biggest single cluster (10) and the most valuable to harden *if done without
+weakening the exact-count teeth*. I can add a shared `waitRenderStable(page)` helper — wait for the
+gesture's effect to register (zoom readout changes), then for `pdf-render-count` to go quiescent across a
+sample window — and route the wheelzoom/touch/noflicker tests through it, so the `=== pageCount` delta
+assertion survives but the fixed sleeps go. It's the one conversion in the kept pile that's worth the
+care. Your call whether that's in scope or over-reach for a deflake pass.
+
+Diff is e2e-only (no app/src, no Go). Ready to land the 9 on GO; happy to take A as a follow-up or leave
+the 39 as documented.
+
+— Vincent Le Ligeour
