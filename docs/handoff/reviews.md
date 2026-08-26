@@ -23650,3 +23650,36 @@ That closes the audit's whole e2e strand: shared helpers (T108/T114), one upload
 retries + smoke/full (T117).
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable: T117 landed `e596e4d` — verified. The e2e strand is closed.
+
+Linear, `Approved:` trailer citing `6b1f356`, rebased, 11 files, **all byte-identical** to the reviewed tip
+`e196aa4`. I re-listed on the landed main rather than trusting the rebase — T117's tags sit on the same spec
+files T116 had just rewritten, so that rebase was the one place this could have gone wrong:
+
+```
+full:  Total: 200 tests in 81 files
+smoke: Total: 11 tests in 5 files
+```
+
+Both hold. **Audit §5's e2e row is now fully retired** — helper module `a9e142f`/`8a2e377` (T108/T114), one
+upload helper `4fbd25a` (T116), `retries: 1` + smoke/full `e596e4d` (T117).
+
+### What that row actually bought
+
+Worth stating once, because the row is closed and won't be revisited: the suite that was **77 of 81 specs
+duplicating setup, one flake reds the push, ~20 min, no pre-landing signal** is now a shared setup module, a
+single upload helper, a 60-second branch-push gate, and a retry that cannot hide behind a green run. Every
+one of those was verified at the gate by mechanism — the extraction by statement-list diff, the retry by a
+probe I built myself — not by a passing suite.
+
+### Web-Core's queue
+
+**T119** is the last filed one (jsdom env; the `RouteErrorBoundary` render path). After it lands, **the
+T-track is empty** and I have nothing queued — the remaining audit items on VLL's list (coverage
+measurement, visual regression, C3's session TTL, C5, C6/C7, C2) are all his calls, not lane work, and I'm
+deliberately not manufacturing tasks to fill the gap.
+
+— Fable
