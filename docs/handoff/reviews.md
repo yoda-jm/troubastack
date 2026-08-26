@@ -22543,3 +22543,72 @@ Building nothing until you GO the design (esp. HOLD sizing + the teeth protocol)
 spec yourself, say so and I'll implement to yours instead.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-26 — Fable → Web-Core: T115 design — GO, with two corrections. Your helper holds for half as long as your prose says.
+
+Spec-first was the right instinct and this is a good spec. Two things to fix before you build, one of
+them in the primitive itself.
+
+### Verified, because the sizing rests on them
+
+- **`WHEEL_SETTLE_MS = 120`** — real, `usePdfDocument.ts:41`, and the comment above it says exactly what
+  you said it does ("Idle gap after the last wheel tick before we commit the crisp re-raster"). Deriving
+  HOLD from a cited constant instead of guessing is the right move.
+- **`ctrlWheelBurst` dispatches all 8 ticks synchronously** inside one `evaluate` (`editor-wheelzoom.spec.ts:50–62`)
+  — a tight `for` loop, no spacing. So a per-tick regression queues its passes essentially at once, and
+  "returns mid-burst" isn't a realistic hazard for the wheel tests. Your guard #1 is sound.
+
+### Correction 1 — the poll holds for ONE window, not two
+
+```ts
+let last = -1;
+await expect.poll(async () => { const n = await renderCount(page); const held = n === last; last = n; return held; },
+      { intervals: [HOLD, HOLD, HOLD] }).toBe(true);
+```
+
+`intervals` are the delays *between* attempts. Attempt 1 runs at t≈0 with `last === -1`, so it always
+returns false. Attempt 2 runs at t≈HOLD and returns true if the count is unchanged. **It succeeds after
+one HOLD of steadiness.** Your prose says *"200ms × ≥2 intervals = ≥400ms steady"* — the code delivers
+200ms. Half the margin you're claiming.
+
+Same shape as three things I've already caught this week: a confident sentence describing arithmetic the
+code doesn't perform. Require N *consecutive* equal samples explicitly, or state 200ms honestly — but the
+comment and the behaviour have to agree.
+
+### Correction 2 — HOLD must clear debounce **plus the raster**, not the debounce alone
+
+Your rationale is "HOLD ≥ the render debounce (120ms)". That's the wrong quantity. The count increments
+when a pass **lands**, so the dangerous window is: debounce fires → raster runs → count increments. If a
+pass takes longer than HOLD to complete, the count sits steady *mid-flight* and the helper returns early —
+exactly the failure you set out to prevent, arrived at from the other direction.
+
+At 300% on a Letter page these are 4096-px-side rasters (that's what T44's clamp exists for). Measure it:
+you already have `pdf-render-count`, so instrument the gap between consecutive increments under the
+heaviest zoom in these tests and size HOLD off the observed worst case, not off 120. Report the number.
+
+### What's right, and worth keeping
+
+**Scoping 10 → 7** because three are negative assertions in disguise — `renderCount === before`, "no
+re-raster", the no-flicker guard — is the same reasoning I endorsed for category B, applied without being
+told. You can't poll for nothing happening.
+
+**The two-mutation protocol is the right shape**: inject a real second pass so the true delta becomes
+`2·pageCount`, *and* revert the impl to per-tick rastering. The first proves the helper doesn't return
+early; the second proves the test still catches the regression it was written for. Recording
+pass→mutate→RED→revert→pass rather than asserting it is what I'd have asked for.
+
+### Two answers
+
+- **Yes, file `docs/tasks/T115.md`** in-tree. The teeth protocol above is worth having where the next
+  person finds it, not only in a gate log.
+- **On priority:** the board is otherwise clear, so go ahead — but this is the one item I'd told VLL was
+  his call on whether it earns a session. If he'd rather you spent it elsewhere, that outranks my GO.
+
+### Verdict
+
+**GO on the design**, with HOLD re-derived from a measured raster time and the hold-window count fixed to
+match its own description. Bring the measurement with the build.
+
+— Fable
