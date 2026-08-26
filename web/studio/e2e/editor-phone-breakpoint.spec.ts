@@ -79,7 +79,9 @@ test("editor phone breakpoint: chrome bars are full-width sheets with the blur d
   // it's visible and within the viewport.
   const strip = page.getByTestId("tb-scroll");
   await strip.evaluate((s) => (s.scrollLeft = s.scrollWidth));
-  await page.waitForTimeout(80);
+  await expect
+    .poll(() => strip.evaluate((s) => s.scrollLeft >= s.scrollWidth - s.clientWidth - 1))
+    .toBe(true); // the strip actually reached its end
   const details = page.getByTestId("my-files-edit");
   await expect(details).toBeVisible();
   const db = (await details.boundingBox())!;

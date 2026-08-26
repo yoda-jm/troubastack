@@ -135,21 +135,27 @@ test("phone editor chrome is ONE row (pinned Back + scroll strip) and the margin
   await expect(page.getByTestId("sidebar-toggle").locator(".pill-icon")).toBeVisible();
 
   // Back stays reachable even after scrolling the strip to the end (it's pinned, not in the strip).
-  await page.getByTestId("tb-scroll").evaluate((s) => (s.scrollLeft = s.scrollWidth));
-  await page.waitForTimeout(80);
+  const strip = page.getByTestId("tb-scroll");
+  await strip.evaluate((s) => (s.scrollLeft = s.scrollWidth));
+  await expect
+    .poll(() => strip.evaluate((s) => s.scrollLeft >= s.scrollWidth - s.clientWidth - 1))
+    .toBe(true); // the strip actually reached its end
   await expect(page.getByTestId("song-title").locator("xpath=..")).toBeVisible(); // .tb-nav still on screen
   await expect(page.locator(".tb-back")).toBeVisible();
 
   // The score's first page is reachable (not hidden under the chrome): its top sits at or
   // below the chrome bottom once scrolled to the top.
   await page.getByTestId("viewer-scroll").evaluate((s) => (s.scrollTop = 0));
-  await page.waitForTimeout(150);
-  const clear = await page.evaluate(() => {
-    const page1 = document.querySelector('[data-testid="pdf-page"]') as HTMLElement;
-    const chromeEl = document.querySelector('[data-testid="viewer-chrome"]') as HTMLElement;
-    return page1.getBoundingClientRect().top >= chromeEl.getBoundingClientRect().bottom - 2;
-  });
-  expect(clear).toBe(true);
+  // Poll the end-state (page 1 clears the chrome bottom) rather than sleeping for the scroll.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const page1 = document.querySelector('[data-testid="pdf-page"]') as HTMLElement;
+        const chromeEl = document.querySelector('[data-testid="viewer-chrome"]') as HTMLElement;
+        return page1.getBoundingClientRect().top >= chromeEl.getBoundingClientRect().bottom - 2;
+      }),
+    )
+    .toBe(true);
 
   await page.screenshot({
     path: "/tmp/claude-1000/-home-yoda-dev-git-troubastack/72d1f559-04a0-4860-bc97-97f9ef5cf3e3/scratchpad/t66-phone-chrome.png",
@@ -253,8 +259,7 @@ test("a real finger TAP on a draw tool selects it in the scrolling phone bar + d
     cb.x + cb.width * 0.6,
     cb.y + cb.height * 0.55,
   );
-  await page.waitForTimeout(250);
-  expect(await count()).toBeGreaterThan(before);
+  await expect.poll(count).toBeGreaterThan(before); // the finger draw lays down an object
 });
 
 test("a real finger DOUBLE-TAP zooms to the point in Move mode (T66 D, touch path)", async ({

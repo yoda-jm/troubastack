@@ -161,7 +161,14 @@ test("editor: the beat frame hugs the page on a wide screen, never past the view
 
   // Fit-page on a wide screen → the sheet is a narrow centred column.
   await page.getByTestId("zoom-mode").selectOption("fit-page");
-  await page.waitForTimeout(400);
+  // Poll the fit-page end-state (the sheet shrinks to a narrow column) rather than sleeping.
+  await expect
+    .poll(async () => {
+      const pb = await page.getByTestId("pdf-page").first().boundingBox();
+      const sb = await page.getByTestId("viewer-scroll").boundingBox();
+      return pb && sb ? pb.width < sb.width * 0.85 : false;
+    })
+    .toBe(true);
 
   const pageBox = (await page.getByTestId("pdf-page").first().boundingBox())!;
   const scrollBox = (await page.getByTestId("viewer-scroll").boundingBox())!;

@@ -58,14 +58,25 @@ async function setup(page: Page, prefix: string) {
 /** Scroll the viewer column to an absolute top offset and settle. */
 async function scrollTo(page: Page, top: number) {
   await page.getByTestId("viewer-scroll").evaluate((s, t) => s.scrollTo(0, t), top);
-  await page.waitForTimeout(120);
+  // Poll that the column reached the target (clamped to its max), not a fixed settle sleep.
+  await expect
+    .poll(() =>
+      page
+        .getByTestId("viewer-scroll")
+        .evaluate((s, t) => s.scrollTop === Math.min(t, s.scrollHeight - s.clientHeight), top),
+    )
+    .toBe(true);
 }
 async function scrollToTop(page: Page) {
   await scrollTo(page, 0);
 }
 async function scrollToBottom(page: Page) {
   await page.getByTestId("viewer-scroll").evaluate((s) => s.scrollTo(0, s.scrollHeight));
-  await page.waitForTimeout(120);
+  await expect
+    .poll(() =>
+      page.getByTestId("viewer-scroll").evaluate((s) => s.scrollTop >= s.scrollHeight - s.clientHeight - 1),
+    )
+    .toBe(true);
 }
 
 test("editor: scrolled fully up, page 1's top edge clears the top chrome (T59 overscan)", async ({

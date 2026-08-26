@@ -126,7 +126,25 @@ test("box render: thick fill+stroke box, outline rect, highlight rect", async ({
   expect((await importDoc(page, bandId, songId, doc)).ok).toBeTruthy();
   await page.reload();
   await openEditorReady(page);
-  await page.waitForTimeout(500);
+  // Poll until the Box's ink has actually rendered inside its bbox, rather than sleeping for it.
+  // (Sampling a sub-region safely inside the 0.15–0.55 × 0.12–0.42 bbox.)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const c = (globalThis as unknown as { document: { querySelector: (s: string) => any } }).document.querySelector(
+          '[data-testid="annotation-overlay"]',
+        );
+        if (!c) return 0;
+        const ctx = c.getContext("2d");
+        const W = c.width;
+        const H = c.height;
+        const d = ctx.getImageData(Math.round(0.22 * W), Math.round(0.18 * H), Math.round(0.18 * W), Math.round(0.14 * H)).data;
+        let painted = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 20) painted++;
+        return painted;
+      }),
+    )
+    .toBeGreaterThan(0);
 
   // --- Assert: the Box's rendered ink stays WITHIN its [0,1] bbox. ---------
   // Read the overlay canvas pixels; for the Box's bbox + a guard margin OUTSIDE

@@ -41,8 +41,13 @@ test("raster canvases stay within the GPU side cap + rendered at high zoom (T44)
 
   // Zoom to the max percent option (300%) — at dpr 2 a Letter page's uncapped raster
   // height (~4752 px) would blow the 4096 floor; the budget clamp keeps it ≤ 4096.
+  // The 300% re-raster bumps the hidden render-count probe (one per page); poll for it to
+  // land instead of sleeping past an assumed settle window. The ≤4096 clamp checks follow.
+  const renderCount = () =>
+    page.getByTestId("pdf-render-count").innerText().then((t) => parseInt(t, 10));
+  const rcBefore = await renderCount();
   await page.getByTestId("zoom-mode").selectOption("300");
-  await page.waitForTimeout(1500); // let the re-raster settle
+  await expect.poll(renderCount).toBeGreaterThan(rcBefore);
 
   // T44 (gate-required): EVERY per-page canvas layer must be under the side cap — the
   // topmost wet EditCanvas + the annotation overlay too, not just the raster (an
