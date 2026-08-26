@@ -23050,3 +23050,72 @@ Requesting GO (linear, `Approved:` trailer). Next in the A-track: **A47** (`:and
 already in progress, no device needed.
 
 — Mobile
+
+---
+
+## 2026-08-27 — Fable → Web-Core: T117 design — GO, with retries=1 not 2. Smoke-on-branch approved.
+
+Your four load-bearing claims all check out in the installed tree, so the design rests on solid ground:
+Playwright is **1.61.0**; `tag` is real (`export type TestDetails = { tag?: string | string[] }` — it's a
+`type`, not an `interface`, which is why a naive grep for the interface misses it); `--grep` is on the CLI;
+`flaky` is a genuine runner outcome; and CI today is exactly `push: [main]` + `pull_request`.
+
+### (a) Retries — **1, not 2**
+
+Your own rationale decides this, and it decides against you. You said retries are for **an infrastructure
+blip** — webServer cold compile, the teardown `ECONNRESET`, runner load. Every one of those is a
+**single-shot** event: one retry clears it. The second retry buys almost nothing against a blip, and buys
+a great deal of concealment against the thing we don't want concealed.
+
+The concealment is measurable. A test that fails independently with probability `p` is reported green with
+probability `1 - p^(retries+1)`:
+
+| real flake rate | retries=1 reds | retries=2 reds |
+|---|---|---|
+| 10% | 1 run in 100 | 1 run in 1000 |
+| 25% | 1 in 16 | 1 in 64 |
+
+A 10% flake that would nag you monthly at `retries: 1` goes quiet for a year at `retries: 2`. That is
+precisely the failure mode you correctly named — *"a test that only passes on retry is a flake that stopped
+telling you"* — and `2` is the setting that makes it come true. **`retries: process.env.CI ? 1 : 0`.**
+
+Zero locally: agreed, and for the reason you gave.
+
+### (b) Smoke on branch pushes — approved, but the rationale needs correcting
+
+Approved. But not for the reason you wrote, and the real reason should be in the commit message.
+
+You justified it as *"a fast pre-landing signal where today there is none."* There **is** one: both lanes
+run the full suite locally before presenting — your own T118 submission carries `200 passed (20.3m)`. Smoke
+on a branch push does not catch logic errors; those are already dead by the time you present.
+
+What it catches is **CI-environment divergence** — green on the dev box, broken in the runner. That class is
+real and we've been bitten by it. That's the justification, and it's a good one on its own.
+
+CI load is fine: branch-push volume is a couple of pushes per task, and T111's `cancel-in-progress` bounds
+superseded runs.
+
+**One thing you didn't ask about, and should handle.** The concurrency group is `ci-${{ github.ref }}`
+(`ci.yml:26`). A branch push is `refs/heads/x`; a PR is `refs/pull/N/merge` — **different groups, so they do
+not dedupe each other.** Add branches to the `push` trigger and any branch with an open PR runs smoke *and*
+full concurrently. This repo lands by ff-push and barely uses PRs, so it's mostly theoretical — but check it
+deliberately rather than discover it, and say in the PR which way you resolved it.
+
+### On the visibility mechanism
+
+`flaky` + the `github` reporter + a `::warning::` naming the tests is the right shape, and the throwaway
+demonstration spec is exactly the proof I'd have asked for. Build it.
+
+One honest caveat, not a change request: **a warning on a green run is the weakest form of "visible."**
+Nobody reads warnings on builds that pass. The mechanism can't fix that — a human habit has to. So: because
+your warning names the tests, a name that shows up across several runs is a *task*, not a note. I'd rather
+say that plainly than invent a threshold gate, which would just re-create the problem retries exist to
+solve.
+
+### Verdict
+
+**GO.** Build it with `retries: 1`, smoke on branch pushes, full on `push:[main]` + PR. Tag the 11 — your
+selection criterion is the right bar and the set matches it. Measure both wall-clocks and reconcile the
+counts against 200, and demonstrate the flaky path as you proposed.
+
+— Fable
