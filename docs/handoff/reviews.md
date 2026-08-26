@@ -22770,3 +22770,65 @@ Open and unqueued, all VLL's: **C3's session TTL** · **C5** (app page cache, mo
 (Stage-on-relaunch vs Home-with-Resume) · the spaced-dispatch guard T115 surfaced but doesn't need.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable → both lanes: the T108 / T109 / T110 follow-ups, filed (T116, T117, A47, T119)
+
+VLL asked for the remainders of those three to be specced. Four tasks, not three — T108's remainder and
+T110's remainder each contain two things with **different failure modes**, and this session has
+established repeatedly that those don't ride together.
+
+| | from | lane | what it closes |
+|---|---|---|---|
+| **T116** | T108 | Web-Core | converge the 27 local `uploadPdf` copies |
+| **T117** | T110's bullet | Web-Core | `workers:1, retries:0` — one flake reds the push |
+| **A47** | T109's bullet | **Mobile** | `:androidApp` has no test source set at all |
+| **T119** | T110 | Web-Core | jsdom env — what only a DOM can reach |
+
+### Three things I measured rather than carried forward
+
+**1. `uploadPdf` is 27 files, not 47.** Both T108 and T114 reported 47. Measured on main today: 27 specs
+define their own, and the bodies reduce to **4 forms with 25 of 27 in just two**. So the migration is
+materially smaller than "four behavioural variants" made it sound. Not a criticism of the deferral —
+deferring on a wrong number is still deferring on a reason — but the number is in the spec so nobody
+re-prices it from the old one.
+
+**2. `:androidApp/src` contains `debug` and `main`. There is no `test`.** So `sessionCookieFor` and
+`safeSegment` haven't been executed by a test on any machine, ever. That's the app-side twin of what T110
+found in studio, and it's an S.
+
+**3. iOS test execution is NOT lane work, and I've scoped it out.** `ci.yml:227-230` only *cross-compiles*
+the klibs; the comment says plainly that the simulator needs macOS and that it's IOS02's job on a
+manual-trigger macOS runner. So "iOS tests compile but never execute" isn't something a lane can fix by
+writing code — **it needs a macOS runner, which is VLL's cost decision.** A47 says so in its out-of-scope
+rather than pretending otherwise.
+
+### One reversal, stated plainly
+
+At T114's gate I ruled *"`uploadPdf`'s 47 copies are the same story… that's fine as a resting place."*
+VLL asked for the follow-up, so **T116 supersedes that ruling** and its header says so. His call outranks
+mine; what I won't do is quietly file it as though I'd never said otherwise.
+
+### What each one's gate will turn on
+
+- **T116** — assertion reconciliation, exactly as T108: N left the specs, N accounted for in the helper.
+  A same-green refactor is only trustworthy if the arithmetic closes.
+- **T117** — **this one's danger is the inverse of a deflake's.** A test that passes on retry is a flaky
+  test that stopped telling you. The retried pass must stay *visible*, and "so CI is less annoying" is a
+  reason to fix the flake instead. I'll be checking the rationale as hard as the config.
+- **A47** — `safeSegment` is a sanitiser: its vector must be an input that is genuinely dangerous, or the
+  test passes against `return input`. Per-test teeth-check reported.
+- **T119** — "renders without crashing" is the canonical hollow guard. The `RouteErrorBoundary` test must
+  redden when `render()` returns null.
+
+### Still not queued, and still VLL's
+
+Coverage measurement and visual regression are named in the same audit bullets and are **not** in these
+four. They're separate work with their own price, and the queue now has four items in it.
+
+**Sequence:** T116 → T119 for Web-Core (T116 first — T119 lands tests into a suite T116 is reshaping);
+T117 whenever. **A47 is Mobile's, and it isn't blocked on A46** — that lane has had nothing it could act
+on since the Stage question went to VLL.
+
+— Fable
