@@ -23683,3 +23683,68 @@ measurement, visual regression, C3's session TTL, C5, C6/C7, C2) are all his cal
 deliberately not manufacturing tasks to fill the gap.
 
 — Fable
+
+## 2026-08-27 — Web-Core → gate: T119 (jsdom component tests) — built + teeth-checked, for review
+
+Branch `task/T119-jsdom-component-tests` off `51a29d5`. The half T110 scoped out. Vitest/web-only, no
+`src/`, no Go. Covers the required RouteErrorBoundary render path + a second boundary of the same class.
+
+### (a) jsdom ALONGSIDE node — not replacing it
+
+`vitest.config.ts` keeps `environment: "node"` as the default and adds `test/**/*.test.tsx` to `include`.
+The component tests opt INTO jsdom per file via a `// @vitest-environment jsdom` docblock (vitest 4 —
+`environmentMatchGlobs` is gone; the docblock is the supported per-file route). So the pure-function
+suites stay in node and prove they need no DOM, and a DOM is spun up only for the handful of tests that
+assert rendered output. One `vitest run` does both. devDeps: `jsdom` + `@testing-library/react` (the
+testing-library choice is mine, per the spec).
+
+### (b) What only a DOM can assert — asserting what the USER SEES
+
+Both boundaries were covered only at `getDerivedStateFromError` (the DECISION to fail); nothing asserted
+the screen RENDERS. e2e can't reach either — a lazy-chunk fetch failure and a React render crash aren't
+producible against the dev server. So a `render()` returning null passed every suite while the user got
+the blank page these exist to prevent.
+
+- **RouteErrorBoundary** (T112): a throwing child renders an **announced** (`role="alert"`) screen with an
+  honest heading ("Couldn't load this page") and the actionable cause ("dropped connection"), the children
+  are gone, and the **Reload** button actually calls `location.reload`. Happy path passes children through;
+  **RouteFallback** shows its loading state.
+- **ErrorBoundary** (T32, app render-crash): a render crash shows an announced screen that **names the
+  error message** (`boom in render`) — not a white page — plus a working Reload. Same silent-failure class,
+  also unreachable by e2e (`render-crash` appears in no e2e spec).
+
+Not "renders without crashing" anywhere — every assertion is on visible, announced output.
+
+### Teeth-check — per boundary, reported
+
+For each boundary I forced `render()` to `return null` (the exact blank-page regression) and ran its suite:
+
+```
+RouteErrorBoundary  render()->null :  2 failed (error-screen + reload) | 2 passed (children + fallback)
+ErrorBoundary       render()->null :  2 failed (crash-screen + reload) | 1 passed (children)
+```
+
+The error-screen and reload assertions redden; the children/fallback tests stay green (they don't hit the
+failed branch). Reverted after each — `src/` is byte-clean on the branch.
+
+### Runs from make + CI; both fast
+
+`make test-web` = `npm run test:unit` = `vitest run`, and CI's existing "unit tests (vitest)" step
+(`ci.yml:96`) already runs that — so **no CI or Makefile change**; the `.tsx` tests are picked up by the
+`include` glob. Combined wall-clock **~4s** for **34 tests / 7 files** (node 27 + 7 new component tests).
+Well under the "if jsdom costs minutes, say so" bar — node stays the fast default, jsdom is seconds.
+
+### devDep safety
+
+`jsdom`/`@testing-library/react` added through an **isolated** worktree `node_modules` (removed the
+symlink, `npm install --no-workspaces`, then `-D` the two) — never through the shared tree. Verified after:
+the main checkout's `node_modules` is intact (typescript/react/vite/perfect-freehand present, 77 packages)
+and has **no** jsdom leak. package.json + lock carry the deps for CI's `npm ci`.
+
+### Count
+
+Node suite unchanged (T110's 27). +7 component tests → **34**. No behaviour change to any existing test.
+
+Ready to land on GO — web-only, no GVO/gofmt.
+
+— Vincent Le Ligeour
