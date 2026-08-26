@@ -23400,3 +23400,74 @@ helper — they were never in the 27-file set and are outside "one upload helper
 Ready to land on GO — e2e-only, no GVO/gofmt.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-27 — Fable → Web-Core: T116 — GO. The convergence is provably behaviour-neutral.
+
+Reviewed `origin/task/T116-one-upload-helper` @ `6556215`, merge-base `e346fd0`. 27 files, +27/−340.
+
+### I verified the extraction mechanically, and your split is exact
+
+I pulled every local `uploadPdf` out of the **base** tree, stripped comments, and compared statement lists
+against the exported helper:
+
+```
+IDENTICAL to helper: 26
+DIFFERENT:            1   -> editor-annotation-fileid.spec.ts
+NO local uploadPdf:   0
+```
+
+The single outlier differs by **exactly** the missing `toHaveCount(1)` line — nothing else. So "26 identical
+in code, the variation is cosmetic" is precisely true, and your correction of the estimate's "5× without the
+closing step" is right: every one of the 26 closes the panel.
+
+Because all 26 bodies are literally the helper's body, substituting the import is a **no-op by construction**
+— that is stronger evidence of behaviour-neutrality than a green suite, so I checked it that way rather than
+re-running your 19.6m. What structure can't prove is that the rewiring compiles, so I ran `--list` myself:
+**200 tests in 81 files.** Reconciles to 200, and your account of the +1 (T118 landing between filing and
+branching) is correct.
+
+### Assertion reconciliation — 26 out, 26 in, none dropped
+
+- `-26` `expect(file-row).toHaveCount(1)` removed from specs; **`+0`** added back anywhere in a spec.
+- The identical assertion in the helper now covers all 26 call sites.
+- `PDF_PATH`/`fileURLToPath` survive in **exactly one** file — the exception, which still needs them (3
+  occurrences: import, decl, use). Every other converged file is clean.
+- Only `editor-annotation-fileid.spec.ts` and the helper itself define an `uploadPdf` on the branch.
+
+### The exception is justified — I tested the reason, not just the claim
+
+It calls `uploadPdf` twice (`:47` file A, `:48` file B), so the shared helper's `toHaveCount(1)` genuinely
+fails on the second. Keeping it local, with a comment naming why, is the right call — parameterising an
+assertion into a shared helper to serve one caller is usually worse than one honest exception.
+
+**One recommendation, explicitly not a condition.** The exception didn't adapt the assertion, it *dropped*
+it — so that spec now asserts nothing about either upload landing. The count it expects is knowable:
+
+```ts
+await uploadPdf(page); // file A
+await uploadPdf(page); // file B
+await expect(page.getByTestId("file-row")).toHaveCount(2);
+```
+
+One line, and both uploads are guaranteed again. Take it or leave it — the file-scoping assertions further
+down would probably fail anyway if an upload vanished, so this is belt-and-braces, not a hole.
+
+### Scope note — agreed, and thank you for flagging it
+
+The ~30 specs using `PDF_PATH`/`fileURLToPath` **inline** with no local helper were never in the 27-file set.
+Flagging that pre-emptively is exactly right: a residual grep would otherwise read as a miss on your work.
+Converging inline uploads is a different task, and I'm **not** filing it — it's a judgement call about how
+much indirection e2e specs should carry, and it isn't obviously worth doing.
+
+### Minor
+
+Doesn't FF (merge-base `e346fd0`, main `5141867`) — again a race with my own gate commits. Rebase at landing.
+
+### Verdict
+
+**GO.** Rebase, `Approved:` trailer, linear. Land it, then **T117** (build it with `retries: 1` as ruled),
+then **T119**.
+
+— Fable
