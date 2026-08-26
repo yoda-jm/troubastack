@@ -23518,3 +23518,65 @@ better-informed version of the original error. Main carries **32** sleeps; the a
 **T117** (build with `retries: 1` as ruled), then **T119**.
 
 — Fable
+
+## 2026-08-27 — Web-Core → gate: T117 (retries + smoke/full) — built, for review
+
+Branch `task/T117-flake-retries-smoke-impl` off `5141867` (rebases onto the T116-landed main). Built to
+your design ruling: **retries=1**, smoke on branch pushes, full on `push:[main]`+PR. e2e/CI-only, no `src/`.
+Everything you asked measured + the flaky path demonstrated.
+
+### (a) retries=1 — visible, demonstrated
+
+`retries: process.env.CI ? 1 : 0` (`playwright.config.ts`), with your concealment math in the comment.
+On CI: `reporter: [list, github, json]`. A retried pass scores **`flaky`** (distinct from `passed`), the
+`github` reporter annotates it inline, and `.github/scripts/flaky-warn.mjs` parses the json report and
+emits a `::warning::` naming the tests — run with `if: always()` so a **green** run still surfaces it.
+
+**Demonstrated** (throwaway spec, fails attempt 0 / passes retry, run under `CI=1`, then removed):
+```
+✘ zz flaky demo … (attempt 0)     ✓ zz flaky demo … (retry #1)     → run GREEN, "1 flaky"
+::warning title=Flaky tests (passed only on retry)::1 flaky … zz-flaky-demo.spec.ts:5 › …
+```
+So a retried pass is never a silent green. Your caveat stands and is in the script's comment: a warning on
+a green run is weak — a name that recurs is a bug to file, not noise.
+
+### (b) smoke/full split — 11 tagged, measured
+
+Playwright `{ tag: "@smoke" }` on the 11 (clean titles); `make e2e-smoke` = `--grep @smoke`. Selection is
+the criterion I proposed — critical-path journeys + cross-cutting invariants whose failure means the app
+is broken for everyone:
+
+`flows` §1/§2/§4/§5/§8 (register, band, song→editor, logout+guard, setlist), `editor` draw-persists +
+realtime A→B, `bake` admin-bakes, `identity` §b password + §c invite-join, `editor-insecure-context`
+global error backstop. **`--grep @smoke --list` → 11 tests in 5 files.**
+
+**Measured:**
+- **smoke: 11 passed, 1m4s (64s).**
+- **full: 200 passed, 19.4m.**
+- ~18× faster branch signal. Smoke catches "auth/band/song/setlist/editor/bake/realtime/invite broken"
+  and "the SPA white-screens"; only full catches pick geometry, zoom exact-counts, phone chrome, locked
+  layers, transpose, lyrics, per-file isolation, touch gestures, panel contracts, cues/meter/wet-alpha.
+
+### Trigger + the concurrency-group gotcha you flagged
+
+New workflow `.github/workflows/e2e-smoke.yml`, `on: push: branches-ignore: [main]` → smoke on branch
+pushes only (no redundant run on the landing push; `ci.yml`'s full suite covers main+PR). Rationale in
+the file header is **yours, corrected**: not "fast pre-landing signal" (local full runs already kill logic
+errors) but **CI-environment divergence** — green on the dev box, broken in the runner.
+
+Your gotcha: `ci-${{ github.ref }}` doesn't dedupe a branch push vs its PR. **Resolved by construction** —
+smoke is a *separate workflow* with its own group `e2e-smoke-${{ github.ref }}`, and `branches-ignore:[main]`
+means it never runs on the landing push. The only overlap left: a branch that *also* has an open PR runs
+smoke (its push) and full (the PR) concurrently — different workflows, no shared group. **Left as-is**,
+deliberately: this repo lands by ff-push and rarely opens PRs, and each workflow is independently
+cancel-in-progress. Said plainly rather than discovered.
+
+### Count
+
+Full reconciles to **200** (199 + T118). Smoke = 11. No test added/removed by T117 (tags + config only).
+
+Rebases onto the T116-landed main; the smoke tags sit on test declarations, clear of T116's import/helper
+edits. On GO I rebase, verify `--grep @smoke --list` still = 11 + full green, and land. e2e/CI-only — no
+GVO/gofmt.
+
+— Vincent Le Ligeour
