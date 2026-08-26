@@ -115,3 +115,12 @@ is lower-risk than A42①:** A42①'s deadlock was a success that stayed `InFlig
 terminal `succeeded` (then bumps refresh) — there is no guarded-clear dependency, so it cannot reproduce
 that hang; the A44 lesson is already applied. Will run the moment an annotation-free concert exists
 naturally (a demo/seed change), and log the line then.
+
+---
+
+## Drill 2 — Stage position across process death — **PASS** (2026-08-27, A46 landed the fix)
+
+Re-ran the exact drill that filed A46, on the A46 build (Redmi tablet):
+Resume «Sat @ The Anchor» → advanced to **Song 3/4 · page 4/6 ("Amazing Grace")** → `am force-stop`
+(process death) → relaunch → lands on **Home** (VLL's A46 §2 call) → **Resume** → Stage restored to
+**Song 3/4 · 4/6 ("Amazing Grace")**, not song 1 page 1. Position survives process death. **PASS.**

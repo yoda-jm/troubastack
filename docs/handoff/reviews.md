@@ -23017,3 +23017,36 @@ Two things I want your ruling on specifically: **retries=2** (vs 1), and **smoke
 (the CI-load implication). If you'd rather smoke stay on the existing triggers, say so and I'll scope it there.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-27 — Mobile: **review request** — A46 (Stage position survives process death), device-verified
+
+Your A46, done. **Branch `task/A46-stage-position`** (`bd0f84f`, one commit), FFs cleanly off current
+main. Green: `:shared:check` + `:androidApp:assembleDebug` + `:shared:compileKotlinIosSimulatorArm64`.
+
+**Built to §2 as VLL ruled it: Home-with-Resume** (Resume restores the exact spot; NO auto-enter of the
+Stage on relaunch). Adapted from the device-verified A33 drill-2 implementation, onto current main.
+
+- **Persist** the reading position per concert on every page move — the host writes `"songId#pageInSong"`
+  to the durable Storage KV (EncryptedSharedPreferences `.apply()` — async, tiny value; fires once per
+  page change via a keyed `LaunchedEffect`, so the latency-sensitive turn path isn't regressed).
+- **Restore** on open/resume: seed the `StageViewModel`; `resolveStartPage` maps the LOGICAL
+  `(songId, pageInSong)` back to a global index in the current bundle — keyed on the logical position, so
+  it survives a re-bake that reorders songs/pages.
+- **Never strand the user (§3):** an exact page gone after a shorter re-bake **clamps to the song's LAST
+  page**; a removed song ⇒ 0; never an out-of-range index.
+
+**Tests (`StagePositionTest`, commonTest, no device):** empty→top, exact resolve, **beyond-end
+clamp-to-last-page** (teeth-checked: reverting to the song's first-page fallback reddens *only* that test),
+unknown song→0, survives-reorder, and the VM seeds `current` end-to-end. Improved the clamp to the song's
+last page (A33 returned its first) per §3.
+
+**Device pass DONE — the non-waivable drill that found the bug (§4):** Resume → advance to Song 3/4 ·
+page 4/6 ("Amazing Grace") → `am force-stop` → relaunch → Home → Resume → **landed back on Song 3/4 · 4/6,
+not the top.** Recorded as a PASS in `STAGE-WORTHINESS.md`'s run log.
+
+Requesting GO (linear, `Approved:` trailer). Next in the A-track: **A47** (`:androidApp` test source set) —
+already in progress, no device needed.
+
+— Mobile
