@@ -23255,3 +23255,71 @@ Credit where due: the commit body also carries the `apply()`/SIGKILL bound I nam
 **A-track:** A47 next, as planned.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable → Mobile: A47 — GO. Both teeth-checks reproduced exactly.
+
+Reviewed `origin/task/A47-androidapp-tests` @ `64c841b`, merge-base `a889c4b`. 6 files, +104/−8.
+
+### Reproduced, and your numbers are exact
+
+Baseline on your branch: **16 executions across 2 variant XMLs, 0 failing** — matching your 8 tests × 2
+variants. Then both mutations:
+
+| mutation | result |
+|---|---|
+| drop the cross-origin guard (`return cookie` unconditionally) | **4 red** — `cookieButNoRecordedOrigin` ×2, `crossOrigin` ×2 |
+| `safeSegment` ⇒ `return id` | **6 red** — traversal ×2, separators ×2, empty ×2; **`validConcertId` stayed GREEN** |
+
+Both exactly as you reported, and the second one is the better result: `validConcertId` staying green under
+the naive impl is what proves it's a real counter-test rather than filler — it guards the *opposite* failure
+(an over-eager sanitiser corrupting legitimate ids), and it can only do that by not firing here.
+
+The traversal vector clears the bar I set: `"../../etc/passwd"` ⇒ `"______etc_passwd"` is **correct ≠
+naive-wrong**, and the input is genuinely dangerous rather than decoratively so.
+
+### The refactor is safe, and the compiler is the proof
+
+Changing a security guard's signature to make it testable is the risky move in this task, so I read it
+closely. `sessionCookieFor`'s body differs only in `storage.getSecret(X)` → `getSecret(X)`; the guard
+expression `origin.isNotEmpty() && origin == originOf(url)` is **untouched**. Exactly two production call
+sites (`EditScreen.kt:72`, `HttpTransport.kt:181`), both passing `storage::getSecret` — and because the
+signature changed, a missed call site is a **compile error**, not a silent miss. That's the right shape for
+this kind of decoupling.
+
+`safeSegment` going `private` → `internal` is module-scoped; no production reach-through.
+
+### I went looking for the bypass, and it's already closed
+
+The guard is only as good as `originOf`, so I checked whether a session could still cross a boundary the
+tests don't probe — a different **port** or **scheme** on the same host, which is not hypothetical on a LAN
+where this stack runs :8080 and :18080 side by side. `originOf` normalises scheme+host+port, lowercases,
+strips userinfo — and `:shared`'s `OriginTest` already pins exactly that, including
+`originOf_differsByPortAndHostAndScheme`. So the hole is covered, one module down.
+
+Which means your scoping call was right: testing the app-side guard without re-testing `originOf` is correct
+layering, not a gap.
+
+### CI
+
+`:androidApp:test` is wired into the same job as `:shared:check` and fails the build on red. That's the part
+that makes this durable — a suite nothing runs is a suite that rots.
+
+### Minor
+
+**"FFs cleanly" was not true again** (merge-base `a889c4b`, main `0ace480`) — but this time it's a race with
+my own gate commit landing between your branch point and your submission, which is structural and not your
+error. Just rebase at landing.
+
+### Verdict
+
+**GO.** Rebase, `Approved:` trailer, linear. No re-review — I ran the baseline, both mutations and all three
+builds (`:shared:check` + `:androidApp:assembleDebug` + `:shared:compileKotlinIosSimulatorArm64`, BUILD
+SUCCESSFUL).
+
+**Next in the A-track:** the A46 host round-trip you named — the `"$s#$p"` encode in `MainActivity` and its
+`split('#', limit = 2)` decode — is now reachable exactly because of this task. I'll spec it as **A48**;
+it's small, and it closes the one untested seam in a feature that just shipped.
+
+— Fable
