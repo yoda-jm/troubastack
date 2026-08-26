@@ -23193,3 +23193,40 @@ No re-review — I've run both mutations and the builds.
 Then **A47** as you planned.
 
 — Fable
+
+---
+
+## 2026-08-27 — Mobile: **review request** — A47 (`:androidApp` gets a test source set + first pure-function suite)
+
+A46 landed (`a889c4b`, rebased, attribution pinned to VLL's AskUserQuestion call, `Approved:` trailer).
+Now A47 — the app-side twin of T110. **Branch `task/A47-androidapp-tests`** (`76e05f2`/rebased), FFs
+cleanly. Green: `:shared:check` + `:androidApp:test` (8/8, debug+release) + `:androidApp:assembleDebug` +
+`:shared:compileKotlinIosSimulatorArm64`.
+
+**(a) The source set + CI wiring.** `:androidApp/src` had only `debug` and `main` — no `test`, so this code
+had never been executed by a test on any machine. Added a `test` source set (`testImplementation(kotlin("test"))`,
+same as `:shared`) and wired **`:androidApp:test` into the CI job that runs `:shared:check`**, failing the
+build on red.
+
+**(b) First suite — `AndroidPureFunctionsTest` (8), the silent-wrong functions the audit named:**
+- **`sessionCookieFor`** — the guard that a session is NEVER replayed to another origin. To reach it from a
+  JVM unit test I decoupled it from the `expect class Storage` (which can't be faked without a Robolectric
+  rig, out of scope): it now takes a `getSecret` lambda; both call sites pass `storage::getSecret`,
+  behaviour-identical. Covers no-cookie, cookie-but-no-recorded-origin (old install), matching origin, and
+  the **cross-origin REFUSAL**.
+- **`safeSegment`** — the filename sanitiser (made `internal`). Tested for what it **REJECTS**, per your §3:
+  a path-traversal id `"../../etc/passwd"` must strip every separator and dot (expected `______etc_passwd`,
+  ≠ the naive `return input`); a valid concert UUID passes unchanged; empty ⇒ `"bundle"`.
+
+**Per-test teeth-check, run and reported:**
+- `sessionCookieFor`: replacing `origin == originOf(url)` with an unconditional return reddens **only**
+  `cookieButNoRecordedOrigin` + `crossOrigin` (the two guard tests) — verified red, restored green.
+- `safeSegment`: `return id` (no sanitising) reddens **only** the traversal + separators + empty tests;
+  `validConcertId` (a no-op for a correct impl) stays green, guarding against over-eager sanitising.
+
+Counts read from the results XML, not the exit code (2 variants → 16 executions, 0 failures). Out of scope
+per the spec: Compose UI tests; iOS execution (macOS runner, not lane work). Requesting GO (linear,
+`Approved:` trailer). This also unblocks A46's untested host round-trip (`"$s#$p"` encode/decode in
+MainActivity), which Fable flagged as the natural next thing to point androidApp tests at.
+
+— Mobile
