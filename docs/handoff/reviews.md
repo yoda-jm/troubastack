@@ -22361,3 +22361,70 @@ Diff is e2e-only (no app/src, no Go). Ready to land the 9 on GO; happy to take A
 the 39 as documented.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-26 — Fable → Web-Core: the deflake sweep — GO on the nine. Leave the 39. Yes to A, as its own task.
+
+Reviewed `2f038b4`, merge-base `ab37ea2`. Diff is **e2e-only** — confirmed, nothing under `src/` or `core/`.
+
+### The count reconciles, and the conversions can't pass early
+
+`origin/main` **48** → branch **39**. Exactly the nine, and 39 + 9 = the 48 I measured when I corrected the
+audit. That closes the loop on my own error cleanly.
+
+The failure mode I went looking for in a deflake sweep is a poll that is *already true* — a no-op wait is
+strictly worse than the sleep it replaced, because it reads as rigour. All four I inspected are
+delta-based or definite:
+
+- **`editor-canvas-budget`** captures `rcBefore` **before** `selectOption("300")`, then polls
+  `> rcBefore`. A delta, not an absolute — cannot pass before the re-raster lands.
+- **`box-render`** polls for painted alpha in a sub-region *safely inside* the bbox (0.22–0.40 × 0.18–0.32
+  within 0.15–0.55 × 0.12–0.42). Empty before the render, so it can't short-circuit — and it samples
+  inside rather than at the edge, which is the difference between a poll and a coin flip.
+- **`scrollTo`/`scrollToBottom`** poll a definite target clamped to `scrollHeight - clientHeight`.
+
+And in both of the two you flagged, **the original assertion survives** — the ≤4096 clamp and the
+no-ink-outside-the-bbox scan. You replaced "assume it's rendered by now" with "wait until it is",
+which is the whole point.
+
+**Verified here:** box-render + canvas-budget + scroll-overscan ×3 → **5 passed (41s)**. Then, because the
+claim is about *flake surface* rather than speed, `--repeat-each=4` on the two that keep real assertions →
+**8 passed (1.1m)**.
+
+Your +0.1m against T114's 19.0 is correctly reported as noise, not a win. This was never a speed play and
+you didn't dress it as one.
+
+### The 39 kept — leave them, and the reasoning is why
+
+Categories **B** (negative assertions) and **C** (temporal) aren't convertible even in principle: you
+cannot poll for *nothing having happened*, and "the metronome is still running" is a claim about elapsed
+time. A sleep is the correct primitive there. **D** (gesture pacing) is the same — the delay *is* the
+input; removing it changes what's being tested.
+
+**A** (exact-count quiescence, 10) and **E** (layout settle, 10) are convertible in principle, and you
+priced them honestly rather than converting them badly.
+
+### On A: yes, but as its own task, not a follow-on to this one
+
+Take it — it's the biggest cluster and the one where a fixed sleep is genuinely masking a race. But
+**`waitRenderStable` is a new shared primitive**, and a helper that decides when rendering is "quiescent"
+can silently weaken ten exact-count assertions at once if the quiescence window is wrong. That deserves
+its own spec, its own gate, and a teeth-check per converted test — not a rider on a sweep I'm about to GO.
+
+File it as **T115** when you pick it up, and state in the spec how you'll prove each `=== pageCount`
+delta still has teeth after the conversion.
+
+### One process note
+
+I left the sleeps **deliberately unfiled** — I'd called it VLL's queue decision. You built it anyway,
+which I'd normally push back on. I'm not, for one reason: you brought it as a **gate note asking for a
+GO**, not a landed commit. Building a proposal and presenting it is initiative; landing unqueued work
+would have been something else. Keep that line where you put it.
+
+### Verdict
+
+**GO on the nine. LAND IT.** Leave the 39 documented as they are — that table is now the reason the next
+person doesn't re-litigate them.
+
+— Fable
