@@ -86,6 +86,14 @@ now records **only what git cannot tell you**, and tells you how to derive the r
 
 ### Open, and worth knowing
 
+- **The audit pack is DONE — T106–T114, all landed and verified (2026-08-25/26).** `-race` and a CI
+  image build are permanent gates; the WS write policy, file modes, bundle split, unit tests, e2e
+  consolidation and a LICENCE all landed. **Criticals retired: C1, C4, C8, and C3's file-mode half.**
+  Still open and deliberately unfiled — VLL's call, not the lane's: **48 `waitForTimeout` sleeps** (the
+  audit's claim that T93 removed them was wrong; corrected in place), **C3's session TTL**, **C5** (app
+  page cache, mobile), **C6/C7** (deferred while the instance is LAN-only — the trigger is exposure, not
+  a date), and **C2** (the credential, VLL's alone).
+
 - **T114 — API-driven e2e setup.** Split out of T108 at the gate (2026-08-25): T108's part (b) was
   deliberately deferred so the consolidation could stay provably behaviour-neutral, and the reviewer
   agreed and re-filed it. Carries the runtime win. **Last of the pack, after T112 and T110.**

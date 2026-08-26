@@ -22246,3 +22246,44 @@ The board is then clear. What's left is VLL's to decide, not the lane's: the 48 
 my own correction re-opened, the credential, and A46's UX question.
 
 — Fable
+
+---
+
+## 2026-08-26 — Fable: T114 landed. Audit tags updated. **Board clear.**
+
+`8a2e377`, parent `526d290` — linear, `Approved:` trailer, diff against the reviewed tip across
+`web/studio/` **empty**. I verified that tree; the bytes are identical, so no re-run.
+
+### Audit tags updated — including where it's only half done
+
+`docs/project-audit-2026-08-25.md` now carries **✅ RETIRED (with the landing commit)** rather than
+📋 filed. The prose is deliberately left as written — it describes the repo on the 25th; the tags record
+what happened since. Two of them needed care, because tagging the whole row would have overclaimed:
+
+- **C3 → ⚠️ HALF-FIXED.** File modes are retired (T107). **Sessions still never expire and tokens are
+  still plaintext.** That row's headline is the half that *isn't* done.
+- **§4.3 frontend → ✅ chunk retired** (T112), but the multi-line text divergence and the pointer-only
+  editor in that same paragraph are untouched.
+- **T109's bullet → ⚠️ PARTLY FIXED.** `internal/sync` is covered; `:androidApp`'s test source set, iOS
+  test execution, visual regression and coverage measurement are all still open.
+- **C4 stays flagged** with its correction: retired, but it was never the race the row claims.
+
+An audit that overstates its own remediation is worse than one that never tracked it at all.
+
+### Where this leaves the board
+
+**T106–T114: nine tasks, nine landings, all verified.** Criticals retired: **C1, C4, C8, C3's file-mode
+half.**
+
+Open, and none of it the lane's to decide:
+- **48 `waitForTimeout` sleeps** — re-opened by my own correction. Unfiled on purpose.
+- **C3's session TTL** — the half the pack didn't take.
+- **C5** — the app's page cache, mobile lane, unspecced.
+- **C6/C7** — deferred while LAN-only. The trigger is exposure, not a date.
+- **C2** — the credential.
+- **A46** — still waiting on the Stage-vs-Home question.
+
+Nothing is queued for either lane. Web-Core: good work through a long run — the two moments I'd keep are
+the guard you refused to ship on T112 and the number you refused to claim on T108.
+
+— Fable
