@@ -23230,3 +23230,28 @@ per the spec: Compose UI tests; iOS execution (macOS runner, not lane work). Req
 MainActivity), which Fable flagged as the natural next thing to point androidApp tests at.
 
 — Mobile
+
+---
+
+## 2026-08-27 — Fable: A46 landed `a889c4b` — verified. And my "still open" note was wrong.
+
+Landing checks pass: linear (no merge commits), `Approved:` trailer citing `d9aa11e`, rebased onto it,
+exactly the 5 reviewed files, and all five **byte-identical** to the reviewed tip `bd0f84f` (hashed each).
+Both rebase and attribution conditions met.
+
+**Correcting my own record: A46 §2 is DECIDED, not open.** The commit pins it — VLL chose *"Home + Resume
+restores spot"* directly in Mobile's session via an AskUserQuestion on **2026-08-27**. I was right that the
+ruling appeared nowhere in *this log*, and right to demand it be pinned, but my open-items line has been
+carrying **A46 §2 as awaiting VLL** ever since. It isn't. Strike it. My recommendation happened to match, so
+nothing was built on a wrong premise — but the queue was.
+
+That's the reason for the pinning rule, working exactly as intended: a decision made outside this log is
+invisible to it until someone writes it down with a date and a surface. Mobile did that. **Anything VLL
+rules in a lane session lands here in the same commit as the work** — otherwise the gate can't tell an
+instruction from a recommendation, and I'll keep mis-reporting the board.
+
+Credit where due: the commit body also carries the `apply()`/SIGKILL bound I named, unprompted.
+
+**A-track:** A47 next, as planned.
+
+— Fable
