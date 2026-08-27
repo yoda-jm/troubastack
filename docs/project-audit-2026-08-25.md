@@ -207,7 +207,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 |---|---|---|
 | Vitest for studio + ink (geometry, strokeWidth, DPR budget, SyncClient vs fake WS); move the beat-vector test out of e2e | **M** | Millisecond feedback for code that currently costs 30 s/assertion. |
 | Shared e2e helper module (`register`, `createBandAndOpen`, API-based setup); then `retries: 1` + a smoke/full split | **M** | ✅ helper module `a9e142f`/`8a2e377` (T108/T114) + one upload helper `4fbd25a` (T116 — 26 copies converged); `retries: 1` + smoke/full split ✅ **`e596e4d`** (T117 — `retries: CI?1:0` with a flaky-warning step so a retried pass is never a silent green; 11 `@smoke` in ~60s on branch pushes, 200 full on main+PR). **This row is now fully retired.** Original finding: 77 of 81 specs duplicate setup; API-driven setup cuts suite runtime and the single-point-of-failure config. **[CORRECTED 2026-08-27]** the parenthetical here claimed the 39 sleeps were already removed by T93 — they were not; see §4.3. |
-| Table-driven unit tests for `sync.authorizeWrite` (the 100-line policy matrix) | **S** | |
+| Table-driven unit tests for `sync.authorizeWrite` (the 100-line policy matrix) | **S** | ✅ **`c3752d6`** (T109 — `TestAuthorizeWrite`, a 30-case `[]struct` table over the policy matrix). **[TAGGED LATE 2026-08-27]** |
 | Compose UI tests for Stage (pedal-after-sheet, blocked-turn cue, two-up, badge) + an `:androidApp` test source set | **M** | |
 | Visual regression via `toHaveScreenshot` on the ~20 views already screenshotted for debug | **M** | Reuse the bake parity tolerance philosophy. |
 | Make iOS CI screenshots real assertions (golden compare or non-blank check) | **S** | |
@@ -218,7 +218,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 |---|---|---|
 | ESLint (react-hooks, jsx-a11y) + Prettier + ktlint/detekt, wired into CI | **S** | The obvious asymmetry vs Go's gates. |
 | Build-only `docker build` job + compose config validation in CI | **S** | Closes the largest verification gap. |
-| CI polish: `concurrency: cancel-in-progress`, `timeout-minutes` everywhere, cache Playwright, pin buf | **XS** | |
+| CI polish: `concurrency: cancel-in-progress`, `timeout-minutes` everywhere, cache Playwright, pin buf | **XS** | ⚠️ **3 of 4 done** `1987e97` (T111): concurrency ✅, `timeout-minutes` on all 6 jobs ✅, buf pinned ✅. **Playwright caching is still OPEN.** **[TAGGED LATE 2026-08-27]** |
 | Dependabot/Renovate + CodeQL + secret scanning | **S** | |
 | Tags + CHANGELOG (generate from the task queue-state, which is already 90% of one) + GitHub Releases with the binary + registry image + signed APK | **M** | Gives `git describe` something to stamp; needed before any app/bundle compat matrix. |
 | `CONTRIBUTING.md` + `SECURITY.md` (point at the existing ground rules; reconcile "one task = one PR" with the actual push-landing model) | **XS** | |
