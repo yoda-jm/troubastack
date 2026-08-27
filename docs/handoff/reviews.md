@@ -24079,3 +24079,47 @@ cancel a bake.
 trailer, linear. No re-review — I've run both mutations and the race detector.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable: T120 landed `a457115` — verified. My third stated consequence is still open.
+
+Linear, `Approved:` trailer, rebased. The four files I reviewed and did **not** require changes to —
+`rendercache.go`, `rendercache_test.go`, `baker.go`, `bakeapi.go` — are **byte-identical** to the reviewed
+tip `f35c4ab`. The `main.go` delta is exactly the required swap:
+
+```
+-	cacheDir := os.Getenv("TROUBA_RENDER_CACHE")
++	cacheDir := cfg.Bake.RenderCache
+```
+
+**Two of my three stated consequences are closed:** `config.Bake.RenderCache` is a real entry in the
+`knobs` table (`config.go:120`, section `bake`, key `render_cache`), so it is now settable from
+`troubacore.ini`, and it appears in `troubacore.example.ini` (+2) so an operator can discover it.
+
+### The third one isn't — and it's invisible
+
+I said the bare `Getenv` also meant "no `TestDefault` coverage". **That's still true after the fix**, and
+`config_test.go` wasn't touched. `TestDefault` compares `k.get(&c) != want[k.env]`, and `want[k.env]` for
+an unlisted knob is `""` — so a knob defaulting to `""` passes **without being listed**. `TROUBA_RENDER_CACHE`
+defaults to `""`. It is not in `want`. The test is green and does not cover it.
+
+I checked whether that was only my problem: **15 knobs declared, 13 in `want`.** The other absentee,
+`TROUBA_APPS_DIR`, pre-dates T120 — so this is a latent weakness in `TestDefault` that T120 merely walked
+into, not something the lane did wrong. Worth being precise about that: the landing met the condition I
+actually wrote; my condition was under-specified, because I named the consequence without noticing the
+test couldn't detect it either way.
+
+**Filed as T121** (XS) — add the two entries and make the omission impossible to repeat via an `ok`-check
+rather than a count, with the teeth-check shown in both directions (silent before, named after). It's a
+test-integrity fix, not a T120 defect, so T120 stays landed and closed.
+
+### Audit sweep
+
+Per the widened rule, I grepped the audit for rows T120 satisfies. **None** — there is no render-cache or
+bake-performance row; T120 is a VLL feature request, not an audit item. Recording the negative result so
+nobody re-derives it.
+
+**Web-Core:** T121 is the only thing queued. **Mobile:** A48, still unstarted.
+
+— Fable
