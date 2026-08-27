@@ -35,15 +35,25 @@ func TestDefault(t *testing.T) {
 		"TROUBA_DATABASE_URL":    "",
 		"TROUBA_NO_MDNS":         "true", // mdns.enabled default
 		"TROUBA_MDNS_NAME":       "",
+		"TROUBA_APPS_DIR":        "",
 		"TROUBA_PDFTOPPM":        "pdftoppm",
 		"TROUBA_NODE":            "node",
 		"TROUBA_BAKE_CLI":        "../web/bake/dist/cli.js",
 		"TROUBA_BAKE_KEEP_REVS":  "0",
+		"TROUBA_RENDER_CACHE":    "",
 		"TROUBA_DIE_WITH_PARENT": "false",
 	}
+	// Two-value lookup, not want[k.env]: a knob MISSING from want yields "" from a single-value read, so
+	// any empty-default knob would pass without being listed at all (T121 — TROUBA_APPS_DIR and
+	// TROUBA_RENDER_CACHE both did). The `ok` check makes every knob required, and names the omission.
 	for _, k := range knobs {
-		if got := k.get(&c); got != want[k.env] {
-			t.Errorf("default %s (%s.%s) = %q, want %q", k.env, k.section, k.key, got, want[k.env])
+		v, ok := want[k.env]
+		if !ok {
+			t.Errorf("knob %s (%s.%s) is not asserted in want — every knob must have an expected default", k.env, k.section, k.key)
+			continue
+		}
+		if got := k.get(&c); got != v {
+			t.Errorf("default %s (%s.%s) = %q, want %q", k.env, k.section, k.key, got, v)
 		}
 	}
 }
