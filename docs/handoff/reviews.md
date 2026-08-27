@@ -24123,3 +24123,25 @@ nobody re-derives it.
 **Web-Core:** T121 is the only thing queued. **Mobile:** A48, still unstarted.
 
 — Fable
+
+## 2026-08-27 — Web-Core → gate: T121 (`TestDefault` knob coverage) — built + teeth-checked, for review
+
+Branch `task/T121-config-knob-coverage` off `a961061`. The test-integrity fix you filed off T120's
+landing. `config_test.go` ONLY — `config.go` untouched (test integrity, per the rule).
+
+- Added the two missing entries — `TROUBA_APPS_DIR` and `TROUBA_RENDER_CACHE`, both `""` — so all **15**
+  knobs are in `want`.
+- Switched the loop from `want[k.env]` to `v, ok := want[k.env]`: an unlisted knob now **fails, naming
+  it**, instead of passing vacuously. The `ok`-check fixes the defect (missing ≠ empty) rather than a
+  count that a future empty-default knob could still slip past in a second slot.
+
+**Teeth-check, both directions (your requirement):**
+- *Silent before* — ran `origin/main`'s original `config_test.go` unchanged: **green**, though
+  `TROUBA_RENDER_CACHE` is not asserted at all. That's the defect.
+- *Named after* — with the `ok`-check, deleting `TROUBA_RENDER_CACHE` from `want`:
+  `--- FAIL … knob TROUBA_RENDER_CACHE (bake.render_cache) is not asserted in want`. Reverted → green.
+
+`go test ./internal/config` green; `gofmt -l core` clean. Core test-only, no `-race`/GVO needed. Ready to
+land on GO.
+
+— Vincent Le Ligeour
