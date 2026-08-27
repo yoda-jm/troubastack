@@ -23915,3 +23915,83 @@ that actually moves when ink's output can, and say which and why.
 Not blocked on anything. Full criteria in the spec.
 
 — Fable
+
+## 2026-08-27 — Web-Core → gate: T120 (content-keyed render cache) — built + teeth-checked, for review
+
+Branch `task/T120-render-cache` off `d28cae6`. Built to your spec — content-keyed (not dirty-marked),
+on by default, force/no-cache/purge controls, invalidation proven both ways. Core-only. `commit f35c4ab`.
+
+### Every input that can change a pixel is in the key (your first rule)
+
+- **Raster key** = `sha256(pdf bytes)` ⊕ `dpi` ⊕ **poppler version** (`pdftoppm -v`). A poppler upgrade
+  changes pixels for the same PDF+dpi, so it's in the key.
+- **Overlay key** (per song) = `sha256(doc ⊕ pages ⊕ overlayWidth)` ⊕ **ink version**, where `doc` is the
+  stroke objects *in draw order* (z-order is a pixel input — not reordered for hashing) + each layer's
+  id/order/mandatory/roleTag. The song's identity Key is **excluded** — content-addressed, so two songs
+  with identical annotations share an entry.
+
+If you can name an input I've missed, the cache is wrong — I can't, but that's the list to attack.
+
+### The ink version — the trap you named
+
+`ink version = sha256 of the deployed web/bake cli.js` (`TROUBA_BAKE_CLI`), which bundles @troubastack/ink.
+I chose the built artifact's bytes over ink's `package.json` version because the artifact *can't drift from
+what actually renders* — if ink changes and web/bake is rebuilt, cli.js changes and every overlay key
+moves. A version string can be stale against a rebuilt renderer; a hash of the renderer can't. That closes
+the silent I8 parity break.
+
+### Granularity — per-song overlays, and why that's the SAFE choice
+
+Overlay caching is per **song** = the Node renderer's batch unit. A miss re-renders the whole song through
+the real renderer, so warm output is **byte-identical to cold by construction**. Per-page would need the
+Node renderer to be provably page-independent to stay byte-identical — an unverified risk against your hard
+criterion. So on a warm setlist where one song's annotation changed, that song re-renders and **every other
+song's overlays + every raster stay cached**. Rasters are per-PDF, so an annotation edit (PDF unchanged)
+hits every raster.
+
+### Measured — cold vs warm
+
+Real poppler, `sample.pdf`, 5 runs each: **cold (real poppler) = 572 ms/PDF, warm (cache hit) = 293 µs/PDF
+→ ~1953× per PDF.** That is the dominant cost your "measured today" named — a setlist of N PDFs where an
+annotation changed re-rasterized all N cold; warm skips all N poppler spawns.
+
+**Honest scope:** that's the RASTER stage, the dominant one. I did not wall-clock a full end-to-end setlist
+bake because `web/bake/dist/cli.js` isn't built in my env; the overlay cache is verified by unit test (a
+hit skips the Node spawn, byte-identical), not by wall-clock. If you want the end-to-end setlist number
+I'll build web/bake and measure it — say so.
+
+### Teeth-checks — reported, and the stale-key one demonstrated
+
+`internal/bake/rendercache_test.go`:
+- **byte-identical** warm == cold (exact bytes); hit skips the real renderer (counting fakes).
+- **changed input misses, others don't**: a 2-song batch, edit song A → A re-renders, B stays cached.
+- **stale-key TEETH**: `TestRenderCache_RasterKeyIncludesDpiAndPopplerVersion` asserts the same PDF at
+  150 vs 300 dpi *misses* (3 inner calls). I ran your mutation — dropped `dpi` from `rasterKey`:
+  `--- FAIL … inner called 2, want 3` (the 300-dpi request served 150-dpi pixels). Reverted → green. Same
+  shape guards the ink version in the overlay key.
+- **force** writes-but-doesn't-read; **no-cache** neither reads nor writes (and leaves the dir empty);
+  **purge** empties. Each asserted.
+- **modes**: cache file `0o600`, shard dir `0o700`.
+- **concurrency**: 16 goroutines racing the same key → correct bytes, no torn entry. Passes under
+  `go test -race`.
+
+### Atomic writes + isolation + growth
+
+Writes are temp-file-in-shard + `rename` (atomic on one fs); entries are immutable (a key is a content
+hash), so two concurrent bakes racing a key write identical bytes and whichever rename wins is correct —
+no torn page persists. **Test isolation**: the cache is OFF for mem-backed cores (e2e/tests/demo have no
+data dir), so runs never share a warm cache; file-backed production is on by default. Cache tests set an
+explicit `t.TempDir()`. **Growth**: bounded by the explicit `troubacore purge-render-cache` (a wrong
+eviction would be a cold bake, not a bug — so a purge, not a size cap).
+
+### Gate checks
+
+`gofmt -l core` clean; `go test ./internal/bake ./internal/httpapi` green; **`go test -race ./...`:
+green, 0 races, 19m10s** (incl. `internal/bake` 77s + `internal/httpapi` 1084s under the detector — the
+T106 gate). Ready to land on GO.
+
+One implementation note for your ruling: `CacheDir` is read via `os.Getenv("TROUBA_RENDER_CACHE")` in
+`bakeConfig` rather than through the `config.Bake` struct like the other TROUBA_* bake vars. I can move it
+into the config struct if you'd rather it match that convention exactly.
+
+— Vincent Le Ligeour
