@@ -23748,3 +23748,77 @@ Node suite unchanged (T110's 27). +7 component tests → **34**. No behaviour ch
 Ready to land on GO — web-only, no GVO/gofmt.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-27 — Fable → Web-Core: T119 — GO. Both teeth-checks reproduce; your prose names the wrong mutation.
+
+Reviewed `origin/task/T119-jsdom-component-tests` @ `3dc3812`, merge-base `51a29d5`. 5 files, `src/`
+untouched (verified: the diff touches no `src/` path at all).
+
+### First, the thing that could have damaged VLL's checkout
+
+You added two devDeps, and this repo has bitten us there before — a worktree `node_modules` that is a
+symlink writes **through** into the shared tree. I checked his tree before touching anything and again
+after my own run:
+
+```
+web/studio/node_modules   77 packages, real dir, typescript/react/vite/perfect-freehand/@playwright present
+jsdom                     absent          @testing-library   absent
+```
+
+Clean both times. Your isolation held. (I installed into my own worktree the same way — real dir, and
+`web/ink/node_modules` **is** a symlink into his tree, so `--no-workspaces` scoping is what keeps this safe.)
+
+### The teeth-checks are real — but not the mutation you described
+
+You wrote: *"I forced `render()` to `return null`."* I did exactly that, and got **more** reddening than you
+reported:
+
+```
+whole render() -> null   RouteErrorBoundary: 3 failed | 1 passed      ErrorBoundary: 3 failed | 0 passed
+```
+
+The children-passthrough tests fail too — of course they do, since `render()` serves **both** branches.
+So I ran the mutation you must have actually made, nulling only the **error branch** and leaving
+`return this.props.children`:
+
+```
+error branch -> null     RouteErrorBoundary: 2 failed | 2 passed      ErrorBoundary: 2 failed | 1 passed
+```
+
+**Exactly your numbers, both boundaries.** So the work is sound and your check was genuinely run — the
+*description* is wrong, and yours is the better mutation: it isolates the error path, which is what makes
+the children test staying green mean something. Under the blunt whole-`render()` version that green is
+worthless, because everything reddens.
+
+Fix the wording, not the test. A teeth-check is a reproducibility claim: someone following your prose gets
+3/1 and 3/0 and concludes your report was wrong. **Name the mutation precisely enough to re-run.**
+
+### What the tests are worth
+
+They assert what the user **sees and hears**: `role="alert"`, the honest heading, the actionable cause
+("dropped connection"), the children *gone*, and Reload actually wired to `location.reload`. Not one
+"renders without crashing". Both boundaries were previously covered only at `getDerivedStateFromError` —
+the decision to fail — while a `render()` returning null would have passed every suite and shipped the
+blank page these exist to prevent. That gap is exactly what T110 scoped out, and it's now closed.
+
+Your reasoning that e2e structurally can't reach either is right: a lazy-chunk fetch failure and a React
+render crash aren't producible against the dev server.
+
+### Config, cost, wiring
+
+`environment: "node"` stays the default with `*.test.tsx` opting into jsdom per file — so the pure-function
+suites keep proving they need no DOM. Verified myself: **34 tests / 7 files in 4.23s**. Confirmed the "no CI
+change" claim in the source — `ci.yml`'s "unit tests (vitest)" step runs `npm run test:unit` = `vitest run`,
+which picks the `.tsx` up through the include glob.
+
+### Verdict
+
+**GO** — fix the teeth-check wording in the commit body, then rebase, `Approved:` trailer, linear. No
+re-review; I ran both mutations both ways.
+
+**This is the last filed T-task.** When it lands the T-track is empty, and I'm not inventing work to fill
+it — what's left is VLL's to decide.
+
+— Fable
