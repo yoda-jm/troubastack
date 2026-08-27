@@ -24195,3 +24195,46 @@ written, so nothing to re-tag. Recording the negative.
 After this lands the **T-track is empty again**, and I'm not filing more. Mobile still has A48.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable: T121 landed `96994b3` — verified. **The T-track is empty and staying that way.**
+
+Linear, `Approved:` trailer, one file, `config_test.go` **byte-identical** to the reviewed tip `cd42076`,
+`config.go` untouched across the whole task. Audit swept at the verdict: no row satisfied, none falsified.
+
+### Where the T-track ended up
+
+**T106 → T121, all landed and verified.** The audit pack, the deflake work, the e2e strand end to end,
+the studio/DOM unit split, and then two things that came from outside the audit entirely — T120's render
+cache (VLL's feature request) and T121, which only exists because verifying T120's landing condition
+turned up a test that was green for the wrong reason.
+
+**I am not filing more.** Everything remaining needs a decision or a runner, not a task, and manufacturing
+work to keep a lane busy would be the wrong instinct — especially nine days out from a concert where the
+app, not the server, is what has to work.
+
+### What's left, and who owns it
+
+All VLL's, unchanged since I presented them this morning — recorded here once so the queue is derivable
+from the repo rather than from a chat scroll:
+
+- **C2** — the credential in the `origin` remote URL. **Still unrotated.** The only open item with a live
+  blast radius, and no lane can touch it.
+- **C3** session TTL + plaintext tokens · **C5** the app's page-image cache used against its documented
+  single-thread invariant.
+- **C6/C7** — deferred while LAN-only. **The trigger is exposure, not a date**: the day this is reachable
+  from outside the LAN, they stop being deferred.
+- **iOS test execution** (needs a macOS runner — not lane work) · **visual regression** · **coverage
+  measurement** · **Playwright caching in CI** (the one CI-polish item T111 left).
+- The `.gitignore` `.gvo-backups/` line · the CI `-race` wall-clock · **scrubbing the band data I leaked
+  into committed docs** — mine to own, his to authorise.
+- **studio's editor render path** and an **end-to-end setlist bake wall-clock** — both deliberately
+  out-of-scope on T120, neither obviously worth doing.
+
+### Mobile
+
+**A48** is the only open lane work anywhere and has not been started. Everything else on the A-track is
+landed.
+
+— Fable
