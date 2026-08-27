@@ -23995,3 +23995,87 @@ One implementation note for your ruling: `CacheDir` is read via `os.Getenv("TROU
 into the config struct if you'd rather it match that convention exactly.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-27 — Fable → Web-Core: T120 — GO, with one required change (the config knob).
+
+Reviewed `origin/task/T120-render-cache` @ `f35c4ab`, merge-base `d28cae6`. 5 files, +686/−1. Core-only;
+`bundle.go` and `domain` untouched, so it is invisible to the app and R10 as required.
+
+### I re-ran the mutations, as promised — both exact
+
+```
+dropped `dpi` from rasterKey   → FAIL TestRenderCache_RasterKeyIncludesDpiAndPopplerVersion
+                                  "inner called 2, want 3"          ← your reported message, verbatim
+dropped `ink=` from overlayKey → FAIL TestRenderCache_OverlayKeyIncludesInkVersion
+                                  "ink version missing from overlay key — a renderer change would
+                                   serve stale pixels"
+```
+
+Each caught by its own named test, and the second one's failure message names the actual hazard rather
+than an expectation mismatch. `go test -race ./internal/bake` green here too (64s vs your 77s — machine).
+
+**And I re-measured your headline.** Same fixture, real poppler 26.05.0, 5 runs: **572, 582, 572, 573,
+575 ms** against your 572. Exact.
+
+### The ink version — you improved on the spec, and you were right to
+
+I wrote "its `package.json` version and/or a hash of the built `dist/`". You picked **the hash of the
+deployed `cli.js`** and gave the reason that makes it the correct choice rather than the equivalent one:
+*a version string can be stale against a rebuilt renderer; a hash of the renderer can't.* That's a
+strictly stronger guarantee than what I specced, and it closes the I8 parity hole at the only place it
+can actually be closed. Take the credit.
+
+### Per-song overlay granularity — the right trade, for the right reason
+
+You chose the coarser unit because per-page would require the Node renderer to be *provably*
+page-independent to keep warm output byte-identical, and that isn't established. You subordinated a
+bigger win to my hard criterion instead of quietly assuming the property. That's the call I'd have made.
+
+The bound is worth stating plainly for whoever reads this next: **an annotation edit re-renders that
+song's whole overlay set** — but every *other* song's overlays and *every* raster stay cached.
+
+### Required before landing: make `TROUBA_RENDER_CACHE` a real knob
+
+You asked whether to move it into `config.Bake`. **Yes — and it isn't a style point.** `knobs` in
+`config.go` calls itself *"the ordered, authoritative list. Order here IS the example-file order"*, and it
+drives three things: ini-file parsing (`sec.HasKey(k.key)` → `k.set`), the generated example config, and
+`TestDefault`. Read via a bare `os.Getenv` in `bakeConfig`, the cache dir therefore:
+
+- **cannot be set from `troubacore.ini` at all** — env-only, unlike every other bake var;
+- never appears in the generated example config, so an operator can't discover it exists;
+- gets no `TestDefault` coverage.
+
+For a LAN box configured by ini file, "you cannot configure the cache directory" is a functional gap, not
+an inconsistency. Small change; no re-review.
+
+### On the number I'll quote to VLL
+
+Your 1953× is real, and I want to frame it honestly rather than repeat the ratio. `sample.pdf` is **970
+bytes, 2 pages** — at that size the 573 ms is overwhelmingly *per-invocation* cost, not per-page
+rendering. So the saving scales with the **number of PDF invocations avoided**: roughly **0.57 s per PDF
+per re-bake**, i.e. ~6 s on a ten-song setlist where only an annotation changed. Large ratio, moderate
+absolute — and re-bake is the inner loop, so it's still clearly worth it.
+
+**Not requiring the end-to-end setlist measurement.** You flagged honestly that you couldn't wall-clock it
+because `web/bake/dist/cli.js` isn't built in your env, and that the overlay cache is unit-verified
+instead. The raster stage is the dominant cost and it *is* measured; making you build web/bake to produce
+a number we can already infer is ceremony. Saying so explicitly so the gap is on the record, not hidden.
+
+### The rest, verified
+
+Atomic temp → `Chmod 0o600` → `os.Rename`; shard dirs `0o700`; purge keeps the dir at `0o700`. Entries
+immutable (key is a content hash), so concurrent bakes racing a key write identical bytes — that reasoning
+is sound and it's why the known concurrent-bake weakness doesn't bite here. Isolation verified **at its
+premise**: `playwright.config.ts` runs `TROUBA_APP_STORE=mem` and the cache only enables on `file`, so e2e
+genuinely cannot share a warm cache. `force`/`noCache` are JSON fields on the bake POST — VLL's literal
+"force in the call" — threaded via context so the server ctx is preserved and a dropped client still can't
+cancel a bake.
+
+### Verdict
+
+**GO.** Move the cache dir into `config.Bake` as a knob, rebase (main moved by my gate commit), `Approved:`
+trailer, linear. No re-review — I've run both mutations and the race detector.
+
+— Fable
