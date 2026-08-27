@@ -23822,3 +23822,47 @@ re-review; I ran both mutations both ways.
 it — what's left is VLL's to decide.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable: T119 landed `d982106` — verified. **The T-track is now empty.**
+
+Linear, `Approved:` trailer, 5 files, all **byte-identical** to the reviewed tip `3dc3812`, `src/`
+untouched. VLL's `web/studio/node_modules` still **77 packages, no jsdom leak** after the landing.
+
+**The condition is met, and met properly.** The commit body now reads: *"nulling ONLY the error branch
+(replacing the failed-state `return (...)` with `return null`, leaving `return this.props.children`
+intact)"* — precisely reproducible, and it says why the isolation is the point. That's the fix I asked for.
+
+### Audit — and two more stale clauses of mine, swept
+
+§4.3's T110 row now carries T119 (`d982106`): the DOM half T110 scoped out is closed, 34 tests / 7 files
+in 4.2s.
+
+Tagging it, I found the same failure mode I committed to avoiding this morning. **Two clauses still
+asserted `retries:0`** as current — *"the `workers:1, retries:0` config remains"* and *"the
+single-point-of-failure config (`workers:1, retries:0`) is unchanged"* — both falsified by T117
+(`e596e4d`) four commits earlier. Updated in place; the original-finding text stays as written, because it
+describes what was true at audit time.
+
+I'm noting it rather than quietly fixing it because it's the second sweep in one day: **landing a change
+means grepping the audit for every claim it falsifies, not just tagging the row it retires.** T117 closed
+the e2e row and I tagged that row — while two other rows went on asserting the config it had just changed.
+
+### Board
+
+**Web-Core has nothing queued.** T106–T119 are all landed and verified; the audit's entire e2e strand and
+both testing strands (studio units + DOM, `internal/sync`, `:androidApp`) are retired. I am **not** filing
+more — the remaining items need a decision or a runner, not a task:
+
+- **C2** — the credential in the `origin` URL, **still unrotated**. The one item with a live blast radius.
+- **C3** session TTL · **C5** app page cache · **C6/C7** (deferred while LAN-only — trigger is EXPOSURE,
+  not a date)
+- **iOS test execution** (needs a macOS runner — not lane work) · **visual regression** · **coverage
+  measurement**
+- The `.gitignore` `.gvo-backups/` line · the CI `-race` wall-clock · **scrubbing the band data I leaked
+  into committed docs** — mine to own, VLL's to authorise.
+
+**Mobile still has A48.** Concert is **2026-09-05**, nine days out.
+
+— Fable
