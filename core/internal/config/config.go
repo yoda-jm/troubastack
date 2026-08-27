@@ -37,10 +37,11 @@ type Config struct {
 		Name    string // TROUBA_MDNS_NAME
 	}
 	Bake struct {
-		Pdftoppm string // TROUBA_PDFTOPPM
-		Node     string // TROUBA_NODE
-		CLI      string // TROUBA_BAKE_CLI
-		KeepRevs int    // TROUBA_BAKE_KEEP_REVS
+		Pdftoppm    string // TROUBA_PDFTOPPM
+		Node        string // TROUBA_NODE
+		CLI         string // TROUBA_BAKE_CLI
+		KeepRevs    int    // TROUBA_BAKE_KEEP_REVS
+		RenderCache string // TROUBA_RENDER_CACHE (T120 render cache dir; empty ⇒ auto, see bakeConfig)
 	}
 	Dev struct {
 		DieWithParent bool // TROUBA_DIE_WITH_PARENT
@@ -116,6 +117,9 @@ var knobs = []knob{
 	{"bake", "keep_revs", "TROUBA_BAKE_KEEP_REVS", kindString, "0", "retention: `troubacore gc` keeps only the newest N baked concert revisions per setlist (0 = keep all; a final-locked rev is never pruned)",
 		func(c *Config) string { return strconv.Itoa(c.Bake.KeepRevs) },
 		func(c *Config, v string) { n, _ := strconv.Atoi(v); c.Bake.KeepRevs = n }},
+	{"bake", "render_cache", "TROUBA_RENDER_CACHE", kindString, "", "T120 render-cache dir for baked page rasters + overlays (empty = <data>/rendercache when app_store=file, off for a mem-backed core; empty its contents with `troubacore purge-render-cache`)",
+		func(c *Config) string { return c.Bake.RenderCache },
+		func(c *Config, v string) { c.Bake.RenderCache = v }},
 
 	{"dev", "die_with_parent", "TROUBA_DIE_WITH_PARENT", kindBool, "false", "dev: exit when the launching parent process dies (set by make dev/run/demo)",
 		func(c *Config) string { return boolStr(c.Dev.DieWithParent) },

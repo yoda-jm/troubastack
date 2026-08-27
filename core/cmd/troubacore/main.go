@@ -47,6 +47,8 @@ func main() {
 			return
 		case "gc":
 			runGC(os.Args[2:])
+		case "purge-render-cache":
+			runPurgeRenderCache(os.Args[2:])
 			return
 		case "repair-blobs":
 			runRepairBlobs(os.Args[2:])
@@ -199,6 +201,27 @@ func runResetPassword(args []string) {
 // reset-password it resolves the SAME config the server uses, so run it with the same
 // env; on the file backend prefer a maintenance window (a live bake or an in-flight
 // .tstage download could race a pruned rev).
+// runPurgeRenderCache empties the T120 render cache (the bound-growth answer: an explicit purge, not a
+// size cap). Resolves the same dir the server uses, so it works against a live deployment's cache.
+func runPurgeRenderCache(args []string) {
+	if len(args) != 0 {
+		log.Fatalf("usage: troubacore purge-render-cache  (dir from TROUBA_RENDER_CACHE / <data>/rendercache)")
+	}
+	cfg, err := config.Load(os.Getenv("TROUBA_CONFIG"), os.Getenv("TROUBA_CONFIG") != "")
+	if err != nil {
+		log.Fatalf("troubacore: %v", err)
+	}
+	dir := bakeConfig(cfg).CacheDir
+	if dir == "" {
+		fmt.Println("purge-render-cache: caching is off (no data dir / TROUBA_RENDER_CACHE) — nothing to purge.")
+		return
+	}
+	if err := bake.PurgeCacheDir(dir); err != nil {
+		log.Fatalf("troubacore: purge-render-cache: %v", err)
+	}
+	fmt.Printf("purge-render-cache: emptied %s\n", dir)
+}
+
 func runGC(args []string) {
 	if len(args) != 0 {
 		log.Fatalf("usage: troubacore gc  (retention set by bake.keep_revs / TROUBA_BAKE_KEEP_REVS)")
@@ -318,11 +341,19 @@ func openAppRepo(cfg config.Config) (app.Repo, error) {
 // works when core runs from core/ (make dev/run/e2e). Bundles are written under
 // <data>/bakes. Swapping paths touches only this fn.
 func bakeConfig(cfg config.Config) bake.Config {
+	// T120 render cache: an explicit bake.render_cache (ini/env) wins; else ON where there's a data dir
+	// to hold it (file-backed = a real deployment), OFF for a mem-backed core (e2e/tests/demo) so runs
+	// never share a warm cache — test isolation for free.
+	cacheDir := cfg.Bake.RenderCache
+	if cacheDir == "" && cfg.Storage.AppStore == "file" {
+		cacheDir = filepath.Join(cfg.Storage.DataDir, "rendercache")
+	}
 	return bake.Config{
 		BakesDir: filepath.Join(cfg.Storage.DataDir, "bakes"),
 		Pdftoppm: cfg.Bake.Pdftoppm,
 		Node:     cfg.Bake.Node,
 		BakeCLI:  filepath.FromSlash(cfg.Bake.CLI),
+		CacheDir: cacheDir,
 	}
 }
 

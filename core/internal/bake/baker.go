@@ -31,6 +31,10 @@ type Config struct {
 	Node     string // node binary
 	BakeCLI  string // path to web/bake/dist/cli.js
 	DPI      int    // raster DPI (default 150)
+	// CacheDir enables the T120 content-keyed render cache at this dir. Empty ⇒ caching OFF — which is
+	// how mem-backed cores (e2e/tests/demo) stay isolated for free; production sets it (a subdir of the
+	// data dir, or TROUBA_RENDER_CACHE). A cache test sets it to a per-test temp dir explicitly.
+	CacheDir string
 	// Raster/Overlays inject the two shell-out steps — DEPENDENCY INJECTION, nil in production (the real
 	// poppler + node CLI are used). A test uses this to substitute a controllable rasterizer, e.g. one
 	// that blocks so the T103 "a hung-up client does not cancel the bake" race has an observable window.
@@ -46,6 +50,7 @@ type Baker struct {
 	eng      *engine.Engine
 	raster   Rasterizer
 	overlays OverlayRenderer
+	cache    *renderCache // T120 render cache (nil ⇒ disabled); held for PurgeCache
 	bakesDir string
 	now      func() int64 // injectable clock (unix seconds) for deterministic tests
 	// afterNextRev, if set, is called once right after nextRev returns — a TEST SEAM
@@ -81,11 +86,20 @@ func New(svc *app.Service, eng *engine.Engine, cfg Config) *Baker {
 	if cfg.Overlays != nil {
 		overlays = cfg.Overlays
 	}
+	// T120: wrap both render stages with the content-keyed cache when it's enabled. A cache-construct
+	// error (bad dir) degrades to no cache rather than failing the server — never crash on bake config.
+	var cache *renderCache
+	if c, err := newRenderCache(cfg.CacheDir); err == nil && c != nil {
+		cache = c
+		raster = cachingRasterizer{inner: raster, cache: cache, dpi: dpi, popplerVer: popplerVersion(cfg.Pdftoppm)}
+		overlays = cachingOverlayRenderer{inner: overlays, cache: cache, inkVer: inkVersion(cfg.BakeCLI)}
+	}
 	return &Baker{
 		svc:       svc,
 		eng:       eng,
 		raster:    raster,
 		overlays:  overlays,
+		cache:     cache,
 		bakesDir:  cfg.BakesDir,
 		now:       func() int64 { return time.Now().Unix() },
 		progress:  newProgressRegistry(nil),

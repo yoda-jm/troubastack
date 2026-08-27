@@ -108,6 +108,10 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	// today). Malformed JSON is ignored (treated as no capture), never a 400.
 	var in struct {
 		LayerDefaults map[string]bool `json:"layerDefaults"`
+		// T120 render-cache controls (both optional, default off): force skips reads but still writes
+		// ("I don't trust the cache right now"); noCache neither reads nor writes ("give me a cold path").
+		Force   bool `json:"force"`
+		NoCache bool `json:"noCache"`
 	}
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&in)
@@ -123,8 +127,11 @@ func (a *BakeAPI) bake(w http.ResponseWriter, r *http.Request, u app.User) {
 	// Run on the SERVER's context, not r.Context(): a disconnected client must NOT cancel the bake.
 	// On success, publish T60's transpose warnings onto the terminal progress record (the client reads
 	// them there now, since there's no synchronous response body to carry them).
+	// T120: thread the render-cache mode onto the bake's context (still the SERVER ctx, so a dropped
+	// client can't cancel the bake — WithCacheControl only annotates it).
+	bakeCtx := bake.WithCacheControl(a.ctx, in.Force, in.NoCache)
 	go func() {
-		if _, _, berr := a.baker.Bake(a.ctx, bandID, setlistID, u, in.LayerDefaults, bakeID); berr == nil {
+		if _, _, berr := a.baker.Bake(bakeCtx, bandID, setlistID, u, in.LayerDefaults, bakeID); berr == nil {
 			a.baker.SetWarnings(bandID, setlistID, bakeID, a.transposeWarnings(u, bandID, setlistID))
 		}
 	}()
