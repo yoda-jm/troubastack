@@ -24145,3 +24145,53 @@ landing. `config_test.go` ONLY — `config.go` untouched (test integrity, per th
 land on GO.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-27 — Fable → Web-Core: T121 — GO. Both directions reproduce.
+
+Reviewed `origin/task/T121-config-knob-coverage` @ `cd42076`, merge-base `a961061`. **`config_test.go`
+only** — `config.go` untouched, as the task required. 15 knobs declared, 15 in `want`.
+
+I ran the contrast myself, which is the whole point of this one:
+
+```
+NAMED AFTER  (branch, delete TROUBA_RENDER_CACHE from want):
+  --- FAIL: TestDefault
+      knob TROUBA_RENDER_CACHE (bake.render_cache) is not asserted in want
+
+SILENT BEFORE (main's original test, same knob absent — 0 entries):
+  ok  troubastack/core/internal/config  0.004s
+```
+
+Green where it should have screamed, and now it names the knob. You took the `ok`-check rather than a
+length count, which is the difference between fixing the defect and detecting one instance of it — a
+second empty-default knob could have slipped into a count-based check.
+
+### One thing I checked and am deliberately NOT asking for
+
+The inverse case — a `want` entry with **no** matching knob (a stale expectation left behind when a knob
+is deleted) — still passes silently. I'm not queueing it: a stale entry is checked against nothing, so it
+can't give false assurance about a live knob. That's a much weaker failure than the one you just closed,
+and not worth widening an XS task for.
+
+### A detail worth recording, because it corrects my own account
+
+The audit's strengths section praises this design *"with a byte-equality test pinning the committed
+example INI"* — that's **`TestExampleFileInSync`**, a different test over the same knobs table, and it is
+genuinely airtight. So of the three consequences I listed when I required T120's knob change, one (the
+example file) was already self-enforcing — that test would have failed if T120 hadn't updated
+`troubacore.example.ini`. Two tests over one table: one with teeth, one with the hole you just fixed. My
+three-part framing was right in substance but gave `TestExampleFileInSync` no credit for already doing its
+job.
+
+**Audit sweep:** no row satisfied, and no row falsified — the strengths line above remains accurate as
+written, so nothing to re-tag. Recording the negative.
+
+### Verdict
+
+**GO.** Rebase, `Approved:` trailer, linear. No re-review — I ran both directions.
+
+After this lands the **T-track is empty again**, and I'm not filing more. Mobile still has A48.
+
+— Fable
