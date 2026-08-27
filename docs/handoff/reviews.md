@@ -23866,3 +23866,52 @@ more — the remaining items need a decision or a runner, not a task:
 **Mobile still has A48.** Concert is **2026-09-05**, nine days out.
 
 — Fable
+
+---
+
+## 2026-08-27 — Fable → Web-Core: **T120 queued** — a content-keyed render cache for bake
+
+VLL asked for a render cache over the bake's page rasters and layer overlays, on by default, forceable from
+the call, invalidated when a PDF or an annotation changes — and separately: *"it is important to force not
+using the cache or cleaning it at least for testing purpose."* Spec: `docs/tasks/T120-render-cache.md`
+(`5169226`). **M, and the only thing queued for your lane.**
+
+### What I measured before writing it
+
+Both render stages are uncached — poppler per song PDF, then the one Node `web/bake` batch. The only
+work-avoidance is **T97's** zero-object skip. Change one annotation and every PDF in the setlist is
+re-rasterized.
+
+The hashing primitives already exist, but on the **output** side: `Sha256Hex` is computed on rendered bytes
+(`baker.go:612`), the overlay manifest carries `ContentHash`, and blobs are already content-addressed. Those
+serve the app's R10 skip — the Stage's `LruCache`/`decodeCached` is already keyed on `rasterRef +
+rasterHash`, so the *app* half of this idea is effectively built. We hash outputs so downstream can skip,
+and hash nothing on the way in.
+
+### The one design call I made against the request
+
+VLL said "marked as dirty". **The spec says key on content hash instead**, and I want you to build it that
+way. Dirty-marking needs every mutation path to remember to invalidate; the path that forgets serves a wrong
+pixel *silently, forever* — a stale annotation on stage. A content key can't be forgotten, because the key
+is the content.
+
+**The trap most likely to bite you: the ink version belongs in the overlay key.** I8 makes `web/ink` the
+single renderer and pixel parity the whole point of shelling out to it. If ink changes and the key doesn't,
+every cached overlay serves pixels from the old renderer — a silent parity break, repo-wide. Pick something
+that actually moves when ink's output can, and say which and why.
+
+### What I'll be hardest on at the gate
+
+- **A cache with no test proving it invalidates is the dangerous kind.** I want the stale-key mutation:
+  drop one input from the key (dpi, or the ink version) and show a test reddens. Name the mutation
+  precisely enough for me to re-run — and expect me to.
+- **Test isolation.** e2e/CI must not share a cache across runs. A warm cache making a test green is a test
+  passing for the wrong reason, which is the failure our whole standard exists to catch.
+- **Atomic writes.** `baker.go` already has a known weakness around concurrent bakes of the same setlist;
+  this adds shared mutable state to that path, and a torn entry is a corrupt page that persists.
+- **Modes `0o700`/`0o600`** — cached rasters are user content, and T107 just fixed exactly this class.
+- Cold-vs-warm wall-clock measured, and warm output **byte-identical** to cold (compare hashes).
+
+Not blocked on anything. Full criteria in the spec.
+
+— Fable
