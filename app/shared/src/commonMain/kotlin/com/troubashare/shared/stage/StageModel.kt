@@ -226,6 +226,32 @@ internal fun resolveStartPage(state: StageState, songId: String, pageInSong: Int
     return if (lastOfSong >= 0) lastOfSong else 0
 }
 
+/**
+ * A50 — should the Stage hold hardware key/pedal focus right now? True only when NO focus-stealing
+ * surface is open. The Stage's focus effect keys on this (not `Unit`) so focus is RE-requested each time
+ * the Stage becomes unobscured — a dialog/drawer/sheet closing hands focus back to nothing otherwise, and
+ * the pedal goes dead for the rest of the set after the first surface opens ("the exact failure this
+ * product cannot have").
+ *
+ * DELIBERATELY SEPARATE from `overlayOpen` (chrome auto-hide) and never widened onto it: the identity
+ * pick is a focus-stealer here but is (correctly) absent from `overlayOpen`, and the two lists are
+ * allowed to diverge — an omission in chrome is a cosmetic beat, the same omission here is a dead pedal.
+ * [switchIdentity]/[needsIdentityPick]/[pickDismissed] mirror the WhoAreYouDialog's own open condition so
+ * the identity pick counts in BOTH of its forms (Settings→Switch, and an unresolved roster).
+ */
+fun stageHoldsKeyFocus(
+    drawerOpen: Boolean,
+    showSettings: Boolean,
+    showLayers: Boolean,
+    showRole: Boolean,
+    switchIdentity: Boolean,
+    needsIdentityPick: Boolean,
+    pickDismissed: Boolean,
+): Boolean {
+    val identityPickOpen = switchIdentity || (needsIdentityPick && !pickDismissed)
+    return !(drawerOpen || showSettings || showLayers || showRole || identityPickOpen)
+}
+
 private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: String, identity: String): StageState {
     // Refs flagged missing/empty for a specific (song,page) — used to mark a page's RASTER unavailable.
     val badRefs: Set<String> = issues

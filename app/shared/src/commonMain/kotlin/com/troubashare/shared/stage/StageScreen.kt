@@ -280,7 +280,20 @@ private fun Performing(
     // root before children so a keyboard turns the page while on-screen taps still work. (Android
     // volume keys can't reach Compose; androidApp forwards them via onKeyDown.)
     val keyFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { keyFocus.requestFocus() } }
+    // A50: RE-request key/pedal focus each time the Stage becomes unobscured (a surface below stole it and
+    // hands it back to nothing on dismiss). Keyed on the pure policy, NOT Unit — the old `LaunchedEffect(Unit)`
+    // ran once per composition, so the pedal went dead for the rest of the set after the first dialog. Keep
+    // runCatching: requestFocus() throws if the FocusRequester isn't attached, and that must stay non-fatal.
+    val holdsKeyFocus = stageHoldsKeyFocus(
+        drawerOpen = drawerState.isOpen,
+        showSettings = showSettings,
+        showLayers = showLayers,
+        showRole = showRole,
+        switchIdentity = switchIdentity,
+        needsIdentityPick = needsIdentityPick(state.roster, state.identity),
+        pickDismissed = pickDismissed,
+    )
+    LaunchedEffect(holdsKeyFocus) { if (holdsKeyFocus) runCatching { keyFocus.requestFocus() } }
 
     // A15: the song drawer wraps the whole presenter so its scrim covers the pages when open. Swipe
     // gestures are enabled only WHILE open (swipe-to-close) — a left-edge swipe must never open it
