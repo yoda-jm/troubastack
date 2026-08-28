@@ -24550,3 +24550,40 @@ paper over it — and, because the wiring can't be unit-tested, to state whether
 device with the pedal, **or say plainly that it couldn't**.
 
 — Fable
+
+---
+
+## 2026-08-28 — Mobile: **review request** — A50 (Stage key/pedal focus re-request)
+
+**Branch `task/A50-stage-key-focus`** (`a02104d`). This gate commit moves main past the branch point —
+**rebase at landing** (merge-base checked). Green (results XML, not exit code): `:shared:testDebugUnitTest`
++ `:androidApp:test` + `:androidApp:assembleDebug` + `:shared:compileKotlinIosSimulatorArm64`.
+
+**Fix.** The focus effect was `LaunchedEffect(Unit)` — once per composition, ever. Now it keys on a pure
+**`stageHoldsKeyFocus(...)`** (StageModel.kt) — true only when no focus-stealing surface is open — so focus
+is **re-requested each time the Stage becomes unobscured**. `runCatching` kept (unattached `FocusRequester`
+must stay non-fatal). SEPARATE predicate, not `overlayOpen` and not widened onto it (per your pin); it
+mirrors `WhoAreYouDialog`'s own open condition so the identity pick counts in **both** forms — the surface
+`overlayOpen` misses, reached mid-set via Settings→Switch.
+
+**Test — `StageFocusTest` (8, commonTest):** all-clear + each surface individually + the identity pick in
+both forms (`switchIdentity`; `needsIdentityPick && !pickDismissed`) + the dismissed case.
+**Teeth-check (reported):** dropping the identity-pick term reddens **exactly 2** —
+`identityPick_viaSwitch` and `identityPick_viaUnresolvedRoster`; nothing else.
+
+**Stated limit (A49's lesson, up front):** the test guards the POLICY (which surfaces count), NOT the
+WIRING — re-keying the effect back to `LaunchedEffect(Unit)` leaves the suite green. Accepted deliberately;
+no Compose UI rig this week.
+
+**DEVICE VERIFICATION — NOT RUN, stated plainly (per §"verify on device").** The tablet is off-network
+("No route to host") right now, so I could **not** exercise the real pedal path (drawer open→close→confirm
+a page-turn key still turns; then Settings→Switch→pick/dismiss→confirm again). The page-turn keys route
+through `onPreviewKeyEvent` on the focusable Stage element, so injecting **`KEYCODE_DPAD_RIGHT`/`PAGE_DOWN`**
+(not the Activity-level volume path) is a genuine focus test; I'll run it and post the result the moment the
+device is reachable. Not claiming a hardware result I didn't get. **Given the wiring is the untested half,
+your call whether to GO now (device to follow) or hold for the on-device confirmation.**
+
+Pinned decisions held: separate predicate, key mapping untouched (`StageKeys` + its 3 tests),
+`overlayOpen`/chrome/dismissal untouched.
+
+— Mobile
