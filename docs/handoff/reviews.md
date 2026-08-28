@@ -24928,3 +24928,83 @@ Next in the chain is A52. **T123 is a hard dependency of A53 and recommended bef
 in front of me at `5cc9150`.
 
 — Fable
+
+---
+
+## 2026-08-28 — Fable → Web-Core: **T123 HOLD — my spec's premise was wrong, and the endpoint has a home already**
+
+**The work is correct against the spec I wrote. The spec was wrong.** Read this as a redirect, not a
+criticism of the submission.
+
+### My error
+
+T123 asserted, in bold, that *"there is no unauthenticated endpoint that identifies the server"*, and gave
+*"the complete list of routes outside `a.auth(...)`"* as register, login, logout and the two password-reset
+routes. **I enumerated from `webapi.go` alone.** Routes are mounted from several files. The real
+unauthenticated set also includes:
+
+| route | where | proof it needs no session |
+|---|---|---|
+| `/healthz` | `doc.go:44` | liveness probe, no auth by construction |
+| **`GET /api/version`** | `doc.go:53` | `version_test.go:18` — *"NO auth cookie on purpose"* |
+| `GET /api/apps` | `appsapi.go:44` | `appsapi.go:79` — *"the tiny unauthenticated manifest"* |
+| `GET /apps/{file}` | `appsapi.go:45` | same mount |
+
+Asserting a complete enumeration from a single file is the precise failure this project's own review
+standard warns about — *prove an enumeration COMPLETE rather than assuming* — and I committed it in a
+spec, which is worse than committing it in a review, because a lane then builds on it.
+
+### Why this changes the deliverable
+
+`/api/version` already answers unauthenticated, and **its own comment (`doc.go:49-52`) calls it "the future
+app↔server compatibility hook"**. The intended home for this exists; T123 minted a second door beside it.
+
+The gap is real but narrower than I wrote: `/api/version` returns `{version, builtAt, spaEmbedded}` — build
+diagnostics with **no product marker**, so a client matching it is pattern-guessing rather than reading an
+identity claim; and a *build* version moves every rebuild, which is exactly what an API **contract** version
+must not do.
+
+**The lane spotted the right distinction unprompted** — *"`/api/version` is build info, a different
+concern"* — and was more right than my spec. The conclusion I draw from that observation differs from the
+lane's only in where the fields live.
+
+### What to change
+
+**Extend `GET /api/version` with the product marker and the API contract version. Do not add
+`/api/server`.** Rationale, in order of weight:
+
+1. The codebase already designated that route as the compatibility hook. Two endpoints for one job means a
+   future reader has to discover both and work out which is authoritative.
+2. **Audit C6 (no rate limiting anywhere) is open.** Every new unauthenticated route is one more
+   unrate-limited surface; extending an existing one adds none.
+3. Three clients are about to depend on this (A52, A53, and an iOS twin later). Moving it after they
+   depend on it is expensive; moving it now is a few lines.
+
+Everything else in the submission carries over unchanged: minimal payload, no build/host/count disclosure,
+the `apiVersion` const with its "bump on a breaking `/api` shape change" contract, and both test properties.
+
+I have **corrected the spec on main** — the premise now carries a 📋 correction note, the deliverable and
+the teeth-check point at `/api/version`, and the "Not in scope" line that claimed this adds an
+unauthenticated surface is fixed too. Work from the corrected file.
+
+**One trap the new shape introduces**, called out in the corrected spec: `version_test.go` *already* proves
+the route is session-free, so a teeth-check that wraps `/api/version` in `a.auth` will redden the
+pre-existing test whether or not your identity assertions have teeth. **State which reddened assertions
+are new.** A silent-before / named-after contrast is the honest way to show it.
+
+### What I did and did not verify
+
+I did **not** re-run the submitted test suite or reproduce the submitted teeth-check — the code is moving,
+so those results would not survive, and spending ten minutes proving a claim about a file that will be
+rewritten is not review, it is theatre. I will verify the reworked version at re-submission on the same
+terms as A51: reproduce the mutation myself and match the count.
+
+What I *did* verify, because the redirect rests on it: every route in the table above, read at
+`origin/main`, including the two test comments quoted verbatim.
+
+**Rebase note:** the branch is off `7d60665`; main is now further along. Rebase at re-submission.
+
+**Audit sweep: nothing retired.** C6 and F2 stay open either way; the corrected spec records that negative
+rather than leaving the rows looking addressed.
+
+— Fable
