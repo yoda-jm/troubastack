@@ -25392,3 +25392,67 @@ Branch FF-able off `e4ea064` as I write; **rebase at landing**. Next: A53 (the c
 trivial, device-only) is now fully unblocked. Ready for review.
 
 — Mobile
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A52 follow-up GO — landed `f909112`.** And a deployment order you need before the gig.
+
+Suite **measured** 286 (base 281, **+5**). Both teeth-checks reproduced and **matched at 1 each**:
+`identity_foreign_host_is_refused`, `identity_newer_contract_is_refused_as_too_new`. Files byte-identical
+to `8f7558d`; single parent `c0918c0`.
+
+### ⚠️ The thing to act on: this build refuses your current server, and it is right to
+
+I probed the running demo read-only:
+
+```
+GET :8080/api/version → {"builtAt":"2026-08-25T22:09Z","spaEmbedded":true,"version":"403016c-dirty"}
+```
+
+**No `product`, no `apiVersion`** — because `403016c` predates T123 (`32330aa`, landed tonight). So
+`serverIdentity(200, null, null)` ⇒ **`Foreign`**, and an app carrying this follow-up will tell you
+*"isn't a TroubaStack server. TroubaStage won't send your password there."* about **your own box.**
+
+That is the feature working, not a defect: silence is not trust. But it is a hard **ordering constraint** —
+**redeploy the server past `32330aa` before installing an app build with this change**, or QR/deep-link
+joining fails against it. Manual sign-in through ConnectDialog is unaffected. Concert is **2026-09-05**;
+this is exactly the kind of ordering that bites on the day.
+
+### What I verified beyond the claims
+
+- **The probe cannot leak your session to a hostile host.** This was the sharp question and nobody raised
+  it. `HttpClient` installs `ContentNegotiation` and `HttpTimeout` — **no `HttpCookies` plugin** — and every
+  authenticated call attaches `header("Cookie", ck)` by hand. `probeServerIdentity` attaches none, so
+  probing an attacker's URL sends no credential. That property is load-bearing for the whole design and it
+  holds.
+- **No bypass to a password field.** `switchServer(` now has **exactly one** call site, inside the
+  `TroubaStack` branch of `verifyThenSignIn`. Before this change Continue switched unconditionally.
+- **Review item 2 is properly fixed, not papered over.** `currentOrigin` is now the *session* origin
+  (null when never connected) instead of `baseUrl`, so A51's `current == null` branch is reachable from the
+  app for the first time and a fresh install says *"a server you haven't used before"* rather than naming
+  an emulator address. The A51 test that has guarded that branch since it was written finally has a real
+  caller.
+
+### A probe of mine that lied, and how I caught it
+
+I tried a third mutation — delete the `apiVersion == null -> Foreign` arm — and my XML parser reported
+**1 red**, with the *same test name as the previous mutation*. That coincidence was the tell: the edit
+**did not compile** (`Operator call is prohibited on a nullable receiver`), so Gradle never re-ran the
+suite and I was reading **the previous run's results**.
+
+**Rule, sharpened:** *never trust an exit code* isn't enough — **when a mutation fails to compile, the
+results XML is stale, and stale XML looks exactly like a passing teeth-check.** Check the build outcome
+before parsing results. I nearly reported a fabricated number in a verdict.
+
+The property is fine either way: Kotlin's type system makes that arm undeletable, and
+`identity_troubastack_but_no_contract_version_is_refused` covers the pre-T123-server case directly.
+
+### Still outstanding, unchanged
+
+The **device legs remain unrun** — the four join legs, the adversarial foreign-host scan (which is A53's
+teeth-check and now *means* something), and the **`launchMode="singleTask"` launch/recents/rotate pass**.
+**Land ≠ ship** still holds for the gig tablet.
+
+**Audit sweep: nothing retired.** C6/F2 unchanged.
+
+— Fable
