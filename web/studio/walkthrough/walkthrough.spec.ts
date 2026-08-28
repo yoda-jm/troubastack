@@ -9,12 +9,14 @@
  * orchestra` in global-setup) is revealed at the end as "the same app, at orchestra scale".
  * After the run the server holds exactly the demo you can log into (marie / demo).
  *
- * Pacing: `beat(s)` holds a frame for its narration; `soft(label, fn)` runs a step but logs +
- * continues on any miss so the tour always finishes. The two REQUIRED beats — the capo mark
- * and the layer show/hide toggle — are hard-asserted.
+ * Pacing: `beat(s)` holds a frame for its narration. `soft(label, fn)` runs a step but logs + continues
+ * on any miss — for OPTIONAL colour ONLY. The beats the video depends on use `required(label, fn)`, which
+ * RE-THROWS so a broken beat FAILS the run instead of skipping silently and recording a confident lie
+ * (T125): the capo mark, the layer show/hide toggle, the setlist (create + add song), and the S12 bake —
+ * each hard-asserted against its ARTEFACT, not the gesture that should have produced it.
  */
 import { test, expect, Page, Locator } from "@playwright/test";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 
 const PW = "demo";
 const beat = (p: Page, seconds: number) => p.waitForTimeout(seconds * 1000);
@@ -29,7 +31,10 @@ function mark(id: string) {
   marks.push({ id, t: (Date.now() - t0) / 1000 });
 }
 function writeMarks() {
-  // CWD is web/studio when Playwright runs; write to the repo's video output dir.
+  // CWD is web/studio when Playwright runs; write to the repo's video output dir. Ensure it exists —
+  // a fresh checkout (CI, a new clone) has no untracked output dir, and this used to crash the whole
+  // tour at the very end after every beat had passed.
+  mkdirSync("../../docs/video/output", { recursive: true });
   writeFileSync("../../docs/video/output/scene-marks.json", JSON.stringify(marks, null, 2));
 }
 
@@ -40,6 +45,20 @@ async function soft(label: string, fn: () => Promise<void>) {
     // eslint-disable-next-line no-console
     console.log(`[walkthrough] soft-skip "${label}": ${(e as Error).message.split("\n")[0]}`);
   }
+}
+
+// required(label, fn) runs a beat the video DEPENDS on and RE-THROWS on any miss — the tour must FAIL,
+// not skip, so a broken beat is never recorded as a confident take (T125). soft() is for optional colour.
+async function required(label: string, fn: () => Promise<void>) {
+  // eslint-disable-next-line no-console
+  console.log(`[walkthrough] required "${label}"`);
+  await fn();
+}
+
+// annotationCount reads the live object-count probe (Viewer.tsx) — used to assert a mark actually landed
+// as an annotation, not merely that a gesture was performed.
+async function annotationCount(p: Page): Promise<number> {
+  return parseInt((await p.getByTestId("object-count").innerText().catch(() => "0")) || "0", 10);
 }
 
 // ---- account lifecycle ---------------------------------------------------
@@ -354,15 +373,21 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
       await drag(at(0.335, 0.385), at(0.408, 0.5), 10);
       await beat(page, 2);
     });
-    // 3) a bold red "capo on!" note above it (text tool → native prompt)
-    await soft("capo note", async () => {
-      const text = page.getByTestId("tool-text");
-      if (await has(text)) await text.click();
+    // 3) a bold red "capo on!" note above it — text tool → the IN-APP text modal (Dialog.tsx's
+    //    app-dialog-input/confirm), NOT window.prompt. REQUIRED: the note must land as an annotation and
+    //    the modal must close, or the tour is a lie (and, pre-fix, the open modal jammed everything after).
+    await required("capo note", async () => {
+      await page.getByTestId("tool-text").click();
       await setColor("#D32F2F");
       await setRange("style-opacity", 1);
-      page.once("dialog", (d) => d.accept("capo on!"));
+      const before = await annotationCount(page);
       const p = at(0.20, 0.34); // on the page (its left edge is ~0.15), above "Capo 2"
       await page.mouse.click(p.x, p.y);
+      await page.getByTestId("app-dialog-input").fill("capo on!");
+      await page.getByTestId("app-dialog-confirm").click();
+      // Artefact, not gesture: the modal closed (no wreckage) AND a new annotation exists.
+      await expect(page.getByTestId("app-dialog-input")).toHaveCount(0);
+      await expect.poll(() => annotationCount(page)).toBe(before + 1);
       await beat(page, 3);
     });
   }
@@ -415,12 +440,14 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
 
   // ── S10: transpose ─────────────────────────────────────────────────────────
   mark("S10");
+  // Optional colour (soft), but its entry was dead: `file-menu-source` doesn't exist (the file-menu items
+  // are rename/up/down/delete). The chart source opens via the one-click `file-chart-edit` row control (T104).
   await soft("transpose", async () => {
     await openDetails(page);
-    const fileMenu = page.getByTestId("file-menu").first();
-    if (await has(fileMenu)) {
-      await fileMenu.click();
-      await page.getByTestId("file-menu-source").first().click();
+    const edit = page.getByTestId("file-chart-edit").first();
+    if (await has(edit)) {
+      await edit.click();
+      await expect(page.getByTestId("chart-editor")).toBeVisible({ timeout: 8_000 });
       await beat(page, 1);
     }
     const key = page.getByTestId("transpose-target-key");
@@ -437,46 +464,39 @@ test("web walkthrough — build The Troubadours from an empty server", async ({ 
   // ── S11: build the setlist ─────────────────────────────────────────────────
   mark("S11");
   await openBand(page, BAND);
-  await soft("setlist", async () => {
+  // REQUIRED: the setlist must be created AND contain the song — else S12 bakes nothing (and, since
+  // T124, an empty setlist won't bake at all). The old testids here (new-setlist-btn, setlist-add-song)
+  // never existed, so each `if (has(...))` silently did nothing and the running order stayed empty.
+  await required("setlist", async () => {
     const setlists = page.getByRole("link", { name: /setlists/i }).or(page.getByText("Setlists", { exact: true }));
-    if (await has(setlists)) {
-      await setlists.first().click();
-      await page.waitForLoadState("networkidle");
-      await beat(page, 1);
-    }
-    const newSl = page.getByTestId("new-setlist-btn").or(page.getByRole("button", { name: /new setlist/i }));
-    if (await has(newSl)) {
-      await newSl.first().click();
-      const nm = page.getByTestId("setlist-name");
-      if (await has(nm)) {
-        await nm.fill("Sat @ The Anchor");
-        const create = page.getByTestId("create-setlist");
-        if (await has(create)) await create.click();
-      }
-      await page.waitForLoadState("networkidle");
-      await beat(page, 2);
-    }
-    // add the song to the running order
-    const addItem = page.getByTestId("setlist-add-song").or(page.getByRole("button", { name: /add song/i }));
-    if (await has(addItem)) {
-      await addItem.first().click();
-      await beat(page, 3);
-    }
+    await setlists.first().click();
+    await page.waitForLoadState("networkidle");
+    await beat(page, 1);
+    // Create INLINE — the Setlists page has no "new setlist" button; it's a name field + submit.
+    await page.getByTestId("setlist-name").fill("Sat @ The Anchor");
+    await page.getByTestId("create-setlist").click();
+    await page.waitForLoadState("networkidle");
+    await beat(page, 2);
+    // Open it, then add the song via the REAL controls: the add-item-song <select> + the add-item submit.
+    await page.getByTestId("setlist-link").filter({ hasText: "Sat @ The Anchor" }).first().click();
+    await page.getByTestId("add-item-song").selectOption({ label: SONG });
+    await page.getByTestId("add-item").click();
+    // Artefact, not gesture: the running order now contains the song.
+    await expect(page.getByTestId("item-row").filter({ hasText: SONG })).toHaveCount(1);
+    await beat(page, 3);
   });
 
   // ── S12: bake the concert ──────────────────────────────────────────────────
   mark("S12");
-  await soft("bake", async () => {
-    const bake = page.getByTestId("bake-setlist");
-    if (await has(bake)) {
-      await bake.click();
-      await beat(page, 2);
-      const confirm = page.getByTestId("bake-dialog-confirm");
-      if (await has(confirm)) {
-        await confirm.click();
-        await beat(page, 6); // the concert bundle is produced
-      }
-    }
+  // REQUIRED: the finale must actually produce a concert. bake-setlist is disabled for an empty setlist
+  // (T124), so this depends on S11 having added the song; a successful bake surfaces a download link.
+  await required("bake", async () => {
+    await page.getByTestId("bake-setlist").click();
+    await beat(page, 2);
+    await page.getByTestId("bake-dialog-confirm").click();
+    // Artefact, not gesture: a downloadable bundle appears (the bake is a T103 kick — poll for it).
+    await expect(page.getByTestId("bake-download")).toBeVisible({ timeout: 30_000 });
+    await beat(page, 6); // the concert bundle is produced
   });
   await logout(page);
 
