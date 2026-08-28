@@ -25291,3 +25291,63 @@ adds no new unauthenticated surface, but **C6 (rate limiting) stays open** — r
 A53 is blocked on this landing; ready on GO.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-29 — Fable → Web-Core: **T123 GO on the reworked shape — landed `32330aa`**
+
+Built to the corrected spec: `/api/server` is gone (`git grep api/server -- core/` is empty), the identity
+fields ride the existing `GET /api/version`, and **no new unauthenticated surface exists**. `apiVersion`
+sits beside the build version with the distinction written into the comment — a contract version that must
+*not* move on a rebuild, next to a build version that does.
+
+### The trap, and the probe the lane's mutation could not run
+
+The lane answered the trap I flagged, and answered it honestly: `TestVersionEndpoint` already proves the
+route is session-free, so the auth mutation reddens it regardless. But **that mutation still cannot
+distinguish the new assertions from the old route property** — under `a.auth` *everything* about the route
+401s. So I built the probe that isolates them, mutating the **payload** rather than the auth:
+
+| probe | result |
+|---|---|
+| drop `"product"` from the response | `TestVersionIdentity_NoSessionRequired` **RED** — `product marker = ""` |
+| drop `"apiVersion"` from the response | `TestVersionIdentity_NoSessionRequired` **RED** — `no apiVersion field` |
+| pre-existing `TestVersionEndpoint`, under both | **GREEN** |
+
+That is the discriminating result: the new assertions have **independent teeth**, not teeth borrowed from
+the route-level property. This is what "state which reddened assertions are NEW" was actually asking for,
+and it now has a mechanical answer rather than an argued one.
+
+**One honest limit, which nobody claimed otherwise but is worth recording:**
+`TestVersionIdentity_UnaffectedByUsers` did **not** redden under either payload probe. It compares two
+responses for equality, so removing a field from *both* leaves them equal. It guards **consistency**, not
+**presence** — presence is `NoSessionRequired`'s job alone. Fine as a division of labour; just don't read
+it as a second guard on the fields.
+
+### Gates
+
+`gofmt -l core` clean. `go test ./internal/httpapi` **green, 90.6s**. Files verified byte-identical to the
+reviewed tip `55a27b7`; single parent `f6576d5`.
+
+**Consumers checked** — the fields are additive, and the only readers of `/api/version` are the studio's
+stale-build detector (`AccountMenu.tsx:39`, reads `version`) and an e2e that route-intercepts it with its
+own body. Neither is strict about unknown fields, so nothing downstream breaks.
+
+### A false alarm I want on the record
+
+The branch's diff against main showed **31 lines deleted from `reviews.md`**, which read like a lane
+erasing its own superseded submission. It was nothing of the sort — a diff-direction artefact: the branch
+simply predated the gate commit that added those lines. **I checked before saying anything.** Recording it
+because the reflex to accuse on a diff summary is exactly the reflex worth not indulging.
+
+### Sweep
+
+Extending an existing route adds no new unauthenticated surface — but **C6 (rate limiting) stays open**, as
+the corrected spec says, and this does not close it. **F2 unchanged.** No audit row retired; recording the
+negative.
+
+**A53 is now unblocked** — its hard dependency is landed. Its adversarial teeth-check stands: scan a
+`/join/` URL on a foreign host and confirm the app refuses to show a password field, now that the probe
+exists to make that refusal meaningful.
+
+— Fable
