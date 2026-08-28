@@ -25731,3 +25731,73 @@ reading "invite links now expire" would assume otherwise.
 No audit row retired; recording the negative.
 
 — Fable
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A53 GO — landed `c4c56fc`. The chain is complete, and the device backlog is now the whole story.**
+
+Files byte-identical to `fadacd0`; single parent `9265b6d`.
+
+### The question that decides whether this feature is safe
+
+**Where does the decoded string go?** If the scanner had its own route into sign-in, every protection built
+in A51/A52/T123 would be bypassed by the one path that removes the human from the loop.
+
+It doesn't. `onDecoded = { joinLink = it; scanning = false }` sets **the same `joinLink` state** that a
+paste and a deep link set, so a scan flows through `parseTroubaLink` → `joinDecision` → `ConfirmServer` →
+the T123 identity probe, and the scanner inspects nothing. That is the design the spec asked for —
+"almost no logic, by design" — and it is the reason this is landable without the camera in front of me.
+
+### Verified off-device
+
+| claim | how |
+|---|---|
+| suite **286, unchanged** | measured; the spec predicts no automated coverage and there is none |
+| `uses-feature camera.any required="false"` survives the merge | merged manifest **parsed as XML** |
+| APK really links the deps | unzipped, dex scanned: `androidx/camera/{core,lifecycle,view}`, `com/google/zxing`, `MultiFormatReader` — all present |
+| `commonMain` untouched | empty diff under `app/shared/` — iOS unaffected without needing a compile to prove it |
+| the four naive-scanner bugs | `image.close()` in a `finally`; `AtomicBoolean` + `clearAnalyzer()`; `unbindAll()` + executor shutdown in `onDispose`; `rowStride` as the luminance data width, `QR_CODE` only |
+
+Dependencies go through the catalog with the rationale written into it, versions pinned (CameraX 1.4.1,
+ZXing 3.5.3), both on the already-locked repos.
+
+**I almost reported a defect that wasn't one.** My first pass grepped the merged manifest with a regex,
+found **zero** `uses-feature` elements, and had me a sentence away from saying the camera had become an
+install requirement — the exact thing the spec forbids. Parsing the file as XML showed it present with
+`required="false"`, precisely as claimed. **That is the second regex false-negative I produced tonight**
+(the T125 testid audit was the first). The rule this earns: **against a structured format, parse the
+structure — an ad-hoc regex that finds nothing is not evidence of absence**, and it is at its most
+dangerous when the "finding" is an accusation.
+
+### What is NOT verified, stated plainly
+
+**The adversarial teeth-check has not been run.** Print a `/join/<token>` for a host that is not the
+server, scan it, and confirm the app names that host and shows **no password field**. It is device-and-
+camera-only, and it is the check that decides whether the feature is shippable. Also unrun: permission
+denied still reaching the paste field, the camera actually going dark on leaving the screen, and scanning
+the same code twice not double-redeeming.
+
+**I landed anyway, deliberately.** Camera code is inert until someone opens the scanner, so it cannot
+regress the status quo, and the chain's value is in being reviewable as a whole. **Land is not ship.**
+
+### The accumulated device backlog — one list, because it is now the only thing between this chain and the stage
+
+1. A52's four join legs (paste → membership; deep link → membership; `ConfirmServer` on a foreign host; an
+   expired link showing the server's own reason).
+2. **A53's adversarial foreign-host scan** — the teeth-check above.
+3. **The `launchMode="singleTask"` launch/recents/rotate pass** — the one change that alters every launch.
+4. Camera lifecycle: denial falls back to paste; camera dark on exit; no double-redeem.
+
+**And the ordering constraint, restated because it will bite otherwise:** the gig server must be
+redeployed past `32330aa` before an app build carrying the probe is installed, or the app will correctly
+refuse your own box as `Foreign`. Verified read-only: `:8080` still answers `/api/version` without
+`product`. Concert **2026-09-05**.
+
+### Sweep
+
+A51→A52→A53 landed; T122–T125 landed. **No audit row retired by any of them** — C6 and F2 remain open, and
+neither T122 nor T123 closed them. §5's Compose-UI-tests row is unchanged and now covers more untested
+wiring than it did this morning: the join sheet, the scanner, and A52's `clear()` call sites are all
+device-confirmed at best. Recording that as a negative rather than letting the row read as stable.
+
+— Fable
