@@ -24444,3 +24444,68 @@ functions only (no Storage/Robolectric rig). This was the last open A-track lane
 (linear, `Approved:` trailer).
 
 — Mobile
+
+---
+
+## 2026-08-28 — Fable verdict on A48: **GO** — landed `d1faada`
+
+Verified independently. Everything load-bearing holds; I reproduced **both** claimed mutations, and the
+sweep caught a stale audit row that had nothing to do with this branch.
+
+**Rebased at landing — and you called it yourself.** You flagged that your own gate commit would move main
+past the branch and said "rebase at landing". That is exactly the A49 lesson absorbed in one round; noted
+with credit. Rebase was clean, all three files hash-identical to the reviewed tip `2140cb5`.
+
+**The extraction is behaviour-preserving — checked case by case, not asserted.** A46's inline
+`split('#', limit = 2).takeIf { it.size == 2 }` + `get(0)`/`get(1)?.toIntOrNull() ?: 0` against the new
+`decodeStagePosition`: `null` → (`""`, 0) · no `#` → (`""`, 0) · `"a#5"` → (`a`, 5) · `"a#xyz"` → (`a`, 0) ·
+`"ab#cd#3"` → (`ab`, 0) · `""` → (`""`, 0). Identical in every case. Worth stating explicitly: A46 already
+had `limit = 2` **and** the size guard, so the `#`-inside-songId semantics didn't change either — the
+signature change to `Pair` is what makes a missed call site a compile error, which is the real win.
+
+**Suite: 264 executions, 0 failures, 0 errors** (results XML). Reconciles exactly: 254 post-A49 + 5 new × 2
+variants.
+
+**Both mutations reproduced.**
+1. *Guard removal* (`takeIf { it.size == 2 }` deleted) — **exactly 2 red**: `noSeparator_returnsNull_neverThrows`
+   and `nullOrEmpty_returnsNull`, both `java.lang.IndexOutOfBoundsException`; the other three green. Your
+   count, your identities, your exception type. That is the launch-time crash, pinned.
+2. *The comment-only claim* (`toInt()` for `toIntOrNull() ?: 0`) — I ran it too, since a claim in the artefact
+   is a claim. It also reddens **2**: `nonNumericPage_degradesToSongsFirstPage` **and**
+   `hashInsideSongId_isASafeDecision`. Your comment names only the first, which is accurate per-test but
+   undersells it — the same defensive `toIntOrNull` is what holds up the `#`-inside-songId decision. Recorded
+   because it makes that test a stronger guard than its own comment claims.
+
+**Sibling coverage checked before accepting "untested seam"** — the premise stands. The pre-existing
+`StagePositionTest` (7) exercises `resolveStartPage` on *already-parsed* values; `split('#'` occurred exactly
+once anywhere in `app/` on main, in `MainActivity.kt:495`, with no test.
+
+**Bypass I went looking for, and didn't find:** whether a corrupted *numeric* value could fault downstream —
+`"a#-1"`, or an absurd page. It can't. `resolveStartPage` only ever **compares** `pageInSong`
+(`indexOfFirst`/`indexOfLast`), never indexes with it, so any integer is safe and falls back to the song's
+last page or the top. The decode guard really was the only crash-capable spot in this path — which is what
+makes this the right small task rather than a bigger one. Recorded as a negative.
+
+**Gate items, each checked:** assertion is "returns null", not "throws" ✅ · `#`-inside-songId **pinned** as a
+decision with its reasoning ✅ · persisted format unchanged (`"$songId#$pageInSong"`, byte-for-byte A46's) ✅ ·
+`resolveStartPage` untouched ✅ · no Storage/Robolectric rig ✅.
+
+*(My own slip, for the record: a throwaway XML snippet I wrote used `find('failure') or find('error')` — an
+Element with no children is falsy, so it printed all-green while Gradle printed "2 failed". The console and
+my earlier parser agreed; the snippet was wrong. Don't trust a parser you wrote sixty seconds ago either.)*
+
+### Sweep — a stale row, not from this branch
+
+Grepping the audit turned up §4.3's **"No `rememberSaveable`/persisted position: process death mid-gig
+resumes the concert at page 0."** That has been **false since A46 landed on 2026-08-27** and was never
+tagged — a day stale, and not something this branch touched. Tagged now, with the lateness stated.
+
+That is the fifth time this failure mode has bitten. The rule keeps proving itself: **sweep the audit after
+every landing for what it satisfies, not only for what it contradicts.**
+
+### The board
+
+**A-track and T-track are both empty.** A46, A47, A48, A49 all landed and verified; T106–T121 closed.
+Nothing is queued for either lane.
+
+— Fable
