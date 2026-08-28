@@ -56,6 +56,50 @@ fun acceptOutcome(status: Int, bandName: String?, reason: String?): AcceptOutcom
     else -> AcceptOutcome.Failed(status)
 }
 
+/**
+ * The identity of a server, probed BEFORE any password is offered — `GET /api/version` is unauthenticated
+ * (T123), so the join flow can verify a host the moment a scanned/deep-linked invite names it. This is the
+ * REAL protection A53's scanner leans on: a hostname shown to someone who just pointed a tablet at a
+ * sticker is weak; refusing the password field for a host that doesn't identify as TroubaStack is strong.
+ */
+sealed interface ServerIdentity {
+    /** `product == "troubastack"` and its API contract is one this client understands — safe to sign in. */
+    data object TroubaStack : ServerIdentity
+
+    /** A TroubaStack server speaking a newer `/api` contract than this client knows — refuse, update first. */
+    data class TooNew(val serverApi: Int, val clientMax: Int) : ServerIdentity
+
+    /** Answered, but not a TroubaStack server (missing/wrong product marker) — refuse the password. */
+    data object Foreign : ServerIdentity
+
+    /** Couldn't probe (non-200 / network / non-JSON) — refuse rather than guess. */
+    data object Unreachable : ServerIdentity
+}
+
+/** The newest `/api` contract version this client understands. Bumped when the app learns a new shape;
+ *  a server advertising a higher [apiVersion] than this is refused (a client can't safely guess a contract
+ *  it doesn't know). Matches the server's `apiVersion` const (currently 1). */
+const val CLIENT_MAX_API_VERSION: Int = 1
+
+/**
+ * Decide a server's [ServerIdentity] from a `GET /api/version` probe. Only a 200 that names
+ * `product == "troubastack"` with a known-or-older [apiVersion] is [TroubaStack]; everything else refuses.
+ * A missing/blank product on a 200 is [Foreign] (a real server always stamps it), NOT a pass — the whole
+ * point is that silence isn't trust.
+ */
+fun serverIdentity(
+    status: Int,
+    product: String?,
+    apiVersion: Int?,
+    clientMax: Int = CLIENT_MAX_API_VERSION,
+): ServerIdentity = when {
+    status != 200 -> ServerIdentity.Unreachable
+    product != "troubastack" -> ServerIdentity.Foreign
+    apiVersion == null -> ServerIdentity.Foreign
+    apiVersion > clientMax -> ServerIdentity.TooNew(apiVersion, clientMax)
+    else -> ServerIdentity.TroubaStack
+}
+
 /** The outcome of `GET /api/invite-links/{token}` (the preview shown before the person commits). */
 sealed interface PreviewResult {
     /** A usable link — show [band] and [role] before accepting. */

@@ -34,8 +34,10 @@ import com.troubashare.shared.join.AcceptOutcome
 import com.troubashare.shared.join.JoinAction
 import com.troubashare.shared.join.PendingToken
 import com.troubashare.shared.join.PreviewResult
+import com.troubashare.shared.join.ServerIdentity
 import com.troubashare.shared.join.joinDecision
 import com.troubashare.shared.join.parseTroubaLink
+import com.troubashare.shared.seams.SESSION_ORIGIN_KEY
 import com.troubashare.shared.seams.Storage
 import kotlinx.coroutines.launch
 
@@ -43,9 +45,9 @@ import kotlinx.coroutines.launch
  * A52 — the join sheet: a modal driven by A51's `parseTroubaLink` → `joinDecision`. One string in (a
  * pasted or deep-linked invite), a band membership out, without the person hand-typing a server URL.
  *
- * The steps mirror the decision: **ConfirmServer** (a different/first-ever host — show it, warn it's
- * unverified until T123 lands, never silently switch) → **SignIn** (the two invite routes are auth-gated,
- * so a session for the target server is required) → **preview** (band + role) → **accept**. A `Blocked`
+ * The steps mirror the decision: **ConfirmServer** (a different/first-ever host — show it, then PROBE it
+ * via T123's unauthenticated `/api/version` and refuse the password unless it identifies as TroubaStack)
+ * → **SignIn** (the two invite routes are auth-gated) → **preview** (band + role) → **accept**. A `Blocked`
  * link (reset link / unsupported / hostile) explains and offers nothing.
  *
  * Token hygiene: the token is a bearer credential held ONLY in [PendingToken] (in memory) and cleared on
@@ -101,10 +103,37 @@ fun JoinDialog(
         }
     }
 
-    // Route once from the parsed link. Arms the token for the three actionable outcomes; a Blocked link
-    // never arms it.
+    // T123: verify the target host BEFORE any password field, then switch + sign in. A host that doesn't
+    // identify as TroubaStack is refused here (no password ever shown) — the real protection behind the
+    // scanner (A53). Runs on Continue from the ConfirmServer step.
+    fun verifyThenSignIn(target: String) {
+        step = JoinStep.Busy("Verifying $target…")
+        scope.launch {
+            step = when (val id = transport.probeServerIdentity(target)) {
+                ServerIdentity.TroubaStack -> {
+                    transport.switchServer(target)   // point at the target, drop the old session
+                    JoinStep.SignIn(target)          // switching means no session here yet
+                }
+                is ServerIdentity.TooNew -> JoinStep.Blocked(
+                    "$target needs a newer TroubaStage (it speaks API v${id.serverApi}, this app knows v${id.clientMax}). Update the app to join.",
+                )
+                ServerIdentity.Foreign -> JoinStep.Blocked(
+                    "$target isn't a TroubaStack server. TroubaStage won't send your password there.",
+                )
+                ServerIdentity.Unreachable -> JoinStep.Failed(
+                    "Couldn't reach $target to verify it. Check the link and your connection.",
+                )
+            }
+        }
+    }
+
+    // Route once from the parsed link. currentOrigin is the origin the app holds a SESSION with (null if
+    // never connected) — not baseUrl, which defaults to a placeholder and would both hide the genuine
+    // first-run case and surface a meaningless emulator address (A52 review, item 2). Arms the token for
+    // the three actionable outcomes; a Blocked link never arms it.
     LaunchedEffect(rawLink) {
-        when (val action = joinDecision(parseTroubaLink(rawLink), transport.currentOrigin, transport.isConnected)) {
+        val sessionOrigin = storage.getSecret(SESSION_ORIGIN_KEY)?.takeIf { it.isNotBlank() }
+        when (val action = joinDecision(parseTroubaLink(rawLink), sessionOrigin, transport.isConnected)) {
             is JoinAction.Blocked -> step = JoinStep.Blocked(action.reason)
             is JoinAction.ConfirmServer -> { token.arm(action.token); step = JoinStep.Confirm(action.target, action.current) }
             is JoinAction.SignIn -> { token.arm(action.token); step = JoinStep.SignIn(action.origin) }
@@ -141,23 +170,23 @@ fun JoinDialog(
                     }
 
                     is JoinStep.Confirm -> {
-                        Text("This invite is for a different server.", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (s.current == null) "This invite points at a server you haven't used before."
+                            else "This invite is for a different server.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                         HostLine("Invite server", s.target)
                         s.current?.let { HostLine("You're on", it) }
-                        // T123 (server-identity probe) is on HOLD, so we cannot verify the target IS a
-                        // TroubaStack server. Say so plainly rather than implying trust — the person is
-                        // about to type a password into this host.
+                        // T123: Continue PROBES the target first (verifyThenSignIn) — a password field only
+                        // appears if it identifies as a TroubaStack server. So no scary "we can't verify"
+                        // warning here; the verification is real, not a disclaimer.
                         Text(
-                            "TroubaStage can't verify this server yet. Only continue if you trust who gave you this link.",
+                            "TroubaStage will check this is a TroubaStack server before asking for your password.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
                         )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { token.clear(); onClose() }) { Text("Cancel") }
-                            Button(onClick = {
-                                transport.switchServer(s.target)     // point at the target, drop the old session
-                                step = JoinStep.SignIn(s.target)      // switching means no session here yet
-                            }) { Text("Continue") }
+                            Button(onClick = { verifyThenSignIn(s.target) }) { Text("Continue") }
                         }
                     }
 

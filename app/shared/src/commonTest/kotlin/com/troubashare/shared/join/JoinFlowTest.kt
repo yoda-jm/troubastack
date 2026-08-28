@@ -80,4 +80,34 @@ class JoinFlowTest {
         assertEquals(PreviewResult.NotFound, previewOutcome(404, null, null, valid = false, reason = null))
         assertEquals(PreviewResult.Failed(500), previewOutcome(500, null, null, valid = false, reason = null))
     }
+
+    // ---- serverIdentity: the T123 probe that gates the password field ---------------------------
+
+    @Test fun identity_troubastack_current_contract_is_safe() {
+        assertEquals(ServerIdentity.TroubaStack, serverIdentity(200, "troubastack", 1, clientMax = 1))
+        // An OLDER server (contract below what we know) is still fine — the client is backward compatible.
+        assertEquals(ServerIdentity.TroubaStack, serverIdentity(200, "troubastack", 1, clientMax = 2))
+    }
+
+    @Test fun identity_foreign_host_is_refused() {
+        // The adversarial case: a QR pointed at a host that answers but isn't ours. Must NOT pass.
+        assertEquals(ServerIdentity.Foreign, serverIdentity(200, "grafana", 1))
+        assertEquals(ServerIdentity.Foreign, serverIdentity(200, "", 1))
+        assertEquals(ServerIdentity.Foreign, serverIdentity(200, null, 1))
+    }
+
+    @Test fun identity_troubastack_but_no_contract_version_is_refused() {
+        // Claims to be ours but stamps no apiVersion — a real server always does; treat silence as not-trust.
+        assertEquals(ServerIdentity.Foreign, serverIdentity(200, "troubastack", null))
+    }
+
+    @Test fun identity_newer_contract_is_refused_as_too_new() {
+        assertEquals(ServerIdentity.TooNew(2, 1), serverIdentity(200, "troubastack", 2, clientMax = 1))
+    }
+
+    @Test fun identity_non_200_is_unreachable() {
+        assertEquals(ServerIdentity.Unreachable, serverIdentity(404, "troubastack", 1))
+        assertEquals(ServerIdentity.Unreachable, serverIdentity(0, "troubastack", 1))   // our network-failure sentinel
+        assertEquals(ServerIdentity.Unreachable, serverIdentity(500, "troubastack", 1))
+    }
 }

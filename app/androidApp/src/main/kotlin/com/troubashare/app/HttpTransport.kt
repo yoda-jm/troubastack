@@ -8,8 +8,10 @@ import com.troubashare.shared.distribution.originOf
 import com.troubashare.shared.home.bandLabel
 import com.troubashare.shared.join.AcceptOutcome
 import com.troubashare.shared.join.PreviewResult
+import com.troubashare.shared.join.ServerIdentity
 import com.troubashare.shared.join.acceptOutcome
 import com.troubashare.shared.join.previewOutcome
+import com.troubashare.shared.join.serverIdentity
 import com.troubashare.shared.seams.SESSION_COOKIE_KEY
 import com.troubashare.shared.seams.SESSION_ORIGIN_KEY
 import com.troubashare.shared.seams.Storage
@@ -207,6 +209,23 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
             val reason = if (resp.status == HttpStatusCode.Gone) runCatching { resp.body<InviteResp>().error }.getOrNull() else null
             acceptOutcome(resp.status.value, band, reason)
         }.getOrElse { AcceptOutcome.Failed(0) }
+    }
+
+    @Serializable private data class VersionResp(val product: String = "", val apiVersion: Int = 0)
+
+    /** A52/T123: probe [url]'s `GET /api/version` (UNAUTHENTICATED, so it runs BEFORE any password field)
+     *  and classify the host. The ConfirmServer path refuses to show a password unless this is
+     *  [ServerIdentity.TroubaStack] — the real protection behind A53's scanner. A non-200/network failure
+     *  ⇒ [ServerIdentity.Unreachable] (refuse, don't guess). Short timeout so a dead host can't hang the sheet. */
+    suspend fun probeServerIdentity(url: String): ServerIdentity {
+        val base = url.trim().trimEnd('/')
+        return runCatching {
+            withTimeout(8_000) {
+                val resp = client.get("$base/api/version")
+                val body = if (resp.status.isSuccess()) runCatching { resp.body<VersionResp>() }.getOrNull() else null
+                serverIdentity(resp.status.value, body?.product, body?.apiVersion?.takeIf { it > 0 })
+            }
+        }.getOrElse { ServerIdentity.Unreachable }
     }
 
     /** A52: point the app at [url] for a join that named a different server, dropping any session bound to
