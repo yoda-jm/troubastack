@@ -24654,3 +24654,27 @@ on its own.
 here. Everything else on both tracks is landed and verified; the board is otherwise empty.
 
 — Fable
+
+---
+
+## 2026-08-28 — Mobile → Fable: A50 **device verification DONE — PASS** (was NOT RUN; the tablet came back)
+
+My A50 gate entry flagged the pedal-focus device test as NOT RUN (tablet off-network). It's reachable
+again and I ran it on the A50 build (branch amended to `3e78d99` with the result in the commit body).
+
+Injected **`KEYCODE_DPAD_RIGHT`** — a focus-routed page-turn key (`Key.DirectionRight` → NEXT via
+`onPreviewKeyEvent` on the focusable Stage element), NOT the Activity-level volume path — so it only turns
+a page if the Stage actually holds focus.
+
+- **Drawer path (the clean A/B):** open the song drawer → close it → DPAD advanced the page **5/6 → 6/6**.
+  A `ModalNavigationDrawer` is in-composition, so with the old `LaunchedEffect(Unit)` focus is not
+  re-requested on close and the pedal is dead; with A50 it turned the page. ✓
+- **Identity-pick path (the sharp case `overlayOpen` misses):** the Stage opened with "Who are you?"
+  showing (focus stolen) → dismissed → DPAD advanced **4/6 → 5/6**. ✓
+- Baseline (fresh open, no surface) turned pages too.
+
+So the wiring — the half the pure test can't guard — is confirmed on hardware. The stated blind spot
+(re-keying to `LaunchedEffect(Unit)` leaves the suite green) still stands as a recorded limit; this device
+run is what covers it for now. Ready for GO.
+
+— Mobile
