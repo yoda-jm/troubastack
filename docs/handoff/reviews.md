@@ -25456,3 +25456,71 @@ teeth-check and now *means* something), and the **`launchMode="singleTask"` laun
 **Audit sweep: nothing retired.** C6/F2 unchanged.
 
 — Fable
+
+## 2026-08-29 — Web-Core → gate: T125 (walkthrough REQUIRED beats) — built, for review
+
+Branch `task/T125-walkthrough-beats` off `e4ea064`. `walkthrough.spec.ts` only — the DEMO-VID script.
+**Re-recording is VLL's call; this makes a correct take possible.**
+
+### The two broken beats, fixed and made REQUIRED
+
+- **Capo note** — was `soft()` and drove `page.once("dialog", …)`, a handler for `window.prompt`. Text
+  entry is an in-app modal (`Dialog.tsx`). Now drives it: `app-dialog-input` → `app-dialog-confirm`, and
+  **asserts the artefact** — the modal closed (no wreckage jamming later beats) AND the annotation count
+  rose by one. `required()`.
+- **Setlist** — was `soft()` and targeted `new-setlist-btn` + `setlist-add-song`, **neither of which
+  exists**, so each `if (has(…))` silently did nothing and the running order stayed empty (→ S12 baked
+  nothing). Now: create inline (`setlist-name` + `create-setlist`), open via `setlist-link`, add via the
+  real `add-item-song` `<select>` + `add-item` submit, and **assert the artefact** — `item-row` contains
+  the song. `required()`.
+
+### Made REQUIRED mean required
+
+Added `required(label, fn)` — runs a beat and **re-throws** on any miss, so a broken beat FAILS the run
+instead of skipping. The video-critical beats now use it: **capo note, setlist, and the S12 bake** (which
+also asserts a real artefact — a `bake-download` link appears; empty setlists can't bake since T124, so
+this depends on the setlist beat having added the song). The S8 layer show/hide was already hard-asserted.
+
+### Every testid audited against the studio source
+
+Extracted all **53** `getByTestId` ids and checked each against `src/` (including dynamic
+`data-testid={\`x-${…}\`}` templates and cross-referenced passing e2e specs). **Three were dead:**
+
+| dead testid | beat | real control |
+|---|---|---|
+| `new-setlist-btn` | setlist (REQUIRED) | inline `setlist-name` + `create-setlist` |
+| `setlist-add-song` | setlist (REQUIRED) | `add-item-song` `<select>` + `add-item` |
+| `file-menu-source` | transpose (soft) | `file-chart-edit` (T104 one-click) → `chart-editor` |
+
+All three fixed. The other 50 resolve (many are dynamic, e.g. `tool-${…}`, `cue-add-${…}`,
+`layer-toggle`, verified in src or in a passing e2e spec).
+
+### Beats still `soft()` (optional colour — can skip silently, by design)
+
+invite bandmates · promote Leo to conductor · create song · type a live text chart · show the file pool ·
+Marie's cues · new + active personal layer · green capo highlight · warning stamp · Leo's cue · transpose
+· orchestra part · orchestra score. **Naming them so the next person knows exactly what can still skip.**
+(Note: `create song` and `type a live text chart` are foundational-ish; I left them soft because the three
+`required()` beats downstream fail loudly if the song/chart is missing — say the word if you'd rather they
+be promoted too.)
+
+### Verification — artefacts, not gestures (and what the first run caught)
+
+Ran the walkthrough (`playwright.walkthrough.config.ts`, real core on :8090). The artefact asserts are IN
+the required beats now, so a green run *is* the verification.
+
+**First run — the capo + setlist beats PASSED, and the S12 assert did its job:** it failed on a *real*
+broken bake — `web/bake worker … request.json must have { doc, pages: [...], overlayWidth > 0 }`. Root
+cause: I'd symlinked the **main checkout's** `cli.js`, and that checkout sits on the B13 branch whose
+`web/bake` predates the T98 **batch** request format, so it rejected the current core's request. A
+verification-env mismatch, not a T125 or product defect — and exactly the kind of silent-bake-failure the
+old `soft()` finale would have swallowed. I rebuilt `web/bake` from this worktree's source and re-ran.
+
+**Third run (matched cli.js + a `writeMarks` mkdir fix): 1 passed, 3.6m, 0 failures.** capo annotation exists + modal closed, setlist contains the song, S12
+produced a downloadable bundle — all asserted in-beat.
+
+### Not in scope
+
+Re-recording · narration/pacing · the bake's own honesty (**T124**, landed) · the flow-check harness.
+
+— Vincent Le Ligeour
