@@ -132,7 +132,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 **Data loss / stage-critical (app + studio):**
 - `SyncClient.sendMutation` **silently drops writes** when the socket isn't open — no outbound queue; T30's read-only mode is a UI mitigation, not a data guarantee (`web/studio/src/sync.ts`).
 - **Pedal focus is requested exactly once** — after any dialog/sheet takes focus, a Bluetooth pedal silently stops turning pages. The exact failure this product cannot have; untested because there are zero Compose UI tests (`StageScreen.kt:262`).
-  ⚠️ **SPECCED `A50`** (2026-08-28). Still true on `05fd00e`; the effect is now at **`:283`**, keyed on
+  ✅ **RETIRED** `01c1a03` (A50, 2026-08-28). Was still true on `05fd00e`; the effect was at **`:283`**, keyed on
   `Unit`. The line number this row cites is stale, the finding is not. A50 pins a separate focus
   predicate rather than reusing `overlayOpen` (`:243`), which omits the identity pick.
 - **No `rememberSaveable`/persisted position:** process death mid-gig resumes the concert at page 0.
@@ -203,7 +203,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 | Login/register rate limiting (in-memory token bucket) + real `minPasswordLen` + an "invite-only / registration off" config knob | **M** | Closes the open-registration gap the deploy README apologizes for. |
 | Stop leaking 500 error strings; log server-side, generic to client | **XS** | |
 | Fix the app page-cache concurrency (Mutex or single-confinement) + a hammer test; update the now-false comments | **S** | Stage-critical. ✅ **DONE** `6246c66` (A49, 2026-08-28) — single-confinement, no Mutex (not viable in `commonMain`). The hammer test is `PageCacheConcurrencyTest` (androidUnitTest). The "now-false comments" were made true by the fix rather than edited. ⚠️ **Known limit, verified by Fable:** the guard covers the extracted `cacheThrough` helper, **not the call sites** — re-introducing the original defect at a call site leaves the suite green. **[TAGGED 2026-08-28]** |
-| Re-request pedal key focus when overlays close (`LaunchedEffect(overlayOpen)`) | **XS** | Highest severity/effort ratio in the app. |
+| Re-request pedal key focus when overlays close (`LaunchedEffect(overlayOpen)`) | **XS** | Highest severity/effort ratio in the app. ✅ **DONE** `01c1a03` (A50). ⚠️ **But NOT as this row prescribes:** keying on `overlayOpen` would have left the bug half-open — `overlayOpen` omits the identity pick (`WhoAreYouDialog`), which is reached mid-set via Settings→Switch. A50 uses a **separate** pure predicate `stageHoldsKeyFocus(...)` covering all five surfaces. **[TAGGED 2026-08-28]** |
 | Graceful shutdown + full `http.Server` timeouts; wire autobaker to the signal context | **S** | |
 | Harden the WebView host: `DisposableEffect { destroy() }`, attach the JS bridge only on the configured origin | **S** | |
 
@@ -227,7 +227,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 | Vitest for studio + ink (geometry, strokeWidth, DPR budget, SyncClient vs fake WS); move the beat-vector test out of e2e | **M** | Millisecond feedback for code that currently costs 30 s/assertion. |
 | Shared e2e helper module (`register`, `createBandAndOpen`, API-based setup); then `retries: 1` + a smoke/full split | **M** | ✅ helper module `a9e142f`/`8a2e377` (T108/T114) + one upload helper `4fbd25a` (T116 — 26 copies converged); `retries: 1` + smoke/full split ✅ **`e596e4d`** (T117 — `retries: CI?1:0` with a flaky-warning step so a retried pass is never a silent green; 11 `@smoke` in ~60s on branch pushes, 200 full on main+PR). **This row is now fully retired.** Original finding: 77 of 81 specs duplicate setup; API-driven setup cuts suite runtime and the single-point-of-failure config. **[CORRECTED 2026-08-27]** the parenthetical here claimed the 39 sleeps were already removed by T93 — they were not; see §4.3. |
 | Table-driven unit tests for `sync.authorizeWrite` (the 100-line policy matrix) | **S** | ✅ **`c3752d6`** (T109 — `TestAuthorizeWrite`, a 30-case `[]struct` table over the policy matrix). **[TAGGED LATE 2026-08-27]** |
-| Compose UI tests for Stage (pedal-after-sheet, blocked-turn cue, two-up, badge) + an `:androidApp` test source set | **M** | |
+| Compose UI tests for Stage (pedal-after-sheet, blocked-turn cue, two-up, badge) + an `:androidApp` test source set | **M** | ⚠️ **HALF.** The `:androidApp` test source set **exists** (A47, extended by A48). Compose UI tests still do **not** — deliberately, and the cost is recorded: A49 and A50 both ship policy-tested but **wiring-untested**, because asserting Compose effect wiring needs this rig. **[TAGGED 2026-08-28]** |
 | Visual regression via `toHaveScreenshot` on the ~20 views already screenshotted for debug | **M** | Reuse the bake parity tolerance philosophy. |
 | Make iOS CI screenshots real assertions (golden compare or non-blank check) | **S** | |
 
@@ -290,4 +290,4 @@ The weaknesses cluster in exactly the places the process didn't point its guns: 
 
 The 266-commit delta between the deep-dive tree and main is itself evidence: it fixed real product-level issues (async bake, sanitised bake errors, in-app dialogs, e2e de-flaking) — and touched **none** of the critical security/correctness findings above. The task queue optimizes what users feel; nothing currently routes this class of issue into it. These items need to be filed as tasks explicitly or they will stay open.
 
-If only five things get done: **LICENSE + credential rotation (XS)**, **`-race` + the two race fixes (S)**, **session TTL + rate limiting + headers (M)**, **pedal focus + cache fix in Stage (S)**, and **a CI docker build (S)**. That set retires every critical finding for roughly two weeks of work.
+If only five things get done: **LICENSE + credential rotation (XS)**, **`-race` + the two race fixes (S)**, **session TTL + rate limiting + headers (M)**, **pedal focus + cache fix in Stage (S)** [✅ both done — cache `6246c66` (A49), pedal focus `01c1a03` (A50)], and **a CI docker build (S)**. That set retires every critical finding for roughly two weeks of work.

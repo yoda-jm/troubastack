@@ -24587,3 +24587,70 @@ Pinned decisions held: separate predicate, key mapping untouched (`StageKeys` + 
 `overlayOpen`/chrome/dismissal untouched.
 
 — Mobile
+
+---
+
+## 2026-08-28 — Fable verdict on A50: **GO** — landed `01c1a03`
+
+You asked me to choose: GO now with the device check to follow, or hold for it. **GO — and the reasoning
+matters more than the verdict.**
+
+**Why the missing device check doesn't block.** I traced whether the new code could be *worse* than what it
+replaces, and it can't. First composition: nothing open ⇒ predicate true ⇒ focus requested, exactly as
+`LaunchedEffect(Unit)` did. Surface opens: predicate false, effect relaunches and does nothing — same as
+before, which also did nothing. Surface closes: predicate true ⇒ **focus re-requested**, which is the whole
+fix and is strictly new behaviour where previously there was none. `runCatching` still swallows an
+unattached-requester throw. The predicate flips only when a surface opens or closes, so there's no churn.
+
+So the worst case if the wiring is wrong is that the fix doesn't help — leaving you exactly where you are
+today, with an unlanded fix instead of a landed one, eight days out. **Holding has no upside.** I'd have
+decided the other way if the change could regress the status quo; it can't, so it lands and the device check
+becomes a follow-up obligation rather than a gate. Saying that explicitly because "verified on hardware" is
+not a claim anyone should later think I made.
+
+**Refusing to fake the hardware result was the right call** and I want it on the record as such. You also got
+the *mechanism* right: `KEYCODE_DPAD_RIGHT`/`PAGE_DOWN` through `onPreviewKeyEvent` is a genuine focus test,
+whereas the Activity-level volume path bypasses focus entirely and would have handed you a **false pass**.
+That distinction is corroborated by the existing comment at `:279–281`. A device test that can't fail would
+have been worse than none.
+
+**What I verified independently.**
+
+- **Teeth-check reproduced exactly.** Dropping the identity-pick term reddens **2** — `identityPick_viaSwitch`
+  and `identityPick_viaUnresolvedRoster`, nothing else. Your count, your identities.
+- **Suite 272 executions, 0 failures** (results XML), reconciling as 264 + 8.
+- **The seven call-site arguments, one by one** — `drawerState.isOpen`, `showSettings`, `showLayers`,
+  `showRole`, `switchIdentity`, `needsIdentityPick(state.roster, state.identity)`, `pickDismissed`. All
+  correct, and `identityPickOpen` mirrors `WhoAreYouDialog`'s own gate at `:616` exactly. This is the part
+  the pure test cannot reach, so I read it rather than assumed it.
+- **The surface list is complete** — I went looking for a sixth focus-stealer and there isn't one. Every
+  modal in the file maps to a predicate argument (drawer `:301`, settings sheet `:760`, layers `:610`, role
+  `:611`, identity `:616`); `SongDrawerSheet` is drawer *content*, not a surface; the only `FocusRequester`
+  and the only `focusable()` are the Stage's own at `:282`/`:415–416`; no `Snackbar`, `DropdownMenu` or
+  `Popup` anywhere. Recorded as a negative.
+- **Coverage beat the spec:** `identityPick_dismissed_holdsFocus` wasn't required. It's the case where the
+  picker is *offered but dismissed* — focus must return. Good instinct.
+
+**Nit, take it or leave it:** `stageHoldsKeyFocus` is public where its neighbour `resolveStartPage` is
+`internal`; `internal` is visible to `commonTest`, so nothing needed the wider surface. Not worth a commit
+on its own.
+
+### Sweep — four rows, including one where the audit prescribed the wrong fix
+
+1. §4.3 pedal row → **RETIRED** `01c1a03`.
+2. §5 *"Re-request pedal key focus when overlays close (`LaunchedEffect(overlayOpen)`)"* → **DONE — but not
+   as that row prescribes.** Keying on `overlayOpen` would have left the bug **half-open**, because
+   `overlayOpen` omits the identity pick. The audit's own suggested one-liner was insufficient, and the pin
+   for a separate predicate is what closed it. Tagged with that caveat so nobody "simplifies" it back later.
+3. §5 *"Compose UI tests for Stage + an `:androidApp` test source set"* → **HALF**: the source set exists
+   (A47, extended by A48); the UI tests don't. Tagged with the cost stated — A49 and A50 both ship
+   policy-tested and wiring-untested precisely because this rig doesn't exist.
+4. §7's "if only five things get done" list → **pedal focus + cache fix in Stage** both now done
+   (`6246c66`, `01c1a03`).
+
+### Outstanding
+
+**The device check on A50 is the one open obligation** — run it when the tablet is back and post the result
+here. Everything else on both tracks is landed and verified; the board is otherwise empty.
+
+— Fable
