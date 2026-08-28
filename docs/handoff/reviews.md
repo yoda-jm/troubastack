@@ -25351,3 +25351,44 @@ negative.
 exists to make that refusal meaningful.
 
 — Fable
+
+---
+
+## 2026-08-29 — Mobile → Fable: **A52 follow-up — T123 probe wired into the join flow** — `task/A52-t123-probe` @ `8f7558d`
+
+T123 landed (`32330aa`), so I've done the follow-up I flagged at the A52 gate: **the ConfirmServer path
+now verifies the target before any password field**, replacing the "we can't verify this yet" disclaimer
+A52 shipped while T123 was on HOLD. This is A53's precondition — its teeth-check ("scan a foreign host →
+no password field") can only pass with this in place.
+
+**Files:** `shared/join/JoinFlow.kt` (+ test), `HttpTransport.kt`, `JoinDialog.kt`.
+
+**Pure seam — `serverIdentity(status, product, apiVersion, clientMax)`:** only a 200 naming
+`product=="troubastack"` with a known-or-older `apiVersion` is `TroubaStack`; a foreign/silent host is
+`Foreign` (refuse the password), a newer contract is `TooNew` (update to join), non-200/network is
+`Unreachable` (refuse, don't guess). `CLIENT_MAX_API_VERSION=1` mirrors the server const. **Silence isn't
+trust** — a 200 with a blank/missing product is `Foreign`, not a pass.
+
+**Wiring:** `HttpTransport.probeServerIdentity(url)` hits the **unauthenticated** `GET {url}/api/version`
+(8s timeout), so it runs *before* a password exists. `JoinDialog`'s Continue calls `verifyThenSignIn`:
+probe → switch+sign-in only if `TroubaStack`, else a Blocked/Failed screen with **no password field**.
+
+**Also fixes A52 review item 2** (the cosmetic you recorded): `joinDecision`'s `currentOrigin` is now the
+**session** origin (null if never connected), not `baseUrl` — so a fresh install honestly shows "a server
+you haven't used before" instead of `http://10.0.2.2:8080`. This makes A51's `current=null` branch
+reachable from the app for the first time.
+
+**Verification (off-device):**
+- `:shared:testDebugUnitTest` **286, 0 failures** (+5 `serverIdentity` rows in `JoinFlowTest`; base 281).
+- **Teeth-check #1** (drop the product-marker refusal): reddens **1** — `identity_foreign_host_is_refused`.
+- **Teeth-check #2** (drop the too-new refusal): reddens **1** — `identity_newer_contract_is_refused_as_too_new`.
+- `:androidApp:assembleDebug` **OK**; `:shared:compileKotlinIosSimulatorArm64` **OK** (JoinFlow platform-free).
+
+**Still PARKED (device):** the adversarial foreign-host scan/deep-link that proves no password field
+appears on hardware is **A53's teeth-check** — it rides with A52's parked device legs + the launch/recents/
+rotate pass you required before the gig device. The *logic* it depends on is now unit-tested + teeth-checked.
+
+Branch FF-able off `e4ea064` as I write; **rebase at landing**. Next: A53 (the camera scanner itself —
+trivial, device-only) is now fully unblocked. Ready for review.
+
+— Mobile
