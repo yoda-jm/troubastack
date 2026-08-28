@@ -490,9 +490,9 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // process death / exit / A27-Resume reopens where the performer left off, not page 0. Read once at
     // open; guarded on a known concertId so a local/unknown bundle just starts at the top.
     val posKey = "stage.pos.$concertId"
+    // A48: decode through the named pure seam (round-trip + malformed rejection unit-tested).
     val initialPos = remember(dir) {
-        (if (concertId.isEmpty()) null else storage.getSecret(posKey))
-            ?.split('#', limit = 2)?.takeIf { it.size == 2 }
+        if (concertId.isEmpty()) null else decodeStagePosition(storage.getSecret(posKey))
     }
 
     val opened = remember(dir, identity) {
@@ -504,8 +504,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 loadResult,
                 identity = identity,
                 initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY)),
-                initialSongId = initialPos?.get(0) ?: "",
-                initialPageInSong = initialPos?.get(1)?.toIntOrNull() ?: 0,
+                initialSongId = initialPos?.first ?: "",
+                initialPageInSong = initialPos?.second ?: 0,
             ),
             AndroidImageDecoder(File(dir)),
         )
@@ -556,7 +556,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     // Stage 3a-ii: StageScreen shows the "Who are you?" picker / "Switch"; persist the pick per concert.
                     onIdentityChange = { m -> storage.putSecret(idKey, m) },
                     // A46 (A33 drill 2): persist the reading position per concert on every page move.
-                    onPositionChange = { s, p -> if (concertId.isNotEmpty()) storage.putSecret(posKey, "$s#$p") },
+                    onPositionChange = { s, p -> if (concertId.isNotEmpty()) storage.putSecret(posKey, encodeStagePosition(s, p)) },
                 )
             }
         }
