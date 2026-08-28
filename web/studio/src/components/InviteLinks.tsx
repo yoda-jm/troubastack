@@ -8,11 +8,30 @@ import QRCode from "qrcode";
 import { ApiError, api, type InviteLink } from "../api";
 import { ErrorBanner } from "./ErrorBanner";
 
+// T122: a minted invite link should EXPIRE and be SINGLE-USE unless the admin says otherwise. Once the
+// same link is a QR anyone in the room can photograph, the natural act (fill nothing, click Create) must
+// not mint a member/conductor credential that grants access forever. These pre-fill the form; both
+// fields stay fully editable, so a standing link for a big ensemble is still one clear.
+export const INVITE_DEFAULT_EXPIRY_HOURS = "24";
+export const INVITE_DEFAULT_MAX_USES = "1";
+
+type InviteInput = { role: "member" | "conductor"; expiresInHours?: number; maxUses?: number };
+
+// inviteInputFromForm computes exactly what the form submits from its (string) fields — the seam a unit
+// test can assert without rendering. A BLANK field means "no limit": the API's zero-value semantics
+// (maxUses 0 = unlimited, no expiry = never) are unchanged — this task only changes the studio DEFAULTS.
+export function inviteInputFromForm(role: "member" | "conductor", expiry: string, maxUses: string): InviteInput {
+  const input: InviteInput = { role };
+  if (expiry.trim()) input.expiresInHours = Number(expiry);
+  if (maxUses.trim()) input.maxUses = Number(maxUses);
+  return input;
+}
+
 export function InviteLinks({ bandId }: { bandId: string }) {
   const [links, setLinks] = useState<InviteLink[]>([]);
   const [role, setRole] = useState<"member" | "conductor">("member");
-  const [expiry, setExpiry] = useState("");
-  const [maxUses, setMaxUses] = useState("");
+  const [expiry, setExpiry] = useState(INVITE_DEFAULT_EXPIRY_HOURS);
+  const [maxUses, setMaxUses] = useState(INVITE_DEFAULT_MAX_USES);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,14 +53,9 @@ export function InviteLinks({ bandId }: { bandId: string }) {
     setError(null);
     setBusy(true);
     try {
-      const input: { role: "member" | "conductor"; expiresInHours?: number; maxUses?: number } = {
-        role,
-      };
-      if (expiry.trim()) input.expiresInHours = Number(expiry);
-      if (maxUses.trim()) input.maxUses = Number(maxUses);
-      await api.createInviteLink(bandId, input);
-      setExpiry("");
-      setMaxUses("");
+      await api.createInviteLink(bandId, inviteInputFromForm(role, expiry, maxUses));
+      setExpiry(INVITE_DEFAULT_EXPIRY_HOURS);
+      setMaxUses(INVITE_DEFAULT_MAX_USES);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create invite link");
@@ -148,6 +162,9 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
   }
 
   const usesText = link.maxUses > 0 ? `${link.uses}/${link.maxUses}` : `${link.uses}/∞`;
+  // T122: a link with NO use cap AND NO expiry is a standing invitation — say so in plain words, near the
+  // QR, so it reads as the open door it is rather than being buried in the meta line.
+  const isStanding = !link.revoked && link.maxUses <= 0 && !link.expiresAt;
   const validity = link.revoked
     ? "revoked"
     : link.valid
@@ -157,6 +174,12 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
   return (
     <li data-testid="invite-link-row" className="invite-link-row">
       <div className="qr" data-testid="invite-link-qr" ref={qrRef} />
+      {isStanding && (
+        <p className="invite-link-standing" data-testid="invite-link-standing" role="note">
+          Standing invitation — anyone who photographs this QR can join as {link.role}, with no expiry and
+          no limit on uses.
+        </p>
+      )}
       <div className="invite-link-meta">
         <input data-testid="invite-link-url" readOnly value={link.url} onFocus={(e) => e.target.select()} />
         <div className="muted">
