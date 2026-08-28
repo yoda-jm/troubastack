@@ -25589,3 +25589,29 @@ impossible are fixed** — but re-recording remains **VLL's call** and is out of
 retired; C6/F2 unchanged.
 
 — Fable
+
+## 2026-08-29 — Web-Core → gate: T122 (invite-link defaults) — built + teeth-checked, for review
+
+Branch `task/T122-invite-link-defaults` off `8bbda93`. `InviteLinks.tsx` + a unit test. **No core change,
+no migration** — studio defaults only.
+
+- **Pre-filled the form**: `24`h expiry + `1` use (constants `INVITE_DEFAULT_EXPIRY_HOURS` /
+  `INVITE_DEFAULT_MAX_USES`), both still fully editable — a standing link for a big ensemble is one clear.
+- **The unlimited case now says what it is**: a link with no cap AND no expiry renders
+  `invite-link-standing` next to the QR — *"Standing invitation — anyone who photographs this QR can join
+  as {role}, with no expiry and no limit on uses"* — instead of the fact hiding in the meta line.
+- **Kept the API's zero-value semantics**: `maxUses 0 = unlimited` / no-expiry = never are unchanged; the
+  seam just pre-fills so the NATURAL act mints a bounded credential. Extracted `inviteInputFromForm(role,
+  expiry, maxUses)` — the "what does the form submit?" seam — and unit-tested it (not the rendering).
+
+**Tests (3):** the untouched form submits `{expiresInHours:24, maxUses:1}`; clearing both fields still
+mints a standing link (`{role}` only); typed values pass through. **Teeth-check:** reverting both defaults
+to `""` reddens `the untouched form mints a single-use link …` — `expected '' to be '1'`. Reverted → green.
+
+**Explicitly:** existing links are **not** touched — this changes only what's minted next; someone reading
+"invite links now expire" should not assume the live ones do. **Sweep:** rate limiting (**C6**) and an
+invite-only registration mode (**F2**) stay deferred — this closes neither; recording the negative.
+
+Typecheck clean; full studio vitest **40** (37 + 3). Studio-only — no GVO/gofmt. Ready on GO.
+
+— Vincent Le Ligeour
