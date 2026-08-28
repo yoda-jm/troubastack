@@ -49,6 +49,7 @@ fun ConnectDialog(
     discovery: ServerDiscovery = ServerDiscovery { flowOf(emptyList()) },
     onClose: () -> Unit,
     onInviteLink: (String) -> Unit = {},
+    onScan: () -> Unit = {},
 ) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -57,7 +58,7 @@ fun ConnectDialog(
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
         ) {
-            ConnectContent(storage, transport, discovery, onDone = onClose, onInviteLink = onInviteLink)
+            ConnectContent(storage, transport, discovery, onDone = onClose, onInviteLink = onInviteLink, onScan = onScan)
         }
     }
 }
@@ -72,6 +73,7 @@ private fun ConnectContent(
     discovery: ServerDiscovery,
     onDone: () -> Unit,
     onInviteLink: (String) -> Unit = {},
+    onScan: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     // A52: pasting an invite link is THE path — it names the server, so the person never hand-types a
@@ -110,7 +112,10 @@ private fun ConnectContent(
             inviteLink, { inviteLink = it }, label = { Text("Paste invite link") },
             singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+            // A53: scan the QR the studio already renders instead of pasting — same destination (the join
+            // sheet), the camera just removes the paste. Denial/absence falls back here.
+            TextButton(enabled = !busy, onClick = onScan) { Text("Scan a QR") }
             Button(enabled = !busy && inviteLink.isNotBlank(), onClick = { onInviteLink(inviteLink.trim()) }) { Text("Join") }
         }
         Text("or sign in manually", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

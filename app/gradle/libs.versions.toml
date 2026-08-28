@@ -34,6 +34,13 @@ androidx-core-ktx = "1.15.0"   # WindowInsetsControllerCompat (immersive); newes
 androidx-security-crypto = "1.1.0-alpha06"  # EncryptedSharedPreferences for the auth session cookie (I13)
 ktor = "3.0.3"                 # ktor-client (okhttp engine) — the app's manifest/download transport (B03, I13)
 
+# A53: QR invite scanner. CameraX for preview + frame analysis; ZXing core for decode. ZXing is
+# Apache-2.0 (the project's own licence), fully offline, small — chosen over ML Kit, whose unbundled
+# scanner needs Play Services and whose bundled model is several MB for one barcode format (the APK is
+# sideloaded onto a music-stand tablet). Both live on google + mavenCentral (the locked repos).
+androidx-camera = "1.4.1"      # CameraX (core/camera2/lifecycle/view); minSdk 26 clears it
+zxing-core = "3.5.3"           # com.google.zxing:core — pure-JVM QR decoder in an ImageAnalysis.Analyzer
+
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
@@ -45,6 +52,11 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "androidx-camera" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "androidx-camera" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "androidx-camera" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "androidx-camera" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing-core" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

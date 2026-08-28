@@ -7,6 +7,10 @@
     <!-- B06: LAN discovery of the band server (mDNS via NsdManager) needs a Wi-Fi multicast lock so
          multicast packets are delivered on devices that filter them by default. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- A53: scan an invite QR with the camera. required="false" is deliberate — a camera must NEVER be an
+         install requirement for a music-stand tablet; a denial/absence falls back to A52's paste field. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
         android:allowBackup="true"

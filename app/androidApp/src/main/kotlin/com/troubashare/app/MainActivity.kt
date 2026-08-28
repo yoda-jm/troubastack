@@ -225,6 +225,19 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         )
     }
 
+    // A53: the camera scanner is a full-screen mode. A decode hands the raw string to the join sheet (via
+    // joinLink → parseTroubaLink), exactly like a paste or deep link; the scanner itself inspects nothing.
+    // Cancel/deny/Back returns to the Connect modal so the paste field is one tap away (never a dead end).
+    var scanning by remember { mutableStateOf(false) }
+    if (scanning) {
+        QrScanScreen(
+            onDecoded = { joinLink = it; scanning = false },
+            onClose = { scanning = false; connecting = true },
+        )
+        BackHandler { scanning = false; connecting = true }
+        return
+    }
+
     if (settings) {
         // A36 Parameters hub. Theme comes from the entrypoint (it drives TroubaTheme); the Stage
         // reading/colour modes are the SAME persisted keys Stage's ⚙ writes, so editing here sets the
@@ -494,6 +507,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 storage, transport, discovery,
                 onClose = { connecting = false; retryTick++ },
                 onInviteLink = { joinLink = it; connecting = false }, // A52: hand the pasted link to the join sheet
+                onScan = { scanning = true; connecting = false },     // A53: open the camera scanner
             )
         }
         return
@@ -515,6 +529,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 storage, transport, discovery,
                 onClose = { connecting = false },
                 onInviteLink = { joinLink = it; connecting = false }, // A52: hand the pasted link to the join sheet
+                onScan = { scanning = true; connecting = false },     // A53: open the camera scanner
             )
         }
         BackHandler { atHome = true } // A27: system-back from the concert list also returns to Home

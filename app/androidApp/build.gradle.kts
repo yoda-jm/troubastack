@@ -50,6 +50,12 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.kotlinx.serialization.json)
+    // A53: QR invite scanner — CameraX preview/analysis + ZXing decode (offline, no Play Services).
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.zxing.core)
     // A47: :androidApp's FIRST unit tests. src/test runs on the JVM (no device) via :androidApp:test /
     // testDebugUnitTest — covers the Android-only pure functions (sessionCookieFor, safeSegment) that had
     // no way to run a test at all. Same kotlin-test the shared module uses.
