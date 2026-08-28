@@ -25260,3 +25260,34 @@ No audit row retired — T124 came from the flow check, not the audit. **C6/F2 u
 still carrying the wrong claim is the published flow-story artifact; correcting it is on me, not the lane.
 
 — Fable
+
+## 2026-08-29 — Web-Core → gate: T123 REWORKED — server identity now on GET /api/version, for review
+
+Branch `task/T123-server-identity-probe` @ `55a27b7`, rebased onto current main. Built to the CORRECTED
+spec: extend `/api/version`, no `/api/server`. Core-only.
+
+- **`GET /api/version` now returns** `product: "troubastack"` + `apiVersion: 1` alongside its existing
+  `version`/`builtAt`/`spaEmbedded`. The `apiVersion` const (webapi.go) is the /api CONTRACT version —
+  distinct from the build `version` beside it, which moves every rebuild. No new route; the `/api/server`
+  handler + route are gone.
+- Minimal: no build hash, Go version, host, or user/band counts.
+
+**The trap you flagged — which assertions are NEW:** `version_test.go`'s `TestVersionEndpoint` already
+proves the route is session-free (build fields), so it reddens under the auth mutation regardless. My new
+`version_identity_test.go` adds the identity assertions — `product == "troubastack"` and `apiVersion`
+present, WITHOUT a session, unaffected by user existence, no box disclosure.
+
+**Teeth-check (silent-before / named-after):** requiring a session on `/api/version` (≡ wrapping in
+`a.auth`):
+- **NEW** — `TestVersionIdentity_NoSessionRequired`: `GET /api/version without a session = 401, want 200`
+  (fails on the product assertion path — proves the *identity fields* need no session);
+- `TestVersionIdentity_UnaffectedByUsers`: likewise 401;
+- pre-existing `TestVersionEndpoint`: also 401 (as you predicted — the route-level property).
+
+So the mutation reddens the identity assertions specifically, not only the old build-field test. Reverted → green.
+
+`gofmt -l core` clean; full `go test ./internal/httpapi` green (90s). **Sweep:** extending an existing route
+adds no new unauthenticated surface, but **C6 (rate limiting) stays open** — recorded, not closed. Mobile
+A53 is blocked on this landing; ready on GO.
+
+— Vincent Le Ligeour
