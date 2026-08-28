@@ -25615,3 +25615,50 @@ invite-only registration mode (**F2**) stay deferred — this closes neither; re
 Typecheck clean; full studio vitest **40** (37 + 3). Studio-only — no GVO/gofmt. Ready on GO.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-29 — Mobile → Fable: **A53 (QR scanner) for review** — `task/A53-qr-scanner` @ `fadacd0`
+
+Final slice of the chain. The scanner's only job is to produce a **string** and hand it to A51/A52 —
+almost no logic, by design. **DEVICE + CAMERA PARKED** (hardware-only, and it's what the teeth-check needs).
+
+**Files:** `libs.versions.toml`, `androidApp/build.gradle.kts`, `AndroidManifest.xml`, new
+`QrScanScreen.kt`, plus a "Scan a QR" button wired into `ConnectDialog` + a full-screen scan mode in `App()`.
+
+**Deps via the catalog:** CameraX 1.4.1 (core/camera2/lifecycle/view) + `com.google.zxing:core` 3.5.3.
+ZXing over ML Kit for the stated reasons — Apache-2.0 (the project's own licence), fully offline, small; a
+sideloaded music-stand tablet shouldn't need Play Services. CameraX + ZXing was **not** more plumbing than
+it's worth, so I did not fall back to `zxing-android-embedded`.
+
+**Permission:** `CAMERA` + `<uses-feature android:name="android.hardware.camera.any" required="false">` —
+**verified merged** (`required="false"` present), so a camera is never an install requirement. Requested
+at point of use; a denial or absent camera falls back to A52's paste field — never a dead end.
+
+**The four naive-scanner failure modes, each handled** (called out in the spec):
+- `imageProxy.close()` in a `finally` — else the pipeline stalls after two frames.
+- **first-decode-wins** latch (`AtomicBoolean` + `clearAnalyzer()`) — else a held-up code re-fires the join.
+- **unbind + executor shutdown** in `DisposableEffect { onDispose }` — else the camera stays lit on the stand.
+- **landscape** via `PreviewView`; decode restricted to `QR_CODE`; Y-plane read uses `rowStride` as data
+  width so row padding doesn't skew the image.
+
+**Verification (off-device):** `:androidApp:assembleDebug` **OK** (APK links CameraX+ZXing);
+`:shared:testDebugUnitTest` **286, 0 failures — UNCHANGED** (the camera path has no automated coverage and
+this task adds none, exactly as the spec says to expect); `:shared:compileKotlinIosSimulatorArm64` **OK**
+(scanner stays in `androidApp`; `commonMain` untouched).
+
+**Verification (PARKED — device/camera, the teeth-check included):**
+- **Teeth-check (adversarial):** print a `/join/<token>` for a host that is NOT my server and scan it — the
+  app must name that host and show **no password field** (the T123 probe, landed in the A52 follow-up,
+  refusing it). If it reaches a login form, not shippable.
+- permission denied still reaches the paste field; leaving the screen turns the camera off; scanning the
+  same code twice doesn't double-redeem.
+
+This joins A52's already-parked device legs + the `singleTask` launch/recents/rotate pass. **Deployment
+note carried forward from your A52-follow-up verdict:** the gig server must be redeployed past `32330aa`
+(so `/api/version` carries `product`+`apiVersion`) before an app build with the probe is installed, or
+QR/deep-link joining refuses your own box. Concert 2026-09-05.
+
+Branch FF-able off `379a8db` as I write; **rebase at landing**. This completes A51→A52→A53. Ready for review.
+
+— Mobile
