@@ -327,10 +327,9 @@ private fun Performing(
                 delay(PREFETCH_SETTLE_MS)
                 val targets = prefetchTargets(state.current, state.pageCount, twoUp, songStarts)
                 val pw = if (twoUp) widthPx / 2 else widthPx
-                withContext(Dispatchers.Default) {
-                    targets.forEach { idx ->
-                        state.pages.getOrNull(idx)?.let { decodeCached(cache, it.rasterRef, it.rasterHash, pw, heightPx, decoder) }
-                    }
+                // A49: cache access on the composition (main) thread; decodeCached fans only decode to Default.
+                targets.forEach { idx ->
+                    state.pages.getOrNull(idx)?.let { decodeCached(cache, it.rasterRef, it.rasterHash, pw, heightPx, decoder) }
                 }
             }
         }
@@ -922,12 +921,11 @@ private fun ScrollPage(
     val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, widthPx, retryTick) {
         value = null
         if (widthPx <= 0) return@produceState
-        value = withContext(Dispatchers.Default) {
-            val raster = decodeCached(cache, page.rasterRef, page.rasterHash, widthPx, widthPx * 3, decoder)
-            val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, widthPx, widthPx * 3, decoder) }
-            cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, widthPx, widthPx * 3)) // eviction-proof this page
-            PageBitmaps(raster, ov.overlays, ov.missing)
-        }
+        // A49: cache access on the composition (main) thread — decodeCached fans ONLY the decode to Default.
+        val raster = decodeCached(cache, page.rasterRef, page.rasterHash, widthPx, widthPx * 3, decoder)
+        val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, widthPx, widthPx * 3, decoder) }
+        cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, widthPx, widthPx * 3)) // eviction-proof this page (main)
+        value = PageBitmaps(raster, ov.overlays, ov.missing)
     }
     LaunchedEffect(decoded?.missingOverlays, retryTick) {
         if ((decoded?.missingOverlays ?: 0) > 0 && retryTick < OVERLAY_DECODE_RETRIES) { delay(250); retryTick++ }
@@ -982,12 +980,11 @@ private fun PageView(
         val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, wPx, hPx, retryTick) {
             value = null
             if (wPx <= 0 || hPx <= 0) return@produceState
-            value = withContext(Dispatchers.Default) {
-                val raster = decodeCached(cache, page.rasterRef, page.rasterHash, wPx, hPx, decoder)
-                val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, wPx, hPx, decoder) }
-                cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, wPx, hPx)) // eviction-proof this page
-                PageBitmaps(raster, ov.overlays, ov.missing)
-            }
+            // A49: cache access on the composition (main) thread — decodeCached fans ONLY the decode to Default.
+            val raster = decodeCached(cache, page.rasterRef, page.rasterHash, wPx, hPx, decoder)
+            val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, wPx, hPx, decoder) }
+            cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, wPx, hPx)) // eviction-proof this page (main)
+            value = PageBitmaps(raster, ov.overlays, ov.missing)
         }
         LaunchedEffect(decoded?.missingOverlays, retryTick) {
             if ((decoded?.missingOverlays ?: 0) > 0 && retryTick < OVERLAY_DECODE_RETRIES) { delay(250); retryTick++ }
@@ -1133,13 +1130,35 @@ private fun StageBeatControl(tempo: Int, meter: String, beat: StageBeat, onStart
 private data class PageBitmaps(val raster: ImageBitmap?, val overlays: List<ImageBitmap>, val missingOverlays: Int = 0)
 
 /** Cache-or-decode a single blob; null on any failure (the caller degrades gracefully). */
-private fun decodeCached(cache: PageImageCache, ref: String, ver: String, w: Int, h: Int, decoder: ImageDecoder): ImageBitmap? {
-    val key = cacheKey(ref, ver, w, h)
-    cache.get(key)?.let { return it }
-    val bmp = decoder.decode(ref, w, h).getOrNull() ?: return null // decode the REAL ref; version only keys the cache
-    cache.put(key, bmp)
-    return bmp
+/**
+ * A49 (audit C5) — the thread-confinement core, extracted so the contract is unit-testable (the Compose
+ * call sites aren't). [get]/[put] run on the CALLER's thread; ONLY [decode] is allowed to switch threads
+ * (its own `withContext(Dispatchers.Default)`). Every production caller is a composition coroutine
+ * (LaunchedEffect/produceState), which is main-confined — so the plain LinkedHashMaps behind the cache
+ * are never touched from two threads at once, restoring what LruCache/PageImageCache's KDocs promise.
+ *
+ * A benign double-decode is accepted (two coroutines miss the same key and both decode+put — wastes a
+ * decode, can't corrupt); NO lock/dedupe/in-flight map is added — that would reintroduce the shared
+ * mutable state this removes. Reverting this to run [get]/[put] inside the decode's Default context is
+ * the §3 teeth-check: it reddens PageCacheConcurrencyTest (get/put back on the worker pool).
+ */
+internal suspend fun <V : Any> cacheThrough(
+    get: (String) -> V?,
+    put: (String, V) -> Unit,
+    key: String,
+    decode: suspend () -> V?,
+): V? {
+    get(key)?.let { return it } // caller (main) thread
+    val v = decode() ?: return null // the one heavy step — off the caller thread, inside decode
+    put(key, v) // caller (main) thread
+    return v
 }
+
+private suspend fun decodeCached(cache: PageImageCache, ref: String, ver: String, w: Int, h: Int, decoder: ImageDecoder): ImageBitmap? =
+    // decode the REAL ref (version only keys the cache); cacheThrough keeps get/put on the caller thread.
+    cacheThrough(cache::get, cache::put, cacheKey(ref, ver, w, h)) {
+        withContext(Dispatchers.Default) { decoder.decode(ref, w, h).getOrNull() }
+    }
 
 @Composable
 private fun PlaceholderCard(modifier: Modifier) {

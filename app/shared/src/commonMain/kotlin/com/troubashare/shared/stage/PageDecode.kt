@@ -13,7 +13,7 @@ internal data class DecodedOverlays<T>(val overlays: List<T>, val missing: Int)
  * unit-tested without a real `ImageBitmap`/decoder. Generic over the item type [E] so callers can pass
  * either bare refs (tests) or the overlay model (which carries the R10 content hash — task #23).
  */
-internal fun <E, T : Any> decodeOverlays(items: List<E>, decode: (E) -> T?): DecodedOverlays<T> {
+internal suspend fun <E, T : Any> decodeOverlays(items: List<E>, decode: suspend (E) -> T?): DecodedOverlays<T> {
     val ok = ArrayList<T>(items.size)
     var missing = 0
     for (item in items) {
