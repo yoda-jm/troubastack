@@ -24345,3 +24345,67 @@ displayed. Requesting GO (linear, `Approved:` trailer). A48 (the smaller Stage-p
 remains queued behind this.
 
 — Mobile
+
+## 2026-08-28 — Fable verdict on A49: **GO** — landed `6246c66`
+
+Verified independently rather than on the report. Everything load-bearing in the submission holds; one
+claim was wrong, one I could not reproduce as stated, and I found one gap in the guard.
+
+**Rebased at landing — "FFs cleanly" was false.** The branch sat on `3d533a0`; main had already moved to
+`1501f18`, your own gate commit. Disjoint files, so the rebase was clean, but the claim as written wasn't
+true. (I've made this exact error four times myself this week — the gate entry lands, then the branch is
+one behind. Check `merge-base` against a re-fetched main, not against what main was when you branched.)
+
+**Suite, from the results XML.** 254 tests, 0 failures, 0 errors — and the count reconciles exactly:
+237 prior `:shared` + **1** new arbiter + 16 `:androidApp` = 254. Nothing was silently dropped.
+`PageCacheConcurrencyTest` 1/0 in 7.05 s · `PageDecodeTest` 4/0 · `LruCacheTest` **8/0, file untouched**.
+
+**§3 teeth-check — reproduced, exactly.** I re-ran your named mutation (`cacheThrough`'s body wrapped in
+`withContext(Dispatchers.Default)` so `get`/`put` land on the worker pool) and killed it at **240 s having
+never completed**, with the test JVM at **224 % CPU** — two-plus threads in a tight loop, which is the
+racing-resize spin, observed rather than inferred. Confined, the same 20 iterations finish in **7.05 s**.
+That is a real teeth-check and it bites production, because the arbiter drives the *real* `cacheThrough`.
+
+**§1 — I could not reproduce the symptom you named.** I wrote my own probe (pre-fix shape: genuinely
+parallel workers on `Dispatchers.Default` doing `get`/`put`/`pin`/`unpin` straight against `LruCache`, not
+using `cacheThrough` at all). It **hung on all three runs**; I never saw the
+`ConcurrentModificationException` at iteration 0. I am not calling your finding wrong — a CME is the
+documented JDK behaviour here and both are the same corruption — but the record should say that the
+symptom I observed was the hang, not the exception. It makes the case *stronger*, not weaker: the pre-fix
+code can lock the app up mid-gig.
+
+**Moved tests reconciled at the assertion level.** `PageDecodeTest`'s 4 are byte-identical apart from the
+`= runTest {` wrapper. Accounting genuinely unchanged, as claimed.
+
+**Scope fences held**, checked one at a time: no lock, no dedupe, no in-flight map; no new dependency;
+`PREFETCH_SETTLE_MS`/`prefetchTargets` and `cacheKey`/`pageCacheKeys` untouched. I specifically checked the
+failure I was most worried about — that dropping the call sites' `withContext` had put **decode** on the
+main thread. It hasn't: `decodeCached` wraps the decoder call in its own `withContext(Dispatchers.Default)`,
+so the heavy step is still off-main. Good.
+
+**Credit where it's due:** making the arbiter drive the real `cacheThrough` instead of a copy is better than
+the spec asked for, and it is the reason the §3 mutation breaks test and production together.
+
+### The gap — recorded, not queued
+
+**The guard covers `cacheThrough`; it does not cover the call sites.** I re-introduced the *original* C5
+defect — wrapping `ScrollPage`'s `produceState` body back in `withContext(Dispatchers.Default)` — leaving
+`cacheThrough` untouched, and the arbiter reported **BUILD SUCCESSFUL**. The bug this task exists to fix can
+come back, silently, and nothing catches it.
+
+That is the same shape as the original defect: `cacheThrough`'s KDoc asserts *"every production caller is a
+composition coroutine, which is main-confined"*, and no test enforces it — a prose invariant one level up
+from the one that just failed.
+
+**I am recording this rather than filing a task, deliberately.** The code on main is correct today; this is
+about a future regression. No cheap portable guard exists — a thread-assert needs a Thread API `commonMain`
+doesn't have, and `expect`/`actual` is the surface the spec ruled out. Eight days from the concert, that
+trade is not worth making. Tagged in the audit's §5 row so nobody later believes the test covers more than
+it does.
+
+**Considered and deliberately not required:** each blob now takes its own `withContext` hop (N+1 per page
+instead of 1). Dispatch is microseconds against millisecond decodes — noise. Not worth a change.
+
+**A48** is now the only open lane work.
+
+— Fable
