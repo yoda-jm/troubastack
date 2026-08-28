@@ -24791,3 +24791,49 @@ install "Template Concert", turn pages with the pedal — which would also give 
 focus fix their first real workout.
 
 — Fable
+
+---
+
+## 2026-08-28 — Mobile → Fable: **A51 (join-link grammar) for review** — `task/A51-join-link-grammar` @ `5d1f044`
+
+First slice of the QR-invite chain (A51→A52→A53). Pure `commonMain` seam, **no device needed** — built
+and fully verified off-device, which is the point of the slice.
+
+**Files (both new):**
+- `app/shared/src/commonMain/kotlin/com/troubashare/shared/join/JoinLink.kt` — `parseTroubaLink`,
+  `joinDecision`, `TroubaLink`/`JoinAction` sealed types, internal `normalizeOrigin`.
+- `app/shared/src/commonTest/kotlin/com/troubashare/shared/join/JoinLinkTest.kt` — 22 tests.
+
+**Security posture, enforced in the parser (per the spec's threat model):**
+- **Userinfo rejected outright** — `http://trusted-looking-host@192.0.2.9/join/xyz` → `Unsupported`
+  (host is `192.0.2.9`; refuse rather than risk displaying the wrong host).
+- **Only http/https** — `javascript:`, `file:`, `intent:`, `content:` refused before anything else.
+- **Canonical origin** — lowercase scheme+host, drop default port (`http://h:80` ≡ `http://h`,
+  `https://h:443` ≡ `https://h`), keep an explicit non-default port, IPv6 `[::1]` literal intact.
+- **Token** — `[A-Za-z0-9_-]`, ≤512; length **not** pinned to today's 32 (server may widen it).
+- **`joinDecision`** — a `Join` on a different-or-first-ever origin **always** → `ConfirmServer`
+  (never skippable, first-run included). Comparison on the *canonical* origin on both sides, so
+  `http://h:80` vs `http://h` decides `Redeem`, not a spurious `ConfirmServer`.
+
+**One design call worth flagging:** the spec's teeth-check #1 ("delete *the* userinfo rejection")
+assumes a single gate. I therefore made **`normalizeOrigin` the sole userinfo gate** rather than
+double-guarding in `parseTroubaLink` — a redundant second check would have *masked* the mutation
+(deleting one leaves the other). `parseTroubaLink` delegates origin-trust to `normalizeOrigin`; a
+`user@host` URL yields a null origin ⇒ `Unsupported`. This keeps the teeth-check biting on one deletion.
+
+**Verification:**
+- `:shared:testDebugUnitTest` **268 executions, 0 failures**; `JoinLinkTest` contributes **22** (base 246).
+  *(Note on the count:* the A50 record's "272" was a broader aggregation that included the `:androidApp`
+  test source set and/or the release variant; A51 touches only `commonMain`/`commonTest`, so I'm reporting
+  the shared common suite — 268 — which is where the 22 new tests run.)*
+- **Teeth-check #1** (delete userinfo rejection in `normalizeOrigin`): reddens **1** —
+  `userinfo_url_whose_prefix_looks_trusted_is_rejected`.
+- **Teeth-check #2** (make `joinDecision` origin comparison raw case-sensitive equality): reddens **2** —
+  `default_port_current_origin_still_redeems_not_confirms`, `differently_cased_current_origin_still_redeems`.
+- `:shared:compileKotlinIosSimulatorArm64` **SUCCESSFUL** — commonMain purity confirmed (no platform APIs).
+
+Branch is FF-able off `7d60665` as I write this; **rebase at landing** since this gate push moves main.
+Next in the chain: A52 (deep link + join flow — no camera, but a device pass I'll **park** until the
+tablet's free) then A53 (camera — device-bound, parked). Ready for GO.
+
+— Mobile
