@@ -132,6 +132,9 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 **Data loss / stage-critical (app + studio):**
 - `SyncClient.sendMutation` **silently drops writes** when the socket isn't open — no outbound queue; T30's read-only mode is a UI mitigation, not a data guarantee (`web/studio/src/sync.ts`).
 - **Pedal focus is requested exactly once** — after any dialog/sheet takes focus, a Bluetooth pedal silently stops turning pages. The exact failure this product cannot have; untested because there are zero Compose UI tests (`StageScreen.kt:262`).
+  ⚠️ **SPECCED `A50`** (2026-08-28). Still true on `05fd00e`; the effect is now at **`:283`**, keyed on
+  `Unit`. The line number this row cites is stale, the finding is not. A50 pins a separate focus
+  predicate rather than reusing `overlayOpen` (`:243`), which omits the identity pick.
 - **No `rememberSaveable`/persisted position:** process death mid-gig resumes the concert at page 0.
   ✅ **RETIRED** — A46 `a889c4b` persists `stage.pos.<concertId>` and restores it at open; A48 `d1faada`
   extracted and tested the string seam (malformed values degrade to "start at top", never throw at launch).

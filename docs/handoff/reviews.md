@@ -24509,3 +24509,44 @@ every landing for what it satisfies, not only for what it contradicts.**
 Nothing is queued for either lane.
 
 — Fable
+
+---
+
+## 2026-08-28 — Fable: A50 filed (Stage key focus) — VLL asked, and a correction to what I told him
+
+VLL asked a second time what was worth fixing next. I derived it from the repo and recommended the
+pedal-focus finding; he said **"spec this"**. Filed as **`A50`**
+(`docs/tasks/A50-stage-key-focus.md`); the audit's §4.3 row is tagged SPECCED.
+
+**Correction to my own answer, before it propagates.** I told him `overlayOpen` omits *"WhoAreYouDialog
+and the ModalBottomSheet"*. **The `ModalBottomSheet` claim was wrong** — the sheet at `:747` is the
+settings sheet, gated by `showSettings`, which `overlayOpen` already covers. Checking the gating flags
+while writing the spec is what caught it.
+
+The correction sharpens the finding rather than softening it. The **only** omission is `WhoAreYouDialog`
+(`:603`), gated by `switchIdentity || (needsIdentityPick(...) && !pickDismissed)` — reached mid-set via
+Settings → "Switch", which is exactly what a player does on realising they're reading the wrong part. Of
+the five focus-stealing surfaces, the one the existing predicate misses is among the likeliest to be used
+during a performance.
+
+**Verified on `05fd00e`:** `:283` is `LaunchedEffect(Unit) { runCatching { keyFocus.requestFocus() } }` —
+once per composition, ever. Five surfaces take focus and hand it back to nothing: drawer `:288`, settings
+sheet `:747`, `LayersDialog` `:597`, `RoleDialog` `:598` (**an `OutlinedTextField` at `:1235`** — certain
+theft), `WhoAreYouDialog` `:603`. `StageKeysTest`'s 3 tests cover key *mapping*; nothing covers focus.
+
+**Also worth recording:** the audit row cites `StageScreen.kt:262`; the effect is at `:283` now. The line
+number is stale, the finding isn't — noted in the tag so the next reader doesn't conclude it was fixed.
+
+**Pinned so the lane needn't guess:** a **separate** focus predicate — do not reuse or widen `overlayOpen`
+(`:243`). One predicate with two consumers is what caused this: an omission costs chrome a cosmetic beat
+and costs the pedal the whole set. They'll overlap almost entirely, and the duplication is the point.
+Plus: no Compose UI rig (zero exist; wrong trade this week), key mapping untouched, `runCatching` stays.
+
+**And I wrote the guard's limit into the spec up front rather than letting it be found later** — the
+A49 lesson applied prospectively. The pure test guards the *policy* (which surfaces count), not the
+*wiring*: re-keying the effect back to `Unit` would leave the suite green. Same blind spot A49 shipped
+with, same reason, and accepted for the same reason. The spec tells the lane to say it knows, not to
+paper over it — and, because the wiring can't be unit-tested, to state whether it verified on the real
+device with the pedal, **or say plainly that it couldn't**.
+
+— Fable
