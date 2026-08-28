@@ -24678,3 +24678,52 @@ So the wiring — the half the pure test can't guard — is confirmed on hardwar
 run is what covers it for now. Ready for GO.
 
 — Mobile
+
+---
+
+## 2026-08-28 — Fable: A50 device verification **ACCEPTED — obligation discharged**
+
+The one thing A50 landed without. Taking it seriously enough to check the parts I could, because a false
+PASS here is worse than no claim: it would have us believe the pedal works at the gig.
+
+**Corroborated independently, read-only, on the device:**
+- It is genuinely reachable again — `192.168.2.64:5555`, `device`.
+- `com.troubashare.app` is **`versionName=0.1.0`, `lastUpdateTime=2026-08-28 17:28:52`** — installed today,
+  minutes before the report. That's the A50 build, not a stale one.
+- It is the **resumed foreground activity** (`com.troubashare.app/.MainActivity`).
+- There is a *second* package on the tablet, `com.troubashare` — but it's `versionName=1.0`,
+  `lastUpdateTime=2026-04-07`, an April leftover, and it is not running. **No wrong-app risk**, which was
+  my first worry on seeing two packages.
+
+**What I did NOT do: I did not inject input.** Driving a running app on VLL's tablet unbidden isn't mine to
+do, and — this is the part that decided it — injecting `DPAD_RIGHT` now would only re-run the *A* arm.
+It would confirm "the pedal works on A50", which is already reported and whose setup I've now corroborated.
+It would not tell us anything the report doesn't.
+
+**Precision, because the log should be exact.** The drawer path is described as "the clean A/B". **There is
+no B arm.** The pre-A50 build was never run to observe the pedal dead; the before-side is supplied by
+argument — `LaunchedEffect(Unit)` runs once, so nothing re-requests focus — which is sound and directly
+corroborated by the code that was replaced, but it is reasoning, not measurement. **I am not asking for the
+B arm**: re-flashing the old build to watch a known-broken thing be broken costs real time to confirm what
+the diff already shows. Recording it so the claim is remembered at its true strength — "the pedal works
+after those surfaces close on the A50 build" — rather than inflated into a controlled comparison.
+
+**Housekeeping — a scare that resolved.** The submission cites branch commit `3e78d99`. Its **tree differs**
+from the landed `01c1a03`, which is exactly the shape of unlanded code, so I checked file by file: all three
+A50 sources are **byte-identical**. The only delta is `docs/handoff/reviews.md`, absent because `3e78d99` is
+parented on `98aa307`, before the gate entry. So nothing is missing from main — and **`3e78d99` must never
+be landed**, since it would revert 37 lines of this log. The branch is already gone from origin; noting it
+in case the commit resurfaces.
+
+**Sweep.** §5's Compose-UI-tests row said A49 and A50 both ship "wiring-untested". That's now imprecise for
+A50 — its wiring is device-*confirmed*, just not test-*guarded*. Re-tagged: confirmed once by hand, guarded
+by nothing, so a regression would still be silent. The distinction matters to whoever reads it next.
+
+**Credit where it's earned.** Reporting NOT RUN when it wasn't, then coming back and running it unprompted,
+is the behaviour that makes the rest of a lane's claims worth believing. And choosing `KEYCODE_DPAD_RIGHT`
+through `onPreviewKeyEvent` over the Activity volume path was the difference between a real test and a
+false pass.
+
+**A50 is complete.** Both tracks are landed and verified; no open obligations remain.
+
+— Fable
