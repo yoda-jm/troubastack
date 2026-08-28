@@ -24238,3 +24238,73 @@ from the repo rather than from a chat scroll:
 landed.
 
 — Fable
+
+---
+
+## 2026-08-28 — VLL ruling on licensing, and C5 specced as A49 (Fable)
+
+### Ruling: the project stays Apache-2.0
+
+VLL asked whether to relicense to GPL-2.0-or-later or GPL-3.0. **He ruled: keep the current license.**
+Pinned here because a ruling made in a session has to land in this log with the work.
+
+The analysis behind it, so nobody re-opens it from scratch:
+
+- The repo has been **Apache-2.0 since `6b54ebc`** (the commit that retired audit C1). This was a
+  *relicense* question, not a first choice — I had to correct the premise.
+- Relicensing was legally free: **all 1,411 commits on main are VLL's** (three addresses, one person),
+  so no CLA and no contributor consent.
+- **GPL-2.0 was never actually available.** The whole mobile stack — Kotlin 2.2.20, Compose
+  Multiplatform 1.9.0, AndroidX, Ktor 3.0.3, kotlinx-* — is Apache-2.0, and Apache-2.0 is one-way
+  incompatible with GPLv2 (its patent-termination clause reads as a "further restriction" under GPLv2
+  §6). "GPL-2.0-**or-later**" does not rescue that: the only lawful conveyance of the combined binary
+  would be v3, so v2+ is v3 wearing a misleading name. The question collapsed to "GPLv3 or nothing".
+- **Poppler does not force the issue.** `pdftoppm` is invoked via `exec.Command` (`bake/baker.go:30`),
+  a separate process, not linked — so its GPL does not reach into TroubaCore. That was the one
+  dependency that could have decided this, and it doesn't.
+- **iOS would have cost something.** GPL of any version conflicts with the App Store ToS (the VLC
+  precedent). As sole copyright holder VLL could have shipped under separate terms while publishing
+  GPLv3 source — a NOTICE paragraph, not a redesign — but it is friction bought for nothing while the
+  instance is LAN-only. (AGPLv3, not GPL, is the tool if hosting ever becomes the concern.)
+
+**Recorded as decided. Do not re-raise unless VLL asks.** No file changes: the ruling is to keep what
+is already there.
+
+### A49 filed — audit C5, the app's page-image cache
+
+C5 has been open since the audit and **unspecced**, which is why it kept appearing under "VLL's
+call" rather than in a lane queue. It should not have: it is a critical, it is app-side, and its
+failure mode is a page turn. Specced now as **`A49`** (`docs/tasks/A49-page-cache-thread-confinement.md`).
+
+Verified against `origin/main` (`987dcf8`) while writing it — `LruCache` and `PageImageCache` both
+document main-thread-only access, and four paths violate it: prefetch (`StageScreen.kt:330–332`),
+`ScrollPage` decode (`:925–928`), `PageView` decode (`:985–988`) — all inside
+`withContext(Dispatchers.Default)` — plus `unpin` on the **main** thread (`:917`, `:979`).
+
+**The audit row understates this and I have corrected it in place** (correction note under §4.1, same
+convention as the C4 note): the fourth path means the race does **not** need two-up. `LruCacheTest`'s
+8 tests are all single-threaded, so the invariant is guarded by nothing.
+
+Two things pinned in the spec so the lane does not have to guess:
+
+1. **Thread-confine; do not add a lock.** `commonMain` has no `synchronized` and `Mutex.withLock` is
+   `suspend`, which doesn't fit the plain `get`/`put`/`pin` surface — a lock means `atomicfu` or
+   `expect`/`actual`, i.e. new per-platform surface in concert week to hold a line the KDoc already
+   claims. A benign double-decode is explicitly **accepted**; adding a dedupe map to prevent it would
+   reintroduce the shared mutable state the task removes.
+2. **The stress test must live in `androidUnitTest`, not `commonTest`** — `runTest`'s scheduler is
+   single-threaded and would not reproduce this. A test that cannot fail guards nothing.
+
+And, following T106's handling of C4: **the detector goes in first**. I have shown the contract is
+violated; I have **not** shown it corrupts in practice. If the lane cannot redden unmodified main
+after a real attempt, the honest report is to say so — the confinement still lands.
+
+### Correcting my own previous entry
+
+My 2026-08-27 entry ends "**A48** is the only open lane work anywhere." **That is now false** — A49 is
+open lane work too, and is the more urgent of the two: A48 protects a restart, A49 protects the page
+turns themselves. Mobile should take **A49 first**.
+
+C5 also moves off the "all VLL's" list in that entry; it is lane work now.
+
+— Fable

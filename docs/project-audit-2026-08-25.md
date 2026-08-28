@@ -91,7 +91,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 | C2 ⚠️ *VLL only* | **Credential embedded in the `origin` remote URL**, with one documented leak into tool output. Self-flagged for weeks, still unrotated. | git config; `docs/handoff/mobile-app-agent.md` |
 | C3 ⚠️ **HALF-FIXED** — modes ✅ `4e6dcc4` (T107); **sessions still never expire and tokens are still plaintext — OPEN** | **Sessions never expire and are stored in plaintext**, in a world-readable `app.json` (`0o644`) that also holds every bcrypt hash. Cookie's 30-day cap is client-side only. | `core/internal/app/app.go:137`, `service.go:141`, `filerepo.go:187` |
 | C4 ✅ **RETIRED** `24d348e` (T106) — **but see the correction below: it was never the race this row claims** | **Confirmed data race** on `conn.dropped` (written under lock, read without; guards a `close(chan)` → double-close panic path) — and **CI never runs `-race`**. | `core/internal/sync/sync.go:157` vs `conn.go:221`; `ci.yml` |
-| C5 ⚠️ **OPEN** — mobile lane, unspecced | **Page-image cache used concurrently despite documented single-thread invariant** — `decodeCached`/`pin` called from `Dispatchers.Default` in three places; two-up + prefetch can corrupt the LRU mid-gig. | `app/shared/.../stage/StageScreen.kt:309,887,947`, `LruCache.kt:9` |
+| C5 ⚠️ **OPEN — SPECCED `A49`** (2026-08-28); see the correction below | **Page-image cache used concurrently despite documented single-thread invariant** — `decodeCached`/`pin` called from `Dispatchers.Default` in three places; two-up + prefetch can corrupt the LRU mid-gig. | `app/shared/.../stage/StageScreen.kt:309,887,947`, `LruCache.kt:9` |
 | C6 *(deferred — LAN-only)* | **No rate limiting anywhere**, open registration with no off switch, and `minPasswordLen = 1` (not even enforced on register). | `core/internal/app/service.go:161` |
 | C7 *(deferred — LAN-only)* | **Cross-site WebSocket hijacking surface:** `CheckOrigin` returns `true` unconditionally; no CSRF tokens; zero security headers (no CSP/nosniff/HSTS); `image/svg+xml` accepted + served `inline` → stored-XSS path on the cookie's origin. | `sync/conn.go:138`, `webapi.go:169,919`, `service.go:1024–1056` |
 | C8 ✅ **RETIRED** `1987e97` (T111) — and the first CI run found the `Dockerfile` broken | **The production Docker image is never built by CI** — the least-tested artifact in an otherwise five-way-gated repo. | `ci.yml`, `Dockerfile` |
@@ -104,6 +104,15 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 > confirmed race.** What remains true, and is what T106 fixes: the safety is *emergent* — it depends on
 > three separate facts holding together, is stated nowhere at the read site, and is pinned by no test.
 > T106 installs `-race` as the arbiter first and lets the detector, not an argument, decide.
+>
+> **📋 Correction to C5 (added 2026-08-28, on filing A49).** Re-reading `origin/main` to spec it:
+> this row's "two-up + prefetch" framing **understates the exposure**. There is a fourth mutation
+> path the row omits — `DisposableEffect { onDispose { cache.unpin(owner) } }` (`StageScreen.kt:917`,
+> `:979`) mutates the `pins` map **on the main thread** while a worker is inside `pin`/`get`/`put`.
+> So the race does **not** require two-up: any page turn that disposes a page while a neighbouring
+> decode is still in flight is enough. The row is also imprecise about the second KDoc — the code
+> violates *both* halves of `PageImageCache`'s contract, storing results back off-thread too.
+> **Not yet established:** that this corrupts in practice. A49 installs the detector first (C4's lesson).
 >
 > **⚠️ C2 is VLL's to act on** — no lane can rotate his credential.
 > **C6/C7 deferred:** the instance is LAN-only for now (VLL, 2026-08-25). They re-enter the queue the
