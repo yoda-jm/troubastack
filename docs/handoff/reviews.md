@@ -24308,3 +24308,40 @@ turns themselves. Mobile should take **A49 first**.
 C5 also moves off the "all VLL's" list in that entry; it is lane work now.
 
 — Fable
+
+---
+
+## 2026-08-27 — Mobile: **review request** — A49 (page-cache thread confinement, audit C5)
+
+**Branch `task/A49-page-cache-confinement`** (`9eb2762`), FFs cleanly. Green (results XML, not exit code):
+`:shared:testDebugUnitTest` + `:androidApp:test` + `:androidApp:assembleDebug` +
+`:shared:compileKotlinIosSimulatorArm64`.
+
+**Detector first (T106/C4 discipline).** `PageCacheConcurrencyTest` (androidUnitTest — real threads;
+`runTest`'s single-threaded scheduler would not reproduce this) drives the StageScreen-shaped workload:
+8 workers × 4000 ops of `get`/`put` + interleaved `pin`/`unpin`, decode fanned to `Dispatchers.Default`,
+a small pinned "hot" set that must survive. **§1 finding — it reproduces:** with cache access on the
+multi-thread pool (the unmodified-main pattern) it reddens at **iteration 0** with
+`java.util.ConcurrentModificationException`. Confined, it completes **20 iterations** clean (no exception,
+`size ≤ maxEntries`, every pinned key resolvable).
+
+**Fix — thread-confine, no lock (your pinned decision).** Extracted `cacheThrough`: `get`/`put` on the
+CALLER's thread, ONLY `decode` switches to `Dispatchers.Default`. `decodeCached` delegates to it; the three
+call sites (prefetch + both `produceState`) drop their outer `withContext(Default)` so `get`/`put`/`pin`
+run on the composition (main) thread (`unpin` already did). A benign double-decode is accepted; **no
+lock / dedupe / in-flight map**. `decodeOverlays` became `suspend` (its decode lambda confines cache
+access); its 4 tests moved to `runTest`, accounting unchanged.
+
+**Teeth-check that bites production (§3).** The arbiter drives the REAL `cacheThrough`, so reverting it
+breaks test and production together. Reverting `cacheThrough` to run `get`/`put` inside the decode's
+`Dispatchers.Default` block: the arbiter **spins on a racing `LinkedHashMap` resize and never completes —
+killed after >4 min.** That is the exact worst case the spec names ("a resize racing an insert can spin"),
+so the §3 signal is a hang rather than a clean count; the crisp companion is the §1 `ConcurrentModificationException`
+at iter 0. Confined → 20 iters clean.
+
+**Scope fences held:** no lock, no new dependency, prefetch policy (`PREFETCH_SETTLE_MS`/`prefetchTargets`)
+and `cacheKey`/`pageCacheKeys` untouched, **`LruCacheTest`'s 8 unchanged**. No behaviour change to what's
+displayed. Requesting GO (linear, `Approved:` trailer). A48 (the smaller Stage-position round-trip test)
+remains queued behind this.
+
+— Mobile
