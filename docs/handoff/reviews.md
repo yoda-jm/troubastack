@@ -24727,3 +24727,67 @@ false pass.
 **A50 is complete.** Both tracks are landed and verified; no open obligations remain.
 
 — Fable
+
+---
+
+## 2026-08-28 — Fable: full-flow check on a template concert (VLL asked; he was away)
+
+VLL asked me to build a template concert from scratch, assert the whole flow, screenshot it and write
+the result up. Done: **16/16 steps pass**, from an empty server to a **39,937-byte `.tstage`** bundle.
+The story with every frame is an artifact, linked in my handover message.
+
+**Harness landed** — `web/studio/flowcheck/flowcheck.spec.ts` + `playwright.flowcheck.config.ts`.
+Isolated backend on `:8091` with its own data dir, its own Vite on `:5274`, `reuseExistingServer: false`.
+**The `:8080` demo is never touched.** Band "Riverside Session", song "Sound Check", setlist "Template
+Concert", members alex/robin/jo — all invented, so no real material is anywhere near it or the write-up.
+It differs from the DEMO-VID walkthrough in one way that turned out to matter: **it asserts each step
+instead of clicking it**, and screenshots pass or fail alike so a break still yields a truthful account.
+
+### Four things it found
+
+1. **The walkthrough's capo note never lands, and it jams the take.** `walkthrough.spec.ts` handles the
+   text annotation with `page.once("dialog", …)` — a handler for a native `window.prompt`. This build
+   renders an **in-page modal** (app prompt provider, `WetCanvas.tsx:729`). The handler never fires, the
+   modal opens and **stays open**, and being inside `soft()` it skips silently. So the note is never
+   written *and* the open modal blocks everything after it — including the layer show/hide beat the
+   script hard-asserts as REQUIRED. My first run died there with the modal still up.
+2. **The walkthrough bakes an empty setlist.** Its add-song step targets `setlist-add-song`, a testid
+   that **does not exist anywhere in the studio source**. The real controls are `add-item-song` (a
+   `<select>`) and `add-item`. Inside `soft()`, so it logs a skip: the running order stays empty and the
+   bake that follows bakes nothing.
+3. **An empty setlist can be baked** — `bake-setlist` is `disabled={dialog}` only, so nothing prevents
+   it. Produces a valid, useless bundle. A guard would be kind. **Recorded, not queued.**
+4. **An unbuilt bake worker fails invisibly.** Without `web/bake/dist/cli.js` the server logs `Cannot
+   find module …`, creates the bake directory and leaves it **empty**, while the browser shows success.
+
+Findings 1 and 2 mean **DEMO-VID cannot be re-recorded as-is** — one beat would sit on a stuck modal and
+the finale would bake an empty setlist. Both are one-line fixes in the walkthrough; I have not touched
+that file, since it's the video's script and re-recording is VLL's call.
+
+### What this cost me, and the lesson
+
+Six runs. The first scored 12/16 and it would have been easy to file "the flow breaks at layers". It
+doesn't — **every early failure was mine**: the layer toggle sits inside a panel that must be opened
+first, the Setlists page carries its create form inline rather than behind a button, and the text
+annotation is a modal rather than a prompt.
+
+The transferable bit: I read the walkthrough's `soft()` wrappers as politeness and hardened them, and
+**that is exactly what exposed findings 1 and 2 — some of those wrappers were absorbing real breakage.**
+A step that can only skip cannot report that it stopped working.
+
+And one of mine was worse than a selector slip: **step 16 passed while the bake produced nothing**,
+because I had asserted the confirm dialog rather than the artifact. It surfaced only because the output
+directory looked wrong. The step now polls for a non-empty bundle on disk, which is why the run reports
+a byte count instead of "baked". Same family as the A50 device claim — *assert the artefact, not the
+gesture that should have produced it.*
+
+### Deliberately not done: the tablet leg
+
+The device is reachable and healthy (`com.troubashare.app`, foreground). I stopped short anyway.
+Closing the loop means re-pointing the app at a throwaway server or sideloading a bundle into it — both
+change the state of the machine being played on, eight days out, unattended. Not a call to make alone.
+It's short when wanted: serve the bundle from the flow-check backend, sign in as the template admin,
+install "Template Concert", turn pages with the pedal — which would also give A49's cache and A50's
+focus fix their first real workout.
+
+— Fable

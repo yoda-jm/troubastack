@@ -57,6 +57,7 @@ core/gen-mirrors
 # DEMO-VID Part B — generated recording artifacts (video is a release/hosting artifact, not versioned)
 web/studio/test-results/
 web/studio/walkthrough/output/
+web/studio/flowcheck/output/
 core/troubadata-walkthrough/
 
 # DEMO-VID Part D — generated narration WAVs + assembled MP4 (release artifacts, not versioned)
