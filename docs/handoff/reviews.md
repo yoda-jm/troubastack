@@ -25119,3 +25119,68 @@ landing.
 The walkthrough script (**T125**), rebuilding web/bake in CI/make, bake performance, auto-retry — all left.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A52 GO — landed `15115e3`**
+
+Suite **measured**: 281, 0 failures (base 268 ⇒ **+13**, matching the claim). Files verified
+byte-identical to the reviewed tip `cc88005` before push; single parent `2782927`.
+
+### No teeth-check was specified, so I built two
+
+| probe | reddened | which |
+|---|---|---|
+| drop the `410` branch in `acceptOutcome` | **2** | `accept_410_preserves_the_servers_reason_verbatim`, `accept_410_without_a_reason_still_says_something_useful` |
+| make `PendingToken.clear()` a no-op | **1** | `arm_then_clear_leaves_nothing_behind` |
+
+The new tests are not vacuous. **But be exact about what probe 2 proves:** it guards the *holder* — that
+`clear()` clears. It does **not** guard that the UI calls it on every exit path. That wiring lives in
+`DisposableEffect { onDispose { token.clear() } }` plus eight explicit call sites, none of which any test
+reaches. Same family as the A50 wiring gap: the policy is guarded, the wiring is device-confirmed at best
+— and here not even that yet.
+
+### Verified by hand, because these were the load-bearing claims
+
+- **Token hygiene holds.** No `Log`/`println` of the token anywhere in the new code; the only
+  `storage.putSecret` in `JoinDialog` is A41's remembered *username*. The token exists in `PendingToken`
+  and the Activity's `mutableStateOf` and nowhere else.
+- **My banked A51 concern did not materialise.** I had recorded that `TroubaLink.Join` is a public data
+  class, so a hand-built `Join` would bypass the parser's canonicalisation. `git grep "TroubaLink.Join("`
+  across the app: **one hit, inside the parser.** The gate holds. Closing that note.
+- **Manifest matches the spec exactly** — one VIEW filter, DEFAULT + BROWSABLE, http and https,
+  `pathPrefix="/join/"`, `host="*"`, no `autoVerify`.
+- **`isConnected` = `cookie() != null`**, i.e. a *stored* cookie which may be expired. That is the right
+  proxy: a stale session routes to `Redeem`, the server answers 401, and both `previewOutcome` and
+  `acceptOutcome` map 401 → `NeedsSignIn`, which the sheet handles. It degrades correctly rather than
+  dead-ending.
+
+**Credit.** The lane picked up the A51 nit unprompted — the *no host* `http:///join/tok` row now has a
+test. And the `ConfirmServer` copy while T123 is held ("TroubaStage can't verify this server yet. Only
+continue if you trust who gave you this link", in error colour) is the honest thing to put in front of
+someone about to type a password into a host a QR chose. Saying "we can't verify this" is better product
+behaviour than a reassuring silence.
+
+### Two things recorded, neither blocking
+
+1. **`launchMode="singleTask"` is the one change that alters behaviour unconditionally.** Everything else
+   in A52 is inert until a `/join/` link exists; this one affects every launch — from the launcher, from
+   recents, returning from the SAF picker. The app is single-Activity so the blast radius is small, but
+   **the parked device legs must include a plain launch/recents/rotate pass, not only the four join legs.**
+   Landing to main does not put this on the tablet; installing it does. **That is the line: land now, do
+   not put this build on the gig device until that pass is run.** Concert is 2026-09-05.
+2. **The first-run `ConfirmServer` display is slightly wrong.** `transport.currentOrigin` returns `baseUrl`,
+   which is never null — it defaults to `http://10.0.2.2:8080`. So A51's `current = null` branch is
+   unreachable from this call site, and a fresh install shows *"You're on http://10.0.2.2:8080"* — the
+   emulator address, meaningless on a tablet. Cosmetic, one-line, worth folding into A53 or the device pass.
+
+**Device legs remain unrun and I did not require them.** Saying so plainly: the four join legs plus the
+launch-behaviour pass above are outstanding. A52's correctness rests on the pure seam, which I probed, and
+on wiring that nothing yet exercises.
+
+**Audit sweep: nothing retired.** New-feature scaffolding; no finding falsified, no recommendation row
+satisfied. C6/F2 unchanged.
+
+**A53 stays blocked on T123**, which is on HOLD awaiting the redirect onto `/api/version`.
+
+— Fable
