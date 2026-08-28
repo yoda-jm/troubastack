@@ -1,6 +1,7 @@
 package com.troubashare.app
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -106,8 +107,14 @@ class MainActivity : ComponentActivity() {
     // back to the foreground (not just on nav re-entry). A Compose State, so reads are tracked.
     val resumeTick = mutableStateOf(0)
 
+    // A52: the invite link that arrived via a VIEW intent (the /join/ deep link), exposed to Compose and
+    // consumed (then cleared) by the join sheet. A bearer token rides in this string, so it lives ONLY in
+    // this in-memory State — never persisted. Set on cold start (onCreate) and while running (onNewIntent).
+    val pendingLink = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingLink.value = inviteLinkFrom(intent)
         setContent {
             // A36: the theme choice lives ABOVE TroubaTheme (it drives it), so hold it here and thread
             // the setter down to the Parameters screen. Persisted; defaults to SYSTEM.
@@ -117,6 +124,14 @@ class MainActivity : ComponentActivity() {
                 App(themePref = themePref, onThemePref = { themePref = it; themeStore.putSecret(ThemePref.KEY, it.name) })
             }
         }
+    }
+
+    // A52: with launchMode=singleTask, a /join/ deep link into the RUNNING app is delivered here (not a
+    // fresh Activity). setIntent so getIntent() reflects it; publish it for the join sheet.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        inviteLinkFrom(intent)?.let { pendingLink.value = it }
     }
 
     override fun onResume() {
@@ -134,6 +149,11 @@ class MainActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 }
+
+// A52: the raw invite URL of a VIEW (deep-link) intent, or null for a plain launch. Kept as a string so
+// the shared parser (A51's parseTroubaLink) — not Android's Uri — is the single grammar the app trusts.
+private fun inviteLinkFrom(intent: Intent?): String? =
+    intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data?.toString()
 
 private class OpenedBundle(val vm: StageViewModel, val decoder: ImageDecoder)
 
@@ -185,6 +205,25 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     var manageIntent by rememberSaveable { mutableStateOf(false) }
     var connecting by remember { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
+
+    // A52: the join sheet overlays ANY screen. It opens from a /join/ deep link (the activity's in-memory
+    // pendingLink, set by onCreate/onNewIntent) or a link pasted into ConnectDialog (onInviteLink below).
+    // Placed before the screen ladder so it isn't gated by the settings/editing early-returns; it is a
+    // Dialog (its own window) so it floats over whatever screen shows. joinedTick forces Home to re-probe
+    // after a join so the new band's label/concerts appear without a manual refresh.
+    val mainActivity = LocalContext.current.findActivity() as? MainActivity
+    var joinLink by remember { mutableStateOf<String?>(null) }
+    var joinedTick by remember { mutableStateOf(0) }
+    LaunchedEffect(mainActivity?.pendingLink?.value) {
+        mainActivity?.pendingLink?.value?.let { joinLink = it; mainActivity.pendingLink.value = null }
+    }
+    joinLink?.let { link ->
+        JoinDialog(
+            rawLink = link, storage = storage, transport = transport,
+            onClose = { joinLink = null },
+            onJoined = { joinLink = null; joinedTick++ },
+        )
+    }
 
     if (settings) {
         // A36 Parameters hub. Theme comes from the entrypoint (it drives TroubaTheme); the Stage
@@ -245,7 +284,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         var homeIdentity by remember { mutableStateOf<Identity>(Identity.Checking) }
         // A38: Retry re-runs the probe without a foreground round-trip; bump this to re-key the effect.
         var retryTick by remember { mutableStateOf(0) }
-        LaunchedEffect(activity?.resumeTick?.value, retryTick, refreshTick) {
+        LaunchedEffect(activity?.resumeTick?.value, retryTick, refreshTick, joinedTick) {
             // No session cookie → Guest. Split by whether a server was ever configured: known → offer
             // Sign in (address saved, password only); unknown → offer the full Connect set-up.
             if (!transport.isConnected) {
@@ -451,7 +490,11 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         }
         // A38: Connect is a MODAL overlaying Home (Home stays visible behind), not a full-screen page.
         if (connecting) {
-            ConnectDialog(storage, transport, discovery, onClose = { connecting = false; retryTick++ })
+            ConnectDialog(
+                storage, transport, discovery,
+                onClose = { connecting = false; retryTick++ },
+                onInviteLink = { joinLink = it; connecting = false }, // A52: hand the pasted link to the join sheet
+            )
         }
         return
     }
@@ -468,7 +511,11 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         )
         // A38: Connect modal also overlays the concert list (Manage → Connect).
         if (connecting) {
-            ConnectDialog(storage, transport, discovery, onClose = { connecting = false })
+            ConnectDialog(
+                storage, transport, discovery,
+                onClose = { connecting = false },
+                onInviteLink = { joinLink = it; connecting = false }, // A52: hand the pasted link to the join sheet
+            )
         }
         BackHandler { atHome = true } // A27: system-back from the concert list also returns to Home
         return

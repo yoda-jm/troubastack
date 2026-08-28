@@ -48,6 +48,7 @@ fun ConnectDialog(
     transport: HttpTransport,
     discovery: ServerDiscovery = ServerDiscovery { flowOf(emptyList()) },
     onClose: () -> Unit,
+    onInviteLink: (String) -> Unit = {},
 ) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -56,7 +57,7 @@ fun ConnectDialog(
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
         ) {
-            ConnectContent(storage, transport, discovery, onDone = onClose)
+            ConnectContent(storage, transport, discovery, onDone = onClose, onInviteLink = onInviteLink)
         }
     }
 }
@@ -70,8 +71,12 @@ private fun ConnectContent(
     transport: HttpTransport,
     discovery: ServerDiscovery,
     onDone: () -> Unit,
+    onInviteLink: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    // A52: pasting an invite link is THE path — it names the server, so the person never hand-types a
+    // URL. Manual sign-in below is the floor (camera denied/absent, iOS, or no link to hand).
+    var inviteLink by remember { mutableStateOf("") }
     var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
     // A41: seed the last username so Sign in after a Disconnect needs only a password. The password
     // field is never seeded (below) — the secret stays unpersisted.
@@ -96,6 +101,19 @@ private fun ConnectContent(
             "Sign in to see concerts your band has baked and download them. Playing works offline without an account.",
             style = MaterialTheme.typography.bodyMedium,
         )
+        // A52: paste an invite link — it names the server, so the person doesn't type a URL. Acting on it
+        // is routed through A51's joinDecision by the JoinDialog the host opens; this modal just hands the
+        // string up and closes. The Join button is enabled for any non-blank paste; a bad link is refused
+        // (with a reason) by the parser in the sheet, not eagerly here.
+        Text("Have an invite link?", style = MaterialTheme.typography.labelLarge)
+        OutlinedTextField(
+            inviteLink, { inviteLink = it }, label = { Text("Paste invite link") },
+            singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Button(enabled = !busy && inviteLink.isNotBlank(), onClick = { onInviteLink(inviteLink.trim()) }) { Text("Join") }
+        }
+        Text("or sign in manually", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // B06: discovered servers on this network, above the URL field. Tap to prefill the URL.
         if (discovered.isNotEmpty()) {
             Text("Servers on this network", style = MaterialTheme.typography.labelLarge)

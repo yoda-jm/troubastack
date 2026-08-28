@@ -41,6 +41,13 @@ class JoinLinkTest {
         assertTrue(parseTroubaLink("https://h/join/tok/extra") is TroubaLink.Unsupported)
     }
 
+    @Test fun no_host_is_unsupported() {
+        // A51 review nit: the parse table's "no host" row had no test. `http:///join/tok` has an empty
+        // authority ⇒ null origin ⇒ Unsupported. (Covered here since A52 touches the join package.)
+        assertTrue(parseTroubaLink("http:///join/tok") is TroubaLink.Unsupported)
+        assertTrue(parseTroubaLink("https:///join/tok") is TroubaLink.Unsupported)
+    }
+
     @Test fun empty_over_long_or_bad_charset_token_is_unsupported() {
         assertTrue(parseTroubaLink("https://h/join/") is TroubaLink.Unsupported)          // empty
         assertTrue(parseTroubaLink("https://h/join/${"a".repeat(513)}") is TroubaLink.Unsupported)

@@ -18,13 +18,29 @@
              the Activity. Without this, rotating mid-performance recreated MainActivity and dropped
              App()'s `remember`ed nav state → kicked back to the Concerts list. It also lets Stage's
              A12 two-up engage on rotate (BoxWithConstraints re-measures) instead of exiting Stage. -->
+        <!-- A52: launchMode=singleTask so a /join/ deep link into a RUNNING app is delivered to the
+             existing instance via onNewIntent() instead of spawning a second MainActivity (and a second
+             Stage). The cold-start intent is read in onCreate; both feed the same in-memory pendingLink. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- A52: an invite link (http/https, path /join/…) offers TroubaStage. No autoVerify — these
+                 are plain-http LAN servers with no hosted assetlinks.json, so Android shows a chooser
+                 (Chrome / TroubaStage) rather than opening silently, which is correct for a URL from
+                 outside. host="*" is deliberate (we can't enumerate our own hosts); it is safe only
+                 because A51's ConfirmServer gate is load-bearing and tested. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="*" android:pathPrefix="/join/" />
+                <data android:scheme="https" android:host="*" android:pathPrefix="/join/" />
             </intent-filter>
         </activity>
     </application>

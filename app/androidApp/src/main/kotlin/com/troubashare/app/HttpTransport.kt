@@ -6,6 +6,10 @@ import com.troubashare.shared.distribution.BakeProgress
 import com.troubashare.shared.distribution.ManifestTransport
 import com.troubashare.shared.distribution.originOf
 import com.troubashare.shared.home.bandLabel
+import com.troubashare.shared.join.AcceptOutcome
+import com.troubashare.shared.join.PreviewResult
+import com.troubashare.shared.join.acceptOutcome
+import com.troubashare.shared.join.previewOutcome
 import com.troubashare.shared.seams.SESSION_COOKIE_KEY
 import com.troubashare.shared.seams.SESSION_ORIGIN_KEY
 import com.troubashare.shared.seams.Storage
@@ -170,6 +174,51 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         storage.putSecret(SESSION_ORIGIN_KEY, originOf(baseUrl))              // bind it to this server
         return null
     }
+
+    // A52 — join-from-a-link. Both routes are `a.auth(...)`-wrapped, so a session for THIS server is
+    // required; the flow arranges baseUrl == the link's origin (a Redeem is already there; a SignIn signs
+    // in here; a ConfirmServer switchServer()s here first) before calling either. The token is a bearer
+    // credential passed as an argument — NEVER stored, NEVER logged (no logging plugin is installed, and
+    // we log the host not the token anywhere else).
+    @Serializable private data class InviteResp(
+        val band: BandRef = BandRef(), val role: String = "", val valid: Boolean = false,
+        val reason: String = "", val error: String = "",
+    ) { @Serializable data class BandRef(val id: String = "", val name: String = "") }
+
+    /** Preview `GET /api/invite-links/{token}` before committing → band + role, or the server's reason for
+     *  an unusable link. No local cookie ⇒ [PreviewResult.NeedsSignIn] without a round-trip; a network
+     *  failure ⇒ [PreviewResult.Failed] with status 0 (the sheet says "couldn't reach the server"). */
+    suspend fun previewInvite(token: String): PreviewResult {
+        val ck = cookie() ?: return PreviewResult.NeedsSignIn
+        return runCatching {
+            val resp = client.get("$baseUrl/api/invite-links/$token") { header("Cookie", ck) }
+            val body = if (resp.status == HttpStatusCode.OK) resp.body<InviteResp>() else null
+            previewOutcome(resp.status.value, body?.band?.name, body?.role, body?.valid ?: false, body?.reason)
+        }.getOrElse { PreviewResult.Failed(0) }
+    }
+
+    /** Accept `POST /api/invite-links/{token}/accept` → membership. 410 Gone carries the server's reason
+     *  (expired/revoked/exhausted); a network failure ⇒ [AcceptOutcome.Failed] with status 0. */
+    suspend fun acceptInvite(token: String): AcceptOutcome {
+        val ck = cookie() ?: return AcceptOutcome.NeedsSignIn
+        return runCatching {
+            val resp = client.post("$baseUrl/api/invite-links/$token/accept") { header("Cookie", ck) }
+            val band = if (resp.status.isSuccess()) runCatching { resp.body<InviteResp>().band.name }.getOrNull() else null
+            val reason = if (resp.status == HttpStatusCode.Gone) runCatching { resp.body<InviteResp>().error }.getOrNull() else null
+            acceptOutcome(resp.status.value, band, reason)
+        }.getOrElse { AcceptOutcome.Failed(0) }
+    }
+
+    /** A52: point the app at [url] for a join that named a different server, dropping any session bound to
+     *  the OLD origin (defense-in-depth with [sessionCookieFor]). The ConfirmServer path calls this after
+     *  the person confirms the host — so a subsequent sign-in + accept run against the chosen server. */
+    fun switchServer(url: String) {
+        dropSessionIfOriginChanged(storage, url.trim())
+        storage.putSecret(CORE_URL_KEY, url.trim())
+    }
+
+    /** The origin the app currently points at (for A51's `joinDecision`). */
+    val currentOrigin: String get() = baseUrl
 
     /** Clear the persisted session (Storage is overwrite-only, so empty == signed out) — and drop it
      *  from the Edit WebView's shared cookie jar too, so signing out signs out everywhere. */
