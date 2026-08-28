@@ -46,13 +46,19 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	// Build identity (T29): unauthenticated, like /healthz — what version is this
-	// binary, when was it built, and does it carry a real embedded SPA? Diagnosis
-	// (stale build / placeholder / SPA↔server mismatch) and the future app↔server
-	// compatibility hook. Display only — NO version gating happens anywhere yet.
+	// Build identity (T29) + server identity (T123): unauthenticated, like /healthz. The build fields
+	// (version/builtAt/spaEmbedded) diagnose a stale build / placeholder / SPA↔server mismatch and MOVE
+	// every rebuild. The T123 identity fields are the compatibility hook this comment always promised: a
+	// `product` marker so a client (e.g. a phone about to show a password field for a scanned QR host)
+	// can confirm it's a TroubaStack server before it trusts the host, and `apiVersion` — the /api
+	// CONTRACT version, which must NOT move on a rebuild (bump it only on a breaking /api shape change).
+	// Deliberately minimal: no build hash, Go version, host, or any user/band counts — reachable by
+	// anything that can open a socket, so its job is identification, not disclosure.
 	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
+			"product":     "troubastack",
+			"apiVersion":  apiVersion,
 			"version":     buildinfo.Version(),
 			"builtAt":     buildinfo.BuiltAt(),
 			"spaEmbedded": webassets.SPAEmbedded(),

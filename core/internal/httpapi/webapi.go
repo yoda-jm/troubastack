@@ -129,6 +129,12 @@ func (a *WebAPI) auth(h authedHandler) http.HandlerFunc {
 
 // ---- auth handlers ----
 
+// apiVersion is the version of the relational API contract this server speaks — served (with a product
+// marker) by GET /api/version (T123, in doc.go). Bump it on a breaking change to the /api/* shape so a
+// client can refuse a server it doesn't understand. A CONTRACT version, distinct from the build version
+// beside it, which moves every rebuild.
+const apiVersion = 1
+
 func (a *WebAPI) register(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Username    string `json:"username"`
