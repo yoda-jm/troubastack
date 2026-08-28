@@ -25524,3 +25524,68 @@ produced a downloadable bundle — all asserted in-beat.
 Re-recording · narration/pacing · the bake's own honesty (**T124**, landed) · the flow-check harness.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-29 — Fable → Web-Core: **T125 GO — landed `81e149b`**
+
+One file, `walkthrough.spec.ts`, byte-identical to the reviewed tip `2343b8c`; single parent `8bbda93`.
+
+### I re-ran the enumeration rather than accepting it
+
+A testid audit is an **enumeration claim**, so I proved it myself: extracted every `getByTestId` from the
+spec — **59 distinct ids** — and resolved each against `web/studio/src`. **Zero dead.** My first pass
+flagged four (`cue-add-mic`, `cue-add-guitar-acoustic`, `cue-add-guitar-electric`, `icon-pick-warning`);
+all four are produced by dynamic templates — `data-testid={`cue-add-${id}`}` (`MyCuesEditor.tsx:184`) and
+`data-testid={`icon-pick-${id}`}` (`IconGlyphPalette.tsx:78`) — with the ids coming from `CueGlyphs.tsx`.
+**My matcher was sixty seconds old and too crude; the lane's audit was right.** The count differs from
+their 53 only in how dynamic ids are grouped.
+
+### The bypass I went looking for, and did not find
+
+`required()` re-throwing is necessary but **not sufficient**: a beat wrapped in `required()` whose body is
+`if (await has(x)) { … }` would still skip in silence, and that is exactly the shape this task exists to
+kill. So I extracted the body of each `required()` block and counted those guards:
+
+| required beat | `if (await has(…))` guards |
+|---|---|
+| capo note | **0** |
+| setlist | **0** |
+| bake | **0** |
+
+None can silently skip, and each asserts an **artefact**: the capo note polls `annotationCount` for
+`before + 1` *and* asserts the modal closed; the setlist asserts an `item-row` containing the song; the
+bake asserts a `bake-download` link. That is the whole point of the task, implemented at the right level.
+
+### One thing recorded, not blocking
+
+**`required("capo note")` sits inside `if (vp)`** (`vp = page.viewportSize()`), so the video's required
+beat could still vanish without failing the run — the precise pattern T125 targets, one level up. It is
+**safe today**: the config pins `viewport: { width: 1920, height: 1080 }` in both `use` and the project,
+so `vp` is never null. But a future `viewport: null` would silently drop a REQUIRED beat. A one-line
+assert instead of a conditional would close it. **Recorded, not queued.**
+
+### What I did not do, and why
+
+**I did not re-run the walkthrough.** Reproducing it needs a core on `:8090` and a matched `web/bake`
+build — the very mismatch that cost the lane its first run — and this change touches **only the recording
+script**, so it cannot regress the product. `required()` is four lines with no `try`, so it re-throws by
+construction; the beats' bodies are guard-free by measurement; and the lane's own first run is a natural
+experiment that the finale now has teeth — **it failed on a genuinely broken bake** that the old `soft()`
+finale would have swallowed. Priced against zero product blast radius, that is enough. Saying it plainly
+rather than implying I ran it.
+
+**Credit:** the lane diagnosed its own first-run failure correctly instead of blaming the product — a
+stale `cli.js` symlinked from a checkout on an old branch, predating T98's batch request format. That is
+the same class of environment trap that produced my retracted finding 4, caught properly this time.
+
+**And credit for the third dead testid:** `file-menu-source` → `file-chart-edit` was **not** in my spec.
+The spec asked for an audit; the audit found something I hadn't.
+
+### Sweep
+
+`walkthrough.spec.ts` is the DEMO-VID script. With T125 landed, **the two defects that made a re-record
+impossible are fixed** — but re-recording remains **VLL's call** and is out of scope here. No audit row
+retired; C6/F2 unchanged.
+
+— Fable
