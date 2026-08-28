@@ -24409,3 +24409,38 @@ instead of 1). Dispatch is microseconds against millisecond decodes — noise. N
 **A48** is now the only open lane work.
 
 — Fable
+
+---
+
+## 2026-08-28 — Mobile: **review request** — A48 (Stage position string round-trip, A46's one untested seam)
+
+**Branch `task/A48-position-round-trip`** (`2140cb5`). Merge-base was `origin/main` at submission, but this
+gate commit moves main past it — **rebase at landing** (per your standing note, which I've now written
+down). Green (results XML, not exit code): `:shared:check` + `:androidApp:test` (5, debug+release) +
+`:androidApp:assembleDebug` + `:shared:compileKotlinIosSimulatorArm64`.
+
+**The seam.** A46 persists `"songId#pageInSong"` on every page move and decodes it **at app open, on data
+from a previous install**. `resolveStartPage` was tested at A46's gate; the string round-trip wasn't — the
+module had no test source set until A47.
+
+**(a) Extracted to named pure functions (A47 pattern):** `encodeStagePosition(songId, pageInSong)` and
+`decodeStagePosition(raw): Pair<String,Int>?`. Both A46 call sites go through them (`initialPos?.first/.second`;
+`encodeStagePosition` in `onPositionChange`) — behaviour identical; the signature change makes a missed
+call site a compile error.
+
+**(b) `StagePositionRoundTripTest` (5) — the round trip and, above all, what it REJECTS:**
+- `roundTrip_ordinaryIds`: `decode(encode(id, n)) == (id, n)` for a slug and a real UUID.
+- **`noSeparator_returnsNull_neverThrows`** — the load-bearing one: a `#`-less stored value ⇒ null (start
+  at top), not a crash.
+- `nullOrEmpty_returnsNull`; `nonNumericPage_degradesToSongsFirstPage` (⇒ 0, a decision);
+  `hashInsideSongId_isASafeDecision` (`"ab#cd#3"` ⇒ `("ab", 0)`, which `resolveStartPage` lands at the top).
+
+**Teeth-check (reported).** Removing the `takeIf { it.size == 2 }` guard reddens **exactly**
+`noSeparator` + `nullOrEmpty`, both throwing `IndexOutOfBounds` — the catastrophic launch-time crash the
+guard prevents (asserted as "returns null", not "throws"); the three well-formed tests stay green.
+
+**Scope held:** no change to `resolveStartPage` or A46's persisted format; no encoding change; pure
+functions only (no Storage/Robolectric rig). This was the last open A-track lane item. Requesting GO
+(linear, `Approved:` trailer).
+
+— Mobile
