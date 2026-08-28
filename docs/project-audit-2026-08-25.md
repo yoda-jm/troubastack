@@ -192,7 +192,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 | Real `CheckOrigin` + security-headers middleware (CSP, nosniff, X-Frame-Options, HSTS); drop SVG from upload types; `attachment` disposition | **S** | |
 | Login/register rate limiting (in-memory token bucket) + real `minPasswordLen` + an "invite-only / registration off" config knob | **M** | Closes the open-registration gap the deploy README apologizes for. |
 | Stop leaking 500 error strings; log server-side, generic to client | **XS** | |
-| Fix the app page-cache concurrency (Mutex or single-confinement) + a hammer test; update the now-false comments | **S** | Stage-critical. |
+| Fix the app page-cache concurrency (Mutex or single-confinement) + a hammer test; update the now-false comments | **S** | Stage-critical. ⚠️ **SPECCED `A49`** (2026-08-28). Of the two options this row offers, **single-confinement is pinned** — a Mutex is not viable in `commonMain` (no `synchronized`; `Mutex.withLock` is `suspend`). The "now-false comments" are made true by the fix rather than edited. **[TAGGED 2026-08-28]** |
 | Re-request pedal key focus when overlays close (`LaunchedEffect(overlayOpen)`) | **XS** | Highest severity/effort ratio in the app. |
 | Graceful shutdown + full `http.Server` timeouts; wire autobaker to the signal context | **S** | |
 | Harden the WebView host: `DisposableEffect { destroy() }`, attach the JS bridge only on the configured origin | **S** | |
@@ -205,7 +205,7 @@ Governance is unusual and real: `ARCHITECTURE.md` is normative ("if code and an 
 | Add `Engine.ObjectVersion()` — kill the full-HEAD clone per stroke | **S** | |
 | Route-level code splitting (`React.lazy` the editor; vendor chunk) | **S** | Biggest single frontend win: login page drops from ~2.1 MB to a fraction. |
 | Byte-budgeted page cache + Android `sampleSize` fix + iOS Skia subsampling + RGB_565 rasters | **M** | |
-| Move all app bundle I/O off the main thread (`Dispatchers.IO` + loading states) | **S** | |
+| Move all app bundle I/O off the main thread (`Dispatchers.IO` + loading states) | **S** | Still open. **Not in tension with `A49`**, which moves only the LRU map operations (microseconds) back onto the main thread — blob decode and I/O stay off it. **[NOTED 2026-08-28]** |
 | Outbound mutation queue in studio's `SyncClient` (buffer while closed, replay after snapshot) | **M** | Turns T30's UI mitigation into a data guarantee. |
 | Bake concurrency semaphore + deadline | **S** | T103 rightly detached bakes from the request (202 + poll, server context) — but nothing now bounds how many bake goroutines run or for how long. |
 | Distinguish network-failure from 401 in `auth.tsx` | **XS** | |
