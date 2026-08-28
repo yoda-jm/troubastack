@@ -143,6 +143,13 @@ export function SetlistDetail() {
 // `${setlistId}~${userId}` variant concerts still list/download (read-compat).
 // liveNow: is the setlist in rehearsal live mode right now? Self-expiring server-side,
 // so we also check the client clock against liveUntil (a stale page shouldn't claim live).
+// T124: the Bake control is unavailable for a setlist with no songs — a bake of nothing is a false
+// success, so the button must not offer it (the server rejects it too, defence in depth). Exported as a
+// pure seam so a unit test can assert the behaviour without rendering the page.
+export function bakeSetlistDisabled(dialogOpen: boolean, songCount: number): boolean {
+  return dialogOpen || songCount === 0;
+}
+
 function liveNow(sl: Setlist): boolean {
   return !!sl.liveUntil && new Date(sl.liveUntil).getTime() > Date.now();
 }
@@ -271,7 +278,8 @@ function BakeCard({
               type="button"
               className="primary"
               data-testid="bake-setlist"
-              disabled={dialog}
+              disabled={bakeSetlistDisabled(dialog, songIds.length)}
+              title={songIds.length === 0 ? "Add at least one song to this setlist before baking." : undefined}
               onClick={() => setDialog(true)}
             >
               Bake setlist

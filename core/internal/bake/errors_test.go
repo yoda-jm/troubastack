@@ -132,6 +132,34 @@ func TestBakeErrors_rendererFailure_progressRecordIsUserSafe(t *testing.T) {
 	}
 }
 
+// T124 — an empty setlist (no songs) must end in a terminal FAILED record, not a song-less "success".
+// This is the defect the 2026-08-28 flow check actually hit: with the add-song beat broken, an empty
+// setlist produced a bundle of nothing and reported success. The terminal state is now derived from the
+// artefact (0 songs produced), not from a clean pipeline return.
+func TestBakeErrors_emptySetlist_isTerminalFailed(t *testing.T) {
+	svc := app.NewService(memrepo.New())
+	svc.WithBlobStore(blob.NewMem())
+	eng := engine.New(memstore.New().(store.HistoryAware))
+	u, _ := svc.Register("admin", "Admin", "password123", "")
+	band, _ := svc.CreateBand(u, "Band")
+	sl, _ := svc.CreateSetlist(u, band.ID, "Empty Gig", "", "", "") // NO items added
+	var logbuf bytes.Buffer
+	b := bakerWith(t, svc, eng, fakeRaster{pages: 1, png: tinyPNG(t, 40, 56)}, fakeOverlays{png: tinyPNG(t, 40, 56)}, newProgRec(), &logbuf)
+
+	_, id, err := b.Bake(context.Background(), band.ID, sl.ID, u, nil, "")
+	if err == nil {
+		t.Fatal("baking an empty setlist should FAIL, not produce a song-less concert")
+	}
+	p, ok := b.Progress(band.ID, sl.ID, id)
+	if !ok || p.State != BakeFailed {
+		t.Fatalf("empty setlist: expected a terminal FAILED record, got %+v ok=%v", p, ok)
+	}
+	if !strings.Contains(p.Error, "no songs") {
+		t.Errorf("failure should name the empty-setlist cause, got %q", p.Error)
+	}
+	assertUserSafe(t, "progress record", p.Error)
+}
+
 // A song-scoped failure (poppler couldn't rasterise the sheet) names the song and stays user-safe.
 func TestBakeErrors_rasterFailure_namesTheSong(t *testing.T) {
 	svc, eng, u, band, sl := seed1Annotated(t)

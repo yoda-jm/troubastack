@@ -53,15 +53,37 @@ func awaitBake(t *testing.T, c *client, band, sl string) (string, map[string]jso
 	return "", nil
 }
 
-// bakeServer builds ONE server with a real Baker (temp bakesDir) that all clients
-// share — so an admin's bake is visible to a member's list/download. Bakes here use
-// an EMPTY setlist, so poppler/web-bake are never invoked (no toolchain needed).
+// bakeServer builds ONE server with a Baker (temp bakesDir) that all clients share — so an admin's bake
+// is visible to a member's list/download. It injects okRaster so a seeded single-song setlist bakes
+// without the toolchain (T124: an empty setlist no longer bakes, so these seed a song).
+// okRaster is a toolchain-free fake: it returns one tiny PNG page for any PDF, so a bake with a real
+// (unannotated) song produces a bundle without poppler. Overlays are never rendered for an unannotated
+// song (T97), so no fake OverlayRenderer is needed.
+type okRaster struct{ png []byte }
+
+func (r okRaster) Rasterize(context.Context, []byte) ([][]byte, error) { return [][]byte{r.png}, nil }
+
+// seedSongInSetlist creates a song with a stub PDF and adds it to the setlist, so a bake produces a real
+// (single-song) bundle. T124: an empty setlist no longer bakes, so bake-endpoint tests must seed a song.
+func seedSongInSetlist(t *testing.T, c *client, bandID, setlistID string) {
+	t.Helper()
+	_, body := c.do(http.MethodPost, "/api/bands/"+bandID+"/songs", map[string]string{"title": "Sound Check"})
+	var song app.Song
+	unmarshalField(t, body, "song", &song)
+	if resp, _ := c.upload("/api/bands/"+bandID+"/songs/"+song.ID+"/files", "score.pdf", "application/pdf", smallPDF); resp.StatusCode >= 300 {
+		t.Fatalf("upload song file: %d", resp.StatusCode)
+	}
+	if resp, _ := c.do(http.MethodPost, "/api/bands/"+bandID+"/setlists/"+setlistID+"/items", map[string]string{"songId": song.ID}); resp.StatusCode >= 300 {
+		t.Fatalf("add setlist item: %d", resp.StatusCode)
+	}
+}
+
 func bakeServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	svc := app.NewService(memrepo.New())
 	svc.WithBlobStore(blob.NewMem())
 	eng := engine.New(memstore.New().(store.HistoryAware))
-	baker := bake.New(svc, eng, bake.Config{BakesDir: t.TempDir()})
+	baker := bake.New(svc, eng, bake.Config{BakesDir: t.TempDir(), Raster: okRaster{png: tinyPNGBytes(t)}})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel) // stop the P201 autobaker goroutine when the test ends
 	h, err := httpapi.Router(ctx, svc, eng, baker, false, "")
@@ -82,10 +104,11 @@ func TestBakeEndpoints_authAndFlow(t *testing.T) {
 	member.registerLogin("bob", "pw")
 	inviteAndAccept(t, admin, member, band.ID, "bob")
 
-	// An (empty) setlist to bake.
+	// A setlist with one song to bake (T124: an empty setlist no longer bakes).
 	_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists", map[string]string{"name": "Spring Gig"})
 	var sl app.Setlist
 	unmarshalField(t, body, "setlist", &sl)
+	seedSongInSetlist(t, admin, band.ID, sl.ID)
 
 	bakeURL := "/api/bands/" + band.ID + "/setlists/" + sl.ID + "/bake"
 

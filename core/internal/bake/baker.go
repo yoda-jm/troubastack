@@ -369,6 +369,17 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		bundle.Songs = append(bundle.Songs, song)
 	}
 
+	// T124: derive the terminal state from the ARTEFACT, not from reaching the end of the code. A bake
+	// that produced no songs — an empty setlist, or one whose every item dropped out — is nothing,
+	// however cleanly the pipeline returned; publishing it as a concert is a false success. The studio
+	// also guards the empty setlist at the button, but the honesty belongs here so every consumer of the
+	// terminal record (studio, tests, anything later) inherits it. (A well-formed .tstage is still written
+	// atomically below, B04/B09, so "wrote a zero-byte bundle" is not reachable on a clean return; the
+	// reachable "produced nothing" is exactly this song-less case.)
+	if len(bundle.Songs) == 0 {
+		return ConcertBundle{}, bakeID, b.fail("This setlist has no songs to bake.", fmt.Errorf("bake produced no songs (%d setlist items)", total))
+	}
+
 	// P205: carry the band roster so the viewer resolves identity at view time
 	// (logged-in Connect match ⇒ auto; anonymous ⇒ one-tap pick). Additive metadata;
 	// a roster lookup failure must not fail the bake (older/shared bakes had none).

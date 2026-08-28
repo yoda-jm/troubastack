@@ -41,10 +41,11 @@ func TestConcertPDF_endpoint(t *testing.T) {
 	member.registerLogin("bob", "pw")
 	inviteAndAccept(t, admin, member, band.ID, "bob")
 
-	// An empty setlist, baked (zero pages → the "no pages" PDF path).
+	// A one-song setlist, baked (T124: an empty setlist no longer bakes).
 	_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists", map[string]string{"name": "Gig"})
 	var sl app.Setlist
 	unmarshalField(t, body, "setlist", &sl)
+	seedSongInSetlist(t, admin, band.ID, sl.ID)
 	awaitBake(t, admin, band.ID, sl.ID) // T103: kick + poll to terminal before reading the concert
 
 	pdfURL := "/api/bands/" + band.ID + "/concerts/" + sl.ID + "/pdf"

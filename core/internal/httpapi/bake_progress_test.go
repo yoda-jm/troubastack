@@ -8,9 +8,9 @@ import (
 	"troubastack/core/internal/app"
 )
 
-// T96 — the bake-progress read endpoint. An empty setlist bakes without the toolchain
-// (succeeded 0/0), which is all this needs: the flow is header → GET → 404s → auth, not
-// the per-song counting (that's proven in internal/bake).
+// T96 — the bake-progress read endpoint. A one-song setlist bakes via the fake raster (succeeded 1/1),
+// which is all this needs: the flow is header → GET → 404s → auth, not the per-song counting (that's
+// proven in internal/bake).
 func TestBakeProgress_endpoint(t *testing.T) {
 	srv := bakeServer(t)
 	admin := &client{t: t, srv: srv}
@@ -23,6 +23,7 @@ func TestBakeProgress_endpoint(t *testing.T) {
 	_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists", map[string]string{"name": "Gig"})
 	var sl app.Setlist
 	unmarshalField(t, body, "setlist", &sl)
+	seedSongInSetlist(t, admin, band.ID, sl.ID)
 
 	base := "/api/bands/" + band.ID + "/setlists/" + sl.ID
 	// T103: the bake is a KICK (202 + id); poll to the terminal record — the outcome source of truth.
@@ -34,8 +35,8 @@ func TestBakeProgress_endpoint(t *testing.T) {
 	unmarshalField(t, pbody, "state", &state)
 	unmarshalField(t, pbody, "done", &done)
 	unmarshalField(t, pbody, "total", &total)
-	if state != "succeeded" || done != 0 || total != 0 {
-		t.Errorf("progress = {state:%q done:%d total:%d}, want succeeded 0/0 (empty setlist)", state, done, total)
+	if state != "succeeded" || done != 1 || total != 1 {
+		t.Errorf("progress = {state:%q done:%d total:%d}, want succeeded 1/1 (one-song setlist)", state, done, total)
 	}
 
 	// Unknown bake id → 404 (distinct from an empty 200).
@@ -68,6 +69,7 @@ func TestBakeProgress_suppliedIdHonoured(t *testing.T) {
 	_, body := admin.do(http.MethodPost, "/api/bands/"+band.ID+"/setlists", map[string]string{"name": "Gig"})
 	var sl app.Setlist
 	unmarshalField(t, body, "setlist", &sl)
+	seedSongInSetlist(t, admin, band.ID, sl.ID)
 	base := "/api/bands/" + band.ID + "/setlists/" + sl.ID
 
 	supplied := "12345678-1234-4234-8234-123456789abc"

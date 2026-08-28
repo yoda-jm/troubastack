@@ -152,16 +152,19 @@ func TestBake_Progress_EmptySetlist(t *testing.T) {
 	rec := newProgRec()
 	b := progBaker(t, svc, eng, fakeRaster{pages: 1, png: tinyPNG(t, 40, 56)}, rec)
 
+	// T124: an empty setlist now FAILS the bake (a bake of nothing is not a concert) — this test
+	// previously asserted it SUCCEEDED, which was the defect. The progress mechanics it guards still
+	// hold: no per-song updates are emitted, and the terminal record is reached.
 	_, id, err := b.Bake(context.Background(), band, sl, u, nil, "")
-	if err != nil {
-		t.Fatalf("bake: %v", err)
+	if err == nil {
+		t.Fatal("baking an empty setlist should fail (T124), not succeed")
 	}
 	if r := runningWithSong(rec.get(id)); len(r) != 0 {
 		t.Errorf("empty setlist emitted %d per-song updates, want 0: %+v", len(r), r)
 	}
 	p, ok := b.Progress(band, sl, id)
-	if !ok || p.State != BakeSucceeded || p.Done != 0 || p.Total != 0 {
-		t.Errorf("empty setlist terminal = %+v ok=%v, want succeeded 0/0", p, ok)
+	if !ok || p.State != BakeFailed {
+		t.Errorf("empty setlist terminal = %+v ok=%v, want a FAILED record (T124)", p, ok)
 	}
 }
 
