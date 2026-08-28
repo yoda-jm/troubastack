@@ -25062,3 +25062,60 @@ Branch FF-able off `d2b4ff5` as I write; **rebase at landing** (this gate push m
 stays blocked on T123 (web-core). Ready for review — with the device legs explicitly outstanding.
 
 — Mobile
+
+## 2026-08-29 — Web-Core → gate: T124 (a bake that produced nothing must not report success) — built, for review
+
+Branch `task/T124-bake-tells-truth` off `5cc9150`. Both sides + tests. Root-caused first, as you required.
+
+### Root-cause — it's narrower than the finding, and I'll say so plainly
+
+**Finding 4 as written ("a failed overlay render becomes a green UI") does NOT reproduce.** The
+renderer-failure path is already fail-loud: `render.go` returns on a non-zero CLI exit, `baker.go:358-361`
+maps it to a `BakeFailed` record with a user-safe "renderer isn't available" message, and
+`errors_test.go` already asserts both the log trace and the terminal record. What actually happened in the
+flow check: **step 16 asserted the confirm dialog, not the artefact** (its own acknowledged mistake), so
+it read a bake as "success" without looking at the terminal record.
+
+**The real defect is finding 3:** the terminal state was derived from the returned `err`, not the artefact
+— so an **empty setlist** (0 songs, which never reaches `RenderBatch`) produced a song-less bundle and
+reported success. That's the "produced nothing → success" this task is named for.
+
+### Fix — both sides
+
+- **Server (`baker.go`)**: after assembly, `len(bundle.Songs) == 0` → a terminal **failure** ("This
+  setlist has no songs to bake."), derived from the artefact so every consumer of the terminal record
+  inherits it. The `.tstage` is still written atomically (B04/B09), so a *zero-byte* bundle isn't
+  reachable on a clean return — the reachable "produced nothing" is exactly this song-less case.
+- **Studio (`SetlistDetail.tsx`)**: Bake button disabled for a setlist with no songs, with a `title`
+  explaining why. Logic in `bakeSetlistDisabled()`, unit-tested (3 vitest).
+- **Property 3** (terminal failure reaches the person; cli.js reads as an operator problem) was already
+  satisfied — I did **not** add a second mapping, per the rule.
+
+### The ripple — a real behaviour change, flagged for your ruling
+
+Making the **server** reject an empty-setlist bake (not just the UI) is a behaviour change, and it
+surfaced how common the empty-setlist bake was as a **toolchain-free test fixture** (an empty bake never
+invokes poppler/node). Five tests baked empty setlists; I fixed them properly: `bakeServer` now injects a
+fake rasterizer (`okRaster`) and they seed one real song (`seedSongInSetlist`) so they bake a genuine
+single-song bundle without the toolchain, and `TestBake_Progress_EmptySetlist` now asserts a **FAILED**
+terminal record (it previously asserted the buggy success). If you'd rather the empty case be **UI-guard
+only** and leave server behaviour unchanged, that's a smaller diff — but the spec's Go test ("a bake that
+produces no bundle is not recorded as successful") reads to me as wanting the server honest too, so I
+built that. Your call.
+
+### Teeth-check
+
+Removing the server guard makes an empty setlist bake to success → `TestBakeErrors_emptySetlist_isTerminalFailed`
+reddens ("baking an empty setlist should FAIL"). Reverted → green.
+
+### Counts / gates
+
+Full core `go test ./...` **green**; studio vitest **37** (34 + 3 new); `gofmt -l core` **clean**. The
+`go` CI job runs `-race`; I ran the non-race full suite here — say if you want the `-race` number before
+landing.
+
+### Not in scope (recorded)
+
+The walkthrough script (**T125**), rebuilding web/bake in CI/make, bake performance, auto-retry — all left.
+
+— Vincent Le Ligeour
