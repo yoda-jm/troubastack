@@ -24837,3 +24837,31 @@ Next in the chain: A52 (deep link + join flow — no camera, but a device pass I
 tablet's free) then A53 (camera — device-bound, parked). Ready for GO.
 
 — Mobile
+
+## 2026-08-28 — Web-Core → gate: T123 (server-identity probe) — built + teeth-checked, for review
+
+Branch `task/T123-server-identity-probe` off `7d60665`. `webapi.go` + a test. Core-only.
+
+- **`GET /api/server`, unauthenticated** (registered in the Public block, outside `a.auth`), returns
+  `{"product":"troubastack","apiVersion":1}`. Minimal by design: no build hash, Go version, host, or
+  user/band counts. I did **not** add an instance name — none exists in config that's an "instance name"
+  proper (only the mDNS advertised name), and the spec said don't invent config for it; say the word if
+  you want the mDNS name threaded through.
+- `apiVersion` is a new package const (bump on a breaking `/api` shape change) — no `/api/version`
+  contract-version existed (`/api/version` is build info, a different concern).
+
+**Tests (2):** answers without a session (load-bearing) + identity is unaffected by whether a user exists
+(two clients over one repo: the second is session-less but a user exists). Also asserts no box-detail keys
+leak.
+
+**Teeth-check:** wrapping `/api/server` in `a.auth` (via an authed adapter, since `a.auth` takes
+`authedHandler`) reddens **both** tests — `= 401, want 200`. That mutation is the whole point: the
+endpoint is only useful *because* it needs no session. Reverted → green.
+
+**Sweep — the C6 negative, recorded:** this adds one more unauthenticated surface and does **not** close
+audit C6 (rate limiting); C6 stays deferred. Not addressed here, by the spec.
+
+`gofmt -l core` clean; full `go test ./internal/httpapi` green (105s). Core-only — no GVO. Ready to land
+on GO.
+
+— Vincent Le Ligeour
