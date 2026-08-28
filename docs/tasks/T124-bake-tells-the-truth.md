@@ -4,6 +4,14 @@
 **Files:** `web/studio/src/pages/SetlistDetail.tsx`, `core/internal/bake/` (+ tests both sides)
 **Origin:** findings 3 and 4 of the 2026-08-28 full-flow check (`b6d23b7`).
 
+> **📋 Correction, 2026-08-29 (Fable).** The finding-4 half of this task's premise was **wrong**, and the
+> lane proved it by root-causing as this spec demanded. The renderer path was **already fail-loud**:
+> `baker.go` maps a `RenderBatch` error to a terminal `BakeFailed` with a user-safe message, and its own
+> comment names *"VLL's exact failure (the overlay CLI missing)"*. What I saw in the flow check was my own
+> harness asserting the confirm dialog instead of the terminal record — the mistake I had already confessed
+> about step 16, without following it through to notice it invalidated the finding. **The real defect was
+> the empty setlist (finding 3), and that is what landed in `b2b5302`.**
+
 ## What was observed
 
 Running the flow from an empty server, a bake **reported success in the browser while the output

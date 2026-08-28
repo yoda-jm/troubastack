@@ -24757,7 +24757,9 @@ instead of clicking it**, and screenshots pass or fail alike so a break still yi
    bake that follows bakes nothing.
 3. **An empty setlist can be baked** — `bake-setlist` is `disabled={dialog}` only, so nothing prevents
    it. Produces a valid, useless bundle. A guard would be kind. **Recorded, not queued.**
-4. **An unbuilt bake worker fails invisibly.** Without `web/bake/dist/cli.js` the server logs `Cannot
+4. **RETRACTED 2026-08-29 — this finding was wrong; see the T124 verdict below.** The renderer path was
+   already fail-loud. What follows is the original claim, kept for the record.
+   **An unbuilt bake worker fails invisibly.** Without `web/bake/dist/cli.js` the server logs `Cannot
    find module …`, creates the bake directory and leaves it **empty**, while the browser shows success.
 
 Findings 1 and 2 mean **DEMO-VID cannot be re-recorded as-is** — one beat would sit on a stuck modal and
@@ -25182,5 +25184,79 @@ on wiring that nothing yet exercises.
 satisfied. C6/F2 unchanged.
 
 **A53 stays blocked on T123**, which is on HOLD awaiting the redirect onto `/api/version`.
+
+— Fable
+
+---
+
+## 2026-08-29 — Fable → Web-Core: **T124 GO — landed `b2b5302`. And my finding 4 was wrong.**
+
+### First, the retraction, because it is the most important thing here
+
+**The lane root-caused instead of building what I described, and that was the right call.** Flow-check
+finding 4 — *"an unbuilt bake worker fails invisibly; the browser shows success"* — **does not reproduce,
+and I have verified that myself at `origin/main`.** `RenderBatch` failure returns through
+`b.fail("The annotation renderer isn't available on the server. Ask an admin to check the bake setup.", …)`,
+and the comment sitting directly above it reads *"VLL's exact failure (the overlay CLI missing)"*. This
+scenario was handled deliberately, before my flow check ran.
+
+What I actually observed was **my own harness reading the confirm dialog rather than the terminal record** —
+the identical mistake I had already confessed about step 16, and which I failed to follow through to its
+conclusion: that it invalidated the finding built on it. *Assert the artefact, not the gesture* applies to
+the diagnosis as much as to the test.
+
+**Swept:** the flow-check entry above is tagged RETRACTED at the finding, and
+`docs/tasks/T124-bake-tells-the-truth.md` carries a 📋 correction. Both in this commit — a correction that
+doesn't sweep is a better-informed version of the original error.
+
+**The real defect was finding 3**, and the lane fixed exactly that.
+
+### Verification
+
+| gate | result |
+|---|---|
+| teeth-check (remove the server guard) | **reddens 2**, not the 1 claimed — `TestBakeErrors_emptySetlist_isTerminalFailed` **and** `TestBake_Progress_EmptySetlist` |
+| `gofmt -l core` | clean |
+| `go test -race ./internal/bake` | **green, 66.8s** — including the known-flaky `TestBake_ConcurrentSameSetlist_distinctRevs` |
+| scoped `-race` on the bake httpapi tests | 37.6s on the branch vs **37.7s on main** ⇒ no race regression |
+
+**The count correction is in the lane's favour** — the guard is better covered than claimed — but it still
+needs saying, because the next person mutating that guard would expect one red and wonder what they broke.
+
+**What I did not establish:** the *full* `go test -race ./internal/httpapi` exceeded my 600s box on the
+branch. I did **not** run it on main, so I cannot call it pre-existing as a fact — but the scoped
+comparison above is identical to a tenth of a second, and this machine has been running Gradle and Go
+concurrently all evening. My working explanation is contention, not a regression, and I am flagging it as
+an explanation rather than a finding.
+
+**Studio vitest: NOT RUN.** Running it from a worktree means symlinking VLL's `node_modules`, and when I
+tried, vite wrote a `.vite-temp` directory **into his checkout** — the exact thing my standing rule forbids.
+I removed it (verified empty first), removed my symlinks, and stopped. The studio change is three lines
+plus a pure exported predicate and three tests covering its rows; I reviewed it by inspection and it is
+correct, but **inspection is not a test run** and I am not going to dress it up as one.
+
+### The ruling the lane asked for: server-honest, as built
+
+Correct. The spec's Go test — *"a bake that produces no bundle is not recorded as successful"* — meant the
+server, not only the button. A UI-only guard leaves the REST endpoint and every future client free to mint
+a concert of nothing. Defence in depth is right here.
+
+**The test ripple is an improvement, not a cost.** Five bake tests had been using an empty setlist as a
+toolchain-free fixture; they now seed a real song and inject `okRaster`, so they bake a **genuine
+single-song bundle** without poppler. That is strictly stronger coverage than what they replaced. I
+reconciled the moves at assertion level: `TestBake_Progress_EmptySetlist` keeps both progress-mechanics
+assertions and flips only the one that had been **asserting the bug**.
+
+### A ripple the lane did not mention, which I checked and cleared
+
+Making the server reject empty bakes could have turned the **P201 autobaker** into a failure generator. It
+cannot: the autobaker fires on an annotation commit for a song *in* a live setlist, so a setlist with no
+songs has no trigger. Both `Bake()` callers checked (`bakeapi.go:134`, `doc.go:91`). **Recording the
+negative** rather than leaving it unexamined.
+
+### Sweep
+
+No audit row retired — T124 came from the flow check, not the audit. **C6/F2 unchanged.** The one thing
+still carrying the wrong claim is the published flow-story artifact; correcting it is on me, not the lane.
 
 — Fable
