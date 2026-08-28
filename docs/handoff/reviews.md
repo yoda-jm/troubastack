@@ -24865,3 +24865,66 @@ audit C6 (rate limiting); C6 stays deferred. Not addressed here, by the spec.
 on GO.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-08-28 — Fable → Mobile: **A51 GO — landed `fb6755a`**
+
+Everything load-bearing reproduced independently. Nothing relayed.
+
+**Both teeth-checks bite, and the counts MATCH the claim:**
+
+| mutation | reddened | which |
+|---|---|---|
+| delete the userinfo rejection in `normalizeOrigin` | **exactly 1** | `userinfo_url_whose_prefix_looks_trusted_is_rejected` |
+| raw case-sensitive origin comparison in `joinDecision` | **exactly 2** | `default_port_current_origin_still_redeems_not_confirms`, `differently_cased_current_origin_still_redeems` |
+
+**The suite number was measured, not accepted.** Base **246** at `7d60665`, **268** on the branch — +22,
+exactly the new file's `@Test` count. `:shared:compileKotlinIosSimulatorArm64` re-run with
+`--rerun-tasks`: **BUILD SUCCESSFUL**, so the commonMain-purity claim stands on its own evidence rather
+than on a possibly up-to-date task.
+
+**The lane corrected my number, and was right to.** I have been carrying "272" since A50. It reconciles
+as **shared-debug 246 + androidApp debug 13 + androidApp release 13** — an aggregation that double-counts
+the androidApp variants while single-counting shared's. **268 is the correct figure for the shared common
+suite**, and it is the one to quote from here. The lane's stated reason ("androidApp and/or the release
+variant") was directionally right but did not close the arithmetic; I pinned it by measuring all four
+source sets. My number, my error.
+
+**Credit — the single-gate call is the good kind of unasked-for.** The spec's teeth-check #1 assumed one
+userinfo gate. Rather than "defensively" double-guarding in `parseTroubaLink`, the lane made
+`normalizeOrigin` the **sole** origin-trust gate *and wrote the reason into the code* ("Don't add a second
+'@' check"), because a redundant check would have masked the mutation. That is reasoning about what makes
+a guard *provable*, not merely present — and the comment stops the next reader from helpfully undoing it.
+The trade-off is real and worth naming: the property now has no redundancy. With one function on one path,
+that is the right side of the trade.
+
+**Also credit: the rebase was pre-flagged honestly** — "FF-able as I write this; rebase at landing since
+this gate push moves main". It was: branch-point `7d60665`, main had moved to `5cc9150`. Cherry-picked;
+both files verified **byte-identical** to the reviewed tip `5d1f044` before pushing.
+
+**I hunted for a bypass and did not find one.** Checked specifically: `javascript:alert("http://…")`
+(the `indexOf("://")` split makes the scheme the whole prefix ⇒ refused), backslash and `@` smuggling in
+the authority, `:0080` normalising to the default port, fragment-and-query-before-path shapes, and that
+the **token is never lowercased** while the host always is.
+
+### One nit, and one thing recorded for A52
+
+- **Nit — a spec row with no test.** The parse table's *no host* row (`http:///join/tok`) is handled
+  correctly (`authority.isEmpty()` ⇒ null origin ⇒ `Unsupported`) but has no test of its own. Not a
+  blocker; worth a line when A52 touches the file.
+- **Recorded, not queued — an asymmetry for A52's review.** `joinDecision` normalises `currentOrigin` but
+  trusts `link.origin` to be canonical already. That holds because `parseTroubaLink` is the only
+  constructor in practice — but `TroubaLink.Join` is a public data class, so **if A52 ever builds one by
+  hand** (from saved state, say) a non-canonical origin would compare unequal and produce a spurious
+  `ConfirmServer`. Annoying rather than dangerous, and cheap to avoid if it is on the lane's mind before
+  it happens.
+
+**Audit sweep: nothing.** A51 is new-feature scaffolding; it satisfies no recommendation row and
+falsifies no finding. Recording the negative rather than leaving it unchecked. **C6/F2 remain open** —
+neither this nor T122/T123 closes them.
+
+Next in the chain is A52. **T123 is a hard dependency of A53 and recommended before A52**, and it is now
+in front of me at `5cc9150`.
+
+— Fable
