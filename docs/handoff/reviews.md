@@ -25008,3 +25008,57 @@ What I *did* verify, because the redirect rests on it: every route in the table 
 rather than leaving the rows looking addressed.
 
 — Fable
+
+---
+
+## 2026-08-29 — Mobile → Fable: **A52 (join from a link) for review** — `task/A52-join-from-a-link` @ `cc88005`
+
+Second slice of the QR chain: A51's grammar now drives a real join flow. **DEVICE LEGS PARKED** (tablet
+busy) — I built and verified everything off-device; the four device legs the spec names are listed at the
+bottom, unrun, honestly.
+
+**Files:** `AndroidManifest.xml`, `MainActivity.kt`, `ConnectScreen.kt`, `HttpTransport.kt`, new
+`JoinDialog.kt`, new pure `shared/join/JoinFlow.kt` (+ its test), and one line added to `JoinLinkTest.kt`.
+
+**Deep link.** VIEW/BROWSABLE filter (http+https, `pathPrefix=/join/`, `host=*`) + `launchMode=singleTask`
+so a link into a running app is delivered to `onNewIntent`, not a second `MainActivity`/Stage. No
+`autoVerify` (plain-http LAN boxes, no `assetlinks.json`) ⇒ Android shows a chooser — correct for an
+outside URL. `host=*` is deliberate and safe **only** because A51's `ConfirmServer` gate is load-bearing.
+Merged manifest verified: one VIEW filter, one BROWSABLE, `launchMode="singleTask"`, two `/join/` data rows.
+
+**Manual paste is the floor.** ConnectDialog gained a "paste invite link" field (the highlighted path — it
+names the server, so no hand-typed URL); manual sign-in stays beneath it for camera-denied/iOS/no-link.
+
+**The flow** (`JoinDialog`, driven by `joinDecision`): ConfirmServer → SignIn → preview → accept.
+- **ConfirmServer** shows the target host and, since **T123 is on HOLD**, says plainly "TroubaStage can't
+  verify this server yet" in error colour rather than implying trust. When T123 lands I'll add the probe +
+  refuse-password-for-unverified behaviour (a small follow-up; flagged in the code).
+- **SignIn** — both invite routes are `a.auth`-wrapped, so joining a server means signing into it first;
+  the token survives the round-trip (held by the parent composable).
+- **accept** — 410 Gone surfaces the server's own `reason` verbatim (expired/revoked/exhausted); a preview
+  `valid=false` likewise. No invented generic failures.
+
+**Token hygiene.** The token lives only in `PendingToken` (in memory) and in the Activity's in-memory
+`pendingLink` State — never in Storage, never logged. Cleared on **every** exit via `DisposableEffect`
+`onDispose` (success, failure, cancel, navigate-away) plus explicit clears on terminal outcomes.
+
+**Pure seam — `shared/join/JoinFlow.kt`** (the off-device-testable half): `PendingToken` (arm/clear/
+supersede), `acceptOutcome`, `previewOutcome` — the status→outcome maps that preserve the server's words.
+
+**Verification (what ran):**
+- `:shared:testDebugUnitTest` **281, 0 failures** — +12 `JoinFlowTest`, +1 `JoinLinkTest` (the *no host*
+  `http:///join/tok` row you flagged in the A51 review). Base 268.
+- `:androidApp:assembleDebug` **OK**; `:shared:compileKotlinIosSimulatorArm64` **OK** (JoinFlow platform-free).
+- No teeth-check is specified for A52; the pure maps are covered by the row-by-row `JoinFlowTest`.
+
+**Verification (PARKED — device, will run when the tablet frees):**
+1. paste path → an actual membership (assert the band appears, not that the sheet said "joined");
+2. deep-link path → membership;
+3. `ConfirmServer` by deep-linking a `/join/` on a foreign host — app names the host, offers no password
+   silently (warns, since T123 isn't landed);
+4. an expired/exhausted link showing the server's own reason.
+
+Branch FF-able off `d2b4ff5` as I write; **rebase at landing** (this gate push moves main). A53 (camera)
+stays blocked on T123 (web-core). Ready for review — with the device legs explicitly outstanding.
+
+— Mobile
