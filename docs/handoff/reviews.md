@@ -26169,3 +26169,72 @@ the A53 verdict: the happy path to an actual membership, the expired-link reason
 build goes on the tablet. Concert **2026-09-05**.
 
 — Fable
+
+---
+
+## 2026-08-29 — Fable: **server redeployed, and I ran the parked device legs myself** (VLL: *"redeploy the server and let's do the device legs"*)
+
+### 1. `:8080` redeployed — the ordering constraint is cleared
+
+```
+before: {"builtAt":"2026-08-25T22:09Z","spaEmbedded":true,"version":"403016c-dirty"}
+after : {"apiVersion":1,"product":"troubastack","spaEmbedded":true,"version":"4ea8854-dirty"}
+```
+
+Built current main with the SPA embedded, **smoke-tested the new binary in isolation on a scratch port
+first** (the first attempt failed — I'd guessed `TROUBA_ADDR`; the key is `TROUBACORE_ADDR`. It bounced off
+the live port and changed nothing, which is the point of testing before swapping), then swapped.
+
+**Same data directory**, and the store loaded: 5 accounts, 1 band, 46 songs, 1 setlist. No stray fresh
+store was created; `/api/bands` returns 401 not 500; mDNS advertises again (the tablet's discovery list
+shows it). **Not verified: an authenticated round-trip** — the account I assumed is the `make demo` seed,
+not one in this dataset, and I will not guess passwords or replay a stored session token from `app.json`.
+**VLL should sign in once to confirm end-to-end.** Data backed up first to
+`/home/yoda/troubastack-demo-data-2026-08-29.tar.gz`.
+
+**⚠️ Both the demo's data and its binary live under `/tmp` (tmpfs)** — the data in a scratchpad from a
+session that ended on the 26th. **A reboot destroys the demo's users, band, songs and bakes.** Eight days
+out, that is worth relocating; flagged for VLL, not acted on.
+
+### 2. Device legs — four run, two impossible
+
+Against a **throwaway T123 rig on `:18099`** (VLL's choice, so his data was never touched), current-main
+debug APK installed on the tablet.
+
+| leg | result |
+|---|---|
+| **happy path → an actual membership** | ✅ deep link → ConfirmServer named the host with **zero password fields** → Continue → probe accepted → sign-in → preview (*band + role*) → Join. **Artefact asserted on the server**: the band's members are now admin + the joiner, role `member`. |
+| **revoked link → the server's own reason** | ✅ device showed `revoked`; the server's preview returns `{"reason":"revoked","valid":false}` |
+| **camera denied → paste fallback** | ✅ *"Camera access is off, so scanning isn't available. You can paste the invite link instead."* + a **working** "Paste a link instead" button — never a dead end |
+| **camera dark on leaving** | ✅ active client `com.troubashare.app` on Camera ID 0 while open; **`Active Camera Clients: []`** after Back |
+| decode a real QR | ❌ **cannot** — needs a physical code in front of the lens |
+| no double-redeem | ❌ **cannot** — requires a decode first |
+
+**The blocker that stopped the lane is solved, and it was the harness, not the app:** the soft keyboard
+re-lays-out the dialog between taps, so coordinates from a pre-IME dump land outside it and dismiss the
+sheet. **Tap the first field once, then `KEYCODE_TAB` to the second** — do not re-tap from a stale dump.
+
+### 3. A correction to the A55 device record — before someone re-verifies and thinks it regressed
+
+The A55 submission reported the Studio node as `clickable="false"`. On my dump it is
+**`clickable=true`, `enabled=false`** — Compose keeps the click semantics node and gates dispatch on
+`enabled`. Same conclusion, **different attribute**, and anyone re-checking by grepping for
+`clickable="false"` would wrongly conclude it broke.
+
+So I proved it behaviourally instead, with a control arm on the same screen: **tapping the disabled Studio
+tile leaves you on Home; tapping the enabled TroubaStage tile navigates to Perform.** That is the assertion
+that matters — `enabled=false` actually blocks the tap.
+
+### Recorded, not queued
+
+- **The revoked reason is surfaced raw.** The sheet shows the bare machine word `revoked`. The spec said
+  use the server's words rather than invent a generic failure, and that is honoured — but `revoked` alone,
+  with no sentence around it, is terse for a person holding a dead link.
+- The tablet is left **signed out**, camera permission **restored to denied** (as found), and pointed at
+  the throwaway rig, which is in `/tmp` and will not survive a reboot. VLL reconnects to his own server
+  normally.
+
+**Remaining before this build is gig-ready: the two camera legs that need a physical QR.** Everything else
+in the A51–A55 chain is now device-confirmed.
+
+— Fable
