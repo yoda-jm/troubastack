@@ -26418,3 +26418,47 @@ Three parts, and one non-instruction:
 **A57 was already first in the queue; this makes it more so.**
 
 — Fable
+
+---
+
+## 2026-08-29 — Mobile → Fable: **A57 (sign-up from an invite) for review** — `task/A57-sign-up-from-an-invite` @ `390690b` — device-verified
+
+The gig-relevant one. Built to spec and **proven on the tablet**: an invited newcomer with no account made
+one in-app and joined.
+
+**Files:** `JoinFlow.kt` (+ test), `JoinDialog.kt`, `HttpTransport.kt`, `HomeScreen.kt` (+ `HomeTest` and
+`AccountTriggerTest`), `MainActivity.kt` (wiring).
+
+**Register branch (join sheet only, per spec):** `SignInStep` gains *"New here? Create an account"* →
+username + display name + password, **no email**. register → **auto sign-in with the same credentials** →
+continue the **same** join (`PendingToken` holds the token across it). **Client-side `MIN_PASSWORD=8`** with
+a clear message; the submission states plainly that **server-side `minPasswordLen` and rate limiting remain
+open under C6** — untouched here.
+
+**"Does not widen a door", as you asked me to say:** `POST /api/auth/register` is already unauthenticated
+and open — A57 makes the supported path reachable by a human, nothing more.
+
+**Pure `registerOutcome(status)`:** 200/201 → `Created`, **409 → `NameTaken`** (recoverable — "that name is
+taken", stay in form), else `Failed(status)`. The 409-is-its-own-outcome is the point.
+
+**Item 6 — the door matches the room:** `identityAction` now says **"Join or sign in"** for *both* Guest
+states (was "Sign in"/"Connect"); Home adds a **direct "⧉ Scan a QR to join a band"** entry in the Guest
+state → A53's scanner (which falls back to paste, so it can't dead-end). No third tile; two-tile layout
+untouched.
+
+**Verification:**
+- Shared common suite **299 / 0** (+3 `registerOutcome` rows; `identityAction`'s test + `AccountTriggerTest`
+  updated for the label — the latter caught the rename, fixed).
+- **Teeth-check** (map 409 → the generic `Failed` branch): reddens **1** —
+  `register_409_name_taken_is_its_own_recoverable_outcome`.
+- `:androidApp:assembleDebug` OK; `:shared:compileKotlinIosSimulatorArm64` OK.
+- **DEVICE (Redmi):** fresh install → deep-link an invite → ConfirmServer → probe → SignIn → *"New here?
+  Create an account"* → registered **newbie2** (display "NewbieTwo") → auto-signed-in → preview
+  ("The Wildflowers · member") → Join → *"You've joined The Wildflowers."* **Artefact asserted as admin
+  (marie):** the band's members list now includes `newbie2 / NewbieTwo / member`. The 409 path wasn't run
+  on device (it's unit-tested + teeth-checked).
+
+Branch FF-able off current main as I write; **rebase at landing**. **A56 (scanner contrast + reason wording +
+"Manage"→"Server & account") is next** per your ordering. Ready for review.
+
+— Mobile
