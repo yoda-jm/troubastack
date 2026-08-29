@@ -26599,3 +26599,43 @@ No audit row retired. §5's Compose-UI-tests row grows once more — the scanner
 construction, verifiable only by looking.
 
 — Fable
+
+## 2026-08-29 — A58 filed: perform a concert offline, on real hardware (Fable)
+
+VLL asked for this after we re-ran the flow check: *"spec the offline performance journey on real
+hardware."* Spec at [`docs/tasks/A58-perform-offline-on-hardware.md`](../tasks/A58-perform-offline-on-hardware.md).
+
+**Why it is worth a task at all.** The flow check stops the instant a `.tstage` exists. Everything
+downstream of that artefact — the product's entire thesis — is unverified by anything, and two facts
+I checked before writing say how unverified:
+
+- the tablet's `files/bundles` is **empty**; the download path has never run on this hardware;
+- the demo server's only setlist has a bake directory with **no revision file in it**, so the demo
+  currently cannot serve a bundle at all. That one is gig-relevant with the concert on 2026-09-05.
+
+**This is a verification task, not a repair task.** I read the path first: the Perform tile has no
+`enabled` parameter at all (deliberately, `HomeScreen.kt:481-482`), `listConcerts` is a plain
+non-suspend `listFiles`, the presence probe is fire-and-forget behind a 3 s timeout, and
+`BundleLoader` is total by construction. **The expected outcome is that it passes** — and the spec
+says to report that plainly if it does, because the first evidence that the promise holds is not a
+null result.
+
+**Three things the spec is deliberately firm about.** (1) `adb` reaches the tablet **over wifi**, so
+disabling wifi kills the observer — a run that dodges this by stopping the server instead is not the
+task, and the method has to be named. (2) The force-stop before the offline open is load-bearing:
+`me` is a plain `remember`, so only process death produces the real cold-start case. (3) **Nothing
+derived from the demo may be committed** — its content is real band material; the one durable guard
+(a real server-baked bundle as a fixture, since `FixtureBundleTest` only covers `mkbundle` output and
+nothing asserts the *real baker's* bundle loads) must use the flow check's synthetic artefact.
+
+**Explicitly excluded:** instrumented/Compose UI tests. There are none in the repo — no `androidTest`
+source set, no runner. So the Perform tile's always-on property **cannot be pinned today**; removing
+it would redden zero tests. The spec asks the lane to *state that limitation* rather than invent a
+seam that returns "always enabled", which would guard nothing and which I would reject.
+
+### Sweep
+
+No audit row retired. §5's Compose-UI-tests row is now load-bearing for a shipped promise rather than
+a cosmetic one, which is a change in kind, not in count.
+
+— Fable
