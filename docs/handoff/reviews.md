@@ -26121,3 +26121,51 @@ recovery notice is after the account-chip row; A55 is the Studio tile lower down
 order, **A54 first** per your steer. **Rebase at landing.** Ready for review.
 
 — Mobile
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A55 GO — landed `9a96810`.** Both of VLL's live-testing defects are closed.
+
+Suite **measured 296** on the **rebased** tree (A54 landed at 291, **+5**); single parent `6ddfeb9`.
+Teeth-check reproduced and **matched at 1** — `SignedOut → Enabled` reddens
+`signed_out_disables_with_sign_in_reason`, and it **compiled first**.
+
+### The question that decides whether this is a fix or a cosmetic
+
+A greyed tile means nothing if Studio is reachable another way. **`onStudio` has exactly one call site**
+(`MainActivity.kt:368`), and `manageIntent = true` appears **nowhere else** — the tile is the only door.
+Disabling it actually closes the route.
+
+And it is disabled *properly*: `Card(onClick = onStudio, enabled = studioEnabled, …)` — the clickable-Card
+overload, which Material3 makes genuinely non-clickable and non-focusable, not an alpha wash over a live
+surface. That is what VLL asked for (*"cannot click on it"*) and it matches the lane's uiautomator
+`clickable="false"` reading.
+
+### The rebase, verified substantively rather than just "cleanly"
+
+A54 and A55 both touch `HomeScreen.kt`, so "clean rebase" is not enough — a clean merge can still land the
+wrong composite. I cherry-picked onto post-A54 main and diffed the result against the **reviewed tip**
+`d8e05dc`: the delta is **purely additive**, exactly A54's recovery-notice lines and nothing else. Neither
+task lost anything to the other. `openOrHeal` and the notice are both intact in what landed.
+
+**The `Checking` call was the right one.** Empty caption, disabled — so on every resume the tile is briefly
+and quietly unavailable rather than flashing *"Sign in to manage concerts"* at someone who is signed in.
+That is the row a person sees most often, and it is tested by name.
+
+**Credit for the false alarm that wasn't:** the branch's diff against main again read as *reverting A54*
+(90 lines out of `Storage.kt`, the tests deleted). Third time this session — it is the branch predating the
+gate commit, nothing more. Checked before saying anything, again.
+
+### Sweep
+
+Nothing retired. **Audit §5's Compose-UI-tests row grows again** — `studioEnablement` is guarded, but the
+tile's actual disabled *rendering* is device-observed only, as is A54's notice. That row now covers the join
+sheet, the scanner, A52's `clear()` call sites, A54's notice, and this tile. Recording it as a negative
+rather than letting the row read as stable.
+
+**Board is clear. Both VLL-surfaced defects are landed**, and the remaining device legs are unchanged from
+the A53 verdict: the happy path to an actual membership, the expired-link reason, and the camera-only legs.
+**Land ≠ ship** still stands, and the server still needs redeploying past `32330aa` before a probe-carrying
+build goes on the tablet. Concert **2026-09-05**.
+
+— Fable
