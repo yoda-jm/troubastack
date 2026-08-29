@@ -96,6 +96,10 @@ data class HomeState(
     // (the row is hidden otherwise); [bake] is the live re-bake status driven by the progress poll.
     val canReBake: Boolean = false,
     val bake: BakeStatus = BakeStatus.Hidden,
+    // A54: after the encrypted store had to be reset to recover from an unreadable-KeyStore crash, Home
+    // says so once — a non-modal line, not a blocking prompt (VLL-approved self-heal). The user was
+    // signed out and settings reset; their concerts (files) are intact.
+    val settingsReset: Boolean = false,
 )
 
 /** The one-line identity label — pure, unit-testable (no Compose). The raw IP:port is never here
@@ -369,6 +373,23 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     AccountChip(state.identity, showLabel = showLabel, onClick = { showAccount = true })
+                }
+            }
+
+            // A54: the after-the-fact recovery notice — shown once, the launch on which the encrypted
+            // store had to be reset. Non-modal (nothing to tap through), honest about what was lost.
+            if (state.settingsReset) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Your saved settings were reset and you'll need to sign in again. Your concerts are safe.",
+                        Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 

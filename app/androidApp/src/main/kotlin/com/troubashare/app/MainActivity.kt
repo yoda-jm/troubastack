@@ -362,6 +362,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 update = homeUpdate,
                 canReBake = canReBake, // A42②
                 bake = homeBake, // A42②
+                settingsReset = Storage.settingsWereReset, // A54: one-time recovery notice after a self-heal
             ),
             onPerform = { manageIntent = false; atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },

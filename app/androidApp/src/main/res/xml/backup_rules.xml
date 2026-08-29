@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A54: the legacy (API < 31) equivalent of data_extraction_rules — exclude the encrypted secrets store
+     from auto-backup so a keyless blob can't be restored onto another device and crash-loop the app. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="troubashare.secrets.enc.xml" />
+</full-backup-content>
