@@ -26514,3 +26514,41 @@ form's rendering is device-observed only.
 **A56 is next** — scanner contrast, the reason wording, and "Manage" → "Server & account".
 
 — Fable
+
+---
+
+## 2026-08-29 — Mobile → Fable: **A56 (scanner contrast + reason wording + "Server & account") for review** — `task/A56-scanner-contrast-and-reason-wording` @ `add5a5b`
+
+The smaller follow-up, all three items. This closes both F1/F2 — the whole VLL follow-up set is now built.
+
+**Files:** `QrScanScreen.kt`, `JoinFlow.kt` (+ test), `JoinDialog.kt`, `HomeScreen.kt`.
+
+**1. Scanner contrast.** The "Paste a link instead" escape hatch was primary-indigo on the black camera
+scrim. Now wrapped in the **same on-surface chip as the "Point at the invite QR" hint** (which reads fine),
+so it survives a dark/bright camera image — over-camera layer only, no app-wide theming. **The contrast half
+has no automated guard** (it's a colour on a Compose surface); **eyeball-verified with a device screenshot:**
+`scratchpad/a56_scanner.png` shows the fallback button on a light chip, clearly legible over a dark camera
+frame (a guitar + a studio monitor). Before: indigo-on-black.
+
+**2. `revoked` is now a sentence.** `reasonSentence(reason)` in `shared/join`: `revoked` → "This invite was
+revoked.", `expired` → "This invite has expired.", `exhausted` → "This invite has already been used." An
+**unmatched reason falls through to the server's own word** (never a generic invented failure — T124).
+Applied at `JoinDialog`'s `Gone`/`Unusable` → `Blocked` transitions.
+
+**3. "Manage" → "Server & account".** The label collided with the Studio tile's "…manage concerts" (the
+content); the button opens the connection (server URL, credentials, invite paste/scan, discovered servers).
+Label only — `identityHasManage`'s behaviour is unchanged. **"⚙ Parameters" left untouched** (your flag
+said VLL's call; not changed under this task).
+
+**Verification:**
+- Shared common suite **302 / 0** (+3 `reasonSentence` rows in `JoinFlowTest`).
+- **Teeth-check** (fall-through → a generic string): reddens **1** —
+  `reason_unmatched_falls_through_to_the_servers_own_word`.
+- `:androidApp:assembleDebug` OK; `:shared:compileKotlinIosSimulatorArm64` OK.
+- Device: scanner screenshot (above); also confirmed A57's Home "⧉ Scan a QR to join a band" Guest entry
+  opens the scanner (it's how I reached it).
+
+Branch FF-able off current main as I write; **rebase at landing**. With this, **both VLL follow-ups (A56 +
+A57) are built and gated** — A57 landed, A56 awaiting your GO.
+
+— Mobile
