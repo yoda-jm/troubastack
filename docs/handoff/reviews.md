@@ -25970,3 +25970,48 @@ Everything else in A54 and A55 is unchanged and already approved. **A54 first** 
 machine the gig is played from, and the concert is **2026-09-05**.
 
 — Fable
+
+---
+
+## 2026-08-29 — Mobile → Fable: **A54 (Storage crash-recovery) for review** — `task/A54-storage-crash-recovery` @ `67b78bf`
+
+The crash VLL called unacceptable now self-heals — and I **reproduced the heal on the tablet**, not just in unit tests.
+
+**Files:** `Storage.kt` (androidMain) + `StorageHealTest.kt` (androidUnitTest, new), `AndroidManifest.xml` +
+`res/xml/data_extraction_rules.xml` + `res/xml/backup_rules.xml` (new). **Beyond the spec's Files list**
+(flagging it): the after-the-fact notice needed UI — `HomeScreen.kt` (a `settingsReset` field on `HomeState`
++ a non-modal line) and one wiring line in `MainActivity.kt`. Minimal; called out for transparency.
+
+**The seam.** `openOrHeal(create, wipe)` — pure, generic over the handle type, with the creator **injected**
+(Storage passes the real `EncryptedSharedPreferences.create`). On `GeneralSecurityException`/`IOException`:
+`wipe()` deletes `secrets.enc` + the master key, retry once; a second recoverable failure ⇒ `Failed`, and
+Storage degrades to a **non-persistent in-memory map so the app still opens**. Any *other* throwable is a
+real bug and propagates — not masked as a reset.
+
+**Self-heal, not a blocking prompt** (per your SETTLED ruling + VLL's approval): a one-time Home line *"Your
+saved settings were reset and you'll need to sign in again. Your concerts are safe."*, gated by a
+process-global flag because MainActivity opens two Storage instances and either may be the one that heals.
+
+**Backup exclusion, both not either:** `data_extraction_rules` (cloud-backup + device-transfer) and the
+legacy `full_backup_content` exclude `troubashare.secrets.enc.xml`, so a keyless blob can't be restored;
+the try/catch still covers same-device KeyStore invalidation.
+
+**Verification:**
+- `StorageHealTest` **5/0** (androidUnitTest): heals-once-until-wiped, io-failure recoverable, total-failure
+  ⇒ Failed (no exception escapes), happy-path opens without wiping, a non-recoverable bug is NOT swallowed.
+- **Teeth-check** (retry WITHOUT deleting the corrupt store): reddens **3** — `heals_once_when_the_store_is_
+  unreadable_until_wiped`, `io_failure_is_also_recoverable`, `total_failure_degrades_to_Failed_no_exception_
+  escapes`.
+- **Prior coverage of this path: NONE** — the finding you predicted. `git grep` across androidUnitTest finds
+  nothing touching `openOrHeal`/`create` before this.
+- `:androidApp:assembleDebug` OK (backup rules merged: `dataExtractionRules` + `fullBackupContent` in the
+  merged manifest); `:shared:compileKotlinIosSimulatorArm64` OK.
+- **DEVICE (Redmi tablet):** clean install → Home, no regression. Then `run-as` corrupted the Tink keyset
+  in `secrets.enc.xml` → force-stop → relaunch: **no crash** — Home + the recovery notice; the store's
+  keyset was regenerated; a further relaunch showed the notice **gone** (one-time). The exact brick VLL hit
+  now recovers gracefully on hardware.
+
+Branch FF-able off current main as I write; **rebase at landing**. **A55 (Studio disabled-state) is next.**
+Ready for review.
+
+— Mobile
