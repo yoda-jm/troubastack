@@ -125,6 +125,29 @@ fun identityLine(identity: Identity): String = when (identity) {
     is Identity.NotSetUp -> "Guest · not connected to a band"
 }
 
+/** A55 — the TroubaStudio tile's state, derived from the SAME [Identity] as the status line (one source of
+ *  truth). The reason travels WITH the disabled state so the caption can't drift from a parallel `when`.
+ *  Studio needs the server (list / download / manage), so it is live only when [Identity.Connected]. */
+sealed interface StudioTile {
+    data object Enabled : StudioTile
+    /** [reason] is the caption; empty for the neutral [Identity.Checking] case (no reason to show yet). */
+    data class Disabled(val reason: String) : StudioTile
+}
+
+/**
+ * A55 — VLL: *"TroubaStudio should be greyed with a reason … it should be clear it is disabled and cannot
+ * click on it."* Enabled only when [Identity.Connected]; disabled with a reason otherwise. [Identity.Checking]
+ * is disabled with a **neutral** (empty) caption on purpose: the presence probe runs on every resume, so a
+ * tile that flashed "Sign in to manage concerts" for a beat on each return Home — then enabled — would be
+ * worse than one that is briefly and quietly unavailable.
+ */
+fun studioEnablement(identity: Identity): StudioTile = when (identity) {
+    is Identity.Connected -> StudioTile.Enabled
+    is Identity.SignedOut, is Identity.NotSetUp -> StudioTile.Disabled("Sign in to manage concerts")
+    is Identity.Offline -> StudioTile.Disabled("No connection")
+    is Identity.Checking -> StudioTile.Disabled("") // neutral — don't flash a wrong reason on every resume
+}
+
 /**
  * The PRIMARY action for a state — A38: the action must match the status. Recognized → Disconnect,
  * Offline → Retry, Guest → Sign in (server known) / Connect (nothing set up). Empty while Checking
@@ -439,17 +462,36 @@ fun HomeScreen(
 
             // TroubaStudio — the SECOND branded product (A31). Author/manage lives here, and Concerts
             // (import / download / update / edit) nests INSIDE it — it is no longer a Home peer.
+            // A55: it needs the server, so it's disabled (NOT clickable — `enabled=false`, not just an
+            // alpha change) when not Connected, with the reason as its subtitle. TroubaStage above stays
+            // enabled always (offline perform is I12).
+            val studio = studioEnablement(state.identity)
+            val studioEnabled = studio is StudioTile.Enabled
             Card(
                 onClick = onStudio,
+                enabled = studioEnabled,
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                ),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("✎  TroubaStudio", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                     Text(
-                        "Author, import & manage concerts",
+                        "✎  TroubaStudio",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (studioEnabled) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    )
+                    Text(
+                        when (studio) {
+                            is StudioTile.Disabled -> if (studio.reason.isNotEmpty()) studio.reason else "Author, import & manage concerts"
+                            StudioTile.Enabled -> "Author, import & manage concerts"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
+                        color = if (studioEnabled) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
