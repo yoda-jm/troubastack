@@ -160,3 +160,16 @@ fun registerOutcome(status: Int): RegisterOutcome = when (status) {
     409 -> RegisterOutcome.NameTaken
     else -> RegisterOutcome.Failed(status)
 }
+
+/**
+ * A56 — turn the server's machine-readable invite reason (`revoked` / `expired` / `exhausted`) into a
+ * sentence for a person holding a QR that just failed. Honouring the server's words is deliberate (T124),
+ * but the raw token is not a sentence. An UNMATCHED reason **falls through to the server's own word** —
+ * never a generic invented failure — so a new server reason still says something true, just tersely.
+ */
+fun reasonSentence(reason: String): String = when (reason.trim().lowercase()) {
+    "revoked" -> "This invite was revoked."
+    "expired" -> "This invite has expired."
+    "exhausted" -> "This invite has already been used."
+    else -> reason
+}

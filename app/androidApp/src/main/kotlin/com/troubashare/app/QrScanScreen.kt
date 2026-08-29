@@ -152,8 +152,13 @@ private fun CameraScanner(onDecoded: (String) -> Unit, onClose: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            // A56: the escape hatch was primary-indigo on the black camera scrim — near unreadable, and it's
+            // the control someone reaches for when the scan isn't working. Give it the SAME on-surface
+            // treatment as the hint above (a scrim chip behind it) so it survives a bright/busy camera image.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onClose) { Text("Paste a link instead") }
+                Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp, shape = MaterialTheme.shapes.medium) {
+                    TextButton(onClick = onClose) { Text("Paste a link instead") }
+                }
             }
         }
     }

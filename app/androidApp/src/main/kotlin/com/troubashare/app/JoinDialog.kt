@@ -38,6 +38,7 @@ import com.troubashare.shared.join.RegisterOutcome
 import com.troubashare.shared.join.ServerIdentity
 import com.troubashare.shared.join.joinDecision
 import com.troubashare.shared.join.parseTroubaLink
+import com.troubashare.shared.join.reasonSentence
 import com.troubashare.shared.seams.SESSION_ORIGIN_KEY
 import com.troubashare.shared.seams.Storage
 import kotlinx.coroutines.launch
@@ -78,7 +79,7 @@ fun JoinDialog(
         scope.launch {
             step = when (val r = transport.previewInvite(t)) {
                 is PreviewResult.Ready -> JoinStep.Review(r.band, r.role)
-                is PreviewResult.Unusable -> JoinStep.Blocked(r.reason)
+                is PreviewResult.Unusable -> JoinStep.Blocked(reasonSentence(r.reason)) // A56: sentence, not the raw word
                 PreviewResult.NeedsSignIn -> JoinStep.SignIn(transport.currentOrigin)
                 PreviewResult.NotFound -> JoinStep.Failed("This invite link wasn't found.")
                 is PreviewResult.Failed -> JoinStep.Failed(
@@ -94,7 +95,7 @@ fun JoinDialog(
         scope.launch {
             step = when (val r = transport.acceptInvite(t)) {
                 is AcceptOutcome.Joined -> { token.clear(); JoinStep.Done(r.band) }
-                is AcceptOutcome.Gone -> { token.clear(); JoinStep.Blocked(r.reason) }
+                is AcceptOutcome.Gone -> { token.clear(); JoinStep.Blocked(reasonSentence(r.reason)) } // A56: sentence
                 AcceptOutcome.NeedsSignIn -> JoinStep.SignIn(transport.currentOrigin)
                 AcceptOutcome.NotFound -> JoinStep.Failed("This invite link wasn't found.")
                 is AcceptOutcome.Failed -> JoinStep.Failed(

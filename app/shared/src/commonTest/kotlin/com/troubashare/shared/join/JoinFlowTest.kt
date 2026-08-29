@@ -129,4 +129,21 @@ class JoinFlowTest {
         assertEquals(RegisterOutcome.Failed(400), registerOutcome(400))
         assertEquals(RegisterOutcome.Failed(0), registerOutcome(0)) // network-failure sentinel
     }
+
+    // ---- reasonSentence: A56 — a dead link deserves a sentence -----------------------------------
+
+    @Test fun reason_known_machine_words_become_sentences() {
+        assertEquals("This invite was revoked.", reasonSentence("revoked"))
+        assertEquals("This invite has expired.", reasonSentence("expired"))
+        assertEquals("This invite has already been used.", reasonSentence("exhausted"))
+    }
+
+    @Test fun reason_is_case_and_whitespace_insensitive() {
+        assertEquals("This invite was revoked.", reasonSentence("  Revoked "))
+    }
+
+    @Test fun reason_unmatched_falls_through_to_the_servers_own_word() {
+        // A new/unknown server reason must still surface the server's word, NOT a generic invented message.
+        assertEquals("this link is on cooldown", reasonSentence("this link is on cooldown")) // teeth: mutating the fall-through reddens here
+    }
 }

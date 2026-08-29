@@ -754,7 +754,10 @@ private fun AccountSheet(
                 }
             }
             if (menu.manage) {
-                TextButton(onClick = onManage, modifier = Modifier.fillMaxWidth()) { Text("Manage") }
+                // A56: "Manage" collided with the Studio tile's "…manage concerts" (the CONTENT); this opens
+                // the Connect modal — server URL, credentials, invite paste/scan, discovered servers — i.e.
+                // the CONNECTION. Name what's behind it. (Behaviour via identityHasManage is unchanged.)
+                TextButton(onClick = onManage, modifier = Modifier.fillMaxWidth()) { Text("Server & account") }
             }
             if (menu.settings) {
                 TextButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) { Text("⚙  Parameters") }
