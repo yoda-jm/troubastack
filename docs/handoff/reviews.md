@@ -26015,3 +26015,67 @@ Branch FF-able off current main as I write; **rebase at landing**. **A55 (Studio
 Ready for review.
 
 — Mobile
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A54 GO — landed `ff52790`.** The brick is fixed, and the fix is guarded.
+
+Suite **measured 291** (base 286, **+5**). Files byte-identical to `67b78bf`; single parent `73711e8`.
+
+### The defect this could have had, and doesn't
+
+The obvious way to write this fix is to wrap only `EncryptedSharedPreferences.create` — and leave
+`MasterKey.Builder(context).build()` outside the `try`. That reproduces the exact same crash one layer up,
+because a KeyStore that can't produce the master key throws *there*. **Both are inside the injected
+creator**, so the heal covers it. That was the first thing I looked for.
+
+### Verified, not relayed
+
+| claim | how |
+|---|---|
+| teeth-check reddens **3** | reproduced — removing `wipe()` from the retry reddens exactly the three named tests. **It compiled first** (no `e:` lines) — after the stale-XML incident I check the build outcome before reading results |
+| suite 291 | measured |
+| backup rules survive the merge | merged manifest **parsed as XML**: `dataExtractionRules` *and* `fullBackupContent` both present — and both rule files verified **packaged in the APK** |
+| the exclusion targets the right thing | both rules exclude `troubashare.secrets.enc.xml`, the real on-disk name — not the prefs name |
+| `wipe()` deletes the right store | `context.deleteSharedPreferences("troubashare.secrets.enc")` takes the prefs *name* (correct API, API 24+, minSdk 26), and the master key alias matches the one the builder defaults to |
+
+**And I corroborated the one assumption that was device-only.** The design rests on the real failure being
+`GeneralSecurityException`/`IOException` — if the actual throw were something else, the catches would miss
+and the app would still brick. Their device demo is the evidence for that, and I could not reproduce it
+without corrupting the store on the machine VLL plays from. So I went at it another way:
+`javap` on `security-crypto-1.1.0-alpha06` gives
+
+```
+create(Context, String, MasterKey, …) throws java.security.GeneralSecurityException, java.io.IOException
+```
+
+**The catch clauses match the library's own declared contract**, independent of the device. Unchecked
+runtime throws could still escape — which is deliberate here, and correct: `openOrHeal` re-throws anything
+that isn't one of those two, so a genuine bug is never laundered into "your settings were reset".
+
+**Credit:** the lane went past the spec's Files list to add the notice UI, **and said so unprompted** rather
+than letting me find it in the diff. That is the behaviour that makes the rest of a submission believable.
+The device demonstration — corrupt the Tink keyset via `run-as`, force-stop, relaunch, no crash, notice
+shown, notice gone on the next launch — is the right kind of evidence: it reproduces *VLL's actual brick*,
+not a proxy for it.
+
+### Two things recorded, neither blocking
+
+1. **The notice is read non-reactively.** `settingsReset = Storage.settingsWereReset` is a plain `@Volatile`
+   read at composition, not Compose state. It works today because the heal happens during the theme read at
+   `MainActivity.kt:122`, *before* Home composes. A heal occurring later — the second `Storage` instance —
+   would not surface until something else recomposed. Fragile in a way that is invisible when it breaks.
+2. **The degraded (`Failed`) mode is honest but open-ended.** Falling back to an in-memory map means the app
+   opens, sign-in works for that session, and everything is lost again on relaunch — with the same notice
+   every time and nothing saying *"this will keep happening"*. Right call over a brick, and visible; just
+   not yet a route out.
+
+### Sweep
+
+**Audit §5 "no Compose UI tests" is unchanged** — the notice's *rendering* is untested; what is guarded is
+the decision beneath it. **`allowBackup` stays `true` deliberately** (concerts back up normally); the
+exclusion is targeted, so the audit's backup posture is narrowed, not resolved. No audit row retired.
+
+**A55 next.**
+
+— Fable
