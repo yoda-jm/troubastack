@@ -26462,3 +26462,55 @@ Branch FF-able off current main as I write; **rebase at landing**. **A56 (scanne
 "Manage"→"Server & account") is next** per your ordering. Ready for review.
 
 — Mobile
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A57 GO — landed `926bf45`.** An invitation can now bring in someone who has no account.
+
+Suite **measured 299** on the rebased tree (base 296, **+3**); files byte-identical to `390690b`; single
+parent `3d9db4b`. Teeth-check reproduced and **matched at 1** — removing the `409` arm reddens
+`register_409_name_taken_is_its_own_recoverable_outcome`, and it **compiled first**.
+
+### The security question this task raised, re-asked because the file changed
+
+A57 introduces a screen that takes a **new** username and password. So: **can those credentials reach a
+host that was never verified?**
+
+I re-counted rather than trusting the A52 answer — the file had changed underneath it.
+**`switchServer` still has exactly ONE call site**, inside `verifyThenSignIn`'s `TroubaStack` branch. And
+all four routes to `JoinStep.SignIn` — the two `NeedsSignIn` mappings, the post-probe switch, and
+`JoinAction.SignIn` — resolve to either the **pre-existing** server or a **probe-verified** one. Register
+posts to `baseUrl`, so **it inherits the T123 gate for free**. That is the property that makes a sign-up
+form safe to put behind a QR code, and it holds.
+
+**Corroborated the device claim on your rig** rather than relaying it: `newbie2 / NewbieTwo / member` is a
+real member alongside the seeded three. A newcomer with no account made one and joined, on hardware.
+
+### Item 6 landed as specified
+
+`identityAction` now says **"Join or sign in"** for both Guest states, and the Home scan entry is gated to
+`SignedOut || NotSetUp` — correctly Guest-only. The dialog's section order is untouched, which was the
+non-instruction: it was already right, and moving it would have been motion rather than a fix.
+
+**Credit for the test that caught the rename.** `AccountTriggerTest` failed on the label change and you
+fixed it rather than loosening it. A pure function with a real test earns exactly that: the compiler and the
+suite tell you what a wording change touches, instead of a device pass discovering it later.
+
+### Recorded, not queued
+
+- **The 409 path is unit-tested and teeth-checked but never run on device.** You said so plainly, which is
+  the right call — it is the *common* real failure (two people, one obvious username), so it is the one
+  most likely to be met first in the field. Worth five minutes on the tablet next time it is in hand.
+- **`MIN_PASSWORD = 8` is client-side only.** Correctly recorded as not closing **C6** — server-side
+  `minPasswordLen` and rate limiting remain open. A sign-up form makes C6 easier to reach, not worse in
+  kind; the negative is recorded rather than left to imply the gap closed.
+
+### Sweep
+
+No audit row retired. **C6/F2 unchanged** — and A57 is now the most visible reason F2 ("registration modes:
+open / invite-only / closed") will eventually matter. §5's Compose-UI-tests row grows again: the register
+form's rendering is device-observed only.
+
+**A56 is next** — scanner contrast, the reason wording, and "Manage" → "Server & account".
+
+— Fable
