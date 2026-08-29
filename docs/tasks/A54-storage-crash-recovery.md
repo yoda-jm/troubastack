@@ -60,8 +60,9 @@ the prompt asks a question with only one real answer, and it asks it at launch, 
 someone is walking on stage. And the thing being discarded is settings and a session, not their music.
 **Being honest afterwards satisfies "make it clear"; blocking first does not make it safer.**
 
-**This differs from VLL's literal wording, deliberately. If he wants the prompt, it is one word to
-overrule and a small change** — keep the recovery mechanism identical either way.
+**✅ SETTLED — VLL, 2026-08-29: *"ok for the self-heal, keep going."*** This diverged from his literal
+wording ("Exit / OK" prompt) and he has confirmed the divergence. **Build the self-heal plus the
+after-the-fact notice; do not add a blocking pre-flight dialog.** No longer an open question.
 
 ### 3. Stop the keyless blob arriving in the first place
 

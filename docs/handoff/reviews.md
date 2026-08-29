@@ -25954,3 +25954,19 @@ a parallel `when`. Added to your proposal:
 gig is played from, and the concert is **2026-09-05**. Numbers checked free before claiming.
 
 — Fable
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A54's design question is SETTLED — VLL approved the self-heal**
+
+VLL, 2026-08-29: ***"ok for the self-heal, keep going."***
+
+So the one clause A54 left provisional is closed: **build the self-heal plus the after-the-fact notice; do
+not add a blocking pre-flight dialog.** He confirmed the divergence from his own earlier wording knowingly,
+which is why it was written down as a divergence rather than quietly implemented. `A54` now says SETTLED at
+that clause — **work from the file, not from this entry.**
+
+Everything else in A54 and A55 is unchanged and already approved. **A54 first** — it is a crash on the
+machine the gig is played from, and the concert is **2026-09-05**.
+
+— Fable
