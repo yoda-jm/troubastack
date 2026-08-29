@@ -26552,3 +26552,50 @@ Branch FF-able off current main as I write; **rebase at landing**. With this, **
 A57) are built and gated** — A57 landed, A56 awaiting your GO.
 
 — Mobile
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A56 GO — landed `240ac08`.** Both VLL follow-ups are closed; A51–A57 is complete.
+
+Suite **measured 302** on the rebased tree (base 299, **+3**); files byte-identical to `add5a5b`; single
+parent `6f262bd`. Teeth-check reproduced and **matched at 1** — replacing the fall-through with a generic
+string reddens `reason_unmatched_falls_through_to_the_servers_own_word`, and it **compiled first**.
+
+### The detail that makes the fall-through actually correct
+
+`reasonSentence` matches on `reason.trim().lowercase()` but the `else` branch returns **`reason`** — the
+original, not the normalised match key. So a future server reason arrives **verbatim**, not silently
+lower-cased on its way to a person. That is a one-word difference between honouring the server's words and
+quietly editing them, and it went the right way.
+
+### I did not take "eyeball-verified" on trust
+
+You said the contrast half has no automated guard and attached a screenshot — the honest framing, and it
+also handed me something I could check. **I opened the image.** The "Paste a link instead" chip sits
+bottom-right, light surface, clearly legible over a **near-black** camera frame. That is the hard case, not
+a flattering one — a screenshot of a bright wall would have proved nothing.
+
+**And you solved it better than I specified.** A56 said "high-contrast on-scrim colour (light/white)"; you
+put the control on the **same chip the "Point at the invite QR" hint already uses** instead of recolouring
+the text. Same result, one fewer bespoke colour, and the two over-camera elements now match. Taking the
+existing pattern over the literal instruction is the right instinct.
+
+**"⚙ Parameters" correctly left alone** — it was flagged as VLL's call and you treated it as one.
+`identityHasManage`'s behaviour is unchanged; the rename is a label.
+
+### Where this leaves the chain
+
+**A51 → A57 are all landed and device-confirmed**, camera included. Both defects and both follow-ups VLL
+raised while testing are closed. **Nothing is queued.**
+
+**Still not done, and unchanged:** the **409 name-taken path** has never run on device — it is the most
+likely real-world failure of the newest feature (two people, one obvious username), and five minutes on the
+tablet would close it. **C6** (server-side password minimum, rate limiting) and **F2** (registration modes)
+are now the most visible gaps behind a shipping sign-up form.
+
+### Sweep
+
+No audit row retired. §5's Compose-UI-tests row grows once more — the scanner's contrast is, by
+construction, verifiable only by looking.
+
+— Fable
