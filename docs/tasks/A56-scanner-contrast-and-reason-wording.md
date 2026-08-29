@@ -30,6 +30,28 @@ word rather than a generic message**. Never invent a failure the server didn't r
 Put the mapping in the existing `shared/join` pure seam beside `acceptOutcome`/`previewOutcome` so it is
 unit-testable, including the fall-through.
 
+## 3. "Manage" is the wrong word, and the right one is already taken
+
+VLL, looking at the account panel: *"Manage is a strange wording for what it contains."* He is right, and
+the collision is with our own UI.
+
+`HomeScreen.kt:742` renders a secondary **"Manage"** whose own comment (`:164`) says what it is —
+*"server/account details, reached via the Connect modal"*. On device that modal holds: the server URL, the
+username/password, the paste-invite and scan entries, and the discovered-servers list. **It is the
+connection, not the content.**
+
+Meanwhile the TroubaStudio tile's subtitle reads *"Author, import & **manage** concerts"*. So the same
+word names both "the place your music is organised" and "the place you change which server you are talking
+to" — and the first meaning is the one a person will assume, because it is printed one tile away.
+
+**Rename it to "Server & account"** (or an equally literal phrase — the test is that the label names what
+is behind it). `identityHasManage`'s *behaviour* is right and stays; this is the label only.
+
+**Adjacent, and explicitly VLL's call — I am flagging, not prescribing:** the neighbouring
+**"⚙ Parameters"** is a Gallicism where English UIs say **"Settings"** (A36 established "Parameters" as the
+in-repo term, so this may be deliberate product voice). **Do not change it under this task** unless VLL
+says so; it is noted here so the decision is made once rather than drifting.
+
 ## Teeth-check
 
 For the wording map: an unmapped reason must still surface the server's own word — mutate the fall-through

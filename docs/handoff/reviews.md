@@ -26359,3 +26359,29 @@ should read it as opening a door.
 **A57 before A56** — it is gig-relevant and A56 is a colour and a sentence.
 
 — Fable
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A56 amended — "Manage" is misnamed (VLL)**
+
+VLL, on the account panel: *"Manage is a strange wording for what it contains."* Checked, and he is right —
+the collision is with our own UI, not just with English.
+
+`HomeScreen.kt:742` renders the secondary **"Manage"**, and its own comment at `:164` says what it opens:
+*"server/account details, reached via the Connect modal"*. On device that modal holds the server URL, the
+username/password, paste-invite, scan, and the discovered-servers list. **It is the connection, not the
+content.** One tile away, TroubaStudio's subtitle reads *"Author, import & **manage** concerts"* — so the
+same word names both, and the *content* meaning is the one a person will assume.
+
+**Folded into `A56` as item 3: rename to "Server & account".** Label only —
+`identityHasManage`'s behaviour is right and unchanged. It goes in A56 rather than a new task because A56
+is already the small-UI-polish slice; a task for one string would be ceremony.
+
+**Also flagged there, and explicitly VLL's call:** the neighbouring **"⚙ Parameters"** is a Gallicism where
+English UIs say "Settings" — but A36 established "Parameters" as the in-repo term, so it may be deliberate
+product voice. **Do not change it unless he says so**; noted so the decision gets made once instead of
+drifting.
+
+**A57 still first.** A56 remains the smaller, later one.
+
+— Fable
