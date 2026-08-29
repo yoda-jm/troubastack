@@ -26385,3 +26385,36 @@ drifting.
 **A57 still first.** A56 remains the smaller, later one.
 
 — Fable
+
+---
+
+## 2026-08-29 — Fable → Mobile: **A57 amended — the join door is labelled "Sign in" (VLL)**
+
+VLL, testing as a Guest: *"seems to go to sign in when clicking on it as guest? not easy to know where to
+go to join. maybe some button next to guest could be nice? direct to qrcode?"*
+
+Checked, and the diagnosis is narrower — and more fixable — than "hard to find":
+
+- **The content is already right.** `ConnectScreen.kt:110-121` leads with *"Have an invite link?"* → paste /
+  **Scan a QR** / Join, and only then *"or sign in manually"*.
+- **The label on the door is wrong.** `identityAction` (`HomeScreen.kt:156-162`) gives a Guest **"Sign in"**
+  or **"Connect"** — neither says *join* — and Home offers no other route. Someone holding an invite reads
+  the only button on offer, concludes it isn't for them, and stops.
+
+**Folded into `A57` (item 6), not a new task, because it is the same journey:** A57 exists so an invitation
+can bring in someone with no account, and a door labelled "Sign in" defeats that *before* the sign-up form
+is ever reached. Shipping A57 alone would build a register form nobody can find.
+
+Three parts, and one non-instruction:
+1. **"Join or sign in"** as the Guest primary — both `SignedOut` and `NotSetUp`, since both open the same
+   dialog. `identityAction` is already pure and tested; extend its test.
+2. **A direct scan entry on Home in the Guest state** — where a person holding a QR actually is, not behind
+   the account panel. It routes into A53's scanner, which already falls back to paste on a denied camera,
+   so it cannot dead-end.
+3. **No third product tile.** A secondary action on the identity row, not a new product.
+4. **Do not** reorder the dialog's sections — the invite is already first. The fix is the label and the
+   shortcut, nothing structural.
+
+**A57 was already first in the queue; this makes it more so.**
+
+— Fable

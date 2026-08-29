@@ -53,6 +53,32 @@ sign-up form is where weak passwords arrive. Apply a **client-side minimum** and
 plainly in the submission that **server-side enforcement and rate limiting remain open under C6**, untouched
 by this task. Record the negative rather than letting a new form imply the gap closed.
 
+## 6. The door has to match the room — VLL, on device
+
+*"Seems to go to sign in when clicking on it as guest? Not easy to know where to go to join. Maybe some
+button next to guest could be nice? Direct to QR code?"*
+
+He is right, and the diagnosis is narrower than "hard to find". **The content is already correct**:
+`ConnectScreen.kt:110-121` leads with *"Have an invite link?"* → paste / **Scan a QR** / Join, and only
+then *"or sign in manually"*. What is wrong is the **label on the door**: `identityAction`
+(`HomeScreen.kt:156-162`) offers a Guest either **"Sign in"** (`SignedOut`) or **"Connect"**
+(`NotSetUp`) — neither says *join* — and Home offers nothing else. Someone holding an invite reads the one
+button available, concludes it is not for them, and stops.
+
+**Without this, A57 is a register form nobody can find.** That is why it belongs here and not in a task of
+its own.
+
+1. **Rename the Guest primary to "Join or sign in"** — for **both** `SignedOut` and `NotSetUp`, since both
+   open the same dialog and that dialog leads with the invite. `identityAction` is already a pure,
+   unit-tested function; extend its test.
+2. **Add the direct scan entry**, on **Home in the Guest state** — where a person holding a QR actually is,
+   not behind the account panel. Straight into A53's scanner, which already falls back to paste when the
+   camera is denied, so the affordance cannot dead-end.
+3. **No third product tile**, and do not touch the two-tile layout. This is a secondary action on the
+   identity row, not a new product.
+
+**Do not** solve it by moving the invite section around inside the dialog — it is already first.
+
 ## Teeth-check
 
 Make `registerOutcome` map `409` to the generic failure branch. A named test must redden. Report the count.
