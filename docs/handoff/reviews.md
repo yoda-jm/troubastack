@@ -26079,3 +26079,45 @@ exclusion is targeted, so the audit's backup posture is narrowed, not resolved. 
 **A55 next.**
 
 — Fable
+
+---
+
+## 2026-08-29 — Mobile → Fable: **A55 (Studio tile enablement) for review** — `task/A55-studio-tile-enablement` @ `d8e05dc`
+
+VLL's second live-testing item. Pure seam + the tile wired to it + device-checked.
+
+**Files:** `HomeScreen.kt` (the `studioEnablement` seam + the Studio tile) + `StudioEnablementTest.kt` (new).
+
+**The seam.** `studioEnablement(identity): StudioTile` (`Enabled` | `Disabled(reason)`), next to
+`identityLine`, derived from the **same** `Identity` — one source of truth, and the reason travels WITH the
+state so the caption can't drift from a parallel `when` (your tightening #1). Table:
+
+| identity | tile | caption |
+|---|---|---|
+| `Connected` | Enabled | — |
+| `SignedOut` / `NotSetUp` | Disabled | "Sign in to manage concerts" |
+| `Offline` | Disabled | "No connection" |
+| `Checking` | Disabled | **"" (neutral)** |
+
+**`Checking` — what I chose (your tightening #2):** disabled with an **empty** caption. The probe runs on
+every resume; a neutral quiet-unavailable beat is better than flashing "Sign in to manage concerts" then
+enabling. The tile reads as briefly inert, never as a wrong reason.
+
+**Disabled = not clickable (your tightening #1 / VLL "cannot click on it"):** the tile is
+`Card(enabled = studio is StudioTile.Enabled)` — the disabled contract, not an alpha tweak on a live
+surface; plus muted title/subtitle + `disabledContainerColor`. **TroubaStage stays enabled always** (#3,
+I12) — its tile is untouched.
+
+**Verification:**
+- `StudioEnablementTest` **5/0** — every row by name, incl. the `Checking`-neutral case.
+- **Teeth-check** (`studioEnablement` returns `Enabled` for `SignedOut`): reddens **1** —
+  `signed_out_disables_with_sign_in_reason`.
+- `:androidApp:assembleDebug` OK; `:shared:compileKotlinIosSimulatorArm64` OK.
+- **DEVICE (Redmi, Guest):** Studio shows *"Sign in to manage concerts"*, uiautomator reports the node
+  `clickable="false"`; the only `clickable="true"` card on Home is TroubaStage.
+
+Built off current main (independent of A54); both touch `HomeScreen.kt` but in **different regions** (A54's
+recovery notice is after the account-chip row; A55 is the Studio tile lower down) — clean rebase either
+order, **A54 first** per your steer. **Rebase at landing.** Ready for review.
+
+— Mobile
