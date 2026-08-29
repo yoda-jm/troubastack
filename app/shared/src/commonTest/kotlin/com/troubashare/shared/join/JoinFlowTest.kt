@@ -110,4 +110,23 @@ class JoinFlowTest {
         assertEquals(ServerIdentity.Unreachable, serverIdentity(0, "troubastack", 1))   // our network-failure sentinel
         assertEquals(ServerIdentity.Unreachable, serverIdentity(500, "troubastack", 1))
     }
+
+    // ---- registerOutcome: A57 sign-up from an invite ---------------------------------------------
+
+    @Test fun register_201_or_200_is_created() {
+        assertEquals(RegisterOutcome.Created, registerOutcome(201)) // the server's actual success status
+        assertEquals(RegisterOutcome.Created, registerOutcome(200))
+    }
+
+    @Test fun register_409_name_taken_is_its_own_recoverable_outcome() {
+        // The common real failure — must be distinct so the sheet says "that name is taken" and keeps the
+        // person in the form. (This is teeth-check territory.)
+        assertEquals(RegisterOutcome.NameTaken, registerOutcome(409))
+    }
+
+    @Test fun register_other_statuses_fail_with_the_code() {
+        assertEquals(RegisterOutcome.Failed(500), registerOutcome(500))
+        assertEquals(RegisterOutcome.Failed(400), registerOutcome(400))
+        assertEquals(RegisterOutcome.Failed(0), registerOutcome(0)) // network-failure sentinel
+    }
 }

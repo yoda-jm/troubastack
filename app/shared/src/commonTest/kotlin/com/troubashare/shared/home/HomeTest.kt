@@ -50,8 +50,10 @@ class HomeTest {
         // A38: the action must match the state — the old "always Manage" was the bug.
         assertEquals("Disconnect", identityAction(Identity.Connected()))
         assertEquals("Retry", identityAction(Identity.Offline()))
-        assertEquals("Sign in", identityAction(Identity.SignedOut(band = "The Troubadours"))) // server known
-        assertEquals("Connect", identityAction(Identity.NotSetUp)) // nothing set up
+        // A57: both Guest states say "Join or sign in" — the door must not read as sign-in-only to someone
+        // holding an invite (the Connect modal leads with paste/Scan/Join).
+        assertEquals("Join or sign in", identityAction(Identity.SignedOut(band = "The Troubadours"))) // server known
+        assertEquals("Join or sign in", identityAction(Identity.NotSetUp)) // nothing set up
         assertEquals("", identityAction(Identity.Checking)) // no action word; the row renders it disabled, not hidden
     }
 

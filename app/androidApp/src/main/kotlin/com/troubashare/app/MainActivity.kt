@@ -377,6 +377,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 }
             },
             onManage = { connecting = true },
+            onScanToJoin = { scanning = true }, // A57: direct scan entry for a Guest holding an invite
             onSettings = { settings = true },
             // A39: one tap → download+install the newer bake(s). apply() downloads to a temp then does
             // the A05 ATOMIC import, so a failure/cancel leaves the installed bundle intact (I12). On

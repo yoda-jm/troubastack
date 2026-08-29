@@ -8,9 +8,11 @@ import com.troubashare.shared.distribution.originOf
 import com.troubashare.shared.home.bandLabel
 import com.troubashare.shared.join.AcceptOutcome
 import com.troubashare.shared.join.PreviewResult
+import com.troubashare.shared.join.RegisterOutcome
 import com.troubashare.shared.join.ServerIdentity
 import com.troubashare.shared.join.acceptOutcome
 import com.troubashare.shared.join.previewOutcome
+import com.troubashare.shared.join.registerOutcome
 import com.troubashare.shared.join.serverIdentity
 import com.troubashare.shared.seams.SESSION_COOKIE_KEY
 import com.troubashare.shared.seams.SESSION_ORIGIN_KEY
@@ -186,6 +188,21 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         val band: BandRef = BandRef(), val role: String = "", val valid: Boolean = false,
         val reason: String = "", val error: String = "",
     ) { @Serializable data class BandRef(val id: String = "", val name: String = "") }
+
+    @Serializable private data class RegisterReq(val username: String, val displayName: String, val password: String)
+
+    /** A57: create an account (`POST /api/auth/register`) so an invited newcomer can join. The route is
+     *  unauthenticated and open already, so this widens NO capability — it makes the supported path
+     *  reachable from the app. On [RegisterOutcome.Created] the caller signs in and continues the join;
+     *  409 ⇒ [RegisterOutcome.NameTaken] (recoverable). Never sends/needs a session. */
+    suspend fun register(username: String, displayName: String, password: String): RegisterOutcome =
+        runCatching {
+            val resp = client.post("$baseUrl/api/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody(RegisterReq(username.trim(), displayName.trim(), password))
+            }
+            registerOutcome(resp.status.value)
+        }.getOrElse { RegisterOutcome.Failed(0) }
 
     /** Preview `GET /api/invite-links/{token}` before committing → band + role, or the server's reason for
      *  an unusable link. No local cookie ⇒ [PreviewResult.NeedsSignIn] without a round-trip; a network

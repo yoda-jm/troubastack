@@ -150,14 +150,17 @@ fun studioEnablement(identity: Identity): StudioTile = when (identity) {
 
 /**
  * The PRIMARY action for a state — A38: the action must match the status. Recognized → Disconnect,
- * Offline → Retry, Guest → Sign in (server known) / Connect (nothing set up). Empty while Checking
- * (the button is shown disabled, not hidden).
+ * Offline → Retry, Empty while Checking (the button is shown disabled, not hidden).
+ *
+ * A57: both Guest states say **"Join or sign in"** (was "Sign in"/"Connect"). Both open the same Connect
+ * modal, which now LEADS with the invite (paste / Scan / Join) before manual sign-in — so a person holding
+ * an invite must not read a button that says only "Sign in" and conclude it isn't for them.
  */
 fun identityAction(identity: Identity): String = when (identity) {
     is Identity.Connected -> "Disconnect"
     is Identity.Offline -> "Retry"
-    is Identity.SignedOut -> "Sign in"
-    is Identity.NotSetUp -> "Connect"
+    is Identity.SignedOut -> "Join or sign in"
+    is Identity.NotSetUp -> "Join or sign in"
     is Identity.Checking -> ""
 }
 
@@ -368,6 +371,9 @@ fun HomeScreen(
     onPrimaryAction: () -> Unit,
     onManage: () -> Unit,
     onSettings: () -> Unit,
+    // A57: a DIRECT scan entry for a Guest holding an invite QR — on Home, not behind the account panel.
+    // Straight into A53's scanner (which falls back to paste when the camera is denied, so it can't dead-end).
+    onScanToJoin: () -> Unit = {},
     // A39: pull the newer bake(s) / cancel an in-flight update. No-ops when the update row is Hidden.
     onUpdate: () -> Unit = {},
     onCancelUpdate: () -> Unit = {},
@@ -396,6 +402,15 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     AccountChip(state.identity, showLabel = showLabel, onClick = { showAccount = true })
+                }
+            }
+
+            // A57: a Guest holding an invite QR is offered a DIRECT scan, on Home, not buried in the account
+            // sheet. Only in the Guest states (a Recognized/Offline user has no reason to join from here);
+            // the scanner falls back to paste if the camera is denied, so it can't dead-end.
+            if (state.identity is Identity.SignedOut || state.identity is Identity.NotSetUp) {
+                TextButton(onClick = onScanToJoin, modifier = Modifier.align(Alignment.Start)) {
+                    Text("⧉  Scan a QR to join a band")
                 }
             }
 

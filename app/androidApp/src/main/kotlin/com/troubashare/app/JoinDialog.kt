@@ -34,6 +34,7 @@ import com.troubashare.shared.join.AcceptOutcome
 import com.troubashare.shared.join.JoinAction
 import com.troubashare.shared.join.PendingToken
 import com.troubashare.shared.join.PreviewResult
+import com.troubashare.shared.join.RegisterOutcome
 import com.troubashare.shared.join.ServerIdentity
 import com.troubashare.shared.join.joinDecision
 import com.troubashare.shared.join.parseTroubaLink
@@ -242,8 +243,15 @@ private fun HostLine(label: String, host: String) {
     }
 }
 
+/** A57: the minimum password length the app enforces client-side. C6 records that the SERVER enforces only
+ *  `minPasswordLen = 1` and has no rate limiting — both remain open; this is a client-side floor + message,
+ *  not a fix for C6. */
+private const val MIN_PASSWORD = 8
+
 /** The sign-in sub-step: the two invite routes are auth-gated, so joining a server means signing into it
- *  first (the token is held by the parent across this round-trip). Mirrors ConnectContent's login. */
+ *  first (the token is held by the parent across this round-trip). A57: an invited NEWCOMER can create an
+ *  account here — "New here? Create an account" → register → auto-sign-in → continue the same join. Register
+ *  form is join-sheet-only (the invite is what scopes account creation); Connect is untouched. */
 @Composable
 private fun SignInStep(
     origin: String,
@@ -252,41 +260,78 @@ private fun SignInStep(
     onCancel: () -> Unit,
     onSignedIn: () -> Unit,
 ) {
+    var registering by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf(storage.getSecret(LAST_USERNAME_KEY) ?: "") }
+    var displayName by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Text("Sign in to $origin to join.", style = MaterialTheme.typography.bodyMedium)
-    OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(
-        password, { password = it }, label = { Text("Password") },
-        singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
-    )
-    error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = onCancel, enabled = !busy) { Text("Cancel") }
-        Button(
-            enabled = !busy && username.isNotBlank() && password.isNotBlank(),
-            onClick = {
-                busy = true; error = null
-                scope.launch {
-                    val err = try {
-                        transport.connect(username.trim(), password)
-                    } catch (e: Exception) {
-                        "Couldn't reach the server"
+    // Sign in against the (already-selected) server, then continue the join. Shared by both paths — after a
+    // register we sign in with the same credentials so PendingToken redeems without restarting.
+    fun signInThen(u: String, p: String) {
+        scope.launch {
+            val err = try {
+                transport.connect(u, p)
+            } catch (e: Exception) {
+                "Couldn't reach the server"
+            }
+            busy = false
+            if (err == null) {
+                storage.putSecret(LAST_USERNAME_KEY, u) // A41: remember on success only
+                onSignedIn()
+            } else {
+                error = err
+            }
+        }
+    }
+
+    if (registering) {
+        Text("Create an account to join.", style = MaterialTheme.typography.bodyMedium)
+        OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(displayName, { displayName = it }, label = { Text("Display name") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            password, { password = it }, label = { Text("Password") },
+            singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+        )
+        error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { registering = false; error = null }, enabled = !busy) { Text("Have an account? Sign in") }
+            Button(
+                enabled = !busy && username.isNotBlank() && displayName.isNotBlank() && password.isNotBlank(),
+                onClick = {
+                    if (password.length < MIN_PASSWORD) { error = "Use at least $MIN_PASSWORD characters."; return@Button }
+                    busy = true; error = null
+                    scope.launch {
+                        when (transport.register(username, displayName, password)) {
+                            RegisterOutcome.Created -> signInThen(username.trim(), password) // keeps busy until sign-in resolves
+                            RegisterOutcome.NameTaken -> { busy = false; error = "That name is taken — try another." }
+                            is RegisterOutcome.Failed -> { busy = false; error = "Couldn't create the account. Try again." }
+                        }
                     }
-                    busy = false
-                    if (err == null) {
-                        storage.putSecret(LAST_USERNAME_KEY, username.trim()) // A41: remember on success only
-                        onSignedIn()
-                    } else {
-                        error = err
-                    }
-                }
-            },
-        ) { Text(if (busy) "Signing in…" else "Sign in") }
+                },
+            ) { Text(if (busy) "Creating…" else "Create account") }
+        }
+    } else {
+        Text("Sign in to $origin to join.", style = MaterialTheme.typography.bodyMedium)
+        OutlinedTextField(username, { username = it }, label = { Text("Username") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            password, { password = it }, label = { Text("Password") },
+            singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+        )
+        error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onCancel, enabled = !busy) { Text("Cancel") }
+            Button(
+                enabled = !busy && username.isNotBlank() && password.isNotBlank(),
+                onClick = { busy = true; error = null; signInThen(username.trim(), password) },
+            ) { Text(if (busy) "Signing in…" else "Sign in") }
+        }
+        // A57: the newcomer branch — an invite's whole point is bringing in someone with no account yet.
+        TextButton(onClick = { registering = true; error = null; password = "" }, enabled = !busy) {
+            Text("New here? Create an account")
+        }
     }
 }
 

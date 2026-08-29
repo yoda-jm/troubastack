@@ -28,8 +28,9 @@ class AccountTriggerTest {
     fun menu_offersTheRightActions_perState() {
         assertEquals(AccountMenu(manage = true, primaryAction = "Disconnect"), accountMenu(Identity.Connected(name = "Marie")))
         assertEquals(AccountMenu(manage = true, primaryAction = "Retry"), accountMenu(Identity.Offline()))
-        assertEquals(AccountMenu(manage = true, primaryAction = "Sign in"), accountMenu(Identity.SignedOut()))
-        assertEquals(AccountMenu(manage = false, primaryAction = "Connect"), accountMenu(Identity.NotSetUp))
+        // A57: both Guest states now say "Join or sign in" (the door must not read sign-in-only to an invitee).
+        assertEquals(AccountMenu(manage = true, primaryAction = "Join or sign in"), accountMenu(Identity.SignedOut()))
+        assertEquals(AccountMenu(manage = false, primaryAction = "Join or sign in"), accountMenu(Identity.NotSetUp))
         // Parameters is always available (chrome, not account).
         assertTrue(accountMenu(Identity.NotSetUp).settings)
     }

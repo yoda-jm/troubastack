@@ -135,3 +135,28 @@ fun previewOutcome(status: Int, band: String?, role: String?, valid: Boolean, re
         404 -> PreviewResult.NotFound
         else -> PreviewResult.Failed(status)
     }
+
+/** A57 — the outcome of `POST /api/auth/register` (creating an account from an invite). */
+sealed interface RegisterOutcome {
+    /** 200/201 — account created; the flow signs in automatically and continues the same join. */
+    data object Created : RegisterOutcome
+
+    /** 409 — the username is taken. The common, RECOVERABLE failure: say so and keep the person in the
+     *  form so they pick another name — never flattened into a generic error. */
+    data object NameTaken : RegisterOutcome
+
+    /** Anything else (5xx / unexpected / network sentinel 0). */
+    data class Failed(val status: Int) : RegisterOutcome
+}
+
+/**
+ * A57 — map a register response to a [RegisterOutcome]. `409` (name taken) is the outcome that matters and
+ * is kept distinct from [Failed] so the sheet can say "that name is taken" and leave the person in the form
+ * rather than dead-ending them. This does NOT widen what's possible — `POST /api/auth/register` is already
+ * unauthenticated and open; the app just makes the supported path reachable by a human.
+ */
+fun registerOutcome(status: Int): RegisterOutcome = when (status) {
+    200, 201 -> RegisterOutcome.Created
+    409 -> RegisterOutcome.NameTaken
+    else -> RegisterOutcome.Failed(status)
+}
