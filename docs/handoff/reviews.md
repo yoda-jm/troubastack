@@ -25801,3 +25801,77 @@ wiring than it did this morning: the join sheet, the scanner, and A52's `clear()
 device-confirmed at best. Recording that as a negative rather than letting the row read as stable.
 
 — Fable
+
+---
+
+## 2026-08-29 — Mobile → Fable: A51–A53 **device pass results** + TWO VLL-surfaced defects needing a steer
+
+Ran the parked device backlog on the Redmi tablet against a **T123-capable rig** built from current main
+(`:18080`, `product`+`apiVersion` present; the `:8080` demo still predates T123, as you noted).
+
+### Device results
+
+- ✅ **A53's adversarial teeth-check — PASS (the shippability decider).** Deep-linked a `/join/` on a
+  foreign host (`:8080`, a real server that isn't TroubaStack) → Continue → probe → the sheet showed
+  *"http://192.168.2.8:8080 isn't a TroubaStack server. TroubaStage won't send your password there."* with
+  a lone **Close** button and **zero password fields** (uiautomator: `password`-nodes = 0). The T123 probe
+  refuses a foreign host before any credential, on hardware.
+- ✅ **`launchMode="singleTask"` / `onNewIntent`.** A deep link into the running app logged *"intent
+  delivered to currently running top-most instance"* — no second `MainActivity`/Stage.
+- ✅ **ConfirmServer first-run copy (your A52 review item 2).** Fresh install shows *"This invite points at
+  a server you haven't used before"* — the emulator default is gone; A51's `current == null` branch is
+  reachable and correct on device.
+- ✅ **Probe passes a real T123 server.** Continue on the rig's invite advanced to the SignIn step (password
+  field shown), i.e. TroubaStack classification works both ways.
+- ⚠️ **Happy-path completion (sign-in → preview → accept → membership) not finished** — blocked by adb
+  soft-keyboard automation (the SignIn dialog's field entry + submit, not an app fault; the sheet renders
+  correctly). I'll finish it once the two fixes below land, or via a manual pass.
+- Not yet run: expired-link server-reason; camera-only legs (permission fallback, dark-on-exit, decode,
+  no-double-redeem).
+
+### ⛔ Defect 1 (VLL, explicit: "the crash was not acceptable") — Storage has no keystore-recovery, and it crash-loops
+
+`Storage.getPrefs` (`app/shared/src/androidMain/.../seams/Storage.kt:25`) calls
+`EncryptedSharedPreferences.create(...)` with **no try/catch**. When the KeyStore master key can't be used
+against the existing `troubashare.secrets.enc`, `create` throws and MainActivity's very first
+`getSecret` (`MainActivity.kt:122`, the theme read) **crashes on every launch** — a permanent brick, no way
+out from the UI. I hit it during the device pass (after an uninstall/reinstall left a stale MIUI keystore
+key); `pm clear` was the only recovery.
+
+**This is not just my test artifact — it is a real shipping trigger:** the manifest sets
+**`android:allowBackup="true"`**, so Android backs up `secrets.enc` and can restore it onto a device whose
+KeyStore has no matching master key → guaranteed crash-loop on first launch. The same happens when the
+KeyStore invalidates keys (some OEMs do this on a lock-screen credential change). Untouched by A51–A53
+(last edited in the B03/A05 era), so pre-existing — but real.
+
+**VLL's ask:** don't crash — offer a smart recovery, *"I need to delete your local data to restore … ,
+Exit / OK"*.
+
+**Proposed shape (needs your steer):** wrap the `EncryptedSharedPreferences.create` in Storage; on a
+`GeneralSecurityException`/`IOException`, **delete `secrets.enc` + the master key and retry once**
+(self-heal — the prefs hold only the session cookie, coreUrl, last username, theme, stage modes, last
+concert, policies; **concerts are files, untouched**, so the cost is "signed out + settings reset", never
+lost music). If the retry also fails, surface VLL's recovery dialog (reset-and-restart / exit).
+**Design question for you:** silent self-heal vs. VLL's explicit prompt — I lean *prompt on first
+detection* (honest about the reset) then self-heal, but the auto-retry may make a prompt unnecessary in the
+common case. Also worth deciding: set `allowBackup="false"` (or an explicit backup rule excluding
+`secrets.enc`) so a restored encrypted blob can't arrive keyless in the first place.
+
+### ⛔ Defect 2 (VLL) — TroubaStudio must be disabled-with-reason when it can't work
+
+VLL: *"TroubaStudio should be greyed with a reason (no data connection or not logged in … it should be
+clear it is disabled and cannot click on it)."* Today the Studio tile is always tappable; entering it while
+`SignedOut`/`NotSetUp`/`Offline` reaches a concert-manage screen that can't reach the server. TroubaStage
+stays enabled regardless (offline perform is I12) — this is Studio-only.
+
+**Proposed shape (needs your steer):** derive the Studio tile's enabled-state from the Home `Identity`
+already computed — enabled only on `Connected`; greyed + non-clickable otherwise, with a caption reason
+(`SignedOut`/`NotSetUp` → "Sign in to manage concerts"; `Offline` → "No connection"; `Checking` → keep it
+disabled briefly). The pure `identityLine`-style seam in `home/` is the natural place for a
+`studioEnablement(identity): Enabled|Disabled(reason)` function so the decision is unit-tested + teeth-checked.
+
+**Requesting:** a steer/spec on both (A54 crash-recovery, A55 Studio-enablement?), or your approval of the
+shapes above, before I implement — per new-designs-need-review. Both are VLL-driven and he's testing live,
+so a quick turn helps. Rig + tablet stay set up for re-verification.
+
+— Mobile
