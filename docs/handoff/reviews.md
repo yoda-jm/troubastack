@@ -26639,3 +26639,66 @@ No audit row retired. §5's Compose-UI-tests row is now load-bearing for a shipp
 a cosmetic one, which is a change in kind, not in count.
 
 — Fable
+
+## 2026-08-30 — P206 filed: jump marks (in-document links) — DESIGN, not queued
+
+VLL: *"I think I want to spec a new tool: hyperlink (to somewhere in the same pdf … and it goes back
+to this page). Spec this in all cases (including scroll (maybe at the top not top of the page),
+multipage (landscape), …)"*. Filed as `docs/tasks/P206-jump-marks.md` (`2dec1db`). **Design only —
+not queued, no lane assignment.** It touches proto and all three lanes and the concert is 2026-09-05;
+A58 remains the gig-critical item.
+
+**The thing that makes it an L.** Every other thing on a page in this product is pixels — `PageImages`
+is a raster plus one transparent overlay per layer, and `StageModel.kt` opens by declaring itself *"a
+pure image compositor + pager"*. A jump mark is the first **interactive** element on a page, so it
+needs geometry and a destination in the manifest, beside the pixels instead of inside them. And a
+second data channel is a second place to skip a filter: overlays are already filtered by layer
+visibility (A1) and by owner identity (P205 Stage 3b), so a `jumps` list that skips those yields an
+**invisible tappable region** over another member's private annotation. The spec makes that the
+correctness core, and requires the test that would actually fail — hide the layer, tap where the mark
+was, assert *nothing happens* — because a render-only test passes while the hotspot stays live.
+
+**Rulings I made** (four decisions reserved for VLL are listed in the spec's last section): the
+destination is **logical** (page-in-document + optional normalized anchor), never a global index, on
+A46's precedent — the author types a page number, the wire carries something that survives a re-bake ·
+**within-document only**, because a song is authored independently of any concert, so a cross-song
+reference would be valid in one bundle and dangling in another, for the same mark · **one Return slot,
+not a history** · **tap-to-activate as a narrow, argued exception to N3**, whose reasoning was about
+invisible, large, implicit zones, with no touch-slop padding (padding a hit target is the normal
+instinct and is wrong here — it manufactures exactly the accidental navigation N3 forbade).
+
+**Verified against `a46ecc8` while writing, each load-bearing:** `Baker.defaultFile` bakes **one** file
+per song, so page-in-file *is* page-in-song 1:1 — but the D1 transpose path bakes the generated chart
+instead, whose pagination is its own (T75/T76/T77), so a mark authored on the PDF means nothing there
+⇒ validate at bake and drop with a warning · `ScrollReader` repositions on
+`LaunchedEffect(state.currentSong)`, keyed on the **song**, so a same-song jump moves nothing today and
+the scroll offset must be driven explicitly, as the scroll-mode turn handlers already do · a SCROLL
+item is `MetaStrip + page` and the strip renders only on a song's first page, so an anchor offset taken
+from the item top lands short **on first pages only** — a required test case · in two-up, a mark
+pointing at the other half of the same spread moves nothing at all, the same class as
+`nextSpreadPage`'s "same page" comment, which is what makes the arrival cue load-bearing rather than
+decorative · `MainActivity.kt:628` is `BackHandler { selectedDir = null }`, so **system back leaves the
+performance unconditionally** — shipping a Return without changing it throws a reader out of the
+concert; the fix uses the `LocalVolumeTurnRegistrar` pattern, which exists for exactly this host↔shared
+shape.
+
+> **📋 Correction to my own draft, before it was committed.** I wrote that `ObjectType`→string lives in
+> four places including a hand-written `objectTypeToString` in httpapi. **There is no such function.**
+> httpapi routes through the generated `domain.ObjectTypeToString/FromString`
+> (`httpapi/annotations.go:267,293`); `bake/annotations.go` is the **last** hand-written switch and its
+> own comment names the httpapi mirror as if it still existed. I also wrote that a new type needs a
+> manual entry in ink's `InkObjectType` — stale as well: it is `ObjectType | "arrow"`, derived from the
+> generated union, so only the dev-only `arrow` is manual. This is the T123 mistake (enumerating from
+> one file) caught one step earlier, because I checked my own citations before committing them.
+
+### Sweep
+
+No audit row retired; none falsified. **Recorded, not queued** (both are documentation drift, neither
+is a defect): the stale mirror comment above `bake/annotations.go`'s `objectTypeString` — the honest
+fix is to call `domain.ObjectTypeToString` and delete the switch, retiring the silent-drop hazard
+entirely — and step 3 of `web/studio/src/annotations/README.md`. Also recorded: `domain.go:23-32` is a
+hand-written `iota` block, so appending is the only safe edit — inserting a type anywhere else silently
+renumbers every existing one, changing the meaning of every stored annotation with nothing failing
+loudly.
+
+— Fable
