@@ -1,0 +1,11 @@
+<!-- brick: notes (full) - four eighth notes rising sol, la, si, do.
+     Positions come from the staff's own y(), so the heads stay on the rules
+     and in the spaces as the fan converges. Stems up, one flag each.
+     Drawn OVER the highlighter so they read on it. -->
+<g transform="rotate(-14 512 640)" fill="#FBF7ED" stroke="#FBF7ED" stroke-width="7"
+   stroke-linecap="round">
+  <g><ellipse cx="330" cy="696.8" rx="26" ry="19" transform="rotate(-18 330 696.8)"/><line x1="355" y1="688.9" x2="355" y2="586.9"/><path d="M 355 586.8670914127424 C 389 601, 395 627, 380 659 C 388 629, 374 611, 355 615 Z" stroke="none"/></g>
+  <g><ellipse cx="490" cy="667.4" rx="26" ry="19" transform="rotate(-18 490 667.4)"/><line x1="515" y1="659.5" x2="515" y2="557.5"/><path d="M 515 557.4507479224377 C 549 571, 555 597, 540 629 C 548 599, 534 581, 515 585 Z" stroke="none"/></g>
+  <g><ellipse cx="650" cy="640.0" rx="26" ry="19" transform="rotate(-18 650 640.0)"/><line x1="675" y1="632.0" x2="675" y2="530.0"/><path d="M 675 530.02 C 709 544, 715 570, 700 602 C 708 572, 694 554, 675 558 Z" stroke="none"/></g>
+  <g><ellipse cx="810" cy="615.4" rx="26" ry="19" transform="rotate(-18 810 615.4)"/><line x1="835" y1="607.4" x2="835" y2="505.4"/><path d="M 835 505.42581717451515 C 869 519, 875 545, 860 577 C 868 547, 854 529, 835 533 Z" stroke="none"/></g>
+</g>

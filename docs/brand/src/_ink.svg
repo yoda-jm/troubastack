@@ -1,0 +1,52 @@
+<!-- The MINIMAL variant's single stroke. Usually one colour, but TroubaStack
+     runs the whole palette because it is the sum of the others: yellow through
+     orange to blue. Its stops are a token, so a mark that wants one colour
+     simply repeats it. -->
+<linearGradient id="gInkMin{{SFX}}" gradientUnits="userSpaceOnUse"
+                x1="131" y1="0" x2="524" y2="0">
+{{MINSTOPS}}
+</linearGradient>
+<!-- Highlighter paint.
+
+     Colour depends on the ground, which is easy to get wrong. On the light
+     Highlight tile the dominant yellow is #FEE963, luminance 224; on the dark
+     Focus tile the SAME ink reads #B2A541, luminance 157. Ours sits on a dark
+     tile, so the dark-ground figure is the one to match.
+
+     TWO passes. The reference's yellow falls into distinct luminance clusters,
+     a single stroke and a denser one where the marker went back over its own
+     trail, so each pass is laid at partial opacity and the overlap deepens on
+     its own rather than being painted darker.
+
+     Only pass A keeps ink at its left end, because that end is the start of
+     the swipe and its rounded corners should show. Pass B fades IN from
+     nothing: its left end sits in the middle of the trail, and giving it
+     opacity there printed a visible step where the second pass began. The
+     ink is lighter than the tile, so an overlap brightens rather than
+     darkens, which is what made that step read as a pale patch.
+     The two ink gradients are userSpaceOnUse, keyed to their own band's
+     endpoints: the bands are filled shapes now, and a bbox-relative gradient
+     would stretch differently on each of them.
+
+     The edges are a MARKER's, not an airbrush's, and there is no halo layer at
+     all. A wide near-transparent copy under the ink read as a flat translucent
+     slab; VLL asked for it gone or given a gradient, and gone is the honest
+     answer since a stroke gradient runs along the length, not across it.
+
+     Keyed by {{SFX}} because SVG ids are document global and the family sheet
+     holds nine (mark, variant) pairs at once. -->
+<linearGradient id="gInk{{SFX}}" gradientUnits="userSpaceOnUse"
+                x1="131" y1="0" x2="524" y2="0">
+  <stop offset="0"    stop-color="{{HL}}" stop-opacity="0.80"/>
+  <stop offset="0.42" stop-color="{{HL}}" stop-opacity="0.86"/>
+  <stop offset="0.74" stop-color="{{HL}}" stop-opacity="0.62"/>
+  <stop offset="1"    stop-color="{{HL}}" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="gCore{{SFX}}" gradientUnits="userSpaceOnUse"
+                x1="131" y1="0" x2="524" y2="0">
+  <stop offset="0"    stop-color="{{CORE}}" stop-opacity="0"/>
+  <stop offset="0.20" stop-color="{{CORE}}" stop-opacity="0.30"/>
+  <stop offset="0.52" stop-color="{{CORE}}" stop-opacity="0.38"/>
+  <stop offset="0.80" stop-color="{{CORE}}" stop-opacity="0.18"/>
+  <stop offset="0.96" stop-color="{{CORE}}" stop-opacity="0"/>
+</linearGradient>

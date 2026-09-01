@@ -1,0 +1,18 @@
+<!-- brick: staff rules (full). Not five parallel lines: measured on the
+     reference, the rules fan and converge, spacing falling 11% across 44% of
+     the width, which is what reads as perspective. Spacing is also wider than
+     ours was, 5.13% of the tile against 3.52%. The quadratic bow is deliberate
+     and slight; the reference's own curvature measured under 0.6px at tile
+     scale, so the arc here is a design choice, not a copy.
+     The span reaches further left and right than the artwork needs; gRule's
+     radius was scaled by the same factor, so the falloff keeps its shape and
+     simply happens further out.
+     Drawn UNDER the highlighter. -->
+<g transform="rotate(-14 512 640)" fill="none" stroke="url(#gRule)" stroke-width="5"
+   stroke-linecap="round">
+  <path d="M 40 522.0 Q 515 526.0 990 550.0"/>
+  <path d="M 40 581.0 Q 515 583.0 990 595.0"/>
+  <path d="M 40 640.0 Q 515 640.0 990 640.0"/>
+  <path d="M 40 699.0 Q 515 697.0 990 685.0"/>
+  <path d="M 40 758.0 Q 515 754.0 990 730.0"/>
+</g>

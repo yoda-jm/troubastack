@@ -1,0 +1,15 @@
+<!-- brick: ONE pass of a chisel marker.
+
+     A closed surface, never a thick stroke: a stroke's ends can only be butt,
+     round or square, with no corner radius between them, and what the design
+     wants is a modest rounding. The band is the pass's own circular arc offset
+     by plus and minus its half width, closed by radial ends, with each of the
+     four corners rounded. The geometry is computed in build.py from the pass's
+     endpoints, sagitta, half width and corner radius; this brick is the shape
+     it fills in.
+
+     Texture is thin arcs inside the trail, following that same arc. -->
+<path d="{{D}}" fill="url(#{{GRAD}}{{SFX}})"/>
+<g fill="none" stroke="url(#gCore{{SFX}})" stroke-linecap="round">
+{{STREAKS}}
+</g>

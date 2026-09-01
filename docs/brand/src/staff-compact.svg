@@ -1,0 +1,8 @@
+<!-- brick: staff rules (compact). Same fan and same widened span as the full
+     staff, 3 heavier rules, legible near 96px. -->
+<g transform="rotate(-14 512 640)" fill="none" stroke="url(#gRule)" stroke-width="9"
+   stroke-linecap="round">
+  <path d="M 55 561.0 Q 515 565.0 975 579.0"/>
+  <path d="M 55 640.0 Q 515 640.0 975 640.0"/>
+  <path d="M 55 719.0 Q 515 715.0 975 701.0"/>
+</g>

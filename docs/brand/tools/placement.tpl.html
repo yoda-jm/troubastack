@@ -1,0 +1,129 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Placement des traits et du monogramme</title>
+<style>
+ :root{--bg:#0D1116;--panel:#161C23;--line:#28313B;--text:#E8ECF1;--muted:#8B96A3;
+  --a:#F5A623;--b:#4FC3F7;--c:#E4508F;--d:#9CCC65;--e:#BA8CF0;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+ *{box-sizing:border-box} html,body{margin:0;height:100%}
+ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+ .wrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;height:100%;padding:16px}
+ @media(max-width:980px){.wrap{grid-template-columns:1fr;height:auto}}
+ .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;
+  display:flex;align-items:center;justify-content:center;min-height:0}
+ svg{width:100%;height:auto;max-height:calc(100vh - 52px);display:block;touch-action:none;
+  cursor:grab;border-radius:8px}
+ aside{display:flex;flex-direction:column;gap:12px;min-height:0}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+ h1{font-size:14px;margin:0 0 6px} .sub{color:var(--muted);font-size:12px;margin:0;line-height:1.5}
+ .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+ button{font:inherit;color:var(--text);background:#20272F;border:1px solid var(--line);
+  border-radius:8px;padding:7px 9px;cursor:pointer;text-align:left}
+ button:hover{background:#28313B}
+ button[aria-pressed="true"]{outline:2px solid currentColor;outline-offset:-2px}
+ button.sh{border-left:4px solid var(--x,#666)}
+ textarea{width:100%;height:132px;background:#0B0F14;color:#CFE3FF;border:1px solid var(--line);
+  border-radius:8px;padding:9px;font-family:var(--mono);font-size:12px;line-height:1.55;resize:vertical}
+ .row{display:flex;gap:6px;margin-top:8px}
+ kbd{font-family:var(--mono);background:#20272F;border:1px solid var(--line);border-radius:4px;
+  padding:1px 5px;font-size:11px}
+ .live{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:8px}
+</style></head><body>
+<div class="wrap">
+ <div class="stage"><svg id="v" viewBox="0 0 1024 1024"><!--SVG--></svg></div>
+ <aside>
+  <div class="card">
+   <h1>Forme</h1>
+   <div class="grid" id="shapes"></div>
+   <div class="live" id="live">rien de selectionne</div>
+  </div>
+  <div class="card">
+   <h1>Transformation</h1>
+   <p class="sub">Choisis puis glisse sur l'image. <kbd>Maj</kbd> ralentit.</p>
+   <div class="grid" id="modes"></div>
+  </div>
+  <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+   <h1>A recopier</h1>
+   <div class="row"><button id="copy">Copier</button><button id="reset">Tout remettre</button></div>
+   <textarea id="out" readonly spellcheck="false"></textarea>
+  </div>
+ </aside>
+</div>
+<script>
+const SHAPES=[/*SHAPES*/];
+const MODES=[["move","translation"],["rot","rotation"],["scale","echelle"]];
+const st={}; SHAPES.forEach(([k])=>st[k]={tx:0,ty:0,rot:0,sc:1});
+let sel=SHAPES[0][0], mode="move";
+const svg=document.getElementById('v'), out=document.getElementById('out');
+const centres={};
+function centre(k){
+  if(centres[k]) return centres[k];
+  const bb=document.getElementById('u-'+k).getBBox();
+  return centres[k]={x:bb.x+bb.width/2,y:bb.y+bb.height/2};
+}
+function apply(){
+  for(const [k] of SHAPES){
+    const s=st[k], c=centre(k);
+    document.getElementById('u-'+k).setAttribute('transform',
+      `translate(${s.tx.toFixed(1)},${s.ty.toFixed(1)}) translate(${c.x.toFixed(1)},${c.y.toFixed(1)}) `+
+      `rotate(${s.rot.toFixed(2)}) scale(${s.sc.toFixed(4)}) `+
+      `translate(${(-c.x).toFixed(1)},${(-c.y).toFixed(1)})`);
+  }
+  out.value=SHAPES.map(([k,label])=>{
+    const s=st[k];
+    return `${k.padEnd(8)} translate(${s.tx.toFixed(1)},${s.ty.toFixed(1)}) `+
+           `rotate(${s.rot.toFixed(2)}) scale(${s.sc.toFixed(3)})`;
+  }).join('\n');
+  const s=st[sel];
+  document.getElementById('live').textContent =
+    `${sel} : dx ${s.tx.toFixed(1)}  dy ${s.ty.toFixed(1)}  rot ${s.rot.toFixed(2)}deg  x${s.sc.toFixed(3)}`;
+}
+function mk(){
+  const g=document.getElementById('shapes');
+  SHAPES.forEach(([k,label,col])=>{
+    const b=document.createElement('button'); b.className='sh'; b.style.setProperty('--x',col);
+    b.style.color=col; b.textContent=label; b.setAttribute('aria-pressed',k===sel);
+    b.onclick=()=>{sel=k;[...g.children].forEach((c,i)=>c.setAttribute('aria-pressed',SHAPES[i][0]===sel));apply();};
+    g.appendChild(b);
+  });
+  const m=document.getElementById('modes');
+  MODES.forEach(([k,label])=>{
+    const b=document.createElement('button'); b.textContent=label;
+    b.setAttribute('aria-pressed',k===mode);
+    b.onclick=()=>{mode=k;[...m.children].forEach((c,i)=>c.setAttribute('aria-pressed',MODES[i][0]===mode));};
+    m.appendChild(b);
+  });
+}
+function toSvg(e){
+  const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+let drag=null;
+svg.addEventListener('pointerdown',e=>{
+  drag={p:toSvg(e),s:{...st[sel]}}; svg.setPointerCapture(e.pointerId); svg.style.cursor='grabbing';
+});
+svg.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const p=toSvg(e), c=centre(sel), k=e.shiftKey?0.25:1, s=st[sel];
+  if(mode==='move'){ s.tx=drag.s.tx+(p.x-drag.p.x)*k; s.ty=drag.s.ty+(p.y-drag.p.y)*k; }
+  else if(mode==='rot'){
+    const a0=Math.atan2(drag.p.y-c.y,drag.p.x-c.x), a1=Math.atan2(p.y-c.y,p.x-c.x);
+    s.rot=drag.s.rot+(a1-a0)*180/Math.PI*k;
+  } else {
+    const d0=Math.hypot(drag.p.x-c.x,drag.p.y-c.y), d1=Math.hypot(p.x-c.x,p.y-c.y);
+    if(d0>4) s.sc=Math.max(0.2,Math.min(4,drag.s.sc*(1+((d1/d0)-1)*k)));
+  }
+  apply();
+});
+svg.addEventListener('pointerup',()=>{drag=null; svg.style.cursor='grab';});
+document.getElementById('reset').onclick=()=>{SHAPES.forEach(([k])=>st[k]={tx:0,ty:0,rot:0,sc:1});apply();};
+document.getElementById('copy').onclick=()=>{
+  out.select();
+  const done=()=>{const b=document.getElementById('copy');b.textContent='Copie';
+    setTimeout(()=>b.textContent='Copier',1200);};
+  if(navigator.clipboard) navigator.clipboard.writeText(out.value).then(done,()=>{document.execCommand('copy');done();});
+  else {document.execCommand('copy');done();}
+};
+mk(); apply();
+</script></body></html>

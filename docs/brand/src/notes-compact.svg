@@ -1,0 +1,6 @@
+<!-- brick: notes (compact): two eighth notes, sol and si, heavier. -->
+<g transform="rotate(-14 512 640)" fill="#FBF7ED" stroke="#FBF7ED" stroke-width="12"
+   stroke-linecap="round">
+  <g><ellipse cx="400" cy="714.6" rx="34" ry="25" transform="rotate(-18 400 714.6)"/><line x1="432" y1="704.1" x2="432" y2="576.1"/><path d="M 432 576.09375 C 476 594, 484 628, 464 670 C 475 631, 457 607, 432 612 Z" stroke="none"/></g>
+  <g><ellipse cx="690" cy="640.0" rx="34" ry="25" transform="rotate(-18 690 640.0)"/><line x1="722" y1="629.5" x2="722" y2="501.5"/><path d="M 722 501.5 C 766 520, 774 554, 754 595 C 765 556, 747 533, 722 538 Z" stroke="none"/></g>
+</g>
