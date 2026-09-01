@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TroubaStack — collaborative sheet music for bands, self-hosted</title>
+<meta name="description" content="Compose and annotate scores together in the rehearsal room, bake a setlist into one concert bundle, and perform it offline on stage. One Go binary you host yourself. Apache-2.0.">
+<link rel="icon" href="assets/troubastack-minimal.svg" type="image/svg+xml">
+<meta property="og:title" content="TroubaStack">
+<meta property="og:description" content="From the rehearsal-room edit to the on-stage page turn — self-hosted on a box you own.">
+<meta property="og:image" content="assets/troubastack-512.png">
+<meta name="theme-color" content="#202B36">
+<style>
+/* ---------------------------------------------------------------------------
+   Palette. Every colour is the brand's own, taken from docs/brand/src/_defs.svg
+   — the same gradients the icons are drawn from. Nothing here is invented.
+
+   Accents come in PAIRS, one per ground, and that is deliberate: a single accent
+   cannot serve both. Measured, the dark-ground table fails the 3:1 large-text
+   bar on the pale ground and vice versa (Stack 2.43:1 dark / 5.85:1 pale;
+   Stage 5.11:1 dark / 2.79:1 pale). So the layer colours themselves carry the
+   dark sections, and their darkened counterparts carry the paper ones.
+--------------------------------------------------------------------------- */
+:root {
+  --tile-hi: #26333F;
+  --tile-lo: #1B242D;
+  --tile:    #202B36;
+
+  /* the three layers, as drawn */
+  --l1: #FCCC55;   /* Stage  */
+  --l2: #E13198;   /* Studio */
+  --l3: #2A8FE9;   /* Core   */
+  --hl: #FEE963;   /* highlighter gold */
+  --neutral: #5A6674;
+
+  /* the same four, darkened to hold on paper */
+  /* Layer 1's wordmark accent measures 2.65:1 on this paper — it fails even the
+     large-text bar, the one case the brand's single-accent table gets wrong in
+     the light direction. Same hue and saturation, darkened until it holds at
+     4.58:1, so small text can use it too. */
+  --l1-ink: #936B1F;
+  --l2-ink: #D62A8A;
+  --l3-ink: #1769D1;
+  --neutral-ink: #4A5560;
+  --neutral-on-dark: #AEBAC6;
+
+  --paper:     #FBF9F5;
+  --paper-alt: #F3EFE7;
+  --ink:       #141A1F;
+  --ink-soft:  #5C6670;
+  --rule:      #E2DCD1;
+
+  --on-dark:      #F4F1EA;
+  --on-dark-soft: #A7B0BA;
+
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --page: 1140px;
+  --gutter: clamp(20px, 5vw, 56px);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+img, svg { max-width: 100%; }
+a { color: inherit; }
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.12; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(30px, 4.2vw, 46px); letter-spacing: -0.015em; }
+h3 { font-size: 21px; letter-spacing: -0.01em; }
+p  { margin: 0 0 1em; }
+p:last-child { margin-bottom: 0; }
+
+.wrap { max-width: var(--page); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* --- the chord gutter -------------------------------------------------------
+   Section labels sit above their section in monospace, the way a chord symbol
+   sits above its lyric. The colour names which layer the section is about, so
+   the label carries information rather than decorating.                        */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+  color: var(--ink-soft);
+}
+.eyebrow.l1 { color: var(--l1-ink); }
+.eyebrow.l2 { color: var(--l2-ink); }
+.eyebrow.l3 { color: var(--l3-ink); }
+.on-dark .eyebrow { color: var(--on-dark-soft); }
+.on-dark .eyebrow.l1 { color: var(--l1); }
+.on-dark .eyebrow.l2 { color: var(--l2); }
+.on-dark .eyebrow.l3 { color: var(--l3); }
+
+/* --- the highlighter --------------------------------------------------------
+   The product's own marker pass: assets/swipe.svg is the path band() emits in
+   docs/brand/build.py, same half-width, corner radius and negative sagitta as
+   the icon's stroke.
+
+   It is painted on the ELEMENT with box-decoration-break: clone, not on an
+   absolutely-positioned pseudo-element. A pseudo-element is laid out against
+   the bounding box of ALL the inline's line fragments, so the moment the marked
+   phrase wraps — which a fluid headline does at some width on every page — the
+   swipe collapses into a blob across the break. Cloning paints one pass per
+   line instead, which is also what a hand does.
+
+   And it appears only on the PAPER sections. A highlighter goes on paper: the
+   ink is light, so it needs dark text over it. On the dark hero the same swipe
+   would sit under white text and bury it, so emphasis there is gold TEXT.
+   A background-image rather than a CSS mask, too — masks need a CORS-clean
+   source and paint nothing over file://, which is how this page is previewed.  */
+.mark {
+  background: url(assets/swipe.svg) center/100% 100% no-repeat;
+  -webkit-box-decoration-break: clone;
+          box-decoration-break: clone;
+  padding: .02em .16em .06em;
+  margin-inline: -.06em;
+}
+
+/* --- GitHub corner ---------------------------------------------------------- */
+.gh-corner {
+  position: fixed; top: 0; right: 0; z-index: 90;
+  width: 88px; height: 88px;
+  color: var(--l1);        /* the wedge */
+  fill: var(--tile);       /* the octocat on it */
+}
+.gh-corner:focus-visible { outline: 3px solid var(--l1); outline-offset: -6px; }
+.gh-corner .octo-arm { transform-origin: 130px 106px; }
+@media (hover: hover) {
+  .gh-corner:hover .octo-arm { animation: wave 560ms ease-in-out; }
+}
+@keyframes wave { 0%,100% { transform: rotate(0) } 20%,60% { transform: rotate(-25deg) } 40%,80% { transform: rotate(10deg) } }
+@media (max-width: 620px) { .gh-corner { width: 64px; height: 64px; } }
+
+/* --- hero ------------------------------------------------------------------- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 38% 26%, rgba(58,74,89,.55), rgba(0,0,0,.30)),
+    linear-gradient(150deg, var(--tile-hi), var(--tile-lo));
+  color: var(--on-dark);
+}
+/* The hero's texture is a staff: five rules with the same oval falloff the icon
+   uses (gRule), so the ends fade instead of hitting the edge. */
+.staff {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: .16;
+}
+.hero-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  padding: clamp(64px, 9vw, 118px) 0 clamp(56px, 8vw, 104px);
+}
+@media (max-width: 900px) { .hero-inner { grid-template-columns: 1fr; padding-top: 76px; } }
+
+.lockup { display: flex; align-items: center; gap: 16px; margin-bottom: 26px; }
+.lockup img { width: 64px; height: 64px; border-radius: 14px; }
+.lockup .name { font-family: var(--serif); font-size: 27px; font-weight: 700; letter-spacing: -.01em; }
+/* Stack's brand neutral #5A6674 measures 2.43:1 on this ground — below even the
+   large-text bar. Same hue, lifted until it holds. */
+.lockup .name em { font-style: normal; color: var(--neutral-on-dark); }
+
+.hero h1 .gold { color: var(--l1); }
+.hero h1 {
+  font-size: clamp(38px, 5.6vw, 62px);
+  letter-spacing: -.022em;
+  margin-bottom: 22px;
+}
+.hero .lede {
+  font-size: clamp(17px, 1.6vw, 20px);
+  color: var(--on-dark-soft);
+  max-width: 40ch;
+  margin-bottom: 32px;
+}
+.hero .lede strong { color: var(--on-dark); font-weight: 600; }
+
+.promises {
+  list-style: none; margin: 0 0 28px; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 8px 20px;
+  font-size: 15px; color: var(--on-dark-soft);
+}
+.promises li { display: inline-flex; align-items: center; gap: 9px; }
+.promises strong { color: var(--on-dark); font-weight: 600; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.dot.d1 { background: var(--l1); }
+.dot.d2 { background: var(--l2); }
+.dot.d3 { background: var(--l3); }
+
+.cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 12px 20px;
+  border-radius: 11px;
+  font-weight: 600; font-size: 15.5px;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:focus-visible { outline: 3px solid var(--l1); outline-offset: 2px; }
+.btn-primary { background: var(--l1); color: #21180A; }
+.btn-primary:hover { background: #FEDB6C; }
+.btn-ghost { border-color: rgba(244,241,234,.30); color: var(--on-dark); }
+.btn-ghost:hover { border-color: rgba(244,241,234,.62); background: rgba(244,241,234,.06); }
+
+.hero-shot { justify-self: center; position: relative; }
+.hero-shot img {
+  display: block;
+  width: min(324px, 76vw);
+  max-height: 560px;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 20px;
+  border: 1px solid rgba(244,241,234,.14);
+  box-shadow: 0 34px 70px -22px rgba(0,0,0,.72), 0 2px 0 rgba(255,255,255,.05) inset;
+}
+.shot-note {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em;
+  color: var(--on-dark-soft); text-align: center; margin-top: 14px;
+}
+
+/* --- the loop rail ---------------------------------------------------------- */
+.loop { background: var(--tile); color: var(--on-dark); border-top: 1px solid rgba(255,255,255,.06); }
+.loop ol {
+  list-style: none; margin: 0; padding: 30px 0;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+}
+.loop li { position: relative; padding: 6px 18px 6px 0; }
+.loop li::after {
+  content: "→"; position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  color: rgba(167,176,186,.45);
+}
+.loop li:last-child::after { content: none; }
+.loop .step { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; color: var(--on-dark-soft); }
+.loop .what { font-weight: 600; font-size: 16px; }
+.loop li:nth-child(1) .what { color: var(--l2); }
+.loop li:nth-child(2) .what { color: var(--l2); }
+.loop li:nth-child(3) .what { color: var(--l3); }
+.loop li:nth-child(4) .what { color: var(--l1); }
+@media (max-width: 780px) {
+  .loop ol { grid-template-columns: repeat(2, 1fr); gap: 14px 4px; }
+}
+
+/* --- sections --------------------------------------------------------------- */
+section { padding: clamp(64px, 8vw, 104px) 0; }
+.on-dark { background: linear-gradient(165deg, var(--tile-hi), var(--tile-lo)); color: var(--on-dark); }
+.on-dark h2 { color: var(--on-dark); }
+.alt { background: var(--paper-alt); }
+.lead { font-size: 18.5px; color: var(--ink-soft); max-width: 62ch; }
+.lead strong { color: var(--ink); font-weight: 600; }
+.on-dark .lead { color: var(--on-dark-soft); }
+.on-dark .lead strong { color: var(--l1); font-weight: 600; }
+.section-head { max-width: 68ch; margin-bottom: clamp(34px, 4vw, 52px); }
+.section-head h2 { margin-bottom: 16px; }
+
+/* --- the three layers ------------------------------------------------------- */
+.layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+@media (max-width: 880px) { .layers { grid-template-columns: 1fr; } }
+.layer-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 18px;
+  padding: 26px 24px 24px;
+  position: relative;
+  overflow: hidden;
+}
+.layer-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
+}
+.layer-card.s2::before { background: var(--l2); }
+.layer-card.s3::before { background: var(--l3); }
+.layer-card.s1::before { background: var(--l1); }
+.layer-card img { width: 88px; height: 88px; border-radius: 20px; margin-bottom: 18px; }
+.layer-card h3 { margin-bottom: 4px; }
+/* the product name carries its own colour, as the wordmark does */
+.tail-l2 { color: var(--l2-ink); }
+.tail-l3 { color: var(--l3-ink); }
+.tail-l1 { color: var(--l1-ink); }
+.layer-card .role {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em;
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.layer-card.s2 .role { color: var(--l2-ink); }
+.layer-card.s3 .role { color: var(--l3-ink); }
+.layer-card.s1 .role { color: var(--l1-ink); }
+.layer-card p { font-size: 15.5px; color: var(--ink-soft); }
+.layer-card ul { margin: 14px 0 0; padding: 0; list-style: none; font-size: 14.5px; color: var(--ink-soft); }
+.layer-card li { padding-left: 18px; position: relative; margin-bottom: 5px; }
+.layer-card li::before { content: "·"; position: absolute; left: 6px; font-weight: 700; }
+
+/* --- feature split ---------------------------------------------------------- */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(30px, 5vw, 68px); align-items: center; }
+.split + .split { margin-top: clamp(56px, 7vw, 92px); }
+@media (max-width: 880px) { .split { grid-template-columns: 1fr; } .split.flip > *:first-child { order: 2; } }
+.shot {
+  border-radius: 16px;
+  border: 1px solid var(--rule);
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 22px 44px -20px rgba(20,26,31,.30);
+}
+.on-dark .shot { border-color: rgba(255,255,255,.10); background: transparent; box-shadow: 0 28px 56px -22px rgba(0,0,0,.7); }
+/* height:auto is load-bearing. The <img> tags carry width/height attributes so
+   the page reserves space and does not reflow; without height:auto that HTML
+   height wins, and a 1200x1920 capture is laid out 230 wide by 1920 TALL — the
+   picture drawn small and centred in a box eight times its height, which reads
+   as an empty outlined rectangle. object-fit merely hid or revealed the damage. */
+.shot img { display: block; width: 100%; height: auto; }
+/* Deliberate crops, applied only where a capture is much taller than its
+   content: keep the top, where the content is. */
+.shot.crop img { max-height: 560px; object-fit: cover; object-position: top center; }
+.shot.crop-tight img { max-height: 300px; object-fit: cover; object-position: top center; }
+.shot-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+/* the stage pair carries this section's whole claim, so it gets the room */
+@media (min-width: 881px) { .split.wide-media { grid-template-columns: 1.25fr .95fr; align-items: center; } }
+.feat-list { margin: 22px 0 0; padding: 0; list-style: none; }
+.feat-list li { position: relative; padding-left: 26px; margin-bottom: 11px; font-size: 16px; color: var(--ink-soft); }
+.on-dark .feat-list li { color: var(--on-dark-soft); }
+.feat-list li strong { color: var(--ink); font-weight: 600; }
+.on-dark .feat-list li strong { color: var(--on-dark); }
+.feat-list li::before {
+  content: ""; position: absolute; left: 0; top: .62em;
+  width: 13px; height: 3px; border-radius: 2px; background: var(--l1-ink);
+}
+.on-dark .feat-list li::before { background: var(--l1); }
+
+/* --- install ---------------------------------------------------------------- */
+.installs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+@media (max-width: 940px) { .installs { grid-template-columns: 1fr; } }
+.install {
+  border: 1px solid var(--rule); border-radius: 16px; background: var(--paper);
+  padding: 24px 22px; display: flex; flex-direction: column;
+}
+.install h3 { margin-bottom: 6px; }
+.install .sub { font-size: 14.5px; color: var(--ink-soft); margin-bottom: 16px; }
+pre {
+  margin: 0 0 14px; padding: 14px 16px;
+  background: var(--tile); color: #E8E4DA;
+  border-radius: 11px;
+  font-family: var(--mono); font-size: 13.5px; line-height: 1.62;
+  overflow-x: auto;
+}
+pre .c { color: #8A96A3; }
+pre .k { color: var(--l1); }
+.install .foot { margin-top: auto; font-size: 13.5px; color: var(--ink-soft); }
+
+.honest {
+  margin-top: 26px; padding: 18px 20px;
+  border: 1px solid var(--rule); border-left: 3px solid var(--l1-ink);
+  border-radius: 0 12px 12px 0;
+  background: var(--paper);
+  font-size: 15px; color: var(--ink-soft);
+}
+.honest strong { color: var(--ink); }
+
+/* --- the github banner ------------------------------------------------------ */
+.gh-banner {
+  background: var(--tile); color: var(--on-dark);
+  border-radius: 22px;
+  padding: clamp(28px, 4vw, 44px);
+  display: grid; grid-template-columns: 1fr auto; gap: clamp(24px, 4vw, 48px);
+  align-items: center;
+  border: 1px solid rgba(255,255,255,.09);
+}
+@media (max-width: 760px) { .gh-banner { grid-template-columns: 1fr; justify-items: start; } }
+.gh-banner h2 { font-size: clamp(26px, 3.4vw, 38px); margin-bottom: 12px; }
+.gh-banner p { color: var(--on-dark-soft); max-width: 48ch; }
+.gh-banner .repo {
+  font-family: var(--mono); font-size: 14px;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 13px; margin: 4px 0 20px;
+  border: 1px solid rgba(255,255,255,.16); border-radius: 9px;
+  color: var(--on-dark);
+}
+.qr { text-align: center; }
+.qr .frame {
+  background: var(--paper); padding: 12px; border-radius: 14px;
+  width: 156px; height: 156px; display: grid; place-items: center;
+}
+.qr svg, .qr img { width: 100%; height: 100%; display: block; }
+.qr { max-width: 210px; }
+.qr figcaption {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+  color: var(--on-dark-soft); margin-top: 12px; text-transform: uppercase;
+}
+.qr .qr-os {
+  color: var(--tile); background: var(--l1);
+  padding: 2px 7px; border-radius: 5px; font-weight: 700;
+}
+.qr-note {
+  font-size: 12px; line-height: 1.5; color: var(--on-dark-soft);
+  margin-top: 10px; text-align: left;
+}
+.qr-note .m { font-family: var(--mono); font-size: 11.5px; color: var(--on-dark); }
+
+/* --- footer ----------------------------------------------------------------- */
+footer { padding: 44px 0 60px; border-top: 1px solid var(--rule); font-size: 14.5px; color: var(--ink-soft); }
+footer .cols { display: flex; flex-wrap: wrap; gap: 18px 34px; align-items: center; justify-content: space-between; }
+footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.badges { display: flex; gap: 10px; flex-wrap: wrap; }
+.badge {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em;
+  padding: 5px 10px; border: 1px solid var(--rule); border-radius: 7px; text-transform: uppercase;
+}
+
+/* --- lightbox ----------------------------------------------------------------
+   The cards crop tall captures to their top on purpose: that is right for
+   scanning the page and wrong for reading a chart. Clicking a shot opens the
+   WHOLE capture, uncropped, and a second click toggles it to natural size so the
+   fine print — chord symbols, the text of a cue — is actually legible.
+
+   <dialog> carries Escape, the focus trap and the backdrop natively, so none of
+   that is reimplemented here. The affordance is added by script, which means a
+   browser without it (or without <dialog>) gets exactly the page that shipped
+   before rather than a dead cursor on an image that does nothing.             */
+.zoomable { cursor: zoom-in; }
+.zoomable:focus-visible { outline: 3px solid var(--l1); outline-offset: 3px; }
+
+#lightbox {
+  width: 100%; height: 100%;
+  max-width: 100vw; max-height: 100vh;
+  margin: 0; padding: 0; border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+#lightbox::backdrop { background: rgba(11,15,19,.92); }
+#lb-scroll {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  overflow: auto;
+  padding: clamp(14px, 3vw, 40px) clamp(14px, 3vw, 40px) 64px;
+}
+#lightbox.actual #lb-scroll { align-items: flex-start; }
+#lb-img {
+  display: block; margin: auto;
+  max-width: 100%; max-height: 86vh; width: auto; height: auto;
+  border-radius: 10px;
+  box-shadow: 0 30px 70px -20px rgba(0,0,0,.85);
+  cursor: zoom-in;
+}
+#lightbox.actual #lb-img { max-width: none; max-height: none; cursor: zoom-out; }
+#lb-close {
+  position: fixed; top: 12px; right: 14px;
+  width: 42px; height: 42px; line-height: 1;
+  font-size: 24px; font-family: var(--sans);
+  color: var(--on-dark); background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.24); border-radius: 11px;
+  cursor: pointer;
+}
+#lb-close:hover { background: rgba(255,255,255,.18); }
+#lb-close:focus-visible { outline: 3px solid var(--l1); outline-offset: 2px; }
+#lb-cap {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  margin: 0; padding: 12px clamp(14px, 3vw, 40px);
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em;
+  color: var(--on-dark-soft); background: rgba(11,15,19,.72);
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<a class="gh-corner" href="https://github.com/yoda-jm/troubastack" aria-label="View TroubaStack on GitHub">
+  <svg viewBox="0 0 250 250" aria-hidden="true">
+    <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z" fill="currentColor"></path>
+    <path class="octo-arm" fill="var(--tile)" d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" ></path>
+    <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.3 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="var(--tile)"></path>
+  </svg>
+</a>
+
+<!-- ══ HERO ═══════════════════════════════════════════════════════════════ -->
+<header class="hero">
+  <svg class="staff" viewBox="0 0 1200 620" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <radialGradient id="fade" gradientUnits="userSpaceOnUse" cx="600" cy="310" r="620"
+                      gradientTransform="translate(600,310) scale(1,0.42) translate(-600,-310)">
+        <stop offset="0"   stop-color="#fff" stop-opacity=".9"/>
+        <stop offset=".55" stop-color="#fff" stop-opacity=".55"/>
+        <stop offset=".85" stop-color="#fff" stop-opacity=".10"/>
+        <stop offset="1"   stop-color="#fff" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <g stroke="url(#fade)" stroke-width="1.4" transform="rotate(-6 600 310)">
+      <line x1="-80" y1="238" x2="1280" y2="252"/>
+      <line x1="-80" y1="274" x2="1280" y2="290"/>
+      <line x1="-80" y1="310" x2="1280" y2="328"/>
+      <line x1="-80" y1="346" x2="1280" y2="366"/>
+      <line x1="-80" y1="382" x2="1280" y2="404"/>
+    </g>
+  </svg>
+
+  <div class="wrap hero-inner">
+    <div>
+      <div class="lockup">
+        <img src="assets/troubastack-compact.svg" alt="" width="64" height="64">
+        <div class="name">Trouba<em>Stack</em></div>
+      </div>
+      <h1>From the rehearsal-room edit to the <span class="gold">on-stage page turn</span>.</h1>
+      <p class="lede">
+        Collaborative sheet-music and lyrics annotation for bands and ensembles.
+        You annotate together in the browser, cut a setlist into one concert bundle,
+        and perform it <strong>offline</strong> on stage. Self-hosted on a box you own —
+        <strong>one Go binary</strong>, your data, no account with anyone.
+      </p>
+      <ul class="promises">
+        <li><span class="dot d1"></span>Performs with <strong>no network at all</strong></li>
+        <li><span class="dot d3"></span>Self-hosted, your data</li>
+        <li><span class="dot d2"></span>Apache-2.0</li>
+      </ul>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/yoda-jm/troubastack">
+          <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          View on GitHub
+        </a>
+        <a class="btn btn-ghost" href="#run">Run it yourself</a>
+      </div>
+    </div>
+
+    <figure class="hero-shot">
+      <img src="assets/studio-editor.png" width="780" height="1706"
+           alt="The TroubaStudio editor on a phone: the lead sheet “The Open Road” with chords over lyrics, a green highlight on “Capo 2” with a warning sign, a gold bracket down the chorus, a red conductor cue ringing a G chord with “rit. — watch me”, and the tool strip above the score.">
+      <figcaption class="shot-note">TroubaStudio · live annotation · 10 objects</figcaption>
+    </figure>
+  </div>
+</header>
+
+<!-- ══ THE LOOP ═══════════════════════════════════════════════════════════ -->
+<div class="loop">
+  <div class="wrap">
+    <ol>
+      <li><div class="step">01</div><div class="what">Compose</div></li>
+      <li><div class="step">02</div><div class="what">Annotate together</div></li>
+      <li><div class="step">03</div><div class="what">Bake the setlist</div></li>
+      <li><div class="step">04</div><div class="what">Perform offline</div></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ══ THREE LAYERS ═══════════════════════════════════════════════════════ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">One name · two halves · three modules</p>
+      <h2>A troubadour composes. A joglar performs.</h2>
+      <p class="lead">
+        The name is a pun in two halves, and both map onto the architecture.
+        <strong>Trouba</strong>: a troubadour composes, a joglar performs — editing and
+        performing are different jobs with different failure modes, so they are different
+        programs. <strong>Stack</strong>: those programs are a pile of modules rather than
+        one monolith — an editor, a server that also bakes, a presenter — each swappable on
+        its own and joined by one authoritative server and one baked artifact. It is what
+        the mark draws: three planes, stacked.
+      </p>
+    </div>
+
+    <div class="layers">
+      <article class="layer-card s2">
+        <img src="assets/troubastudio-compact.svg" alt="" width="88" height="88">
+        <div class="role">Compose</div>
+        <h3>Trouba<span class="tail-l2">Studio</span></h3>
+        <p>A fullscreen, canvas-first web editor. Everyone marks up the same chart at the same time.</p>
+        <ul>
+          <li>Low-latency wet ink, per-member layers</li>
+          <li>Shapes, text, highlights, conductor cues</li>
+          <li>Chord transposition that preserves line count, so annotations stay anchored</li>
+          <li>Offline honesty: read-only and visibly so — nothing dies silently</li>
+        </ul>
+      </article>
+
+      <article class="layer-card s3">
+        <img src="assets/troubacore-compact.svg" alt="" width="88" height="88">
+        <div class="role">Serve &amp; bake</div>
+        <h3>Trouba<span class="tail-l3">Core</span></h3>
+        <p>One Go binary holding the single authoritative truth — and the bake pipeline.</p>
+        <ul>
+          <li>Bakes a setlist into one band-wide concert bundle</li>
+          <li>Offers it in-app; devices download and keep it</li>
+          <li>Studio pixels and baked pixels come from the same renderer, parity-tested</li>
+          <li>Everything on disk in one directory you can <span style="font-family:var(--mono)">tar</span></li>
+        </ul>
+      </article>
+
+      <article class="layer-card s1">
+        <img src="assets/troubastage-compact.svg" alt="" width="88" height="88">
+        <div class="role">Perform</div>
+        <h3>Trouba<span class="tail-l1">Stage</span></h3>
+        <p>The presenter, inside the mobile app. No account, no login, no network.</p>
+        <ul>
+          <li>Pedal and volume-key page turns</li>
+          <li>Night mode, count-in, facing pages on wide tablets</li>
+          <li>Per-role layer defaults and a song drawer</li>
+          <li>Screen stays awake while you play</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ══ REHEARSAL ══════════════════════════════════════════════════════════ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="split flip">
+      <div class="shot crop">
+        <img src="assets/band-overview.png" width="804" height="1748"
+             alt="A band page in TroubaStudio: the band “The Troubadours”, three members with their roles — admin, conductor, member — and the songs list.">
+      </div>
+      <div>
+        <p class="eyebrow l2">In the rehearsal room</p>
+        <h2>The marks are <span class="mark">the point</span>.</h2>
+        <p class="lead">
+          A band's real knowledge lives in the margins — <em>capo 2</em>, <em>watch me here</em>,
+          <em>everyone in on the last chorus</em>. TroubaStack keeps those marks first-class:
+          owned by the member who made them, layered, and carried all the way onto the stage.
+        </p>
+        <ul class="feat-list">
+          <li><strong>Per-member layers</strong> — your fingering notes stay yours; the conductor's cues reach everyone.</li>
+          <li><strong>Realtime, multi-user</strong> — annotate the same chart together and see it land.</li>
+          <li><strong>Personal song cues</strong> — an icon and a colour per member, riding along in the band bake.</li>
+          <li><strong>Setlists you can drag</strong> — encores, benched songs, per-item transposition.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ON STAGE ═══════════════════════════════════════════════════════════ -->
+<section class="on-dark">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow l1">Show night</p>
+      <h2>The venue's wifi will fail. It does not matter.</h2>
+      <p class="lead">
+        A concert is downloaded once and lives on the device as a single file. While you
+        perform, <strong>the app makes no request at all</strong> — aeroplane mode, a dead
+        router, a basement with no signal: the presenter is reading a file. There is no
+        account to be logged out of and no server to be unreachable. Immersive by default:
+        system bars gone, the whole screen is the score; one tap brings the chrome back.
+      </p>
+    </div>
+
+    <div class="split wide-media">
+      <div class="shot-pair">
+        <div class="shot">
+          <img src="assets/stage-page.png" width="1200" height="1920"
+               alt="An immersive Stage page on a portrait tablet: the chart composited with its annotations, chords over lyrics, a green Capo 2 highlight and a gold chorus bracket.">
+        </div>
+        <div class="shot">
+          <img src="assets/stage-controls.png" width="1200" height="1920"
+               alt="The same page with Stage chrome revealed: the song drawer, the title and position, the encore banner, settings and exit buttons, and page arrows.">
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow l1">Ergonomics, not features</p>
+        <h2 style="font-size:clamp(24px,2.9vw,32px)">Built for a music stand, late at night.</h2>
+        <ul class="feat-list">
+          <li><strong>Hardware page turns</strong> — a Bluetooth pedal or the volume keys.</li>
+          <li><strong>Night mode</strong> — for a stage lit by one lamp.</li>
+          <li><strong>Count-in and a live tempo meter</strong> on the chrome.</li>
+          <li><strong>Facing pages</strong> on a wide tablet; scroll mode when you prefer it.</li>
+          <li><strong>Your layers, filtered to you</strong> — the bundle carries the whole band; the presenter shows your view.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ RUN IT ═════════════════════════════════════════════════════════════ -->
+<section id="run">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow l3">Self-hosted, on purpose</p>
+      <h2>Your band's music, on <span class="mark">your own box</span>.</h2>
+      <p class="lead">
+        No SaaS, no seat pricing, no third party holding your setlists. A home server or a
+        cheap VPS is plenty — one binary behind Caddy, TLS provisioned automatically, and
+        every byte of state in one directory you back up with <code style="font-family:var(--mono)">tar</code>.
+      </p>
+    </div>
+
+    <div class="installs">
+      <article class="install">
+        <h3>Run it for a band</h3>
+        <p class="sub">The supported install: Docker Compose + Caddy, with automatic Let's Encrypt certificates.</p>
+<pre><span class="c"># set DOMAIN=band.example.org</span>
+cp deploy/.env.example deploy/.env
+cd deploy
+docker compose <span class="k">up -d</span></pre>
+        <p class="foot">Multi-stage build — the SPA is embedded into the binary at compile time, and the runtime can bake.</p>
+      </article>
+
+      <article class="install">
+        <h3>Try it in a minute</h3>
+        <p class="sub">Builds the editor, embeds it, seeds demo data and serves the whole thing locally.</p>
+<pre>make setup
+make <span class="k">demo</span>
+<span class="c"># → http://localhost:8080</span></pre>
+        <p class="foot">Needs Go 1.26+ and Node 24+. Add <span style="font-family:var(--mono)">pdftoppm</span> to bake PDFs.</p>
+      </article>
+
+      <article class="install">
+        <h3>The app</h3>
+        <p class="sub">Kotlin/Compose Multiplatform — Android today, iOS proven in the simulator.</p>
+<pre>make <span class="k">app</span>
+adb install -r \
+  androidApp-debug.apk</pre>
+        <p class="foot">No toolchain? Every CI run on <span style="font-family:var(--mono)">main</span> also builds a debug APK you can download from the Actions run.</p>
+      </article>
+    </div>
+
+    <p class="honest">
+      <strong>Packaging status, honestly.</strong> The compose build above is the supported install.
+      There is <strong>no published registry image, no GitHub Releases binary and no store or F-Droid
+      listing yet</strong>. The Android build you can scan for below is the <strong>debug APK from
+      CI</strong> — unsigned for release, and GitHub asks you to sign in before it hands over a
+      build artifact. A signed release APK is the remaining half of the deploy story.
+    </p>
+  </div>
+</section>
+
+<!-- ══ DEMO BUNDLE ════════════════════════════════════════════════════════ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="split flip">
+      <div class="shot crop-tight">
+        <img src="assets/stage-concerts.png" width="1080" height="2400"
+             alt="The concerts list in the app: an offered concert with its size and a download control, and a downloaded concert ready to perform.">
+      </div>
+      <div>
+        <p class="eyebrow l3">Zero servers</p>
+        <h2>A real concert, <span class="mark">committed to the repo</span>.</h2>
+        <p class="lead">
+          A baked bundle ships in the source tree, so you can see the presenter work without
+          running anything at all. It is copyright-safe by construction: one original song plus
+          traditional and public-domain material, flattened by the real bake pipeline — not a mockup.
+        </p>
+        <ul class="feat-list">
+          <li><strong>One artifact for the whole band</strong> — roster, every layer owner-tagged, every member's cues.</li>
+          <li><strong>Filtered at view time</strong> — an auto-match on connect, or a one-tap “who are you?”.</li>
+          <li><strong>Push it straight to a device</strong> and present.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ GITHUB BANNER ══════════════════════════════════════════════════════ -->
+<section>
+  <div class="wrap">
+    <div class="gh-banner">
+      <div>
+        <p class="eyebrow l1">Open source · Apache-2.0</p>
+        <h2>It's all on GitHub.</h2>
+        <div class="repo">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          yoda-jm/troubastack
+        </div>
+        <p>
+          The architecture is written down before the code: numbered invariants, design notes per
+          subsystem, decision records, and an honest gap register saying what a real band still
+          cannot do. Read it, run it, fork it.
+        </p>
+        <div class="cta" style="margin-top:22px">
+          <a class="btn btn-primary" href="https://github.com/yoda-jm/troubastack">Browse the source</a>
+          <a class="btn btn-ghost" href="https://github.com/yoda-jm/troubastack/blob/main/docs/ARCHITECTURE.md">Read the invariants</a>
+        </div>
+      </div>
+      <figure class="qr">
+        <div class="frame"><img src="assets/qr-apk.svg" alt="QR code linking to the CI runs page, where the Android debug APK artifact is attached" width="132" height="132"></div>
+        <figcaption><span class="qr-os">Android</span> · get the app</figcaption>
+        <p class="qr-note">Scan for the latest CI build and grab the
+        <span class="m">troubashare-debug-apk</span> artifact. Debug-signed, not a
+        store release — and GitHub asks you to sign in before it hands over an artifact.</p>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap cols">
+    <div>
+      <strong style="color:var(--ink)">TroubaStack</strong> — collaborative sheet music for bands.
+      Licensed <a href="https://github.com/yoda-jm/troubastack/blob/main/LICENSE">Apache-2.0</a>.
+      Demo charts carry their own licences; see the
+      <a href="https://github.com/yoda-jm/troubastack/blob/main/NOTICE">NOTICE</a>.
+    </div>
+    <div class="badges">
+      <span class="badge">Go 1.26+</span>
+      <span class="badge">Node 24+</span>
+      <span class="badge">Kotlin / Compose</span>
+    </div>
+  </div>
+</footer>
+
+<dialog id="lightbox" aria-label="Enlarged screenshot">
+  <button id="lb-close" type="button" aria-label="Close">&times;</button>
+  <div id="lb-scroll"><img id="lb-img" alt=""></div>
+  <p id="lb-cap"></p>
+</dialog>
+
+<script>
+(function () {
+  var dlg = document.getElementById('lightbox');
+  // No <dialog> support means no Escape and no focus trap; ship the plain page
+  // rather than a half-working overlay you cannot get out of.
+  if (!dlg || typeof dlg.showModal !== 'function') return;
+
+  var img    = document.getElementById('lb-img');
+  var cap    = document.getElementById('lb-cap');
+  var scroll = document.getElementById('lb-scroll');
+  var opener = null;
+
+  function open(src, alt) {
+    dlg.classList.remove('actual');
+    img.src = src;
+    img.alt = alt || '';
+    cap.textContent = alt || '';
+    dlg.showModal();
+    scroll.scrollTop = 0;
+  }
+
+  // The shots and the hero capture — not the brand marks, not the QR.
+  var shots = document.querySelectorAll('.shot img, .hero-shot img');
+  Array.prototype.forEach.call(shots, function (el) {
+    el.classList.add('zoomable');
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-haspopup', 'dialog');
+    var label = el.getAttribute('alt') || 'screenshot';
+    el.setAttribute('aria-label', 'Enlarge: ' + label);
+    el.addEventListener('click', function () { opener = el; open(el.currentSrc || el.src, label); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault(); opener = el; open(el.currentSrc || el.src, label);
+      }
+    });
+  });
+
+  // Second click: natural size, scrollable — that is where the fine print is.
+  img.addEventListener('click', function () { dlg.classList.toggle('actual'); });
+  document.getElementById('lb-close').addEventListener('click', function () { dlg.close(); });
+  // A click that lands on the dialog itself is a click on the backdrop.
+  dlg.addEventListener('click', function (e) { if (e.target === dlg || e.target === scroll) dlg.close(); });
+  dlg.addEventListener('close', function () {
+    img.removeAttribute('src');
+    dlg.classList.remove('actual');
+    if (opener) { opener.focus(); opener = null; }
+  });
+})();
+</script>
+
+</body>
+</html>

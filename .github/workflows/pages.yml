@@ -1,0 +1,68 @@
+# Publish the project page to GitHub Pages.
+#
+# ⚠ Pages must be configured as "Source: GitHub Actions", NOT "Deploy from a
+# branch → /docs". Serving /docs would publish the entire internal
+# documentation tree as a website — handoffs, reviews, task specs and the
+# project audit — none of which is written for an audience. This workflow
+# uploads web/site/dist and nothing else.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/site/**'
+      - 'docs/brand/**'
+      - 'docs/screenshots/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a half-finished deploy; queue instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      # qrencode draws the repo QR; librsvg rasterises the og:image card.
+      # build.sh warns and continues without either, so a packaging change
+      # degrades the page instead of breaking the deploy.
+      - name: install asset tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq qrencode librsvg2-bin
+      - name: build the site
+        run: ./web/site/build.sh
+      # The site is assembled from docs/brand and docs/screenshots rather than
+      # from committed copies, so a stale asset cannot ship. Fail loudly if an
+      # expected file did not make it.
+      - name: verify the assembled output
+        run: |
+          cd web/site/dist
+          for f in index.html assets/swipe.svg assets/qr-apk.svg \
+                   assets/troubastack-compact.svg assets/studio-editor.png; do
+            [ -s "$f" ] || { echo "missing or empty: $f"; exit 1; }
+          done
+          grep -q 'yoda-jm/troubastack' index.html
+          echo "$(find . -type f | wc -l) files, $(du -sh . | cut -f1)"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: web/site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
