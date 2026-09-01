@@ -58,9 +58,14 @@ Four marks x three levels of detail.
 | `troubastage` | play, layer 1 yellow | #FCCC55 |
 | `troubacore` | CPU circuit, layer 3 blue | #2A8FE9 |
 
-- **full** — everything. 512px and up.
-- **compact** — 3 rules, 2 notes, heavier strokes. ~96–192px.
-- **minimal** — layer stack + ONE stroke across the full width. 16–48px.
+- **full** — everything. 512px and up (renders 1024, 512).
+- **compact** — 3 rules, 2 notes, heavier strokes. 192 and 96px.
+- **minimal** — layer stack + ONE stroke across the full width. 48, 32, 16px.
+
+The PNG filename carries the size but not the variant, so **no two variants may
+share a size**: 192 was listed under both `full` and `compact`, and the compact
+render silently overwrote the full one — 32 renders, 28 files. `--png` now
+refuses to write the same path twice.
 
 At MINIMAL there is no chip, so **the stroke's colour is the only thing telling
 the marks apart** — TroubaStack's runs all three layer colours in equal bands,
@@ -83,8 +88,20 @@ promising the sheet could not drift.
 ## Android adaptive
 
 `*-adaptive-background.svg` is the flat ground; `*-adaptive-foreground.svg` is
-the artwork scaled into the 66/108 safe circle. Convert to `VectorDrawable` at
-integration time.
+the artwork fitted to the launcher's 66/108 safe circle. The scale used to be a
+hand-typed `0.66`, which is not the 66/108 ratio (0.611) and in any case says
+nothing about where the ink actually ends: measured, the art reached 403 units
+from centre against a 312.9-unit safe radius, so round-masked launchers clipped
+the monogram's S in half.
+
+What bounds the art is its **minimal enclosing circle**, not its extent from the
+middle of the canvas — the planes sit high and the monogram low, so measuring
+from the canvas centre charges for empty space on the opposite side. That circle
+is centred 98 units *below* centre with radius 522, against 611 measured the
+naive way. So the foreground moves the art's own circle onto the canvas centre
+before scaling (`FG_ART_CENTRE`, `FG_ART_RADIUS`), which buys **17% more mark**
+inside the identical safe circle. `--png` re-measures every foreground and fails
+the build if any ink escapes. Convert to `VectorDrawable` at integration time.
 
 **No SVG `<filter>` anywhere.** Filters do not survive that conversion, which is
 why the chip shadows, the plane shadows and the highlighter's texture are all

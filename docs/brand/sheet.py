@@ -21,12 +21,11 @@ INK, MUTED, RULE, PAPER = "#141A1F", "#6B7580", "#DDE2E7", "#FCFCFD"
 F = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif"
 NAMES = {"troubastack": "Stack", "troubastudio": "Studio",
          "troubastage": "Stage", "troubacore": "Core"}
-# Derived from build.py, never typed here: a hard-coded copy silently went stale
-# once already, on the one panel that claims the sheet cannot drift.
-# Derived, never typed. A hard-coded copy went stale twice: once silently, and
-# once naming three layer colours that no longer existed in the gradients at
-# all. Each mark reuses its layer's colour exactly, so the palette holds one
-# yellow, one pink and one blue rather than four near-identical yellows.
+# Derived from build.py, never typed here. A hard-coded copy went stale twice:
+# once silently, and once naming three layer colours that no longer existed in
+# the gradients at all. Each mark reuses its layer's colour exactly, so the
+# palette holds one yellow, one pink and one blue rather than four
+# near-identical yellows.
 TAKES = {1: "Stage — chip and stroke", 2: "Studio — chip and stroke",
          3: "Core — chip and stroke"}
 SWATCHES = [(B.tile_colour(), "Tile ground")] + [
@@ -36,11 +35,21 @@ SWATCHES = [(B.tile_colour(), "Tile ground")] + [
     (B.MARKS["troubastack"]["hl"],
      "TroubaStack — neutral; its stroke runs all three layers"),
 ]
-# Every swatch must exist in the paint the artwork actually uses, or it is a
-# claim about a colour nothing draws. This is the check that was missing when
-# the panel drifted.
-_paint = (B.SRC / "_defs.svg").read_text() + B.SHARED_HL + B.tile_colour()
-_ghosts = [h for h, _ in SWATCHES if h not in _paint]
+# Every swatch must appear in the paint the artwork actually uses, or it is a
+# claim about a colour nothing draws.
+#
+# The haystack is the paint DOCUMENTS only. It used to be `_defs.svg` plus
+# SHARED_HL plus tile_colour() concatenated — which put two of the six swatches
+# into the haystack by construction, so those rows could never fail. A guard
+# that cannot fail on a third of its rows is not a guard, and this one carries a
+# caption promising the panel cannot drift. SHARED_HL now has to earn its place
+# by turning up in the generated ink, which is where it genuinely appears.
+_paint = "\n".join([(B.SRC / "_defs.svg").read_text()]
+                   + [B.ink(m, v) for m in B.MARKS for v in B.VARIANTS]).upper()
+# The one exemption, and it is explicit: the tile swatch is an AVERAGE of gTile's
+# two stops, so by construction no document contains it as a literal.
+_EXEMPT = {B.tile_colour().upper()}
+_ghosts = [h for h, _ in SWATCHES if h.upper() not in _paint and h.upper() not in _EXEMPT]
 if _ghosts:
     raise SystemExit(f"palette names colours nothing uses: {_ghosts}")
 o: list[str] = []
@@ -166,7 +175,14 @@ png = B.DIST / "family-sheet.png"
 subprocess.run(["rsvg-convert", "-w", str(W), "-h", str(H), "-o", str(png), str(out)],
                check=True)
 
-from PIL import Image, ImageDraw  # noqa: E402  (optional dependency, only for the compare)
+try:  # noqa: E402 - genuinely optional: only the reference comparison needs it
+    from PIL import Image, ImageDraw
+except ImportError:
+    # It was called optional in a comment and imported unguarded, so a machine
+    # without Pillow got a traceback AFTER the sheet had been written — even
+    # with an empty reference/, where no comparison would have run at all.
+    print("Pillow not installed: skipping the side-by-side (the sheet itself is written)")
+    raise SystemExit(0)
 
 REFS = sorted((B.ROOT / "reference").glob("*.png"))
 if not REFS:

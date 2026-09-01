@@ -103,6 +103,16 @@ jobs:
         run: |
           node gen-glyphs.mjs
           git diff --exit-code glyphs.json ../../app/shared/src/commonMain/kotlin/com/troubashare/shared/stage/CueGlyphData.kt
+      # BRAND01: docs/brand/dist is GENERATED from docs/brand/src by build.py — never
+      # hand-edited. build.py is stdlib-only and deterministic, so regenerating and
+      # diffing is a valid drift guard, the same pattern as the glyphs and mirrors above.
+      # NOT `--png`, and deliberately NOT sheet.py: the PNG ladder and family-sheet.svg
+      # embed rsvg-rasterised output, so their bytes depend on the rsvg build and the
+      # fonts installed on the runner. Only the SVGs are reproducible anywhere.
+      - name: verify docs/brand/dist is regenerated from src
+        run: |
+          python3 docs/brand/build.py
+          git diff --exit-code docs/brand/dist
       # P205 view-resolution contract (print == screen): the vectors are committed in BOTH lanes —
       # the Go printer (core/internal/bake) and the app presenter (app/shared commonTest) run the SAME
       # cases. Fail if the two copies drift, so the shared rule can never silently fork (T57/P205 Stage 3).

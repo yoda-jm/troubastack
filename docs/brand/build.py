@@ -8,8 +8,10 @@ in dist/ — regenerate instead.
     python3 docs/brand/build.py --png      # + PNG ladder (needs rsvg-convert)
 """
 import math
+import re
 import subprocess
 import sys
+from collections import Counter
 from xml.etree import ElementTree
 from pathlib import Path
 
@@ -23,11 +25,21 @@ SRC, DIST = ROOT / "src", ROOT / "dist"
 # gradients after the faces were re-measured: the panel had drifted under a
 # caption promising it could not. Index 3 is the stop that carries on a dark
 # ground; the darker ends of each ramp disappear against the tile.
+LAYER_STOPS = 6                  # each face ramp is measured in six bins
+
+
 def _layer(n: int, stop: int = 3) -> str:
-    import re
-    txt = (Path(__file__).resolve().parent / "src" / "_defs.svg").read_text()
+    txt = (SRC / "_defs.svg").read_text()
     block = re.search(rf'id="gLayer{n}".*?</linearGradient>', txt, re.S).group(0)
-    return re.findall(r'stop-color="(#[0-9A-Fa-f]{6})"', block)[stop]
+    stops = re.findall(r'stop-color="(#[0-9A-Fa-f]{6})"', block)
+    # Indexing a ramp by position only means anything if the ramp still has the
+    # shape it was measured with. Re-bin the faces into five stops and index 3
+    # silently becomes a different colour — which is how the official swatch
+    # would start naming a neighbour without anything failing.
+    if len(stops) != LAYER_STOPS:
+        raise SystemExit(f"gLayer{n}: expected {LAYER_STOPS} stops, found "
+                         f"{len(stops)} - re-check which one carries the swatch")
+    return stops[stop]
 
 
 LAYER = {n: _layer(n) for n in (1, 2, 3)}
@@ -38,8 +50,7 @@ def tile_colour() -> str:
     """The tile ground, as one swatch: gTile's two stops averaged. The palette
     used to name #202C37, which the gradient has not held since it became a
     ramp."""
-    import re
-    txt = (Path(__file__).resolve().parent / "src" / "_defs.svg").read_text()
+    txt = (SRC / "_defs.svg").read_text()
     block = re.search(r'id="gTile".*?</linearGradient>', txt, re.S).group(0)
     a, b_ = re.findall(r'stop-color="#([0-9A-Fa-f]{6})"', block)[:2]
     mix = [(int(a[i:i + 2], 16) + int(b_[i:i + 2], 16)) // 2 for i in (0, 2, 4)]
@@ -78,7 +89,42 @@ VARIANTS = {
 # Above MINIMAL every mark shares the same dark-gold stroke.
 SHARED_HL, SHARED_CORE = "#FEE963", "#FFF9CE"
 
-PNG_SIZES = {"full": [1024, 512, 192], "compact": [192, 96], "minimal": [48, 32, 16]}
+# 192 belonged to BOTH full and compact, and the filename carries no variant, so
+# the compact render silently overwrote the full one — 32 renders, 28 files. The
+# ranges are the README's own: full is 512 and up, compact owns 192.
+PNG_SIZES = {"full": [1024, 512], "compact": [192, 96], "minimal": [48, 32, 16]}
+
+# --- the Android adaptive foreground ---------------------------------------
+# The launcher masks the 108dp canvas down to a 66dp circle on most devices, so
+# the artwork has to sit inside 66/108 of it. The scale used to be a hand-typed
+# 0.66 — which is not that ratio (66/108 = 0.611), and in any case a canvas
+# ratio says nothing about where the ARTWORK ends. Measured: the tile-less
+# compact art reached 403.5 units from centre against a 312.9-unit safe radius,
+# a 29% overshoot, so every round-masked launcher clipped its corners off.
+#
+# What bounds the artwork is its MINIMAL ENCLOSING CIRCLE, not its extent from
+# the middle of the canvas. The art is not centred there — the planes sit high,
+# the monogram low and left — so measuring the radius from the canvas centre
+# charges us for empty space on the opposite side. Measured at 2048px on the
+# ink (alpha > 8), hull then Welzl: the enclosing circle is centred 21.9 units
+# left and 98.3 units BELOW centre, radius 522.1 against 611.4 measured the
+# naive way. Re-centring on it and scaling to the same safe circle buys 17%.
+#
+# So the foreground translates the art's own circle onto the canvas centre
+# first, then scales. Identical for all four marks: only the chip differs, and
+# the chip is not what the circle rests on.
+#
+# These stay CONSTANTS rather than measurements performed during the build, and
+# that is deliberate: build.py is stdlib-only and deterministic, which is what
+# lets CI diff dist/ as a drift guard. Rasterising here would make the committed
+# SVGs depend on the rsvg build and installed fonts of whoever ran it — the same
+# reason sheet.py is NOT guarded in CI. The --png path re-measures instead and
+# fails if the constants ever drift from the artwork, so they cannot go stale.
+SAFE_FRACTION = 66 / 108
+FG_ART_CENTRE = (490.1, 610.3)   # centre of the art's enclosing circle, scale 1
+FG_ART_RADIUS = 522.1            # its radius, in 1024-box units
+FG_MARGIN = 0.98                 # leave 2% rather than resting on the circle
+FG_SCALE = round(SAFE_FRACTION * 512 / FG_ART_RADIUS * FG_MARGIN, 4)
 
 TEMPLATE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" \
 width="1024" height="1024" role="img" aria-label="{label}">
@@ -128,11 +174,23 @@ def wordmark(mark: str, tail: str, tagline: str, ground: str | None,
 def check(path: Path) -> None:
     """Fail at write time, not at raster time. A double hyphen inside an XML
     comment is invalid; rsvg only reports it later, pointing at the assembled
-    file rather than the brick the text came from."""
+    file rather than the brick the text came from.
+
+    Also: ids must be unique. Well-formed is not enough — the adaptive
+    foregrounds parsed cleanly for weeks while carrying two <defs> blocks and
+    nineteen duplicate gradient ids. Which definition a renderer picks is
+    unspecified, and VectorDrawable conversion is exactly the consumer that
+    may pick differently from the browser you checked in."""
+    text = path.read_text()
     try:
-        ElementTree.fromstring(path.read_text())
+        ElementTree.fromstring(text)
     except ElementTree.ParseError as exc:
         raise SystemExit(f"{path.name}: malformed SVG - {exc}") from exc
+    dupes = sorted(i for i, n in Counter(re.findall(r'\bid="([^"]+)"', text)).items()
+                   if n > 1)
+    if dupes:
+        raise SystemExit(f"{path.name}: {len(dupes)} duplicate id(s) - "
+                         f"{', '.join(dupes[:6])}{' ...' if len(dupes) > 6 else ''}")
 
 
 def brick(name: str, **subs: str) -> str:
@@ -197,8 +255,14 @@ def band(p0, p1, sag, hw, r):
     ts = r / (2 * hw)
     es_o, es_i = on(co_s, ci_s, ts), on(ci_s, co_s, ts)
     ee_o, ee_i = on(co_e, ci_e, ts), on(ci_e, co_e, ts)
-    la = 1 if (a1 - a0) > math.pi else 0
-    sw = 1 if a1 > a0 else 0
+    # The normalisation above leaves 0 <= a1-a0 <= pi for any pair atan2 can
+    # return, so both arc flags are constants: never the large arc, always the
+    # positive sweep on the outer edge and the negative one coming back along
+    # the inner. They used to be written as conditionals, which read like cases
+    # that occur. Asserted rather than assumed, since the whole stroke silently
+    # turns inside out if it ever stops holding.
+    assert -1e-9 <= a1 - a0 <= math.pi + 1e-9, f"arc span out of range: {a1 - a0}"
+    la, sw = 0, 1
     return (f"M {o_s[0]:.1f} {o_s[1]:.1f} "
             f"A {Ro:.0f} {Ro:.0f} 0 {la} {sw} {o_e[0]:.1f} {o_e[1]:.1f} "
             f"Q {co_e[0]:.1f} {co_e[1]:.1f} {ee_o[0]:.1f} {ee_o[1]:.1f} "
@@ -365,6 +429,49 @@ def previews() -> list:
     return written
 
 
+def check_safe_circle(render: int = 1024) -> None:
+    """Every adaptive foreground must fit the launcher's mask.
+
+    Rasterises rather than reasoning about geometry, because what gets clipped
+    is pixels: strokes, the plane borders and the marker's soft tail all put ink
+    outside any path's nominal bounds. Lives in the --png path, which already
+    depends on rsvg — the SVG build stays stdlib-only so CI can diff dist/.
+
+    This is also what keeps FG_ART_EXTENT honest: re-measure the art, and if a
+    brick has grown past the constant the build fails instead of shipping a
+    foreground that the mask eats."""
+    try:
+        import numpy as np
+        from PIL import Image
+    except ImportError as exc:
+        print(f"  safe-circle check skipped: {exc.name} not installed")
+        return
+    import tempfile
+    safe = SAFE_FRACTION * render / 2
+    centre = (render - 1) / 2
+    # The furthest INK pixel, not a bounding box: a bbox corner need not be
+    # opaque, and taking one as the extent would fail the build on empty space.
+    worst = []
+    for mark in MARKS:
+        path = DIST / f"{mark}-adaptive-foreground.svg"
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as fh:
+            tmp = Path(fh.name)
+        subprocess.run(["rsvg-convert", "-w", str(render), "-h", str(render),
+                        "-o", str(tmp), str(path)], check=True)
+        alpha = np.array(Image.open(tmp).convert("RGBA"))[:, :, 3]
+        tmp.unlink()
+        ys, xs = np.nonzero(alpha > 8)
+        far = float(np.hypot(xs - centre, ys - centre).max()) if len(xs) else 0.0
+        if far > safe:
+            worst.append(f"{path.name}: art reaches {far:.1f}px of a {safe:.0f}px "
+                         f"safe circle (+{(far / safe - 1) * 100:.0f}%)")
+    if worst:
+        raise SystemExit("adaptive foreground escapes the launcher mask:\n  "
+                         + "\n  ".join(worst))
+    print(f"  safe-circle check: all {len(MARKS)} foregrounds inside "
+          f"{SAFE_FRACTION:.3f} of the canvas")
+
+
 def main() -> None:
     DIST.mkdir(exist_ok=True)
     written = []
@@ -375,18 +482,24 @@ def main() -> None:
             check(path)
             written.append(path)
         # Android adaptive: background is flat ground, foreground is art only,
-        # scaled into the 66/108 safe circle.
+        # scaled so the artwork itself fits the 66/108 safe circle (see FG_SCALE).
         bg = DIST / f"{mark}-adaptive-background.svg"
         bg.write_text(TEMPLATE.format(
             label=f"{mark} adaptive background", defs=brick("_defs"),
             body='<rect x="0" y="0" width="1024" height="1024" fill="url(#gTile)"/>'))
         check(bg)
-        art = compose(mark, "compact", tile=False)
-        inner = art.split(">\n", 2)[2].rsplit("</svg>", 1)[0]
+        # Built from the bricks, NOT carved out of compose()'s output. String
+        # surgery on the assembled document kept compose's <defs> and the
+        # template then added a second one, so every gradient id was defined
+        # twice in all four files. The ink gradients have to travel with the
+        # art, hence the same defs assembly compose() does.
+        inner = body(mark, "compact", tile=False)
         fg = DIST / f"{mark}-adaptive-foreground.svg"
         fg.write_text(TEMPLATE.format(
-            label=f"{mark} adaptive foreground", defs=brick("_defs"),
-            body=f'<g transform="translate(512,512) scale(0.66) translate(-512,-512)">\n{inner}</g>'))
+            label=f"{mark} adaptive foreground",
+            defs=brick("_defs").replace("</defs>", ink(mark, "compact") + "\n</defs>"),
+            body=f'<g transform="translate(512,512) scale({FG_SCALE}) '
+                 f'translate({-FG_ART_CENTRE[0]},{-FG_ART_CENTRE[1]})">\n{inner}\n</g>'))
         check(fg)
         written += [bg, fg]
 
@@ -401,15 +514,24 @@ def main() -> None:
           f"(including {len(list((DIST / 'bricks').glob('*.svg')))} brick previews)")
 
     if "--png" in sys.argv:
+        seen: dict[Path, str] = {}
         for mark in MARKS:
             for variant, sizes in PNG_SIZES.items():
                 for size in sizes:
                     out = DIST / f"{mark}-{size}.png"
+                    # The filename carries no variant, so two variants sharing a
+                    # size would render twice and keep only the last silently.
+                    if out in seen:
+                        raise SystemExit(
+                            f"{out.name}: written twice ({seen[out]} then {variant}) "
+                            f"- two variants share a size in PNG_SIZES")
+                    seen[out] = variant
                     subprocess.run(
                         ["rsvg-convert", "-w", str(size), "-h", str(size),
                          "-o", str(out), str(DIST / f"{mark}-{variant}.svg")],
                         check=True)
-        print("PNG ladder rendered")
+        print(f"PNG ladder rendered ({len(seen)} files, one per render)")
+        check_safe_circle()
 
 
 if __name__ == "__main__":
