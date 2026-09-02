@@ -20,6 +20,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SITE="$ROOT/web/site"
 OUT="$SITE/dist"
 REPO_URL="https://github.com/yoda-jm/troubastack"
+# Where this build will be served from, with NO trailing slash. Only the og: tags need it,
+# and they need it absolute: unfurlers do not resolve a relative og:image against the page.
+# Override to move the site — a custom domain is this one variable, set here or in the
+# workflow, and nothing in index.html changes.
+SITE_URL="${SITE_URL:-https://yoda-jm.github.io/troubastack}"
 # The QR is for the APP, and the only place an APK exists today is the CI run:
 # there is no release, no registry image and no store listing. This lands on the
 # successful main builds, whose android job attaches troubastage-debug-apk.
@@ -28,6 +33,15 @@ APK_URL="https://github.com/yoda-jm/troubastack/actions/workflows/ci.yml?query=b
 rm -rf "$OUT"
 mkdir -p "$OUT/assets"
 cp "$SITE/index.html" "$OUT/"
+# Substitute the origin into the og: tags, then refuse to ship a page that still holds a
+# token — a silent miss here is invisible until someone pastes the link somewhere.
+sed -i "s|{{SITE_URL}}|$SITE_URL|g" "$OUT/index.html"
+if grep -q '{{SITE_URL}}' "$OUT/index.html"; then
+  echo "error: {{SITE_URL}} survived substitution in dist/index.html" >&2; exit 1
+fi
+grep -q "<meta property=\"og:image\" content=\"$SITE_URL/assets/" "$OUT/index.html" || {
+  echo "error: og:image is not absolute under $SITE_URL" >&2; exit 1; }
+echo "  site url: $SITE_URL"
 
 # --- the brand marks --------------------------------------------------------
 # Regenerated first, so the site can never ship an icon that no longer matches

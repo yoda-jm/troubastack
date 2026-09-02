@@ -8,7 +8,15 @@
 <link rel="icon" href="assets/troubastack-minimal.svg" type="image/svg+xml">
 <meta property="og:title" content="TroubaStack">
 <meta property="og:description" content="From the rehearsal-room edit to the on-stage page turn — self-hosted on a box you own.">
-<meta property="og:image" content="assets/troubastack-512.png">
+<!-- og: values must be ABSOLUTE — link unfurlers do not resolve them against the page,
+     so a relative og:image renders the card without its picture, at exactly the moment
+     the link is being shared. build.sh substitutes {{SITE_URL}} when it assembles dist/,
+     which keeps the origin out of the markup: moving to a custom domain is then one
+     environment variable rather than a hunt through the tags. Opening this file directly
+     over file:// shows the raw token here; nothing renders from these two tags. -->
+<meta property="og:url" content="{{SITE_URL}}/">
+<meta property="og:image" content="{{SITE_URL}}/assets/troubastack-512.png">
+<meta property="og:type" content="website">
 <meta name="theme-color" content="#202B36">
 <style>
 /* ---------------------------------------------------------------------------
