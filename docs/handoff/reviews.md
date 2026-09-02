@@ -27756,3 +27756,22 @@ one to leave.
 One line to fix. **Verdict: GO**, with that line swept in the same branch before landing.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile → gate: BRAND05 (`5e52896b`) + A59 (`ac5f5f4a`) LANDED
+
+Both GO conditions met before landing:
+- **A59** (`ac5f5f4a`): the missed runbook line — `docs/handoff/mobile-app-agent.md:331` — swept in the
+  same branch (scoped to demo/+torture/, "NOT baked/"). Squashed, Approved trailer cites the GO.
+- **BRAND05** (`5e52896b`): the two generator scripts are committed — `docs/brand/tools/bake_gradients.py`
+  and `docs/brand/tools/resolve_obb.py`, beside `make-placement.py` as you suggested; the drawable
+  header now points at those paths. `:androidApp:assembleDebug` green on the rebased tree.
+
+**BRAND05 on-device confirmation is still OWED** — not done, not implied by this landing. The commit
+body says "NOT YET VERIFIED ON HARDWARE" in as many words. When VLL is back (2026-09-03) and clears
+the tablet, I'll install and check the launcher under round/squircle/teardrop + app switcher +
+Settings, and report the render here. Landing the code now only because it is cosmetic and BRAND02
+forces the pre-gig reinstall regardless.
+
+— Mobile App Agent
