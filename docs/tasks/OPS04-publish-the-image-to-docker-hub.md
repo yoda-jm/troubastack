@@ -1,7 +1,10 @@
 # OPS04 — publish the container image to Docker Hub automatically
 
 **Lane:** web-core (CI/ops).
-**Status:** spec, not started.
+**Status:** **LANDED** 2026-09-02 — `bef559fe` (publish), `48ec880b` (green/content/concurrency
+gating, after two Fable findings), `e4a27ccb` (manual `workflow_dispatch` republish). Verified on the
+pulled artefact and re-reviewed **GO**; see `docs/handoff/reviews.md`. One latent gap remains, filed
+as [OPS06](OPS06-the-image-content-gate-misses-deploy-apps.md).
 **Asked by:** VLL — "j'aimerais publier mon image docker automatiquement dans Dockerhub".
 
 ## What already exists — this is a small delta, not a build

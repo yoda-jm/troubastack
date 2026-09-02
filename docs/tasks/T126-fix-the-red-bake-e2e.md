@@ -1,7 +1,9 @@
 # T126 — main is red: two bake e2e specs bake an empty setlist
 
 **Lane:** web-core.
-**Status:** spec, not started. **`main` has been red since at least 2026-08-29.**
+**Status:** **LANDED** `03c42b3a` — `e2e` is green at 200/0. (The lane correctly refused this
+spec's claim that nothing unit-tested `bakeSetlistDisabled`: `web/studio/test/setlist-bake-guard.test.ts`
+had existed since T124 with the exact three cases. That error was mine.)
 **Raised by:** VLL — "spec aussi le fix pour le rouge pour la bonne lane".
 
 ## What is failing

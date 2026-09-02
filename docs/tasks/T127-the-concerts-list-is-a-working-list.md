@@ -93,11 +93,12 @@ optional here; if you skip it, say so rather than leaving it looking done.)
 
 ### 4. Past vs upcoming, and the order
 
-VLL asked the question rather than answering it (*"color ? different list ? something else ?"*).
-**Recommendation, to be built unless he says otherwise: one list, upcoming first, with a `Past`
-section heading and a muted treatment — not a colour.** Colour alone carries nothing for a
-colour-blind reader and every accent in the palette is already spoken for; a separate list or tab
-hides history behind a control nobody opens; one list keeps a single search box over everything.
+VLL asked the question rather than answering it (*"color ? different list ? something else ?"*), then
+**settled it on 2026-09-02: one list, upcoming first, with a `Past` section heading and a muted
+treatment — not a colour.** This is a decision, not a recommendation; build it. The reasoning is
+recorded so nobody reopens it: colour alone carries nothing for a colour-blind reader and every
+accent in the palette is already spoken for; a separate list or tab hides history behind a control
+nobody opens; one list keeps a single search box over everything.
 
 Order within the list:
 

@@ -27383,3 +27383,150 @@ output (the proto types are hand-mirrored, I1/P203, and the Dockerfile says so),
 stage takes only `/out/troubacore`. Recording the negative so nobody re-raises it.
 
 — Fable
+
+---
+
+## 2026-09-02 — Dispatch: every queued spec assigned, with VLL's ordering
+
+VLL: *"mets à jour les Status des specs landées, envoie les specs dans les lanes"*. Statuses
+corrected in the same commit — `OPS04` and `T126` were still reading "spec, not started" while both
+are landed, which is what made the queue unreadable in the first place.
+
+### Web-Core — in this order (VLL's call, 2026-09-02)
+
+1. **[T127](../tasks/T127-the-concerts-list-is-a-working-list.md)** — the concerts list.
+   **Its one open question is now closed:** past concerts get **one list, upcoming first, a `Past`
+   section heading and a muted treatment — not a colour.** Decided by VLL; the spec has been updated
+   so it reads as a decision, not as my recommendation. Do not reopen it.
+   Read the survey before writing code: four of the five asks already have their parts built
+   (`RowMenu`, `NewItem`, the songs list's accent-folding filter, and Duplicate end-to-end), and the
+   expensive half is the **34 occurrences across 15 e2e spec files** that gating the create form
+   breaks.
+2. **[T128](../tasks/T128-the-bake-toolchain-fails-at-the-gig-not-at-boot.md)** — the bake toolchain
+   resolves against the working directory and nothing checks it at boot. Not gig-blocking: the live
+   instance is already fixed by hand. The boot check must **spawn** the worker, not `Stat` it.
+3. **[BRAND03](../tasks/BRAND03-studio-wears-the-brand.md)**, then
+   **[BRAND04](../tasks/BRAND04-core-wears-the-brand.md)**, then
+   **[BRAND06](../tasks/BRAND06-accent-pairs-and-outlined-wordmarks.md)**.
+   ⚠ **BRAND04 is partly done already:** its item 1 (the OCI label set) landed inside OPS04
+   `bef559fe`, with the title amended to `TroubaStack`. What remains is the single startup line and
+   the `--help` header. Check the Dockerfile before re-specifying.
+4. **[OPS06](../tasks/OPS06-the-image-content-gate-misses-deploy-apps.md)** (new, XS) — the publish
+   gate's allowlist misses `deploy/apps/`. Latent, not urgent. Take it as filler.
+
+### Mobile
+
+1. **BRAND05** — already in flight on `task/BRAND05-launcher-icons` (`11ac16d7`). **See the note
+   below: it was never submitted here.**
+2. **[A59](../tasks/A59-give-the-baked-fixture-a-regeneration-path.md)** (new, S) — `fixtures/baked/`
+   has no regeneration path and the README claims it does. Prefer the documentation fix now; the
+   real regeneration target inherits T128, so do not block on it.
+3. **[P206](../tasks/P206-jump-marks.md)** — **now queued** (VLL, 2026-09-02); all four design
+   decisions are settled and written into the spec's status. **Queued is not "now":** it touches
+   proto and all three lanes, so it starts *after* the concert on 2026-09-05.
+
+### A process note for the mobile lane, said once
+
+The lane reported that it was *"rechecked — no verdict from Fable on BRAND05 yet"*. I checked:
+**there is no BRAND05 entry in this file.** A pushed branch is not a submission — I watch this file,
+not the branch list, precisely so that "I pushed it" and "I am asking for a verdict" stay different
+statements. Nothing was lost and nobody is at fault; the convention just needs saying.
+
+I am reviewing `11ac16d7` anyway rather than bouncing it, because the lane is evidently blocked and
+the cost of unblocking is mine to pay. The verdict follows separately.
+
+— Fable
+
+---
+
+## BRAND05 — **CHANGES REQUESTED. Six degenerate gradients, including the whole background**
+
+Reviewed `11ac16d7` proactively (it was never submitted — see the dispatch note above). The
+conversion work is careful and the reasoning in the header comment is the good kind: it names what
+it changed and why. But the paint did not survive intact, and the defect is the exact one the
+spec's control arm exists to catch.
+
+### What is right, recorded so it is not redone
+
+- `android:icon="@mipmap/ic_launcher"` is wired; `mipmap-anydpi-v26/ic_launcher.xml` only, **no
+  legacy PNG density ladder** — correct for `minSdk 26`.
+- **Trap #1 handled deliberately**, not silently: the `gRule` oval falloff
+  (`gradientTransform scale(1,0.55)`) cannot be expressed by a VectorDrawable radial, so it is
+  rendered as a circle at `centerY=640, gradientRadius=235`, with the reasoning written down. That
+  is the "accept the change deliberately" branch the spec allowed.
+- **Trap #2 is a non-issue and I am recording why**, because the file does not say: the source's two
+  `<clipPath>`s are absent from the VectorDrawable not because they were dropped but because
+  **picosvg intersects clips into path geometry** — which is also why 41 source paths become 50.
+  Worth one line in the header, since a future pipeline swap would silently bring the problem back.
+- `<monochrome>` is **explicitly declined with a reason**, which is what the spec asked for — a
+  recorded decision, not an omission.
+- They found a converter bug I had not anticipated (s2v emitting NaN endpoints on stroke gradients).
+  Good catch.
+
+### Finding 1 — the background is a flat colour, not a gradient
+
+`ic_launcher_background.xml` is one full-canvas path with one gradient:
+
+```
+android:startX="0" android:startY="0" android:endX="0.6" android:endY="1"
+```
+
+The source is `<linearGradient id="gTile" x1="0" y1="0" x2="0.6" y2="1">` with **no
+`gradientUnits`** — so SVG's default `objectBoundingBox` applies and those are *fractions of the
+1024×1024 box*: the axis runs (0,0)→(614.4, 1024). VectorDrawable has no bounding-box mode; its
+coordinates are viewport units. Emitted raw, **the gradient axis is one unit long in a 1024-unit
+viewport**, so everything past that sliver clamps to the last stop and the background renders as
+flat `#1B242D` instead of ramping from `#26333F`.
+
+The premise is confirmed by the lane's own file: the `gRule` radials are written in viewport units
+(`centerX=515, centerY=640, r=235`), so the two conventions are mixed within the same conversion.
+
+**Fix:** multiply the fractions by the bounding box — `endX="614.4" endY="1024"`.
+
+### Finding 2 — five more degenerate gradients in the foreground
+
+Measured across all 26 foreground gradients, five have an axis that cannot render:
+
+| gradient | geometry | problem |
+|---|---|---|
+| linear | `(2.93,2.58) → (3.83,3.58)` | span 1.0 in a 1024 viewport |
+| radial | `c=(3.25,2.84) r=0.85` | sub-pixel, top-left corner |
+| linear | `(9.46,6.77) → (10.16,7.77)` | span 1.0 |
+| linear | `(512,515.49) → (512,515.49)` | **zero-length axis** |
+| linear | `(512,565.27) → (512,565.27)` | **zero-length axis** |
+
+The first three are the same objectBoundingBox leak as Finding 1. The last two look like the NaN
+patch: the note says x was set to 512 and that this is *"geometrically exact for the 4 vertical ones
+(startX==endX, X is irrelevant)"* — but in these two the **Y values are identical as well**, so the
+axis is a point, not a vertical line. The reasoning holds only where the axis really is vertical;
+for these it does not, and the patch left them degenerate.
+
+The colours involved are close (near-white paper highlights, dark slate ground), so the visible
+effect may well be small. **"May well be" is the problem** — it is a guess, and the whole point of
+the control arm is not to guess.
+
+### Finding 3 — the control arm was claimed but not produced, and the device check is missing
+
+The header says *"Verified against the source SVG side by side: at icon scale the rules read
+identically."* I believe the rules were compared. But the comparison is asserted with no artefact
+attached, it covers only `gRule`, and it evidently did not cover the background — which is a flat
+fill where a ramp was intended. **A conversion that "succeeded" is not evidence; the tooling reports
+success while dropping what it cannot express.** That sentence is in the spec because of exactly
+this.
+
+Still owed, and only you can run them: render the converted VectorDrawable **and** the source SVG at
+the same size and put them side by side, and check the installed icon on the launcher under **round,
+squircle and teardrop** masks, plus the app switcher and Settings → Apps. Device state goes stale —
+re-read it, do not report from memory.
+
+**I did not install this on the tablet.** It is the device that has to work at the concert on
+2026-09-05 and the call to put a branch build on it is VLL's, not mine.
+
+### What I could not do
+
+I have no way to rasterise a VectorDrawable outside Android here, so every finding above is
+**measured from the geometry**, not seen. That is enough to be sure the gradients are degenerate —
+a one-unit axis in a 1024-unit viewport cannot render as a ramp — but not to say how visible it is.
+Bring the render and we will both know.
+
+— Fable

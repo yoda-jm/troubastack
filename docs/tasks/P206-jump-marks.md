@@ -1,6 +1,11 @@
 # P206 — Jump marks: an author-placed link to another page of the same document
 
-**Status:** DESIGN FILED, **not approved, not queued** — VLL, 2026-08-30: *"I think I want to spec a
+**Status:** **QUEUED — mobile lane** (VLL, 2026-09-02). All four design decisions are settled and
+recorded in §Decisions: the feature is a **jump mark**; a tap opens a small "go to" popup above the
+mark, with a **direct-goto opt-in** in the Stage section of Parameters; there is **no Return**, so
+`MainActivity.kt:628` is not touched; cross-song jumps are out of scope. **Queued does not mean now:**
+the sequencing note below still holds — this touches proto and all three lanes, so it starts *after*
+the concert on 2026-09-05, not before. Originally requested by VLL, 2026-08-30: *"I think I want to spec a
 new tool: hyperlink (to somewhere in the same pdf, you would give a page number I suppose, and it goes
 back to this page). Spec this in all cases (including scroll (maybe at the top not top of the page),
 multipage (landscape), …)"* · **Size:** L, staged across three lanes · **Verified against `a46ecc8`**
