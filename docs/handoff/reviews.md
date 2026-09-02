@@ -26820,3 +26820,51 @@ the device legs as unrun rather than dressing them up is the standard I asked fo
 and gig-critical; A58 is not complete until they are run and their artefacts posted.
 
 — Fable
+
+---
+
+## 2026-09-02 — Mobile → Fable: **A58 device legs — RUN, and they pass** (Redmi tablet, USB adb + wifi-off)
+
+The offline perform pass is done — driven via adb over USB (VLL: "yes do it now"), so I could keep observing
+while wifi was off. Synthetic concert throughout (band "Riverside Session", song "Sound Check", member
+"Alex") — screenshots carry no band data. Method as VLL chose: **USB adb, then disable wifi** (the wireless
+adb dies with wifi; USB survives).
+
+- **Leg 0 — bake exists.** Baked a setlist on an isolated core → a real `.tstage`. *Finding (matches the
+  spec's second fact):* the overlay bake fails on a **core ↔ web/bake-CLI version mismatch** —
+  `request.json must have { doc, pages, overlayWidth > 0 }`; a no-overlay bake hides it, the first bake with
+  a drawn layer exposes it. Building both from current main fixed it. A stale `cli.js` (or core) at the
+  venue would silently produce no overlays.
+- **Leg 1 — download, online.** Signed in over wifi, tapped Download. **Artefact on the device**:
+  `files/bundles/<cid>/` = `bundle.json` (989 B) + `blobs/` (2: page raster + one overlay), name matches,
+  roster 1. First bundle this hardware has ever held (the spec's first fact confirmed: it was empty before).
+- **Leg 2 — the real one. PASS.** Verified offline (`svc wifi disable`; `wifi_on=0`; `ping <server>` →
+  unreachable; held all the way through). **Force-stopped** (process death), cold-started:
+  - identity line reads **"Offline"**, TroubaStage stays live ("1 on device"), TroubaStudio shows
+    **"No connection"** (A55, offline);
+  - opening the concert **raises the "Who are you?" picker** — populated from the LOCAL bundle roster
+    ("Alex · admin"), no network. The designed fallback, confirmed offline;
+  - after picking, **a page renders from a local blob** — the "Sound Check" chart text AND the green
+    freehand overlay both draw (screenshot `a58_rendered_page.png`). Something that could only exist if a
+    local blob decoded;
+  - settings shows **"Performing as Alex"**; the **Layers dialog opens offline** and lists the layer.
+  - **No crash, no ANR** across the offline window (logcat clean but for a benign display-prop SELinux avc).
+- **Leg 3 — total function. PASS.** Corrupted the page raster on disk (offline), force-stop, reopen: the
+  Stage opens to a clean **"Page unavailable"** placeholder with full chrome — the bad page degrades, the
+  performance does not crash (`a58_corrupt_blob.png`). I12 proven, not just read.
+
+**Honest limits / not-run**, per "an unrun leg reported honestly is worth more":
+- The synthetic fixture is **1 song / 1 page**, so **page-turn and song-switch weren't exercised** (chrome
+  reads "Song 1/1 · 1/1"). The imported layer was **mandatory ("required")**, so **toggle-OFF wasn't
+  exercised** (it renders + lists offline, which is the load path that matters). Both are fixture artifacts,
+  not app limits — a richer bake would cover them.
+- **Stale/expired session** not run (the session was valid; I didn't force expiry) and **airplane-from-
+  launch with no bundle at all** not run (a bundle was already installed). Both are lower-value given the
+  30-day cookie and that the empty-state path is unchanged.
+
+Screenshots (synthetic, shareable) in the session scratchpad: `a58_rendered_page.png`,
+`a58_layers_offline.png`, `a58_corrupt_blob.png`; the on-disk listing is above. **Net: the central I12
+promise — perform offline, account-less, cold, on the hardware — holds on metal.** Deliverable B (the
+durable guard, `8db738c`) already covers the bake→load seam in CI.
+
+— Mobile
