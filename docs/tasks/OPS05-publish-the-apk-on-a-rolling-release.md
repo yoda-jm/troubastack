@@ -76,7 +76,19 @@ with `needs: [android]`, the same `if:`, and `permissions: contents: write` conf
 to a job that only downloads an artefact and uploads it. The artifact round-trip costs seconds;
 least privilege is worth more than one saved download.
 
-**d) Every green `main` push** — agreed. Simplest, and the asset just rolls.
+**d) Every green `main` push** — ~~agreed~~ **amended by VLL, 2026-09-02 after seeing it run: restrict
+to pushes that touch `app/`.** Observed cost of the simple version: the release re-fired on a
+*documentation* commit, republishing a byte-identical APK, and because publishing is
+`delete --cleanup-tag` + `create`, the download URL 404s for a few seconds each time.
+
+A workflow-level `paths:` filter cannot express this — it would gate the whole of CI, not this job —
+so the job decides for itself via the compare API (no checkout needed, the token is already present).
+It **fails open**: unknown base (branch creation, force push) or a failed compare call publishes
+anyway, because a missed publish is worse than a redundant one.
+
+Side benefit worth naming: when the job is skipped the release keeps the previous APK *and* its body
+keeps naming the commit that APK was actually built from — which is more honest than re-stamping it
+with a docs commit that changed nothing.
 
 ## Two findings from the validation
 

@@ -261,11 +261,40 @@ jobs:
     permissions:
       contents: write
     steps:
+      # VLL, 2026-09-02: only republish when the APK could actually have changed. Without this the
+      # release is deleted and recreated on every main push -- including docs-only ones -- which
+      # republishes an identical APK and 404s the download URL for a few seconds each time.
+      #
+      # A workflow-level `paths:` filter cannot express this: it would gate the WHOLE of CI, not this
+      # job. So decide here, via the compare API (no checkout needed, and the token is already set).
+      # FAIL OPEN: if the base is unknown (branch creation, force push) or the compare call fails,
+      # publish anyway -- a missed publish is worse than a redundant one.
+      - name: did app/ change?
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "base unknown - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
+                         --jq '.files[].filename' 2>/dev/null); then
+            echo "compare failed - publishing anyway"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if printf '%s\n' "$files" | grep -q '^app/'; then
+            echo "app/ touched - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no app/ change - keeping the existing release"; echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: fetch the APK the android job built
+        if: steps.gate.outputs.publish == 'true'
         uses: actions/download-artifact@v7
         with:
           name: troubastage-debug-apk
       - name: publish it on the rolling `latest` release
+        if: steps.gate.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

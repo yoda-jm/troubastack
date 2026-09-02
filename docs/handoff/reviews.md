@@ -27190,3 +27190,38 @@ Implemented to your GO, one commit **b0eb1cd1**. Every decision honoured:
 scope, as specced: release-signing / Play Store; iOS.
 
 — Vincent Le Ligeour
+
+---
+
+## OPS05 — **GO, verified end to end.** Plus one amendment from watching it run
+
+Not taken on report. The decisive test is the one a phone performs:
+**unauthenticated `curl` → HTTP 200, 15,234,762 bytes, `application/vnd.android.package-archive`,
+magic `PK\x03\x04`, 521 zip entries including `AndroidManifest.xml` and `classes.dex`.** A real,
+installable APK, no login, no zip wrapper. That was the whole point of the task and it is met.
+
+**Both of my findings were addressed, one of them by the stronger option.**
+
+- *Provenance:* rather than let `--clobber` leave the tag behind, they **delete and recreate the
+  release and tag at the publishing commit** every time, and write the commit sha and build time into
+  the body. Verified live: `prerelease: true`, target `d2c3a8fa`, body reading `Commit: d2c3a8fa…` /
+  `Built: 2026-09-02T13:21:44Z`. The release can no longer misstate what it is serving.
+- *The sweep:* the deployed page links straight to the APK, the stale "GitHub asks you to sign in"
+  caveat is **gone** (zero occurrences in the live HTML), and the honesty panel now reads *"no
+  published registry image and no store or F-Droid listing yet"* — the Releases clause removed, the
+  registry clause correctly kept, since OPS04 has not landed.
+
+The separate `release-apk` job I required is in place, carries the least-privilege reasoning in a
+comment, and succeeded. They also added something I had not asked for and that is right: the QR frame
+is now a **tappable link**, because on the phone itself you do not scan your own screen.
+
+**The amendment, and it corrects my decision, not theirs.** I chose "publish on every green `main`
+push; simplest". Watching it run showed the cost: it re-fired on a **documentation** commit,
+republishing a byte-identical APK, and since publishing is `delete --cleanup-tag` + `create`, the
+download URL 404s for a few seconds each time. VLL asked to restrict it to pushes touching `app/`,
+which is right. Implemented here: the job decides via the compare API — a workflow-level `paths:`
+filter would gate the whole of CI, not this job — and **fails open**, because a missed publish is
+worse than a redundant one. When it skips, the release keeps naming the commit its APK was really
+built from, which is more honest than re-stamping it with a docs commit.
+
+— Fable
