@@ -106,10 +106,10 @@ func TestSetlists_plainSeedStillSkipsPersonalBands(t *testing.T) {
 	}
 	// The demo-isolation property itself is TestSelectGroups' job; this asserts it still holds for a
 	// band that now carries concert data — the thing T100 added to the very groups a plain seed skips.
-	if _, _, err := selectGroups([]groupDef{g}, nil, "", ""); err == nil {
+	if _, _, err := selectGroups([]groupDef{g}, nil, "", nil); err == nil {
 		t.Error("a plain seed selected a personal band — a real band's gig list must never enter the demo")
 	}
-	kept, _, err := selectGroups([]groupDef{g}, nil, "", g.shortname)
+	kept, _, err := selectGroups([]groupDef{g}, nil, "", []string{g.shortname})
 	if err != nil || len(kept) != 1 {
 		t.Errorf("`seed -band %s` must still select it: kept=%d err=%v", g.shortname, len(kept), err)
 	}

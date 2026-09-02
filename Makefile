@@ -125,26 +125,36 @@ demo: dist
 	echo ">>> READY: open http://localhost:8080 (real SPA + seeded data). Ctrl-C to stop; reset: rm -rf core/troubadata"; \
 	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
-# Seed + run ONE real, local band by its band.json "shortname":  make band=<shortname>
+# Seed + run one or more real, local bands by their band.json "shortname":
+#   make band=<shortname>              one band
+#   make band=<shortname>,<shortname>  several onto one server (comma-separated list)
 # (each band lives in a gitignored bands/<folder>/band.json; NOT demo content). Same one-shot
-# flow as `make demo` but seeds only that band into its OWN data dir, so recreating your server
-# rebuilds it cleanly. Reset: rm -rf core/troubadata-<shortname>
+# flow as `make demo` but seeds only those band(s) into their OWN data dir, so recreating your
+# server rebuilds it cleanly. Reset: rm -rf core/troubadata-<shortname[-shortname...]>
+#
+# The comma list is a make-level convenience: it expands to repeated `-band` flags (the seed CLI
+# takes one shortname per -band, so `-band a,b` is NOT a thing — it splits here, not there).
+comma := ,
+empty :=
+space := $(empty) $(empty)
+band_flags := $(foreach b,$(subst $(comma),$(space),$(band)),-band $(b))
+band_dir := troubadata-$(subst $(comma),-,$(band))
 band: dist
-	@test -n "$(band)" || { echo "usage: make band=<shortname>  (see bands/*/band.json 'shortname')"; exit 2; }
+	@test -n "$(band)" || { echo "usage: make band=<shortname>[,<shortname>...]  (see bands/*/band.json 'shortname')"; exit 2; }
 	@cd core; \
-	echo ">>> seeding band '$(band)' …"; \
-	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata-$(band) ./bin/troubacore & \
+	echo ">>> seeding band(s) '$(band)' …"; \
+	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./$(band_dir) ./bin/troubacore & \
 	SEED_CORE=$$!; \
 	trap 'kill $$SEED_CORE 2>/dev/null' EXIT INT TERM; \
 	for i in $$(seq 1 50); do \
 		curl -sf http://localhost:8080/healthz >/dev/null 2>&1 && break; \
 		sleep 0.2; \
 	done; \
-	go run ./cmd/seed -addr http://localhost:8080 -password demo -band "$(band)" || true; \
+	go run ./cmd/seed -addr http://localhost:8080 -password demo $(band_flags) || true; \
 	kill $$SEED_CORE 2>/dev/null; wait $$SEED_CORE 2>/dev/null; \
 	trap - EXIT INT TERM; \
-	echo ">>> READY: open http://localhost:8080 (band '$(band)'). Ctrl-C to stop; reset: rm -rf core/troubadata-$(band)"; \
-	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata-$(band) TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
+	echo ">>> READY: open http://localhost:8080 (band(s) '$(band)'). Ctrl-C to stop; reset: rm -rf core/$(band_dir)"; \
+	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./$(band_dir) TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
 # Deferred until the contract is codegen'd.
 proto:

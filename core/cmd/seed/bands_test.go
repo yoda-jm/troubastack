@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -130,7 +131,7 @@ func TestSelectGroups(t *testing.T) {
 	}
 
 	t.Run("neither → demo groups only, no personal members", func(t *testing.T) {
-		g, p, err := selectGroups(groups, people, "", "")
+		g, p, err := selectGroups(groups, people, "", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +150,7 @@ func TestSelectGroups(t *testing.T) {
 	})
 
 	t.Run("-band myband → exactly that band + its people", func(t *testing.T) {
-		g, p, err := selectGroups(groups, people, "", "myband")
+		g, p, err := selectGroups(groups, people, "", []string{"myband"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -163,15 +164,59 @@ func TestSelectGroups(t *testing.T) {
 	})
 
 	t.Run("-only orchestra → matched by name", func(t *testing.T) {
-		g, _, err := selectGroups(groups, people, "orchestra", "")
+		g, _, err := selectGroups(groups, people, "orchestra", nil)
 		if err != nil || len(g) != 1 || g[0].name != "City Chamber Orchestra" {
 			t.Fatalf("got %+v (err %v), want City Chamber Orchestra", g, err)
 		}
 	})
 
 	t.Run("-band nope → actionable error", func(t *testing.T) {
-		if _, _, err := selectGroups(groups, people, "", "nope"); err == nil {
+		if _, _, err := selectGroups(groups, people, "", []string{"nope"}); err == nil {
 			t.Error("want an error naming band.json shortname, got nil")
+		}
+	})
+
+	t.Run("-band gvo -band bns → both bands, others excluded", func(t *testing.T) {
+		gs := []groupDef{
+			{name: "Blue Note Singers", shortname: "bns", admin: "nikos", members: []string{"vincent"}, personal: true},
+			{name: "Good Vibes Only", shortname: "gvo", admin: "vincent", members: []string{"remy"}, personal: true},
+			{name: "Other Band", shortname: "othr", admin: "zoe", personal: true},
+		}
+		ps := []person{{username: "nikos"}, {username: "vincent"}, {username: "remy"}, {username: "zoe"}}
+		g, p, err := selectGroups(gs, ps, "", []string{"gvo", "bns"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(g) != 2 {
+			t.Fatalf("got %d groups, want 2 (gvo+bns)", len(g))
+		}
+		names := set(p)
+		// teeth: othr's admin zoe must NOT be pulled in, or the filter isn't filtering.
+		if !names["nikos"] || !names["vincent"] || !names["remy"] || names["zoe"] {
+			t.Errorf("people = %v, want {nikos,vincent,remy} and NOT zoe", names)
+		}
+	})
+
+	t.Run("-band bns -band typo → fails loud, naming the miss", func(t *testing.T) {
+		gs := []groupDef{{name: "Blue Note Singers", shortname: "bns", admin: "nikos", personal: true}}
+		_, _, err := selectGroups(gs, []person{{username: "nikos"}}, "", []string{"bns", "typo"})
+		// teeth: a partial match must ERROR (not silently seed just bns), and name "typo".
+		if err == nil || !strings.Contains(err.Error(), "typo") {
+			t.Errorf("want an error naming the unmatched \"typo\", got %v", err)
+		}
+	})
+
+	t.Run("-band bns,gvo (one flag, comma) → NOT split, fails loud", func(t *testing.T) {
+		gs := []groupDef{
+			{name: "Blue Note Singers", shortname: "bns", admin: "nikos", personal: true},
+			{name: "Good Vibes Only", shortname: "gvo", admin: "vincent", personal: true},
+		}
+		ps := []person{{username: "nikos"}, {username: "vincent"}}
+		// A single -band value keeps its comma: it's the literal shortname "bns,gvo", which
+		// matches nothing. This is the shape VLL rejected — it must error, not seed both.
+		_, _, err := selectGroups(gs, ps, "", []string{"bns,gvo"})
+		if err == nil || !strings.Contains(err.Error(), "bns,gvo") {
+			t.Errorf("want an error naming the literal \"bns,gvo\", got %v", err)
 		}
 	})
 }
@@ -227,5 +272,96 @@ func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestScorePriority: the full score outranks a single-instrument part or a lyrics/translation
+// sheet, in both English and French, so the song's default file is the whole arrangement.
+func TestScorePriority(t *testing.T) {
+	cases := []struct {
+		name string
+		want int
+	}{
+		{"Faith arr Mark Bryner.pdf", 0},
+		{"Bewitched.pdf", 0},
+		{"Africa(Toto).pdf", 0},
+		{"Africa.docx.pdf", 1},                  // a doc exported to PDF, not the score
+		{"Hymne à l amour avec paroles.pdf", 1}, // lyrics sheet
+		{"Dear Heart (pour flûte).pdf", 2},
+		{"BASS_690383-faith.pdf", 2},
+		{"Mr Sandman percussion.pdf", 2},
+		{"Jingle Bells-basse-resolution.pdf", 2}, // "basse" wins over "resolution"
+		{"All That Jazz (Piano)-Partition musicien.pdf", 2},
+	}
+	for _, c := range cases {
+		if got := scorePriority(c.name); got != c.want {
+			t.Errorf("scorePriority(%q) = %d, want %d", c.name, got, c.want)
+		}
+	}
+}
+
+// TestLoadRepertoire_FullScoreFirst: a song folder with a score + instrument parts + a lyrics
+// sheet attaches the FULL SCORE as the first file. Teeth: the bass part must not sort first.
+func TestLoadRepertoire_FullScoreFirst(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "repertoire.json"),
+		[]byte(`{"songs":[{"slug":"faith","title":"Faith","artist":"Stevie Wonder"}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bd := filepath.Join(dir, "faith")
+	os.MkdirAll(bd, 0o755)
+	for _, f := range []string{"BASS_690383-faith.pdf", "DRUMS_690383-faith.pdf", "Faith arr Mark Bryner.pdf", "Faith avec paroles.pdf"} {
+		if err := os.WriteFile(filepath.Join(bd, f), []byte("%PDF-1.4\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	songs, err := loadRepertoire(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(songs) != 1 || len(songs[0].files) != 4 {
+		t.Fatalf("got %d songs / %d files, want 1 / 4", len(songs), len(songs[0].files))
+	}
+	if songs[0].files[0].docTitle != "Faith arr Mark Bryner" {
+		t.Errorf("first file = %q, want the full score \"Faith arr Mark Bryner\"", songs[0].files[0].docTitle)
+	}
+	// the two instrument parts must land last, after score and lyrics
+	last := songs[0].files[3].docTitle
+	if last != "BASS_690383-faith" && last != "DRUMS_690383-faith" {
+		t.Errorf("last file = %q, want an instrument part", last)
+	}
+}
+
+// TestLoadLocalBands_Conductor: a band.json member marked "conductor": true becomes the group's
+// conductor (the seed promotes them). Teeth: a plain member leaves conductor empty.
+func TestLoadLocalBands_Conductor(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TROUBA_BANDS_DIR", dir)
+	writeBand(t, dir, "bns", `{
+	  "name": "Blue Note Singers", "shortname": "bns",
+	  "admin": {"username": "vincent", "display": "Vincent"},
+	  "members": [
+	    {"username": "nikos", "display": "Nikos", "role": "direction", "conductor": true},
+	    {"username": "pat", "display": "Pat", "role": "alto"}
+	  ]
+	}`, "")
+	writeBand(t, dir, "plain", `{
+	  "name": "Plain", "shortname": "plain",
+	  "admin": {"username": "al"}, "members": [{"username": "bo"}]
+	}`, "")
+
+	groups, _, err := loadLocalBands()
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := map[string]groupDef{}
+	for _, g := range groups {
+		by[g.shortname] = g
+	}
+	if by["bns"].conductor != "nikos" {
+		t.Errorf("bns conductor = %q, want \"nikos\"", by["bns"].conductor)
+	}
+	if by["plain"].conductor != "" {
+		t.Errorf("plain conductor = %q, want empty (no member flagged)", by["plain"].conductor)
 	}
 }

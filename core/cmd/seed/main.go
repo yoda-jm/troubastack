@@ -25,7 +25,8 @@ func main() {
 	addr := flag.String("addr", "http://localhost:8080", "base URL of the running troubacore server")
 	password := flag.String("password", "demo", "password set for every demo user")
 	only := flag.String("only", "", "seed only groups whose name contains this substring (case-insensitive), plus just their members; e.g. -only orchestra. Empty = seed everything.")
-	band := flag.String("band", "", "seed only the local band (bands/*/band.json) whose shortname matches; e.g. -band myband. Used by `make band=<shortname>`.")
+	var bands multiFlag
+	flag.Var(&bands, "band", "seed only the local band(s) (bands/*/band.json) whose shortname matches; repeatable, e.g. -band gvo -band bns. Used by `make band=<shortname>` (make splits a comma list into repeated -band flags).")
 	dumpImports := flag.String("dump-imports", "", "write each demo chart's exact annotation import payload to this dir (offline, no server) and exit — provenance for docs/demo-charts/*.annotations.json (B13).")
 	flag.Parse()
 
@@ -36,9 +37,20 @@ func main() {
 		return
 	}
 
-	if err := run(*addr, *password, *only, *band); err != nil {
+	if err := run(*addr, *password, *only, bands); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
+}
+
+// multiFlag collects a repeatable string flag (e.g. -band gvo -band bns) into a slice.
+// Each occurrence is one value — commas are NOT split, so `-band bns,gvo` stays a single
+// (unmatched) shortname rather than silently meaning two bands.
+type multiFlag []string
+
+func (m *multiFlag) String() string { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error {
+	*m = append(*m, v)
+	return nil
 }
 
 // runDumpImports builds every demo chart's annotation import offline (placeholder ids + the
@@ -188,7 +200,7 @@ type groupDef struct {
 	shortname string
 }
 
-func run(addr, password, only, band string) error {
+func run(addr, password, only string, bands []string) error {
 	if err := ensureAssetsDir(); err != nil {
 		return err
 	}
@@ -342,11 +354,11 @@ func run(addr, password, only, band string) error {
 	people = append(people, localPeople...)
 
 	// Decide which groups to seed and narrow the user list to their members (see selectGroups).
-	groups, people, err = selectGroups(groups, people, only, band)
+	groups, people, err = selectGroups(groups, people, only, bands)
 	if err != nil {
 		return err
 	}
-	if only != "" || band != "" {
+	if only != "" || len(bands) > 0 {
 		fmt.Printf(">> seeding %d group(s), %d user(s)\n", len(groups), len(people))
 	}
 
@@ -404,9 +416,10 @@ type bandManifest struct {
 	Members   []bandMember `json:"members"`
 }
 type bandMember struct {
-	Username string `json:"username"`
-	Display  string `json:"display"`
-	Role     string `json:"role"`
+	Username  string `json:"username"`
+	Display   string `json:"display"`
+	Role      string `json:"role"`
+	Conductor bool   `json:"conductor,omitempty"` // promote this member to the app "conductor" role
 }
 
 // selectGroups picks which groups to seed and narrows people to their members:
@@ -417,15 +430,29 @@ type bandMember struct {
 //
 // Returns an actionable error when a selector matches nothing. Pure (no I/O) so the demo-isolation
 // property is unit-tested without a server.
-func selectGroups(groups []groupDef, people []person, only, band string) ([]groupDef, []person, error) {
+func selectGroups(groups []groupDef, people []person, only string, bands []string) ([]groupDef, []person, error) {
 	needle := strings.ToLower(only)
+	// -band is repeatable — each occurrence names ONE band's shortname (make band=gvo,bns
+	// splits the list into `-band gvo -band bns`). A stray comma stays part of the literal
+	// shortname, so `-band bns,gvo` matches nothing and fails loud below.
+	wantBands := map[string]bool{}
+	for _, s := range bands {
+		if s = strings.TrimSpace(s); s != "" {
+			wantBands[s] = true
+		}
+	}
+	bandMode := len(wantBands) > 0
+	matchedBand := map[string]bool{}
 	kept := groups[:0:0]
 	keepUser := map[string]bool{}
 	for _, g := range groups {
 		var keep bool
 		switch {
-		case band != "":
-			keep = g.shortname == band
+		case bandMode:
+			keep = wantBands[g.shortname]
+			if keep {
+				matchedBand[g.shortname] = true
+			}
 		case only != "":
 			keep = strings.Contains(strings.ToLower(g.name), needle)
 		default:
@@ -440,10 +467,22 @@ func selectGroups(groups []groupDef, people []person, only, band string) ([]grou
 			keepUser[m] = true
 		}
 	}
+	// Fail loud if any requested shortname matched nothing — seeding a partial set (gvo
+	// but not a mistyped "bnss") silently is a footgun. Names exactly which ones missed.
+	if bandMode {
+		var missing []string
+		for s := range wantBands {
+			if !matchedBand[s] {
+				missing = append(missing, s)
+			}
+		}
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			return nil, nil, fmt.Errorf("seed: -band %q matched no band (check bands/*/band.json shortname)", strings.Join(missing, ","))
+		}
+	}
 	if len(kept) == 0 {
 		switch {
-		case band != "":
-			return nil, nil, fmt.Errorf("seed: -band %q matched no band (check bands/*/band.json shortname)", band)
 		case only != "":
 			return nil, nil, fmt.Errorf("seed: -only %q matched no groups", only)
 		default:
@@ -504,9 +543,13 @@ func loadLocalBands() ([]groupDef, []person, error) {
 		}
 		addPerson(man.Admin)
 		memberNames := make([]string, 0, len(man.Members))
+		conductor := ""
 		for _, m := range man.Members {
 			addPerson(m)
 			memberNames = append(memberNames, m.Username)
+			if m.Conductor {
+				conductor = m.Username // band.json marks who to promote (make band=…)
+			}
 		}
 		songs, err := loadRepertoire(bandDir)
 		if err != nil {
@@ -524,6 +567,7 @@ func loadLocalBands() ([]groupDef, []person, error) {
 		groups = append(groups, groupDef{
 			name: man.Name, kind: kind, admin: man.Admin.Username,
 			members: memberNames, songs: songs, setlists: setlists, personal: true, shortname: shortname,
+			conductor: conductor,
 		})
 	}
 	return groups, people, nil
@@ -596,6 +640,32 @@ func loadSetlists(bandDir string, songs []songDef) ([]setlistDef, error) {
 	return out, nil
 }
 
+// scorePriority ranks a source PDF for "full score first" ordering within a song:
+//
+//	0 = the full score (the whole arrangement — the sensible default part),
+//	1 = an auxiliary sheet (lyrics/translation/gesture/booklet, or a doc exported to PDF),
+//	2 = a single-instrument part (bass, drums, piano, guitar, …).
+//
+// Matched on the filename, case-insensitively, in French and English (the terms real band
+// folders use). Anything with no telltale keyword is treated as the full score.
+func scorePriority(path string) int {
+	l := strings.ToLower(filepath.Base(path))
+	partKeywords := []string{"bass", "basse", "drum", "batterie", "percussion",
+		"piano", "guitar", "guitare", "flute", "flûte", "musicien"}
+	for _, k := range partKeywords {
+		if strings.Contains(l, k) {
+			return 2
+		}
+	}
+	auxKeywords := []string{"traduction", "paroles", "gestes", "livret", "lyrics", "resolution", ".docx"}
+	for _, k := range auxKeywords {
+		if strings.Contains(l, k) {
+			return 1
+		}
+	}
+	return 0
+}
+
 // loadRepertoire reads <bandDir>/repertoire.json into songDefs, attaching any real source PDFs
 // the owner has dropped into <bandDir>/<slug>/. Missing file → no songs.
 func loadRepertoire(bandDir string) ([]songDef, error) {
@@ -630,7 +700,16 @@ func loadRepertoire(bandDir string) ([]songDef, error) {
 		sd := songDef{title: s.Title, artist: s.Artist, key: s.Key, tempo: s.Tempo, meter: s.Meter, tags: s.Tags, notes: s.Notes, slug: s.Slug}
 		if s.Slug != "" {
 			pdfs, _ := filepath.Glob(filepath.Join(bandDir, s.Slug, "*.pdf"))
-			sort.Strings(pdfs)
+			// Full score first: a song's default part should be the whole arrangement, not a
+			// single-instrument or lyrics-only sheet. Rank by scorePriority (score < aux < part),
+			// then alphabetically within a rank so the order is stable.
+			sort.SliceStable(pdfs, func(i, j int) bool {
+				pi, pj := scorePriority(pdfs[i]), scorePriority(pdfs[j])
+				if pi != pj {
+					return pi < pj
+				}
+				return pdfs[i] < pdfs[j]
+			})
 			for _, p := range pdfs {
 				base := strings.TrimSuffix(filepath.Base(p), filepath.Ext(p))
 				sd.files = append(sd.files, pdfSource{localPath: p, docTitle: base, title: s.Title, subtitle: s.Artist})
