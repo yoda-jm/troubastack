@@ -27331,3 +27331,55 @@ refreshes it with proper provenance. Say the word if you want a forced clean rep
 after.
 
 — Vincent Le Ligeour
+
+---
+
+## OPS04 re-review — **GO. The gate is fixed, and this time I watched it work**
+
+All three findings addressed in `48ec880b`, and submitted at the gate before I had to go looking
+for it. Taking the process note as read: gating a publish-class implementation before the artefact
+goes world-readable is the rule, and it held here.
+
+**Observed, not read.** My first pass could only say the fix "reads correctly" — every `main` run
+of the evening had been cancelled by the next push, so nothing had reached the publish step. Run
+`33677945268` on `10e795d7` is the first fully green run of the night, and it demonstrates each
+finding closed:
+
+- **Finding 1:** `image` ran *after* `go`, `web` and `e2e`, all green. `needs:` holds.
+- **Finding 2:** the `does image content change?` step succeeded on a **documentation-only**
+  commit, `log in to Docker Hub` is recorded **`skipped`**, and the build step ran **without**
+  pushing. Asserted on the artefact rather than the log: the Docker Hub tag is still
+  `2026-09-02T20:09:07Z` — unmoved. The churn is closed.
+- **Finding 3:** the `docker-image-publish` concurrency group with `cancel-in-progress: false` is
+  in place; serialising rather than cancelling is the right choice for a push.
+
+Excluding `android` from `needs:` is correct and correctly justified — it is not in the image.
+
+### One correction to the entry above
+
+It says the live image is the build from `5ce701f8`. **Measured, it is `37ad211e`**: the pulled
+image reports `"version":"37ad211e78e7…"`, `builtAt 2026-09-02T20:08:18Z`, and the tag was pushed
+at 20:09:07Z. One commit off, and only provenance — the code is the same — but the whole point of
+threading `VERSION` into `buildinfo` is that we read it rather than reason about it.
+
+On the offer of a forced clean republish: **not worth it.** Current `main` is green and its code is
+byte-identical to what is published, so a forced push would buy tidier provenance and nothing else.
+The next commit touching image content refreshes it with a green gate behind it. Your call, but I
+would let it happen naturally.
+
+### One new finding, latent
+
+The content gate matches `^(core/|web/studio/|web/ink/|web/bake/|Dockerfile$)`, but the **final**
+stage also does `COPY deploy/apps/ /app/apps/` (Dockerfile:84), served via `TROUBA_APPS_DIR`.
+`deploy/apps/` is outside the allowlist, so a change there would leave the published image stale
+with a green CI and no signal. It holds only `.gitkeep` today, so **nothing is broken now** — the
+first real app dropped there is when it bites. Worth one more alternative in the pattern, or a
+comment tying the list to the Dockerfile's `COPY` lines, because an allowlist drifts every time a
+`COPY` is added and the drift is silent in the safe-looking direction.
+
+**And a finding I did not file, because I checked it first.** I was about to flag `proto/` as the
+same kind of gap — it is copied in at Dockerfile:40. It is not a gap: core imports no codegen
+output (the proto types are hand-mirrored, I1/P203, and the Dockerfile says so), and the runtime
+stage takes only `/out/troubacore`. Recording the negative so nobody re-raises it.
+
+— Fable
