@@ -714,7 +714,7 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
 cp deploy/.env.example deploy/.env
 cd deploy
 docker compose <span class="k">up -d</span></pre>
-        <p class="foot">Multi-stage build — the SPA is embedded into the binary at compile time, and the runtime can bake.</p>
+        <p class="foot"><code>up -d</code> pulls a published linux/amd64 image (SPA embedded in the binary; the runtime bakes) — no host toolchain. Developers build from source with the documented override.</p>
       </article>
 
       <article class="install">
@@ -737,12 +737,12 @@ adb install -r \
     </div>
 
     <p class="honest">
-      <strong>Packaging status, honestly.</strong> The compose build above is the supported install.
-      There is <strong>no published registry image and no store or F-Droid listing yet</strong>. The
-      Android build you can scan for below is the <strong>debug APK</strong> published on a rolling
-      GitHub release — it installs straight from the link, but is <strong>unsigned for release</strong>,
-      so Android warns about an unknown source. A signed release APK is the remaining half of the
-      deploy story.
+      <strong>Packaging status, honestly.</strong> <code>docker compose up</code> now pulls a
+      published <strong>linux/amd64</strong> image from Docker Hub — arm64 is a follow-up, so an arm
+      home server still builds from source for now. No store or F-Droid listing yet. The Android
+      build you can scan for below is the <strong>debug APK</strong> on a rolling GitHub release — it
+      installs straight from the link, but is <strong>unsigned for release</strong>, so Android warns
+      about an unknown source. A signed release APK is the remaining half of the deploy story.
     </p>
   </div>
 </section>

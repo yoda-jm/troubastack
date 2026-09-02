@@ -104,19 +104,20 @@ Let's Encrypt certificates, all state in one backed-up data dir — see
 
 ```sh
 cp deploy/.env.example deploy/.env    # set DOMAIN=band.example.org
-cd deploy && docker compose up -d     # builds the image, provisions TLS, serves
+cd deploy && docker compose up -d     # pulls the image, provisions TLS, serves
 ```
 
-The [`Dockerfile`](Dockerfile) is multi-stage (SPA embedded at compile time; the
-runtime can bake — poppler + the Node bake worker included; non-root). Backups are a
-single `tar` of the data dir ([`deploy/backup.sh`](deploy/backup.sh), restore path
-tested). A plain **systemd** variant (no docker) is documented in the same README.
+The published image is built from a multi-stage [`Dockerfile`](Dockerfile) (SPA embedded
+at compile time; the runtime can bake — poppler + the Node bake worker included; non-root).
+Backups are a single `tar` of the data dir ([`deploy/backup.sh`](deploy/backup.sh), restore
+path tested). A plain **systemd** variant (no docker) is documented in the same README.
 
-**Packaging status (honest):** the compose build above is the supported install.
-There is no published registry image and no store/F-Droid APK yet. CI publishes a
-**debug APK** on a rolling GitHub release on every green `main` push — installable
-straight from the link, unsigned for release — and a signed release APK is the
-remaining half of the deploy story
+**Packaging status (honest):** the compose stack above is the supported install, and it now
+pulls a published **linux/amd64** image from Docker Hub (`vincentleligeour/troubastack:latest`); arm64
+is a follow-up, so an arm host still builds from source (`-f docker-compose.build.yml`). No
+store/F-Droid APK yet. CI also publishes a **debug APK** on a rolling GitHub release on every
+green `main` push — installable straight from the link, unsigned for release — and a signed
+release APK is the remaining half of the deploy story
 ([`docs/tasks/OPS01`](docs/tasks/OPS01-production-serving.md)).
 
 ---

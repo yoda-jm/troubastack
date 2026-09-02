@@ -52,6 +52,20 @@ RUN cd core && CGO_ENABLED=0 go build \
 # For a MINIMAL, no-bake image, swap this base for gcr.io/distroless/static and drop
 # the apt/bake-worker copies — the API + embedded SPA need only the static binary.
 FROM node:24-slim AS runtime
+# OCI labels (BRAND04 item 1): give the published image an identity — title, source, licence — so
+# `docker inspect` and the registry show what this is. revision/version/created reuse the build args
+# already threaded into the binary (one source of truth, not a second). Title is TroubaStack (OPS04
+# decision a): the image is the product people pull, though the server binary stays troubacore.
+ARG VERSION=docker
+ARG BUILT_AT=unknown
+LABEL org.opencontainers.image.title="TroubaStack" \
+      org.opencontainers.image.description="Collaborative sheet-music and lyrics annotation for bands, self-hosted — runs the TroubaCore server." \
+      org.opencontainers.image.url="https://yoda-jm.github.io/troubastack/" \
+      org.opencontainers.image.source="https://github.com/yoda-jm/troubastack" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.revision="${VERSION}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILT_AT}"
 RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
       && rm -rf /var/lib/apt/lists/*
 # The bake worker + its native @napi-rs/canvas + bundled font (linux/same-arch prebuilt

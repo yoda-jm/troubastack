@@ -3,9 +3,10 @@
 # A/AAAA record at this host, then `docker compose up -d`. See deploy/README.md.
 services:
   troubacore:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    # Pull the published image (OPS04) — `docker compose up -d` no longer builds a Node+Go
+    # toolchain on the host. Developers who want to build from source add the override:
+    #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+    image: vincentleligeour/troubastack:latest
     restart: unless-stopped
     environment:
       # DURABLE state: both backends on disk (the default APP_STORE is `mem` = ephemeral).

@@ -1,0 +1,10 @@
+# Developer override: build the troubacore image from source instead of pulling the
+# published one (OPS04). The base compose uses `image: vincentleligeour/troubastack:latest`.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+services:
+  troubacore:
+    build:
+      context: ..
+      dockerfile: Dockerfile

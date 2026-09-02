@@ -374,13 +374,31 @@ jobs:
       # A GHA layer cache keeps this off the critical path when nothing Docker-related changed, but it
       # cannot mask a broken build: a changed (or broken) instruction invalidates the cache from that
       # layer down, so a Dockerfile that can't build from scratch still fails the job.
-      - name: build production image (no push)
+      - name: build timestamp (BUILT_AT, ISO-8601 UTC)
+        id: bt
+        run: echo "at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+      # Log in to Docker Hub ONLY on a push to main. A fork's pull request builds the image below
+      # (validation) but never reaches the credential, because this step and the push are skipped
+      # for it — OPS04's security core: the build stays on PRs, the login and push do not.
+      - name: log in to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: build the production image, push to Docker Hub on main
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
-          push: false
-          tags: troubacore:ci
+          # Built on every push/PR (validates the Dockerfile from scratch); pushed ONLY on a main push.
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: vincentleligeour/troubastack:latest
+          # latest-only carries no immutable tag (OPS04 decision b), so the commit + build time
+          # threaded into buildinfo are the image's ONLY traceability — `docker run …` reports them.
+          build-args: |
+            VERSION=${{ github.sha }}
+            BUILT_AT=${{ steps.bt.outputs.at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # Validate the compose stack so a malformed compose or a dangling variable fails here, not on the
