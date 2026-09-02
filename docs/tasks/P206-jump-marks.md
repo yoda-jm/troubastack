@@ -393,12 +393,38 @@ destination from the Stage · iOS host back wiring beyond the no-op default · i
 tests (there are none in the repo; that gap is the standing audit §5 row and is its own task) ·
 anything that makes `StageModel.kt` stop being a pure compositor + pager beyond the one hit test.
 
-## What I need from VLL
+## Decisions — settled by VLL, 2026-09-02
 
-1. **The word** — "Jump mark" or "Link". My recommendation is above; the code does not care.
-2. **The N3 exception** (§4.1): taps navigate again, under the stated conditions. This reverses a
-   deliberate earlier decision and is yours to confirm.
-3. **One Return slot, no history** (§4.5).
-4. **Cross-song jumps stay out** (§"Scope") — the constraint that most shapes the feature.
+1. **The word is "Jump mark."** UI and wire format both; the proto field is `jumps`.
 
-Everything else above I will rule on at the gate.
+2. **A tap does NOT navigate directly.** It opens a **small popup anchored above the mark**,
+   reading *"go to …"*; navigation happens on confirming that. **Direct navigation is opt-in**, a
+   setting the reader turns on for themselves.
+
+   This is better than the N3 exception I proposed, and it is worth saying why: N3 forbade
+   tap-navigation because invisible, large, implicit zones cause accidental moves. A confirm step
+   removes that risk *by construction* rather than by argument, so **N3 is not reversed at all** —
+   the default behaviour never navigates on a bare tap. My §4.1 exception is withdrawn; the popup
+   replaces it.
+
+   **Where the setting lives — already answered by the code, not a new decision.** There is one
+   settings screen (`ui/SettingsScreen.kt`, titled "Parameters") and it carries a **"Stage"
+   section** whose subtitle reads *"Also on the ⚙ in concert mode — same setting, whichever is
+   handier."* `StageScreen` opens the same sheet from its ⚙ FAB. "Direct goto" belongs in that
+   Stage section, and therefore appears in both places, like reading mode and colour mode.
+
+3. **No Return at all.** VLL: the presenter has no back, and this is navigation *within* a page.
+
+   **This deletes the riskiest part of the feature, and that is the point.** §4.5 required changing
+   `MainActivity.kt:628` — `BackHandler { selectedDir = null }`, which exits the performance
+   unconditionally — into "return if armed, else exit", wired through `LocalVolumeTurnRegistrar`
+   because the handler is in the Android host while the state would be in `commonMain`. **None of
+   that is needed now.** Do not touch the `BackHandler`. Its current behaviour is unchanged and
+   correct: back leaves the concert.
+
+   Consequently §4.5, the Return slot, the arming rules and the iOS no-op default are all struck.
+   The arrival cue stays — it is what tells a reader the jump happened.
+
+4. **Cross-song jumps stay out of scope**, as specified.
+
+Everything else in this document I rule on at the gate.

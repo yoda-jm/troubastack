@@ -109,12 +109,15 @@ built from plain shapes and gradients.
 
 ## Known gaps
 
-- **Wordmarks use live `<text>`.** Outline the type before the website ships,
-  or the lockup drifts per machine.
-- No `.ico` bundle yet; generate from the 16/32/48 PNGs when the site needs one.
-- The reference staff sits at 19.7 degrees against our 14. Changing it touches
-  three bricks at once, since the staff, the highlighter and the monogram share
-  the angle.
+- **Wordmarks use live `<text>`.** **Decided (VLL, 2026-09-02): outline once and commit the paths**,
+  the way `monogram.svg` already carries "TS" as paths. **Not at build time** — that would need a
+  font engine, which breaks `build.py`'s stdlib-only rule and makes its output depend on the Inter
+  version installed, so the CI regeneration guard would diff per machine. See BRAND06.
+- **The reference staff sits at 19.7 degrees against our 14.** **Decided: keep 14.** It is what is
+  drawn, reviewed and published across the icons, the sheet and the site. The difference from the
+  reference is a stated choice, not a debt.
+- ~~No `.ico` bundle~~ — **decided: not needed.** The SVG favicon covers every browser this ships
+  to. A debt nobody intends to pay is not a debt; it is noise.
 
 ## Reference
 

@@ -47,14 +47,13 @@ artefact. Since the repo name is settled, **`org.opencontainers.image.title` bec
 `troubacore`, and the OCI *description* may still say the image runs the TroubaCore server — the
 title is the product being distributed.
 
-**b) Tags — still open, and the smallest of the three.** With no git tags in the repo, start
-simple and honest:
+**b) Tags: `latest` only.** ✅ Decided by VLL, against my recommendation, so the cost is recorded
+rather than argued: with no immutable tag there is **nothing to pin and nothing to roll back to**,
+and when someone reports a problem there is no way to establish which image they were running.
+The `VERSION`/`BUILT_AT` build-args below become the *only* traceability the artefact carries, which
+raises them from "part of this task" to the thing that makes the task supportable at all.
 
-- `latest` — moving, on every green `main`.
-- `main-<short-sha>` — immutable, so an operator can pin and roll back.
-
-Add semver (`1.2.3`, `1.2`, `1`) later, when tags exist. Do not invent a version number now to
-look finished.
+Adding `main-<short-sha>` later costs one line and breaks nothing.
 
 **c) Architectures: `linux/amd64` only, for now.** ✅ One line, no QEMU, the job stays fast.
 `linux/arm64` would need buildx + QEMU and run several times slower, because the Node SPA build

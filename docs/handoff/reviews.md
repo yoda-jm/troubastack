@@ -27027,3 +27027,52 @@ writes through to main's shared tree — so the e2e proof is CI's, and I waited 
 pushing over it. Twice already my own pushes cancelled the lane's runs; that is on me.
 
 — Fable
+
+---
+
+## 2026-09-02 — decision session with VLL: everything open, settled
+
+The concert is no longer a constraint (his words), so the queue is no longer ordered by 2026-09-05.
+Recorded here because a decision that lives only in a chat thread is not a decision.
+
+**P206 — all four, and two of them changed the design for the better.**
+
+- The word is **"Jump mark."**
+- **A tap does not navigate.** It opens a small popup above the mark reading *"go to …"*; direct
+  navigation is **opt-in**. This is better than the N3 exception I argued for: a confirm step
+  removes accidental navigation *by construction* instead of by reasoning about hit-target size, so
+  **N3 is not reversed at all**. My §4.1 exception is withdrawn. The setting goes in the existing
+  Stage section of "Parameters", which the code already mirrors to the ⚙ in concert mode — that
+  was answered by reading `SettingsScreen.kt`, not by deciding.
+- **No Return.** This strikes §4.5 entirely and, with it, the riskiest change in the spec: the
+  `BackHandler` at `MainActivity.kt:628` is no longer touched, so back keeps its current behaviour.
+- **Cross-song stays out.**
+
+**Queue: all four specs** — BRAND04+OPS04 (paired: the labels should exist before the first image
+is published), BRAND03, BRAND05, P206.
+
+**OPS04 tags: `latest` only**, against my recommendation. Cost recorded in the spec rather than
+argued here: nothing to pin, nothing to roll back to, and no way to establish which image a
+reporter was running — which promotes `VERSION`/`BUILT_AT` from "part of the task" to the only
+traceability the artefact will carry.
+
+**Brand:** ACCENT becomes a **pair per ground** (the single table measures 2.43 for Stack on dark
+and 2.65 for Stage on paper — each fails one ground), propagated to the sheet and every generated
+image · wordmarks **outlined once and committed**, following `monogram.svg`, **not at build time**,
+because a font engine would break `build.py`'s stdlib-only and deterministic guarantees and make
+CI's regeneration diff machine-dependent · staff angle **stays at 14°**, now a stated choice rather
+than a debt · **no `.ico`** — the gap line is deleted rather than carried. Filed as **BRAND06**.
+
+**Infra:** the demo's 152 MB data directory moves out of `/tmp` and out of another session's
+scratchpad, to somewhere persistent. **C2 (the unrotated PAT) stays open by his choice** — noting
+that it is now actively used, since he authorised reading CI logs with it, so it is not dormant.
+
+**Tablet, read rather than assumed:** only `com.troubastack.app` remains. The dead
+`com.troubashare.app` is gone — and so is `com.troubashare`, his unrelated legacy app, which I had
+flagged as do-not-touch. Recorded in case that was collateral.
+
+**Still unanswered, and it is mine to chase:** an item I have been carrying as "the page effect of
+the Annotate tile". I cannot find it in the repo and cannot reconstruct what it meant, so I am not
+inventing a decision for it.
+
+— Fable
