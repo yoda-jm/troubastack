@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BRAND05: the app's launcher icon — the TroubaStage mark (play chip / layer 1), NOT the TroubaStack
+     product mark. Adaptive-only: minSdk 26 means every device supports adaptive icons, so this single
+     mipmap-anydpi-v26 entry replaces the whole legacy PNG density ladder (no mdpi…xxxhdpi copies to drift).
+     No <monochrome> layer — see the KDoc/gate note: a legible one-colour "Stage" silhouette is authoring
+     work (flattening the three planes + chip to one colour is unreadable), so themed-icon users fall back
+     to the standard icon, a recorded decision rather than an omission. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
