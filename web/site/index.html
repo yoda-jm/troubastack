@@ -714,7 +714,7 @@ footer a { color: var(--l3-ink); text-decoration-thickness: 1px; text-underline-
 cp deploy/.env.example deploy/.env
 cd deploy
 docker compose <span class="k">up -d</span></pre>
-        <p class="foot"><code>up -d</code> pulls a published linux/amd64 image (SPA embedded in the binary; the runtime bakes) — no host toolchain. Developers build from source with the documented override.</p>
+        <p class="foot"><code>up -d</code> pulls a published linux/amd64 image (SPA embedded in the binary; the runtime bakes) — no host toolchain. Or pull it straight: <code style="font-family:var(--mono)">docker pull vincentleligeour/troubastack:latest</code> — the README has the standalone <code style="font-family:var(--mono)">docker run</code> recipe, including the two variables you need for state to survive a restart. Developers build from source with the documented override.</p>
       </article>
 
       <article class="install">

@@ -107,6 +107,36 @@ cp deploy/.env.example deploy/.env    # set DOMAIN=band.example.org
 cd deploy && docker compose up -d     # pulls the image, provisions TLS, serves
 ```
 
+### Or pull the image directly
+
+The same image runs on its own, without compose — useful on a LAN box, or to look at it
+before committing to a domain:
+
+```sh
+docker pull vincentleligeour/troubastack:latest
+docker run -d --name troubacore -p 8080:8080 \
+  -e TROUBA_APP_STORE=file -e TROUBA_STORE=file \
+  -v troubadata:/data \
+  vincentleligeour/troubastack:latest
+# → http://localhost:8080 ; docker run --rm …:latest --help for the flags
+```
+
+Four things worth knowing before you rely on it:
+
+- **Both store variables are required.** The image defaults to the in-memory backend, so a
+  `docker run` without `TROUBA_APP_STORE=file` **and** `TROUBA_STORE=file` gives you a server
+  that forgets everything when the container stops. Compose sets both for you; a bare
+  `docker run` does not.
+- **`-v troubadata:/data` *is* the backup unit.** `/data` is declared as a volume and owned by
+  the image's non-root user (uid 10001). A *named* volume inherits that ownership and just
+  works; a **bind mount** of a host directory will not, unless that directory is writable by
+  uid 10001.
+- **No TLS.** This publishes plain HTTP on port 8080. For anything reachable from outside your
+  LAN use the compose stack above, which puts Caddy in front.
+- **`latest` is the only tag**, and it is rolling: there is no immutable tag to pin or roll back
+  to yet. `curl http://localhost:8080/api/version` reports the exact commit the running image was
+  built from, which is the traceability that replaces a version tag for now.
+
 The published image is built from a multi-stage [`Dockerfile`](Dockerfile) (SPA embedded
 at compile time; the runtime can bake — poppler + the Node bake worker included; non-root).
 Backups are a single `tar` of the data dir ([`deploy/backup.sh`](deploy/backup.sh), restore
