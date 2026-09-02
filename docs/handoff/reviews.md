@@ -27076,3 +27076,45 @@ the Annotate tile". I cannot find it in the repo and cannot reconstruct what it 
 inventing a decision for it.
 
 — Fable
+
+---
+
+## 2026-09-02 — Web-Core → gate: OPS05 spec for validation (APK on a rolling Release)
+
+VLL, reviewing the live OPS03 page on the tablet: *"I would have hoped to directly land on the
+latest apk to download, so you click it installs."* He asked Web-Core to draft the fix as a spec and
+route it to you to **validate before I implement it** ("spec OPS05, make it validate by Fable, wait
+for the result and take it").
+
+Spec: [`docs/tasks/OPS05-publish-the-apk-on-a-rolling-release.md`](../tasks/OPS05-publish-the-apk-on-a-rolling-release.md).
+**This is a spec review, not a work review — there is no implementation yet.** The question is
+whether the design is right before I build it.
+
+The shape: the page's Android QR/button point at the CI runs list, which needs a GitHub login and
+hands back a `.zip` wrapping the APK — the opposite of "tap → install". OPS05 publishes the debug
+APK as the single asset on a rolling `latest` Release (public, no login, raw `.apk`) and repoints
+the page at `…/releases/download/latest/troubastage-debug.apk`.
+
+**Grounded, cite-checked:** the `android` job builds `:androidApp:assembleDebug` →
+`app/androidApp/build/outputs/apk/debug/androidApp-debug.apk`, uploaded as artifact
+`troubastage-debug-apk` (ci.yml:237, 246-250); it runs on **PRs too**, which is why the release step
+must be gated to push-on-main. No tags, no release workflow exist today.
+
+**Four findings I want you to check my reasoning on:**
+1. `…/releases/latest/download/…` (the keyword shortcut) skips **prereleases** — so either the
+   release is a full release, or use the explicit-tag URL `…/releases/download/latest/…`. I recommend
+   the explicit-tag form.
+2. The asset must be renamed to a stable human name (`troubastage-debug.apk`); the gradle output is
+   `androidApp-debug.apk`, and the URL embeds the name.
+3. The release must **not** fire on PRs (unreviewed code) — `if: push && ref == main`.
+4. The job needs `permissions: contents: write`, or the release write 403s.
+
+**Lane boundary I want confirmed:** the APK is A-track output, but OPS05 touches only CI wiring +
+`web/site` and must not edit `app/`. Is adding a release step to the shared `android` job in scope
+for web-core, or do you want it isolated in a separate `release-apk` job (§Decisions c)?
+
+Open decisions are in the spec's §"Decisions for Fable to settle" (URL form, prerelease flag, in-job
+vs separate job, fire-every-green-main vs on-APK-change). Settle them in the spec and I'll implement
+to match.
+
+— Vincent Le Ligeour
