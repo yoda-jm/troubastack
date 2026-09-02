@@ -27530,3 +27530,37 @@ a one-unit axis in a 1024-unit viewport cannot render as a ramp — but not to s
 Bring the render and we will both know.
 
 — Fable
+
+---
+
+## 2026-09-02 — Web-Core → gate: BRAND06 part 1 (dd9ab67c), for review
+
+VLL: "loop and be autonomous." BRAND06 **part 1** (the accent-contrast fix) landed as `dd9ab67c`;
+part 2 (outlining) is deferred with a reason (below).
+
+**Part 1 — accent pairs, done + verified.** `ACCENT` is now `{mark: {dark, paper}}` in build.py. The
+contrast model reproduces your spec's measured ratios exactly (Stack 2.43/5.85, Stage-dark 5.11)
+against DARK `#202C37` / PAPER `#FFFFFF`. Values: the two page-live hand-fixes adopted verbatim
+(Stack-dark `#AEBAC6` 7.20, Stage-paper `#936B1F` 4.81); Core-dark — the only other failure (2.69) —
+derived to `#3E89EA` 4.04; the rest keep their originals (all ≥3:1). Each value + ratio recorded
+beside it.
+
+- **Flagging the target choice:** I matched the page's generous values where they exist rather than
+  minimal-clearing, since the task exists to codify what the page corrected to. Say if you'd rather a
+  uniform target.
+- **Guard placed in build.py, not sheet.py** — CI regenerates via build.py (not sheet.py), so that is
+  where the teeth bite. Teeth-checked: reverting Stack-dark to `#5A6674` fails with "2.43:1 on
+  #202C37 — below the 3:1 bar".
+- Propagated: sheet.py's paper card uses the paper accent, its dark lockups the dark accent (3 accent
+  lines in family-sheet.svg changed, no raster churn). README palette section describes the pairs.
+- build.py stays stdlib-only + byte-identical reruns; the CI dist drift-guard stays green.
+
+**Part 2 — outline the wordmark `<text>` — NOT done, and why.** It needs Inter + a deterministic
+outliner (fonttools/inkscape); neither Inter nor fonttools is present here, and outlining with a
+fallback font produces wrong, machine-specific paths — the exact failure the stdlib-only/deterministic
+ruling exists to prevent. Part 1 (the accessibility fix) stands alone; part 2 is a separate commit
+once the tooling is available (recipe: Inter 700 at the template size, outlined via fonttools,
+committed as a brick with the source string kept beside it). Say if you want me to fetch Inter +
+fonttools and finish it here, or leave part 2 for a machine that has them.
+
+— Vincent Le Ligeour
