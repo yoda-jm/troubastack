@@ -738,10 +738,11 @@ adb install -r \
 
     <p class="honest">
       <strong>Packaging status, honestly.</strong> The compose build above is the supported install.
-      There is <strong>no published registry image, no GitHub Releases binary and no store or F-Droid
-      listing yet</strong>. The Android build you can scan for below is the <strong>debug APK from
-      CI</strong> — unsigned for release, and GitHub asks you to sign in before it hands over a
-      build artifact. A signed release APK is the remaining half of the deploy story.
+      There is <strong>no published registry image and no store or F-Droid listing yet</strong>. The
+      Android build you can scan for below is the <strong>debug APK</strong> published on a rolling
+      GitHub release — it installs straight from the link, but is <strong>unsigned for release</strong>,
+      so Android warns about an unknown source. A signed release APK is the remaining half of the
+      deploy story.
     </p>
   </div>
 </section>
@@ -794,11 +795,11 @@ adb install -r \
         </div>
       </div>
       <figure class="qr">
-        <div class="frame"><img src="assets/qr-apk.svg" alt="QR code linking to the CI runs page, where the Android debug APK artifact is attached" width="132" height="132"></div>
+        <a class="frame" href="{{APK_URL}}"><img src="assets/qr-apk.svg" alt="QR code linking to the latest Android debug APK on GitHub Releases" width="132" height="132"></a>
         <figcaption><span class="qr-os">Android</span> · get the app</figcaption>
-        <p class="qr-note">Scan for the latest CI build and grab the
-        <span class="m">troubastage-debug-apk</span> artifact. Debug-signed, not a
-        store release — and GitHub asks you to sign in before it hands over an artifact.</p>
+        <p class="qr-note">Scan it — or, on the phone itself, tap to download the latest
+        <span class="m">troubastage-debug.apk</span>. Debug-signed, not a store release — Android
+        will ask you to allow installs from an unknown source.</p>
       </figure>
     </div>
   </div>

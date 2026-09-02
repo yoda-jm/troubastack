@@ -25,10 +25,11 @@ REPO_URL="https://github.com/yoda-jm/troubastack"
 # Override to move the site — a custom domain is this one variable, set here or in the
 # workflow, and nothing in index.html changes.
 SITE_URL="${SITE_URL:-https://yoda-jm.github.io/troubastack}"
-# The QR is for the APP, and the only place an APK exists today is the CI run:
-# there is no release, no registry image and no store listing. This lands on the
-# successful main builds, whose android job attaches troubastage-debug-apk.
-APK_URL="https://github.com/yoda-jm/troubastack/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess"
+# The QR is for the APP: a direct link to the debug APK on the rolling `latest` release
+# (OPS05), so a phone downloads the raw .apk and taps into the installer — no GitHub
+# sign-in, no zip. The explicit-tag URL is stable across rolling builds (fixed tag + asset
+# name), and survives the release being a prerelease (the /latest/ shortcut would not).
+APK_URL="https://github.com/yoda-jm/troubastack/releases/download/latest/troubastage-debug.apk"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/assets"
@@ -38,6 +39,12 @@ cp "$SITE/index.html" "$OUT/"
 sed -i "s|{{SITE_URL}}|$SITE_URL|g" "$OUT/index.html"
 if grep -q '{{SITE_URL}}' "$OUT/index.html"; then
   echo "error: {{SITE_URL}} survived substitution in dist/index.html" >&2; exit 1
+fi
+# The APK link is tappable on the phone itself (download → install), not only scannable from
+# another screen — so the same URL the QR encodes is also an href. Same no-stale-token guard.
+sed -i "s|{{APK_URL}}|$APK_URL|g" "$OUT/index.html"
+if grep -q '{{APK_URL}}' "$OUT/index.html"; then
+  echo "error: {{APK_URL}} survived substitution in dist/index.html" >&2; exit 1
 fi
 grep -q "<meta property=\"og:image\" content=\"$SITE_URL/assets/" "$OUT/index.html" || {
   echo "error: og:image is not absolute under $SITE_URL" >&2; exit 1; }

@@ -249,6 +249,46 @@ jobs:
           name: troubastage-debug-apk
           path: app/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
+  # OPS05: publish the debug APK as the single asset on a rolling `latest` prerelease so the
+  # site's QR/button link straight to an installable .apk (no GitHub sign-in, no zip). This is a
+  # SEPARATE job on purpose: `permissions:` is granted per-job, and the `android` job runs on PRs
+  # and executes a full Gradle build with third-party plugins — keeping contents:write out of it
+  # (least privilege). Guarded to pushes on `main`; on PRs the `if:` skips it entirely.
+  release-apk:
+    needs: [android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: fetch the APK the android job built
+        uses: actions/download-artifact@v7
+        with:
+          name: troubastage-debug-apk
+      - name: publish it on the rolling `latest` release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Stable, human asset name — the download URL embeds it; androidApp-debug is gradle-internal.
+          mv androidApp-debug.apk troubastage-debug.apk
+          # Finding 1 (Fable): a rolling tag must not lie. `--clobber` would replace the asset but
+          # leave the tag at an old commit, and versionName is a static 0.1.0 that cannot say which
+          # build this is. So recreate the release+tag at THIS commit every publish and state the
+          # exact commit + build time in the body. The download URL is stable (fixed tag + asset name).
+          {
+            echo "Debug-signed Android APK — rolling build of \`main\`. Not a store release; Android warns about an unknown source."
+            echo
+            echo "Commit: $GITHUB_SHA"
+            echo "Built:  $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > notes.md
+          gh release delete latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh release create latest troubastage-debug.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Latest debug build" \
+            --notes-file notes.md
+
   e2e:
     runs-on: ubuntu-latest
     # Suite is ~7 min locally; the Go webServer cold-compiles on the runner.

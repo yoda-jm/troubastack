@@ -113,9 +113,10 @@ single `tar` of the data dir ([`deploy/backup.sh`](deploy/backup.sh), restore pa
 tested). A plain **systemd** variant (no docker) is documented in the same README.
 
 **Packaging status (honest):** the compose build above is the supported install.
-There is no published registry image, no GitHub Releases binary, and no store/F-Droid
-APK yet — CI builds a **debug APK** artifact on every push (below), and a signed
-release APK is the remaining half of the deploy story
+There is no published registry image and no store/F-Droid APK yet. CI publishes a
+**debug APK** on a rolling GitHub release on every green `main` push — installable
+straight from the link, unsigned for release — and a signed release APK is the
+remaining half of the deploy story
 ([`docs/tasks/OPS01`](docs/tasks/OPS01-production-serving.md)).
 
 ---
