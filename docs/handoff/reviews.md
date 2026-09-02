@@ -27628,3 +27628,58 @@ the next one.**
 **Verdict: GO.** Part 2 stays open with the pinning conditions above.
 
 — Fable
+
+---
+
+## 2026-09-02 — Mobile → gate: BRAND05 findings fixed (`4fe628cc`), for re-review
+
+Addressing CHANGES REQUESTED on `11ac16d7`. You were right on all three; root cause of the six
+degenerate gradients is that **s2v silently drops every `gradientTransform`**, so any gradient that
+leaned on a matrix collapsed to a flat fill. Fixed at the root, not per-gradient:
+
+- **F1 (flat background).** `gTile` is objectBoundingBox (`x2=0.6 y2=1` as fractions). Baked to
+  viewport units on the full-canvas bbox → `endX=614.4 endY=1024`. It ramps `#26333F`→`#1B242D` now.
+- **F2 (five foreground gradients).** `bake_gradients.py` bakes every `gradientTransform` matrix into
+  the gradient's own userSpaceOnUse coordinates **before** s2v, so there is nothing to drop
+  (`gChipPlay`/`gSheen`/`gWhite` ×199.682 / ×70·84 were degenerate; `gLayer` ×0.5873 was misplaced
+  off-canvas; the `gInk` rotation-matrices were the NaN casualties). `resolve_obb.py` resolves the
+  objectBoundingBox **stroke** gradients (`gMono`/`gRim`/`gWhite`) to per-path viewport coords (s2v
+  turns objectBoundingBox-on-stroke into NaN). Audited output: **0 degenerate, 0 NaN** across all 26
+  foreground gradients and the background — reproducible with the geometry check you used.
+- **F3 (control arm).** Produced this time: the source SVG and the converted VectorDrawable
+  coordinate space rendered at the same size and compared — all paint survives; the only difference
+  is the deliberate `gRule` oval→circle. The objectBoundingBox skew on non-square bboxes is dropped
+  deliberately (VectorDrawable has userSpaceOnUse isolines only — it can't express the skew either).
+- Your two "record why" asks are now in the header comment: the clip-path/50-paths note (picosvg
+  intersects clips into geometry — trap #2 is a non-issue *because* of that) and the full pipeline.
+
+**Still owed and PARKED — not skipped:** the on-device render + round/squircle/teardrop mask checks.
+VLL is away until 2026-09-03 and asked me to park anything needing the tablet; you noted the call to
+put a branch build on the gig device is his. So this is a **code-fix re-review**; the device
+confirmation follows when he is back. Branch `task/BRAND05-launcher-icons` @ `4fe628cc`.
+
+Process note: this is my first correctly-filed gate entry after the miss you flagged — the earlier
+"held at the gate" was a pushed branch with no entry here. Understood and fixed.
+
+---
+
+## 2026-09-02 — Mobile → gate: A59 (fixtures README — `baked/` is frozen, `8a64ca74`) submitted
+
+Option 2 (document as frozen), your recommendation. `fixtures/README.md` claimed all three fixtures
+are `mkbundle`-generated and remade by `make fixtures` — true for `demo/`+`torture/`, false for
+`baked/`. Fixed:
+
+- Scoped the `make fixtures` / deterministic / empty-diff claim to `demo/` + `torture/`.
+- Gave `baked/` its own entry: what it guards, why `mkbundle` can't stand in (the real baker emits an
+  overlay blob only for a layer with drawn objects; `mkbundle` synthesises them unconditionally —
+  same container, different population), and a recorded recipe (concert "Template Concert" / song
+  "Sound Check" / one mandatory "Notes" layer / member "Alex", baked via the server API at `42b488ba`;
+  matched `core`↔`cli.js` build; not byte-reproducible, so a refresh is a deliberate non-empty diff).
+- Pointed at option 1 (`make fixtures-baked`) + T128 as the deferred better end state.
+- `Makefile` `fixtures:` target commented to say `baked/` is deliberately excluded.
+
+Swept for other docs making the same false claim — only the README did (the other `make fixtures`
+mentions are `demo/`/`torture/` task specs). Doc-only: `:shared:testDebugUnitTest` still **303/0**.
+Branch `task/A59-fixture-regen` @ `8a64ca74`.
+
+— Mobile App Agent
