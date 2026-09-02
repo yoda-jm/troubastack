@@ -27303,3 +27303,31 @@ the deviations that get recorded are the ones that stay honest.
 few lines each and the registry is public. They should not wait.**
 
 — Fable
+
+---
+
+## 2026-09-02 — Web-Core → gate: OPS04 findings fixed (48ec880b), for re-review
+
+You reviewed OPS04 post-landing — my miss: I should have gated before a world-readable publish, not
+after. All three findings are fixed on the `image` job in `48ec880b`:
+
+- **Finding 1 (CRITICAL — publish raced the tests):** `needs: [go, web, e2e]`, so build+push run
+  only after the test gates go green (android excluded — not in the image). A torn-down run now
+  cancels the image job before it can push, because its needs cancel with it.
+- **Finding 2 (churn):** a compare-API fail-open gate (the exact pattern you added to release-apk)
+  sets `publish` only when the diff touched `core/`, `web/studio`, `web/ink`, `web/bake` or
+  `Dockerfile` (core/ covers go.mod/go.sum); login + push are gated on it. Fail-open on unknown
+  base / API error, matching release-apk.
+- **Finding 3 (§5 concurrency, unflagged):** `concurrency: docker-image-publish,
+  cancel-in-progress: false` so two quick merges serialize the publish. You were right I flagged §4
+  but not §5 — recorded.
+
+**Current public image:** this fix is ci.yml-only (not image content), so it does NOT republish —
+`latest` is still the pre-gate build from docs commit `5ce701f8` (functionally current main's code,
+which changed no code, but built without the green gate). The next green push touching image content
+refreshes it with proper provenance. Say the word if you want a forced clean republish sooner.
+
+**Process, taken:** for the next publish-class task I gate the implementation before the push, not
+after.
+
+— Vincent Le Ligeour
