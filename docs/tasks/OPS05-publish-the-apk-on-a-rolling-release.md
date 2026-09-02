@@ -56,12 +56,51 @@ Recommending the explicit-tag form; it survives us later marking the release "pr
 
 The APK is **debug-signed** — there is no release keystore in the repo. Android still shows a one-time **"install from an unknown source"** prompt; true one-tap install is not possible off the Play Store. This is as close as it gets, and the label should say so plainly rather than imply a store install. **Release-signing (a keystore secret) is out of scope** — a later task if VLL wants the warning gone.
 
-## Decisions for Fable to settle
+## Decisions — settled by Fable, 2026-09-02
 
-- **a)** Explicit-tag URL vs the `latest`-keyword shortcut (recommend explicit-tag).
-- **b)** Rolling single `latest` release — consistent with OPS04's `latest`-only tag decision. Mark it **prerelease** to signal "debug build"? (Recommend yes, which is *why* the explicit-tag URL matters.)
-- **c)** Release step **inside the `android` job** (guarded by the `if`) vs a **separate `release-apk` job** with `needs: [android]` re-downloading the artifact. Recommend in-job — no artifact round-trip — but the separate job isolates the `contents: write` permission to one job, which may be the safer shape.
-- **d)** Should the release fire on **every** green `main` push, or only when the `android` job's APK actually changed? (Recommend every green main push; simplest, and the asset just rolls.)
+Citations checked first, all four exact: `APK_URL` is `build.sh:31`, the `android` job is `ci.yml:217`,
+the gradlew line `:237`, the upload `:246-250`, and there is indeed no release workflow.
+
+**a) Explicit-tag URL** — `…/releases/download/latest/troubastage-debug.apk`. Agreed, for the reason
+given: it depends only on the tag name and the asset name, so marking the release prerelease later
+cannot break it.
+
+**b) Mark it prerelease — yes.** The build is debug-signed; a badge that says so costs nothing and
+stops the release page implying a store-grade artefact. This is exactly why (a) matters.
+
+**c) A SEPARATE `release-apk` job — overriding the in-job recommendation.**
+`permissions:` is granted at **job** level, so putting `contents: write` on `android` gives write
+capability to *every step of that job* — and that job runs on pull requests and executes a full
+Gradle build with third-party plugins. The `if:` guards the *step*, not the *token*. A separate job
+with `needs: [android]`, the same `if:`, and `permissions: contents: write` confines release-writing
+to a job that only downloads an artefact and uploads it. The artifact round-trip costs seconds;
+least privilege is worth more than one saved download.
+
+**d) Every green `main` push** — agreed. Simplest, and the asset just rolls.
+
+## Two findings from the validation
+
+**1. The rolling tag goes stale, and the release page will lie about provenance.**
+`gh release create latest` creates the tag at that commit; a later `gh release upload latest
+--clobber` replaces the **asset** and leaves the **tag** where it was. Within a week the page will
+say `latest` → a commit from days ago while serving today's build. And the APK cannot settle it
+either: `versionName` is a static `0.1.0`, so nothing in the artefact identifies which build it is.
+
+**Required:** on every publish, rewrite the release body with the **commit sha and build time**, and
+either re-point the tag at the published commit or state in the body that the tag is fixed and the
+body is authoritative. Pick one and make it explicit — a release whose stated commit is wrong is
+worse than one with no commit at all. This is the same traceability hole OPS04 has with
+`VERSION`/`BUILT_AT`, in the other artefact.
+
+**2. The sweep is larger than "update the label", and it collides with OPS04.**
+`web/site/index.html`'s honesty panel and `README.md:116` both read *"no published registry image,
+**no GitHub Releases binary**, and no store/F-Droid listing"*. OPS05 makes the middle clause false;
+**OPS04 makes the first clause false**, in the same two sentences. Whichever lands second must
+reconcile the panel rather than re-edit it blind. Rewrite it once, coherently, naming exactly what
+exists at that moment.
+
+**Verdict: GO to implement**, with (a)–(d) as settled above and both findings addressed. The spec's
+own boundary — nothing under `app/` — is right and I am holding the lane to it.
 
 ## Done when
 

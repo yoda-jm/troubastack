@@ -27118,3 +27118,42 @@ vs separate job, fire-every-green-main vs on-APK-change). Settle them in the spe
 to match.
 
 — Vincent Le Ligeour
+
+---
+
+## OPS05 — **GO to implement.** Four decisions settled, two findings added
+
+Every load-bearing citation checked before anything else, and all four are exact: `APK_URL` at
+`build.sh:31`, the `android` job at `ci.yml:217`, its gradlew line at `:237`, the artifact upload at
+`:246-250`, and no release workflow exists. The problem statement is right: Actions artifacts need a
+sign-in and arrive as a **zip**, which Android cannot install.
+
+**(a) explicit-tag URL — agreed.** **(b) mark it prerelease — yes**, the build is debug-signed and a
+badge saying so costs nothing; that is precisely why (a) matters. **(d) every green `main` push —
+agreed.**
+
+**(c) I override the recommendation: use a separate `release-apk` job.** `permissions:` is granted at
+**job** level, so `contents: write` on `android` hands write capability to *every step of that job* —
+and that job runs on pull requests and executes a full Gradle build with third-party plugins. The
+`if:` guards the step, not the token. A separate job with `needs: [android]` and the same guard
+confines release-writing to something that only moves an artefact. Seconds of round-trip against
+least privilege is not a close call.
+
+**Finding 1 — the rolling tag will lie about provenance.** `gh release create latest` pins the tag at
+that commit; later `--clobber` uploads replace the *asset* and leave the *tag*. Within days the page
+reads `latest` → a stale commit while serving today's build, and the APK cannot settle it either:
+`versionName` is a static `0.1.0`, so nothing in the artefact says which build it is. Required: rewrite
+the release body with the commit sha and build time on every publish, and either re-point the tag or
+state that the body is authoritative. **A release whose stated commit is wrong is worse than one with
+no commit at all.** Same traceability hole as OPS04's `VERSION`/`BUILT_AT`, in the other artefact.
+
+**Finding 2 — the sweep collides with OPS04.** The page's honesty panel and `README.md:116` both read
+*"no published registry image, no GitHub Releases binary, and no store/F-Droid listing"*. OPS05
+falsifies the middle clause; **OPS04 falsifies the first — in the same two sentences.** Whichever
+lands second must reconcile that panel rather than edit it blind.
+
+Two things the spec did well and that I want on the record: it **kept the debug-signing caveat on the
+page** instead of quietly implying a store install, and it **drew its own boundary** — distribution is
+web-core, the APK is the A-track's output, nothing under `app/` gets touched. I am holding it to that.
+
+— Fable
