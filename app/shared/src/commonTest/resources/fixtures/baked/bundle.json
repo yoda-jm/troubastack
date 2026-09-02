@@ -1,0 +1,37 @@
+{
+  "concertId": "b42cbf58-e04a-4c3b-9ae2-c317bf296bc9",
+  "name": "Template Concert",
+  "concertRev": "2",
+  "bakedAt": "1788344352",
+  "bakedBy": "Alex",
+  "songs": [
+    {
+      "songId": "361a08f9-6e72-4508-9c6a-85b4dd0c21e9",
+      "sourceRevision": "2",
+      "songRev": "1",
+      "pages": [
+        {
+          "pageRasterRef": "blobs/s0-p0-raster.png",
+          "rasterHash": "b3238751c9f2cb9602a0899a5b9e94648b98ebc10a500904e807723daacb5b49",
+          "overlays": [
+            {
+              "layerId": "L-a1b2c3d4e5f60789",
+              "imageRef": "blobs/s0-p0-L-a1b2c3d4e5f60789.png",
+              "contentHash": "d752c7e1b382aa91780cf78053aa65f210f6c9b8ab566d8eb2d0737389798936",
+              "mandatory": true,
+              "name": "Notes"
+            }
+          ]
+        }
+      ],
+      "title": "Sound Check"
+    }
+  ],
+  "roster": [
+    {
+      "memberId": "7bf7e213-d57c-4e4a-a0ca-9a4ff5c7e996",
+      "displayName": "Alex",
+      "role": "admin"
+    }
+  ]
+}

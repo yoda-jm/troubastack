@@ -57,6 +57,41 @@ class FixtureBundleTest {
         assertTrue(empty.bundle.songs.isEmpty())
     }
 
+    /**
+     * A58 — the one durable guard. `demoFixture` above proves the `mkbundle` GENERATOR agrees with the
+     * loader; nothing asserted that a bundle the REAL SERVER BAKER (`web/bake`) produced loads in the app.
+     *
+     * Be exact about what this catches (Fable, A58 review): `baked/` is a **frozen snapshot** of one real
+     * bake (2026-09-02) — `make fixtures` regenerates only `demo` and `torture`, not this. So it guards that
+     * the LOADER still reads what the baker emitted that day (a real-baker artefact, not a `mkbundle` one);
+     * it does NOT catch FUTURE baker drift — if the format moves tomorrow, the frozen file doesn't, and this
+     * stays green. Wiring `baked/` into a regeneration path is the follow-up that would close that gap.
+     *
+     * The fixture is a genuine `web/bake`-baked `.tstage`, unpacked: synthetic content only (concert
+     * "Template Concert", song "Sound Check", one shared annotation layer, member "Alex") — no band data.
+     * Produced via the server bake API (register → band → text-chart song → import a shared layer → setlist
+     * → bake → download), because the flow check's UI journey hangs at its chart step in this environment.
+     *
+     * Structural note (the finding this guard exists to surface): the baker names overlay blobs
+     * `s<i>-p<j>-L-<layerId>.png` and the page raster `s<i>-p<j>-raster.png`; it emits an overlay ONLY for
+     * a layer that carries drawn objects (a plain text-chart concert with no annotations bakes zero
+     * overlays). The `mkbundle` fixture instead synthesises two overlays per page unconditionally. Same
+     * container, different population — which is precisely why asserting the real baker's output matters.
+     */
+    @Test
+    fun realBakerBundle_loadsPerformable() {
+        val loaded = assertIs<LoadResult.Loaded>(loader.load("", DiskFiles(fixture("baked"))))
+        assertTrue(loaded.issues.isEmpty(), "a real baker bundle must load with zero issues: ${loaded.issues}")
+
+        // The things a performance actually needs, off a locally-loaded bundle:
+        assertEquals(1, loaded.bundle.songs.size, "songs")
+        val pageCount = loaded.bundle.songs.sumOf { it.pages.size }
+        assertTrue(pageCount >= 1, "at least one page, got $pageCount")
+        val overlayCount = loaded.bundle.songs.sumOf { s -> s.pages.sumOf { it.overlays.size } }
+        assertTrue(overlayCount >= 1, "at least one overlay layer survives the bake→load, got $overlayCount")
+        assertTrue(loaded.bundle.roster.isNotEmpty(), "roster must be non-empty (identity picker needs it)")
+    }
+
     /** Locate a committed fixture dir: prefer the test classpath, fall back to the source tree. */
     private fun fixture(rel: String): File {
         val res = javaClass.classLoader?.getResource("fixtures/demo/bundle.json")
