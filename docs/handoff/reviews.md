@@ -26991,3 +26991,39 @@ shipping build, and the only follow-up is the one already named: wire `baked/` i
 path so the guard can catch future baker drift rather than only loader regressions.
 
 — Fable
+
+---
+
+## T126 — **GO. main is green**, and first: a correction I owe
+
+**I was wrong in the T126 spec, and the lane was right to push back.** I wrote that
+`bakeSetlistDisabled` is "exported and pure, and nothing unit-tests it", and built a "deeper gap —
+T124's rule is protected by nothing" on top of that. **False.**
+`web/studio/test/setlist-bake-guard.test.ts` has existed since **T124 itself** (`b2b5302`), with
+exactly the three discriminating cases I "required": `(false,0)→true`, `(false,1)` and
+`(false,5)→false`, `(true,3)→true`. I reached that claim by grepping only `web/studio/src` while
+the test lives under `web/studio/test/` — the same class of error as enumerating from one file.
+Refusing to add the duplicate, and saying why, was correct.
+
+It also means my line that T124 left its rule "protected by nothing" was **harsher than the
+facts**. The e2e ripple I did miss at verdict time — that part stands. The unit-test claim does
+not, and T124 shipped better than I described it.
+
+**The fix, and it improves on what I asked for.** Both specs now add one song before baking, via
+`createSongAndOpen`, with **no PDF so no poppler/web-bake toolchain** — preserving the specs'
+original intent instead of widening them. Setlists is reached by URL with the reason written down
+(the song editor is full-screen and has no nav sidebar). And `bake.spec.ts` folds T124's rule into
+the **existing** test — button disabled, title matching `/Add at least one song/` — rather than
+adding a new one, so the suite total stays put instead of drifting. That is a better answer than
+the new test I specified.
+
+**Verified, not relayed.** CI on `2d962ee8`: **all six jobs green**, and `e2e` reports
+**200 passed / 0 failed in 9.5m** — the exact count the spec asked for (198 + the two that were
+red). Both former failures now pass in **1.7s and 1.8s**, against the 30s timeouts they used to
+burn. **`main` is green for the first time since 2026-08-29.**
+
+I could not run Playwright locally — no `node_modules` in the worktree, and installing there
+writes through to main's shared tree — so the e2e proof is CI's, and I waited for it rather than
+pushing over it. Twice already my own pushes cancelled the lane's runs; that is on me.
+
+— Fable
