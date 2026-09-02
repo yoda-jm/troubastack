@@ -56,7 +56,7 @@ func TestApps_absentDir(t *testing.T) {
 	if m := getManifest(t, srv); len(m.Apps) != 0 {
 		t.Fatalf("manifest with no dir = %+v, want empty", m.Apps)
 	}
-	resp, err := http.Get(srv.URL + "/apps/troubashare.apk")
+	resp, err := http.Get(srv.URL + "/apps/troubastage.apk")
 	if err != nil {
 		t.Fatalf("GET apk: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestApps_absentDir(t *testing.T) {
 func TestApps_withApk(t *testing.T) {
 	dir := t.TempDir()
 	body := []byte("PK\x03\x04 fake apk bytes")
-	if err := os.WriteFile(filepath.Join(dir, "troubashare.apk"), body, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "troubastage.apk"), body, 0o644); err != nil {
 		t.Fatalf("write apk: %v", err)
 	}
 	srv := appsServer(t, dir, "v2.3.4")
@@ -83,7 +83,7 @@ func TestApps_withApk(t *testing.T) {
 	}
 	e := m.Apps[0]
 	if e.Platform != "android" || e.Version != "v2.3.4" || e.Size != int64(len(body)) ||
-		e.Path != "/apps/troubashare.apk" || e.Filename != "troubashare-v2.3.4.apk" {
+		e.Path != "/apps/troubastage.apk" || e.Filename != "troubastage-v2.3.4.apk" {
 		t.Fatalf("manifest entry = %+v, want android/v2.3.4/%d/…", e, len(body))
 	}
 
@@ -98,7 +98,7 @@ func TestApps_withApk(t *testing.T) {
 	if ct := resp.Header.Get("Content-Type"); ct != "application/vnd.android.package-archive" {
 		t.Fatalf("Content-Type = %q, want the apk MIME", ct)
 	}
-	if cd := resp.Header.Get("Content-Disposition"); cd != `attachment; filename="troubashare-v2.3.4.apk"` {
+	if cd := resp.Header.Get("Content-Disposition"); cd != `attachment; filename="troubastage-v2.3.4.apk"` {
 		t.Fatalf("Content-Disposition = %q, want versioned filename", cd)
 	}
 	got, _ := io.ReadAll(resp.Body)
@@ -112,7 +112,7 @@ func TestApps_unknownFile(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("nope"), 0o644)
 	srv := appsServer(t, dir, "v1")
-	for _, name := range []string{"secret.txt", "troubashare.ipa", "..%2f..%2fetc%2fpasswd"} {
+	for _, name := range []string{"secret.txt", "troubastage.ipa", "..%2f..%2fetc%2fpasswd"} {
 		resp, err := http.Get(srv.URL + "/apps/" + name)
 		if err != nil {
 			t.Fatalf("GET %s: %v", name, err)

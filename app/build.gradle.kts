@@ -1,4 +1,4 @@
-// TroubaShare — root Gradle build.
+// TroubaStage — root Gradle build.
 //
 // The root project builds nothing itself; it only declares the plugins the modules apply so
 // their versions resolve from one place (the version catalog, gradle/libs.versions.toml).

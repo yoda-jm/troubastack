@@ -7,7 +7,7 @@
 # .github/workflows/ios.yml. Simulator/Debug/arm64 only; device + Release are IOS03.
 name: iosApp
 options:
-  bundleIdPrefix: com.troubashare
+  bundleIdPrefix: com.troubastack
   deploymentTarget:
     iOS: "15.0"
   createIntermediateGroups: true
@@ -31,7 +31,7 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleDisplayName: TroubaShare
+        CFBundleDisplayName: TroubaStage
         # REQUIRED by Compose Multiplatform iOS — its PlistSanityCheck throws a
         # kotlin.IllegalStateException on the first frame if this key is missing or false.
         CADisableMinimumFrameDurationOnPhone: true
@@ -40,7 +40,7 @@ targets:
         # browse the local network. Declared now so the capability ships; the iOS Connect-screen
         # browse UX itself rides the shared App()/nav hoist (handoff §13 — deferred until iOS has a
         # Connect surface). Android is the verified discovery path (spec: iOS simulator proof out of scope).
-        NSLocalNetworkUsageDescription: TroubaShare finds your band's server on this Wi-Fi network so you can connect without typing its address.
+        NSLocalNetworkUsageDescription: TroubaStage finds your band's server on this Wi-Fi network so you can connect without typing its address.
         NSBonjourServices:
           - _troubacore._tcp
         UILaunchScreen: {}
@@ -50,7 +50,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.troubashare.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.troubastack.app
         FRAMEWORK_SEARCH_PATHS:
           - $(inherited)
           - $(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework

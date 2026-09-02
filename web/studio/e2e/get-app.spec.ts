@@ -16,15 +16,15 @@ const androidEntry = {
   platform: "android",
   version: "v9.9.9",
   size: 7_340_032,
-  path: "/apps/troubashare.apk",
-  filename: "troubashare-v9.9.9.apk",
+  path: "/apps/troubastage.apk",
+  filename: "troubastage-v9.9.9.apk",
 };
 const iosEntry = {
   platform: "ios",
   version: "v9.9.9",
   size: 6_291_456,
-  path: "/apps/troubashare.ipa",
-  filename: "troubashare-v9.9.9.ipa",
+  path: "/apps/troubastage.ipa",
+  filename: "troubastage-v9.9.9.ipa",
 };
 
 const mockApps = (page: Page, apps: object[]) =>
@@ -49,8 +49,8 @@ test("menu item opens a popover: Android download + QR + iOS coming-soon", async
   await expect(page.getByTestId("get-app-popover")).toBeVisible();
 
   const dl = page.getByTestId("get-app-download");
-  await expect(dl).toHaveAttribute("href", "/apps/troubashare.apk");
-  await expect(dl).toHaveAttribute("download", "troubashare-v9.9.9.apk");
+  await expect(dl).toHaveAttribute("href", "/apps/troubastage.apk");
+  await expect(dl).toHaveAttribute("download", "troubastage-v9.9.9.apk");
   await expect(page.getByTestId("get-app-version")).toContainText("v9.9.9");
   await expect(page.getByTestId("get-app-version")).toContainText("Android");
 
@@ -71,5 +71,5 @@ test("iOS row flips to a live download once the manifest carries ios", async ({ 
   await expect(page.getByTestId("get-app-popover")).toBeVisible();
   // The SAME iOS row is now a live download — no coming-soon.
   await expect(page.getByTestId("get-app-ios-soon")).toHaveCount(0);
-  await expect(page.getByTestId("get-app-ios-download")).toHaveAttribute("href", "/apps/troubashare.ipa");
+  await expect(page.getByTestId("get-app-ios-download")).toHaveAttribute("href", "/apps/troubastage.ipa");
 });

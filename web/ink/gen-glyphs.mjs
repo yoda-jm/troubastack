@@ -362,7 +362,7 @@ function emitKotlin(glyphs) {
   L.push("// GENERATED from web/ink/glyphs.authoring.mjs by web/ink/gen-glyphs.mjs (T50 shared glyph");
   L.push("// contract v1) — DO NOT EDIT BY HAND. Regenerate with `node web/ink/gen-glyphs.mjs` when the");
   L.push("// glyph set changes; the same run also rewrites web/ink/glyphs.json. One source. See docs/tasks/T50.");
-  L.push("package com.troubashare.shared.stage");
+  L.push("package com.troubastack.shared.stage");
   L.push("");
   L.push("import androidx.compose.ui.geometry.Offset");
   L.push("");
@@ -387,6 +387,6 @@ function emitKotlin(glyphs) {
   return L.join("\n") + "\n";
 }
 
-const ktPath = join(HERE, "..", "..", "app", "shared", "src", "commonMain", "kotlin", "com", "troubashare", "shared", "stage", "CueGlyphData.kt");
+const ktPath = join(HERE, "..", "..", "app", "shared", "src", "commonMain", "kotlin", "com", "troubastack", "shared", "stage", "CueGlyphData.kt");
 writeFileSync(ktPath, emitKotlin(glyphs));
 console.log(`wrote ${ktPath}: ${Object.keys(glyphs).length} glyphs`);

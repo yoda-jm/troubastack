@@ -85,7 +85,7 @@ jobs:
         working-directory: app/iosApp
         run: |
           set -euo pipefail
-          BUNDLE_ID=com.troubashare.app
+          BUNDLE_ID=com.troubastack.app
 
           APP=$(find DerivedData -name "iosApp.app" -type d | head -1)
           test -n "$APP" || { echo "iosApp.app not found"; exit 1; }

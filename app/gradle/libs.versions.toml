@@ -1,4 +1,4 @@
-# TroubaShare — Gradle version catalog (single source of truth for tool + lib versions).
+# TroubaStage — Gradle version catalog (single source of truth for tool + lib versions).
 #
 # Pinned to CURRENT STABLE releases (A01). The one deliberate deviation from the toolchain doc
 # (JDK 25+, docs/design/06-tech-stack.md): the compile toolchain is pinned to JDK 21, not 25.

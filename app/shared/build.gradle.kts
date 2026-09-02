@@ -1,4 +1,4 @@
-// TroubaShare :shared — the "mobile library" (I15). All device-agnostic behaviour lives here in
+// TroubaStage :shared — the "mobile library" (I15). All device-agnostic behaviour lives here in
 // commonMain (presenter I12, distribution I13, sync I6, the three expect seams); androidMain holds
 // ONLY the three Android seam actuals. Android target NOW; iOS target LATER (fill in the actuals).
 plugins {
@@ -64,7 +64,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.troubashare.shared"
+    namespace = "com.troubastack.shared"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()

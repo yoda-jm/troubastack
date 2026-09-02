@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A54: exclude the encrypted secrets store from cloud backup AND device-to-device transfer (API 31+).
      EncryptedSharedPreferences is bound to a KeyStore master key that does NOT travel with the backup, so
-     restoring troubashare.secrets.enc onto another device (or after a KeyStore reset) yields a blob no
+     restoring troubastage.secrets.enc onto another device (or after a KeyStore reset) yields a blob no
      master key can decrypt — which used to crash-loop the app on first launch. Excluding it means the
      restored device simply starts signed-out (concerts are files and back up normally). Storage's
      open-or-heal covers the same-device KeyStore-invalidation case that a backup rule can't. -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="sharedpref" path="troubashare.secrets.enc.xml" />
+        <exclude domain="sharedpref" path="troubastage.secrets.enc.xml" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="sharedpref" path="troubashare.secrets.enc.xml" />
+        <exclude domain="sharedpref" path="troubastage.secrets.enc.xml" />
     </device-transfer>
 </data-extraction-rules>

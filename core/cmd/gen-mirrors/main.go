@@ -128,7 +128,7 @@ func genKotlin(msgs protoreflect.MessageDescriptors) error {
 	b.WriteString("// KSerializers at the bottom are generated machinery too — fix them in the generator,\n")
 	b.WriteString("// never here. Serialization is proto3 canonical JSON: lowerCamelCase names (property ==\n")
 	b.WriteString("// JSON name), int64/uint64 as JSON strings, int32 as a number, every field defaulted.\n")
-	b.WriteString("package com.troubashare.shared.bundle\n\n")
+	b.WriteString("package com.troubastack.shared.bundle\n\n")
 	b.WriteString("import kotlinx.serialization.KSerializer\n")
 	b.WriteString("import kotlinx.serialization.Serializable\n")
 	b.WriteString("import kotlinx.serialization.SerializationException\n")
@@ -148,7 +148,7 @@ func genKotlin(msgs protoreflect.MessageDescriptors) error {
 	b.WriteString(kotlinSerializerFooter)
 
 	out := filepath.Join("..", "app", "shared", "src", "commonMain", "kotlin", "com",
-		"troubashare", "shared", "bundle", "BundleModel.kt")
+		"troubastack", "shared", "bundle", "BundleModel.kt")
 	if err := os.WriteFile(out, b.Bytes(), 0o644); err != nil {
 		return err
 	}

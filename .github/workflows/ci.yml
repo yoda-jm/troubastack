@@ -64,7 +64,7 @@ jobs:
         working-directory: core
         run: |
           go run ./cmd/gen-mirrors
-          git diff --exit-code internal/bake/bundle_gen.go internal/domain/objecttype_gen.go ../web/studio/src/api.gen.ts ../web/ink/src/objecttype.gen.ts ../app/shared/src/commonMain/kotlin/com/troubashare/shared/bundle/BundleModel.kt
+          git diff --exit-code internal/bake/bundle_gen.go internal/domain/objecttype_gen.go ../web/studio/src/api.gen.ts ../web/ink/src/objecttype.gen.ts ../app/shared/src/commonMain/kotlin/com/troubastack/shared/bundle/BundleModel.kt
 
   web:
     runs-on: ubuntu-latest
@@ -102,7 +102,7 @@ jobs:
         working-directory: web/ink
         run: |
           node gen-glyphs.mjs
-          git diff --exit-code glyphs.json ../../app/shared/src/commonMain/kotlin/com/troubashare/shared/stage/CueGlyphData.kt
+          git diff --exit-code glyphs.json ../../app/shared/src/commonMain/kotlin/com/troubastack/shared/stage/CueGlyphData.kt
       # BRAND01: docs/brand/dist is GENERATED from docs/brand/src by build.py — never
       # hand-edited. build.py is stdlib-only and deterministic, so regenerating and
       # diffing is a valid drift guard, the same pattern as the glyphs and mirrors above.
@@ -241,12 +241,12 @@ jobs:
       - name: compile iOS klibs (cross-compile, no linking)
         working-directory: app
         run: ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64
-      # Publish the debug APK so anyone can sideload TroubaShare without a local
+      # Publish the debug APK so anyone can sideload TroubaStage without a local
       # toolchain (README → "The mobile app"). Debug-signed — not a store release.
       - name: upload debug APK
         uses: actions/upload-artifact@v7
         with:
-          name: troubashare-debug-apk
+          name: troubastage-debug-apk
           path: app/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
   e2e:

@@ -9,7 +9,7 @@
 Collaborative sheet-music & lyrics annotation for bands and ensembles — from the
 rehearsal-room edit to the on-stage page turn, self-hosted on a box you own.
 
-**One product (`TroubaShare`), three layers, one contract.** You *compose and annotate*
+**One product (`TroubaStack`), three layers, one contract.** You *compose and annotate*
 scores in a fullscreen, canvas-first web editor (**TroubaStudio**); a server
 (**TroubaCore**, one Go binary) holds the single authoritative truth, bakes setlists
 into performable concert bundles, and distributes them in-app; an offline presenter
@@ -150,7 +150,7 @@ adb install -r app/androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
 No local toolchain? Every CI run on `main` also builds the APK — download it from the
-GitHub Actions run (**android** job → `troubashare-debug-apk` artifact) and install it
+GitHub Actions run (**android** job → `troubastage-debug-apk` artifact) and install it
 (you'll need to allow installs from unknown sources; it's a debug build, not a store release).
 
 ### Demo it with zero servers
@@ -209,7 +209,7 @@ troubastack/
 │   ├── ink/      @troubastack/ink — THE one stroke renderer. [I8]
 │   ├── studio/   TroubaStudio — the canonical editor SPA. [I10]
 │   └── bake/     bake worker (Node) — reuses web/ink for pixel-parity. [I8]
-├── app/          TroubaShare — Kotlin/Compose Multiplatform mobile app.
+├── app/          TroubaStage — Kotlin/Compose Multiplatform mobile app.
 │                 TroubaStage presenter + Studio in a webview.
 │                 Native code kept to 3 seams only. [I15]
 └── deploy/       single-box production serving: compose + Caddy/TLS + backups.

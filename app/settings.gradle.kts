@@ -1,4 +1,4 @@
-// TroubaShare — Gradle settings.
+// TroubaStage — Gradle settings.
 //
 // The app is a THIN SHELL (I15). The module graph below points only toward the contract (I14):
 //   :shared      → the "mobile library" — all shared Kotlin (commonMain) + the Android & iOS seams
@@ -32,7 +32,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TroubaShare"
+rootProject.name = "TroubaStage"
 
 include(":shared")
 include(":androidApp")

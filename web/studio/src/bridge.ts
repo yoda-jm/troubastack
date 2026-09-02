@@ -1,5 +1,5 @@
 /**
- * Thin, feature-detected bridge to a native shell (the TroubaShare app hosting Studio in a WebView).
+ * Thin, feature-detected bridge to a native shell (the TroubaStage app hosting Studio in a WebView).
  * In a plain browser there is no shell, so every function here is inert — pure-browser Studio is
  * completely unaffected (I10). The only traffic today is a handshake; the real client is the native
  * ink overlay (A07, blocked), for which `postToShell` is a ready no-op-safe helper.
@@ -12,18 +12,18 @@ interface ShellPort {
 
 declare global {
   interface Window {
-    TroubaShareShell?: ShellPort;
-    __troubashareShell?: { deliver(json: string): void };
+    TroubaStageShell?: ShellPort;
+    __troubastageShell?: { deliver(json: string): void };
   }
 }
 
 /** Call once at startup. Does nothing in a browser; wires the handshake when hosted by the shell. */
 export function initShellBridge(): void {
-  const shell = window.TroubaShareShell;
+  const shell = window.TroubaStageShell;
   if (!shell) return; // pure browser — no shell present (I10)
 
-  // shell → web: the shell calls window.__troubashareShell.deliver(json).
-  window.__troubashareShell = {
+  // shell → web: the shell calls window.__troubastageShell.deliver(json).
+  window.__troubastageShell = {
     deliver(json: string) {
       try {
         const msg = JSON.parse(json) as { type?: string };
@@ -40,5 +40,5 @@ export function initShellBridge(): void {
 
 /** Send a JSON string to the native shell. No-op in a browser (feature-detected). */
 export function postToShell(json: string): void {
-  window.TroubaShareShell?.receive(json);
+  window.TroubaStageShell?.receive(json);
 }

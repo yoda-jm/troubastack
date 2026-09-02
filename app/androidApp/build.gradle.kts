@@ -1,4 +1,4 @@
-// TroubaShare :androidApp — the thin Android entrypoint (I15). Holds NO logic of its own beyond
+// TroubaStage :androidApp — the thin Android entrypoint (I15). Holds NO logic of its own beyond
 // wiring the shared app in and (later) handing the three Android seam actuals to it. Everything it
 // can share, it shares — via :shared. Depends only toward the contract (I14).
 plugins {
@@ -16,11 +16,11 @@ kotlin {
 }
 
 android {
-    namespace = "com.troubashare.app"
+    namespace = "com.troubastack.app"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.troubashare.app"
+        applicationId = "com.troubastack.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

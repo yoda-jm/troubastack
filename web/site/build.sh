@@ -22,7 +22,7 @@ OUT="$SITE/dist"
 REPO_URL="https://github.com/yoda-jm/troubastack"
 # The QR is for the APP, and the only place an APK exists today is the CI run:
 # there is no release, no registry image and no store listing. This lands on the
-# successful main builds, whose android job attaches troubashare-debug-apk.
+# successful main builds, whose android job attaches troubastage-debug-apk.
 APK_URL="https://github.com/yoda-jm/troubastack/actions/workflows/ci.yml?query=branch%3Amain+is%3Asuccess"
 
 rm -rf "$OUT"

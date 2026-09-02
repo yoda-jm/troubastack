@@ -1,6 +1,6 @@
-# TroubaShare — the mobile app
+# TroubaStage — the mobile app
 
-TroubaShare is the **shipped client**: a Kotlin Multiplatform / Compose Multiplatform
+TroubaStage is the **shipped client**: a Kotlin Multiplatform / Compose Multiplatform
 (KMP/CMP) application. **Android now, iOS later** (CMP on iOS is stable as of 2025).
 
 It does exactly two jobs on a device:
@@ -86,7 +86,7 @@ app/
 │   └── src/
 │       ├── commonMain/kotlin/
 │       │   ├── gen/                              ← generated proto types land here (I1, git-ignored)
-│       │   └── com/troubashare/shared/
+│       │   └── com/troubastack/shared/
 │       │       ├── seams/                        ← the THREE expect seams (I15)
 │       │       │   ├── WebViewHost.kt            ← seam 1 (I10)
 │       │       │   ├── InkOverlay.kt             ← seam 2 (I9, I8)
@@ -95,8 +95,8 @@ app/
 │       │       ├── bundle/                       ← bundle model + loader + atomic importer (A02/A05)
 │       │       ├── distribution/Updates.kt       ← shared downloader / revisions (I13)
 │       │       └── sync/SyncClient.kt            ← shared optimistic client (I6)
-│       ├── androidMain/kotlin/com/troubashare/shared/seams/   ← the three Android actuals
-│       └── iosMain/kotlin/com/troubashare/shared/seams/       ← the three iOS actuals (TODO, iOS-later)
+│       ├── androidMain/kotlin/com/troubastack/shared/seams/   ← the three Android actuals
+│       └── iosMain/kotlin/com/troubastack/shared/seams/       ← the three iOS actuals (TODO, iOS-later)
 ├── androidApp/               ← thin Android entrypoint: concerts list, Stage host, import wiring
 └── iosApp/                   ← thin iOS entrypoint (iOS-later; not yet a Gradle module)
 ```

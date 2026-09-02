@@ -37,7 +37,7 @@ type knownApp struct {
 // knownApps is the allow-list. iOS joins when that artifact exists; the UI hides
 // whatever the manifest lacks.
 var knownApps = []knownApp{
-	{platform: "android", file: "troubashare.apk", mime: "application/vnd.android.package-archive", base: "troubashare", ext: "apk"},
+	{platform: "android", file: "troubastage.apk", mime: "application/vnd.android.package-archive", base: "troubastage", ext: "apk"},
 }
 
 func (a *AppsAPI) Mount(mux *http.ServeMux) {

@@ -122,13 +122,13 @@ building — the CI `android` job already publishes a debug-signed one (installa
 unknown-sources; fine for band use until the signed release APK lands):
 
 ```sh
-# grab the debug APK from the latest CI run (Actions → "android" job → troubashare-debug-apk),
+# grab the debug APK from the latest CI run (Actions → "android" job → troubastage-debug-apk),
 # then:
-cp androidApp-debug.apk deploy/apps/troubashare.apk
+cp androidApp-debug.apk deploy/apps/troubastage.apk
 cd deploy && docker compose build && docker compose up -d
 ```
 
-The server then exposes `GET /api/apps` (a tiny manifest) and `GET /apps/troubashare.apk`
+The server then exposes `GET /api/apps` (a tiny manifest) and `GET /apps/troubastage.apk`
 (the download, correct MIME + versioned filename), and Studio's band page shows a **"Get
 the app"** card with the download button + a QR of the absolute APK URL. Build **without**
 an APK (empty `deploy/apps/`) ⇒ the manifest is empty and the card is hidden — no errors.

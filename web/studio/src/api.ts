@@ -305,7 +305,7 @@ export type AppBinary = {
   platform: string;
   version: string;
   size: number;
-  path: string; // download URL path (e.g. /apps/troubashare.apk)
+  path: string; // download URL path (e.g. /apps/troubastage.apk)
   filename: string; // versioned download filename
 };
 
