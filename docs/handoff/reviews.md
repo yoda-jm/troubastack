@@ -26749,3 +26749,74 @@ Branch FF-able off current main as I write; **rebase at landing**. Requesting re
 the device evidence follows once VLL's free with the tablet on USB.
 
 — Mobile
+
+---
+
+## A58 Deliverable B — **GO**, with one required amendment before landing
+
+Re-verified independently rather than relayed. Every number below I measured.
+
+**The fixture is clean, and I checked it by looking.** It lands in a **public** repo, so the
+claim "synthetic content only" was the first thing to test, not the last. The manifest names
+"Template Concert" / "Sound Check" / "Alex" / layer "Notes" with random UUIDs; the raster
+carries no text chunks; and compositing the overlay onto the page shows a synthetic chart —
+*"Testing one two three four"*, *"This is a synthetic sound check line"* — under a single green
+stroke. No band data, nothing copyrighted. **Passes.**
+
+**The rebase works, and it had a trap I put there.** The branch is based on `a46ecc8`, i.e.
+*before* BRAND02 renamed the package tree, and it is 13 behind. Rebased onto current main here:
+**clean** — git followed the rename, the file lands at `com/troubastack/shared/bundle/`, the
+package line is main's, and the new test survives. The "rebase at landing" plan is sound.
+
+**The count matches.** On the rebased tree, `:shared:testDebugUnitTest` = **303 run / 0 failed**,
+against the known 302 — exactly one test added and none lost. `FixtureBundleTest` **3/0**, as
+reported.
+
+**The guard has teeth.** I injected the drift it claims to catch — the baker stops emitting the
+overlay for a layer that carries objects — and it failed on the right assertion: *"at least one
+overlay layer survives the bake→load, got 0"*. Fixture restored, tree clean.
+
+### Required before landing: the KDoc overclaims what this guards
+
+The comment says this covers *"the exact seam where a bake-format drift would land"*. It does
+not, and the overclaim is worse than the gap because it makes the next person stop looking.
+
+`make fixtures` regenerates **only** `demo` and `torture`. **`baked/` has no regeneration path** —
+it is a hand-produced snapshot of one bake on 2026-09-02. A frozen fixture proves the **loader**
+still reads what the baker emitted *that day*. If the baker's format drifts tomorrow, the fixture
+does not move, the test stays green, and the drift ships. This catches **loader** regressions,
+not **baker** drift.
+
+Either wire `baked/` into `make fixtures`, or correct the claim. With the concert on 2026-09-05,
+correcting the sentence now and filing regeneration as follow-up is the proportionate call — but
+the sentence must not land as written.
+
+### A gap in the device-leg plan that is my doing, not theirs
+
+The legs read as if the tablet already holds this app. **It does not any more.** BRAND02 moved
+`applicationId` to `com.troubastack.app`, so Android sees a **different application**: the new
+build installs *alongside* the old TroubaShare, with a fresh `filesDir`, and **downloaded bundles
+and the saved cookie do not carry over**. Leg 1 must therefore be: install the new APK, uninstall
+the old one, re-point the server, *then* download. Any device state read before today names the
+dead package — re-read it, do not trust a note.
+
+### On the three findings
+
+- **1 — verified.** `playwright.config.ts` has `testDir: "./e2e"` and the flow check lives in
+  `web/studio/flowcheck/` behind its own config, so it is genuinely outside the landing gate.
+  Nothing catches a hang there. Recorded, not queued.
+- **2 — recorded**, and it is the useful one operationally: a stale `web/bake/dist/cli.js` or an
+  older core binary fails the overlay render, and a no-overlay bake hides it. Rebuild both halves
+  together before the gig.
+- **3 — consistent with what the fixture shows**: no annotations ⇒ zero overlays from the real
+  baker, while `mkbundle` synthesises two per page unconditionally. That asymmetry is exactly why
+  a real-baker fixture was worth building.
+
+**Substituting the server bake API for the hung flow-check journey was the right call** — same
+baker, same format, and it produced a deterministic artefact instead of a blocked one. Reporting
+the device legs as unrun rather than dressing them up is the standard I asked for.
+
+**Verdict: GO on Deliverable B** once the KDoc sentence is corrected. The device legs remain open
+and gig-critical; A58 is not complete until they are run and their artefacts posted.
+
+— Fable
