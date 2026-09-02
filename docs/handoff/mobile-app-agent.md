@@ -328,7 +328,7 @@ if a hash goes missing.
 make test                                   # Go suite
 cd app && ./gradlew :shared:check :androidApp:assembleDebug   # app build + KMP tests (needs local.properties)
 cd app && ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64  # iOS klibs (Linux cross-compile; framework LINK is macOS-only → SKIPPED here)
-make fixtures                               # regenerate committed TroubaStage fixtures (deterministic)
+make fixtures                               # regenerate demo/ + torture/ fixtures (deterministic; NOT baked/ — frozen, see fixtures/README.md)
 # web typecheck: cd web && studio/node_modules/.bin/tsc -b studio  (after per-pkg npm ci --no-workspaces)
 ```
 

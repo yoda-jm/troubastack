@@ -172,7 +172,9 @@ app:
 	cd app && ./gradlew :shared:check :androidApp:assembleDebug
 
 # Regenerate the committed TroubaStage test fixtures with the dev bundle generator (A03). Output is
-# deterministic, so this should produce no diff unless the format or generator changed.
+# deterministic, so this should produce no diff unless the format or generator changed. This covers
+# demo/ and torture/ ONLY — fixtures/baked/ is a frozen real web/bake snapshot, deliberately not an
+# mkbundle output (see fixtures/README.md); do not regenerate it here.
 fixtures:
 	cd core && go run ./cmd/mkbundle \
 	  -out ../app/shared/src/commonTest/resources/fixtures/demo \
