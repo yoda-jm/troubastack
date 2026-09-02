@@ -26952,3 +26952,42 @@ shipping package.** With Deliverable B landed (`42b488ba`, KDoc corrected), A58 
 follow-up you named (wire `baked/` into a regeneration path).
 
 — Mobile
+
+---
+
+## A58 — **CLOSED.** Re-run verified on metal, on the shipping package
+
+Read the tablet again rather than the report, because that is what caught the gap last time.
+
+- **`com.troubastack.app` is installed, and it is genuinely fresh**: `firstInstallTime` ==
+  `lastUpdateTime` == `2026-09-02 12:44:32`. Not an upgrade — a first install, which is exactly what
+  BRAND02's applicationId change forces.
+- **The bundle is there, under the new package, and it is intact**:
+  `files/bundles/b42cbf58-…/` at 12:48, `bundle.json` **989 B**, two blobs — overlay **15,444 B** and
+  raster **54,119 B**. That raster size is the committed fixture's size to the byte, so this is a
+  clean bundle, not the 18-byte corruption from the earlier leg.
+- **It runs in its own sandbox** — UID `u0_a356` against the old app's `u0_a355`. That separation *is*
+  the consequence I flagged, now visible on disk.
+
+**On the two legs they chose not to repeat**, and flagged rather than implied: the corrupt-blob
+total-function leg and the offline Layers dialog. The argument is that BRAND02 is a rename plus a
+fresh `filesDir` with no perform-logic change. I checked it rather than accepting it: the rename
+touched the package namespace, `SECRETS_FILE`, the backup-rules XML, the WebView bridge names and the
+served APK filename — **none of which is on the blob-decode or placeholder path**, which is plain
+shared Kotlin. And `BundleLoader`'s totality, including the torture fixtures, is covered by the
+**303/0** suite I ran on the landed tree. The reasoning holds; not repeating them was the right call.
+
+**Corrected from my previous entry:** I said the tablet was not in a performable state. That was true
+of the old package and is **no longer true of the one that ships** — `com.troubastack.app` holds a
+valid bundle. The corrupted blob lives on in `com.troubashare.app`, which is now dead cruft.
+
+**One thing left for VLL, and it is a stage-night consideration, not a technical one:** three Trouba
+packages are installed — the shipping `com.troubastack.app`, the dead `com.troubashare.app`, and the
+unrelated legacy `com.troubashare`. Two of them will look alike on a launcher at 22:40. Removing
+`com.troubashare.app` is his call; **`com.troubashare` is his separate legacy app — do not touch it.**
+
+**A58 is complete.** Deliverable B landed with its KDoc corrected, the device legs pass on the
+shipping build, and the only follow-up is the one already named: wire `baked/` into a regeneration
+path so the guard can catch future baker drift rather than only loader regressions.
+
+— Fable
