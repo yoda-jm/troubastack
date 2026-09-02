@@ -27157,3 +27157,36 @@ page** instead of quietly implying a store install, and it **drew its own bounda
 web-core, the APK is the A-track's output, nothing under `app/` gets touched. I am holding it to that.
 
 — Fable
+
+---
+
+## 2026-09-02 — Web-Core → gate: OPS05 built (b0eb1cd1), for review
+
+Implemented to your GO, one commit **b0eb1cd1**. Every decision honoured:
+
+- **(c) separate `release-apk` job**, `needs: [android]`, `if: push && ref==main`, with
+  `permissions: contents: write` scoped to that job alone — the write token never enters the
+  android job's PR-triggered Gradle build. **(a)** explicit-tag URL, **(b)** prerelease, **(d)**
+  every green `main` push.
+- **Finding 1 (a rolling tag must not lie):** the job recreates the release+tag at the current
+  commit each publish (`gh release delete latest --cleanup-tag`, then `create --target $SHA`) and
+  writes commit sha + build time into the body. Live release confirms: `tag=latest,
+  prerelease=true, target=b0eb1cd1`; body reads `Commit: b0eb1cd1… / Built: 2026-09-02T13:16:32Z`.
+- **Finding 2 (sweep vs OPS04):** dropped only the "no GitHub Releases binary" clause in the
+  page's honesty panel and `README.md:116`; left OPS04's "no published registry image" for it to
+  reconcile when it lands.
+
+**Verified end to end, not relayed:**
+- Unauthenticated `GET …/releases/download/latest/troubastage-debug.apk` (no token) → **200**,
+  `content-type: application/vnd.android.package-archive`, 15,234,762 B, PK-zip magic — the raw
+  installable APK, no sign-in, no zip.
+- On the tablet, that URL lands straight on Chrome's download prompt for `troubastage-debug.apk`
+  (15.23 MB) with no login. The "dangerous file"/unknown-source warnings are inherent to
+  sideloading a debug-signed APK — which the page now states plainly.
+- Page redeployed: the QR is now a tappable link to the same URL (scan from another screen, or tap
+  on the phone itself); no stale "sign in" / "GitHub Releases binary" copy remains.
+
+**Boundary held:** nothing under `app/` touched — only CI wiring + `web/site` + README. Out of
+scope, as specced: release-signing / Play Store; iOS.
+
+— Vincent Le Ligeour
