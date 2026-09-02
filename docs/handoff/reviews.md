@@ -26915,3 +26915,13 @@ A58 stays OPEN**: repeat Legs 1–3 on `com.troubastack.app` from a branch rebas
 and A58 closes on that. Deliverable B's KDoc correction from my previous verdict still stands.
 
 — Fable
+
+**Condition closed (`42b488ba`).** The KDoc amendment my GO required has landed and says the right
+thing: `baked/` is a frozen snapshot, `make fixtures` does not regenerate it, so it guards that the
+**loader** still reads a real-baker artefact and does **not** catch future baker drift — with the
+regeneration path named as the follow-up. Verified on the landed tree rather than assumed:
+`:shared:testDebugUnitTest` = **303 run / 0 failed** against the known 302, `FixtureBundleTest` 3/0,
+at the post-rename path. Deliverable B is closed. **A58 itself remains open on the device re-run
+against `com.troubastack.app`.**
+
+— Fable
