@@ -146,11 +146,37 @@ WORDMARKS = {
     "troubacore":   ("Core",   "SCALE. SYNC. SERVE."),
 }
 # Only Stage was asked to change, so only Stage changed.
-# One accent per mark, matching its chip. Chosen to hold on BOTH wordmark
-# grounds: the layer colours themselves are too light on the pale one.
-ACCENT = {"troubastack": "#5A6674", "troubastudio": "#D62A8A",
-          "troubastage": "#C8912A", "troubacore": "#1769D1"}
+# BRAND06: an accent PAIR per mark, one per wordmark ground. A single accent cannot survive both
+# grounds — the same hue fails the 3:1 large-text bar on one of them (Stack was 2.43 on the dark
+# tile, Stage 2.65 on paper), which is why the project page had to hand-correct them. Each value
+# keeps the mark's hue+saturation and moves lightness only until it clears the bar on its ground;
+# the measured ratio is recorded beside it (measured once, not at build time — build.py stays
+# stdlib-only and deterministic). The two page-live corrections (#AEBAC6, #936B1F) are adopted
+# verbatim; the guard in main() enforces the bar with teeth.
+WORDMARK_GROUNDS = {"dark": "#202C37", "paper": "#FFFFFF"}  # the two grounds a wordmark renders on
+ACCENT = {
+    "troubastack":  {"dark": "#AEBAC6", "paper": "#5A6674"},  # 7.20 / 5.85
+    "troubastudio": {"dark": "#D62A8A", "paper": "#D62A8A"},  # 3.09 / 4.61
+    "troubastage":  {"dark": "#C8912A", "paper": "#936B1F"},  # 5.11 / 4.81
+    "troubacore":   {"dark": "#3E89EA", "paper": "#1769D1"},  # 4.04 / 5.28
+}
 FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+
+
+def _rel_luminance(hexc: str) -> float:
+    """WCAG relative luminance of a #RRGGBB colour."""
+    chan = []
+    for i in (1, 3, 5):
+        c = int(hexc[i:i + 2], 16) / 255
+        chan.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+    r, g, b = chan
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast(a: str, b: str) -> float:
+    """WCAG contrast ratio between two #RRGGBB colours."""
+    la, lb = _rel_luminance(a), _rel_luminance(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 
 WORDMARK_TEMPLATE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220" \
 width="900" height="220" role="img" aria-label="Trouba{tail}">
@@ -167,8 +193,9 @@ def wordmark(mark: str, tail: str, tagline: str, ground: str | None,
              base: str) -> str:
     rect = (f'<rect x="0" y="0" width="900" height="220" rx="26" fill="{ground}"/>\n'
             if ground else "")
+    accent = ACCENT[mark]["paper" if ground is None else "dark"]
     return WORDMARK_TEMPLATE.format(tail=tail, tagline=tagline, ground=rect,
-                                    base=base, accent=ACCENT[mark], font=FONT)
+                                    base=base, accent=accent, font=FONT)
 
 
 def check(path: Path) -> None:
@@ -502,6 +529,16 @@ def main() -> None:
                  f'translate({-FG_ART_CENTRE[0]},{-FG_ART_CENTRE[1]})">\n{inner}\n</g>'))
         check(fg)
         written += [bg, fg]
+
+    # BRAND06 guard, with teeth: every accent must clear the 3:1 large-text bar on its ground
+    # (the wordmark is 88px/700), or the family ships an unreadable lockup. This runs in build.py
+    # because CI regenerates via build.py (not sheet.py); reverting one accent fails the build here.
+    for mark, pair in ACCENT.items():
+        for ground_name, bg in WORDMARK_GROUNDS.items():
+            r = _contrast(pair[ground_name], bg)
+            if r < 3.0:
+                raise SystemExit(f"ACCENT[{mark!r}][{ground_name!r}] = {pair[ground_name]} is "
+                                 f"{r:.2f}:1 on {bg} — below the 3:1 large-text bar")
 
     for mark, (tail, tagline) in WORDMARKS.items():
         for suffix, ground, base in (("", None, "#101418"), ("-dark", "#202C37", "#FFFFFF")):

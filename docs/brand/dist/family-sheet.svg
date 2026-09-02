@@ -1439,7 +1439,7 @@
   <path d="M -44 -72 L 76 0 L -44 72 Z" fill="url(#gWhite)" stroke="url(#gWhite)"
         stroke-width="26" stroke-linejoin="round"/>
 </g></g>
-<text x="644" y="448" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#141A1F" text-anchor="start" letter-spacing="0"><tspan fill="#141A1F">Trouba</tspan><tspan fill="#C8912A">Stage</tspan></text>
+<text x="644" y="448" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#141A1F" text-anchor="start" letter-spacing="0"><tspan fill="#141A1F">Trouba</tspan><tspan fill="#936B1F">Stage</tspan></text>
 <text x="644" y="472" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6B7580" text-anchor="start" letter-spacing="0">play chip, layer 1 yellow</text>
 <g transform="translate(940,148) scale(0.251953)"><!-- brick: tile — dark squircle ground plus a vignette that lifts the centre. -->
 <rect x="0" y="0" width="1024" height="1024" rx="229" fill="url(#gTile)"/>
@@ -3637,7 +3637,7 @@
 <text x="760" y="1036" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#6B7580" text-anchor="start" letter-spacing="1.6">WORDMARK LOCKUPS</text>
 <text x="760" y="1056" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6B7580" text-anchor="start" letter-spacing="0">live text — outline the type before the website ships</text>
 <rect x="760" y="1076" width="284" height="92" rx="14" fill="#202C37"/>
-<text x="780" y="1124" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="start" letter-spacing="0"><tspan fill="#FFFFFF">Trouba</tspan><tspan fill="#5A6674">Stack</tspan></text>
+<text x="780" y="1124" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="start" letter-spacing="0"><tspan fill="#FFFFFF">Trouba</tspan><tspan fill="#AEBAC6">Stack</tspan></text>
 <text x="781" y="1146" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="9" font-weight="500" fill="#A7ACB5" text-anchor="start" letter-spacing="1.0">THE PLATFORM FOR MUSICIANS</text>
 <rect x="1060" y="1076" width="284" height="92" rx="14" fill="#202C37"/>
 <text x="1080" y="1124" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="start" letter-spacing="0"><tspan fill="#FFFFFF">Trouba</tspan><tspan fill="#D62A8A">Studio</tspan></text>
@@ -3646,6 +3646,6 @@
 <text x="780" y="1230" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="start" letter-spacing="0"><tspan fill="#FFFFFF">Trouba</tspan><tspan fill="#C8912A">Stage</tspan></text>
 <text x="781" y="1252" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="9" font-weight="500" fill="#A7ACB5" text-anchor="start" letter-spacing="1.0">PRACTICE. PLAY. PERFORM.</text>
 <rect x="1060" y="1182" width="284" height="92" rx="14" fill="#202C37"/>
-<text x="1080" y="1230" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="start" letter-spacing="0"><tspan fill="#FFFFFF">Trouba</tspan><tspan fill="#1769D1">Core</tspan></text>
+<text x="1080" y="1230" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="start" letter-spacing="0"><tspan fill="#FFFFFF">Trouba</tspan><tspan fill="#3E89EA">Core</tspan></text>
 <text x="1081" y="1252" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="9" font-weight="500" fill="#A7ACB5" text-anchor="start" letter-spacing="1.0">SCALE. SYNC. SERVE.</text>
 </svg>

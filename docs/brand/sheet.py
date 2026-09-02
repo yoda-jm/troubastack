@@ -98,7 +98,7 @@ for i, mark in enumerate(B.MARKS):
     x = 52 + i * 296
     icon(mark, "full", x, 148, 258)
     txt(x, 448, f'<tspan fill="{INK}">Trouba</tspan>'
-                f'<tspan fill="{B.ACCENT[mark]}">{NAMES[mark]}</tspan>', 26, INK, 700)
+                f'<tspan fill="{B.ACCENT[mark]["paper"]}">{NAMES[mark]}</tspan>', 26, INK, 700)
     txt(x, 472, SUB[mark], 13, MUTED)
 
 # ---------------------------------------------------------------- palette
@@ -157,7 +157,7 @@ for i, mark in enumerate(B.MARKS):
     x, y = 760 + (i % 2) * 300, 1076 + (i // 2) * 106
     o.append(f'<rect x="{x}" y="{y}" width="284" height="92" rx="14" fill="#202C37"/>')
     txt(x + 20, y + 48, f'<tspan fill="#FFFFFF">Trouba</tspan>'
-                        f'<tspan fill="{B.ACCENT[mark]}">{NAMES[mark]}</tspan>',
+                        f'<tspan fill="{B.ACCENT[mark]["dark"]}">{NAMES[mark]}</tspan>',
         26, "#FFFFFF", 700)
     txt(x + 21, y + 70, B.WORDMARKS[mark][1], 9, "#A7ACB5", 500, ls=1.0)
 

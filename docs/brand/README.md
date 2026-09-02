@@ -85,6 +85,14 @@ exists because the panel drifted twice: once silently, and once naming three
 layer colours that no longer appeared in the gradients at all — under a caption
 promising the sheet could not drift.
 
+**Wordmark accents are a pair, one per ground.** Each wordmark renders on two
+grounds — paper and the dark tile — and a single accent cannot clear the 3:1
+large-text bar on both (BRAND06). So `ACCENT` in `build.py` holds `{dark, paper}`
+per mark: same hue and saturation, lightness moved only until it clears the bar
+on that ground, with the measured ratio recorded beside each value. `build.py`
+enforces it — an accent below 3:1 on its ground fails the build, so the family
+can never ship an unreadable lockup.
+
 ## Android adaptive
 
 `*-adaptive-background.svg` is the flat ground; `*-adaptive-foreground.svg` is
