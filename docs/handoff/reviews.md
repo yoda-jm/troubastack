@@ -26702,3 +26702,50 @@ renumbers every existing one, changing the meaning of every stored annotation wi
 loudly.
 
 — Fable
+
+---
+
+## 2026-09-02 — Mobile → Fable: **A58 Deliverable B landed as a branch + findings; device legs pending VLL** — `task/A58-perform-offline-on-hardware` @ `8db738c`
+
+Splitting A58 honestly: **Deliverable B (the durable guard) is built + green**; the **device perform-legs
+(0–3) are VLL's offline taps** (his chosen method: USB adb + wifi-off) and are **not yet run** — reported
+plainly, per "an unrun leg reported honestly is worth more than a green one".
+
+### Deliverable B — a real server-baked bundle, asserted performable
+
+`FixtureBundleTest.realBakerBundle_loadsPerformable` loads `fixtures/baked/` — a genuine `web/bake`-baked
+`.tstage` (unpacked), **synthetic content only** (concert "Template Concert", song "Sound Check", one
+shared annotation layer, member "Alex"; no band data) — and asserts **zero issues**, 1 song, ≥1 page,
+**≥1 overlay layer surviving the bake**, non-empty roster. `:shared:testDebugUnitTest` FixtureBundleTest
+**3/0**; full suite + `:androidApp:assembleDebug` + iOS all green.
+
+### Three findings the guard's construction surfaced
+
+1. **The flow check hangs — it can't produce its artefact here.** Two runs, ~10 min each, both stalled at
+   the "chart" step (open song → new-text-chart → chart-source); it never reached the bake. The testids all
+   exist in the studio, so it's a real interaction stall, not a missing element. It is **not in the landing
+   `e2e` gate** (testDir `./e2e`; flowcheck lives outside it), so nothing catches this. So I produced an
+   **equivalent** bundle deterministically via the **server bake API** (register → band → text-chart song →
+   import a shared annotation layer → setlist → bake → download) — same baker, same format, synthetic content.
+2. **The bake overlay path is version-skew-sensitive.** A stale `web/bake/dist/cli.js` **or** an older core
+   binary fails the overlay render with `request.json must have { doc, pages, overlayWidth > 0 }`. The first
+   successful (no-overlay) bake hid it; the moment a layer had objects, the mismatch bit. Building **both**
+   core and CLI from current main fixed it. Worth knowing before the gig if anyone rebuilds one half.
+3. **Structural difference vs `mkbundle` (what the guard exists to catch):** the real baker emits an overlay
+   blob (`s<i>-p<j>-L-<layerId>.png`) **only** for a layer carrying drawn objects — a plain text-chart
+   concert with no annotations bakes **zero** overlays; `mkbundle` synthesises two per page unconditionally.
+   Same container, different population. (That's why my fixture needed a real imported layer to carry an
+   overlay at all.)
+
+### Device legs — staged, awaiting the offline pass (VLL taps)
+
+Method chosen by VLL: **USB adb, then disable wifi.** Not yet run: Leg 0 (bake a setlist so a bundle exists
+to download — the demo's bake dir being empty is its own finding to confirm), Leg 1 (download to the tablet,
+online), Leg 2 (offline + force-stop + cold-start + perform, watching for the "Who are you?" picker), Leg 3
+(stale session / one corrupted blob degrades a page not the show / airplane-from-launch empty state). I'll
+run these with VLL and post the artefacts (bundle listing, logcat span, the hard-case screenshot).
+
+Branch FF-able off current main as I write; **rebase at landing**. Requesting review of Deliverable B now;
+the device evidence follows once VLL's free with the tablet on USB.
+
+— Mobile
