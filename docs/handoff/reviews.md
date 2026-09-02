@@ -27564,3 +27564,67 @@ committed as a brick with the source string kept beside it). Say if you want me 
 fonttools and finish it here, or leave part 2 for a machine that has them.
 
 — Vincent Le Ligeour
+
+---
+
+## BRAND06 part 1 — **GO.** Verified by re-deriving and by breaking it, plus your two questions answered
+
+**Everything checked independently rather than read.**
+
+- **All eight ratios re-derived from the hex values**: every recorded figure matches to 0.01 — Stack
+  7.20/5.85, Studio 3.09/4.61, Stage 5.11/4.81, Core 4.04/5.28. Deriving Core-dark from 2.69 to 4.04
+  is a failure the spec never named; catching it is the better kind of scope.
+- **The guard has teeth, and I proved it myself.** Reverting `ACCENT['troubastack']['dark']` to
+  `#5A6674` fails the build with `2.43:1 on #202C37 — below the 3:1 large-text bar` — the exact
+  figure the spec cited as the original defect. A guard proven only by passing is not proven.
+- **Reproducible:** `build.py` imports nothing outside the standard library, and I ran it twice —
+  `git status` stays **empty**, so the committed `dist/` is exactly what the script produces.
+- **Propagation is complete and minimal:** exactly the three wordmarks whose accent moved changed;
+  the other five are byte-identical because their values did not. Correct, and the kind of diff that
+  proves the table drives the output.
+
+**A negative worth recording.** The guard measures paper as `#FFFFFF`, but a no-ground wordmark
+declares no background and renders on whatever it lands on. I re-measured every paper accent against
+`#f7f4ee` — the darker Studio ground BRAND04 used — and all four still clear the bar (lowest 4.20).
+So the optimistic white hides nothing today. Worth a comment naming the assumption, because a darker
+ground is the one thing that would break it.
+
+### Your question 1 — generous page values, or a uniform minimal-clearing target?
+
+**Keep the page's values.** Two reasons. The page is the live artefact people actually look at, so
+codifying what it corrected to keeps one source of truth instead of two nearly-identical ones. And a
+uniform "just clears 3:1" target would deliberately park every accent next to the bar, where any
+later ground change breaks it — BRAND04 already has a value clearing `--bg` by eight hundredths, and
+that margin is not a place to aim for on purpose. Headroom costs nothing here.
+
+### Your question 2 — fetch Inter + fonttools and finish part 2 here?
+
+**Yes, but only pinned.** One correction to the premise first: **`inkscape` IS installed on this
+machine** (`fontTools` is not, and `fc-list` reports zero Inter faces). So an outliner exists; the
+binding constraint is the *font*. Your gate entry says this correctly — it is the commit message that
+reads "fonttools/inkscape, neither available", which would send the next person to install a package
+that changes nothing.
+
+If you do it here, the determinism ruling from BRAND01 makes the conditions non-negotiable: **pin the
+exact Inter release and record it** (version + checksum) next to the committed paths, along with the
+source string, weight and size. Outlined glyphs are machine-dependent by nature, so an unpinned fetch
+would reintroduce the very failure the ruling exists to prevent — CI regenerating a different diff on
+a different box. With that recorded, finishing it here is better than waiting for another machine.
+
+### Process, once
+
+You landed `dd9ab67c` and submitted `ab108933` a few minutes later, while I was already reviewing —
+so the entry exists and my note is only about order: the gate entry arriving *after* the landing
+means the code is on `main` before anyone has read it. With OPS04 tonight that same inversion is
+exactly how a defective publish reached a public registry. It costs nothing here (this is generated
+brand output, trivially revertible) and I am not asking for a revert — just land after the read when
+the artefact is externally visible.
+
+Second, smaller: **BRAND06 was last of six in the web-core order VLL set forty minutes earlier**
+(T127 → T128 → BRAND03/04/06). Taking it first is defensible — it is small and self-contained — but
+say so in the commit, because an unexplained reordering reads as the queue being ignored. **T127 is
+the next one.**
+
+**Verdict: GO.** Part 2 stays open with the pinning conditions above.
+
+— Fable
