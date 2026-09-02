@@ -27225,3 +27225,81 @@ worse than a redundant one. When it skips, the release keeps naming the commit i
 built from, which is more honest than re-stamping it with a docs commit.
 
 — Fable
+
+---
+
+## OPS04 — **the image is real and it tells the truth. Two defects, one already demonstrated in public**
+
+Landed as `bef559fe` **without a gate submission** — there is no OPS04 entry above this one, so this
+verdict is written after the fact, against a public registry. Saying it once, without drama: the
+work is largely good and I would have said GO. The order still matters, because two of the findings
+below are the kind a reviewer catches before an artefact is world-readable, not after.
+
+**Verified on the pulled artefact, not on the report.**
+
+- `vincentleligeour/troubastack:latest` exists, `linux/amd64`, 128,687,386 B, and pulls
+  unauthenticated (digest `sha256:cf89e653926b…`).
+- `docker inspect` on the **pulled** image: `title=TroubaStack`, `licenses=Apache-2.0`,
+  `url=https://yoda-jm.github.io/troubastack/`, `source=…/yoda-jm/troubastack`, and
+  `revision`/`version` both `bef559fe4870…` — the publishing commit, not a placeholder.
+- The decisive one, run rather than read: `docker run` the pulled image →
+  `/api/version` returns `"version":"bef559fe4870…"`, `"builtAt":"2026-09-02T20:02:24Z"`.
+  **Not the word `docker`, not `unknown`.** That was the acceptance criterion that made this task
+  supportable at all under the latest-only decision, and it is met.
+- Compose pulls (`image:`) with the source build preserved behind `docker-compose.build.yml`.
+- Sweep clean: no live surface still claims "no published registry image", and both `README.md:116`
+  and the page state **linux/amd64** with the arm64 gap called out. The remaining grep hits are
+  historical records (reviews, the audit, the specs) — correctly left alone.
+- Fork-PR guard reads correctly: `docker/login-action` **and** `push:` are both gated on
+  `github.event_name == 'push' && github.ref == 'refs/heads/main'`. **I could not execute a fork PR**,
+  so this is read, not run — stated as such.
+
+**They were right about my spec, and I was wrong.** OPS04 §4 said "tag `latest` and
+`main-<short-sha>`" while decision (b) said latest-only. That is a contradiction I wrote. They
+followed the dated decision and flagged it instead of silently picking one. Correct call.
+
+### Finding 1 — CRITICAL: the image publishes independently of the tests, and already has
+
+The commit is titled *"on every green **main** push"*. The workflow does not implement "green":
+the `image` job has **no `needs:`**, so it runs in parallel with `go`, `web`, `e2e` and `android`
+and pushes as soon as the build finishes. Compare `release-apk`, which carries `needs: [android]`.
+
+This is not theoretical — it happened on the very first publish. Run `33676872701` for `bef559fe`
+finished **`cancelled`**; per-job, only `proto` ever reached `success`, while `go`, `web`, `e2e`,
+`android` and `image` itself are all recorded `cancelled`. The Docker Hub tag was nonetheless
+pushed at **20:03:05Z**, 25 s before the `image` job's own cancellation at 20:03:30Z. **So the
+image the world can pull right now comes from a commit whose test suite never reported a result.**
+
+The workflow-level `concurrency: group: ci-${{ github.ref }}, cancel-in-progress: true` (ci.yml:25)
+makes this sharper rather than softer: on `main` any newer push cancels the running one, and a
+publish with no `needs:` can slip out of a run that is being torn down.
+
+**Fix:** `needs: [go, web, e2e]` (plus whatever else must hold) on `image`, or move the push into a
+separate job that depends on them — the shape `release-apk` already uses.
+
+**And the cancellation was mine.** My T128 docs push landed minutes later and cancelled their run.
+That is a trap I have written into my own notes and walked into again.
+
+### Finding 2 — the churn VLL already made me fix, now on a registry
+
+`image` has no path filter, so **any** push to `main` republishes `latest`. Demonstrated within
+three minutes: my documentation-only commit `5ce701f8` republished the tag at **20:04:51Z**.
+
+For OPS05 VLL explicitly asked to restrict publishing to pushes touching `app/`, and he was right.
+The analogue here is stricter, not looser, because latest-only carries **no immutable tag**: a
+docs commit silently moves the thing every `docker compose pull` fetches, and there is nothing to
+pin or roll back to. Restrict to pushes touching what actually goes into the image — `core/`,
+`web/studio`, `web/ink`, `web/bake`, `Dockerfile`, `go.mod`/`go.sum` — using the compare-API,
+fail-open pattern already in `release-apk`, since a workflow-level `paths:` filter would gate the
+whole of CI rather than this job.
+
+### Finding 3 — the concurrency guard from §5 is missing, and unflagged
+
+Spec item 5 asked for a concurrency group on the publish so two quick merges cannot race an older
+build into `latest`. It is absent, and unlike the §4 contradiction it was not flagged. Small, but
+the deviations that get recorded are the ones that stay honest.
+
+**Verdict: keep it — the artefact is correct and the sweep is done — but Findings 1 and 2 are a
+few lines each and the registry is public. They should not wait.**
+
+— Fable
