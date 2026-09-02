@@ -16,6 +16,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual republish of the Docker image without a code change — the escape hatch latest-only needs
+  # (no immutable tag to re-point). Runs the full suite; the image job publishes green-gated (below).
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -394,11 +397,15 @@ jobs:
       # missed publish is worse than a redundant one.
       - name: does image content change?
         id: gate
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
           BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
         run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "manual dispatch - forcing a republish of current main"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             echo "base unknown - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
