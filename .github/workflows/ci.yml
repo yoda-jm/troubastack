@@ -366,6 +366,15 @@ jobs:
   # production image or checked the compose stack — the least-verified files in a heavily-verified repo,
   # and the ones a self-hoster deploys. Build-only: no registry, no push (publishing is audit F5).
   image:
+    # Finding 1 (Fable): publish only from a GREEN commit — wait for the test gates rather than
+    # racing them. Without this the image pushed from a run being torn down, built from a commit
+    # whose suite never reported. android is not in the image, so it is not a gate here.
+    needs: [go, web, e2e]
+    # Finding 3 / spec §5: serialize publishes so two quick merges cannot race an older build into
+    # `latest`; do not cancel a publish mid-push (the newest queued one wins).
+    concurrency:
+      group: docker-image-publish
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -377,11 +386,38 @@ jobs:
       - name: build timestamp (BUILT_AT, ISO-8601 UTC)
         id: bt
         run: echo "at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-      # Log in to Docker Hub ONLY on a push to main. A fork's pull request builds the image below
-      # (validation) but never reaches the credential, because this step and the push are skipped
-      # for it — OPS04's security core: the build stays on PRs, the login and push do not.
-      - name: log in to Docker Hub
+      # Finding 2 (Fable): republish `latest` only when what goes INTO the image could have changed.
+      # Otherwise every main push — docs included — silently moves the tag every `compose pull`
+      # fetches, and latest-only has no immutable tag to roll back to. A workflow-level paths: filter
+      # would gate all of CI, so decide here via the compare API (same fail-open pattern as
+      # release-apk). FAIL OPEN — branch creation / force push / API error → publish, because a
+      # missed publish is worse than a redundant one.
+      - name: does image content change?
+        id: gate
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "base unknown - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" \
+                         --jq '.files[].filename' 2>/dev/null); then
+            echo "compare failed - publishing anyway"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # core/ covers core/go.mod and core/go.sum; web/{studio,ink,bake} and the Dockerfile are
+          # the rest of what the multi-stage build actually copies in.
+          if printf '%s\n' "$files" | grep -qE '^(core/|web/studio/|web/ink/|web/bake/|Dockerfile$)'; then
+            echo "image content touched - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no image-content change - keeping the published image"; echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+      # Log in to Docker Hub ONLY when we are actually going to push (main + image content changed).
+      # A fork's pull request builds the image below (validation) but never reaches the credential —
+      # OPS04's security core: the build stays on PRs, the login and push do not.
+      - name: log in to Docker Hub
+        if: steps.gate.outputs.publish == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -391,8 +427,9 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          # Built on every push/PR (validates the Dockerfile from scratch); pushed ONLY on a main push.
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          # Built on every push/PR (validates the Dockerfile from scratch); pushed ONLY when the gate
+          # above says so — a green main push whose diff touched image content.
+          push: ${{ steps.gate.outputs.publish == 'true' }}
           tags: vincentleligeour/troubastack:latest
           # latest-only carries no immutable tag (OPS04 decision b), so the commit + build time
           # threaded into buildinfo are the image's ONLY traceability — `docker run …` reports them.
