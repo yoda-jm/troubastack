@@ -52,14 +52,14 @@ Everything below is host-side; paths assume the repo worktree + Android SDK on P
      rm -rf /tmp/bw && mkdir /tmp/bw && (cd /tmp/bw && unzip -q .../docs/demo/demo-concert.tstage)
      SEG=$(python3 -c "import json;print(''.join(c if c.isalnum() or c in '-_' else '_' for c in json.load(open('/tmp/bw/bundle.json'))['concertId']))")
      adb -s <ip>:5555 shell rm -rf /data/local/tmp/bw && adb -s <ip>:5555 push /tmp/bw /data/local/tmp/bw
-     adb -s <ip>:5555 shell run-as com.troubashare.app sh -c "rm -rf files/bundles/$SEG && mkdir -p files/bundles/$SEG && cp -r /data/local/tmp/bw/. files/bundles/$SEG/"
+     adb -s <ip>:5555 shell run-as com.troubastack.app sh -c "rm -rf files/bundles/$SEG && mkdir -p files/bundles/$SEG && cp -r /data/local/tmp/bw/. files/bundles/$SEG/"
      ```
 
 ---
 
 ## The run (~5 min)
 
-Wake + launch: `adb -s <ip>:5555 shell input keyevent KEYCODE_WAKEUP; adb -s <ip>:5555 shell monkey -p com.troubashare.app -c android.intent.category.LAUNCHER 1`
+Wake + launch: `adb -s <ip>:5555 shell input keyevent KEYCODE_WAKEUP; adb -s <ip>:5555 shell monkey -p com.troubastack.app -c android.intent.category.LAUNCHER 1`
 
 1. **Home** → cold-start lands on the landing page. **A31:** two branded products —
    **TroubaStage** (perform) + **TroubaStudio** (author/manage; Concerts nests inside it) —

@@ -15,7 +15,7 @@ baked file to a musician reading a page has never been exercised end to end, on 
 
 Two facts I established before writing this, both worth knowing on their own:
 
-1. **The tablet has never held a bundle.** `run-as com.troubashare.app ls files/bundles` on the
+1. **The tablet has never held a bundle.** `run-as com.troubastack.app ls files/bundles` on the
    device (`23073RPBFG`, Android 15, current-main APK installed 2026-08-29) returns an **empty
    directory**. Not stale, not damaged — empty. The download path has not run on this hardware.
 2. **The demo server has nothing to download.** Its only setlist has a bake directory

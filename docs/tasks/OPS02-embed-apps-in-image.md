@@ -1,5 +1,11 @@
 # OPS02 — Docker image embeds the ready apps + a download link in Studio
 
+> **Superseded detail (BRAND02, 2026-09-02):** the served artifact was renamed
+> with the app — the endpoint is now `/apps/troubastage.apk` and the on-disk file
+> `deploy/apps/troubastage.apk`. The paths quoted below are the ones this task
+> shipped; the contract is otherwise unchanged.
+
+
 **Priority:** normal (VLL 2026-07-19: "a docker image that also embeds the apps that
 are ready and there is a link to download them") · **Size:** M · **Area:** deploy/
 Dockerfile + CI, core (static route + manifest), `web/studio` (the link/QR card).

@@ -48,7 +48,7 @@ the task file too) → present at review gate → this role verifies → land li
 - App claims ⇒ the Pixel_7 AVD at `~/Android/Sdk` (headless:
   `-no-window -gpu swiftshader_indirect`). New worktrees need
   `app/local.properties` with `sdk.dir`. To skip the SAF picker, inject bundles via
-  `adb shell run-as com.troubashare.app`. Under heavy host load the emulator ANR-storms
+  `adb shell run-as com.troubastack.app`. Under heavy host load the emulator ANR-storms
   — schedule attended/e2e-sensitive work (like T15) for a quiet machine.
 - CI ⇒ query the GitHub API for the head SHA's run + per-job conclusions (auth: `gh`
   or the credential already configured in the git remote — do not copy it anywhere).

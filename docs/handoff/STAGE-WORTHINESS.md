@@ -35,7 +35,7 @@ Kill the app mid-song; reopen; land back in the same concert, same song/page/fit
 
 1. Home → *Resume* → Stage opens at song 1/4, page 1/6.
 2. Advanced to **song 2/4, page 3/6**.
-3. `adb shell am force-stop com.troubashare.app`, relaunch.
+3. `adb shell am force-stop com.troubastack.app`, relaunch.
 4. **Lands on Home**, not the Stage.
 5. *Resume* returns to **song 1/4, page 1/6** — the start, not where the set was.
 
