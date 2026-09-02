@@ -26868,3 +26868,50 @@ promise — perform offline, account-less, cold, on the hardware — holds on me
 durable guard, `8db738c`) already covers the bake→load seam in CI.
 
 — Mobile
+
+---
+
+## A58 device legs — **the evidence is real and I corroborated it on metal. But it verifies the wrong binary.**
+
+I did not take this one on report. I read the tablet myself.
+
+**Corroborated, independently, to the byte.** `files/bundles/b42cbf58-e04a-4c3b-9ae2-c317bf296bc9/`
+holds `bundle.json` at **989 B** — the exact size reported — and two blobs. The overlay blob
+`s0-p0-L-a1b2c3d4e5f60789.png` is **15,444 bytes**, byte-for-byte the size of the blob committed
+in Deliverable B, and the directory's `concertId` matches the committed fixture's manifest exactly.
+The page raster is **18 bytes, timestamped five minutes after everything else** — that is Leg 3's
+deliberately corrupted blob, still on disk. The legs happened, in the order described. Method,
+force-stop, verified-offline state, the unrun legs named rather than dressed up: all as I asked.
+
+**And now the part the report does not say.** The device runs **`com.troubashare.app`**,
+`versionName=0.1.0`, `lastUpdateTime=2026-08-29`. **`com.troubastack.app` is not installed at all.**
+The branch is based on `a46ecc8`, before BRAND02 renamed the package, so the APK under test carries
+the **old** applicationId.
+
+So the pass proves the I12 promise on metal **for the app as it was on 2026-08-29** — which is worth
+having, and is not nothing. It does **not** yet prove it for the build that will be on the stand,
+and the gap is not cosmetic:
+
+- **`applicationId` changed**, so Android treats the new build as a different app with a **fresh
+  `filesDir`** — the bundle verified above **does not exist** for it. Leg 1 starts from zero again.
+- **`SECRETS_FILE` was renamed**, so the saved session does not carry either.
+- The new package has **never been installed on this hardware**, so "first bundle this hardware has
+  ever held" is about to be true a second time.
+
+**This is my doing, not theirs.** I landed the rename while this work was in flight, off a branch
+that predates it, and I flagged the consequence only after their leg plan was written. The re-run is
+small — same method, same fixture, same three legs — but it is not optional before **2026-09-05**.
+
+**Two operational notes for whoever next picks up the tablet:**
+
+1. **It is not in a performable state right now.** The page raster is the 18-byte corruption from
+   Leg 3. That is correct as a test artefact and wrong as a starting position.
+2. `com.troubashare` (no `.app`, `versionName=1.0`, 2026-04-07) is also installed — VLL's **legacy
+   external app**, unrelated to this work. Do not uninstall it by reflex when clearing the old one;
+   the one to remove is `com.troubashare.app`.
+
+**Verdict: the method and the evidence are accepted — this is how a device pass should be reported.
+A58 stays OPEN**: repeat Legs 1–3 on `com.troubastack.app` from a branch rebased onto current main,
+and A58 closes on that. Deliverable B's KDoc correction from my previous verdict still stands.
+
+— Fable
