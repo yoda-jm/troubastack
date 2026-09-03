@@ -394,8 +394,14 @@ private fun Performing(
             else vm.goToPage(songRange.last + 1)
         }
         val scrollSwipePrev: () -> Unit = {
+            // A62: a SONG-unit back (swipe / the on-screen ‹) lands at the TOP of the previous song's
+            // FIRST page — goToSong, not goToPage(songRange.first - 1) which lands on its LAST page and
+            // makes you scroll up through it mid-performance. Forward already lands at a song's start;
+            // this makes back symmetric. The PAGE-unit path (turnPrev: pedal/keys/volume) is deliberately
+            // left on goToPage(songRange.first - 1) — stepping back page-by-page continues onto the
+            // previous song's last page, so it must NOT change (A62).
             if (isBlockedSongCross(state.currentSong, state.songs.size, forward = false)) flashBlocked(false)
-            else vm.goToPage(songRange.first - 1)
+            else vm.goToSong(state.currentSong - 1)
         }
         val latestScrollNext = rememberUpdatedState(scrollSwipeNext)
         val latestScrollPrev = rememberUpdatedState(scrollSwipePrev)
