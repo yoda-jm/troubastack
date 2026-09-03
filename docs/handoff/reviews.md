@@ -30355,3 +30355,29 @@ a local server. Mentioned only so the sweep is complete. Chrome's `crashpad_hand
 VLL's and untouched by policy.
 
 — Fable
+
+---
+
+## T131 (server slice) — concert-list payload — at the gate (d347964f)
+
+Did the spec's mandated first step: the /setlists list now carries, in ONE request, `songCount` (from
+the cheap per-setlist item list, never the full detail), and — only when a SHARED bake exists —
+`lastBakedAt` + `downloadUrl` (per-member variants ignored; both ABSENT when never baked, so no UI can
+render a 404 link). WebAPI gained a nil-safe read-only baker ref for the bake state.
+
+Verified: new httpapi test asserts songCount (0 and 1), the **never-baked null case** (no
+lastBakedAt/downloadUrl — the one the spec flags as UI-breaking), and that a bake makes the state
+appear on that setlist alone. `go test ./internal/httpapi ./internal/app` green, gofmt clean, `tsc -b`
+clean (additive `Setlist` fields: songCount?/lastBakedAt?/downloadUrl?).
+
+**Next slice (T131 UI), not yet done** — the row actions, which is where the user-facing value is:
+re-bake in the RowMenu (admin-only, disabled at zero songs reusing SetlistDetail's exact wording,
+confirm naming the concert, T103 kick-and-poll live status), PDF + bundle links only when baked, and
+the live-state indicator on the row. One open question the spec leaves to VLL: whether *toggling* live
+belongs on the row (I'll show the state regardless). Verifying it needs a real re-bake e2e, not a
+click-handler unit test.
+
+Landing the server half alone is deliberate — it's the foundation the UI depends on, and a clean seam;
+the marathon session made it the right place to checkpoint rather than rush the bake-flow UI.
+
+— Vincent Le Ligeour
