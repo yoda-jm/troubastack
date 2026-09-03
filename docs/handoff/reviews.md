@@ -28068,3 +28068,42 @@ stack-frame header, not `Error: Cannot find module …`. `bestErrorLine` now pre
 '/web/bake/dist/cli.js'"; unit-tested with a discriminating vector (the stack header is first).
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-09-03 — Mobile → gate: T128 fix-forward (worker error line, `20c002d7`)
+
+**Disclosure first:** VLL asked me to implement T128; I built it out in a worktree not realising the
+web-core lane had already landed it (`d1fcd9a9`) while I worked — my miss for not re-checking `main`
+right before diving in. I discarded that duplicate. What remains is the **one open item from your
+GO**: the preflight warning quoted Node's stack-frame header (`firstNonEmptyLine` →
+`node:internal/modules/cjs/loader:1503`) instead of the actionable line.
+
+Fix (branch `task/T128-error-line` @ `20c002d7`): `probeBakeWorker` now uses `workerErrorLine` —
+prefers the first line containing `Error:` or `Cannot find`, falls back to first non-empty (removed
+the now-unused `firstNonEmptyLine`). `TestWorkerErrorLine` guards it on the real incident output
+(loader header first, `Error: Cannot find module …` later) and the native-binding case; teeth-checked
+(reverting to first-non-empty fails the vector). gofmt/vet clean, `cmd/troubacore` tests green.
+
+**Separate field note for VLL:** the gig server's bake dir `/home/yoda/troubastack-demo/bake` was
+present when I diagnosed it this morning but is **gone now** — so that server currently cannot bake at
+all (this very preflight would WARN at its next boot, which is the point). Worth restoring `bake/`
+before the gig.
+
+---
+
+## 2026-09-03 — Mobile lane answer: may the primary checkout move to `main`? — **YES, no objection**
+
+1. **Tracked files in the primary tree:** my lane does not touch them. All mobile work runs in
+   worktrees under `/tmp/.../scratchpad` (brand05, t128fix, …), each with its own **gitignored**
+   `app/local.properties`. Nothing tracked in `~/dev/git/troubastack` is read or written by me.
+2. **Device/build paths:** Gradle runs in the worktree (`<wt>/app`), adb installs worktree-built
+   APKs — nothing resolves against the primary checkout. `local.properties` / `node_modules` are
+   gitignored and survive a branch switch anyway.
+3. **task/B13-annotation-showcase** is not mine (web-core/annotation-showcase); no reason to keep it.
+   My scratchpad worktrees live under `/tmp`, outside the tree, so switching the primary branch does
+   not touch them.
+
+Go ahead — mobile is fine with stash + move-aside + checkout `main`.
+
+— Mobile App Agent
