@@ -34,7 +34,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.distribution.Availability
 import com.troubastack.shared.distribution.BakeStatus
@@ -143,6 +148,18 @@ sealed interface StudioTile {
  * tile that flashed "Sign in to manage concerts" for a beat on each return Home — then enabled — would be
  * worse than one that is briefly and quietly unavailable.
  */
+/**
+ * BRAND09 (VLL): a product wordmark is two-tone like the brand — "Trouba" in [ink], only the product
+ * word ("Stage"/"Studio") in the product [accent]; the leading [mark] glyph rides the accent as the
+ * product marker. NOT the whole word in the accent (that was the first cut, corrected on VLL's eye).
+ */
+private fun productWordmark(mark: String, product: String, accent: Color, ink: Color): AnnotatedString =
+    buildAnnotatedString {
+        withStyle(SpanStyle(color = accent)) { append(mark) }
+        withStyle(SpanStyle(color = ink)) { append("Trouba") }
+        withStyle(SpanStyle(color = accent)) { append(product) }
+    }
+
 fun studioEnablement(identity: Identity): StudioTile = when (identity) {
     is Identity.Connected -> StudioTile.Enabled
     is Identity.SignedOut, is Identity.NotSetUp -> StudioTile.Disabled("Sign in to manage concerts")
@@ -446,7 +463,7 @@ fun HomeScreen(
                 border = BorderStroke(1.5.dp, accents.stage),
             ) {
                 Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("▶  TroubaStage", style = MaterialTheme.typography.headlineSmall, color = accents.stage)
+                    Text(productWordmark("▶  ", "Stage", accents.stage, MaterialTheme.colorScheme.onSurface), style = MaterialTheme.typography.headlineSmall)
                     Text(
                         when {
                             state.lastConcertName.isNotEmpty() -> state.lastConcertName
@@ -501,12 +518,12 @@ fun HomeScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "✎  TroubaStudio",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = if (studioEnabled) accents.studio
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    )
+                    if (studioEnabled) {
+                        Text(productWordmark("✎  ", "Studio", accents.studio, MaterialTheme.colorScheme.onSurface), style = MaterialTheme.typography.titleLarge)
+                    } else {
+                        // Disabled: the whole wordmark greys out (the disabled signal wins over the brand two-tone).
+                        Text("✎  TroubaStudio", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    }
                     Text(
                         when (studio) {
                             is StudioTile.Disabled -> if (studio.reason.isNotEmpty()) studio.reason else "Author, import & manage concerts"
