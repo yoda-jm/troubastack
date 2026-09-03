@@ -14,6 +14,9 @@ import kotlin.test.assertTrue
  */
 class BeatPhaseTest {
 
+    // A67: the count-in length is metre-aware; 4/4 (the default) is two bars = 8 units. Was COUNT_IN_BEATS.
+    private val countIn = countInUnits(DEFAULT_GROUPS)
+
     @Test
     fun stageBeat_defaultsToCountIn_notInfinite() {
         // A40: the default must be the two-bar count-in, not ∞. A default sitting wrong is invisible
@@ -27,7 +30,7 @@ class BeatPhaseTest {
         // too. A default tap arms a count-in; with ∞ on it arms the continuous count.
         val b = StageBeat()
         b.toggle(120)
-        assertEquals(COUNT_IN_BEATS, b.beats, "a default toggle must arm a count-in, not an endless run")
+        assertEquals(countIn, b.beats, "a default toggle must arm a count-in, not an endless run")
         b.stop(); b.continuous = true; b.toggle(120)
         assertEquals(CONTINUOUS_BEATS, b.beats, "with the opt-in on, toggle must arm the continuous count")
     }
@@ -51,10 +54,10 @@ class BeatPhaseTest {
 
     @Test
     fun eightBeats_isTwoBarsOf4_downbeatsAt0and4() {
-        assertEquals(8, COUNT_IN_BEATS)
+        assertEquals(8, countIn)
         assertEquals(
             listOf(true, false, false, false, true, false, false, false),
-            (0 until COUNT_IN_BEATS).map { isDownbeat(it) },
+            (0 until countIn).map { it % unitsPerBar(DEFAULT_GROUPS) == 0 },
         )
     }
 
@@ -66,9 +69,9 @@ class BeatPhaseTest {
         var onsets = 0
         val litBeats = mutableSetOf<Int>()
         var t = 0.0
-        val end = COUNT_IN_BEATS * interval + 50
+        val end = countIn * interval + 50
         while (t <= end) {
-            val p = beatPhase(t, interval, COUNT_IN_BEATS)
+            val p = beatPhase(t, interval, countIn)
             if (p.lit && !prevLit) { onsets++; litBeats.add(p.beatIndex) }
             prevLit = p.lit
             t += 1.0
@@ -93,28 +96,28 @@ class BeatPhaseTest {
         assertEquals(200, beatPhase(200 * interval, interval, CONTINUOUS_BEATS).beatIndex)
         assertEquals(200, beatPhase(200 * interval + 5, interval, CONTINUOUS_BEATS).beatIndex) // within ±5 ms
         // the 90-bpm truncation guard: a 666-ms truncation would put elapsed 1333 on beat 2.
-        assertEquals(1, beatPhase(1333.0, intervalMs(90), COUNT_IN_BEATS).beatIndex)
+        assertEquals(1, beatPhase(1333.0, intervalMs(90), countIn).beatIndex)
     }
 
     @Test
     fun countInEnds_noLitPastTheLastBeat() {
-        assertEquals(8, beatPhase(COUNT_IN_BEATS * 500.0, 500.0, COUNT_IN_BEATS).beatIndex)
-        assertFalse(beatPhase(COUNT_IN_BEATS * 500.0, 500.0, COUNT_IN_BEATS).lit)
-        assertFalse(beatPhase((COUNT_IN_BEATS + 3) * 500.0, 500.0, COUNT_IN_BEATS).emphasis)
+        assertEquals(8, beatPhase(countIn * 500.0, 500.0, countIn).beatIndex)
+        assertFalse(beatPhase(countIn * 500.0, 500.0, countIn).lit)
+        assertFalse(beatPhase((countIn + 3) * 500.0, 500.0, countIn).emphasis)
     }
 
     /** The edge-frame envelope: full at the beat, eased to nothing before the next, dark between. */
     @Test
     fun beatFrame_pulsesThenGoesDark() {
         val interval = 500.0
-        val atBeat = beatFrame(0.0, interval, COUNT_IN_BEATS)!!
+        val atBeat = beatFrame(0.0, interval, countIn)!!
         assertTrue(atBeat.env > 0.99f, "full envelope at the beat")
         assertEquals(0, atBeat.tier, "unit 0 is the bar (tier 0)")
         // decay(500) = min(220, 375) = 220 → dark once msSinceBeat ≥ 220
-        assertNull(beatFrame(220.0, interval, COUNT_IN_BEATS), "dark between pulses")
-        assertNull(beatFrame(499.0, interval, COUNT_IN_BEATS), "still dark just before the next beat")
-        assertEquals(1, beatFrame(500.0, interval, COUNT_IN_BEATS)!!.tier, "unit 1 is a felt pulse (tier 1) in 4/4")
-        assertNull(beatFrame(-1.0, interval, COUNT_IN_BEATS), "dark before start")
-        assertNull(beatFrame(COUNT_IN_BEATS * interval, interval, COUNT_IN_BEATS), "dark after the count")
+        assertNull(beatFrame(220.0, interval, countIn), "dark between pulses")
+        assertNull(beatFrame(499.0, interval, countIn), "still dark just before the next beat")
+        assertEquals(1, beatFrame(500.0, interval, countIn)!!.tier, "unit 1 is a felt pulse (tier 1) in 4/4")
+        assertNull(beatFrame(-1.0, interval, countIn), "dark before start")
+        assertNull(beatFrame(countIn * interval, interval, countIn), "dark after the count")
     }
 }

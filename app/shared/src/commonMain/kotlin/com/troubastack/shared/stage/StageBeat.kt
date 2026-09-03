@@ -60,7 +60,8 @@ data class BeatMark(val number: Int, val tier: Int)
 
 /**
  * A silent, read-only beat controller. [toggle] starts/stops the metronome; the [continuous] (∞)
- * flag chooses keep-running vs an 8-beat count-in that self-stops. Idle when [beats] is 0. Each
+ * flag chooses keep-running vs a two-bar metric count-in that self-stops ([countInUnits] — 8 units in
+ * 4/4, 6 in 3/4, 12 in 6/8; NOT a fixed 8 beats). Idle when [beats] is 0. Each
  * start/stop bumps [runToken] so the driver effect (re)starts. The current visual is pushed out
  * through [frame]/[beatLabel] (snapshot-state the Stage observes), so the border + centre count
  * recompose but the controller stays render-agnostic.

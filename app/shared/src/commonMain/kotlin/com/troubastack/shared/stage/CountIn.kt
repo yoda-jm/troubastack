@@ -19,17 +19,12 @@ import kotlin.math.pow
  * kept next to the phase but re-tuned for the stage (a dark room at arm's length, not a lit desk).
  */
 
-/** Beats per bar — downbeats fall on beat 0, 4, 8, … */
-const val BEATS_PER_BAR = 4
-
-/** A count-in is two bars of 4/4 — the beat count used when the ∞ (continuous) toggle is OFF. */
-const val COUNT_IN_BEATS = BEATS_PER_BAR * 2
-
-/** Continuous ("keep running") mode: an effectively unbounded beat count. */
+/** Continuous ("keep running") mode: an effectively unbounded beat count. The count-in length is
+ *  metre-aware — [countInUnits] (two bars in metric units), not a fixed 8 (A67 retired the 4/4 constants). */
 const val CONTINUOUS_BEATS = Int.MAX_VALUE
 
 // ---------------------------------------------------------------------------------------------------
-// A35/T86 — the METRIC GRID. A34 assumed 4/4 (BEATS_PER_BAR = 4); T86 makes the metre a property of the
+// A35/T86 — the METRIC GRID. A34 assumed 4/4; T86 makes the metre a property of the
 // song and replaces "pulses per bar" with GROUP LENGTHS in metric units (4/4→[1,1,1,1], 6/8→[3,3],
 // additive 3+4/8→[3,4]). Every unit then gets a TIER: 0 bar (unit 0) · 1 felt pulse (a group start) ·
 // 2 free subdivision (everything else). This is the Kotlin mirror of web/studio/src/beatPhase.ts; both
@@ -157,9 +152,6 @@ fun beatPhase(elapsedMs: Double, intervalMs: Double, beats: Int, groups: List<In
     val emphasis = active && tier == 0
     return BeatPhase(beatIndex, lit, tier, emphasis)
 }
-
-/** Beat 1 of each 4/4 bar. */
-fun isDownbeat(beatIndex: Int): Boolean = beatIndex % BEATS_PER_BAR == 0
 
 /**
  * The visual envelope for the edge frame at [elapsedMs], or null when the frame is dark (before start,
