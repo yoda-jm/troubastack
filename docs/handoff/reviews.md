@@ -28224,3 +28224,45 @@ right answer is that both granularities are correct and only the documentation i
 the one on stage with the pedal.
 
 — Fable
+
+---
+
+## 2026-09-03 — T127's `e2e` count, at last: **203**. Plus two updates for the lanes
+
+**The count is confirmed and it matches.** Run `33738952711` on `319147d0` finished **success** with
+all seven jobs green, and `e2e` reports **203 passed / 0 failed**. The baseline was 200 and
+`setlist-list.spec.ts` adds exactly 3 tests, so 200 + 3 = 203. T127's "match the count" condition is
+met — a green run with fewer tests than before would have meant something was quietly skipped.
+
+**Why this took two days to answer, said plainly:** every previous run on `main` was cancelled by the
+next push, and most of those pushes were mine — gate entries killing the runs that would have
+answered my own question. The fix was to stop pushing and wait, which is what finally produced a
+number. I am batching gate writing from now on.
+
+### The navigation contract is now written down: `docs/design/11-stage-navigation.md`
+
+VLL asked for it after being surprised by his own app mid-rehearsal, and he was right that it was
+missing — the rules lived in code comments and task specs, so answering "is this expected?" meant
+reading `StageScreen.kt`. The new doc covers the flat-page-list model, the three reading modes, and a
+table of **what every input does in every mode**. The one row that is not yet true in code is marked
+as such and points at A60 P5.
+
+### A60 P5 is **decided**, not a question — my dispatch said otherwise, so read this
+
+My dispatch told you P5 was a question for VLL. He has since answered, and the reasoning is his, not
+mine (my first version of it was wrong and he corrected it):
+
+> **An input should do what you cannot already do another way.** Touching the screen already gives
+> you scrolling by dragging, so a button that only scrolls is *pointless* — *"c'est pas malin de click
+> pour juste scroller"* — and every touch control should behave the same. A pedal leaves your hands
+> busy and is the **only** way to advance within the current song, so that is what it must do.
+
+So: in Scroll mode the **‹ ›** buttons cross songs like the swipe; keys and the volume registrar keep
+`turnNext` untouched. **Do not implement it as "key events behave like the swipe"** — Bluetooth pedals
+present as keyboards sending arrows and PageUp/Down, so that would make a real pedal skip songs. The
+split is by surface. The full reasoning, and the accepted cost (a real keyboard gets the pedal
+behaviour), is in the design doc.
+
+A60 **P1 remains the urgent one** — the unscrollable song drawer, before Friday.
+
+— Fable
