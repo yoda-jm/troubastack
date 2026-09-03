@@ -152,7 +152,7 @@ for i, s in enumerate((48, 32, 16)):
 
 # ---------------------------------------------------------------- wordmarks
 txt(760, 1036, "WORDMARK LOCKUPS", 13, MUTED, 700, ls=1.6)
-txt(760, 1056, "live text — outline the type before the website ships", 12, MUTED)
+txt(760, 1056, "preview — the shipped wordmarks are outlined paths (*-wordmark.svg)", 12, MUTED)
 for i, mark in enumerate(B.MARKS):
     x, y = 760 + (i % 2) * 300, 1076 + (i // 2) * 106
     o.append(f'<rect x="{x}" y="{y}" width="284" height="92" rx="14" fill="#202C37"/>')

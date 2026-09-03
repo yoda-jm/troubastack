@@ -15,6 +15,8 @@ from collections import Counter
 from xml.etree import ElementTree
 from pathlib import Path
 
+import wordmark_paths as wp  # BRAND06: the outlined lockup glyphs — committed paths, no font dependency
+
 ROOT = Path(__file__).resolve().parent
 SRC, DIST = ROOT / "src", ROOT / "dist"
 
@@ -136,9 +138,10 @@ width="1024" height="1024" role="img" aria-label="{label}">
 
 
 # --- wordmark lockups ------------------------------------------------------
-# NOTE: these use live <text>, so they render with whatever font the viewer has.
-# Before shipping to the website, outline the type in a vector editor (or embed
-# a licensed webfont) — otherwise the lockup drifts per machine.
+# BRAND06 part 2: the lockup type is now OUTLINED — the glyphs are committed vector paths in
+# wordmark_paths.py, so the wordmark no longer depends on a viewer's (or a build machine's) font.
+# The strings below stay the source of truth for the NAMES + TAGLINES; changing one means
+# re-outlining by the recipe in wordmark_paths.py (a deliberate manual step).
 WORDMARKS = {
     "troubastack":  ("Stack",  "THE PLATFORM FOR MUSICIANS"),
     "troubastudio": ("Studio", "READ. HIGHLIGHT. ANNOTATE. CREATE."),
@@ -160,7 +163,6 @@ ACCENT = {
     "troubastage":  {"dark": "#C8912A", "paper": "#936B1F"},  # 5.11 / 4.81
     "troubacore":   {"dark": "#3E89EA", "paper": "#1769D1"},  # 4.04 / 5.28
 }
-FONT = "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif"
 
 
 def _rel_luminance(hexc: str) -> float:
@@ -178,24 +180,28 @@ def _contrast(a: str, b: str) -> float:
     la, lb = _rel_luminance(a), _rel_luminance(b)
     return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 
+# BRAND06 part 2: the name and tagline are committed OUTLINE PATHS (wordmark_paths.py), not <text>.
+# {trouba} is the shared "Trouba" glyphs (base fill); {tail_path} the accent tail; {tagline_path} the
+# tagline. {tail} remains the plain STRING, used only for the accessible name/title.
 WORDMARK_TEMPLATE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220" \
 width="900" height="220" role="img" aria-label="Trouba{tail}">
 <title>Trouba{tail}</title>
-{ground}<text x="40" y="118" font-family="{font}" font-size="88" font-weight="700">\
-<tspan fill="{base}">Trouba</tspan><tspan fill="{accent}">{tail}</tspan></text>
-<text x="44" y="168" font-family="{font}" font-size="25" font-weight="500" \
-letter-spacing="3.4" fill="#A7ACB5">{tagline}</text>
+{ground}<path d="{trouba}" fill="{base}"/><path d="{tail_path}" fill="{accent}"/>
+<path d="{tagline_path}" fill="#A7ACB5"/>
 </svg>
 """
 
 
 def wordmark(mark: str, tail: str, tagline: str, ground: str | None,
              base: str) -> str:
+    # `tagline` (the string) is kept in the signature as the documented source of the outlined
+    # tagline path; the glyphs themselves come from wordmark_paths (frozen — see its recipe).
     rect = (f'<rect x="0" y="0" width="900" height="220" rx="26" fill="{ground}"/>\n'
             if ground else "")
     accent = ACCENT[mark]["paper" if ground is None else "dark"]
-    return WORDMARK_TEMPLATE.format(tail=tail, tagline=tagline, ground=rect,
-                                    base=base, accent=accent, font=FONT)
+    return WORDMARK_TEMPLATE.format(tail=tail, ground=rect, base=base, accent=accent,
+                                    trouba=wp.TROUBA, tail_path=wp.TAILS[mark],
+                                    tagline_path=wp.TAGLINES[mark])
 
 
 def check(path: Path) -> None:

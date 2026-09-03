@@ -117,10 +117,14 @@ built from plain shapes and gradients.
 
 ## Known gaps
 
-- **Wordmarks use live `<text>`.** **Decided (VLL, 2026-09-02): outline once and commit the paths**,
-  the way `monogram.svg` already carries "TS" as paths. **Not at build time** — that would need a
-  font engine, which breaks `build.py`'s stdlib-only rule and makes its output depend on the Inter
-  version installed, so the CI regeneration guard would diff per machine. See BRAND06.
+- **Wordmarks are outlined paths, and the text is frozen (BRAND06 part 2).** The lockup glyphs are
+  committed in `wordmark_paths.py` — the way `monogram.svg` already carries "TS" as paths — so the
+  wordmark depends on no font at render or build time. Outlining is done **once, by hand, not at build
+  time**: a font engine would break `build.py`'s stdlib-only rule and make its output depend on the
+  installed Inter, so the CI regeneration guard would diff per machine. **The cost:** changing a
+  product name or tagline now means re-outlining by the recipe recorded in `wordmark_paths.py`
+  (pinned Inter 4.1 + Inkscape). The `family-sheet.svg` preview stays live `<text>` on purpose — it
+  is an internal reference sheet (not shipped to the site), rendered alongside its own labels.
 - **The reference staff sits at 19.7 degrees against our 14.** **Decided: keep 14.** It is what is
   drawn, reviewed and published across the icons, the sheet and the site. The difference from the
   reference is a stated choice, not a debt.
