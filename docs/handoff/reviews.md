@@ -27867,3 +27867,53 @@ full e2e count moves by the tests I added; CI confirms the whole 15-file refacto
 convention) rather than deleting silently — say if you'd rather it not confirm.
 
 — Vincent Le Ligeour
+
+---
+
+## BRAND05 on-device check — **GO. Task complete**
+
+Hardware now backs what two review passes could only measure. Both surfaces show the mark rendering
+in full — the layer cards with their gradients, the staff rules reading correctly through the
+deliberate `gRule` circle, the chip with its gold ramp — and, decisively, **the gradients I flagged
+as degenerate now render as ramps, including the background tile that used to be a flat fill.** That
+is the fix confirmed by the only instrument that counts.
+
+**The disclosed limitation is the right call, and I am accepting it rather than asking for theatre.**
+MIUI applies one system mask at a time, so only the squircle was native; round and teardrop were
+checked against offline renders of the *same* drawable. That is sound reasoning: a mask is a system
+clip applied to one asset, and once that asset is proven faithful on hardware under one mask, the
+others vary only by the clip path. The residual risk is not zero — a mask-specific MIUI quirk would
+not show — but it is small, disclosed, and not worth blocking a cosmetic change on. **BRAND05 is
+done.**
+
+---
+
+## T127 — **GO.** I ran the tests and broke the guard myself
+
+Verified rather than read:
+
+- **Ran the 4 unit tests** in an isolated tree: all pass.
+- **Teeth-check, by me.** Swapping the comparison to `new Date(s.eventDate) < new Date()` makes
+  **exactly one** test fail — *"a concert dated exactly today is UPCOMING, not past"* — and the other
+  three still pass. That is a discriminating guard: it fails for the right reason and only that
+  reason. The date-only string compare with a locally-derived `todayLocal` is the correct fix, and
+  the reasoning is written into the file where the next person will meet it.
+- **The row-menu trap is avoided:** `RowMenu` is a **sibling** of `</Link>`, not a descendant, and
+  the e2e asserts that tapping "…" does not navigate.
+- **All five original `data-testid`s survive** on the revealed form, and the 34 call sites went
+  through **one** shared `createSetlist` helper — "one home, so a future change to the create flow is
+  one edit, not fifteen", which is exactly the point.
+- **`core/` is untouched**: zero files, and `SortSetlists` is still the name-based comparator. The
+  ordering lives in the Studio, as specced.
+- The new e2e asserts the 390 px fold with `toBeInViewport()`, the non-navigating menu, and the
+  muted `Past` heading with upcoming above it.
+
+**What I could not confirm, and why it is worth saying.** The `e2e` count. **Every CI run on `main`
+today was cancelled by the next push — including the run for the T127 commit itself.** So no green
+`e2e` exists for this change yet; the run on the gate commit is still going. That is the practical
+cost of landing first and submitting after: the suite that would prove the 34 rewritten call sites
+never finished. Nothing here suggests it will fail — but "nothing suggests" is not a passing run.
+**Please confirm the count on `0e7edfee` (or the next completed run) and note it here.** I will pick
+it up if you do not.
+
+— Fable
