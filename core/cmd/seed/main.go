@@ -391,14 +391,33 @@ func run(addr, password, only string, bands []string) error {
 	return nil
 }
 
-// localBandsDir locates the gitignored folder of real (non-demo) bands relative to the seed's
-// cwd (normally core/). Returns "" if there is none. Override with TROUBA_BANDS_DIR.
-func localBandsDir() string {
-	cands := []string{"../bands", "bands", "../../bands", "../../../bands"}
-	if env := os.Getenv("TROUBA_BANDS_DIR"); env != "" {
-		cands = []string{env}
+// troubaHome is the runtime root for non-repo data (T129), so live data does not live inside a git
+// worktree where `git clean -xdf` can destroy it. TROUBA_HOME wins; else XDG_DATA_HOME/troubastack;
+// else ~/.local/share/troubastack. Same formula as the Makefile — keep them in step.
+func troubaHome() string {
+	if h := os.Getenv("TROUBA_HOME"); h != "" {
+		return h
 	}
-	for _, c := range cands {
+	base := os.Getenv("XDG_DATA_HOME")
+	if base == "" {
+		base = filepath.Join(os.Getenv("HOME"), ".local", "share")
+	}
+	return filepath.Join(base, "troubastack")
+}
+
+// bandsDirCandidates is the ordered search for the local bands folder (T129). TROUBA_BANDS_DIR wins
+// outright. Otherwise the runtime root comes FIRST, so a fresh checkout defaults OUT of the source
+// tree; the historical cwd-relative paths follow, so an existing checkout with an in-tree bands/
+// keeps working. Pure, so the ordering is unit-tested without touching the filesystem.
+func bandsDirCandidates(bandsEnv, home string) []string {
+	if bandsEnv != "" {
+		return []string{bandsEnv}
+	}
+	return []string{filepath.Join(home, "bands"), "../bands", "bands", "../../bands", "../../../bands"}
+}
+
+func localBandsDir() string {
+	for _, c := range bandsDirCandidates(os.Getenv("TROUBA_BANDS_DIR"), troubaHome()) {
 		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
 			return c
 		}

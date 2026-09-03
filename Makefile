@@ -21,7 +21,7 @@ help:
 	@echo "  check    go vet + gofmt"
 	@echo "  seed     populate a RUNNING server with the demo dataset (cd core && go run ./cmd/seed)"
 	@echo "  demo     single binary: real SPA + API on :8080 with SEEDED data (file-backed)"
-	@echo "           -> login marie/demo or maestro/demo; reset: rm -rf core/troubadata"
+	@echo "           -> login marie/demo or maestro/demo; reset: rm -rf $(TROUBA_HOME)/troubadata"
 	@echo "  app      build the KMP mobile app: shared checks + debug APK (needs a JDK + Android SDK)"
 	@echo "  fixtures regenerate the committed TroubaStage bundle fixtures (dev tool cmd/mkbundle)"
 	@echo "  proto    deferred (buf codegen)"
@@ -105,14 +105,19 @@ check:
 seed:
 	cd core && go run ./cmd/seed
 
+# T129: runtime data (seeded servers) lives OUTSIDE the source tree — a `git clean -xdf` in this
+# worktree would otherwise erase it (bands/ has no backup). Same formula as troubaHome() in
+# core/cmd/seed. Override with TROUBA_HOME, or point TROUBA_DATA_DIR at an absolute path yourself.
+TROUBA_HOME ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)/troubastack
+
 # One-shot demo: builds + EMBEDS the SPA (via dist), then runs the single binary
-# with the FILE backends (data persists under core/troubadata/) in the BACKGROUND,
+# with the FILE backends (data persists under $(TROUBA_HOME)/troubadata/) in the BACKGROUND,
 # seeds it, and hands the server to the FOREGROUND so you can browse the REAL SPA +
-# seeded data on http://localhost:8080. Ctrl-C stops it. Reset: rm -rf core/troubadata
+# seeded data on http://localhost:8080. Ctrl-C stops it. Reset: rm -rf $(TROUBA_HOME)/troubadata
 demo: dist
 	@cd core; \
 	echo ">>> seeding demo data …"; \
-	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata ./bin/troubacore & \
+	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=$(TROUBA_HOME)/troubadata ./bin/troubacore & \
 	SEED_CORE=$$!; \
 	trap 'kill $$SEED_CORE 2>/dev/null' EXIT INT TERM; \
 	for i in $$(seq 1 50); do \
@@ -122,15 +127,15 @@ demo: dist
 	go run ./cmd/seed -addr http://localhost:8080 -password demo || true; \
 	kill $$SEED_CORE 2>/dev/null; wait $$SEED_CORE 2>/dev/null; \
 	trap - EXIT INT TERM; \
-	echo ">>> READY: open http://localhost:8080 (real SPA + seeded data). Ctrl-C to stop; reset: rm -rf core/troubadata"; \
-	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./troubadata TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
+	echo ">>> READY: open http://localhost:8080 (real SPA + seeded data). Ctrl-C to stop; reset: rm -rf $(TROUBA_HOME)/troubadata"; \
+	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=$(TROUBA_HOME)/troubadata TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
 # Seed + run one or more real, local bands by their band.json "shortname":
 #   make band=<shortname>              one band
 #   make band=<shortname>,<shortname>  several onto one server (comma-separated list)
 # (each band lives in a gitignored bands/<folder>/band.json; NOT demo content). Same one-shot
 # flow as `make demo` but seeds only those band(s) into their OWN data dir, so recreating your
-# server rebuilds it cleanly. Reset: rm -rf core/troubadata-<shortname[-shortname...]>
+# server rebuilds it cleanly. Reset: rm -rf $(TROUBA_HOME)/troubadata-<shortname[-shortname...]>
 #
 # The comma list is a make-level convenience: it expands to repeated `-band` flags (the seed CLI
 # takes one shortname per -band, so `-band a,b` is NOT a thing — it splits here, not there).
@@ -143,7 +148,7 @@ band: dist
 	@test -n "$(band)" || { echo "usage: make band=<shortname>[,<shortname>...]  (see bands/*/band.json 'shortname')"; exit 2; }
 	@cd core; \
 	echo ">>> seeding band(s) '$(band)' …"; \
-	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./$(band_dir) ./bin/troubacore & \
+	TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=$(TROUBA_HOME)/$(band_dir) ./bin/troubacore & \
 	SEED_CORE=$$!; \
 	trap 'kill $$SEED_CORE 2>/dev/null' EXIT INT TERM; \
 	for i in $$(seq 1 50); do \
@@ -153,8 +158,8 @@ band: dist
 	go run ./cmd/seed -addr http://localhost:8080 -password demo $(band_flags) || true; \
 	kill $$SEED_CORE 2>/dev/null; wait $$SEED_CORE 2>/dev/null; \
 	trap - EXIT INT TERM; \
-	echo ">>> READY: open http://localhost:8080 (band(s) '$(band)'). Ctrl-C to stop; reset: rm -rf core/$(band_dir)"; \
-	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=./$(band_dir) TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
+	echo ">>> READY: open http://localhost:8080 (band(s) '$(band)'). Ctrl-C to stop; reset: rm -rf $(TROUBA_HOME)/$(band_dir)"; \
+	exec env TROUBA_APP_STORE=file TROUBA_STORE=file TROUBA_DATA_DIR=$(TROUBA_HOME)/$(band_dir) TROUBA_DIE_WITH_PARENT=1 ./bin/troubacore
 
 # Deferred until the contract is codegen'd.
 proto:

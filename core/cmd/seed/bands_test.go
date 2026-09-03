@@ -365,3 +365,45 @@ func TestLoadLocalBands_Conductor(t *testing.T) {
 		t.Errorf("plain conductor = %q, want empty (no member flagged)", by["plain"].conductor)
 	}
 }
+
+// TestBandsDirCandidates (T129): TROUBA_BANDS_DIR wins outright; otherwise the runtime root comes
+// FIRST so a fresh checkout defaults OUT of the source tree, with the historical cwd-relative paths
+// after it for compatibility. Discriminating: the runtime root is candidate[0] — a naive "keep
+// cwd-first" ordering would put "../bands" first, so reverting to it fails this.
+func TestBandsDirCandidates(t *testing.T) {
+	if got := bandsDirCandidates("/srv/mybands", "/home/x/.local/share/troubastack"); len(got) != 1 || got[0] != "/srv/mybands" {
+		t.Errorf("TROUBA_BANDS_DIR set: got %v, want exactly [/srv/mybands]", got)
+	}
+	got := bandsDirCandidates("", "/rt")
+	if len(got) == 0 || got[0] != "/rt/bands" {
+		t.Fatalf("unset: got %v, want the runtime root /rt/bands FIRST", got)
+	}
+	// the historical cwd-relative paths must survive, after the runtime root
+	rest := got[1:]
+	want := []string{"../bands", "bands", "../../bands", "../../../bands"}
+	if len(rest) != len(want) {
+		t.Fatalf("cwd fallbacks = %v, want %v", rest, want)
+	}
+	for i := range want {
+		if rest[i] != want[i] {
+			t.Errorf("fallback[%d] = %q, want %q", i, rest[i], want[i])
+		}
+	}
+}
+
+func TestTroubaHome(t *testing.T) {
+	t.Setenv("TROUBA_HOME", "/explicit/root")
+	if got := troubaHome(); got != "/explicit/root" {
+		t.Errorf("TROUBA_HOME set: got %q, want it verbatim", got)
+	}
+	t.Setenv("TROUBA_HOME", "")
+	t.Setenv("XDG_DATA_HOME", "/xdg")
+	if got := troubaHome(); got != "/xdg/troubastack" {
+		t.Errorf("XDG_DATA_HOME: got %q, want /xdg/troubastack", got)
+	}
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("HOME", "/home/vll")
+	if got := troubaHome(); got != "/home/vll/.local/share/troubastack" {
+		t.Errorf("HOME default: got %q, want /home/vll/.local/share/troubastack", got)
+	}
+}

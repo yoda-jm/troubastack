@@ -46,6 +46,14 @@ Forgot the only admin's password? `docker compose exec troubacore troubacore res
 | `TROUBA_NO_MDNS` | `1` | no LAN advertising in a container |
 | `TROUBA_BAKE_KEEP_REVS` | `3` (see below) | bake retention — `troubacore gc` keeps the newest N revs per setlist (`0` = keep all) |
 
+**Where runtime data lives (T129).** In Docker it is the `/data` volume above — already outside any
+source tree. For a **bare binary** (`make demo` / `make band=` / the systemd variant), it defaults to
+`$TROUBA_HOME` = `${XDG_DATA_HOME:-$HOME/.local/share}/troubastack`, deliberately **not inside a git
+worktree**: a `git clean -xdf` there removes ignored files, and live data is ignored. Set
+`TROUBA_HOME` to relocate the root, or `TROUBA_DATA_DIR` / `TROUBA_BANDS_DIR` to place either dir
+exactly. **Nothing under the runtime root is regenerable from the repository — back it up accordingly;
+the source tree is disposable, the runtime root is not.**
+
 ## Rehearsal live mode (retention) — P201
 
 Rehearsal live mode auto-bakes on every ~10 s quiet period, so a 2-hour rehearsal

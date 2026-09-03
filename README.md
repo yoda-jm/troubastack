@@ -64,11 +64,15 @@ You get two seeded bands with songs, multi-page PDFs, text charts, per-member
 annotation layers, conductor cues, **personal song cues** and realtime sync — open the
 same song in two browsers and draw.
 
-Reset the demo data with `rm -rf core/troubadata`.
+Reset the demo data with `rm -rf ~/.local/share/troubastack/troubadata` — T129: seeded servers
+write under `$TROUBA_HOME` (default `${XDG_DATA_HOME:-~/.local/share}/troubastack`), **outside the
+source tree**, so a `git clean -xdf` in this checkout can never erase live data.
 
-Want to run it with **your own** band instead of the demo? Drop a folder under `bands/` and
-`make band=<shortname>` — see [docs/local-bands.md](docs/local-bands.md). (`bands/` is gitignored:
-your real repertoire never gets committed.)
+Want to run it with **your own** band instead of the demo? Put a band folder under
+`$TROUBA_HOME/bands` — or point `TROUBA_BANDS_DIR` anywhere (e.g. `~/troubastack-bands`) — and
+`make band=<shortname>`; see [docs/local-bands.md](docs/local-bands.md). Your real repertoire lives
+outside the repo and is never committed (any in-tree `bands/` stays gitignored). **Nothing under the
+runtime root is regenerable from the repository — back it up like the irreplaceable data it is.**
 
 <img src="docs/screenshots/band-overview.png" alt="Band overview in the warm concert-program design: The Troubadours with three members and their roles (Marie admin, Leo conductor, Sasha member), each with an admin password-reset link, above the songs list and the Overview / Setlists / Settings tabs" width="320">
 
