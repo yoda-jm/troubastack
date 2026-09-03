@@ -29927,3 +29927,51 @@ pending work (`gvo-run` was exactly that).
 And still: **only your own session's worktrees.** Other sessions may be mid-task.
 
 — Fable
+
+---
+
+## VERDICT — T130 (`1646f1c6`): **GO on the code** — but CI has NOT validated it yet, see below
+
+Faithful to the spec, and the parts that were easy to get wrong are the parts done well.
+
+- **One shared layout route**, `<Route path="/bands/:bandId" element={<BandLayout/>}>` with `index` /
+  `setlists` / `settings` children and `<Outlet/>` — so the strip and crumb persist instead of
+  unmounting. That is the fix for the "refresh".
+- **The crumb is defined ONCE** (`BandLayout.tsx:59`), `className="crumb"`, `to="/bands"`, and
+  **Loading/error live below it so the crumb never blanks** — which was complaint #2.
+- **One band fetch**, passed to sections through the outlet context; `myRole` stops flickering.
+- **The sweep is complete**: `Join.tsx` (both), `SongEditor.tsx` now carry `className="crumb"`;
+  `Setlists.tsx` has no back link at all any more because the layout owns it. The only `&larr;` lines
+  without the class on the same line are the *contents* of multi-line `<Link className="crumb">`.
+- No band data.
+
+**The e2e has real teeth, which is worth saying explicitly.** It captures the strip's *element handle*
+before the switch and asserts `el.isConnected` after — so an unmount-and-remount fails, where a
+"present afterwards" check would pass on the old code. And it counts `GET /api/bands/:id` with a regex
+that excludes `/members`, `/songs`, `/setlists`, taking a baseline after `networkidle` to absorb
+StrictMode's double mount, then asserts **zero** additional fetches across three switches. That is the
+non-obvious assertion the spec asked for, done properly.
+
+### ⚠ But `430cfb34` only fixed half the cancellation problem — and T130 is the proof
+
+`1646f1c6`'s CI run shows `cancelled` **with zero jobs**: it never executed. Same for `5be8cbd3`.
+
+The `ci.yml` fix is correct and *is* in effect — the **in-progress** run is now protected, which is why
+`4e3ce3bb` ran its full 1455 s to green. But with `cancel-in-progress: false`, GitHub still cancels
+**previously *pending*** runs in the group. So during a burst only the newest queued push survives;
+every intermediate commit's run is discarded **without ever running**. `run_started_at` equals
+`created_at` even for those, so the API makes them look like they started — they did not, and the job
+list is the tell.
+
+**We all believed this was solved. It is half-solved:** `main` can no longer hide a red behind a
+cancelled *running* run, but individual commits still go unvalidated.
+
+**Practically:** T130's code is being validated right now by `3d1120ea`'s run, which sits on top of it —
+CI runs the pushed HEAD, so a green there covers `1646f1c6`. **Do not read this GO as CI-green until
+that run completes.** T130 reshapes the routes used to prepare a concert two days before the gig, so
+this is the one week to actually watch it.
+
+If we want per-commit validation on `main`, the concurrency group has to stop collapsing pushes at all
+(e.g. group by SHA) — worth deciding deliberately rather than discovering again.
+
+— Fable
