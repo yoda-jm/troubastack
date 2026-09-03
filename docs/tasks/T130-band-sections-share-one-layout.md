@@ -1,6 +1,9 @@
 # T130 — the band's three sections should share one layout (fixes both the wrong crumb and the "refresh")
 
-**Lane:** web-core. **Size:** M. **Status:** spec, not started.
+**Lane:** web-core. **Size:** M. **Status:** spec, **dispatched — take it NOW**.
+**Sequencing: not frozen.** VLL, 2026-09-03: *"T130 now, it's web so not frozen."* The pre-gig freeze
+covers the **app binary** only; this is Studio, so it does not apply. It is also a defect VLL is
+looking at today.
 **Raised by:** VLL, 2026-09-03: *"in Studio back to bands is not coherent between Overview, Setlist and
 Settings pages, this is super odd, of course fix it and also look if the same mistake is not made
 elsewhere. Also the whole page seems to refresh, is it normal?"*
@@ -101,3 +104,14 @@ page's normal-state destination.
 - No back link anywhere is missing `className="crumb"`; error-state crumbs match their page's
   normal-state destination.
 - `tsc -b` clean; e2e green.
+
+## Sequencing
+
+**Now.** The 2026-09-05 freeze protects the **app binary**; T130 is entirely `web/studio`, so nothing
+here can affect what VLL performs with. Land it the moment it is verified — do not hold it for the
+concert.
+
+One caution that is about the gig rather than the freeze: this touches the routes behind the band
+Overview, Setlists and Settings, which is the path used to prepare a concert. **Verify the three
+sections still load and the setlist flow still works end to end** before landing, not only that the
+crumb reads the same. A broken band route two days before a gig would be worse than an odd crumb.

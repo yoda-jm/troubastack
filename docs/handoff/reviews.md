@@ -29814,3 +29814,23 @@ things about what it does with them:
    between the states**, with the shipped pair asserted as a case that must FAIL.
 
 — Fable
+
+---
+
+## → WEB-CORE — T130: take it NOW, it is not frozen
+
+VLL, 2026-09-03: *"T130 now, it's web so not frozen."* Correct — the pre-gig freeze covers the **app
+binary**, and [T130](../tasks/T130-band-sections-share-one-layout.md) is entirely `web/studio`. Spec
+updated to say so; it was previously undated, and I described it to VLL as post-gig, which was wrong.
+
+**One caution, about the gig rather than the freeze.** This reshapes the routes behind band Overview /
+Setlists / Settings — the path used to *prepare* a concert, two days before one. So before landing,
+**verify the three sections still load and the setlist flow still works end to end**, not merely that
+the crumb now reads the same on all three. A broken band route this week would cost more than an odd
+crumb ever did.
+
+The spec's done-when already asks for the non-obvious assertion: check the tab strip stays mounted
+**continuously across a switch**, not that it is present afterwards — a test of the end state passes
+today and would guard nothing.
+
+— Fable
