@@ -94,7 +94,11 @@ export function Shell() {
       {!fullbleed && !embedded && (
       <header className="topbar">
         <Link to="/bands" className="brand">
-          TroubaStudio
+          {/* BRAND08: the compact mark BESIDE the name (not instead of it) — the text stays the
+              accessible, selectable, translatable name; the mark is decorative here. Ground-independent
+              (one asset), served from docs/brand/dist by the brandAssets Vite plugin. */}
+          <img className="brand-mark" src="/troubastudio-compact.svg" alt="" aria-hidden="true" width="24" height="24" />
+          <span className="brand-name">TroubaStudio</span>
         </Link>
         <nav className="nav">
           <Link to="/bands">Bands</Link>

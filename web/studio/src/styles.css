@@ -153,9 +153,15 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
   border-bottom: 1px solid var(--border);
 }
 .brand {
+  display: inline-flex; align-items: center; gap: .45rem; min-width: 0;
   font-weight: 800; font-size: 1.15rem; letter-spacing: -.02em;
   color: var(--brand);
 }
+/* BRAND08: the compact mark beside the name. Ground-independent (carries its own tile), so no
+   scheme swap here — one asset for both themes. flex:none so it never shrinks; the NAME is what
+   ellipsises when the topbar gets tight (see the phone-width rule below). */
+.brand-mark { flex: none; width: 24px; height: 24px; display: block; }
+.brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav { display: flex; gap: .35rem; }
 .nav a {
   color: var(--muted); font-weight: 600; font-size: .92rem;
@@ -1145,7 +1151,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
      second row; once T58 made the trigger avatar-only that left a lone avatar stranded
      on its own line.) The avatar-only trigger (below) guarantees the row fits. */
   .topbar { gap: .4rem .6rem; flex-wrap: nowrap; padding: .55rem .8rem; }
-  .brand { font-size: 1rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand { font-size: 1rem; overflow: hidden; } /* the name (.brand-name) ellipsises; the mark stays */
   .nav { flex: 0 0 auto; }
   .user { margin-left: auto; gap: .5rem; }
   .account-name { display: none; }

@@ -16,24 +16,35 @@ import { readFileSync } from "node:fs";
 
 const API_TARGET = process.env.TROUBA_API_TARGET ?? "http://localhost:8080";
 
-// BRAND03: the tab favicon is the studio mark, and the mark has exactly one source of
-// truth — docs/brand/dist/troubastudio-minimal.svg. Rather than commit a second copy
-// (which drifts from the bricks the moment the brand changes, the way web/site's
-// build.sh warns against), this plugin serves it in dev and COPIES it into the build.
-// The PNG raster fallback stays in public/ (SVG favicons don't cover every browser).
-function brandFavicon(): Plugin {
-  const FAVICON = "troubastudio-minimal.svg";
-  const src = fileURLToPath(new URL(`../../docs/brand/dist/${FAVICON}`, import.meta.url));
+// BRAND03/BRAND08: the Studio's brand SVGs each have exactly ONE source of truth —
+// docs/brand/dist — so rather than commit copies (which drift from the bricks the moment
+// the brand changes, the way web/site's build.sh warns against), this plugin serves them
+// in dev and COPIES them into the build. The favicon (BRAND03) and the topbar/login marks
+// (BRAND08) all ride the same mechanism. The PNG raster favicon fallback stays in public/
+// (SVG favicons don't cover every browser). NOTE: everything listed here must live under
+// docs/brand/dist — the Dockerfile copies only that directory into the web build stage
+// (learned the hard way in 5edd038f); reach outside it and the image build breaks silently.
+const BRAND_ASSETS = [
+  "troubastudio-minimal.svg", // BRAND03 — the favicon
+  "troubastudio-compact.svg", // BRAND08 — the topbar mark (beside the name)
+];
+function brandAssets(): Plugin {
+  const srcOf = (name: string) =>
+    fileURLToPath(new URL(`../../docs/brand/dist/${name}`, import.meta.url));
   return {
-    name: "trouba-brand-favicon",
+    name: "trouba-brand-assets",
     configureServer(server) {
-      server.middlewares.use(`/${FAVICON}`, (_req, res) => {
-        res.setHeader("Content-Type", "image/svg+xml");
-        res.end(readFileSync(src));
-      });
+      for (const name of BRAND_ASSETS) {
+        server.middlewares.use(`/${name}`, (_req, res) => {
+          res.setHeader("Content-Type", "image/svg+xml");
+          res.end(readFileSync(srcOf(name)));
+        });
+      }
     },
     generateBundle() {
-      this.emitFile({ type: "asset", fileName: FAVICON, source: readFileSync(src) });
+      for (const name of BRAND_ASSETS) {
+        this.emitFile({ type: "asset", fileName: name, source: readFileSync(srcOf(name)) });
+      }
     },
   };
 }
@@ -60,7 +71,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(gitVersion()),
   },
-  plugins: [react(), brandFavicon()],
+  plugins: [react(), brandAssets()],
   resolve: {
     alias: {
       "@troubastack/ink": inkSrc,
