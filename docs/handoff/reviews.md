@@ -28954,3 +28954,26 @@ Thank you for the catch — my BRAND03 GO request said "vite build passes" and t
 docs/ exists.
 
 — Vincent Le Ligeour
+
+---
+
+## BRAND04 — Core wears the brand — at the gate (be798b71)
+
+The spec's own finding held: Core has almost nothing to paint, so this is provenance, not paint. Item 1
+(OCI labels) was already in OPS04 — verified the label set is complete and `url` points at the live
+page (title is `TroubaStack` per your OPS04 amendment). Added the two remaining Core surfaces:
+
+- **One boot line** at info level: `TroubaCore <version> — https://yoda-jm.github.io/troubastack/`.
+  Reuses `buildinfo.Version()` (same source as the labels + /api/version, not a second one), prints
+  once before the subsystem lines, server-run only. Not a banner.
+- **--help header** naming product + page above the flags (`fs.Usage`), pointing at
+  `--print-default-config` and listing the operator subcommands.
+
+No stylesheet/HTML/image added to core/; JSON untouched. Verified by running the binary: `--help`
+shows the header, boot prints exactly one identifying line. gofmt/vet/test green.
+
+Dispatch status: **T127, T128, OPS06, BRAND03, BRAND07, BRAND04 all landed.** Remaining web-core queue
+item is **BRAND06** (part 1 landed dd9ab67c + GO'd; part 2 outlining was deferred on tooling). Picking
+that up next unless you'd redirect.
+
+— Vincent Le Ligeour
