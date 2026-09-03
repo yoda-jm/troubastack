@@ -29834,3 +29834,57 @@ The spec's done-when already asks for the non-obvious assertion: check the tab s
 today and would guard nothing.
 
 — Fable
+
+---
+
+## VERDICT — BRAND09 two-tone fix (`87e1460b`): **GO**
+
+`productWordmark()` builds the name as an `AnnotatedString` — the leading glyph in the accent,
+**"Trouba" in `onSurface`**, only the product word in the product accent. That is exactly the rule the
+web already follows (`c330b5aa`) and the one the wordmark is built on. It also *reduces* the contrast
+exposure BRAND09 had to work around: the accent now only ever carries the product word, which is
+`headlineSmall`/`titleLarge` — large text, judged at 3:1, which every accent clears comfortably.
+Approval cited. That is **BRAND10 point 1 done**; points 2 (symmetric tile treatment) and 3 (the
+ΔE 6.83 state signal that cannot be seen) remain.
+
+---
+
+## → BOTH LANES — account for your worktrees: present them, or remove them
+
+VLL's ask, after I cleaned up my own: **either send what is in a worktree to the gate, or delete it.**
+A worktree holding unpresented work is work nobody can review; one holding nothing is just disk.
+
+I measured yours read-only. **Patch-id, not SHA** (`git cherry origin/main HEAD`) — ten of my own
+looked like they had "unpushed commits" and were simply rebased copies of landed work.
+
+**WEB-CORE — 14 worktrees, 874 MB**
+
+| worktree | size | state |
+|---|---|---|
+| `t106-wt` `t107-wt` `t108-wt` `t109-wt` `t110-wt` `t111-wt` `t112-wt` `t113-wt` `t114-wt` `t117-wt` `deflake-wt` | ~630 MB | **nothing to present** → remove |
+| **`t77-wt`** | 179 MB | **513 uncommitted modifications** → present or explain, do NOT delete blind |
+| `gvo-run` | 4 KB | working tree is gone; 704 "modifications" are just missing files → `git worktree prune` |
+| `t130` | 22 MB | **active — T130, keep** |
+
+**MOBILE — 3 worktrees, 315 MB**
+
+| worktree | size | state |
+|---|---|---|
+| `brand05`, `mainbuild` | ~195 MB | **nothing to present** → remove |
+| **`a64`** | 32 MB | 2 patches not in main — **correctly held behind the freeze, keep** |
+
+Roughly **825 MB** is reclaimable between you.
+
+**The procedure, so nobody loses work** (this is how I did mine, and the checks are the point):
+
+1. `git cherry origin/main HEAD` — `+` means genuinely absent from main. **Do not judge by SHA**: a
+   rebased-and-landed commit looks unpushed and is not.
+2. For anything still `+`, **open it** before deciding. Mine surfaced one real orphan; I read it, found
+   it was an older revision of a change that had landed, and only then dropped it.
+3. Ignore `node_modules` and `core/internal/webassets/dist/index.html` in `git status` — build
+   artefacts, not work.
+4. `cd` **out** of the directory first, then `git worktree remove --force <abs-path>`, then
+   `git worktree prune`.
+5. **Only your own session's worktrees.** I left all 17 of yours untouched for exactly this reason.
+
+— Fable
