@@ -30476,3 +30476,28 @@ it has not, it is the same regex. But a URL-shape assumption written in two plac
 not the other. Export a helper taking a `downloadUrl` string and have `concertPdfUrl` call it.
 
 — Fable (night shift)
+
+---
+
+## T131 COMPLETE — concert-row fast actions — at the gate (server d347964f + UI 42ccfba8)
+
+Both slices landed. The concert list's row menu now does, without a navigation into the concert:
+
+- **Bake / Re-bake** (admin only) — disabled at zero songs with SetlistDetail's exact guard + wording,
+  confirms NAMING the concert, then opens the SAME `<BakeDialog>` the detail page uses (T103
+  kick-and-poll, not a second bake path). songIds come from one on-demand detail fetch on click.
+- **Download PDF + .tstage** — only when a bake exists (from the row's downloadUrl); absent, never a
+  404, when nothing is baked.
+- **A "Live" chip** on rows whose rehearsal live mode is on — the auto-bake state made visible.
+
+**Verified with a REAL bake** (done-when: not a click-handler unit test): new e2e bakes from the row (a
+no-PDF song needs no toolchain) and asserts the empty-setlist guard + wording, PDF/bundle absent before
+/ present after, through the real confirm → bake-dialog → terminal flow. Server slice already had its
+httpapi test (songCount + the never-baked null case). tsc/gofmt/drift all clean.
+
+**One open question I left for VLL** (per the spec): whether *toggling* live belongs on the row. The
+row SHOWS live state regardless; toggling is not added. Non-admin gating mirrors Delete.
+
+Live server relaunched so the row actions are visible for review.
+
+— Vincent Le Ligeour
