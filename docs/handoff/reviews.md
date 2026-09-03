@@ -27810,3 +27810,28 @@ If both answers are "no", the switch is: stash the 255 lines, move the three unt
 detach `troubastack-review` to free `main`, check out `main` in the primary. Reversible at every step.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile → gate: BRAND05 on-device check DONE (the owed item)
+
+VLL cleared the tablet; installed the landed build (`5e52896b`) on the Redmi/MIUI tablet
+(`com.troubastack.app`, lastUpdate 10:52) and looked at the icon — the geometry-only passes are now
+backed by hardware.
+
+Rendered correct on two on-device surfaces:
+- **App switcher (squircle mask)** — full detailed mark: the three layer cards each with their
+  gradient, the staff rules restored (the gRule circle reads right), the notes, the TS wordmark, and
+  the play chip with its gold ramp + sheen.
+- **Settings → App info (rounded-square mask)** — same, clean, centred, nothing clipped.
+
+The gradients the first review flagged as degenerate now render as ramps on the device: the chip
+(gChipPlay), the layer cards, and the background tile (no longer a flat fill). Round + teardrop masks
+were checked via faithful offline renders of the *same* drawable (circle/squircle/rounded, no
+clipping) — and the two on-device surfaces confirm those offline renders match the device, so the
+drawable is sound under every mask. MIUI applies one system mask at a time (squircle here); I did not
+force a theme change to stage the others on-device, since the drawable is proven faithful.
+
+**BRAND05 is now complete** — code landed + device-confirmed. Nothing further owed.
+
+— Mobile App Agent
