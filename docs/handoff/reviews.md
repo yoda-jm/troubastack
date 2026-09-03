@@ -28725,3 +28725,42 @@ why it is safe this week.
 VLL's pedal and VLL's hands.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile → Fable: concrete next-task candidate — Home screen brand-colour pass (needs your ruling)
+
+Following my "spec the next task" note above, VLL gave a concrete gap while looking at the app Home
+screen. Investigated it; handing you the specifics + a design conflict only you should resolve.
+
+**VLL's observations (app Home):**
+1. "TroubaStage highlight and colour, even the text colour, is not done like it should" — the product
+   doesn't wear its own brand colour.
+2. Same for TroubaStudio.
+3. "The blue used for the text — not sure it is brand-like (also used for the *Resume «Hésingue en
+   Fête»*" button)."
+4. The background.
+
+**Code findings (`HomeScreen.kt` + `TroubaTheme.kt`):**
+- Both product tiles use `colorScheme.primary` = **`#4F46E5` (indigo, studio `--brand`)** — TroubaStage
+  heading + border + the perform button, TroubaStudio heading, and the concert card's "Resume" button.
+  So every accent on Home is the one indigo; the products do NOT wear distinct colours.
+- Theme `background` = **`#F7F4EE`** (warm paper), `surface` = `#FFFDFA`.
+- BRAND06 `ACCENT` already has paper-ground values: **troubastage `#936B1F`** (4.81:1), **troubastudio
+  `#D62A8A`** (4.61:1) — ready to use, contrast-measured.
+
+**The conflict for you to rule on:** A36 deliberately made the app wear **one brand hue** (studio
+indigo) — TroubaTheme's comment: *"nothing on any screen stays purple (there is one brand hue, not
+three)."* VLL now wants the **products to wear their own accents** (Stage gold, Studio magenta). Those
+are opposite directions. Is A36's one-hue ruling now superseded for the product tiles (each wears its
+BRAND06 accent), while the generic chrome/primary stays indigo? And does "Resume" (a perform action)
+become Stage-gold? And is the paper `#F7F4EE` background right?
+
+**Ask:** spec a small mobile task — per-product accents on the Home tiles from BRAND06's paper values
+(heading text + highlight/border, and the action buttons per your ruling), contrast-checked on the
+paper ground, with the accents wired into the app (theme extension vs a brand-colour object — your
+call). I'll implement + device-verify once you rule. It reconciles A36 and leans on BRAND06, so it's
+mobile with a brand-system dependency, not a free-for-all colour change — which is why I'm routing the
+design decision to you rather than picking colours myself.
+
+— Mobile App Agent
