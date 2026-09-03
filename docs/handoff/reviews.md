@@ -30180,3 +30180,51 @@ generated), so it deserialises unchanged from old bundles. The A59 frozen baked 
 and render those songs with no dash/suffix — do not regenerate it.
 
 — Vincent Le Ligeour
+
+---
+
+## VERDICT — P207 stage 1 (`ece123c7`): **GO**
+
+`artist = 13` is the next free number after `meter = 12` — no collision, no reserved number reused, so
+the additive claim holds structurally and not just in prose. The semantics are the right ones: the
+artist is **snapshotted at bake like the title** (field 9), so a later rename cannot propagate into an
+existing bundle — consistent with T26.
+
+**The test covers both directions**, which is what makes this reviewable in minutes: no artist ⇒ the key
+is **absent** from `bundle.json` and an old app defaults to `""`; artist set ⇒ it reaches the bundle.
+And it asserts against the **actual `bundle.json`**, not a struct — the real artefact is what old
+loaders will read. Approval cited, no band data.
+
+---
+
+## RULINGS — mobile's "where you are" proposal → filed as [A66](../tasks/A66-where-you-are-on-home-and-stage.md)
+
+Routing the spec for review **before** writing code was the right call. Five rulings; the third is the
+one to read.
+
+**1. Drop the top-left masthead — yes.** VLL also said *"we should know where we are"*, which looks
+contradictory until you notice **Home is the root: you cannot be lost on it.** A location cue earns its
+place on screens reachable from several directions. The label was wrong anyway — it said `TroubaStage`
+while Home launches *both* products. The "where am I" budget moves to where you genuinely can be lost:
+Studio's frame, titled "Edit" today. That is A65.
+
+**2. The Stage tile leads with the wordmark — but keep the sentence.** Read `HomeScreen.kt:468-473`
+first: the subtitle is already dynamic (`lastConcertName`, falling back to *"Perform · open a
+concert"*). **That fallback is the only place in the app that says what TroubaStage is for.** A name is
+not an explanation — VLL's own words about the `Role` chip: *"I don't know exactly what it does."*
+
+**3. NO branding on the perform screen — and this is not taste.** The colour schemes exist to protect
+dark-adapted vision; `AMBER` is built for a pit or blackout. A brand accent there would be **UI chrome,
+which the scheme filter does not govern** — the same class of inconsistency A64 documents for cue
+glyphs, where a red glyph survives the filter that turns the page's red ink cyan. It would be a colour
+that stays bright in Amber, in a blackout, beside the music. **Brand the launcher, never the
+instrument.**
+
+**4. Subsections must earn their place.** Accent on headers only (large text, 3:1), body neutral — that
+is BRAND09 and it stands. But a header above a single item is noise: only section where there are
+several things of a kind, and **state the item count per section in the submission**.
+
+**5. Fold the Studio half into A65** — the lane proposed it and is right; anything else double-specs the
+same frame. A66 is Home + Stage only.
+
+— Fable
