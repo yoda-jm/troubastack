@@ -16,9 +16,20 @@ served at runtime via `TROUBA_APPS_DIR=/app/apps`. **`deploy/apps/` is not in th
 change there ships nothing: CI goes green, the tag does not move, and the published image keeps
 serving the old contents with no signal anywhere.
 
-**Nothing is broken today** — `deploy/apps/` holds only `.gitkeep`. This is filed now precisely
-because it is cheap now and invisible later: the failure appears the first time a real app is
-dropped in, as "I deployed it and the server still serves the old one".
+**Nothing is broken today, and the reason is stronger than I first wrote.** My original framing said
+"the failure appears the first time a real app is dropped in". **That is wrong, and I am correcting my
+own spec rather than leaving it to mislead whoever picks this up.** `deploy/apps/*.apk` is
+**gitignored** (`.gitignore:54`) — only `.gitkeep` is committed. An APK dropped there never appears in
+a git diff and never reaches CI at all: embedding one is a *local* `docker compose build`, and a
+CI-built image is designed to contain no APK ("build without an APK ⇒ the manifest is empty and the
+card is hidden", `deploy/README.md`). So the gate could not miss an APK change even in principle.
+
+**What is actually left is hygiene, and it is worth one line anyway.** The allowlist is supposed to
+mirror the Dockerfile's build-context `COPY` set and does not: `deploy/apps/` is copied in and is not
+listed. Today only `.gitkeep` could change there, so the impact is nil — but the list will drift
+again at the next `COPY`, silently, and in the direction that looks safe (publishing nothing). This
+task is about the drift, not about a bug waiting to happen. **Size it accordingly: XS, filler, no
+urgency.**
 
 **One thing this task must not do:** add `proto/` to the list. It looks like the same gap — the
 Dockerfile copies it at line 40 — but core imports no codegen output (the proto types are
@@ -51,7 +62,8 @@ derived from, so the next person editing either one sees the other.
 
 - A commit touching **only** `deploy/apps/` publishes a new image; verify by reading the run's
   `does image content change?` step and by checking that the Docker Hub tag's `tag_last_pushed`
-  actually moved. Not by reading the regex.
+  actually moved. Not by reading the regex. (In practice that means committing a change to
+  `.gitkeep` or a sibling non-`.apk` file, since APKs are gitignored.)
 - A commit touching **only** `docs/` still does **not** publish — the OPS04 behaviour must survive.
   This is the control arm; a change that publishes on everything has removed the gate, not fixed it.
 - The pattern carries a comment naming the Dockerfile `COPY` lines it mirrors.
