@@ -129,6 +129,27 @@ export function Setlists() {
     }
   }
 
+  // T132: arm/disarm rehearsal live mode from the row — the SAME endpoint LiveModeCard uses, not a
+  // forked path. Arming CONFIRMS (naming the concert — the wrong-row risk) and states the 3-hour
+  // consequence the detail card otherwise carries; disarming is immediate (safe + reversible).
+  async function onToggleLive(sl: Setlist) {
+    const live = isLive(sl);
+    if (!live) {
+      const ok = await confirm({
+        title: `Arm live mode for “${sl.name}”?`,
+        body: "Edits to this concert’s songs will auto-bake for the next 3 hours (it turns itself off after that).",
+        confirmLabel: "Arm live mode",
+      });
+      if (!ok) return;
+    }
+    try {
+      await api.setSetlistLive(bandId, sl.id, !live);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn’t change live mode");
+    }
+  }
+
   const q = foldText(query.trim());
   const filtered = q
     ? setlists.filter((s) => foldText(`${s.name} ${s.venue ?? ""} ${s.eventDate ?? ""}`).includes(q))
@@ -263,6 +284,17 @@ export function Setlists() {
                                   }}
                                 >
                                   {sl.lastBakedAt ? "Re-bake" : "Bake"}
+                                </RowMenuItem>
+                              )}
+                              {myRole === "admin" && (
+                                <RowMenuItem
+                                  testId="setlist-live-toggle"
+                                  onClick={() => {
+                                    closeMenu();
+                                    void onToggleLive(sl);
+                                  }}
+                                >
+                                  {isLive(sl) ? "Disarm live mode" : "Arm live mode"}
                                 </RowMenuItem>
                               )}
                               {sl.downloadUrl && (

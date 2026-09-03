@@ -92,6 +92,7 @@ test("non-admin sees only Duplicate on a concert row — no bake, delete, PDF or
   await expect(memberPage.getByTestId("setlist-duplicate")).toBeVisible();
   await expect(memberPage.getByTestId("setlist-rebake")).toHaveCount(0);
   await expect(memberPage.getByTestId("setlist-delete")).toHaveCount(0);
+  await expect(memberPage.getByTestId("setlist-live-toggle")).toHaveCount(0); // T132: admin-only
   await expect(memberPage.getByTestId("setlist-pdf")).toHaveCount(0);
   await expect(memberPage.getByTestId("setlist-bundle")).toHaveCount(0);
 

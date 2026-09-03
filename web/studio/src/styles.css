@@ -32,6 +32,9 @@
 
   --ok-bg: #e7f6ee; --ok-fg: #0a7154;
   --error-bg: #fbeceb; --error-fg: #b42318;
+  /* T132: rehearsal live mode is a STATE, not an error — its own crimson, distinct from --error's
+     brick. Readable as text: 6.09 / 5.63 on --surface / --bg. */
+  --live: #c20e2e;
 
   /* Amber "locked layer / edit-anyway / bench" family. */
   --warn-bg: #fbf0dd; --warn-fg: #9a5a08; --warn-border: #d08a2c;
@@ -69,6 +72,7 @@
     --border: #2b2836; --border-strong: #3a3648;
     --ok-bg: #10281f; --ok-fg: #5ee0a3;
     --error-bg: #2a1414; --error-fg: #fca5a5;
+    --live: #ff6b78; /* T132: live crimson on dark — 6.42 / 6.96 on --surface / --bg */
     --warn-bg: #2c2413; --warn-fg: #f2c14e; --warn-border: #a97b28;
     --chip-bg: #262232; --chip-fg: #c8c2d6;
     --staff: color-mix(in srgb, var(--muted) 55%, transparent);
@@ -1082,12 +1086,18 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .audience-tag.audience-band { color: var(--brand-ink); border-color: var(--brand); }
 .audience-tag.audience-mine { color: var(--ok-fg); border-color: color-mix(in srgb, var(--ok-fg) 55%, transparent); }
 
-/* T131: a small "Live" chip on a concert row whose rehearsal live mode is on (edits auto-bake). */
+/* T131/T132: a "Live" chip on a concert row in rehearsal live mode — a YouTube-style pulsing red dot
+   BESIDE the word (the word is the signal; colour + motion are decoration that fail for colour-blind /
+   reduced-motion users). Its own --live token, never --error. The dot's pulse stops under
+   prefers-reduced-motion (see the shared rule below). */
 .live-chip {
-  display: inline-flex; align-items: center; margin-left: .5rem;
-  padding: .02rem .4rem; border-radius: 999px;
-  font-size: .7rem; font-weight: 700; letter-spacing: .02em; vertical-align: middle;
-  color: var(--on-brand); background: var(--brand);
+  display: inline-flex; align-items: center; gap: .3rem; margin-left: .5rem;
+  font-size: .72rem; font-weight: 800; letter-spacing: .04em; vertical-align: middle;
+  color: var(--live);
+}
+.live-chip::before {
+  content: ""; width: .5rem; height: .5rem; border-radius: 999px; background: currentColor;
+  animation: livePulse 1.6s ease-in-out infinite;
 }
 .audience-note { font-weight: 400; opacity: .75; }
 .editor-reject-notice {
@@ -1654,7 +1664,7 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 }
 .chip.live { color: var(--error-fg); background: var(--error-bg); display: inline-flex; align-items: center; gap: .35rem; }
 @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .live-dot, .chip.live::before { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .live-dot, .chip.live::before, .live-chip::before { animation: none; } }
 .live-card .card-head { display: flex; align-items: center; gap: .6rem; }
 .btn.danger { background: var(--error-bg); color: var(--error-fg); border-color: color-mix(in srgb, var(--error-fg) 45%, transparent); }
 
