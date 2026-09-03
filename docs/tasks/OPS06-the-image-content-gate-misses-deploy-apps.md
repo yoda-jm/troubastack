@@ -12,9 +12,9 @@ grep -qE '^(core/|web/studio/|web/ink/|web/bake/|Dockerfile$)'
 ```
 
 But the **final** stage of the `Dockerfile` also does `COPY deploy/apps/ /app/apps/` (line 84),
-served at runtime via `TROUBA_APPS_DIR=/app/apps`. **`deploy/apps/` is not in the list**, so a
-change there ships nothing: CI goes green, the tag does not move, and the published image keeps
-serving the old contents with no signal anywhere.
+served at runtime via `TROUBA_APPS_DIR=/app/apps`. **`deploy/apps/` is not in the list**, so the
+allowlist does not mirror what the image is actually built from. Read on before sizing this — the
+consequence is smaller than that sentence suggests.
 
 **Nothing is broken today, and the reason is stronger than I first wrote.** My original framing said
 "the failure appears the first time a real app is dropped in". **That is wrong, and I am correcting my
