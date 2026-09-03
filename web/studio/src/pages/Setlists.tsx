@@ -7,7 +7,7 @@
  */
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { ApiError, api, type Setlist } from "../api";
+import { ApiError, api, pdfUrlFromBundle, type Setlist } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { NewItem } from "../components/NewItem";
 import { useBand } from "./BandLayout";
@@ -271,7 +271,7 @@ export function Setlists() {
                                   onClick={() => {
                                     closeMenu();
                                     triggerDownload(
-                                      sl.downloadUrl!.replace(/\/bundle$/, "/pdf"),
+                                      pdfUrlFromBundle(sl.downloadUrl!),
                                       `${sl.name || "concert"}.pdf`,
                                     );
                                   }}

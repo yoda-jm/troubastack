@@ -54,3 +54,47 @@ test("concert row: bake from the row, then PDF + bundle appear; an empty setlist
   await expect(page.getByTestId("setlist-pdf")).toBeVisible();
   await expect(page.getByTestId("setlist-bundle")).toBeVisible();
 });
+
+test("non-admin sees only Duplicate on a concert row — no bake, delete, PDF or bundle (T131)", async ({
+  browser,
+}) => {
+  const adminCtx = await browser.newContext();
+  const memberCtx = await browser.newContext();
+  const adminPage = await adminCtx.newPage();
+  const memberPage = await memberCtx.newPage();
+
+  const memberName = `rowmember_${stamp()}`;
+  await register(adminPage, `rowadmin_${stamp()}`);
+  const { id: bandId } = await createBandAndOpen(adminPage, `RowRole ${stamp()}`);
+
+  // Admin invites the member; the member accepts → a non-admin member of the band.
+  await adminPage.getByTestId("invite-toggle").click();
+  await adminPage.getByTestId("invite-identifier").fill(memberName);
+  await adminPage.getByTestId("invite-submit").click();
+  await expect(adminPage.getByTestId("invite-notice")).toBeVisible();
+  await register(memberPage, memberName);
+  await memberPage.getByTestId("nav-invites").click();
+  await memberPage.getByTestId("invite-accept").click();
+  await expect(memberPage.getByTestId("invites-empty")).toBeVisible();
+
+  // Admin makes an (unbaked) setlist — so PDF/bundle are absent for everyone regardless of role.
+  await adminPage.goto(`/bands/${bandId}/setlists`);
+  const name = `RoleGig ${stamp()}`;
+  await createSetlist(adminPage, name);
+
+  // The member opens that row's menu: Duplicate ONLY — admin actions (bake, delete) are gone, and the
+  // never-baked links are absent. Checked with a real non-admin account, not by reasoning about the gate.
+  await memberPage.goto(`/bands/${bandId}/setlists`);
+  await memberPage
+    .locator("li", { has: memberPage.getByTestId("setlist-link").filter({ hasText: name }) })
+    .getByTestId("setlist-menu")
+    .click();
+  await expect(memberPage.getByTestId("setlist-duplicate")).toBeVisible();
+  await expect(memberPage.getByTestId("setlist-rebake")).toHaveCount(0);
+  await expect(memberPage.getByTestId("setlist-delete")).toHaveCount(0);
+  await expect(memberPage.getByTestId("setlist-pdf")).toHaveCount(0);
+  await expect(memberPage.getByTestId("setlist-bundle")).toHaveCount(0);
+
+  await adminCtx.close();
+  await memberCtx.close();
+});

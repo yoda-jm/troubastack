@@ -360,6 +360,13 @@ async function decode<T>(res: Response): Promise<T> {
   return payload as T;
 }
 
+/** A concert's printable-PDF URL, derived from its bundle download URL (…/bundle → …/pdf). Kept in ONE
+ *  place so this URL-shape assumption can't drift between the detail page and the concert-row action
+ *  (T131) — a break in one but not the other is exactly what a duplicated regex causes. */
+export function pdfUrlFromBundle(downloadUrl: string): string {
+  return downloadUrl.replace(/\/bundle$/, "/pdf");
+}
+
 export const api = {
   // ---- auth ----
   register: (input: { username: string; displayName: string; password: string; email?: string }) =>
@@ -819,7 +826,7 @@ export const api = {
   // concert's bundle downloadUrl (…/bundle → …/pdf) — same auth gating; the server
   // composites the caller's view (mandatory + untagged shared + the caller's own
   // personal layers) via the shared P205 view-resolution rule, so print == screen.
-  concertPdfUrl: (c: Concert) => c.downloadUrl.replace(/\/bundle$/, "/pdf"),
+  concertPdfUrl: (c: Concert) => pdfUrlFromBundle(c.downloadUrl),
 
   // ---- invites ----
   listInvites: () => request<{ invites: Invite[] }>("GET", "/api/invites").then((r) => r.invites),
