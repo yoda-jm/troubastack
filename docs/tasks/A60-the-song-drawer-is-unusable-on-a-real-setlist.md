@@ -94,15 +94,40 @@ advances the unit' now holds in every mode."* It says **nothing about the arrows
 which keep page granularity in that mode. So one half was designed and written down; the other half
 was left as whatever fell out.
 
-**Recommendation, and it may well be "change nothing but the docs".** A pedal press that skips a
-whole song mid-piece would be much worse than one that advances a screenful — so the arrows and pedal
-being fine-grained is probably *right*, and the swipe being coarse is *also* right for a deliberate
-two-fingered gesture. If that is the intent, then the fix is to **say so** — in the comment, and
-wherever the reading modes are explained to a user — rather than to make them match.
+### DECIDED by VLL, 2026-09-03 — and the split is touch vs hardware, not arrows vs volume
 
-**This is VLL's call, not the lane's**: he is the one on stage with the pedal. Ask before changing
-behaviour. What is not optional is that the two granularities stop being an accident of which
-callback a given input happened to be wired to.
+VLL: *"pour moi la fleche doit etre pareil qu'un swipe, par contre la pedale ca veut dire qu'on a pas
+acces a l'ecran donc ca doit avancer dans la page et faire next song tout a la fin"*.
+
+The intent: **if you can see and touch the screen, the control is coarse** (you chose it deliberately);
+**if you are hands-free on a pedal, it is fine-grained** (you cannot correct a wrong jump mid-piece,
+so it advances through the page and only crosses at the very end).
+
+**⚠ Do not implement that as "keys behave like the swipe".** `StageKeys.kt` says it outright:
+*"Bluetooth pedals present as keyboards sending PageUp/Down or arrows; Space is common; volume keys
+are the phone stand-in."* **A BT pedal sends arrow keys.** Routing key events to the swipe behaviour
+would make a real pedal skip whole songs — the precise outcome VLL is ruling out. The line he is
+drawing is **touch vs hardware**, and it lands like this:
+
+| input | scroll mode, after this change |
+|---|---|
+| horizontal swipe | cross to the next song *(unchanged)* |
+| **on-screen ‹ › FABs** | **cross to the next song** — the change |
+| BT pedal (arrows / PageUp / Space) and volume keys | advance within the column, cross at the end *(unchanged)* |
+
+So the work is narrow: the FABs at `StageScreen.kt:585-586` stop sharing `turnNext` with the hardware
+path and use the scroll-mode song-cross (`scrollSwipeNext` / `scrollSwipePrev`) when `scrollMode` is
+on. Keys and the volume registrar keep `turnNext` exactly as they are. Page and width modes are
+untouched — everything there already agrees.
+
+**The accepted cost, stated so nobody re-opens it:** someone using a real keyboard with a tablet gets
+the pedal behaviour, because a key event cannot be told apart from a pedal's. That is the right way
+round — mistaking a keyboard for a pedal costs a fine-grained turn; mistaking a pedal for a keyboard
+costs a skipped song on stage.
+
+**And update the N8 comment.** It currently claims *"'Horizontal swipe advances the unit' now holds in
+every mode"* and says nothing about the other inputs. After this it should state the rule VLL actually
+gave: touch is coarse, hardware is fine, and why.
 
 **Minor, found on the way:** `StageViewModel.next()` and `.previous()` are **dead in production** —
 only `StageViewModelTest` calls them. Either delete them or say in a comment that they exist for the
@@ -116,5 +141,6 @@ model's own tests, because they are a trap: they read like the app's navigation 
 - The two headers are styled the same way.
 - `:shared:testDebugUnitTest` still reports **303** plus whatever you add. Match the count.
 - P4 is filed separately, not half-done here.
-- **P5 is a decision recorded, not a change made on assumption** — VLL is asked before the
-  granularities are touched, and whatever is decided ends up written down next to the code.
+- **P5:** the ‹ › FABs cross songs in scroll mode; keys and volume do **not**. Verify with a real
+  hardware turn (or volume keys) that the pedal path still advances within the column — if a
+  pedal press skips a song, the change went in on the wrong side of the line.
