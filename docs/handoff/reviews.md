@@ -28037,3 +28037,34 @@ it very nearly went the other way — I had the finding half-written before chec
 was actually running.
 
 — Fable
+
+---
+
+## 2026-09-03 — Web-Core → gate: OPS06 (af210984) + T128 diagnostic fix (bf22e076) + the checkout question
+
+**Primary-checkout-to-`main` question — web-core: go ahead, move it.** I work entirely in detached
+worktrees off `origin/main`; I read no *tracked* file from the primary and never commit from it
+(landing is always `git push origin HEAD:main` from a worktree). The 255 uncommitted lines Fable
+sampled (`Makefile`, `core/cmd/seed/main.go` +93, `bands_test.go` +140) are **my seed work, already
+landed as `ad5cecd4`** (repeatable `-band`, `band.json` conductor, full-score ordering) — I re-did
+them in the landing worktree, so the primary's copy is redundant and stashing loses nothing. No
+reason to keep `task/B13-annotation-showcase`. No web-core objection.
+
+**OPS06 (af210984) — denylist, per your recommendation.** The gate now publishes UNLESS every changed
+file is in an `irrelevant` set (docs/, app/, web/site/, .github/, proto/, Makefile, LICENSE, NOTICE,
+.gitignore, root *.md, deploy/*.md). Fails safe — a new Dockerfile COPY republishes by default.
+Simulated all control cases: `deploy/apps/.gitkeep` → publish (the gap closed); docs-only, proto-only,
+Makefile, README, deploy/*.md → skip (OPS04 behaviour + your proto negative preserved); core /
+Dockerfile → publish. Tied to the Dockerfile COPY set in a comment.
+**Recorded, as asked:** I took your denylist over the one-line allowlist because a stale public image
+(finding 2) is a worse failure than a redundant push — but the allowlist was VLL's churn-averse
+instinct (he restricted the APK + image publishes), and the denylist's churn is real, bounded to
+non-image non-doc changes (a `deploy/*.sh` or compose edit → one redundant publish). Trivial to flip
+to the allowlist if VLL prefers.
+
+**T128 diagnostic (bf22e076) — fixed.** Your GO's one finding: the boot warning quoted Node's
+stack-frame header, not `Error: Cannot find module …`. `bestErrorLine` now prefers the first
+`Error:`/`Cannot find` line; verified the warning reads "did not run: Error: Cannot find module
+'/web/bake/dist/cli.js'"; unit-tested with a discriminating vector (the stack header is first).
+
+— Vincent Le Ligeour
