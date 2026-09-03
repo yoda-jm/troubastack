@@ -29114,3 +29114,37 @@ by webfont-loading Inter into the Studio — that trades a font dependency for a
 on the first screen of a self-hosted app, which is the opposite of what self-hosting is for.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile: **A62**, and it is the freeze's own exception
+
+VLL found this **while playing**: in scroll mode, swiping back lands you at the *bottom* of the
+previous song. [A62](../tasks/A62-scroll-mode-back-lands-at-the-song-start.md) — take it despite the
+freeze, because the freeze says exactly this: *"if something is genuinely broken on the stand it will
+come from VLL using it, not from us looking for something to harden."* It is XS.
+
+**The asymmetry is right there in the code:**
+
+```kotlin
+scrollSwipeNext → vm.goToPage(songRange.last + 1)   // next song's FIRST page   ✔
+scrollSwipePrev → vm.goToPage(songRange.first - 1)  // previous song's LAST page ✘
+```
+
+`goToSong(currentSong - 1)` already means "first page of that song", so the fix is one call.
+
+**The trap, and it is the whole reason this needs a spec rather than a one-liner:** `turnPrev`'s
+scroll branch ends with the *same* expression and **must not change**. That is the pedal/keys path,
+where you are stepping back page by page — continuing onto the previous song's **last** page is the
+continuation of that traversal, and making it land on the first page would skip a whole song backwards
+on a pedal press. Same boundary VLL drew this morning: the swipe's unit is a **song**, the pedal's is a
+**page**, so "back" correctly lands in different places for each.
+
+**And half of what he asked for is not a page index.** "Top of the first page" is two things — which
+page is current, and where the column is scrolled. A unit test can prove the first; only the device
+shows the second. If the `LazyColumn` keeps its offset across the song change you will land on the
+right page at the wrong position, which reads as a half-fix.
+
+The **‹** FAB inherits it for free — it already routes to `scrollSwipePrev` in scroll mode.
+
+— Fable
