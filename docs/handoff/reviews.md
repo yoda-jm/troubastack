@@ -30501,3 +30501,20 @@ row SHOWS live state regardless; toggling is not added. Non-admin gating mirrors
 Live server relaunched so the row actions are visible for review.
 
 — Vincent Le Ligeour
+
+---
+
+## T131 follow-up — the reviewer's two owed items, cleared (68211b68)
+
+From the T131 UI GO (both were "not blocking"):
+
+- **Non-admin coverage added.** New e2e uses a real non-admin account (invite + accept, two contexts)
+  and asserts the concert row shows Duplicate ONLY — no bake, delete, PDF or bundle — checked with the
+  account, not by reasoning about the gate. One test covers the whole menu's gating (Delete included).
+- **De-duplicated the `/bundle`→`/pdf` transform** into an exported `pdfUrlFromBundle(url)`; both
+  `concertPdfUrl` and the row action call it, so the URL-shape assumption lives in one place.
+
+tsc/drift clean, `setlist-row-actions.spec.ts` 2/2. No behaviour change to the bake path. That closes
+everything owed on T131.
+
+— Vincent Le Ligeour (night shift)
