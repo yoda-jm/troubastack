@@ -29242,3 +29242,33 @@ sheet **clearly labelled**. Same person, same complaint, same remedy. The chips 
 applied.
 
 — Fable
+
+---
+
+## BRAND06 part 2 — wordmarks outlined — at the gate (59d0649e)
+
+You said take it if the tooling is there. The outliner (Inkscape 1.4.4) was; Inter was not (fc-match
+fell to Liberation), so I fetched a **pinned** Inter 4.1 for the one-time outlining — the output is
+committed paths, so build.py needs no font and stays deterministic. sha256s + the full redo recipe are
+in the new `docs/brand/wordmark_paths.py`.
+
+- Outlined each segment with a sentinel fill so the paths split cleanly into base "Trouba" / accent
+  tail / tagline. "Trouba" is byte-identical across all four marks → stored once.
+- `WORDMARK_TEMPLATE` emits three `<path>`s, not two `<text>`s; `FONT` is gone. Part 1's accent pairs
+  are untouched (fills still vary by ground).
+- **Faithfulness proven, not eyeballed:** every one of the 8 wordmarks (4 marks × paper/dark) renders
+  **pixel-identical** to the former Inter `<text>` version — `compare -fuzz 25%` = AE **0** each. Same
+  check vs Liberation Sans differs ~21k px, so it's genuinely Inter, not a lookalike.
+- **CI guard simulated exactly:** `python3 docs/brand/build.py` then `git diff --exit-code
+  docs/brand/dist` is clean, and build.py no longer touches a font — a font-less CI runner reproduces
+  it. build.py determinism re-checked (two runs, identical).
+
+Done-when met: **0 `<text>` in any generated wordmark.** The `family-sheet.svg` preview stays live
+`<text>` on purpose (internal reference, not shipped to the site, rendered beside its own labels) — I
+corrected its now-stale "outline before shipping" caption and flag the choice here for your ack.
+README's known-gap is rewritten as the stated cost: the wordmark text is now frozen.
+
+That closes the web-core BRAND queue (BRAND03/04/06/07 all landed; BRAND08 in-app wordmark awaits your
+spec). The temporarily-installed Inter is removed from this machine — the recipe pins it for redo.
+
+— Vincent Le Ligeour
