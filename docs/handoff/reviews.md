@@ -29653,3 +29653,70 @@ swap is the media query alone; the un-stamped system state is covered because it
 wordmark will show on the next relaunch. Data intact.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-09-03 — Mobile → gate: A62 **LANDED**; A63 + A64-pt1 built & held; one **design question** on A64
+
+Three things: a landing confirmation, two post-gig branches parked behind the freeze, and one
+architecture decision I need from you before A64 can finish.
+
+### A62 — **LANDED** (`fbe0c1f9`, now under `15d5ef29`)
+
+On your GO ("GO on the code" + freeze exception, "take this one now"), rebased clean onto main and
+pushed. **Device-verified on the tablet** (scroll mode, multi-page song): the ‹ scroll-back went
+Song 20 → Song 19 and landed at the **TOP of song 19's first page** (song title header + Verse 1,
+page 30/35), not mid-song on the previous song's last page. The owed device check is thus done. The
+first-song block is covered by `NavSemanticsTest` (`isBlockedSongCross(0,n,forward=false)==true`); the
+pedal path (`turnPrev`) is untouched by the diff, so it still steps back page-by-page onto the previous
+song's last page — VLL's hardware pedal to spot-confirm. **CI green** on `15d5ef29` (includes A62): all
+seven jobs (android, release-apk, e2e, go, web, proto, image).
+
+### A63 — built, **held** (branch `task/A63-parameters-chips` @ `57e3d2a3`, post-gig)
+
+The ⚙ sheet's three look-alike chips now each carry a titleSmall label + a "what it affects" subtitle
+(Role / Colour / Layers), the value on the button. **Colour stays a one-tap cycle on-stage** per your
+ruling — the full four-scheme picker lives in Home → Parameters. `:shared:testDebugUnitTest` green
+(unchanged count; the ⚙ sheet is Compose UI, no pure-seam test). Not pushed to main — freeze.
+
+### A64 — **part 1 built & held** (branch `task/A64-annotation-colours` @ `71e26522`); part 2 needs your call
+
+Per VLL's steer ("build the safe core, gate the mechanism"), part 1 is the spec-complete, testable half:
+
+- **The rule as a pure function** (`AnnotationColor.kt`, commonMain): the Lab-chroma gate (C* < 20 →
+  ink, invert + lift to 4.5:1; ≥ 20 → code, keep hue+sat, remap lightness for 4.5:1 vs paper AND
+  ΔE ≥ 25 vs printed ink; light grounds untouched), clause-3 highlight alpha 0.55 → 0.30 on dark.
+  Paper/ink DERIVE from the real `StageColorMode` matrices (white/black through the matrix).
+- **The discriminating unit test** (`AnnotationColorTest.kt`, 9 cases) over the real palette
+  (`COLOR_SWATCHES` ∪ `CUE_PALETTE`, 11 colours): thresholds asserted, near-black classifies as **ink**
+  (the case the first draft got wrong), and the required teeth — today's straight inversion of red
+  (→ teal) **FAILS** the hue-identity the rule's output passes. `:shared:testDebugUnitTest` **316/0**
+  (was 307; +9).
+- **The cue-glyph fix** (the "defect, not preference" half): the live glyph now runs through the SAME
+  `annotationInk` transform as the ink (`cueTint`), so a code can never be a red glyph and teal ink on
+  one screen; neutral cues keep their context colour.
+
+**The design question (the reason part 2 is gated):** a baked layer PNG carries *multiple* objects each
+with its own colour, so the rule is genuinely **per-pixel** — a single `ColorMatrix` can't branch on
+chroma, and the bake must stay untouched (device-side only). Two mechanisms:
+
+1. **CPU per-pixel transform at decode, cached per scheme** (my recommendation). One pass over each
+   decoded overlay bitmap via `expect/actual` pixel access, memoised in the existing overlay cache
+   (add scheme to the key). **Reuses the one `annotationInk` function** — glyph and ink literally share
+   the rule, so they can't diverge. Cross-platform without two shader languages. Cost: a re-pass on
+   scheme change, but schemes change rarely and each is cached. Overlays are small/sparse.
+2. **GPU shader** (AGSL on Android + SkSL/Metal on iOS). No re-pass, but the rule (including the
+   lightness *search*) would be reimplemented in shader code per platform — duplicate logic, the exact
+   divergence risk clause 0 is trying to kill, and not unit-testable.
+
+I lean hard on **(1)**. Ratify or redirect and I'll build part 2 (overlay render + the on-device
+four-scheme check: a red cue reads red, glyph matches ink) after the gig.
+
+**Still yours to call** (spec's "Open for VLL", unchanged): Clause 4 — the light-scheme palette weakness
+(amber-on-white stroke 2.1:1) is a *palette* fix no matrix can make; darken amber for stroke use, or
+restrict colour×form. And confirm alpha-0.30 still *looks* like a highlight, in a dark room, once part 2
+is on device.
+
+Nothing here is pushed as app-binary — A63/A64 are branches only, held for after 2026-09-05.
+
+— Mobile App Agent
