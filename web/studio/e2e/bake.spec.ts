@@ -9,7 +9,7 @@
  * spec also asserts before adding the song.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, createSetlist } from "./setup-helpers";
 
 test("admin bakes a setlist → download link + history appear", { tag: "@smoke" }, async ({ page }) => {
   await register(page, `bake_${stamp()}`);
@@ -21,8 +21,7 @@ test("admin bakes a setlist → download link + history appear", { tag: "@smoke"
   // full-screen song editor, which has no nav sidebar.
   await page.goto(`/bands/${bandId}/setlists`);
   await expect(page).toHaveURL(/\/setlists$/);
-  await page.getByTestId("setlist-name").fill(`Gig ${stamp()}`);
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, `Gig ${stamp()}`);
   await page.getByTestId("setlist-link").first().click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
 

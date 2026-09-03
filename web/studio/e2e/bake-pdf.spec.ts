@@ -6,7 +6,7 @@
  * download and serves an application/pdf body.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, createSetlist } from "./setup-helpers";
 
 test("admin downloads a concert PDF (paper fallback)", async ({ page }) => {
   await register(page, `pdf_${stamp()}`);
@@ -17,8 +17,7 @@ test("admin downloads a concert PDF (paper fallback)", async ({ page }) => {
   // Reach setlists by URL: createSongAndOpen leaves us in the full-screen song editor (no nav).
   await page.goto(`/bands/${bandId}/setlists`);
   await expect(page).toHaveURL(/\/setlists$/);
-  await page.getByTestId("setlist-name").fill(`Gig ${stamp()}`);
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, `Gig ${stamp()}`);
   await page.getByTestId("setlist-link").first().click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
 

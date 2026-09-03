@@ -10,7 +10,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
-import { stamp, register, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createSongAndOpen, createSetlist } from "./setup-helpers";
 
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
@@ -125,8 +125,7 @@ test("delete-setlist works with native dialogs suppressed — a Part B (confirm-
   await register(page, `t91s_${stamp()}`);
   await createBand(page, `T91SBand ${stamp()}`);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Teardown Show");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Teardown Show");
   await page.getByTestId("setlist-link").filter({ hasText: "Teardown Show" }).click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
 

@@ -14,6 +14,7 @@ import {
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { NewItem } from "../components/NewItem";
+import { foldText } from "../foldText";
 import { SectionTabs } from "../components/SectionTabs";
 
 /** Sentence-case a short enum label (role, zone) for display. */
@@ -327,14 +328,6 @@ function ResetLinkPanel({ link, onDone }: { link: string; onDone: () => void }) 
       </button>
     </span>
   );
-}
-
-// foldText lowercases and strips accents so search matches "tete" ↔ "Tété" etc.
-function foldText(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
 }
 
 const SONGS_PAGE = 12;

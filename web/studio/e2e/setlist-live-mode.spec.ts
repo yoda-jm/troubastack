@@ -6,7 +6,7 @@
  * enables is core-side, tested in Go; here we cover the admin control + indicator.)
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register } from "./setup-helpers";
+import { stamp, register, createSetlist } from "./setup-helpers";
 
 test("admin toggles rehearsal live mode; the banner shows + persists", async ({ page }) => {
   const s = stamp();
@@ -25,8 +25,7 @@ test("admin toggles rehearsal live mode; the banner shows + persists", async ({ 
 
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Rehearsal");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Rehearsal");
   await page.getByTestId("setlist-link").first().click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
 

@@ -11,7 +11,7 @@
  * backend is ever reused.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, registerViaUi, createBandAndOpen } from "./setup-helpers";
+import { stamp, register, registerViaUi, createBandAndOpen, createSetlist } from "./setup-helpers";
 
 test("1. register lands on an empty /bands", { tag: "@smoke" }, async ({ page }) => {
   await registerViaUi(page, `solo_${stamp()}`);
@@ -183,8 +183,7 @@ test("8. setlist: create, add two songs, reorder, key override persists", { tag:
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
   await expect(page).toHaveURL(/\/setlists$/);
-  await page.getByTestId("setlist-name").fill(`Gig ${stamp()}`);
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, `Gig ${stamp()}`);
   await page.getByTestId("setlist-link").first().click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
 

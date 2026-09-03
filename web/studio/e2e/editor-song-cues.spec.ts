@@ -6,7 +6,7 @@
  * setlist row cues don't exist pre-fix.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen, createSongAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSongAndOpen, createSetlist } from "./setup-helpers";
 
 const RED = "rgb(225, 29, 72)"; // #e11d48
 
@@ -87,8 +87,7 @@ test("an unknown icon id falls back to the note glyph, never an error (T50)", as
 
   // On the setlist row it renders as the `note` fallback, tinted — no crash.
   await page.goto(`/bands/${bandId}/setlists`);
-  await page.getByTestId("setlist-name").fill("Gig");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Gig");
   await page.getByTestId("setlist-link").filter({ hasText: "Gig" }).click();
   await page.getByTestId("add-item-song").selectOption({ label: "Little By Little" });
   await page.getByTestId("add-item").click();
@@ -110,8 +109,7 @@ test("a song's cues show as tinted chips on its setlist row (T50)", async ({ pag
   // The band's setlists live under /bands/{bandId}/setlists.
   const bandId = page.url().match(/\/bands\/([^/]+)\/songs\//)![1];
   await page.goto(`/bands/${bandId}/setlists`);
-  await page.getByTestId("setlist-name").fill("Gig");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Gig");
   await page.getByTestId("setlist-link").filter({ hasText: "Gig" }).click();
   await page.getByTestId("add-item-song").selectOption({ label: "Slide Away" });
   await page.getByTestId("add-item").click();

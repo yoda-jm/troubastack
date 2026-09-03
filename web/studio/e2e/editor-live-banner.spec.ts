@@ -6,7 +6,7 @@
  * performers"). Turning live mode off makes the banner disappear (polled).
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register } from "./setup-helpers";
+import { stamp, register, createSetlist } from "./setup-helpers";
 
 test("editor shows the LIVE banner when the song's setlist is live", async ({ page }) => {
   const s = stamp();
@@ -30,8 +30,7 @@ test("editor shows the LIVE banner when the song's setlist is live", async ({ pa
   // A setlist containing the song.
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Rehearsal");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Rehearsal");
   await page.getByTestId("setlist-link").first().click();
   await page.getByTestId("add-item-song").selectOption({ label: "The Open Road" });
   await page.getByTestId("add-item").click();

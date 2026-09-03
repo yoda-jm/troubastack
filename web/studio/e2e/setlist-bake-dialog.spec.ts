@@ -5,7 +5,7 @@
  * are locked on. Red-first: pre-P205 baking has no dialog.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register } from "./setup-helpers";
+import { stamp, register, createSetlist } from "./setup-helpers";
 
 test("bake dialog captures per-layer default-on; toggling one off sends it false (P205)", async ({
   page,
@@ -48,8 +48,7 @@ test("bake dialog captures per-layer default-on; toggling one off sends it false
 
   // Setlist with the song.
   await page.goto(`/bands/${bandId}/setlists`);
-  await page.getByTestId("setlist-name").fill("Gig");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Gig");
   await page.getByTestId("setlist-link").filter({ hasText: "Gig" }).click();
   await page.getByTestId("add-item-song").selectOption({ label: "The Open Road" });
   await page.getByTestId("add-item").click();

@@ -10,7 +10,7 @@
  * Sibling guard for the SAME bug class on the annotate/draw path: `editor-insecure-context.spec.ts`.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp } from "./setup-helpers";
+import { stamp, createSetlist } from "./setup-helpers";
 
 const V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -48,8 +48,7 @@ test("insecure origin (no crypto.randomUUID): the bake still fires, with a valid
   await page.getByTestId("create-song").click();
 
   await page.goto(`/bands/${bandId}/setlists`);
-  await page.getByTestId("setlist-name").fill("Gig");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Gig");
   await page.getByTestId("setlist-link").filter({ hasText: "Gig" }).click();
   await page.getByTestId("add-item-song").selectOption({ label: "The Open Road" });
   await page.getByTestId("add-item").click();

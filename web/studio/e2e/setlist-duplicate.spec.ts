@@ -4,7 +4,7 @@
  * copy are listed.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSetlist } from "./setup-helpers";
 
 test("duplicate a setlist → independent, editable copy; both listed", async ({ page }) => {
   await register(page, `dup_${stamp()}`);
@@ -21,8 +21,7 @@ test("duplicate a setlist → independent, editable copy; both listed", async ({
   // Create a setlist "Show" with the song.
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Show");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Show");
   await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
   await page.getByTestId("add-item-song").selectOption({ label: song });

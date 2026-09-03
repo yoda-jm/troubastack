@@ -77,3 +77,18 @@ export async function uploadPdf(page: Page) {
   await expect(page.getByTestId("file-row")).toHaveCount(1);
   await page.getByTestId("my-files-edit").click();
 }
+
+/** Create a concert (setlist) via the T127 progressive-disclosure popup: reveal the form, fill it,
+ *  submit. Assumes you are on the band's /setlists page. One home, so a future change to the create
+ *  flow is one edit, not fifteen. */
+export async function createSetlist(
+  page: Page,
+  name: string,
+  opts: { date?: string; venue?: string } = {},
+): Promise<void> {
+  await page.getByTestId("new-setlist-btn").click();
+  await page.getByTestId("setlist-name").fill(name);
+  if (opts.date) await page.getByTestId("setlist-eventDate").fill(opts.date);
+  if (opts.venue) await page.getByTestId("setlist-venue").fill(opts.venue);
+  await page.getByTestId("create-setlist").click();
+}

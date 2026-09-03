@@ -11,7 +11,7 @@
  * bake.spec.ts).
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSetlist } from "./setup-helpers";
 
 async function addSong(page: Page, bandUrl: string, title: string) {
   await page.goto(bandUrl);
@@ -31,8 +31,7 @@ test("bench a setlist item → outside the running order, still baked", async ({
   // A setlist with all three songs in the running order.
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Show");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Show");
   await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
   const labels = ["Aaa", "Bbb", "Ccc"];

@@ -4,7 +4,7 @@
  * song onto the first row → it moves to the top and the numbering follows.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register } from "./setup-helpers";
+import { stamp, register, createSetlist } from "./setup-helpers";
 
 test("drag a running-order song to the top; numbering follows", async ({ page }) => {
   const s = stamp();
@@ -25,8 +25,7 @@ test("drag a running-order song to the top; numbering follows", async ({ page })
 
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Gig");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Gig");
   await page.getByTestId("setlist-link").first().click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
   for (let i = 0; i < 3; i++) {

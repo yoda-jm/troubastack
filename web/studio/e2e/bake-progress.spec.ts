@@ -5,7 +5,7 @@
  * page.route (the lyrics-search precedent), so no real (poppler) bake is stood up.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp } from "./setup-helpers";
+import { stamp, createSetlist } from "./setup-helpers";
 
 // Build a band + one song + a one-item setlist, and land on the setlist page ready to bake.
 async function setupBakeable(page: Page): Promise<void> {
@@ -27,8 +27,7 @@ async function setupBakeable(page: Page): Promise<void> {
   await page.getByTestId("create-song").click();
 
   await page.goto(`/bands/${bandId}/setlists`);
-  await page.getByTestId("setlist-name").fill("Gig");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Gig");
   await page.getByTestId("setlist-link").filter({ hasText: "Gig" }).click();
   await page.getByTestId("add-item-song").selectOption({ label: "The Open Road" });
   await page.getByTestId("add-item").click();

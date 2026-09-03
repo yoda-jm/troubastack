@@ -6,7 +6,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
-import { stamp, register, createBandAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, createSetlist } from "./setup-helpers";
 
 const PDF_PATH = fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url));
 
@@ -48,8 +48,7 @@ test("setlist item transpose checkbox greys on a PDF-only song, enables on a cha
   // Setlist with both songs.
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Show");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Show");
   await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
   await expect(page).toHaveURL(/\/setlists\/[^/]+$/);
   // Wait for each row to land before adding the next — add is async (POST + reload)
@@ -92,8 +91,7 @@ test("bake surfaces per-song transpose warnings in the bake card (T60)", async (
   await newSong(page, bandUrl, "Some Song");
   await page.goto(bandUrl);
   await page.getByTestId("nav-setlists").click();
-  await page.getByTestId("setlist-name").fill("Show");
-  await page.getByTestId("create-setlist").click();
+  await createSetlist(page, "Show");
   await page.getByTestId("setlist-link").filter({ hasText: "Show" }).click();
   await page.getByTestId("add-item-song").selectOption({ label: "Some Song" });
   await page.getByTestId("add-item").click();
