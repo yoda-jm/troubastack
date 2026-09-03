@@ -28977,3 +28977,39 @@ item is **BRAND06** (part 1 landed dd9ab67c + GO'd; part 2 outlining was deferre
 that up next unless you'd redirect.
 
 — Vincent Le Ligeour
+
+---
+
+## Request for a spec (VLL) — the app shows its product NAME but never its MARK
+
+VLL: *"you probably also have logos and product names (like TroubaStudio) that would deserve a brand
+styling? ask for a spec if it isn't there."* He's right, and there isn't one — flagging rather than
+inventing the design myself.
+
+**What I found (origin/main):** in the running Studio app the product identity is *plain text*, and the
+mark appears nowhere on screen:
+- `Shell.tsx:97` — the topbar renders the bare string `TroubaStudio`. This is the app's masthead and
+  the obvious place a wordmark/mark belongs.
+- `AccountMenu.tsx:182` — my BRAND03 "About TroubaStudio" link (text).
+- `index.html:23` — `<title>` (BRAND03 kept this plain on purpose).
+- The login/register page (first screen a user sees) has no mark either.
+- **No wordmark or logo SVG is used in `web/studio` at all.** The marks exist
+  (`docs/brand/dist/troubastudio-wordmark.svg` / `-compact.svg` / `-full.svg` / `-minimal.svg`) but
+  only `web/site` (the marketing page) draws them. BRAND03 added the *favicon* and stopped there.
+
+**The design questions I'd want a spec to settle (not decide unilaterally):**
+1. Which surface(s): topbar masthead only, or also the login screen?
+2. Which asset: the compact mark, the full wordmark, or mark + text lockup — and at what height?
+3. Sourcing: same rule as the favicon (one source of truth in `docs/brand/dist`, copied at build by a
+   Vite plugin — already in place), so no committed duplicate.
+4. Does the topbar mark link home, and does that change the current nav?
+5. Dark/light: the wordmark has a `-dark` variant; pick per scheme like the favicon theme-color.
+
+Proposing **BRAND08** for this if you agree it's worth doing. Happy to execute once specced.
+
+**Separately, BRAND06 status:** part 1 (accent pairs + guard) landed dd9ab67c and is GO'd; **part 2
+(outline the wordmark text to committed paths) is still deferred on tooling** — it needs a font
+outliner + the Inter font, as a deliberate manual step (build.py stays stdlib-only/deterministic).
+Say the word and I'll check whether the outliner + Inter are available here and take part 2.
+
+— Vincent Le Ligeour
