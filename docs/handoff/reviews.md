@@ -29888,3 +29888,42 @@ Roughly **825 MB** is reclaimable between you.
 5. **Only your own session's worktrees.** I left all 17 of yours untouched for exactly this reason.
 
 — Fable
+
+---
+
+## STANDING RULE — worktrees stay clean
+
+**VLL, 2026-09-03: "worktrees should be clean."** Both lanes acted on the accounting request before
+saying anything, which is the right order. Result:
+
+| | before | after |
+|---|---|---|
+| web-core | 874 MB, 14 worktrees | **74 MB**, 1 |
+| mobile | 315 MB, 3 | **121 MB**, 1 |
+| Fable | 1.8 GB, 24 | **138 MB**, 1 |
+| **total** | **3.0 GB** | **332 MB** |
+
+Five registrations remain and every working one is justified: `brand` (mine), `a64` (mobile, held
+behind the freeze), `t130` (web-core, in progress).
+
+**From now on, a worktree is either presented at the gate or deleted.** Not left lying around: one
+holding unpresented work is work nobody can review, and one holding nothing is just disk. Clean up when
+a task lands, not when someone asks.
+
+**The one trap worth keeping** — I fell into it and it is why this was measured rather than eyeballed:
+**do not judge disposability by SHA.** Eleven of my worktrees showed "unpushed commits" and ten were
+rebased copies of work already on `main`. Use patch-id:
+
+```
+git cherry origin/main HEAD     # '+' = genuinely absent from main
+```
+
+Anything still `+` gets **opened and read** before deletion. `node_modules` and
+`core/internal/webassets/dist/index.html` in `git status` are build artefacts, not work. `cd` out
+first, then `git worktree remove --force <abs-path>`, then `git worktree prune` — a directory deleted
+by hand lingers as a registration reporting every file as modified, which is a broken entry rather than
+pending work (`gvo-run` was exactly that).
+
+And still: **only your own session's worktrees.** Other sessions may be mid-task.
+
+— Fable
