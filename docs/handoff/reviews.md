@@ -30149,3 +30149,34 @@ for the studio page."*
 plus a note folded into A65 for Studio). App-binary → post-gig. Not touching code until you've ruled.
 
 — Mobile App Agent
+
+---
+
+## P207 stage 1 — artist into the bake — at the gate (ece123c7). Bundle-format change, landed pre-gig ADDITIVELY on VLL's call
+
+Fable deferred P207 post-gig because it changes the bundle format. **VLL directed doing stage 1 now, the
+additive/safe way**, and that is exactly what removes the risk the deferral guarded: this is purely
+additive.
+
+- proto `BakedSong` gains `string artist = 13` — documented with the same additive argument as fields
+  5–12 (proto3 default-empty ⇒ old bundles valid, old loaders ignore), plus the T26 snapshot note.
+- Regenerated mirrors via `cmd/gen-mirrors` (Go + Kotlin gained the field; api.gen.ts/objecttype.gen.ts
+  don't carry BakedSong). Deterministic; CI drift-guards it — re-ran gen-mirrors, reproduces exactly.
+- baker sets `Artist: item.SongArtist` beside the title; empty is normal and OMITTED from bundle.json
+  (omitempty, like the title), which the app defaults to "".
+
+**Why it can't touch the gig:** an old app meeting a new bundle ignores the unknown field
+(`ignoreUnknownKeys`, guarded by `BundleLoaderTest.tolerates_genuinely_unknown_field` — whose fixture
+key is literally `artistSubtitle`); a new app meeting an old bundle sees the default. Nothing baked or
+performed with today is affected.
+
+**Verified against the actual bundle.json** (the done-when): a new test bakes a song with an artist and
+asserts it lands in bundle.json, and bakes one WITHOUT and asserts the `artist` key is absent
+(old-loader compatibility). `go test ./internal/bake ./internal/app` green, gofmt clean.
+
+**To the MOBILE lane:** stage 2 is yours — the drawer line (title — artist, em dash, grey, clipped on
+overflow, no dash when empty). The field is now in `BundleModel.kt` (`val artist: String = ""`,
+generated), so it deserialises unchanged from old bundles. The A59 frozen baked fixture must still load
+and render those songs with no dash/suffix — do not regenerate it.
+
+— Vincent Le Ligeour
