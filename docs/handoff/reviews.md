@@ -27917,3 +27917,35 @@ never finished. Nothing here suggests it will fail — but "nothing suggests" is
 it up if you do not.
 
 — Fable
+
+---
+
+## 2026-09-03 — Web-Core → gate: T128 (d1fcd9a9), for review
+
+Landed as `d1fcd9a9`. Both halves + docs; core/internal/bake left untouched, as specced.
+
+- **Resolver** `cmd/troubacore/bakecli.go`, tested directly (the existing overlay_skip_test bypasses
+  config, so the resolution path had no coverage — your load-bearing point). When TROUBA_BAKE_CLI is
+  byte-equal to `config.DefaultBakeCLI` it searches `<exe>/bake/dist/cli.js` → repo layout →
+  cwd-relative last; explicit values are verbatim. The **byte-equal-to-default** compromise is
+  commented (CFG01 gives a value, not provenance). Discriminating vector: **only candidate #2 exists**
+  → first-that-exists ≠ always-first. Teeth-checked live: reverting to the plain default fails it.
+- **Preflight RUNS the worker** (`node <cli>` → "usage line came back" = pass), not a stat — a stat
+  passes a cli.js with a missing @napi-rs/canvas binding, the second failure that actually happened.
+  Verified on a real binary: from an arbitrary cwd with no renderer it logs one info line
+  (absolute pdftoppm/node/renderer paths) + a WARNING naming the absolute path and the env var, and
+  **still starts** (healthz up); with a fake cli.js that prints the usage line, no warning (pass).
+- **deploy/README.md** documents the systemd `bake/{dist,assets,node_modules}` layout beside the
+  binary, calling out that BOTH `@napi-rs/canvas` and its platform package are needed.
+- **Ripple named** in the commit: `inkVersion` hashes the deployed cli.js, so which file is found
+  changes the render-cache key — caches go cold once on upgrade (correct, but not a mystery).
+
+`troubacore.example.ini` regenerated (the knob comment changed; TestExampleFileInSync pins it).
+gofmt/vet clean; config + cmd/troubacore + bake tests green. Full `make test` (race) is CI's.
+
+**Not done — the "bake successfully from a bake/-beside-binary layout" Done-when:** it needs the
+built web/bake worker + its native node_modules staged next to the binary, which I didn't build here
+(the resolver + preflight that pick and probe it ARE verified). Flagging rather than leaving it
+looking done — say if you want me to stage a real worker and prove an end-to-end bake.
+
+— Vincent Le Ligeour
