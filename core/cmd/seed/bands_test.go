@@ -176,24 +176,24 @@ func TestSelectGroups(t *testing.T) {
 		}
 	})
 
-	t.Run("-band gvo -band bns → both bands, others excluded", func(t *testing.T) {
+	t.Run("-band alpha -band bns → both bands, others excluded", func(t *testing.T) {
 		gs := []groupDef{
-			{name: "Blue Note Singers", shortname: "bns", admin: "nikos", members: []string{"vincent"}, personal: true},
-			{name: "Good Vibes Only", shortname: "gvo", admin: "vincent", members: []string{"remy"}, personal: true},
+			{name: "Blue Note Singers", shortname: "bns", admin: "nikos", members: []string{"ana"}, personal: true},
+			{name: "Alpha Band", shortname: "alpha", admin: "ana", members: []string{"bo"}, personal: true},
 			{name: "Other Band", shortname: "othr", admin: "zoe", personal: true},
 		}
-		ps := []person{{username: "nikos"}, {username: "vincent"}, {username: "remy"}, {username: "zoe"}}
-		g, p, err := selectGroups(gs, ps, "", []string{"gvo", "bns"})
+		ps := []person{{username: "nikos"}, {username: "ana"}, {username: "bo"}, {username: "zoe"}}
+		g, p, err := selectGroups(gs, ps, "", []string{"alpha", "bns"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(g) != 2 {
-			t.Fatalf("got %d groups, want 2 (gvo+bns)", len(g))
+			t.Fatalf("got %d groups, want 2 (alpha+bns)", len(g))
 		}
 		names := set(p)
 		// teeth: othr's admin zoe must NOT be pulled in, or the filter isn't filtering.
-		if !names["nikos"] || !names["vincent"] || !names["remy"] || names["zoe"] {
-			t.Errorf("people = %v, want {nikos,vincent,remy} and NOT zoe", names)
+		if !names["nikos"] || !names["ana"] || !names["bo"] || names["zoe"] {
+			t.Errorf("people = %v, want {nikos,ana,bo} and NOT zoe", names)
 		}
 	})
 
@@ -206,17 +206,17 @@ func TestSelectGroups(t *testing.T) {
 		}
 	})
 
-	t.Run("-band bns,gvo (one flag, comma) → NOT split, fails loud", func(t *testing.T) {
+	t.Run("-band bns,alpha (one flag, comma) → NOT split, fails loud", func(t *testing.T) {
 		gs := []groupDef{
 			{name: "Blue Note Singers", shortname: "bns", admin: "nikos", personal: true},
-			{name: "Good Vibes Only", shortname: "gvo", admin: "vincent", personal: true},
+			{name: "Alpha Band", shortname: "alpha", admin: "ana", personal: true},
 		}
-		ps := []person{{username: "nikos"}, {username: "vincent"}}
-		// A single -band value keeps its comma: it's the literal shortname "bns,gvo", which
+		ps := []person{{username: "nikos"}, {username: "ana"}}
+		// A single -band value keeps its comma: it's the literal shortname "bns,alpha", which
 		// matches nothing. This is the shape VLL rejected — it must error, not seed both.
-		_, _, err := selectGroups(gs, ps, "", []string{"bns,gvo"})
-		if err == nil || !strings.Contains(err.Error(), "bns,gvo") {
-			t.Errorf("want an error naming the literal \"bns,gvo\", got %v", err)
+		_, _, err := selectGroups(gs, ps, "", []string{"bns,alpha"})
+		if err == nil || !strings.Contains(err.Error(), "bns,alpha") {
+			t.Errorf("want an error naming the literal \"bns,alpha\", got %v", err)
 		}
 	})
 }
@@ -339,7 +339,7 @@ func TestLoadLocalBands_Conductor(t *testing.T) {
 	t.Setenv("TROUBA_BANDS_DIR", dir)
 	writeBand(t, dir, "bns", `{
 	  "name": "Blue Note Singers", "shortname": "bns",
-	  "admin": {"username": "vincent", "display": "Vincent"},
+	  "admin": {"username": "ana", "display": "Ana"},
 	  "members": [
 	    {"username": "nikos", "display": "Nikos", "role": "direction", "conductor": true},
 	    {"username": "pat", "display": "Pat", "role": "alto"}

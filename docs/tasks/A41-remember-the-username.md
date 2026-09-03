@@ -18,7 +18,7 @@ The argument on its own merits:
 
 - **The username is not a secret.** It is the same class of data as the server address we already
   persist. The password is the secret, and it stays unpersisted — that line does not move.
-- **It's what makes the Guest state honest.** "Guest · Good Vibes Only" plus a **Sign in** button
+- **It's what makes the Guest state honest.** "Guest · the band" plus a **Sign in** button
   says *you are one tap from being back*. An empty name field contradicts the sentence beside it.
 - The counter-argument — a shared or borrowed tablet — is weak: a prefilled field is editable in one
   tap. It is a convenience, not a lock.

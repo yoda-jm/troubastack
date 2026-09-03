@@ -1,6 +1,6 @@
 /**
  * T81 — proof that the e2e suite talks to its OWN fresh, in-memory backend, not a seeded preview
- * that happens to be running on :8080. A mis-pointed vite proxy (aimed at a demo/GVO backend) would
+ * that happens to be running on :8080. A mis-pointed vite proxy (aimed at a demo or personal-band backend) would
  * otherwise look perfectly green while testing the wrong server — the exact silent-wrong-target class
  * this task exists to remove. Two independent tells, both through the same vite→core path the tests
  * use:
@@ -12,7 +12,7 @@ import { test, expect } from "@playwright/test";
 import { stamp } from "./setup-helpers";
 
 test("e2e backend is fresh + isolated, not a seeded preview (T81)", async ({ page }) => {
-  // 1) Seed-only accounts must be rejected — proof this is not the :8080 demo/GVO server.
+  // 1) Seed-only accounts must be rejected — proof this is not the :8080 demo or personal-band server.
   for (const username of ["maestro", "marie", "vincent"]) {
     const res = await page.request.post("/api/auth/login", {
       data: { username, password: "demo" },

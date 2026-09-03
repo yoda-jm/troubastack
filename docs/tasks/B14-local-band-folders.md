@@ -46,7 +46,7 @@ branches cleanly off `main`.
 
 ## Acceptance criteria
 
-- `grep -rin "gvo\|good vibes"` over the committed tree returns **nothing** (the feature is
+- a grep for the real band's name and handle over the committed tree returns **nothing** (the feature is
   generic; the example strings are neutral).
 - Fresh clone with **no** `bands/` folder: `make demo` and `cd core && go run ./cmd/seed`
   behave exactly as before (demo groups only) — assert in a test that `loadLocalBands()`

@@ -17,7 +17,7 @@ class SessionTest {
             SESSION_COOKIE_KEY to "s=abc123",
             SESSION_ORIGIN_KEY to "http://192.168.2.8:8080",
             "coreUrl" to "http://192.168.2.8:8080", // the server address — must survive (Sign in resumes)
-            "lastUsername" to "vincent", // A41: the remembered username — must survive sign-out
+            "lastUsername" to "ana", // A41: the remembered username — must survive sign-out
             "home.lastConcertDir" to "/bundles/sat-at-the-anchor", // an unrelated app key — must survive
         )
 
@@ -26,7 +26,7 @@ class SessionTest {
         assertEquals("", kv[SESSION_COOKIE_KEY], "session cookie is cleared")
         assertEquals("", kv[SESSION_ORIGIN_KEY], "session origin is cleared")
         assertEquals("http://192.168.2.8:8080", kv["coreUrl"], "server address is KEPT — Sign in needs only a password")
-        assertEquals("vincent", kv["lastUsername"], "the remembered username is KEPT across sign-out (A41)")
+        assertEquals("ana", kv["lastUsername"], "the remembered username is KEPT across sign-out (A41)")
         assertEquals("/bundles/sat-at-the-anchor", kv["home.lastConcertDir"], "no unrelated key is touched (concerts stay, I12)")
     }
 

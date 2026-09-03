@@ -61,8 +61,8 @@ class HomeTest {
     fun bandLabel_saysOnlyWhatIsTrue() {
         // A38 multi-band ruling: nothing / the name / a COUNT — never an arbitrary firstOrNull().
         assertEquals("", bandLabel(emptyList()))
-        assertEquals("Good Vibes Only", bandLabel(listOf("Good Vibes Only")))
-        assertEquals("2 bands", bandLabel(listOf("Good Vibes Only", "The Troubadours")))
+        assertEquals("The Riverside Trio", bandLabel(listOf("The Riverside Trio")))
+        assertEquals("2 bands", bandLabel(listOf("The Riverside Trio", "The Troubadours")))
         assertEquals("3 bands", bandLabel(listOf("A", "B", "C")))
     }
 

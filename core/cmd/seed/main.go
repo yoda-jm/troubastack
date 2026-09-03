@@ -26,7 +26,7 @@ func main() {
 	password := flag.String("password", "demo", "password set for every demo user")
 	only := flag.String("only", "", "seed only groups whose name contains this substring (case-insensitive), plus just their members; e.g. -only orchestra. Empty = seed everything.")
 	var bands multiFlag
-	flag.Var(&bands, "band", "seed only the local band(s) (bands/*/band.json) whose shortname matches; repeatable, e.g. -band gvo -band bns. Used by `make band=<shortname>` (make splits a comma list into repeated -band flags).")
+	flag.Var(&bands, "band", "seed only the local band(s) (bands/*/band.json) whose shortname matches; repeatable, e.g. -band myband -band otherband. Used by `make band=<shortname>` (make splits a comma list into repeated -band flags).")
 	dumpImports := flag.String("dump-imports", "", "write each demo chart's exact annotation import payload to this dir (offline, no server) and exit — provenance for docs/demo-charts/*.annotations.json (B13).")
 	flag.Parse()
 
@@ -42,8 +42,8 @@ func main() {
 	}
 }
 
-// multiFlag collects a repeatable string flag (e.g. -band gvo -band bns) into a slice.
-// Each occurrence is one value — commas are NOT split, so `-band bns,gvo` stays a single
+// multiFlag collects a repeatable string flag (e.g. -band myband -band otherband) into a slice.
+// Each occurrence is one value — commas are NOT split, so `-band otherband,myband` stays a single
 // (unmatched) shortname rather than silently meaning two bands.
 type multiFlag []string
 
@@ -451,9 +451,9 @@ type bandMember struct {
 // property is unit-tested without a server.
 func selectGroups(groups []groupDef, people []person, only string, bands []string) ([]groupDef, []person, error) {
 	needle := strings.ToLower(only)
-	// -band is repeatable — each occurrence names ONE band's shortname (make band=gvo,bns
-	// splits the list into `-band gvo -band bns`). A stray comma stays part of the literal
-	// shortname, so `-band bns,gvo` matches nothing and fails loud below.
+	// -band is repeatable — each occurrence names ONE band's shortname (make band=myband,otherband
+	// splits the list into `-band myband -band otherband`). A stray comma stays part of the literal
+	// shortname, so `-band otherband,myband` matches nothing and fails loud below.
 	wantBands := map[string]bool{}
 	for _, s := range bands {
 		if s = strings.TrimSpace(s); s != "" {
@@ -486,7 +486,7 @@ func selectGroups(groups []groupDef, people []person, only string, bands []strin
 			keepUser[m] = true
 		}
 	}
-	// Fail loud if any requested shortname matched nothing — seeding a partial set (gvo
+	// Fail loud if any requested shortname matched nothing — seeding a partial set (myband
 	// but not a mistyped "bnss") silently is a footgun. Names exactly which ones missed.
 	if bandMode {
 		var missing []string

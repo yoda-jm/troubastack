@@ -13,7 +13,7 @@ The T78/T79 review found that **`main`'s e2e has been red since T72**: `text-cha
 
 1. **A local port collision silently shrinks the suite that gets run.** `playwright.config.ts`
    hardcodes `TROUBACORE_ADDR=:8080` with `reuseExistingServer: false`, so anyone running a local
-   preview on `:8080` — the GVO band server, exactly our normal setup — **cannot run `make e2e` at
+   preview on `:8080` — the the band band server, exactly our normal setup — **cannot run `make e2e` at
    all**. That friction is what turns "run the suite" into "run the affected subset", which is how two
    stale assertions survived T72 → T78/T79.
 2. **The gate may not be enforced.** `ci.yml`'s `e2e` job hard-gates *by configuration* — it runs on

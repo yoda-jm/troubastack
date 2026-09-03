@@ -7,7 +7,7 @@
 
 ## 1. What he saw, and why
 
-When his GVO bake failed (the overlay CLI was missing), the Studio dialog showed him a raw multi-line
+When his the band bake failed (the overlay CLI was missing), the Studio dialog showed him a raw multi-line
 Node stack trace. That is the literal server-side error text, shipped to the browser and rendered
 verbatim. Three links in the chain, all verified on `origin/main`:
 

@@ -1,9 +1,9 @@
-# T100 — A local band folder can define its concerts (`make band=gvo` seeds a setlist)
+# T100 — A local band folder can define its concerts (`make band=<shortname>` seeds a setlist)
 
 **Priority:** normal — VLL asked for it directly · **Size:** S · **Area:** `core/cmd/seed`. Lane: Web & Core.
 **Extends B14** (local band folders).
 
-VLL, 2026-08-24: *"add the concert I've created in the gvo seed"*.
+VLL, 2026-08-24: *"add the concert I've created in the <shortname> seed"*.
 
 ## 1. The finding: it isn't data entry, the seed can't express a concert
 
@@ -18,7 +18,7 @@ groups = append(groups, groupDef{
 ```
 
 `groupDef.setlist` is **left zero**, and `seedSetlist` is gated on `g.setlist.name != ""`. So
-`make band=gvo` creates the band, its members and its 46 songs — **and never a setlist**. There is
+`make band=<shortname>` creates the band, its members and its 46 songs — **and never a setlist**. There is
 nowhere in `band.json` or `repertoire.json` to put one: `bandManifest` is `{name, shortname, kind,
 notes, admin, members}` and nothing more.
 
@@ -61,16 +61,16 @@ the demo path working unchanged.
 
 ## 3. What must NOT change
 
-- **`bands/` stays gitignored.** The GVO concert's content — songs, dates, venue — is real band data
+- **`bands/` stays gitignored.** The the band concert's content — songs, dates, venue — is real band data
   and stays local. **Only the mechanism is committed**, and it must be generic: nothing in
-  `cmd/seed` may name Good Vibes Only or any of its songs.
+  `cmd/seed` may name the band or any of its songs.
 - **A plain `seed` / `make demo` must still skip personal bands.** They're `personal: true`; adding
   setlists must not change that gate, or a demo run would start emitting a real band's gig list.
 - The demo groups' hard-coded setlists keep working byte-identically.
 
 ## 4. Acceptance criteria
 
-- `make band=gvo` (or any local band) with a `setlists.json` creates each setlist with its items in
+- `make band=<shortname>` (or any local band) with a `setlists.json` creates each setlist with its items in
   array order, and applies the overrides.
 - **A missing `setlists.json` is normal**, not an error — the band seeds exactly as it does today. This
   is the back-compat case and it needs a test.
@@ -83,7 +83,7 @@ the demo path working unchanged.
 
 ## 5. Also fix while you're here
 
-`bands/good-vibes-only/repertoire.json`'s own note claims *"this file is committed so `make gvo`
+`bands/<band-slug>/repertoire.json`'s own note claims *"this file is committed so `make <shortname>`
 rebuilds the song list from a fresh clone"* — but `.gitignore:68` ignores `bands/` wholesale, so it is
 **not** committed and a fresh clone rebuilds nothing. Either the note or the ignore rule is wrong.
 Don't guess which: **flag it at the gate with a recommendation** and let VLL rule — it's his data and
@@ -92,15 +92,15 @@ his call whether a repertoire of titles-and-artists is safe to commit.
 ## 6. Out of scope
 
 - Baking those setlists, or anything about the bake.
-- Committing any GVO content.
+- Committing any the band content.
 - A UI for editing local band folders.
 
 ## 7. The data is already written
 
-`bands/good-vibes-only/setlists.json` exists (gitignored) and holds VLL's concert as read off the
-running instance's store on 2026-08-24: **"Hésingue en Fête", 2026-09-05, two items** — `dirty-old-town`
+`bands/<band-slug>/setlists.json` exists (gitignored) and holds VLL's concert as read off the
+running instance's store on 2026-08-24: **"the concert", 2026-09-05, two items** — `dirty-old-town`
 then `jaime-plus-paris` — no venue, no notes, no overrides. It is the acceptance fixture: when this
-task lands, `make band=gvo` must recreate exactly that setlist.
+task lands, `make band=<shortname>` must recreate exactly that setlist.
 
 Two caveats for whoever implements this. It is a **snapshot** — VLL may have added songs since, so
 re-read the store rather than trusting the file's contents. And venue/notes are empty because he left
