@@ -1081,6 +1081,14 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .audience-tag.audience-band { color: var(--brand-ink); border-color: var(--brand); }
 .audience-tag.audience-mine { color: var(--ok-fg); border-color: color-mix(in srgb, var(--ok-fg) 55%, transparent); }
+
+/* T131: a small "Live" chip on a concert row whose rehearsal live mode is on (edits auto-bake). */
+.live-chip {
+  display: inline-flex; align-items: center; margin-left: .5rem;
+  padding: .02rem .4rem; border-radius: 999px;
+  font-size: .7rem; font-weight: 700; letter-spacing: .02em; vertical-align: middle;
+  color: var(--on-brand); background: var(--brand);
+}
 .audience-note { font-weight: 400; opacity: .75; }
 .editor-reject-notice {
   background: var(--error-bg); color: var(--error-fg);

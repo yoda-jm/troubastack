@@ -134,12 +134,16 @@ export function RowMenuItem({
   onClick,
   disabled,
   danger,
+  title,
   children,
 }: {
   testId: string;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  // title is the hover explanation — used to explain WHY a disabled item is disabled (T131: the
+  // empty-setlist re-bake guard reuses the detail page's exact wording here).
+  title?: string;
   children: ReactNode;
 }) {
   return (
@@ -149,6 +153,7 @@ export function RowMenuItem({
       className={`row-menu-item${danger ? " danger" : ""}`}
       data-testid={testId}
       disabled={disabled}
+      title={title}
       onClick={onClick}
     >
       {children}

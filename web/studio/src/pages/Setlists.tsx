@@ -15,6 +15,25 @@ import { RowMenu, RowMenuItem } from "../components/RowMenu";
 import { useDialogs } from "../components/Dialog";
 import { foldText } from "../foldText";
 import { partitionSetlists, todayLocal } from "../setlistOrder";
+import { BakeDialog } from "./BakeDialog";
+import { bakeSetlistDisabled } from "./SetlistDetail";
+
+// T131: rehearsal live mode is on when liveUntil is set and still in the future (P201). Prefer the
+// server's own read-time liveness, but the list only carries liveUntil, so compute it the same way.
+function isLive(sl: Setlist): boolean {
+  return !!sl.liveUntil && new Date(sl.liveUntil).getTime() > Date.now();
+}
+
+// A menu action can't be an <a download> (RowMenuItem is a button), so trigger the download with a
+// transient anchor. The server sends Content-Disposition, so this saves the file rather than navigating.
+function triggerDownload(url: string, filename: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 const SETLISTS_PAGE = 12;
 
@@ -31,6 +50,11 @@ export function Setlists() {
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(SETLISTS_PAGE);
+  // T131: the concert being re-baked from its row. BakeDialog needs the song ids (for the layer
+  // defaults), which the list doesn't carry — so re-bake fetches the detail once, on click.
+  const [bakeTarget, setBakeTarget] = useState<{ setlistId: string; name: string; songIds: string[] } | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!bandId) return;
@@ -88,6 +112,20 @@ export function Setlists() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to delete setlist");
+    }
+  }
+
+  // T131: re-bake from the row. Confirm NAMING the concert (mis-clicking the wrong row is the risk the
+  // dialog catches), then fetch the detail once for the song ids and open the SAME BakeDialog the detail
+  // page uses — so it is the identical kick-and-poll flow (T103), not a second bake path.
+  async function onRebake(sl: Setlist) {
+    const verb = sl.lastBakedAt ? "Re-bake" : "Bake";
+    if (!(await confirm({ title: `${verb} “${sl.name}”?`, confirmLabel: verb }))) return;
+    try {
+      const { items } = await api.getSetlist(bandId, sl.id);
+      setBakeTarget({ setlistId: sl.id, name: sl.name, songIds: items.map((it) => it.songId) });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to start re-bake");
     }
   }
 
@@ -188,6 +226,15 @@ export function Setlists() {
                       >
                         {sl.name}
                         {sl.eventDate ? <span className="muted"> — {sl.eventDate}</span> : null}
+                        {isLive(sl) ? (
+                          <span
+                            className="live-chip"
+                            data-testid="setlist-live"
+                            title="Rehearsal live mode is on — edits to this concert's songs auto-bake"
+                          >
+                            Live
+                          </span>
+                        ) : null}
                       </Link>
                       <RowMenu testId="setlist-menu" label="Concert actions">
                           {(closeMenu) => (
@@ -201,6 +248,48 @@ export function Setlists() {
                               >
                                 Duplicate
                               </RowMenuItem>
+                              {myRole === "admin" && (
+                                <RowMenuItem
+                                  testId="setlist-rebake"
+                                  disabled={bakeSetlistDisabled(false, sl.songCount ?? 0)}
+                                  title={
+                                    (sl.songCount ?? 0) === 0
+                                      ? "Add at least one song to this concert before baking."
+                                      : undefined
+                                  }
+                                  onClick={() => {
+                                    closeMenu();
+                                    void onRebake(sl);
+                                  }}
+                                >
+                                  {sl.lastBakedAt ? "Re-bake" : "Bake"}
+                                </RowMenuItem>
+                              )}
+                              {sl.downloadUrl && (
+                                <RowMenuItem
+                                  testId="setlist-pdf"
+                                  onClick={() => {
+                                    closeMenu();
+                                    triggerDownload(
+                                      sl.downloadUrl!.replace(/\/bundle$/, "/pdf"),
+                                      `${sl.name || "concert"}.pdf`,
+                                    );
+                                  }}
+                                >
+                                  Download PDF
+                                </RowMenuItem>
+                              )}
+                              {sl.downloadUrl && (
+                                <RowMenuItem
+                                  testId="setlist-bundle"
+                                  onClick={() => {
+                                    closeMenu();
+                                    triggerDownload(sl.downloadUrl!, `${sl.name || "concert"}.tstage`);
+                                  }}
+                                >
+                                  Download .tstage
+                                </RowMenuItem>
+                              )}
                               {myRole === "admin" && (
                                 <RowMenuItem
                                   testId="setlist-delete"
@@ -233,6 +322,22 @@ export function Setlists() {
             </>
           )}
         </>
+      )}
+
+      {/* T131: the SAME bake flow the detail page uses (T103 kick-and-poll), opened from a row's
+          Re-bake. On done, reload the list so the row's lastBakedAt/PDF/bundle refresh. */}
+      {bakeTarget && (
+        <BakeDialog
+          bandId={bandId}
+          setlistId={bakeTarget.setlistId}
+          songIds={bakeTarget.songIds}
+          onBake={(layerDefaults, bakeId) => api.kickBake(bandId, bakeTarget.setlistId, bakeId, layerDefaults)}
+          onDone={() => {
+            setBakeTarget(null);
+            void load();
+          }}
+          onCancel={() => setBakeTarget(null)}
+        />
       )}
     </>
   );
