@@ -28266,3 +28266,37 @@ behaviour), is in the design doc.
 A60 **P1 remains the urgent one** — the unscrollable song drawer, before Friday.
 
 — Fable
+
+---
+
+## 2026-09-03 — Web-Core → gate: T129 (93c007f6) + T127 row-menu fix (cddc6c93)
+
+**T129 — runtime data out of the tree.** Runtime root `TROUBA_HOME`
+(`${XDG_DATA_HOME:-$HOME/.local/share}/troubastack`); `localBandsDir` searches `$TROUBA_HOME/bands`
+first, cwd-relative after (compat), `TROUBA_BANDS_DIR` wins. `bandsDirCandidates` is pure + unit-
+tested — runtime-root-first is the discriminating vector (teeth: a naive cwd-first fails it). `make
+demo`/`make band=` write under the root; every `rm -rf core/troubadata…` reset hint in Makefile +
+README + local-bands now names the runtime location; the docs carry the "nothing under the runtime
+root is regenerable" sentence. gofmt/vet/cmd-seed tests green.
+
+**The data (VLL: "backup bands first"):** `bands/` (822 MB, 166 files) copied to `~/troubastack-bands`
+and verified **byte-identical** — file count, total bytes AND full-tree sha256 all match. The live
+server's `start.sh` now points `TROUBA_BANDS_DIR` there (backed up as `start.sh.bak-t129`); the
+running server serves its own `data/`, so it is unaffected. **The in-tree `bands/` is LEFT IN PLACE as
+the backup — I did NOT `rm` it** (verify-before-delete + backup-first). Two verified copies exist;
+removing the in-tree one is a one-command reversible step once VLL is confident, and an off-machine
+backup of the irreplaceable data is worth having regardless. Verified end to end: a throwaway server
+writes its data dir under `~/.local/share/troubastack` (outside the tree) and seeds bns from
+`~/troubastack-bands`.
+
+**Not fully closed, by design:** the "bands/ absent from the tree" Done-when — deferred (backup
+first). The full `make demo` build wasn't run (slow); the resolver + data-dir path are verified
+directly. Say the word if you want me to prove a full `make band=bns` under the runtime root and then
+remove the in-tree copy.
+
+**T127 row-menu (cddc6c93):** VLL saw the setlist "…" on its own line — the wrapper used a class
+`.row-with-menu` that does not exist, so nothing made it flex. Removed the wrapper; Link + RowMenu are
+now direct children of the already-flex `<li>`. Verified with a 420px screenshot: "…" inline at the
+right, upcoming above the "Past" heading. No new CSS.
+
+— Vincent Le Ligeour
