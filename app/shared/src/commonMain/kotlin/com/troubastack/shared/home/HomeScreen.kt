@@ -408,18 +408,14 @@ fun HomeScreen(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // A45: small muted wordmark (left) + the ONE top-right account chip (right) — a state-tinted
-            // dot + a short label, glanceable with no tap; it replaces the standalone ⚙ Parameters button
-            // and the old ConnectionRow, moving the ACTIONS into a bottom sheet while the STATUS stays
-            // visible (T58 concept, phone-shaped). Collapses to the dot alone at narrow width.
+            // A66: the top-left "TroubaStage" masthead is GONE. Home is the root — you cannot be lost on
+            // it — so a location cue earns no place here, and the label was wrong anyway: it named one
+            // product while Home launches both. "Where you are" is carried by the branded product tiles
+            // below and, on screens you CAN get lost on, by their own frame (Studio → A65). The ONE
+            // top-right account chip stays (state-tinted dot + label; the actions live in its sheet).
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val showLabel = accountChipShowsLabel(maxWidth.value.toInt())
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "TroubaStage",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     AccountChip(state.identity, showLabel = showLabel, onClick = { showAccount = true })
                 }
             }
