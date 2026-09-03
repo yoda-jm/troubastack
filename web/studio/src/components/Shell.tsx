@@ -98,7 +98,7 @@ export function Shell() {
               accessible, selectable, translatable name; the mark is decorative here. Ground-independent
               (one asset), served from docs/brand/dist by the brandAssets Vite plugin. */}
           <img className="brand-mark" src="/troubastudio-compact.svg" alt="" aria-hidden="true" width="24" height="24" />
-          <span className="brand-name">TroubaStudio</span>
+          <span className="brand-name">Trouba<span className="brand-accent">Studio</span></span>
         </Link>
         <nav className="nav">
           {/* BRAND08: the masthead (mark + name) already links to /bands, so a separate "Bands" nav
