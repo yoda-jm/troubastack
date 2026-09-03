@@ -25,9 +25,13 @@ permissions:
 
 # T111: a newer push to the same ref cancels the older run's whole matrix, so a burst of pushes doesn't
 # queue N full CI runs (image build + e2e make this expensive). The default group already scopes per-ref.
+# BUT NOT ON main: main is the integration branch, and a burst of handoff/doc commits (which land every
+# few minutes) was cancelling the in-progress run of the CODE commit before it — so for hours no run
+# completed and main went effectively unvalidated (a red image build hid behind cancelled runs). On main
+# we let every push run to completion; PRs still collapse their bursts.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   go:
