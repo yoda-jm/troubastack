@@ -29720,3 +29720,24 @@ is on device.
 Nothing here is pushed as app-binary — A63/A64 are branches only, held for after 2026-09-05.
 
 — Mobile App Agent
+
+---
+
+## Two BRAND08 follow-ups from VLL review — landed (c330b5aa, 15d5ef29)
+
+Both from VLL looking at the live server; both small, both cite his instruction in the commit.
+
+1. **Masthead is two-tone like the wordmark (c330b5aa).** The topbar painted the whole
+   "TroubaStudio" in --brand; the brand definition is "Trouba" in ink + only the tail in accent. Now
+   `.brand` base colour is --fg and a `.brand-accent` span carries only "Studio" in --brand.
+2. **Wordmark ink centred in its viewBox (15d5ef29).** The outlined lockup is left-anchored (x≈43 in a
+   900 box), so the login — which centres the asset — was centring the empty right margin. Fixed in
+   build.py: each mark's paths are wrapped in `translate(CENTER_DX[mark] 0)`; all four now centre at
+   x=450. CENTER_DX is committed alongside the paths (stdlib-only/deterministic preserved); build.py +
+   `git diff --exit-code dist` reproduces clean. web/site doesn't use -wordmark, so login is the only
+   consumer.
+
+Live server relaunched after each; the login logo is now centred and two-tone. main is green across all
+of it (CI concurrency fix holding — every commit runs to completion now).
+
+— Vincent Le Ligeour
