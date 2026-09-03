@@ -413,12 +413,20 @@ jobs:
                          --jq '.files[].filename' 2>/dev/null); then
             echo "compare failed - publishing anyway"; echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          # core/ covers core/go.mod and core/go.sum; web/{studio,ink,bake} and the Dockerfile are
-          # the rest of what the multi-stage build actually copies in.
-          if printf '%s\n' "$files" | grep -qE '^(core/|web/studio/|web/ink/|web/bake/|Dockerfile$)'; then
-            echo "image content touched - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"
+          # OPS06: publish UNLESS every changed file is known NOT to be in the image. This is a
+          # DENYLIST, the inverse of an allowlist, and it fails SAFE: a new Dockerfile COPY republishes
+          # by default, because a redundant push (minutes) beats a silently stale public image (OPS04
+          # finding 2). The `irrelevant` set is the only thing to maintain, and forgetting to extend it
+          # over-publishes (harmless) rather than going stale (a bug nobody can reproduce).
+          # What the image IS built from — keep this comment beside the Dockerfile's COPY lines: the
+          # core+web multi-stage build, and `COPY deploy/apps/ /app/apps/` (Dockerfile). Everything not
+          # matched below is treated as image content. proto/ is irrelevant ON PURPOSE — core
+          # hand-mirrors it (I1) and the runtime stage takes only the binary; do NOT make it a trigger.
+          irrelevant='^(docs/|app/|web/site/|\.github/|proto/|Makefile$|LICENSE$|NOTICE$|\.gitignore$|[^/]*\.md$|deploy/[^/]*\.md$)'
+          if printf '%s\n' "$files" | grep -qvE "$irrelevant"; then
+            echo "image content (or an unknown path) touched - publishing"; echo "publish=true" >> "$GITHUB_OUTPUT"
           else
-            echo "no image-content change - keeping the published image"; echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "only image-irrelevant paths - keeping the published image"; echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
       # Log in to Docker Hub ONLY when we are actually going to push (main + image content changed).
       # A fork's pull request builds the image below (validation) but never reaches the credential —
