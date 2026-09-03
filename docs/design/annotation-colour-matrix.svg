@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2196" height="974" viewBox="0 0 2196 974" font-family="DejaVu Sans, sans-serif">
+<rect width="2196" height="974" fill="#22252A"/>
+<text x="24" y="46" fill="#F2F2F2" font-size="30" font-weight="bold">Matrice des couleurs de calque — 4 schémas × (aujourd'hui | règle)</text>
+<text x="24" y="76" fill="#9AA0A8" font-size="17">chaque case est peinte sur le VRAI papier du schéma ; le nombre est le contraste WCAG de la marque sur ce papier</text>
+<rect x="320" y="92" width="458" height="30" fill="#FFFFFF" stroke="#555"/>
+<text x="549.0" y="113" fill="#000" font-size="19" font-weight="bold" text-anchor="middle">NORMAL  · papier #FFFFFF · encre #000000</text>
+<text x="433.0" y="142" fill="#E8A0A0" font-size="17" font-weight="bold" text-anchor="middle">AUJOURD'HUI</text>
+<text x="665.0" y="142" fill="#9BD6A0" font-size="17" font-weight="bold" text-anchor="middle">RÈGLE</text>
+<rect x="784" y="92" width="458" height="30" fill="#FFF5D1" stroke="#555"/>
+<text x="1013.0" y="113" fill="#000" font-size="19" font-weight="bold" text-anchor="middle">WARM  · papier #FFF5D1 · encre #000000</text>
+<text x="897.0" y="142" fill="#E8A0A0" font-size="17" font-weight="bold" text-anchor="middle">AUJOURD'HUI</text>
+<text x="1129.0" y="142" fill="#9BD6A0" font-size="17" font-weight="bold" text-anchor="middle">RÈGLE</text>
+<rect x="1248" y="92" width="458" height="30" fill="#000000" stroke="#555"/>
+<text x="1477.0" y="113" fill="#FFFFFF" font-size="19" font-weight="bold" text-anchor="middle">NIGHT  · papier #000000 · encre #FFFFFF</text>
+<text x="1361.0" y="142" fill="#E8A0A0" font-size="17" font-weight="bold" text-anchor="middle">AUJOURD'HUI</text>
+<text x="1593.0" y="142" fill="#9BD6A0" font-size="17" font-weight="bold" text-anchor="middle">RÈGLE</text>
+<rect x="1712" y="92" width="458" height="30" fill="#000000" stroke="#555"/>
+<text x="1941.0" y="113" fill="#FFBF73" font-size="19" font-weight="bold" text-anchor="middle">AMBER  · papier #000000 · encre #FFBF73</text>
+<text x="1825.0" y="142" fill="#E8A0A0" font-size="17" font-weight="bold" text-anchor="middle">AUJOURD'HUI</text>
+<text x="2057.0" y="142" fill="#9BD6A0" font-size="17" font-weight="bold" text-anchor="middle">RÈGLE</text>
+<text x="24" y="209.0" fill="#E6E6E6" font-size="21">Écriture NOIRE</text>
+<rect x="320" y="156" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="334" y="172" width="192" height="30" fill="#000000"/>
+<text x="334" y="240" fill="#000" font-size="15" font-family="monospace">#000000   21.0:1</text>
+<rect x="552" y="156" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="566" y="172" width="192" height="30" fill="#000000"/>
+<text x="566" y="240" fill="#000" font-size="15" font-family="monospace">#000000   21.0:1</text>
+<rect x="784" y="156" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="798" y="172" width="192" height="30" fill="#000000"/>
+<text x="798" y="240" fill="#000" font-size="15" font-family="monospace">#000000   19.2:1</text>
+<rect x="1016" y="156" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="1030" y="172" width="192" height="30" fill="#000000"/>
+<text x="1030" y="240" fill="#000" font-size="15" font-family="monospace">#000000   19.2:1</text>
+<rect x="1248" y="156" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1262" y="172" width="192" height="30" fill="#FFFFFF"/>
+<text x="1262" y="240" fill="#DDD" font-size="15" font-family="monospace">#FFFFFF   21.0:1</text>
+<rect x="1480" y="156" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1494" y="172" width="192" height="30" fill="#FFFFFF"/>
+<text x="1494" y="240" fill="#DDD" font-size="15" font-family="monospace">#FFFFFF   21.0:1</text>
+<rect x="1712" y="156" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1726" y="172" width="192" height="30" fill="#FFBF73"/>
+<text x="1726" y="240" fill="#DDD" font-size="15" font-family="monospace">#FFBF73   13.0:1</text>
+<rect x="1944" y="156" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1958" y="172" width="192" height="30" fill="#FFBF73"/>
+<text x="1958" y="240" fill="#DDD" font-size="15" font-family="monospace">#FFBF73   13.0:1</text>
+<text x="24" y="313.0" fill="#E6E6E6" font-size="21">Écriture GRISE</text>
+<rect x="320" y="260" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="334" y="276" width="192" height="30" fill="#808080"/>
+<text x="334" y="344" fill="#000" font-size="15" font-family="monospace">#808080   3.9:1</text>
+<circle cx="528" cy="339" r="6" fill="#C0392B"/>
+<rect x="552" y="260" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="566" y="276" width="192" height="30" fill="#757575"/>
+<text x="566" y="344" fill="#000" font-size="15" font-family="monospace">#757575   4.6:1</text>
+<rect x="784" y="260" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="798" y="276" width="192" height="30" fill="#807B69"/>
+<text x="798" y="344" fill="#000" font-size="15" font-family="monospace">#807B69   3.9:1</text>
+<circle cx="992" cy="339" r="6" fill="#C0392B"/>
+<rect x="1016" y="260" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="1030" y="276" width="192" height="30" fill="#736E5E"/>
+<text x="1030" y="344" fill="#000" font-size="15" font-family="monospace">#736E5E   4.7:1</text>
+<rect x="1248" y="260" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1262" y="276" width="192" height="30" fill="#7F7F7F"/>
+<text x="1262" y="344" fill="#DDD" font-size="15" font-family="monospace">#7F7F7F   5.2:1</text>
+<rect x="1480" y="260" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1494" y="276" width="192" height="30" fill="#7F7F7F"/>
+<text x="1494" y="344" fill="#DDD" font-size="15" font-family="monospace">#7F7F7F   5.2:1</text>
+<rect x="1712" y="260" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1726" y="276" width="192" height="30" fill="#7F5F39"/>
+<text x="1726" y="344" fill="#DDD" font-size="15" font-family="monospace">#7F5F39   3.6:1</text>
+<circle cx="1920" cy="339" r="6" fill="#C0392B"/>
+<rect x="1944" y="260" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1958" y="276" width="192" height="30" fill="#946F42"/>
+<text x="1958" y="344" fill="#DDD" font-size="15" font-family="monospace">#946F42   4.6:1</text>
+<text x="24" y="417.0" fill="#E6E6E6" font-size="21">Cue ROUGE (chef)</text>
+<rect x="320" y="364" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="334" y="380" width="192" height="30" fill="#E53935"/>
+<text x="334" y="448" fill="#000" font-size="15" font-family="monospace">#E53935   4.2:1</text>
+<circle cx="528" cy="443" r="6" fill="#C0392B"/>
+<rect x="552" y="364" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="566" y="380" width="192" height="30" fill="#E53935"/>
+<text x="566" y="448" fill="#000" font-size="15" font-family="monospace">#E53935   4.2:1</text>
+<circle cx="760" cy="443" r="6" fill="#C0392B"/>
+<rect x="784" y="364" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="798" y="380" width="192" height="30" fill="#E5372B"/>
+<text x="798" y="448" fill="#000" font-size="15" font-family="monospace">#E5372B   3.9:1</text>
+<circle cx="992" cy="443" r="6" fill="#C0392B"/>
+<rect x="1016" y="364" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="1030" y="380" width="192" height="30" fill="#E5372B"/>
+<text x="1030" y="448" fill="#000" font-size="15" font-family="monospace">#E5372B   3.9:1</text>
+<circle cx="1224" cy="443" r="6" fill="#C0392B"/>
+<rect x="1248" y="364" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1262" y="380" width="192" height="30" fill="#1AC6CA"/>
+<text x="1262" y="448" fill="#DDD" font-size="15" font-family="monospace">#1AC6CA   10.0:1</text>
+<rect x="1480" y="364" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1494" y="380" width="192" height="30" fill="#E53834"/>
+<text x="1494" y="448" fill="#DDD" font-size="15" font-family="monospace">#E53834   4.9:1</text>
+<rect x="1712" y="364" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1726" y="380" width="192" height="30" fill="#1A945B"/>
+<text x="1726" y="448" fill="#DDD" font-size="15" font-family="monospace">#1A945B   5.4:1</text>
+<rect x="1944" y="364" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1958" y="380" width="192" height="30" fill="#E53834"/>
+<text x="1958" y="448" fill="#DDD" font-size="15" font-family="monospace">#E53834   4.9:1</text>
+<text x="24" y="521.0" fill="#E6E6E6" font-size="21">Note perso VERTE</text>
+<rect x="320" y="468" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="334" y="484" width="192" height="30" fill="#43A047"/>
+<text x="334" y="552" fill="#000" font-size="15" font-family="monospace">#43A047   3.3:1</text>
+<circle cx="528" cy="547" r="6" fill="#C0392B"/>
+<rect x="552" y="468" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="566" y="484" width="192" height="30" fill="#43A047"/>
+<text x="566" y="552" fill="#000" font-size="15" font-family="monospace">#43A047   3.3:1</text>
+<circle cx="760" cy="547" r="6" fill="#C0392B"/>
+<rect x="784" y="468" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="798" y="484" width="192" height="30" fill="#439A3A"/>
+<text x="798" y="552" fill="#000" font-size="15" font-family="monospace">#439A3A   3.2:1</text>
+<circle cx="992" cy="547" r="6" fill="#C0392B"/>
+<rect x="1016" y="468" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="1030" y="484" width="192" height="30" fill="#439A3A"/>
+<text x="1030" y="552" fill="#000" font-size="15" font-family="monospace">#439A3A   3.2:1</text>
+<circle cx="1224" cy="547" r="6" fill="#C0392B"/>
+<rect x="1248" y="468" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1262" y="484" width="192" height="30" fill="#BC5FB8"/>
+<text x="1262" y="552" fill="#DDD" font-size="15" font-family="monospace">#BC5FB8   5.5:1</text>
+<rect x="1480" y="468" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1494" y="484" width="192" height="30" fill="#44A248"/>
+<text x="1494" y="552" fill="#DDD" font-size="15" font-family="monospace">#44A248   6.5:1</text>
+<rect x="1712" y="468" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1726" y="484" width="192" height="30" fill="#BC4753"/>
+<text x="1726" y="552" fill="#DDD" font-size="15" font-family="monospace">#BC4753   4.2:1</text>
+<circle cx="1920" cy="547" r="6" fill="#C0392B"/>
+<rect x="1944" y="468" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1958" y="484" width="192" height="30" fill="#44A248"/>
+<text x="1958" y="552" fill="#DDD" font-size="15" font-family="monospace">#44A248   6.5:1</text>
+<text x="24" y="625.0" fill="#E6E6E6" font-size="21">Trait ORANGE</text>
+<rect x="320" y="572" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="334" y="588" width="192" height="30" fill="#FB8C00"/>
+<text x="334" y="656" fill="#000" font-size="15" font-family="monospace">#FB8C00   2.4:1</text>
+<circle cx="528" cy="651" r="6" fill="#C0392B"/>
+<rect x="552" y="572" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="566" y="588" width="192" height="30" fill="#FB8C00"/>
+<text x="566" y="656" fill="#000" font-size="15" font-family="monospace">#FB8C00   2.4:1</text>
+<circle cx="760" cy="651" r="6" fill="#C0392B"/>
+<rect x="784" y="572" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="798" y="588" width="192" height="30" fill="#FB8600"/>
+<text x="798" y="656" fill="#000" font-size="15" font-family="monospace">#FB8600   2.3:1</text>
+<circle cx="992" cy="651" r="6" fill="#C0392B"/>
+<rect x="1016" y="572" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="1030" y="588" width="192" height="30" fill="#FB8600"/>
+<text x="1030" y="656" fill="#000" font-size="15" font-family="monospace">#FB8600   2.3:1</text>
+<circle cx="1224" cy="651" r="6" fill="#C0392B"/>
+<rect x="1248" y="572" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1262" y="588" width="192" height="30" fill="#0473FF"/>
+<text x="1262" y="656" fill="#DDD" font-size="15" font-family="monospace">#0473FF   4.9:1</text>
+<rect x="1480" y="572" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1494" y="588" width="192" height="30" fill="#FA8B00"/>
+<text x="1494" y="656" fill="#DDD" font-size="15" font-family="monospace">#FA8B00   8.8:1</text>
+<rect x="1712" y="572" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1726" y="588" width="192" height="30" fill="#045673"/>
+<text x="1726" y="656" fill="#DDD" font-size="15" font-family="monospace">#045673   2.6:1</text>
+<circle cx="1920" cy="651" r="6" fill="#C0392B"/>
+<rect x="1944" y="572" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1958" y="588" width="192" height="30" fill="#FA8B00"/>
+<text x="1958" y="656" fill="#DDD" font-size="15" font-family="monospace">#FA8B00   8.8:1</text>
+<text x="24" y="729.0" fill="#E6E6E6" font-size="21">Trait BLEU</text>
+<rect x="320" y="676" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="334" y="692" width="192" height="30" fill="#1E88E5"/>
+<text x="334" y="760" fill="#000" font-size="15" font-family="monospace">#1E88E5   3.7:1</text>
+<circle cx="528" cy="755" r="6" fill="#C0392B"/>
+<rect x="552" y="676" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="566" y="692" width="192" height="30" fill="#1E88E5"/>
+<text x="566" y="760" fill="#000" font-size="15" font-family="monospace">#1E88E5   3.7:1</text>
+<circle cx="760" cy="755" r="6" fill="#C0392B"/>
+<rect x="784" y="676" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="798" y="692" width="192" height="30" fill="#1E83BC"/>
+<text x="798" y="760" fill="#000" font-size="15" font-family="monospace">#1E83BC   3.8:1</text>
+<circle cx="992" cy="755" r="6" fill="#C0392B"/>
+<rect x="1016" y="676" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="1030" y="692" width="192" height="30" fill="#1E83BC"/>
+<text x="1030" y="760" fill="#000" font-size="15" font-family="monospace">#1E83BC   3.8:1</text>
+<circle cx="1224" cy="755" r="6" fill="#C0392B"/>
+<rect x="1248" y="676" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1262" y="692" width="192" height="30" fill="#E1771A"/>
+<text x="1262" y="760" fill="#DDD" font-size="15" font-family="monospace">#E1771A   6.9:1</text>
+<rect x="1480" y="676" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1494" y="692" width="192" height="30" fill="#1F89E5"/>
+<text x="1494" y="760" fill="#DDD" font-size="15" font-family="monospace">#1F89E5   5.8:1</text>
+<rect x="1712" y="676" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1726" y="692" width="192" height="30" fill="#E1590C"/>
+<text x="1726" y="760" fill="#DDD" font-size="15" font-family="monospace">#E1590C   5.6:1</text>
+<rect x="1944" y="676" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1958" y="692" width="192" height="30" fill="#1F89E5"/>
+<text x="1958" y="760" fill="#DDD" font-size="15" font-family="monospace">#1F89E5   5.8:1</text>
+<text x="24" y="833.0" fill="#E6E6E6" font-size="21">Surlignage AMBRE</text>
+<rect x="320" y="780" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="334" y="794" width="192" height="34" fill="#FFB300" opacity="0.55"/>
+<text x="342" y="818" fill="#000000" font-family="serif" font-size="20">texte au travers</text>
+<text x="334" y="864" fill="#000" font-size="15" font-family="monospace">#FFB300   α 0.55</text>
+<rect x="552" y="780" width="220" height="90" fill="#FFFFFF" stroke="#3A3A3A"/>
+<rect x="566" y="794" width="192" height="34" fill="#FFB300" opacity="0.55"/>
+<text x="574" y="818" fill="#000000" font-family="serif" font-size="20">texte au travers</text>
+<text x="566" y="864" fill="#000" font-size="15" font-family="monospace">#FFB300   α 0.55</text>
+<rect x="784" y="780" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="798" y="794" width="192" height="34" fill="#FFAC00" opacity="0.55"/>
+<text x="806" y="818" fill="#000000" font-family="serif" font-size="20">texte au travers</text>
+<text x="798" y="864" fill="#000" font-size="15" font-family="monospace">#FFAC00   α 0.55</text>
+<rect x="1016" y="780" width="220" height="90" fill="#FFF5D1" stroke="#3A3A3A"/>
+<rect x="1030" y="794" width="192" height="34" fill="#FFAC00" opacity="0.55"/>
+<text x="1038" y="818" fill="#000000" font-family="serif" font-size="20">texte au travers</text>
+<text x="1030" y="864" fill="#000" font-size="15" font-family="monospace">#FFAC00   α 0.55</text>
+<rect x="1248" y="780" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1262" y="794" width="192" height="34" fill="#004CFF" opacity="0.55"/>
+<text x="1270" y="818" fill="#FFFFFF" font-family="serif" font-size="20">texte au travers</text>
+<text x="1262" y="864" fill="#DDD" font-size="15" font-family="monospace">#004CFF   α 0.55</text>
+<rect x="1480" y="780" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1494" y="794" width="192" height="34" fill="#FFB300" opacity="0.3"/>
+<text x="1502" y="818" fill="#FFFFFF" font-family="serif" font-size="20">texte au travers</text>
+<text x="1494" y="864" fill="#DDD" font-size="15" font-family="monospace">#FFB300   α 0.3</text>
+<rect x="1712" y="780" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1726" y="794" width="192" height="34" fill="#003973" opacity="0.55"/>
+<text x="1734" y="818" fill="#FFBF73" font-family="serif" font-size="20">texte au travers</text>
+<text x="1726" y="864" fill="#DDD" font-size="15" font-family="monospace">#003973   α 0.55</text>
+<rect x="1944" y="780" width="220" height="90" fill="#000000" stroke="#3A3A3A"/>
+<rect x="1958" y="794" width="192" height="34" fill="#FFB300" opacity="0.3"/>
+<text x="1966" y="818" fill="#FFBF73" font-family="serif" font-size="20">texte au travers</text>
+<text x="1958" y="864" fill="#DDD" font-size="15" font-family="monospace">#FFB300   α 0.3</text>
+<text x="24" y="944" fill="#9AA0A8" font-size="16">● rouge = contraste &lt; 4.5:1 sur son papier.  Le surlignage est jugé autrement : on doit lire le texte AU TRAVERS (α réduit à 0.30 sur fond sombre).</text>
+</svg>
