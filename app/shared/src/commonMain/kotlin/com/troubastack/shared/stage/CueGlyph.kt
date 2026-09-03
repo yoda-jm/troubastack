@@ -28,6 +28,19 @@ fun parseCueColor(hex: String, neutral: Color): Color {
 }
 
 /**
+ * A64 — the tint to draw a cue glyph in under [scheme], so a LIVE glyph matches how the SAME cue's
+ * baked ink is transformed (a red code stays red, never inverts to teal — the "glyph and ink disagree"
+ * defect). A code colour goes through [annotationInk]; a NEUTRAL cue (empty/invalid colour) is not a
+ * code, so it keeps the context-provided [neutral] untouched — running it through the ink rule would
+ * fight the surface it sits on (e.g. a white glyph on a dark card must stay white).
+ */
+fun cueTint(hex: String, neutral: Color, scheme: StageColorMode): Color {
+    val h = hex.trim().removePrefix("#")
+    if (h.length != 6 || h.toLongOrNull(16) == null) return neutral
+    return annotationInk(parseCueColor(hex, neutral), scheme)
+}
+
+/**
  * A single tinted cue glyph (T50). Renders the shared polyline geometry ([cueGlyph], unknown id →
  * `note` fallback) into a [size]×[size] box: fills filled, strokes stroked with round caps/joins at
  * `strokeWidth×size`. [tint] is the cue color already resolved (see [parseCueColor]); everything draws

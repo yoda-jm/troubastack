@@ -148,11 +148,17 @@ class PageImageCache(maxEntries: Int = 64) {
 // natural cache miss; unchanged pages still hit (their hash is unchanged), and old entries age out.
 internal fun cacheKey(ref: String, ver: String, w: Int, h: Int): String = "$ref#$ver@${w}x$h"
 
-/** The cache keys a page occupies at a given size (raster + visible overlays) — used to pin it (B1). */
-private fun pageCacheKeys(rasterRef: String, rasterVer: String, overlays: List<LayerImage>, w: Int, h: Int): Set<String> =
+/** A64 part 2: an overlay's cache key is scheme-augmented (the transformed bitmap differs per scheme);
+ *  NORMAL is identity, so it shares the plain (raster-style) key — no wasted second copy. */
+internal fun overlayCacheKey(ref: String, ver: String, w: Int, h: Int, scheme: StageColorMode): String =
+    if (scheme == StageColorMode.NORMAL) cacheKey(ref, ver, w, h) else cacheKey(ref, ver, w, h) + "@" + scheme.name
+
+/** The cache keys a page occupies at a given size (raster + visible overlays) — used to pin it (B1).
+ *  Overlays pin their SCHEME-specific key (A64 part 2) so the pinned entry is the one actually drawn. */
+private fun pageCacheKeys(rasterRef: String, rasterVer: String, overlays: List<LayerImage>, w: Int, h: Int, scheme: StageColorMode): Set<String> =
     buildSet {
         add(cacheKey(rasterRef, rasterVer, w, h))
-        overlays.forEach { add(cacheKey(it.imageRef, it.contentHash, w, h)) }
+        overlays.forEach { add(overlayCacheKey(it.imageRef, it.contentHash, w, h, scheme)) }
     }
 
 /** Root of the Stage UI: failure screen, empty state, or the performing pager. */
@@ -306,7 +312,7 @@ private fun Performing(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
-            SongDrawerSheet(state) { i ->
+            SongDrawerSheet(state, colorMode) { i ->
                 // N2: a jump changes the current song in EVERY mode. In scroll mode that switches the
                 // per-song column (the positioning effect lands it at the song's top); in page/width it
                 // moves the discrete current page. Either way the drawer closes.
@@ -454,7 +460,7 @@ private fun Performing(
                 ),
         ) {
             when {
-                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode.pageColorFilter(), widthPx)
+                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode, widthPx)
                 // N4: page/width turns animate as a direction-aware horizontal slide (presentation only —
                 // the turn is still the single goToPage funnel, so swipe/FABs/pedals/keys/volume all
                 // animate identically). Keyed on state.current: a turn mid-animation just retargets, the
@@ -485,12 +491,12 @@ private fun Performing(
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
                         Row(Modifier.fillMaxSize()) {
                             spreadPages(cur, songStarts, state.pageCount).forEach { idx ->
-                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), placeholder, Modifier.weight(1f).fillMaxHeight())
+                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight())
                             }
                         }
                     } else {
                         state.pages.getOrNull(cur)?.let { p ->
-                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode.pageColorFilter(), placeholder, Modifier.fillMaxSize())
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize())
                         }
                     }
                 }
@@ -566,7 +572,7 @@ private fun Performing(
                     }
                 }
                 state.songs.getOrNull(state.currentSong)?.cues?.takeIf { it.isNotEmpty() }?.let { cues ->
-                    CueFlashCard(cues, Modifier.align(Alignment.Center))
+                    CueFlashCard(cues, colorMode, Modifier.align(Alignment.Center))
                 }
             }
         }
@@ -707,7 +713,7 @@ private fun BlockedTurnGlyph(forward: Boolean) {
  *  "what to prepare" reads over any score. Untinted cues render white (readable in day + night, like
  *  the chrome). Rides the N1 overlay (one visibility, one timeout). */
 @Composable
-private fun CueFlashCard(cues: List<SongCue>, modifier: Modifier = Modifier) {
+private fun CueFlashCard(cues: List<SongCue>, colorMode: StageColorMode, modifier: Modifier = Modifier) {
     // Each cue is its OWN square tile (not one shared rectangle), so it reads at a glance as N
     // distinct things to prepare — "mic AND red guitar" = two tiles, not one blob. A "+" between
     // tiles reinforces that BOTH are needed (not a choice).
@@ -724,7 +730,7 @@ private fun CueFlashCard(cues: List<SongCue>, modifier: Modifier = Modifier) {
             }
             Surface(color = Color(0xCC000000), shape = MaterialTheme.shapes.large) {
                 Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
-                    CueGlyphIcon(cue.icon, parseCueColor(cue.color, Color.White), size = 56.dp)
+                    CueGlyphIcon(cue.icon, cueTint(cue.color, Color.White, colorMode), size = 56.dp)
                 }
             }
         }
@@ -911,7 +917,7 @@ internal fun drawerRows(state: StageState): List<DrawerRow> {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SongDrawerSheet(state: StageState, onJump: (Int) -> Unit) {
+private fun SongDrawerSheet(state: StageState, colorMode: StageColorMode, onJump: (Int) -> Unit) {
     val listState = rememberLazyListState()
     // A60 (VLL): a scrollbar ("ascenseur") on the drawer — the clearest cue that the list is scrollable
     // and how much more there is, in both directions, which a full-looking first/last row hid. Shown
@@ -932,7 +938,7 @@ private fun SongDrawerSheet(state: StageState, onJump: (Int) -> Unit) {
                 when (row) {
                     is DrawerRow.Header -> stickyHeader(key = "h:${row.title}") { DrawerSectionHeader(row.title) }
                     DrawerRow.Divider -> item(key = "div") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-                    is DrawerRow.Song -> item(key = "s:${row.songIndex}") { SongDrawerItem(state, row.songIndex, row.info, onJump, row.number) }
+                    is DrawerRow.Song -> item(key = "s:${row.songIndex}") { SongDrawerItem(state, row.songIndex, row.info, onJump, row.number, colorMode) }
                 }
             }
         }
@@ -1004,7 +1010,7 @@ private fun DrawerScrollbar(state: LazyListState, modifier: Modifier = Modifier)
  *  a 22-song set) with a very faint separator, so songs read as a dense but delineated list. Still a
  *  full-width tap target for stage use. */
 @Composable
-private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int) -> Unit, number: Int?) {
+private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int) -> Unit, number: Int?, colorMode: StageColorMode) {
     val meta = songMetaLine(state, i)
     val neutral = MaterialTheme.colorScheme.onSurfaceVariant
     val selected = i == state.currentSong
@@ -1037,7 +1043,7 @@ private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int)
             // coming" list. Absent when the member has no cues on the song.
             if (s.cues.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    s.cues.forEach { cue -> CueGlyphIcon(cue.icon, parseCueColor(cue.color, neutral), size = 22.dp) }
+                    s.cues.forEach { cue -> CueGlyphIcon(cue.icon, cueTint(cue.color, neutral, colorMode), size = 22.dp) }
                 }
             }
         }
@@ -1066,7 +1072,7 @@ private fun ScrollReader(
     listState: LazyListState,
     decoder: ImageDecoder,
     cache: PageImageCache,
-    colorFilter: androidx.compose.ui.graphics.ColorFilter?,
+    colorMode: StageColorMode,
     widthPx: Int,
 ) {
     val range = songPageRange(state, state.current)
@@ -1080,7 +1086,7 @@ private fun ScrollReader(
         itemsIndexed(songPages) { index, page ->
             Column(Modifier.fillMaxWidth()) {
                 MetaStrip(page) // renders only on the song's first page
-                ScrollPage(page, state.visibleFor(page.songId), decoder, cache, colorFilter, widthPx)
+                ScrollPage(page, state.visibleFor(page.songId), decoder, cache, colorMode, widthPx)
             }
         }
     }
@@ -1093,7 +1099,7 @@ private fun ScrollPage(
     visibleLayers: Set<String>,
     decoder: ImageDecoder,
     cache: PageImageCache,
-    colorFilter: androidx.compose.ui.graphics.ColorFilter?,
+    colorMode: StageColorMode,
     widthPx: Int,
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
@@ -1110,15 +1116,17 @@ private fun ScrollPage(
     DisposableEffect(owner) { onDispose { cache.unpin(owner) } }
     // B1: retry a failed overlay decode on the next few frames (a failure isn't cached, so a re-decode
     // re-attempts); if it keeps failing we badge it — never silently show fewer annotations.
-    var retryTick by remember(page.rasterRef, page.rasterHash, overlays, widthPx) { mutableStateOf(0) }
+    // A64 part 2: colorMode is a decode key too — overlays are transformed per scheme, so a scheme
+    // change must re-fetch them (from the scheme-specific cache; the raster re-read is a cache hit).
+    var retryTick by remember(page.rasterRef, page.rasterHash, overlays, widthPx, colorMode) { mutableStateOf(0) }
     // Decode at column width with a generous height cap; the decoder preserves aspect ⇒ width-bound.
-    val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, widthPx, retryTick) {
+    val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, widthPx, colorMode, retryTick) {
         value = null
         if (widthPx <= 0) return@produceState
         // A49: cache access on the composition (main) thread — decodeCached fans ONLY the decode to Default.
         val raster = decodeCached(cache, page.rasterRef, page.rasterHash, widthPx, widthPx * 3, decoder)
-        val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, widthPx, widthPx * 3, decoder) }
-        cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, widthPx, widthPx * 3)) // eviction-proof this page (main)
+        val ov = decodeOverlays(overlays) { decodeOverlayCached(cache, it.imageRef, it.contentHash, widthPx, widthPx * 3, decoder, colorMode) }
+        cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, widthPx, widthPx * 3, colorMode)) // eviction-proof this page (main)
         value = PageBitmaps(raster, ov.overlays, ov.missing)
     }
     LaunchedEffect(decoded?.missingOverlays, retryTick) {
@@ -1132,9 +1140,10 @@ private fun ScrollPage(
         else -> {
             val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
             Box(Modifier.fillMaxWidth().aspectRatio(aspect), contentAlignment = Alignment.Center) {
-                Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorFilter)
+                Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorMode.pageColorFilter())
                 bitmaps.overlays.forEach {
-                    Image(BitmapPainter(it), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorFilter)
+                    // A64 part 2: the transform is already baked into the overlay pixels → NO colour filter.
+                    Image(BitmapPainter(it), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = null)
                 }
                 MissingLayersBadge(bitmaps.missingOverlays, Modifier.align(Alignment.TopEnd))
             }
@@ -1150,7 +1159,7 @@ private fun PageView(
     fitMode: FitMode,
     decoder: ImageDecoder,
     cache: PageImageCache,
-    colorFilter: androidx.compose.ui.graphics.ColorFilter?,
+    colorMode: StageColorMode,
     placeholder: Color,
     modifier: Modifier,
 ) {
@@ -1170,14 +1179,15 @@ private fun PageView(
         val owner = remember { Any() }
         DisposableEffect(owner) { onDispose { cache.unpin(owner) } }
         // B1: retry a failed overlay decode a few frames, then badge — never silently fewer annotations.
-        var retryTick by remember(page.rasterRef, page.rasterHash, overlays, wPx, hPx) { mutableStateOf(0) }
-        val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, wPx, hPx, retryTick) {
+        var retryTick by remember(page.rasterRef, page.rasterHash, overlays, wPx, hPx, colorMode) { mutableStateOf(0) }
+        val decoded by produceState<PageBitmaps?>(null, page.rasterRef, page.rasterHash, overlays, wPx, hPx, colorMode, retryTick) {
             value = null
             if (wPx <= 0 || hPx <= 0) return@produceState
             // A49: cache access on the composition (main) thread — decodeCached fans ONLY the decode to Default.
             val raster = decodeCached(cache, page.rasterRef, page.rasterHash, wPx, hPx, decoder)
-            val ov = decodeOverlays(overlays) { decodeCached(cache, it.imageRef, it.contentHash, wPx, hPx, decoder) }
-            cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, wPx, hPx)) // eviction-proof this page (main)
+            // A64 part 2: overlays are transformed per scheme (raster keeps the page matrix at draw).
+            val ov = decodeOverlays(overlays) { decodeOverlayCached(cache, it.imageRef, it.contentHash, wPx, hPx, decoder, colorMode) }
+            cache.pin(owner, pageCacheKeys(page.rasterRef, page.rasterHash, overlays, wPx, hPx, colorMode)) // eviction-proof this page (main)
             value = PageBitmaps(raster, ov.overlays, ov.missing)
         }
         LaunchedEffect(decoded?.missingOverlays, retryTick) {
@@ -1202,9 +1212,10 @@ private fun PageView(
                     else Modifier.fillMaxSize()
                 val scale = if (fitMode == FitMode.FIT_WIDTH) ContentScale.FillWidth else ContentScale.Fit
                 Box(container, contentAlignment = Alignment.Center) {
-                    Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = colorFilter)
+                    Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = colorMode.pageColorFilter())
                     bitmaps.overlays.forEach {
-                        Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = colorFilter)
+                        // A64 part 2: transform baked into the overlay pixels → NO colour filter.
+                        Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = null)
                     }
                 }
                 MissingLayersBadge(bitmaps.missingOverlays, Modifier.align(Alignment.TopEnd))
@@ -1352,6 +1363,17 @@ private suspend fun decodeCached(cache: PageImageCache, ref: String, ver: String
     // decode the REAL ref (version only keys the cache); cacheThrough keeps get/put on the caller thread.
     cacheThrough(cache::get, cache::put, cacheKey(ref, ver, w, h)) {
         withContext(Dispatchers.Default) { decoder.decode(ref, w, h).getOrNull() }
+    }
+
+/** A64 part 2: decode an overlay AND bake the scheme's per-pixel annotation transform into it, cached
+ *  under a scheme-augmented key so the (expensive) pixel walk runs once per (overlay, size, scheme).
+ *  NORMAL is the identity scheme → the plain decode, no transform. The transformed overlay is drawn with
+ *  NO colour filter (the transform IS the colour), while the raster keeps the page matrix. */
+private suspend fun decodeOverlayCached(cache: PageImageCache, ref: String, ver: String, w: Int, h: Int, decoder: ImageDecoder, scheme: StageColorMode): ImageBitmap? =
+    if (scheme == StageColorMode.NORMAL) decodeCached(cache, ref, ver, w, h, decoder)
+    else cacheThrough(cache::get, cache::put, overlayCacheKey(ref, ver, w, h, scheme)) {
+        val raw = withContext(Dispatchers.Default) { decoder.decode(ref, w, h).getOrNull() }
+        raw?.let { withContext(Dispatchers.Default) { transformOverlayBitmap(it, scheme) } }
     }
 
 @Composable
