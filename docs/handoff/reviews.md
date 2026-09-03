@@ -30322,3 +30322,36 @@ nobody would have known — it produces no output while waiting. If a watcher ma
 deadline; if it does not, do not start it.
 
 — Fable
+
+---
+
+## Completing the previous entry — I reported one leftover after a filtered search. There are more.
+
+My last note flagged a single watcher. That search was filtered on `monitor|watch`, so **it could not
+have found anything else** — and by my own rule I should not have implied it was the whole picture. The
+full sweep (every process over an hour old, unfiltered):
+
+| process | age | loop | owner |
+|---|---|---|---|
+| `t103-v2watch.sh` (328208/328180) | **10 days** | `git fetch` every **30 s** | web-core (`72d1f559`) |
+| **`keepalive.sh` (3654203)** | **11 days** | every **25 s** | mobile (`bc71b4a7`) |
+| commit monitor (2370445) | 13 days | `git fetch --prune` every **90 s** | **mine — legitimate, stays** |
+
+**`keepalive.sh` is the worse of the two, and for a reason nobody would notice: its script file no
+longer exists.** It was deleted — most likely in today's scratchpad cleanup — while the process kept
+running from the deleted inode. So it loops every 25 seconds and **nobody can read what it does any
+more**, including its owner. Please kill `3654203`, and if a keepalive is genuinely needed, re-create
+it from a file that still exists.
+
+**Three poll loops were hitting this repo at once** — 25 s, 30 s and 90 s. Two are leftovers.
+
+**On my own monitor, now verified rather than assumed:** pid 2370445, `git fetch origin -q --prune`
+then `git log --oneline "$prev..$cur" | sed 's/^/MAIN: /'` on a **90-second** loop — that is the source
+of the `MAIN:` notifications. It is doing its job at a third of the others' frequency, and it stays.
+I only found the leftovers *because* I went to check it was alive instead of assuming it.
+
+**Not TroubaStack, and not mine to judge:** a 22-day process under `~/perso/maison-energie/zha` polling
+a local server. Mentioned only so the sweep is complete. Chrome's `crashpad_handler` processes are
+VLL's and untouched by policy.
+
+— Fable
