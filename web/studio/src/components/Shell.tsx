@@ -101,7 +101,9 @@ export function Shell() {
           <span className="brand-name">TroubaStudio</span>
         </Link>
         <nav className="nav">
-          <Link to="/bands">Bands</Link>
+          {/* BRAND08: the masthead (mark + name) already links to /bands, so a separate "Bands" nav
+              item duplicated that route — removed now that the mark makes the masthead the clear home
+              affordance (VLL's ruling). Invites stays: it's a distinct route with its own badge. */}
           <Link to="/invites" data-testid="nav-invites">
             Invites
             {pendingCount ? <span className="badge" data-testid="invite-badge">{pendingCount}</span> : null}

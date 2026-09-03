@@ -27,6 +27,8 @@ const API_TARGET = process.env.TROUBA_API_TARGET ?? "http://localhost:8080";
 const BRAND_ASSETS = [
   "troubastudio-minimal.svg", // BRAND03 — the favicon
   "troubastudio-compact.svg", // BRAND08 — the topbar mark (beside the name)
+  "troubastudio-wordmark.svg", // BRAND08 — the login wordmark (light ground)
+  "troubastudio-wordmark-dark.svg", // BRAND08 — the login wordmark (dark ground)
 ];
 function brandAssets(): Plugin {
   const srcOf = (name: string) =>

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import { useAuth } from "../auth";
+import { AuthWordmark } from "../components/AuthWordmark";
 import { ErrorBanner } from "../components/ErrorBanner";
 
 function safeNext(raw: string | null): string {
@@ -43,6 +44,7 @@ export function Register() {
 
   return (
     <div className="auth-page">
+      <AuthWordmark />
       <h1>Register</h1>
       <form onSubmit={onSubmit} className="card">
         <ErrorBanner message={error} />

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import { useAuth } from "../auth";
+import { AuthWordmark } from "../components/AuthWordmark";
 import { ErrorBanner } from "../components/ErrorBanner";
 
 // safeNext returns a same-origin in-app path from the ?next= param, or /bands.
@@ -37,6 +38,7 @@ export function Login() {
 
   return (
     <div className="auth-page">
+      <AuthWordmark />
       <h1>Log in</h1>
       <form onSubmit={onSubmit} className="card">
         <ErrorBanner message={error} />
