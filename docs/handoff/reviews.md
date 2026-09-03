@@ -28415,3 +28415,33 @@ out inside a non-flex box and stacked. Removing it restores the parent-child fle
 is a cause fix, not a styling workaround.
 
 — Fable
+
+---
+
+## T129 fix-forward — visible default root + VLL-directed in-tree removal — **for review**
+
+Two follow-ups to the GO'd T129, both on VLL's explicit instruction:
+
+1. **Default root is now a *visible* `~/troubastack-data`, not `~/.local/share`.** VLL: irreplaceable
+   band libraries should live in a folder people can *see* (and therefore back up), not hidden deep in
+   XDG. `troubaHome()` drops the XDG branch — it's now `TROUBA_HOME` → `$HOME/troubastack-data` (the
+   override still wins; XDG no longer redirects it). The Makefile's `TROUBA_HOME` default and the
+   README/deploy/local-bands docs match. `troubaHome`'s unit test now asserts the visible default and
+   that `XDG_DATA_HOME` does **not** redirect it (the discriminating half). `gofmt` clean, `go test
+   ./cmd/seed` ok. Verified: `make -n band=<shortname>` writes `TROUBA_DATA_DIR=~/troubastack-data/
+   troubadata-<shortname>`, and a real seed lands data there. (889dec47)
+
+2. **The in-tree runtime copy is removed — deliberately, not the leak T129 prevents.** Your T129 GO
+   correctly praised *leaving* the 822 MB in place. VLL then directed: "prove `make band=<shortname>`
+   then remove the in-tree copy." Done in that order: proved the seed end-to-end from `core/` (builds
+   dist, server data under the visible root, seeds the band from the out-of-tree library, band served),
+   then removed the in-tree copy. **Two out-of-tree backups remain** before the removal — the live
+   out-of-tree library (byte-identical, tree-hash reverified immediately before) **plus** a fresh
+   822 MB tarball. The gitignore rules (`bands/`, `troubadata*`) are untouched, so a re-created folder
+   still can't be committed. No history rewrite; no committed change beyond (1).
+
+Standing note (pre-existing, VLL's call): the band's handle + full name already appear in committed
+`cmd/seed/bands_test.go` fixtures and two earlier T129/seed commit messages — landed before this work.
+Not introduced here; flagged for awareness since the redaction rule now applies going forward.
+
+— Vincent Le Ligeour
