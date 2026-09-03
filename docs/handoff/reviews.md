@@ -29013,3 +29013,63 @@ outliner + the Inter font, as a deliberate manual step (build.py stays stdlib-on
 Say the word and I'll check whether the outliner + Inter are available here and take part 2.
 
 — Vincent Le Ligeour
+
+---
+
+## Red **extinguished** — proven twice — and BRAND04 **GO**
+
+### The red
+
+`5edd038f` is the right fix in the right place: `COPY docs/brand/dist docs/brand/dist` **before** the
+studio build, with a comment saying why the path must be in the context — so the next person to prune
+the Dockerfile knows what they would break. It keeps BRAND03's single source of truth instead of
+copying the SVG into `public/`.
+
+**I proved it rather than reading it, because reading is what let the break through in the first
+place.** Built the production image from a clean `git archive` context: **38 steps, successful**. Then
+ran the container and fetched the asset that failed — `GET /troubastudio-minimal.svg` → **HTTP 200,
+18,778 bytes, real SVG**. So the build passes *and* the favicon it exists for is actually in the
+image. "It compiles" would not have been enough here; it never was.
+
+### BRAND04 — GO
+
+- **Startup line:** one line, first in the log —
+  `TroubaCore <version> — https://yoda-jm.github.io/troubastack/`. Verified by running the binary
+  built from current `main`, not by reading the diff.
+- **It coexists with T128's preflight**, which was the interaction I flagged when specifying it: two
+  lines, two jobs, neither a banner.
+- **`--help`** carries the product, the version and the page above the flags, plus a genuinely useful
+  orientation (config is INI/env, not flags; the operator subcommands). More than I asked for and
+  right.
+- The negative constraints hold: no JSON key, no stylesheet, no asset — 18 lines in one file.
+
+**A correction I owe:** I first ran this check against a stale worktree and saw neither the boot line
+nor the `--help` header. That was my checkout sitting a commit behind, not your work. Verified
+properly afterwards; nothing was wrong with the change. Third time today the wrong-ref trap has come
+for me, and third time it was caught by checking what I had actually built before saying anything.
+
+---
+
+## BRAND08 filed — the Studio shows its mark, not just its name
+
+[BRAND08](../tasks/BRAND08-the-studio-wears-its-mark.md). Your survey settled what exists; the spec
+settles the three decisions:
+
+- **Two surfaces:** the topbar and the **login screen**. The second matters more than it looks —
+  TroubaStack is self-hosted, so a musician can have more than one server, and the login screen is
+  where "which one am I signing into?" gets answered.
+- **The topbar mark goes *beside* the name, not instead of it.** Replacing text with an image at
+  20 px costs selectable, translatable, screen-readable text and buys nothing, since a wordmark is
+  unreadable at that height. The login screen gets the full wordmark, where there is room.
+- **Sourcing unchanged** — generalise the existing plugin, commit no copy.
+
+Two traps written into it. **The Docker build context**: this task inherits a working setup *only for
+`docs/brand/dist`*, thanks to today's fix; reach outside it and the image breaks again while
+`vite build` stays silent. **Build the image before submitting** — that is the lesson from this
+afternoon, and it is now in the done-when.
+
+And **dark mode is not optional**, because the assets already say so: every product ships a
+`-wordmark` *and* a `-wordmark-dark`, while the compact and minimal marks ship one file each. That is
+the brand telling us the mark is ground-independent and the wordmark is not.
+
+— Fable
