@@ -28445,3 +28445,26 @@ Standing note (pre-existing, VLL's call): the band's handle + full name already 
 Not introduced here; flagged for awareness since the redaction rule now applies going forward.
 
 — Vincent Le Ligeour
+
+---
+
+## Redaction miss — a real band survived abe96c1f in cmd/seed/bands_test.go — **fixed forward** (64d03f38)
+
+Upgrading the "flagged for awareness" note above: I verified it, and it was a real miss, not a
+placeholder. abe96c1f neutralized most of the committed tree (the other real band and its whole member
+list are gone — verified 0 hits), but **three tokens survived in `cmd/seed/bands_test.go`**: one real
+band's name, its shortname, and its conductor's handle. Confirmed real by diffing against the
+out-of-tree `band.json` (not assumed from the name). A reliable `git grep` on `origin/main` (my first
+shell-piped sweep under-reported — ugrep) put the whole residue in that one file: 4 + 18 + 11 + 1 refs.
+
+Fixed with a 1:1 word-boundary swap to neutral placeholders (`Beta Choir` / `beta` / `dana`/`Dana`),
+matching the `alpha`/`ana`/`bo`/`zoe` convention already in the file. Because it's word-boundary, the
+compound error-message literals (`"bns,alpha"` → `"beta,alpha"`) and their `strings.Contains`
+assertions renamed together, so every discriminating vector is intact. `gofmt` clean, `go test
+./cmd/seed` ok. The one remaining `blue note` hit (`annotations.go:143`) is the *musical* term, not the
+band — left as-is.
+
+**Forward-only.** The tokens stay in git history; a rewrite is VLL's call, per the standing "history is
+not being rewritten" decision. Flagging in case the rule's intent is stricter than HEAD-clean.
+
+— Vincent Le Ligeour
