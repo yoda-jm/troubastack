@@ -1,7 +1,8 @@
-# A64 — Night/Amber invert annotation colours; a saturation-gated rule, measured
+# A64 — Night/Amber invert annotation colours; a chroma-gated rule, measured
 
-**Lane:** mobile. **Size:** M. **Status:** spec — rule proposed **and measured**, needs VLL's sign-off
-on the thresholds. **After the gig.**
+**Lane:** mobile — **dispatched 2026-09-03**. **Size:** M. **Status:** spec ready, rule **retained by
+VLL** ("we will keep the new rule it is better") and verified against the real palette.
+**Queued behind the freeze — start after the gig (2026-09-05)**, unless VLL says otherwise.
 **Origin:** VLL asked *"how do the different colors work? if we bake sort of images how can we have
 different colors?"*, then immediately found the hard part: *"un texte noir on veut l'inverser, peut-être
 même le gris; pour le rouge, le vert c'est moins sûr; le orange c'est compliqué sur le amber. Essaye de
@@ -40,14 +41,23 @@ cue* is a red glyph and cyan ink on one screen. The app contradicting itself is 
 ## The rule
 
 VLL's insight is that overlay ink is **not homogeneous**: handwriting is *ink* and must invert with the
-page; a red cue is a *code* and must not. So the gate is **saturation**, not "is it an overlay".
+page; a red cue is a *code* and must not. So the gate is **how colourful the ink is**, not "is it an
+overlay".
 
-**1 — Achromatic (HLS `S < 0.20`): it is ink. Apply the page matrix, then guarantee legibility.**
+**1 — Achromatic (Lab chroma `C* < 20`): it is ink. Apply the page matrix, then guarantee legibility.**
 Black handwriting inverts exactly like printed text, which is what VLL asked for. Then enforce ≥4.5:1
 against the paper — this is what rescues grey, his other instinct: grey in AMBER goes `#7F5F39`
 **3.6:1 → `#946F42` 4.6:1**.
 
-**2 — Chromatic (`S ≥ 0.20`): preserve hue and saturation; remap lightness only.**
+> ⚠ **Use Lab chroma, NOT HLS saturation — this spec originally had it wrong.** Measured against the
+> real palette, the app's own near-black swatch `#111827` (Tailwind gray-900) is a *desaturated navy*:
+> HLS saturation **0.39**, so an `S < 0.20` gate classifies it as a colour code and **refuses to invert
+> it** — black handwriting would stay dark on a black page, the exact opposite of the requirement. Its
+> Lab chroma is **11.5**, correctly ink. HLS saturation is unstable at low lightness; chroma is not.
+> The threshold is robust rather than tuned: across all eleven palette colours the next lowest chroma
+> is Teal at **35.3**, so `C* = 20` sits in an empty band from 11.5 to 35.3.
+
+**2 — Chromatic (`C* ≥ 20`): preserve hue and saturation; remap lightness only.**
 On light grounds (NORMAL/WARM) leave it alone — the colour was authored for white paper. On dark
 grounds, solve `L` for **contrast ≥ 4.5:1 vs paper** *and* **ΔE ≥ 25 vs the printed ink** (so the mark
 never dissolves into the text it sits on), choosing the `L` closest to the original.
@@ -115,11 +125,36 @@ darken orange for stroke use, or restrict colours to the forms where they are le
 highlight only, black/grey → never a highlight fill). Reference render:
 `docs/design/annotation-colour-matrix.svg` (before | after, four schemes, four forms each).
 
+## Verified against the real palette (not invented samples)
+
+Re-measured over **every user-accessible colour** — `COLOR_SWATCHES` (`web/studio/src/editor.ts`, the
+drawing swatches) plus `CUE_PALETTE` (`MyCuesEditor.tsx`), eleven distinct colours:
+
+**On dark grounds the rule passes all eleven** — strokes ≥ 4.5:1 against the paper, printed text read
+through a highlight ≥ 7.3:1, and every colour keeps its identity. Today, by contrast, Red `#e11d48`
+reads teal in Night, Emerald `#059669` reads pink, and Amber `#f59e0b` reads blue.
+
+**The only remaining failure is on light paper, and it is the palette's, not the filter's:**
+
+| stroke on white | contrast |
+|---|---|
+| **Amber `#f59e0b`** | **2.1:1** — under the 3:1 non-text threshold |
+| `#d97706`, `#16a34a`, `#ea580c`, `#0d9488`, `#059669` | 3.0–3.8:1 |
+| `#e11d48`, `#2563eb`, `#7c3aed`, `#db2777`, `#111827` | ≥ 4.3:1 |
+
+One more thing the code says, and it simplifies the model: the Highlight preset's `blend: "multiply"`
+is applied **inside the layer's own transparent canvas** (`web/bake/src/render.ts` renders each layer
+as a transparent PNG), so it never multiplies with the page text — only with objects on the same
+layer. **Highlight legibility is plain alpha compositing**; do not model it as multiply.
+
+Full transformation write-up: **[docs/design/12-annotation-colour.md](../design/12-annotation-colour.md)**.
+Reference render: `docs/design/annotation-colour-matrix.svg` (all eleven colours × four schemes ×
+before/after, each in four forms).
+
 ## Open for VLL
 
-- **Thresholds**: 4.5:1 (text) for marks, ΔE ≥ 25 vs printed ink, saturation gate 0.20. The gate is the
-  one to sanity-check against real annotations — if people write in a desaturated brown, it will be
-  treated as ink and inverted. Worth checking what saturations actually occur in the field.
+- **Thresholds**: 4.5:1 for marks, ΔE ≥ 25 vs printed ink. The chroma gate is now settled by evidence
+  rather than taste (see the warning above), so it is no longer a question.
 - **Clause 4**: which of the two remedies — darken orange, or restrict colour×form. This one is a
   palette change and touches what people already annotate with, so it is yours to call.
 - **Alpha 0.30 on dark grounds** — confirm it still *looks* like a highlight and not a smudge, on the
@@ -130,9 +165,11 @@ highlight only, black/grey → never a highlight fill). Reference render:
 - The rule is implemented as a per-overlay transform, and **the cue glyph uses the same transform** so
   glyph and ink can never disagree (this half is a defect, not a preference).
 - On device, all four schemes: a red cue reads **red**, and its glyph matches its ink.
-- The measured table above is reproduced by a unit test over the real matrices — thresholds asserted,
-  not eyeballed. Include a **discriminating** vector: today's `#1AC6CA` must fail the test that
-  `#E53834` passes, or the test guards nothing.
+- The measured tables are reproduced by a unit test over the real matrices **and the real palette**
+  (`COLOR_SWATCHES` + `CUE_PALETTE`) — thresholds asserted, not eyeballed. Include a **discriminating**
+  vector: today's Night rendering of `#e11d48` (teal) must FAIL the test that the rule's output passes,
+  or the test guards nothing. Assert `#111827` classifies as **ink** — that is the case the first draft
+  of this spec got wrong.
 - `WARM`'s black-stays-black property is intact (assert black ink is still `#000000` in Warm).
 - The bake is untouched — no per-scheme asset. This stays a device-side filter.
 - `:shared:testDebugUnitTest` green; match the count.

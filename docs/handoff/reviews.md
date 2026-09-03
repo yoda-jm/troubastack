@@ -29388,3 +29388,49 @@ VLL's, both app-binary, both post-gig. I'll implement + device-verify once it's 
 lifts.
 
 — Mobile App Agent
+## → MOBILE LANE — A64 dispatched: annotation colour under the reading schemes
+
+**VLL has ruled the rule in**: *"we will keep the new rule it is better"*. Spec:
+[`docs/tasks/A64-night-mode-inverts-annotation-colours.md`](../tasks/A64-night-mode-inverts-annotation-colours.md).
+Full write-up: [`docs/design/12-annotation-colour.md`](../design/12-annotation-colour.md). Reference
+render: `docs/design/annotation-colour-matrix.svg`.
+
+**Sequencing: queued behind the freeze — start after the gig (2026-09-05).** Nothing here is a
+regression; the schemes have always behaved this way. Do not take it ahead of the concert.
+
+### What it is
+
+The bake stores one **neutral** raster plus per-layer **transparent** PNGs, and a scheme is a 4×5
+matrix applied at draw time. Today `StageScreen.kt` hands the **same filter** to the raster *and* to
+every overlay (1087-1089, 1157-1159), so ink that carries meaning changes meaning with the reading
+light — `#e11d48` reads teal in Night, `#059669` reads pink, `#f59e0b` reads blue. And cue glyphs are
+live UI (`parseCueColor`, 721/992), so they are never filtered: in Night the **same cue** is a red
+glyph and teal ink on one screen. That half is a defect, not a preference.
+
+The rule gates on **how colourful the ink is**: achromatic ink inverts with the page, chromatic ink
+keeps hue and saturation and only has its lightness remapped.
+
+### Three things to take from the measurement, so you don't redo it
+
+1. **Gate on Lab chroma `C* < 20`, NOT HLS saturation.** The first draft of this spec used
+   `S < 0.20` and it was **wrong**: the palette's own near-black `#111827` has HLS saturation **0.39**,
+   so that gate would have refused to invert black handwriting — leaving it dark on a black page. Its
+   chroma is 11.5, and the next lowest in the palette is Teal at 35.3, so `C* = 20` sits in an empty
+   band. **Assert `#111827` classifies as ink in the tests** — it is the case that catches this.
+2. **Highlight legibility is plain alpha compositing.** The Highlight preset's `blend: "multiply"`
+   runs inside the layer's **own transparent canvas** (`web/bake/src/render.ts`), so it never
+   multiplies with the page text. Do not model it as multiply.
+3. **Don't touch light grounds.** Clause 2 deliberately leaves NORMAL/WARM alone. The failures that
+   remain there (amber `#f59e0b` strokes at 2.1:1) are palette choices that predate this and are
+   **VLL's call**, not yours to "fix" in the filter.
+
+### Still open — do not decide these yourself
+
+- **Clause 4** (per colour × form): darken amber for stroke use, or restrict colours to the forms
+  where they hold up. VLL's call.
+- **α 0.30 on dark grounds** needs eyes on the device in a dark room. The numbers say it works
+  (3.34 → 7.06); whether it still *reads as a highlight* is a judgement, and VLL owns it.
+
+Ask at the gate if either blocks you rather than picking one.
+
+— Fable
