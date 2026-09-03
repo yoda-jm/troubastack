@@ -1,5 +1,5 @@
 # TroubaStack top-level dev tasks. See docs/ARCHITECTURE.md for the rules these serve.
-.PHONY: help setup dev run run-api core test test-web studio embed dist e2e e2e-smoke check proto app fixtures seed demo band
+.PHONY: help setup dev run run-api core test test-web studio embed dist e2e e2e-smoke check proto app fixtures fixtures-baked seed demo band
 
 # `make band=<shortname>` sets the `band` variable and (with no explicit target) runs the default goal —
 # so when `band` is set, make the `band` target the default. Plain `make` still shows help.
@@ -184,3 +184,14 @@ fixtures:
 	cd core && go run ./cmd/mkbundle \
 	  -out ../app/shared/src/commonTest/resources/fixtures/demo \
 	  -torture ../app/shared/src/commonTest/resources/fixtures/torture
+
+# Regenerate fixtures/baked-current/ by running the REAL web/bake pipeline (A61) — the compatibility
+# arm that tracks what today's baker emits. Separate from `make fixtures` (which is mkbundle-only), and
+# it NEVER touches the frozen fixtures/baked/. Rebuilds the worker first when node_modules are present
+# so cli.js matches the core (version skew is the T128 failure); when the toolchain is absent, mkbaked
+# resolves the CLI via T128 and skips cleanly (message, exit 0, nothing written). A real bake is NOT
+# byte-reproducible — a refresh is a deliberate diff (see fixtures/README.md).
+fixtures-baked:
+	@if [ -d web/bake/node_modules ]; then (cd web/bake && npm run build); fi
+	cd core && go run ./cmd/mkbaked \
+	  -out ../app/shared/src/commonTest/resources/fixtures/baked-current

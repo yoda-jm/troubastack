@@ -12,6 +12,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -64,6 +65,34 @@ const (
 // operator did not set it" and searches binary-relative candidates instead — so a bare-binary
 // self-hoster works with no env var. Exposed so that comparison has one source of truth.
 const DefaultBakeCLI = "../web/bake/dist/cli.js"
+
+// ResolveBakeCLI decides the web/bake worker path (T128). If the operator set the value to anything
+// other than DefaultBakeCLI it is used VERBATIM — no search, so an explicit (even wrong) path surfaces
+// as itself. Otherwise it searches binary-relative candidates first (so a bare-binary self-hoster
+// works with no env var), keeping today's cwd-relative default last; first existing wins, and if none
+// exist the last is returned so the eventual error names a concrete path. `exists` is injected for
+// testing. Shared by cmd/troubacore's preflight and cmd/mkbaked (A61) so there is ONE resolver, not a
+// second hard-coded path.
+//
+// NB (CFG01): config.Load hands back a value, not its provenance, so an operator who explicitly sets
+// the exact default string is indistinguishable from "unset" and gets the search too — a deliberate,
+// documented compromise.
+func ResolveBakeCLI(configured, exeDir, cwd string, exists func(string) bool) string {
+	if configured != DefaultBakeCLI {
+		return configured
+	}
+	candidates := []string{
+		filepath.Join(exeDir, "bake", "dist", "cli.js"),
+		filepath.Join(exeDir, "..", "web", "bake", "dist", "cli.js"),
+		filepath.Join(cwd, "..", "web", "bake", "dist", "cli.js"),
+	}
+	for _, c := range candidates {
+		if exists(c) {
+			return c
+		}
+	}
+	return candidates[len(candidates)-1]
+}
 
 // knob describes one configuration value: where it lives in the file, which env
 // var overrides it, its default (as it appears in the example file), a one-line

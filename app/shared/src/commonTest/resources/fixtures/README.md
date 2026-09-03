@@ -46,33 +46,37 @@ of `mkbundle` (see below).
   population. That difference is the whole point of the fixture, so **do not regenerate `baked/`
   with `mkbundle`** — it would replace the real-baker artefact with a synthetic one and delete what
   the test is for.
+- `baked-current/` — the **regeneration arm** (A61), remade by **`make fixtures-baked`** from TODAY's
+  baker, consumed by `FixtureBundleTest.regeneratedBakerBundle_loadsPerformable`. Same performable
+  contract as `baked/`, but opposite job: `baked/` proves an OLD bundle still loads (frozen forever);
+  `baked-current/` proves the reader tracks what the CURRENT baker emits. Regenerating it is expected
+  to change it (see below) — that is fine; it is `baked/` that must never move.
 
-### Remaking `baked/` (frozen — no automatic target yet)
+### The two real-baker fixtures, side by side
 
-Synthetic content only, no band data: concert **"Template Concert"**, song **"Sound Check"**
-(one page), one shared annotation layer **"Notes"** (mandatory), member **"Alex"** (admin). It was
-produced through the server bake API (no browser) at the A58 commit (`42b488ba`, on `main`):
+| fixture | job | regenerated |
+|---|---|---|
+| `baked/` | an **old** bundle — new readers still load bundles predating later fields (the compat arm) | **never** (frozen) |
+| `baked-current/` | a **current** bundle — the reader tracks what the baker emits today | `make fixtures-baked` |
 
-```
-register → create band → add a text-chart song → import a shared annotation layer
-         → build a setlist → bake → download the .tstage → unpack into baked/
-```
+Both are synthetic, no band data: concert "Template Concert", song "Sound Check" (one page), one
+annotation layer "Notes", member/baker "Alex" (admin).
 
-Two things to know if you remake it by hand:
+**`make fixtures-baked`** runs the real pipeline (poppler + the Node `web/bake` worker) in-process via
+`core/cmd/mkbaked`, writing only `baked-current/`. It resolves the worker the same way the server does
+(T128), honouring `TROUBA_BAKE_CLI` / `TROUBA_NODE` / `TROUBA_PDFTOPPM`, and **skips cleanly** — a
+message, exit 0, nothing written — when node / pdftoppm / the built `cli.js` are absent (the case a
+contributor without the toolchain hits). The Makefile rebuilds `web/bake` first when `node_modules`
+are present, because a **stale `cli.js` fails** the overlay bake with
+`request.json must have { doc, pages, overlayWidth > 0 }` — the overlay path is version-skew-sensitive.
 
-- It needs a **matched `core` ↔ `web/bake` CLI build** (build both from the same commit). A stale
-  `cli.js` or an older core binary fails the overlay bake with
-  `request.json must have { doc, pages, overlayWidth > 0 }` — the bake overlay path is
-  version-skew-sensitive.
-- It is **not byte-reproducible** the way `mkbundle` output is (ids, timestamps and the real raster
-  vary per bake), so remaking it will produce a non-empty diff — expected. Refresh it deliberately,
-  only when the container format actually changes.
+**`baked-current/` is NOT byte-reproducible** (UUIDs, `bakedAt`, and the real raster vary per bake), so
+running `make fixtures-baked` produces a non-empty diff — expected, the same honesty `baked/` gets.
+Refresh it deliberately (e.g. after a real bake-format change), not reflexively.
 
-An automatic `make fixtures-baked` target that runs the real bake pipeline (poppler + the Node
-`web/bake` worker, skipping cleanly when the toolchain is absent) is the better end state — deferred
-to [A59 option 1](../../../../../../../docs/tasks/A59-give-the-baked-fixture-a-regeneration-path.md),
-which inherits [T128](../../../../../../../docs/tasks/T128-the-bake-toolchain-fails-at-the-gig-not-at-boot.md)
-(making that toolchain resolvable at all).
+**`baked/` is remade by hand only** (frozen): it was produced through the server bake API at the A58
+commit (`42b488ba`); to reproduce, bake a single-song concert with one annotated page through a matched
+`core` ↔ `web/bake` build and unpack into `baked/`. Do **not** point `make fixtures-baked` at it.
 
 ## Images
 

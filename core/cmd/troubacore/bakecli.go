@@ -24,21 +24,10 @@ import (
 // NB: config.Load hands back a value, not its provenance (CFG01), so an operator who explicitly sets
 // the exact default string is indistinguishable from "unset" here and gets the search too. That is a
 // deliberate, documented compromise, not an accident.
+// resolveBakeCLI delegates to config.ResolveBakeCLI (A61 moved the logic there so cmd/mkbaked shares
+// one resolver). Kept as a thin local alias so this file and its test read unchanged.
 func resolveBakeCLI(configured, exeDir, cwd string, exists func(string) bool) string {
-	if configured != config.DefaultBakeCLI {
-		return configured // operator set it — verbatim, no search
-	}
-	candidates := []string{
-		filepath.Join(exeDir, "bake", "dist", "cli.js"),              // 1: shipped next to the binary (documented non-Docker layout)
-		filepath.Join(exeDir, "..", "web", "bake", "dist", "cli.js"), // 2: repo layout, for core/bin/troubacore
-		filepath.Join(cwd, "..", "web", "bake", "dist", "cli.js"),    // 3: today's cwd-relative default, kept last
-	}
-	for _, c := range candidates {
-		if exists(c) {
-			return c
-		}
-	}
-	return candidates[len(candidates)-1]
+	return config.ResolveBakeCLI(configured, exeDir, cwd, exists)
 }
 
 // preflightBake resolves the bake toolchain at startup and RUNS the worker, not just stats it, so a

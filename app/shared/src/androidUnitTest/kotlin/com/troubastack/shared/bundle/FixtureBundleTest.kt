@@ -92,6 +92,24 @@ class FixtureBundleTest {
         assertTrue(loaded.bundle.roster.isNotEmpty(), "roster must be non-empty (identity picker needs it)")
     }
 
+    /**
+     * A61 — `baked-current/` is the regeneration arm: a bundle from TODAY's baker, remade by
+     * `make fixtures-baked`. Where `baked/` is frozen (proves old bundles still load), this proves the
+     * reader tracks what the current baker emits. Same performable contract, so the target's output is
+     * a fixture and not just a directory.
+     */
+    @Test
+    fun regeneratedBakerBundle_loadsPerformable() {
+        val loaded = assertIs<LoadResult.Loaded>(loader.load("", DiskFiles(fixture("baked-current"))))
+        assertTrue(loaded.issues.isEmpty(), "the regenerated baker bundle must load with zero issues: ${loaded.issues}")
+        assertEquals(1, loaded.bundle.songs.size, "songs")
+        val pageCount = loaded.bundle.songs.sumOf { it.pages.size }
+        assertTrue(pageCount >= 1, "at least one page, got $pageCount")
+        val overlayCount = loaded.bundle.songs.sumOf { s -> s.pages.sumOf { it.overlays.size } }
+        assertTrue(overlayCount >= 1, "at least one overlay layer survives the bake→load, got $overlayCount")
+        assertTrue(loaded.bundle.roster.isNotEmpty(), "roster must be non-empty (identity picker needs it)")
+    }
+
     /** Locate a committed fixture dir: prefer the test classpath, fall back to the source tree. */
     private fun fixture(rel: String): File {
         val res = javaClass.classLoader?.getResource("fixtures/demo/bundle.json")
