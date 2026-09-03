@@ -176,47 +176,47 @@ func TestSelectGroups(t *testing.T) {
 		}
 	})
 
-	t.Run("-band alpha -band bns → both bands, others excluded", func(t *testing.T) {
+	t.Run("-band alpha -band beta → both bands, others excluded", func(t *testing.T) {
 		gs := []groupDef{
-			{name: "Blue Note Singers", shortname: "bns", admin: "nikos", members: []string{"ana"}, personal: true},
+			{name: "Beta Choir", shortname: "beta", admin: "dana", members: []string{"ana"}, personal: true},
 			{name: "Alpha Band", shortname: "alpha", admin: "ana", members: []string{"bo"}, personal: true},
 			{name: "Other Band", shortname: "othr", admin: "zoe", personal: true},
 		}
-		ps := []person{{username: "nikos"}, {username: "ana"}, {username: "bo"}, {username: "zoe"}}
-		g, p, err := selectGroups(gs, ps, "", []string{"alpha", "bns"})
+		ps := []person{{username: "dana"}, {username: "ana"}, {username: "bo"}, {username: "zoe"}}
+		g, p, err := selectGroups(gs, ps, "", []string{"alpha", "beta"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(g) != 2 {
-			t.Fatalf("got %d groups, want 2 (alpha+bns)", len(g))
+			t.Fatalf("got %d groups, want 2 (alpha+beta)", len(g))
 		}
 		names := set(p)
 		// teeth: othr's admin zoe must NOT be pulled in, or the filter isn't filtering.
-		if !names["nikos"] || !names["ana"] || !names["bo"] || names["zoe"] {
-			t.Errorf("people = %v, want {nikos,ana,bo} and NOT zoe", names)
+		if !names["dana"] || !names["ana"] || !names["bo"] || names["zoe"] {
+			t.Errorf("people = %v, want {dana,ana,bo} and NOT zoe", names)
 		}
 	})
 
-	t.Run("-band bns -band typo → fails loud, naming the miss", func(t *testing.T) {
-		gs := []groupDef{{name: "Blue Note Singers", shortname: "bns", admin: "nikos", personal: true}}
-		_, _, err := selectGroups(gs, []person{{username: "nikos"}}, "", []string{"bns", "typo"})
-		// teeth: a partial match must ERROR (not silently seed just bns), and name "typo".
+	t.Run("-band beta -band typo → fails loud, naming the miss", func(t *testing.T) {
+		gs := []groupDef{{name: "Beta Choir", shortname: "beta", admin: "dana", personal: true}}
+		_, _, err := selectGroups(gs, []person{{username: "dana"}}, "", []string{"beta", "typo"})
+		// teeth: a partial match must ERROR (not silently seed just beta), and name "typo".
 		if err == nil || !strings.Contains(err.Error(), "typo") {
 			t.Errorf("want an error naming the unmatched \"typo\", got %v", err)
 		}
 	})
 
-	t.Run("-band bns,alpha (one flag, comma) → NOT split, fails loud", func(t *testing.T) {
+	t.Run("-band beta,alpha (one flag, comma) → NOT split, fails loud", func(t *testing.T) {
 		gs := []groupDef{
-			{name: "Blue Note Singers", shortname: "bns", admin: "nikos", personal: true},
+			{name: "Beta Choir", shortname: "beta", admin: "dana", personal: true},
 			{name: "Alpha Band", shortname: "alpha", admin: "ana", personal: true},
 		}
-		ps := []person{{username: "nikos"}, {username: "ana"}}
-		// A single -band value keeps its comma: it's the literal shortname "bns,alpha", which
+		ps := []person{{username: "dana"}, {username: "ana"}}
+		// A single -band value keeps its comma: it's the literal shortname "beta,alpha", which
 		// matches nothing. This is the shape VLL rejected — it must error, not seed both.
-		_, _, err := selectGroups(gs, ps, "", []string{"bns,alpha"})
-		if err == nil || !strings.Contains(err.Error(), "bns,alpha") {
-			t.Errorf("want an error naming the literal \"bns,alpha\", got %v", err)
+		_, _, err := selectGroups(gs, ps, "", []string{"beta,alpha"})
+		if err == nil || !strings.Contains(err.Error(), "beta,alpha") {
+			t.Errorf("want an error naming the literal \"beta,alpha\", got %v", err)
 		}
 	})
 }
@@ -337,11 +337,11 @@ func TestLoadRepertoire_FullScoreFirst(t *testing.T) {
 func TestLoadLocalBands_Conductor(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("TROUBA_BANDS_DIR", dir)
-	writeBand(t, dir, "bns", `{
-	  "name": "Blue Note Singers", "shortname": "bns",
+	writeBand(t, dir, "beta", `{
+	  "name": "Beta Choir", "shortname": "beta",
 	  "admin": {"username": "ana", "display": "Ana"},
 	  "members": [
-	    {"username": "nikos", "display": "Nikos", "role": "direction", "conductor": true},
+	    {"username": "dana", "display": "Dana", "role": "direction", "conductor": true},
 	    {"username": "pat", "display": "Pat", "role": "alto"}
 	  ]
 	}`, "")
@@ -358,8 +358,8 @@ func TestLoadLocalBands_Conductor(t *testing.T) {
 	for _, g := range groups {
 		by[g.shortname] = g
 	}
-	if by["bns"].conductor != "nikos" {
-		t.Errorf("bns conductor = %q, want \"nikos\"", by["bns"].conductor)
+	if by["beta"].conductor != "dana" {
+		t.Errorf("beta conductor = %q, want \"dana\"", by["beta"].conductor)
 	}
 	if by["plain"].conductor != "" {
 		t.Errorf("plain conductor = %q, want empty (no member flagged)", by["plain"].conductor)
