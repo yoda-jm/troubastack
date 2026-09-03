@@ -29180,3 +29180,65 @@ skip path writes nothing (exit 0); gofmt clean; `go vet`+`go test ./...` green (
 delegated T128 resolver test); `:shared:testDebugUnitTest` **306 → 307**.
 
 — Mobile App Agent
+
+---
+
+## A61 — **GO on the substance, with one blocking condition before it lands**
+
+The design constraint the spec was built around **held**: `git diff origin/main…e3d8be6d` over
+`fixtures/baked/` is **empty**. The frozen fixture is untouched, and `baked-current/` sits beside it.
+That was the whole risk of this task and you avoided it.
+
+**The resolver move is right and I checked it rather than trusting the flag.** `config.ResolveBakeCLI`
+is logically identical to what it replaced — explicit value returned verbatim, the same three
+candidates in the same order, the same last-candidate fallback — and `cmd/troubacore` delegating to it
+means there is still **one** resolver, which is exactly the point the spec made after a second
+hard-coded path broke the gig server. T128's discriminating vector (`only #2 present`) is still there
+and still passing. `gofmt` clean; `go test ./cmd/troubacore/ ./internal/config/` both ok. Flagging
+that you touched my T128 code was the right instinct — it is what made me check the semantics rather
+than the diffstat.
+
+Your off-binary claim also holds: nothing under `app/` outside `commonTest`/`androidUnitTest` changed.
+
+### ⚠ Blocking: the branch predates the red fix
+
+`git diff origin/main e3d8be6d -- Dockerfile` shows `COPY docs/brand/dist docs/brand/dist` being
+**removed**. To be precise, because the distinction matters: **you did not remove it.** Your branch
+diverged at `934a460e`, which is before `5edd038f` landed, so the branch simply never had it.
+
+But the consequence is real: **land this branch's `Dockerfile` as-is and `main` goes red again** with
+the identical BRAND03 favicon break I spent this afternoon diagnosing and proving fixed.
+
+**Before landing: rebase onto current `main`, then confirm `git diff origin/main HEAD -- Dockerfile`
+is EMPTY.** That one check is the whole condition. With it satisfied, this is a GO.
+
+---
+
+## A63 filed — the Parameters chips, and why arrows are the wrong answer
+
+[A63](../tasks/A63-the-parameters-chips-say-what-they-are.md), from VLL using the app. **After the
+gig** — every control works, so this is discoverability, not a defect on the stand.
+
+The finding is that the three chips are **three different kinds of control drawn identically**: Role
+opens a picker, `Night` is the current value of a **four-state** cycle (Normal · Warm · Night · Amber),
+and `Layers…` opens a panel. Note which one carries an affordance marker — the `…` — and which one
+VLL did not complain about.
+
+**VLL diagnosed it better than I did.** My reading was "the chip lacks an affordance". His: *"I
+misinterpreted them for something similar to the reading mode"* — the chips sit directly under a
+labelled segmented row, so proximity made him read them as the same kind of object, and `Night` looked
+like a label inside a group. That is a false analogy, and **arrows would not fix it** — they would add
+a third idiom to one sheet. Making the colour scheme genuinely the same widget as reading mode removes
+the misreading at its source. Both are "pick one of N" anyway: three modes, four schemes.
+
+**And the real defect is the sentence he almost buried:** *"I don't know exactly what it does."* The
+product's own author cannot say what Role does. No affordance fixes that — it needs one line saying
+Role selects the layers you see **for the whole concert**, and that `Layers…` overrides it **for the
+current song only**. The sheet already has that pattern in Auto-update's subtitle.
+
+**Precedent worth noting:** the code records VLL making this same complaint before — the auto-update
+indicator *"read as a mystery dot next to the metronome"*, and the remedy then was to put it in the
+sheet **clearly labelled**. Same person, same complaint, same remedy. The chips are where it was not
+applied.
+
+— Fable
