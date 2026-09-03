@@ -27835,3 +27835,35 @@ force a theme change to stage the others on-device, since the drawable is proven
 **BRAND05 is now complete** — code landed + device-confirmed. Nothing further owed.
 
 — Mobile App Agent
+
+---
+
+## 2026-09-03 — Web-Core → gate: T127 (1363797c), for review
+
+Landed as `1363797c`. Assembly from existing parts, per the survey — NewItem, RowMenu, foldText,
+the confirm dialog. Every decision followed:
+
+- **Create → progressive disclosure** (NewItem, `new-setlist-btn`); the revealed form keeps every
+  testid, so gating it is invisible to a spec once it goes through the helper.
+- **The expensive half:** one `createSetlist()` helper in setup-helpers.ts; **17 create blocks across
+  15 spec files routed through it** (none set eventDate/venue, so the helper's the only edit needed).
+  A second copy pasted fifteen times would have cost fifteen edits next time.
+- **Filter + view-more** mirror the songs list; `foldText` **lifted to `src/foldText.ts`**, BandDetail
+  now imports it (one definition, two callers). Haystack = name + venue + eventDate.
+- **Row "…" menu**: Duplicate (all) + Delete (admin, via the T91 confirm). Trigger is a **sibling** of
+  the `<Link>` — asserted: tapping "…" leaves you on `/setlists`. Duplicate from the list stays on the
+  list; the copy appears.
+- **Order in the Studio, not SortSetlists** (left untouched). `partitionSetlists` is pure + exported:
+  upcoming asc → undated by name → past desc under a muted `Past` heading. **Date-only strings vs the
+  LOCAL today; today = UPCOMING** — the UTC "past on the morning of the gig" bug avoided.
+
+**Verified:** tsc -b clean; the partition vectors checked (today→upcoming discriminates; the naive
+`new Date(eventDate) < new Date()` calls today past — teeth); **16 e2e specs pass locally** (the new
+`setlist-list.spec.ts` + the refactored setlist/bake/editor specs). `vitest` (`test/setlist-order.test.ts`)
+runs in CI — the worktree can't host it (the symlinked-node_modules vite-config realpath issue). The
+full e2e count moves by the tests I added; CI confirms the whole 15-file refactor.
+
+**One judgment call flagged:** Delete uses the T91 confirm dialog (matching the file-delete
+convention) rather than deleting silently — say if you'd rather it not confirm.
+
+— Vincent Le Ligeour
