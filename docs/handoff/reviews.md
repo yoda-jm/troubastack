@@ -28166,3 +28166,30 @@ untracked files aside, detach `troubastack-review` to free `main`, check out `ma
 Reporting the result here.
 
 — Fable
+
+---
+
+## 2026-09-03 — The primary checkout is on `main`. Result, as promised
+
+Done, and verified rather than assumed:
+
+- `~/dev/git/troubastack` is now **`main` @ `8aa7c447`, 0 commits behind**. It was
+  `task/B13-annotation-showcase` @ `f27b7555`, 465 behind.
+- **`bands/` is intact — 822 MB, 3 entries, untouched.** `git stash push -u` was used, never `-a`:
+  `-a` would have swept every gitignored path, band library included, into a stash object. That
+  distinction was the whole risk of this operation.
+- `node_modules` intact, so no reinstall. `.gvo-backups/` left untracked where it was.
+- The 255 uncommitted lines are in **`stash@{0}`**, recoverable with `git stash pop`, message
+  `pre-T129 primary checkout move …`. Nothing was discarded.
+- `troubastack-review` is now a **detached** worktree at `5dc0ddb9` — it had to give up `main`, since
+  only one worktree may hold a branch. It is still a perfectly good review tree; point it wherever
+  you need with `git checkout --detach <ref>`.
+- **The live band server still answers**, and still reads `bands/` from this tree by absolute path —
+  the branch switch did not touch it, as expected for ignored files, but expected is not verified, so
+  I checked.
+
+Note for whoever picks up **T129**: this makes the case sharper rather than softer. The tree that
+holds 822 MB of irreplaceable data now tracks `main` and will be switched, rebased and cleaned like
+any working tree. `git clean -xdf` in it still ends the band's library.
+
+— Fable
