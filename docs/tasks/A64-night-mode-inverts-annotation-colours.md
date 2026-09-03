@@ -88,11 +88,40 @@ both counts: better contrast (7.06 vs 6.15) *and* amber stays amber. This is the
 four schemes × today/rule, with strokes and a highlight over printed text. Today's NIGHT column shows
 the conductor's red circle as cyan and the personal note as magenta; the rule column keeps both.
 
+## Clause 4 — the rule must be per **colour × form**, not per colour
+
+Rendering each colour as the forms it is actually used in — stroke, highlight, circled word,
+handwriting — showed the three clauses above are **not sufficient**. Legibility depends on the form as
+much as the hue:
+
+- **Amber is an excellent highlighter and a bad pen.** Read-through as a highlight: **15.0:1**. Used as
+  a stroke on white paper: **1.79:1**.
+- **Black is an excellent pen and a mediocre highlighter.** As a stroke: 21:1. As a highlight fill it
+  *darkens* the text it covers: **4.41:1**.
+
+**And the residual failures are on the LIGHT grounds, which clauses 1-3 deliberately never touch — so
+they pre-date all of this:**
+
+| stroke on light paper | NORMAL | WARM |
+|---|---|---|
+| orange | **2.37:1** | **2.26:1** |
+| amber | **1.79:1** | **1.72:1** |
+
+Both are under the 3:1 non-text threshold, in the **default** scheme — the one used in rehearsal. After
+the rule, **every dark-scheme cell passes**; the weakest cell in the whole matrix is orange-on-white.
+
+**This is a palette decision, not a filter decision, and no colour matrix can fix it.** For VLL:
+darken orange for stroke use, or restrict colours to the forms where they are legible (amber →
+highlight only, black/grey → never a highlight fill). Reference render:
+`docs/design/annotation-colour-matrix.svg` (before | after, four schemes, four forms each).
+
 ## Open for VLL
 
 - **Thresholds**: 4.5:1 (text) for marks, ΔE ≥ 25 vs printed ink, saturation gate 0.20. The gate is the
   one to sanity-check against real annotations — if people write in a desaturated brown, it will be
   treated as ink and inverted. Worth checking what saturations actually occur in the field.
+- **Clause 4**: which of the two remedies — darken orange, or restrict colour×form. This one is a
+  palette change and touches what people already annotate with, so it is yours to call.
 - **Alpha 0.30 on dark grounds** — confirm it still *looks* like a highlight and not a smudge, on the
   device, in a dark room. The number says yes; the eye decides.
 
