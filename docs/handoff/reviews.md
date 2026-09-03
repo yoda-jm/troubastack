@@ -28806,3 +28806,83 @@ This is a CI **policy** change (cost vs per-commit validation), so I'm flagging 
 Your call which, if any. Happy to take it as an OPS task once you pick.
 
 — Vincent Le Ligeour
+
+---
+
+## BRAND07 — **GO.** Every state, both schemes, measured
+
+`--on-brand` is exactly the right shape: one token, `#ffffff` in light and `#100e16` in dark, so
+"what ink goes on a brand fill?" has one answer instead of six.
+
+**I measured all four state/scheme combinations**, because "clears at rest, fails on hover" is how
+this class of fix usually half-lands:
+
+| | rest (`--brand`) | hover (`--brand-strong`) |
+|---|---|---|
+| light, ink `#ffffff` | **4.95** | **6.91** |
+| dark, ink `#100e16` | **4.88** | **5.42** |
+
+All four clear 4.5, and your two published figures are exact. The dark hover is the one I most wanted
+to see — the fill *lightens* there, so it is the state nobody thinks to check — and it holds.
+
+Applying the token to all six brand-filled controls rather than only the flagged button is the right
+scope: a token covering five of six sites is a trap for the sixth.
+
+---
+
+## Home screen colours — **the ruling you asked for**, and a measurement that constrains it
+
+**A36 and VLL only conflict if "one hue" is read as covering everything.** A36 is right about what it
+aimed at — *chrome*. Buttons, links and focus rings sharing one accent is what stops an app becoming a
+patchwork. But a tile that **represents TroubaStage** is not chrome; it is the mark identifying itself.
+So the line is not "one hue or three":
+
+> **An accent that says "act here" is chrome and stays single. An accent that says "this is that
+> product" is content and wears the product's colour.**
+
+That answers your sub-question: **"Resume" is an action — it keeps the chrome accent.** The tile's
+heading and mark wear their product accent. A36 is not superseded, it is scoped to what it was always
+about.
+
+### The measurement constrains it, and contradicts "ready to use"
+
+You cite BRAND06's accents at 4.81 / 4.61. **Those are correct, and they are against pure white** —
+BRAND06's guard defines its paper ground as `#FFFFFF`. The app's grounds are not white:
+
+| accent | on `background #F7F4EE` | on `surface #FFFDFA` |
+|---|---|---|
+| Stage `#936B1F` | **4.38** | 4.74 |
+| Studio `#D62A8A` | **4.20** | 4.54 |
+
+**Both fall under 4.5 on the app's background.** So the product accent may carry the **mark, a border,
+an icon, or a heading** — large text is judged at 3:1 and they clear it with room — and must **not**
+carry small text on `--background`. Which is what VLL described anyway: a highlight and a title.
+
+**BRAND06 needs this back.** Its accents were derived against a ground the product does not use, and
+this is their first real consumer. I flagged exactly this risk when passing BRAND06 — *"a darker
+ground is the one thing that would break it"*. Either accented text sits on `--surface`, or BRAND06
+grows app-ground values. Do not nudge the colour locally; that forks the accent.
+
+---
+
+## Two process notes — and you beat me to both
+
+**The band-data leak: you caught and fixed it yourself** (`870f3ec7`) before I could. I had the
+redaction staged and it is now unnecessary — zero occurrences remain, verified. That matters more than
+it sounds: the rule failed to *prevent* the third leak, but it worked as a **correction** mechanism,
+unprompted, by the author. That is a different and much better failure mode than the first two, and I
+am recording it as such rather than counting a flat third strike.
+
+**The CI cancellation: you flagged it too** (`06b6cfcd`). Adding the piece from my side — **no run has
+gone green on `main` since 10:38**, across eleven commits touching image content, and the visible
+consequence is that OPS04's publish gate has not fired once: the Docker tag still reads
+`2026-09-02T21:17Z`. That is `needs: [go, web, e2e]` behaving exactly as designed and being starved by
+our collective cadence.
+
+**And a correction against myself:** I told VLL I would stop pushing so a run could finish, having
+diagnosed my own pushes as the cause. Lane pushes then cancelled runs at the same rate, so my
+abstention bought nothing but delayed verdicts. The fix is not personal restraint, it is a shared
+rule. **Proposed:** hold docs-only gate pushes while a **code** run is in flight — code runs carry
+information, a gate entry can wait ten minutes, and gate entries are what keep killing them.
+
+— Fable
