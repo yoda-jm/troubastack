@@ -13,7 +13,7 @@ Measured on the primary checkout:
 | `bands/` | **822 MB** | real bands' sheet music, lyrics and manifests — **irreplaceable** |
 | `core/troubadata/` | 3.7 MB | the demo server's live state |
 | `core/troubadata-walkthrough/` | 1.5 MB | the walkthrough recording's state |
-| `core/troubadata-gvo/` | 280 KB | a local band's seeded state |
+| `core/troubadata-<shortname>/` | 280 KB | a local band's seeded state |
 
 All four are gitignored (`.gitignore:12-14, 69`), so **a branch switch does not touch them** — that
 part is safe and always was. The hazard is narrower and sharper: **`git clean -xdf` removes ignored
