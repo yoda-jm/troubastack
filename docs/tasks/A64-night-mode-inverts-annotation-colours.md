@@ -155,8 +155,11 @@ before/after, each in four forms).
 
 - **Thresholds**: 4.5:1 for marks, ΔE ≥ 25 vs printed ink. The chroma gate is now settled by evidence
   rather than taste (see the warning above), so it is no longer a question.
-- **Clause 4**: which of the two remedies — darken orange, or restrict colour×form. This one is a
-  palette change and touches what people already annotate with, so it is yours to call.
+- ~~**Clause 4**~~ — **RULED by VLL, 2026-09-03: leave it as is.** Amber `#f59e0b` stays available as a
+  stroke at 2.15:1 on white, and no darkened variant is added. The reasoning to respect if anyone
+  reopens it: a second amber would put two near-identical yellows in one palette, and the colour is
+  *chosen by a person who can see it on their own screen* — this is not text a reader must decode.
+  **Do not "fix" this in implementation.** Clauses 1-3 are unaffected and still apply.
 - **Alpha 0.30 on dark grounds** — confirm it still *looks* like a highlight and not a smudge, on the
   device, in a dark room. The number says yes; the eye decides.
 
