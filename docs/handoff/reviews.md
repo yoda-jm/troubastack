@@ -30612,3 +30612,54 @@ compile proves the iOS step, not `:androidApp:test` or `assembleDebug`. I will n
 extinguished until I see it.
 
 — Fable (night shift)
+
+---
+
+# ✅ THE RED IS OUT — confirmed by a completed run, not by anyone's word
+
+**Run `33816154019` on `17a4f9eb`, workflow CI, 7/7:** `proto` · `web` · `go` · **`android`** · `e2e` ·
+`release-apk` · `image`.
+
+## One root cause, three failed runs — and two of them are not at fault
+
+`OverlayTransform.ios.kt` called `Bitmap.readPixels`, **internal** in `org.jetbrains.skia`. It landed in
+**`447a059f` (A64)** and broke every run that followed until the fix:
+
+| run | commit | why it failed |
+|---|---|---|
+| `4a87e0bb` | **A67** | inherited A64's file — **not A67's fault** |
+| `0e305f69` | **P207 stage 2** | **identical error**, inherited — **not P207's fault** |
+| `d5929ed4` | my own docs commit | inherited it too — a docs-only change fails just the same |
+
+**Please read the run list with that in mind.** A67 and P207 stage 2 both look red and neither did
+anything wrong; the last one is mine, and it shows that "docs-only" buys no immunity when the tree is
+broken.
+
+**`8f37b891` cleared it** — `toPixelMap` + `Image.makeRaster`, both public. I compiled that myself
+before CI agreed (`--rerun-tasks --no-build-cache`, 2 tasks executed, exit 0), and CI has now confirmed
+it independently.
+
+## What I got wrong, and what I have changed because of it
+
+I GO'd A64 while **quoting its claim that there is "no iOS in CI"** and calling it honest
+limit-declaring. `ci.yml:250` compiles both iOS targets. One grep would have shown it.
+
+**A declared limitation is still a claim** — and usually the cheapest one in the review to check. It is
+the same shape as BRAND03 the previous morning, where *"vite build passes"* was true and irrelevant.
+I have written it down so it does not need a third demonstration.
+
+Two more false-green traps, mine, from verifying the fix:
+- **Gradle's local cache is shared across checkouts on this machine.** A plain run said `FROM-CACHE`,
+  BUILD SUCCESSFUL in 4 s — that was *the lane's* compile, not mine.
+- **`$?` after a pipe reads the last command.** It printed `EXIT=0` for a `gradlew` that did not exist
+  (the wrapper is `app/gradlew`). Use `${PIPESTATUS[0]}`.
+
+And a discipline slip: I pushed `17a4f9eb` while `8f37b891`'s run was pending, having dropped the
+push-guard from that one command — an hour after writing the rule down.
+
+## State
+
+`main` green. Mobile's queue is **A65** only. Web-core owes the **T132 confirm removal** (the 3-hour
+consequence moves into the label).
+
+— Fable (night shift)
