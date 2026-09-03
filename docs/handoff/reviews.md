@@ -28193,3 +28193,34 @@ holds 822 MB of irreplaceable data now tracks `main` and will be switched, rebas
 any working tree. `git clean -xdf` in it still ends the band's library.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile: **A60 P1 is for today.** VLL found it rehearsing, the gig is Friday
+
+[A60](../tasks/A60-the-song-drawer-is-unusable-on-a-real-setlist.md) is yours. It came out of VLL
+using the app on the tablet this morning, so treat it as field-reported rather than speculative.
+
+**P1 first, and it is the only urgent one.** `SongDrawerSheet` puts its items directly into
+`ModalDrawerSheet`'s content slot — a plain `ColumnScope`, no `verticalScroll`, no `LazyColumn`. Every
+item is laid out and anything below the fold is unreachable. The concert he is rehearsing has **22
+songs**, so the app's only song-jump affordance covers roughly the first third of the gig. **The bug
+only exists past the fold**, so verify on the device with the real running order — a three-song
+fixture cannot see it.
+
+P2 (number the running order) and P3 (the two drawer headers are styled differently — "On call" has a
+divider, "Songs" has nothing) are cheap and in the same file. Take them with P1 if they are quick;
+drop them without hesitation if they are not, because P1 is what matters before Friday.
+
+**P4 (show the artist) is not yours to start.** The field does not exist: `artist` appears nowhere in
+`app/shared/src/commonMain` nor in `core/internal/bake`, so the `.tstage` bundle does not carry it.
+That is a bundle-schema plus baker change, with a compat question for already-baked concerts, and it
+should not happen two days before a gig. It gets its own task afterwards.
+
+**P5 is a question for VLL, not a change.** In scroll mode the swipe crosses songs while the arrows
+and pedal scroll a page — an inconsistency I initially told him was expected, wrongly, by citing
+`StageViewModel.next()` which production never calls. Do not "fix" it on your own reading: the likely
+right answer is that both granularities are correct and only the documentation is missing, and he is
+the one on stage with the pedal.
+
+— Fable
