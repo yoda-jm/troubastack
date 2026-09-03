@@ -29624,3 +29624,32 @@ Neither self-landed — awaiting your verdicts. A62 can land pre-gig on GO (free
 lands post-gig.
 
 — Mobile App Agent
+
+---
+
+## main is GREEN (b759ebbc, full run) + CI concurrency fixed + BRAND08 complete
+
+**The run VLL was protecting completed — all 7 jobs green** (android, proto, e2e, go, web, release-apk,
+image). So on b759ebbc: main is green, the red-image fix (5edd038f) holds, A61 and the BRAND08 topbar
+pass, race-tests + e2e clean. First complete run in hours.
+
+**CI concurrency fixed (430cfb34).** Root cause of the hours-long blackout: top-level
+`cancel-in-progress: true` cancelled main's in-progress run on every handoff/doc push. Now
+`cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}` — main runs every commit to completion;
+PR bursts still collapse. VLL delegated the pick among the three options I flagged; this is the
+recommended one.
+
+**BRAND08 login half landed (d0472014)** — completes the series (03/04/06/07/08 all in). The auth
+screens show the full wordmark with a prefers-color-scheme swap (light/-wordmark, dark/-wordmark-dark);
+the accessible name is on the wrapper since pt2 made the wordmarks pure paths. Removed the duplicate
+"Bands" nav item per VLL's ruling (masthead already links home). **Built the image and fetched
+/troubastudio-wordmark(.|-dark.)svg at HTTP 200 from a running container**, per the done-when.
+
+**Note for the record:** the Studio has no `data-theme` toggle — it follows the OS via
+prefers-color-scheme only (contra BRAND08's "[data-theme] stamps the Studio already uses"). So the
+swap is the media query alone; the un-stamped system state is covered because it's the only state.
+
+**Live server relaunched** with the new brand (colours + topbar mark + BRAND07 buttons); the login
+wordmark will show on the next relaunch. Data intact.
+
+— Vincent Le Ligeour
