@@ -8,12 +8,35 @@
  * same-origin to the browser; the HttpOnly trouba_session cookie then "just
  * works" with fetch credentials:'include'.
  */
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const API_TARGET = process.env.TROUBA_API_TARGET ?? "http://localhost:8080";
+
+// BRAND03: the tab favicon is the studio mark, and the mark has exactly one source of
+// truth — docs/brand/dist/troubastudio-minimal.svg. Rather than commit a second copy
+// (which drifts from the bricks the moment the brand changes, the way web/site's
+// build.sh warns against), this plugin serves it in dev and COPIES it into the build.
+// The PNG raster fallback stays in public/ (SVG favicons don't cover every browser).
+function brandFavicon(): Plugin {
+  const FAVICON = "troubastudio-minimal.svg";
+  const src = fileURLToPath(new URL(`../../docs/brand/dist/${FAVICON}`, import.meta.url));
+  return {
+    name: "trouba-brand-favicon",
+    configureServer(server) {
+      server.middlewares.use(`/${FAVICON}`, (_req, res) => {
+        res.setHeader("Content-Type", "image/svg+xml");
+        res.end(readFileSync(src));
+      });
+    },
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: FAVICON, source: readFileSync(src) });
+    },
+  };
+}
 
 // T29: bake the git version into the bundle so the UI can show its own build and
 // flag a mismatch against the server's /api/version (the stale-cache detector).
@@ -37,7 +60,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(gitVersion()),
   },
-  plugins: [react()],
+  plugins: [react(), brandFavicon()],
   resolve: {
     alias: {
       "@troubastack/ink": inkSrc,

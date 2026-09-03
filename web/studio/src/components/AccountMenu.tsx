@@ -167,6 +167,21 @@ export function AccountMenu({ user, onLogout }: { user: MenuUser; onLogout: () =
             </button>
           )}
 
+          {/* BRAND03: the one link back to the project page — informational, so it lives in
+              the account menu (never the editor chrome), directly above the build/version
+              footer so the version reads beside it. Opens the live page in a new tab. */}
+          <a
+            href="https://yoda-jm.github.io/troubastack/"
+            target="_blank"
+            rel="noopener noreferrer"
+            role="menuitem"
+            className="account-item"
+            data-testid="menu-about"
+            onClick={() => setMenuOpen(false)}
+          >
+            <span aria-hidden="true">ℹ️</span> About TroubaStudio ↗
+          </a>
+
           <button
             type="button"
             role="menuitem"

@@ -10,10 +10,14 @@
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
-  --brand: #4f46e5;
-  --brand-strong: #4035c9;
-  --brand-tint: #efedfc;
-  --brand-ink: #35309a;          /* indigo readable on the warm paper (links, labels, ranks) */
+  /* BRAND03: the mark's own hue (324.9°), split by role so each carries its own
+     contrast constraint. Numbers re-measured against this file's four grounds —
+     see the commit message; do not copy a value measured on a different surface. */
+  --brand: #d11e87;              /* body-safe: 4.87 / 4.50 on --surface / --bg */
+  --brand-strong: #a9186d;       /* emphasis + hover text: 6.81 / 6.30 / 5.94 on surface / bg / tint */
+  --brand-mark: #e13198;         /* the mark's OWN colour, unmodified — icons, borders, non-text UI (≥3:1 on all four grounds) */
+  --brand-tint: color-mix(in srgb, var(--brand-mark) 10%, var(--surface)); /* derived fill (do not hand-pick); the text tokens above clear 4.5 on it */
+  --brand-ink: #9b1664;          /* links, labels, ranks: 7.68 / 7.10 / 6.70 on surface / bg / tint */
   --accent: var(--brand);        /* THE single accent — everything derives from the brand */
   accent-color: var(--accent);   /* unify native widgets (sliders, checkboxes) with the brand, both themes */
 
@@ -50,7 +54,10 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --brand: #a5b4fc; --brand-strong: #c7d0ff; --brand-tint: #201d33; --brand-ink: #c3ccff;
+    /* BRAND03 dark: same hue, lightened until each clears its grounds (incl. --surface-2 and the
+       tint). --brand-mark is theme-invariant (inherited from :root). --brand-tint re-derives here
+       because --surface changes. #fff-on-fill buttons improve from 1.99 to 3.93 — see commit note. */
+    --brand: #e23b9d; --brand-strong: #e54da6; --brand-tint: color-mix(in srgb, var(--brand-mark) 10%, var(--surface)); --brand-ink: #e75faf;
     --bg: #100e16;
     --surface: #191722; --surface-2: #211e2c;
     --fg: #efeaf6; --muted: #9c96ac;

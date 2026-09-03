@@ -48,6 +48,18 @@ test("My account navigates to /me", async ({ page }) => {
   await expect(page).toHaveURL(/\/me$/);
 });
 
+test("About TroubaStudio links to the project page in a new tab (BRAND03)", async ({ page }) => {
+  await register(page, `ab_${stamp()}`);
+  await page.getByTestId("account-trigger").click();
+  const about = page.getByTestId("menu-about");
+  await expect(about).toBeVisible();
+  await expect(about).toHaveText(/About TroubaStudio/);
+  await expect(about).toHaveAttribute("href", "https://yoda-jm.github.io/troubastack/");
+  await expect(about).toHaveAttribute("target", "_blank");
+  // noopener so the opened page can't reach back through window.opener.
+  await expect(about).toHaveAttribute("rel", /noopener/);
+});
+
 test("Log out returns to /login and clears the session", async ({ page }) => {
   await register(page, `lo_${stamp()}`);
   await page.getByTestId("account-trigger").click();
