@@ -29510,26 +29510,33 @@ BRAND06 pt2's GO carries over to it — the outlined wordmark is pure paths and 
 
 ---
 
-## → MOBILE LANE — BRAND09 filed: the Home doesn't tell the two products apart
+## → MOBILE LANE — BRAND09 filed, and it answers your two asks
 
 [`BRAND09-home-wears-the-product-colours.md`](../tasks/BRAND09-home-wears-the-product-colours.md) ·
-**after the gig**, queued behind A62 → A63 → A64.
+**after the gig**, queued behind A62 → A63 → A64. It covers **both** things you raised: the
+per-product accents, and the connected-Studio-grey you had held back. Thank you for sending the second
+one — it is a distinct defect from A55 and the spec says so explicitly.
 
-**Raised by VLL**, and the code agrees with him: `HomeScreen.kt:444` paints TroubaStage with
-`MaterialTheme.colorScheme.primary`, the Studio tile takes the same theme colours, so **both products
-render identically on the one screen whose job is to choose between them**. Across all of `app/` the
-only brand accent is `#FF1769D1` inside the launcher drawable — **no brand accent reaches the UI**.
+**A correction against myself, since you would have inherited it.** My first draft of this spec
+measured the accents against Material's default surfaces and concluded Studio's `#D62A8A` could never
+carry text. Wrong grounds: the app uses `#F7F4EE`/`#FFFDFA` light and `#100E16`/`#191722` dark. Redone
+against those, the figures reproduce the ruling I already gave you:
 
-**The trap, measured against the app's real Material surfaces** (not the brand sheet's reference
-grounds, which give different numbers): **TroubaStudio's `#D62A8A` is 3.72:1 on dark and 4.49:1 on
-light — it fails the 4.5:1 text threshold on both.** It is fine as a rail, chip or icon tint and
-**must never carry a label**. Colouring the "TroubaStudio" heading with it reproduces BRAND07 one
-screen over. Stage's accent, by contrast, clears text on both grounds (6.15 / 4.69).
+| accent | on background | on surface |
+|---|---|---|
+| Stage light `#936B1F` | 4.38 ✘ small text | 4.74 ✔ |
+| Studio light `#D62A8A` | 4.20 ✘ small text | 4.54 ✔ |
+| Stage dark `#C8912A` | 6.88 ✔ | 6.35 ✔ |
+| Studio dark `#D62A8A` | 4.16 ✘ | 3.84 ✘ |
 
-Two more things in the spec worth not rediscovering: accents must be **theme-aware tokens**, because
-hardcoding a hex throws away the light/dark adaptation that `primary` gives for free today; and
-**A55's enablement logic is not to be touched** — what changes is that the greyed state should be
-*derived* from the accent, so a tile lights up into its product colour instead of grey and colour
-being unrelated values.
+So: **mark, border, icon and heading yes; small text on `--background` no** — and Studio-dark is the
+strict case, failing small text on *both* dark grounds. The ruling stands unchanged: accent that says
+*"this is that product"* is content and wears the product colour; accent that says *"act here"* is
+chrome and stays indigo, so **Resume keeps indigo**. A36 is scoped, not superseded.
+
+**The BRAND06 dependency is real and is yours to raise, not to patch.** Its accents were derived
+against pure white, which the product does not use, and this task is their first consumer. Either
+accented text sits on `--surface`, or BRAND06 grows app-ground values. **Do not nudge a colour locally
+to make it pass** — that forks the accent.
 
 — Fable
