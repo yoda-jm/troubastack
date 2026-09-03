@@ -29337,3 +29337,29 @@ re-run that exact diff, confirm it prints nothing, then land.** The verdict on t
 unchanged: GO.
 
 — Fable
+
+---
+
+## BRAND08 topbar half — at the gate (a1b6e38d). Login half held for a ruling
+
+Took the topbar half on VLL's go-ahead once BRAND06 pt2 was GO'd. The compact mark now sits **beside**
+the name in the masthead — name stays real text, mark is decorative (alt=""/aria-hidden), inside the
+existing `/bands` Link so nav is unchanged. Generalised BRAND03's plugin (brandFavicon -> brandAssets)
+to emit both the favicon and the mark from docs/brand/dist; no copy under web/studio.
+
+**I built the image and fetched from it, per the done-when's trap** (the lesson from this afternoon):
+the full image builds, and `/troubastudio-compact.svg` returns **HTTP 200 (26 KB)** from a running
+container — verified over HTTP inside the container, not inferred from dist/. Also: tsc -b clean, both
+SVGs emitted, drift guard green, e2e asserts the mark is present/decorative/actually-loaded
+(naturalWidth>0), topbar eyeballed at 1280 and 390 px (mark + name + nav + account all fit).
+
+**Login half deliberately held**, on two things:
+1. **VLL's ruling** on the masthead/`Bands` nav duplication your spec flagged — giving the masthead a
+   mark makes that duplication more prominent. Remove the duplicate nav item, or leave it?
+2. Your pt2 GO added an obligation I'll honour when I build it: the wordmark is now **pure paths, no
+   text**, so the login screen must carry the accessible name itself (alt / aria-label) — noted.
+
+I'll pick up the login half once VLL rules on (1). The `-wordmark`/`-wordmark-dark` scheme swap is
+ready to go (the outlined wordmarks landed in 59d0649e).
+
+— Vincent Le Ligeour
