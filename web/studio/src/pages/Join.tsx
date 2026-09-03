@@ -60,7 +60,7 @@ export function Join() {
   if (error && !preview) {
     return (
       <div className="page">
-        <Link to="/bands">&larr; Bands</Link>
+        <Link className="crumb" to="/bands">&larr; Bands</Link>
         <ErrorBanner message={error} />
       </div>
     );
@@ -71,7 +71,7 @@ export function Join() {
 
   return (
     <div className="page">
-      <Link to="/bands">&larr; Bands</Link>
+      <Link className="crumb" to="/bands">&larr; Bands</Link>
       <section className="card">
         <h1 data-testid="join-band-name">{preview.band.name}</h1>
         <p className="muted">

@@ -9,6 +9,7 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { ResetPassword } from "./pages/ResetPassword";
 import { Bands } from "./pages/Bands";
+import { BandLayout } from "./pages/BandLayout";
 import { BandDetail } from "./pages/BandDetail";
 import { BandSettings } from "./pages/BandSettings";
 import { Setlists } from "./pages/Setlists";
@@ -39,9 +40,13 @@ export function App() {
       {/* Authenticated area — Shell enforces the auth guard. */}
       <Route element={<Shell />}>
         <Route path="/bands" element={<Bands />} />
-        <Route path="/bands/:bandId" element={<BandDetail />} />
-        <Route path="/bands/:bandId/settings" element={<BandSettings />} />
-        <Route path="/bands/:bandId/setlists" element={<Setlists />} />
+        {/* T130: Overview / Setlists / Settings are tabs of ONE band — a shared layout owns the
+            crumb, the tab strip and a single band fetch; the sections render through its Outlet. */}
+        <Route path="/bands/:bandId" element={<BandLayout />}>
+          <Route index element={<BandDetail />} />
+          <Route path="setlists" element={<Setlists />} />
+          <Route path="settings" element={<BandSettings />} />
+        </Route>
         <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />
         <Route path="/bands/:bandId/songs/:songId" element={<SongEditor />} />
         {/* T105: the dedicated full-page chart editor, reachable from the viewer and linkable. */}

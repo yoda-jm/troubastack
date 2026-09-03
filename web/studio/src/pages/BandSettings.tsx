@@ -3,7 +3,7 @@
  * delete. Most controls are admin-only; "Leave band" is available to everyone.
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   ApiError,
   api,
@@ -17,46 +17,16 @@ import { useDialogs } from "../components/Dialog";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { InviteLinks } from "../components/InviteLinks";
-import { SectionTabs } from "../components/SectionTabs";
+import { useBand } from "./BandLayout";
 
 export function BandSettings() {
-  const { bandId } = useParams<{ bandId: string }>();
-  const [band, setBand] = useState<Band | null>(null);
-  const [myRole, setMyRole] = useState<Role | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    if (!bandId) return;
-    try {
-      const { band, myRole } = await api.getBand(bandId);
-      setBand(band);
-      setMyRole(myRole);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load band");
-    }
-  }, [bandId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (!bandId) return <div className="page">Loading…</div>;
-  if (error && !band) {
-    return (
-      <div className="page">
-        <Link to="/bands">&larr; Bands</Link>
-        <ErrorBanner message={error} />
-      </div>
-    );
-  }
-  if (!band) return <div className="page">Loading…</div>;
+  // T130: band + role from the shared BandLayout; setBand lets Rename update the shared copy so the
+  // masthead name updates without a full refetch. No own crumb or tab strip here.
+  const { band, myRole, setBand } = useBand();
+  const bandId = band.id;
 
   return (
-    <div className="page">
-      <Link className="crumb" to={`/bands/${bandId}`}>
-        &larr; Back to band
-      </Link>
+    <>
       <header className="phead">
         <div>
           <div className="eyebrow">Band settings</div>
@@ -68,7 +38,6 @@ export function BandSettings() {
           </div>
         </div>
       </header>
-      <SectionTabs bandId={bandId} active="settings" showSettings={myRole === "admin"} />
 
       {myRole === "admin" && <Rename bandId={bandId} band={band} onRenamed={setBand} />}
       <MembersAdmin bandId={bandId} myRole={myRole} />
@@ -76,7 +45,7 @@ export function BandSettings() {
       {myRole === "admin" && <InviteLinks bandId={bandId} />}
       {myRole === "admin" && <ExportBand bandId={bandId} bandName={band.name} />}
       {myRole === "admin" && <DeleteBand bandId={bandId} />}
-    </div>
+    </>
   );
 }
 

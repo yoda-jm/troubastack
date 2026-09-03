@@ -6,11 +6,11 @@
  * NewItem, RowMenu, foldText, and the confirm dialog.
  */
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ApiError, api, type Role, type Setlist } from "../api";
+import { Link } from "react-router-dom";
+import { ApiError, api, type Setlist } from "../api";
 import { ErrorBanner } from "../components/ErrorBanner";
-import { SectionTabs } from "../components/SectionTabs";
 import { NewItem } from "../components/NewItem";
+import { useBand } from "./BandLayout";
 import { RowMenu, RowMenuItem } from "../components/RowMenu";
 import { useDialogs } from "../components/Dialog";
 import { foldText } from "../foldText";
@@ -19,7 +19,9 @@ import { partitionSetlists, todayLocal } from "../setlistOrder";
 const SETLISTS_PAGE = 12;
 
 export function Setlists() {
-  const { bandId } = useParams<{ bandId: string }>();
+  // T130: band + role from the shared BandLayout — no own band fetch, crumb or tab strip here.
+  const { band, myRole } = useBand();
+  const bandId = band.id;
   const { confirm } = useDialogs(); // T91 — in-app confirm, not a blockable window.confirm
   const [setlists, setSetlists] = useState<Setlist[]>([]);
   const [name, setName] = useState("");
@@ -43,16 +45,6 @@ export function Setlists() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  // One band fetch drives BOTH the admin-only Settings tab and the admin-only Delete action.
-  const [myRole, setMyRole] = useState<Role | null>(null);
-  useEffect(() => {
-    if (!bandId) return;
-    api
-      .getBand(bandId)
-      .then(({ myRole }) => setMyRole(myRole))
-      .catch(() => {});
-  }, [bandId]);
 
   async function onCreate(e: FormEvent): Promise<boolean> {
     e.preventDefault();
@@ -99,8 +91,6 @@ export function Setlists() {
     }
   }
 
-  if (!bandId) return <div className="page">Loading…</div>;
-
   const q = foldText(query.trim());
   const filtered = q
     ? setlists.filter((s) => foldText(`${s.name} ${s.venue ?? ""} ${s.eventDate ?? ""}`).includes(q))
@@ -110,10 +100,8 @@ export function Setlists() {
   const shown = ordered.slice(0, limit);
 
   return (
-    <div className="page">
-      <Link to={`/bands/${bandId}`}>&larr; Back to band</Link>
+    <>
       <h1 data-testid="setlists-title">Setlists</h1>
-      <SectionTabs bandId={bandId} active="setlists" showSettings={myRole === "admin"} />
 
       <NewItem label="New concert" testId="new-setlist-btn">
         {(close) => (
@@ -246,6 +234,6 @@ export function Setlists() {
           )}
         </>
       )}
-    </div>
+    </>
   );
 }

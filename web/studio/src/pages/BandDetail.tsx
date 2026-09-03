@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import QRCode from "qrcode";
 import {
   ApiError,
   api,
-  type Band,
   type ImportReport,
   type Invite,
   type MemberView,
@@ -15,7 +14,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { Avatar } from "../components/Avatar";
 import { NewItem } from "../components/NewItem";
 import { foldText } from "../foldText";
-import { SectionTabs } from "../components/SectionTabs";
+import { useBand } from "./BandLayout";
 
 /** Sentence-case a short enum label (role, zone) for display. */
 function label(s: string): string {
@@ -23,49 +22,16 @@ function label(s: string): string {
 }
 
 export function BandDetail() {
-  const { bandId } = useParams<{ bandId: string }>();
+  // T130: the band + role come from the shared BandLayout — no own fetch, crumb or tab strip here.
+  const { band, myRole } = useBand();
+  const bandId = band.id;
   const location = useLocation();
-  const [band, setBand] = useState<Band | null>(null);
-  const [myRole, setMyRole] = useState<Role | null>(null);
-  const [error, setError] = useState<string | null>(null);
   // A just-completed import (T62) navigates here with its report in router state.
   const importReport = (location.state as { importReport?: ImportReport } | null)?.importReport;
   const [showReport, setShowReport] = useState(true);
 
-  const loadBand = useCallback(async () => {
-    if (!bandId) return;
-    try {
-      const { band, myRole } = await api.getBand(bandId);
-      setBand(band);
-      setMyRole(myRole);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load band");
-    }
-  }, [bandId]);
-
-  useEffect(() => {
-    void loadBand();
-  }, [loadBand]);
-
-  if (error && !band) {
-    return (
-      <div className="page">
-        <Link to="/bands">&larr; Bands</Link>
-        <ErrorBanner message={error} />
-      </div>
-    );
-  }
-
-  if (!band || !bandId) {
-    return <div className="page">Loading…</div>;
-  }
-
   return (
-    <div className="page">
-      <Link className="crumb" to="/bands">
-        &larr; Bands
-      </Link>
+    <>
       <header className="phead">
         <div>
           <div className="eyebrow">Band</div>
@@ -78,15 +44,13 @@ export function BandDetail() {
         </div>
       </header>
 
-      <SectionTabs bandId={bandId} active="overview" showSettings={myRole === "admin"} />
-
       {importReport && showReport && (
         <ImportSummary report={importReport} onDismiss={() => setShowReport(false)} />
       )}
 
       <Members bandId={bandId} myRole={myRole} />
       <Songs bandId={bandId} />
-    </div>
+    </>
   );
 }
 

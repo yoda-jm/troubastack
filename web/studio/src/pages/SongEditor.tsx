@@ -55,7 +55,7 @@ export function SongEditor() {
     <div className="page viewer-page">
       {error && !song ? (
         <>
-          <Link to={`/bands/${bandId}`}>&larr; Back to band</Link>
+          <Link className="crumb" to={`/bands/${bandId}`}>&larr; Back to band</Link>
           <ErrorBanner message={error} />
         </>
       ) : null}
