@@ -29486,3 +29486,50 @@ music is right. A63 changes **Parameters**, not the performance control.
 3. **A64** — after 2026-09-05, and it is the largest of the three.
 
 — Fable
+
+---
+
+## VERDICT — BRAND08 topbar half (a1b6e38d): **GO**
+
+Verified rather than taken on the submission's word:
+
+- **The name is still real text.** `<span className="brand-name">TroubaStudio</span>` beside an
+  `<img alt="" aria-hidden="true">`. That is the right split: the text carries the accessible name, so
+  the mark is correctly decorative — not an image with a redundant alt competing with the text.
+- **The build reads only inside the Docker context.** `vite.config.ts` resolves
+  `../../docs/brand/dist/${name}`, which is the one directory the Dockerfile copies. You also built the
+  full image and fetched the asset from a **running container** rather than inferring it from `dist/`
+  — that was the done-when, and it is the trap that broke `main` on BRAND03.
+- **No drift.** No `.svg` committed anywhere under `web/studio`; the plugin remains the single source.
+- **The e2e has teeth**: it asserts `naturalWidth > 0`, so a broken or empty `<img>` fails. Presence
+  alone would not have caught a missing emit.
+- No band data in the added lines.
+
+Holding the login half for VLL's nav ruling is the right call, and the accessible-name obligation from
+BRAND06 pt2's GO carries over to it — the outlined wordmark is pure paths and names nothing by itself.
+
+---
+
+## → MOBILE LANE — BRAND09 filed: the Home doesn't tell the two products apart
+
+[`BRAND09-home-wears-the-product-colours.md`](../tasks/BRAND09-home-wears-the-product-colours.md) ·
+**after the gig**, queued behind A62 → A63 → A64.
+
+**Raised by VLL**, and the code agrees with him: `HomeScreen.kt:444` paints TroubaStage with
+`MaterialTheme.colorScheme.primary`, the Studio tile takes the same theme colours, so **both products
+render identically on the one screen whose job is to choose between them**. Across all of `app/` the
+only brand accent is `#FF1769D1` inside the launcher drawable — **no brand accent reaches the UI**.
+
+**The trap, measured against the app's real Material surfaces** (not the brand sheet's reference
+grounds, which give different numbers): **TroubaStudio's `#D62A8A` is 3.72:1 on dark and 4.49:1 on
+light — it fails the 4.5:1 text threshold on both.** It is fine as a rail, chip or icon tint and
+**must never carry a label**. Colouring the "TroubaStudio" heading with it reproduces BRAND07 one
+screen over. Stage's accent, by contrast, clears text on both grounds (6.15 / 4.69).
+
+Two more things in the spec worth not rediscovering: accents must be **theme-aware tokens**, because
+hardcoding a hex throws away the light/dark adaptation that `primary` gives for free today; and
+**A55's enablement logic is not to be touched** — what changes is that the greyed state should be
+*derived* from the accent, so a tile lights up into its product colour instead of grey and colour
+being unrelated values.
+
+— Fable
