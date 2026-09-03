@@ -30006,3 +30006,60 @@ at 900 px). If you'd rather the band title sit above the tabs, I can lift the he
 Live server relaunched (1646f1c6) so VLL can click Overview⇄Setlists⇄Settings and see the refresh gone.
 
 — Vincent Le Ligeour
+
+---
+
+## → MOBILE — A65 filed: the Studio screen's two doors, and a QR the room can scan
+
+[`A65-studio-screen-entry-points-and-a-showable-QR.md`](../tasks/A65-studio-screen-entry-points-and-a-showable-QR.md) · M · after the gig
+
+**The cheap part first: the deep-link machinery already exists and is never used.** `EditScreen` takes
+an `initialPath` documented as *"deep-links Studio to a context"*, and `MainActivity.kt:265` calls it
+**without ever passing one** — so Studio always opens on the band list whatever you tapped. VLL's two
+entry points (Concerts / Bands) are that parameter, wired.
+
+**And `⋮ → Show band QR` needs no new API.** I said earlier the blocker was that the app cannot mint
+invites — true for a *natively drawn* QR, wrong here: inside the WebView it **is** Studio, which
+already mints (`POST /api/bands/{id}/invite-links`) and draws the QR (`InviteLinks.tsx`). The menu item
+is a deep link to `/bands/{id}/settings`. Hide it for non-admins — Studio gates `InviteLinks` on
+`myRole === "admin"`, so a non-admin would land on an empty page.
+
+**VLL's headline path deserves its own treatment**: *"je suis admin dans l'app, je veux montrer un QR
+pour que tout le monde puisse rejoindre."* That is not "reach the QR" — a 128 px SVG inside a settings
+page is not something a room can scan. It needs a presentation view (large, centred, high contrast)
+built **in Studio** and deep-linked to, plus the one genuinely native part: **keep the screen awake and
+bright**. And the trade must be stated on screen, not discovered: T122 made invite links expiring and
+single-use **by default**, and a room-facing QR is the opposite — multi-use, long-lived, photographed
+by everyone with a camera present. Name the role, name the expiry, keep revoke reachable.
+
+Also flagged: `onScanToJoin` defaults to `{}` and only Android wires it. Harmless today (iOS has its
+own `App()`), but the moment iOS adopts the shared Home (A32) the button appears and does nothing.
+
+---
+
+## → WEB-CORE — T131 filed: fast actions on the concert row
+
+[`T131-concert-row-fast-actions.md`](../tasks/T131-concert-row-fast-actions.md) · M · **not frozen**
+
+VLL: *"in the setlist view, the … we can probably add a rebake? see if there is other opportunities of
+fast links there."*
+
+**Read the constraint before designing anything.** `GET /api/bands/{id}/setlists` returns no bake state
+and no song count (`api.ts:157-169`), so from the list the UI cannot reproduce the empty-setlist guard,
+cannot know a bake exists, and cannot say when it last ran. **Add `songCount` and `lastBakedAt` to the
+list payload first** — that one addition unlocks re-bake gating, the PDF link and the bundle link
+together. Do **not** paper over it by fetching each setlist's detail from the list; that is 1 request
+becoming N.
+
+**Re-bake: mirror A42②, do not invent a contract.** The app already did this — admin only, row hidden
+otherwise, status driven by T103's progress poll. Same gating as `Delete` in this very menu. Keep the
+empty-setlist guard and its existing wording, and keep a confirmation that **names the concert**: on a
+row the real risk is re-baking the wrong one.
+
+**Other fast links, by the test "does it save a navigation for something people do from a list":** PDF
+and baked-bundle links are worth it (both must be *absent* when nothing is baked, never a 404); rename
+and date are not — they are forms. And one for VLL: **`liveUntil` is already in the payload**, so a
+concert can be silently live with no sign of it on the row. **Show the live state there regardless**;
+whether toggling it belongs on the row is his call.
+
+— Fable
