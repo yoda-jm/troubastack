@@ -188,18 +188,20 @@ export function Setlists() {
                         Past
                       </li>
                     )}
+                    {/* The "…" trigger and the link are DIRECT children of the flex <li> (which is
+                        already `display:flex; justify-content:space-between`), so the menu sits inline
+                        at the right rather than wrapping to its own line. The trigger is a SIBLING of
+                        the link, never a descendant — a menu tap inside the <Link> would navigate into
+                        the concert instead of opening the menu. */}
                     <li className={i >= current.length ? "concert-past" : undefined}>
-                      {/* The "…" trigger is a SIBLING of the link, never a descendant — a menu tap
-                          inside the <Link> would navigate into the concert instead of opening it. */}
-                      <div className="row-with-menu">
-                        <Link
-                          to={`/bands/${bandId}/setlists/${sl.id}`}
-                          data-testid="setlist-link"
-                        >
-                          {sl.name}
-                          {sl.eventDate ? <span className="muted"> — {sl.eventDate}</span> : null}
-                        </Link>
-                        <RowMenu testId="setlist-menu" label="Concert actions">
+                      <Link
+                        to={`/bands/${bandId}/setlists/${sl.id}`}
+                        data-testid="setlist-link"
+                      >
+                        {sl.name}
+                        {sl.eventDate ? <span className="muted"> — {sl.eventDate}</span> : null}
+                      </Link>
+                      <RowMenu testId="setlist-menu" label="Concert actions">
                           {(closeMenu) => (
                             <>
                               <RowMenuItem
@@ -225,8 +227,7 @@ export function Setlists() {
                               )}
                             </>
                           )}
-                        </RowMenu>
-                      </div>
+                      </RowMenu>
                     </li>
                   </Fragment>
                 ))}
