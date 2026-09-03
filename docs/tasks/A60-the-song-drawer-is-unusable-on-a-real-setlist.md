@@ -70,26 +70,43 @@ in one file and can land today; P4 crosses lanes and touches the bundle format, 
 change two days before a gig. Filing them together here only because they came from one session of
 real use.
 
-## Not a bug: the arrow advances a page, not a song
+## P5 — in scroll mode the arrow and the swipe disagree, and nobody wrote that down
 
-VLL asked whether it is expected that the arrow "does not make next song but scrolls a little
-further" on a landscape tablet. **It is expected**, and the answer is in
-`StageViewModel.next()`:
+**I first told VLL this was expected. That was wrong, and he was right to push back.** My answer
+cited `StageViewModel.next()` — which **production never calls**; it appears only in
+`StageViewModelTest`. The arrows, keys and pedal call `turnNext` in `StageScreen`, which branches on
+the reading mode. Checking the wiring instead of the first plausible function gives a different
+answer:
 
-```kotlin
-fun next() = goToPage(_state.value.current + 1)
-```
+| input | page / width | **scroll** |
+|---|---|---|
+| horizontal swipe | turn a page (`turnNext`) | **cross to the next song** (`scrollSwipeNext`, N8) |
+| ‹ › FABs, keys, pedal / volume | turn a page (`turnNext`) | **scroll one page inside the current song** |
 
-Pages are **one flat list across the whole concert**, and a song is just a range within it. So the
-arrow always moves exactly one page; it crosses into the next song only when the current song's last
-page is passed. A three-page song takes three presses. In Width and Scroll reading modes the page is
-taller than the viewport, so one page-advance looks like "scrolled a little further" rather than a
-discrete turn — the `StageScreen` comment states the intent: *"page/width turns pages, scroll crosses
-songs (N8)"*.
+So in **scroll mode only**, two inputs that a performer treats as the same command do different
+things: a swipe advances a whole song, an arrow nudges the column. Page and width are consistent —
+everything routes through `turnNext`'s else-branch. VLL narrowed it to scroll from use alone, which
+is exactly where the code diverges.
 
-**Recorded here so it is not re-raised as a bug.** But note the interaction, which is the real
-insight: the arrow felt wrong *because* the drawer — the affordance that does jump songs — is
-broken by P1. Fix P1 and the arrow stops being the only thing to reach for.
+**Is it intentional?** Partly. N8's comment argues the swipe case explicitly — in scroll the vertical
+axis belongs to the column, so the horizontal one must mean songs, and it ends *"'Horizontal swipe
+advances the unit' now holds in every mode."* It says **nothing about the arrows or the pedal**,
+which keep page granularity in that mode. So one half was designed and written down; the other half
+was left as whatever fell out.
+
+**Recommendation, and it may well be "change nothing but the docs".** A pedal press that skips a
+whole song mid-piece would be much worse than one that advances a screenful — so the arrows and pedal
+being fine-grained is probably *right*, and the swipe being coarse is *also* right for a deliberate
+two-fingered gesture. If that is the intent, then the fix is to **say so** — in the comment, and
+wherever the reading modes are explained to a user — rather than to make them match.
+
+**This is VLL's call, not the lane's**: he is the one on stage with the pedal. Ask before changing
+behaviour. What is not optional is that the two granularities stop being an accident of which
+callback a given input happened to be wired to.
+
+**Minor, found on the way:** `StageViewModel.next()` and `.previous()` are **dead in production** —
+only `StageViewModelTest` calls them. Either delete them or say in a comment that they exist for the
+model's own tests, because they are a trap: they read like the app's navigation and they are not.
 
 ## Done when
 
@@ -99,3 +116,5 @@ broken by P1. Fix P1 and the arrow stops being the only thing to reach for.
 - The two headers are styled the same way.
 - `:shared:testDebugUnitTest` still reports **303** plus whatever you add. Match the count.
 - P4 is filed separately, not half-done here.
+- **P5 is a decision recorded, not a change made on assumption** — VLL is asked before the
+  granularities are touched, and whatever is decided ends up written down next to the code.
