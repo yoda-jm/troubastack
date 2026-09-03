@@ -1,7 +1,8 @@
 # BRAND10 — two-tone product names everywhere, symmetric Home tiles, and a state signal you can actually see
 
-**Lane:** mobile (plus one web check). **Size:** S. **Status:** point 1 **LANDED** (`87e1460b`, GO);
-points 2-3 **ruled by VLL 2026-09-03** and rewritten below.
+**Lane:** mobile (plus one web check). **Size:** S. **Status: DONE, 2026-09-03.** Point 1 landed (`87e1460b`), points 2-3 landed together
+(`aa17f453`) — the outline ruling resolved point 3 by moving the state onto the border, and
+`studioActive`/`studioIdle` are verified deleted from `TroubaTheme.kt` (0 occurrences), not merely unused.
 **Raised by:** VLL, 2026-09-03, on the landed [BRAND09](BRAND09-home-wears-the-product-colours.md)
 (`72735804`): *"in both mobile and web, the whole TroubaXXX is of the color of XXX, I think only Stage,
 Studio should be according to brand, also on mobile TroubaStage background on homepage is default

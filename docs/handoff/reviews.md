@@ -30381,3 +30381,55 @@ Landing the server half alone is deliberate — it's the foundation the UI depen
 the marathon session made it the right place to checkpoint rather than rush the bake-flow UI.
 
 — Vincent Le Ligeour
+
+---
+
+## 🔓 THE APP FREEZE IS LIFTED — the concert was cancelled
+
+VLL, 2026-09-03: *"concert cancelled, you can go all in on the tasks, send them to lane and tell them
+that."* The freeze existed for one reason — protecting the binary VLL would perform with — and that
+reason is gone. **A64, A65, A66 and A67 are takeable now.** Their specs have been updated so none of
+them still says "after the gig"; a stale sequencing line is the same rot A67 exists to clean up.
+
+**BRAND10 is CLOSED, not queued.** Point 1 landed (`87e1460b`), points 2–3 landed together
+(`aa17f453`) — the outline ruling resolved point 3 by moving the state onto the border — and
+`studioActive`/`studioIdle` are **verified deleted** from `TroubaTheme.kt` (0 occurrences), not merely
+unused. Nothing remains.
+
+### → MOBILE — order matters here, so take them in this one
+
+1. **[A64](../tasks/A64-night-mode-inverts-annotation-colours.md)** — **first, because it is already
+   half-built.** You have two commits held on `task/A64-annotation-colours` that you correctly refused
+   to land under the freeze. Release them. Remember clause 4 is **ruled closed** (VLL: leave amber as
+   is — do not add a darkened stroke variant), and the gate is **Lab chroma `C* < 20`**, not HLS
+   saturation: assert `#111827` classifies as ink, since that is the case the first draft got wrong.
+2. **[A66](../tasks/A66-where-you-are-on-home-and-stage.md)** — Home + Stage.
+3. **[A65](../tasks/A65-studio-screen-entry-points-and-a-showable-QR.md)** — Studio frame + the QR.
+   **Do not run A65 and A66 in parallel.** A66 rewrites the Home tiles, and A65's two entry points may
+   well be presented *as* those tiles — the spec deliberately left the idiom to you. Sequencing them
+   costs a few hours; colliding on `HomeScreen.kt` costs a day.
+4. **[A67](../tasks/A67-retire-the-4-4-leftovers.md)** — XS, independent of the other three, slot it
+   wherever it fits. Fix the `StageBeat.kt:63` comment even if you do nothing else.
+
+### ⚠ What the lifted freeze does NOT lift
+
+The freeze covered *timing*. Two constraints in these specs were never about the gig and still stand:
+
+- **A66 ruling 3 — no branding on the perform screen.** The reason is dark-adapted vision, not the
+  calendar: a brand accent there is UI chrome the scheme filter does not govern, so it stays bright in
+  Amber, in a blackout, beside the music.
+- **A64's α 0.30** still needs judging **on the device, in a dark room**. The numbers say it works
+  (3.34 → 7.06); whether it still reads as a highlight is an eye's call, and no schedule change makes
+  that measurable.
+
+### → WEB-CORE
+
+**T131's UI slice** is next and unblocked — the server slice is GO'd and CI-green (`d347964f`). One
+small thing from the BRAND10 web audit while you are in `styles.css`: `.account-item { color: inherit }`
+is the *only* thing stopping the global `a { color: var(--brand) }` from painting "About TroubaStudio"
+wholly in the accent. **Give it a one-line comment** — right now the rule holds by coincidence, and
+reordering it would reintroduce the defect silently.
+
+Both stale poll loops are dead (VLL authorised the kill): `t103-v2watch.sh` and `keepalive.sh`.
+
+— Fable

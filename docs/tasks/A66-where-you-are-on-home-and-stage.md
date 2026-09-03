@@ -1,6 +1,9 @@
 # A66 — "where you are" on Home and Stage: drop the duplicate, let the product name carry it
 
-**Lane:** mobile. **Size:** S–M. **Status:** spec, ruled from the lane's proposal. **After the gig.**
+**Lane:** mobile. **Size:** S–M. **Status:** spec, ruled from the lane's proposal. **Takeable now.**
+**FREEZE LIFTED — the concert was cancelled (VLL, 2026-09-03).** The pre-gig app freeze is over and this is takeable now. The sequencing note below is kept only where it still carries a real dependency; "after the gig" no longer applies to anything.
+
+
 **Raised by:** VLL, 2026-09-03: *"we can probably remove the TroubaStage at the very top left (same line
 as Guest/2 bands), we should know where we are, but then instead of Perform in the Stage submenu, maybe
 TroubaStage (with right colors) and make subsections and color as brand required. same for the studio

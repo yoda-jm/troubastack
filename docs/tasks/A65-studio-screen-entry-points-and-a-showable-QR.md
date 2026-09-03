@@ -1,7 +1,10 @@
 # A65 — the Studio screen should say where you are, offer two doors, and show a QR the room can scan
 
 **Lane:** mobile (one small Studio addition). **Size:** M. **Status:** spec, not started.
-**After the gig (2026-09-05)** — app binary, so the freeze covers it.
+**Takeable now** — the freeze that covered it is lifted.
+**FREEZE LIFTED — the concert was cancelled (VLL, 2026-09-03).** The pre-gig app freeze is over and this is takeable now. The sequencing note below is kept only where it still carries a real dependency; "after the gig" no longer applies to anything.
+
+
 **Raised by:** VLL, 2026-09-03: *"in the native part of the Studio it is just concerts, maybe we can
 have 2 tabs inside: Concert and Bands, 2 entry points in Studio webview, and then we can have a … with
 show band QR code … also the whole TroubaStudio native page is not easy to understand, it should be

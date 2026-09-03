@@ -2,7 +2,10 @@
 
 **Lane:** mobile — **dispatched 2026-09-03**. **Size:** M. **Status:** spec ready, rule **retained by
 VLL** ("we will keep the new rule it is better") and verified against the real palette.
-**Queued behind the freeze — start after the gig (2026-09-05)**, unless VLL says otherwise.
+**Freeze lifted — takeable now.**
+**FREEZE LIFTED — the concert was cancelled (VLL, 2026-09-03).** The pre-gig app freeze is over and this is takeable now. The sequencing note below is kept only where it still carries a real dependency; "after the gig" no longer applies to anything.
+
+
 **Origin:** VLL asked *"how do the different colors work? if we bake sort of images how can we have
 different colors?"*, then immediately found the hard part: *"un texte noir on veut l'inverser, peut-être
 même le gris; pour le rouge, le vert c'est moins sûr; le orange c'est compliqué sur le amber. Essaye de

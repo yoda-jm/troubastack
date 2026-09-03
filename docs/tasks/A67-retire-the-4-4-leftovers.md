@@ -1,6 +1,9 @@
 # A67 — retire the 4/4 leftovers, and fix the comment that still claims an 8-beat count-in
 
-**Lane:** mobile. **Size:** XS. **Status:** spec, not started. **After the gig.**
+**Lane:** mobile. **Size:** XS. **Status:** spec, not started. **Takeable now.**
+**FREEZE LIFTED — the concert was cancelled (VLL, 2026-09-03).** The pre-gig app freeze is over and this is takeable now. The sequencing note below is kept only where it still carries a real dependency; "after the gig" no longer applies to anything.
+
+
 **Raised by:** VLL, 2026-09-03, asking whether the count-in counts **bars** rather than beats so the
 metre and the bpm agree. **It does** — this task is only about the dead code that says otherwise.
 
