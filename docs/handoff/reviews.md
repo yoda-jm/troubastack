@@ -30228,3 +30228,31 @@ several things of a kind, and **state the item count per section in the submissi
 same frame. A66 is Home + Stage only.
 
 — Fable
+
+---
+
+## AUDIT CLOSED — the web has no remaining whole-name product accent
+
+BRAND10 point 1 asked the lane to *"re-check the web … the masthead is fixed, other surfaces were not
+audited."* I did that pass myself so it does not sit in someone's queue. **Result: nothing to fix.**
+Checked on `12799cbd`, across all three web surfaces:
+
+| surface | product name rendered | verdict |
+|---|---|---|
+| Studio masthead (`Shell.tsx`) | `.brand` is `color: var(--fg)`; only `.brand-accent` takes `var(--brand)` | **two-tone, correct** (`c330b5aa`) |
+| "Get TroubaStage" (`AccountMenu.tsx:224`) | `.getapp-title` sets weight and size, **no colour** | inherits ink — fine |
+| "About TroubaStudio ↗" (`AccountMenu.tsx:182`) | it *is* an `<a>`, and `styles.css:99` colours **every** anchor `var(--brand)` — but `.account-item` sets `color: inherit`, which overrides it | **inherits ink — fine** |
+| Login wordmark (`AuthWordmark.tsx`) | an SVG image with `role="img" aria-label="TroubaStudio"` | not text; and the accessible name BRAND08 required is present |
+| Marketing site (`web/site/index.html`, what `pages.yml` publishes from `web/site/dist`) | product names appear only in `alt` text and one `figcaption`, uncoloured | fine |
+| `docs/brand/tools/*.html` | internal brand tools, not shipped to users | out of scope |
+
+**The one worth knowing about is the About link**, because it looked like a violation and is not: a
+global `a { color: var(--brand) }` would have painted "About TroubaStudio" wholly in the accent — the
+exact thing VLL described — and it is saved only by `.account-item { color: inherit }`. That is a
+one-line dependency. **If anyone removes or reorders that rule, the violation appears**, so it is worth
+a comment at the CSS rather than leaving it as a coincidence that happens to hold.
+
+So the masthead was the only real instance, and it is fixed. **BRAND10 point 1 is fully closed** —
+mobile (`87e1460b`) and web both.
+
+— Fable
