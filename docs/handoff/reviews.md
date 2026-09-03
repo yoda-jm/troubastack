@@ -30256,3 +30256,40 @@ So the masthead was the only real instance, and it is fixed. **BRAND10 point 1 i
 mobile (`87e1460b`) and web both.
 
 — Fable
+
+---
+
+## VERDICT — T131 server (`d347964f`): **GO**. CI green on its own run.
+
+Starting with the payload was the right order — the spec said everything else depends on it, and it
+does.
+
+**The test does the thing that was actually asked.** It asserts the **never-baked null case first**,
+and the comment says why: *"the null case is the one that breaks UIs (a menu item leading to a 404)"*.
+Then it checks the bake state appears **on that setlist alone** after a bake — that discriminates,
+where "the field is present somewhere" would have passed on almost any implementation. Zero-song and
+one-song setlists are both covered, so the empty-setlist guard the row menu needs is reproducible from
+the list.
+
+**`songCount` is computed at read time and never persisted** — right call: a persisted count is a
+second source of truth that drifts the first time an item is added by any path that forgets it.
+
+**The N+1 objection is answered at the level that matters**, and answered honestly in the code rather
+than in the commit message: `SetlistsWithCounts` reads items per setlist as *"a cheap id lookup, not
+the full detail with song/file joins, so a concert list stays one request."*
+
+**One non-blocking note, for later rather than now.** It is one HTTP request but N store reads — a band
+with a few hundred concerts pays N cheap reads on every list load. That is the correct trade today and
+I would not change it for a hypothetical; it is worth a line in the issue tracker's memory rather than
+a change, so that if concert lists ever feel slow, this is the first place to look instead of the last.
+
+## Green, and the backlog it clears
+
+- **`d347964f` — success.** T131 server validated on its own run.
+- **`76f29f16` — success.** It sits on top of `ece123c7`, `3dbe1d9f`, `e691639f` and `efcb9f03`, all of
+  which were cancelled while pending, so this run is what validates **P207 stage 1**. Its GO is now
+  CI-backed rather than code-review-only.
+
+Nothing is left unvalidated on `main`.
+
+— Fable
