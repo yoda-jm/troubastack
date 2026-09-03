@@ -66,7 +66,7 @@ func Router(ctx context.Context, svc *app.Service, eng *engine.Engine, baker *ba
 	})
 
 	// Relational JSON API (auth/identity, bands, members, invites, songs).
-	web := NewWebAPI(svc, secureCookies)
+	web := NewWebAPI(svc, secureCookies, baker)
 	web.Mount(mux)
 
 	// Annotation API (view-only): read a song's materialized HEAD, import layers

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/bake"
 )
 
 // sessionCookie is the cookie name carrying the opaque session token.
@@ -24,11 +25,15 @@ const sessionCookie = "trouba_session"
 type WebAPI struct {
 	svc    *app.Service
 	secure bool // set Secure on the session cookie (true behind TLS)
+	// baker is read-only here: the concert list (T131) enriches each setlist row with its latest
+	// bake's timestamp + download URL, so the row can offer PDF/bundle only when a bake exists. May be
+	// nil (a WebAPI built without bake, e.g. some tests) — treat as "no bakes".
+	baker *bake.Baker
 }
 
-// NewWebAPI builds the relational API adapter over a Service.
-func NewWebAPI(svc *app.Service, secureCookies bool) *WebAPI {
-	return &WebAPI{svc: svc, secure: secureCookies}
+// NewWebAPI builds the relational API adapter over a Service. baker may be nil (no bake features).
+func NewWebAPI(svc *app.Service, secureCookies bool, baker *bake.Baker) *WebAPI {
+	return &WebAPI{svc: svc, secure: secureCookies, baker: baker}
 }
 
 // Mount registers the /api/* routes on mux. Go 1.22+ method+wildcard patterns
@@ -969,16 +974,50 @@ func ifNoneMatch(header, etag string) bool {
 
 // ---- setlist handlers ----
 
+// listSetlists returns the band's concerts with the list-only metadata the concert list needs (T131):
+// each setlist's songCount (so the list can reproduce the empty-setlist bake guard) and, when a SHARED
+// bake exists, its lastBakedAt + downloadUrl (so the row offers PDF/bundle only when there is one, and
+// shows when the last bake was). Per-member variants are ignored — the concert PDF/bundle is the shared
+// one. One request: counts read cheap item lists, bake state is one pass over ListConcerts.
 func (a *WebAPI) listSetlists(w http.ResponseWriter, r *http.Request, u app.User) {
-	setlists, err := a.svc.Setlists(u, r.PathValue("bandId"))
+	bandID := r.PathValue("bandId")
+	setlists, err := a.svc.SetlistsWithCounts(u, bandID)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	if setlists == nil {
-		setlists = []app.Setlist{}
+	type bakeMeta struct {
+		at        int64
+		concertID string
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"setlists": setlists})
+	latest := map[string]bakeMeta{}
+	if a.baker != nil {
+		for _, cb := range a.baker.ListConcerts() {
+			base, _, isVariant := bake.ParseConcertID(cb.ConcertID)
+			if isVariant {
+				continue // the shared concert is the one the row's PDF/bundle points at
+			}
+			if m, ok := latest[base]; !ok || cb.BakedAt > m.at {
+				latest[base] = bakeMeta{at: cb.BakedAt, concertID: cb.ConcertID}
+			}
+		}
+	}
+	type setlistRow struct {
+		app.SetlistView
+		LastBakedAt *int64 `json:"lastBakedAt,omitempty"` // unix seconds; absent = never baked
+		DownloadURL string `json:"downloadUrl,omitempty"` // absent when never baked (no 404 links)
+	}
+	rows := make([]setlistRow, 0, len(setlists))
+	for _, sl := range setlists {
+		row := setlistRow{SetlistView: sl}
+		if m, ok := latest[sl.ID]; ok {
+			at := m.at
+			row.LastBakedAt = &at
+			row.DownloadURL = "/api/bands/" + bandID + "/concerts/" + m.concertID + "/bundle"
+		}
+		rows = append(rows, row)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"setlists": rows})
 }
 
 func (a *WebAPI) createSetlist(w http.ResponseWriter, r *http.Request, u app.User) {

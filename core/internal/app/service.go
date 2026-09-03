@@ -1750,6 +1750,35 @@ func (s *Service) Setlists(caller User, bandID string) ([]Setlist, error) {
 	return s.repo.SetlistsOfBand(bandID)
 }
 
+// SetlistView is a Setlist plus the list-only metadata the concert list needs (T131) — today just the
+// song count, so the list can reproduce the empty-setlist bake guard WITHOUT a per-row detail fetch
+// (that would turn one request into N). SongCount is computed at read time, never persisted.
+type SetlistView struct {
+	Setlist
+	SongCount int `json:"songCount"`
+}
+
+// SetlistsWithCounts is Setlists plus each setlist's song count. It reads the items per setlist (a
+// cheap id lookup, not the full detail with song/file joins), so a concert list stays one request.
+func (s *Service) SetlistsWithCounts(caller User, bandID string) ([]SetlistView, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return nil, err
+	}
+	sls, err := s.repo.SetlistsOfBand(bandID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SetlistView, 0, len(sls))
+	for _, sl := range sls {
+		items, err := s.repo.ItemsOfSetlist(sl.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, SetlistView{Setlist: sl, SongCount: len(items)})
+	}
+	return out, nil
+}
+
 // SetlistInput carries the create/patch fields for a setlist.
 type SetlistInput struct {
 	Name      *string
