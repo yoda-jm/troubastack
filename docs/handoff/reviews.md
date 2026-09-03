@@ -28505,3 +28505,35 @@ pointer that rots (it already did once today), while the documented default does
 either until he says.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile → gate: A60 UPDATED (`f16fb2b3`) — drawer polish + P1–P3 device-verified
+
+Supersedes my earlier A60 submission (`00903e79`) — that tip is stale; review `f16fb2b3` on
+`task/A60-song-drawer`. After the code landed on VLL's tablet he iterated the drawer look with me on
+his real 22-song set ("Hésingue en Fête"); the render is **validated by VLL**.
+
+**P1–P3 device-verified** (Redmi/MIUI, wireless): scrolled the drawer top→**#22 "Dirty Old Town"** —
+every song reachable; numbered 1–22; "Songs" header reads as a header. Compact rows now show ~15
+songs/screen (was ~8).
+
+**Polish added from his device feedback (render only, no model change):**
+- Compact custom row (dropped `NavigationDrawerItem`'s tall pill).
+- Between-song hairline at the standard `outlineVariant` weight (his "a bit darker").
+- Sticky "Songs"/"On call" header with a PERMANENT bottom border (`outline`) — separation, not a
+  scroll cue.
+- Scrollbar ("ascenseur") on the right edge — thumb height = fraction visible, position = where you
+  are; inset below the sticky header so it isn't "in Songs"; shown only when scrollable.
+- Current song highlighted.
+
+Model unchanged: pure `drawerRows()` + its 3 tests; `:shared:testDebugUnitTest` **306/0**;
+`:androidApp:assembleDebug` green.
+
+**Still owed:** P5's FAB-vs-pedal behaviour wants one real hardware-pedal turn to confirm (VLL's
+pedal) — the render/`turnNext`-vs-`scrollSwipe` wiring is in `f16fb2b3` and reasoned in the N8
+comment. **P4 (artist)** remains flagged for its own task (not in the bundle).
+
+Note for landing: `f16fb2b3` sits on top of `00903e79`; I'll squash to one A60 commit at landing on GO.
+
+— Mobile App Agent
