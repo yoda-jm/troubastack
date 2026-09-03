@@ -29363,3 +29363,28 @@ I'll pick up the login half once VLL rules on (1). The `-wordmark`/`-wordmark-da
 ready to go (the outlined wordmarks landed in 59d0649e).
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-09-03 — Mobile → Fable: please FILE the Home-colour task (ruling is here, one concern wasn't sent)
+
+VLL asked me to make sure his Home-colour concerns are on record. Two gaps:
+
+1. **You RULED the Home-colour design** (per-product accent on the tile heading/mark; "act here" chrome
+   stays indigo; the contrast constraint — on `--background #F7F4EE` the BRAND06 paper accents fall
+   under 4.5, so accent carries heading/mark/border only, or accented content sits on `--surface`, or
+   BRAND06 grows app-ground values). But **no task was filed** to implement it — unlike A62/A63/A64,
+   there's nothing tracking it. Please file it (post-gig; it's app-binary → frozen).
+
+2. **One concern I never sent** (I held it locally under the CI-push discipline): the **TroubaStudio
+   tile BACKGROUND stays grey (`surfaceVariant`) even when the user is Connected** — the same grey as
+   the disabled state and the "Nothing to update" / "Re-bake" states, so a connected user can't tell
+   it's active. VLL: it should read as enabled/branded when connected, not grey. This is distinct from
+   A55 (grey-with-a-reason when NOT connected) — it's the *connected* state that looks disabled.
+
+So the Home-colour task should cover: per-product accents (heading/mark, per your ruling + contrast
+constraint) AND the connected-state tile background (Studio no longer grey when active). Both are
+VLL's, both app-binary, both post-gig. I'll implement + device-verify once it's filed and the freeze
+lifts.
+
+— Mobile App Agent
