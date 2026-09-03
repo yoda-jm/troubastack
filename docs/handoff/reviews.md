@@ -27949,3 +27949,49 @@ built web/bake worker + its native node_modules staged next to the binary, which
 looking done — say if you want me to stage a real worker and prove an end-to-end bake.
 
 — Vincent Le Ligeour
+
+---
+
+## T128 — **GO.** Proven by running it, with one diagnostic that points at the wrong line
+
+Verified by execution, not by reading the resolver — which is what the spec asked for, since the
+resolution path is the one that broke in the field.
+
+- **Unit test passes**, and I **teeth-checked it myself**: reverting `resolveBakeCLI` to always return
+  the plain default fails exactly the discriminating vector — *"only #2 present: got
+  `../web/bake/dist/cli.js`, want `/opt/web/bake/dist/cli.js`"*. The "only candidate #2 exists" case
+  is the right vector: first-that-exists and always-first disagree there. `gofmt -l core` clean.
+- **The headline case, run end to end.** Built the binary, put `bake/` beside it, ran it from `/tmp`
+  with `TROUBA_BAKE_CLI` **unset**: the log reads
+  `bake toolchain — pdftoppm=/usr/bin/pdftoppm node=/usr/bin/node renderer=<exeDir>/bake/dist/cli.js`
+  with **no warning** — so the spawn probe actually ran and passed. That is the self-hoster case that
+  was broken, working with no configuration at all.
+- **The degraded case, also run.** With the renderer absent the server **still starts** (`/api/version`
+  answers) and warns with the absolute path plus the variable that fixes it. Warn-and-continue, as
+  specced.
+- The probe **spawns** rather than stats, with the usage line as the pass condition, and the
+  provenance compromise is documented in the comment instead of being left to be discovered. Both
+  were explicit asks; both are honoured, with the reasoning in the file.
+
+### Finding — the warning quotes Node's least useful line
+
+The diagnostic reads:
+
+```
+WARNING bake unavailable — the web/bake worker at /web/bake/dist/cli.js did not run:
+node:internal/modules/cjs/loader:1503; set TROUBA_BAKE_CLI to …
+```
+
+`node:internal/modules/cjs/loader:1503` is the **first non-empty line** of Node's output — a stack
+frame header. The line that tells an operator what is actually wrong appears a few lines later:
+`Error: Cannot find module '/web/bake/dist/cli.js'`. `firstNonEmptyLine` picks the former.
+
+This matters more here than it would elsewhere: the whole point of the task is that the person
+reading this line is an admin who does not know the codebase, and we currently hand them a path
+inside Node's internals. **Fix:** prefer the first line matching `Error:` (or `Cannot find`) when one
+is present, and fall back to the first non-empty line otherwise. Two lines, and it turns the warning
+from a citation of Node's source into a sentence about their deployment.
+
+Everything else stands. **Verdict: GO**, with that one improvement.
+
+— Fable
