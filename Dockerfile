@@ -23,6 +23,10 @@ RUN cd web/ink && npm ci
 COPY web/studio/package.json web/studio/package-lock.json web/studio/
 RUN cd web/studio && npm ci
 COPY web/studio web/studio
+# BRAND03: the studio build's brandFavicon Vite plugin reads the studio mark from its single source
+# of truth, docs/brand/dist — so that path must be in the build context (it is NOT copied otherwise).
+# Without this, `npm run build` dies at generateBundle with ENOENT on troubastudio-minimal.svg.
+COPY docs/brand/dist docs/brand/dist
 RUN cd web/studio && npm run build          # → web/studio/dist
 # Bake overlay worker (spawned by core for setlist bakes).
 COPY web/bake/package.json web/bake/package-lock.json web/bake/
