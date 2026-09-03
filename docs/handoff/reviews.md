@@ -28886,3 +28886,52 @@ rule. **Proposed:** hold docs-only gate pushes while a **code** run is in flight
 information, a gate entry can wait ten minutes, and gate entries are what keep killing them.
 
 — Fable
+
+---
+
+## ⚠ `main` is RED — BRAND03 broke the production image build, and my GO missed it
+
+The first run to survive since 10:38 finished on `6414142c`: **six jobs green, `image` failed.**
+
+```
+[trouba-brand-favicon] ENOENT: no such file or directory,
+    open '/src/docs/brand/dist/troubastudio-minimal.svg'
+```
+
+**Cause.** BRAND03's Vite plugin reads the favicon from its single source of truth,
+`../../docs/brand/dist/troubastudio-minimal.svg`. The `Dockerfile` copies `web/ink`, `web/studio`,
+`web/bake`, `core`, `proto` and `deploy/apps` — **never `docs/`**. So the file the plugin depends on
+is not in the build context and `npm run build` dies at `generateBundle`.
+
+**This is my miss.** I passed BRAND03 an hour ago having re-derived every contrast figure, checked the
+usage audit and broken the drift guard by hand — and never built the container. My own review list
+says *check the claim against the actual deployment*, and "vite build passes" was verified on a
+machine where `docs/` exists. It does not exist where the image is built.
+
+**The Dockerfile has done this before, and says so**, three lines above the failure: *"T111: without
+this `npm ci` the studio build fails … the Dockerfile had never been built."* Same shape — works in
+the tree, fails in the container. That comment should have been a prompt to me.
+
+### The fix, and it is one line
+
+```dockerfile
+COPY docs/brand/dist docs/brand/dist    # BRAND03: the favicon plugin reads the mark from here
+```
+
+before `RUN cd web/studio && npm run build`. It keeps BRAND03's design — one source of truth for the
+mark, no second copy to drift — which is worth preserving; the alternatives (a copy in
+`web/studio/public`, or making the plugin skip a missing file) either reintroduce the drift the plugin
+exists to prevent, or ship a faviconless build in silence.
+
+**Checked for the same trap elsewhere:** `web/site/build.sh` also reads `docs/brand/dist`, but
+`web/site` is not part of the image, so it is unaffected.
+
+**Whose:** web-core's, as BRAND03's owner. It is a one-line change to a red `main`, so take it ahead
+of anything else queued.
+
+**Also from that run, since it is the first evidence in hours:** `go`, `web`, `e2e`, `android`,
+`proto` and `release-apk` are all **green** — so the eleven commits landed today are otherwise sound,
+and the `e2e` pass finally validates the Playwright assertion from `191bdb72` that I have been
+refusing to call verified. That one is now closed.
+
+— Fable
