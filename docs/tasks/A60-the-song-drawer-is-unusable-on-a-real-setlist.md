@@ -99,9 +99,15 @@ was left as whatever fell out.
 VLL: *"pour moi la fleche doit etre pareil qu'un swipe, par contre la pedale ca veut dire qu'on a pas
 acces a l'ecran donc ca doit avancer dans la page et faire next song tout a la fin"*.
 
-The intent: **if you can see and touch the screen, the control is coarse** (you chose it deliberately);
-**if you are hands-free on a pedal, it is fine-grained** (you cannot correct a wrong jump mid-piece,
-so it advances through the page and only crosses at the very end).
+The intent, in his own follow-up: **an input should do what you cannot already do another way.** If
+you are touching the screen you can already scroll by dragging, so a button that only scrolls is
+redundant — *"c'est pas malin de click pour juste scroller"* — and every touch control should behave
+the same. On a pedal your hands are busy, dragging is unavailable, and advancing **within** the
+current song has no other input, so that is what the pedal must give you.
+
+(An earlier draft of this section justified it as "you cannot correct a wrong jump". That reasoning
+was mine, not VLL's, and it is weaker: the real argument is redundancy, and it also explains why the
+buttons scrolling in Scroll mode is *pointless* rather than merely inconsistent.)
 
 **⚠ Do not implement that as "keys behave like the swipe".** `StageKeys.kt` says it outright:
 *"Bluetooth pedals present as keyboards sending PageUp/Down or arrows; Space is common; volume keys
@@ -127,7 +133,10 @@ costs a skipped song on stage.
 
 **And update the N8 comment.** It currently claims *"'Horizontal swipe advances the unit' now holds in
 every mode"* and says nothing about the other inputs. After this it should state the rule VLL actually
-gave: touch is coarse, hardware is fine, and why.
+gave, with the reason that makes it stick: **an input should do what you cannot already do another
+way** — the screen already scrolls by dragging, the pedal has no other way into the current song.
+See [`docs/design/11-stage-navigation.md`](../design/11-stage-navigation.md), which is now the
+home for this contract.
 
 **Minor, found on the way:** `StageViewModel.next()` and `.previous()` are **dead in production** —
 only `StageViewModelTest` calls them. Either delete them or say in a comment that they exist for the
