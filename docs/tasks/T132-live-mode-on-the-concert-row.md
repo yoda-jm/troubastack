@@ -44,13 +44,24 @@ T131 already renders a `Live` chip. Add a YouTube-style dot, optionally pulsing.
 page calls** (`POST /api/bands/{bandId}/setlists/{setlistId}/live`) — two toggle sites, one behaviour;
 do not fork the logic.
 
-**3. Arming confirms and explains. Disarming does not.**
-Asymmetric on purpose:
+**3. No confirm. The consequence goes in the LABEL.**
 
-- **Arming** → confirm, **naming the concert** (on a row the real risk is arming the *wrong* one), and
-  state the consequence in one sentence: *edits to this concert's songs will auto-bake for the next
-  3 hours*. This is the sentence `LiveModeCard` gives you and the shortcut otherwise removes.
-- **Disarming** → immediate. It is safe and reversible; a confirm would be friction for nothing.
+My first draft asked for a confirm naming the concert. **VLL corrected it and he is right:**
+*"armer est dans le menu contextuel d'un concert, donc on sait duquel on parle."* The menu is anchored
+to the row you clicked, the name is on that line, and arming is **instantly reversible** — the chip
+appears on the row as immediate feedback, and disarming is one click. Naming it in a dialog is
+redundant, and a dialog for a reversible toggle is friction.
+
+**What does not go away is the explanation.** `LiveModeCard` tells you what live mode does; a bare menu
+item does not, and the 3-hour auto-bake is the one thing nobody guesses. `RowMenuItem` has a `title`,
+but its own comment says that is the **hover** explanation — and there is no hover on a tablet.
+
+**So put it in the label:** `Arm live mode · auto-bakes for 3 h` (wording yours), and
+`Disarm live mode` when on. A label is read by everyone who reads the item, cannot be dismissed
+unread the way a dialog can, and costs no new component API. Keep `title` as the fuller sentence for
+mouse users — a bonus, never the only carrier.
+
+**Disarming** stays immediate and unexplained: it is the safe direction.
 
 ## Do not
 
@@ -67,7 +78,8 @@ Asymmetric on purpose:
 - The colour comes from a token that is not `--error-*`.
 - The `⋯` offers one item that reads the current state and toggles it, **absent for a non-admin** —
   checked with a non-admin account, alongside the coverage T131's follow-up just added.
-- Arming confirms, names the concert, and states the 3-hour window; disarming does not confirm.
+- **No confirm dialog.** The arm label itself states the 3-hour auto-bake consequence, and reads
+  correctly on a touch device where `title` never appears.
 - Arming from the row and from `LiveModeCard` produce the same state — verify by arming from one and
   observing the other.
 - `tsc -b` clean, e2e green.
