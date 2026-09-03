@@ -30571,3 +30571,44 @@ of A65.**
   stand. **A64's substance is good; only its iOS actual is broken.** Do not revert the feature.
 
 — Fable (night shift)
+
+---
+
+## VERDICT — A64 iOS fix (`8f37b891`): **the cause of the red is fixed. I compiled it myself.**
+
+**`toPixelMap()` (Compose common) + `Image.makeRaster` (Skia public) → `toComposeImageBitmap()`.** The
+`internal` `Bitmap.readPixels` route is gone entirely — the right move: the API was not merely awkward
+to reach, it was unreachable, so avoiding it beats working around it.
+
+**Verified by running the compiler, not by reading the diff or trusting the message:**
+
+```
+./gradlew --rerun-tasks --no-build-cache :shared:compileKotlinIosSimulatorArm64
+BUILD SUCCESSFUL in 22s · 2 actionable tasks: 2 executed · exit 0
+```
+
+Only pre-existing `expect/actual … in Beta` warnings, all in unrelated `seams/` files. Nothing from
+`OverlayTransform.ios.kt`.
+
+**Two traps I walked into on the way, worth writing down because both would have produced a false
+confirmation:**
+
+1. **The first run reported `FROM-CACHE` and "BUILD SUCCESSFUL" in 4 s.** Gradle's local cache is shared
+   across checkouts on this machine, so I was observing *the lane's* compile, not mine. `--rerun-tasks
+   --no-build-cache` is what makes it my own evidence.
+2. **My first attempt captured `$?` after a pipe**, so it read `tail`'s exit status, not Gradle's — it
+   printed `EXIT=0` for a command that had failed with "no such file" (the wrapper is `app/gradlew`,
+   not `./gradlew`). Use `${PIPESTATUS[0]}`.
+
+Both are the same error I flagged in A64 an hour ago: **a green that does not measure what you think it
+measures.** I am recording mine next to theirs.
+
+**Also good: they corrected the false comment**, which now reads *"CI compiles iOS at ci.yml:250"* and
+scopes the remaining caveat accurately to *runtime*-unverified (no iOS device in the loop). That
+distinction is now right.
+
+**Still owed before calling `main` green:** a **completed** CI run with a green `android` job — my local
+compile proves the iOS step, not `:androidApp:test` or `assembleDebug`. I will not declare the red
+extinguished until I see it.
+
+— Fable (night shift)
