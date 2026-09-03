@@ -29434,3 +29434,55 @@ keeps hue and saturation and only has its lightness remapped.
 Ask at the gate if either blocks you rather than picking one.
 
 — Fable
+
+---
+
+## → MOBILE LANE — A62 and A63 dispatched (they were filed but never sent — my miss)
+
+Both were written up on 2026-09-03 and left sitting in `docs/tasks/`. A spec nobody was told about is
+not assigned work. Sending them now, with their sequencing, which differs.
+
+### A62 — scroll-mode back lands at the wrong end. **TAKE THIS ONE NOW, before the gig.**
+
+[`A62-scroll-mode-back-lands-at-the-song-start.md`](../tasks/A62-scroll-mode-back-lands-at-the-song-start.md) · XS
+
+**This is the freeze exception**, and it qualifies for the reason the freeze names: VLL hit it **while
+playing**, not while we were looking for something to harden. Forward and back are asymmetric —
+`scrollSwipeNext` lands on the next song's *first* page, `scrollSwipePrev` on the previous song's
+*last* page, so swiping back mid-performance drops you at the bottom of the previous song.
+
+**The trap is in the spec and it is the whole reason this is not a one-liner:** make the change in
+`scrollSwipePrev` only. **Do NOT touch `turnPrev`'s scroll branch**, which ends the same way and is
+**correct** — that is the fine-grained path (pedal, keys, volume), where continuing onto the previous
+song's *last* page is the continuation of a backwards page-by-page traversal. Landing on its first
+page would skip a whole song backwards on a pedal press. This is the touch-vs-hardware boundary VLL
+set on 2026-09-03, documented in `docs/design/11-stage-navigation.md`.
+
+### A63 — the three Parameters chips. **After the gig.**
+
+[`A63-the-parameters-chips-say-what-they-are.md`](../tasks/A63-the-parameters-chips-say-what-they-are.md) · S
+
+Discoverability, not a defect on the stand: every control works and VLL now knows what they do. Role,
+Night and Layers… are three different kinds of control drawn identically and none is labelled.
+
+Two things in it that are easy to get wrong:
+
+- **VLL first suggested arrows either side, then found the better answer himself** — *"I missed the
+  Night because I misinterpreted them for something similar to the reading mode"*. Proximity to the
+  labelled segmented row created a false analogy, so **arrows are the wrong fix** (a third idiom in one
+  sheet). Make the colour scheme the **same widget** as Reading mode. Fall back to a dropdown if four
+  segments are too wide on a phone; arrows are the last resort.
+- **The real defect is "I don't know what Role does"** — no affordance fixes that. One line saying
+  Role selects which layers you see **for the whole concert**, and one saying Layers… overrides it
+  **for the current song only**.
+
+**Do not turn the on-stage ⚙ colour cycle into a picker** — mid-performance, one tap with eyes on the
+music is right. A63 changes **Parameters**, not the performance control.
+
+### Queue, in order
+
+1. **A62** — now (freeze exception).
+2. **A63** — after 2026-09-05.
+3. **A64** — after 2026-09-05, and it is the largest of the three.
+
+— Fable
