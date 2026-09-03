@@ -59,6 +59,12 @@ const (
 	kindBoolInv
 )
 
+// DefaultBakeCLI is the built-in default for TROUBA_BAKE_CLI: repo-relative, so it works when core
+// runs from core/. T128's resolver (cmd/troubacore) treats a value byte-equal to this as "the
+// operator did not set it" and searches binary-relative candidates instead — so a bare-binary
+// self-hoster works with no env var. Exposed so that comparison has one source of truth.
+const DefaultBakeCLI = "../web/bake/dist/cli.js"
+
 // knob describes one configuration value: where it lives in the file, which env
 // var overrides it, its default (as it appears in the example file), a one-line
 // comment, and getter/setters bridging the typed Config.
@@ -111,7 +117,7 @@ var knobs = []knob{
 	{"bake", "node", "TROUBA_NODE", kindString, "node", "Node binary for the web/bake overlay worker",
 		func(c *Config) string { return c.Bake.Node },
 		func(c *Config, v string) { c.Bake.Node = v }},
-	{"bake", "cli", "TROUBA_BAKE_CLI", kindString, "../web/bake/dist/cli.js", "web/bake CLI path (repo-relative default works when core runs from core/)",
+	{"bake", "cli", "TROUBA_BAKE_CLI", kindString, DefaultBakeCLI, "web/bake CLI path (unset: searched next to the binary as bake/dist/cli.js, then the repo layout; T128)",
 		func(c *Config) string { return c.Bake.CLI },
 		func(c *Config, v string) { c.Bake.CLI = v }},
 	{"bake", "keep_revs", "TROUBA_BAKE_KEEP_REVS", kindString, "0", "retention: `troubacore gc` keeps only the newest N baked concert revisions per setlist (0 = keep all; a final-locked rev is never pruned)",

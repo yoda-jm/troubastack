@@ -92,8 +92,27 @@ The git-store variant (`TROUBA_STORE=git`) is additionally `git bundle`-able.
 
 Prefer a plain service? Build the binary (`make dist` → `core/bin/troubacore`), copy it
 to the host, and run it under systemd, with Caddy (or your reverse proxy) terminating
-TLS in front. Baking needs `poppler-utils` + Node + the built `web/bake` worker on the
-host, with `TROUBA_BAKE_CLI`/`TROUBA_NODE`/`TROUBA_PDFTOPPM` pointed at them.
+TLS in front. Baking needs `poppler-utils` + Node on the host (`TROUBA_PDFTOPPM` /
+`TROUBA_NODE` default to `pdftoppm` / `node` on `PATH`) plus the built **`web/bake`
+worker**.
+
+**Put the worker next to the binary and it resolves with no env var (T128).** Core searches
+for `bake/dist/cli.js` beside its own executable first, so the supported layout is:
+
+```
+/usr/local/bin/troubacore              # the binary
+/usr/local/bin/bake/dist/cli.js        # copied from web/bake/dist/
+/usr/local/bin/bake/assets/            # copied from web/bake/assets/ (Roboto-Regular.ttf, loaded
+                                       #   relative to cli.js)
+/usr/local/bin/bake/node_modules/@napi-rs/canvas               # native addon, kept OUT of the bundle
+/usr/local/bin/bake/node_modules/@napi-rs/canvas-linux-x64-gnu # its platform package — BOTH are needed
+```
+
+Copy `web/bake/dist`, `web/bake/assets` and those two `node_modules` packages into a `bake/`
+directory beside the binary. Copying only `@napi-rs/canvas` and not its platform package is the
+"Cannot find native binding" failure — which is why the server runs the worker at boot and warns,
+naming the absolute path, if it can't. To keep the worker elsewhere, set `TROUBA_BAKE_CLI` to its
+`cli.js` explicitly (then no search happens).
 
 ```ini
 # /etc/systemd/system/troubacore.service

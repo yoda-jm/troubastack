@@ -93,6 +93,10 @@ func main() {
 	// dir. A missing binary fails the individual bake, not the server — so this is
 	// safe to wire even where the toolchain isn't installed.
 	baker := bake.New(svc, eng, bakeConfig(cfg))
+	// T128: verify the bake toolchain at boot by RUNNING it (not just stat'ing the file), and warn
+	// loudly if it can't bake — a core that will only reveal a broken renderer at the first bake
+	// reveals it the evening of a gig. Warns and continues; a degraded core still serves charts.
+	preflightBake(bakeConfig(cfg))
 
 	// Server-lifetime context for background workers (P201 autobaker); runs for the
 	// whole process.
@@ -337,9 +341,9 @@ func openAppRepo(cfg config.Config) (app.Repo, error) {
 }
 
 // bakeConfig resolves the bake toolchain from the config. Binaries default to bare
-// names (found on PATH); the web/bake worker defaults to the repo-relative path that
-// works when core runs from core/ (make dev/run/e2e). Bundles are written under
-// <data>/bakes. Swapping paths touches only this fn.
+// names (found on PATH); the web/bake worker path is resolved by resolveBakeCLI (T128) —
+// searched relative to the BINARY when unset, so a bare-binary self-hoster works from any
+// working directory. Bundles are written under <data>/bakes. Swapping paths touches only this fn.
 func bakeConfig(cfg config.Config) bake.Config {
 	// T120 render cache: an explicit bake.render_cache (ini/env) wins; else ON where there's a data dir
 	// to hold it (file-backed = a real deployment), OFF for a mem-backed core (e2e/tests/demo) so runs
@@ -348,11 +352,17 @@ func bakeConfig(cfg config.Config) bake.Config {
 	if cacheDir == "" && cfg.Storage.AppStore == "file" {
 		cacheDir = filepath.Join(cfg.Storage.DataDir, "rendercache")
 	}
+	exe, _ := os.Executable()
+	cwd, _ := os.Getwd()
+	cli := resolveBakeCLI(cfg.Bake.CLI, filepath.Dir(exe), cwd, func(p string) bool {
+		_, err := os.Stat(p)
+		return err == nil
+	})
 	return bake.Config{
 		BakesDir: filepath.Join(cfg.Storage.DataDir, "bakes"),
 		Pdftoppm: cfg.Bake.Pdftoppm,
 		Node:     cfg.Bake.Node,
-		BakeCLI:  filepath.FromSlash(cfg.Bake.CLI),
+		BakeCLI:  filepath.FromSlash(cli),
 		CacheDir: cacheDir,
 	}
 }
