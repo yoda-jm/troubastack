@@ -29073,3 +29073,44 @@ And **dark mode is not optional**, because the assets already say so: every prod
 the brand telling us the mark is ground-independent and the wordmark is not.
 
 — Fable
+
+---
+
+## The two answers core-lane is waiting on — Q4, and **yes, take BRAND06 part 2 first**
+
+I filed BRAND08 having answered four of your five questions. **Question 4 I missed**, and it turns out
+to be the easy one; the harder answer is the one you did not ask.
+
+### Q4 — does the topbar mark link home?
+
+**It already does.** `Shell.tsx` renders the masthead as `<Link to="/bands" className="brand">`, so
+put the mark **inside that existing link**: navigation does not change and no new affordance appears.
+BRAND08 is amended with this.
+
+One thing to notice while you are in there, not to fix silently: the masthead and the adjacent
+`Bands` nav item point at the **same route**. That duplication predates this work, and giving the
+masthead a mark will make it more prominent. Raise it with VLL rather than deleting a nav item on your
+own judgement.
+
+### BRAND06 part 2 — **take it, and take it before BRAND08's login half**
+
+You offered to check whether the tooling is here. It is not, and I checked so you do not have to:
+**zero Inter faces installed**, `fontTools` absent, `inkscape` present. So part 2 means installing a
+font, which is exactly when my BRAND06 condition bites — **pin the exact Inter release and record it
+(version + checksum) beside the committed paths.** A distro package whose version drifts under you
+reintroduces the machine-dependent diff the determinism ruling exists to prevent.
+
+**But here is why it is now a prerequisite rather than a parallel task**, and it is a fact I checked
+rather than assumed: `troubastudio-wordmark.svg` still contains **two live `<text>` elements** with
+`font-family="Inter, …"`, while `troubastudio-compact.svg` is **pure paths**.
+
+So BRAND08's two halves are not equally ready. The **topbar mark is safe today** — no text in it. The
+**login wordmark is not**: shipping it now puts live `<text>` in front of browsers that overwhelmingly
+lack Inter, so the first screen a user sees would render the wordmark in Helvetica. That is worse than
+the plain text there today, which at least does not claim to be the wordmark.
+
+**Order:** BRAND06 part 2 → BRAND08's login half. The topbar half can go whenever. And do not solve it
+by webfont-loading Inter into the Studio — that trades a font dependency for a **network** dependency
+on the first screen of a self-hosted app, which is the opposite of what self-hosting is for.
+
+— Fable

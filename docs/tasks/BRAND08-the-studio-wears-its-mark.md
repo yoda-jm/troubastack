@@ -32,6 +32,13 @@ Nothing else. Not dialogs, not the About link (it is a link, and text is the rig
 - **Login: the full wordmark**, given room. There is space, it is the identity moment, and the
   lockup is what the brand sheet is built around.
 
+**2b. Does the topbar mark link home? It already does — that is the point.**
+`Shell.tsx` already renders the masthead as `<Link to="/bands" className="brand">`. So put the mark
+**inside that existing link**; navigation does not change and no new affordance appears. (Worth
+noticing, though not this task's to fix: the masthead and the adjacent `Bands` nav item point at the
+**same route**. That duplication predates this work, and giving the masthead a mark will make it more
+prominent — flag it to VLL rather than silently removing a nav item.)
+
 **3. Sourcing: the favicon rule, unchanged.** One source of truth in `docs/brand/dist`, emitted at
 build by the existing Vite plugin (`vite.config.ts:24`) — generalise it rather than adding a second
 plugin, and **do not commit a copy into `public/`**; that is the drift BRAND03 deliberately avoided.
@@ -50,6 +57,26 @@ submitting.**
 answer: the **mark is ground-independent** (carries its own tile), the **wordmark is not**. So the
 topbar mark needs one asset, and the login wordmark needs the scheme swap — via `prefers-color-scheme`
 and the `[data-theme]` stamps the Studio already uses, not by tinting an SVG in CSS.
+
+## ⚠ Sequencing: the login wordmark needs BRAND06 part 2 first
+
+Checked on `origin/main`, not assumed: `troubastudio-wordmark.svg` still contains **two live `<text>`
+elements** with `font-family="Inter, 'Helvetica Neue', …"`, while `troubastudio-compact.svg` is
+**pure paths**.
+
+So the two halves of this task are not equally ready:
+
+- **The topbar mark is safe now** — the compact mark carries no text and renders identically
+  everywhere.
+- **The login wordmark is not.** Shipping it today puts live `<text>` in front of browsers that mostly
+  do **not** have Inter (this machine has zero Inter faces), so it would render in Helvetica or Arial
+  — the brand visibly wrong, for most users, on the first screen they see. That is worse than plain
+  text, which at least does not pretend to be the wordmark.
+
+**Therefore:** land **BRAND06 part 2** (outline the wordmark text to committed paths) before the login
+half of this task, or ship the login screen with a non-text asset until it lands. Do not "fix" it by
+webfont-loading Inter into the Studio — that trades a font dependency for a network dependency on the
+first screen of a self-hosted app.
 
 ## Done when
 
