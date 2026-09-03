@@ -20,6 +20,26 @@ The artist is already carried everywhere **except** the bundle:
 So this is not plumbing a new value across the system. It is adding one field to the container and
 one line to the baker.
 
+## Is bundle reading resilient to new fields? **Yes — verified, not assumed**
+
+VLL asked directly, and it is the question the whole additive design rests on: what happens when an
+**old app** meets a **new bundle** carrying a field it has never heard of?
+
+- **App:** `BundleLoader.kt:125` builds its parser as `Json { ignoreUnknownKeys = true }`. Without
+  that flag kotlinx.serialization *throws* on an unknown key, so this is not a default anyone gets for
+  free — it was chosen.
+- **And it is guarded, not merely configured:** `BundleLoaderTest.tolerates_genuinely_unknown_field`
+  feeds a manifest containing both an unknown top-level key and an unknown key *inside a song*, and
+  asserts the bundle still loads. The fixture's invented key is `artistSubtitle` — this task is
+  almost literally the case that test was written for.
+- **Core:** the bundle is decoded with plain `encoding/json`, which ignores unknown fields. The one
+  `DisallowUnknownFields` in the tree is on **HTTP request bodies** (`webapi.go:1161`) — strict where
+  input comes from a client, permissive where it comes from our own container. That asymmetry is
+  correct and should stay.
+
+So an app that predates this field will read a bundle that has it, and simply not show an artist. The
+compatibility arm below tests the mirror image — a new app reading an old bundle.
+
 ## Stage 1 — core: one proto field, one mirror, one assignment
 
 `proto/troubastack/v1/bundle.proto` is the source of truth for the container shape; the Go and Kotlin
@@ -45,11 +65,15 @@ The app is **TroubaStage** (BRAND02 renamed it from TroubaShare).
 2. **The drawer row**, per VLL: after the title, an **em dash** and the name — `Title — Artist` — with
    **the artist in grey** (the drawer already has a muted role in
    `MaterialTheme.colorScheme.onSurfaceVariant`; reuse it rather than inventing a colour).
-3. **Overflow is allowed, and that is a deliberate ranking.** *"L'auteur n'est pas si important"* — so
-   when the row is too narrow, **the artist is what gets clipped, never the title, and the row must
-   not grow a second line.** Concretely: one line, the title keeps its space, the artist takes what is
-   left and is ellipsised. A layout where a long artist pushes the title out, or wraps the row and
-   changes the list's rhythm, has inverted the priority.
+3. **Overflow clips the artist — one line, and the title never yields.** VLL, 2026-09-03:
+   *"on rogne l'artiste"*. When the row is too narrow the artist is ellipsised; the row keeps its
+   height and the list keeps its rhythm.
+
+   That is what *"l'auteur n'est pas si important"* buys: a ranking. The title holds its space, the
+   artist takes what is left. A layout where a long artist wraps the row, grows its height, or pushes
+   the title has inverted the priority — and on a stage, a list whose row heights jump is harder to
+   scan at a glance than one with a clipped name.
+
 4. **No dash when there is no artist.** A trailing "—" on a song with no artist is worse than no
    artist at all.
 
@@ -58,8 +82,10 @@ The app is **TroubaStage** (BRAND02 renamed it from TroubaShare).
 - Showing the artist anywhere else — the Stage header, the page chrome, the Studio. VLL asked for the
   drawer; adding it elsewhere is a separate decision with its own screen-space argument.
 - Editing the artist from the app. Stage is read-only (I12).
-- Re-baking existing concerts to acquire the field. They simply keep showing no artist, which is
-  exactly what the additive design is for.
+- Re-baking existing concerts **as part of this task**. VLL will re-bake his own (2026-09-03: *"je
+  referais les bake"*), so in practice the field arrives with the next bake rather than needing a
+  migration. The additive design still has to hold for anything not re-baked — see the
+  compatibility arm below, which is not weakened by his intention to re-bake.
 
 ## Done when
 
@@ -70,7 +96,8 @@ The app is **TroubaStage** (BRAND02 renamed it from TroubaShare).
   It must still load with zero issues, and the drawer must render those songs with **no dash and no
   grey suffix**. Do not regenerate that fixture for this task — its being old is precisely what makes
   it the test.
-- On the device, a long artist on a narrow row **clips the artist and leaves the title intact, on one
-  line**. Check it with a deliberately long name; the failure mode is invisible with short ones.
+- On the device, a long artist on a narrow row **is clipped, with the title intact and the row on
+  one line**. Check it with a deliberately long name; the failure mode is invisible with short
+  ones. A wrapped row that grows taller is the wrong outcome here.
 - `:shared:testDebugUnitTest` and `go test ./...` green, `gofmt -l core` clean. Match the counts.
 - The proto comment explains the additive-compatibility argument, as every field from 5 onward does.

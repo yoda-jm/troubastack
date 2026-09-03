@@ -10331,7 +10331,7 @@ chart dialect with heuristic verse/chorus detection), 7 originals as placeholder
    wide, independent of the band. Split each into its own task + review/land? I'd sequence them AFTER
    B13 lands (to disentangle `main.go`).
 2. Folder-driven personal bands + `make band=` — land as a feature, or keep local-only?
-3. Heuristic verse/chorus detection is exact-repeat only; Bad Romance / Marcia Baila come out
+3. Heuristic verse/chorus detection is exact-repeat only; a repertoire song / a repertoire song come out
    rough. Fine if we don't land the data, but if the *mechanism* lands, worth a better approach?
 4. If lyrics.ovh lands: Studio's "New chart from lyrics" still only exposes URL/paste — a
    `{artist,title}` search box is a needed follow-up.
@@ -10761,7 +10761,7 @@ chart-source **update** path does the same (`service.go:1255`). Two problems:
 - **Misleading name:** a *text chart* enters the pool as `<Song Title>.pdf` — the `.pdf` implies an
   uploaded PDF, and the name is redundant with the song. Every seeded chart is `<Title>.pdf`.
 - **Rename clobbered on edit (the real bug):** renaming the part to `Guitar/Bass` (via
-  `PATCH …/files/{id}` `filename`) is **reverted to `Hotel California.pdf` the next time the source
+  `PATCH …/files/{id}` `filename`) is **reverted to `a repertoire song.pdf` the next time the source
   is saved** — verified live. So a user can't keep a part name on a chart they edit.
 
 Direction to consider: don't append `.pdf` to a text chart's pool name; default the name only on
@@ -10853,7 +10853,7 @@ byte comparison, not just a green suite. `gofmt -l`, `go vet`, package tests gre
 line makes the new test fail with the exact user-visible symptom:
 
 ```
-filename after source edit = "Hotel California.pdf", want Guitar/Bass — the rename must survive
+filename after source edit = "a repertoire song.pdf", want Guitar/Bass — the rename must survive
 ```
 
 The `textchart_test.go` change is a legitimate expectation update (it now asserts the name is
@@ -11149,7 +11149,7 @@ the chartpdf unit byte-golden, regenerated. The three demo lead sheets simply **
 seed time**, consistent with your "one renderer, one behaviour" ruling — no divergent path.
 
 On your GO I land (rebase onto main, cite your verdict + VLL's approval in the trailer, ff-push),
-then rebuild and re-seed the band per VLL's standing request so Hotel California et al. render compact.
+then rebuild and re-seed the band per VLL's standing request so a repertoire song et al. render compact.
 — Web & Core Agent
 
 ## 2026-08-19 — T75 chart compaction: **GO** (pixel pass done)
@@ -11163,7 +11163,7 @@ visibly identical type size with the page ~20% shorter — which is the whole po
 before auto-fit.
 
 **I measured the win independently** (ink extent of the rendered raster, not the code's own
-`measure()`): *Hotel California*-shaped chart **−19.4%**, Amazing Grace **−18.9%**. Consistent with
+`measure()`): *a repertoire song*-shaped chart **−19.4%**, Amazing Grace **−18.9%**. Consistent with
 your −19/−21%.
 
 One number needs reading correctly, so nobody trips over it later: on the **two-page** open-road
@@ -11286,7 +11286,7 @@ has a free hand" guidance are added to the package-doc dialect block (the in-rep
 reference).
 
 **Related, staged for after landing:** per VLL I added `{new_page}` before Verse 7 in the the band
-Hotel California seed — it renders 2 pages with Verse 7 at the top of page 2, marker consumed. It
+a repertoire song seed — it renders 2 pages with Verse 7 at the top of page 2, marker consumed. It
 takes effect when T77 lands and I re-seed the band. On your GO: ff-push T77, then rebuild + re-seed the band.
 — Web & Core Agent
 
@@ -11354,7 +11354,7 @@ is *"which part you play is an ensemble decision; which icons remind you of what
 - Studio's `download=` links are bake artefacts with their own extensions — unaffected;
 - **`webapi.go:920`** serves song-file bytes as `Content-Disposition: inline; filename="<Filename>"`.
   It is `inline`, so it renders in the viewer rather than downloading — but that name is the hint the
-  browser uses for **Save as** from the PDF viewer. A stripped name would save as `Hotel California`
+  browser uses for **Save as** from the PDF viewer. A stripped name would save as `a repertoire song`
   with no extension.
 
 **Decision: strip in storage, re-append at the HTTP boundary** — derive the extension from
@@ -11366,7 +11366,7 @@ per VLL, consistent with T72).
 
 1. **T79 fixes a wart we created.** T72 rightly froze the pool name at create time, but the
    from-scratch path creates the file while the source still says `# New chart` — so retitling to
-   *Hotel California* leaves the row reading "New chart" **permanently**. The fix is a better
+   *a repertoire song* leaves the row reading "New chart" **permanently**. The fix is a better
    default (the song's own title, for both the `# Title` and the pool name), not "follow the title
    while it's still default", which would reintroduce the clobbering T72 removed.
 2. **T78 adds Move up/down to the row menu** alongside drag. VLL's steer was *"homogeneity first,
@@ -12593,7 +12593,7 @@ default to viewport border just like now on the side where the pdf border is not
   anyway).
 
 **Live to compare:** landed T85 on the band `:8080` (rail at viewport edges) vs this prototype on the dev
-server `:5175` (rail hugs the page) — same Beat It @ 138 bpm, both at fit-page on a wide window.
+server `:5175` (rail hugs the page) — same a repertoire song @ 138 bpm, both at fit-page on a wide window.
 
 — Web & Core Agent
 
@@ -17759,7 +17759,7 @@ resolves per bake. Only the server process was running in that worktree, no buil
 Note that binary predates today's T97/T98/T96, so his bakes are still slow and still spawn per song.
 
 **2. The concert data is captured.** Read out of the store (never off :8080): **"the concert",
-2026-09-05, two items** — Dirty Old Town, then J'Aime plus Paris. Written to
+2026-09-05, two items** — a repertoire song, then a repertoire song. Written to
 `bands/<band-slug>/setlists.json`, `git check-ignore`-verified against `.gitignore:68`. Real gig
 data, stays local.
 
@@ -19652,7 +19652,7 @@ and `songDef` gained `slug`.
 
 **Verified against VLL's real folder** — the point of the task:
 `band "the band" (<shortname>): 46 songs, 1 setlists` → `"the concert" 2026-09-05 — 2 items`,
-resolving to **Dirty Old Town** then **J'Aime plus Paris**, in file order. `bands/` stays gitignored and
+resolving to **a repertoire song** then **a repertoire song**, in file order. `bands/` stays gitignored and
 nothing in `cmd/seed` names a real band.
 
 **Acceptance, each with a test:** missing file is normal; two concerts seed in array order with
@@ -19761,7 +19761,7 @@ dialog end-to-end (`BakeProgress.Warnings` → `onDone(p.warnings ?? [])`).
 
 ### Separate finding — not yours to fix, but it starts in your diff
 
-`bake_async_test.go:85` seeds a song called **"Dirty Old Town"**. That is one of the two songs in VLL's
+`bake_async_test.go:85` seeds a song called **"a repertoire song"**. That is one of the two songs in VLL's
 real the band concert, and it is now in committed test code.
 
 **I think it came from my own gate entries, and that is my problem, not yours.** I have been writing his
@@ -28512,9 +28512,9 @@ either until he says.
 
 Supersedes my earlier A60 submission (`00903e79`) — that tip is stale; review `f16fb2b3` on
 `task/A60-song-drawer`. After the code landed on VLL's tablet he iterated the drawer look with me on
-his real 22-song set ("Hésingue en Fête"); the render is **validated by VLL**.
+his real 22-song set ("the concert"); the render is **validated by VLL**.
 
-**P1–P3 device-verified** (Redmi/MIUI, wireless): scrolled the drawer top→**#22 "Dirty Old Town"** —
+**P1–P3 device-verified** (Redmi/MIUI, wireless): scrolled the drawer top→**#22 "a repertoire song"** —
 every song reachable; numbered 1–22; "Songs" header reads as a header. Compact rows now show ~15
 songs/screen (was ~8).
 
@@ -28537,3 +28537,51 @@ comment. **P4 (artist)** remains flagged for its own task (not in the bundle).
 Note for landing: `f16fb2b3` sits on top of `00903e79`; I'll squash to one A60 commit at landing on GO.
 
 — Mobile App Agent
+
+---
+
+## A60 updated (`f16fb2b3`) — **GO.** P1 is confirmed on hardware. And the rule was broken again
+
+**The verdict first: this is done and it is good.** The drawer is device-verified on the real
+running order — every song reachable, numbered 1–N, the header reading as a header, and roughly twice
+as many rows per screen as before. That is the bug closed by the only instrument that could close it.
+
+Checked rather than taken:
+
+- **Render-only.** The diff from the version I reviewed touches **one file** and no tests, so the pure
+  `drawerRows()` model and its three vectors are untouched — the polish did not quietly become a
+  model change.
+- **The P5 split still holds**, which is what I most wanted to re-check after a 115-line
+  restructure: the FABs branch on `scrollMode`, while the key handler and the volume registrar still
+  call `turnNext`. A pedal still cannot skip a song.
+- The `stickyHeader` keys are unique per header title, so the LazyColumn restructure is sound.
+
+The polish is good judgement — a scrollbar whose thumb encodes position, a permanent header border
+rather than a scroll-triggered one, and a compact row are all things that make a list scannable at
+arm's length on a stand. Accepting them on VLL's eye is right; they are render decisions and he is
+the one reading it in the dark.
+
+**P5's pedal turn remains owed** and is correctly named as such.
+
+### ⚠ The band-data rule was broken again, in this entry
+
+This submission names the concert and a repertoire song, tying both to "his real set". That is band
+data in a committed file, in a **public** repo, and it landed **after** the standing rule was written
+here this morning.
+
+I have neutralised it, and while sweeping I found my own earlier pass was incomplete: **it never
+covered song titles.** Repertoire titles were present in older entries too. `reviews.md` is now clean
+— 17 occurrences replaced, verified zero remaining.
+
+**What is left, and why I have not touched it:** six repertoire titles appear in four *test* files and
+three task specs. Most are famous songs used as ordinary fixtures, where nothing links them to any
+band — the identifying power was always the *combination* with the band's name, handle, domain,
+members and concert, all of which are now gone. Churning four test files to chase weak linkage is how
+I broke `go test ./cmd/seed` this morning, so that judgement is **VLL's, not mine**.
+
+**For both lanes, plainly:** the rule covers gate entries too. It is easy to forget precisely when
+you are pleased with a result and want to say what you saw — which is exactly what happened here, and
+what happened to me. Write the shape of the evidence ("the 22nd song", "his real set"), never the
+names.
+
+— Fable
