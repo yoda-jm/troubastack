@@ -102,6 +102,9 @@ data class SongInfo(
     val songId: String,
     val name: String,
     val firstPage: Int,
+    // P207: the artist, a bake-time snapshot; empty is normal (many songs have none) and MUST behave as
+    // before (no artist line in the drawer). Shown after the title in grey, clipped before the title.
+    val artist: String = "",
     val onCall: Boolean = false,
     // T50/A20: the baked-for member's personal cues for this song (icon + tint), in bake order. Shown
     // in the A15 drawer row and flashed center on song entry. Empty when the member has none.
@@ -266,7 +269,7 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
         val songName = song.title.ifBlank { "Song ${songIdx + 1}" }
         // P205 Stage 3a: show the viewer identity's cues (member_cues), falling back to the song's own
         // `cues` (a -mine bake or an old bundle). Anonymous (identity "") ⇒ the fallback.
-        songs.add(SongInfo(song.songId, songName, pages.size, onCall = song.onCall, cues = cuesForIdentity(song, identity)))
+        songs.add(SongInfo(song.songId, songName, pages.size, artist = song.artist, onCall = song.onCall, cues = cuesForIdentity(song, identity)))
         song.pages.forEachIndexed { pageIdx, page ->
             val rasterBad = blobKey(song.songId, pageIdx, page.pageRasterRef) in badRefs
             pages.add(

@@ -101,7 +101,10 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -1032,10 +1035,20 @@ private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int)
                 )
             }
             Column(Modifier.weight(1f)) {
+                // P207: "Title — Artist", the artist in grey. One line: on overflow the ELLIPSIS clips
+                // the tail (the artist) first, so the title holds its space — "l'auteur n'est pas si
+                // important". No dash when there is no artist (a trailing "—" is worse than nothing).
                 Text(
-                    s.name,
+                    buildAnnotatedString {
+                        append(s.name)
+                        if (s.artist.isNotBlank()) {
+                            withStyle(SpanStyle(color = neutral)) { append("  —  ${s.artist}") }
+                        }
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = if (selected) FontWeight.Bold else null,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium, color = neutral)
             }
