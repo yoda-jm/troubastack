@@ -43,3 +43,16 @@ func TestResolveBakeCLI(t *testing.T) {
 		t.Errorf("explicit value: got %q, want it verbatim (%q)", got, explicit)
 	}
 }
+
+// bestErrorLine must surface the admin-readable failure, not Node's stack-frame header — the whole
+// point of the boot warning is a sentence about the deployment (Fable, T128 review). Discriminating:
+// the stack-frame line comes FIRST, so "first non-empty line" and "the Error: line" disagree.
+func TestBestErrorLine(t *testing.T) {
+	node := "node:internal/modules/cjs/loader:1503\n  throw err;\nError: Cannot find module '/x/cli.js'\n    at ..."
+	if got := bestErrorLine(node); got != "Error: Cannot find module '/x/cli.js'" {
+		t.Errorf("node error: got %q, want the Error: line (not the loader header)", got)
+	}
+	if got := bestErrorLine("\n\n  just a usage note\n"); got != "just a usage note" {
+		t.Errorf("no Error line: got %q, want the first non-empty line", got)
+	}
+}

@@ -82,7 +82,7 @@ func probeBakeWorker(node, cli string) error {
 	if strings.Contains(out.String(), "troubabake") {
 		return nil
 	}
-	if msg := firstNonEmptyLine(out.String()); msg != "" {
+	if msg := bestErrorLine(out.String()); msg != "" {
 		return fmt.Errorf("%s", msg)
 	}
 	return fmt.Errorf("no output (timed out or failed to launch)")
@@ -109,8 +109,19 @@ func orMissing(p string) string {
 	return p
 }
 
-func firstNonEmptyLine(s string) string {
-	for _, line := range strings.Split(s, "\n") {
+// bestErrorLine picks the line that tells an operator what is wrong. Node prints a stack-frame
+// header first (e.g. "node:internal/modules/cjs/loader:1503"); the useful line — "Error: Cannot
+// find module …" — is a few lines down. Prefer that; fall back to the first non-empty line. The
+// reader here is an admin who does not know the codebase, so this must be a sentence about their
+// deployment, not a citation of Node's internals (Fable, T128 review).
+func bestErrorLine(s string) string {
+	lines := strings.Split(s, "\n")
+	for _, line := range lines {
+		if t := strings.TrimSpace(line); strings.HasPrefix(t, "Error:") || strings.Contains(t, "Cannot find") {
+			return t
+		}
+	}
+	for _, line := range lines {
 		if t := strings.TrimSpace(line); t != "" {
 			return t
 		}
