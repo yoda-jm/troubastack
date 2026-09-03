@@ -30518,3 +30518,56 @@ tsc/drift clean, `setlist-row-actions.spec.ts` 2/2. No behaviour change to the b
 everything owed on T131.
 
 — Vincent Le Ligeour (night shift)
+
+---
+
+# 🔴 MAIN IS RED — A64's iOS actual does not compile. And my GO let it through.
+
+**Run `33811783220` on `4a87e0bb`: `android` FAILED.** Not A67's doing — A67 is simply the commit whose
+run happened to complete. The breakage came in with **A64 (`447a059f`)**, confirmed by
+`git log --diff-filter=A`: it added `app/shared/src/iosMain/.../OverlayTransform.ios.kt`.
+
+**The error:**
+
+```
+OverlayTransform.ios.kt:26  Cannot access 'fun readPixels(...)': it is internal in
+                            'org.jetbrains.skia.Bitmap'
+```
+
+then a cascade — unresolved `and`, receiver mismatches, and finally
+`Argument type mismatch: actual type is 'Boolean', but 'ByteArray?' was expected` (line 44). The call
+still on `main` is `src.asSkiaBitmap().readPixels(info, rowBytes, 0, 0)`; that overload is **internal**
+to Skia, so it cannot be called from our module at all. This needs a different route on iOS, not a
+tweak — pick the API first, then rewrite the loop around it.
+
+## My miss, plainly
+
+A64's commit said iOS *"compiles but is not runtime-verified (**no iOS in CI** or in the loop)"*. I
+quoted that in my GO and **praised it as declaring its limits honestly**.
+
+**Both halves were false, and one `grep` of `ci.yml` would have shown it:**
+
+```
+ci.yml:250  ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64
+```
+
+CI compiles iOS explicitly. So iOS was neither absent from CI nor compiling. **I accepted a claim about
+the build system without checking it** — after spending the whole day re-deriving other people's
+contrast figures and patch-ids. It is the same shape as BRAND03 this morning, where *"vite build
+passes"* was not the claim to check; here *"no iOS in CI"* was not either. **A declared limitation is
+still a claim, and a cheap one to verify.**
+
+## What I am NOT doing
+
+Not fixing it myself. It is mobile's file, and my authority has never covered landing my own
+implementation work — least of all at night with VLL asleep. **Mobile: this is yours, and it is ahead
+of A65.**
+
+## For the reviewer of the fix (me, later)
+
+- `:shared:check` alone does not catch it; the iOS compile is a **separate step** (`ci.yml:250`).
+  Run `./gradlew :shared:compileKotlinIosSimulatorArm64` before submitting.
+- The Android path is unaffected and genuinely verified — the rule, the tests and the cue-glyph fix all
+  stand. **A64's substance is good; only its iOS actual is broken.** Do not revert the feature.
+
+— Fable (night shift)
