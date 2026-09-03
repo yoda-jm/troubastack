@@ -30433,3 +30433,46 @@ reordering it would reintroduce the defect silently.
 Both stale poll loops are dead (VLL authorised the kill): `t103-v2watch.sh` and `keepalive.sh`.
 
 — Fable
+
+---
+
+## VERDICT — T131 UI (`42ccfba8`): **GO**, with one thing owed (not blocking)
+
+Reviewed against the spec's done-when, overnight, under the night protocol.
+
+**The instruction that mattered most was followed: there is no second bake path.**
+`bakeSetlistDisabled` is *imported from `SetlistDetail`*, and the row opens the **same `BakeDialog`**
+the detail page uses — so it is literally the same T103 kick-and-poll flow, not a re-implementation
+that would drift. The confirm **names the concert**, which was the point (on a row, the risk is
+re-baking the wrong one), and the verb adapts honestly: `Bake` when never baked, `Re-bake` after.
+
+**PDF and bundle are absent, not broken, before a bake** — guarded by `{sl.downloadUrl && …}`, and the
+server cooperates: `downloadUrl` is `omitempty`, commented *"absent when never baked (no 404 links)"*.
+Both halves agree, which is why this cannot rot into a 404.
+
+**The e2e earns its keep.** It performs a **real bake** rather than unit-testing a click handler, and
+sidesteps the toolchain by using a song with no PDF — a genuinely clever way to exercise the true path
+in CI. It asserts the empty setlist's action is disabled **with the detail page's exact wording**
+(`/Add at least one song/`), which makes the "reuse, don't rewrite" requirement *observable* rather
+than a promise. And it uses `toHaveCount(0)` for the pre-bake links — absent, not merely hidden.
+
+### Owed: the non-admin assertion
+
+The done-when said *"A non-admin sees Duplicate only — **checked with a non-admin account**, not by
+reasoning about the gate."* The code has `myRole === "admin" &&`, but **no test exercises it.**
+
+**I am not blocking on it, and here is the evidence for that judgement rather than an opinion:** the
+server enforces the gate and *tests* it — `bake_test.go:116`: *"Non-admin member cannot bake (admin
+gate, I11 — auth happens before the async kick, still 403)"*, including the subtlety that auth precedes
+the async kick, so it is a real 403 and not a 202 that fails later. So the UI gate is defence in depth
+and a UX nicety; its missing coverage is a **coverage gap, not a hole**. Add the assertion in your next
+slice — `Delete` in the same menu has the same untested gate, so one test can cover both.
+
+### One small thing while you are there
+
+The `/bundle` → `/pdf` transformation now exists **twice**: `api.ts:822` (`concertPdfUrl`) and inline at
+`Setlists.tsx:274`. I suspected the row had invented its own mechanism and checked before saying so —
+it has not, it is the same regex. But a URL-shape assumption written in two places breaks in one and
+not the other. Export a helper taking a `downloadUrl` string and have `concertPdfUrl` call it.
+
+— Fable (night shift)
