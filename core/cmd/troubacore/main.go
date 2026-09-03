@@ -27,6 +27,7 @@ import (
 	"troubastack/core/internal/app/filerepo"
 	"troubastack/core/internal/app/memrepo"
 	"troubastack/core/internal/bake"
+	"troubastack/core/internal/buildinfo"
 	"troubastack/core/internal/config"
 	"troubastack/core/internal/discovery"
 	"troubastack/core/internal/engine"
@@ -59,6 +60,11 @@ func main() {
 	}
 
 	cfg := loadConfig() // defaults < troubacore.ini < TROUBA_* env < flags (ADR 0004)
+
+	// BRAND04: exactly one identifying line at boot — product, version, and where to read about it.
+	// Not a banner or ASCII art: this goes into journalctl for the life of the deployment. (--help
+	// carries the same identity for the CLI reader; the OCI image labels carry it for the registry.)
+	log.Printf("TroubaCore %s — https://yoda-jm.github.io/troubastack/", buildinfo.Version())
 
 	// Wire the subsystems (all stubs in this scaffold).
 	st, err := openStore(cfg) // swappable backend; default file, zero infra (ADR 0002)
@@ -146,6 +152,18 @@ func main() {
 // commented example and exits (that output IS the committed troubacore.example.ini).
 func loadConfig() config.Config {
 	fs := flag.NewFlagSet("troubacore", flag.ExitOnError)
+	// BRAND04: name the product and the page above the flag list. The server's config is env/INI, not
+	// flags, so --help is short — the header is where a reader learns what this binary is.
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(),
+			"TroubaCore %s — the TroubaStack server\nhttps://yoda-jm.github.io/troubastack/\n\n"+
+				"Usage: troubacore [flags]\n"+
+				"  Server config is via troubacore.ini and TROUBA_* env (run --print-default-config to see\n"+
+				"  every knob). Operator subcommands: reset-password, gc, purge-render-cache, repair-blobs.\n\n"+
+				"Flags:\n",
+			buildinfo.Version())
+		fs.PrintDefaults()
+	}
 	configPath := fs.String("config", os.Getenv("TROUBA_CONFIG"), "path to the INI config file (default ./troubacore.ini; env TROUBA_CONFIG)")
 	printDefault := fs.Bool("print-default-config", false, "print the fully-commented example config to stdout and exit")
 	_ = fs.Parse(os.Args[1:])
