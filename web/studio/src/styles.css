@@ -18,6 +18,7 @@
   --brand-mark: #e13198;         /* the mark's OWN colour, unmodified — icons, borders, non-text UI (≥3:1 on all four grounds) */
   --brand-tint: color-mix(in srgb, var(--brand-mark) 10%, var(--surface)); /* derived fill (do not hand-pick); the text tokens above clear 4.5 on it */
   --brand-ink: #9b1664;          /* links, labels, ranks: 7.68 / 7.10 / 6.70 on surface / bg / tint */
+  --on-brand: #ffffff;           /* BRAND07: label ink ON a --brand/--accent fill. White here: 4.95 on --brand, 6.91 on --brand-strong */
   --accent: var(--brand);        /* THE single accent — everything derives from the brand */
   accent-color: var(--accent);   /* unify native widgets (sliders, checkboxes) with the brand, both themes */
 
@@ -58,6 +59,10 @@
        tint). --brand-mark is theme-invariant (inherited from :root). --brand-tint re-derives here
        because --surface changes. #fff-on-fill buttons improve from 1.99 to 3.93 — see commit note. */
     --brand: #e23b9d; --brand-strong: #e54da6; --brand-tint: color-mix(in srgb, var(--brand-mark) 10%, var(--surface)); --brand-ink: #e75faf;
+    /* BRAND07: on a bright fill the readable label in dark mode is near-black, NOT white
+       (white-on-#e23b9d is 3.93, under the bar). This is --bg on purpose — do not "fix" it
+       back to white. #100e16 on --brand = 4.88, on --brand-strong (hover) = 5.42. */
+    --on-brand: #100e16;
     --bg: #100e16;
     --surface: #191722; --surface-2: #211e2c;
     --fg: #efeaf6; --muted: #9c96ac;
@@ -116,7 +121,7 @@ button:disabled { opacity: .55; cursor: default; }
 button[type="submit"] {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
 }
 button[type="submit"]:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
 
@@ -163,7 +168,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .badge {
   display: inline-grid; place-items: center;
   margin-left: .35rem; min-width: 1.25rem; height: 1.25rem; padding: 0 .35rem;
-  border-radius: 999px; background: var(--brand); color: #fff;
+  border-radius: 999px; background: var(--brand); color: var(--on-brand);
   font-size: .72rem; font-weight: 700;
 }
 
@@ -1016,7 +1021,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mandatory-pill { background: var(--ok-bg); color: var(--ok-fg); }
 .lock-pill { background: var(--chip-bg); color: var(--chip-fg); text-transform: none; }
-.active-pill { background: var(--accent); color: #fff; text-transform: none; }
+.active-pill { background: var(--accent); color: var(--on-brand); text-transform: none; }
 .focused-pill { background: var(--brand-tint); color: var(--brand-strong); text-transform: none; }
 
 /* Annotation list for the active layer. */
@@ -1336,7 +1341,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 
 .new-item-btn {
   padding: .4rem .85rem; font-size: .9rem;
-  background: var(--brand); border-color: var(--brand); color: #fff;
+  background: var(--brand); border-color: var(--brand); color: var(--on-brand);
 }
 .new-item-btn:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
 /* Subtle secondary (Cancel) that collapses the disclosure. */
@@ -1462,7 +1467,7 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .staff.sig { margin: .35rem 0 .1rem; }
 
 /* action buttons (build on the global <button>) */
-button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+button.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 button.primary:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
 button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .icon-btn { border: 1px solid transparent; background: transparent; color: var(--muted);
@@ -1683,7 +1688,7 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .getapp-meta { font-size: .72rem; color: var(--muted); }
 .getapp-platform a.primary.button {
   display: inline-block; text-align: center; padding: 9px 14px; border-radius: 8px;
-  background: var(--brand); border: 1px solid var(--brand); color: #fff;
+  background: var(--brand); border: 1px solid var(--brand); color: var(--on-brand);
   font-weight: 600; text-decoration: none; width: max-content;
 }
 .getapp-platform a.primary.button:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
