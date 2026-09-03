@@ -93,6 +93,22 @@ Stage is always enabled, so it always wears its accent border — no neutral var
 
 Whatever is chosen, A55's behaviour is untouched: the tile is still `enabled = false` with its reason.
 
+## The chrome-vs-product rule, refined (VLL, 2026-09-03)
+
+The original ruling was: *"an accent that says 'act here' is chrome and stays single; an accent that
+says 'this is that product' is content and wears the product's colour"* — and it explicitly put
+**Resume on the chrome side**, as an action.
+
+**VLL overrode that live, and the override is right**: Resume wears the **Stage gold**, because Resume
+*opens the concert in Stage*. So the line is not action-vs-identity, it is:
+
+> **An action that launches a specific product wears that product's colour. Generic chrome — anything
+> that acts within the current surface — stays indigo.**
+
+That is a refinement, not an exception. **Recorded here so nobody reads the older wording and "fixes"
+Resume back to indigo.** The contrast obligation is unchanged and was met: `stageInk` is white on the
+light gold (**4.81:1**) and near-black `#1A1206` on the dark gold (**6.65:1**), both clearing 4.5.
+
 ## Done when
 
 - No product name renders wholly in its accent — `Trouba` is ink, the suffix is accent — on **mobile

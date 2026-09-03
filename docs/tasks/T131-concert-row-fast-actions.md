@@ -31,18 +31,25 @@ one request into N.
 
 ## Work
 
-### 1. Re-bake in the row menu — mirror A42②, do not invent a contract
+### 1. Re-bake in the row menu — reuse Studio's OWN bake flow
 
-The app already solved exactly this: *"A42②: one-tap re-bake. `canReBake` is true only for a connected
-**ADMIN** of the resume concert's band (the row is hidden otherwise); `bake` is the live re-bake status
-driven by the progress poll"* (`HomeScreen.kt:102-104`). Mirror it:
+**The precedent to copy is `SetlistDetail.tsx`'s bake section, not the app.** (VLL, correcting my first
+draft: *"A42 c'est pour l'app, je parle pour le web."* He is right — A42② is the app's Home tile, a
+different surface with a different gate. The only thing shared between them is **T103's server-side
+kick-and-poll contract**, which is what both surfaces sit on.)
+
+So: reuse the detail page's confirm dialog and its `bakeSetlistDisabled` guard rather than writing a
+second bake path in the same codebase. The row action should end up calling the same thing the button
+on the detail page calls.
 
 - **Admin only, hidden otherwise** — consistent with `Delete` in this same menu.
 - **Disabled with the existing explanation when `songCount === 0`.** Reuse the detail page's wording
   rather than writing a second sentence for the same rule.
 - **T103's kick-and-poll is the contract**: `POST` kicks and returns 202, **the poll is the source of
   truth**. So the row must show live status and a terminal result, not fire-and-forget. A re-bake that
-  silently does nothing visible is worse than the navigation it replaces.
+  silently does nothing visible is worse than the navigation it replaces. (This is the server contract,
+  shared by every surface — the app's A42② is evidence the pattern works on a list-like surface, not a
+  design to copy.)
 - **Confirm or not?** The detail page confirms. On a row, the risk is mis-clicking the wrong concert —
   which the dialog exists to catch. Keep a confirmation that **names the concert**; that is the part
   that matters, not the dialog itself.

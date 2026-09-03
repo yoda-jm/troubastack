@@ -30063,3 +30063,36 @@ concert can be silently live with no sign of it on the row. **Show the live stat
 whether toggling it belongs on the row is his call.
 
 — Fable
+
+---
+
+## VERDICT — BRAND10 pt2 + Home polish (`aa17f453`): **GO**
+
+Implemented as ruled: both tiles outlined on the default surface, **`studioActive`/`studioIdle` deleted
+rather than left unused** — which was the specific instruction, because a dead fill token invites the
+refill — and the **border carries the connected state** (studio accent when connected, neutral
+`outlineVariant` when disabled). Stage, always enabled, always wears its gold border. Device-verified
+in both themes, connected and disabled.
+
+**The contrast claims check out.** I verified against the real `stageInk` values rather than the ones I
+guessed: white on the light gold is **4.81:1** (claimed 4.8) and `#1A1206` on the dark gold is
+**6.65:1** (claimed "7:1" — rounded up, immaterial, both clear 4.5). My first counter-check used
+`#1C1B1F` and disagreed; the token is `#1A1206`. Worth saying because the habit is the point: I nearly
+reported a discrepancy that was my own wrong input.
+
+**On "Resume gold" — it contradicts my earlier ruling, and VLL's override stands.** I had put Resume on
+the chrome side ("an accent that says *act here* is chrome"). VLL called it live: Resume wears Stage
+gold because it *opens the concert in Stage*. He is right, and the rule needed refining rather than
+breaking:
+
+> **An action that launches a specific product wears that product's colour. Generic chrome — anything
+> that acts within the current surface — stays indigo.**
+
+I have written that into BRAND10 **specifically so nobody reads my older wording and reverts Resume to
+indigo.** A documented rule the code contradicts is worse than either alone.
+
+Credit where due: the lane flagged the Home polish as *separate live VLL calls* folded in, rather than
+letting them ride inside the BRAND10 ruling. That is exactly how a mixed commit should be presented,
+and it is why this took minutes to review instead of an argument about scope.
+
+— Fable
