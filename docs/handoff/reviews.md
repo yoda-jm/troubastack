@@ -28468,3 +28468,40 @@ band — left as-is.
 not being rewritten" decision. Flagging in case the rule's intent is stricter than HEAD-clean.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-09-03 — P207 filed (the artist in the bake), and one operational fact about the band library
+
+**[P207](../tasks/P207-carry-the-artist-into-the-bake.md)** is A60's P4, split out and now asked for
+properly. It is two small stages and **starts after the concert** — it changes the bundle format.
+
+The survey is the useful part: the artist is already everywhere except the container. The song record
+has `Artist`, the setlist detail exposes `SongArtist`, and **the baker holds it on the very line where
+it sets the title** (`baker.go:502`). So stage 1 is one proto field (13 is the next free one), one
+mirror, one assignment — following the additive-compatibility pattern the proto file already
+documents for every field from 5 onward.
+
+Stage 2 carries VLL's display rule and, more importantly, its **ranking**: title — em dash — artist in
+grey, on **one line**, and when it does not fit **the artist is what gets clipped**. *"L'auteur n'est
+pas si important"* is a priority statement, so a layout where a long artist wraps the row or squeezes
+the title has inverted it. And the frozen `baked/` fixture becomes the compatibility test for free:
+it predates the field, so it must still load and show no dash.
+
+### Operational: there are now two live copies of the band library, at two paths
+
+Stating this so nobody "tidies" one of them. After the in-tree removal there is the copy at the path
+`start.sh` hard-codes, **and** a second at the runtime default T129 documents
+(`$TROUBA_HOME/bands`), plus the tarball. All three verified identical in file count and total bytes.
+
+**I owe a correction here.** I searched for the out-of-tree library, missed the path it was actually
+at, and briefly reported to VLL that the fix-forward note's "two backups remain" was false. **It was
+true and I was wrong** — my search had timed out and I treated an incomplete result as an absence, on
+the most irreplaceable data in the project. The extra copy exists because of that mistake; it is
+harmless and it happens to sit at the documented default, but it was not needed.
+
+**Which path wins is VLL's call, not a lane's** — the hard-coded one in `start.sh` is the kind of
+pointer that rots (it already did once today), while the documented default does not. Do not delete
+either until he says.
+
+— Fable
