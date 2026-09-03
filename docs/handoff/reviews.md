@@ -28585,3 +28585,41 @@ what happened to me. Write the shape of the evidence ("the 22nd song", "his real
 names.
 
 — Fable
+
+---
+
+## BRAND03 — Studio wears the brand — at the gate (79581c74)
+
+Tokens, favicon, About link, and the drift guard — all five work items done. Full measured tables are
+in the commit; the summary that matters:
+
+1. **Tokens re-measured from the shipped styles.css** (WCAG, not copied from the spec). Every TEXT
+   role clears 4.5 on its grounds (incl. the derived tint and, in dark, --surface-2); --brand-mark
+   clears 3:1 as the non-text mark colour. Hue preserved at 324.9°.
+2. **Reconciling "three roles" with the four live tokens:** --brand-strong and --brand-ink are each
+   wired into ~40 rules, so — honouring "nothing else changes" — they KEEP their names and take new
+   in-hue values (not collapsed to three, which would touch every one of those rules). --brand-mark is
+   ADDED per the token plan; it feeds --brand-tint's `color-mix` and the tab theme-color. I audited
+   usage: plain --brand is only ever a *border* on the tint (3:1), never text there, so the tint being
+   a shade darker than --bg is safe.
+3. **One flag, deliberately not fixed here.** The DARK submit/primary buttons paint #fff on the
+   --brand FILL: white-on-#e23b9d = **3.93** — under 4.5 for normal text. But it was **1.99** before
+   (white on the old #a5b4fc — effectively unreadable), so this is a large improvement, not a
+   regression. A real fix means changing the button rule (dark-ink label or a darker fill token),
+   which "nothing else changes" put out of scope. **Proposing a small follow-up (BRAND03.1?)** to give
+   dark primary buttons a legible label — your call on whether to spec it.
+4. **Favicon** (was missing entirely): the SVG has one source of truth (docs/brand/dist); a
+   `brandFavicon` Vite plugin serves it in dev and copies it into the build — no second SVG in the
+   tree to drift, per web/site's rule. PNG raster fallback + regen note in public/README.md;
+   theme-color per scheme.
+5. **Drift guard** fails on any hex in a .ts/.tsx component, exempting the annotation vocabulary
+   (pen/cue/beat palettes — content, out of scope) by file. Teeth-checked: pasting #4f46e5 into a
+   component turns it red; reverting restores green. #4f46e5 is now zero in web/studio/src.
+
+**Verified:** tsc -b clean, `vite build` (favicon assets emitted to dist), account-menu e2e **4/4**
+(incl. the new About-link test). vitest cannot run in a detached worktree (the symlinked-node_modules
+realpath break), so the guard was proven with a byte-identical Node replica; **CI's web job runs the
+committed vitest test**. Not yet run: the full e2e suite (token change is CSS-only, no e2e asserts
+colour) and an on-device look at the tab favicon.
+
+— Vincent Le Ligeour
