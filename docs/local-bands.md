@@ -67,10 +67,10 @@ make band=myband       # boots a server seeded with ONLY that band, then serves 
 
 - Everyone signs in with the seed password (`demo` by default).
 - The band gets its **own data dir** under the runtime root (T129):
-  `$TROUBA_HOME/troubadata-<shortname>` — default `~/.local/share/troubastack/troubadata-<shortname>`,
+  `$TROUBA_HOME/troubadata-<shortname>` — default `~/troubastack-data/troubadata-<shortname>`,
   **outside the source tree** so a `git clean` can't erase it — so recreating the server rebuilds your
   band cleanly and separately from the demo. Reset with
-  `rm -rf ~/.local/share/troubastack/troubadata-<shortname>` (or wherever `TROUBA_HOME` points).
+  `rm -rf ~/troubastack-data/troubadata-<shortname>` (or wherever `TROUBA_HOME` points).
 - `make` with no arguments still prints the help; the `band` target only becomes the default when
   `band=` is set.
 
@@ -83,10 +83,10 @@ only when explicitly selected — `-band <shortname>` (what `make band=` uses) o
 ## Environment
 
 - **`TROUBA_BANDS_DIR`** — override where bands are discovered; wins outright. Unset (T129), the
-  search is `$TROUBA_HOME/bands` first (default `~/.local/share/troubastack/bands`, **outside the
+  search is `$TROUBA_HOME/bands` first (default `~/troubastack-data/bands`, **outside the
   source tree**), then the historical in-tree locations (`../bands`, `bands`, …) so an existing
   checkout keeps working. Keeping the real library outside the repo — e.g. `~/troubastack-bands` —
   means a `git clean -xdf` can never touch it.
 - **`TROUBA_HOME`** — the runtime root for all non-repo data; default
-  `${XDG_DATA_HOME:-~/.local/share}/troubastack`. Nothing under it is regenerable from the
+  `~/troubastack-data`. Nothing under it is regenerable from the
   repository, so back it up like the irreplaceable data it holds.

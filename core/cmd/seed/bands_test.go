@@ -396,14 +396,11 @@ func TestTroubaHome(t *testing.T) {
 	if got := troubaHome(); got != "/explicit/root" {
 		t.Errorf("TROUBA_HOME set: got %q, want it verbatim", got)
 	}
+	// Default is a VISIBLE ~/troubastack-data, and XDG_DATA_HOME must NOT redirect it into .local.
 	t.Setenv("TROUBA_HOME", "")
 	t.Setenv("XDG_DATA_HOME", "/xdg")
-	if got := troubaHome(); got != "/xdg/troubastack" {
-		t.Errorf("XDG_DATA_HOME: got %q, want /xdg/troubastack", got)
-	}
-	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("HOME", "/home/vll")
-	if got := troubaHome(); got != "/home/vll/.local/share/troubastack" {
-		t.Errorf("HOME default: got %q, want /home/vll/.local/share/troubastack", got)
+	if got := troubaHome(); got != "/home/vll/troubastack-data" {
+		t.Errorf("default: got %q, want /home/vll/troubastack-data (visible; XDG must not redirect it)", got)
 	}
 }

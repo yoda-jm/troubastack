@@ -64,8 +64,8 @@ You get two seeded bands with songs, multi-page PDFs, text charts, per-member
 annotation layers, conductor cues, **personal song cues** and realtime sync — open the
 same song in two browsers and draw.
 
-Reset the demo data with `rm -rf ~/.local/share/troubastack/troubadata` — T129: seeded servers
-write under `$TROUBA_HOME` (default `${XDG_DATA_HOME:-~/.local/share}/troubastack`), **outside the
+Reset the demo data with `rm -rf ~/troubastack-data/troubadata` — T129: seeded servers
+write under `$TROUBA_HOME` (default `~/troubastack-data`), **outside the
 source tree**, so a `git clean -xdf` in this checkout can never erase live data.
 
 Want to run it with **your own** band instead of the demo? Put a band folder under

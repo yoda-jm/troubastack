@@ -398,11 +398,9 @@ func troubaHome() string {
 	if h := os.Getenv("TROUBA_HOME"); h != "" {
 		return h
 	}
-	base := os.Getenv("XDG_DATA_HOME")
-	if base == "" {
-		base = filepath.Join(os.Getenv("HOME"), ".local", "share")
-	}
-	return filepath.Join(base, "troubastack")
+	// A visible ~/troubastack-data (VLL's call) rather than hiding live data deep in ~/.local/share:
+	// this holds irreplaceable band libraries, and a folder people can see is a folder people back up.
+	return filepath.Join(os.Getenv("HOME"), "troubastack-data")
 }
 
 // bandsDirCandidates is the ordered search for the local bands folder (T129). TROUBA_BANDS_DIR wins

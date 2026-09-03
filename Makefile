@@ -108,7 +108,7 @@ seed:
 # T129: runtime data (seeded servers) lives OUTSIDE the source tree — a `git clean -xdf` in this
 # worktree would otherwise erase it (bands/ has no backup). Same formula as troubaHome() in
 # core/cmd/seed. Override with TROUBA_HOME, or point TROUBA_DATA_DIR at an absolute path yourself.
-TROUBA_HOME ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)/troubastack
+TROUBA_HOME ?= $(HOME)/troubastack-data
 
 # One-shot demo: builds + EMBEDS the SPA (via dist), then runs the single binary
 # with the FILE backends (data persists under $(TROUBA_HOME)/troubadata/) in the BACKGROUND,

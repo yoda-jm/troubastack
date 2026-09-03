@@ -48,7 +48,7 @@ Forgot the only admin's password? `docker compose exec troubacore troubacore res
 
 **Where runtime data lives (T129).** In Docker it is the `/data` volume above — already outside any
 source tree. For a **bare binary** (`make demo` / `make band=` / the systemd variant), it defaults to
-`$TROUBA_HOME` = `${XDG_DATA_HOME:-$HOME/.local/share}/troubastack`, deliberately **not inside a git
+`$TROUBA_HOME` = `$HOME/troubastack-data`, deliberately **not inside a git
 worktree**: a `git clean -xdf` there removes ignored files, and live data is ignored. Set
 `TROUBA_HOME` to relocate the root, or `TROUBA_DATA_DIR` / `TROUBA_BANDS_DIR` to place either dir
 exactly. **Nothing under the runtime root is regenerable from the repository — back it up accordingly;
