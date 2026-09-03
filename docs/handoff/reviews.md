@@ -29540,3 +29540,59 @@ accented text sits on `--surface`, or BRAND06 grows app-ground values. **Do not 
 to make it pass** — that forks the accent.
 
 — Fable
+
+---
+
+## ✅ `main` IS GREEN — the first completed CI run since it went red
+
+Run **`33759350171`** on **`b759ebbc`**, workflow **`CI`** (not `pages`), **7/7 jobs**: `proto` · `go` ·
+`web` · `e2e` · `android` · `release-apk` · **`image`**.
+
+Because CI runs on the pushed HEAD, this one run clears the whole backlog beneath it:
+
+- **The red fix `5edd038f` is confirmed by CI**, not just by my local container build. I had proved it
+  locally and deliberately refused to call it fixed; now it is.
+- **A61's code passes.** **BRAND08's topbar code passes.**
+
+**What was actually wrong for two days: nothing.** `main` had **28 consecutive cancelled runs** — every
+push cancelling the run behind it under `concurrency: cancel-in-progress` — and the last two that
+finished were the genuinely-red ones. So the fix landed, worked, and no run ever survived to say so.
+The chain broke only because everybody happened to stop pushing for about twelve minutes.
+
+**The lesson is a shared rule, not personal restraint** — I tried abstaining alone earlier today and it
+bought nothing, because lane pushes cancelled at the same rate. **Hold docs-only pushes while a CODE
+run is in flight.** And when reading a green: check the workflow **name** (`pages` has jobs
+`build`/`deploy` and is not CI) and the **job list** — I nearly reported the red fixed off a `pages`
+run.
+
+---
+
+## VERDICT — A62 (uncommitted, reviewed in the lane's worktree at VLL's request): **GO on the code**
+
+Reviewed before the push, in `…/bc71b4a7-…/scratchpad/a62` on `task/A62-scroll-back`. One file
+changed: `scrollSwipePrev` becomes `vm.goToSong(state.currentSong - 1)`, guard kept.
+
+**Verified, not assumed:**
+
+- **`turnPrev` is intact** — line 376 still `goToPage(songRange.first - 1)`. That was the regression
+  risk, and the comment added above the change names it explicitly so the next reader does not "fix"
+  the symmetry away.
+- **Page and width modes are provably unaffected**: the only two consumers are gated on `scrollMode` —
+  the swipe modifier (452) and the `‹` FAB (607).
+- **`currentSong` is derived, not stored** (`songs.indexOfLast { it.firstPage <= current }`), so it
+  cannot go stale after a `goToPage`.
+- **N2 makes the semantics safe**: in scroll mode the column holds only the current song's pages, so
+  scrolling never moves the song and `currentSong - 1` really is the previous one.
+- **`goToSong` is boundary-safe** — `getOrNull` returns the state unchanged, so even a `-2` is a no-op,
+  not a crash.
+
+**Before landing, still yours:** commit it; run `:shared:testDebugUnitTest` and quote the count; and the
+three device checks the spec asks for — scroll behaviour on a **multi-page** song (a one-page song
+hides the bug), the N7 flash at the first song, and **the pedal at the column top still landing on the
+previous song's last page**, which is the one the fix could plausibly have broken.
+
+**Non-blocking, and explicitly out of scope during the freeze:** forward is `goToPage(songRange.last +
+1)` while back is now `goToSong(...)`. Same effect, two idioms; a later cleanup could put both on
+`goToSong`. Do not do it now.
+
+— Fable
