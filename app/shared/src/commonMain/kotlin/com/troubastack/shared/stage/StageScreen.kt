@@ -18,6 +18,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,12 +41,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -68,7 +71,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -82,6 +84,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -98,6 +101,7 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -378,7 +382,13 @@ private fun Performing(
         // free axis) — right = previous song, left = next — reusing the same cross path as the
         // scroll-edge turn (goToPage to the adjacent song, which fires the N1 cue + repositions the
         // column). At the first/last song it's a blocked cross → the N7 glyph (scroll's rubber-band only
-        // communicates VERTICAL ends). "Horizontal swipe advances the unit" now holds in every mode.
+        // communicates VERTICAL ends).
+        // A60 P5 (VLL, 2026-09-03): the rule in scroll mode is TOUCH is coarse, HARDWARE is fine. Swipe
+        // AND the on-screen ‹ › FABs cross songs — you can see the screen, so you chose the jump. A BT
+        // pedal (arrows/PageUp/Space) and volume keys keep page granularity via turnNext and cross only
+        // at the column end — hands-free you cannot undo a wrong jump mid-piece. A keyboard can't be told
+        // from a pedal, so it gets the pedal path too: the safe way round (a missed nudge, not a skipped
+        // song). Page/width modes are consistent already — every input routes through turnNext.
         val scrollSwipeNext: () -> Unit = {
             if (isBlockedSongCross(state.currentSong, state.songs.size, forward = true)) flashBlocked(true)
             else vm.goToPage(songRange.last + 1)
@@ -582,8 +592,14 @@ private fun Performing(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                StageFab("‹", size = 64.dp) { turnPrev() }
-                StageFab("›", size = 64.dp) { turnNext() }
+                // A60 P5: on-screen ‹ › cross SONGS in scroll mode (like the horizontal swipe) — you can
+                // see and touch the screen, so a deliberately coarse control is right. Hardware stays
+                // fine-grained: a BT pedal / keys (turnNext) and the volume registrar scroll within the
+                // column and cross only at its end, because hands-free you cannot correct a wrong jump
+                // mid-piece. Page/width modes: scrollMode is false, so both fall through to turnPrev/
+                // turnNext unchanged.
+                StageFab("‹", size = 64.dp) { if (scrollMode) scrollSwipePrev() else turnPrev() }
+                StageFab("›", size = 64.dp) { if (scrollMode) scrollSwipeNext() else turnNext() }
             }
         }
         }
@@ -814,57 +830,174 @@ private fun SettingsSheet(
  * touch targets for a stage. Read-only (I12): tapping jumps via [StageViewModel.goToSong] (which is
  * spread-aligned in two-up, A12) and closes. The scrim/back closes it without navigating.
  */
+/**
+ * A60: the drawer's flat row model in display order — section headers, the group separator, and song
+ * rows carrying their ORIGINAL bundle index (drives the jump) plus a running-order number. Kept a
+ * PURE function so the parts that broke/were-asked-for are unit-testable without Compose UI infra:
+ * P1 reachability (every song produces a row, however long the setlist), P2 numbering (main 1..N,
+ * bench unnumbered), and the T23 main/bench split.
+ */
+internal sealed interface DrawerRow {
+    data class Header(val title: String) : DrawerRow
+    object Divider : DrawerRow
+    data class Song(val songIndex: Int, val info: SongInfo, val number: Int?) : DrawerRow
+}
+
+internal fun drawerRows(state: StageState): List<DrawerRow> {
+    // T23: bench/encore songs group below the running order under an "On call" header. withIndex keeps
+    // each song's ORIGINAL index so a jump lands on the right pages regardless of bundle order.
+    val (bench, main) = state.songs.withIndex().partition { it.value.onCall }
+    val rows = mutableListOf<DrawerRow>(DrawerRow.Header("Songs"))
+    // P2: number the running order from 1 (bands call "number seven"); the number is the position in
+    // the MAIN order, not the original bundle index.
+    main.forEachIndexed { pos, (i, s) -> rows += DrawerRow.Song(i, s, number = pos + 1) }
+    if (bench.isNotEmpty()) {
+        rows += DrawerRow.Divider
+        rows += DrawerRow.Header("On call")
+        // P2: NO numbers on the bench — an "on call" song is deliberately NOT in the running order, so
+        // numbering it would imply the opposite of what the group means.
+        bench.forEach { (i, s) -> rows += DrawerRow.Song(i, s, number = null) }
+    }
+    return rows
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SongDrawerSheet(state: StageState, onJump: (Int) -> Unit) {
-    ModalDrawerSheet {
-        Text(
-            "Songs",
-            Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
-            style = MaterialTheme.typography.titleLarge,
-        )
-        // T23: bench/encore songs group below the running order under an "On call" header. Each item
-        // keeps its ORIGINAL song index (via withIndex) so a jump still lands on the right pages,
-        // regardless of how the bundle ordered them.
-        val (bench, main) = state.songs.withIndex().partition { it.value.onCall }
-        main.forEach { (i, s) -> SongDrawerItem(state, i, s, onJump) }
-        if (bench.isNotEmpty()) {
-            HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+    val listState = rememberLazyListState()
+    // A60 (VLL): a scrollbar ("ascenseur") on the drawer — the clearest cue that the list is scrollable
+    // and how much more there is, in both directions, which a full-looking first/last row hid. Shown
+    // only when the content exceeds the viewport.
+    val scrollable by remember { derivedStateOf { listState.canScrollForward || listState.canScrollBackward } }
+    val sheetColor = MaterialTheme.colorScheme.surface
+    ModalDrawerSheet(drawerContainerColor = sheetColor) {
+        // A60 P1: the rows live in a LazyColumn, not the sheet's plain ColumnScope — a real setlist
+        // (VLL was rehearsing 22 songs) is taller than the screen, and the old direct-into-ColumnScope
+        // layout laid every row out with no way to reach anything past the fold. LazyColumn over a
+        // verticalScroll column: the idiomatic scrollable list, only lays out visible rows, scales to
+        // any setlist length. P3: both headers share DrawerSectionHeader so each reads as a header (VLL
+        // read the old titleLarge "Songs" as a row); the divider is ONLY the group separator.
+        // A60 (VLL): headers are STICKY — "Songs" (and "On call") stay pinned instead of scrolling away.
+        Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            drawerRows(state).forEach { row ->
+                when (row) {
+                    is DrawerRow.Header -> stickyHeader(key = "h:${row.title}") { DrawerSectionHeader(row.title) }
+                    DrawerRow.Divider -> item(key = "div") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+                    is DrawerRow.Song -> item(key = "s:${row.songIndex}") { SongDrawerItem(state, row.songIndex, row.info, onJump, row.number) }
+                }
+            }
+        }
+        if (scrollable) {
+            // Inset the track BELOW the pinned "Songs" header (~48dp) so the thumb never sits inside it —
+            // a full-height track put the thumb "in Songs" at the top, which read as strange (VLL).
+            DrawerScrollbar(
+                listState,
+                Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = 48.dp, bottom = 4.dp, end = 2.dp),
+            )
+        }
+        } // Box
+    } // ModalDrawerSheet
+}
+
+/** A60 P3: one section-header style for every group header. A60 (VLL): an OPAQUE surface (a sticky
+ *  header must not let rows show through it) with a crisp bottom border that is ALWAYS present — it
+ *  SEPARATES the header from the songs (VLL: the border is for separation, not a "show more" cue; the
+ *  scrollbar signals more). outline (darker than the rows' outlineVariant) so the header edge reads
+ *  clearly stronger than a between-songs hairline. */
+@Composable
+private fun DrawerSectionHeader(text: String) {
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+        Column {
             Text(
-                "On call",
-                Modifier.padding(horizontal = 28.dp, vertical = 4.dp),
+                text,
+                Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            bench.forEach { (i, s) -> SongDrawerItem(state, i, s, onJump) }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }
     }
 }
 
-/** One row of the song drawer: title + the A08 meta line; highlighted when it is the current song. */
+/** A60 (VLL): a minimal scroll indicator ("ascenseur") for the drawer — a thumb on the right edge whose
+ *  height shows how much of the list is visible and whose position shows where you are, so a
+ *  full-looking first/last row still signals there is more. Approximate (rows vary in height: 1- vs
+ *  2-line songs, headers), which is fine for an indicator. */
 @Composable
-private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int) -> Unit) {
+private fun DrawerScrollbar(state: LazyListState, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.outline
+    BoxWithConstraints(modifier.width(5.dp)) {
+        val info = state.layoutInfo
+        val total = info.totalItemsCount
+        val visible = info.visibleItemsInfo
+        if (total == 0 || visible.isEmpty()) return@BoxWithConstraints
+        val avg = visible.sumOf { it.size }.toFloat() / visible.size
+        val contentPx = avg * total
+        val viewportPx = (info.viewportEndOffset - info.viewportStartOffset).toFloat().coerceAtLeast(1f)
+        val thumbFrac = (viewportPx / contentPx).coerceIn(0.08f, 1f)
+        val scrolledPx = state.firstVisibleItemIndex * avg + state.firstVisibleItemScrollOffset
+        val maxScrollPx = (contentPx - viewportPx).coerceAtLeast(1f)
+        val offsetFrac = (scrolledPx / maxScrollPx).coerceIn(0f, 1f) * (1f - thumbFrac)
+        Box(
+            Modifier
+                .offset(y = maxHeight * offsetFrac)
+                .fillMaxWidth()
+                .height(maxHeight * thumbFrac)
+                .clip(RoundedCornerShape(3.dp))
+                .background(color.copy(alpha = 0.5f)),
+        )
+    }
+}
+
+/** One row of the song drawer: number + title + the A08 meta line; the current song is highlighted.
+ *  [number] is the running-order position (1-based) or null for "on call" bench songs (A60 P2).
+ *  A60 (VLL field feedback): a COMPACT custom row (NavigationDrawerItem's ~56dp pill was too tall for
+ *  a 22-song set) with a very faint separator, so songs read as a dense but delineated list. Still a
+ *  full-width tap target for stage use. */
+@Composable
+private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int) -> Unit, number: Int?) {
     val meta = songMetaLine(state, i)
     val neutral = MaterialTheme.colorScheme.onSurfaceVariant
-    NavigationDrawerItem(
-        selected = i == state.currentSong,
-        label = {
-            Column {
-                Text(s.name, style = MaterialTheme.typography.titleMedium)
-                if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium)
+    val selected = i == state.currentSong
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { onJump(i) }
+                .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (number != null) {
+                Text(
+                    "$number.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = neutral,
+                    modifier = Modifier.width(30.dp),
+                )
             }
-        },
-        // A20: the member's tinted cue icons for this song, right-aligned — the glanceable "what's
-        // coming" list. Absent when the member has no cues on the song.
-        badge = if (s.cues.isEmpty()) null else {
-            {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    s.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (selected) FontWeight.Bold else null,
+                )
+                if (meta != null) Text(meta, style = MaterialTheme.typography.labelMedium, color = neutral)
+            }
+            // A20: the member's tinted cue icons for this song, trailing — the glanceable "what's
+            // coming" list. Absent when the member has no cues on the song.
+            if (s.cues.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     s.cues.forEach { cue -> CueGlyphIcon(cue.icon, parseCueColor(cue.color, neutral), size = 22.dp) }
                 }
             }
-        },
-        onClick = { onJump(i) },
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-    )
+        }
+        // A60 (VLL): a hairline between songs to delineate the dense list. outlineVariant at full weight
+        // (the M3 standard divider) — the earlier 0.4-alpha version read as almost invisible on the
+        // light paper theme. The heavier group divider (main ↔ "On call") still reads as a section break.
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
 }
 
 /** Approx page aspect (w/h) used to reserve a scroll item's height before its bitmap has decoded. */

@@ -82,4 +82,43 @@ class SongDrawerTest {
         assertNull(songMetaLine(s, -1))
         assertNull(songMetaLine(s, 5))
     }
+
+    @Test
+    fun drawerRows_listsEverySong_numberedFrom1() {
+        // A60 P1 (reachability) + P2 (numbering): a setlist longer than any screen still yields a row
+        // per song, and the running order is numbered 1..N. The old direct-into-ColumnScope drawer laid
+        // rows out with no scroll, so past-the-fold songs were unreachable; this guards the model half.
+        val songs = (1..22).map { song(1, title = "S$it") }.toTypedArray()
+        val rows = drawerRows(state(*songs))
+        val songRows = rows.filterIsInstance<DrawerRow.Song>()
+        assertEquals(22, songRows.size)                        // every song is present (reachable)
+        assertEquals((1..22).toList(), songRows.map { it.number })    // numbered 1..22 in order
+        assertEquals((0..21).toList(), songRows.map { it.songIndex }) // original indices drive the jump
+        assertEquals(DrawerRow.Header("Songs"), rows.first())        // header reads as a header, first
+    }
+
+    @Test
+    fun drawerRows_benchSeparated_unnumbered_afterMain() {
+        // T23 + A60 P2/P3: "on call" songs form a second group — a Divider + "On call" header — and are
+        // NOT numbered (deliberately not in the running order). Original indices survive the partition.
+        val rows = drawerRows(state(song(1, title = "A"), song(1, title = "B", onCall = true), song(1, title = "C")))
+        val songRows = rows.filterIsInstance<DrawerRow.Song>()
+        assertEquals(listOf(0, 2, 1), songRows.map { it.songIndex }) // main A(0),C(2) then bench B(1)
+        assertEquals(listOf(1, 2, null), songRows.map { it.number }) // main 1,2 ; bench unnumbered
+        assertEquals(
+            listOf(DrawerRow.Header("Songs"), DrawerRow.Header("On call")),
+            rows.filterIsInstance<DrawerRow.Header>(),
+        )
+        assertEquals(1, rows.count { it is DrawerRow.Divider })
+    }
+
+    @Test
+    fun drawerRows_noBench_hasNoDividerOrSecondHeader() {
+        // With no "on call" songs there is exactly one header and no separator — the divider is a group
+        // separator, not a per-header decoration (P3).
+        val rows = drawerRows(state(song(1), song(1)))
+        assertEquals(0, rows.count { it is DrawerRow.Divider })
+        assertEquals(1, rows.filterIsInstance<DrawerRow.Header>().size)
+        assertEquals(listOf(1, 2), rows.filterIsInstance<DrawerRow.Song>().map { it.number })
+    }
 }

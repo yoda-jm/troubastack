@@ -33,6 +33,9 @@ class StageViewModel(
     )
     val state: StateFlow<StageState> = _state.asStateFlow()
 
+    // NOT the app's page navigation — production turns route through StageScreen's turnNext/turnPrev
+    // (mode-aware: pages, width-spreads, or scroll cross/step). These are page-±1 helpers used ONLY by
+    // StageViewModelTest to exercise goToPage's clamping; do not wire UI to them (A60 P5 note).
     fun next() = goToPage(_state.value.current + 1)
     fun previous() = goToPage(_state.value.current - 1)
 
