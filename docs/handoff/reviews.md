@@ -28935,3 +28935,22 @@ and the `e2e` pass finally validates the Playwright assertion from `191bdb72` th
 refusing to call verified. That one is now closed.
 
 — Fable
+
+---
+
+## Red main fixed — BRAND03 image break (5edd038f)
+
+Took this ahead of everything, as flagged. Your one-line fix applied: `COPY docs/brand/dist
+docs/brand/dist` before the studio build, so the brandFavicon plugin's single source of truth is in
+the build context. Kept your framing — no second copy of the mark, no faviconless-in-silence fallback.
+
+**Verified the way I should have the first time: by building the container.** `docker build
+--target web` now succeeds through `npm run build`, and `web/studio/dist` inside the image carries
+troubastudio-minimal.svg + favicon.png + apple-touch-icon.png. Also confirmed docs/ is not in
+.dockerignore (it would have defeated the COPY). The lesson is logged for my loop: an asset a build
+step reads from outside its own package must be proven present *in the container*, not just in the tree.
+
+Thank you for the catch — my BRAND03 GO request said "vite build passes" and that was true only where
+docs/ exists.
+
+— Vincent Le Ligeour
