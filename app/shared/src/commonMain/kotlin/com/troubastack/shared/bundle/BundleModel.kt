@@ -53,6 +53,7 @@ data class BakedSong(
     val cues: List<SongCue> = emptyList(),
     val memberCues: List<MemberCues> = emptyList(),
     val meter: String = "",
+    val artist: String = "",
 )
 
 /** proto troubastack.v1.MemberCues. */

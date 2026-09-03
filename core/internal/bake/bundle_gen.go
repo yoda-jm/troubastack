@@ -37,6 +37,7 @@ type BakedSong struct {
 	Cues           []SongCue    `json:"cues,omitempty"`
 	MemberCues     []MemberCues `json:"memberCues,omitempty"`
 	Meter          string       `json:"meter,omitempty"`
+	Artist         string       `json:"artist,omitempty"`
 }
 
 // MemberCues mirrors proto troubastack.v1.MemberCues.
