@@ -183,11 +183,14 @@ def _contrast(a: str, b: str) -> float:
 # BRAND06 part 2: the name and tagline are committed OUTLINE PATHS (wordmark_paths.py), not <text>.
 # {trouba} is the shared "Trouba" glyphs (base fill); {tail_path} the accent tail; {tagline_path} the
 # tagline. {tail} remains the plain STRING, used only for the accessible name/title.
+# The lockup is left-anchored in the source; wp.CENTER_DX[mark] translates it so the ink is HORIZONTALLY
+# CENTRED in the 900-wide box (each mark's name+tagline differ in width). Without this, anyone centring
+# the asset — e.g. the Studio login — centres the box's empty right margin instead of the logo.
 WORDMARK_TEMPLATE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220" \
 width="900" height="220" role="img" aria-label="Trouba{tail}">
 <title>Trouba{tail}</title>
-{ground}<path d="{trouba}" fill="{base}"/><path d="{tail_path}" fill="{accent}"/>
-<path d="{tagline_path}" fill="#A7ACB5"/>
+{ground}<g transform="translate({dx} 0)"><path d="{trouba}" fill="{base}"/><path d="{tail_path}" fill="{accent}"/>
+<path d="{tagline_path}" fill="#A7ACB5"/></g>
 </svg>
 """
 
@@ -201,7 +204,7 @@ def wordmark(mark: str, tail: str, tagline: str, ground: str | None,
     accent = ACCENT[mark]["paper" if ground is None else "dark"]
     return WORDMARK_TEMPLATE.format(tail=tail, ground=rect, base=base, accent=accent,
                                     trouba=wp.TROUBA, tail_path=wp.TAILS[mark],
-                                    tagline_path=wp.TAGLINES[mark])
+                                    tagline_path=wp.TAGLINES[mark], dx=wp.CENTER_DX[mark])
 
 
 def check(path: Path) -> None:
