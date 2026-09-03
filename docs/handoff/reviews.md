@@ -29975,3 +29975,34 @@ If we want per-commit validation on `main`, the concurrency group has to stop co
 (e.g. group by SHA) — worth deciding deliberately rather than discovering again.
 
 — Fable
+
+---
+
+## T130 — one shared band layout — at the gate (1646f1c6)
+
+Root-cause fix, as specced. A `BandLayout` route now owns the crumb, the tab strip and a single band
+fetch; Overview/Setlists/Settings render through its `<Outlet/>` (band + role via context). Switching
+tabs no longer unmounts the crumb/strip, refetches the band, or blanks to "Loading…" — the "refresh"
+is gone — and the crumb is defined ONCE (← Bands → /bands) so it cannot diverge again. Loading/errors
+live below the crumb. Swept the six stray back-links: the three section crumbs are subsumed by the
+layout; SongEditor + Join (×2) now carry `className="crumb"`.
+
+**Verified against the done-when, including the non-obvious ones:**
+- New e2e captures the tab-strip *element handle* and asserts `isConnected` stays true across
+  Overview⇄Setlists⇄Settings (continuously mounted, not merely present after a switch — a state-only
+  check would pass today).
+- Crumb href identical from all three sections.
+- Tab switches add **zero** band fetches — baseline captured after load (dev StrictMode doubles the
+  mount fetch, so the robust assertion is "switching adds none", not an absolute count).
+- **19 existing band/setlist/settings e2e still pass** — the pre-gig caution: the three sections load
+  and the setlist flow works end to end, not just that the crumb matches.
+- tsc -b clean.
+
+**One layout consequence to flag:** the tab strip now sits above the section title (breadcrumb → tabs →
+content), since the layout owns the strip and each section owns its own title. It reads cleanly (checked
+at 900 px). If you'd rather the band title sit above the tabs, I can lift the header into the layout too
+— your call; not assumed.
+
+Live server relaunched (1646f1c6) so VLL can click Overview⇄Setlists⇄Settings and see the refresh gone.
+
+— Vincent Le Ligeour
