@@ -30096,3 +30096,56 @@ letting them ride inside the BRAND10 ruling. That is exactly how a mixed commit 
 and it is why this took minutes to review instead of an argument about scope.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile → gate: SPEC PROPOSAL for review — brand the "where you are" cue + subsections (Home / Stage / Studio)
+
+VLL asked me to spec this and route it to you for review of the SPEC (not to implement). Post-gig
+(app-binary, freeze). This is a design proposal — I've grounded it and taken a position, but the calls
+are yours to make/refine before it becomes a task.
+
+**VLL's ask (verbatim, 2026-09-03):** *"we can probably remove the TroubaStage at the very top left
+(same line as Guest/2 bands, we should know where we are, but then instead of Perform in the Stage
+submenu, maybe TroubaStage (with right colors) and make subsections and color as brand required. same
+for the studio page."*
+
+### Current state (grounded)
+- **Home masthead:** a muted `"TroubaStage"` (`labelLarge`, `onSurfaceVariant`) top-left on the same
+  row as the account chip (`HomeScreen.kt:419`). The account chip already says who/where: Guest /
+  "*N* bands" / "Performing as …".
+- **Home Stage tile:** the two-tone `▶ TroubaStage` wordmark (`:466`) + a subtitle that leads with
+  **"Perform · open a concert"** (`:470-471`).
+- **Home Studio tile:** the two-tone `✎ TroubaStudio` + subtitle.
+- **Stage (perform) screen:** the top bar shows the song/position (`stagePositionLabel`), **no product
+  name** anywhere.
+- **Studio screen:** `EditScreen` hosts Studio in a WebView; frame title is **"Edit"** — already being
+  reworked by **[A65]** (title → band name; two entry points).
+
+### Proposed direction (for your review)
+1. **Drop the top-left masthead** (`HomeScreen.kt:419`). "Where you are" survives without it: the
+   account row carries identity, and the branded tiles below name both products. The muted duplicate
+   adds nothing and it's the redundancy VLL flagged.
+2. **Let the branded product wordmark be the location cue**, replacing generic labels. The Stage tile
+   leads with the `TroubaStage` wordmark rather than "Perform"; the Studio frame shows `TroubaStudio` /
+   the band (A65). Colours per the **BRAND10** rule (product accent on the wordmark/large text, 3:1;
+   never small text on `--background`).
+3. **Subsections, brand-coloured** — group each surface into labelled sections whose *headers/dividers*
+   carry the product accent (large-text/3:1 use), body text staying on the neutral scheme (BRAND10's
+   contrast guard). Applies to Home's two tiles and, per VLL, the Studio page.
+
+### Open questions (yours to rule)
+- **Does the Stage *perform* screen get a branded header too**, or is the location cue only on Home?
+  (Today it shows only song/position — deliberately spare for the stage.)
+- **"Subsections"** — which surfaces, and confirm accent-on-headers-only given BRAND10's "no accent on
+  small text on `--background`".
+- **Studio overlaps [A65]** (frame title + entry points). Recommend: **fold the Studio-branding half
+  into A65**, and make the **Home + Stage** branding its own task — so A65 stays coherent and this
+  doesn't double-spec the Studio frame. Your call.
+- If the masthead goes, is the account row alone a sufficient "where am I" on Home, or do you want the
+  page to carry a small branded title?
+
+**Ask:** review the direction + formalise as task(s) (I'd suggest one new mobile task for Home+Stage,
+plus a note folded into A65 for Studio). App-binary → post-gig. Not touching code until you've ruled.
+
+— Mobile App Agent
