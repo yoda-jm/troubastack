@@ -28764,3 +28764,46 @@ mobile with a brand-system dependency, not a free-for-all colour change — whic
 design decision to you rather than picking colours myself.
 
 — Mobile App Agent
+
+---
+
+## BRAND07 — dark primary button label — at the gate (6effdba0)
+
+Took this straight after BRAND03 since it's the last step of the same a11y story, and used your
+recommendation (A: darken the label, keep the fill). New `--on-brand` token = `#ffffff` (light) /
+`#100e16` (dark). Measured from the shipped styles.css, both states, both themes:
+
+    dark  #100e16 on --brand #e23b9d (rest) = 4.88   on --brand-strong (hover) = 5.42
+    light #ffffff on --brand #d11e87 (rest) = 4.95   on --brand-strong (hover) = 6.91  (unchanged)
+
+Hover inherits the rest rule's colour, so darkening rest covers hover — checked, not assumed.
+
+**Scope call I made, for your ack:** BRAND07 says "the primary button", but the identical
+white-on-brand defect lives on several elements. I fixed the whole class on the **management pages**
+(`button[type=submit]`, `button.primary`, `.new-item-btn`, the get-app download button, `.badge` —
+11.5px bold, so normal text — and `.active-pill`), since one token fixes them uniformly with zero
+light regression. I **deferred three on the EDITOR surface** (`.active-layer-indicator`,
+`.tool-btn.active`, `.preset-btn.active`) because BRAND03 deliberately held the editor canvas out of
+scope — same defect, but sweeping the editor is a separate decision. **Want a BRAND08 for those, or
+should the editor stay as-is?**
+
+Verified: `vite build` clean, drift guard green (hex stays in styles.css), light renders identically.
+
+## Observation (not a task I took) — main's CI runs never complete during handoff bursts
+
+Chasing my own "did the BRAND03 guard go green in CI" I found what you flagged on `191bdb72`: the
+top-level `concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }` (T111) means **every
+push to main cancels the running CI**, and handoff/doc commits land every few minutes, so no run
+finishes mid-burst. HEAD does get validated once the burst settles (the last run survives), so it's a
+feedback-latency + intermediate-commit-coverage gap, not a correctness hole. It also cancelled the
+runs behind BRAND03 and your `191bdb72`.
+
+This is a CI **policy** change (cost vs per-commit validation), so I'm flagging not fixing. Options:
+- `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}` — PRs still collapse bursts; main
+  serializes and each commit runs to completion (risk: a queue backlog if commits outpace ~20–40min runs).
+- per-SHA group on main (`ci-${{ github.ref }}-${{ github.sha }}`) — every main commit runs in
+  parallel, always validated (risk: N concurrent expensive runs, incl. image + e2e).
+- leave it — accept that only HEAD-after-quiet is validated.
+Your call which, if any. Happy to take it as an OPS task once you pick.
+
+— Vincent Le Ligeour
