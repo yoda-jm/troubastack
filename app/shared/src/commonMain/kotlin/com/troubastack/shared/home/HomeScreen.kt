@@ -1,5 +1,7 @@
 package com.troubastack.shared.home
 
+import com.troubastack.shared.ui.LocalBrandAccents
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -431,17 +433,20 @@ fun HomeScreen(
                 }
             }
 
+            // BRAND09: the two tiles wear their PRODUCT accent (this-is-that-product content), while
+            // act-here chrome (Resume, the perform action) keeps the indigo primary — A36's one-hue
+            // rule scoped to chrome, per the gate ruling. Accents are theme-aware via LocalBrandAccents.
+            val accents = LocalBrandAccents.current
             // TroubaStage · Perform — the ONE big primary tile (the on-stage button). A36: warm paper
-            // surface + an indigo outline (the brand accent), not a lavender fill — matches the
-            // website's ochre-paper-with-indigo look instead of reading as stock Material purple.
+            // surface; BRAND09: a Stage-accent outline + heading so the tile identifies the product.
             Card(
                 onClick = onPerform,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                border = BorderStroke(1.5.dp, accents.stage),
             ) {
                 Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("▶  TroubaStage", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                    Text("▶  TroubaStage", style = MaterialTheme.typography.headlineSmall, color = accents.stage)
                     Text(
                         when {
                             state.lastConcertName.isNotEmpty() -> state.lastConcertName
@@ -487,8 +492,11 @@ fun HomeScreen(
                 enabled = studioEnabled,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    // BRAND09: a CONNECTED tile looks connected — a branded studioActive fill; the
+                    // disabled fill is studioIdle, DERIVED from the same accent, so "grey ⇒ disabled"
+                    // reads reliably instead of the old neutral surfaceVariant used for both states.
+                    containerColor = accents.studioActive,
+                    disabledContainerColor = accents.studioIdle,
                 ),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
@@ -496,7 +504,7 @@ fun HomeScreen(
                     Text(
                         "✎  TroubaStudio",
                         style = MaterialTheme.typography.titleLarge,
-                        color = if (studioEnabled) MaterialTheme.colorScheme.primary
+                        color = if (studioEnabled) accents.studio
                         else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )
                     Text(

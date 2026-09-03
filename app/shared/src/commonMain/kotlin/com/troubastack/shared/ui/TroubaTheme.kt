@@ -5,6 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -105,7 +108,48 @@ enum class ThemePref {
  * the Parameters screen can override the system setting. Use this at BOTH entrypoints in place of a
  * bare `MaterialTheme`.
  */
+/**
+ * BRAND09 — per-PRODUCT, per-GROUND brand accents, kept OUT of `colorScheme` (which is one indigo
+ * chrome hue, A36) because these say "this is that product", not "act here". Provided by [TroubaTheme]
+ * so light/dark is resolved once here, never as raw hex at a call site. Values from BRAND06's ACCENT
+ * table; the [studio]/[stage] accents may carry a mark, border, icon, or heading (large text / 3:1) but
+ * NOT small text on `--background` (measured: Studio dark is the strict case). [studioActive] is the
+ * CONNECTED Studio tile's background — branded, so a connected tile looks connected — and [studioIdle]
+ * is DERIVED from it (same family, desaturated) so "grey ⇒ disabled" stays a reliable signal.
+ */
+@Immutable
+data class BrandAccents(
+    val stage: Color,
+    val studio: Color,
+    val studioActive: Color,
+    val studioIdle: Color,
+)
+
+private val BrandAccentsLight = BrandAccents(
+    stage = Color(0xFF936B1F),        // BRAND06 paper — 4.74 on surface, 3:1 large on bg
+    studio = Color(0xFFD62A8A),       // BRAND06 — 4.54 on surface, 3:1 large on bg
+    studioActive = Color(0xFFF8E4F0), // a light studio tint: a connected tile reads active/branded
+    studioIdle = Color(0xFFEDE7EA),   // derived from studio, desaturated → the "off" of the same family
+)
+
+private val BrandAccentsDark = BrandAccents(
+    stage = Color(0xFFC8912A),        // BRAND06 dark — 6.88 on bg
+    studio = Color(0xFFD62A8A),       // BRAND06 dark — 3:1 large on bg/surface
+    studioActive = Color(0xFF2E1823), // a dark studio tint
+    studioIdle = Color(0xFF221C20),   // derived, desaturated
+)
+
+/** BRAND09 accents for the current theme. Reads the value [TroubaTheme] provided for this ground. */
+val LocalBrandAccents = staticCompositionLocalOf { BrandAccentsLight }
+
+/**
+ * Wrap the app in the brand palette. Light/dark is driven by [dark] — pass a resolved [ThemePref] so
+ * the Parameters screen can override the system setting. Use this at BOTH entrypoints in place of a
+ * bare `MaterialTheme`.
+ */
 @Composable
 fun TroubaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (dark) BrandDark else BrandLight, content = content)
+    CompositionLocalProvider(LocalBrandAccents provides if (dark) BrandAccentsDark else BrandAccentsLight) {
+        MaterialTheme(colorScheme = if (dark) BrandDark else BrandLight, content = content)
+    }
 }
