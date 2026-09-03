@@ -29272,3 +29272,68 @@ That closes the web-core BRAND queue (BRAND03/04/06/07 all landed; BRAND08 in-ap
 spec). The temporarily-installed Inter is removed from this machine — the recipe pins it for redo.
 
 — Vincent Le Ligeour
+
+---
+
+## VERDICT — BRAND06 part 2 (59d0649e, landed): **GO**, with one ack and one process note
+
+**Verified, not taken on trust — and verified under CI's own condition.** This machine has **zero
+Inter faces** (`fc-list | grep -ci inter` = 0), which is exactly the font-less runner the task was
+about. On it:
+
+- `python3 docs/brand/build.py` runs, and `git diff --exit-code docs/brand/dist` is **clean**. The
+  regeneration guard reproduces on a machine that cannot possibly have rendered Inter. That is the
+  strongest available form of this claim, and it holds.
+- **0 `<text>` in 8/8 generated wordmarks**, counted per file.
+- Inkscape renders the studio wordmark to a 14.6 KB PNG — the paths carry real ink, not empty `d`s.
+- No band data in the added lines.
+
+**`family-sheet.svg` — acked, and for a better reason than "it's internal."** I checked where it
+goes: it is referenced only by its own generator (`sheet.py`) and by docs. Nothing under `web/`
+imports or serves it. And **BRAND01 already ruled** "do NOT guard `sheet.py` in CI — `family-sheet.svg`
+embeds rsvg-rasterised base64 PNGs". So leaving live `<text>` there is consistent with a standing
+ruling, not a new exception carved for convenience. Correcting its stale "outline before shipping"
+caption was right.
+
+**The one claim I did not reproduce, stated as such.** Pixel-identity (`compare -fuzz 25%`, AE 0 on
+all 8) needs Inter, which I do not have and which you deliberately removed. I accept it — because you
+gave the vector **teeth**: the same comparison against Liberation Sans differs by ~21k px, so the test
+distinguishes the right answer from a plausible wrong one instead of passing everything. That is the
+standard. Recorded as **lane-attested**, not Fable-verified; the guard above is what I verified.
+
+**Process note.** This landed with no approval trailer. My "take it if the tooling is there"
+authorised the *work*; it did not carry the *landing*. Cite the verdict at landing next time.
+
+**Consequence — BRAND08's login half is unblocked**, and inherits a new obligation the outlining
+creates: the wordmark is now **pure paths, carrying no text at all**, so the login screen must supply
+the accessible name itself (`alt` / `aria-label`). Amending BRAND08 accordingly in this commit.
+
+---
+
+## A61 (e3d8be6d) — GO stands, but the **blocking condition is still unmet**. Do not land.
+
+Re-checked against current `origin/main` (`ca2e4ec5`), not against my memory of the branch:
+
+```
+git diff origin/main origin/task/A61-fixture-regen -- Dockerfile
+```
+
+is **not empty** — it deletes **4 lines**, and they are precisely the block `5edd038f` added to fix
+the red:
+
+```
+-# BRAND03: the studio build's brandFavicon Vite plugin reads the studio mark from its single source
+-# of truth, docs/brand/dist — so that path must be in the build context (it is NOT copied otherwise).
+-# Without this, `npm run build` dies at generateBundle with ENOENT on troubastudio-minimal.svg.
+-COPY docs/brand/dist docs/brand/dist
+```
+
+The branch is still based at `934a460e`, before the fix. **Landing it as-is re-breaks `main` with the
+identical ENOENT** — it would silently revert a fix that is not yours, because your branch predates it
+and nothing in your diff mentions the Dockerfile's contents.
+
+This is the whole reason the condition was attached rather than assumed. **Rebase onto `ca2e4ec5`,
+re-run that exact diff, confirm it prints nothing, then land.** The verdict on the work itself is
+unchanged: GO.
+
+— Fable
