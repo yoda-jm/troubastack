@@ -804,13 +804,39 @@ private fun SettingsSheet(
                     ) { Text(label) }
                 }
             }
-            // A1/Q3 — ROLE-FIRST: picking a role seeds the right layers for the whole concert; most
-            // users never open Layers. Layers is the demoted "Advanced" exception and scopes to the
-            // CURRENT song only (per-song, A1). Order reflects that: Role, then day/night, then Layers.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onRole, modifier = Modifier.weight(1f)) { Text(if (state.role.isEmpty()) "Role" else "Role: ${state.role}") }
-                OutlinedButton(onClick = onToggleColor, modifier = Modifier.weight(1f)) { Text(colorMode.label()) }
-                if (state.layers.isNotEmpty()) OutlinedButton(onClick = onLayers, modifier = Modifier.weight(1f)) { Text("Layers…") }
+            // A63 — the three controls were three OutlinedButtons drawn identically, none labelled, so
+            // they read as one kind of thing (VLL misread the colour value as a label like the reading
+            // row above). Now each carries a titleSmall label like "Reading mode"/"Auto-update", the
+            // button carries the VALUE, and Role/Layers each say what they scope. A1/Q3 order: Role first
+            // (seeds layers for the whole concert; most never open Layers), then Colour, then Layers.
+            //
+            // Role — the chooser (onRole opens a picker; roles are an unordered set, so a "…" affordance,
+            // never ‹ › which would imply a sequence). Its subtitle is the real fix for "I don't know
+            // what Role does".
+            SettingRow(
+                label = "Role",
+                subtitle = "Which annotation layers you see — for the whole concert.",
+                button = if (state.role.isEmpty()) "Choose…" else "${state.role}  …",
+                onClick = onRole,
+            )
+            // Colour — deliberately a one-tap CYCLE, not a picker: this is the on-stage control, and the
+            // full four-scheme chooser lives in Home → Parameters (A63/Fable). The button shows the
+            // current scheme so it no longer reads as a bare noun.
+            SettingRow(
+                label = "Colour",
+                subtitle = "Tap to cycle · Normal · Warm · Night · Amber. Pick one in Parameters.",
+                button = colorMode.label(),
+                onClick = onToggleColor,
+            )
+            // Layers — the demoted "Advanced" per-song exception (A1); it OVERRIDES the role's choice for
+            // the current song only. Shown only when the current song has layers to toggle.
+            if (state.layers.isNotEmpty()) {
+                SettingRow(
+                    label = "Layers",
+                    subtitle = "Override which layers show — for this song only.",
+                    button = "Open…",
+                    onClick = onLayers,
+                )
             }
             // Scheme-A sweep: auto-update lives in the sheet (not just the ● chrome FAB) and is
             // tagged personal — pulling new bakes only changes YOUR view, never a bandmate's.
@@ -827,6 +853,22 @@ private fun SettingsSheet(
                 }
             }
         }
+    }
+}
+
+/**
+ * A63 — one labelled control in the ⚙ sheet: a titleSmall label + a one-line "what it affects"
+ * subtitle on the left (matching the Auto-update row), the current VALUE as an OutlinedButton on the
+ * right. This is what turns three look-alike chips into three self-describing controls.
+ */
+@Composable
+private fun SettingRow(label: String, subtitle: String, button: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.titleSmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+        }
+        OutlinedButton(onClick = onClick) { Text(button) }
     }
 }
 
