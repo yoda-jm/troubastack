@@ -479,11 +479,14 @@ fun HomeScreen(
                     }
                     if (state.lastConcertName.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
+                        // BRAND09 (VLL): Resume is the Stage action, so it wears the Stage gold. stageInk
+                        // is the theme-resolved readable ink on that gold — white on the darker light-mode
+                        // gold (#936B1F, 4.8:1), dark on the brighter dark-mode gold (#C8912A, 7.5:1).
                         Surface(
                             onClick = onResume,
                             shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            color = accents.stage,
+                            contentColor = accents.stageInk,
                         ) {
                             Text(
                                 "Resume «${state.lastConcertName}»",
@@ -509,13 +512,15 @@ fun HomeScreen(
                 enabled = studioEnabled,
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    // BRAND09: a CONNECTED tile looks connected — a branded studioActive fill; the
-                    // disabled fill is studioIdle, DERIVED from the same accent, so "grey ⇒ disabled"
-                    // reads reliably instead of the old neutral surfaceVariant used for both states.
-                    containerColor = accents.studioActive,
-                    disabledContainerColor = accents.studioIdle,
+                    // BRAND10 (VLL ruling): BOTH tiles are outlined on the default surface — no fill in
+                    // any state. The BORDER carries the connected signal (accent when connected,
+                    // neutral outlineVariant when disabled — measured ΔE 73–82, plainly visible), so
+                    // there is no grey fill token to reintroduce.
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
                 ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                border = if (studioEnabled) BorderStroke(1.5.dp, accents.studio)
+                else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (studioEnabled) {
@@ -570,7 +575,7 @@ private fun UpdateRow(status: UpdateStatus, onUpdate: () -> Unit, onCancel: () -
     if (status is UpdateStatus.Hidden) return
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
@@ -631,7 +636,7 @@ private fun BakeRow(status: BakeStatus, canReBake: Boolean, concertName: String,
     if (status is BakeStatus.Hidden && !canReBake) return
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
@@ -644,7 +649,9 @@ private fun BakeRow(status: BakeStatus, canReBake: Boolean, concertName: String,
                     Text(
                         if (concertName.isNotEmpty()) "Re-bake «$concertName»" else "Re-bake concert",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // VLL: re-bake is always available on ask, so the label is ink, not greyed —
+                        // a muted label read as "disabled" next to an active button.
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
                     )
                     Button(onClick = onReBake) { Text("Re-bake") }

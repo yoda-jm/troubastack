@@ -113,30 +113,28 @@ enum class ThemePref {
  * chrome hue, A36) because these say "this is that product", not "act here". Provided by [TroubaTheme]
  * so light/dark is resolved once here, never as raw hex at a call site. Values from BRAND06's ACCENT
  * table; the [studio]/[stage] accents may carry a mark, border, icon, or heading (large text / 3:1) but
- * NOT small text on `--background` (measured: Studio dark is the strict case). [studioActive] is the
- * CONNECTED Studio tile's background — branded, so a connected tile looks connected — and [studioIdle]
- * is DERIVED from it (same family, desaturated) so "grey ⇒ disabled" stays a reliable signal.
+ * NOT small text on `--background` (measured: Studio dark is the strict case). BRAND10: both Home tiles
+ * are OUTLINED on the default surface — the [studio] accent is the connected border, dropping to a
+ * neutral `outlineVariant` when disabled, so the border (not a fill) carries the state. [stageInk] is
+ * the readable text on the Stage-gold Resume fill (theme-resolved).
  */
 @Immutable
 data class BrandAccents(
     val stage: Color,
+    val stageInk: Color,
     val studio: Color,
-    val studioActive: Color,
-    val studioIdle: Color,
 )
 
 private val BrandAccentsLight = BrandAccents(
     stage = Color(0xFF936B1F),        // BRAND06 paper — 4.74 on surface, 3:1 large on bg
+    stageInk = Color(0xFFFFFFFF),     // white on the darker light-mode gold — 4.8:1 (the Resume fill)
     studio = Color(0xFFD62A8A),       // BRAND06 — 4.54 on surface, 3:1 large on bg
-    studioActive = Color(0xFFF8E4F0), // a light studio tint: a connected tile reads active/branded
-    studioIdle = Color(0xFFEDE7EA),   // derived from studio, desaturated → the "off" of the same family
 )
 
 private val BrandAccentsDark = BrandAccents(
     stage = Color(0xFFC8912A),        // BRAND06 dark — 6.88 on bg
+    stageInk = Color(0xFF1A1206),     // near-black on the brighter dark-mode gold — 7:1 (the Resume fill)
     studio = Color(0xFFD62A8A),       // BRAND06 dark — 3:1 large on bg/surface
-    studioActive = Color(0xFF2E1823), // a dark studio tint
-    studioIdle = Color(0xFF221C20),   // derived, desaturated
 )
 
 /** BRAND09 accents for the current theme. Reads the value [TroubaTheme] provided for this ground. */
