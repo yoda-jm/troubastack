@@ -29741,3 +29741,76 @@ Live server relaunched after each; the login logo is now centred and two-tone. m
 of it (CI concurrency fix holding — every commit runs to completion now).
 
 — Vincent Le Ligeour
+
+---
+
+## A-POSTERIORI VALIDATION — the seven that landed while I was unavailable
+
+VLL: *"some things might have landed without your approval while you were overloaded, you can validate
+them a posteriori."* Checked all seven for an approval citation and for band data — **all seven cite
+one** (VLL directly, or my A62 verdict), and **none contains band data**. The discipline held without
+me, which is the part worth recording.
+
+`430cfb34` CI concurrency · `d0472014` BRAND08 login · `c330b5aa` masthead two-tone · `15d5ef29`
+wordmark centring · `fbe0c1f9` A62 · `8cdba69e` A63 · `72735804` BRAND09.
+
+**`430cfb34` is the important one and it is right:** `cancel-in-progress` now applies to PRs only, so
+`main` runs always complete. That removes the cause of the 28-run cancellation chain at the source
+rather than asking everyone to police their push cadence — better than the shared rule I proposed.
+
+**`fbe0c1f9` (A62)** matches what I reviewed in the worktree, and device verification is recorded.
+
+---
+
+## → WEB-CORE — T130 filed: the band's three sections should share one layout
+
+[`T130-band-sections-share-one-layout.md`](../tasks/T130-band-sections-share-one-layout.md) · M
+
+**VLL:** *"back to bands is not coherent between Overview, Setlist and Settings … this is super odd …
+also the whole page seems to refresh, is it normal?"* **Both observations have one root cause**, which
+is why it is one task.
+
+`App.tsx:42-44` registers the three as **unrelated sibling routes**, and each page renders the crumb
+and `SectionTabs` **itself**. So a tab switch unmounts the whole page — strip and crumb included —
+remounts a different one, refetches the same band, and gates the entire render behind
+`return <div className="page">Loading…</div>` (`BandDetail:61`, `Setlists:102`, `BandSettings:44,53`).
+
+**Answering the question directly: it is not a browser refresh** — `SectionTabs` uses `<Link>`, routing
+is client-side. What he sees is the strip vanishing and the content blanking. The Settings tab can even
+flicker, since `showSettings` comes from each page's own fetch.
+
+**And the crumb is incoherent because it is written three times, so it diverged:** Overview says
+"← Bands" → `/bands`; Setlists and Settings say "← Back to band" → `/bands/:id`; and Setlists' link is
+**missing `className="crumb"`**, so it is styled differently too.
+
+**The sweep VLL asked for — 6 back links missing `crumb`:** `Setlists:114`, `SongEditor:58`,
+`Join:63`, `Join:74`, and the two **error-state** crumbs `BandDetail:54` / `BandSettings:48`. The last
+is the sharp one: BandSettings sends you to `/bands` on error but `/bands/:id` on success — **the
+destination changes depending on whether a fetch failed.** `SetlistDetail:72,93` is the well-formed
+example; copy it.
+
+Fix is a shared layout route owning the crumb, the strip and one band fetch, with `<Outlet/>`. Deleting
+two of the three crumb copies is what makes divergence impossible again.
+
+---
+
+## → MOBILE — BRAND10 filed on the landed BRAND09 (`72735804`)
+
+[`BRAND10-product-name-two-tone-and-symmetric-tiles.md`](../tasks/BRAND10-product-name-two-tone-and-symmetric-tiles.md) · S · after the gig
+
+BRAND09's machinery is right — theme-aware tokens, no raw hex at call sites, a derived idle. Three
+things about what it does with them:
+
+1. **The whole product name wears the accent** (`Text("▶  TroubaStage", color = accents.stage)`), which
+   **contradicts the web**: `c330b5aa` already made the masthead two-tone on VLL's ruling, and the
+   wordmark is built that way (BRAND06 stores `TROUBA` once plus a per-mark accent tail). Rule: ink for
+   `Trouba`, accent for the suffix only — **and re-check the web**, only the masthead was fixed.
+2. **The tiles use two treatments** — Stage an accent border on the default ground, Studio a `#F8E4F0`
+   fill. Give Stage a fill too (`#F7EEDC` light / `#2A2113` dark, measured: accent-on-tint 4.18 / 5.69,
+   body text 14.86 / 12.27). Dropping Studio's fill instead would regress the connected signal.
+3. **⚠ Mine, not VLL's, and it defeats the point:** connected vs disabled differ by **ΔE 6.83** light
+   and **9.23** dark — and **the two states are never seen side by side**, so the user judges from
+   memory. That is not a signal. Tint-vs-surface is 12.20 and reads clearly, so **target ΔE ≥ 12
+   between the states**, with the shipped pair asserted as a case that must FAIL.
+
+— Fable
