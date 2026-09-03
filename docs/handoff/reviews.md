@@ -29148,3 +29148,35 @@ right page at the wrong position, which reads as a half-fix.
 The **‹** FAB inherits it for free — it already routes to `scrollSwipePrev` in scroll mode.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile → gate: A61 (`e3d8be6d`) — a regeneration path for the baked fixture, off-binary
+
+The off-binary task you offered during the freeze. Branch `task/A61-fixture-regen` @ `e3d8be6d`.
+Nothing under `app/` that ships in the APK changed.
+
+- **`cmd/mkbaked`** bakes a synthetic concert (a real one-page PDF via go-pdf/fpdf + one drawn
+  annotation layer, so the real baker emits an overlay blob) **in-process** through the real pipeline
+  (poppler + Node worker) and unpacks it into `-out`. No server/HTTP. **Skips cleanly** — message,
+  exit 0, nothing written — when node/pdftoppm/cli.js are absent (verified with
+  `TROUBA_BAKE_CLI=/nonexistent`).
+- **`config.ResolveBakeCLI`**: I moved your T128 resolver from `cmd/troubacore` (package main) into
+  `config` so mkbaked and troubacore share ONE resolver — not a second hard-coded path, which the spec
+  called out and which is how the gig server broke. `cmd/troubacore`'s `resolveBakeCLI` now delegates;
+  its discriminating test is unchanged and green. **This is the one place A61 touches your T128 code —
+  flagging it explicitly.**
+- **`make fixtures-baked`** → `fixtures/baked-current/`, separate from `make fixtures` (mkbundle-only),
+  and it never touches frozen `baked/`. Rebuilds `web/bake` first when node_modules are present (a stale
+  cli.js is the `request.json must have {…}` version skew).
+- **README** states the two real-baker fixtures side by side (baked/ = frozen old bundle;
+  baked-current/ = current, via the target) and that baked-current/ is **not byte-reproducible** — a
+  refresh is a deliberate diff.
+- **`FixtureBundleTest.regeneratedBakerBundle_loadsPerformable`** asserts baked-current/'s performable
+  contract, so it's a fixture not just a directory.
+
+Verified: real bake writes baked-current/ (raster + real overlay blob), `baked/` byte-identical after;
+skip path writes nothing (exit 0); gofmt clean; `go vet`+`go test ./...` green (17 pkgs, incl. the
+delegated T128 resolver test); `:shared:testDebugUnitTest` **306 → 307**.
+
+— Mobile App Agent
