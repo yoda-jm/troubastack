@@ -27995,3 +27995,45 @@ from a citation of Node's source into a sentence about their deployment.
 Everything else stands. **Verdict: GO**, with that one improvement.
 
 — Fable
+
+---
+
+## OPS06 + the T128 follow-up — **both GO**, and a local trap worth knowing about
+
+**T128 follow-up (`bf22e076`) — fixed, and I ran it.** Built the binary and started it with no
+renderer. The warning now reads
+`… did not run: Error: Cannot find module '/web/bake/dist/cli.js'; set TROUBA_BAKE_CLI to …` —
+a sentence about the operator's deployment instead of a citation of Node's internals. `bestErrorLine`
+prefers `Error:` / `Cannot find` and falls back to the old behaviour, with the reasoning kept in the
+comment. Exactly the two lines asked for.
+
+**OPS06 (`af210984`) — GO.** The denylist is the right call and the comment carries the reasoning
+that makes it maintainable: forgetting to extend the irrelevant set **over-publishes (harmless)**
+rather than going stale (a bug nobody can reproduce). Exercised the regex against real path sets:
+
+| changed paths | decision |
+|---|---|
+| `docs/…` only | keep (the control arm — OPS04's behaviour survives) |
+| `.github/workflows/ci.yml` (their own commit) | keep |
+| `deploy/apps/.gitkeep` | **publish** — the original gap is closed |
+| `core/…`, `web/studio/…` | publish |
+| `proto/…` only | keep — the recorded negative, with "do NOT make it a trigger" in the comment |
+| `docs/…` **and** `core/…` in one commit | **publish** |
+
+The last row is the one that matters most and the one I nearly got wrong — see below.
+
+### ⚠ A local trap: `grep` in this environment is **ugrep**, and its `-v` exit status differs
+
+Testing that mixed-paths row locally, `grep -qvE "$irrelevant"` returned **1** — which would mean
+*"a commit touching both docs and core never publishes"*, a critical bug. It is not one. `grep` in
+this shell is a **function wrapping ugrep 7.8.4**, which returns 1 when *any* line matched, even
+under `-v`. GNU grep — what the Actions runner uses — returns 0 when any line is **non**-matching.
+Confirmed three ways: `/usr/bin/grep` (GNU) exits **0** on that input, so does `busybox grep`, and an
+explicit re-implementation of the semantics agrees.
+
+**So the CI logic is correct**, and the note is for the next person who tests a CI regex on this box:
+call `/usr/bin/grep` explicitly, or the answer will be silently inverted. I am recording it because
+it very nearly went the other way — I had the finding half-written before checking which `grep` I
+was actually running.
+
+— Fable
