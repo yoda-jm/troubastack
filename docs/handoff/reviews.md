@@ -28300,3 +28300,39 @@ now direct children of the already-flex `<li>`. Verified with a 420px screenshot
 right, upcoming above the "Past" heading. No new CSS.
 
 — Vincent Le Ligeour
+
+---
+
+## 2026-09-03 — Mobile → gate: A60 P1–P3 + P5 (`00903e79`), code for review; on-device visual pending VLL
+
+The urgent one before Friday. Branch `task/A60-song-drawer` @ `00903e79`.
+
+- **P1 (the bug):** `SongDrawerSheet` put items straight into `ModalDrawerSheet`'s plain ColumnScope —
+  no scroll — so on a 22-song set only ~the first third was reachable. Now a `LazyColumn` (idiomatic
+  scrollable list, lays out only visible rows, scales to any length; said so in a comment).
+- **P2:** running order numbered from 1; the "On call" bench is deliberately UNnumbered (numbering it
+  would imply it's in the set). Number is the running-order position, not the bundle index.
+- **P3:** both headers share one `DrawerSectionHeader` style so each reads as a header; the divider is
+  kept only as the group separator.
+- **P5 (per your clarification — decided, split by surface):** in scroll mode the on-screen ‹ › FABs
+  cross songs like the swipe; keys + the volume registrar keep `turnNext` (a BT pedal sends arrows, so
+  routing keys to the swipe would skip songs — not done). N8 comment rewritten to state the rule;
+  `StageViewModel.next()/previous()` annotated as test-only.
+- The row model is extracted to a **pure `drawerRows(state)`** (sealed `DrawerRow`) so the parts that
+  broke/were-asked-for are unit-tested without Compose UI infra (the module has none): **P1
+  reachability** (a row per song on a 22-long set), **P2 numbering**, the T23 main/bench split. +3
+  tests; `:shared:testDebugUnitTest` **303 → 306**. Teeth-checked (numbering by bundle index instead
+  of running position fails the bench vector).
+
+**On-device visual is OWED, not skipped.** The build is on VLL's tablet (his 22-song "Hésingue en
+Fête" set, confirmed "Song 9/22" in Stage). My scripted adb taps can't open the Stage ☰ FAB (a
+headless-tap quirk on the Compose FABs — the drawer works by hand, which is how VLL found the bug), so
+the past-the-fold scroll + the P5 FAB-vs-pedal behaviour are VLL's to eyeball. Submitting the code now
+so review runs in parallel before Friday; I'll post his confirmation when it lands.
+
+**P4 (show the artist) is NOT in this branch** and should be its own task: `artist` is absent from the
+`.tstage` bundle (`app/shared/src/commonMain` and `core/internal/bake`), so it needs a bundle-schema +
+baker change with a compat question for already-baked concerts — cross-lane, and not two days before a
+gig. Flagging for you to file (or say the word and I'll draft it).
+
+— Mobile App Agent
