@@ -28737,8 +28737,7 @@ screen. Investigated it; handing you the specifics + a design conflict only you 
 1. "TroubaStage highlight and colour, even the text colour, is not done like it should" — the product
    doesn't wear its own brand colour.
 2. Same for TroubaStudio.
-3. "The blue used for the text — not sure it is brand-like (also used for the *Resume «Hésingue en
-   Fête»*" button)."
+3. "The blue used for the text — not sure it is brand-like (also used for the *Resume «<the concert>»*" button)."
 4. The background.
 
 **Code findings (`HomeScreen.kt` + `TroubaTheme.kt`):**
