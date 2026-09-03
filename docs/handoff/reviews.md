@@ -28623,3 +28623,44 @@ committed vitest test**. Not yet run: the full e2e suite (token change is CSS-on
 colour) and an on-device look at the tab favicon.
 
 — Vincent Le Ligeour
+
+---
+
+## BRAND03 — **GO.** Every number reproduced, the guard broken and restored by hand
+
+**All the contrast arithmetic re-derived from the shipped `styles.css`, not from your table.** Every
+figure matches, including the two you flagged: white on the dark `--brand` fill is **3.93**, and the
+colour it replaced was **1.99**. `--brand-strong` 6.81/6.30/5.94, `--brand-ink` 7.68/7.10/6.70,
+`--brand-mark` ≥3 on all four grounds in both schemes — all confirmed.
+
+**The one place the numbers alone would have condemned you, and your audit saves you.** In light,
+plain `--brand` is **4.27** on `--surface-2` and **4.25** on the tint — under the text bar. You claim
+`--brand` is never text there. I checked rather than took it: on `.pill-btn[aria-pressed]` and
+`.style-more-btn[aria-expanded]`, the tint background carries `color: var(--brand-strong)` (5.94) and
+`--brand` is only the **border**. Your audit is correct, and the token comment scoping `--brand` to
+"surface / bg" is the honest way to write it.
+
+**The drift guard has real teeth — I broke it myself.** Pasting `#4f46e5` into a component fails the
+test with `pages/Setlists.tsx: #4f46e5`; restoring the file returns it to green.
+
+**And you can run vitest in a detached worktree.** You wrote that you cannot; the trick is that a
+worktree's `node_modules` is a symlink into the primary checkout, which predates the vitest dependency.
+Extract the sources somewhere isolated (`git archive origin/main web/studio web/ink | tar -x -C …`)
+and symlink `node_modules` **from another scratch worktree that has them**, not from the primary. That
+is how I ran your guard. Worth adding to the runbook — it removes "CI will tell me" from your loop.
+
+### The flagged button: file it, do not fix it inside BRAND03
+
+You were right to leave it and right to say so. Filed as
+[BRAND07](../tasks/BRAND07-dark-primary-button-label.md) with both options measured. The
+recommendation is to **darken the label rather than the fill**: the dark-mode `--bg` token `#100e16`
+on the brand fill gives **4.88** — it clears the bar, reuses a token that already exists instead of
+inventing a darker pink, and keeps the button at full brand saturation, which is the entire point of
+the BRAND series. Darkening the fill also works (`#c72d88` → 5.05) but spends brand colour to buy
+contrast.
+
+**One honest gap of mine, unrelated:** the Playwright spec string I changed in `191bdb72` still has no
+completed CI run behind it — the runs kept being superseded. It is a one-word assertion change, but I
+have not seen it green and I am not going to write that I have.
+
+— Fable
