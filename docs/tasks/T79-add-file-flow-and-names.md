@@ -29,7 +29,7 @@ same. VLL wants the three entries kept (not merged), made homogeneous.
    - **from scratch** → **the song's own title**, not `New chart`.
 3. **Fix the naming wart this creates today.** T72 correctly made the pool name a create-time
    default that never re-derives — but the from-scratch path creates the file while the
-   source still reads `# New chart`, so retitling the chart to *Hotel California* leaves the
+   source still reads `# New chart`, so retitling the chart to *Riverside Waltz* leaves the
    row reading **"New chart"** forever. Defaulting the stub to the song's title (both the
    `# Title` line and the pool name) fixes it at the source. Do **not** "follow the title
    while it is still the default" — that reintroduces the clobbering T72 removed.
@@ -45,7 +45,7 @@ same. VLL wants the three entries kept (not merged), made homogeneous.
    - **`webapi.go:920` serves song-file bytes as `Content-Disposition: inline;
      filename="<Filename>"`.** It is `inline` (the viewer renders it), but that name is the
      hint the browser uses for *Save as* from the PDF viewer — so a stripped name would save
-     as `Hotel California` with no extension.
+     as `Riverside Waltz` with no extension.
 
    **Decision:** keep the stored/display name clean and derive the extension from
    `ContentType` when writing the header (`application/pdf` → `.pdf`). Storage stays tidy;
@@ -56,9 +56,9 @@ same. VLL wants the three entries kept (not merged), made homogeneous.
 - The three entries are visually and behaviourally homogeneous: same placement and styling,
   same dialog shell, same primary action, same landing (appended, visible, named).
 - Default names per §2, verified for each entry; a from-scratch chart on song *Hotel
-  California* lands named **Hotel California** (not "New chart"), and its `# Title` matches.
-- Uploading `scan_001.pdf` lands as **`scan_001`**; uploading `Hotel California.pdf` lands as
-  **`Hotel California`**.
+  California* lands named **Riverside Waltz** (not "New chart"), and its `# Title` matches.
+- Uploading `scan_001.pdf` lands as **`scan_001`**; uploading `Riverside Waltz.pdf` lands as
+  **`Riverside Waltz`**.
 - Server: `Content-Disposition` for a song file carries `<name>.pdf` for a PDF even though the
   stored name has no extension — unit test on the header for a stored name with and without
   an extension (existing files keep theirs and must not double up: `x.pdf` → `x.pdf`, never

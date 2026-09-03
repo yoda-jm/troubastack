@@ -14,7 +14,7 @@ test("Files: from-scratch defaults to the song title; upload drops the extension
 }) => {
   await register(page, `t79_${stamp()}`);
   await createBandAndOpen(page, `T79Band ${stamp()}`);
-  await createSongAndOpen(page, "Hotel California");
+  await createSongAndOpen(page, "Riverside Waltz");
 
   const panel = page.getByTestId("details-panel");
   await page.getByTestId("my-files-edit").click();
@@ -22,10 +22,10 @@ test("Files: from-scratch defaults to the song title; upload drops the extension
 
   // From scratch → the stub carries the song title, not "New chart".
   await panel.getByTestId("new-text-chart").click();
-  await expect(panel.getByTestId("chart-source")).toHaveValue(/# Hotel California/);
+  await expect(panel.getByTestId("chart-source")).toHaveValue(/# Riverside Waltz/);
   await expect(panel.getByTestId("chart-source")).not.toHaveValue(/New chart/);
   await panel.getByTestId("chart-save").click();
-  await expect(panel.getByTestId("file-download")).toHaveText(/^Hotel California$/); // no ".pdf"
+  await expect(panel.getByTestId("file-download")).toHaveText(/^Riverside Waltz$/); // no ".pdf"
 
   // Upload sample.pdf → lands as "sample" (extension stripped from the pool name).
   await panel.getByTestId("file-input").setInputFiles(PDF_PATH);

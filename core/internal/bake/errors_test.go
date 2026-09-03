@@ -41,7 +41,7 @@ func seed1Annotated(t *testing.T) (*app.Service, *engine.Engine, app.User, strin
 	u, _ := svc.Register("admin", "Admin", "password123", "")
 	band, _ := svc.CreateBand(u, "Band")
 	sl, _ := svc.CreateSetlist(u, band.ID, "Gig", "", "", "")
-	song, _ := svc.CreateSong(u, band.ID, "Dirty Old Town", "")
+	song, _ := svc.CreateSong(u, band.ID, "Harbour Lights", "")
 	if _, err := svc.UploadSongFile(u, band.ID, song.ID, "score.pdf", "application/pdf", []byte("%PDF-1.4 fixture")); err != nil {
 		t.Fatalf("upload: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestBakeErrors_rasterFailure_namesTheSong(t *testing.T) {
 		t.Fatal("bake should have failed (raster errors)")
 	}
 	assertUserSafe(t, "raster POST body", err.Error())
-	if !strings.Contains(err.Error(), "Dirty Old Town") || !strings.Contains(err.Error(), "sheet music") {
+	if !strings.Contains(err.Error(), "Harbour Lights") || !strings.Contains(err.Error(), "sheet music") {
 		t.Errorf("message should name the song and the sheet-music problem, got %q", err.Error())
 	}
 	if !strings.Contains(logbuf.String(), "broken xref") {

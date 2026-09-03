@@ -95,7 +95,7 @@ produce a wall of text:
   changes — regenerate it and say so; it is the point of this task, not a surprise. Check
   whether any baked demo part is a text chart and, if so, re-bake `demo-concert.tstage` and
   note it in `docs/demo/README.md`.
-- Before/after renders of the same real chart (VLL's *Hotel California* shape: several
+- Before/after renders of the same real chart (VLL's *Riverside Waltz* shape: several
   sections, chord rows with `(…)` notes) attached to the handoff — this is a visual change and
   the gate reviews it on pixels.
 - T70's body-preservation and T73's no-mojibake assertions stay green; `gofmt -l core` clean;

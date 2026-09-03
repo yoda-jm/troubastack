@@ -18,17 +18,17 @@ func TestTextChartFilenameSurvivesEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	song, err := st.svc.CreateSong(admin, band.ID, "Hotel California", "Eagles")
+	song, err := st.svc.CreateSong(admin, band.ID, "Riverside Waltz", "The Riverside Trio")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	chart, err := st.svc.CreateTextChart(admin, band.ID, song.ID, "# Hotel California\nEagles\n\n## Verse\nAm\nline\n")
+	chart, err := st.svc.CreateTextChart(admin, band.ID, song.ID, "# Riverside Waltz\nThe Riverside Trio\n\n## Verse\nAm\nline\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if chart.Filename != "Hotel California" {
-		t.Fatalf("default filename = %q, want %q (title, no .pdf)", chart.Filename, "Hotel California")
+	if chart.Filename != "Riverside Waltz" {
+		t.Fatalf("default filename = %q, want %q (title, no .pdf)", chart.Filename, "Riverside Waltz")
 	}
 
 	newName := "Guitar/Bass"
@@ -41,7 +41,7 @@ func TestTextChartFilenameSurvivesEdit(t *testing.T) {
 	}
 
 	edited, err := st.svc.SaveChartSource(admin, band.ID, song.ID, chart.ID, renamed.Revision,
-		"# Hotel California\nEagles\n\n## Intro\nAm E7\n\n## Verse\nAm\nline\n")
+		"# Riverside Waltz\nThe Riverside Trio\n\n## Intro\nAm E7\n\n## Verse\nAm\nline\n")
 	if err != nil {
 		t.Fatal(err)
 	}

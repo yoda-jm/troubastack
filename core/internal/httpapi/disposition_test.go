@@ -9,7 +9,7 @@ func TestDownloadFilename(t *testing.T) {
 	cases := []struct {
 		name, contentType, want string
 	}{
-		{"Hotel California", "application/pdf", "Hotel California.pdf"}, // clean name → gains .pdf
+		{"Riverside Waltz", "application/pdf", "Riverside Waltz.pdf"}, // clean name → gains .pdf
 		{"scan_001", "application/pdf", "scan_001.pdf"},
 		{"x.pdf", "application/pdf", "x.pdf"},            // already has it → no double
 		{"x.PDF", "application/pdf", "x.PDF"},            // case-insensitive: still no double

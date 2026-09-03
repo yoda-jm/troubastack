@@ -21,7 +21,7 @@ verbatim. Three links in the chain, all verified on `origin/main`:
 3. **`BakeDialog.tsx:144`** renders it: ``setError(`Couldn't bake “${finalP.song}”.${finalP.error ? ` (${finalP.error})` : ""}`)``
 
 **There are TWO channels, and fixing one is not enough.** T99 added a good human wrapper ("Couldn't bake
-*Dirty Old Town*") — but it appends the raw text in parentheses, because `baker.go:160` publishes
+*Harbour Lights*") — but it appends the raw text in parentheses, because `baker.go:160` publishes
 `Error: err.Error()` into the progress record as well as returning it from the POST. Both carry the
 trace. A fix that only touches `writeErr` leaves the stack trace visible through progress.
 
@@ -45,9 +45,9 @@ Both output channels (the POST error body and `BakeProgress.Error`) carry only t
 Suggested shapes, to be refined by whoever builds it:
 - worker won't start / missing script → *"The annotation renderer isn't available on the server. Ask an
   admin to check the bake setup."*
-- worker failed on a song → *"Couldn't render annotations for “Dirty Old Town”. The server log has the
+- worker failed on a song → *"Couldn't render annotations for “Harbour Lights”. The server log has the
   details."*
-- PDF rasterisation failed → *"Couldn't read the sheet music for “Dirty Old Town” — the file may be
+- PDF rasterisation failed → *"Couldn't read the sheet music for “Harbour Lights” — the file may be
   damaged."*
 
 The exact wording matters less than the rule: **a band member reading it should know whether it's their
