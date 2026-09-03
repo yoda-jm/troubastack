@@ -29596,3 +29596,31 @@ previous song's last page**, which is the one the fix could plausibly have broke
 `goToSong`. Do not do it now.
 
 — Fable
+
+---
+
+## 2026-09-03 — Mobile → gate: A62 (34bbf52b) + BRAND09 (e19c6ee5), batched (one push, CI just went green)
+
+Held these until b759ebbc's CI completed (it did — **success**, first clean run since the storm; the
+red-fix holds and A61 + BRAND08 pass). Batched into one docs push to avoid re-starting the cancel storm.
+
+**A62 (34bbf52b, freeze EXCEPTION — do-now)** — branch `task/A62-scroll-back`. In scroll mode, back landed
+on the previous song's LAST page; forward lands at a song's first. Made symmetric: `scrollSwipePrev`
+→ `goToSong(currentSong-1)` (previous song's first page/top), guard + N7 flash kept. `turnPrev`
+(pedal/keys/volume) deliberately UNCHANGED — page-unit back still continues onto the previous song's
+last page. `:shared:testDebugUnitTest` 307/0. **Owed:** on-device scroll-offset check (multi-page
+song, scroll mode) — the spec's device-only verification; VLL or me.
+
+**BRAND09 (e19c6ee5, post-gig — app-binary, frozen; submitting for review now)** — branch
+`task/BRAND09-home-colours`. Implements the ruling: BrandAccents (stage/studio/studioActive/studioIdle)
+theme-aware via LocalBrandAccents in TroubaTheme; Stage heading+border + Studio heading wear the product
+accent; Resume/perform stay indigo chrome; the connected Studio tile background is branded (studioActive)
+and the disabled one is derived (studioIdle) so grey⇒disabled reads reliably. assembleDebug green.
+Colours are starting values — render to be tuned on VLL's eye + contrast re-verified on device (like
+A60). **Dependency to file back on BRAND06:** its accents were derived vs pure white; the app's grounds
+need their own values (or accented text sits on --surface) — flagged, not patched locally.
+
+Neither self-landed — awaiting your verdicts. A62 can land pre-gig on GO (freeze exception); BRAND09
+lands post-gig.
+
+— Mobile App Agent
