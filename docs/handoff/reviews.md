@@ -30730,3 +30730,62 @@ sentence. e2e updated to assert the label + immediate (dialog-free) arm; 2/2 gre
 Relaunched the server so the corrected version is what's live.
 
 — Vincent Le Ligeour (night shift)
+
+---
+
+## 2026-09-04 — Mobile → gate: A65 REDESIGN proposal (VLL, paired) — re-spec/ratify before I build
+
+VLL and I paired on A65 this morning; he reshaped both halves. Routing it for your re-spec/ratify
+before any code (the A66 pattern). It's a coherent, **app-only-feasible** design, but it **overrides two
+explicit A65 rulings**, so it's yours to bless or redirect.
+
+### The redesign
+**Entry points (D1) — NATIVE lists, not a deep-link into Studio's own lists.** Instead of wiring
+`initialPath` to jump straight into Studio's band/concert lists, build two native lists on the Studio
+side of Home:
+- **Bands** — a native list of the user's bands (id + name). Tap → open the Studio WebView at that band.
+- **Concerts** — a native list of ALL concerts across bands, **merged and sorted by date, each showing
+  name + place**. Tap → open the WebView at that concert.
+
+Why VLL prefers it: the user taps a specific item, so the app always has the **exact** id to deep-link —
+**D1's "which band is current?" ambiguity disappears entirely** (no guessing, never the wrong band). It
+also keeps **Resume** where it belongs (Stage/perform world, the Home Stage tile) rather than blurring it
+into Studio browsing.
+
+**The QR (D2) — server issues the VALUE, native RENDERS it.** No Studio web present-route. `⋮ → Show
+band QR` opens a **native** present-view: the invite *link* (role + expiry + revoke) is created/served by
+the existing invite-links API (invite LOGIC stays server-side, I10 intact); the app just **draws the big
+room-facing QR from that URL** and keeps the screen awake. VLL's line: drawing a QR of a server-issued
+URL is presentation, not invite logic.
+
+### The two overrides (stated, not buried)
+1. A65 §1 said *"the deep-link capability is already built, simply unused — wire `initialPath`."* This
+   builds native lists instead (more UI, partly duplicates Studio's lists) — bought by killing the
+   current-band guess.
+2. A65 §3-4 said *"do not render invites natively; ZXing would be a second QR impl for no gain; build the
+   present view in Studio."* This renders natively. Rationale mirrors the Resume-gold override you later
+   ratified: the *logic* stays on one side (server), only the *pixels* move native.
+
+### Feasibility — app-only, evidence
+- **Bands list**: `GET /api/bands` already returns `{id, name}` (`HttpTransport` uses it today for the
+  label). ✓
+- **Concerts list by date + place**: **T131 already added `eventDate` + `venue`** (+ songCount, bake
+  state) to the concert-list response (`webapi.go:1024-1027`); the app's `AvailableConcert` just needs
+  those two fields deserialized (additive, P207-style). No server work. ✓
+- **Admin-gate** the QR item: `HttpTransport` already resolves `BandDetail.myRole == "admin"`. ✓
+- **Native QR render**: `zxing-core` is **already a dependency** (used for *decoding* scans today);
+  encoding is the same library — **no new dep**. ✓
+- **Invite value**: the invite-links API already mints/lists links (role/expiry/revoke). ✓
+
+### Open questions for you (Fable)
+- **Revoke on the native present-view**: a native "Revoke" button calling the server API, or deep-link to
+  Studio's `InviteLinks` for it? (Revoke is a server call either way.)
+- **The room link vs T122 defaults**: T122 made links single-use/expiring by default; a room QR needs
+  multi-use/no-expiry. Does the admin pick/create that link in Studio first (native reuses it), or does
+  the native view create a standing link (server call, terms shown on screen)?
+- **Lane**: this is now entirely mobile (no Studio web change) — confirm that's the intended split.
+
+**Ask:** re-spec/ratify this shape (or redirect), and I'll build it — it's app-only, so it can move fast.
+Branch `task/A65-studio` is stubbed, no code yet.
+
+— Mobile App Agent
