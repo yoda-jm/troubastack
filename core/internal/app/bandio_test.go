@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -233,7 +234,9 @@ func TestBandImport_AllOrNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases := map[string]func([]byte) []byte{
-		"formatVersion": func(z []byte) []byte { return retamper(t, z, func(m map[string]any) { m["formatVersion"] = 2 }) },
+		// 2 is now a valid version (v2 is the folder format T134 writes); an UNKNOWN version
+		// is the one that must be refused with a 400.
+		"formatVersion": func(z []byte) []byte { return retamper(t, z, func(m map[string]any) { m["formatVersion"] = 999 }) },
 		"missing-blob":  func(z []byte) []byte { return dropBlob(t, z) },
 		"bad-hash":      func(z []byte) []byte { return corruptBlob(t, z) },
 	}
@@ -528,30 +531,33 @@ func TestBandImport_ManifestInternalCollisions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cases := map[string]func(map[string]any){
-		"duplicate username (case-variant)": func(m map[string]any) {
-			members := m["members"].([]any)
-			m["members"] = append(members, map[string]any{
-				"id": "dup-user", "username": "MARIE", "displayName": "Dup", "role": "member",
+	// v2 (T134): members live in band.json; annotations live in annotations/<slug>.json.
+	cases := map[string]func([]byte) []byte{
+		"duplicate username (case-variant)": func(z []byte) []byte {
+			return retamper(t, z, func(m map[string]any) {
+				members := m["members"].([]any)
+				m["members"] = append(members, map[string]any{
+					"username": "MARIE", "displayName": "Dup", "role": "member",
+				})
 			})
 		},
-		"duplicate email": func(m map[string]any) {
-			members := m["members"].([]any)
-			m["members"] = append(members, map[string]any{
-				"id": "dup-mail", "username": "brandnew", "email": "marie@x.com", "displayName": "Dup", "role": "member",
+		"duplicate email": func(z []byte) []byte {
+			return retamper(t, z, func(m map[string]any) {
+				members := m["members"].([]any)
+				m["members"] = append(members, map[string]any{
+					"username": "brandnew", "email": "marie@x.com", "displayName": "Dup", "role": "member",
+				})
 			})
 		},
-		"duplicate object uuid": func(m map[string]any) {
-			for _, v := range m["annotations"].(map[string]any) {
-				song := v.(map[string]any)
-				objs := song["objects"].([]any)
-				song["objects"] = append(objs, objs[0]) // repeat objs[0].UUID
-				break
-			}
+		"duplicate object uuid": func(z []byte) []byte {
+			return retamperAnnots(t, z, func(a map[string]any) {
+				objs := a["objects"].([]any)
+				a["objects"] = append(objs, objs[0]) // repeat objs[0].uuid
+			})
 		},
 	}
-	for name, mut := range cases {
-		bad := retamper(t, good, mut)
+	for name, mangle := range cases {
+		bad := mangle(good)
 		tgt := newStack()
 		importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
 		if _, err := tgt.svc.ImportBand(importer, tgt.eng, bad, nil); !errors.Is(err, app.ErrInvalidInput) {
@@ -611,6 +617,25 @@ func retamper(t *testing.T, z []byte, mut func(map[string]any)) []byte {
 	mut(m)
 	files["band.json"], _ = json.Marshal(m)
 	return rezip(t, files)
+}
+
+// retamperAnnots mutates the first annotations/<slug>.json entry in a v2 zip (T134):
+// annotations no longer live in band.json.
+func retamperAnnots(t *testing.T, z []byte, mut func(map[string]any)) []byte {
+	files := unzip(t, z)
+	for name := range files {
+		if strings.HasPrefix(name, "annotations/") && strings.HasSuffix(name, ".json") {
+			var a map[string]any
+			if err := json.Unmarshal(files[name], &a); err != nil {
+				t.Fatal(err)
+			}
+			mut(a)
+			files[name], _ = json.Marshal(a)
+			return rezip(t, files)
+		}
+	}
+	t.Fatal("no annotations/*.json entry in the export")
+	return nil
 }
 
 func dropBlob(t *testing.T, z []byte) []byte {

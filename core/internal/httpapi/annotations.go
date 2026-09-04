@@ -309,47 +309,13 @@ func objectFromJSON(j objectJSON) domain.Object {
 }
 
 // ---- enum string maps ----
+// These delegate to domain (domain/enumwire.go) so the HTTP edge and the .tband v2
+// export share one encoding and cannot drift (T134). Thin wrappers keep the local
+// call sites unchanged.
 
-func zoneToString(z domain.Zone) string {
-	switch z {
-	case domain.ZoneConductor:
-		return "conductor"
-	case domain.ZoneShared:
-		return "shared"
-	case domain.ZonePersonal:
-		return "personal"
-	default:
-		return ""
-	}
-}
-
-func zoneFromString(s string) domain.Zone {
-	switch s {
-	case "conductor":
-		return domain.ZoneConductor
-	case "shared":
-		return domain.ZoneShared
-	case "personal":
-		return domain.ZonePersonal
-	default:
-		return domain.ZoneUnspecified
-	}
-}
-
-func accessToString(a domain.Access) string {
-	switch a {
-	case domain.AccessRO:
-		return "ro"
-	default:
-		return "rw"
-	}
-}
-
+func zoneToString(z domain.Zone) string     { return domain.ZoneToString(z) }
+func zoneFromString(s string) domain.Zone   { return domain.ZoneFromString(s) }
+func accessToString(a domain.Access) string { return domain.AccessToString(a) }
 func accessFromString(s string) domain.Access {
-	switch s {
-	case "ro":
-		return domain.AccessRO
-	default:
-		return domain.AccessRW
-	}
+	return domain.AccessFromString(s)
 }

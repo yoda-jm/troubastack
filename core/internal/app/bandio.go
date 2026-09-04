@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"time"
 
@@ -343,38 +342,20 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		man.Setlists = append(man.Setlists, msl)
 	}
 
-	// Zip it: band.json + blobs/<hash>.
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	manBytes, err := json.MarshalIndent(man, "", "  ")
+	// Serialize as the v2 folder format (T134): band.json + repertoire.json + setlists.json
+	// + annotations/<slug>.json + cues.json, plus blobs/<hash>. We WRITE v2 always; the
+	// reader still accepts v1 (parseBandZip). The in-memory manifest gathered above is the
+	// shared shape both the v1 and v2 writers/readers translate through.
+	v2files, err := marshalV2(man)
 	if err != nil {
 		return nil, "", err
 	}
-	if w, err := zw.Create("band.json"); err != nil {
-		return nil, "", err
-	} else if _, err := w.Write(manBytes); err != nil {
-		return nil, "", err
-	}
-	// Deterministic blob order.
-	hashes := make([]string, 0, len(blobs))
-	for h := range blobs {
-		hashes = append(hashes, h)
-	}
-	sort.Strings(hashes)
-	for _, h := range hashes {
-		w, err := zw.Create("blobs/" + h)
-		if err != nil {
-			return nil, "", err
-		}
-		if _, err := w.Write(blobs[h]); err != nil {
-			return nil, "", err
-		}
-	}
-	if err := zw.Close(); err != nil {
+	zipBytes, err := writeV2Zip(v2files, blobs)
+	if err != nil {
 		return nil, "", err
 	}
 	filename := sanitizeFilename(band.Name) + "-" + s.now().UTC().Format("2006-01-02") + ".tband.zip"
-	return buf.Bytes(), filename, nil
+	return zipBytes, filename, nil
 }
 
 func sanitizeFilename(name string) string {
@@ -400,8 +381,12 @@ func sanitizeFilename(name string) string {
 // not collide with a different existing account. Writes nothing; shared by import +
 // import-preview (T63) so the rules can never drift between them.
 func (s *Service) validateImport(man bandManifest, blobs map[string][]byte) error {
-	if man.FormatVersion != BandExportFormatVersion {
-		return fmt.Errorf("%w: unsupported band export formatVersion %d (this server reads %d)", ErrInvalidInput, man.FormatVersion, BandExportFormatVersion)
+	// The formatVersion gate lives in parseBandZip (which dispatches v1/v2 and rejects the
+	// rest with a 400 before this runs). This belt-and-suspenders check keeps validateImport
+	// self-contained — it is shared by import + preview, both of which parse first — and
+	// accepts exactly the two versions the reader produces.
+	if man.FormatVersion != BandExportFormatVersion && man.FormatVersion != BandExportFormatVersionV2 {
+		return fmt.Errorf("%w: unsupported band export formatVersion %d (this server reads %d and %d)", ErrInvalidInput, man.FormatVersion, BandExportFormatVersion, BandExportFormatVersionV2)
 	}
 	songIDs := map[string]bool{} // orig songID
 	fileIDs := map[string]bool{}
@@ -839,29 +824,53 @@ func parseBandZip(zipBytes []byte) (bandManifest, map[string][]byte, error) {
 		return data, nil
 	}
 
-	var man bandManifest
-	haveManifest := false
+	// Read every entry through the decompression budget, partitioning blobs/ from the JSON
+	// files. Reading the JSON entries here (not just band.json) is what lets the v2 reader
+	// see repertoire.json / setlists.json / annotations/* — all still under the T63 bound.
+	entries := map[string][]byte{}
 	blobs := map[string][]byte{}
 	for _, f := range zr.File {
-		if f.Name == "band.json" {
-			data, err := readEntry(f)
-			if err != nil {
-				return bandManifest{}, nil, err
-			}
-			if err := json.Unmarshal(data, &man); err != nil {
-				return bandManifest{}, nil, fmt.Errorf("%w: band.json is not valid JSON: %v", ErrInvalidInput, err)
-			}
-			haveManifest = true
-		} else if strings.HasPrefix(f.Name, "blobs/") && !strings.HasSuffix(f.Name, "/") {
-			data, err := readEntry(f)
-			if err != nil {
-				return bandManifest{}, nil, err
-			}
+		if strings.HasSuffix(f.Name, "/") {
+			continue // directory entry
+		}
+		data, err := readEntry(f)
+		if err != nil {
+			return bandManifest{}, nil, err
+		}
+		if strings.HasPrefix(f.Name, "blobs/") {
 			blobs[strings.TrimPrefix(f.Name, "blobs/")] = data
+		} else {
+			entries[f.Name] = data
 		}
 	}
-	if !haveManifest {
+	bandJSON, ok := entries["band.json"]
+	if !ok {
 		return bandManifest{}, nil, fmt.Errorf("%w: archive has no band.json", ErrInvalidInput)
 	}
-	return man, blobs, nil
+
+	// The version is the file format's (T134): peek formatVersion, then dispatch. v1 is a
+	// single UUID-based manifest; v2 is the folder format spread across sibling files. Any
+	// other version is refused with a 400 — no migration code, per VLL's standing ruling.
+	var peek struct {
+		FormatVersion int `json:"formatVersion"`
+	}
+	if err := json.Unmarshal(bandJSON, &peek); err != nil {
+		return bandManifest{}, nil, fmt.Errorf("%w: band.json is not valid JSON: %v", ErrInvalidInput, err)
+	}
+	switch peek.FormatVersion {
+	case BandExportFormatVersion: // v1
+		var man bandManifest
+		if err := json.Unmarshal(bandJSON, &man); err != nil {
+			return bandManifest{}, nil, fmt.Errorf("%w: band.json is not valid JSON: %v", ErrInvalidInput, err)
+		}
+		return man, blobs, nil
+	case BandExportFormatVersionV2: // v2 folder format
+		man, err := parseV2(entries)
+		if err != nil {
+			return bandManifest{}, nil, err
+		}
+		return man, blobs, nil
+	default:
+		return bandManifest{}, nil, fmt.Errorf("%w: unsupported band export formatVersion %d (this server reads %d and %d)", ErrInvalidInput, peek.FormatVersion, BandExportFormatVersion, BandExportFormatVersionV2)
+	}
 }
