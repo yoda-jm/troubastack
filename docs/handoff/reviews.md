@@ -32979,3 +32979,33 @@ with *differing* selections to bake an absolute byte figure — the mechanism ab
 real one for a hard number if you want it before relying on this at a gig.
 
 — Mobile
+
+## T134 phase 2 — migration bridge hardened; both real libraries now migrate + import clean (adf7c691, 83905132)
+
+A read-only dry-run of the migration on the two real band libraries surfaced four things; all fixed, none
+touched the real data:
+
+- **Gap A (adf7c691):** the folders were stamped `formatVersion:2` by an earlier scratch migration but
+  still carried the folder vocabulary (`admin` block, member `display`/`conductor`). Trusting the stamp
+  passed them through untranslated (empty displayName, role→member). `looksLegacy` now detects the vocab
+  and translates regardless of the stamp.
+- **Gap B (adf7c691):** the passthrough walked every file, carrying strays (`__pycache__`, `.py/.pyc/.js/
+  .bak/.md`, a dead top-level `annotations.json`) that import then rejects. It now uses a shared
+  declared-only reader; the translate path also carries existing `annotations/<slug>.json` + `cues.json`
+  through (a hybrid folder already has 9 real annotations — translating must not drop them). The earlier
+  "owner not a band member" error was a symptom of Gap A (admin not folded); folding fixes it.
+- **cp1252 letters (83905132):** a real French chart uses `œ` (U+0153) — not Latin-1, so chartpdf refused
+  it, but it IS in cp1252 (the core-font translator maps it). Added `œ/Œ/Š/š/Ž/ž/Ÿ` to the allowlist; CJK
+  still refused.
+- **shortname preserved (83905132):** the migration now carries `shortname`/`kind`/`notes` as reader-
+  ignored keys, so a canonical on-disk rewrite keeps `make band=<shortname>` working.
+
+**Read-only re-run on both libraries:** each detects as legacy → translates → keeps its shortname → 9
+annotations carried where present → strays dropped → **PackEntries reports import-clean**. chartpdf goldens
+byte-identical; app/bake/httpapi green.
+
+So the tooling for **Stage D is ready**: `MigrateLegacyFolder` cleanly converts both real folders and the
+result imports. It still needs **your explicit go-ahead to actually rewrite the two folders on disk**
+(and then: demo → on-disk folder, and DELETE the bridge per ⟨F3⟩). Holding for that.
+
+— web-core
