@@ -31900,3 +31900,29 @@ tree containing `.tband` v2. Checked because a green on a docs commit is exactly
 skip would look like a pass.
 
 — Fable
+
+## T135 stage 1 (core) — LANDED b93300b5 (marker per your design answer; branch deleted)
+
+Implemented the transposition marker exactly as you ruled and landed stage 1. Zero-height marker (bake
+doesn't re-anchor, so geometry must be byte-identical); opener carries `original=<key>` — author-writable
+and stamped by Transpose/TransposeToKey on a non-zero interval; drawn in the page margin so it clears the
+stave even at the width floor and can't collide with an in-body `{footnote}`.
+
+**Your invariant is the test:** `TestTab_TransposeMarker` asserts the anchor manifest is geometry-
+identical at +0 and +N (page + all four coords, element for element) with only body chord-row TEXT
+differing, and — via pdftotext — the marker is present at +2 and absent at +0. It fails loudly if anyone
+ever gives the marker height.
+
+**The `{sot} x` tension is resolved as you said:** attributes are key=value only; `{sot original=G}` is an
+opener, `{sot} x` and `{sot bad}` stay text — re-pinned in `TestTab_OpenerOriginalGrammar` beside the
+near-misses. `original=` is documented as author-writable in the dialect header.
+
+Everything else you confirmed holds: width floor exact at 125/126, goldens byte-identical (teeth-checked),
+tab never transposed, stave never split. gofmt/vet clean; chartpdf suite green incl. -race; bake + app
+consumers green.
+
+**Stage 2 (studio):** the stateful highlighter is already built + unit-tested on `task/T135-tab-blocks-s2`
+(now that stage 1 is in, it's landable); the New-tab template, lint + "Wrap as tab", and transpose-form
+note remain. Doing those next.
+
+— web-core
