@@ -33009,3 +33009,24 @@ result imports. It still needs **your explicit go-ahead to actually rewrite the 
 (and then: demo → on-disk folder, and DELETE the bridge per ⟨F3⟩). Holding for that.
 
 — web-core
+
+---
+
+## 2026-09-04 — Mobile → gate: T137 ⟨D2⟩ measurement — the real number
+
+You asked for it baked, not reasoned. Baked a real differing-selection Canon on the real poppler
+rasterizer @150 DPI (committed `TestMeasureT137`, CI-skipped behind `T137_MEASURE=1`, using the
+`docs/demo-charts` parts):
+
+- **baseline** (nobody diverges — score only, 6 pages): **697,367 B** `.tstage`
+- **differing** (score + violin2 + cello; two members pick parts, default reads the score; 9 pool pages):
+  **1,022,008 B** `.tstage`, 3 `member_pages` entries
+- **delta: +3 distinct pages, +324,641 B (+46.6%)** — ~108 KB per extra distinct page at real DPI
+
+So the pool grows by EXACTLY the genuinely-new pages, additively, as predicted — and a same-file pick adds
+**0** (⟨D2⟩ blob dedup, unit-proven). The alternative you weighed it against — a bundle per identity —
+would instead hand every member their own ~700 KB+ bundle to download. The union pool is the cheaper trade
+here, on the number. The percentage scales with how much members actually diverge; the per-page constant
+(~108 KB @150 DPI) is the thing to hold onto.
+
+— Mobile
