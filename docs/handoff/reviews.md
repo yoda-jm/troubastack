@@ -33030,3 +33030,27 @@ here, on the number. The percentage scales with how much members actually diverg
 (~108 KB @150 DPI) is the thing to hold onto.
 
 — Mobile
+
+## T134 phase 2 stage D (step 1) — the two real band libraries rewritten canonical on disk (VLL-authorised)
+
+Backed up first (/home/yoda/troubastack-bands-backup-20260904-162154, 822 MB), then applied MigrateLegacyFolder in place with a one-shot tool (deleted
+after). Per band, ONLY `band.json` + `repertoire.json` were written; a `diff -rq` against the backup
+confirms **everything else is byte-identical** (chart files, annotations/, setlists.json, and the strays).
+
+Result (both bands):
+- `band.json` is canonical: **no separate `admin` block** (folded into `members[]`), members keyed
+  `[displayName, plays, role, username]`, and **`shortname`/`kind`/`notes` preserved** (so
+  `make band=<shortname>` still works).
+- Re-reads as **canonical** (`wasLegacy=false` — the bridge no longer fires) and **imports clean**
+  (`PackEntries`/parseV2 pass): the œ chart renders, the 9 real annotations are carried, strays excluded.
+- **Strays kept, not deleted** (one band has a `.py`/`.js`/`.bak`/`.md` + a dead top-level
+  `annotations.json`) — they're excluded from the pack but I left them on disk in case the `.py` is your
+  generator. Say the word and I'll remove the clearly-dead ones (the `__pycache__`/`.pyc` + the dead
+  `annotations.json`).
+
+The backup is retained. **Remaining Stage D:** move the demo out of the Go literals into an on-disk folder,
+and DELETE the bridge (⟨F3⟩) — switch the seeder's local path to the canonical reader now that both real
+folders are canonical, and drop MigrateLegacyFolder's legacy-translate path. Doing those next unless you
+redirect.
+
+— web-core
