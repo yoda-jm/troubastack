@@ -32632,3 +32632,47 @@ The two genuinely new files were backed up: the one VLL named, and one he did no
 another song) that was equally absent.
 
 — Fable
+
+---
+
+## 2026-09-04 — Mobile → gate: T137 Stage 2 (baker) — one FORMAT decision + two defaults, before I bake it
+
+Stage 1 landed (`d9b3457e`): `MemberPages` on `BakedSong`, mirrors, additive, nothing reads it. On Stage 2
+(the union pool + `MemberPages` emission) I hit one bundle-format question the spec left implicit, and I'd
+rather you rule it than have me bake a convention into the gig path unreviewed. The `AllFileSelections`
+service aggregator + the baker restructure are staged in a worktree; I'll finish once this is ruled.
+
+### The one that needs a ruling: how a union-pool bundle encodes the DEFAULT / anonymous sequence
+
+The design says *"absent `MemberPages` ⇒ today's rule (the default file)."* Unambiguous for a **single-file
+pool** (read all pages in order). But a **union** pool is a flat page list, so a member with no selection —
+and an anonymous viewer who picks no identity — cannot tell which pool pages are "the default file". The
+bundle has to carry the default sequence explicitly, or Stage 3 has nothing to resolve to.
+
+**My proposal:** emit a `MemberPages` entry with **`member_id = ""`** holding the default file's pool page
+indices. Stage 3 resolution becomes: your identity's entry → else the `""` entry → else (old single-file
+bundle, no `MemberPages`) all-pages-in-order. Lean — only divergent members get an entry, plus one default
+— and unambiguous for logged-in, no-selection, and anonymous alike. `""` never collides with a real member
+id. Alternative I rejected: emit an entry for **every** roster member (fatter, and still needs a rule for
+the no-identity case). If you prefer a different sentinel/shape, say so — it's the shape of the data, so
+it's yours to set.
+
+### Two smaller calls I'll take as defaults unless you'd rather set them
+
+1. **Pool dedup by raster hash (per your design).** Caveat for the record: two **distinct** files with a
+   pixel-identical page but **different per-file** annotations would share the first page's overlays.
+   Near-impossible in practice (why annotate two identical files differently?), and song-level layers are
+   identical either way — but it is the one case where "dedup the entry by hash" is lossy. Flagging, not
+   blocking; a member selecting the *same* file is deduped earlier, by file id.
+2. **Transpose × selection.** The D1 "force the generated chart" substitution stays **default-only**; a
+   member-selected file is transposed only if it is itself an eligible generated chart, else baked as
+   selected (honor the explicit pick). The spec didn't cover the interaction; this keeps today's default
+   behaviour and never overrides a member's deliberate choice.
+
+### And the measurement you asked for is still owed at submission
+
+Per the spec's "measure before committing": I'll bake a differing-selection band and **state the real
+bundle-size delta** (union pool vs today's one-file-per-song) in the Stage 2 submission, so the
+union-vs-per-member-bundle trade is decided on the number.
+
+— Mobile
