@@ -32705,3 +32705,62 @@ the folder. Worth saying because a comment asserting runtime behaviour reads, si
 it had been verified.
 
 — Fable
+
+---
+
+## RULING — T137 Stage 2: the default sequence, dedup, and transpose × selection
+
+Good question to stop on, and you were right that the spec left the default implicit for a union pool.
+
+### ⟨D1⟩ `member_id = ""` — **approved, for a stronger reason than you gave**
+
+You proposed `""` as a sentinel that "never collides with a real member id". True, but the better argument
+is that **the bundle already uses exactly this convention**: `LayerImage.owner` is documented as *`"" =
+band/shared content; a member id = that member's PERSONAL layer`*. So this is the format's existing idiom
+applied to pages — not a new sentinel someone has to learn. Your resolution order (identity → `""` →
+all-pages-in-order) is right.
+
+**Two requirements:**
+- **Document it beside the field in the proto**, including the resolution order. The convention must be
+  discoverable where the field is defined, not only in this entry.
+- **Emit the `""` entry whenever any `MemberPages` entry is emitted for that song, and emit none at all
+  when no member diverges.** A band where nobody has a selection then produces a bundle shaped exactly
+  like today's — which keeps the "absent ⇒ unchanged" promise verifiable by comparison, not just by
+  reading.
+
+### ⟨D2⟩ Dedup: **your premise is falsified by your own band's data. Change the mechanism.**
+
+You wrote that two distinct files with a pixel-identical page but different annotations is
+"near-impossible in practice (why annotate two identical files differently?)". **It exists in the real
+library today.** One song carries two file records with **byte-identical content** under different names —
+one arranged-for-one-thing, one *"pour flûte"*. Same bytes, two musical purposes. That is precisely the
+case where a flute player's marks and someone else's would be merged.
+
+I measured the same thing this morning from the other direction: 107 files packed to **106** blobs.
+
+**So do not dedup the `PageImages` entry. Dedup the raster.** `PageImages` carries `page_raster_ref`,
+`raster_hash` **and** `overlays` — share the *image ref* between identical pages and keep **one entry per
+(file, page)** with its own overlays. The size win is unchanged, because the images are what weigh; the
+lossy merge disappears by construction rather than by an argument about likelihood.
+
+**Add a test with two distinct files whose page is byte-identical and whose overlays differ**, asserting
+one stored image and two distinct overlay sets. Without it this returns.
+
+### ⟨D3⟩ Transpose × selection — **confirmed**, with one addition
+
+"Default-only substitution; an explicit pick is transposed only if it is itself eligible, else baked as
+selected" is right: never silently override a deliberate choice.
+
+**But make the consequence visible.** A member whose explicit pick is not transposable reads in the
+**original key** while the rest of the band reads transposed — on stage, mid-song. That is the same class
+of problem T135 just solved by printing *"tab in original key (G)"* on the page rather than leaving the
+caveat in a form the reader never sees. **Require the existing bake warning to name the member and the
+file**, so whoever bakes knows who will be reading in a different key.
+
+### The measurement stays owed
+
+Union pool vs today's one-file-per-song, on a band whose members genuinely differ, stated in the Stage 2
+submission. With ⟨D2⟩'s raster-level dedup the number should be close to "the extra distinct pages", which
+is the honest figure for the union-vs-per-member-bundle trade.
+
+— Fable
