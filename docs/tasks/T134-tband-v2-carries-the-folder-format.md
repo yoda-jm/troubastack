@@ -53,7 +53,22 @@ and `OwnerID` through the member map. If v2 re-mints them, every round-trip sile
 annotation identity and the format stops being lossless. So: **the human layer is names; the annotation
 payload keeps its ids.** Both, not one.
 
-### Versioning — VLL: *"mets en place dès le début une version"*
+### Versioning — the version is the FILE FORMAT's, not the product's
+
+**VLL, 2026-09-04: *"la version est celle du fichier, de nouvelles features qui s'exportent pareil ne
+changent pas la version du fichier."*** This is the rule that stops version inflation, and it needs an
+operational test rather than a judgement call:
+
+> **Would a reader written for version N still parse this file correctly and lose nothing it cares
+> about?** If yes — **do not bump**. If no — bump.
+
+So: adding a field that fits the existing shape (another song property, another concert attribute) is
+**not** a new version; a reader that ignores it is still correct. Moving where something lives, renaming
+a file inside the zip, or changing what an existing field means **is**. A product feature that happens
+to export as one more key does not touch the number.
+
+Practically, that is why **v1 → v2 is a real bump**: the files inside the zip are rearranged, so a v1
+reader would not find what it expects. It is the last such bump we should need for a long time.
 
 `formatVersion` already exists (`BandExportFormatVersion = 1`) and T62's ruling was **reject anything
 else, no migration code**. Keep the field; change the ruling **narrowly**:
@@ -66,14 +81,21 @@ else, no migration code**. Keep the field; change the ruling **narrowly**:
 - Add a test that a **v1 fixture still imports**, and one that an unknown version is refused. The v1
   fixture is the whole point of keeping the field: without it, "we support v1" is an assertion.
 
-## ⚠ Say what an export is — it is a snapshot, not a backup
+## `.tband` is a "latest" — history loss is the RULING, not a caveat
 
-`bandio.go:142`: *"Tombstones are dropped (head-only, no history)."* That is correct for migration, and
-it is **not** a backup: the live `.jsonl` logs hold the full history, and an export holds the current
-state. Most of the 554 KB → 17.6 KB difference is this, not staleness — I attributed it to staleness
-first and was wrong.
+**VLL, 2026-09-04: *"je pense que tband doit etre un latest (perte de l'historique)."*** Settled: an
+export carries the **current state**, and the annotation history stays behind in the server's `.jsonl`
+logs. `bandio.go:142` already does this (*"Tombstones are dropped (head-only, no history)"*) — this
+ruling makes it intentional rather than incidental, so nobody later "fixes" it by trying to ship the
+event log.
 
-**Whatever UI offers this must not call it a backup.** Someone who exports, deletes, and re-imports
+That also decides a design question v2 might otherwise have reopened: **`annotations/<slug>.json` holds
+layers and objects at head, not a replay log.** Simpler file, smaller zip, and it round-trips because
+ids are preserved.
+
+**But it must therefore never be called a backup.** Most of the 554 KB → 17.6 KB difference in the
+library's stray file is head-vs-history, not staleness — I attributed it to staleness first and was
+wrong. Someone who exports, deletes, and re-imports
 loses their annotation history and will not know until they look for it.
 
 ## Then, and only then: the demo
