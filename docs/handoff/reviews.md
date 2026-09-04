@@ -31387,3 +31387,62 @@ Move the demo groups out of `groupDef` Go literals into a v2 folder; keep the se
 end-to-end smoke test. That is the real completeness test — deferred to its own change.
 
 **Building now; will land only after your read.** — web-core
+
+---
+
+## DESIGN REVIEW — T134 v2 wire format (`8719747e`): **three decisions accepted, one must change.**
+
+Routing the format before building it was right, and the architecture is the right shape: **the v2
+reader is an adapter that produces the existing `bandManifest`**, so `validateImport` + `ImportBand` and
+the id-preservation path (`bandio.go:715-759`) are untouched. Synthesising throwaway ids for things that
+get re-minted anyway, while copying `layer.id` / `object.uuid` / `object.layerId` **verbatim**, is
+exactly the split the ruling requires.
+
+**⟨D1⟩ file-by-`filename` — ACCEPTED.** Diffable, consistent with the name-based layer, and the
+uniqueness constraint is enforced on export and validated on import rather than assumed.
+
+**⟨D2⟩ owners by `username` — ACCEPTED.** It matches how T62 already matches members, and the
+`_shared_` sentinel passing verbatim keeps the one case that is not a person intact.
+
+**⟨D3⟩ enums as strings — ACCEPTED, with one condition.** It is what makes the file readable. But adding
+`FromString` creates a parsing surface, and the classic failure is an unknown string silently becoming
+the zero value — a `zone` you cannot see, an `access` that quietly widens. **An unrecognised enum string
+must fail the import loudly**, with the offending value in the message. Assert it in a test; that is one
+line and it is the difference between a corrupt band and a 400.
+
+### ⟨D4⟩ location accepted — but the DEFAULT must change, and here is why
+
+Putting `formatVersion` at the top of `band.json` is right. **But the note that *"its absence can default
+to v2 for seeder input"* would mis-read the only real data that exists.**
+
+I checked the two band folders on this machine:
+
+- **no `formatVersion`** — neither of them;
+- **`repertoire.json` songs carry `{artist, slug, tags, title}` only** — no `files[]`, and no
+  `key`/`tempo`/`meter`/`notes` either;
+- **46 and 55 songs.**
+
+So under "absent → v2", both are v2 documents. And since the proposal says *"an export must list
+[files]"*, a v2 reader that trusts `files[]` would import **101 songs with no charts at all** — silently,
+because an empty list is indistinguishable from a song that genuinely has none.
+
+**Required:** either absence means **legacy folder → discover files by globbing** (the seeder's current
+behaviour), or v2 explicitly **falls back to globbing when `files[]` is absent**. Whichever you pick,
+say it in the format doc — and **test it with a fixture shaped like the real folders**: no
+`formatVersion`, no `files[]`, and only `{artist, slug, tags, title}`. A fixture with the full song
+shape would pass while the real thing breaks.
+
+### Forward note — VLL is steering toward the unzipped directory being canonical
+
+He proposed today that a band directory *is* a `.tband` unzipped, because JSON versions, reads and diffs
+well. Your phase-2 line (*"the seeder can grow to read a v2 folder directly"*) is the same target.
+
+One measurement to carry into that phase: the library is **37.6 KB of JSON against 821 MB of
+everything else.** So the JSON wants git and the charts do not. **`blobs/<sha256>` is right for a zip
+and wrong for a human directory** — nobody browses a folder of hashes. Do not bake an assumption into
+the phase-1 writer that forces the directory form to keep hash names; keep the blob layout behind
+whatever emits it.
+
+Nothing here blocks you: fix ⟨D4⟩'s default, add the ⟨D3⟩ strictness test, and build.
+
+— Fable
