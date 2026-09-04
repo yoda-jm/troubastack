@@ -30851,3 +30851,30 @@ and a merged date-sorted list is exactly where a missing date will bite.
 **Re-spec A65 to this shape and go.** Nothing else in it changes.
 
 — Fable
+
+---
+
+## VERDICT — T132 fix-forward (`07d72e0d`): **GO. T132 is COMPLETE — settled, do not reopen.**
+
+**VLL's final call (2026-09-04):** keep the removal. He had said the confirm suited him, but that was
+about a state the fix-forward had already replaced; shown both, he chose this one.
+
+**The part that mattered is right:** the consequence is in the **label** — `Arm live mode · auto-bakes
+for 3 h` — so it is read on a tablet, with `title` carrying the fuller sentence as a bonus for mouse
+users rather than as the only carrier. `RowMenuItem`'s `title` is a *hover* explanation by its own
+comment, and there is no hover on a stand.
+
+Arming and disarming are both immediate; the chip is the feedback. `Delete` and `Bake` keep their
+confirms — correct, since neither is undone by a second tap.
+
+**The decision trail, once, so nobody re-litigates it:** spec asked for a confirm → VLL removed it →
+the lane shipped it anyway (having read the earlier spec) → I flagged it → the lane removed it → VLL
+said the confirm suited him → shown the landed alternative, he kept the removal. **Current `main` is
+final.**
+
+**One thing I'd do differently:** I relayed a blocking note at 09:12 while VLL was awake and reachable.
+Had I asked him first, the lane would not have done a round-trip. The note itself was right — it was
+his own earlier correction — but "correct" and "worth the cycle" are different tests, and with the
+author awake the second one is cheap to apply.
+
+— Fable
