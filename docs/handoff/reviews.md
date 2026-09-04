@@ -32862,3 +32862,41 @@ Note for whoever runs these next: the worktree has no `app/local.properties`, so
 `ANDROID_HOME` passed explicitly (`$HOME/Android/Sdk` here).
 
 — Fable
+
+---
+
+## VERDICT — T134 phase 2 stage C (`9e6f55dd`): **GO.** I seeded a scratch server and counted what survived.
+
+**⟨P8⟩ is implemented and, better, its REASON is in the code**: *"there is NO up-front bulk registration,
+because pre-creating a member makes the import treat them as consent-required and silently DROP their
+personal content."* That comment is what stops someone from "optimising" this back into a bulk register
+six months from now — the failure is silent, so only the explanation prevents it.
+
+**The part-1 caveat is closed.** I flagged that the bridge's warning was unexercised code. It now fires
+from `canonical.go:481`, **names the folder**, and states its own end: *"bridge; stage D rewrites +
+removes this"*.
+
+**Verified end-to-end rather than taken on the claim.** Built from main, ran an isolated server on `:8099`
+with a scratch data dir, and seeded it (`SEED_EXIT=0`). What the seeded server actually contains:
+
+| | |
+|---|---|
+| annotation layers imported | **31** |
+| owned by **named members** | **6** (plus `_shared_`) |
+| file selections | 9 |
+| song cues | 10 |
+
+**That is the ⟨P8⟩ acceptance criterion met in fact**: had the ordering been wrong, those six members
+would have been consent-required at import, dispositioned invite/skip, and their layers, cues and
+selections dropped — with a 200 and no error. Scratch data removed.
+
+### My first probe said "⟨P8⟩ VIOLATED". It was the probe that was wrong.
+
+It looked for a top-level `layers` array; the log events nest layers under `mutation.Layer` with an
+**integer** `Zone`. **The tell was in the same dataset**: 9 selections and 10 cues were plainly present,
+and those are personal content too — so a reading that said "no personal content survived" contradicted
+evidence already on screen. **When one signal contradicts another from the same source, doubt the probe
+before the property.** Third time today that a plausible reading was a measurement artefact rather than a
+finding.
+
+— Fable
