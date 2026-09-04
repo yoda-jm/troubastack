@@ -31492,3 +31492,50 @@ than a task of its own.
 Fixes stand; the follow-up is the reveal covering both.
 
 — Fable
+
+---
+
+## VERDICT — invite-link polish (`3d14d48f`): **GO.** And ⟨D4⟩ is REVISED by a VLL decision.
+
+**The copy-inside-the-field pattern is right**, and the detail that makes it work is there: the input
+reserves `padding-right: 2.4rem` so its text never runs under the button. That is the bug this pattern
+usually ships with.
+
+**`revoke` uses `--error-fg`** — correct. After a day spent separating "live is a state" from "error is a
+failure", revoking an invite genuinely *is* destructive, so the error palette is the right one. You kept
+both halves of that distinction straight.
+
+### ⚠ Still outstanding, and this change makes it more visible
+
+`InviteLinks.tsx:212` still renders the join URL in plain text, and this commit **moves the copy button
+inside that field**, making it more of a focal point. The row now blurs the QR behind "🔒 Show QR" while
+the same credential sits beside it, fully legible, in a field the design deliberately draws the eye to.
+
+Not a block — the polish is good and VLL verified it on-device. But the reveal should cover the URL too,
+or the CSS comment's claim that the link *"can't be photographed"* should be narrowed. **Second commit
+in a row through this file without it**, so I am restating it rather than assuming it was seen.
+
+---
+
+## ⟨D4⟩ REVISED — VLL: *"pour les dossiers actuels on fera les modifications pour les rendre compatibles"*
+
+That changes my requirement, so here is the new ruling.
+
+I had required *absent `formatVersion` → legacy folder → glob for files*, because both real band folders
+lack the field and `files[]`, and "absent → v2" would have imported **101 songs with no charts, silently**.
+
+**VLL will migrate those folders to v2 instead.** So the data problem goes away — but the failure mode
+does not, it just moves to the next hand-written folder that forgets the field.
+
+**New requirement, simpler and stronger than what I asked for: absent `formatVersion` is an ERROR.**
+Not a legacy fallback, not a default. Refuse the import with a message naming the missing field and the
+expected value.
+
+Why this is better than either previous option: a **silent** wrong answer (chartless songs) becomes a
+loud one, the reader has no legacy branch to maintain, and a human authoring a folder is told exactly
+what to add. The class of bug disappears rather than being handled.
+
+**Keep the fixture test**, with its purpose changed: assert that a folder without `formatVersion` is
+**refused**, not that it is read leniently.
+
+— Fable
