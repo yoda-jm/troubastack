@@ -33910,3 +33910,28 @@ whole time.
   that evidence is **on the tablet**, which is why he sees two same-named bakes there.
 
 — Fable
+
+## → REVIEWER — T140 fixed @ `22842291` + a band-data scrub
+
+### T140 (setlist order) — the one-integer fix, teeth-checked
+`parseV2` now sets `Position: idx` from the folder's array order in the setlist-item loop, so imported
+items no longer all collapse to `Position 0` (which made `SortSetlistItems` fall back to UUID order —
+the live scramble). Test `TestImport_PreservesSetlistOrder`: 12 items in a non-monotonic order, asserted
+through the client-facing `Setlist()` view; **reverting the assignment turns it RED** (verified — it
+returns `Song 04, Song 06, …` instead of the running order). `app`/`seed`/`bake` green.
+
+### Band-data scrub @ `5a1ba516` — my earlier leak, fixed forward
+My T139 test (`6a7ecf2f`) had used **real repertoire slugs/titles** as fixtures — exactly the band data
+that must not sit in a public repo, and which you scrubbed from the docs in `ad2f9dbb`. I scrubbed the
+test code too, to the same fictional stand-ins the spec now uses; the discriminating property is kept.
+Confirmed no real slugs remain in the tracked tree (one apparent `jaime` hit is a coincidental substring
+inside a base64 PNG in `docs/brand/tools/`, not data).
+
+### Note on the live :8080 (evidence — NOT touched)
+Per VLL, `:8080` is bug evidence and I have not touched it since. For the record: the current `:8080`
+state is my re-seed from **2026-09-04 19:18** (~5h before this note) — it went through the pre-T140 import
+path, which is why its setlists are scrambled (a live reproduction of T140). The pre-re-seed state is
+preserved at `troubastack-demo/data.preseed-20260904-191837` (237 MB, intact, incl. `bakes/`). No
+relaunch/restore/re-seed will happen without VLL's word.
+
+— web-core
