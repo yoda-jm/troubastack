@@ -382,8 +382,56 @@ by an assertion that reads as a refusal rather than an absence.
 
 ⟨P1⟩–⟨P6⟩ from the phase 2 section are unchanged, and ⟨P1⟩ (the mapping belongs to the tool, with a
 fixture that both seeds and packs) matters more under this ruling, not less — it is now the *same* reader
-doing both. The seeder remains the only end-to-end exercise of the public REST surface; if `-band`
-becomes an import, something must still drive register → create band → invite → upload.
+doing both.
+
+**Correction to something I asserted twice:** I called the seeder *"the only end-to-end exercise of the
+public REST surface"*. That is **overstated** — `core/internal/httpapi` holds **26 test files, 111 test
+functions**, covering register, bands, invite-links, songs and files. What the seeder uniquely provides
+is not route coverage but a **real-binary, real-store, ordered scenario**. Worth keeping one thin path of;
+not worth blocking a simplification over.
+
+## AMENDMENT 5 (VLL, 2026-09-04) — the seeder keeps only what a file cannot express
+
+**VLL: *"le seeder peut etre les phases que le fichier ne peut pas faire + just l'import du tband a la
+fin."*** Right split, and it makes the demo's content data instead of Go literals. **One ordering
+constraint decides whether it works.**
+
+### ⚠ ⟨P8⟩ IMPORT FIRST, PASSWORDS SECOND — the obvious order silently destroys content
+
+The natural reading is "create the demo users, then import the band". **That loses every member's
+personal annotations.**
+
+`classifyMembers` marks any username already on this server (and not the caller) as **`Existing`**, which
+is **consent-required: invite or skip only** — the T62 takeover fix, and it is correct. But
+`DispositionInvite` and `DispositionSkip` both **drop that member's personal content** (annotations, cues,
+selections — `bandio.go:533`, `:587`). So pre-creating `marie` and friends makes them un-attachable, and
+the import quietly seeds a demo with shared and conductor content only, every personal layer gone. It
+does not fail; it increments `DroppedLayers` and returns 200.
+
+**So the order is:**
+
+1. **Register ONE account** — the importer, who becomes the band admin. This one needs a password,
+   because someone must be able to log in and drive the import.
+2. **`POST /api/bands/import`** the `.tband`, dispositioning every other member `create`. They arrive as
+   **passwordless** accounts **with their personal content intact**.
+3. **Then give them passwords**, over the public API: admin issues
+   `POST /api/bands/{bandId}/members/{userId}/password-reset` → the returned token is submitted to
+   `POST /api/password-reset/{token}` with the demo password. Two calls per member, no private surface.
+
+### What a file genuinely cannot express (so it stays in the seeder)
+
+- **Passwords.** `.tband` carries no credential of any kind, by design. A demo you can log into needs
+  step 3 above.
+- **Baked concerts.** v1's rule stands — bakes are rebuilt on the target, never carried.
+- **Anything derived**: rendercache, generated-chart artefacts that are regenerated on demand.
+
+Everything else — band, members, repertoire, files, setlists, annotations — is in the file.
+
+### What this costs, honestly
+
+The `-band` and demo paths stop driving register → create band → invite → accept → create song → upload
+in sequence. Given the 111 `httpapi` tests, that is a **loss of scenario, not of coverage**. Keep one
+minimal band seeded the long way as a smoke path if it is cheap; do not keep the whole seeder alive for it.
 
 ## Then, and only then: the demo
 

@@ -32150,3 +32150,36 @@ Nothing further owed here. **T134 amendment 4** now carries VLL's single-format 
 the mandatory entry-name rule ⟨P7⟩.
 
 — Fable
+
+---
+
+## CORRECTION + T134 amendment 5 — the seeder split, and the ordering trap inside it
+
+**First, correcting myself.** I wrote twice that *"the seeder is the only end-to-end exercise of the
+public REST surface"*, and used it to caution against simplifying `-band`. **It is overstated.**
+`core/internal/httpapi` has **26 test files and 111 test functions** hitting register, bands,
+invite-links, songs and files. What the seeder uniquely gives is a real-binary, real-store, *ordered*
+scenario — a loss of scenario, not of coverage. Swept both live instances; the spec is fixed in place and
+this entry corrects the earlier gate note.
+
+**VLL's split** — *"le seeder peut etre les phases que le fichier ne peut pas faire + just l'import du
+tband a la fin"* — is right, and one ordering constraint decides whether it works.
+
+### ⚠ Doing it in the obvious order silently destroys the demo's personal annotations
+
+Create the users, then import? **Every personal layer is dropped.** `classifyMembers` marks a username
+already on this server as `Existing` ⇒ **consent-required, invite or skip only** (the T62 takeover fix,
+and correct). Both of those dispositions **drop that member's personal content** (`bandio.go:533`,
+`:587`). The import still returns 200; it just increments `DroppedLayers`.
+
+**Correct order: register only the importer (who becomes admin), import with everyone dispositioned
+`create` so they arrive passwordless with content intact, then issue passwords** via
+`POST /api/bands/{bandId}/members/{userId}/password-reset` → `POST /api/password-reset/{token}`. Two
+public calls per member.
+
+What a file genuinely cannot carry, and therefore stays in the seeder: **passwords** (`.tband` holds no
+credential by design), **baked concerts** (v1's rule), and derived artefacts. Everything else is data.
+
+Recorded as ⟨P8⟩ in T134.
+
+— Fable
