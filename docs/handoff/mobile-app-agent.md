@@ -5,32 +5,32 @@
 > owns the **T-track** (web/core/infra); stay out of its way (see §2, §7).
 >
 > Point a fresh Claude Code session at this file to continue seamlessly. It captures **how we work**
-> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-07-17.
+> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-09-04.
 >
 > **To resume:** open this repo in a new session and say — *"Read `docs/handoff/mobile-app-agent.md`;
 > you are the Mobile App Agent — let's continue."* Then read §2 (how we work) and §5 (landing) before
 > touching anything, and `git log main --oneline -15` for current state. **Immediate next action:**
-> since 2026-07-11 a full device-QA + Stage-UX arc landed (all Fable-verified): the immersive chrome
-> (A17/A2/Q2), the reference-app faithful look, **B1/A19** ("same page, fewer annotations" — failure-
-> aware overlay decode + per-owner cache pins), the **N1/N2/N3 nav rework** (any-tap-toggles-chrome /
-> dropped edge-tap-turn; continuous advance with a song-boundary cue; per-song scroll), **A1/A18**
-> (per-song layer visibility, mandatory forced-visible at read), **A21** (a stale-swipe-closure fix —
-> swipe now reads the current page via `rememberUpdatedState`), and **N4** (direction-aware page-turn
-> slide). Portrait+landscape device-verified (two-up, rotation preserves position, text charts, cross-
-> song cue). **In flight:** **N5** — VLL's "black navigation on black" chrome-contrast fix — is out to
-> Fable (proposal Addendum 4; recommended: lighter translucent FAB disc + hairline outline); implement
-> + gate + device screenshot pair once ruled. **Next queued:** **A20** (the app half of **T50** personal
-> song cues) — ✅ **UNBLOCKED 2026-07-17** (web-core lane): T50 slice 1 (proto+core+bake) and slice 2
-> (studio+shared glyph asset) are landed on `main`, all CI green — see the cross-lane handoff note under
-> §8. The app section is `docs/tasks/T50-song-cues.md` §5, ready to lift. **Newer cross-lane unblock
-> (2026-07-19, web-core): P205 Stage 3a** (app view-time identity + cues + defaults) is now the top
-> unblocked item — the whole P205 web-core side (Stage 1 bake dialog + Stage 2 band-wide bake) **and**
-> T57's shared **view-resolution vectors** (`core/internal/bake/testdata/view-resolution.vectors.json`,
-> run them in commonTest → print == screen) are landed on `main`, all CI green. Full handoff under §8;
-> spec `docs/tasks/P205-band-wide-bundle.md` Stage 3. Still user-blocked: **A07**
-> (stylus spike), **IOS03 impl** (Mac + Apple creds), **B07** device screenshots, **OPS01** release-APK.
+> the Stage reading-ergonomics + branding arc has landed (all Fable-verified unless noted). Recent on
+> `main`: **A61–A67** (scroll-back A62, ⚙ parameter chips A63, **A64** chroma-gated annotation recolour
+> incl. the iOS actual via public skia APIs, A66/A67), **BRAND09/BRAND10** (two-tone *Trouba*·product
+> wordmark, outlined Home tiles whose border carries connected-state, Stage-gold / Studio-pink native
+> pages), **P207** (Stage volume-spread + song-drawer de-emphasis), and **A65** (`ee3c6a68`) — the
+> native **Studio browse** (Concerts | Bands launcher lists deep-linking into the WebView), the
+> room-facing **native invite QR** (server issues the value, app renders it via ZXing; list-first/reuse,
+> terms on-screen, revoke deep-links to Studio — never native), and a per-row admin **"Show band QR"** on
+> the Bands tab. Fable ratified A65 (`e0dd7b97`) and accepted the Bands-row QR ("present ≠ edit"; the line
+> is *a row may open, never mutate*). **Cross-lane (web-core, VLL-directed):** the Studio **invite-links
+> panel** — fixed the crushed row layout, labelled the create form, conceal-both-forms QR+URL reveal,
+> inline copy icon, destructive-red revoke (`f3831ee3`, `3d14d48f`, reveal fix-forward `e140af51`).
+> **Owed VLL-eye passes:** A64 α-0.30 highlight in a dark room + cue-glyph-matches-ink 4-scheme sweep;
+> A62 hardware-pedal spot-confirm; P207 with-artist visual (needs a re-baked bundle). **Still
+> user-blocked:** **A07** (stylus spike), **IOS03 impl** (Mac + Apple creds), **B07** (device
+> screenshots), **OPS01** (release-APK). **Demo/preview:** `:8080` (192.168.2.8) is a binary-swap runtime
+> in `~/dev/git/troubastack-demo`, redeployed by the web-core agent on its landings — do NOT swap a
+> binary in to preview a pre-land change; run your build on an isolated `:8090` (data copy +
+> `TROUBACORE_ADDR`) and repoint the tablet via the connection chip → Server & account.
 > ⚠️ **Rotate the git-remote PAT** — the embedded token echoes in tool output when the GitHub API is hit
-> without `gh` (re-flagged in reviews.md; it leaked once this session via `curl -u` — use the
+> without `gh` (re-flagged in reviews.md; it leaked once via `curl -u` — use the
 > `Authorization: Bearer`/`token` header, never `-u`).
 
 ---
