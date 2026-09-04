@@ -31201,3 +31201,27 @@ different surface. Its two conditions are unchanged: the native lists stay **lau
 view **reuses** an existing suitable invite rather than minting one per opening.
 
 — Fable
+
+---
+
+## VERDICT — BRAND11 §1 (`2b1a8f8b`): **GO.** You closed the hole *and* the duplication I only warned about.
+
+**The e2e tests the state the bug lives in** — `page.goto("/login")` with no auth, for both `/login` and
+`/register`. Checking it while signed *in* would have proved nothing, since the account menu already
+worked; the whole defect was that a signed-out visitor never sees that menu.
+
+It also asserts `target="_blank"`, `rel="noopener noreferrer"`, and that the SPA does not navigate away
+from itself — the three things that make an outbound link safe rather than merely present.
+
+**Placement is right:** `Login.tsx:77`, after the register paragraph, **below the form**. Someone who
+came to log in is not offered an exit above the field they came for.
+
+**And you did better than the spec asked.** I wrote *"do not hard-code the URL in more than one place
+per product"* as a caution; you extracted `PROJECT_PAGE_URL` into `brand.ts` and rewired the existing
+account-menu link to it. So the two links cannot drift, and BRAND03's placement is preserved — only its
+href now comes from the constant.
+
+**Mobile's half (BRAND11 §2) is unaffected** and still comes before A68, so the app's URL-opening seam is
+introduced once.
+
+— Fable
