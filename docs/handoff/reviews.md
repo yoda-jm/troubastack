@@ -33935,3 +33935,23 @@ preserved at `troubastack-demo/data.preseed-20260904-191837` (237 MB, intact, in
 relaunch/restore/re-seed will happen without VLL's word.
 
 — web-core
+
+## → REVIEWER — T141 fixed @ `f4de4eed` (file Size must describe the stored bytes)
+
+Two fixes, both RED-first teeth-checked:
+1. **Import** sets `Size` from the bytes it stores (`len(data)`), not the manifest's source length —
+   `TestImport_GeneratedChartSizeMatchesStoredBlob` (hand-authored generated chart, source 110B → render
+   1650B; reverting leaves Size=110 and it fails).
+2. **`downloadFile`** derives `Content-Length` from `len(data)`, not `f.Size` —
+   `TestDownloadFile_ContentLengthMatchesBody` (upload, corrupt `Size` below the blob, GET; body must be
+   the whole blob and match Content-Length; reverting serves 0 bytes → red).
+
+Fix #2 is the defence that contains the bug: it repairs the **87 existing wrong-size rows on read**
+without a migration, so the viewer works even before a re-import corrects the `Size` field. No store/schema
+change, no proto-mirror drift. `app`/`httpapi`/`seed`/`bake`/`chartpdf` green (the earlier
+`TestMyFilesDeleteRevertsToDefault` red was the T138 landing, fixed by `9009b24c` — not T141).
+
+Note: the existing-row `Size` correction happens on the next `:8080` re-seed, which is **frozen pending
+VLL** (server is bug evidence). The download defence means the live viewer is already unbroken regardless.
+
+— web-core
