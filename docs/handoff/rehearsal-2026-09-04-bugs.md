@@ -37,7 +37,7 @@ produces. "Renders without error" is not a red-first test for a layout bug.
 | 9 | reordering on a phone is painful (4 distinct faults) | ✅ **all four confirmed in code** | see below | an item can be dropped **after the last row**; container auto-scrolls; arrows keep focus | **T142** |
 | 10 | auto-update bake + a manual bake from Studio → **no toast in Stage** | ✅ **CONFIRMED by absence** — `applyUpdate` emits nothing | `StageViewModel` | `applyUpdate` emits a message **and** leaves the page index unchanged | **T143** |
 | 11 | *"il faut regrouper par groupe (accordion), le titre + version et date en gris"* | 🟢 design input, folded into **T143** | — | a two-band library renders **two groups**; each row shows rev + date | **T143** |
-| 12 | *"j'ai jamais demandé d'auto adjustment"* | ✅ **ANSWERED — not the import** | 0/46 sources carry a `size:` directive, in **all three** snapshots | (no defect: auto-fit is the documented default when no size is given) | — |
+| 12 | *"j'ai jamais demandé d'auto adjustment"* | ✅ **ANSWERED — VLL is right**: auto-fit (T76) landed 08-23 and first reached his charts on 09-04 | `127519fd` vs the 08-22 blob timestamps | (not a defect — a **product choice** to confirm) | **T146** |
 
 ## The evidence that settled #4 and #5
 
@@ -93,9 +93,10 @@ Ruled out, each by measurement rather than reasoning:
 
 - **The source did not change.** The chart source is **byte-identical** (same md5) across the current
   folder, the 16:21 backup, and the pre-v2 archive from 12:16.
-- **The import did not introduce auto-fit.** **0 of 46** sources carry a `size:` directive in any of those
-  three snapshots — including the archive predating any v2 import. Auto-fit has always applied; it is the
-  documented behaviour when no size is given. This closes #12: *the import did not create it.*
+- **The import did not introduce auto-fit** — but *something* did, and it was not "always there".
+  **0 of 46** sources carry a `size:` directive in any of the three snapshots, so nothing was stripped;
+  auto-fit applies because no size is given. **What changed is that auto-fit itself only landed on
+  08-23** (`127519fd`, T76), and VLL's blobs were rendered **08-22**. See the correction below.
 - **T138's default-file change is not the cause.** Five of the six affected songs have **exactly one**
   file, so which file is "default" cannot matter for them.
 
@@ -111,25 +112,47 @@ Same song, same source, page-2 ink extent (`1.000` = bottom of page):
 **It is a step change, and it lands exactly on the 19:18 redeploy + re-seed.** Nine hours of bakes on one
 side, ten on the other, nothing in between and no drift within either group.
 
-One further measurement rules out the obvious alternative: the charts were **already re-rendered twice
-inside the old instance** (45 blobs at 16:36, 105 at 17:52) and the layout came out **identical** each
-time. So this is not "re-rendering changes the output" — it is **the deployed code changed**.
+### ANSWERED — and it corrects two claims I made above
 
-### The lead: it is the import path, not `chartpdf`
+**It is not a regression at all.** The web-core lane ran T144's ⟨V1⟩ experiment and found the render
+**byte-identical** across `3999abe0..8f662f60`. That falsified my window, and the reason is a **mistake in
+my own probe**:
 
-The deployed binary moved from the 16:32 build to the 19:18 build — commits `98aafb3d..8f662f60`. In that
-range:
+> I reported "the charts were already re-rendered twice inside the old instance (45 blobs at 16:36, 105 at
+> 17:52) and the layout came out identical". **My `find -printf` printed `%TH:%TM` with no date.** Those
+> blobs are from **08-22**, two weeks earlier — not the same afternoon. There was no same-day re-render,
+> so the "re-rendering doesn't change output" bullet was never supported.
 
-- **No commit touches a `chartpdf.` call site**, and none touches `chartpdf` itself except T138's baker.
-- The **import vocabulary changed** (T134 stage D deleted the legacy→canonical bridge): the same file is
-  recorded as `lyrics` before the re-seed and `lyrics.txt` after.
-- **T141's defect appears at the same instant.** Before the re-seed the file's `size` was `3103`, which
-  described the stored blob; after, it is `1618`, the source's length. The old render was **3103 bytes**,
-  the new one **2910** — objectively two different renders of identical input.
+With the dates restored, the sequence is simple and fully explained:
 
-**So #4/#5 and #6 most likely share one cause in the import path.** That is a lead with real evidence
-behind it, **not a conclusion** — no commit is named here, and none should be named in a fix until the
-⟨V1⟩ experiment in T144 has been run.
+| when | what |
+|---|---|
+| **08-22 16:36** | the live blobs were rendered — this is the layout VLL had all along |
+| **08-23 14:24** | `127519fd` lands **T76 auto-fit**: *"largest body size that keeps a chart on one page"* |
+| 08-23 → 09-04 | the charts are **never re-rendered**, so they keep their pre-T76 layout |
+| **09-04 19:19** | the re-seed re-renders all 157 blobs — **T76 applies to them for the first time** |
+
+So the reflow is the **intended** compaction finally reaching two-week-old blobs. Nothing to revert;
+T144's guard is the right fix, and it landed at `e5750074`.
+
+### Which makes #12 my error too, and VLL right
+
+I wrote that auto-fit *"has always applied"* and that the import did not introduce it. The `0/46
+size:`-directive measurement was correct, but **the conclusion was not**: auto-fit did not exist before
+**08-23**, and VLL's charts did not receive it until **09-04**. From where he sits, *"j'ai jamais demandé
+d'auto adjustment"* describes exactly what happened — a behaviour appeared on his charts that he never
+asked for, two weeks after it was written.
+
+**That turns #12 from "not a bug" into a product question for VLL** (see T146): auto-fit shrinks type to
+keep a chart on one page. He can have a fixed size via an explicit `size:` directive, or the two-column
+route which trades width for type size — but the default that shrinks a 72-line chart is a **choice**, and
+it is his to make, not something to defend as documented behaviour.
+
+### And it makes T145 more important, not less
+
+The renderer did not break — **it improved**, and every annotation in the library broke anyway. A mark
+anchored to `(page, fraction)` of a regenerated render cannot survive any layout improvement, ever. That
+is the whole argument for T145, and it is now backed by a case where nothing was wrong except the anchor.
 
 ## 1 — The setlist order was silently scrambled (T140 — fixed, `22842291`)
 
@@ -256,8 +279,10 @@ backup 16:21         : 0/46
 pre-v2 archive 12:16 : 0/46
 ```
 
-No source has ever carried an explicit size, so auto-fit has always applied — it is the documented default,
-not something the migration introduced. A long chart therefore renders smaller than a short one **by
+No source has ever carried an explicit size, so nothing was stripped by the migration. **But "auto-fit was
+always there" is false**, and it was my error: `127519fd` (T76) introduced it on **08-23**, while these
+blobs were rendered **08-22** and were not re-rendered until **09-04**. VLL saw the behaviour appear on
+his charts because, for him, it genuinely did. A long chart therefore renders smaller than a short one **by
 design**. If VLL wants a fixed size, the remedy is an explicit `size:` directive; if he wants long charts
 to stay readable instead of shrinking, that is **T146**'s two-column direction, not a bug fix.
 

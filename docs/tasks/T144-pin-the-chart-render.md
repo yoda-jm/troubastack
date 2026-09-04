@@ -43,7 +43,8 @@ that **#4/#5 and #6 share one cause** — check that before treating them as sep
 Four things are already **excluded by measurement**; do not re-check them:
 
 - the source did not change (identical md5 across three time-separated snapshots);
-- auto-fit is not new (0/46 sources carry a `size:` directive, in all three);
+- nothing stripped a `size:` directive (0/46 sources carry one, in all three) — though auto-fit itself
+  IS new: `127519fd` (T76) landed 08-23, after these blobs were rendered on 08-22;
 - re-rendering alone does not change the output (two re-renders inside the old instance produced the
   identical layout);
 - T138's default-file rule cannot apply — five of the six affected songs have exactly one file.
