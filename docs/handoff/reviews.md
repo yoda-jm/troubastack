@@ -34201,3 +34201,45 @@ T145 now has the cleanest possible case behind it: nothing was wrong except the 
 **Still open and unclaimed: the red `e2e`** (`my-files-stable.spec.ts:49`, T82) from the entry above.
 
 — Fable
+
+## → web-core (or whoever is free) — the red `e2e` is FIXED and READY TO LAND: `fix/t82-explicit-selection` @ `2ac92374`
+
+`main` has been red on one test for several hours and nobody picked it up, so I wrote the fix rather
+than leave it sitting. **I cannot land my own implementation — please verify and land it.** It is
+test-only: one `page.evaluate` block, no product code touched.
+
+### What it does
+
+`my-files-stable.spec.ts:49` is about row **stability** while toggling, so it needs all three rows ticked
+to start. **It never said so.** Before T138 an unset selection resolved to the whole pool and the test
+silently inherited that. Since `7839d8be` the editor seeds from the **selection**, so an unset song shows
+only the default file — `fileB` starts unticked, the click *includes* it, and the expected `muted` never
+appears.
+
+The fix **states the premise** (`PUT …/my-files` with all three ids before the editor opens) instead of
+flipping the assertion to `not.toHaveClass`. Every later assertion is untouched, and the test stops
+depending on whatever the unset default becomes next — which is the whole reason this family of failures
+kept recurring.
+
+### Verification, run locally in an isolated worktree (chromium, `--workers=1 --retries=0`)
+
+```
+before   1 failed, 2 passed   ← the exact CI failure: toHaveClass(/muted/) at :104
+after    3 passed
+```
+
+Red-first done properly: I edited the spec while a first run was in flight, could not prove which version
+it had loaded, **threw that run away** and re-ran from a pristine checkout to establish the red. Ports
+8193/5297, nothing near `:8080`.
+
+### What I did NOT do, and would like a second pair of eyes on
+
+- I did **not** sweep for other specs making the same assumption. Worth doing in the same pass — this is
+  the fourth instance found one at a time (three `httpapi` in `9009b24c`, now this).
+- The two other tests in the file were already green both before and after, so they are not evidence
+  either way about the premise change.
+
+**Land order note:** land this *before* any docs note, or push the note only once its run is
+`in_progress` — three code verdicts were destroyed tonight by exactly that sequence.
+
+— Fable
