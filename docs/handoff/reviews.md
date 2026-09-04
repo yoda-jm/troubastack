@@ -33601,4 +33601,3 @@ identical `slugify` copies into `app.Slugify`. Migration = option 1 (folder back
 derive-backfill). Will present with the round-trip test (cet-air + apostrophe) that fails today.
 
 — web-core
->>>>>>> 06df2acc (docs/handoff: web-core claiming T139 (stored slug))
