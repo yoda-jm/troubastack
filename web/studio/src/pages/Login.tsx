@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import { useAuth } from "../auth";
+import { AboutLink } from "../components/AboutLink";
 import { AuthWordmark } from "../components/AuthWordmark";
 import { ErrorBanner } from "../components/ErrorBanner";
 
@@ -73,6 +74,7 @@ export function Login() {
           Register
         </Link>
       </p>
+      <AboutLink />
     </div>
   );
 }

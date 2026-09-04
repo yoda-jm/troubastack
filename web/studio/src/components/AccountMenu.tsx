@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import QRCode from "qrcode";
+import { PROJECT_PAGE_URL } from "../brand";
 import { api, type AppBinary } from "../api";
 import { Avatar } from "./Avatar";
 
@@ -171,7 +172,7 @@ export function AccountMenu({ user, onLogout }: { user: MenuUser; onLogout: () =
               the account menu (never the editor chrome), directly above the build/version
               footer so the version reads beside it. Opens the live page in a new tab. */}
           <a
-            href="https://yoda-jm.github.io/troubastack/"
+            href={PROJECT_PAGE_URL}
             target="_blank"
             rel="noopener noreferrer"
             role="menuitem"

@@ -198,6 +198,9 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 }
 .auth-page h1 { text-align: center; }
 .auth-page > p { text-align: center; color: var(--muted); }
+/* BRAND11: the "About TroubaStudio" link — tertiary to the login/register toggle above it, so a touch
+   smaller and set apart. Signed-out visitors' only route to the project page. */
+.auth-page > p.auth-about { margin-top: .35rem; font-size: .85rem; }
 
 /* BRAND08 (login half): the full wordmark tops the auth screens. It ships two ground-specific assets,
    so swap by COLOUR SCHEME rather than tinting one SVG. The Studio follows the OS (no manual toggle),
