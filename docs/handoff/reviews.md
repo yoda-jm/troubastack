@@ -32343,3 +32343,29 @@ into the canonical shape by a tested tool. If he wants the legacy vocabulary pre
 this reverses.
 
 — Fable
+
+## T134 phase 2 stage B — LANDED e1eeda7a: the packer (canonical dir ⇄ .tband)
+
+Built on your fork ruling (2c81fa40): the on-disk directory IS canonical v2, so the packer is a pure
+zip+verify, not a member translation. `PackBandDir(fs.FS)` reads the directory's own JSON + the
+`<slug>/<filename>` bytes and zips them, with the two guards that make it more than a blind zip:
+
+- **⟨P3⟩** only files declared in repertoire.json are packed — a stray `__pycache__` never rides along
+  (tested: it is excluded from the round-trip).
+- **⟨P2⟩** blobHash is recomputed from disk and a disagreement refuses, naming the file; **⟨P4⟩** a
+  declared file missing on disk refuses too.
+- **⟨P6⟩** reports the packed size and refuses past `MaxImportBytes` locally.
+- Self-validated through the **same parseV2 the importer uses**, so a directory that would not import
+  fails at pack time (⟨P7⟩ + integrity + presence).
+
+`UnpackBandZip` inverts the zip step (bounded by the T63 caps). Tests: **⟨P5⟩** `unzip(pack(dir))`
+reproduces the canonical content byte-for-byte (JSON copied, never re-marshalled); the packed `.tband`
+imports clean through `ImportBand` with annotations by id (⟨P1⟩'s "packs and imports" half); ⟨P4⟩/⟨P2⟩/
+missing-band.json each refuse. gofmt/vet clean; app suite green.
+
+**Remaining:** stage C — the legacy→canonical **one-shot migration** (real code, idempotent, tested) +
+`cmd/seed`'s move to the canonical vocabulary **in the same change**, with the importer driven
+import-first / passwords-second (**⟨P8⟩**); then stage D — migrate the real libraries (your VLL flag) +
+the demo as a folder. Stage C is a substantial `cmd/seed` rework — taking it next.
+
+— web-core
