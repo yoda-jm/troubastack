@@ -9,12 +9,12 @@ import (
 
 // TestSlugify_Vectors pins the ONE slug rule (T139) — apostrophes, slashes, punctuation runs, and an
 // empty result. Once nothing re-derives an existing slug, this rule only governs newly-created songs, but
-// it must still be stable and single-homed.
+// it must still be stable and single-homed. (Fictional inputs — no real repertoire data in tracked code.)
 func TestSlugify_Vectors(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"J'Aime plus Paris", "j-aime-plus-paris"}, // apostrophe → separator
-		{"Cet Air-la", "cet-air-la"},               // hyphen kept as one separator
-		{"In the Pines / Where Did You Sleep Last Night?", "in-the-pines-where-did-you-sleep-last-night"}, // slash + '?'
+		{"L'Ete Indien", "l-ete-indien"},                              // apostrophe → separator
+		{"Well-Worn Path", "well-worn-path"},                          // hyphen kept as one separator
+		{"A Long Title / With A Slash?", "a-long-title-with-a-slash"}, // slash + '?'
 		{"a---b", "a-b"},                    // punctuation RUN collapses to one '-'
 		{"a . . . b", "a-b"},                // spaces + dots run collapses
 		{"  Hello  World  ", "hello-world"}, // trim + inner run
@@ -30,8 +30,8 @@ func TestSlugify_Vectors(t *testing.T) {
 
 // TestSlug_RoundTripPreservesAuthoredSlug is the T139 acceptance test that fails today: a folder whose
 // slugs are hand-chosen (deliberately NOT what the rule would compute) must export back byte-identical.
-// `cet-air` is shorter than its title and `jaime-plus-paris` drops the apostrophe-gap — neither is
-// reproducible by any derivation, so a passing round-trip proves the slug is stored, not derived.
+// `refrain` is shorter than its title and `lete-indien` drops the apostrophe-gap — neither is reproducible
+// by any derivation, so a passing round-trip proves the slug is stored, not derived. (Fictional data.)
 func TestSlug_RoundTripPreservesAuthoredSlug(t *testing.T) {
 	band, _ := json.Marshal(map[string]any{
 		"formatVersion": 2, "name": "Authored Slugs",
@@ -39,8 +39,8 @@ func TestSlug_RoundTripPreservesAuthoredSlug(t *testing.T) {
 	})
 	rep, _ := json.Marshal(map[string]any{
 		"songs": []any{
-			map[string]any{"slug": "cet-air", "title": "Cet Air-la"},
-			map[string]any{"slug": "jaime-plus-paris", "title": "J'Aime plus Paris"},
+			map[string]any{"slug": "refrain", "title": "Ce Vieux Refrain"},
+			map[string]any{"slug": "lete-indien", "title": "L'Ete Indien"},
 		},
 	})
 	zipBytes := rezip(t, map[string][]byte{"band.json": band, "repertoire.json": rep})
@@ -65,35 +65,35 @@ func TestSlug_RoundTripPreservesAuthoredSlug(t *testing.T) {
 	for _, s := range exp.Songs {
 		got[s.Title] = s.Slug
 	}
-	if got["Cet Air-la"] != "cet-air" {
-		t.Errorf("authored slug not preserved: Cet Air-la exported as %q, want cet-air", got["Cet Air-la"])
+	if got["Ce Vieux Refrain"] != "refrain" {
+		t.Errorf("authored slug not preserved: Ce Vieux Refrain exported as %q, want refrain", got["Ce Vieux Refrain"])
 	}
-	if got["J'Aime plus Paris"] != "jaime-plus-paris" {
-		t.Errorf("authored slug not preserved: J'Aime plus Paris exported as %q, want jaime-plus-paris", got["J'Aime plus Paris"])
+	if got["L'Ete Indien"] != "lete-indien" {
+		t.Errorf("authored slug not preserved: L'Ete Indien exported as %q, want lete-indien", got["L'Ete Indien"])
 	}
 	// teeth: the derivation would produce these OTHER values, so the test guards preservation, not luck.
-	if app.Slugify("Cet Air-la") != "cet-air-la" || app.Slugify("J'Aime plus Paris") != "j-aime-plus-paris" {
+	if app.Slugify("Ce Vieux Refrain") != "ce-vieux-refrain" || app.Slugify("L'Ete Indien") != "l-ete-indien" {
 		t.Fatal("derivation changed; update this teeth-check so it still discriminates stored vs derived")
 	}
 }
 
 // TestSlug_TitleEditKeepsRefs: a title edit must NOT rename the slug, so the annotation file and setlist
 // item that point at it (in export/folder form) still resolve afterwards. This is the reference-break the
-// task exists to prevent.
+// task exists to prevent. (Fictional data.)
 func TestSlug_TitleEditKeepsRefs(t *testing.T) {
 	band, _ := json.Marshal(map[string]any{
 		"formatVersion": 2, "name": "Edit Band",
 		"members": []any{map[string]any{"username": "dana", "displayName": "Dana", "role": "admin"}},
 	})
 	rep, _ := json.Marshal(map[string]any{
-		"songs": []any{map[string]any{"slug": "cet-air", "title": "Cet Air-la"}},
+		"songs": []any{map[string]any{"slug": "refrain", "title": "Ce Vieux Refrain"}},
 	})
 	ann, _ := json.Marshal(map[string]any{
 		"layers":  []any{map[string]any{"id": "L1", "name": "Cues", "owner": "_shared_", "zone": "shared", "access": "rw"}},
 		"objects": []any{},
 	})
 	zipBytes := rezip(t, map[string][]byte{
-		"band.json": band, "repertoire.json": rep, "annotations/cet-air.json": ann,
+		"band.json": band, "repertoire.json": rep, "annotations/refrain.json": ann,
 	})
 
 	st := newStack()
@@ -103,8 +103,8 @@ func TestSlug_TitleEditKeepsRefs(t *testing.T) {
 		t.Fatalf("import: %v", err)
 	}
 	songs, _ := st.repo.SongsOfBand(report.Band.ID)
-	if len(songs) != 1 || songs[0].Slug != "cet-air" {
-		t.Fatalf("imported song slug = %q, want cet-air", songs[0].Slug)
+	if len(songs) != 1 || songs[0].Slug != "refrain" {
+		t.Fatalf("imported song slug = %q, want refrain", songs[0].Slug)
 	}
 
 	// a setlist referencing the song (by SongID at runtime)
@@ -122,7 +122,7 @@ func TestSlug_TitleEditKeepsRefs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Slug != "cet-air" {
+	if updated.Slug != "refrain" {
 		t.Fatalf("title edit renamed the slug to %q — reference break", updated.Slug)
 	}
 
@@ -132,15 +132,15 @@ func TestSlug_TitleEditKeepsRefs(t *testing.T) {
 		t.Fatalf("export: %v", err)
 	}
 	entries := unzip(t, out)
-	if _, ok := entries["annotations/cet-air.json"]; !ok {
+	if _, ok := entries["annotations/refrain.json"]; !ok {
 		t.Fatalf("annotation file renamed off its slug; entries=%v", keysOf(entries))
 	}
 	var rep2 struct {
 		Songs []struct{ Slug string } `json:"songs"`
 	}
 	mustJSON(t, entries["repertoire.json"], &rep2)
-	if len(rep2.Songs) != 1 || rep2.Songs[0].Slug != "cet-air" {
-		t.Fatalf("exported slug = %+v, want cet-air", rep2.Songs)
+	if len(rep2.Songs) != 1 || rep2.Songs[0].Slug != "refrain" {
+		t.Fatalf("exported slug = %+v, want refrain", rep2.Songs)
 	}
 	var sls struct {
 		Setlists []struct {
@@ -148,7 +148,7 @@ func TestSlug_TitleEditKeepsRefs(t *testing.T) {
 		} `json:"setlists"`
 	}
 	mustJSON(t, entries["setlists.json"], &sls)
-	if len(sls.Setlists) != 1 || len(sls.Setlists[0].Items) != 1 || sls.Setlists[0].Items[0].Song != "cet-air" {
+	if len(sls.Setlists) != 1 || len(sls.Setlists[0].Items) != 1 || sls.Setlists[0].Items[0].Song != "refrain" {
 		t.Fatalf("setlist item lost its slug ref: %+v", sls.Setlists)
 	}
 }
