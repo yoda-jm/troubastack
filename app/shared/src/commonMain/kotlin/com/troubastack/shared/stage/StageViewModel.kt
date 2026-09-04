@@ -84,8 +84,14 @@ class StageViewModel(
     fun setIdentity(identity: String) = _state.update { s ->
         val fresh = stageStateFrom(result, s.role, identity)
         if (fresh.pages.isEmpty()) return@update s.copy(identity = identity)
+        // T137: page sequences are per-identity (member_pages), so the OLD identity's flat index — and its
+        // page-in-song — do not map onto the new identity's sequence (a flat index would land on an
+        // unrelated page mid-set). INVALIDATE the position: keep the SONG you were on but land at its first
+        // page in the new sequence. songId is identity-independent, so re-resolving via resolveStartPage at
+        // page-in-song 0 is exact when the song is present, and 0 otherwise.
+        val songId = s.currentPage?.songId ?: ""
         fresh.copy(
-            current = s.current.coerceIn(0, fresh.pages.lastIndex),
+            current = resolveStartPage(fresh, songId, 0),
             fitMode = s.fitMode,
             autoUpdate = s.autoUpdate,
         )

@@ -204,6 +204,22 @@ internal fun cuesForIdentity(song: BakedSong, identity: String): List<SongCue> =
 internal fun visibleToIdentity(overlay: LayerImage, identity: String): Boolean =
     overlay.owner.isEmpty() || overlay.owner == identity
 
+/**
+ * T137 — the pool page indices this [identity] READS for [song], in order. `song.pages` is a shared pool
+ * (the union of every member's files' pages); this resolves the viewer's own SEQUENCE into it, mirroring
+ * the LayerImage.owner "" convention (see proto MemberPages):
+ *  1. the member_pages entry whose member_id == [identity], else
+ *  2. the "" default entry (the no-selection / anonymous reader), else
+ *  3. every pool page in order (an undivergent or pre-T137 bundle carrying no member_pages).
+ * Indices outside the pool are dropped defensively — a malformed sequence can never crash the reader
+ * mid-set; it just reads fewer pages.
+ */
+internal fun resolvePageSequence(song: BakedSong, identity: String): List<Int> {
+    val seq = song.memberPages.firstOrNull { it.memberId == identity }?.page
+        ?: song.memberPages.firstOrNull { it.memberId == "" }?.page
+    return (seq ?: song.pages.indices.toList()).filter { it in song.pages.indices }
+}
+
 /** Build the initial [StageState] from a loader result. Total: a Failed load becomes a failure state. */
 internal fun stageStateFrom(result: LoadResult, role: String, identity: String = ""): StageState = when (result) {
     is LoadResult.Failed -> StageState(failure = result.reason, role = role, identity = identity)
@@ -270,13 +286,17 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
         // P205 Stage 3a: show the viewer identity's cues (member_cues), falling back to the song's own
         // `cues` (a -mine bake or an old bundle). Anonymous (identity "") ⇒ the fallback.
         songs.add(SongInfo(song.songId, songName, pages.size, artist = song.artist, onCall = song.onCall, cues = cuesForIdentity(song, identity)))
-        song.pages.forEachIndexed { pageIdx, page ->
-            val rasterBad = blobKey(song.songId, pageIdx, page.pageRasterRef) in badRefs
+        // T137: read the viewer identity's own SEQUENCE into the pool, not the raw pool order. pageInSong
+        // counts within that resolved sequence (so it stays 0..N and songStarts/facing-pages derive from
+        // it); the POOL index (`poolIdx`) still keys the loader's per-page blob-availability check.
+        resolvePageSequence(song, identity).forEachIndexed { pageInSong, poolIdx ->
+            val page = song.pages[poolIdx]
+            val rasterBad = blobKey(song.songId, poolIdx, page.pageRasterRef) in badRefs
             pages.add(
                 StagePage(
                     songId = song.songId,
                     songName = songName,
-                    pageInSong = pageIdx,
+                    pageInSong = pageInSong,
                     rasterRef = page.pageRasterRef,
                     rasterHash = page.rasterHash,
                     // Stage 3b: drop other members' personal overlays (owner != me) — never composited.
