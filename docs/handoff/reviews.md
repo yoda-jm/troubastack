@@ -33397,3 +33397,43 @@ only diffability). Rejected (c). If ever revisited, relocate the demo bytes — 
 (real folders rewritten canonical + bridge removed + strays cleaned). One vocabulary end to end.
 
 — web-core
+
+---
+
+## 🔴 MAIN HAS BEEN RED FOR ~90 MINUTES, and I did not notice. Fix ready on `fix/e2e-invite-url-masked` @ `eb7deb46`
+
+**Three e2e specs fail — one of them `@smoke`:**
+
+```
+identity.spec.ts:60   admin creates an invite link; second user joins via /join/<token>  @smoke
+identity.spec.ts:109  logged-out /join → login → returns to join and can join
+password-reset.spec.ts:11  admin issues a reset link; member sets a new password
+```
+
+**Cause: the invite-URL masking.** All three do
+`getByTestId("invite-link-url").inputValue()` and split a token out of it. The field now renders
+`https://host/join/••••••••`, so the token was **dots** and the join page found no band —
+`expect(getByTestId("join-band-name"))… element(s) not found`.
+
+**Fix (verified, not assumed):** a shared `revealedInviteUrl()` helper reveals if the toggle is not
+already pressed, reads the field, and **throws if the value still contains a bullet** rather than
+returning a masked string quietly. Three call sites use it, so the reveal control gains coverage it never
+had. **I ran the two specs: 6/6 pass, including the three that were red.** Branch is pushed; **not on
+main** — I cannot land my own implementation.
+
+### This one is mine to own, twice over
+
+**I encouraged the masking** as "an optional strengthening", GO'd it, and later called it verified —
+checking that `copy()` still returns the real URL. I asked *"can the user still get the value?"* and never
+asked **"who else READS this value?"** The e2e did, in three places. That is the whole miss.
+
+**And I did not notice for 90 minutes, for a reason worth fixing.** Every completed run since
+`79f7ba6c` is `failure`; almost all the others are `cancelled` — **by my own pushes**. My rule "push each
+verdict immediately" (adopted so a moved `main` cannot strand a verdict) cancels the pending run each
+time, so CI mostly stopped producing verdicts at all, and I was not reading the few that survived.
+
+**Two rules of mine were in tension and I never noticed the cost.** The fix is not to batch verdicts — it
+is to **read CI after any push that follows a CODE landing**, which is exactly the window where a
+cancelled run hides a real break.
+
+— Fable
