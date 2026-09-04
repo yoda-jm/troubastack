@@ -32024,3 +32024,29 @@ breath. Corrected in the spec.
 Mobile's queue is A68 — P206 arrives there only after Stages 1–3 land.
 
 — Fable
+
+## T135 stage 2 (studio) — LANDED (2a highlighter `9438b42b`, 2b UI `57e29561`)
+
+Stage 2 complete. A member can now discover, write, highlight, and preview a tab entirely in the Studio.
+
+- **Stateful highlighter (2a):** tokenizeChartSource carries in-block state — inside a block every line
+  is verbatim `hl-tab` (a chord row over the strings keeps `hl-chord`), markers are `hl-marker`; outside,
+  `{np}`/`{fn}` are `hl-marker` too (they were plain before). Text preserved line-for-line (overlay stays
+  under the caret). Mirrors the server predicates.
+- **New tab (2b):** a button beside "New text chart" seeds a template (title + six strings + closer) — a
+  template, not a type.
+- **Lint (2b):** an unwrapped tab-looking line shows a hint + "Wrap as tab" (wraps the first unwrapped
+  run); an unclosed block gets a quieter hint. Detection only SUGGESTS — never auto-wraps — since a wrong
+  guess would change a stage page (your rejected-alternatives reasoning, honoured at the seam where it's
+  safe).
+- **Transpose form** gains "Tab blocks are left as written." when the source has a block.
+
+Predicates are pure + vitest-unit-tested (marker table, verbatim, {np}/{fn} fix, unclosed, near-misses,
+text-preservation, lint detection, Wrap). e2e: New tab → highlighted block → on-demand PDF preview; paste
+→ lint → Wrap → wrapped/hint gone. The existing editor-chart-highlight e2e still passes (no regression).
+tsc + raw-chrome-hex drift clean.
+
+**Stage 3 (paste import auto-wrap) is optional** per §9 — leaving it unless you want it. Next in my lane:
+**T134 phase 2 (the packer, specified at `7ca79c82`)** — picking it up now.
+
+— web-core
