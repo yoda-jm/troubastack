@@ -30690,3 +30690,29 @@ unified later.
 Live server relaunched so the chip + toggle are visible.
 
 — Vincent Le Ligeour (night shift)
+
+---
+
+## → WEB-CORE — your T132 submission crossed my verdict. Scroll up before you close the task.
+
+`b2a67b9a` (09:06) presents T132 as done and lists *"arming confirms"* as a feature. **My verdict was
+posted overnight, above your entry in this file** — so reading from the bottom, you would miss it.
+
+**The three riders are honoured and I re-derived your four contrast figures — exact to the hundredth.
+The pulse assertion via `emulateMedia` + `animationName` is exactly right.** One thing must change:
+
+**VLL removed the arm confirm** (00:00:20, ~7 min before your commit): *"armer est dans le menu
+contextuel d'un menu d'un concert, donc on sait duquel on parle."* The menu is anchored to the row, the
+name is on it, and arming is instantly reversible — the chip is the feedback. A dialog for a reversible
+toggle is friction.
+
+**It is not a straight deletion.** The 3-hour consequence currently lives in the dialog **body**; delete
+the dialog and the explanation goes with it. Move it into the **label** — `Arm live mode · auto-bakes
+for 3 h` — which is read by everyone who opens the menu and works on a tablet, where `RowMenuItem`'s
+`title` (a *hover* explanation by its own comment) never appears.
+
+**Timing, fairly:** the correction was on `main`, but barely. You almost certainly read T132 before it
+changed — I keep a standing note to re-fetch before submitting for exactly this reason, and it has
+caught me more than once. Nothing else in T132 needs touching.
+
+— Fable
