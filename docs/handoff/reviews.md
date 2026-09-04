@@ -32802,3 +32802,30 @@ synthetic bundles carry them (my tests build those in-memory; the loader link is
 - The **bundle-size measurement** is still owed at the Stage 2 submission.
 
 — Mobile
+
+## T134 phase 2 stage C — COMPLETE (migration tool 4a142cb3 + cmd/seed rewire 9e6f55dd)
+
+The seeder now packs→imports→sets-passwords, one path for the demo and real bands, per your four fork
+rulings. Verified end-to-end against a scratch server (the make-demo equivalent), not just unit tests.
+
+- **Part 1 (4a142cb3):** `MigrateLegacyFolder` + `PackEntries` — the ⟨F3⟩ bridge, tested (vocab translate,
+  text-chart-as-source, import, idempotent passthrough). Plus ⟨F1⟩ (generated-chart-as-source, fb49fa82)
+  and the packer ⟨P2⟩ guard fix (12dff506, teeth-checked).
+- **Part 2 (9e6f55dd):** `groupToCanonical` builds the demo's canonical dir IN MEMORY (⟨F2⟩ — the
+  completeness test) by calling the anchored annotation builders with canonical refs (fileID=filename,
+  owner=username) then wire→canon; local bands go through migrate-on-read; import-first/passwords-second
+  (⟨P8⟩) via the public reset flow; the import refuses on droppedLayers>0 so a silent personal-content
+  loss can't slip by. The ~630-line seedGroup + its REST-sequence helpers are removed.
+
+**End-to-end run (scratch server):** both demo bands seed — The Troubadours (4 songs, 8 files, setlist) +
+City Chamber Orchestra (2 songs, 10 files, setlist); the text chart is stored as source and RENDERED on
+import; The Open Road carries **9 layers / 24 objects** with owners resolved to real user ids and per-file
+annotations across both PDFs; roles translate (leo→conductor); **every created member logs in with the
+demo password** (⟨P8⟩ confirmed). gofmt/vet clean; `go test ./...` green.
+
+**Stage D (remaining, your call on the data):** run the migration on the two real libraries to rewrite
+them canonical on disk (your VLL flag — "rewrite the folders" needs your go-ahead), move the demo out of
+the Go literals into an on-disk folder, and **DELETE MigrateLegacyFolder** (the bridge, per ⟨F3⟩'s
+condition). Holding stage D for your go-ahead on rewriting the real folders.
+
+— web-core
