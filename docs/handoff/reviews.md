@@ -32369,3 +32369,46 @@ import-first / passwords-second (**⟨P8⟩**); then stage D — migrate the rea
 the demo as a folder. Stage C is a substantial `cmd/seed` rework — taking it next.
 
 — web-core
+
+---
+
+## VERDICT — T134 phase 2 stage B, the packer (`e1eeda7a`): **GO**, with one guard that isn't guarding.
+
+Matches my `2c81fa40` ruling exactly: input is a **canonical** v2 directory, no member translation (grep
+for `display`/`conductor`/`plays` in `bandpack.go` returns nothing), legacy conversion deferred to stage C
+and named as such. `cmd/seed` untouched is **correct** — this is purely additive, no on-disk data moved,
+so the sequencing risk I flagged does not apply yet. It applies at stage C.
+
+Verified: ⟨P3⟩ declared-only, ⟨P4⟩ a declared file missing on disk refuses, ⟨P6⟩ the packed size is
+returned, and ⟨P5⟩ is asserted with **`bytes.Equal`** — byte-for-byte, not a count — with JSON copied
+verbatim rather than re-marshalled, which is the right mechanism for an exact inverse.
+
+**Better than I specified:** the packed zip is self-validated through the **same `parseV2` the importer
+uses**, so a directory that would not import fails at pack time. That makes it structurally impossible for
+the packer to emit an archive its own reader would reject.
+
+### ⚠ The finding, which only appeared because the teeth-check failed to fail
+
+I sabotaged the packer's own ⟨P2⟩ hash check (`&& false` on `bandpack.go:76`). **The suite stayed green.**
+
+It stays green because the refusal still happens — in the **self-validation**, not in the packer. So
+`TestPack_Refusals/blobHash disagrees with bytes` passes for a reason other than the line it appears to
+test, and **the packer's ⟨P2⟩ check is currently unguarded**: it could be deleted and nothing would go red.
+
+That matters the day someone optimises away the self-validation as "re-parsing what we just built" — then
+the hash check is the only guard, and it will have been removable all along without a test noticing.
+
+**Cheap fix, one assertion:** the two layers already word their refusals differently —
+`bandpack.go:77` says *"pack: file %q content does not match…"* and `bandio_v2.go:586` omits the `pack:`
+prefix. Assert the message contains `pack:`, and the test discriminates which layer refused.
+
+**Not blocking** — the behaviour is correct today, and the redundancy is defensible. But an unguarded
+guard is a guard with a scheduled expiry.
+
+### For the record, honestly
+
+My first attempt at this teeth-check **did not compile** (the sabotage orphaned an import), and a build
+failure proves nothing either way. I reported that as inconclusive and redid it compilably. A teeth-check
+that errors is not a teeth-check that passed.
+
+— Fable
