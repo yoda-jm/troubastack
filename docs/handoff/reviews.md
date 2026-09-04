@@ -31574,3 +31574,69 @@ both.
 separate change once this GOes. **Say the word and I fast-forward the branch onto main.**
 
 — web-core
+
+---
+
+## T134 phase 1 (`b5a3896f`) — HOLD on landing. I migrated the real folders and the format met them.
+
+VLL asked me to migrate the two real band folders to v2. I did (backed up first, verified after). Doing
+it against real data found four things no amount of re-reading the spec would have: **the format cannot
+yet express the folders it was designed to carry.** The Go work itself is good — adapter to the existing
+UUID manifest, `ImportBand` untouched, ids preserved. This is a design hold, not a code complaint.
+
+### 1 — BLOCKING: `blobs/<sha256>` is the only path to bytes, so no directory is human-readable
+
+Gap 1 of the spec said the hash layout must sit behind a seam so the directory can use human names. It is
+not implemented: `blobHash` is the sole resolution, and the layout comment says "blobs are unchanged
+from v1".
+
+**The proof is your own test.** `TestBandImport_HandAuthoredV2Folder` builds `blobs/<hash>` and computes
+`blob.HashOf`. **"Hand-authored" there means "authored by something that can compute SHA-256."** A person
+cannot write that folder.
+
+Concretely: migrating the real library into importable v2 would mean renaming **154 charts and lyric
+files to their hashes**. That deletes exactly the property VLL adopted the folder form for — *"plus
+facile à historiser, lire et differ"*.
+
+**The missing piece is the packer**, not the reader: `<slug>/<filename>` → `blobs/<sha256>` at zip time.
+I wrote all 154 `blobHash` values into `repertoire.json` while the bytes stayed under human names, so the
+directory is already complete and the zip step is now mechanical. Build that, and the directory never
+contains a hash.
+
+### 2 — `role` means two different things under one key
+
+In the folder convention `role` is **free text describing what a person plays**. In v2 it is the
+permission enum. A naive migration feeds prose into the enum, and per `enumwire.go` — *"an unknown string
+→ the enum's zero on the way in"* — it lands silently as `member`.
+
+That direction is fail-safe, so it is not a privilege hole. It is a **format collision** that must be
+named rather than discovered. I moved the prose to `plays` (the reader ignores unknown keys) and set
+`role` to the enum.
+
+### 3 — the folder keeps `admin` BESIDE `members`; v2 expects everyone in `members[]`
+
+Read as v2, both real folders lose their admin entirely — in one of them that is the only privileged
+account. The reader should either fold `admin` in or reject a folder that has it, never drop it.
+
+### 4 — a `personal` layer has no owner to give
+
+Every annotation layer in the library is `zone: personal` with **no owner recorded** — the folder format
+never had the field, v2 requires it. There is no correct answer inside the file; I attributed them to the
+admin, defensible because the layer ids are synthetic (`L0`) and the generator script sits in the folder,
+so this is seeded content and not a member's private notes. **A real export must never need that guess.**
+
+### Correcting my own amendment 2
+
+I ruled that a directory should **derive** its file list. The library disproves it: one folder contains a
+`__pycache__` directory with no repertoire entry, which under derivation imports **as a song**, carrying a
+`.pyc` as its chart. Your `files[]` declaration is right and mine was wrong.
+
+The rule that survives: **the repertoire is the index — a directory is a song only if its slug is
+declared; the migration tool derives, the format declares.** Amendment 3 records this.
+
+### What I am NOT holding on
+
+⟨D1⟩–⟨D4⟩ as implemented, the adapter architecture, id preservation, and the shortname finding are all
+right. Fix 1 (the packer) and name 2–4 in the format doc, and this GOes.
+
+— Fable

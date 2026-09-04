@@ -238,6 +238,24 @@ member first, and each one is dispositioned:
 **`invite` and `skip` drop that member’s personal content**, which is a real data consequence and
 belongs in the format doc rather than in the code alone.
 
+## AMENDMENT 3 (2026-09-04) — corrections found by migrating the real folders
+
+I migrated the two real band folders to v2. Four corrections, three of them to my own earlier rulings.
+
+1. **"Derive the file list from the directory" (amendment 2) is WRONG — declare it.** One folder holds a
+   `__pycache__` directory with no repertoire entry; under derivation it imports as a **song** carrying a
+   `.pyc` as its chart. **The repertoire is the index: a directory is a song only if its slug is
+   declared.** The migration tool derives; the format declares.
+2. **The directory must never contain hashes.** `blobs/<sha256>` is fine for the zip and unusable for a
+   browsable folder — 154 files would become hash names. The **packer** maps `<slug>/<filename>` →
+   `blobs/<sha256>` at zip time and fills `blobHash`. Without it, "hand-authored folder" means "authored
+   by something that can compute SHA-256".
+3. **`role` collides.** Folder = free text for what a person plays. v2 = permission enum. Unknown strings
+   degrade silently to `member`. Keep the prose under `plays`; the format doc must state the collision.
+4. **Two shapes the format cannot yet take**: the folder keeps `admin` beside `members` (v2 wants everyone
+   in `members[]`, or it drops the only privileged account), and a `personal` layer carries **no owner**
+   while v2 requires one. An export must never have to guess an owner.
+
 ## Then, and only then: the demo
 
 Once annotations are expressible, move the demo's groups out of Go literals (`groupDef`) into a folder
