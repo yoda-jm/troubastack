@@ -1510,6 +1510,18 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 
 /* action buttons (build on the global <button>) */
 button.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+/* T133: the confirm dialog's DESTRUCTIVE action gets a real, distinct style. It was `danger btn-sm`,
+   but nothing styled `.danger` in a dialog, so a delete confirmed through a button that looked like
+   "OK". Uses --error — delete genuinely IS a danger (the live/error line T132 drew). Readable on the
+   tint in both themes (5.73 / 9.15). Its own class, so it can't collide with the other .danger scopes. */
+button.confirm-danger {
+  background: var(--error-bg); color: var(--error-fg);
+  border-color: color-mix(in srgb, var(--error-fg) 45%, transparent);
+}
+button.confirm-danger:hover:not(:disabled) {
+  border-color: var(--error-fg);
+  background: color-mix(in srgb, var(--error-fg) 12%, var(--error-bg));
+}
 button.primary:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
 button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .icon-btn { border: 1px solid transparent; background: transparent; color: var(--muted);

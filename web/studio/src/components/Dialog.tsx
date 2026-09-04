@@ -201,7 +201,7 @@ function DialogView({
         <div className="inline-form">
           <button
             type="button"
-            className={`${request.kind === "confirm" && request.opts.danger ? "danger" : "primary"} btn-sm`}
+            className={`${request.kind === "confirm" && request.opts.danger ? "confirm-danger" : "primary"} btn-sm`}
             data-testid="app-dialog-confirm"
             disabled={confirmDisabled}
             onClick={onConfirm}
