@@ -68,8 +68,13 @@ func equalIDs(a, b []string) bool {
 	return true
 }
 
-// TestMyFilesDefaultUnset: with no saved selection, GET returns all pool files in
-// displayOrder, customized=false.
+// TestMyFilesDefaultUnset: with no saved selection, GET returns EXACTLY the default file —
+// the lowest-DisplayOrder PDF (T138 ⟨R1⟩, app.DefaultFile) — and customized=false.
+//
+// This used to expect "all pool files in displayOrder". T138 changed it deliberately: my-files is a BAKE
+// selection (what the member reads on stage), not a browser over the pool, and its unset answer must be
+// the SAME file the baker takes or the two surfaces disagree — which is the bug the task was filed for.
+// The pool is browsed via the files endpoint instead. Do not "restore" the old expectation.
 func TestMyFilesDefaultUnset(t *testing.T) {
 	for _, be := range backends() {
 		t.Run(be.name, func(t *testing.T) {
@@ -83,8 +88,9 @@ func TestMyFilesDefaultUnset(t *testing.T) {
 			if customized {
 				t.Fatalf("customized = true, want false (no selection set)")
 			}
-			if !equalIDs(fileIDs(got), fileIDs(files)) {
-				t.Fatalf("default files = %v, want all pool in displayOrder %v", fileIDs(got), fileIDs(files))
+			if !equalIDs(fileIDs(got), []string{files[0].ID}) {
+				t.Fatalf("default files = %v, want exactly the default file %v (lowest-DisplayOrder PDF)",
+					fileIDs(got), files[0].ID)
 			}
 		})
 	}
@@ -208,15 +214,18 @@ func TestMyFilesPerUserIsolation(t *testing.T) {
 			resp, _ = userA.do(http.MethodPut, myFiles, map[string][]string{"fileIds": {files[1].ID}})
 			mustStatus(t, resp, http.StatusOK)
 
-			// userB still sees the full default, customized=false.
+			// userB still sees the DEFAULT (T138: exactly the lowest-DisplayOrder PDF), customized=false —
+			// the isolation property is that A's saved selection does not reach B, and it is asserted
+			// against the new baseline rather than the old "all pool" one.
 			resp, body := userB.do(http.MethodGet, myFiles, nil)
 			mustStatus(t, resp, http.StatusOK)
 			got, customized := decodeMyFiles(t, body)
 			if customized {
 				t.Fatalf("userB customized = true, want false (isolation breach)")
 			}
-			if !equalIDs(fileIDs(got), fileIDs(files)) {
-				t.Fatalf("userB files = %v, want all pool %v", fileIDs(got), fileIDs(files))
+			if !equalIDs(fileIDs(got), []string{files[0].ID}) {
+				t.Fatalf("userB files = %v, want exactly the default %v (A's selection must not reach B)",
+					fileIDs(got), files[0].ID)
 			}
 
 			// userA's own selection is unchanged.
@@ -251,8 +260,10 @@ func TestMyFilesDeleteRevertsToDefault(t *testing.T) {
 			if customized {
 				t.Fatalf("customized = true after DELETE, want false")
 			}
-			if !equalIDs(fileIDs(got), fileIDs(files)) {
-				t.Fatalf("after DELETE files = %v, want all pool %v", fileIDs(got), fileIDs(files))
+			// T138: DELETE reverts to UNSET, and unset now resolves to exactly the default file
+			// (the lowest-DisplayOrder PDF), not to the whole pool.
+			if !equalIDs(fileIDs(got), []string{files[0].ID}) {
+				t.Fatalf("after DELETE files = %v, want exactly the default %v", fileIDs(got), files[0].ID)
 			}
 		})
 	}
