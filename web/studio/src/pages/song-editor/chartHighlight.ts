@@ -18,7 +18,14 @@ export function isChordRow(line: string): boolean {
   return t.split(/\s+/).every((tok) => CHORD.test(tok));
 }
 
-export type HlClass = "hl-title" | "hl-section" | "hl-chord" | "hl-bold" | "hl-plain";
+export type HlClass =
+  | "hl-title"
+  | "hl-section"
+  | "hl-chord"
+  | "hl-bold"
+  | "hl-plain"
+  | "hl-marker" // T135: a brace directive ({np}/{fn}/{sot}/{eot}) — also fixes {np}/{fn}, plain today
+  | "hl-tab"; // T135: verbatim content inside a tab block
 export interface HlToken {
   text: string;
   cls: HlClass;
@@ -31,6 +38,57 @@ export function classifyLine(line: string): "title" | "section" | "chord" | "pla
   if (t.startsWith("## ")) return "section";
   if (isChordRow(line)) return "chord";
   return "plain";
+}
+
+// Brace directives, mirroring the server predicates (chart.go / chart_tab.go): whole line,
+// case-insensitive, surrounding whitespace ignored. `{np} x`, `{{sot}}`, `sot` are NOT markers.
+const RE_NEW_PAGE = /^\{(new_page|np)\}$/i;
+const RE_FOOTNOTE = /^\{(footnote|fn)\}$/i;
+const RE_TAB_START = /^\{(start_of_tab|sot)\}$/i;
+const RE_TAB_END = /^\{(end_of_tab|eot)\}$/i;
+
+/** isTabStart/isTabEnd: whole-line tab block markers (T135), mirroring the server. */
+export function isTabStart(line: string): boolean {
+  return RE_TAB_START.test(line.trim());
+}
+export function isTabEnd(line: string): boolean {
+  return RE_TAB_END.test(line.trim());
+}
+
+/**
+ * tokenizeChartSource: the STATEFUL highlighter (T135). A tab block ({sot}…{eot}) needs state across
+ * lines — inside it every line is verbatim `hl-tab` (a chord row over the strings keeps `hl-chord`,
+ * matching how the server draws it), and the markers themselves are `hl-marker`. Outside a block,
+ * `{np}`/`{fn}` are also `hl-marker` (they rendered as plain lyric before this). Everything else falls
+ * to the per-line tokenizer. Text is preserved line-for-line (each marker/tab line is one whole-line
+ * token), so the overlay stays under the caret. An unclosed block runs to EOF, like the renderer.
+ */
+export function tokenizeChartSource(source: string): HlToken[][] {
+  const out: HlToken[][] = [];
+  let inTab = false;
+  for (const line of source.split("\n")) {
+    const t = line.trim();
+    if (inTab) {
+      if (RE_TAB_END.test(t)) {
+        inTab = false;
+        out.push([{ text: line, cls: "hl-marker" }]);
+      } else if (isChordRow(line)) {
+        out.push([{ text: line, cls: "hl-chord" }]);
+      } else {
+        out.push([{ text: line, cls: "hl-tab" }]);
+      }
+      continue;
+    }
+    if (RE_TAB_START.test(t)) {
+      inTab = true;
+      out.push([{ text: line, cls: "hl-marker" }]);
+    } else if (RE_NEW_PAGE.test(t) || RE_FOOTNOTE.test(t)) {
+      out.push([{ text: line, cls: "hl-marker" }]);
+    } else {
+      out.push(tokenizeChartLine(line));
+    }
+  }
+  return out;
 }
 
 /** tokenizeChartLine: spans for one line, text-preserving (see the note above). */

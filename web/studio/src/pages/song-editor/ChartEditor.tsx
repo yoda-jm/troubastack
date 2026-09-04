@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { tokenizeChartLine } from "./chartHighlight";
+import { tokenizeChartSource } from "./chartHighlight";
 
 // What a host hands the editor: the source to edit and, for an existing generated file, its id + the
 // revision the edit is based on (LWW conflict detection + the draft-persistence key).
@@ -41,13 +41,14 @@ function HighlightedSource({
       preRef.current.scrollLeft = taRef.current.scrollLeft;
     }
   };
-  const lines = value.split("\n");
+  // T135: tokenize the whole source so tab blocks ({sot}…{eot}) are highlighted with cross-line state.
+  const lineTokens = tokenizeChartSource(value);
   return (
     <div className="chart-src-wrap">
       <pre className="chart-src-hl" aria-hidden="true" ref={preRef}>
-        {lines.map((ln, i) => (
+        {lineTokens.map((toks, i) => (
           <span className="hl-line" key={i}>
-            {tokenizeChartLine(ln).map((t, j) => (
+            {toks.map((t, j) => (
               <span className={t.cls} key={j}>
                 {t.text}
               </span>

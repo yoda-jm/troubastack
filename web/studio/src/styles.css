@@ -306,6 +306,10 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .hl-chord { color: var(--ok-fg); font-weight: 700; }
 .hl-bold { color: var(--fg); font-weight: 700; }
 .hl-plain { color: var(--fg); }
+/* T135: brace directives ({np}/{fn}/{sot}/{eot}) read as muted metadata, not lyrics; tab-block
+   content is muted verbatim so the block reads as one monospace zone distinct from sung lines. */
+.hl-marker { color: var(--muted); font-style: italic; }
+.hl-tab { color: var(--muted); }
 
 /* ---- lists ------------------------------------------------------------- */
 .list { list-style: none; padding: 0; margin: .25rem 0 0; display: flex; flex-direction: column; gap: .4rem; }
