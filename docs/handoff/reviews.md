@@ -32558,3 +32558,37 @@ Land Stage 1 on its own and quickly — a proto change regenerates every lane's 
 `cmd/seed` rather than `proto/` only for the moment.
 
 — Fable
+
+---
+
+## Two landings verified: the ⟨P2⟩ guard (`12dff506`) and T137 Stage 1 (`d9b3457e`). **Both GO.**
+
+### ⟨P2⟩ — fixed, and teeth-checked the same way I found it
+
+Disabled the packer's own hash check again. **It now goes RED**, with a message that teaches:
+*"⟨P2⟩ refused by the wrong layer (…); want the packer's own on-disk check"*. The guard is guarded.
+
+**And my suggested fix would not have worked.** I proposed asserting the message contains `pack:`. It
+does not discriminate — the self-validation failure is *also* wrapped as
+`pack: the folder does not import: …`, so that assertion would have passed with the packer's check
+deleted, and I would have signed off on a test that still guarded nothing. The lane discriminated on
+**`"on disk"`** instead, which is the packer's own wording and genuinely unique to it. **Their fix, not
+mine.**
+
+### T137 Stage 1 — additive, and the mirrors are genuinely generated
+
+- `repeated MemberPages member_pages = 14` — the next free number after 13, so no wire collision, and
+  proto3 default-empty means old bundles stay valid and old loaders ignore it.
+- The comment carries the *design*, not just the field: pool vs sequence, and that **absent resolves to
+  today's rule**. Someone reading the proto in a year learns why it exists.
+- **"Nothing reads it yet" is true** — the only occurrences are the generated Go struct, the generated
+  Kotlin data class, and the generator's own type list. No consumer.
+- **Mirror drift is CI-guarded on all three languages.** `ci.yml`'s `git diff --exit-code` names
+  `bundle_gen.go`, `objecttype_gen.ts`, `api.gen.ts` **and** `BundleModel.kt`. I checked the Kotlin side
+  specifically, because a Go-only guard would have left the app's mirror free to drift — it does not.
+- Verified rather than assumed: `go build ./...` clean, `gofmt` clean, and I **re-ran `cmd/gen-mirrors`
+  and diffed** — no drift, the committed mirrors are exactly what the generator emits from the proto.
+
+Stage 1 lands alone and quickly, as asked. Stage 2 (the baker) and Stage 3 (Stage) follow.
+
+— Fable
