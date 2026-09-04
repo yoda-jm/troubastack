@@ -256,6 +256,82 @@ I migrated the two real band folders to v2. Four corrections, three of them to m
    in `members[]`, or it drops the only privileged account), and a `personal` layer carries **no owner**
    while v2 requires one. An export must never have to guess an owner.
 
+## PHASE 2 SPECIFICATION — the packer (written after building one and measuring it)
+
+Phase 1 landed the wire format. Phase 2 is the piece that makes VLL's flow real: *"l'import des
+repertoire trouba bands est de zipper les folder et utiliser l'import tband."* I built a working packer
+as a scratch tool and ran both real band libraries through it end to end, so the requirements below are
+measured rather than predicted.
+
+### ⟨P1⟩ The mapping belongs to the TOOL. The stored folder keeps its own vocabulary.
+
+**This is the requirement I violated myself, so it is first.** I migrated the two real folders *in place*
+into v2's member shape and silently broke the seeder, which reads `display`, `role` as **free text naming
+the instrument**, and `conductor`. Renaming them produced members with no display name, no instrument and
+no conductor promotion — **no error, just wrong**.
+
+So: the folder keeps `display`, prose `role`, `conductor`, and `admin` beside `members`. The **packer**
+emits v2's `displayName`, the `role` enum (from `admin` + `conductor`), and `members[]` with the admin
+folded in. Nothing about the v2 shape is stored in the directory.
+
+**Regression test, non-negotiable:** one fixture folder must both **seed** (`cmd/seed`) and **pack**
+successfully. If a change makes one work and the other fail, that test is the thing that says so.
+
+### ⟨P2⟩ Verify hashes, never trust the manifest
+
+If `repertoire.json` declares a `blobHash`, the packer **recomputes it from the file on disk and refuses
+on mismatch**, naming the file. A stale manifest that packs quietly imports the *wrong bytes* under a
+right-looking name — the failure nobody notices until a musician opens the wrong chart on stage.
+
+Measured: dedup is real and worth having — 107 files packed to **106 blobs**, two charts byte-identical.
+
+### ⟨P3⟩ The repertoire is the index
+
+Only a `<slug>/` directory whose slug is **declared in `repertoire.json`** becomes a song. Measured in the
+real library: one folder contains a `__pycache__` directory and three stray root files (a `.py`, a `.js`,
+a timestamped `.bak`). Under any glob-the-directory rule, `__pycache__` imports **as a song** carrying a
+`.pyc` as its chart. Declared-only makes that impossible by construction — no deny-list to maintain.
+
+### ⟨P4⟩ Fail on anything unresolved; never skip
+
+Applies to every mapping the packer performs — an annotation title that resolves to zero or several
+repertoire entries, a `files[]` entry with no file on disk, a layer `file` ref matching no filename.
+**A skipped song is indistinguishable from a song that had nothing.** Measured: title→slug resolves 9/9
+today, which is exactly why it must fail loudly the first time it does not.
+
+### ⟨P5⟩ Round-trip is an exact inverse
+
+`unzip(pack(dir))` reproduces the directory byte-for-byte. Pin the JSON encoding — indentation, key
+order, trailing newline — or a no-op round-trip shows as a diff and the "easy to diff" argument dies.
+Layer ids, object uuids and object→layer bindings stay verbatim, asserted **per song**: a band-wide id set
+collapses reused ids (the real library names every song's layer `L0`, which turned 41 identifiers into a
+falsely-healthy 33).
+
+### ⟨P6⟩ Size: report before uploading, not after
+
+`MaxImportBytes` is 512 MB. Measured: the larger library packs to **133.9 MB** from 158 MB declared, so
+real bands fit comfortably — but the packer should state the packed size and refuse *locally* when it
+would exceed the limit, rather than discovering it in an upload.
+
+### Acceptance
+
+- A fixture folder **seeds and packs** (⟨P1⟩'s regression test).
+- A declared `blobHash` that disagrees with the file refuses the pack, naming the file.
+- A stray directory with no repertoire entry is **not** imported as a song.
+- An unresolvable annotation title / missing file / dangling layer ref each fail with the name in the
+  message.
+- `unzip(pack(dir))` is byte-identical to the source directory.
+- Round-trip preserves layers and objects **by id, per song**.
+- T63's zip-bomb bounds and all-or-nothing import unchanged, tests still green.
+
+### Note on the import preview
+
+Earlier I told the lane the zip flow "must not bypass `ImportPreview`" as though the service enforced it.
+**It does not** — `ImportBand` with nil dispositions is accepted and mints accounts, because `create` is
+the documented default for an unknown username. What *is* enforced is the T62 takeover fix. So the
+preview stays a **UI obligation** in whatever surface drives the packer; do not build as though the
+service layer already guarantees it, and do not weaken the takeover check.
+
 ## Then, and only then: the demo
 
 Once annotations are expressible, move the demo's groups out of Go literals (`groupDef`) into a folder
