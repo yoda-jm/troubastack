@@ -77,6 +77,9 @@ type v2Member struct {
 	Email       string `json:"email,omitempty"`
 	AvatarKind  string `json:"avatarKind,omitempty"`
 	Role        string `json:"role"`
+	// Plays is the folder's instrument prose (⟨P1⟩): the legacy folder's `role` was free text naming
+	// what a person plays. It is documentation the reader ignores — `role` above is the permission enum.
+	Plays string `json:"plays,omitempty"`
 }
 
 type v2Repertoire struct {

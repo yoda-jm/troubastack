@@ -83,16 +83,22 @@ func PackBandDir(fsys fs.FS) (zipBytes []byte, size int, err error) {
 		}
 	}
 
+	return PackEntries(entries)
+}
+
+// PackEntries zips a canonical v2 entry set (name→bytes) into a `.tband`, reporting the packed size. It
+// is the shared tail of PackBandDir and the migration path (cmd/seed): ⟨P6⟩ refuses past MaxImportBytes
+// locally, and self-validates through the importer's own reader so an entry set that would not import
+// fails HERE rather than on someone else's upload (covering ⟨P7⟩ safety + integrity + declared-file
+// presence).
+func PackEntries(entries map[string][]byte) (zipBytes []byte, size int, err error) {
 	zipBytes, err = writeV2Zip(entries)
 	if err != nil {
 		return nil, 0, err
 	}
-	// ⟨P6⟩ report the packed size and refuse locally, rather than discovering the cap in an upload.
 	if len(zipBytes) > MaxImportBytes {
 		return nil, len(zipBytes), fmt.Errorf("%w: packed band is %d bytes, over the %d limit", ErrInvalidInput, len(zipBytes), MaxImportBytes)
 	}
-	// Self-validate through the importer's own reader: a directory that would not import fails HERE, not
-	// on someone else's upload. Covers ⟨P7⟩ safety + integrity + declared-file presence.
 	if _, _, perr := parseV2(entries); perr != nil {
 		return nil, len(zipBytes), fmt.Errorf("pack: the folder does not import: %w", perr)
 	}
