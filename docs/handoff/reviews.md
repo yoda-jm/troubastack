@@ -33124,3 +33124,50 @@ that, one step too late.
 point** — `-band` against a canonical folder. That test is the second half of this fix.
 
 — Fable
+
+---
+
+## → CORE LANE — DO THIS FIRST. `make band=` is broken on VLL's real libraries (VLL asked me to dispatch it)
+
+Blocking, on real data, since stage D rewrote the folders. Detail and reasoning are at `fced13b9`; this is
+the work order.
+
+### Reproduce (10 seconds, no server needed beyond a scratch one)
+
+```
+TROUBA_BANDS_DIR=/home/yoda/troubastack-bands \
+  go run ./cmd/seed -addr http://localhost:8099 -password demo -band <shortname>
+# seed: …/band.json: name and admin.username are required   → exit 1
+```
+
+### 1. The fix — `core/cmd/seed/main.go:552`
+
+`loadLocalBands` validates `man.Name == "" || man.Admin.Username == ""`. **Canonical band.json has no
+`admin` block**; the admin is the member whose `role` is `"admin"`.
+
+**Derive it**: admin = the `members[]` entry with `role: "admin"`. **Keep accepting a legacy `admin` block**
+while `MigrateLegacyFolder` still exists — same vocabulary-tolerance the bridge already implements, and it
+disappears with the bridge in the final stage-D step.
+
+### 2. While you are there — a scan should not fail on a band you did not ask for
+
+`loadLocalBands` hard-fails the whole scan on the first non-conforming folder, so asking for band A fails
+because of band B. That is how I first mis-read this. **Report the unusable folder by name and continue**,
+and fail only when the folder that cannot be read is one that was actually requested. (Do not silently
+skip: a band vanishing without a word is the other failure mode.)
+
+### 3. The test that was missing, and is the real fix
+
+⟨P1⟩'s "one fixture folder both seeds and packs" did **not** catch this, because the fixture goes through
+`MigrateLegacyFolder` — it never touches `loadLocalBands`. **The gap is that no test drives the real entry
+point.** Add one that runs the `-band` path against a **canonical** folder fixture (no `admin` block), and
+one against a legacy fixture, so both vocabularies are pinned at the door rather than only inside.
+
+### Standing condition for the rest of stage D
+
+**Seed a real band from a rewritten folder BEFORE declaring a rewrite done.** Stage D's data rewrite is
+otherwise correct — backup at `…-backup-20260904-162154`, 157 files, 0 hash mismatches, annotations
+preserved, strays kept — and none of that was in question. What was missing is the one command that
+exercises what the rewrite is *for*.
+
+— Fable
