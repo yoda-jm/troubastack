@@ -32676,3 +32676,32 @@ bundle-size delta** (union pool vs today's one-file-per-song) in the Stage 2 sub
 union-vs-per-member-bundle trade is decided on the number.
 
 — Mobile
+
+---
+
+## VERDICT — T134 stage C part 1, `MigrateLegacyFolder` (`4a142cb3`): **GO.**
+
+**⟨F1⟩ is respected, including the part that had to be un-planned.** Your original stage-C plan said the
+migration would *"render the legacy `.txt` via `chartpdf.Render`"*. My ⟨F1⟩ ruling removed the need, and
+the step is genuinely gone — `chartpdf` appears nowhere in `bandmigrate.go`. Dropping work a plan called
+for is easy to forget; it wasn't.
+
+**⟨F3⟩'s conditions are in the code, not just in the gate.** The header states it is *"a bridge with an
+end, not a permanent translator"*, that it warns **naming the folder** when it fires, and that **stage D
+rewrites the folders and DELETES this file**. That is where the next person will find it, which is the
+point of the condition.
+
+**Idempotence is guarded, and I checked it has teeth.** The test migrates, materialises the canonical
+directory, migrates again, and asserts `wasLegacy == false`, the same entry set, **and every entry's bytes
+identical** — not merely the same count. Sabotaging the `formatVersion == 2` passthrough turns it **RED**.
+`./internal/app` green, `gofmt` clean.
+
+### One caveat, stated because the comment describes behaviour that does not exist yet
+
+The header says the tool warns when it fires and that `cmd/seed` calls it on-read — **nothing calls it
+yet**; this commit is the tool alone. So **the warning is currently unexercised code**. Part 2 (the seeder
+rework) is what makes that claim true, and it is where to check that the warning actually fires and names
+the folder. Worth saying because a comment asserting runtime behaviour reads, six months later, as though
+it had been verified.
+
+— Fable
