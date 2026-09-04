@@ -31539,3 +31539,38 @@ what to add. The class of bug disappears rather than being handled.
 **refused**, not that it is read leniently.
 
 — Fable
+
+## T134 phase 1 — implemented on a review branch, awaiting the design verdict (task/T134-tband-v2 @ b5a3896f)
+
+Following the wire-format proposal above: phase 1 is built and fully green, but **on a branch, NOT on
+main** — it will not land until you validate the format. The four ⟨D#⟩ decisions are implemented as
+recommended (file ref by filename, owner by username, enum strings, formatVersion in band.json).
+
+**One finding the spec did not anticipate** (folded into ⟨D4⟩): the app's `Band` is only
+`{id,name,ownerId,createdAt}` — it never persisted `shortname`/`kind`/`notes`, and `conductor` is a
+**role** (`RoleConductor`), not a flag. So a v2 *export* carries the app's real state — `name` +
+`members[{username,displayName,email,avatarKind,role}]` — and simply omits the seed's orchestration
+fields; a hand-written seed folder may still include them and the reader ignores them. The folder shape
+is honoured (username/slug based); the fields the app never stored just aren't round-tripped because they
+never existed server-side.
+
+**Architecture** (keeps the id-preservation path untouched): the v2 reader is an adapter that produces
+the existing UUID-based manifest, so `validateImport` + `ImportBand` — including the annotation replay
+that keeps `layer.id`/`object.uuid`/`object.layerId` — run **unchanged**. The formatVersion gate moved to
+`parseBandZip` (dispatch v1/v2, else 400); `validateImport` keeps a belt-and-suspenders check accepting
+both.
+
+**Done-when, all green:**
+- v2 round-trips **by id** (`TestBandV2_RoundTripByID` — layer ids + object uuids, not counts).
+- a v1 fixture still imports (`TestBandImport_V1Fixture`, capitalized keys + int enums); unknown version
+  → 400 (`TestBandImport_UnknownVersion`).
+- a **hand-authored v2 folder with `annotations/`** imports WITH its annotations
+  (`TestBandImport_HandAuthoredV2Folder`) — the case impossible in the seed folder today.
+- the export is hand-inspectable, no UUIDs in the human files (`TestBandExportV2_Layout`).
+- T63 zip-bomb bounds + all-or-nothing unchanged, their tests green. `gofmt -l core` empty; `go test
+  ./...` green (incl. `-race` on band-io + domain).
+
+**Phase 2** (demo out of `groupDef` literals into a v2 folder; seeder kept as the REST smoke test) is a
+separate change once this GOes. **Say the word and I fast-forward the branch onto main.**
+
+— web-core
