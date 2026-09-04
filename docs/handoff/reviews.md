@@ -32494,3 +32494,67 @@ becomes "one bundle everybody downloads" vs "a bundle per identity", and that is
 until 1 and 2 land — same rule that the P206 misrouting broke.
 
 — Fable
+
+---
+
+## T134 stage C — the four forks, ruled. And T137 is restaged for mobile.
+
+### ⟨F1⟩ A generated chart's bytes in the folder ARE its source. **Ruling against your recommendation.**
+
+You proposed the folder carry the **rendered PDF** under `<slug>/<filename>` plus `chartSource` in the
+repertoire. I am ruling for your alternative — **store the source as the bytes, render on import** — for
+three reasons, the first of which is this spec's own existing rule:
+
+1. **T134 already rules that derived artefacts rebuild on the target**: *"Do not include baked concerts —
+   rebake on the target."* A rendered PDF of a text chart is the same kind of thing. Carrying it
+   contradicts a rule we already wrote.
+2. **Two representations of one thing drift, and here the drift is SILENT.** ⟨P2⟩ verifies `blobHash`
+   against the bytes — so an edited `chartSource` beside a stale PDF still hashes correctly and imports
+   the old chart under the new source's name. That is the exact failure shape ⟨P2⟩ exists to prevent,
+   walking in through the other door.
+3. **A binary in the folder defeats the premise.** VLL adopted the directory to *"historiser, lire et
+   differ"*. A PDF does none of the three.
+
+The path exists — `CreateTextChart` renders from source — so this is not new machinery. **`chartSource`
+as a separate field is then redundant for folder storage: one representation, nothing to drift.** The
+export side writes the source for a generated file and marks `generated: true`.
+
+Your objection ("changes import semantics") is real but small, and it buys a folder that is actually
+diffable. Push back if rendering at import turns out to be more than it looks.
+
+### ⟨F2⟩ Demo stays Go-literals in C, seeded through the new path. **Agreed** — and for a better reason than convenience
+
+Building the canonical dir **in memory** from `groupDef` and running it through pack → import → passwords
+means **the completeness test arrives in stage C instead of D**: anything the demo cannot express through
+the canonical format fails now, while the demo is still in Go and cheap to change. Do it exactly as you
+proposed.
+
+### ⟨F3⟩ Migrate-on-read: **accepted as a BRIDGE, with one condition**
+
+You are right that one-shot-on-disk breaks `make band=<legacy>` in the window, and I had not thought
+about that window. Migrate-on-read using the same tested tool is the right answer.
+
+**The condition, because this is precisely the thing I ruled against:** a permanent legacy→canonical
+translator is two vocabularies forever. So the on-read path is a **bridge with an owner and an end** —
+it warns when it fires (naming the folder), and **stage D deletes it** once the real folders are
+rewritten. If stage D lands without removing it, that is a finding against stage D.
+
+### ⟨F4⟩ **Confirmed.** Two calls, public API only
+
+`POST /bands/{id}/members/{userId}/password-reset` for the token, then `POST /password-reset/{token}` with
+the password. I verified there is no direct set-password service call, and ⟨P8⟩'s "no private surface"
+holds. Order stays import-first: members arrive `create`d and passwordless **with their personal content
+intact**, and only then get passwords.
+
+### T137 restaged — mobile can start it now
+
+VLL gave T137 to mobile because core is in the seeding rework. **That works**, and it does not break
+route-by-first-stage: **A03 already solved this exact shape** — *"the real bundle producer doesn't exist
+yet, and the presenter track must not wait for it"* — with `core/cmd/mkbundle` and committed fixtures.
+
+Mobile takes **Stage 1** (proto field + mirrors) and **Stage 3 against a fixture bundle carrying
+`MemberPages`**. Stage can be complete and tested before the baker emits one. **Only Stage 2 needs core.**
+Land Stage 1 on its own and quickly — a proto change regenerates every lane's mirrors, and core is in
+`cmd/seed` rather than `proto/` only for the moment.
+
+— Fable

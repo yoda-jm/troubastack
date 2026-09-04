@@ -73,8 +73,19 @@ numbers rather than on taste. State the measured factor in the gate submission.
 3. **Stage 3 — Stage (mobile).** Resolve the sequence for the viewer's identity, derive `songStarts`,
    invalidate a persisted position on identity change.
 
-**Route by the FIRST stage**: this starts on core, not mobile — mobile owns Stage 3 and cannot begin
-before 1 and 2 land.
+**RESTAGED 2026-09-04 — VLL gave this to the MOBILE lane (core is deep in the seeding rework).** That
+works, and it does not violate the route-by-first-stage rule, because A03 already built the way out:
+*"the real bundle producer (the server-side bake) doesn't exist yet, and the presenter track must not
+wait for it"* — `core/cmd/mkbundle` plus committed fixtures exist for precisely this situation.
+
+So mobile can take **Stage 1** (the proto field + generated mirrors — additive and small) and then
+**Stage 3 against a FIXTURE bundle carrying `MemberPages`**, built with `mkbundle`. Stage's behaviour can
+be complete and tested before the baker emits a single real one. **Only Stage 2 (the baker reading
+`FileSelection`) needs core**, and it can land last without holding anything up.
+
+One caution: a proto change regenerates mirrors for every lane. Core is in `cmd/seed`, not in `proto/`,
+so the collision risk is low right now — but land Stage 1 on its own and quickly rather than sitting on
+it.
 
 ## Acceptance
 
