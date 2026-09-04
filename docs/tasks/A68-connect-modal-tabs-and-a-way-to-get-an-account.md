@@ -24,10 +24,26 @@ screen** — the very thing the invite journey exists to avoid.
 
 ## Work
 
-### 1. Two tabs: **Invite** | **Sign in**
+### 1. Two tabs: **Sign in** | **Invite** — Sign in is the DEFAULT
 
 The app already uses a segmented row for Stage's reading mode, so this is not a new idiom. Choosing a
 tab is choosing a journey; you then read only that half.
+
+**VLL, 2026-09-04: *"probablement connection en premier car en nombre c'est ce qu'on fera le plus
+souvent."*** Correct — signing in recurs (new device, expired session), redeeming an invite happens once
+per person per band.
+
+**And it does not contradict A57, which put the invite first — it retires A57's reason.** A57 feared
+that *"a person holding an invite must not read a button that says only Sign in and conclude it isn't
+for them."* That fear was sound **while vertical order was the only signal**. With tabs, **both labels
+are permanently visible**: the invite holder sees an *Invite* tab whichever one is selected. The failure
+mode ordering was protecting against is removed by the tabs themselves — so defaulting to the frequent
+case now costs the rare case nothing. Record this, or someone will "restore" A57's order later and think
+they are fixing a regression.
+
+**Keep the default fixed.** Do not make it conditional on stored state ("returning user → Sign in, first
+run → Invite"): a modal that opens on a different tab depending on invisible history is harder to trust
+than one that always opens the same way, and the other tab is one tap regardless.
 
 **Above the tabs, keep the offline sentence** — *"Playing works offline without an account."* It is true
 of both journeys and it is **the only line that tells a hesitant person they can ignore all of this.**
