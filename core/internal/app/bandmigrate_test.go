@@ -147,3 +147,85 @@ func TestMigrate_Idempotent(t *testing.T) {
 		}
 	}
 }
+
+// TestMigrate_HybridStampedButLegacyVocab: Gap A — a folder stamped formatVersion:2 but still carrying
+// the folder vocabulary (admin block + display/conductor) is detected as LEGACY and translated, not
+// trusted as canonical. This is the exact state a scratch migration left the real libraries in.
+func TestMigrate_HybridStampedButLegacyVocab(t *testing.T) {
+	band, _ := json.Marshal(map[string]any{
+		"formatVersion": 2, "name": "Hybrid", "shortname": "hy", "kind": "Band",
+		"admin":   map[string]any{"username": "marie", "display": "Marie", "role": "keys"},
+		"members": []any{map[string]any{"username": "leo", "display": "Leo", "role": "guitar", "conductor": true}},
+	})
+	rep, _ := json.Marshal(map[string]any{"songs": []any{map[string]any{"slug": "s1", "title": "S1"}}})
+	fsys := fstest.MapFS{
+		"band.json":       {Data: band},
+		"repertoire.json": {Data: rep},
+		"s1/chart.pdf":    {Data: []byte("%PDF-1.4 x")},
+	}
+	entries, wasLegacy, err := app.MigrateLegacyFolder(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !wasLegacy {
+		t.Fatal("Gap A: a v2-stamped folder with legacy vocab must be detected as legacy, not passed through")
+	}
+	var nb struct {
+		Admin   json.RawMessage `json:"admin"`
+		Members []struct {
+			Username, DisplayName, Role, Plays string
+			Display                            string `json:"display"`
+			Conductor                          bool   `json:"conductor"`
+		} `json:"members"`
+	}
+	json.Unmarshal(entries["band.json"], &nb)
+	if len(nb.Admin) != 0 {
+		t.Fatal("translated band.json must not keep a separate admin block")
+	}
+	byU := map[string]struct{ role, dn, plays, display string }{}
+	for _, m := range nb.Members {
+		byU[m.Username] = struct{ role, dn, plays, display string }{m.Role, m.DisplayName, m.Plays, m.Display}
+	}
+	if m := byU["marie"]; m.role != "admin" || m.dn != "Marie" || m.plays != "keys" || m.display != "" {
+		t.Fatalf("admin not translated (display→displayName, prose→plays): %+v", m)
+	}
+	if m := byU["leo"]; m.role != "conductor" || m.plays != "guitar" {
+		t.Fatalf("conductor flag/prose not translated: %+v", m)
+	}
+}
+
+// TestMigrate_PassthroughExcludesStrays: Gap B — a canonical folder passes through, but a stray directory
+// / top-level file (not declared in repertoire, not a known manifest) is NOT carried into the entries.
+func TestMigrate_PassthroughExcludesStrays(t *testing.T) {
+	content := []byte("%PDF canon")
+	band, _ := json.Marshal(map[string]any{
+		"formatVersion": 2, "name": "Canon",
+		"members": []any{map[string]any{"username": "dana", "displayName": "Dana", "role": "admin"}},
+	})
+	rep, _ := json.Marshal(map[string]any{"songs": []any{map[string]any{"slug": "s1", "title": "S1",
+		"files": []any{map[string]any{"filename": "c.pdf"}}}}})
+	fsys := fstest.MapFS{
+		"band.json":         {Data: band},
+		"repertoire.json":   {Data: rep},
+		"s1/c.pdf":          {Data: content},
+		"__pycache__/j.pyc": {Data: []byte("junk")},    // stray dir
+		"gen.py":            {Data: []byte("print()")}, // stray root file
+		"annotations.json":  {Data: []byte("{}")},      // stray dead file (NOT annotations/<slug>.json)
+	}
+	entries, wasLegacy, err := app.MigrateLegacyFolder(fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wasLegacy {
+		t.Fatal("a canonical folder must pass through (wasLegacy=false)")
+	}
+	for _, stray := range []string{"__pycache__/j.pyc", "gen.py", "annotations.json"} {
+		if _, ok := entries[stray]; ok {
+			t.Fatalf("Gap B: stray %q was carried into the canonical entries", stray)
+		}
+	}
+	// the declared content IS present
+	if _, ok := entries["s1/c.pdf"]; !ok {
+		t.Fatal("declared file missing from passthrough")
+	}
+}

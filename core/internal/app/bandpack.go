@@ -31,22 +31,30 @@ import (
 // PackBandDir reads a canonical v2 band directory from fsys and returns the `.tband` zip bytes plus the
 // packed size. Required: band.json + repertoire.json. Optional: setlists.json, cues.json, annotations/.
 func PackBandDir(fsys fs.FS) (zipBytes []byte, size int, err error) {
-	entries := map[string][]byte{}
+	entries, rerr := readCanonicalDir(fsys)
+	if rerr != nil {
+		return nil, 0, rerr
+	}
+	return PackEntries(entries)
+}
 
-	// Required + optional top-level manifests, copied verbatim (⟨P5⟩ — no re-marshal, so a round-trip
-	// does not diff on whitespace).
+// readCanonicalDir reads a CANONICAL v2 directory into its entry set: the known JSON manifests +
+// annotations/<slug>.json, and ONLY the files DECLARED in repertoire.json under <slug>/<filename> (⟨P3⟩ —
+// a stray file or directory is never read, so it cannot ride along into the archive). ⟨P2⟩ verifies a
+// declared blobHash from disk; ⟨P4⟩ a declared file missing on disk is refused. Shared by PackBandDir and
+// the migration passthrough (a canonical folder), so both exclude strays identically.
+func readCanonicalDir(fsys fs.FS) (map[string][]byte, error) {
+	entries := map[string][]byte{}
 	for _, name := range []string{"band.json", "repertoire.json", "setlists.json", "cues.json"} {
 		b, rerr := fs.ReadFile(fsys, name)
 		if rerr != nil {
 			if name == "band.json" || name == "repertoire.json" {
-				return nil, 0, fmt.Errorf("%w: pack: missing %s", ErrInvalidInput, name)
+				return nil, fmt.Errorf("%w: read: missing %s", ErrInvalidInput, name)
 			}
 			continue // setlists.json / cues.json are optional
 		}
 		entries[name] = b
 	}
-
-	// annotations/<slug>.json (optional directory).
 	if annEntries, derr := fs.ReadDir(fsys, "annotations"); derr == nil {
 		for _, e := range annEntries {
 			if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
@@ -54,36 +62,31 @@ func PackBandDir(fsys fs.FS) (zipBytes []byte, size int, err error) {
 			}
 			b, rerr := fs.ReadFile(fsys, "annotations/"+e.Name())
 			if rerr != nil {
-				return nil, 0, fmt.Errorf("%w: pack: annotations/%s: %v", ErrInvalidInput, e.Name(), rerr)
+				return nil, fmt.Errorf("%w: read: annotations/%s: %v", ErrInvalidInput, e.Name(), rerr)
 			}
 			entries["annotations/"+e.Name()] = b
 		}
 	}
-
-	// ⟨P3⟩ the repertoire is the index: pack ONLY the files it declares, under `<slug>/<filename>`. A
-	// stray directory with no repertoire entry is never included.
 	var rep v2Repertoire
 	if err := json.Unmarshal(entries["repertoire.json"], &rep); err != nil {
-		return nil, 0, fmt.Errorf("%w: pack: repertoire.json is not valid JSON: %v", ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: read: repertoire.json is not valid JSON: %v", ErrInvalidInput, err)
 	}
 	for _, s := range rep.Songs {
 		for _, f := range s.Files {
 			entry := s.Slug + "/" + f.Filename
 			data, rerr := fs.ReadFile(fsys, entry)
 			if rerr != nil {
-				return nil, 0, fmt.Errorf("%w: pack: declared file %q is not on disk", ErrInvalidInput, entry) // ⟨P4⟩
+				return nil, fmt.Errorf("%w: read: declared file %q is not on disk", ErrInvalidInput, entry) // ⟨P4⟩
 			}
 			if f.BlobHash != "" && blob.HashOf(data) != f.BlobHash { // ⟨P2⟩
-				// Distinctive phrasing ("on disk") so a test can assert THIS layer refused, not the
-				// downstream self-validation (which would still refuse a hash mismatch, leaving this
-				// check unguarded — Fable's stage-B GO finding).
-				return nil, 0, fmt.Errorf("%w: pack: file %q on disk does not match its declared blobHash", ErrInvalidInput, entry)
+				// "on disk" distinguishes THIS check from the downstream self-validation (Fable's stage-B
+				// GO finding — the guard must be the one that fires).
+				return nil, fmt.Errorf("%w: read: file %q on disk does not match its declared blobHash", ErrInvalidInput, entry)
 			}
 			entries[entry] = data
 		}
 	}
-
-	return PackEntries(entries)
+	return entries, nil
 }
 
 // PackEntries zips a canonical v2 entry set (name→bytes) into a `.tband`, reporting the packed size. It

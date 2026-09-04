@@ -58,12 +58,13 @@ func MigrateLegacyFolder(fsys fs.FS) (entries map[string][]byte, wasLegacy bool,
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: migrate: no band.json", ErrInvalidInput)
 	}
-	var peek struct {
-		FormatVersion int `json:"formatVersion"`
-	}
-	_ = json.Unmarshal(bandRaw, &peek)
-	if peek.FormatVersion == BandExportFormatVersionV2 {
-		e, werr := walkFolder(fsys) // already canonical — pass through unchanged
+	// Detect legacy VOCAB, not the formatVersion stamp: a scratch migration left the real libraries
+	// stamped formatVersion:2 while still carrying the folder vocabulary (a separate `admin` block, member
+	// `display`/`conductor` keys), which the reader would mishandle silently. Trusting the stamp would
+	// pass those through untranslated. A truly-canonical folder has none of those tells and passes through
+	// via readCanonicalDir (declared-only, so strays are excluded — Gap B).
+	if !looksLegacy(bandRaw) {
+		e, werr := readCanonicalDir(fsys)
 		return e, false, werr
 	}
 
@@ -135,7 +136,33 @@ func MigrateLegacyFolder(fsys fs.FS) (entries map[string][]byte, wasLegacy bool,
 	if raw, rerr := fs.ReadFile(fsys, "setlists.json"); rerr == nil {
 		entries["setlists.json"] = raw
 	}
-	// A legacy folder has no annotations/ or cues.json (the gap T134 closes); nothing to carry.
+	// cues.json + annotations/<slug>.json pass through if present: a partially-migrated ("hybrid") folder
+	// may already carry real annotations (a scratch migration added them), and translating the member
+	// vocab must NOT drop them. A stray top-level annotations.json (not annotations/<slug>.json) is NOT
+	// read, so it is excluded. Only annotations for a DECLARED slug survive parseV2 on import.
+	if raw, rerr := fs.ReadFile(fsys, "cues.json"); rerr == nil {
+		entries["cues.json"] = raw
+	}
+	declared := map[string]bool{}
+	for _, s := range rep.Songs {
+		declared[s.Slug] = true
+	}
+	if annEntries, derr := fs.ReadDir(fsys, "annotations"); derr == nil {
+		for _, e := range annEntries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+				continue
+			}
+			slug := strings.TrimSuffix(e.Name(), ".json")
+			if !declared[slug] {
+				continue // an annotations file for an undeclared song — dropped, not carried
+			}
+			b, rerr := fs.ReadFile(fsys, "annotations/"+e.Name())
+			if rerr != nil {
+				return nil, false, fmt.Errorf("%w: migrate: annotations/%s: %v", ErrInvalidInput, e.Name(), rerr)
+			}
+			entries["annotations/"+e.Name()] = b
+		}
+	}
 
 	return entries, true, nil
 }
@@ -208,26 +235,28 @@ func scorePriorityMigrate(p string) int {
 	return 0
 }
 
-// walkFolder reads every file of an already-canonical directory into an entries map (the passthrough
-// path). Directory entries are skipped.
-func walkFolder(fsys fs.FS) (map[string][]byte, error) {
-	entries := map[string][]byte{}
-	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || p == "." {
-			return nil
-		}
-		data, rerr := fs.ReadFile(fsys, p)
-		if rerr != nil {
-			return rerr
-		}
-		entries[p] = data
-		return nil
-	})
-	if err != nil {
-		return nil, err
+// looksLegacy reports the folder-vocab tells that mean a band.json must be translated, REGARDLESS of a
+// (possibly bogus) formatVersion stamp: a separate `admin` block, or a member keyed by `display` or
+// `conductor`. A canonical band.json folds admin into members[] and uses `displayName`/`plays`, so it has
+// none of these. This is what makes migrate-on-read robust to a folder stamped v2 but never converted.
+func looksLegacy(bandJSON []byte) bool {
+	var peek struct {
+		Admin   json.RawMessage              `json:"admin"`
+		Members []map[string]json.RawMessage `json:"members"`
 	}
-	return entries, nil
+	if err := json.Unmarshal(bandJSON, &peek); err != nil {
+		return false
+	}
+	if len(peek.Admin) > 0 && string(peek.Admin) != "null" {
+		return true
+	}
+	for _, m := range peek.Members {
+		if _, ok := m["display"]; ok {
+			return true
+		}
+		if _, ok := m["conductor"]; ok {
+			return true
+		}
+	}
+	return false
 }
