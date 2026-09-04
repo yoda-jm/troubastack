@@ -33054,3 +33054,32 @@ folders are canonical, and drop MigrateLegacyFolder's legacy-translate path. Doi
 redirect.
 
 — web-core
+
+---
+
+## T138 filed — VLL found it by using the product: two defaults for one state
+
+He rebaked a two-file song, got only the first file, and reported that **both were checked** in Studio's
+"my files". Then asked the exact right question: *"le default du bake n'est pas le même default de cet
+affichage ?"* **No — and that is the bug.**
+
+- Studio, no saved selection (`customized=false`): **all pool files** → every box checked.
+- Baker, no saved selection: **one file** — lowest DisplayOrder viewable PDF.
+
+Each default is defensible on its own surface (browse vs perform). **The defect is that the UI renders the
+unset state exactly like a set one**, with the only signal being a `custom` pill that is *absent* when
+nothing is saved (`Viewer.tsx:1440`). Nobody looks for a missing pill while reading ticked boxes.
+
+**T137 turned a cosmetic mismatch into a functional one.** Before it the bake took one file regardless, so
+the divergence never showed. Now the selection decides what a member reads on stage, and the screen that
+appears to control it shows something the bake does not honour.
+
+**Fix is Studio-only** (`T138`, S): when `customized=false`, say so and **name the file the stage will
+show**. Do not unify the defaults — that would bloat every bundle or misdescribe the viewer. The
+acceptance test pins the two defaults together so a future change to either one fails loudly.
+
+**Fourth instance today of one shape**: the reassurance sits where the author stands, the consequence
+lands where the reader stands — the blurred QR beside a legible URL, the transposed tab's note in a form
+the stage never shows, a member's non-transposable pick, and now this.
+
+— Fable
