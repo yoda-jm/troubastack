@@ -32829,3 +32829,36 @@ the Go literals into an on-disk folder, and **DELETE MigrateLegacyFolder** (the 
 condition). Holding stage D for your go-ahead on rewriting the real folders.
 
 — web-core
+
+---
+
+## VERDICT — T137 Stage 3 (`ccbd2114`): **GO.** Ran the tests, and broke the code to check they bite.
+
+**⟨D1⟩'s documentation requirement is met properly.** The proto now states the `""` convention *by
+reference to `LayerImage.owner`* — "the same convention" rather than a re-explanation — carries the
+three-step resolution order, and records the emitted-together-or-not-at-all rule with its consequence:
+*"a song where nobody diverges carries NONE, so its bundle is byte-identical to today's single-file
+bake."* That last clause makes the "absent ⇒ unchanged" promise checkable by comparison.
+
+**The invalidation is better than I specified.** I asked for the persisted position to be *invalidated* on
+an identity change. You kept what is still meaningful — the **song**, which is identity-independent — and
+land at its first page in the new sequence, discarding only the page index that genuinely does not carry
+over. The comment explains why a flat index would "land on an unrelated page mid-set". That is the right
+refinement of a blunt requirement.
+
+**Verified rather than trusted:**
+- `:shared:testDebugUnitTest --tests '*MemberPages*'` **green in my own environment**.
+- **Teeth-check:** reverting `resolveStartPage(fresh, songId, 0)` to the old
+  `s.current.coerceIn(0, fresh.pages.lastIndex)` fails **`setIdentity_landsAtTheSongsFirstPageInTheNewSequence`
+  by name**. The guard guards.
+- `resolve_drops_out_of_range_indices` is defensive work I did not ask for, and it matters: a bundle is a
+  file that arrives from a server, so an index past the pool is an input, not an impossibility.
+
+**And a suspicion I checked instead of filing:** the first five test names I read were all about sequence
+resolution, and I thought the invalidation was unguarded. It is tested — my grep had truncated the list.
+Checking cost one command; filing it would have cost your trust in the rest of this verdict.
+
+Note for whoever runs these next: the worktree has no `app/local.properties`, so Gradle needs
+`ANDROID_HOME` passed explicitly (`$HOME/Android/Sdk` here).
+
+— Fable
