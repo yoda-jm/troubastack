@@ -33437,3 +33437,75 @@ is to **read CI after any push that follows a CODE landing**, which is exactly t
 cancelled run hides a real break.
 
 — Fable
+
+---
+
+## T134 stage D (`1b5d32ef`) — **GO. The bridge is deleted, not bypassed.**
+
+Verified by absence, which is the only way to check a deletion: `core/internal/app/bandmigrate.go` and its
+test **are gone** (266 + 237 lines), and `MigrateLegacyFolder` / `looksLegacy` appear **nowhere** in
+`core/`. ⟨F3⟩'s closing condition is met — one vocabulary, no silent translation.
+
+Verified against the real data afterwards, since a deletion is exactly where "it still works" stops being
+obvious: seeding a real canonical band still succeeds (admin resolved, 46 songs, 50 files, annotations
+intact) with the bridge gone. That works because the discovery fix reads both vocabularies from the keys.
+
+**One condition I set was not met, and it costs nothing to fix forward:** I asked that the deleted
+top-level `annotations.json` carry its history in the commit — that I once called it an orphan, that VLL
+corrected me, and that it is safe to delete *only because* its content is provably in `annotations/`.
+The commits do not mention it. Not worth a revert; worth a line in the next stage-D-adjacent commit so
+the old note cannot be re-litigated from the wrong end.
+
+---
+
+## ⚠ FINDING — the server's export and the folder that seeded it are NOT the same canonical form
+
+Found while backing up a real edit for VLL. I exported the live band through
+`GET /api/bands/{id}/export` and diffed it against the folder it came from. **The bytes agree; the
+NAMES do not.**
+
+| | export writes | folder has |
+|---|---|---|
+| a generated chart | `<slug>/lyrics` | `<slug>/lyrics.txt` |
+| an apostrophe title | `annotations/j-aime-plus-paris.json` | `annotations/jaime-plus-paris.json` |
+| another | `annotations/jardin-d-hiver.json` | `annotations/jardin-dhiver.json` |
+
+55 entries the export considers new, 57 it considers missing — **almost all of it is one folder renamed
+against itself.** Overwriting the folder with its own export would rename half of it.
+
+**Why it matters beyond tidiness:** the natural backup workflow is *export the server, refresh the
+folder*. That workflow is unusable while the two disagree, which is why I hand-applied a surgical update
+instead. And amendment 4's premise — *one* canonical form, folder or zip — is not yet true for a
+round-trip through the server: `import(folder) → export` does not give the folder back.
+
+**Two separate causes**, worth separating when fixing:
+1. **The filename suffix.** The folder stores a generated chart's source as `<name>.txt`; the export
+   writes the server's filename verbatim (`lyrics`). One of the two is the convention — pick it.
+2. **Slugify disagrees on apostrophes.** `J'Aime plus Paris` → `j-aime-plus-paris` from the exporter,
+   `jaime-plus-paris` in the folder. Same class as T138's ⟨R1⟩: **one rule, expressed once**, or two
+   implementations drift.
+
+Nothing is lost today — I verified the folder after my surgical update: **51 declared files, 0 hash or
+size mismatches.** But the round-trip claim should not be repeated until this is closed.
+
+---
+
+## T138 REWRITTEN — VLL redesigned it; my first spec explained the bug instead of removing it
+
+`docs/tasks/T138-my-files-is-a-bake-selection.md` replaces the earlier file. **Two surfaces, two jobs:**
+the bottom strip is a **browser** over the pool (always every file), "my files" is a **bake selection**
+(what I read on stage, in what order). Empty becomes a legitimate state — *"I don't play this song"*.
+
+**⟨R1⟩ the default file is ONE rule, expressed once.** VLL: *"une seule règle partagée."* Writing "the
+first one created" in Studio would be a **third** definition. And specifying it surfaced that the rule
+**already diverges**: `baker.defaultFile` accepts PDF only, Studio's `isViewable` accepts PDF **or
+image** — so `defaultFile`'s comment claiming to pick *"the same one Studio opens by default"* is false
+for an image-only song. Fix via the repo's own mechanism: committed vectors mirrored across lanes and
+diffed in CI, as `beat-phase` and the P205 view-resolution vectors already are.
+
+**The strip marks what is mine** (VLL's refinement), and **does not grey the rest** — greyed reads as
+*unavailable*, but those files open fine, so dimming would be a false signal. With ⟨R1⟩ an unset member
+sees exactly **one** file marked, which teaches the model on sight: that is the cure for the very
+misreading that opened this task.
+
+— Fable
