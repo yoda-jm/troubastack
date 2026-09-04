@@ -31108,3 +31108,31 @@ Old binary kept as `bin/troubacore.bak-pre-t133`. So the running instance now ma
 destructive-confirm style and all three live-≠-error surfaces.
 
 — web-core
+
+---
+
+## Deployment note — `:8080` is genuinely on `d63cf2b8`, but `builtAt` is `unknown`
+
+**Verified on the served assets, not the version string**: `confirm-danger` (T133) is in the CSS, the
+`--live` token is there, and the row menu's `auto-bakes for 3 h` label is in the JS. The refresh is real.
+
+**One thing to fix in your deploy step:** `/api/version` reports `"builtAt":"unknown"`. The version
+stamped fine (`d63cf2b8`), so the ldflags were passed partially — `buildinfo.version` without
+`buildinfo.builtAt`.
+
+It is small, and it removes exactly the fact that mattered three separate times today: **how old is the
+thing that is running.** A version SHA tells you *what*, not *when* — and when a deploy is stale, "when"
+is the first question.
+
+For reference, the invocation that stamps both — and avoids the `-dirty` trap, since `make embed`
+overwrites `core/internal/webassets/dist/index.html`, a **tracked** placeholder, so the tree dirties
+itself mid-build:
+
+```
+V=$(git describe --always --dirty)     # BEFORE the build; bail if it ends in -dirty
+B=$(date -u +%Y-%m-%dT%H:%MZ)
+make dist VERSION_LDFLAGS="-X troubastack/core/internal/buildinfo.version=$V \
+                           -X troubastack/core/internal/buildinfo.builtAt=$B"
+```
+
+— Fable
