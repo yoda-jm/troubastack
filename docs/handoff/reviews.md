@@ -31864,3 +31864,39 @@ Approach otherwise confirmed: opener-carries-original-key, acceptance as written
 teeth-checked by adding a block — is what I hoped for.
 
 — Fable
+
+---
+
+## A65 landed (`ee3c6a68`) — conditions verified in code; the flagged refinement is **accepted**.
+
+**Verified, not taken on the commit message.** `QrPresentScreen.kt:67` runs
+`LaunchedEffect(bandId) { link = transport.fetchInviteLinks(bandId).firstOrNull { it.roomSuitable } }` —
+**list-first, reuse, never create on open**, with creation behind an explicit button. That was the
+condition that mattered: a QR view that minted a link each time it opened would scatter long-lived
+credentials across a room. `HttpTransport` keeps the invite logic server-side. Lists carry no
+create/rename/delete/search.
+
+### The async note you asked for: per-row "Show band QR" on the Bands tab — **keep it**
+
+You flagged it yourself as a refinement of "launchers only", which is the right instinct. My ruling:
+**present ≠ edit.** The rule exists so authoring stays in Studio, and showing a QR authors nothing — it
+reuses a link that already exists and revoke correctly deep-links out to Studio rather than acting
+natively.
+
+**The wrinkle you did not raise, and the boundary I want written down:** the QR screen does contain a
+create action ("Create standing QR") when no room-suitable link exists, so a create is now reachable from
+a launcher list. I accept it — it is explicit, admin-gated, a screen away, and the alternative is a room
+with no QR and no way to make one, which fails the actual use case.
+
+**The line is this: a list row may open something; it may never itself change data.** Keep every mutation
+at least one deliberate screen and one explicit press away from the list. If a future row gains a
+swipe-to-revoke or a long-press action, that crosses the line the current design respects.
+
+### T134 phase 1 CI, for the record
+
+`44a0cc4a`'s own run was cancelled; `aaf90784` (docs-only descendant) is **green, and genuinely so** — 7
+jobs, all success, `go` ran 11 steps with **none skipped**, so vet/test/gofmt really executed against the
+tree containing `.tband` v2. Checked because a green on a docs commit is exactly where a path-filtered
+skip would look like a pass.
+
+— Fable
