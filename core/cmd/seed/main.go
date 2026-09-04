@@ -442,6 +442,55 @@ type bandMember struct {
 	Display   string `json:"display"`
 	Role      string `json:"role"`
 	Conductor bool   `json:"conductor,omitempty"` // promote this member to the app "conductor" role
+	// Canonical v2 (T134 stage D): a rewritten folder has no `admin` block and no `display`/
+	// `conductor` keys — `displayName` replaces `display`, `role` becomes the PERMISSION enum
+	// (admin/conductor/member) and `plays` carries the instrument prose legacy put in `role`.
+	// Read BOTH vocabularies here, keyed on the vocabulary and not on formatVersion: the stamp is
+	// a claim about a folder, the keys are a fact about it.
+	DisplayName string `json:"displayName,omitempty"`
+	Plays       string `json:"plays,omitempty"`
+}
+
+// permissionRoles are the canonical `role` values. A legacy folder puts instrument prose in the
+// same key, so a value outside this set is prose, not a permission.
+var permissionRoles = map[string]bool{"admin": true, "conductor": true, "member": true}
+
+// shown returns the member's display name in either vocabulary.
+func (m bandMember) shown() string {
+	if m.DisplayName != "" {
+		return m.DisplayName
+	}
+	return m.Display
+}
+
+// plays returns what the member plays — `plays` canonically, or `role` when that key still holds
+// prose (legacy). Never returns a permission enum, so a migrated band cannot end up with a member
+// whose instrument reads "admin".
+func (m bandMember) plays() string {
+	if m.Plays != "" {
+		return m.Plays
+	}
+	if m.Role != "" && !permissionRoles[m.Role] {
+		return m.Role
+	}
+	return ""
+}
+
+// isConductor: legacy marks it with a bool, canonical with the role enum.
+func (m bandMember) isConductor() bool { return m.Conductor || m.Role == "conductor" }
+
+// adminUsername resolves the band admin in either vocabulary: the legacy `admin` block, else the
+// member whose canonical role is "admin". Empty when neither names one.
+func (b bandManifest) adminUsername() string {
+	if b.Admin.Username != "" {
+		return b.Admin.Username
+	}
+	for _, m := range b.Members {
+		if m.Role == "admin" {
+			return m.Username
+		}
+	}
+	return ""
 }
 
 // selectGroups picks which groups to seed and narrows people to their members:
@@ -549,8 +598,16 @@ func loadLocalBands() ([]groupDef, []person, error) {
 		if err := json.Unmarshal(raw, &man); err != nil {
 			return nil, nil, fmt.Errorf("parse %s: %w", manPath, err)
 		}
-		if man.Name == "" || man.Admin.Username == "" {
-			return nil, nil, fmt.Errorf("%s: name and admin.username are required", manPath)
+		shortname := man.Shortname
+		if shortname == "" {
+			shortname = e.Name() // fall back to the folder name
+		}
+		// The admin comes from either vocabulary (see adminUsername): a legacy `admin` block, or the
+		// member whose canonical role is "admin". Still an error when neither names one.
+		adminUser := man.adminUsername()
+		if man.Name == "" || adminUser == "" {
+			return nil, nil, fmt.Errorf("%s: name and an admin are required "+
+				"(an \"admin\" block, or a member with \"role\": \"admin\")", manPath)
 		}
 		kind := man.Kind
 		if kind == "" {
@@ -561,16 +618,20 @@ func loadLocalBands() ([]groupDef, []person, error) {
 				return
 			}
 			seenUser[m.Username] = true
-			people = append(people, person{username: m.Username, display: m.Display, role: m.Role})
+			people = append(people, person{username: m.Username, display: m.shown(), role: m.plays()})
 		}
-		addPerson(man.Admin)
+		addPerson(man.Admin) // legacy only; a canonical folder has no admin block (Username == "")
 		memberNames := make([]string, 0, len(man.Members))
 		conductor := ""
 		for _, m := range man.Members {
 			addPerson(m)
-			memberNames = append(memberNames, m.Username)
-			if m.Conductor {
-				conductor = m.Username // band.json marks who to promote (make band=…)
+			// Canonical folders list the admin among members; legacy ones do not. Either way the
+			// admin is carried separately, so it must not also appear in members.
+			if m.Username != adminUser {
+				memberNames = append(memberNames, m.Username)
+			}
+			if m.isConductor() {
+				conductor = m.Username // who to promote (make band=…)
 			}
 		}
 		songs, err := loadRepertoire(bandDir)
@@ -582,12 +643,8 @@ func loadLocalBands() ([]groupDef, []person, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		shortname := man.Shortname
-		if shortname == "" {
-			shortname = e.Name() // fall back to the folder name
-		}
 		groups = append(groups, groupDef{
-			name: man.Name, kind: kind, admin: man.Admin.Username,
+			name: man.Name, kind: kind, admin: adminUser,
 			members: memberNames, songs: songs, setlists: setlists, personal: true, shortname: shortname,
 			conductor: conductor, folderPath: bandDir,
 		})

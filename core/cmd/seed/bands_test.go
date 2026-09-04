@@ -404,3 +404,75 @@ func TestTroubaHome(t *testing.T) {
 		t.Errorf("default: got %q, want /home/vll/troubastack-data (visible; XDG must not redirect it)", got)
 	}
 }
+
+// canonicalManifest is a band.json AFTER the T134 stage-D rewrite: no `admin` block, the admin named
+// by a member's `role`, `displayName` instead of `display`, and the instrument prose under `plays`.
+const canonicalManifest = `{
+  "formatVersion": 2, "name": "My Band", "shortname": "myband", "notes": "n",
+  "members": [
+    {"username": "alice", "displayName": "Alice", "role": "admin", "plays": "bass"},
+    {"username": "bob", "displayName": "Bob", "role": "conductor", "plays": "drums"}
+  ]
+}`
+
+// TestLoadLocalBands_CanonicalFolder: the DISCOVERY path must read a canonical folder. This is the test
+// whose absence let stage D ship a broken `make band=<shortname>`: ⟨P1⟩'s seed-and-pack fixture goes
+// through MigrateLegacyFolder and never touches loadLocalBands, so nothing drove the real entry point.
+func TestLoadLocalBands_CanonicalFolder(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TROUBA_BANDS_DIR", dir)
+	writeBand(t, dir, "myband", canonicalManifest, validRepertoire)
+
+	groups, people, err := loadLocalBands()
+	if err != nil {
+		t.Fatalf("canonical folder must load: %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1", len(groups))
+	}
+	g := groups[0]
+	if g.admin != "alice" {
+		t.Errorf("admin = %q, want alice (derived from members[].role)", g.admin)
+	}
+	if g.conductor != "bob" {
+		t.Errorf("conductor = %q, want bob (derived from the role enum, no `conductor` bool)", g.conductor)
+	}
+	if g.shortname != "myband" {
+		t.Errorf("shortname = %q, want myband — `make band=<shortname>` depends on it", g.shortname)
+	}
+	// The admin is listed among canonical members but is carried separately, so it must not double up.
+	for _, m := range g.members {
+		if m == "alice" {
+			t.Errorf("members %v must not repeat the admin", g.members)
+		}
+	}
+	// `plays` is the instrument; a member's descriptive role must never come back as a permission.
+	for _, p := range people {
+		if p.role == "admin" || p.role == "conductor" || p.role == "member" {
+			t.Errorf("person %q has role %q — that is the permission enum, not what they play", p.username, p.role)
+		}
+		if p.username == "alice" && p.role != "bass" {
+			t.Errorf("alice plays %q, want bass (from `plays`)", p.role)
+		}
+		if p.username == "bob" && p.display != "Bob" {
+			t.Errorf("bob display = %q, want Bob (from `displayName`)", p.display)
+		}
+	}
+}
+
+// TestLoadLocalBands_LegacyStillLoads: the bridge is not gone yet, so a legacy folder must keep working
+// with both vocabularies read side by side.
+func TestLoadLocalBands_LegacyStillLoads(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TROUBA_BANDS_DIR", dir)
+	writeBand(t, dir, "myband", validManifest, validRepertoire)
+	groups, people, err := loadLocalBands()
+	if err != nil || len(groups) != 1 || groups[0].admin != "alice" {
+		t.Fatalf("legacy folder must still load: groups=%v err=%v", groups, err)
+	}
+	for _, p := range people {
+		if p.username == "alice" && p.role != "bass" {
+			t.Errorf("legacy prose role lost: alice plays %q, want bass", p.role)
+		}
+	}
+}
