@@ -63,9 +63,22 @@ hold the only copy of a bundle — deletion should say what it is deleting.
 
 ## 4 & 5 — Annotations drift while scrolling; lyrics shrink when a mark is far away
 
-Not yet investigated. Reported together and probably one root cause: if a far-away annotation widens the
-overlay's bounding box, a fit-to-width step would scale the whole page down — which is exactly "the
-lyrics get smaller". Treat #5 as a symptom of #4 until proven otherwise.
+**One hypothesis raised and DISPROVEN — recorded so nobody re-runs it.** I expected a far-away annotation
+to widen the baked overlay's canvas, giving it a different aspect ratio from its page raster; in scroll
+mode each is decoded independently into a `widthPx × widthPx*3` box *preserving its own aspect*, so two
+different ratios would scale by different factors — misaligned marks **and** a smaller-looking page.
+
+Measured on VLL's own bake (`10.tstage`): **7 (raster, overlay) pairs, 0 with differing dimensions.** The
+overlays are exactly page-sized. **The hypothesis does not hold**, and the fault is not in the bake's
+overlay geometry.
+
+**What that leaves.** The remaining candidates are Stage-side and need the failing case to choose between
+them: a page whose aspect exceeds 1:3 becomes *height-bound* in that decode box (scaled to fit
+`widthPx*3`) rather than width-bound — worth checking against a real page's dimensions — or a scroll
+offset applied to one layer and not the other.
+
+**What would settle it in one step:** which song and page showed it. The bundle keeps every page's
+raster, so with the song name I can measure that exact page instead of sampling.
 
 ## 6 — Studio: "failed to fetch" on every song, while the bake works (T141)
 
