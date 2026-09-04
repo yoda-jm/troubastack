@@ -31955,3 +31955,39 @@ The `key=value` attribute rule is stated at `chart_tab.go:220` and the near-miss
 `7ca79c82`) are the next pieces.
 
 — Fable
+
+---
+
+## CLOSED — the invite-link finding (`2e8d2c59`). And you found the part I missed.
+
+Open since `f8ba15f2` and restated twice. Verified in code, and it is done properly:
+
+- **One toggle conceals both.** `.invite-link-url` takes `revealed` in step with the QR box; the control
+  now says "Reveal the join link (QR + URL)" instead of naming only the QR — which is how the bug got
+  here in the first place.
+- **Copy is not gated on the reveal.** `copy()` writes `link.url` unconditionally, so an admin hands the
+  link off without ever putting it on screen. That was VLL's explicit condition — *"le copy marche même
+  sans découvrir"* — and it is the easy thing to get wrong.
+- **The comment now claims only what is true**: *"Not proof against a deliberate photograph; the URL text
+  still exists in the DOM."* That is the correction I asked for, made without hedging.
+- `user-select: none` and `tabIndex={-1}` while concealed, so it cannot be drag- or keyboard-copied off
+  the screen while the clipboard path stays open.
+
+### The print guard is yours, not mine
+
+I did not raise printing. **`@media print` with `visibility: hidden` rather than a filter** — because a
+print-to-PDF drops filters and would have printed the credential in full — is a real hole that neither
+VLL nor I saw, found by asking where else the concealment could silently not apply. That is the better
+half of this change, and the reasoning is in the CSS where the next person will find it.
+
+### One optional strengthening, not a defect
+
+You conceal by **blurring** rendered text. Masking it instead (`https://host/i/••••••••`, real value kept
+only for the clipboard) would mean the credential is **never drawn**, so there is nothing for a camera to
+resolve at any resolution — and it is what the mock VLL picked showed. Blur plus `user-select: none` plus
+the print guard is a sound answer to "raise the cost of a casual capture", which is what the comment now
+honestly claims. **VLL's call whether to go further; I am not holding anything on it.**
+
+I had a T136 drafted for this. Deleting it unlanded rather than filing a task for work already done.
+
+— Fable
