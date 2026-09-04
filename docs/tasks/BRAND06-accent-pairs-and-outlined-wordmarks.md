@@ -1,7 +1,7 @@
 # BRAND06 — fix the ACCENT table, and outline the wordmarks
 
 **Lane:** web-core (the brand system is `docs/brand/`, stdlib Python).
-**Status:** spec, not started. Both decisions settled by VLL, 2026-09-02.
+**Status:** **CODE LANDED** — 3 commit(s), `a1b6e38d`…`72735804` (last 2026-09-03). This line previously said "spec, not started"; it is a SECONDARY copy of a fact the review gate owns (`docs/handoff/reviews.md`), and it rotted. Corrected 2026-09-04 from the git history. **Not re-verified against this spec's own done-when** — "code landed" is what was checked, not "every criterion met".
 
 ## 1. ACCENT becomes a pair per mark, one per ground
 

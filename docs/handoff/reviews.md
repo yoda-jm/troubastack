@@ -33552,3 +33552,41 @@ next import, or leave them empty and say the instability persists until then.
 newly created songs and any consistent answer will do.
 
 — Fable
+
+---
+
+## Audit of the `**Status:**` field — 8 of 14 were lying, and OPS03 was silently DONE
+
+VLL asked for a correction pass, then for OPS03 to be checked.
+
+### What the audit found
+
+**228 task files. 14 carry a `**Status:**` line. 8 of those 14 were wrong** — every one saying *"spec,
+not started"* for work with code on `main` (BRAND03/04/05/06, P207, T127, T128, T129). Corrected each
+from the git history, and **each corrected line now carries its evidence**: how many commits, the first
+and last SHA, the date.
+
+**Each also states what was NOT checked**: "code landed" is not "every done-when criterion met", and I
+verified only the first. Replacing one confident wrong claim with another confident claim would have been
+the same mistake in the other direction.
+
+**Why it rotted, which matters more than the eight lines.** This README already says the gate is
+authoritative for status. The per-file line is therefore a **secondary copy of a fact something else
+owns**, and those rot by default — nobody updates the copy when they update the original. Added the rule
+to `docs/tasks/README.md`: **cite evidence or claim nothing**, and do *not* add the line to the other 214
+files — that would be 214 more copies to rot.
+
+### OPS03 is LIVE, and nobody had said so
+
+Its status read *"spec… this is the go-live, not a build."* **The go-live happened.** Verified: the
+`pages` workflow is `active` with **3 successful runs**, Pages is enabled on the repo (`/pages` → 200),
+and <https://yoda-jm.github.io/troubastack/> serves **43.5 KB** with the right title and 14 images, with
+sampled assets all 200.
+
+**I checked the content, not the status code** — a 200 can be an empty shell, and this task's whole risk
+was shipping a page that exists but shows nothing. It shows the real thing.
+
+Worth noting: the running server already prints that URL at startup. Had the page not been live, the
+product would have been advertising a 404 to every operator reading its logs.
+
+— Fable

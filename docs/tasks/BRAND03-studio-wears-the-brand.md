@@ -1,6 +1,6 @@
 # BRAND03 — TroubaStudio wears the brand
 
-**Status:** spec, not started.
+**Status:** **CODE LANDED** — 4 commit(s), `79581c74`…`2b1a8f8b` (last 2026-09-04). This line previously said "spec, not started"; it is a SECONDARY copy of a fact the review gate owns (`docs/handoff/reviews.md`), and it rotted. Corrected 2026-09-04 from the git history. **Not re-verified against this spec's own done-when** — "code landed" is what was checked, not "every criterion met".
 **Asked by:** VLL — "utiliser le nouveau branding pour chaque partie […] le code couleur
 c'est sûr mais aussi un petit lien vers la page dans chacun, les icônes."
 

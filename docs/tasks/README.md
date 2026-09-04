@@ -8,6 +8,23 @@ own header and, authoritatively, in the review gate (`docs/handoff/reviews.md`).
 `docs/ARCHITECTURE.md` now tags each invariant **✅ enforced today** or **🎯 target**; this
 queue is what closes the 🎯 gaps (e.g. T09 for I1's codegen debt, I8's parity test).
 
+## The `**Status:**` line — cite evidence or claim nothing
+
+Audited 2026-09-04: of 228 task files, **14** carried a `**Status:**` line and **8 of those 14 were
+wrong** — all saying *"spec, not started"* for work with code on `main`. The field is a **secondary copy
+of a fact the gate owns** (this README already says the gate is authoritative), and a secondary copy of a
+fact rots by default.
+
+So, when the line is present:
+
+- **It cites its evidence** — a landing commit, a gate entry, or the date a decision was taken. A bare
+  "not started" ages into a lie the moment someone starts.
+- **It claims only what was checked.** "Code landed" and "every done-when criterion met" are different
+  statements; say which one you verified.
+- **The gate remains authoritative.** If the two disagree, the gate wins and this line is the bug.
+
+Adding the line to the other 214 files would be 214 more copies to rot. Leave them without one.
+
 ## Ground rules (apply to every task)
 
 1. **Read `docs/ARCHITECTURE.md` first.** The numbered invariants (I1…I15) are normative.

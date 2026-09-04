@@ -1,6 +1,6 @@
 # BRAND04 — TroubaCore wears the brand
 
-**Status:** spec, not started. Sibling of [BRAND03](BRAND03-studio-wears-the-brand.md).
+**Status:** **CODE LANDED** — 3 commit(s), `bef559fe`…`be798b71` (last 2026-09-03). This line previously said "spec, not started"; it is a SECONDARY copy of a fact the review gate owns (`docs/handoff/reviews.md`), and it rotted. Corrected 2026-09-04 from the git history. **Not re-verified against this spec's own done-when** — "code landed" is what was checked, not "every criterion met".
 **Asked by:** VLL, same ask: colour, a link to the page, icons, per product line.
 
 ## The finding that shapes this task: Core has almost no pixels

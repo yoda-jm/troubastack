@@ -1,6 +1,6 @@
 # BRAND05 — wire the launcher icons into the app
 
-**Status:** spec, not started. Third sibling of BRAND03/BRAND04.
+**Status:** **CODE LANDED** — 1 commit(s), `5e52896b`…`5e52896b` (last 2026-09-03). This line previously said "spec, not started"; it is a SECONDARY copy of a fact the review gate owns (`docs/handoff/reviews.md`), and it rotted. Corrected 2026-09-04 from the git history. **Not re-verified against this spec's own done-when** — "code landed" is what was checked, not "every criterion met".
 **Asked by:** VLL — "oui spec aussi les icones du launcher".
 
 ## Current state, surveyed rather than assumed

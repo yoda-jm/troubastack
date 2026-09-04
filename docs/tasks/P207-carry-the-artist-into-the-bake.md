@@ -1,8 +1,7 @@
 # P207 — carry the artist into the bake, and show it in the song drawer
 
 **Lanes:** web-core (stage 1: proto + baker), then mobile (stage 2: the drawer). **Size:** S each.
-**Status:** spec, not started. **Sequencing: after the concert on 2026-09-05** — it changes the bundle
-format, which is not a two-days-before-a-gig change.
+**Status:** **CODE LANDED** — 4 commit(s), `934a460e`…`ee3c6a68` (last 2026-09-04). This line previously said "spec, not started"; it is a SECONDARY copy of a fact the review gate owns (`docs/handoff/reviews.md`), and it rotted. Corrected 2026-09-04 from the git history. **Not re-verified against this spec's own done-when** — "code landed" is what was checked, not "every criterion met".
 **Asked by:** VLL, 2026-09-03: *"je veux qu'on travaille sur mettre le author dans le bake, le drawer
 … le rajoutera avec tiret long et le nom, le tout en gris, et le overflow y sera autorisé (l'auteur
 n'est pas si important)"*. This is A60's P4, split out as promised.

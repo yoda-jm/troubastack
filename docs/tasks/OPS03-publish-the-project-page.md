@@ -1,6 +1,7 @@
 # OPS03 — publish the project page on GitHub Pages
 
-**Status:** spec. Most of the machinery already exists; this is the go-live, not a build.
+**Status:** **LIVE** — verified 2026-09-04: the `pages` workflow is `active` with 3 successful runs, GitHub Pages is enabled on the repo (`/repos/.../pages` → 200), and <https://yoda-jm.github.io/troubastack/> serves 43.5 KB with the expected title and 14 images (sampled assets all 200). Checked the CONTENT, not just the status code — a 200 can be an empty page. The go-live this task existed for has happened.
+
 **Asked by:** VLL — "je veux une 'page' github avec la page statique qu'on a faite […] je
 veux une page standard (j'ai pas de nom de domaine pour le moment)."
 

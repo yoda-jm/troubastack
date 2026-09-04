@@ -1,7 +1,7 @@
 # T127 — make the concerts list a working list: create small, find, clone, and see what is past
 
 **Lane:** web-core (Studio; one deliberate *non*-change in core). **Size:** M.
-**Status:** spec, not started.
+**Status:** **CODE LANDED** — 3 commit(s), `1363797c`…`abe96c1f` (last 2026-09-03). This line previously said "spec, not started"; it is a SECONDARY copy of a fact the review gate owns (`docs/handoff/reviews.md`), and it rotted. Corrected 2026-09-04 from the git history. **Not re-verified against this spec's own done-when** — "code landed" is what was checked, not "every criterion met".
 **Asked by:** VLL, 2026-09-02 — five things in one breath: a concert can be cloned from a "3 dot"
 menu; creating a concert should be a small popup because *"on mobile it is 80% of what we see and
 the concerts are lost"*; the same search-with-view-more the songs list has; a way to **see** which

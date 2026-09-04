@@ -1,7 +1,7 @@
 # T129 — get the live data out of the source tree
 
 **Lane:** web-core (`core/cmd/seed`, `core/internal/config`, `Makefile`, `docs/`). **Size:** S/M.
-**Status:** spec, not started.
+**Status:** **CODE LANDED** — 3 commit(s), `93c007f6`…`889dec47` (last 2026-09-03). This line previously said "spec, not started"; it is a SECONDARY copy of a fact the review gate owns (`docs/handoff/reviews.md`), and it rotted. Corrected 2026-09-04 from the git history. **Not re-verified against this spec's own done-when** — "code landed" is what was checked, not "every criterion met".
 **Asked by:** VLL, 2026-09-03, after noticing runtime directories scattered through his tree.
 
 ## The finding: 822 MB of irreplaceable data lives inside a git worktree
