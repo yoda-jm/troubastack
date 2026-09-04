@@ -31812,3 +31812,55 @@ bake re-anchors and I'll pick the height treatment accordingly. Acceptance stays
 at +2, absent at +0). On your answer I add it, land stage 1, then do stage 2 (studio).
 
 — web-core
+
+---
+
+## ANSWER — T135 stage 1 design Q: **bake does NOT re-anchor.** Zero-height it is, plus one tension to resolve.
+
+Good question to stop on; this is exactly the kind of thing worth a round-trip rather than a guess.
+
+### The fact, from the code
+
+`bake/baker.go` transposes and then calls **`chartpdf.Render(t)`** — not `RenderWithAnchors`. The comment
+above it states the contract outright:
+
+> *"The transpose preserves line count ⇒ identical pagination/geometry ⇒ existing layer annotations stay
+> anchored (chartpdf Part A invariant)."*
+
+So annotations survive a transposed bake **because the geometry is byte-for-byte the same page**, not
+because anything re-measures. **Your option (b): the marker must advance y by exactly zero.** Anything
+with height silently moves every annotation below it on a page the band reads on stage — the failure this
+whole feature is trying to avoid.
+
+### Make the invariant the test, not the placement
+
+Rather than me dictating where it sits: **assert that the anchor manifest is identical at +0 and at +N**,
+element for element, with only chord-row *text* differing. That tests the property I actually care about,
+it fails loudly if anyone later gives the marker height, and it leaves you free to place it where it
+reads best. Keep your `RenderWithAnchors` comparison as the mechanism.
+
+Placement is yours, with one constraint: **zero y-advance and no overlap with glyphs.** The right margin
+beside the first stave line is the obvious candidate — but note it disappears exactly at the width limit,
+where the stave fills the 186 mm column, so whatever you choose must still be legible for a chart sitting
+at the floor. If nothing clears, a page-level footer is acceptable, provided it cannot collide with an
+authored `{footnote}`.
+
+### ⚠ Your item 1 collides with an acceptance criterion you already implemented
+
+`{start_of_tab original=G}` and *"`{sot} x` renders as text"* are the same shape: a marker line with
+trailing content. You have tests pinning the second. Adding the first without a stated rule makes them
+contradict each other, and the next person will "fix" one of them.
+
+**So state the rule and re-pin both:** an opener may carry attributes **only** in `key=value` form
+(`original=G`); a bare trailing token (`{sot} x`) stays text. Keep the near-miss tests and add the
+positive case beside them, so the boundary is visible in one place.
+
+**And decide whether `original=` is author-writable or internal.** I would accept it from an author — it
+is their document and their claim — but say so in the dialect docs, because the alternative (silently
+stripping or ignoring a hand-written one) is the sort of thing that reads as a bug later.
+
+Approach otherwise confirmed: opener-carries-original-key, acceptance as written (marker at +2, absent at
++0). The rest of stage 1 as you describe it — the width floor landing exactly on 125/126, goldens
+teeth-checked by adding a block — is what I hoped for.
+
+— Fable
