@@ -67,6 +67,7 @@ import com.troubastack.shared.distribution.Freeze
 import com.troubastack.shared.distribution.UpdatePolicy
 import com.troubastack.shared.distribution.UpdatesManager
 import com.troubastack.shared.seams.Storage
+import com.troubastack.shared.ui.LocalBrandAccents
 import com.troubastack.shared.stage.FitMode
 import com.troubastack.shared.stage.ImageDecoder
 import com.troubastack.shared.stage.LocalVolumeTurnRegistrar
@@ -205,6 +206,13 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     var manageIntent by rememberSaveable { mutableStateOf(false) }
     var connecting by remember { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
+    // A65: the native Studio browse (Concerts | Bands launchers) is the TroubaStudio entry point; a row
+    // taps into the Studio WebView at a deep-link path, with the band name for the frame title.
+    var studioBrowse by rememberSaveable { mutableStateOf(false) }
+    var editInitialPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var editTitle by rememberSaveable { mutableStateOf<String?>(null) }
+    var editBandId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showingQr by rememberSaveable { mutableStateOf(false) }
 
     // A52: the join sheet overlays ANY screen. It opens from a /join/ deep link (the activity's in-memory
     // pendingLink, set by onCreate/onNewIntent) or a link pasted into ConnectDialog (onInviteLink below).
@@ -257,12 +265,43 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         return
     }
 
+    // A65: the room QR present-view — checked BEFORE EditScreen so it overlays it; Back returns to Edit.
+    if (showingQr && editBandId != null) {
+        MaterialTheme(colorScheme = lightColorScheme()) {
+            QrPresentScreen(
+                transport = transport,
+                bandId = editBandId!!,
+                bandName = editTitle ?: "",
+                // Revoke is destructive → open Studio's InviteLinks (band settings), never native.
+                onManageInStudio = { showingQr = false; editInitialPath = "/bands/$editBandId/settings"; editing = true },
+                onBack = { showingQr = false },
+            )
+        }
+        return
+    }
+
     if (editing) {
         // A36: the studio WebView host keeps its own look — the brand theme is for the NATIVE
         // screens only, and the embedded studio already carries the website's CSS (VLL: don't
         // touch the webview). Reset to the M3 baseline the screen was built under (a bare
         // MaterialTheme would INHERIT the brand scheme, so pass it explicitly).
-        MaterialTheme(colorScheme = lightColorScheme()) { EditScreen(storage, onBack = { editing = false }) }
+        MaterialTheme(colorScheme = lightColorScheme()) {
+            EditScreen(storage, onBack = { editing = false }, initialPath = editInitialPath, bandTitle = editTitle)
+        }
+        return
+    }
+
+    // A65: the TroubaStudio browse — two native launcher lists; a row opens the Studio WebView at its
+    // deep-link path (checked AFTER `editing` so a tapped row shows EditScreen, and Back returns here).
+    if (studioBrowse) {
+        MaterialTheme(colorScheme = lightColorScheme()) {
+            StudioBrowseScreen(
+                transport = transport,
+                onOpen = { path, band, bandId -> editInitialPath = path; editTitle = band; editBandId = bandId; editing = true },
+                onShowQr = { bandId, band -> editBandId = bandId; editTitle = band; showingQr = true },
+                onBack = { studioBrowse = false; atHome = true },
+            )
+        }
         return
     }
     // A38: Connect is no longer a full-screen page that replaces the view — it's a modal (ConnectDialog)
@@ -366,7 +405,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             ),
             onPerform = { manageIntent = false; atHome = false },
             onResume = { lastDir?.let { selectedDir = it } },
-            onStudio = { manageIntent = true; atHome = false },
+            onStudio = { studioBrowse = true; atHome = false },
             // A38: the primary action routes by the current status.
             onPrimaryAction = {
                 when (homeIdentity) {
@@ -698,11 +737,16 @@ private fun ConcertsScreen(
             // bar's "‹ Back"), so returning to the landing page never depends on the system-back gesture.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onHome) { Text("‹  Home") }
-                Text(
-                    if (manage) "Concerts" else "Perform",
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f),
-                )
+                if (manage) {
+                    Text("Concerts", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                } else {
+                    // A65 (VLL): the Stage native page wears the Stage brand — two-tone "TroubaStage", gold.
+                    Text(
+                        brandTitle("Stage", accent = LocalBrandAccents.current.stage, ink = MaterialTheme.colorScheme.onSurface),
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 // Manage-only affordances (import / download offers / edit / sign-in). Perform stays lean.
                 if (manage) {
                     if (connected) {

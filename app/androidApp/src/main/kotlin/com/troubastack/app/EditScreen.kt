@@ -51,7 +51,7 @@ private const val DEFAULT_CORE_URL = "http://10.0.2.2:8080" // host machine, fro
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null) {
+fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null, bandTitle: String? = null) {
     val context = LocalContext.current
     var serverUrl by remember { mutableStateOf(storage.getSecret(CORE_URL_KEY) ?: DEFAULT_CORE_URL) }
     var showSettings by remember { mutableStateOf(false) }
@@ -80,7 +80,9 @@ fun EditScreen(storage: Storage, onBack: () -> Unit, initialPath: String? = null
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize()) {
             TopAppBar(
-                title = { Text("Edit") },
+                // A65: name where you are — the band when launched from a row, else the product. "Edit"
+                // told you nothing about which band/server you'd opened.
+                title = { Text(bandTitle?.ifBlank { null } ?: "TroubaStudio") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("‹  Back") } },
                 actions = {
                     Box {

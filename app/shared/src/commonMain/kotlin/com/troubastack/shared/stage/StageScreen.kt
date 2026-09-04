@@ -1042,7 +1042,10 @@ private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int)
                     buildAnnotatedString {
                         append(s.name)
                         if (s.artist.isNotBlank()) {
-                            withStyle(SpanStyle(color = neutral)) { append("  —  ${s.artist}") }
+                            // P207 (VLL): the dash + artist are LIGHT grey (a notch fainter than the meta
+                            // line) AND normal-weight — so even on the selected (bold) row, only the song
+                            // TITLE carries the emphasis.
+                            withStyle(SpanStyle(color = neutral.copy(alpha = 0.6f), fontWeight = FontWeight.Normal)) { append("  —  ${s.artist}") }
                         }
                     },
                     style = MaterialTheme.typography.titleMedium,

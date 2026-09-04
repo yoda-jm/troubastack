@@ -125,6 +125,123 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
 
     val isConnected: Boolean get() = cookie() != null
 
+    // A65 — the Studio-browse launchers (LAUNCHERS ONLY, per Fable: id/name/date/venue, tap-to-open;
+    // no create/rename/delete/search). Bands from GET /api/bands; concerts from GET
+    // /api/bands/{id}/setlists (listSetlists → SetlistView; eventDate/venue are omitempty, so absent
+    // fields default to ""). The rows carry bandId + setlistId so the tap can deep-link Studio to
+    // /bands/{bandId}/setlists/{setlistId}.
+    data class StudioBand(val id: String, val name: String, val isAdmin: Boolean = false)
+    data class StudioConcert(
+        val setlistId: String,
+        val bandId: String,
+        val bandName: String,
+        val name: String,
+        val eventDate: String, // ISO yyyy-mm-dd, or "" when the concert has none
+        val venue: String,     // or "" when none
+    )
+
+    @Serializable private data class SetlistsResp(val setlists: List<SetlistRow> = emptyList())
+    @Serializable private data class SetlistRow(
+        val id: String = "",
+        val name: String = "",
+        val eventDate: String = "",
+        val venue: String = "",
+    )
+
+    /** A65 — the user's bands (id + name + isAdmin), for the Bands tab. /api/bands has no role, so each
+     *  band's admin flag is a follow-up GET /api/bands/{id} → myRole (a handful of bands; cheap enough).
+     *  isAdmin gates the per-row "Show band QR" affordance. */
+    suspend fun fetchStudioBands(): List<StudioBand> {
+        val ck = cookie() ?: return emptyList()
+        return runCatching {
+            client.get("$baseUrl/api/bands") { header("Cookie", ck) }.body<Bands>().bands.map { b ->
+                StudioBand(b.id, b.name, isAdmin = isAdminOfBand(b.id))
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** A65 — every concert across the user's bands, newest-dated first, undated last (a missing date must
+     *  not sort to the top of a date-ordered list — Fable's omitempty caution). */
+    suspend fun fetchStudioConcerts(): List<StudioConcert> {
+        val ck = cookie() ?: return emptyList()
+        return runCatching {
+            val bands = client.get("$baseUrl/api/bands") { header("Cookie", ck) }.body<Bands>().bands
+            val out = ArrayList<StudioConcert>()
+            for (b in bands) {
+                val resp = client.get("$baseUrl/api/bands/${b.id}/setlists") { header("Cookie", ck) }
+                if (!resp.status.isSuccess()) continue
+                resp.body<SetlistsResp>().setlists.forEach {
+                    out += StudioConcert(it.id, b.id, b.name, it.name, it.eventDate, it.venue)
+                }
+            }
+            out.sortedWith(
+                compareByDescending<StudioConcert> { it.eventDate.isNotEmpty() } // dated before undated
+                    .thenByDescending { it.eventDate },                          // newest date first
+            )
+        }.getOrDefault(emptyList())
+    }
+
+    // A65 — invite links for the room QR. The invite LOGIC stays server-side (create/list/revoke via the
+    // API); the app only lists+reuses a suitable standing link and draws its QR (Fable's ruling).
+    data class InviteLink(
+        val id: String,
+        val url: String,        // the /join/{token} URL the QR encodes
+        val role: String,
+        val maxUses: Int,       // 0 = unlimited (a room link wants this)
+        val expiresAt: String?, // null = no expiry (a room link wants this)
+        val valid: Boolean,
+    ) {
+        /** A room-facing QR wants a still-valid, multi-use, no-expiry link (T122's opposite default). */
+        val roomSuitable: Boolean get() = valid && maxUses == 0 && expiresAt == null
+    }
+
+    @Serializable private data class InviteLinksResp(val links: List<InviteLinkJson> = emptyList())
+    @Serializable private data class InviteLinkJson(
+        val id: String = "",
+        val url: String = "",
+        val role: String = "",
+        val maxUses: Int = 0,
+        val expiresAt: String? = null,
+        val valid: Boolean = false,
+    )
+
+    private fun InviteLinkJson.toModel() = InviteLink(id, url, role, maxUses, expiresAt, valid)
+
+    /** A65 — list a band's invite links (admin). LIST-FIRST so the QR view can REUSE one, per Fable. */
+    suspend fun fetchInviteLinks(bandId: String): List<InviteLink> {
+        val ck = cookie() ?: return emptyList()
+        return runCatching {
+            client.get("$baseUrl/api/bands/$bandId/invite-links") { header("Cookie", ck) }
+                .body<InviteLinksResp>().links.map { it.toModel() }
+        }.getOrDefault(emptyList())
+    }
+
+    @Serializable private data class CreateInviteReq(val role: String, val expiresInHours: Int, val maxUses: Int)
+
+    /** A65 — mint a STANDING room link (multi-use, no expiry) — ONLY on an explicit user action, never as
+     *  a side effect (Fable: else standing links pile up unaudited). Returns null on failure. */
+    suspend fun createStandingInviteLink(bandId: String, role: String = "member"): InviteLink? {
+        val ck = cookie() ?: return null
+        return runCatching {
+            val resp = client.post("$baseUrl/api/bands/$bandId/invite-links") {
+                header("Cookie", ck)
+                contentType(ContentType.Application.Json)
+                setBody(CreateInviteReq(role = role, expiresInHours = 0, maxUses = 0))
+            }
+            if (!resp.status.isSuccess()) null else resp.body<InviteLinkJson>().toModel()
+        }.getOrNull()
+    }
+
+    /** A65 — is the signed-in user an ADMIN of [bandId] (band id directly)? Gates "Show band QR".
+     *  (Distinct from [isBandAdmin], which takes a CONCERT id and resolves the band via bandIdFor.) */
+    suspend fun isAdminOfBand(bandId: String): Boolean {
+        val ck = cookie() ?: return false
+        return runCatching {
+            val resp = client.get("$baseUrl/api/bands/$bandId") { header("Cookie", ck) }
+            resp.status.isSuccess() && resp.body<BandDetail>().myRole == "admin"
+        }.getOrDefault(false)
+    }
+
     @Serializable private data class LoginReq(val username: String, val password: String)
     @Serializable private data class Bands(val bands: List<Band> = emptyList()) {
         @Serializable data class Band(val id: String = "", val name: String = "")
