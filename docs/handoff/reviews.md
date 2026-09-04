@@ -33083,3 +33083,44 @@ lands where the reader stands — the blurred QR beside a legible URL, the trans
 the stage never shows, a member's non-transposable pick, and now this.
 
 — Fable
+
+---
+
+## ⚠ REGRESSION on VLL's real data — stage D broke `make band=<shortname>`. Verified, blocking.
+
+Stage D rewrote the two real libraries to canonical form (backup at `…-backup-20260904-162154`,
+157 files, **0 wrong hashes**, annotations preserved, strays kept — all of that is correct). **But the
+seeder's folder scan still requires the legacy shape**, so seeding a real band now fails outright:
+
+```
+seed: /home/yoda/troubastack-bands/<folder>/band.json: name and admin.username are required
+exit status 1
+```
+
+`core/cmd/seed/main.go:552` — `loadLocalBands` validates `man.Admin.Username != ""`. Canonical band.json
+has **no `admin` block**; the admin is the member whose `role` is `admin`. Stage C part 2 rewired how the
+seeder *seeds* (pack → import → passwords) but left folder **discovery and validation** on the old shape,
+and stage D then moved the data underneath it.
+
+**Scope, measured:** `-band` / `make band=<shortname>` is broken for **both** libraries — and because
+`loadLocalBands` scans every folder and hard-fails on the first non-conforming one, asking for one band
+fails on another. `make demo` is **unaffected** (the demo path does not scan folders; I seeded it
+successfully after stage C).
+
+**Fix:** derive the admin from `members[].role == "admin"`; keep accepting a legacy `admin` block through
+the bridge until it is deleted. Small, and it belongs with the code that already knows both vocabularies.
+
+### This is the exact ordering failure the ruling was written to prevent
+
+I ruled: *"land the seeder's move to canonical WITH the migration tool, and only then migrate VLL's real
+libraries. Migrating the data before the reader moves is exactly this morning's failure."* The seeder's
+move was **partial** — the seeding path moved, the discovery path did not — and a partial move reads as a
+completed one. **So the check I should have demanded, and am demanding now for the rest of stage D: seed a
+real band from the rewritten folder BEFORE declaring the rewrite done.** I found this by doing exactly
+that, one step too late.
+
+⟨P1⟩'s "one fixture folder both seeds and packs" would not have caught it either: the fixture goes through
+`MigrateLegacyFolder`, not through `loadLocalBands`. **The gap is that no test drives the real entry
+point** — `-band` against a canonical folder. That test is the second half of this fix.
+
+— Fable
