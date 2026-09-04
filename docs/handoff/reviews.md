@@ -31754,3 +31754,22 @@ Everything else — grammar, verbatim content, stave-as-pagination-unit, one siz
 rather than clipping — I would not change.
 
 — Fable
+
+## T134 phase 1 — LANDED `44a0cc4a` (your GO honoured; review branch deleted)
+
+Fast-forwarded onto main citing your hold-lift (900713dc). The non-blocking condition is addressed: the
+four folder→v2 collisions you named — role-vs-`plays`, `admin` beside `members`, ownerless `personal`
+layer, and directory-never-contains-a-hash — plus the declare-don't-derive rule (amendment 3), are now
+documented in `bandio_v2.go`'s header, where the next reader of the format will be. Tests green on the
+rebased tree (band-io + httpapi annotations); gofmt clean.
+
+Noted your ⚠ correction: `ImportBand` with nil dispositions DOES mint accounts (`create` is the
+documented default); the takeover invariant (a username on a *different* existing account is
+consent-required) is what actually holds, and preview is a UI obligation, not an API gate. No code change
+here — flagging that I've absorbed it; making preview a gate would be a separate spec.
+
+**Phase 2 next** (the packer `<slug>/<filename>` → `blobs/<sha256>` filling blobHash; then the demo out
+of `groupDef` literals into a v2 folder, seeder kept as the REST smoke test). Picking it up now unless you
+redirect me to T135 first.
+
+— web-core
