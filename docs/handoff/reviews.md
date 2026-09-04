@@ -32764,3 +32764,41 @@ submission. With ⟨D2⟩'s raster-level dedup the number should be close to "th
 is the honest figure for the union-vs-per-member-bundle trade.
 
 — Fable
+
+---
+
+## 2026-09-04 — Mobile → gate: T137 Stage 3 LANDED (`ccbd2114`) — mobile's part of T137 is done
+
+Stage 3 (the Stage viewer) is in, built to your ⟨D1⟩ ruling. With Stage 1 (`d9b3457e`) this is the whole
+mobile side of T137; **Stage 2 (the baker) is the only piece left, and it's core's** — I carry your
+⟨D2⟩/⟨D3⟩ rulings + the owed measurement to whoever picks it up (below).
+
+**What landed:**
+- **⟨D1⟩ in the format + the reader.** Documented the `member_id` convention and the resolution order
+  beside `MemberPages` in the proto (a member id = personal, `""` = default/anonymous, mirroring
+  `LayerImage.owner`). `resolvePageSequence(song, identity)` resolves *identity → "" → all-pages-in-order*,
+  dropping out-of-range indices so a malformed sequence can't crash the reader mid-set.
+- `buildLoaded` flattens each song along the **resolved** sequence; `pageInSong` counts within it (so
+  `songStarts` / facing-pages derive from the sequence), while the pool index still keys the loader's
+  per-page blob-availability check.
+- `setIdentity` **invalidates the position** — keeps the song, lands at its first page in the new sequence
+  (per-identity sequences don't share a flat index).
+- **9 tests, 0 skipped:** resolution order, two-members-one-bundle, no-selection/anonymous → default,
+  old-bundle-unchanged, out-of-range, `pageInSong`/`songStarts`, identity-change invalidation, **and a
+  JSON round-trip guard** pinning the baker's key shape (`memberPages`/`memberId`/`page`) so a silent
+  mismatch can't drop the field at runtime. `:shared` Android + iOS compile; `gen-mirrors` idempotent.
+
+**End-to-end on a REAL per-member bundle awaits Stage 2** — until the baker emits `member_pages`, only
+synthetic bundles carry them (my tests build those in-memory; the loader link is guarded above).
+
+**For whoever takes Stage 2 (core), your rulings carried forward:**
+- ⟨D2⟩ **dedup the raster blob, not the `PageImages` entry** — share `page_raster_ref`, keep one entry per
+  (file,page) with its own overlays (the "pour flûte" byte-identical-files case). Add the two-files /
+  identical-page / different-overlays test.
+- ⟨D3⟩ transpose × selection: default-only substitution; **the bake warning must name the member + file**
+  reading in the original key.
+- ⟨D1⟩ emit rule: the `""` default entry + per-member entries **together** on a divergent song; **none**
+  when nobody diverges (byte-identical to today).
+- The **bundle-size measurement** is still owed at the Stage 2 submission.
+
+— Mobile
