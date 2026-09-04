@@ -241,7 +241,6 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		Band:          manifestBand{Name: band.Name},
 		Annotations:   map[string]manifestAnnots{},
 	}
-	blobs := map[string][]byte{} // hash → bytes (dedup)
 
 	// Members.
 	members, err := s.Members(caller, bandID)
@@ -274,15 +273,8 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 				ID: f.ID, Filename: f.Filename, ContentType: f.ContentType, Size: f.Size,
 				BlobHash: f.BlobHash, DisplayOrder: f.DisplayOrder, Generated: f.Generated, Revision: f.Revision,
 			}
-			if f.BlobHash != "" {
-				if _, ok := blobs[f.BlobHash]; !ok {
-					data, berr := s.blobs.Get(f.BlobHash)
-					if berr != nil {
-						return nil, "", fmt.Errorf("export: blob %s: %w", f.BlobHash, berr)
-					}
-					blobs[f.BlobHash] = data
-				}
-			}
+			// The file bytes are fetched by marshalV2 via s.blobs.Get and written under `<slug>/<filename>`
+			// (amendment 4 — no blobs/); here we only carry the metadata + integrity hash.
 			if f.Generated {
 				if src, serr := s.repo.GetChartSource(f.ID); serr == nil {
 					mf.ChartSource = src
@@ -342,15 +334,15 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		man.Setlists = append(man.Setlists, msl)
 	}
 
-	// Serialize as the v2 folder format (T134): band.json + repertoire.json + setlists.json
-	// + annotations/<slug>.json + cues.json, plus blobs/<hash>. We WRITE v2 always; the
-	// reader still accepts v1 (parseBandZip). The in-memory manifest gathered above is the
-	// shared shape both the v1 and v2 writers/readers translate through.
-	v2files, err := marshalV2(man)
+	// Serialize as the v2 folder format (T134): band.json + repertoire.json + setlists.json +
+	// annotations/<slug>.json + cues.json + the file bytes under `<slug>/<filename>` (amendment 4 — no
+	// blobs/). We WRITE v2 always; the reader still accepts v1 (parseBandZip). The in-memory manifest
+	// gathered above is the shared shape both the v1 and v2 writers/readers translate through.
+	v2files, err := marshalV2(man, s.blobs.Get)
 	if err != nil {
 		return nil, "", err
 	}
-	zipBytes, err := writeV2Zip(v2files, blobs)
+	zipBytes, err := writeV2Zip(v2files)
 	if err != nil {
 		return nil, "", err
 	}
@@ -865,11 +857,9 @@ func parseBandZip(zipBytes []byte) (bandManifest, map[string][]byte, error) {
 		}
 		return man, blobs, nil
 	case BandExportFormatVersionV2: // v2 folder format
-		man, err := parseV2(entries)
-		if err != nil {
-			return bandManifest{}, nil, err
-		}
-		return man, blobs, nil
+		// v2 has no blobs/ (amendment 4): parseV2 reads the file bytes from `<slug>/<filename>`, verifies
+		// each declared blobHash, and returns the bytes keyed by content hash for the shared import core.
+		return parseV2(entries)
 	default:
 		return bandManifest{}, nil, fmt.Errorf("%w: unsupported band export formatVersion %d (this server reads %d and %d)", ErrInvalidInput, peek.FormatVersion, BandExportFormatVersion, BandExportFormatVersionV2)
 	}

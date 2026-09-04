@@ -638,24 +638,32 @@ func retamperAnnots(t *testing.T, z []byte, mut func(map[string]any)) []byte {
 	return nil
 }
 
+// isFileBytesEntry reports whether a v2 zip entry is a `<slug>/<filename>` file-bytes entry (amendment
+// 4 replaced blobs/), i.e. it has a path segment but is not one of the JSON manifest files.
+func isFileBytesEntry(name string) bool {
+	return strings.Contains(name, "/") && !strings.HasPrefix(name, "annotations/")
+}
+
 func dropBlob(t *testing.T, z []byte) []byte {
 	files := unzip(t, z)
 	for name := range files {
-		if len(name) > 6 && name[:6] == "blobs/" {
-			delete(files, name)
-			break
+		if isFileBytesEntry(name) {
+			delete(files, name) // a declared file with no bytes → parseV2 refuses
+			return rezip(t, files)
 		}
 	}
-	return rezip(t, files)
+	t.Fatal("no <slug>/<filename> file-bytes entry in the export")
+	return nil
 }
 
 func corruptBlob(t *testing.T, z []byte) []byte {
 	files := unzip(t, z)
 	for name := range files {
-		if len(name) > 6 && name[:6] == "blobs/" {
-			files[name] = append([]byte("corrupted "), files[name]...)
-			break
+		if isFileBytesEntry(name) {
+			files[name] = append([]byte("corrupted "), files[name]...) // breaks the blobHash integrity check
+			return rezip(t, files)
 		}
 	}
-	return rezip(t, files)
+	t.Fatal("no <slug>/<filename> file-bytes entry in the export")
+	return nil
 }

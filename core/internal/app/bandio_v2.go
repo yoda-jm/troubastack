@@ -5,14 +5,15 @@ package app
 // v1 server manifest). See bandio.go for the shared import core; this file is only the
 // v2 <-> in-memory-manifest translation.
 //
-// Layout (all JSON is name/slug-based and hand-diffable; blobs are unchanged from v1):
+// Layout (amendment 4 — a .tband IS this directory zipped; all JSON is name/slug-based and hand-diffable,
+// and the file bytes live under HUMAN names, no blobs/):
 //
 //	band.json               {formatVersion:2, exportedAt, name, members[]}
-//	repertoire.json         {songs[]{slug,title,…,files[]}}
+//	repertoire.json         {songs[]{slug,title,…,files[]{filename,blobHash,…}}}
 //	setlists.json           {setlists[]{name,…,items[]{song:<slug>,…}}}
 //	annotations/<slug>.json  {layers[],objects[]}   per song; ids kept VERBATIM
 //	cues.json (optional)     {selections[],cues[]}  per-member, by username+slug
-//	blobs/<sha256>           file bytes, content-addressed
+//	<slug>/<filename>        the file bytes, under human names; blobHash is an INTEGRITY field
 //
 // The version is the FILE FORMAT's: v1 -> v2 is a genuine bump (the files are rearranged),
 // so a v1 reader would not find what it expects. We WRITE v2 always and READ v1 and v2.
@@ -37,10 +38,9 @@ package app
 //  3. A `personal` layer needs an owner; the folder format never recorded one. There is no
 //     correct in-file answer — a real EXPORT always has the owner, so this only bites
 //     hand-authored/seeded folders, where the migration tool must supply it explicitly.
-//  4. The directory must never contain a hash: file bytes live under human `<slug>/<filename>`
-//     names in the canonical directory, and the PACKER (phase 2) content-addresses them to
-//     `blobs/<sha256>` at zip time, filling `blobHash` in repertoire.json. The reader here
-//     resolves bytes by `blobHash`, so a packed zip imports; the directory stays diffable.
+//  4. The directory never contains a hash: file bytes live under human `<slug>/<filename>` names, both
+//     in the directory AND in the zip (amendment 4 removed blobs/). `blobHash` stays in repertoire.json
+//     as an integrity field the reader verifies after reading the bytes.
 //  5. The repertoire is the index: a `<slug>/` directory is a song only if its slug is
 //     DECLARED in repertoire.json (so a stray dir like __pycache__ is not imported as a
 //     song). The migration tool derives the file list; the format declares it via files[].
@@ -53,6 +53,7 @@ import (
 	"sort"
 	"strings"
 
+	"troubastack/core/internal/app/blob"
 	"troubastack/core/internal/domain"
 )
 
@@ -192,11 +193,13 @@ type v2Cue struct {
 
 // --- writer: in-memory manifest -> v2 files ------------------------------------------
 
-// marshalV2 translates the (UUID-based) in-memory manifest into the v2 file set (name +
-// slug based). Returns entryName -> JSON bytes for every non-blob entry; the caller adds
-// blobs/. Slugs are derived from titles (unique within the band) and filenames are made
-// unique within a song, so annotations/<slug>.json can reference a file by filename.
-func marshalV2(man bandManifest) (map[string][]byte, error) {
+// marshalV2 translates the (UUID-based) in-memory manifest into the v2 zip entries (name + slug based):
+// entryName -> bytes for every JSON file AND every file's bytes under `<slug>/<filename>` (amendment 4 —
+// no `blobs/`, the archive IS the folder). getBlob fetches a file's bytes by its content hash; blobHash
+// stays in repertoire.json as an integrity field. Slugs are derived from titles (unique within the band)
+// and filenames are made path-safe + unique within a song, so a `<slug>/<filename>` entry is always one
+// safe two-segment path and annotations can reference a file by filename.
+func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[string][]byte, error) {
 	files := map[string][]byte{}
 
 	// Member id -> username (for owner refs). Also emit band.json members.
@@ -224,13 +227,22 @@ func marshalV2(man bandManifest) (map[string][]byte, error) {
 		}
 		usedNames := map[string]bool{}
 		for _, mf := range ms.Files {
-			name := uniqueName(mf.Filename, usedNames)
+			name := uniqueName(safeFilename(mf.Filename), usedNames)
 			fileNameByID[mf.ID] = name
 			vs.Files = append(vs.Files, v2File{
 				Filename: name, ContentType: mf.ContentType, Size: mf.Size, BlobHash: mf.BlobHash,
 				DisplayOrder: mf.DisplayOrder, Generated: mf.Generated, Revision: mf.Revision,
 				ChartSource: mf.ChartSource,
 			})
+			// The bytes live under the human name; no blobs/ (amendment 4). getBlob is nil in the
+			// tests that only exercise JSON shape.
+			if mf.BlobHash != "" && getBlob != nil {
+				data, err := getBlob(mf.BlobHash)
+				if err != nil {
+					return nil, fmt.Errorf("export v2: file %q blob %s: %w", name, mf.BlobHash, err)
+				}
+				files[slug+"/"+name] = data
+			}
 		}
 		rep.Songs = append(rep.Songs, vs)
 	}
@@ -338,8 +350,9 @@ func marshalV2(man bandManifest) (map[string][]byte, error) {
 
 func marshalIndent(v any) ([]byte, error) { return json.MarshalIndent(v, "", "  ") }
 
-// writeV2Zip writes the v2 file set + blobs/ into a deterministic zip.
-func writeV2Zip(files map[string][]byte, blobs map[string][]byte) ([]byte, error) {
+// writeV2Zip writes the v2 entry set (JSON files + `<slug>/<filename>` bytes) into a deterministic zip
+// — sorted entry names, so the same band exports byte-identically.
+func writeV2Zip(files map[string][]byte) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	names := make([]string, 0, len(files))
@@ -356,20 +369,6 @@ func writeV2Zip(files map[string][]byte, blobs map[string][]byte) ([]byte, error
 			return nil, err
 		}
 	}
-	hashes := make([]string, 0, len(blobs))
-	for h := range blobs {
-		hashes = append(hashes, h)
-	}
-	sort.Strings(hashes)
-	for _, h := range hashes {
-		w, err := zw.Create("blobs/" + h)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := w.Write(blobs[h]); err != nil {
-			return nil, err
-		}
-	}
 	if err := zw.Close(); err != nil {
 		return nil, err
 	}
@@ -383,10 +382,10 @@ func writeV2Zip(files map[string][]byte, blobs map[string][]byte) ([]byte, error
 // consistent ids (they are all re-minted on import anyway); the ids that MUST survive —
 // layer.id, object.uuid, object.layerId — are copied verbatim. Name/slug/filename refs
 // that do not resolve are a hard error (all-or-nothing).
-func parseV2(entries map[string][]byte) (bandManifest, error) {
+func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error) {
 	var band v2Band
 	if err := json.Unmarshal(entries["band.json"], &band); err != nil {
-		return bandManifest{}, fmt.Errorf("%w: band.json is not valid JSON: %v", ErrInvalidInput, err)
+		return bandManifest{}, nil, fmt.Errorf("%w: band.json is not valid JSON: %v", ErrInvalidInput, err)
 	}
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersionV2,
@@ -408,17 +407,23 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 	var rep v2Repertoire
 	if raw, ok := entries["repertoire.json"]; ok {
 		if err := json.Unmarshal(raw, &rep); err != nil {
-			return bandManifest{}, fmt.Errorf("%w: repertoire.json is not valid JSON: %v", ErrInvalidInput, err)
+			return bandManifest{}, nil, fmt.Errorf("%w: repertoire.json is not valid JSON: %v", ErrInvalidInput, err)
 		}
 	}
 	songIDBySlug := map[string]string{}
 	fileIDBySlugName := map[string]string{} // "slug\x00filename" -> synthetic file id
 	for _, vs := range rep.Songs {
 		if vs.Slug == "" {
-			return bandManifest{}, fmt.Errorf("%w: repertoire song %q has an empty slug", ErrInvalidInput, vs.Title)
+			return bandManifest{}, nil, fmt.Errorf("%w: repertoire song %q has an empty slug", ErrInvalidInput, vs.Title)
 		}
 		if _, dup := songIDBySlug[vs.Slug]; dup {
-			return bandManifest{}, fmt.Errorf("%w: duplicate song slug %q", ErrInvalidInput, vs.Slug)
+			return bandManifest{}, nil, fmt.Errorf("%w: duplicate song slug %q", ErrInvalidInput, vs.Slug)
+		}
+		// ⟨P7⟩: slug/filename become the `<slug>/<filename>` entry name (attacker-controllable under
+		// amendment 4). Refuse anything that isn't a single safe path segment, so the constructed entry
+		// name cannot traverse — matched against the manifest, never filepath.Clean'd.
+		if pathUnsafe(vs.Slug) {
+			return bandManifest{}, nil, fmt.Errorf("%w: unsafe song slug %q", ErrInvalidInput, vs.Slug)
 		}
 		sid := "s-" + vs.Slug
 		songIDBySlug[vs.Slug] = sid
@@ -427,6 +432,9 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 			Tempo: vs.Tempo, Meter: vs.Meter, Tags: vs.Tags, Notes: vs.Notes,
 		}
 		for i, vf := range vs.Files {
+			if pathUnsafe(vf.Filename) {
+				return bandManifest{}, nil, fmt.Errorf("%w: unsafe filename %q in song %q", ErrInvalidInput, vf.Filename, vs.Slug)
+			}
 			fid := fmt.Sprintf("f-%s-%d", vs.Slug, i)
 			fileIDBySlugName[vs.Slug+"\x00"+vf.Filename] = fid
 			ms.Files = append(ms.Files, manifestFile{
@@ -459,11 +467,11 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 		slug := strings.TrimSuffix(strings.TrimPrefix(name, "annotations/"), ".json")
 		songID, ok := songIDBySlug[slug]
 		if !ok {
-			return bandManifest{}, fmt.Errorf("%w: annotations for unknown song slug %q", ErrInvalidInput, slug)
+			return bandManifest{}, nil, fmt.Errorf("%w: annotations for unknown song slug %q", ErrInvalidInput, slug)
 		}
 		var va v2Annotations
 		if err := json.Unmarshal(raw, &va); err != nil {
-			return bandManifest{}, fmt.Errorf("%w: %s is not valid JSON: %v", ErrInvalidInput, name, err)
+			return bandManifest{}, nil, fmt.Errorf("%w: %s is not valid JSON: %v", ErrInvalidInput, name, err)
 		}
 		ann := manifestAnnots{}
 		for _, vl := range va.Layers {
@@ -471,12 +479,12 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 			if vl.File != "" {
 				fileID, ok = fileIDBySlugName[slug+"\x00"+vl.File]
 				if !ok {
-					return bandManifest{}, fmt.Errorf("%w: layer %q references unknown file %q in song %q", ErrInvalidInput, vl.ID, vl.File, slug)
+					return bandManifest{}, nil, fmt.Errorf("%w: layer %q references unknown file %q in song %q", ErrInvalidInput, vl.ID, vl.File, slug)
 				}
 			}
 			owner, err := ownerFromName(vl.Owner)
 			if err != nil {
-				return bandManifest{}, err
+				return bandManifest{}, nil, err
 			}
 			ann.Layers = append(ann.Layers, domain.Layer{
 				ID: vl.ID, FileID: fileID, Name: vl.Name, OwnerID: owner,
@@ -487,7 +495,7 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 		for _, vo := range va.Objects {
 			owner, err := ownerFromName(vo.Owner)
 			if err != nil {
-				return bandManifest{}, err
+				return bandManifest{}, nil, err
 			}
 			o := domain.Object{
 				UUID: vo.UUID, Type: domain.ObjectTypeFromString(vo.Type), Page: vo.Page, Text: vo.Text,
@@ -510,7 +518,7 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 	var sls v2SetlistsFile
 	if raw, ok := entries["setlists.json"]; ok {
 		if err := json.Unmarshal(raw, &sls); err != nil {
-			return bandManifest{}, fmt.Errorf("%w: setlists.json is not valid JSON: %v", ErrInvalidInput, err)
+			return bandManifest{}, nil, fmt.Errorf("%w: setlists.json is not valid JSON: %v", ErrInvalidInput, err)
 		}
 	}
 	for _, vsl := range sls.Setlists {
@@ -518,7 +526,7 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 		for _, it := range vsl.Items {
 			songID, ok := songIDBySlug[it.Song]
 			if !ok {
-				return bandManifest{}, fmt.Errorf("%w: setlist %q references unknown song slug %q", ErrInvalidInput, vsl.Name, it.Song)
+				return bandManifest{}, nil, fmt.Errorf("%w: setlist %q references unknown song slug %q", ErrInvalidInput, vsl.Name, it.Song)
 			}
 			msl.Items = append(msl.Items, manifestItem{
 				SongRef: songID, KeyOverride: it.KeyOverride, TempoOverride: it.TempoOverride,
@@ -532,18 +540,18 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 	if raw, ok := entries["cues.json"]; ok {
 		var cf v2CuesFile
 		if err := json.Unmarshal(raw, &cf); err != nil {
-			return bandManifest{}, fmt.Errorf("%w: cues.json is not valid JSON: %v", ErrInvalidInput, err)
+			return bandManifest{}, nil, fmt.Errorf("%w: cues.json is not valid JSON: %v", ErrInvalidInput, err)
 		}
 		for _, s := range cf.Selections {
 			songID, ok := songIDBySlug[s.Song]
 			if !ok {
-				return bandManifest{}, fmt.Errorf("%w: file selection references unknown song slug %q", ErrInvalidInput, s.Song)
+				return bandManifest{}, nil, fmt.Errorf("%w: file selection references unknown song slug %q", ErrInvalidInput, s.Song)
 			}
 			refs := make([]string, 0, len(s.Files))
 			for _, fn := range s.Files {
 				fid, ok := fileIDBySlugName[s.Song+"\x00"+fn]
 				if !ok {
-					return bandManifest{}, fmt.Errorf("%w: file selection references unknown file %q in song %q", ErrInvalidInput, fn, s.Song)
+					return bandManifest{}, nil, fmt.Errorf("%w: file selection references unknown file %q in song %q", ErrInvalidInput, fn, s.Song)
 				}
 				refs = append(refs, fid)
 			}
@@ -552,16 +560,77 @@ func parseV2(entries map[string][]byte) (bandManifest, error) {
 		for _, c := range cf.Cues {
 			songID, ok := songIDBySlug[c.Song]
 			if !ok {
-				return bandManifest{}, fmt.Errorf("%w: song cues reference unknown song slug %q", ErrInvalidInput, c.Song)
+				return bandManifest{}, nil, fmt.Errorf("%w: song cues reference unknown song slug %q", ErrInvalidInput, c.Song)
 			}
 			man.SongCues = append(man.SongCues, manifestCue{MemberUsername: c.Member, SongRef: songID, Cues: c.Cues})
 		}
 	}
 
-	return man, nil
+	// Read file bytes from `<slug>/<filename>` (amendment 4 — no blobs/). Verify the declared blobHash as
+	// an INTEGRITY check (a stale hash that packed quietly would import the wrong bytes under a right
+	// name), then key the bytes by content hash so the shared ImportBand core runs unchanged.
+	blobs := map[string][]byte{}
+	allowed := map[string]bool{"band.json": true, "repertoire.json": true, "setlists.json": true, "cues.json": true}
+	for i := range man.Songs {
+		slug := strings.TrimPrefix(man.Songs[i].ID, "s-")
+		allowed["annotations/"+slug+".json"] = true
+		for j := range man.Songs[i].Files {
+			f := &man.Songs[i].Files[j]
+			entry := slug + "/" + f.Filename
+			data, ok := entries[entry]
+			if !ok {
+				return bandManifest{}, nil, fmt.Errorf("%w: declared file %q has no bytes in the archive", ErrInvalidInput, entry)
+			}
+			h := blob.HashOf(data)
+			if f.BlobHash != "" && f.BlobHash != h {
+				return bandManifest{}, nil, fmt.Errorf("%w: file %q content does not match its declared blobHash", ErrInvalidInput, entry)
+			}
+			f.BlobHash = h
+			blobs[h] = data
+			allowed[entry] = true
+		}
+	}
+	// ⟨P7⟩: every entry must be a known JSON name or a DECLARED `<slug>/<filename>`. A zip entry that is
+	// neither is REFUSED, not ignored — under amendment 4 entry names are attacker-controllable user
+	// data, and this is matched against the manifest rather than cleaned, so a traversal / absolute /
+	// Unicode-normalised name simply is not in `allowed`.
+	for name := range entries {
+		if !allowed[name] {
+			return bandManifest{}, nil, fmt.Errorf("%w: unexpected archive entry %q (not a declared file or a known manifest file)", ErrInvalidInput, name)
+		}
+	}
+
+	return man, blobs, nil
 }
 
 // --- helpers -------------------------------------------------------------------------
+
+// pathUnsafe reports whether a slug or filename could escape its `<slug>/<filename>` entry — a path
+// separator, `.`/`..`, a NUL, or a Windows drive letter. ⟨P7⟩: the manifest refuses these on READ, so a
+// constructed entry name is always a single safe two-segment path (no filepath.Clean, no resolution).
+func pathUnsafe(s string) bool {
+	return s == "" || s == "." || s == ".." || strings.ContainsAny(s, "/\\\x00") || (len(s) >= 2 && s[1] == ':')
+}
+
+// safeFilename defangs a stored filename into a single safe path segment for the `<slug>/<filename>`
+// entry on EXPORT (a slug is already safe via slugify). Path separators and NUL become '-'; a leading
+// drive letter is defanged; empty/dot names fall back. So an export can never produce an archive its own
+// ⟨P7⟩ reader would refuse.
+func safeFilename(name string) string {
+	name = strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == 0 {
+			return '-'
+		}
+		return r
+	}, name)
+	if name == "" || name == "." || name == ".." {
+		return "file"
+	}
+	if len(name) >= 2 && name[1] == ':' {
+		name = "-" + name[1:]
+	}
+	return name
+}
 
 // slugify lowercases, keeps [a-z0-9], and collapses every other run to a single '-'.
 func slugify(s string) string {

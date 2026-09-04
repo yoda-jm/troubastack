@@ -249,8 +249,9 @@ func TestBandImport_UnknownVersion(t *testing.T) {
 // that includes annotations/<slug>.json imports WITH its annotations — the case that is
 // impossible in the seed folder format today (a chart-only song gets none). (Done-when.)
 func TestBandImport_HandAuthoredV2Folder(t *testing.T) {
+	// amendment 4: the bytes live under <slug>/<filename> and a human writes NO hash — blobHash is an
+	// optional integrity field the reader fills. This is what makes "hand-authored" literally true.
 	content := []byte("%PDF hand authored")
-	hash := blob.HashOf(content)
 	band, _ := json.Marshal(map[string]any{
 		"formatVersion": 2, "name": "Hand Band",
 		"members": []any{map[string]any{"username": "dana", "displayName": "Dana", "role": "admin"}},
@@ -258,7 +259,7 @@ func TestBandImport_HandAuthoredV2Folder(t *testing.T) {
 	rep, _ := json.Marshal(map[string]any{
 		"songs": []any{map[string]any{
 			"slug": "wonderwall", "title": "Wonderwall",
-			"files": []any{map[string]any{"filename": "chart.pdf", "contentType": "application/pdf", "size": len(content), "blobHash": hash}},
+			"files": []any{map[string]any{"filename": "chart.pdf", "contentType": "application/pdf", "size": len(content)}},
 		}},
 	})
 	ann, _ := json.Marshal(map[string]any{
@@ -275,7 +276,7 @@ func TestBandImport_HandAuthoredV2Folder(t *testing.T) {
 		"band.json":                   band,
 		"repertoire.json":             rep,
 		"annotations/wonderwall.json": ann,
-		"blobs/" + hash:               content,
+		"wonderwall/chart.pdf":        content, // the bytes under a HUMAN name
 	})
 
 	tgt := newStack()
@@ -324,4 +325,66 @@ func keysOf(m map[string][]byte) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestBandImport_V2TraversalDefense: P7 — under amendment 4 entry names are attacker-controllable user
+// data, so each of these is REFUSED, asserted as a refusal (ErrInvalidInput), not an absence.
+func TestBandImport_V2TraversalDefense(t *testing.T) {
+	content := []byte("%PDF x")
+	base := func() map[string][]byte {
+		band, _ := json.Marshal(map[string]any{
+			"formatVersion": 2, "name": "B",
+			"members": []any{map[string]any{"username": "dana", "displayName": "Dana", "role": "admin"}},
+		})
+		rep, _ := json.Marshal(map[string]any{
+			"songs": []any{map[string]any{"slug": "wonderwall", "title": "Wonderwall",
+				"files": []any{map[string]any{"filename": "chart.pdf", "contentType": "application/pdf"}}}},
+		})
+		return map[string][]byte{"band.json": band, "repertoire.json": rep, "wonderwall/chart.pdf": content}
+	}
+	repWith := func(slug, filename string) []byte {
+		b, _ := json.Marshal(map[string]any{
+			"songs": []any{map[string]any{"slug": slug, "title": "W",
+				"files": []any{map[string]any{"filename": filename}}}},
+		})
+		return b
+	}
+	cases := map[string]func(map[string][]byte){
+		"a traversal entry beside an innocent manifest": func(f map[string][]byte) { f["../../etc/passwd"] = []byte("pwned") },
+		"an absolute-path entry":                        func(f map[string][]byte) { f["/etc/passwd"] = []byte("pwned") },
+		"a Unicode-normalisation twin of a declared file": func(f map[string][]byte) {
+			delete(f, "wonderwall/chart.pdf")
+			f["repertoire.json"] = repWith("wonderwall", "café.pdf") // NFC é
+			f["wonderwall/café.pdf"] = content                      // NFD e + combining accent
+		},
+		"an undeclared stray entry": func(f map[string][]byte) { f["wonderwall/__pycache__.pyc"] = []byte("junk") },
+		"a slug containing a path separator": func(f map[string][]byte) {
+			delete(f, "wonderwall/chart.pdf")
+			f["repertoire.json"] = repWith("../evil", "chart.pdf")
+			f["../evil/chart.pdf"] = content
+		},
+		"a filename that is ..": func(f map[string][]byte) {
+			delete(f, "wonderwall/chart.pdf")
+			f["repertoire.json"] = repWith("wonderwall", "..")
+		},
+		"a blobHash that disagrees with the bytes": func(f map[string][]byte) {
+			r, _ := json.Marshal(map[string]any{
+				"songs": []any{map[string]any{"slug": "wonderwall", "title": "W",
+					"files": []any{map[string]any{"filename": "chart.pdf", "blobHash": blob.HashOf([]byte("different"))}}}},
+			})
+			f["repertoire.json"] = r
+		},
+	}
+	for name, attack := range cases {
+		f := base()
+		attack(f)
+		tgt := newStack()
+		importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+		if _, err := tgt.svc.ImportBand(importer, tgt.eng, rezip(t, f), nil); !errors.Is(err, app.ErrInvalidInput) {
+			t.Fatalf("%s: import err=%v, want ErrInvalidInput (refused)", name, err)
+		}
+		if bands, _ := tgt.repo.BandsForUser(importer.ID); len(bands) != 0 {
+			t.Fatalf("%s: %d bands created, want 0", name, len(bands))
+		}
+	}
 }
