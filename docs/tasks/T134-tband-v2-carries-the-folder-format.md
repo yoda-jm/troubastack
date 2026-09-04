@@ -98,6 +98,66 @@ library's stray file is head-vs-history, not staleness — I attributed it to st
 wrong. Someone who exports, deletes, and re-imports
 loses their annotation history and will not know until they look for it.
 
+
+## AMENDMENT (VLL, 2026-09-04) — the unzipped directory is the canonical form
+
+**VLL: *"pour le repertoire band je pense qu'un repertoire avec .tband sera un tband dezippé, c'est plus
+facile a historiser, lire et differ."*** Accepted. A band directory **is** a `.tband` unzipped; the zip
+is the transport, the directory is the thing you read, diff and version.
+
+**His stated reason understates it.** `.tband` is a *latest* by his own earlier ruling — it carries no
+past at all. Putting the directory under git **gives the format the history it deliberately dropped**,
+for free, on top of a snapshot format. That is the real argument.
+
+**With the limit stated plainly:** git historises **head states**, not the annotation event log. The
+server's `.jsonl` logs (one song alone holds 531 KB) do not come back this way. An export is still not a
+backup.
+
+### The measurement that shapes all three gaps
+
+The band library is **37.6 KB of JSON against 821 MB of everything else** — the describable part of a
+band is **0.005 %** of its weight. So **the JSON wants git and the charts do not.** Split by *nature*,
+not by container.
+
+### Gap 1 — blob naming: the zip and the directory cannot share it
+
+`blobs/<sha256>` is right for a zip (dedup, integrity) and **wrong for a directory a human browses** —
+nobody reads a folder of hashes, and it is a regression against today's `<song-slug>/<filename>`.
+
+**Do not bake the hash layout into the writer.** Keep whatever emits blobs behind a seam so the
+directory form can lay the same bytes out under human names while the zip keeps content addressing.
+Both must round-trip to the same manifest.
+
+### Gap 2 — the names/ids boundary must be explicit, not emergent
+
+The human-facing files are name- and slug-keyed (`username`, song `slug`, `filename` — settled by
+⟨D1⟩/⟨D2⟩). **The annotation payload keeps `layer.id`, `object.uuid`, `object.layerId` verbatim.** Write
+that boundary down in the format doc as a rule, not as an observation: the next person will otherwise
+"tidy" the ids away for consistency and end losslessness silently.
+
+### Gap 3 — canonical JSON, or every round-trip is a fake diff
+
+If the directory is canonical and the zip derived, `zip(dir)` and `unzip(tband)` must be **exact
+inverses**. Any normalisation drift — key order, indentation, trailing newline — turns a no-op
+round-trip into a diff, and the whole "easy to diff" argument dies. Pin the encoding. The project has
+precedent: `bundle.json` is proto3 **canonical** JSON for exactly this reason.
+
+### Correction — the band-level annotations file is NOT an orphan
+
+I reported earlier that the `annotations.json` in the band library "protects nothing". **Half of that
+was wrong**, and VLL was right to push back.
+
+Its shape — `{band, exportedAt, songs:[{title, layers, objects}]}` — is exactly the per-song payload of
+`POST /api/bands/{bandId}/songs/{songId}/annotations/import`, **wrapped per band**. And the timing shows
+it was used: the file is stamped `16:35`, and seven annotation logs were written at **`16:36`**.
+
+So a band-level annotations interchange **already exists in practice**, hand-driven, undocumented. v2
+should adopt its shape — with **one fix: key songs by `slug`, not `title`.** A rename silently breaks a
+title-keyed mapping, and titles are the field most likely to be corrected.
+
+What remains true from my earlier note: it is **head-only**, so it cannot restore that 531 KB of
+history — and nothing that ships should call it a backup.
+
 ## Then, and only then: the demo
 
 Once annotations are expressible, move the demo's groups out of Go literals (`groupDef`) into a folder
