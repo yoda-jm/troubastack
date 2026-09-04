@@ -25,11 +25,11 @@ songs differ, and the differences are editorial:
 
 | title | folder | what the rule computes |
 |---|---|---|
-| `J'Aime plus Paris` | `jaime-plus-paris` | `j-aime-plus-paris` |
-| `Cet Air-la` | `cet-air` | `cet-air-la` |
-| `In the Pines / Where Did You Sleep Last Night?` | `in-the-pines` | `in-the-pines-where-did-you-sleep-last-night` |
+| `L'Ete Indien` | `lete-indien` | `l-ete-indien` |
+| `Ce Vieux Refrain` | `refrain` | `ce-vieux-refrain` |
+| `A Long Title / With A Slash?` | `long-title` | `a-long-title-with-a-slash` |
 
-`cet-air` is **deliberately shorter than its title**. These are an author's identifiers, and a
+`refrain` is **deliberately shorter than its title**. These are an author's identifiers, and a
 derivation cannot reproduce them — not with a better apostrophe rule, not with any rule.
 
 ## So the fix is not a better slugify. It is: stop deriving.
@@ -46,7 +46,7 @@ consequences, and the second is the dangerous one:
 
 - **Add `Slug` to `Song`**, unique within a band.
 - **Import stores the folder's declared slug verbatim.** No re-derivation, no "tidying".
-- **Export emits the stored slug.** The round-trip becomes stable, and `cet-air` survives.
+- **Export emits the stored slug.** The round-trip becomes stable, and `refrain` survives.
 - **Derive only when creating a song that has no slug** (the Studio "new song" path) — one call site.
 - **Merge the two identical `slugify` copies into one exported function.** They agree today; two copies
   of one rule is how they stop agreeing later. The apostrophe question then has exactly one answer and
@@ -68,7 +68,7 @@ the very values this task exists to stop producing.
 
 ## Acceptance
 
-- **Round-trip:** import a folder whose slugs are hand-chosen (include `cet-air` and an apostrophe case),
+- **Round-trip:** import a folder whose slugs are hand-chosen (include `refrain` and an apostrophe case),
   export, and the slugs come back **identical**. This is the test that fails today.
 - **A title edit leaves the slug alone**, and annotation + setlist references still resolve afterwards.
 - Two songs in one band cannot take the same slug.

@@ -18271,7 +18271,7 @@ A39 does not close on the strength of a better spinner.
 
 Right lane — it's `core/cmd/seed`. Note the **data half is already done**: VLL's concert is captured in
 `bands/<band-slug>/setlists.json` (gitignored, `check-ignore` verified) — "the concert",
-2026-09-05, `dirty-old-town` then `jaime-plus-paris`. Only the mechanism is missing. Re-read the store
+2026-09-05, `dirty-old-town` then `lete-indien`. Only the mechanism is missing. Re-read the store
 rather than trusting that file's contents; he may have added songs since.
 
 **But your queue is now three deep, and I want the order stated rather than assumed:** T95 Stage A (in
@@ -33467,8 +33467,8 @@ NAMES do not.**
 | | export writes | folder has |
 |---|---|---|
 | a generated chart | `<slug>/lyrics` | `<slug>/lyrics.txt` |
-| an apostrophe title | `annotations/j-aime-plus-paris.json` | `annotations/jaime-plus-paris.json` |
-| another | `annotations/jardin-d-hiver.json` | `annotations/jardin-dhiver.json` |
+| an apostrophe title | `annotations/l-ete-indien.json` | `annotations/lete-indien.json` |
+| another | `annotations/un-titre-d-hiver.json` | `annotations/un-titre-dhiver.json` |
 
 55 entries the export considers new, 57 it considers missing — **almost all of it is one folder renamed
 against itself.** Overwriting the folder with its own export would rename half of it.
@@ -33481,8 +33481,8 @@ round-trip through the server: `import(folder) → export` does not give the fol
 **Two separate causes**, worth separating when fixing:
 1. **The filename suffix.** The folder stores a generated chart's source as `<name>.txt`; the export
    writes the server's filename verbatim (`lyrics`). One of the two is the convention — pick it.
-2. **Slugify disagrees on apostrophes.** `J'Aime plus Paris` → `j-aime-plus-paris` from the exporter,
-   `jaime-plus-paris` in the folder. Same class as T138's ⟨R1⟩: **one rule, expressed once**, or two
+2. **Slugify disagrees on apostrophes.** `L'Ete Indien` → `l-ete-indien` from the exporter,
+   `lete-indien` in the folder. Same class as T138's ⟨R1⟩: **one rule, expressed once**, or two
    implementations drift.
 
 Nothing is lost today — I verified the folder after my surgical update: **51 declared files, 0 hash or
@@ -33528,11 +33528,11 @@ differences are editorial rather than mechanical:
 
 | title | folder | the rule computes |
 |---|---|---|
-| `J'Aime plus Paris` | `jaime-plus-paris` | `j-aime-plus-paris` |
-| `Cet Air-la` | **`cet-air`** | `cet-air-la` |
-| `In the Pines / Where Did You Sleep…` | **`in-the-pines`** | `in-the-pines-where-did-you-sleep-last-night` |
+| `L'Ete Indien` | `lete-indien` | `l-ete-indien` |
+| `Ce Vieux Refrain` | **`refrain`** | `ce-vieux-refrain` |
+| `In the Pines / Where Did You Sleep…` | **`long-title`** | `a-long-title-with-a-slash` |
 
-**`cet-air` is deliberately shorter than its title.** No slugify rule reproduces that, because it is not
+**`refrain` is deliberately shorter than its title.** No slugify rule reproduces that, because it is not
 a computation — it is a name someone chose.
 
 ### So the fix is not a better rule (T139)
@@ -33598,7 +33598,7 @@ product would have been advertising a 404 to every operator reading its logs.
 Picking up T139 per continue-by-default: add `Slug` to `app.Song`, import stores the declared slug
 verbatim, export emits it (lazy-derive only when empty), Studio create derives once, merge the two
 identical `slugify` copies into `app.Slugify`. Migration = option 1 (folder backfills on next import; no
-derive-backfill). Will present with the round-trip test (cet-air + apostrophe) that fails today.
+derive-backfill). Will present with the round-trip test (refrain + apostrophe) that fails today.
 
 — web-core
 
@@ -33617,11 +33617,11 @@ the next `-band`/import of a canonical folder stores the real slugs.)
 
 **What to re-verify:**
 - The **round-trip acceptance test that failed today** now passes: `TestSlug_RoundTripPreservesAuthoredSlug`
-  imports `cet-air` (title "Cet Air-la") + `jaime-plus-paris` (title "J'Aime plus Paris") and exports them
-  back identical — with a teeth-check asserting the derivation would produce the *different* `cet-air-la` /
-  `j-aime-plus-paris`, so it guards preservation, not luck.
+  imports `refrain` (title "Ce Vieux Refrain") + `lete-indien` (title "L'Ete Indien") and exports them
+  back identical — with a teeth-check asserting the derivation would produce the *different* `ce-vieux-refrain` /
+  `l-ete-indien`, so it guards preservation, not luck.
 - `TestSlug_TitleEditKeepsRefs`: rename the song, the exported `annotations/<slug>.json`, repertoire slug,
-  and setlist item all still say `cet-air`.
+  and setlist item all still say `refrain`.
 - `TestCreateSong_DerivesUniqueStableSlug`: two "My Song" → `my-song` + `my-song-2`; title edit keeps it.
 - `TestSlugify_Vectors`: apostrophes / slashes / punctuation runs / empty→`song`.
 
@@ -33662,8 +33662,8 @@ Each half is independently guarded; neither test is covering for the other.
 Seeded a scratch server from the real folder and exported it:
 
 - **46 slugs in, 46 out — 0 lost, 0 invented.**
-- The four a rule cannot reproduce all survive: **`cet-air`**, `jaime-plus-paris`, `in-the-pines`,
-  `letourderie`. Before T139 this exact test would have shown **8 lost and 8 invented**.
+- The four a rule cannot reproduce all survive: **`refrain`**, `lete-indien`, `long-title`,
+  `lexemple`. Before T139 this exact test would have shown **8 lost and 8 invented**.
 
 ### ⚠ And this CORRECTS my own naming finding (`de603ef8`)
 
@@ -33865,9 +33865,9 @@ settle it:
 
 | when | order starts | |
 |---|---|---|
-| folder @ 16:21 | `… \| Karma Police \| Roxanne` | correct |
-| bake 1 @ 20:42 | `… \| La Isla Bonita \| All My Loving` | **scrambled** |
-| bakes @ 20:52+ | `… \| Karma Police \| Roxanne` | he re-ordered by hand |
+| folder @ 16:21 | `… \| song B \| song C` | correct |
+| bake 1 @ 20:42 | `… \| song D \| song E` | **scrambled** |
+| bakes @ 20:52+ | `… \| song B \| song C` | he re-ordered by hand |
 
 Between them the band was **re-imported**: band id `0cf20569` → `fa8eb007`, new setlist id, `bakes/`
 recreated at 20:42.
@@ -33883,8 +33883,8 @@ a hand-written file), but the reader never materialises that order. `ImportBand`
 
 ```
 23 items → ALL at position 0
-stored : Toxicity | Roxanne | Magnolias for Ever | …
-folder : Ma Meilleure Ennemie | Karma Police | Roxanne | …
+stored : song G | song C | song F | …
+folder : song A | song B | song C | …
 ORDER PRESERVED? false
 ```
 

@@ -12,9 +12,9 @@ Reconstructed from the surviving bakes (each `.tstage` is a timestamped snapshot
 
 | when | order starts | |
 |---|---|---|
-| folder @ 16:21 | `Ma Meilleure Ennemie \| Karma Police \| Roxanne` | correct |
-| bake 1 @ 20:42 | `Ma Meilleure Ennemie \| La Isla Bonita \| All My Loving` | **scrambled** |
-| bakes @ 20:52+ | `Ma Meilleure Ennemie \| Karma Police \| Roxanne` | he re-ordered by hand |
+| folder @ 16:21 | `song A \| song B \| song C` | correct |
+| bake 1 @ 20:42 | `song A \| song D \| song E` | **scrambled** |
+| bakes @ 20:52+ | `song A \| song B \| song C` | he re-ordered by hand |
 
 Same songs, different order. Between the two, the band was **re-imported** — the band id changed
 (`0cf20569` → `fa8eb007`), the setlist id changed, and `bakes/` was recreated at 20:42.
@@ -41,8 +41,8 @@ Seeded a scratch server from the real folder:
 
 ```
 23 items → ALL at position 0
-stored order : Toxicity | Roxanne | Magnolias for Ever | …
-folder says  : Ma Meilleure Ennemie | Karma Police | Roxanne | …
+stored order : song G | song C | song F | …
+folder says  : song A | song B | song C | …
 ORDER PRESERVED? false
 ```
 

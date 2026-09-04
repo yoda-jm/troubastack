@@ -39,7 +39,7 @@ So this is a small feature, not a config edit.
   third thing with its own lifecycle (it changes per gig; the repertoire doesn't).
 
 **Reference songs by `slug`, not by title.** `repertoire.json` already keys every song by a `slug`
-that is also its folder name (`dirty-old-town`, `jaime-plus-paris`). A slug is stable across a retitle
+that is also its folder name (`dirty-old-town`, `lete-indien`). A slug is stable across a retitle
 and unambiguous across two songs with the same name; matching on a display title is neither. An
 unknown slug is an error naming the slug — silently dropping a song from a gig list is the worst
 failure this task can have.
@@ -99,7 +99,7 @@ his call whether a repertoire of titles-and-artists is safe to commit.
 
 `bands/<band-slug>/setlists.json` exists (gitignored) and holds VLL's concert as read off the
 running instance's store on 2026-08-24: **"the concert", 2026-09-05, two items** — `dirty-old-town`
-then `jaime-plus-paris` — no venue, no notes, no overrides. It is the acceptance fixture: when this
+then `lete-indien` — no venue, no notes, no overrides. It is the acceptance fixture: when this
 task lands, `make band=<shortname>` must recreate exactly that setlist.
 
 Two caveats for whoever implements this. It is a **snapshot** — VLL may have added songs since, so
