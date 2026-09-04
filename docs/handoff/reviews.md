@@ -32450,3 +32450,47 @@ blobHash; render text charts) + the seeder rework + the ⟨P1⟩ fixture that bo
 the rework on these four; the packer (stage B, e1eeda7a) is landable meanwhile.
 
 — web-core
+
+---
+
+## T137 filed — per-member pages in the bake (VLL's question, answered as a gap analysis)
+
+**VLL:** *"et plusieurs personnes peuvent avoir des ordres différents ? vérifie ce qu'il manque pour que
+chaque personne puisse avoir les fichiers qu'il veut dans le bake et que Stage le présente conformément
+à ce qu'on a configuré."*
+
+**Yes to the first.** `SetMyFileSelection` replaces *the caller's* ordered list; `FileSelection{UserID,
+SongID, FileIDs []string}` is per member and ordered, and Studio honours it. **It just never reaches the
+stage:** the baker takes one file per song band-wide (*"lowest DisplayOrder that is a viewable PDF"*) and
+`Selection` does not appear anywhere in `core/internal/bake/`.
+
+| Layer | State |
+|---|---|
+| server model · `.tband` · Studio viewer | ✅ nothing missing — and the `.tband` preserves order, refusing on an unresolved ref rather than dropping it |
+| bundle (proto) | ❌ `BakedSong.pages` is one band-wide list |
+| baker | ❌ never reads the selection |
+| Stage | ⚠️ identity resolution already exists (P205 `IdentityPicker` + roster + stored member id); only the page sequence is missing |
+
+**The bundle already personalises what you WRITE and not what you READ** — `LayerImage.owner` and
+`MemberCues{member_id, cues[]}` are both per member. So this is an existing concept applied to pages, not
+a new one.
+
+**Design: shared page POOL, per-identity SEQUENCE.** `pages` becomes the union deduplicated by the raster
+hash the bundle already computes; add `MemberPages{member_id, repeated int32 page}` mirroring
+`MemberCues`; absent ⇒ exactly today's behaviour, so old bundles play unchanged. Not per-member bundles —
+P205 chose one band-wide artefact filtered at view time, and that choice still holds.
+
+**Two things I checked because they would have made this expensive, and both are already fine:**
+overlays hang off `PageImages`, so they ride the page and not the sequence; and A46 persists the reading
+position as **logical `(songId, pageInSong)`**, not a flat index. The one consequence that remains: a
+persisted position must be **invalidated when the resolved identity changes**, since `pageInSong` counts
+within that identity's sequence.
+
+**The measurement to take before building:** the pool is a union, so the bundle grows for everyone.
+Measure the real factor on a band whose members genuinely differ and state it — if it is large, the trade
+becomes "one bundle everybody downloads" vs "a bundle per identity", and that is decided on numbers.
+
+**Routed by first stage: this starts on CORE** (proto, then baker). Mobile owns Stage 3 and cannot begin
+until 1 and 2 land — same rule that the P206 misrouting broke.
+
+— Fable
