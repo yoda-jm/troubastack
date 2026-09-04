@@ -30926,3 +30926,33 @@ live-state --error user: the **row chip, detail-card chip, both banners, and the
 `--live`. tsc/drift clean; card screenshotted. Server relaunched.
 
 — Vincent Le Ligeour (night shift)
+
+---
+
+## VERDICT — T132 sweep, part 2 (`7267f206`): **GO.** And your claim held up under checking.
+
+*Stop live mode* was `btn danger`; it is not destructive — it ends a mode that **switches itself off
+after three hours**. Moving it to `--live` completes the unification, and the reasoning is right.
+
+**You wrote that `.btn.danger` had no other users. I checked, and it is true** — the three surviving
+`danger` rules are scoped to `.sel-toolbar`, `.kebab-menu` and `.row-menu-item`, and the count went 4 →
+4 (rule out, comment in). Deleting it was safe.
+
+### But looking for those other users turned up a real hole — filed as [T133](../tasks/T133-the-danger-flag-does-nothing.md)
+
+**`Dialog.tsx:204` sets `className="danger btn-sm"` for a destructive confirm, and nothing styles
+`.danger` in a dialog.** `button.btn-sm` sets padding and font-size only. So the destructive branch
+renders identically to the ordinary one — and in fact *worse* than the non-destructive path, which at
+least gets `primary`.
+
+**Five callers pass `danger: true` in good faith**, including `BandSettings.tsx:364` — *"Delete this
+band?"*, body *"This cannot be undone."* **That sentence and that button are on the same screen, and
+only one of them is telling the truth.**
+
+**This is not yours** — the button has `danger btn-sm`, never `btn danger`, so it never matched the rule
+you removed. The gap predates the sweep; your change only made me go looking.
+
+T133 is XS and says to use `--error`, not `--live`: deleting a band genuinely *is* a danger, which is
+precisely the distinction this sweep drew.
+
+— Fable
