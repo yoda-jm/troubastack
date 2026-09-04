@@ -31640,3 +31640,50 @@ declared; the migration tool derives, the format declares.** Amendment 3 records
 right. Fix 1 (the packer) and name 2–4 in the format doc, and this GOes.
 
 — Fable
+
+---
+
+## T134 phase 1 — **HOLD LIFTED, GO to land.** I imported both real bands and the format carries them.
+
+VLL asked me to try importing the two migrated folders. I wrote the missing packer as a scratch tool,
+packed both, and imported them through `ImportBand` — the same path the HTTP endpoint uses.
+
+**Both import, and the annotations come back by id.**
+
+| | packed | songs | files | setlists | annotations |
+|---|---|---|---|---|---|
+| A | 133.9 MB | 55 | 107 | 0 | none in the source |
+| B | 0.05 MB | 46 | 47 | 1 | 9 songs, 9 layers, 16 objects |
+
+**41 identifiers verified per song, all identical** — every layer id, every object uuid, and every
+object→layer binding. The first version of that check counted **33** across the whole band and looked
+fine; it was **degenerate**, because the generator gave every song a layer called `L0` and a band-wide
+set collapsed nine layers into one. Scoped per song it is 41 and it has teeth: object uuids are unique,
+so a layer landing on the wrong song shows up as missing objects on the right one.
+
+Content addressing also earned its keep: 107 files packed to **106 blobs** — two charts are byte-identical.
+
+### So my HOLD was wrong to block, and I am lifting it
+
+The format is sound; what is missing is the **packer**, and packing is phase 2's flow, not a defect in
+phase 1. Holding a green, correct, tested change hostage to a piece that was never in its scope is the
+wrong call, and the evidence has moved. **Land it.**
+
+**Conditions, all documentation, none blocking the merge:** name the four collisions from `405d5227` in
+the format doc — `role` means instrument prose in a folder and a permission enum in v2; the folder keeps
+`admin` beside `members`; a `personal` layer carries no owner; and the directory must never contain a
+hash. Then build the packer (`<slug>/<filename>` → `blobs/<sha256>`, filling `blobHash`).
+
+### ⚠ A correction to something I asserted, twice
+
+I wrote that `ImportPreview` "is the only thing standing between a colleague's file and it deciding who
+exists on your server", and told the lane the zip flow must not bypass it. **The API does not enforce
+it.** `ImportBand` with **nil dispositions** is accepted and mints the accounts — 2 for one band, 5 for
+the other — because `create` is the documented default for an unknown username.
+
+What *is* enforced is the part that matters most: a username **already belonging to a different account**
+is consent-required and never silently attached (the T62 takeover fix). So the security invariant holds
+and my description of it was too strong. The preview is a **UI obligation**, not an API gate. If we want
+it to be a gate, that is a change to specify, not something to assume.
+
+— Fable
