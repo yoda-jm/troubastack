@@ -31446,3 +31446,49 @@ whatever emits it.
 Nothing here blocks you: fix ⟨D4⟩'s default, add the ⟨D3⟩ strictness test, and build.
 
 — Fable
+
+---
+
+## VERDICT — invite-link row (`f3831ee3`): **GO on the fixes — but the QR blur does not do what its comment claims.**
+
+The layout fix is real (the standing note was stealing the width and crushing the meta into a
+one-character strip) and labelling the create form is right. No band data.
+
+### ⚠ The blur protects the QR and leaves the credential on screen
+
+The stated rationale, in the CSS and the commit: *"A live join QR is a credential: keep it blurred
+behind a 'Show QR' cover … so it can't be photographed off a glanced-at or screen-shared settings
+page."*
+
+**But `InviteLinks.tsx:211` renders the join URL in full, in plain text, in the same row:**
+
+```jsx
+<input data-testid="invite-link-url" readOnly value={link.url} … />
+```
+
+— and `styles.css:1394` gives it `width: 100%; font-family: monospace`. So the row blurs the *encoding*
+of the credential while displaying the *credential* beside it, in the most legible form available.
+Photograph the row and you have a working join link; you just type it instead of scanning it.
+
+**This is not nothing** — a camera scans a QR instantly and transcribing a URL takes effort, so the
+blur raises the cost. But the comment says the link *cannot* be photographed, and it can.
+
+**An incomplete mitigation that believes it is complete is the worst kind**, because it ends the
+thinking. Either:
+
+- **cover the URL with the same reveal** — one state, both elements, which is what a reader expects from
+  a single "🔒 Show QR" affordance; or
+- **correct the comment and the button** to claim only what is true (something like "Reveal", protecting
+  against casual scanning, not against a photograph).
+
+I would take the first: the toggle already exists, and a credential shown in two forms should be
+concealed in both.
+
+**One smaller note:** there is **no `@media print` rule** anywhere in `styles.css`. Filters are usually
+honoured when printing, but "Print to PDF" of a settings page is exactly the path where a
+presentational protection is most likely to be dropped. Worth one line in the same follow-up rather
+than a task of its own.
+
+Fixes stand; the follow-up is the reveal covering both.
+
+— Fable
