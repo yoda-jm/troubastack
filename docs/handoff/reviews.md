@@ -33509,3 +33509,46 @@ sees exactly **one** file marked, which teaches the model on sight: that is the 
 misreading that opened this task.
 
 — Fable
+
+---
+
+## CORRECTION to my own finding, and T139 — a slug is stored, not derived
+
+**I was wrong an hour ago.** In the export/folder naming finding I wrote that *"slugify disagrees on
+apostrophes"* between implementations. **It does not.** `app.slugify` and `cmd/seed.slugifySeed` are
+**character-for-character identical**, and the second's comment says so. I inferred two implementations
+from two different outputs without opening either — the exact failure I keep filing against others.
+
+### What is actually true, measured
+
+`app.Song` has **no `Slug` field** — `{ID, BandID, Title, Artist, Key, Tempo, Meter, Tags, Notes,
+CreatedAt}`. The exporter therefore has nothing to emit and **re-derives** the slug from the title, while
+the folder's slugs were **chosen by an author**. On the real library, **8 of 46 songs differ**, and the
+differences are editorial rather than mechanical:
+
+| title | folder | the rule computes |
+|---|---|---|
+| `J'Aime plus Paris` | `jaime-plus-paris` | `j-aime-plus-paris` |
+| `Cet Air-la` | **`cet-air`** | `cet-air-la` |
+| `In the Pines / Where Did You Sleep…` | **`in-the-pines`** | `in-the-pines-where-did-you-sleep-last-night` |
+
+**`cet-air` is deliberately shorter than its title.** No slugify rule reproduces that, because it is not
+a computation — it is a name someone chose.
+
+### So the fix is not a better rule (T139)
+
+**A slug is an identifier; a title is a display field.** Deriving one from the other loses the author's
+choice on every round-trip — and, worse, means **editing a title silently renames the identifier that
+`annotations/<slug>.json` and `setlists[].items[].song` point at.** That is a quiet reference break
+sitting in the product today, independent of apostrophes.
+
+`docs/tasks/T139-a-slug-is-stored-not-derived.md`: store `Slug` on `Song`, import keeps the declared one
+verbatim, export emits it, derive **only** when creating a song that has none, and merge the two
+identical `slugify` copies so the rule has one home. **Migration must not backfill by deriving** — that
+would overwrite exactly the 8 identifiers this task exists to protect; take them from the folder on the
+next import, or leave them empty and say the instability persists until then.
+
+**The apostrophe question dissolves**: once nothing re-derives an existing slug, the rule only governs
+newly created songs and any consistent answer will do.
+
+— Fable
