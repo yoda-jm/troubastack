@@ -6,7 +6,7 @@
  * the new password logs in.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, revealedInviteUrl } from "./setup-helpers";
 
 test("admin issues a reset link; member sets a new password; old session + password die", async ({
   browser,
@@ -25,7 +25,7 @@ test("admin issues a reset link; member sets a new password; old session + passw
   await adminPage.goto(bandUrl + "/settings");
   await adminPage.getByTestId("invite-link-role").selectOption("member");
   await adminPage.getByTestId("create-invite-link").click();
-  const inviteUrl = await adminPage.getByTestId("invite-link-url").inputValue();
+  const inviteUrl = await revealedInviteUrl(adminPage);
   const inviteToken = inviteUrl.split("/join/")[1];
   expect(inviteToken).toBeTruthy();
 

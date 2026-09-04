@@ -92,3 +92,23 @@ export async function createSetlist(
   if (opts.venue) await page.getByTestId("setlist-venue").fill(opts.venue);
   await page.getByTestId("create-setlist").click();
 }
+
+/**
+ * revealedInviteUrl: read an invite link's real join URL from the settings page.
+ *
+ * The row MASKS the URL until the admin reveals it (`https://host/join/••••••••`), so reading
+ * `invite-link-url` directly yields dots and any token split from it is meaningless — that is exactly
+ * how three e2e specs went red when masking landed. Reveal first, which is also the path a human takes
+ * when they need to read or scan the link, so the toggle gets covered on the way past.
+ */
+export async function revealedInviteUrl(page: import("@playwright/test").Page): Promise<string> {
+  const toggle = page.getByTestId("invite-link-reveal-qr").first();
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") {
+    await toggle.click();
+  }
+  const url = await page.getByTestId("invite-link-url").first().inputValue();
+  if (url.includes("•")) {
+    throw new Error(`invite URL is still masked after reveal: ${url}`);
+  }
+  return url;
+}

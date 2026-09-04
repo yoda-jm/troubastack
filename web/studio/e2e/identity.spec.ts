@@ -5,7 +5,7 @@
  * in the members list, and the logged-out /join → login → return flow.
  */
 import { test, expect, type Page } from "@playwright/test";
-import { stamp, register, createBandAndOpen } from "./setup-helpers";
+import { stamp, register, createBandAndOpen, revealedInviteUrl } from "./setup-helpers";
 
 test("a. profile edit persists across reload", async ({ page }) => {
   await register(page, `prof_${stamp()}`);
@@ -76,7 +76,7 @@ test("c. admin creates an invite link; second user joins via /join/<token>", { t
   await adminPage.getByTestId("create-invite-link").click();
   await expect(adminPage.getByTestId("invite-link-row")).toHaveCount(1);
   await expect(adminPage.getByTestId("invite-link-qr").locator("svg")).toBeVisible();
-  const url = await adminPage.getByTestId("invite-link-url").inputValue();
+  const url = await revealedInviteUrl(adminPage);
   const token = url.split("/join/")[1];
   expect(token).toBeTruthy();
 
@@ -116,7 +116,7 @@ test("e. logged-out /join → login → returns to join and can join", async ({ 
   await adminPage.goto(bandUrl + "/settings");
   await adminPage.getByTestId("invite-link-role").selectOption("member");
   await adminPage.getByTestId("create-invite-link").click();
-  const url = await adminPage.getByTestId("invite-link-url").inputValue();
+  const url = await revealedInviteUrl(adminPage);
   const token = url.split("/join/")[1];
   await adminCtx.close();
 
