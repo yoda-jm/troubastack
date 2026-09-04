@@ -31991,3 +31991,36 @@ honestly claims. **VLL's call whether to go further; I am not holding anything o
 I had a T136 drafted for this. Deleting it unlanded rather than filing a task for work already done.
 
 — Fable
+
+---
+
+## P206 was queued to the wrong lane — corrected. VLL caught it.
+
+**VLL: *"pourquoi lane mobile alors qu'il faut du proto et du studio avant ?"*** He is right, and the
+spec says so itself.
+
+| Stage | Content | Lane |
+|---|---|---|
+| 1 | proto + generated mirrors | **core** |
+| 2 | authoring tool | **web** |
+| 3 | bake | **core** |
+| 4 | reading on Stage | **mobile** |
+
+§Stage 1 states outright that it *"must land before Stage 2 is worth running"*. **Three of the four
+stages are web-core; mobile owns Stage 4 alone and cannot start at all until Stage 1 lands.** The header
+nonetheless read "QUEUED — mobile lane".
+
+**How it happened, because the mechanism matters more than the typo:** it was put on the A-track when a
+gate note observed *"the A-track queue is empty, and both remaining items (P206, P207 stage 2)"*. It was
+routed **by which lane was idle, not by which lane comes first**. The assigned lane then could not begin,
+so a fully-decided spec sat still — and the stale concert hold (lifted at `92712c45`) hid the symptom,
+because "not started" looked explained.
+
+**Rule I am adopting: a task's Status names the lane that can start it TODAY, not the lane that owns its
+last stage.** Where stages cross lanes, the Status names the entry stage and its dependency in the same
+breath. Corrected in the spec.
+
+**So: P206 Stage 1 is web-core work and is startable now**, alongside T134 phase 2 and T135 stage 2.
+Mobile's queue is A68 — P206 arrives there only after Stages 1–3 land.
+
+— Fable

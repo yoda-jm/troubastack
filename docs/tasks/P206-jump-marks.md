@@ -1,6 +1,11 @@
 # P206 — Jump marks: an author-placed link to another page of the same document
 
-**Status:** **QUEUED — mobile lane** (VLL, 2026-09-02). All four design decisions are settled and
+**Status:** **QUEUED — starts on WEB-CORE, not mobile** (corrected 2026-09-04; VLL queued it 2026-09-02).
+**Entry point is Stage 1 (proto + mirrors), a core-lane change**, and §Stage 1 says it "must land
+before Stage 2 is worth running". Three of the four stages are web-core (proto, authoring, bake);
+the mobile lane owns **Stage 4 only** and cannot start before Stage 1 lands. It was originally
+queued to the A-track because that queue was empty — routed by who was idle rather than by what
+comes first, which is part of why it never moved. All four design decisions are settled and
 recorded in §Decisions: the feature is a **jump mark**; a tap opens a small "go to" popup above the
 mark, with a **direct-goto opt-in** in the Stage section of Parameters; there is **no Return**, so
 `MainActivity.kt:628` is not touched; cross-song jumps are out of scope. **Startable now** — the concert that gated it was cancelled (see the sequencing note); it still
