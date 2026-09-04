@@ -11,6 +11,7 @@ package chartpdf
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -87,11 +88,42 @@ func preferFlats(k Key) bool {
 	return flatMajorPC[k.root]
 }
 
+// reBareTabOpenerRewrite matches a bare tab opener (no attributes) so the transpose step can stamp the
+// original key onto it — in place, so the line count (and thus pagination/geometry) is preserved.
+var reBareTabOpenerRewrite = regexp.MustCompile(`(?i)^(\s*\{(?:start_of_tab|sot))\}(\s*)$`)
+
+// annotateTabOpeners stamps `original=<key>` onto every bare tab opener when a non-zero transposition
+// happened (T135). Tab frets are never transposed, so a baked transposed page would otherwise show the
+// stave's chord names in the OLD key with nothing saying so; the renderer draws a zero-height marker
+// from this attribute. In-place rewrite → line count preserved (the T60 anchoring invariant). No-op at
+// a net-zero interval (nothing was transposed) or when there is no key to name.
+func annotateTabOpeners(source string, interval int, originalKey string) string {
+	if ((interval%12)+12)%12 == 0 || originalKey == "" {
+		return source
+	}
+	lines := strings.Split(source, "\n")
+	for i, line := range lines {
+		cr := ""
+		body := line
+		if strings.HasSuffix(body, "\r") {
+			cr, body = "\r", body[:len(body)-1]
+		}
+		if reBareTabOpenerRewrite.MatchString(body) {
+			lines[i] = reBareTabOpenerRewrite.ReplaceAllString(body, "${1} original="+originalKey+"}${2}") + cr
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 // Transpose rewrites every chord row in source by the pitch-class interval from→to,
 // leaving all other lines byte-identical. Line count is preserved exactly.
 func Transpose(source string, from, to Key) (string, error) {
 	interval := ((to.root-from.root)%12 + 12) % 12
-	return transposeBy(source, interval, preferFlats(to))
+	out, err := transposeBy(source, interval, preferFlats(to))
+	if err != nil {
+		return "", err
+	}
+	return annotateTabOpeners(out, interval, from.String()), nil
 }
 
 // TransposeToKey is Transpose but spells the rewritten roots to match the accidental the
@@ -108,7 +140,11 @@ func TransposeToKey(source, rawTargetKey string, from, to Key) (string, error) {
 		flat = true
 	}
 	interval := ((to.root-from.root)%12 + 12) % 12
-	return transposeBy(source, interval, flat)
+	out, err := transposeBy(source, interval, flat)
+	if err != nil {
+		return "", err
+	}
+	return annotateTabOpeners(out, interval, from.String()), nil
 }
 
 // TransposeSemitones shifts every chord row by a raw semitone count — the well-defined
@@ -153,7 +189,18 @@ func sourcePrefersFlats(source string) bool {
 func transposeBy(source string, interval int, flat bool) (string, error) {
 	interval = ((interval % 12) + 12) % 12
 	lines := strings.Split(source, "\n")
+	// T135: a tab block is never transposed — chord names over an untouched stave would print a lie.
+	// The block membership uses the SAME predicate the renderer draws with, so what is left un-
+	// transposed is exactly what is drawn verbatim (and line count is preserved either way).
+	stripped := make([]string, len(lines))
+	for i, l := range lines {
+		stripped[i] = strings.TrimSuffix(l, "\r")
+	}
+	inTab := tabContentSet(stripped)
 	for idx, line := range lines {
+		if inTab[idx] {
+			continue // inside a tab block: verbatim, including the chord names over the strings
+		}
 		// Preserve a trailing CR (a \r\n source stays \r\n) — we only touch chord rows.
 		cr := ""
 		body := line

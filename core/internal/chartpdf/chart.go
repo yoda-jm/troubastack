@@ -16,8 +16,23 @@
 //	**bold**           inline bold within a normal text line
 //	{new_page}         force a page break here (alias {np}) — see "Page breaks" below
 //	{footnote}         open a footnote/attribution block (alias {fn}) — see "Footnotes" below
+//	{start_of_tab}     open a tablature block (alias {sot}); {end_of_tab}/{eot} closes it —
+//	                   see "Tab blocks" below and chart_tab.go
 //	(blank line)       paragraph gap
 //	anything else      literal text
+//
+// Tab blocks (T135): everything between {start_of_tab}/{sot} and {end_of_tab}/{eot} (whole-line,
+// case-insensitive markers; an unclosed block runs to EOF) is drawn VERBATIM in Courier — the only way
+// dashes, digits and bar lines line up. A blank line separates two staves; a stave is one layout unit,
+// never split across a page. One tab size governs the whole chart: the smaller of the proportional size
+// and the size at which the longest stave line fits the column (Courier 0.6 em), floored at 7 pt
+// (~125 chars) — a longer line is refused (ErrTabTooWide) rather than clipped. Inside a block nothing
+// but the closer is a marker (`##`, `{np}`, `**bold**` are literal); a chord row over the strings is
+// drawn bold in the chord colour at the tab size so its columns hold. Tab lines are never transposed.
+// An opener may carry `original=<key>` (e.g. `{sot original=G}`) — author-writable, and also stamped by
+// the transpose step; when a chart is baked TRANSPOSED it draws a zero-height "tab in original key (G)"
+// note in the page margin, since the frets stay in the written key while the body chords move. Opener
+// attributes are key=value only: `{sot} x` and `{sot bad}` are not openers and render as text.
 //
 // Page breaks (T77): a line containing only `{new_page}` — or the short alias `{np}`,
 // case-insensitive, surrounding whitespace ignored — forces the following content to the top of the
@@ -208,6 +223,9 @@ func chartLines(source string) []string {
 // per-row advances AND of pagination, so they cannot drift, on one page or many.
 func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, error) {
 	lines := chartLines(source)
+	if err := validateTabWidth(lines); err != nil { // T135: refuse a tab that can't fit even at the floor
+		return nil, nil, 0, err
+	}
 	subtitle, _, bodyPt, sizeSet, skip := parseHeader(lines)
 	if !sizeSet {
 		bodyPt = autoFitBodyPt(lines, subtitle, skip) // T76: largest size that keeps every segment on its page
@@ -362,6 +380,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 	// are instance-independent, so the wrap is identical to what the draw pass produces (the drift guard).
 	var measurer *fpdf.Fpdf
 	var measureTr func(string) string
+	tabPt := 0.0 // T135: the chart's tab size (one for all blocks), computed lazily on the first block
 	getMeasurer := func() (*fpdf.Fpdf, func(string) string) {
 		if o.pdf != nil {
 			return o.pdf, o.tr // draw pass: measure with the real doc + its translator
@@ -413,6 +432,52 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 				page(leadFootnote * scale)
 				note("footnote")
 				y = drawFootnoteLine(o.pdf, o.tr, y, wl, scale, o.rec)
+			}
+			drew = true
+		case isTabStart(trimmed):
+			// T135: a tab block. Gather its staves and draw each as ONE unit (never split across a
+			// page, like a chord+lyric pair). Inside the block nothing but the closer is a marker; the
+			// lines are drawn verbatim in Courier by drawTabLine. One size governs every block.
+			originalKey := tabOpenerOriginalKey(trimmed) // "" unless baked transposed / author-written
+			staves, end := gatherStaves(lines, i)
+			i = end // resume at the closer (or EOF); the loop's i++ steps past it
+			if len(staves) == 0 {
+				break // an empty block: consumed, draws nothing (like a bodyless {footnote})
+			}
+			if tabPt == 0 {
+				mpdf, mtr := getMeasurer()
+				tabPt = tabPtFor(mpdf, mtr, lines, scale)
+			}
+			applyBreak()
+			gap()
+			if drew {
+				y += tabTopGap * (tabPt / tabBasePt) // air above a block following content
+			}
+			markerDrawn := false
+			for si, stave := range staves {
+				if si > 0 {
+					y += tabGap * (tabPt / tabBasePt) // air between staves
+				}
+				if h := staveHeight(len(stave), tabPt); h <= pageBottom-topMargin {
+					page(h) // the stave is one unit — never split a bar across a page
+					note("tab")
+					for _, sl := range stave {
+						y = drawTabLine(o.pdf, o.tr, y, sl, tabPt, o.rec)
+					}
+				} else {
+					// A single stave taller than a page: split by line as a last resort, never clip.
+					for _, sl := range stave {
+						page(leadTab * (tabPt / tabBasePt))
+						note("tab")
+						y = drawTabLine(o.pdf, o.tr, y, sl, tabPt, o.rec)
+					}
+				}
+				if !markerDrawn {
+					// Draw the transposition marker once, on the page the block's first stave landed on
+					// (after any page break). Zero y-advance, no anchor — geometry stays byte-identical.
+					drawTabMarker(o.pdf, o.tr, originalKey)
+					markerDrawn = true
+				}
 			}
 			drew = true
 		case strings.HasPrefix(trimmed, "## "):
@@ -470,6 +535,14 @@ func firstUnitLead(lines []string, headerIdx int, skip map[int]bool) float64 {
 			continue
 		case strings.HasPrefix(t, "# "), strings.HasPrefix(t, "## "), isNewPageMarker(t):
 			return 0
+		case isTabStart(t):
+			// T135: the section's first unit is the block's first stave — keep it with the header.
+			// Base leads (caller scales); a width-shrunk tab only over-reserves, which is safe.
+			staves, _ := gatherStaves(lines, j)
+			if len(staves) == 0 {
+				return 0
+			}
+			return leadTab * float64(len(staves[0]))
 		case isChordRow(t) && j+1 < len(lines) && isLyric(lines[j+1]):
 			return leadPair
 		case isChordRow(t):
@@ -659,8 +732,8 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 	var nonDirective []int
 	for i := t + 1; i < len(lines); i++ {
 		s := strings.TrimSpace(lines[i])
-		if s == "" || strings.HasPrefix(s, "##") {
-			break // end of the header block
+		if s == "" || strings.HasPrefix(s, "##") || isTabStart(s) {
+			break // end of the header block (T135: an opener ends it too — no subtitle lifted)
 		}
 		if m := reSizeDirective.FindStringSubmatch(s); m != nil {
 			// The author opted into a manual size — auto-fit (T76) defers to that intent whether or
