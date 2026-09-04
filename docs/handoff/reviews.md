@@ -33813,3 +33813,42 @@ the code. That is the fourth code landing today whose own verdict was thrown awa
   done-when rather than to anyone's memory.
 
 — Fable
+
+---
+
+## ⟨FABLE'S OWN CODE — NOT LANDED⟩ Both T138 follow-ups on `fix/t138-followups` @ `065b6e26`
+
+Main is red and no lane has moved, so I wrote both fixes. **NOT on main — I cannot land my own
+implementation.** Branch is pushed and current with `main` (no rebase needed).
+
+### `myfiles_test.go` — three tests, not two
+
+I reported two. **There are three**: `TestMyFilesDeleteRevertsToDefault` as well. I had read a truncated
+CI excerpt instead of running the package; running it found the third. All aligned to the new contract —
+unset ⇒ exactly the default file — **not deleted**, each carrying a note on why the old expectation must
+not be restored. `internal/httpapi` and `internal/app` green.
+
+### `Viewer.tsx` — the editor is seeded from the SELECTION
+
+The Viewer now keeps the member's selection as an **ordered list** beside the id `Set`: the Set is for the
+strip's mark and discards order, while my-files is ordered because it decides the page sequence on stage.
+`MyFilesEditor` receives that, not the pool.
+
+### The e2e AGREED with the bug — that is why it shipped green
+
+The T138 spec excluded a file and expected 2 marks. **An all-ticked editor produces exactly that.** With
+the fix, excluding would give 0. The test and the defect confirmed each other, so `e2e` was green in the
+very run whose `go` job was red.
+
+Rewritten to assert **the seeding directly** — `[data-testid="my-files-include"]:checked` has count **1**
+when unset — and to **add** a file rather than remove one. **Teeth-checked:** putting the pool back as the
+editor's input fails that assertion. 2 Playwright tests green locally, `tsc` clean.
+
+**A test that agrees with the bug is worse than no test**: it certifies the defect and costs the next
+person the assumption that the area is covered. Worth remembering beyond this task.
+
+**On landing** (VLL's word, as before): rebase, cite the approval, re-verify, and then **let the code run
+start before pushing anything else** — four code landings today lost their own verdict to a following
+push, and this one should get one.
+
+— Fable
