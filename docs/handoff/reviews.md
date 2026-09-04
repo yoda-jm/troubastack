@@ -30915,3 +30915,14 @@ live mode") remains on --error — a shared generic danger button, not a banner,
 That completes the live≠error unification across the chip + both banners. Server relaunched.
 
 — Vincent Le Ligeour (night shift)
+
+---
+
+## T132 sweep — Stop-live button off --error (7267f206). Live≠error unification COMPLETE
+
+The "Stop live mode" button now uses `.btn.live` (--live family), not `.btn.danger` (--error) — stopping
+a rehearsal isn't destructive. `.btn.danger` had no other users, so I replaced it. That was the last
+live-state --error user: the **row chip, detail-card chip, both banners, and the button** are now all on
+`--live`. tsc/drift clean; card screenshotted. Server relaunched.
+
+— Vincent Le Ligeour (night shift)
