@@ -1382,8 +1382,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .invite-link-row { display: flex; gap: .75rem; align-items: flex-start; padding: .6rem 0; }
 .invite-link-row .qr { flex: 0 0 auto; }  /* the QR keeps its size; everything else shares the rest */
 .invite-link-row .qr svg { width: 110px; height: 110px; }
-/* A live join QR is a credential: keep it blurred behind a "Show QR" cover until the admin reveals it,
-   so it can't be photographed off a glanced-at or screen-shared settings page. Revealing enlarges it. */
+/* A join link is a credential in two forms — the QR (scan) and the URL (read). One toggle conceals both
+   until revealed, raising the cost of a casual capture off a glanced-at or screen-shared page. Not proof
+   against a deliberate photograph; the URL text still exists in the DOM (as does the QR svg). */
 .invite-link-qr-box { position: relative; flex: 0 0 auto; align-self: flex-start; }
 .invite-link-qr-box:not(.revealed) .qr { filter: blur(8px); }
 .invite-link-qr-box.revealed .qr svg { width: 200px; height: 200px; }
@@ -1399,12 +1400,22 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    its text never runs under the button; the button swaps to a check for ~1.5s after a copy. */
 .invite-link-url { position: relative; display: flex; align-items: center; }
 .invite-link-url input { width: 100%; padding-right: 2.4rem; }
+/* Hidden until revealed, in step with the QR: blur + unselectable so it can't be read or drag-copied
+   off the screen. The copy button (below) stays live, so hand-off never needs an on-screen reveal. */
+.invite-link-url:not(.revealed) input { filter: blur(5px); user-select: none; }
 .invite-link-copy { position: absolute; right: .25rem; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem; padding: 0; border: none; background: transparent; color: var(--muted); cursor: pointer; border-radius: 6px; }
 .invite-link-copy:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--fg); }
 .invite-link-copy svg { width: 1.05rem; height: 1.05rem; }
 /* Revoke is destructive — red text + a faint red border, tinting solid on hover. */
 .invite-link-revoke { color: var(--error-fg); border-color: color-mix(in srgb, var(--error-fg) 40%, transparent); }
 .invite-link-revoke:hover { background: var(--error-bg); border-color: var(--error-fg); }
+/* Print-to-PDF of a settings page is exactly where a blur (a filter) tends to be dropped, leaking a
+   printed credential (Fable). Use visibility, not a filter — it is always honoured — to keep an
+   un-revealed QR/URL off the printout entirely. A deliberately-revealed one still prints. */
+@media print {
+  .invite-link-qr-box:not(.revealed) .qr,
+  .invite-link-url:not(.revealed) input { visibility: hidden !important; }
+}
 .invite-link-meta input[data-testid="invite-link-url"] { width: 100%; font-family: monospace; font-size: .8rem; }
 
 /* ---- T04: headers, progressive-disclosure creation, tabs, member rows --- */

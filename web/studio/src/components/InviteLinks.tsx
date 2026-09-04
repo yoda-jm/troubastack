@@ -146,9 +146,10 @@ export function InviteLinks({ bandId }: { bandId: string }) {
 function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => void }) {
   const qrRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
-  // The QR is a live, scannable credential: rendered in full, anyone who glances at (or screen-shares)
-  // this settings page can photograph a working join link. Keep it blurred behind a cover until the admin
-  // deliberately reveals it — the same reveal-on-intent guard the room-facing native QR screen relies on.
+  // A join link is a credential in TWO forms on this row: the QR (scan) and the URL (read/transcribe).
+  // One toggle conceals BOTH until the admin reveals them — concealing only the QR while the URL sat
+  // legible beside it just moved the leak from "scan" to "type" (Fable). This raises the cost of a
+  // casual capture (a glance, a screen-share); it is not a guarantee against a deliberate photograph.
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
@@ -195,9 +196,9 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
           data-testid="invite-link-reveal-qr"
           aria-pressed={revealed}
           onClick={() => setRevealed((v) => !v)}
-          title={revealed ? "Hide QR" : "Reveal the scannable join QR"}
+          title={revealed ? "Hide the join link" : "Reveal the join link (QR + URL)"}
         >
-          {revealed ? "Hide" : "🔒 Show QR"}
+          {revealed ? "Hide" : "🔒 Reveal"}
         </button>
       </div>
       <div className="invite-link-body">
@@ -208,8 +209,16 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
           </p>
         )}
         <div className="invite-link-meta">
-          <div className="invite-link-url">
-            <input data-testid="invite-link-url" readOnly value={link.url} onFocus={(e) => e.target.select()} />
+          <div className={`invite-link-url${revealed ? " revealed" : ""}`}>
+            {/* Blurred + unselectable until revealed (same toggle as the QR); copy still works while
+                hidden, so an admin can hand off the link without ever putting it on screen. */}
+            <input
+              data-testid="invite-link-url"
+              readOnly
+              value={link.url}
+              tabIndex={revealed ? 0 : -1}
+              onFocus={revealed ? (e) => e.target.select() : undefined}
+            />
             {/* Copy is the common inline affordance inside the field, not a separate button (VLL). */}
             <button
               type="button"
