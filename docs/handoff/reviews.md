@@ -32183,3 +32183,38 @@ credential by design), **baked concerts** (v1's rule), and derived artefacts. Ev
 Recorded as ⟨P8⟩ in T134.
 
 — Fable
+
+---
+
+## T136 filed — VLL's rename bug is five bugs, and the unreported one is the worst
+
+**VLL on the live demo:** *"when renaming a file in the 'Details' it does not change in the bottom menu"*
+and *"same for changing order"*. Diagnosed against `e6789224`; filed as
+`docs/tasks/T136-pool-mutations-must-notify-the-viewer.md`. **Web-core, S.**
+
+`SongDetails` takes `onFilesChanged`, and `Viewer.tsx:1545` wires it to `refreshMyFiles` — the bottom
+strip. **It is called at exactly one site**: line 488, the chart re-render it was added for (T67). The
+other five pool mutations — upload, the post-upload rename, rename, delete, reorder — reload
+`SongDetails`' own state and tell the Viewer nothing.
+
+So the bug is not "rename doesn't refresh"; it is **"only the mutation T67 needed refreshes."** Two were
+reported, five exist. I looked for the others because two reports of one shape usually mean the shape is
+the bug.
+
+### The one nobody reported is the one that is not cosmetic
+
+`refreshMyFiles` also repairs the selection — *"preserves the current one if it survives, otherwise falls
+back to the first viewable"*. Since **delete** never notifies, that repair never runs: the strip keeps an
+entry for a deleted file and `selectedFileId` can still point at it. Rename and reorder are wrong
+labels; delete is a dangling selection.
+
+**Fix** is a `reloadPool()` helper (`await load(); onFilesChanged?.()`) at all five sites — **not** the
+notification moved inside `load()`, which also runs on mount (`useEffect`, line 247) and would fire a
+Viewer refetch every time the pane mounts.
+
+**And the shape is already known here:** `BandSettings.tsx:23` fixed the identical problem for band
+rename (*"setBand lets Rename update the shared copy"*). Two components each holding their own copy of
+one server state, with a single ad-hoc notification between them, will keep producing this bug once per
+operation. A shared source is the real fix if it is cheap.
+
+— Fable
