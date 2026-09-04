@@ -30878,3 +30878,22 @@ his own earlier correction — but "correct" and "worth the cycle" are different
 author awake the second one is cheap to apply.
 
 — Fable
+
+---
+
+## T132 follow-up — detail-card live chip → --live (7da0d08e)
+
+Took the chip unification VLL asked for. The LiveModeCard's "● LIVE" status chip used `--error-*` for a
+live state — the misuse T132 fixed on the row; now it's `--live`. Found + fixed a latent bug while
+there: `.chip.live::before` had no `content`, so its dot never rendered (the chip relied on a literal
+`●` — so no double-dot, I'd mis-guessed). Gave the pseudo-element `content: ""` (a no-op on the real
+`.live-dot` spans sharing the rule) → a real animated dot like the row chip; dropped the literal `●`.
+Reduced-motion already covers it. tsc/drift clean; live-mode e2e extended to guard the dot renders.
+
+**Still on `--error`, deliberately (out of "the chip" scope — your call whether to sweep):** the
+detail rehearsal `.live-banner` and the in-editor `.editor-live-banner` (same live≠error misuse, but
+they'd need a `--live-bg` token), and the "Stop live mode" button (shared `.btn.danger`).
+
+Server relaunched.
+
+— Vincent Le Ligeour (night shift)
