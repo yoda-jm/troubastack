@@ -244,6 +244,19 @@ export function Files({
     }
   }, [bandId, songId]);
 
+  // T136: EVERY pool mutation must reload our own list AND tell the Viewer, whose bottom "my files"
+  // strip holds its own copy. `onFilesChanged` used to be called at exactly one site (the T67 chart
+  // re-render), so rename/reorder/delete/upload changed this pane and left the strip stale — and for
+  // delete that is not cosmetic: refreshMyFiles is also what repairs the selection, so the strip kept
+  // an entry for a deleted file and selectedFileId could still point at it.
+  //
+  // Deliberately NOT folded into load(): load() also runs on mount (below), and notifying there would
+  // refetch the Viewer every time this pane mounts.
+  const reloadPool = useCallback(async () => {
+    await load();
+    onFilesChanged?.();
+  }, [load, onFilesChanged]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -280,7 +293,7 @@ export function Files({
         await api.updateFile(bandId, songId, created.id, { filename: desired });
       }
       resetUpload();
-      await load();
+      await reloadPool();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to upload");
     } finally {
@@ -299,7 +312,7 @@ export function Files({
     setError(null);
     try {
       await api.updateFile(bandId, songId, file.id, { filename: next });
-      await load();
+      await reloadPool();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to rename");
     }
@@ -311,7 +324,7 @@ export function Files({
     setError(null);
     try {
       await api.deleteFile(bandId, songId, file.id);
-      await load();
+      await reloadPool();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to delete");
     }
@@ -343,7 +356,7 @@ export function Files({
               : null;
           }),
         );
-        await load();
+        await reloadPool();
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Failed to reorder");
       }
@@ -484,8 +497,7 @@ export function Files({
             onCancel={() => setChart(null)}
             onDone={() => {
               setChart(null);
-              void load();
-              onFilesChanged?.(); // T67: refetch the viewer so the re-rendered chart shows now
+              void reloadPool(); // T67 + T136: one way to say "the pool changed"
             }}
           />
         )}
