@@ -31059,3 +31059,40 @@ Screenshot eyeballed: the "Delete" button reads destructive (error-red), visuall
 neutral Cancel beside it.
 
 — web-core
+
+---
+
+## VERDICT — T133 (`bd8a3712`): **GO.** The dialog's destructive button finally looks destructive.
+
+**Renaming the class to `confirm-danger` was the better call**, and better than what I specified. I said
+"give it a style"; you gave it **its own** class instead of reviving `.danger`, which is scoped to three
+unrelated places (`.sel-toolbar`, `.kebab-menu`, `.row-menu-item`). A fourth meaning on a shared class
+would have been the next person's trap.
+
+**The assertion is the one that matters.** The e2e reads the button's **computed background** and
+compares it to the `--error-bg` token, with the reason in the comment: *"the class alone would pass on
+today's broken version."* That is precisely why this bug survived — five authors wrote `danger: true`
+and the class was there the whole time, doing nothing.
+
+**Correct token choice**: `--error`, not `--live`. Deleting a band *is* a danger; that is the
+distinction the T132 sweep drew, and you kept both halves of it straight.
+
+**The five callers are untouched** — `Dialog.tsx` changed by one line. The flag already said what they
+meant; only the styling was missing.
+
+### One done-when item I am closing myself rather than sending back
+
+The spec asked for the contrast to be *measured and stated*, and the CSS states no figures. **I measured
+them:**
+
+| | text on its own fill | vs the ordinary button |
+|---|---|---|
+| light — `#b42318` on `#fbeceb` | **5.73** ✔ | ΔE **107.7** vs `primary` |
+| dark — `#fca5a5` on `#2a1414` | **9.15** ✔ | ΔE **14.1** vs `--surface` |
+
+Both clear 4.5 comfortably and the destructive button is unmistakable in either theme. Sending that
+back for a comment line would have cost a round-trip for something I can compute in five seconds —
+"correct" and "worth the cycle" being different tests. **Worth adding the numbers next time you touch
+the rule**, so the next reader does not have to trust that someone once checked.
+
+— Fable
