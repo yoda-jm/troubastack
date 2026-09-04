@@ -228,6 +228,14 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 
 .inline-form { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .inline-form input { flex: 1 1 12rem; min-width: 0; }
+/* Labelled fields in an inline form (e.g. invite-link create): the caption stacks over its control so
+   "member / 24 / 1" reads as Role / Expiry / Max uses instead of three bare boxes. The control resets the
+   descendant `.inline-form input` flex (which is sized for the row axis, not the field's column). Only
+   these forms bottom-align, so the unlabelled Create button lines up with the control boxes. */
+.inline-form:has(.field) { align-items: flex-end; }
+.inline-form .field { flex: 1 1 10rem; min-width: 0; }
+.inline-form .field > span { font-family: var(--font-mono); font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.inline-form .field select, .inline-form .field input { width: 100%; flex: 0 0 auto; }
 /* T38: opt-in "label verses & choruses" toggle in the lyrics dialog. */
 .lyrics-sections-toggle { display: flex; align-items: flex-start; gap: .5rem; font-size: .85rem; color: var(--muted); margin: .1rem 0; }
 .lyrics-sections-toggle input { flex: 0 0 auto; width: auto; margin-top: .15rem; }
@@ -1368,8 +1376,21 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .qr { display: inline-block; background: #fff; padding: 6px; border-radius: 8px; }  /* QR needs a white quiet zone in both themes */
 .qr svg { display: block; width: 160px; height: 160px; }
 .invite-link-row { display: flex; gap: .75rem; align-items: flex-start; padding: .6rem 0; }
+.invite-link-row .qr { flex: 0 0 auto; }  /* the QR keeps its size; everything else shares the rest */
 .invite-link-row .qr svg { width: 110px; height: 110px; }
-.invite-link-meta { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 0; }
+/* A live join QR is a credential: keep it blurred behind a "Show QR" cover until the admin reveals it,
+   so it can't be photographed off a glanced-at or screen-shared settings page. Revealing enlarges it. */
+.invite-link-qr-box { position: relative; flex: 0 0 auto; align-self: flex-start; }
+.invite-link-qr-box:not(.revealed) .qr { filter: blur(8px); }
+.invite-link-qr-box.revealed .qr svg { width: 200px; height: 200px; }
+.qr-toggle { position: absolute; font-size: .72rem; font-weight: 600; padding: .3rem .55rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--fg); cursor: pointer; white-space: nowrap; }
+.invite-link-qr-box:not(.revealed) .qr-toggle { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.invite-link-qr-box.revealed .qr-toggle { right: 4px; top: 4px; opacity: .85; }
+/* The QR sits left; the standing note, URL, meta and actions stack in one flexible column beside it.
+   Without this wrapper the standing note and the meta were siblings of the QR in the same flex ROW, so
+   the note stole the width and crushed the meta (min-width:0) into a one-character strip. */
+.invite-link-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .5rem; }
+.invite-link-meta { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
 .invite-link-meta input[data-testid="invite-link-url"] { width: 100%; font-family: monospace; font-size: .8rem; }
 
 /* ---- T04: headers, progressive-disclosure creation, tabs, member rows --- */
