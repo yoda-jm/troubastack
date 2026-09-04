@@ -385,26 +385,38 @@ test("my-files (T138): the strip browses the pool; my selection is a MARK + bake
     page.getByTestId("file-tab").filter({ hasText: "fileA.pdf" }).getByTestId("file-tab-mine"),
   ).toBeVisible();
 
-  // Open the my-files editor; it lists the whole pool (3 rows).
+  // Open the my-files editor; it lists the whole pool (3 rows) so any file can be added.
   await page.getByTestId("my-files-edit").click();
   await page.getByTestId("details-tab-mine").click(); // T54: My files lives under the "Just for you" tab
   await expect(page.getByTestId("my-files-panel")).toBeVisible();
   await expect(page.getByTestId("my-files-row")).toHaveCount(3);
 
-  // Exclude fileA from MY selection (its include checkbox — controlled, applies via PUT).
-  const rowA = page.getByTestId("my-files-row").filter({ hasText: "fileA.pdf" });
-  await rowA.getByTestId("my-files-include").click();
+  // The editor is seeded from MY SELECTION, not from the pool: unset ⇒ exactly ONE box ticked (the
+  // default). This is the assertion that guards the write path — seeding from the pool would tick all
+  // three, and the first toggle would then PUT the whole pool over the member's curated selection.
+  await expect(page.getByTestId("my-files-include")).toHaveCount(3);
+  await expect(page.locator('[data-testid="my-files-include"]:checked')).toHaveCount(1);
+  await expect(
+    page.getByTestId("my-files-row").filter({ hasText: "fileA.pdf" }).getByTestId("my-files-include"),
+  ).toBeChecked();
 
-  // The STRIP is unchanged — still all 3 pool tabs in A, B, C order — but the MARKS move: fileA is no
-  // longer mine, so 2 files are marked and the custom pill appears. This is the T138 separation: content
-  // (the strip) stops reflecting the selection; only the mark does.
+  // ADD fileB to my selection (its include checkbox — controlled, applies via PUT).
+  const rowB = page.getByTestId("my-files-row").filter({ hasText: "fileB.pdf" });
+  await rowB.getByTestId("my-files-include").click();
+
+  // The STRIP is unchanged — still all 3 pool tabs in A, B, C order — but the MARKS move: B joins A, so
+  // 2 files are marked and the custom pill appears. This is the T138 separation: content (the strip)
+  // stops reflecting the selection; only the mark does.
   await expect(page.getByTestId("file-tab")).toHaveCount(3);
   await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileA.pdf");
   await expect(page.getByTestId("file-tab-mine")).toHaveCount(2);
   await expect(page.getByTestId("my-files-custom")).toBeVisible();
   await expect(
     page.getByTestId("file-tab").filter({ hasText: "fileA.pdf" }).getByTestId("file-tab-mine"),
-  ).toHaveCount(0); // fileA no longer marked
+  ).toBeVisible(); // fileA (the default) is STILL mine — adding B does not replace it
+  await expect(
+    page.getByTestId("file-tab").filter({ hasText: "fileB.pdf" }).getByTestId("file-tab-mine"),
+  ).toBeVisible();
 
   // Reorder my selection (move fileC up) — a BAKE-order change; the strip's order does NOT move (still
   // pool order A, B, C). Order belongs to my-files, not the browser (VLL: "on a pas l'ordre" in the strip).

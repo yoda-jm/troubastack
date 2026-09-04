@@ -110,6 +110,11 @@ export function Viewer({
   // which pool files are in the member's stage selection (an at-a-glance dot, never a re-order or a filter).
   const [files, setFiles] = useState<SongFile[]>([]);
   const [mySelection, setMySelection] = useState<Set<string>>(() => new Set());
+  // The member's selection as an ORDERED list — what MyFilesEditor must seed from. `mySelection` is a Set
+  // for the strip's O(1) mark and DISCARDS order, and my-files is an ordered list (it decides the page
+  // sequence on stage). Passing `files` (the pool) here would tick every box and, on the first toggle,
+  // PUT the whole pool over the member's curated selection.
+  const [myOrdered, setMyOrdered] = useState<SongFile[]>([]);
   const [customized, setCustomized] = useState(false);
   // T68: the open file is mirrored into ?file=<id> so a hard refresh restores it instead of
   // snapping to the first file. Seed from the URL on mount; the initial-load pick validates it
@@ -270,6 +275,7 @@ export function Viewer({
     const [pool, mine] = await Promise.all([api.listFiles(bandId, songId), api.getMyFiles(bandId, songId)]);
     setFiles(pool);
     setMySelection(new Set(mine.files.map((f) => f.id)));
+    setMyOrdered(mine.files);
     setCustomized(mine.customized);
     setSelectedFileId((cur) => {
       if (cur && pool.some((f) => f.id === cur && isViewable(f))) return cur;
@@ -296,6 +302,7 @@ export function Viewer({
         // T138: the strip is the pool; the selection only marks which pool files are mine.
         setFiles(pool);
         setMySelection(new Set(mine.files.map((f) => f.id)));
+        setMyOrdered(mine.files);
         setCustomized(mine.customized);
         setDoc(annotations);
         setVisible(defaultVisibility(annotations.layers, myUserId));
@@ -1565,7 +1572,7 @@ export function Viewer({
                       <MyFilesEditor
                         bandId={bandId}
                         songId={songId}
-                        selected={files}
+                        selected={myOrdered}
                         onChanged={refreshMyFiles}
                         onError={setError}
                       />
