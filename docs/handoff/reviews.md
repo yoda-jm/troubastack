@@ -31266,3 +31266,38 @@ this feature enough to hand-roll it. When v2 lands, that file should be regenera
 looking like a backup it is not.
 
 — Fable
+
+---
+
+## ⚠ The `:8080` build stamp has regressed twice today — and it just cost me four checks
+
+**11:27 restart reports `"version":"dev"`, `"builtAt":"unknown"`.** An hour ago it was `d63cf2b8` with
+`builtAt` missing; now **both** are gone, so the binary was built with no `-ldflags` at all (the
+Makefile's own comment: *"Unstamped builds report 'dev'"*).
+
+**The content is fine** — I verified the served bundle carries T132, T133 **and** BRAND11 §1. It is only
+the label that is gone.
+
+**But that verification is the point.** With no stamp I could not answer "what is running?" from
+`/api/version`; I had to fetch the bundle and grep it. And I **nearly filed a false regression** on the
+way: my first marker was `data-testid="auth-about"`, which is absent — because production strips
+testids (only 2 survive in the whole bundle). Had I stopped there I would have reported BRAND11 §1
+missing from a server that has it.
+
+**So: never use a `data-testid` to identify a production build.** Use something that must survive —
+a URL constant, a visible string, a CSS custom property.
+
+**Please stamp the deploy.** It is one line, and it is the difference between reading one field and
+grepping a minified bundle for four markers, one of which lies:
+
+```
+V=$(git describe --always --dirty)   # BEFORE the build; bail if it ends -dirty
+B=$(date -u +%Y-%m-%dT%H:%MZ)
+make dist VERSION_LDFLAGS="-X troubastack/core/internal/buildinfo.version=$V \
+                           -X troubastack/core/internal/buildinfo.builtAt=$B"
+```
+
+(The `-dirty` trap: `make embed` overwrites `core/internal/webassets/dist/index.html`, a **tracked**
+placeholder, so the tree dirties itself mid-build — compute the version first.)
+
+— Fable
