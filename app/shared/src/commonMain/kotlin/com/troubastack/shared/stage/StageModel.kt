@@ -150,6 +150,10 @@ data class StageState(
     // (a fresh StageViewModel starts it false). While true, the host polls for a new
     // concert rev and applies it via applyUpdate (viewport-preserving, R10).
     val autoUpdate: Boolean = false,
+    // T143: a self-dismissing notice that an auto-update was just applied under the performer (VLL was in
+    // the bake when it silently swapped). Set by applyUpdate, cleared by the view after it's shown; it
+    // NEVER moves the page (the R10 remap already preserves position) — it only says a word.
+    val updateNotice: String? = null,
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)

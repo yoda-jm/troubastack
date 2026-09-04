@@ -102,6 +102,10 @@ class StageViewModel(
      *  resets it; nothing is written through the Storage seam. */
     fun setAutoUpdate(on: Boolean) = _state.update { s -> s.copy(autoUpdate = on) }
 
+    /** T143: the view calls this once it has shown the auto-update notice, so it self-dismisses and does
+     *  not re-appear on the next recomposition. */
+    fun clearUpdateNotice() = _state.update { s -> if (s.updateNotice == null) s else s.copy(updateNotice = null) }
+
     /**
      * P201/R10: swap in a freshly re-baked concert (the host fetched + imported a new rev
      * while auto-update was on) WITHOUT moving the page the performer is on. Rebuilds the
@@ -114,7 +118,11 @@ class StageViewModel(
      */
     fun applyUpdate(newResult: LoadResult) = _state.update { old ->
         result = newResult // P205: keep the retained bundle current for a later setIdentity
-        val fresh = stageStateFrom(newResult, old.role, old.identity).copy(fitMode = old.fitMode, autoUpdate = old.autoUpdate)
+        // T143: the sheet just changed under the performer — say a word (self-dismissing, non-focus-
+        // stealing; the view shows it and calls clearUpdateNotice). Names the rev that arrived.
+        val notice = (newResult as? LoadResult.Loaded)?.let { "Updated to rev ${it.bundle.concertRev}" }
+        val fresh = stageStateFrom(newResult, old.role, old.identity)
+            .copy(fitMode = old.fitMode, autoUpdate = old.autoUpdate, updateNotice = notice)
         if (fresh.pages.isEmpty()) return@update fresh
         val target = remapCurrent(old, fresh)
         // A1: merge PER SONG. For a song that existed before, keep its overrides for layers that still

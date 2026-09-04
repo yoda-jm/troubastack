@@ -56,6 +56,38 @@ class LiveUpdateTest {
         assertTrue(vm.state.value.autoUpdate, "auto-update survives the swap")
     }
 
+    // ---- T143 §3: an applied auto-update says a word, without moving the page ----
+
+    @Test
+    fun applyUpdate_setsASelfDismissingNotice_withoutMovingThePage() {
+        val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b", "c"))))
+        vm.setAutoUpdate(true)
+        vm.goToPage(1) // sit on page "b"
+        assertEquals(null, vm.state.value.updateNotice, "no notice before an update arrives")
+        // A re-bake at a named rev; page "b" is unchanged, only inserted before.
+        val next = LoadResult.Loaded(
+            ConcertBundle(
+                concertId = "c1",
+                concertRev = 5uL,
+                songs = listOf(
+                    BakedSong(
+                        songId = "song-1",
+                        pages = listOf("a", "a2", "b", "c").mapIndexed { p, h ->
+                            PageImages(pageRasterRef = "blobs/s1-p${p + 1}.png", rasterHash = h)
+                        },
+                    ),
+                ),
+            ),
+            emptyList(),
+        )
+        vm.applyUpdate(next)
+        assertEquals("Updated to rev 5", vm.state.value.updateNotice, "the performer is told what arrived")
+        assertEquals(2, vm.state.value.current, "the notice must NOT move the page (R10 remap still holds)")
+        // Self-dismissing: once the view has shown it, it clears and does not re-appear.
+        vm.clearUpdateNotice()
+        assertEquals(null, vm.state.value.updateNotice)
+    }
+
     @Test
     fun applyUpdate_changedCurrentPage_keepsLogicalPosition() {
         val vm = StageViewModel(hashedBundle(listOf(listOf("a", "b", "c"))))

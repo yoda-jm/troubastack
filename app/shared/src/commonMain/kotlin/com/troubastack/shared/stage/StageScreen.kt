@@ -227,6 +227,15 @@ private fun Performing(
     LaunchedEffect(here?.songId, here?.pageInSong) {
         if (here != null) onPositionChange(here.songId, here.pageInSong)
     }
+    // T143 §3: when auto-update swaps the sheet under the performer, say a word — brief, non-modal, then
+    // self-dismiss. `shownNotice` holds the text through the exit fade after clearUpdateNotice nulls it.
+    var shownNotice by remember { mutableStateOf("") }
+    LaunchedEffect(state.updateNotice) {
+        val n = state.updateNotice ?: return@LaunchedEffect
+        shownNotice = n
+        delay(3500)
+        vm.clearUpdateNotice()
+    }
     // A37: the ping-pong walk DIRECTION — momentary walk-state, never persisted. A fresh Stage entry
     // (cold start, or returning from a direct pick in Parameters) resets it to UP, so the first tap is
     // always predictable from the scheme on screen (Ruling 1b).
@@ -590,6 +599,24 @@ private fun Performing(
             modifier = Modifier.align(Alignment.Center),
         ) {
             BlockedTurnGlyph(forward = blockedForward)
+        }
+
+        // T143 §3: the auto-update notice — top-center so it never covers the music or the bottom chrome,
+        // and takes no focus (the pedal keeps working). Self-dismisses via the LaunchedEffect above.
+        AnimatedVisibility(
+            visible = state.updateNotice != null,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(400)),
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),
+        ) {
+            Surface(shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp, color = MaterialTheme.colorScheme.secondaryContainer) {
+                Text(
+                    shownNotice,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
         }
 
         // A2: BOTTOM chrome — ‹ previous · ⚙ settings · next › (big round FABs).

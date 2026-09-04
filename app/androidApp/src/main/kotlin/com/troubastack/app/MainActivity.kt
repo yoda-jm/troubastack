@@ -61,6 +61,9 @@ import com.troubastack.shared.bundle.ImportResult
 import com.troubastack.shared.bundle.LoadResult
 import com.troubastack.shared.distribution.Availability
 import com.troubastack.shared.distribution.BakeStatus
+import com.troubastack.shared.distribution.BundleAction
+import com.troubastack.shared.distribution.bundleMenuActions
+import com.troubastack.shared.distribution.concertRowSubtitle
 import com.troubastack.shared.distribution.bakeLabel
 import com.troubastack.shared.distribution.bakePollStep
 import com.troubastack.shared.distribution.Freeze
@@ -162,6 +165,7 @@ private data class ConcertEntry(
     val dir: String,
     val concertId: String,
     val concertRev: ULong,
+    val bakedAt: Long, // T143: epoch seconds — distinguishes two same-named bakes on the row
     val label: String,
     val damaged: Boolean,
 )
@@ -819,23 +823,58 @@ private fun ConcertRow(
     onUnpin: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(entry.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            when {
-                lean -> {} // A31 perform intent: the whole row is tap-to-perform, no trailing controls
-                entry.damaged -> TextButton(onClick = onDelete) { Text("Delete") }
-                else -> {
-                    TextButton(onClick = { menuOpen = true }) { Text("⋮") }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(text = { Text("Freeze (no updates)") }, onClick = { menuOpen = false; onFreeze() })
-                        DropdownMenuItem(text = { Text("Unfreeze") }, onClick = { menuOpen = false; onUnfreeze() })
-                        DropdownMenuItem(text = { Text("Pin this version") }, onClick = { menuOpen = false; onPin() })
-                        DropdownMenuItem(text = { Text("Unpin") }, onClick = { menuOpen = false; onUnpin() })
+            Column(Modifier.weight(1f)) {
+                Text(entry.label, style = MaterialTheme.typography.titleMedium)
+                // T143 §1: rev + bake time, so two bakes with the SAME name are distinguishable on the row.
+                if (!entry.damaged) {
+                    Text(
+                        concertRowSubtitle(entry.concertRev, entry.bakedAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            // T143 §2: perform (lean) stays lean; manage offers the freeze/pin controls + Delete via ⋮.
+            val actions = bundleMenuActions(lean = lean, damaged = entry.damaged)
+            if (actions.isNotEmpty()) {
+                TextButton(onClick = { menuOpen = true }) { Text("⋮") }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    actions.forEach { a ->
+                        val label = when (a) {
+                            BundleAction.Freeze -> "Freeze (no updates)"
+                            BundleAction.Unfreeze -> "Unfreeze"
+                            BundleAction.Pin -> "Pin this version"
+                            BundleAction.Unpin -> "Unpin"
+                            BundleAction.Delete -> "Delete…"
+                        }
+                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                            menuOpen = false
+                            when (a) {
+                                BundleAction.Freeze -> onFreeze()
+                                BundleAction.Unfreeze -> onUnfreeze()
+                                BundleAction.Pin -> onPin()
+                                BundleAction.Unpin -> onUnpin()
+                                BundleAction.Delete -> confirmDelete = true
+                            }
+                        })
                     }
                 }
             }
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this bundle?") },
+            // The caution the investigation turned up: a re-import destroys the server's bakes of the old
+            // setlist, so the device may hold the only copy — say so rather than treat it as a cache.
+            text = { Text("“${entry.label}” will be removed from this device. This device may be the only copy — a re-import deletes the server's bakes of the old setlist.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        )
     }
 }
 
@@ -845,10 +884,10 @@ private fun listConcerts(storage: Storage): List<ConcertEntry> {
     return dirs.map { d ->
         when (val r = BundleLoader().load(d.path, FileBundleFiles())) {
             is LoadResult.Loaded -> ConcertEntry(
-                d.path, r.bundle.concertId, r.bundle.concertRev,
+                d.path, r.bundle.concertId, r.bundle.concertRev, r.bundle.bakedAt,
                 r.bundle.name.ifEmpty { r.bundle.concertId.ifEmpty { d.name } }, damaged = false,
             )
-            is LoadResult.Failed -> ConcertEntry(d.path, "", 0uL, "Damaged bundle (${d.name})", damaged = true)
+            is LoadResult.Failed -> ConcertEntry(d.path, "", 0uL, 0L, "Damaged bundle (${d.name})", damaged = true)
         }
     }
 }
