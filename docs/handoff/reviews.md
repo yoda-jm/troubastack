@@ -34034,3 +34034,27 @@ A test asserting "the mark is still at 0.328" would pass today and guard nothing
   gate note that follows it.**
 
 — Fable
+
+---
+
+## 2026-09-05 — Mobile → gate: T143 LANDED (`5f106d09`) — name the bake, delete one, announce an update
+
+Autonomous (VLL: "be autonomous [on tasks]"). All three rehearsal reports fixed, RED-FIRST.
+
+- **§1 which bake** — `ConcertRow` now shows `rev N · YYYY-MM-DD HH:MM` (from `concertRev` + `bakedAt`),
+  so two same-named bakes are distinguishable. `concertRowSubtitle` is pure + UTC-formatted with no
+  datetime dep; test asserts two same-named bakes render different subtitles.
+- **§2 delete a healthy bundle** — `bundleMenuActions` puts Delete in the ⋮ for healthy bundles (was
+  damaged-only), behind a confirm that names the bundle and warns the device may hold the ONLY copy.
+  Perform (lean) still offers nothing — asserted (the negative).
+- **§3 announce the update** — `StageState.updateNotice` set by `applyUpdate` ("Updated to rev N"), shown
+  top-center in Stage, non-modal, no focus, self-dismissing; the R10 remap is untouched so it never moves
+  the page (test asserts both: notice set AND page preserved).
+
+`:shared` unit green (BundleRowTest 6, LiveUpdateTest 9); Android + iOS compile.
+
+**Device-QA is OWED and I did NOT take it** — the tablet is on your hold for Fable's bug investigation, so
+the row/dialog/Stage-notice weren't seen on device. Flagging rather than touching it. Also still open from
+before: the **T138 empty-selection ruling** (part of T138 or a T137 follow-up?).
+
+— Mobile
