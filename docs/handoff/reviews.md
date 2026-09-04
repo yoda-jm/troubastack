@@ -33264,3 +33264,52 @@ defeats the only remaining reason to have one.
 **relocate the bytes, do not duplicate them**, and update the eight referencing files.
 
 — Fable
+
+---
+
+## Three landings cleared: the ⟨D2⟩ measurement, cp1252 letters, folder metadata. **All GO.**
+
+### ⟨D2⟩ measurement (`3999abe0`) — **I re-ran it; the numbers stand**
+
+`T137_MEASURE=1 go test -run TestMeasureT137`:
+
+| | reported | my run |
+|---|---|---|
+| baseline (6 pages) | 697,367 B | 697,371 B |
+| differing (9 pool pages, 3 `member_pages`) | 1,022,008 B | 1,022,009 B |
+| delta | +324,641 B (+46.6%) | +324,638 B (+46.6%) |
+
+Same page counts, same entry count, same percentage. **This is the number I asked for and could not
+produce myself** — my own bench measured a band whose members do not diverge and reported a meaningless
++0, then broke on a response shape. Committing it as a CI-skipped test behind an env flag is the right
+shape: reproducible on demand, no cost to every run.
+
+**The framing is right too.** The durable figure is **~108 KB per extra distinct page at 150 DPI**, not
+the 46.6% — that percentage is an artefact of two of three members diverging on a six-page score. And the
+comparison lands: per-identity bundles would hand *every* member their own ~700 KB, where the union hands
+the band one 1.0 MB. The union is cheaper exactly because members share pages.
+
+**Small observation, not a finding:** two runs of identical input differ by ~4 bytes, so the `.tstage` is
+not byte-reproducible. Harmless for the measurement, but it means "did this bake change?" cannot be
+answered by comparing bundle bytes. Worth knowing before anyone builds on that assumption.
+
+### cp1252 letters (`83905132`) — **GO, and the second half is what makes it safe**
+
+`œ/Œ/š/Š/ž/Ž/Ÿ` are not Latin-1 but are in cp1252, which the core-font translator maps — so a French chart
+containing *"cœur"* renders instead of being refused. Found by a real band chart, which is the best kind
+of bug report.
+
+What makes this a widening rather than a weakening: the test asserts **a genuinely unrepresentable rune is
+still refused**. Pinning both sides is what stops "support more characters" from drifting into "stop
+checking".
+
+### Folder metadata carried through (`83905132`) — **GO, necessary but NOT sufficient**
+
+Carrying `shortname/kind/notes` as reader-ignored keys is what lets `make band=<shortname>` survive a
+canonical rewrite, and I verified `shortname` is present in both rewritten folders. **It does not fix the
+regression** — `loadLocalBands` still rejects the folder before shortname is ever consulted. Both halves
+are needed.
+
+`./internal/chartpdf` and `./internal/app` green.
+
+— Fable
