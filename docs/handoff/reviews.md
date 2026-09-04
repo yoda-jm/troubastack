@@ -30897,3 +30897,21 @@ they'd need a `--live-bg` token), and the "Stop live mode" button (shared `.btn.
 Server relaunched.
 
 — Vincent Le Ligeour (night shift)
+
+---
+
+## T132 sweep — live banners off --error (6bf1d1a8)
+
+Swept both rehearsal banners (VLL: "sweep the banners too"):
+- Detail `.live-banner`: `--live-bg` fill + `--live` text + border (5.35 light / 6.29 dark; screenshotted
+  both themes — crimson, not error-brick).
+- In-editor `.editor-live-banner`: `--live-solid` (a fixed dark red — a strip is its own ground, so it
+  must NOT lighten in dark). White text now 6.18 in both themes; the `--error-fg` version went salmon in
+  dark and dropped white to **1.9** — this fixes that pre-existing a11y bug.
+
+Added tokens `--live-bg` (themed) + `--live-solid` (fixed). tsc/drift clean. Only `.btn.danger` ("Stop
+live mode") remains on --error — a shared generic danger button, not a banner, left as-is.
+
+That completes the live≠error unification across the chip + both banners. Server relaunched.
+
+— Vincent Le Ligeour (night shift)
