@@ -552,13 +552,17 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 	}
 	for _, vsl := range sls.Setlists {
 		msl := manifestSetlist{Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes}
-		for _, it := range vsl.Items {
+		for idx, it := range vsl.Items {
 			songID, ok := songIDBySlug[it.Song]
 			if !ok {
 				return bandManifest{}, nil, fmt.Errorf("%w: setlist %q references unknown song slug %q", ErrInvalidInput, vsl.Name, it.Song)
 			}
+			// T140: the v2 folder expresses running order as ARRAY ORDER (v2SetlistItem has no position);
+			// materialise it as Position here. Without this every imported item is Position 0, so retrieval
+			// (SortSetlistItems) falls back to UUID order and the concert plays scrambled — hit in a real
+			// rehearsal.
 			msl.Items = append(msl.Items, manifestItem{
-				SongRef: songID, KeyOverride: it.KeyOverride, TempoOverride: it.TempoOverride,
+				SongRef: songID, Position: idx, KeyOverride: it.KeyOverride, TempoOverride: it.TempoOverride,
 				Notes: it.Notes, OnCall: it.OnCall, TransposeChords: it.TransposeChords,
 			})
 		}

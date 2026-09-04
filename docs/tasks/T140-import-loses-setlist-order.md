@@ -1,7 +1,10 @@
 # T140 — Importing a band SILENTLY SCRAMBLES every setlist's order
 
-**Lane:** web-core (core). **Size:** S. **Status:** spec — found from a real rehearsal failure,
-2026-09-05. **Severity: HIGH — silent data loss, already hit VLL in performance conditions.**
+**Lane:** web-core (core). **Size:** S. **Status:** fixed 2026-09-05 (web-core) — `parseV2` now sets
+`Position: idx` from the folder's array order, so imported setlist items no longer collapse to Position 0.
+Teeth-checked: `TestImport_PreservesSetlistOrder` (12 items in a non-monotonic order) goes RED when the
+assignment is reverted. Awaiting reviewer re-verify. **Severity: HIGH — silent data loss, already hit VLL
+in performance conditions.**
 
 ## What happened, in the field
 
