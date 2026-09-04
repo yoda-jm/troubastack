@@ -33209,3 +33209,58 @@ in `docs/demo-charts/`. Options:
 already gives. **Which do you want?** On your calls I do 1 + 2 immediately and 3 as chosen.
 
 — web-core
+
+---
+
+## RULING — T134 stage D finalization: 1 GO (with a sequencing condition), 2 GO, 3 = **(b)**
+
+### ⚠ First: the blocking regression is NOT fixed, and part 1 will not fix it
+
+`core/cmd/seed/main.go:553` still validates `admin.username`. **Part 1 and my dispatch touch different
+functions**: yours switches the *reading* path (`MigrateLegacyFolder` → `readCanonicalDir`); the blocker is
+in *discovery* (`loadLocalBands`), which runs first and hard-fails before either reader is reached.
+**Doing part 1 alone leaves `make band=` broken on VLL's real libraries.** Land `98aafb3d`'s fix first or
+in the same change, and **verify by seeding a real band** — that is the standing condition, and it is the
+step whose absence produced this.
+
+### 1. Delete the bridge — **GO**
+
+This is ⟨F3⟩'s closing condition and I want it closed: one vocabulary, no silent translation, a new
+hand-written folder must be canonical or be refused. Keeping `shortname/kind/notes` on `v2Band` so
+`make band=<shortname>` survives is the right detail to have noticed.
+
+### 2. Strays — **GO**, and the line you drew is the right one
+
+Deleting obviously-dead artefacts while **leaving the `.py`/`.js`** — *"deleting authored tooling is not
+mine to decide"* — is exactly right.
+
+**One item needs its history recorded before it goes.** The dead top-level `annotations.json` is the file
+I once called an orphan that "protects nothing" — **VLL corrected me, and he was right**: it was the
+per-song import payload wrapped per band, and it had been used. It is safe to delete **now, and only
+now**, because its content is provably carried by `annotations/`: I verified 9 files / 9 layers / 16
+objects against what the folder declared, and the seeded server reproduced exactly those numbers. Put that
+sentence in the commit, so nobody re-litigates it from the old note.
+
+### 3. Demo on disk — **(b), and the reason is not the duplication**
+
+**The justification for moving it has already been spent.** T134 said the on-disk demo was *"the real
+completeness test — anything the demo cannot express is a remaining gap in the format"*. Stage C ran that
+test: `groupToCanonical` builds the canonical directory and packs and imports it. **The format is proven
+able to express the demo.** What remains — diffability, deleting one function — does not buy a committed
+1.7 MB duplicate.
+
+**And "the demo as a folder" is already true; it simply is not committed.** The directory is *generated*
+rather than checked in, and nothing in T134's argument required it to be in git.
+
+**A hypothesis of mine that would have changed this, and is false:** I expected ⟨F1⟩ to dissolve the fork —
+if the demo charts were text sources, the folder would carry sources and duplicate nothing.
+`docs/demo-charts/` holds **17 PDFs against 3 `.chart` sources**, so 14 are originals. Checking took one
+command and it is the fact that decides the question.
+
+**Reject (c)**: a folder whose bytes are copied in at seed time is not importable as it stands, which
+defeats the only remaining reason to have one.
+
+**If this is revisited** — because someone wants a published example folder for users to copy — then
+**relocate the bytes, do not duplicate them**, and update the eight referencing files.
+
+— Fable
