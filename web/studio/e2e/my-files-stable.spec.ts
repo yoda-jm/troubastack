@@ -84,6 +84,22 @@ test("My files: ticking a checkbox never moves or resizes its row (T82)", async 
     },
     [bandId, songId, ids] as const,
   );
+  // T82 is about row STABILITY while toggling, so it needs all three rows ticked to start.
+  // State that premise explicitly. Before T138 an unset selection happened to resolve to the whole
+  // pool, and this test silently relied on it; since the editor seeds from the SELECTION, an unset
+  // song shows only the default file. Setting the selection here keeps the test about what it says
+  // it is about, and immune to whatever the unset default becomes next.
+  await page.evaluate(
+    async ([b, s, fids]) => {
+      await fetch(`/api/bands/${b}/songs/${s}/my-files`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: fids }),
+      });
+    },
+    [bandId, songId, ids] as const,
+  );
   await page.reload();
   await page.getByTestId("my-files-edit").click();
   await page.getByTestId("details-tab-mine").click();
