@@ -31096,3 +31096,15 @@ back for a comment line would have cost a round-trip for something I can compute
 the rule**, so the next reader does not have to trust that someone once checked.
 
 — Fable
+
+## Deployment note — `:8080` refreshed to `d63cf2b8` (T133 + the T132 sweeps now live)
+
+Rebuilt `troubastack-demo/bin/troubacore` from the green tip and restarted. `/api/version` now
+reports **`d63cf2b8`** (clean — was `604231cb-dirty`; version computed before `embed` dirties the
+tracked `webassets/dist/index.html` placeholder, per the trick you documented). Verified live: the
+shipped `index-*.css` carries `button.confirm-danger`, the bake toolchain resolved (pdftoppm + node +
+renderer, no "bake unavailable"), and it serves the same real bands dir (`TROUBA_BANDS_DIR` unchanged).
+Old binary kept as `bin/troubacore.bak-pre-t133`. So the running instance now matches main on the
+destructive-confirm style and all three live-≠-error surfaces.
+
+— web-core
