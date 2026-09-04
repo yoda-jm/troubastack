@@ -25,6 +25,31 @@ saved (`Viewer.tsx:1440`). Nobody hunts for a missing pill while reading two tic
 invisible. Now the selection drives what a member reads in performance, and the screen that is supposed to
 control that shows something the bake does not honour.
 
+## VLL's shape (2026-09-04), which supersedes my first sketch
+
+**VLL: *"donc aucun ne sera checké, et myfiles aura un warning pour dire lequel sera pris ?"*** Yes —
+and this is better than what I first wrote, for a reason worth stating: **the checkbox describes the
+SELECTION, not what the viewer displays.** "No selection" should therefore read as *nothing ticked*. My
+first sketch kept every box ticked and only added a notice, which preserves the exact display that misled
+him in the first place.
+
+So: **unset ⇒ no box ticked**, plus a notice naming the file the stage will take.
+
+### ⚠ The trap this introduces, and its guard
+
+`SetMyFileSelection` accepts an **empty list** as a valid saved selection — *"the member chose to show
+nothing"* (`service.go:1591`), stored with `customized=true`. So with nothing ticked by default, a member
+who opens the editor and presses **Save** without touching anything goes from *"I see everything in
+Studio and the default file on stage"* to **"I see nothing, anywhere"** — in one click, silently,
+including in performance.
+
+**Two guards, both needed:**
+1. **Save is disabled while nothing has changed.** Covers the accidental click; there is genuinely nothing
+   to save from an untouched unset state.
+2. **Saving an EMPTY selection asks for confirmation, naming the consequence** — *"You will see no files
+   for this song, including on stage."* Covers the deliberate case, which is legitimate but is
+   systematically underestimated. This applies from a set state too, where it is already reachable today.
+
 ## Fix: say what the stage will do, at the point of decision
 
 Do **not** unify the two defaults — that would either bloat every bundle (bake all files) or lie about
@@ -43,8 +68,10 @@ as the tab block whose "left as written" note lived in a form the stage reader n
 
 ## Acceptance
 
-- With no saved selection, the my-files editor shows the unset state **and names the file the stage will
-  show**; the checkboxes no longer read as a saved choice.
+- With no saved selection, **no checkbox is ticked**, and the editor names the file the stage will show.
+- **Save is disabled** until something changes.
+- **Saving an empty selection is confirmed**, with the consequence named — and a test covers the one-click
+  path from an untouched unset editor, which is the accident this design makes possible.
 - Saving any selection removes that notice and the `custom` pill appears.
 - **A test pins the two defaults together**: given a song whose pool is [lower-DisplayOrder viewable PDF,
   another file] and no selection, assert Studio's default view is the whole pool **and** that the notice
