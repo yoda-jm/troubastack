@@ -84,7 +84,8 @@ type manifestMember struct {
 }
 
 type manifestSong struct {
-	ID     string         `json:"id"` // original songID — the manifest-internal ref
+	ID     string         `json:"id"`             // original songID — the manifest-internal ref
+	Slug   string         `json:"slug,omitempty"` // T139 stored slug ("" for a v1 import or a pre-T139 song → export derives)
 	Title  string         `json:"title"`
 	Artist string         `json:"artist,omitempty"`
 	Key    string         `json:"key,omitempty"`
@@ -261,7 +262,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 	}
 	for _, song := range songs {
 		ms := manifestSong{
-			ID: song.ID, Title: song.Title, Artist: song.Artist, Key: song.Key,
+			ID: song.ID, Slug: song.Slug, Title: song.Title, Artist: song.Artist, Key: song.Key,
 			Tempo: song.Tempo, Meter: song.Meter, Tags: song.Tags, Notes: song.Notes,
 		}
 		files, err := s.repo.FilesOfSong(song.ID)
@@ -654,7 +655,9 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 	fileMap := map[string]string{} // orig fileID → new fileID
 	for _, sg := range man.Songs {
 		ns := Song{
-			ID: s.newID(), BandID: band.ID, Title: sg.Title, Artist: sg.Artist, Key: sg.Key,
+			// T139: store the declared slug verbatim (v2/folder). A v1 import has none, so Slug stays ""
+			// and export derives it lazily — NOT derived-and-stored here, which would be a title backfill.
+			ID: s.newID(), BandID: band.ID, Slug: sg.Slug, Title: sg.Title, Artist: sg.Artist, Key: sg.Key,
 			Tempo: sg.Tempo, Meter: sg.Meter, Tags: sg.Tags, Notes: sg.Notes, CreatedAt: now,
 		}
 		if err := s.repo.CreateSong(ns); err != nil {

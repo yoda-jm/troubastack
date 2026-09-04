@@ -202,10 +202,17 @@ type InviteLink struct {
 
 // Song is band-scoped metadata only. The annotation history lives in the separate
 // engine/store keyed by this SongID; here we just record that the song exists.
+//
+// Slug is a STORED identifier, unique within the band — NOT derived from Title (T139).
+// It is what export/folder form carries (annotations/<slug>.json, setlists[].items[].song),
+// so it must survive a title edit unchanged; a title is a display field, a slug is an identity.
+// Import stores the folder's declared slug verbatim; create derives one once (app.Slugify);
+// export emits the stored slug, deriving lazily only for songs that predate this field ("").
 type Song struct {
 	ID        string    `json:"id"`
 	BandID    string    `json:"bandId"`
 	Title     string    `json:"title"`
+	Slug      string    `json:"slug,omitempty"`
 	Artist    string    `json:"artist,omitempty"`
 	Key       string    `json:"key,omitempty"`
 	Tempo     int       `json:"tempo,omitempty"` // BPM; 0 = unset

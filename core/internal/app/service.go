@@ -908,6 +908,20 @@ func (s *Service) CreateSong(caller User, bandID, title, artist string) (Song, e
 		Artist:    strings.TrimSpace(artist),
 		CreatedAt: s.now().UTC(),
 	}
+	// T139: derive the slug ONCE, here — the single create-without-slug call site. It is then stored and
+	// never re-derived (a title edit leaves it alone), so the author's identifier is stable. Keep it
+	// unique within the band so two songs cannot collide.
+	existing, err := s.repo.SongsOfBand(bandID)
+	if err != nil {
+		return Song{}, err
+	}
+	used := map[string]bool{}
+	for _, e := range existing {
+		if e.Slug != "" {
+			used[e.Slug] = true
+		}
+	}
+	song.Slug = uniqueKey(Slugify(title), used)
 	if err := s.repo.CreateSong(song); err != nil {
 		return Song{}, err
 	}
@@ -941,6 +955,9 @@ func (s *Service) UpdateSong(caller User, bandID, songID string, p SongPatch) (S
 		if t == "" {
 			return Song{}, fmt.Errorf("%w: song title cannot be empty", ErrInvalidInput)
 		}
+		// T139: a title is a display field; the slug is a stored identifier that annotations/setlists (in
+		// export/folder form) point at. Editing the title must NOT rename the slug — do not "resync" them
+		// here, or a title edit becomes a silent reference break.
 		song.Title = t
 	}
 	if p.Artist != nil {

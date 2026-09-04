@@ -1,6 +1,10 @@
 # T139 — A song's slug is STORED, not derived from its title
 
-**Lane:** web-core (core). **Size:** S/M. **Status:** spec, ruled by VLL 2026-09-04.
+**Lane:** web-core (core). **Size:** S/M. **Status:** implemented 2026-09-04 (web-core) — `Slug` on
+`Song`, import stores it verbatim, export emits it (lazy-derive only when empty), `CreateSong` derives
+once & unique-in-band, `UpdateSong` leaves it alone, the two `slugify` copies merged to `app.Slugify`.
+Migration = option 2 (existing songs keep `Slug=""` → lazy-derive at export until a re-import supplies
+one; NOT derive-backfilled). Tests green; awaiting reviewer re-verify at the gate.
 
 ## The question that produced this
 

@@ -207,9 +207,11 @@ type v2Cue struct {
 // marshalV2 translates the (UUID-based) in-memory manifest into the v2 zip entries (name + slug based):
 // entryName -> bytes for every JSON file AND every file's bytes under `<slug>/<filename>` (amendment 4 —
 // no `blobs/`, the archive IS the folder). getBlob fetches a file's bytes by its content hash; blobHash
-// stays in repertoire.json as an integrity field. Slugs are derived from titles (unique within the band)
-// and filenames are made path-safe + unique within a song, so a `<slug>/<filename>` entry is always one
-// safe two-segment path and annotations can reference a file by filename.
+// stays in repertoire.json as an integrity field. A song's slug is the one STORED on it (T139); it is
+// emitted verbatim so a round-trip preserves an author's chosen identifier — only a song with no stored
+// slug (predating the field) falls back to deriving one from the title. Slugs are kept unique within the
+// band and filenames are made path-safe + unique within a song, so a `<slug>/<filename>` entry is always
+// one safe two-segment path and annotations can reference a file by filename.
 func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[string][]byte, error) {
 	files := map[string][]byte{}
 
@@ -230,7 +232,13 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 	usedSlugs := map[string]bool{}
 	rep := v2Repertoire{}
 	for _, ms := range man.Songs {
-		slug := uniqueKey(slugify(ms.Title), usedSlugs)
+		// Emit the STORED slug; derive from the title only for a song that has none (predates T139).
+		// uniqueKey still guards against a collision after the fallback.
+		base := ms.Slug
+		if base == "" {
+			base = Slugify(ms.Title)
+		}
+		slug := uniqueKey(base, usedSlugs)
 		slugBySong[ms.ID] = slug
 		vs := v2Song{
 			Slug: slug, Title: ms.Title, Artist: ms.Artist, Key: ms.Key,
@@ -447,7 +455,9 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		sid := "s-" + vs.Slug
 		songIDBySlug[vs.Slug] = sid
 		ms := manifestSong{
-			ID: sid, Title: vs.Title, Artist: vs.Artist, Key: vs.Key,
+			// T139: carry the DECLARED slug verbatim so the import writer stores it — the author's
+			// identifier survives the round-trip, and a later title edit will not rename it.
+			ID: sid, Slug: vs.Slug, Title: vs.Title, Artist: vs.Artist, Key: vs.Key,
 			Tempo: vs.Tempo, Meter: vs.Meter, Tags: vs.Tags, Notes: vs.Notes,
 		}
 		for i, vf := range vs.Files {
@@ -664,8 +674,10 @@ func safeFilename(name string) string {
 	return name
 }
 
-// slugify lowercases, keeps [a-z0-9], and collapses every other run to a single '-'.
-func slugify(s string) string {
+// Slugify lowercases, keeps [a-z0-9], and collapses every other run to a single '-'. This is the ONE
+// slug rule for the whole module (T139): it governs newly-created songs only — an existing song's slug is
+// stored and never re-derived — and cmd/seed calls this same function so the two cannot drift apart.
+func Slugify(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	var b strings.Builder
 	dash := false

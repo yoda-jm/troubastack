@@ -166,7 +166,7 @@ func groupToCanonical(g groupDef, people map[string]person) (map[string][]byte, 
 	rep := canonRepertoire{}
 	cues := canonCuesFile{}
 	for _, s := range g.songs {
-		slug := slugifySeed(s.title)
+		slug := app.Slugify(s.title)
 		cs := canonSong{Slug: slug, Title: s.title, Artist: s.artist, Key: s.key, Tempo: s.tempo, Meter: s.meter, Notes: s.notes, Tags: s.tags}
 
 		// Files: the PDF pool, then the text chart (generated, source bytes ⟨F1⟩).
@@ -249,7 +249,7 @@ func groupToCanonical(g groupDef, people map[string]person) (map[string][]byte, 
 	// Setlists: map each override's song TITLE to its slug.
 	slugByTitle := map[string]string{}
 	for _, s := range g.songs {
-		slugByTitle[s.title] = slugifySeed(s.title)
+		slugByTitle[s.title] = app.Slugify(s.title)
 	}
 	sls := canonSetlistsFile{}
 	for _, sl := range g.setlists {
@@ -365,27 +365,6 @@ func wireToCanon(im annotationsImport) canonAnnotations {
 }
 
 func jsonIndent(v any) ([]byte, error) { return json.MarshalIndent(v, "", "  ") }
-
-// slugifySeed mirrors app.slugify (lowercase, [a-z0-9], collapse other runs to '-').
-func slugifySeed(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	var b strings.Builder
-	dash := false
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			dash = false
-		} else if !dash && b.Len() > 0 {
-			b.WriteByte('-')
-			dash = true
-		}
-	}
-	out := strings.Trim(b.String(), "-")
-	if out == "" {
-		return "song"
-	}
-	return out
-}
 
 func safeSeedName(name string) string {
 	name = strings.Map(func(r rune) rune {
