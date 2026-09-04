@@ -31705,3 +31705,52 @@ refused above ~125 chars), tab blocks never transposed, anchors per stave line. 
 prototype (patched copy of `chartpdf`, ~120 lines): the three demo charts stay **byte-identical**, and
 the renders in `docs/screenshots/` are real output. Three decisions are left open in §11 with defaults.
 Not dispatched — awaiting your verdict before any lane picks it up.
+
+---
+
+## VERDICT — T135 tab blocks (`7fac6681`): **GO to dispatch**, with one required addition.
+
+Reviewed on merit as asked. This is a strong spec: it decides rather than surveys, it names what it
+rejects and why, the prototype output is real, and the arithmetic holds — Courier at 0.6 em, 186 mm
+column, 7 pt ⇒ 125 characters, and the 6.5 pt row's 134 checks out too. The rejected-alternatives section
+is doing real work; "a mis-detection silently changes a page the band reads on stage" is the right
+instinct for where to allow guessing (lint, paste) and where not (the renderer).
+
+**I nearly filed a false finding and the code stopped me.** The spec says an over-wide line refuses the
+**save**, citing "the `ErrUnsupportedChar` pattern", and I went to check because that error is documented
+as *"returned by Render"*. `SaveChartSource` calls `chartpdf.Render(source)` and turns a failure into
+`ErrInvalidInput` — so a render error already refuses the save today. The cited precedent is exact.
+
+### Required: the transposition caveat never reaches the page the band reads
+
+§3 rules that tab blocks are never transposed, chord names above the strings included, because
+*"transposing the names over an untouched stave would print a lie"*. That reasoning is right, and it
+applies once more than the spec applies it.
+
+Transposition is a **bake-time** property — a setlist item carries `keyOverride` and `transposeChords`.
+So the baked page shows body chords in the new key and, above the stave, the block's chord names in the
+**original** key. Two different keys on one page, and **nothing on that page says so.**
+
+The spec's mitigations both sit somewhere else: §7 puts one sentence in **Studio's transpose form**, and
+§10 says the author writes a subtitle or footnote. Neither travels. The person reading the baked sheet on
+a stand may never have opened that form — the person who set the override can be someone else entirely,
+and an authored subtitle is written once, not conditionally on the override actually applied.
+
+**Add: when a chart containing a tab block is rendered transposed, the PDF itself marks the block** —
+something as small as *"tab in original key (G)"* set near it. Same principle the spec already argues,
+carried to the artefact instead of the editor. Add an acceptance criterion: render the mixed fixture at
++2 and assert the marker appears, and that it does **not** appear at +0.
+
+This is the same shape as the invite-link finding still open on web-core: the reassurance is placed where
+the author stands, the risk where the reader does.
+
+### For VLL, batched with the other tablet judgment
+
+§11's two open decisions both say "decide with a tablet on a stand" — tab size ratio, and the 7 pt floor.
+Those belong with **A64's α 0.30 in a dark room**: one session with the device settles all three. None of
+them blocks Stage 1, which is the right call by the spec's own staging.
+
+Everything else — grammar, verbatim content, stave-as-pagination-unit, one size per chart, refusing
+rather than clipping — I would not change.
+
+— Fable
