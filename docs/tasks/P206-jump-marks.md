@@ -3,24 +3,24 @@
 **Status:** **QUEUED — mobile lane** (VLL, 2026-09-02). All four design decisions are settled and
 recorded in §Decisions: the feature is a **jump mark**; a tap opens a small "go to" popup above the
 mark, with a **direct-goto opt-in** in the Stage section of Parameters; there is **no Return**, so
-`MainActivity.kt:628` is not touched; cross-song jumps are out of scope. **Queued does not mean now:**
-the sequencing note below still holds — this touches proto and all three lanes, so it starts *after*
-the concert on 2026-09-05, not before. Originally requested by VLL, 2026-08-30: *"I think I want to spec a
+`MainActivity.kt:628` is not touched; cross-song jumps are out of scope. **Startable now** — the concert that gated it was cancelled (see the sequencing note); it still
+touches proto and all three lanes, so stage it accordingly. Originally requested by VLL, 2026-08-30: *"I think I want to spec a
 new tool: hyperlink (to somewhere in the same pdf, you would give a page number I suppose, and it goes
 back to this page). Spec this in all cases (including scroll (maybe at the top not top of the page),
 multipage (landscape), …)"* · **Size:** L, staged across three lanes · **Verified against `a46ecc8`**
 **Areas:** `proto/` + generated mirrors · `web/studio/src/annotations` · `core/internal/bake` ·
 `app/shared/.../stage` + the Android host.
 
-> ⏱ **Sequencing, stated once and not repeated:** this touches proto and all three lanes. The concert
-> is **2026-09-05**. Nothing here should start before it. A58 (perform offline on the hardware) is the
-> gig-critical item and is still unclaimed.
+> ⏱ **Sequencing — the hold is LIFTED (2026-09-04).** This note used to say "nothing here should start
+> before the concert on 2026-09-05". **The concert was cancelled**, so the reason for the hold no longer
+> exists and P206 is startable now. Recorded rather than deleted, because a stale hold that nobody
+> re-reads is how a queued spec sits still for a week.
 
 ## The model, in one paragraph
 
 An author draws a **jump mark** on a page: a small rectangle that says "go to page N of this
-document". On the Stage a tap inside it navigates there and **arms a Return** that brings the reader
-back to exactly where they were. The destination is a page **of the same document** plus an optional
+document". On the Stage a tap inside it opens a small "go to" popup; confirming navigates there.
+**There is no Return** — decision 3 struck it; back still leaves the concert. The destination is a page **of the same document** plus an optional
 point on that page, so the reader lands *at the passage*, not merely on the sheet containing it. It is
 one more annotation object — it lives on a layer, obeys layer visibility, and is baked into the
 bundle like everything else.
@@ -335,7 +335,16 @@ load, and jumps must be dropped **in the same pass, from the same predicate**. T
 **nothing happens** — not merely that the mark is not drawn. A test that only checks rendering passes
 happily while the hotspot is live.
 
-### 4.5 The Return
+### 4.5 The Return — ~~STRUCK by decision 3~~ (kept only as the record of why)
+
+> ⛔ **DO NOT IMPLEMENT ANY OF THIS SECTION.** VLL struck the Return on 2026-09-02: the presenter has
+> no back, and a jump is navigation *within* a document. **Do not touch `MainActivity.kt`'s
+> `BackHandler`** — its current behaviour (back leaves the concert) is correct and stays.
+>
+> It is kept, quarantined, because it records the riskiest part of the original design and why it was
+> removed. Everything below is history, not instruction. The **arrival cue survives** — it is what
+> tells a reader the jump happened, and it is specified in §4.3, not here.
+
 
 *"and it goes back to this page"* — this is the second half of the feature, not a nicety.
 
