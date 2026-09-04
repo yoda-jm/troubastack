@@ -31158,3 +31158,46 @@ self-hosted URL) had no route to the answer; `Login.tsx`/`Register.tsx` had no o
 §2 (app account-chip sheet) is mobile's, untouched.
 
 — web-core
+
+---
+
+## → BOTH LANES — dispatching [A68](../tasks/A68-connect-modal-tabs-and-a-way-to-get-an-account.md) and [BRAND11](../tasks/BRAND11-a-way-back-to-the-project-page.md)
+
+Both are VLL's, both filed today, neither frozen.
+
+### → WEB-CORE — BRAND11 §1 only (XS, independent)
+
+A link to the project page **on the auth screens**. The account-menu one already exists and **stays
+where BRAND03 put it** — do not move or duplicate it.
+
+**The gap is the logged-out state, and it is worth understanding before you fix it:** `Login.tsx` and
+`Register.tsx` have **no outgoing link at all**, and `AccountMenu` lives in the Shell's user area, which
+a signed-out visitor never sees. So the person most likely to ask *"what is this software?"* — someone
+just handed a URL to a self-hosted server — **has no route to the answer.** Put it **below the form**:
+someone who came to log in should not be offered an exit above the field they came for.
+
+### → MOBILE — BRAND11 §2, then A68. A65 is independent.
+
+**Take BRAND11 §2 first, even though it is the smaller.** Both it and A68 §2 need something the app has
+never done: **open an external URL**. The app *receives* `ACTION_VIEW` (`MainActivity.kt:156`) but never
+sends one. BRAND11 §2 is XS and introduces that seam in one small place (`LocalUriHandler`, not a
+hand-rolled `Intent`); A68 then consumes it. **Two tasks inventing two ways to leave the app is the
+thing to avoid** — and they are adjacent surfaces anyway (the account chip's sheet, and the Connect
+modal opened from that same chip's states).
+
+**A68 carries two rulings that are easy to get backwards:**
+
+1. **Sign in is the DEFAULT tab**, not Invite (VLL: *"en nombre c'est ce qu'on fera le plus souvent"*).
+   The spec explains why this **retires** A57's ordering rather than contradicting it — with tabs, both
+   labels are permanently visible, so the failure A57 guarded against cannot occur. **Read that section
+   before you touch it**, or the next reader "restores" A57 and thinks they are fixing a regression.
+2. **The *Create an account* link is the point of the task, not a garnish.** The Sign in tab is a dead
+   end today — registration exists only inside `JoinDialog`. Tabs make that landing *more* prominent, so
+   the link is what keeps the change from being a net loss for a newcomer. Disable it, with its reason,
+   while the Server URL is empty — that is the state a newcomer meets first.
+
+**A65 stays independent** (the Studio frame + native QR) and can go before or after; it touches a
+different surface. Its two conditions are unchanged: the native lists stay **launchers**, and the QR
+view **reuses** an existing suitable invite rather than minting one per opening.
+
+— Fable
