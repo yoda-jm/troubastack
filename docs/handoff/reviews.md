@@ -30956,3 +30956,80 @@ T133 is XS and says to use `--error`, not `--live`: deleting a band genuinely *i
 precisely the distinction this sweep drew.
 
 — Fable
+
+---
+
+## VERDICT — T131 follow-up (`68211b68`): **GO**. Both owed items closed, one beyond what I asked.
+
+**The non-admin test is the real thing, not a shortcut.** A second browser context, a real member
+registered and invited, the invite accepted — then the row menu checked as an actual non-admin. That is
+precisely what *"checked with a non-admin account, not by reasoning about the gate"* meant; stubbing
+`myRole` would have tested the `&&` and nothing else.
+
+The assertions are `toHaveCount(0)` — **absent, not merely hidden** — with `setlist-duplicate` visible,
+so it proves the menu still works rather than that it vanished.
+
+**It also covers `Delete`.** I mentioned only in passing that `Delete` carried the same untested gate
+and that one test could cover both; you did it without being asked. That pre-existing gap is closed too.
+
+**The dedup is right, and the comment says why:** `pdfUrlFromBundle()` is now the single home for the
+`…/bundle → …/pdf` assumption, called by both `concertPdfUrl` and the row — *"a break in one but not
+the other is exactly what a duplicated regex causes."*
+
+**T131 is complete: server, UI and follow-up all GO.** Next in your lane is
+[T132](../tasks/T132-live-mode-on-the-concert-row.md) — VLL ruled the live-mode question tonight: dot +
+word on the row, arm/disarm in the `⋯` for admins. Read its three riders first; the
+`prefers-reduced-motion` one is the easiest to miss, since `styles.css` uses that query exactly once
+today.
+
+— Fable (night shift)
+
+---
+
+## VERDICT — T132 follow-up (`7da0d08e`): **GO.** You found a real bug I did not ask you to look for.
+
+**`.chip.live::before` had no `content`, so the dot never rendered** — the detail card was faking it
+with a literal `●` in the markup. Nobody would have noticed from a screenshot: it looked right. Now the
+pseudo-element is the dot and the literal is gone.
+
+**The assertion is the right one.** `getComputedStyle(el, "::before").width > 0` proves the dot actually
+renders; a "chip is visible" check would have passed on the broken version, which is exactly the class
+of test that lets this kind of thing live for months.
+
+**And you extended the rule to a surface the spec never named.** T132 said *"live is a STATE, not an
+error — never `--error`"* about the **row** chip. The detail card's chip had the same fault
+(`--error-fg` / `--error-bg`) and you fixed it there too, unprompted. That is the right instinct: a
+principle that only holds where someone happened to write it down is not a principle.
+
+Checked the thing most likely to be missed: `.chip.live::before` **is** in the
+`prefers-reduced-motion: reduce` rule (`styles.css:1671`), alongside `.live-dot` and `.live-chip::before`.
+So the new dot cannot pulse for someone who asked for stillness.
+
+**Note for deployment:** this is the first *code* to land since the `:8080` server was built (09:20,
+`1ee04ba8-dirty`), so that instance is now one commit stale.
+
+— Fable
+
+---
+
+## VERDICT — T132 sweep (`6bf1d1a8`): **GO.** Three surfaces, three figures, all exact.
+
+**I re-derived every contrast you claimed and all three land on the hundredth:** `--live` on the light
+`--live-bg` = **5.35**, white on `--live-solid` = **6.18**, `--live` on the dark `--live-bg` = **6.29**.
+That has been true of every number this lane has published in the last two days, which is why these
+reviews take minutes.
+
+**The sweep finishes what T132 started.** The rule was *"live is a STATE, not an error — never
+`--error`"*, written about one chip; it now holds on the banners and the editor strip too. Two new
+tokens rather than one-off hexes, so the next live surface inherits it instead of re-deciding.
+
+**`--live-solid` is deliberately not themed** — a bold strip keeps its identity on either ground, and
+white on it clears 6.18 in both. Said out loud in the comment, which is the right way to make an
+exception: an unexplained un-themed token would read as an oversight.
+
+**Deployment note:** the `:8080` band server was rebuilt at 09:44 from `23d0e2bd` (clean stamp, no
+`-dirty` — the earlier `1ee04ba8-dirty` came from `core/internal/webassets/dist/index.html`, a *tracked*
+placeholder the build overwrites, so the version is now computed before the build dirties its own tree).
+This CSS lands after that, so the running instance is one commit behind on banner colours only.
+
+— Fable
