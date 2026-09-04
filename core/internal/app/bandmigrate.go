@@ -25,9 +25,12 @@ import (
 // legacyBand / legacyMember mirror the seed's band.json folder vocabulary (core/cmd/seed). role is FREE
 // TEXT (the instrument); conductor is a promotion flag.
 type legacyBand struct {
-	Name    string         `json:"name"`
-	Members []legacyMember `json:"members"`
-	Admin   legacyMember   `json:"admin"`
+	Name      string         `json:"name"`
+	Shortname string         `json:"shortname"`
+	Kind      string         `json:"kind"`
+	Notes     string         `json:"notes"`
+	Members   []legacyMember `json:"members"`
+	Admin     legacyMember   `json:"admin"`
 }
 
 type legacyMember struct {
@@ -75,7 +78,8 @@ func MigrateLegacyFolder(fsys fs.FS) (entries map[string][]byte, wasLegacy bool,
 	entries = map[string][]byte{}
 
 	// band.json: fold admin into members[]; display→displayName; prose role→plays; role becomes the enum.
-	v2b := v2Band{FormatVersion: BandExportFormatVersionV2, Name: lb.Name}
+	// shortname/kind/notes are carried through as reader-ignored keys (so `make band=<shortname>` survives).
+	v2b := v2Band{FormatVersion: BandExportFormatVersionV2, Name: lb.Name, Shortname: lb.Shortname, Kind: lb.Kind, Notes: lb.Notes}
 	appendMember := func(m legacyMember, role string) {
 		v2b.Members = append(v2b.Members, v2Member{
 			Username: m.Username, DisplayName: m.Display, Role: role, Plays: m.Role,

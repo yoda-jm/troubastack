@@ -69,6 +69,12 @@ type v2Band struct {
 	ExportedAt    string     `json:"exportedAt,omitempty"`
 	Name          string     `json:"name"`
 	Members       []v2Member `json:"members"`
+	// Shortname/Kind/Notes are the folder's own metadata (the reader ignores them; the app never stored
+	// them). The migration carries them through so `make band=<shortname>` keeps working after a folder
+	// is rewritten canonical on disk. An export leaves them empty (omitted).
+	Shortname string `json:"shortname,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	Notes     string `json:"notes,omitempty"`
 }
 
 type v2Member struct {

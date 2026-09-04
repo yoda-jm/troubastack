@@ -695,3 +695,15 @@ func TestT76_AutoFitByteStable(t *testing.T) {
 		t.Errorf("auto-fit render sha = %s, want %s (auto-fit output drifted)", got, want)
 	}
 }
+
+// TestRender_CP1252SupplementLetters: œ/Œ (and Š/š/Ž/ž/Ÿ) are NOT Latin-1 but ARE in cp1252, which the
+// core-font translator maps — so a French chart with "cœur" renders instead of being refused (T134: a real
+// band chart hit this). A genuinely-unrepresentable rune is still refused.
+func TestRender_CP1252SupplementLetters(t *testing.T) {
+	if _, err := Render("# Cœur\n## Refrain\nœuvre Œ Š š Ž ž Ÿ\nla la\n"); err != nil {
+		t.Fatalf("cp1252-supplement letters should render: %v", err)
+	}
+	if _, err := Render("# T\n中文\n"); err == nil { // CJK — outside cp1252, still refused
+		t.Fatal("a non-cp1252 rune must still be refused with ErrUnsupportedChar")
+	}
+}

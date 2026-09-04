@@ -131,6 +131,9 @@ var extraRunes = map[rune]bool{
 	'‘': true, '’': true, // ‘ ’
 	'“': true, '”': true, // “ ”
 	'…': true, '•': true, // … •
+	// cp1252-supplement letters the core-font translator CAN represent (they are NOT Latin-1, so they
+	// need listing here). œ/Œ appear in real French band charts; Š/š/Ž/ž/Ÿ round out the set.
+	'œ': true, 'Œ': true, 'š': true, 'Š': true, 'ž': true, 'Ž': true, 'Ÿ': true,
 }
 
 // reNewPage matches a page-break flow marker: exactly `{new_page}` or the alias `{np}`,

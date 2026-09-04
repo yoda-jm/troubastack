@@ -74,6 +74,12 @@ func TestMigrate_LegacyToCanonical_ImportsWithVocabTranslated(t *testing.T) {
 	if m := byName["sasha"]; m.Role != "member" || m.Plays != "drums" {
 		t.Fatalf("member not translated: %+v", m)
 	}
+	// shortname/kind/notes carried through as reader-ignored keys (so make band=<shortname> survives).
+	var meta struct{ Shortname, Kind, Notes string }
+	json.Unmarshal(entries["band.json"], &meta)
+	if meta.Shortname != "lb" || meta.Kind != "Band" || meta.Notes != "n" {
+		t.Fatalf("folder metadata not preserved: %+v", meta)
+	}
 
 	// repertoire.json gained a derived files[] (the .pdf and the .txt as generated).
 	var rep struct {
