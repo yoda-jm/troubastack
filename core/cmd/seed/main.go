@@ -1,13 +1,17 @@
-// Command seed populates a running TroubaCore server with a demo dataset over
-// HTTP — users, bands, an orchestra, songs, and a sheet-music PDF per song — then
-// prints a clear guide for browsing it. It drives the public REST API exactly as
-// the SPA does (register → login → create band → invite → accept → create song →
-// upload file), so it doubles as an end-to-end smoke test of the "normal web"
-// surface.
+// Command seed populates a running TroubaCore server with a demo dataset — users,
+// bands, an orchestra, songs, sheet-music, and layered annotations — then prints a
+// guide for browsing it.
 //
-// It is resilient: PDFs are fetched from public-domain URLs when possible and
-// otherwise generated locally, so the seed NEVER fails for lack of internet. It is
-// idempotent-ish: a user/band that already exists is reused rather than erroring.
+// T134 phase 2 (stage C): each band is now seeded by building its CANONICAL v2 band
+// directory (a demo group in memory from the Go literals; a real band by migrating
+// its folder on read), packing it to a .tband, and POSTing it to the import endpoint
+// — one path for the demo and real bands. Import FIRST, passwords SECOND (⟨P8⟩): the
+// admin is registered as the importer, everyone else arrives via import (personal
+// content intact) and is then given a password over the public reset flow. What a
+// file cannot carry — passwords — is all that stays in the seeder.
+//
+// PDFs are read from docs/demo-charts (or generated as a fallback), so the seed never
+// fails for lack of internet; a user/band that already exists is reused.
 package main
 
 import (
@@ -198,6 +202,10 @@ type groupDef struct {
 	personal bool
 	// shortname is the band.json "shortname" — a stable handle for `make band=<shortname>`.
 	shortname string
+	// folderPath is a local band's on-disk directory (T134 phase 2): the seeder migrates it on read
+	// (legacy→canonical) → packs → imports, instead of driving the per-call REST sequence. "" for demo
+	// groups, which build their canonical directory in memory from the Go literals (groupToCanonical).
+	folderPath string
 }
 
 func run(addr, password, only string, bands []string) error {
@@ -362,32 +370,29 @@ func run(addr, password, only string, bands []string) error {
 		fmt.Printf(">> seeding %d group(s), %d user(s)\n", len(groups), len(people))
 	}
 
-	// 1. Register every user (idempotent: skip if already present).
-	fmt.Println(">> registering demo users…")
+	// T134 phase 2 (stage C): each band is now seeded by building its CANONICAL v2 directory, packing it
+	// to a .tband, and importing it — one path for the demo and real bands. Import FIRST, passwords
+	// SECOND (⟨P8⟩): there is NO up-front bulk registration, because pre-creating a member makes the
+	// import treat them as consent-required and silently DROP their personal content. The admin is
+	// registered per group (the importer, who needs a password); the rest arrive via import and are then
+	// given passwords over the public reset flow.
+	peopleByUsername := map[string]person{}
 	for _, p := range people {
-		if err := registerUser(addr, p, password); err != nil {
-			return err
-		}
+		peopleByUsername[p.username] = p
 	}
 
-	// Track how PDFs were obtained for the final report.
-	var fetched, generated int
-
-	// 2. Per group: admin creates it, invites members (who accept), then songs + PDFs.
 	seeded := make([]seededGroup, 0, len(groups))
 	for _, g := range groups {
 		fmt.Printf(">> building %s %q (admin %s)…\n", g.kind, g.name, g.admin)
-		sg, f, gen, err := seedGroup(addr, password, g)
+		sg, err := seedGroupViaImport(addr, password, g, peopleByUsername)
 		if err != nil {
 			return err
 		}
-		fetched += f
-		generated += gen
 		seeded = append(seeded, sg)
 	}
 
-	fmt.Printf(">> done. PDFs: %d fetched (public domain), %d generated (fallback).\n\n", fetched, generated)
-	printGuide(addr, password, people, seeded, fetched, generated)
+	fmt.Println(">> done.")
+	printGuide(addr, password, people, seeded, 0, 0)
 	return nil
 }
 
@@ -584,7 +589,7 @@ func loadLocalBands() ([]groupDef, []person, error) {
 		groups = append(groups, groupDef{
 			name: man.Name, kind: kind, admin: man.Admin.Username,
 			members: memberNames, songs: songs, setlists: setlists, personal: true, shortname: shortname,
-			conductor: conductor,
+			conductor: conductor, folderPath: bandDir,
 		})
 	}
 	return groups, people, nil
@@ -831,365 +836,6 @@ type filesResp struct {
 	} `json:"files"`
 }
 
-// seedGroup runs the full real flow for one group and returns counts of how its
-// PDFs were obtained.
-func seedGroup(addr, password string, g groupDef) (seededGroup, int, int, error) {
-	var fetched, generated int
-	admin, err := login(addr, g.admin, password)
-	if err != nil {
-		return seededGroup{}, 0, 0, err
-	}
-
-	// Find an existing band by name (idempotency) or create it.
-	bandID, err := findOrCreateBand(admin, g.name)
-	if err != nil {
-		return seededGroup{}, 0, 0, err
-	}
-	fmt.Printf("   band id %s\n", bandID)
-
-	// Invite each member; the member logs in and accepts the matching invite.
-	for _, m := range g.members {
-		if err := inviteAndAccept(addr, password, admin, bandID, m); err != nil {
-			return seededGroup{}, 0, 0, err
-		}
-	}
-
-	// Songs (admin creates) + a PDF each.
-	existing, err := songTitlesOf(admin, bandID)
-	if err != nil {
-		return seededGroup{}, 0, 0, err
-	}
-	var titles []string
-	songIDByTitle := map[string]string{}
-	// Collect what each song needs for the annotation-import step (run after the
-	// loop so we have every song id + its PDF fileId).
-	type songAnn struct {
-		songID    string
-		title     string
-		generated bool
-		pages     int
-	}
-	var anns []songAnn
-	for _, s := range g.songs {
-		titles = append(titles, s.title)
-		songID, ok := existing[s.title]
-		if !ok {
-			var sr songResp
-			if err := admin.postJSON("/api/bands/"+bandID+"/songs",
-				map[string]string{"title": s.title, "artist": s.artist}, &sr); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("create song %q: %w", s.title, err)
-			}
-			songID = sr.Song.ID
-			fmt.Printf("   + song %q\n", s.title)
-		} else {
-			fmt.Printf("   = song %q exists\n", s.title)
-		}
-		songIDByTitle[s.title] = songID
-
-		// Set song metadata (key/tempo/tags/notes) — idempotent PATCH.
-		if s.key != "" || s.tempo != 0 || s.meter != "" || len(s.tags) > 0 || s.notes != "" {
-			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID, map[string]any{
-				"key": s.key, "tempo": s.tempo, "meter": s.meter, "tags": s.tags, "notes": s.notes,
-			}, nil); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("set metadata for %q: %w", s.title, err)
-			}
-		}
-
-		// Effective shared-pool sources: the multi-file pool if defined, else the
-		// single src. The first source drives the song's annotation layout.
-		sources := s.files
-		if len(sources) == 0 {
-			sources = []pdfSource{s.src}
-		}
-		primary := sources[0]
-		hasPDF := primary.localPath != "" || primary.cacheName != ""
-
-		// Metadata-only song — no PDF and no text chart yet (a repertoire entry with nothing in
-		// its folder). The song exists with its title/artist/metadata; nothing to upload.
-		if !hasPDF && s.textChartPath == "" && len(s.textCharts) == 0 {
-			fmt.Printf("     (metadata only — no source file yet)\n")
-			continue
-		}
-
-		// Idempotency: if the song already has files, leave it as-is.
-		var fr filesResp
-		if err := admin.getJSON("/api/bands/"+bandID+"/songs/"+songID+"/files", &fr); err != nil {
-			return seededGroup{}, 0, 0, err
-		}
-		if len(fr.Files) > 0 {
-			fmt.Printf("     = already has %d file(s)\n", len(fr.Files))
-			if hasPDF {
-				anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
-			}
-			continue
-		}
-		// Upload every pool PDF in order (skipped for a repertoire song that has only a chart).
-		uploaded := make([]string, 0, len(sources)+1)
-		if hasPDF {
-			for i, src := range sources {
-				res, err := resolvePDF(src)
-				if err != nil {
-					return seededGroup{}, 0, 0, err
-				}
-				if res.fetched {
-					fetched++
-				} else {
-					generated++
-				}
-				var fileOut struct {
-					File struct {
-						ID string `json:"id"`
-					} `json:"file"`
-				}
-				if err := admin.uploadFile("/api/bands/"+bandID+"/songs/"+songID+"/files",
-					src.filename(), "application/pdf", res.data, &fileOut); err != nil {
-					return seededGroup{}, 0, 0, fmt.Errorf("upload pdf %q for %q: %w", src.filename(), s.title, err)
-				}
-				if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+fileOut.File.ID,
-					map[string]any{"displayOrder": i}, nil); err != nil {
-					return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for %q: %w", src.filename(), err)
-				}
-				uploaded = append(uploaded, fileOut.File.ID)
-				fmt.Printf("     + file %q (%s, %s, %d bytes)\n", src.filename(), src.cacheName, res.origin, len(res.data))
-			}
-		}
-
-		// B10: a REAL text chart from committed chart-dialect source — POST /text-charts
-		// renders it to a PDF server-side, so the demo shows the T19 chart type (not only
-		// uploaded PDFs). It enters the pool after the PDFs (highest displayOrder).
-		if s.textChartPath != "" {
-			source, rerr := os.ReadFile(s.textChartPath)
-			if rerr != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("read text chart %q for %q: %w", s.textChartPath, s.title, rerr)
-			}
-			var chartOut struct {
-				File struct {
-					ID string `json:"id"`
-				} `json:"file"`
-			}
-			if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+songID+"/text-charts",
-				map[string]string{"source": string(source)}, &chartOut); err != nil {
-				// Tolerant: a stray char in one band's lyrics shouldn't abort the whole seed.
-				fmt.Printf("     ! text chart skipped for %q: %v\n", s.title, err)
-			} else {
-				if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+chartOut.File.ID,
-					map[string]any{"displayOrder": len(uploaded)}, nil); err != nil {
-					return seededGroup{}, 0, 0, fmt.Errorf("set displayOrder for text chart of %q: %w", s.title, err)
-				}
-				uploaded = append(uploaded, chartOut.File.ID)
-				fmt.Printf("     + text chart %q (rendered from %s)\n", s.title, s.textChartPath)
-			}
-		}
-
-		// B15: folder-discovered chart parts — each <slug>/*.txt is its own part, named after the
-		// file (lyrics first). Created via the same /text-charts path, then renamed to the file's
-		// basename (T72 makes that name stick across later edits).
-		for _, part := range s.textCharts {
-			source, rerr := os.ReadFile(part.path)
-			if rerr != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("read chart part %q for %q: %w", part.path, s.title, rerr)
-			}
-			var chartOut struct {
-				File struct {
-					ID string `json:"id"`
-				} `json:"file"`
-			}
-			if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+songID+"/text-charts",
-				map[string]string{"source": string(source)}, &chartOut); err != nil {
-				fmt.Printf("     ! chart part %q skipped for %q: %v\n", part.name, s.title, err)
-				continue
-			}
-			if err := admin.patchJSON("/api/bands/"+bandID+"/songs/"+songID+"/files/"+chartOut.File.ID,
-				map[string]any{"filename": part.name, "displayOrder": len(uploaded)}, nil); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("name chart part %q for %q: %w", part.name, s.title, err)
-			}
-			uploaded = append(uploaded, chartOut.File.ID)
-			fmt.Printf("     + chart part %q (from %s)\n", part.name, filepath.Base(part.path))
-		}
-
-		// Curate per-member personal file selections via the my-files endpoint.
-		for username, order := range s.myFilesFor {
-			ids := make([]string, 0, len(order))
-			for _, idx := range order {
-				if idx >= 0 && idx < len(uploaded) {
-					ids = append(ids, uploaded[idx])
-				}
-			}
-			member := admin
-			if username != g.admin {
-				member, err = login(addr, username, password)
-				if err != nil {
-					return seededGroup{}, 0, 0, err
-				}
-			}
-			if err := member.putJSON("/api/bands/"+bandID+"/songs/"+songID+"/my-files",
-				map[string]any{"fileIds": ids}, nil); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("set my-files for %s on %q: %w", username, s.title, err)
-			}
-			titles := make([]string, len(order))
-			for i, idx := range order {
-				if idx >= 0 && idx < len(sources) {
-					titles[i] = sources[idx].filename()
-				}
-			}
-			fmt.Printf("     + %s my-files: [%s]\n", username, strings.Join(titles, ", "))
-		}
-
-		// Seed per-member personal cues (T50) via the my-cues endpoint, as each user.
-		for username, cues := range s.cuesFor {
-			payload := make([]map[string]string, 0, len(cues))
-			labels := make([]string, 0, len(cues))
-			for _, c := range cues {
-				payload = append(payload, map[string]string{"icon": c.icon, "color": c.color})
-				labels = append(labels, c.icon)
-			}
-			member := admin
-			if username != g.admin {
-				member, err = login(addr, username, password)
-				if err != nil {
-					return seededGroup{}, 0, 0, err
-				}
-			}
-			if err := member.putJSON("/api/bands/"+bandID+"/songs/"+songID+"/my-cues",
-				map[string]any{"cues": payload}, nil); err != nil {
-				return seededGroup{}, 0, 0, fmt.Errorf("set my-cues for %s on %q: %w", username, s.title, err)
-			}
-			fmt.Printf("     + %s cues: [%s]\n", username, strings.Join(labels, ", "))
-		}
-		// generated = a pdf.go STAFF placeholder (systemTopY layout). A committed real chart
-		// (localPath) is NOT a staff placeholder → generic/known-coord placement. Only PDF-based
-		// songs carry demo annotations; a chart-only repertoire song gets none.
-		if hasPDF {
-			anns = append(anns, songAnn{songID: songID, title: s.title, generated: primary.localPath == "" && !cachedFetched(primary), pages: primary.pages})
-		}
-	}
-
-	// Promote a member to the conductor role BEFORE importing annotations, so the
-	// conductor-zone "cues" layer can be owned/authored by that conductor (#3). The
-	// conductor ROLE — not the band admin — governs write access to the cues.
-	if g.conductor != "" {
-		if err := promoteConductor(admin, bandID, g.conductor); err != nil {
-			return seededGroup{}, 0, 0, err
-		}
-	}
-
-	// Annotation layers + objects on each song's PDF (idempotent import). Needs the
-	// member username→id map (layer ownerId). The conductor-zone cues are owned by the
-	// promoted conductor (g.conductor); if none, they fall back to the admin id.
-	userID, adminID, err := memberIDs(admin, bandID, g.admin)
-	if err != nil {
-		return seededGroup{}, 0, 0, err
-	}
-	conductorID := adminID
-	if g.conductor != "" {
-		if id, ok := userID[g.conductor]; ok {
-			conductorID = id
-		}
-	}
-	for _, a := range anns {
-		fileID, err := firstPDFFileID(admin, bandID, a.songID)
-		if err != nil {
-			return seededGroup{}, 0, 0, err
-		}
-		if fileID == "" {
-			continue
-		}
-		// Every demo song has a dedicated, anchored builder (B13). A title with none gets no
-		// annotations rather than a generic staff-relative guess.
-		var im annotationsImport
-		switch a.title {
-		case "The Open Road":
-			im = buildOpenRoadAnnotations(a.songID, fileID, userID, conductorID, mustAnchors("open-road-leadsheet"))
-		case "House of the Rising Sun", "Amazing Grace", "Greensleeves":
-			// Committed band charts. Anchored where a manifest exists (generated charts);
-			// Greensleeves is engraved (calibrated anchors are B13 step 4) so it passes nil.
-			var an *anchorSet
-			switch a.title {
-			case "Amazing Grace":
-				an = mustAnchors("amazing-grace")
-			case "House of the Rising Sun":
-				an = mustAnchors("house-rising-sun-tab")
-			case "Greensleeves":
-				an = mustAnchors("greensleeves")
-			}
-			im = buildBandChartAnnotations(a.songID, fileID, a.title, userID, conductorID, an)
-		case "Canon in D":
-			// Committed Mutopia Violin I part — marks anchored to hand-calibrated canon.* boxes.
-			im = buildCanonAnnotations(a.songID, fileID, userID, conductorID, mustAnchors("canon-violin1"))
-		case "Eine kleine Nachtmusik":
-			// Committed Mutopia Violin I part — marks anchored to hand-calibrated ek.* boxes.
-			im = buildEineKleineAnnotations(a.songID, fileID, userID, conductorID, mustAnchors("ek-violin1"))
-		}
-		var got annotationsImport
-		if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", im, &got); err != nil {
-			return seededGroup{}, 0, 0, fmt.Errorf("import annotations for %q: %w", a.title, err)
-		}
-		fmt.Printf("     + annotations %q: %d layers, %d objects\n", a.title, len(got.Layers), len(got.Objects))
-
-		// B11: give a multi-file song's OTHER parts their OWN annotations (the first PDF keeps
-		// the set above), so switching file tabs visibly demonstrates per-file scoping (T40) —
-		// distinct ink over distinct PDFs. Additive imports; idempotent by id.
-		{
-			type partAnn struct {
-				filename string
-				build    func(songID, fileID string) annotationsImport
-			}
-			var parts []partAnn
-			switch a.title {
-			case "House of the Rising Sun":
-				parts = []partAnn{{"Drums", func(s, f string) annotationsImport {
-					return buildDrumPartAnnotations(s, f, mustAnchors("house-rising-sun-drums"))
-				}}}
-			case "The Open Road":
-				parts = []partAnn{{"Guitar", func(s, f string) annotationsImport {
-					return buildOpenRoadGuitarAnnotations(s, f, userID, conductorID, mustAnchors("open-road-guitar"))
-				}}}
-			case "Canon in D":
-				parts = []partAnn{
-					{"Full score", func(s, f string) annotationsImport {
-						return buildScoreConductorAnnotations(s, f, "canon", conductorID, mustAnchors("canon-score"))
-					}},
-					{"Cello", func(s, f string) annotationsImport { return buildCelloBowingAnnotations(s, f, "canon", userID) }},
-				}
-			case "Eine kleine Nachtmusik":
-				parts = []partAnn{
-					{"Full score", func(s, f string) annotationsImport {
-						return buildScoreConductorAnnotations(s, f, "ek", conductorID, mustAnchors("ek-score"))
-					}},
-					{"Cello", func(s, f string) annotationsImport { return buildCelloBowingAnnotations(s, f, "ek", userID) }},
-				}
-			}
-			for _, p := range parts {
-				fid, err := pdfFileIDByFilename(admin, bandID, a.songID, p.filename)
-				if err != nil {
-					return seededGroup{}, 0, 0, err
-				}
-				if fid == "" {
-					continue
-				}
-				var pg annotationsImport
-				if err := admin.postJSON("/api/bands/"+bandID+"/songs/"+a.songID+"/annotations/import", p.build(a.songID, fid), &pg); err != nil {
-					return seededGroup{}, 0, 0, fmt.Errorf("import %s annotations for %q: %w", p.filename, a.title, err)
-				}
-				fmt.Printf("     + annotations %q [%s]: %d layers, %d objects\n", a.title, p.filename, len(pg.Layers), len(pg.Objects))
-			}
-		}
-	}
-
-	// Build the group's setlists (demo: one showcase list; a local band: each entry of its
-	// setlists.json, T100). Order is the file's order, so "Sat" and "Sun" seed as written.
-	for _, sl := range g.setlists {
-		if sl.name == "" {
-			continue
-		}
-		if err := seedSetlist(admin, bandID, sl, titles, songIDByTitle); err != nil {
-			return seededGroup{}, 0, 0, err
-		}
-	}
-
-	return seededGroup{def: g, songs: titles}, fetched, generated, nil
-}
-
 // memberIDs returns a username→userId map for the band plus the admin's user id
 // (used as the conductor layer's ownerId).
 func memberIDs(admin *apiClient, bandID, adminUsername string) (map[string]string, string, error) {
@@ -1206,99 +852,6 @@ func memberIDs(admin *apiClient, bandID, adminUsername string) (map[string]strin
 		}
 	}
 	return out, adminID, nil
-}
-
-// firstPDFFileID returns the id of the song's first application/pdf file (the
-// annotation layers attach to it), or "" if none.
-func firstPDFFileID(admin *apiClient, bandID, songID string) (string, error) {
-	var fr filesResp
-	if err := admin.getJSON("/api/bands/"+bandID+"/songs/"+songID+"/files", &fr); err != nil {
-		return "", err
-	}
-	for _, f := range fr.Files {
-		if f.ContentType == "application/pdf" {
-			return f.ID, nil
-		}
-	}
-	if len(fr.Files) > 0 {
-		return fr.Files[0].ID, nil
-	}
-	return "", nil
-}
-
-// pdfFileIDByFilename returns the id of the song's PDF file with the given filename
-// (the docTitle the seed uploads it under, e.g. "Part - Vocals"), or "" if absent.
-func pdfFileIDByFilename(admin *apiClient, bandID, songID, filename string) (string, error) {
-	var fr filesResp
-	if err := admin.getJSON("/api/bands/"+bandID+"/songs/"+songID+"/files", &fr); err != nil {
-		return "", err
-	}
-	for _, f := range fr.Files {
-		if f.Filename == filename && f.ContentType == "application/pdf" {
-			return f.ID, nil
-		}
-	}
-	return "", nil
-}
-
-func findOrCreateBand(admin *apiClient, name string) (string, error) {
-	var br bandsResp
-	if err := admin.getJSON("/api/bands", &br); err != nil {
-		return "", err
-	}
-	for _, b := range br.Bands {
-		if strings.EqualFold(b.Name, name) {
-			return b.ID, nil
-		}
-	}
-	var created bandResp
-	if err := admin.postJSON("/api/bands", map[string]string{"name": name}, &created); err != nil {
-		return "", fmt.Errorf("create band %q: %w", name, err)
-	}
-	return created.Band.ID, nil
-}
-
-// inviteAndAccept runs the real consent flow: admin invites by username, the
-// invited user logs in, finds the pending invite for this band, and accepts it.
-func inviteAndAccept(addr, password string, admin *apiClient, bandID, username string) error {
-	// Admin invites (ignore conflicts — a re-run may already have an open/used invite).
-	var ir inviteResp
-	err := admin.postJSON("/api/bands/"+bandID+"/invites",
-		map[string]string{"identifier": username, "kind": "username"}, &ir)
-	if err != nil && !isConflict(err) {
-		return fmt.Errorf("invite %s: %w", username, err)
-	}
-
-	member, err := login(addr, username, password)
-	if err != nil {
-		return err
-	}
-	// Already a member? Nothing to accept.
-	var br bandsResp
-	if err := member.getJSON("/api/bands", &br); err != nil {
-		return err
-	}
-	for _, b := range br.Bands {
-		if b.ID == bandID {
-			fmt.Printf("   = %s already a member\n", username)
-			return nil
-		}
-	}
-	// Find the pending invite for this band and accept it.
-	var inv invitesResp
-	if err := member.getJSON("/api/invites", &inv); err != nil {
-		return err
-	}
-	for _, i := range inv.Invites {
-		if i.BandID == bandID {
-			if err := member.postJSON("/api/invites/"+i.ID+"/accept", nil, nil); err != nil {
-				return fmt.Errorf("accept invite for %s: %w", username, err)
-			}
-			fmt.Printf("   + %s invited and accepted\n", username)
-			return nil
-		}
-	}
-	return fmt.Errorf("no pending invite found for %s on band %s", username, bandID)
 }
 
 func songTitlesOf(admin *apiClient, bandID string) (map[string]string, error) {
@@ -1347,125 +900,6 @@ type itemResp struct {
 	Item struct {
 		ID string `json:"id"`
 	} `json:"item"`
-}
-
-// promoteConductor sets a member's role to "conductor" (idempotent).
-func promoteConductor(admin *apiClient, bandID, username string) error {
-	var mr membersResp
-	if err := admin.getJSON("/api/bands/"+bandID+"/members", &mr); err != nil {
-		return err
-	}
-	for _, m := range mr.Members {
-		if m.User.Username == username {
-			if m.Role == "conductor" {
-				return nil
-			}
-			if err := admin.patchJSON("/api/bands/"+bandID+"/members/"+m.User.ID,
-				map[string]string{"role": "conductor"}, nil); err != nil {
-				return fmt.Errorf("promote %s to conductor: %w", username, err)
-			}
-			fmt.Printf("   + %s promoted to conductor\n", username)
-			return nil
-		}
-	}
-	return nil
-}
-
-// seedSetlist creates a named setlist (idempotent), adds the group's songs in
-// order if it's empty, then applies per-item key/tempo/notes overrides.
-func seedSetlist(admin *apiClient, bandID string, sd setlistDef, orderedTitles []string, songIDByTitle map[string]string) error {
-	var sls setlistsResp
-	if err := admin.getJSON("/api/bands/"+bandID+"/setlists", &sls); err != nil {
-		return err
-	}
-	setlistID := ""
-	for _, s := range sls.Setlists {
-		if strings.EqualFold(s.Name, sd.name) {
-			setlistID = s.ID
-			break
-		}
-	}
-	if setlistID == "" {
-		var sr setlistResp
-		if err := admin.postJSON("/api/bands/"+bandID+"/setlists", map[string]string{
-			"name": sd.name, "eventDate": sd.eventDate, "venue": sd.venue, "notes": sd.notes,
-		}, &sr); err != nil {
-			return fmt.Errorf("create setlist %q: %w", sd.name, err)
-		}
-		setlistID = sr.Setlist.ID
-		fmt.Printf("   + setlist %q\n", sd.name)
-	} else {
-		fmt.Printf("   = setlist %q exists\n", sd.name)
-	}
-
-	var detail setlistDetailResp
-	if err := admin.getJSON("/api/bands/"+bandID+"/setlists/"+setlistID, &detail); err != nil {
-		return err
-	}
-	// T100: when the definition carries an explicit ORDERED item list, it replaces "every song the
-	// group has": a gig is a subset in a chosen order. Each entry doubles as that item's override.
-	overrides := sd.overrides
-	if len(sd.items) > 0 {
-		orderedTitles = make([]string, 0, len(sd.items))
-		for _, it := range sd.items {
-			orderedTitles = append(orderedTitles, it.song)
-		}
-		overrides = sd.items
-	}
-
-	itemBySong := map[string]string{}
-	for _, it := range detail.Items {
-		itemBySong[it.SongID] = it.ID
-	}
-	if len(detail.Items) == 0 {
-		for _, title := range orderedTitles {
-			songID, ok := songIDByTitle[title]
-			if !ok {
-				continue
-			}
-			var ir itemResp
-			if err := admin.postJSON("/api/bands/"+bandID+"/setlists/"+setlistID+"/items",
-				map[string]string{"songId": songID}, &ir); err != nil {
-				return fmt.Errorf("add setlist item %q: %w", title, err)
-			}
-			itemBySong[songID] = ir.Item.ID
-		}
-		fmt.Printf("     + %d songs added to setlist\n", len(orderedTitles))
-	}
-
-	for _, ov := range overrides {
-		songID, ok := songIDByTitle[ov.song]
-		if !ok {
-			continue
-		}
-		itemID, ok := itemBySong[songID]
-		if !ok {
-			continue
-		}
-		body := map[string]any{}
-		if ov.keyOverride != "" {
-			body["keyOverride"] = ov.keyOverride
-		}
-		if ov.tempoOverride != 0 {
-			body["tempoOverride"] = ov.tempoOverride
-		}
-		if ov.notes != "" {
-			body["notes"] = ov.notes
-		}
-		if ov.onCall {
-			body["onCall"] = true
-		}
-		if ov.transposeChords {
-			body["transposeChords"] = true
-		}
-		if len(body) == 0 {
-			continue
-		}
-		if err := admin.patchJSON("/api/bands/"+bandID+"/setlists/"+setlistID+"/items/"+itemID, body, nil); err != nil {
-			return fmt.Errorf("override setlist item %q: %w", ov.song, err)
-		}
-	}
-	return nil
 }
 
 // printGuide writes a human-friendly summary + instructions to stdout.
