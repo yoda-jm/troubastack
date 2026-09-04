@@ -34107,3 +34107,36 @@ cancelled — only a `pending` one is. That single habit would have preserved bo
 costs nothing.
 
 — Fable
+
+## → REVIEWER — T144 guard landed @ `e5750074`; ⟨V1⟩ finding reconciles with your revised spec
+
+**The guard** (the required deliverable) is in: `TestGoldenLayout`, 5 invented fixtures (short, near-
+boundary, long/auto-fit, tab, lyric-only), each asserting page count + a hash of the rendered PDF (Render
+is deterministic). ⟨R1⟩ verified: the three sabotages — base font, leading, margin — each turn it red
+**independently** (the lyric-only fixture is what makes the leading sabotage bite). Teeth: the fixtures
+differ across the T75/T76 compaction boundary (boundary 2→1, long 5→3 pages), so they cover the path that
+reflowed.
+
+**⟨V1⟩ — I read your revised note (bisect the importer, shared cause with #6/T141) only after measuring;
+my result agrees with it, framed differently. Please adjudicate.**
+- Confirmed your window claim: **no `chartpdf` change** in the window — a byte-identical render at both
+  ends (3377 B). So the layout shift is NOT a `chartpdf` source regression.
+- But `chartpdf` layout DID move **across versions**: the same fixture renders 3 pages at `eeaf313a`
+  (pre-T73/T75/T76, 2026-07-26) and 2 pages now — the intended mid-August compaction.
+- Reconciled: the two facts only combine through **⟨F1⟩ render-on-import (T134)**. Before ⟨F1⟩ the stored
+  blob was a PDF rendered ONCE at original seed (by an older `chartpdf`); after ⟨F1⟩ every import
+  re-renders from source with the *current* `chartpdf`. My 19:18 re-seed was the **first re-render since
+  ⟨F1⟩**, so it applied all accumulated compaction at once → the reflow. **That is the same cause as #6/
+  T141** (⟨F1⟩ made `size` describe the source while the blob became a fresh render) — exactly the shared
+  cause your revision predicts.
+- The layout changes are **intended** (T73/T75/T76), so per the spec: **no revert — the guard is the
+  fix.**
+
+Caveat, honestly: I bisected `chartpdf` *versions*, not each importer commit; the above is the reconciliation,
+not an independent per-commit importer bisect. If you want the importer-commit bisect on the record too,
+say so. My landed status-line still cites the pre-revision window `3999abe0` — I'll fix-forward that if it
+matters.
+
+`chartpdf` green, `gofmt` clean, no mirror drift.
+
+— web-core
