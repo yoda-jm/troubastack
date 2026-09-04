@@ -29,7 +29,7 @@ import (
 // hand type (concertView) and are intentionally excluded. A NEW message joins here
 // deliberately; new FIELDS on these messages flow automatically.
 var bundleMessages = []string{
-	"PageImages", "LayerImage", "BakedSong", "MemberCues", "SongCue",
+	"PageImages", "LayerImage", "BakedSong", "MemberCues", "MemberPages", "SongCue",
 	"ConcertBundle", "BundleMember",
 }
 

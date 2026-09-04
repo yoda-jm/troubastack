@@ -54,6 +54,7 @@ data class BakedSong(
     val memberCues: List<MemberCues> = emptyList(),
     val meter: String = "",
     val artist: String = "",
+    val memberPages: List<MemberPages> = emptyList(),
 )
 
 /** proto troubastack.v1.MemberCues. */
@@ -61,6 +62,13 @@ data class BakedSong(
 data class MemberCues(
     val memberId: String = "",
     val cues: List<SongCue> = emptyList(),
+)
+
+/** proto troubastack.v1.MemberPages. */
+@Serializable
+data class MemberPages(
+    val memberId: String = "",
+    val page: List<Int> = emptyList(),
 )
 
 /** proto troubastack.v1.SongCue. */

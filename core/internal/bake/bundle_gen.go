@@ -25,25 +25,32 @@ type LayerImage struct {
 
 // BakedSong mirrors proto troubastack.v1.BakedSong.
 type BakedSong struct {
-	SongID         string       `json:"songId,omitempty"`
-	SourceRevision uint64       `json:"sourceRevision,string,omitempty"`
-	SongRev        uint64       `json:"songRev,string,omitempty"`
-	Pages          []PageImages `json:"pages,omitempty"`
-	DisplayNotes   string       `json:"displayNotes,omitempty"`
-	Key            string       `json:"key,omitempty"`
-	Tempo          int32        `json:"tempo,omitempty"`
-	OnCall         bool         `json:"onCall,omitempty"`
-	Title          string       `json:"title,omitempty"`
-	Cues           []SongCue    `json:"cues,omitempty"`
-	MemberCues     []MemberCues `json:"memberCues,omitempty"`
-	Meter          string       `json:"meter,omitempty"`
-	Artist         string       `json:"artist,omitempty"`
+	SongID         string        `json:"songId,omitempty"`
+	SourceRevision uint64        `json:"sourceRevision,string,omitempty"`
+	SongRev        uint64        `json:"songRev,string,omitempty"`
+	Pages          []PageImages  `json:"pages,omitempty"`
+	DisplayNotes   string        `json:"displayNotes,omitempty"`
+	Key            string        `json:"key,omitempty"`
+	Tempo          int32         `json:"tempo,omitempty"`
+	OnCall         bool          `json:"onCall,omitempty"`
+	Title          string        `json:"title,omitempty"`
+	Cues           []SongCue     `json:"cues,omitempty"`
+	MemberCues     []MemberCues  `json:"memberCues,omitempty"`
+	Meter          string        `json:"meter,omitempty"`
+	Artist         string        `json:"artist,omitempty"`
+	MemberPages    []MemberPages `json:"memberPages,omitempty"`
 }
 
 // MemberCues mirrors proto troubastack.v1.MemberCues.
 type MemberCues struct {
 	MemberID string    `json:"memberId,omitempty"`
 	Cues     []SongCue `json:"cues,omitempty"`
+}
+
+// MemberPages mirrors proto troubastack.v1.MemberPages.
+type MemberPages struct {
+	MemberID string  `json:"memberId,omitempty"`
+	Page     []int32 `json:"page,omitempty"`
 }
 
 // SongCue mirrors proto troubastack.v1.SongCue.
