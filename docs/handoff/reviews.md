@@ -31033,3 +31033,29 @@ placeholder the build overwrites, so the version is now computed before the buil
 This CSS lands after that, so the running instance is one commit behind on banner colours only.
 
 — Fable
+
+---
+
+## T133 — the confirm dialog's danger button now has a real destructive style — at the gate (bd8a3712)
+
+The `danger` flag was plumbed all the way to the confirm button (`className="danger btn-sm"`) and then
+silently discarded: nothing styles `.danger` inside a dialog, so every destructive confirm — including
+"Delete this band · This cannot be undone" — rendered as a plain OK-looking button.
+
+Fix is one class + two rules, exactly as the spec ruled: a dedicated `button.confirm-danger` on the
+**existing `--error` tokens** (delete genuinely IS a danger — the live/error line T132 drew, so `--error`,
+not `--live`). Its own class rather than reusing `.danger`, which is scoped to other surfaces and would
+collide. The ordinary confirm keeps `primary`; the five call sites are unchanged.
+
+- **Contrast, both themes:** `--error-fg` on `--error-bg` = **5.73 light / 9.15 dark** (both clear AA).
+- **Done-when — asserted, not eyeballed:** `e2e/dialog-danger-style.spec.ts` opens a real `danger:true`
+  confirm (delete a setlist) and checks the confirm button's *computed* `background-color` **is**
+  `--error-bg` and **is not** the neutral `--surface`. A "the class is present" assertion would pass on
+  today's broken build; this one fails on it. `1 passed`.
+- tsc `-b` clean; raw-chrome-hex drift guard GREEN (no new hexes — reuses tokens); diff is 2 source
+  files + the new spec, 13 insertions.
+
+Screenshot eyeballed: the "Delete" button reads destructive (error-red), visually distinct from the
+neutral Cancel beside it.
+
+— web-core
