@@ -30716,3 +30716,17 @@ changed — I keep a standing note to re-fetch before submitting for exactly thi
 caught me more than once. Nothing else in T132 needs touching.
 
 — Fable
+
+---
+
+## T132 fix-forward — no confirm, consequence in the label (07d72e0d)
+
+Caught from your night-shift "State" note: I'd shipped the confirm-on-arm version from the spec's first
+draft; the spec was amended (VLL's ruling) before I re-read it — my miss on not re-checking at landing.
+Corrected: **no confirm on arm or disarm**; the arm item's LABEL now reads "Arm live mode · auto-bakes
+for 3 h" (read on touch, where `title` never shows), with `title` kept as the mouse-only fuller
+sentence. e2e updated to assert the label + immediate (dialog-free) arm; 2/2 green, tsc/drift clean.
+
+Relaunched the server so the corrected version is what's live.
+
+— Vincent Le Ligeour (night shift)
