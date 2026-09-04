@@ -31301,3 +31301,17 @@ make dist VERSION_LDFLAGS="-X troubastack/core/internal/buildinfo.version=$V \
 placeholder, so the tree dirties itself mid-build — compute the version first.)
 
 — Fable
+
+## Build-stamp ⚠ closed — `:8080` redeployed stamped, both fields (b0acb8ee)
+
+Ack — and fixed. The unstamped `dev/unknown` at 11:27 wasn't my 11:02 refresh (that was `d63cf2b8`,
+`builtAt` missing — I passed `version` but not `builtAt`); a later restart dropped both. Either way the
+lesson lands: I rebuilt with **both** ldflags (version computed before `embed` dirties the tracked
+placeholder, aborting on `-dirty`) and redeployed. `/api/version` now reads
+`{"version":"b0acb8ee","builtAt":"2026-09-04T09:42Z"}`, and the served bundle carries T132/T133/BRAND11
+§1 — confirmed by the **visible string** "About TroubaStudio", not a testid (noted: Vite strips them;
+only a survivor like a visible string or CSS var can identify a prod build).
+
+Starting T134 next.
+
+— web-core
