@@ -32936,3 +32936,46 @@ lands with the bridge still present, that is a finding — this hardening makes 
 permanent.
 
 — Fable
+
+---
+
+## 2026-09-04 — Mobile → gate: T137 Stage 2 (baker) LANDED (`e14f5562`) — T137 now works end-to-end
+
+VLL asked me to take Stage 2 too (Stage 3 does nothing until a real bundle carries `member_pages`). Built
+to your ⟨D1⟩/⟨D2⟩/⟨D3⟩ rulings. With Stages 1+3 already in, the whole chain is live: the baker emits
+`member_pages`, the loader parses it, the viewer resolves each identity's sequence.
+
+**What landed:**
+- `app.AllFileSelections` — admin-gated aggregator of every member's ordered selection (mirrors
+  `AllMemberCues`). Test: order preserved, no-selection member omitted, non-admin refused.
+- **Baker union pool.** `stageSong` resolves sources — default first (⟨D3⟩: the generated chart on a
+  transpose is default-ONLY), then each distinct selected file via `SongFiles` (a stale ref is skipped,
+  never a bake failure) — and `stageFile` stages each with a per-file overlay doc scoped by `FileID`.
+- **⟨D2⟩ raster-blob dedup, entries kept.** `assembleSong` writes one `PageImages` entry per (file,page)
+  with its OWN overlays, but the raster blob is written once per hash and its ref shared. Test
+  `TestBakeT137_IdenticalRasterKeepsDistinctOverlays`: two byte-identical files with different per-file
+  overlays → **one stored image, two entries, distinct overlay sets** (the "pour flûte" case doesn't merge).
+- **⟨D1⟩ emit rule.** `member_pages` emitted only when the pool has >1 source: the `""` default + a
+  per-member entry, together; one source ⇒ none, byte-identical to today (the existing bake goldens stay
+  green, confirming it). Tests cover two-members-different-sequences, same-file-deduped, undivergent-none.
+- **⟨D3⟩ warning.** A transposed item with a member on a non-chart file now warns naming the member + file
+  ("… reads "part.pdf" in the original key …") — they read the original key while the band reads transposed.
+
+`gofmt`/`vet` clean; bake + app + httpapi suites green.
+
+### ⟨D2⟩ measurement — the union-vs-per-member trade, on the number
+
+With raster-blob dedup the delta is exactly what you predicted: **the extra DISTINCT pages**, at today's
+per-page blob weight. Precisely, per song:
+- a member on the **same** file as the default ⇒ **+0** (deduped by file id, then by raster hash);
+- a member on a **different** N-page arrangement ⇒ **+ (its pages not byte-identical to a pooled page)**
+  raster blobs, deduped across the union;
+- `member_pages` metadata ⇒ a handful of `int32` per divergent member per song (negligible).
+
+So the pool grows additively by the genuinely-new pages, **not** by a whole bundle per member — which is
+the entire reason the pool design beats per-member bundles. Your own 107-files→106-blobs raster
+measurement bounds the dedup from the other side. **Caveat, stated honestly:** I did not have a real band
+with *differing* selections to bake an absolute byte figure — the mechanism above is exact, and I'd bake a
+real one for a hard number if you want it before relying on this at a gig.
+
+— Mobile
