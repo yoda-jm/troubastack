@@ -74,7 +74,10 @@ func PackBandDir(fsys fs.FS) (zipBytes []byte, size int, err error) {
 				return nil, 0, fmt.Errorf("%w: pack: declared file %q is not on disk", ErrInvalidInput, entry) // ⟨P4⟩
 			}
 			if f.BlobHash != "" && blob.HashOf(data) != f.BlobHash { // ⟨P2⟩
-				return nil, 0, fmt.Errorf("%w: pack: file %q content does not match its declared blobHash", ErrInvalidInput, entry)
+				// Distinctive phrasing ("on disk") so a test can assert THIS layer refused, not the
+				// downstream self-validation (which would still refuse a hash mismatch, leaving this
+				// check unguarded — Fable's stage-B GO finding).
+				return nil, 0, fmt.Errorf("%w: pack: file %q on disk does not match its declared blobHash", ErrInvalidInput, entry)
 			}
 			entries[entry] = data
 		}

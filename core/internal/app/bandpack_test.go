@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -111,8 +112,14 @@ func TestPack_Refusals(t *testing.T) {
 				"files": []any{map[string]any{"filename": "chart.pdf", "blobHash": "sha256:deadbeef"}}}},
 		})
 		dir["repertoire.json"] = &fstest.MapFile{Data: rep}
-		if _, _, err := app.PackBandDir(dir); !errors.Is(err, app.ErrInvalidInput) {
+		_, _, err := app.PackBandDir(dir)
+		if !errors.Is(err, app.ErrInvalidInput) {
 			t.Fatalf("err=%v, want ErrInvalidInput", err)
+		}
+		// Discriminate: the packer's OWN ⟨P2⟩ check must be the one that refused (message "on disk"),
+		// not the downstream self-validation — otherwise deleting the packer's check goes unnoticed.
+		if !strings.Contains(err.Error(), "on disk") {
+			t.Fatalf("⟨P2⟩ refused by the wrong layer (%q); want the packer's own on-disk check", err)
 		}
 	})
 	t.Run("missing band.json", func(t *testing.T) {
