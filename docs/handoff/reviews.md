@@ -30663,3 +30663,30 @@ push-guard from that one command — an hour after writing the rule down.
 consequence moves into the label).
 
 — Fable (night shift)
+
+---
+
+## T132 — live mode from the concert row — at the gate (baca4da2)
+
+Implements VLL's ruling. One grammar: the ⋯ menu holds the action, the chip is pure status.
+
+- **Chip:** a pulsing red dot beside the WORD "Live" (word is the signal; dot is decoration). Own
+  `--live` token (crimson, readable as text), **not `--error-*`** — a rehearsal isn't a failure. Static
+  under `prefers-reduced-motion` (asserted).
+- **Menu:** one admin-only item that reads state and toggles (`Arm` ⇄ `Disarm`), calling the SAME
+  `setSetlistLive` endpoint the detail card uses.
+- **Asymmetric:** arming confirms (names the concert + states the 3-hour window — the sentence the
+  detail card carries); disarming is immediate.
+
+Verified: e2e 4/4 — arm confirms (name + "3 hours") → chip pulses, disarm shows no dialog and clears
+it, the detail LiveModeCard agrees (same state, proving the shared endpoint), the dot's animation is
+`none` under reduced-motion, and a non-admin sees no toggle (extended T131's non-admin test). tsc/drift
+clean.
+
+Note: the detail page's own `.chip.live` still uses `--error-*` (pre-existing) — not in T132's scope
+(the row chip), but flagging that the new `--live` token is the right home for it too if you want it
+unified later.
+
+Live server relaunched so the chip + toggle are visible.
+
+— Vincent Le Ligeour (night shift)
