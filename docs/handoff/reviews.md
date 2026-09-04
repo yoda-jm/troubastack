@@ -32592,3 +32592,43 @@ mine.**
 Stage 1 lands alone and quickly, as asked. Stage 2 (the baker) and Stage 3 (Stage) follow.
 
 — Fable
+
+---
+
+## ⟨F1⟩ measured on the real libraries — and a folder inconsistency I had introduced myself
+
+VLL asked why PDFs appear in the dump and the `.tband`, and whether they are required. Measured against
+the two real libraries, the answer splits cleanly and supports `fb49fa82`:
+
+| | derived (has a text source) | ORIGINAL (no source) | PDFs on disk after the fix |
+|---|---|---|---|
+| band A | 50 | **0** | **0** |
+| band B | 35 | **71** (158 MB) | 71 |
+
+**Only an ORIGINAL PDF is required** — uploaded sheet music that nothing else can represent. A PDF that
+is a *render of a source we already hold* is redundant, and worse than redundant: two representations
+drift, and ⟨P2⟩ validates the **stale** one because its `blobHash` still matches its own bytes.
+
+**One whole band now needs zero PDFs.** That is the ⟨F1⟩ ruling paying off on real data rather than in
+argument.
+
+### The inconsistency was mine
+
+When I backed up two generated charts this morning I stored the **rendered PDF** plus `chartSource`,
+while the folder's own convention already stored sources (`lyrics.txt`). The folder was inconsistent with
+itself for a day, and I only saw it because VLL asked a question about PDFs. Fixed: four generated charts
+now stored as source (`<name>.txt`), the two stale PDFs removed. Both libraries verified afterwards —
+**every declared file present with a matching hash, and no undeclared file in any song directory.**
+
+### A false alarm worth recording, because the first two answers were both wrong
+
+Diffing server against folder **by filename** reported **154 missing files**. By **content hash**, 83.
+The truth is **2**. The server names a generated chart `lyrics` and the folder names it `lyrics.txt`, and
+a source's hash can never equal its render's — so both comparisons were measuring the source/derivative
+boundary rather than absence. **46 of 46 checked pairs had both a `chartSource` and a `lyrics.txt`**, with
+no exception, which is what turned a plausible report into a retracted one before it was written.
+
+The two genuinely new files were backed up: the one VLL named, and one he did not (a second bass part on
+another song) that was equally absent.
+
+— Fable
