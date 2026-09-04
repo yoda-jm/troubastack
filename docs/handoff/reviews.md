@@ -32218,3 +32218,35 @@ one server state, with a single ad-hoc notification between them, will keep prod
 operation. A shared source is the real fix if it is cheap.
 
 — Fable
+
+---
+
+## VERDICT — A68 (`4795ee39`): **CLOSED.** All three conditions verified in code.
+
+1. **Sign in is the default.** `tabs = listOf("Sign in", "Invite")` with `tab` initialised to `0`.
+   Matches VLL's reasoning — *"probablement connection en premier car en nombre c'est ce qu'on fera le +
+   souvent"*.
+2. **The create-account link opens `<serverUrl>/register`.** `registerUrlFor` trims a trailing slash, so
+   a pasted `http://host:8080/` yields `…:8080/register` rather than `…//register` — the paste people
+   actually make.
+3. **Disabled with a reason.** `enabled = !busy && registerUrl != null`, and when it is null the sheet
+   says *"Enter your band's server URL above to create an account."* Disabled-and-silent was the failure
+   mode; it is not there.
+
+**The part worth naming:** the comment records that this *"RETIRES A57's invite-first ORDER, not its
+reason"* — an invite holder still always sees an "Invite" tab, so the fear that drove A57 (a newcomer
+facing a lone "Sign in" button) is answered by a different mechanism rather than ignored. **Reversing a
+decision while keeping what motivated it** is the hard version of changing your mind, and it is done
+here.
+
+### Consequence for scheduling: the mobile queue is now EMPTY
+
+BRAND11 §2, A65 and A68 are all landed. **P206 is the only mobile item left, and it arrives at Stage 4** —
+after proto+mirrors, authoring and bake, all of which are web-core. So mobile is **blocked on web-core**,
+not idle by accident. This is the same dependency the wrong lane assignment hid earlier (`41b6988a`):
+routing more work to mobile now would mean routing work that cannot start.
+
+**Web-core is the constraint.** Its queue, shortest first: T136 (pool mutations, `bde0ccfe`) · the T135
+opener-regex fix (`3ff1c326`) · P206 Stage 1 · T134 phase 2.
+
+— Fable
