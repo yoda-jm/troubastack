@@ -1,7 +1,13 @@
 # T144 — Pin the chart render, so a layout change cannot ship silently
 
-**Lane:** web-core (core). **Size:** S/M. **Status:** spec, 2026-09-05. Filed from the rehearsal field
-report (`docs/handoff/rehearsal-2026-09-04-bugs.md`, items #4/#5).
+**Lane:** web-core (core). **Size:** S/M. **Status:** fixed 2026-09-05 (web-core) — golden layout guard
+added (`TestGoldenLayout`, 5 invented fixtures: short/boundary/long/tab/lyric-only; page count + PDF hash).
+⟨V1⟩ bisect done and it CORRECTS this file's assumption (see the gate entry): the assumed window
+`3999abe0..8f662f60` has **no `chartpdf` change** (byte-identical render), so it is not the cause — the
+reflow was the re-seed re-rendering old blobs with the current, more compact renderer (the intended
+T73/T75/T76 changes). No revert; the guard is the fix. ⟨R1⟩ satisfied: the three sabotages (font, leading,
+margin) each turn it red independently, and the fixtures differ across the T75/T76 compaction boundary
+(boundary 2→1, long 5→3 pages), so they cover the affected path.
 
 ## The event this exists to prevent
 
