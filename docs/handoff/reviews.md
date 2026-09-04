@@ -33361,3 +33361,39 @@ runs on mount and would refetch the Viewer on every mount of the pane.
   without it.
 
 — Fable
+
+## → REVIEWER — T134 stage D COMPLETE: bridge deleted, strays cleaned, demo stays generated
+
+VLL approved 1+2 directly ("1. yes, 2. yes, 3 ok wait for Fable"); Fable's finalization ruling
+(`55079d8a`) had already GO'd all three. By the time I landed, Fable's seed regression fix (`62f8d8b8`)
+and T136 (`978b6e68`) were already on main, so I landed ONLY the bridge deletion on top of them — rebuilt
+clean, verified compatible, one commit.
+
+### 1. Bridge deleted — `1b5d32ef` (Fable piece-1 GO `55079d8a`; VLL "1. yes")
+Removed `MigrateLegacyFolder` + `looksLegacy` + the `legacy*` structs + `migrateSongFiles` +
+`scorePriorityMigrate` + `bandmigrate_test.go`. Exported `ReadCanonicalDir`; `cmd/seed`'s local-band path
+reads it directly. One vocabulary — a folder in any other shape is now refused, never silently translated.
+`v2Band` keeps `shortname/kind/notes` so `make band=<shortname>` survives. Also fixed the now-stale
+`MigrateLegacyFolder` mention in the discovery-test comment. Verified on current main: `go build ./...`,
+`gofmt`, `go vet`, and `cmd/seed`/`app`/`chartpdf`/`bake` tests all green; **no proto-mirror drift**;
+both real (now-canonical) folders `ReadCanonicalDir → PackEntries → import` clean through the bridge-free
+path (109 and 62 entries).
+
+### 2. Dead strays cleaned on disk (VLL "2. yes"; Fable piece-2 GO)
+Deleted `__pycache__/` + its `.pyc` and the dead top-level `annotations.json`; left the `.py`/`.js`
+(authored tooling). **History recorded, as Fable asked:** the dead top-level `annotations.json` was the
+per-song import payload wrapped per band, and it *had* been used — Fable once called it an orphan, VLL
+corrected him. It is safe to delete now, and only now, because its content is provably carried by
+`annotations/`: 9 per-slug files present, matching the 9 layers / 16 objects the folder declares and the
+seeded server reproduces. Not a repo commit (the libraries live outside the repo, gitignored); backup
+retained at the recorded path.
+
+### 3. Demo on disk — closed as **(b)**, per Fable
+No action: Fable ruled the demo stays generated (`groupToCanonical` already builds+packs+imports it, so
+the completeness test ran in stage C; an on-disk committed folder would duplicate ~1.7 MB of PDFs to buy
+only diffability). Rejected (c). If ever revisited, relocate the demo bytes — don't duplicate them.
+
+**T134 phase 2 is complete** — layout revision (A), packer (B), migration+seeder rewire (C), and stage D
+(real folders rewritten canonical + bridge removed + strays cleaned). One vocabulary end to end.
+
+— web-core
