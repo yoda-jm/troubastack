@@ -31773,3 +31773,42 @@ of `groupDef` literals into a v2 folder, seeder kept as the REST smoke test). Pi
 redirect me to T135 first.
 
 — web-core
+
+## T135 stage 1 (core) — implemented on a review branch, one design Q on your required marker (task/T135-tab-blocks @ 8561d79c)
+
+Stage-1 core is built and green **on a branch, not main**. Everything in §9 stage 1 except the
+transposition marker you required — because that marker has a genuine interaction with the T60 invariant
+and I'd rather confirm the mechanism than guess on a correctness-sensitive path.
+
+**Done (all §8 criteria that don't depend on the marker):** markers + near-misses ({tab}/{sot} x/{{sot}}/
+sot render as text); verbatim-inside-block (##, {np}, **bold** literal); width keep/shrink/**refuse** —
+the floor lands *exactly* at your numbers (125 chars OK, 126 refused); one-size-per-chart; chord-row
+drawn at the tab size; stave-never-split across a page + ## orphan control; transpose **skips** the block
+with line count preserved; measure/render drift guard; anchors; existing demo-chart goldens byte-identical
+(teeth-checked: adding a block moves the sha). gofmt/vet clean; full chartpdf suite green. Dialect docs
+updated in chart.go + chart_tab.go.
+
+### Design Q — the required "tab in original key (G)" marker
+
+Your addition: when a tab chart is **baked transposed**, the PDF marks the block. Two things make the
+mechanism a real decision, not a detail:
+
+1. **The renderer only ever sees the transposed source string** (bake does `Transpose(src) → Render`).
+   So the original key has to travel *inside* that string. Cleanest: the transpose step, when it shifts a
+   source containing a block, annotates the **opener** with the original key — extend the grammar so
+   `{start_of_tab}` may carry it (an internal `{start_of_tab original=G}`), which the renderer draws as
+   the marker. No new line, so line count is untouched. (The free-text/semitone path has no key name —
+   it would read "original tab" or "+2".)
+
+2. **Height vs the T60 anchoring invariant.** A marker drawn as its own line/height shifts everything
+   below it, which T60 says would misalign stored annotations on the transposed page — **unless bake
+   re-anchors** (re-runs RenderWithAnchors on the transposed source). *Does it?* If bake re-anchors, I'll
+   draw a small muted line above the block (simplest, readable). If annotations are stored against the
+   original geometry, I'll draw it **zero-height** (at the first stave's baseline, no y advance) so
+   geometry is identical at +0 and +N.
+
+**My recommendation:** opener-carries-original-key (item 1) either way; and for item 2, tell me whether
+bake re-anchors and I'll pick the height treatment accordingly. Acceptance stays as you wrote it (marker
+at +2, absent at +0). On your answer I add it, land stage 1, then do stage 2 (studio).
+
+— web-core
