@@ -16,7 +16,7 @@ paid for later. One name, one format, a version field to tell them apart.
 | band, members | ✅ `band.json` | ✅ |
 | songs, key/tempo/meter/tags | ✅ `repertoire.json` | ✅ |
 | concerts | ✅ `setlists.json` (T100) | ✅ |
-| chart files | ✅ `<song-slug>/` folders | ✅ `blobs/<sha256>` |
+| chart files | ✅ `<song-slug>/` folders | ✅ `<song-slug>/<filename>` (amendment 4; was `blobs/<sha256>`) |
 | **annotations** | ❌ **none** — `main.go:1061`: *"a chart-only repertoire song gets none"* | ✅ head-only |
 | song cues, file selections, chartSource | ❌ | ✅ |
 
@@ -34,13 +34,19 @@ Someone produced it wanting exactly this feature. It is **17.6 KB against 554 KB
 The zip carries **the folder format**, plus the machine parts that have no human-authorable form:
 
 ```
-band.json          name, shortname, kind, notes, admin, members[]     ← folder format, unchanged
+band.json          formatVersion, name, members[]  (+ the folder's own keys, ignored by the reader)
 repertoire.json    songs[] {slug, title, artist, key, tempo, meter, notes, tags, files[]}
 setlists.json      concerts[] {name, eventDate, venue, notes, items[]}
 annotations/<slug>.json    per song: {layers[], objects[]}            ← the NEW part
 cues.json          song cues, file selections                          (optional)
-blobs/<sha256>     file bytes, content-addressed                       ← unchanged from v1
+<slug>/<filename>  the file bytes, under HUMAN names                   ← amendment 4
 ```
+
+> **A `.tband` is this directory zipped. Nothing else.** Phase 1 shipped `blobs/<sha256>` as the only
+> path to bytes; **amendment 4 removes it** — one layout, folder or zip, and `unzip` gives the directory
+> back. Passages below that discuss mapping to `blobs/` (Gap 1, amendment 3 §2) are **history**: they
+> record why content addressing was questioned, not what to build. `blobHash` survives in
+> `repertoire.json` as an **integrity field**, never as the storage key.
 
 **Human-facing files stay name- and slug-based** — that is what makes the format portable and
 hand-writable, and it is why members already match by `username` rather than by id.
@@ -466,9 +472,18 @@ path, or we trade a test for convenience without noticing.
 
 - A v2 export round-trips: export → import → **the same layers and objects, by id**, not merely the same
   count.
-- **A v1 fixture still imports**, asserted by a test; an unknown `formatVersion` is refused with 400.
+- **A v1 fixture still imports**, asserted by a test; an unknown **or absent** `formatVersion` is refused
+  (amendment 2 — absent is an ERROR, not a legacy fallback).
 - A band seeded from a folder that includes `annotations/` arrives **with its annotations** — the case
   that is impossible today.
-- The zip is hand-inspectable: unzip it and the JSON is the folder format, readable and diffable.
+- **`unzip(tband)` IS the directory** — no hash anywhere in it, byte-identical to the source folder
+  (amendment 4), and hand-writable without computing a checksum.
+- **⟨P7⟩ entry names, tested as an attack**: an archive whose manifest looks innocent but whose entries
+  carry `../../etc/x`, an absolute path, or a Unicode-normalisation twin is **refused**, each by an
+  assertion that reads as a refusal.
+- **⟨P1⟩ one fixture folder both SEEDS and PACKS** — the regression that catches a v2 change breaking
+  `cmd/seed`.
+- **⟨P8⟩ import before passwords**: a seeded demo comes up with its personal layers intact
+  (`DroppedLayers == 0`), which pre-creating the members would silently lose.
 - T63's limits and the all-or-nothing import are unchanged, with their tests still green.
 - `gofmt -l core` empty; `go test ./...` green with the count stated.
