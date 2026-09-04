@@ -31315,3 +31315,75 @@ only a survivor like a visible string or CSS var can identify a prod build).
 Starting T134 next.
 
 — web-core
+
+## → REVIEWER — T134 `.tband` v2 wire-format proposal (design review before landing)
+
+L task, new on-disk format → per "validate new designs before landing," here is the concrete wire
+format and the reader/writer architecture. **I am building it in a worktree in parallel; nothing lands
+on main until you validate the format.** Four decisions the spec left open are marked ⟨D#⟩ — flag any you
+want different and I adjust before landing.
+
+### Architecture (maximises reuse, keeps the id-preservation contract intact)
+- **Reader = adapter, not a second importer.** The v2 reader reads the folder files, synthesises
+  internally-consistent throwaway IDs (`s-<slug>`, `f-<slug>-<filename>`, `m-<username>`), and produces
+  the **existing `bandManifest`** — then feeds the **unchanged** `validateImport` + `ImportBand`. Those
+  re-mint all relational IDs anyway, so synthetic IDs are fine; the only IDs that must survive —
+  `layer.id`, `object.uuid`, `object.layerId` — are copied **verbatim** into the manifest annotation
+  payload. So the correctness-critical path (`bandio.go:715-759`) is not touched.
+- **Writer** emits the v2 files from the same data `ExportBand` already gathers.
+- **Version switch on `band.json.formatVersion`:** 1 → existing v1 path (unchanged); 2 → v2 adapter;
+  anything else → 400. Write 2 always; read 1 and 2. ⟨D4⟩
+
+### Zip layout (v2)
+```
+band.json                 {formatVersion:2, exportedAt, name, shortname, kind, notes,
+                           admin{username,display,role,conductor}, members[…]}   ← folder format + email/avatarKind (optional)
+repertoire.json           {songs:[{slug,title,artist,key,tempo,meter,notes,tags,
+                                    files:[{filename,contentType,size,blobHash,displayOrder,
+                                            generated,revision,chartSource}]}]}
+setlists.json             {setlists:[{name,eventDate,venue,notes,
+                                       items:[{song:<slug>,keyOverride,tempoOverride,notes,onCall,transposeChords}]}]}
+annotations/<slug>.json   {layers:[wireLayer], objects:[wireObject]}   ← ids verbatim; lowercase-tagged
+cues.json (optional)      {selections:[{member:<username>,song:<slug>,files:[<filename>]}],
+                           cues:[{member:<username>,song:<slug>,cues:[{icon,color}]}]}
+blobs/<sha256>            file bytes, content-addressed                 ← unchanged from v1
+```
+`band.json`/`repertoire.json`/`setlists.json` are exactly the **seed folder format** (the shapes
+`cmd/seed` already reads), so a v2 export is hand-diffable and — the phase-2 payoff — the seeder can grow
+to read a v2 folder directly. repertoire adds `files[]` (the seeder discovers files by globbing; an
+export must list them); band.json adds optional `email`/`avatarKind` for lossless member round-trip.
+
+### The four open decisions
+- **⟨D1⟩ annotations reference a file by `filename`, not an id.** `wireLayer.file` = the file's
+  `filename` within that song (matches `repertoire.json` files[].filename); empty for a song-level layer
+  (`FileID==""`). Import maps (slug, filename) → new fileID. Requires filenames unique within a song —
+  I enforce that on export (dedupe/suffix on collision) and validate on import. Alternative was an
+  index; filename is more diffable. **Recommend filename.**
+- **⟨D2⟩ owners are `username`, not a UUID.** `wireLayer.ownerId` / `wireObject.ownerId` carry the
+  member's `username`, or the `_shared_` sentinel verbatim. Import maps username → new userID (same
+  `memberMap`). Consistent with band.json being username-keyed. **Recommend username.**
+- **⟨D3⟩ enums are human strings.** `type` ("freehand"…), `zone`, `access`, `scope` as strings, like the
+  HTTP/seed wire — not v1's integer enums embedded from the untagged `domain` types. Needs
+  `Zone/Access/Scope ToString/FromString` in `domain` (only `ObjectType` has them today); httpapi's
+  `zoneToString`/`accessToString` then delegate. **Recommend strings** (this is what makes it readable).
+- **⟨D4⟩ `formatVersion` lives at the top of `band.json`** (reuse the existing field's home; v1 already
+  has it there). A hand-written seed folder sets `formatVersion:2`; its absence can default to v2 for
+  seeder input. Alternative was a separate `format.json`. **Recommend band.json.**
+
+### Losslessness / the rulings
+- `layer.id`, `object.uuid`, `object.layerId` verbatim (⟨D1/D2⟩ only touch *file* and *owner* refs).
+- Head-only, no history (`bandio.go:296-309` already drops tombstones) — annotations/<slug>.json is head
+  state, never a replay log; never labelled a backup.
+- No baked concerts; T63 bounds (`maxImportEntries`, `maxDecompressedBytes`, all-or-nothing) unchanged.
+
+### Tests (done-when)
+- v2 round-trip: export → import → **same layers & objects by id** (not count).
+- v1 fixture (authored, checked-in `.tband` zip) still imports; unknown `formatVersion` → 400.
+- Folder-with-annotations import arrives **with** its annotations (the case impossible today).
+- T63 bound tests unchanged & green. `gofmt -l core` empty; `go test ./...` count stated.
+
+### Phase 2 (separate, after this GOes)
+Move the demo groups out of `groupDef` Go literals into a v2 folder; keep the seeder as the REST
+end-to-end smoke test. That is the real completeness test — deferred to its own change.
+
+**Building now; will land only after your read.** — web-core
