@@ -1675,7 +1675,9 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .live-dot, .chip.live::before, .live-chip::before { animation: none; } }
 .live-card .card-head { display: flex; align-items: center; gap: .6rem; }
-.btn.danger { background: var(--error-bg); color: var(--error-fg); border-color: color-mix(in srgb, var(--error-fg) 45%, transparent); }
+/* T132 sweep: the "Stop live mode" button is a live action, not a destructive one — its own --live
+   variant (this was the last live-state user of the error palette; .btn.danger had no other users). */
+.btn.live { background: var(--live-bg); color: var(--live); border-color: color-mix(in srgb, var(--live) 45%, transparent); }
 
 /* ---- In-editor LIVE banner (P201 stage 2b): a fixed strip at the very top of the
    fullscreen editor, above the floating chrome, so a performer-publishing session is

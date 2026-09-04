@@ -194,7 +194,7 @@ function LiveModeCard({
       </p>
       <button
         type="button"
-        className={on ? "btn danger" : "btn brand"}
+        className={on ? "btn live" : "btn brand"}
         data-testid="live-toggle"
         disabled={busy}
         onClick={toggle}
