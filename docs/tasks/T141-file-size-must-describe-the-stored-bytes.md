@@ -1,7 +1,11 @@
 # T141 — A file's `Size` must describe the STORED bytes, not the source it was rendered from
 
-**Lane:** web-core (core). **Size:** S. **Status:** spec — root-caused from a real rehearsal failure,
-2026-09-05. **Severity: HIGH — every generated chart is unviewable in Studio after an import.**
+**Lane:** web-core (core). **Size:** S. **Status:** fixed 2026-09-05 (web-core) — import now sets `Size`
+from the stored (rendered) blob, and `downloadFile` derives `Content-Length` from `len(data)`, never the
+stored field. Two RED-first teeth-checked tests (`TestImport_GeneratedChartSizeMatchesStoredBlob`,
+`TestDownloadFile_ContentLengthMatchesBody`). The download defence fixes the symptom even for the 87
+existing wrong-size rows; their `Size` field is corrected on the next re-import (freeze-pending). Awaiting
+reviewer re-verify. **Severity: HIGH — every generated chart is unviewable in Studio after an import.**
 
 ## Symptom
 

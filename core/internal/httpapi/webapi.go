@@ -930,7 +930,10 @@ func (a *WebAPI) downloadFile(w http.ResponseWriter, r *http.Request, u app.User
 		return
 	}
 	w.Header().Set("Content-Type", f.ContentType)
-	w.Header().Set("Content-Length", strconv.FormatInt(f.Size, 10))
+	// T141: derive Content-Length from the bytes in hand, never from the stored Size field. A stored
+	// claim that disagrees with the payload (e.g. a generated chart whose Size was the source length)
+	// must not be able to truncate the response — that turned a wrong listing number into a dead viewer.
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", downloadFilename(f.Filename, f.ContentType)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)

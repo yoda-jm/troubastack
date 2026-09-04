@@ -667,16 +667,22 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		report.Songs++
 		for _, f := range sg.Files {
 			hash := f.BlobHash
+			// T141: Size must describe the STORED bytes. A generated chart stores the RENDERED pdf while
+			// the manifest's size is the (shorter) SOURCE length; trusting f.Size gave downloadFile a
+			// Content-Length below the payload, so Go truncated the response and Studio saw "failed to
+			// fetch". Take the size from what we actually store.
+			size := f.Size
 			if data, ok := blobs[f.BlobHash]; ok {
 				h, err := s.blobs.Put(data) // content-addressed → same hash
 				if err != nil {
 					return ImportReport{}, err
 				}
 				hash = h
+				size = int64(len(data))
 			}
 			nf := SongFile{
 				ID: s.newID(), SongID: ns.ID, BandID: band.ID, Filename: f.Filename, ContentType: f.ContentType,
-				Size: f.Size, BlobHash: hash, DisplayOrder: f.DisplayOrder, UploadedBy: caller.ID, CreatedAt: now,
+				Size: size, BlobHash: hash, DisplayOrder: f.DisplayOrder, UploadedBy: caller.ID, CreatedAt: now,
 				Generated: f.Generated, Revision: f.Revision,
 			}
 			if err := s.repo.CreateSongFile(nf); err != nil {
