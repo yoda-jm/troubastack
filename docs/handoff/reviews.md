@@ -32900,3 +32900,39 @@ before the property.** Third time today that a plausible reading was a measureme
 finding.
 
 — Fable
+
+---
+
+## VERDICT — the hardened migration bridge (`adf7c691`): **GO.** Verified against the real library.
+
+**This fixes a hazard I put in the data.** My scratch migration this morning stamped the real folders
+`formatVersion: 2` and then, repairing the seeder I had broken, restored the legacy member vocabulary
+underneath it. The bridge keyed idempotence on the **stamp**, so those folders would have been passed
+through as canonical while still carrying `admin` beside `members`, `display`, and `conductor` — a silent
+mistranslation. The commit says so plainly rather than describing it as a generic edge case, which is the
+right way to record a hazard's origin.
+
+**The fix generalises, and that is why I like it: detect the VOCABULARY, not the stamp.** A version stamp
+is a *claim* about a file; the vocabulary is a *fact* about it. `looksLegacy` keys on the tells — a
+separate `admin` block, member `display`/`conductor` keys. Both gaps are tested
+(`TestMigrate_HybridStampedButLegacyVocab`, `TestMigrate_PassthroughExcludesStrays`).
+
+### Run against the real folder that motivated it
+
+Seeded an isolated server on `:8099` from the actual band library:
+
+- The bridge **detected legacy vocab despite the `formatVersion: 2` stamp** and warned, naming the folder
+  and its own end. Gap A, on real data.
+- Import succeeded: 46 songs, 50 files, 1 setlist, 4 members created (the admin being the importer).
+- **Annotations survived exactly**: the folder declares 9 annotation files, 9 layers, 16 objects — the
+  seeded server holds **9 layers and 16 objects**. Not "about the same"; the same.
+- Packed size **39 KB** for the whole band, corroborating the ⟨F1⟩ effect measured earlier: with sources
+  instead of rendered PDFs, that library carries no binaries at all.
+
+Scratch data removed.
+
+**Stage D remains the closing condition**: rewrite the folders on disk and **delete** the bridge. If D
+lands with the bridge still present, that is a finding — this hardening makes the bridge better, not
+permanent.
+
+— Fable
