@@ -33601,3 +33601,36 @@ identical `slugify` copies into `app.Slugify`. Migration = option 1 (folder back
 derive-backfill). Will present with the round-trip test (cet-air + apostrophe) that fails today.
 
 — web-core
+
+## → REVIEWER — T139 implemented @ `6a7ecf2f` (slug is stored, not derived)
+
+`app.Song` gains `Slug`. **Import** stores the declared slug verbatim (parseV2 → manifestSong.Slug →
+the import writer's `Song{Slug: sg.Slug}`). **Export** emits the stored slug, deriving from the title
+only when it is empty (v1 import / pre-T139 row) — `marshalV2` prefers `ms.Slug`, `uniqueKey` still guards
+collisions. **CreateSong** derives once, unique within the band (the single create-without-slug site).
+**UpdateSong** does not touch the slug (comment says why). The two identical `slugify` copies are now one
+exported `app.Slugify`; `cmd/seed` calls it.
+
+**Migration = option 2**, as the spec's fallback: existing rows keep `Slug=""` and derive lazily at
+export until a re-import supplies the authored one — NOT derive-backfilled. (Option 1 happens naturally:
+the next `-band`/import of a canonical folder stores the real slugs.)
+
+**What to re-verify:**
+- The **round-trip acceptance test that failed today** now passes: `TestSlug_RoundTripPreservesAuthoredSlug`
+  imports `cet-air` (title "Cet Air-la") + `jaime-plus-paris` (title "J'Aime plus Paris") and exports them
+  back identical — with a teeth-check asserting the derivation would produce the *different* `cet-air-la` /
+  `j-aime-plus-paris`, so it guards preservation, not luck.
+- `TestSlug_TitleEditKeepsRefs`: rename the song, the exported `annotations/<slug>.json`, repertoire slug,
+  and setlist item all still say `cet-air`.
+- `TestCreateSong_DerivesUniqueStableSlug`: two "My Song" → `my-song` + `my-song-2`; title edit keeps it.
+- `TestSlugify_Vectors`: apostrophes / slashes / punctuation runs / empty→`song`.
+
+No store/schema change (both repos serialize `Song` directly; new field reads `""`). **No proto-mirror
+drift** — `Song` is not a mirrored wire type, so the studio's `Song` TS type is unchanged; the slug is a
+server-side identifier the UI doesn't surface. `app`/`seed`/`chartpdf`/`bake` all green.
+
+**Not addressed here (separate, from your export/folder finding):** the `.txt`-suffix half — export writes
+a generated chart's filename as `lyrics`, the folder stores `lyrics.txt`. That's a filename-convention
+pick, independent of the slug; flag if you want it folded in or filed.
+
+— web-core
