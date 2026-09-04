@@ -39,18 +39,27 @@ produces. "Renders without error" is not a red-first test for a layout bug.
 | 11 | *"il faut regrouper par groupe (accordion), le titre + version et date en gris"* | 🟢 design input, folded into **T143** | — | a two-band library renders **two groups**; each row shows rev + date | **T143** |
 | 12 | *"j'ai jamais demandé d'auto adjustment"* | ✅ **ANSWERED — not the import** | 0/46 sources carry a `size:` directive, in **all three** snapshots | (no defect: auto-fit is the documented default when no size is given) | — |
 
-## The evidence that settled #4 and #5: the tablet still had the afternoon bake
+## The evidence that settled #4 and #5
 
-The 19:19 re-import **destroyed the afternoon bakes server-side**. The tablet did not re-download them, so
-the device held the only surviving copy — pulled read-only, without touching app state:
+VLL: *"le bake de cet apres midi a la bonne taille et l'annotation du trait est bien sur le Verse 5, donc
+quelquechose a changé."* He was right, and there turned out to be **two** independent copies of that
+afternoon state — so the finding does not rest on one artefact.
+
+**From the tablet**, pulled read-only without touching app state:
 
 ```
 adb exec-out 'run-as com.troubastack.app tar cf - files/bundles/<id>' > afternoon.tar
 ```
 
 Two bundles were on the device: `c90335ac…` (**17:46**, `concertRev 9`, 22 songs) and `9d8b293e…`
-(**22:20**, `concertRev 10`, 23 songs). That is itself the proof for #2: the two bakes **are**
+(**22:20**, `concertRev 10`, 23 songs). That is itself the proof for #2 — the two bakes **are**
 distinguishable in the data, and only the display drops it.
+
+**Correction to an earlier claim in this file.** I wrote that the re-seed had *destroyed* the afternoon
+bakes server-side and that the device held the only copy. **It did not.** The web-core lane preserved the
+whole pre-re-seed data directory at `troubastack-demo/data.preseed-20260904-191837`, and it holds **nine
+bakes from 09:53 to 18:54**. That is a far better instrument than the single device bundle, and it is what
+made the bisect below possible.
 
 ### The measurement — same song, same source, same annotation
 
@@ -90,14 +99,37 @@ Ruled out, each by measurement rather than reasoning:
 - **T138's default-file change is not the cause.** Five of the six affected songs have **exactly one**
   file, so which file is "default" cannot matter for them.
 
-What is established: **all 157 blobs were re-written at 19:19**, a full re-render, using the binary
-deployed at 19:18. The afternoon pages were rendered by the binary built at 16:32. So the deployed
-renderer moved from roughly `main@16:21` to `main@18:31` between the two, and **the same bytes rendered
-differently**.
+### The bisect, on nineteen real bakes
 
-**Which commit did it is NOT yet established, and must not be asserted.** The falsifier is cheap and
-specific: build `chartpdf` at `3999abe0` (16:21) and at `8f662f60` (18:31), render that one source with
-each, and compare page count and ink extent. Do that before writing a cause into T144.
+Same song, same source, page-2 ink extent (`1.000` = bottom of page):
+
+| bakes | when | page 1 | page 2 | the mark |
+|---|---|---|---|---|
+| 9 preserved bakes | **09:53 → 18:54** | `0.944` | `0.409` | **correct, all nine** |
+| 10 bakes, new instance | **20:42 → 22:20** | `0.952` | `0.051` | **orphaned, all ten** |
+
+**It is a step change, and it lands exactly on the 19:18 redeploy + re-seed.** Nine hours of bakes on one
+side, ten on the other, nothing in between and no drift within either group.
+
+One further measurement rules out the obvious alternative: the charts were **already re-rendered twice
+inside the old instance** (45 blobs at 16:36, 105 at 17:52) and the layout came out **identical** each
+time. So this is not "re-rendering changes the output" — it is **the deployed code changed**.
+
+### The lead: it is the import path, not `chartpdf`
+
+The deployed binary moved from the 16:32 build to the 19:18 build — commits `98aafb3d..8f662f60`. In that
+range:
+
+- **No commit touches a `chartpdf.` call site**, and none touches `chartpdf` itself except T138's baker.
+- The **import vocabulary changed** (T134 stage D deleted the legacy→canonical bridge): the same file is
+  recorded as `lyrics` before the re-seed and `lyrics.txt` after.
+- **T141's defect appears at the same instant.** Before the re-seed the file's `size` was `3103`, which
+  described the stored blob; after, it is `1618`, the source's length. The old render was **3103 bytes**,
+  the new one **2910** — objectively two different renders of identical input.
+
+**So #4/#5 and #6 most likely share one cause in the import path.** That is a lead with real evidence
+behind it, **not a conclusion** — no commit is named here, and none should be named in a fix until the
+⟨V1⟩ experiment in T144 has been run.
 
 ## 1 — The setlist order was silently scrambled (T140 — fixed, `22842291`)
 

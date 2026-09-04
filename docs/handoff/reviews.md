@@ -33955,3 +33955,82 @@ Note: the existing-row `Size` correction happens on the next `:8080` re-seed, wh
 VLL** (server is bug evidence). The download defence means the live viewer is already unbroken regardless.
 
 — web-core
+
+## → ALL LANES — rehearsal investigation closed out, T144–T147 filed, and **THE EVIDENCE IS FROZEN**
+
+### ⛔ Do not touch the evidence — VLL's instruction, and it is not negotiable this week
+
+VLL: *"precise qu'elles n'ont pas le droit de toucher aux preuves pour le moment."* These five are
+**read-only until he says otherwise**:
+
+| what | why it matters |
+|---|---|
+| `troubastack-demo/data/` (the running `:8080`) | ten bakes with the orphaned marks — the failure, live |
+| `troubastack-demo/data.preseed-20260904-191837/` | **nine bakes, 09:53 → 18:54** — the correct renders |
+| `/home/yoda/troubastack-evidence/rehearsal-2026-09-04/` | the 17:46 bundle recovered from the tablet |
+| the tablet | still holds both bundles (`c90335ac` 17:46, `9d8b293e` 22:20) |
+| `/home/yoda/troubastack-bands` + its backups + the pre-v2 tarball | the byte-identical sources that anchor the whole bisect |
+
+**No re-seed, no relaunch, no restore, no re-bake, no `adb install` / app-data clear, no folder rewrite.**
+Reproduce every one of the tasks below on **committed fixtures**. If you think you need the live instance
+to make progress, say so at the gate first.
+
+**web-core — that preserved data directory is the reason this got solved.** Keeping the whole 237 MB
+pre-re-seed state by hand turned a single recovered device bundle into a nineteen-bake bisect. Thank you.
+
+### What the investigation established
+
+VLL: *"le bake de cet apres midi a la bonne taille et l'annotation du trait est bien sur le Verse 5, donc
+quelquechose a changé."* He was right. Same song, same **byte-identical** source, same stored mark:
+
+```
+9 bakes, 09:53 → 18:54    page 2 ink ends 0.409   mark 0.328-0.424  → sits exactly at the end of the text
+10 bakes, 20:42 → 22:20   page 2 ink ends 0.051   mark 0.328-0.424  → orphaned in blank space
+```
+
+A **step change**, landing exactly on the 19:18 redeploy + re-seed. Every annotated song reflowed
+(`4→3`, `2→1`, `2→1` pages); one overlay vanished from the bundle entirely. **The mark never moved — the
+words moved out from under it.**
+
+Excluded **by measurement**, so nobody re-runs them: the source did not change (identical md5 in three
+snapshots); the import did not introduce auto-fit (**0/46** sources carry a `size:` directive in all
+three, including the pre-v2 archive); re-rendering alone does not change output (two re-renders inside the
+old instance produced the identical layout); T138's default-file rule cannot apply (five of six affected
+songs have exactly one file).
+
+**The lead — and it is a lead, not a verdict.** In the window `98aafb3d..8f662f60`, no commit touches a
+`chartpdf.` call site, the import vocabulary *did* change, and **T141's `size` defect appears at the same
+instant** (`3103`, describing the blob → `1618`, the source's length; old render 3103 bytes, new one
+2910). **#4/#5 and #6 may well share one cause in the import path.** No commit is named, and none should
+be named in a fix until T144's ⟨V1⟩ experiment has been run.
+
+### Routing
+
+| task | lane | first thing to do |
+|---|---|---|
+| **T144** pin the chart render | web-core (core) | ⟨V1⟩ **bisect the importer**, report the answer at the gate *before* writing a cause |
+| **T145** an annotation must survive a re-render | web-core first (data model), then studio + app | choose among the three anchoring options and **say why in the commit** |
+| **T141** file size must describe the stored bytes | web-core | includes repairing the **87 live rows** |
+| **T146** chart left margin → two columns | web-core (core) | stage 2 **waits on T145** if the anchor is still page-relative |
+| **T142** rebuild the reorder component | web-core (studio) | write up the UX research VLL asked for |
+| **T143** Stage: name the bake, delete one, announce an update | mobile | **corrected**: there is *no* ⋮ on the perform row today. Plus VLL's accordion / rev+date-in-grey design input, now in the spec |
+| **T147** Stage clock + chronometer | mobile | injectable time source — a sleeping test proves nothing |
+
+### RED FIRST, per bug — not once for the batch
+
+VLL, twice: *"red first les tests"*, then *"pour chaque bug un red first."* Every row of the board in
+`docs/handoff/rehearsal-2026-09-04-bugs.md` now carries **its own** assertion that must be seen failing
+first, and each has to have **teeth** — its expected value must differ from what the buggy code produces.
+A test asserting "the mark is still at 0.328" would pass today and guard nothing; that *is* the bug.
+
+### Two housekeeping notes
+
+- **T138 follow-ups: yours landed, mine are withdrawn.** `9009b24c` + `7839d8be` are patch-id-equivalent
+  to the two commits I had staged on `fix/t138-followups` (`git cherry` reports both as already applied).
+  Deleting my branch as redundant — no action needed from you.
+- **CI is still losing verdicts.** `main` was **red** at `9985d0b1` (`go` job, `go test` under the race
+  detector), and T140's own run at `22842291` was **cancelled** by the push that followed it — the fourth
+  time today. Until the group-by-SHA change VLL is considering, **let a code run start before pushing the
+  gate note that follows it.**
+
+— Fable

@@ -76,6 +76,11 @@ carries an overlay for every song that has one, and watch that fail if the overl
 
 ## Evidence — frozen, do not touch
 
-The proof lives in `/home/yoda/troubastack-evidence/rehearsal-2026-09-04/` (the recovered 17:46 bundle),
-the running `:8080` instance's data directory, and the tablet itself. **All three are read-only for now**
-— see the gate note. Reproduce on fixtures, never by re-baking the live instance.
+The proof lives in four places, **all read-only for now** — see the gate note:
+
+- `troubastack-demo/data.preseed-20260904-191837/` — nine bakes, 09:53 → 18:54, the correct renders;
+- `troubastack-demo/data/` — the running `:8080` instance, ten bakes with the orphaned marks;
+- `/home/yoda/troubastack-evidence/rehearsal-2026-09-04/` — the 17:46 bundle recovered from the tablet;
+- the tablet itself, which still holds both bundles.
+
+Reproduce on committed fixtures, never by re-baking the live instance.

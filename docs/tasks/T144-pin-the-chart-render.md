@@ -24,12 +24,23 @@ symptom, and the marks it orphaned are T145.
 ## ⟨V1⟩ First, establish which change did it — do NOT assume
 
 **Nothing in this file names a cause, and the implementation must not either until this is run.** The
-candidate window is `3999abe0` (16:21) → `8f662f60` (18:31).
+candidate window is `98aafb3d`..`8f662f60` — the 16:32 build to the 19:18 build.
 
-Build `chartpdf` at each end, render the **same** committed fixture source with both, and compare page
-count and ink extent. Report the answer in the task's gate entry. Two candidates are already **excluded by
-measurement**, so do not re-check them: the source did not change, and T138's default-file rule cannot
-apply — five of the six affected songs have exactly one file.
+Build at each end, run **the same source** through the **import path** with both, and compare page count
+and ink extent. Report the answer in the task's gate entry.
+
+**Bisect the importer, not `chartpdf`.** The evidence points there: no commit in the window touches a
+`chartpdf.` call site, while the import vocabulary did change in it, and T141's `size` defect appears at
+exactly the same instant (`size` flips from describing the blob to describing the source). It is likely
+that **#4/#5 and #6 share one cause** — check that before treating them as separate.
+
+Four things are already **excluded by measurement**; do not re-check them:
+
+- the source did not change (identical md5 across three time-separated snapshots);
+- auto-fit is not new (0/46 sources carry a `size:` directive, in all three);
+- re-rendering alone does not change the output (two re-renders inside the old instance produced the
+  identical layout);
+- T138's default-file rule cannot apply — five of the six affected songs have exactly one file.
 
 If the bisect lands on a change that was *intended* to alter layout, then the fix is only the guard below
 plus a note; if it lands on one that was not, it is a regression and gets reverted or corrected on top.

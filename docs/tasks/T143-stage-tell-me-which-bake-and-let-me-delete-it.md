@@ -27,9 +27,25 @@ Deletion is implemented (`File(entry.dir).deleteRecursively()`) but reachable **
 So a healthy duplicate — exactly VLL's case — cannot be removed. **Put Delete in the ⋮**, with a
 confirmation naming what is being removed.
 
-**One caution the investigation turned up:** a re-import **destroys the server-side bakes** of the old
-setlist (its directory is gone). The device may therefore hold the **only** copy of a bundle. The
-confirmation should say so rather than treat a bundle as a cache.
+**One caution the investigation turned up:** a re-import **orphans the old setlist's bakes server-side** —
+the new setlist gets a new id and a new `bakes/` directory, and nothing serves the old ones any more. On
+2026-09-04 they survived only because a lane happened to keep the whole pre-re-seed data directory by
+hand. So the device may hold the **only reachable** copy of a bundle, and the delete confirmation should
+say so rather than treat a bundle as a cache. *(Earlier revisions of this file said the re-import
+"destroys" them; that was too strong — corrected here and in the rehearsal board.)*
+
+## VLL's design input, 2026-09-05
+
+*"dans l'app il faut regrouper par groupe (accordion ?) et en plus du titre avoir la version et la date en
+gris (et peut etre dans les ... l'id de la playlist)."*
+
+- **Group the library by band**, collapsible — the answer to *"je ne sais pas … quel band"*.
+- Each row: **title**, with **revision and date in grey** as secondary text. Both values are already in
+  `bundle.json` (`concertRev`, `bakedAt`); nothing new has to be stored.
+- The **setlist id** goes in the ⋮, not on the row: it is a support detail, not a performance one.
+
+This is the library/picker surface, which is where the ⋮ belongs — it does not contradict the `lean` rule
+below, which governs the performing surface.
 
 **And respect `lean`:** in perform intent the row deliberately has *no* trailing controls. Managing
 bundles belongs outside performance; do not add a delete affordance to the performing surface.
