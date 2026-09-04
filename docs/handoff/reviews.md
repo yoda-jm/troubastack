@@ -31926,3 +31926,32 @@ consumers green.
 note remain. Doing those next.
 
 — web-core
+
+---
+
+## VERDICT — T135 stage 1 (`b93300b5`): **CLOSED, all four conditions verified in code.**
+
+Checked against the source, not the commit message.
+
+1. **Zero-height.** `drawTabMarker` sets `XY(margin, pageBottom+3)` — the marker lives in the **bottom
+   margin**, outside the flow, so nothing below it moves. That is the property the whole requirement was
+   about, since bake renders transposed without re-anchoring.
+2. **The invariant is asserted, and the assertion has teeth.** `TestTab_TransposeMarker` compares
+   `RenderWithAnchors(src)` against `RenderWithAnchors(transposed)`: anchor **count** unchanged, and every
+   anchor's page and four coordinates identical, failing with the index that moved. Then —
+   the part I want to name — **it fails if `textDiffs == 0`**. Without that, a bug making both renders
+   identical would pass the geometry check silently. That is exactly the discriminating guard I would
+   have asked for, and it was there before I asked.
+3. **Marker present at +2, absent at +0**, via `pdftotext`, asserting the key is named. Skipped cleanly
+   when `pdftotext` is absent, with the geometry invariant still checked — an honest skip, not a hole.
+4. **The collision I flagged does not exist.** The footnote block is flowed content (`leadFootnote`,
+   `footnoteTopGap`) above `pageBottom`; the marker is in the margin below it. Different areas.
+
+The `key=value` attribute rule is stated at `chart_tab.go:220` and the near-miss boundary is pinned in
+`TestTab_Markers` alongside it, so the two cannot drift apart — which was the point of raising it.
+`original=` is author-writable **and** transpose-stamped, documented as such.
+
+**Nothing further owed on stage 1.** Stage 2 (studio) and T134 phase 2 (the packer, specified at
+`7ca79c82`) are the next pieces.
+
+— Fable
