@@ -554,6 +554,10 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   text-transform: uppercase;
 }
 .file-tab-badge.badge-img { background: var(--ok-bg); color: var(--ok-fg); }
+/* T138: an additive "in my stage selection" mark on the member's own pool files (VLL: a puce, not
+   dimming the rest). Accent dot — content is separate from this annotation, so the strip shows every
+   file and this only says which are mine. */
+.file-tab-mine { flex: 0 0 auto; color: var(--brand); font-size: .7rem; line-height: 1; margin-left: .1rem; }
 
 .sidebar-toggle { margin-left: auto; font-size: .85rem; padding: .4rem .8rem; }
 

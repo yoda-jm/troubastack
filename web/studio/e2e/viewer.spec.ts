@@ -328,7 +328,7 @@ async function makeBandAndSong(page: Page): Promise<{ bandId: string; songId: st
   return { bandId, songId };
 }
 
-test("my-files: per-member selection drives the strip (exclude, reorder, persist, reset)", async ({
+test("my-files (T138): the strip browses the pool; my selection is a MARK + bake order, not the strip", async ({
   page,
 }) => {
   await register(page, `myfiles_${stamp()}`);
@@ -371,14 +371,19 @@ test("my-files: per-member selection drives the strip (exclude, reorder, persist
     [bandId, songId, fileIds, names] as const,
   );
 
-  // Open the viewer: default selection = all 3 pool files, customized=false.
+  // T138: the strip is a BROWSER over the POOL — it ALWAYS shows all 3 files in pool order (A, B, C),
+  // regardless of my selection. The selection is shown as a MARK, and an unset member's mark is EXACTLY
+  // the default file (fileA — lowest-DisplayOrder PDF), which is the file the stage takes.
   await page.reload();
   await expect(page.getByTestId("file-tab")).toHaveCount(3);
   await expect(page.getByTestId("my-files-custom")).toHaveCount(0);
-  // Default order matches the pool order A, B, C.
   await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileA.pdf");
   await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
   await expect(page.getByTestId("file-tab").nth(2)).toContainText("fileC.pdf");
+  await expect(page.getByTestId("file-tab-mine")).toHaveCount(1); // unset ⇒ exactly the default is mine
+  await expect(
+    page.getByTestId("file-tab").filter({ hasText: "fileA.pdf" }).getByTestId("file-tab-mine"),
+  ).toBeVisible();
 
   // Open the my-files editor; it lists the whole pool (3 rows).
   await page.getByTestId("my-files-edit").click();
@@ -386,43 +391,46 @@ test("my-files: per-member selection drives the strip (exclude, reorder, persist
   await expect(page.getByTestId("my-files-panel")).toBeVisible();
   await expect(page.getByTestId("my-files-row")).toHaveCount(3);
 
-  // Screenshot 1: editor open showing the pool with includes/reorder.
-  // Exclude fileA (click its include checkbox — controlled, applies via PUT).
+  // Exclude fileA from MY selection (its include checkbox — controlled, applies via PUT).
   const rowA = page.getByTestId("my-files-row").filter({ hasText: "fileA.pdf" });
   await rowA.getByTestId("my-files-include").click();
 
-  // The strip now shows 2 tabs (B, C) and the custom pill appears.
-  await expect(page.getByTestId("file-tab")).toHaveCount(2);
+  // The STRIP is unchanged — still all 3 pool tabs in A, B, C order — but the MARKS move: fileA is no
+  // longer mine, so 2 files are marked and the custom pill appears. This is the T138 separation: content
+  // (the strip) stops reflecting the selection; only the mark does.
+  await expect(page.getByTestId("file-tab")).toHaveCount(3);
+  await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileA.pdf");
+  await expect(page.getByTestId("file-tab-mine")).toHaveCount(2);
   await expect(page.getByTestId("my-files-custom")).toBeVisible();
+  await expect(
+    page.getByTestId("file-tab").filter({ hasText: "fileA.pdf" }).getByTestId("file-tab-mine"),
+  ).toHaveCount(0); // fileA no longer marked
 
-  // Reorder the remaining two: move fileC up so the order becomes C, B.
+  // Reorder my selection (move fileC up) — a BAKE-order change; the strip's order does NOT move (still
+  // pool order A, B, C). Order belongs to my-files, not the browser (VLL: "on a pas l'ordre" in the strip).
   const rowC = page.getByTestId("my-files-row").filter({ hasText: "fileC.pdf" });
   await rowC.getByTestId("my-files-up").click();
-  await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileC.pdf");
-  await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
-
-  await page.screenshot({ path: "/tmp/myfiles-editor.png", fullPage: true });
-
-  // Close the editor and screenshot the customized 2-tab strip.
-  await page.getByTestId("my-files-edit").click();
-  await expect(page.getByTestId("my-files-panel")).toHaveCount(0);
-  await page.screenshot({ path: "/tmp/myfiles-strip.png", fullPage: true });
-
-  // Persistence: reload → still 2 tabs in C, B order, still customized.
-  await page.reload();
-  await expect(page.getByTestId("file-tab")).toHaveCount(2);
-  await expect(page.getByTestId("my-files-custom")).toBeVisible();
-  await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileC.pdf");
-  await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
-
-  // Reset to all → back to 3 tabs, custom pill gone, default A, B, C order.
-  await page.getByTestId("my-files-edit").click();
-  await page.getByTestId("my-files-reset").click();
-  await expect(page.getByTestId("file-tab")).toHaveCount(3);
-  await expect(page.getByTestId("my-files-custom")).toHaveCount(0);
   await expect(page.getByTestId("file-tab").nth(0)).toContainText("fileA.pdf");
   await expect(page.getByTestId("file-tab").nth(1)).toContainText("fileB.pdf");
   await expect(page.getByTestId("file-tab").nth(2)).toContainText("fileC.pdf");
+
+  // Persistence: reload → strip still all 3 in pool order, still 2 marked, still customized.
+  await page.getByTestId("my-files-edit").click();
+  await expect(page.getByTestId("my-files-panel")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("file-tab")).toHaveCount(3);
+  await expect(page.getByTestId("file-tab-mine")).toHaveCount(2);
+  await expect(page.getByTestId("my-files-custom")).toBeVisible();
+
+  // Reset to default → custom pill gone, strip still 3 in pool order, exactly the default marked again.
+  await page.getByTestId("my-files-edit").click();
+  await page.getByTestId("my-files-reset").click();
+  await expect(page.getByTestId("my-files-custom")).toHaveCount(0);
+  await expect(page.getByTestId("file-tab")).toHaveCount(3);
+  await expect(page.getByTestId("file-tab-mine")).toHaveCount(1);
+  await expect(
+    page.getByTestId("file-tab").filter({ hasText: "fileA.pdf" }).getByTestId("file-tab-mine"),
+  ).toBeVisible();
 
   // Persists across reload as default (not customized).
   await page.reload();

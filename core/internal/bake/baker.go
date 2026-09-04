@@ -756,21 +756,16 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 	return song, nil
 }
 
-// defaultFile is the shared-pool single-file choice: the song's file with the
-// lowest DisplayOrder that is a viewable PDF — the same one Studio opens by
-// default. (The retired per-member bake once picked from the member's my-files view.)
+// defaultFile is the shared-pool single-file choice for a member who has chosen nothing. T138 ⟨R1⟩: it is
+// now the ONE shared rule (app.DefaultFile) — the lowest-DisplayOrder PDF, tie-broken by filename — the
+// same definition Studio's my-files default uses, pinned by docs/contracts/default-file.vectors.json.
 func (b *Baker) defaultFile(actor app.User, bandID, songID string) (app.SongFile, bool, error) {
 	files, err := b.svc.SongFiles(actor, bandID, songID)
 	if err != nil {
 		return app.SongFile{}, false, err
 	}
-	sort.Slice(files, func(i, j int) bool { return files[i].DisplayOrder < files[j].DisplayOrder })
-	for _, f := range files {
-		if f.ContentType == "application/pdf" {
-			return f, true, nil
-		}
-	}
-	return app.SongFile{}, false, nil
+	f, ok := app.DefaultFile(files)
+	return f, ok, nil
 }
 
 // generatedChart returns the song's generated text-chart (lowest DisplayOrder) if it has

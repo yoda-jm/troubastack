@@ -106,7 +106,10 @@ export function Viewer({
   onSongDeleted: () => void;
 }) {
   // The file strip is MY ordered selection (getMyFiles), not the whole pool.
+  // T138: `files` is the POOL (a browser over every file), not the bake selection. `mySelection` marks
+  // which pool files are in the member's stage selection (an at-a-glance dot, never a re-order or a filter).
   const [files, setFiles] = useState<SongFile[]>([]);
+  const [mySelection, setMySelection] = useState<Set<string>>(() => new Set());
   const [customized, setCustomized] = useState(false);
   // T68: the open file is mirrored into ?file=<id> so a hard refresh restores it instead of
   // snapping to the first file. Seed from the URL on mount; the initial-load pick validates it
@@ -259,21 +262,22 @@ export function Viewer({
   // Details). An edge fade (.of-start/.of-end) shows only when it actually overflows.
   const tbScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // ---- refresh MY file strip (getMyFiles) — also after editor changes ----
-  // Keeps a sensible selected file: preserves the current one if it survives,
-  // otherwise falls back to the first viewable (PDF-preferred) entry.
+  // ---- refresh the file strip (the POOL) + my selection marks — also after editor changes ----
+  // T138: the strip browses the whole pool (in pool order), so switching to another part to annotate no
+  // longer depends on it being in my bake selection. getMyFiles supplies only the MARK (which are mine) and
+  // the `custom` pill. Keeps a sensible open file: the current one if it survives, else first-PDF/viewable.
   const refreshMyFiles = useCallback(async () => {
-    const { files: mine, customized: custom } = await api.getMyFiles(bandId, songId);
-    // getMyFiles returns my order; honour it (don't re-sort by displayOrder).
-    setFiles(mine);
-    setCustomized(custom);
+    const [pool, mine] = await Promise.all([api.listFiles(bandId, songId), api.getMyFiles(bandId, songId)]);
+    setFiles(pool);
+    setMySelection(new Set(mine.files.map((f) => f.id)));
+    setCustomized(mine.customized);
     setSelectedFileId((cur) => {
-      if (cur && mine.some((f) => f.id === cur && isViewable(f))) return cur;
-      const firstPdf = mine.find((f) => f.contentType === "application/pdf");
-      const first = firstPdf ?? mine.find(isViewable) ?? null;
+      if (cur && pool.some((f) => f.id === cur && isViewable(f))) return cur;
+      const firstPdf = pool.find((f) => f.contentType === "application/pdf");
+      const first = firstPdf ?? pool.find(isViewable) ?? null;
       return first ? first.id : null;
     });
-    return mine;
+    return pool;
   }, [bandId, songId]);
 
   // ---- load my files + annotations once ----
@@ -283,25 +287,26 @@ export function Viewer({
       setStatus("loading");
       setError(null);
       try {
-        const [mine, annotations] = await Promise.all([
+        const [pool, mine, annotations] = await Promise.all([
+          api.listFiles(bandId, songId),
           api.getMyFiles(bandId, songId),
           api.getAnnotations(bandId, songId),
         ]);
         if (cancelled) return;
-        setFiles(mine.files);
+        // T138: the strip is the pool; the selection only marks which pool files are mine.
+        setFiles(pool);
+        setMySelection(new Set(mine.files.map((f) => f.id)));
         setCustomized(mine.customized);
         setDoc(annotations);
         setVisible(defaultVisibility(annotations.layers, myUserId));
 
-        // T68: honour a ?file=<id> from the URL if it names a real, viewable file in my pool
+        // T68: honour a ?file=<id> from the URL if it names a real, viewable file in the pool
         // (restored INSIDE the load so it resolves before the layer/annotation effects run);
         // otherwise the default first-PDF (else first-viewable) pick. A stale/foreign id
         // degrades to that default — never a blank/wedged viewer.
-        const urlPick = mine.files.find(
-          (f) => f.id === initialFileParamRef.current && isViewable(f),
-        );
-        const firstPdf = mine.files.find((f) => f.contentType === "application/pdf");
-        const first = urlPick ?? firstPdf ?? mine.files.find(isViewable) ?? null;
+        const urlPick = pool.find((f) => f.id === initialFileParamRef.current && isViewable(f));
+        const firstPdf = pool.find((f) => f.contentType === "application/pdf");
+        const first = urlPick ?? firstPdf ?? pool.find(isViewable) ?? null;
         if (!first) {
           setStatus("no-file");
           return;
@@ -1405,6 +1410,7 @@ export function Viewer({
           {files.map((f) => {
             const viewable = isViewable(f);
             const active = f.id === selectedFileId;
+            const mine = mySelection.has(f.id); // T138: in my bake selection (an additive mark, not a filter)
             const badge =
               f.contentType === "application/pdf"
                 ? "PDF"
@@ -1415,16 +1421,24 @@ export function Viewer({
               <button
                 key={f.id}
                 type="button"
-                className={`part file-tab${active ? " active" : ""}`}
+                className={`part file-tab${active ? " active" : ""}${mine ? " mine" : ""}`}
                 data-testid="file-tab"
+                data-mine={mine ? "true" : undefined}
                 role="tab"
                 aria-selected={active}
                 disabled={!viewable}
-                title={viewable ? f.filename : `${f.filename} (not viewable)`}
+                title={viewable ? (mine ? `${f.filename} — in my stage selection` : f.filename) : `${f.filename} (not viewable)`}
                 onClick={() => viewable && setSelectedFileId(f.id)}
               >
                 <span className={`pill file-tab-badge badge-${badge.toLowerCase()}`}>{badge}</span>
                 <span className="file-tab-name">{f.filename}</span>
+                {/* T138 (VLL): mark MINE — never dim the others (they open fine; dimming would falsely say
+                    "unavailable"). An unset member sees exactly one marked: the default the stage takes. */}
+                {mine && (
+                  <span className="file-tab-mine" data-testid="file-tab-mine" aria-label="In my stage selection" title="In my stage selection">
+                    ●
+                  </span>
+                )}
               </button>
             );
           })}

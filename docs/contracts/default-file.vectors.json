@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "T138 ⟨R1⟩ — the ONE shared 'default file' rule, expressed once and run in both lanes so it cannot",
+    "drift. defaultFile(files) -> the filename the STAGE takes for a member who has chosen nothing, or",
+    "none. Go (core/internal/app) and TS (web/studio) each run this whole set; ci.yml diffs the mirrored",
+    "copy (app-side mirror at web/studio/test/default-file.vectors.json) so the two files stay identical.",
+    "",
+    "RULE: among the pool's files whose contentType is \"application/pdf\", take the one with the lowest",
+    "displayOrder; break a tie by filename (ascending). No PDF -> none.",
+    "",
+    "PDF-vs-image, settled here (the spec left it to whoever wrote the vectors): the default is PDF-ONLY.",
+    "The baker rasterizes with poppler, which bakes PDFs, not images — so an image cannot be the file the",
+    "stage takes. Studio's VIEWER still opens images for browsing; that is a different question (view vs",
+    "bake) and is exactly the line T138 draws. So an image-only song has NO default: Studio and the baker",
+    "now AGREE it is unbakeable rather than one silently picking it (the case that failed before T138).",
+    "Values are hand-derived from the rule, not emitted by either impl, so an off-by-one fails red-first.",
+    "Each file is {filename, contentType, displayOrder}; expected is the filename or null."
+  ],
+  "cases": [
+    { "name": "single pdf", "files": [{ "filename": "score.pdf", "contentType": "application/pdf", "displayOrder": 0 }], "expected": "score.pdf" },
+    { "name": "lowest displayOrder wins", "files": [{ "filename": "b.pdf", "contentType": "application/pdf", "displayOrder": 2 }, { "filename": "a.pdf", "contentType": "application/pdf", "displayOrder": 1 }], "expected": "a.pdf" },
+    { "name": "image-only has no default (PDF-only rule)", "files": [{ "filename": "chart.png", "contentType": "image/png", "displayOrder": 0 }], "expected": null },
+    { "name": "mixed: the image is lower but skipped for the PDF", "files": [{ "filename": "chart.png", "contentType": "image/png", "displayOrder": 0 }, { "filename": "score.pdf", "contentType": "application/pdf", "displayOrder": 1 }], "expected": "score.pdf" },
+    { "name": "displayOrder tie broken by filename", "files": [{ "filename": "z-part.pdf", "contentType": "application/pdf", "displayOrder": 0 }, { "filename": "a-part.pdf", "contentType": "application/pdf", "displayOrder": 0 }], "expected": "a-part.pdf" },
+    { "name": "non-viewable (audio) skipped for the PDF", "files": [{ "filename": "demo.mp3", "contentType": "audio/mpeg", "displayOrder": 0 }, { "filename": "score.pdf", "contentType": "application/pdf", "displayOrder": 1 }], "expected": "score.pdf" },
+    { "name": "empty pool", "files": [], "expected": null },
+    { "name": "audio-only has no default", "files": [{ "filename": "demo.mp3", "contentType": "audio/mpeg", "displayOrder": 0 }], "expected": null }
+  ]
+}

@@ -1579,14 +1579,14 @@ func (s *Service) RepairMissingBlobs() (BlobRepairReport, error) {
 
 // ---- per-member file selection ----
 
-// MyFileSelection resolves the caller's personal, ordered view of a song's file
-// pool (member-only; the selection is always the CALLER's own). Customized reports
-// whether the member has a saved selection:
-//   - customized=true: the pool files matching the member's saved fileIds, in the
-//     saved order, skipping any fileId no longer in the pool (deleted files drop
-//     out gracefully).
-//   - customized=false (member never set one): ALL pool files in DisplayOrder, so
-//     a new member sees everything by default.
+// MyFileSelection resolves the caller's personal, ordered BAKE selection for a song (member-only; always
+// the CALLER's own). Customized reports whether the member has a saved selection:
+//   - customized=true: the pool files matching the member's saved fileIds, in the saved order, skipping
+//     any fileId no longer in the pool (deleted files drop out gracefully).
+//   - customized=false (member never set one): the ONE shared default file (T138 ⟨R1⟩, app.DefaultFile),
+//     or NOTHING when the song has no bakeable default (e.g. image-only). This used to be "all pool files",
+//     which disagreed with the baker (one file) — the exact mismatch T138 removes. My-files is a bake
+//     selection, not a browser; the pool is browsed via SongFiles/the Viewer strip instead.
 func (s *Service) MyFileSelection(caller User, bandID, songID string) ([]SongFile, bool, error) {
 	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
 		return nil, false, err
@@ -1597,9 +1597,11 @@ func (s *Service) MyFileSelection(caller User, bandID, songID string) ([]SongFil
 	}
 	sel, err := s.repo.GetFileSelection(caller.ID, songID)
 	if err != nil {
-		// No saved selection → default to all pool files in DisplayOrder.
-		sort.Slice(pool, func(i, j int) bool { return pool[i].DisplayOrder < pool[j].DisplayOrder })
-		return pool, false, nil
+		// No saved selection → the shared default file (the same file the stage takes), or none.
+		if def, ok := DefaultFile(pool); ok {
+			return []SongFile{def}, false, nil
+		}
+		return []SongFile{}, false, nil
 	}
 	return resolveSelection(pool, sel.FileIDs), true, nil
 }
@@ -1639,7 +1641,7 @@ func (s *Service) SetMyFileSelection(caller User, bandID, songID string, fileIDs
 }
 
 // ClearMyFileSelection removes the caller's customization, reverting to the
-// default (all pool files). Idempotent.
+// shared default file (T138 ⟨R1⟩ — the lowest-DisplayOrder PDF, or none). Idempotent.
 func (s *Service) ClearMyFileSelection(caller User, bandID, songID string) error {
 	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
 		return err
