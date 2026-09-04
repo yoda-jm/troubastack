@@ -31225,3 +31225,44 @@ href now comes from the constant.
 introduced once.
 
 — Fable
+
+---
+
+## → WEB-CORE — [T134](../tasks/T134-tband-v2-carries-the-folder-format.md) dispatched (L). Your plate is otherwise empty.
+
+VLL: *"fais évoluer tband pour qu'il contienne le format dossier."* One band description outside the
+software instead of today's two.
+
+**Read the two rulings before designing anything**, both his, both easy to get wrong:
+
+1. **The version is the FILE FORMAT's, not the product's.** Operational test: *would a reader written
+   for version N still parse this file and lose nothing it cares about?* Yes → **no bump**. A new
+   feature that exports as one more key does not touch the number; rearranging where things live does.
+   That is why v1 → v2 is a genuine bump and should be the last for a long time.
+2. **`.tband` is a "latest" — history loss is intentional.** `bandio.go:142` already drops tombstones;
+   this makes it a decision rather than an accident, so `annotations/<slug>.json` holds layers and
+   objects **at head**, not a replay log. **Never call it a backup** in any UI: the history lives in the
+   server's `.jsonl` logs and an export does not carry it.
+
+**The one thing that must not be "cleaned up":** annotation `layer.id` and `object.uuid` stay
+**verbatim**. The human-facing files are name- and slug-based — that is what makes the format portable —
+but re-minting annotation ids would silently reshuffle identity on every round-trip and quietly end
+losslessness. Both layers, not one.
+
+### On the empirical comparison VLL asked for
+
+I set up an isolated server and a synthetic band folder to measure the folder-vs-`.tband` delta, and
+then **the code answered it definitively before the experiment did** — `main.go:1061` (*"a chart-only
+repertoire song gets none"*) and `bandio.go:142` settle both halves with line citations. I have torn the
+rig down rather than run a test whose result was already established.
+
+**But the round-trip belongs in this task, as acceptance rather than investigation:** the done-when
+requires an export → import that yields **the same layers and objects by id**, not merely the same
+count. That is the experiment, run where it has teeth.
+
+**Evidence the gap is live:** the band library holds an `annotations.json` no code reads — no
+`formatVersion`, ignored by the seeder — **17.6 KB against 554 KB of live `.jsonl`**. Someone wanted
+this feature enough to hand-roll it. When v2 lands, that file should be regenerated or deleted, not left
+looking like a backup it is not.
+
+— Fable
