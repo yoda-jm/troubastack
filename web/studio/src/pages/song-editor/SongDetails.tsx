@@ -383,6 +383,21 @@ export function Files({
           <button
             type="button"
             className="btn-sm ghost-btn"
+            data-testid="new-tab-chart"
+            onClick={() =>
+              // T135: a tab chart is the SAME kind of chart pre-filled with an open block template
+              // (title + the six standard strings + the closer) — a template, not a new type.
+              setChart({
+                source: `# ${songTitle?.trim() || "New chart"}\n\n{sot}\ne|\nB|\nG|\nD|\nA|\nE|\n{eot}\n`,
+                baseRevision: 0,
+              })
+            }
+          >
+            ＋ New tab
+          </button>
+          <button
+            type="button"
+            className="btn-sm ghost-btn"
             data-testid="new-lyrics-chart"
             onClick={() => setLyricsOpen(true)}
           >

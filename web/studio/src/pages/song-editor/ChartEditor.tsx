@@ -12,7 +12,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../../api";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { tokenizeChartSource } from "./chartHighlight";
+import {
+  tokenizeChartSource,
+  hasTabBlock,
+  hasUnwrappedTab,
+  hasUnclosedTab,
+  wrapFirstTabRun,
+} from "./chartHighlight";
 
 // What a host hands the editor: the source to edit and, for an existing generated file, its id + the
 // revision the edit is based on (LWW conflict detection + the draft-persistence key).
@@ -288,6 +294,25 @@ export function ChartEditor({
           )}
         </div>
       </div>
+      {/* T135 lint: SUGGEST wrapping a pasted tab; never auto-detect (a wrong guess would change a
+          stage page). The action wraps the first unwrapped run; the hint reappears if more remain. */}
+      {hasUnwrappedTab(source) ? (
+        <p className="muted" data-testid="tab-lint">
+          Looks like tablature. Wrap it in {"{sot}"} … {"{eot}"} so the frets stay aligned.{" "}
+          <button
+            type="button"
+            className="ghost-btn btn-sm"
+            data-testid="tab-lint-wrap"
+            onClick={() => setSource(wrapFirstTabRun(source))}
+          >
+            Wrap as tab
+          </button>
+        </p>
+      ) : hasUnclosedTab(source) ? (
+        <p className="muted" data-testid="tab-lint-unclosed">
+          A tab block is open but never closed — add {"{eot}"}, or it runs to the end of the chart.
+        </p>
+      ) : null}
       {initial.fileId && (
         <p className="muted" data-testid="chart-edit-caveat">
           Editing re-renders the PDF — layout may shift, so existing annotations on this
@@ -363,6 +388,13 @@ lyrics go here
           <button type="button" className="ghost-btn" onClick={() => setTransposeOpen(false)}>
             Close
           </button>
+          {/* T135: transposition leaves tab blocks as written (the frets don't move), so say so where
+              the author sets the override. */}
+          {hasTabBlock(source) && (
+            <p className="muted" data-testid="transpose-tab-note" style={{ flexBasis: "100%", margin: 0 }}>
+              Tab blocks are left as written.
+            </p>
+          )}
         </div>
       )}
       <div className="inline-form">

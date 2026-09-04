@@ -2,7 +2,16 @@
 // the tokenizer must carry state. Text must be preserved line-for-line (the overlay sits under the
 // caret). Also covers the {np}/{fn} fix (marker, not plain).
 import { describe, it, expect } from "vitest";
-import { tokenizeChartSource, isTabStart, isTabEnd } from "../src/pages/song-editor/chartHighlight";
+import {
+  tokenizeChartSource,
+  isTabStart,
+  isTabEnd,
+  hasTabBlock,
+  hasUnwrappedTab,
+  hasUnclosedTab,
+  looksLikeTabLine,
+  wrapFirstTabRun,
+} from "../src/pages/song-editor/chartHighlight";
 
 // classesOf returns the single whole-line class where a line is one token, else "mixed".
 function lineClasses(src: string): string[] {
@@ -60,5 +69,24 @@ describe("chart tab highlighter (T135)", () => {
 
   it("preserves text line-for-line (the overlay-under-caret invariant)", () => {
     expect(preservesText("# T\n{sot}\n**x** ## {np}\ne|--0--|\n{eot}\nG C\nla **la**")).toBe(true);
+  });
+
+  it("lint: detects an unwrapped tab-looking line, ignores one already in a block", () => {
+    expect(looksLikeTabLine("e|--0--2--|")).toBe(true);
+    expect(looksLikeTabLine("Morning on the highway")).toBe(false);
+    expect(hasUnwrappedTab("# T\ne|--0--|\nB|--1--|")).toBe(true);
+    expect(hasUnwrappedTab("# T\n{sot}\ne|--0--|\n{eot}")).toBe(false); // already wrapped
+    expect(hasTabBlock("# T\n{sot}\ne|--0--|\n{eot}")).toBe(true);
+    expect(hasUnclosedTab("# T\n{sot}\ne|--0--|")).toBe(true);
+    expect(hasUnclosedTab("# T\n{sot}\ne|--0--|\n{eot}")).toBe(false);
+  });
+
+  it("Wrap as tab wraps the first unwrapped run and preserves the rest", () => {
+    const out = wrapFirstTabRun("# T\n\ne|--0--|\nB|--1--|\n\nlyric");
+    expect(out).toBe("# T\n\n{start_of_tab}\ne|--0--|\nB|--1--|\n{end_of_tab}\n\nlyric");
+    // after wrapping, the run is inside a block, so the lint no longer fires on it
+    expect(hasUnwrappedTab(out)).toBe(false);
+    // idempotent-ish: nothing to wrap → unchanged
+    expect(wrapFirstTabRun("# T\nplain lyric")).toBe("# T\nplain lyric");
   });
 });

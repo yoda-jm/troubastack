@@ -55,6 +55,86 @@ export function isTabEnd(line: string): boolean {
   return RE_TAB_END.test(line.trim());
 }
 
+/** hasTabBlock: the source opens at least one tab block (drives the transpose-form note). */
+export function hasTabBlock(source: string): boolean {
+  return source.split("\n").some((l) => RE_TAB_START.test(l.trim()));
+}
+
+// TAB_LINE: a heuristic for a line that looks like tablature — a string label (e|, B|, G|, a|…) then
+// fret/technique glyphs. Used ONLY to SUGGEST wrapping (lint), never to auto-detect a block: a wrong
+// guess in the renderer would silently change a stage page, so detection lives where it only hints.
+const TAB_LINE = /^[A-Ga-g][b#]?\|[-0-9hpbrx/\\~^()|.\s]+$/;
+
+/** looksLikeTabLine: the lint heuristic for a single line. */
+export function looksLikeTabLine(line: string): boolean {
+  return TAB_LINE.test(line.trim());
+}
+
+/** hasUnwrappedTab: a tab-looking line sits OUTSIDE any block — the lint trigger. */
+export function hasUnwrappedTab(source: string): boolean {
+  let inTab = false;
+  for (const line of source.split("\n")) {
+    const t = line.trim();
+    if (inTab) {
+      if (RE_TAB_END.test(t)) inTab = false;
+      continue;
+    }
+    if (RE_TAB_START.test(t)) {
+      inTab = true;
+      continue;
+    }
+    if (looksLikeTabLine(line)) return true;
+  }
+  return false;
+}
+
+/**
+ * wrapFirstTabRun: wrap the first contiguous run of unwrapped tab-looking lines in {sot}…{eot} — the
+ * "Wrap as tab" lint action. Pure (operates on the source), so it is unit-testable and needs no textarea
+ * selection. If more runs remain, the lint hint simply reappears. No-op when nothing looks like tab.
+ */
+export function wrapFirstTabRun(source: string): string {
+  const lines = source.split("\n");
+  let inTab = false;
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (inTab) {
+      if (RE_TAB_END.test(t)) inTab = false;
+      continue;
+    }
+    if (RE_TAB_START.test(t)) {
+      inTab = true;
+      continue;
+    }
+    if (looksLikeTabLine(lines[i])) {
+      let end = i;
+      while (end + 1 < lines.length && looksLikeTabLine(lines[end + 1])) end++;
+      return [
+        ...lines.slice(0, i),
+        "{start_of_tab}",
+        ...lines.slice(i, end + 1),
+        "{end_of_tab}",
+        ...lines.slice(end + 1),
+      ].join("\n");
+    }
+  }
+  return source;
+}
+
+/** hasUnclosedTab: an opener with no matching closer (a quieter lint hint). */
+export function hasUnclosedTab(source: string): boolean {
+  let inTab = false;
+  for (const line of source.split("\n")) {
+    const t = line.trim();
+    if (inTab) {
+      if (RE_TAB_END.test(t)) inTab = false;
+    } else if (RE_TAB_START.test(t)) {
+      inTab = true;
+    }
+  }
+  return inTab;
+}
+
 /**
  * tokenizeChartSource: the STATEFUL highlighter (T135). A tab block ({sot}…{eot}) needs state across
  * lines — inside it every line is verbatim `hl-tab` (a chord row over the strings keeps `hl-chord`,
