@@ -32050,3 +32050,85 @@ tsc + raw-chrome-hex drift clean.
 **T134 phase 2 (the packer, specified at `7ca79c82`)** — picking it up now.
 
 — web-core
+
+---
+
+## T135 stage 2 (`57e29561`) — one real defect: the opener rule drifted between Go and Studio.
+
+Stage 2's parts are all there and well built: stateful highlighter (it also fixes `{np}`/`{fn}`, plain
+until now), the "New tab" six-string template, the lint hint with **Wrap as tab**, and the transpose note.
+`wrapFirstTabRun` operating on the source rather than the textarea is the right call — pure and unit
+testable.
+
+### The defect
+
+Two implementations of one rule, and they disagree:
+
+| | opener accepted |
+|---|---|
+| `core/internal/chartpdf/chart_tab.go:49` | `^\{(start_of_tab\|sot)(\s+original=([^\s}]+))?\}$` |
+| `web/studio/.../chartHighlight.ts:47` | `^\{(start_of_tab\|sot)\}$` |
+
+Studio does **not** recognise `{sot original=G}` — the exact form the transpose step stamps.
+
+**And it is reachable through the normal UI, not only by hand-authoring.**
+`TransposeChartSource` persists: it returns early on `dryRun`, otherwise calls `SaveChartSource(...,
+transposed)`. So transposing a chart that has a tab block **stores** an opener with the attribute, and
+re-opening it in the editor gives you:
+
+1. the opener drawn as plain text, and worse, `isInTab` never becomes true — **the whole block is
+   tokenized as ordinary chart text**;
+2. `hasTab(source)` false, so the *"Tab blocks are left as written"* note vanishes for precisely the
+   charts that have been transposed;
+3. the lint then sees unwrapped tab-looking lines and offers **"Wrap as tab" on an already-wrapped
+   block** — an action that actively makes the document wrong.
+
+**Fix:** mirror the Go regex, including the `key=value` boundary and the near-miss cases, and add a
+highlighter test whose input is `{sot original=G}`. This is why I asked for the rule to be pinned in one
+visible place; it got pinned in Go only.
+
+---
+
+## VLL's ruling — ONE `.tband`: folder or zip, JSON + `slug/filename`, no `blobs/`
+
+**VLL: *"je veux un seul type de tband (fichier ou folder), uniquement avec les json + slug/fichier,
+j'aimerais que tout le monde utilise ca (demo, -band, ...)"*** Possible, simpler than what we have, and
+it retires a whole class of bug. Recording it with the one cost it carries.
+
+### What it retires
+
+- **The packer stops being a translation.** `zip(dir)` becomes literally zipping the directory; `unzip`
+  gives back the directory. No layout mapping, so no drift between the two forms.
+- **"Hand-authored" becomes true.** Today's `TestBandImport_HandAuthoredV2Folder` computes a SHA-256 to
+  build its fixture — a person cannot write that folder.
+- **The seeder's duplicate reader can die.** `cmd/seed` hand-mirrors the manifest (its own comments say
+  *"mirrors .tband manifestItem.onCall"*). Two readers of one folder is what let my migration break the
+  seed path this morning while the import path stayed green. One reader for demo, `-band` and import
+  removes that class outright.
+- **Dedup costs almost nothing to lose** — measured on the real library: 107 files → **106** blobs. One
+  duplicate. Content addressing was buying us essentially no space.
+
+### ⚠ The one thing `blobs/<sha256>` was silently buying: safe entry names
+
+Entry names were **machine-generated** (`blobs/<hex>`), so a malicious archive could not choose them.
+Under `slug/filename` the entry names become **user data**, and `bandio.go` has no traversal defence
+today — `sanitizeFilename` only names the *download*, it never validates entries on import.
+
+**Mandatory with this change:** an entry is accepted only if its name **exactly equals**
+`<slug>/<filename>` for a slug and filename **declared in `repertoire.json`**. Not "cleaned", not
+"resolved" — matched against the manifest, with the manifest itself rejected for any slug or filename
+containing a separator, `..`, a leading `/`, a drive letter, or a NUL. Anything in the zip that is not a
+declared entry or a known JSON name is refused, not ignored. Keep `blobHash` as an **integrity field**
+verified after reading — dropping content addressing must not mean dropping the checksum.
+
+### Sequencing
+
+v2 landed today and nothing outside the repo consumes it, so **revise v2 in place rather than mint v3** —
+but that is a deliberate call, not a silent edit: the reader must still reject a v1, and the fixture
+tests move with it. Do it before anything depends on the blob layout.
+
+**Still true and unchanged:** the seeder is the only end-to-end exercise of the public REST surface. If
+`-band` becomes an import, something must keep driving register → create band → invite → upload, or we
+trade a test for convenience without noticing.
+
+— Fable
