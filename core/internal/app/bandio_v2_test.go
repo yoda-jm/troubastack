@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -385,6 +386,76 @@ func TestBandImport_V2TraversalDefense(t *testing.T) {
 		}
 		if bands, _ := tgt.repo.BandsForUser(importer.ID); len(bands) != 0 {
 			t.Fatalf("%s: %d bands created, want 0", name, len(bands))
+		}
+	}
+}
+
+// TestBandV2_GeneratedChartIsSource: ⟨F1⟩ — a generated (text) chart's folder bytes ARE its source, not
+// a rendered PDF (a derived artefact does not belong in a diffable folder); import renders it.
+func TestBandV2_GeneratedChartIsSource(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, _, _, _ := buildSourceBand(t, src)
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	files := unzip(t, zipBytes)
+
+	// Find the generated file in the repertoire and read its <slug>/<filename> bytes.
+	var rep struct {
+		Songs []struct {
+			Slug  string `json:"slug"`
+			Files []struct {
+				Filename  string `json:"filename"`
+				Generated bool   `json:"generated"`
+			} `json:"files"`
+		} `json:"songs"`
+	}
+	mustJSON(t, files["repertoire.json"], &rep)
+	var genEntry string
+	for _, s := range rep.Songs {
+		for _, f := range s.Files {
+			if f.Generated {
+				genEntry = s.Slug + "/" + f.Filename
+			}
+		}
+	}
+	if genEntry == "" {
+		t.Fatal("no generated file in the export")
+	}
+	body := files[genEntry]
+	if body == nil {
+		t.Fatalf("generated file %q has no bytes", genEntry)
+	}
+	if bytes.HasPrefix(body, []byte("%PDF")) {
+		t.Fatalf("⟨F1⟩ violated: generated file %q was exported as a rendered PDF, not its source", genEntry)
+	}
+	if !bytes.Contains(body, []byte("The Open Road")) {
+		t.Fatalf("generated file bytes are not the chart source: %q", string(body[:min(40, len(body))]))
+	}
+
+	// Import: the generated file renders — its stored blob is a PDF, and the source is preserved.
+	tgt := newStack()
+	importer, _ := tgt.svc.Register("owner", "Owner", "password123", "")
+	report, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	songs, _ := tgt.repo.SongsOfBand(report.Band.ID)
+	for _, sng := range songs {
+		fs, _ := tgt.repo.FilesOfSong(sng.ID)
+		for _, f := range fs {
+			if !f.Generated {
+				continue
+			}
+			cs, cerr := tgt.repo.GetChartSource(f.ID)
+			if cerr != nil || cs == "" {
+				t.Fatalf("imported generated file lost its source: %v", cerr)
+			}
+			data, _ := tgt.blobs.Get(f.BlobHash)
+			if !bytes.HasPrefix(data, []byte("%PDF")) {
+				t.Fatalf("imported generated file's blob is not a rendered PDF")
+			}
 		}
 	}
 }

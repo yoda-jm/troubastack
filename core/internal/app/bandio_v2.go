@@ -54,6 +54,7 @@ import (
 	"strings"
 
 	"troubastack/core/internal/app/blob"
+	"troubastack/core/internal/chartpdf"
 	"troubastack/core/internal/domain"
 )
 
@@ -102,7 +103,8 @@ type v2File struct {
 	DisplayOrder int    `json:"displayOrder,omitempty"`
 	Generated    bool   `json:"generated,omitempty"`
 	Revision     int    `json:"revision,omitempty"`
-	ChartSource  string `json:"chartSource,omitempty"`
+	// ⟨F1⟩: no chartSource field — for a generated chart the bytes under <slug>/<filename> ARE the
+	// source (rendered on import), so a second copy would drift silently past the blobHash check.
 }
 
 type v2SetlistsFile struct {
@@ -229,18 +231,26 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 		for _, mf := range ms.Files {
 			name := uniqueName(safeFilename(mf.Filename), usedNames)
 			fileNameByID[mf.ID] = name
-			vs.Files = append(vs.Files, v2File{
-				Filename: name, ContentType: mf.ContentType, Size: mf.Size, BlobHash: mf.BlobHash,
-				DisplayOrder: mf.DisplayOrder, Generated: mf.Generated, Revision: mf.Revision,
-				ChartSource: mf.ChartSource,
-			})
-			// The bytes live under the human name; no blobs/ (amendment 4). getBlob is nil in the
-			// tests that only exercise JSON shape.
-			if mf.BlobHash != "" && getBlob != nil {
-				data, err := getBlob(mf.BlobHash)
-				if err != nil {
-					return nil, fmt.Errorf("export v2: file %q blob %s: %w", name, mf.BlobHash, err)
+			// The bytes live under the human name; no blobs/ (amendment 4). ⟨F1⟩: a GENERATED chart's
+			// bytes ARE its source (rendered on import) — a rendered PDF is a derived artefact and does
+			// not belong in a diffable folder. A normal file writes its blob bytes.
+			var data []byte
+			hash := mf.BlobHash
+			if mf.Generated {
+				data = []byte(mf.ChartSource)
+				hash = blob.HashOf(data)
+			} else if mf.BlobHash != "" && getBlob != nil {
+				d, gerr := getBlob(mf.BlobHash)
+				if gerr != nil {
+					return nil, fmt.Errorf("export v2: file %q blob %s: %w", name, mf.BlobHash, gerr)
 				}
+				data = d
+			}
+			vs.Files = append(vs.Files, v2File{
+				Filename: name, ContentType: mf.ContentType, Size: mf.Size, BlobHash: hash,
+				DisplayOrder: mf.DisplayOrder, Generated: mf.Generated, Revision: mf.Revision,
+			})
+			if data != nil {
 				files[slug+"/"+name] = data
 			}
 		}
@@ -440,7 +450,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 			ms.Files = append(ms.Files, manifestFile{
 				ID: fid, Filename: vf.Filename, ContentType: vf.ContentType, Size: vf.Size,
 				BlobHash: vf.BlobHash, DisplayOrder: vf.DisplayOrder, Generated: vf.Generated,
-				Revision: vf.Revision, ChartSource: vf.ChartSource,
+				Revision: vf.Revision, // ⟨F1⟩: ChartSource is filled from the file bytes in the read loop below.
 			})
 		}
 		man.Songs = append(man.Songs, ms)
@@ -581,13 +591,26 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 			if !ok {
 				return bandManifest{}, nil, fmt.Errorf("%w: declared file %q has no bytes in the archive", ErrInvalidInput, entry)
 			}
-			h := blob.HashOf(data)
-			if f.BlobHash != "" && f.BlobHash != h {
+			// ⟨P2⟩ integrity is against the archive bytes as stored (the SOURCE for a generated chart).
+			if f.BlobHash != "" && f.BlobHash != blob.HashOf(data) {
 				return bandManifest{}, nil, fmt.Errorf("%w: file %q content does not match its declared blobHash", ErrInvalidInput, entry)
 			}
-			f.BlobHash = h
-			blobs[h] = data
 			allowed[entry] = true
+			if f.Generated {
+				// ⟨F1⟩: the bytes ARE the chart source; render to the PDF that gets stored, and keep the
+				// source so a round-trip re-exports the same text (import re-renders, like CreateTextChart).
+				pdf, rerr := chartpdf.Render(string(data))
+				if rerr != nil {
+					return bandManifest{}, nil, fmt.Errorf("%w: generated chart %q does not render: %v", ErrInvalidInput, entry, rerr)
+				}
+				f.ChartSource = string(data)
+				f.BlobHash = blob.HashOf(pdf)
+				blobs[f.BlobHash] = pdf
+			} else {
+				h := blob.HashOf(data)
+				f.BlobHash = h
+				blobs[h] = data
+			}
 		}
 	}
 	// ⟨P7⟩: every entry must be a known JSON name or a DECLARED `<slug>/<filename>`. A zip entry that is
