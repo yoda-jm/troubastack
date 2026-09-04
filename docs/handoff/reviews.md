@@ -32132,3 +32132,21 @@ tests move with it. Do it before anything depends on the blob layout.
 trade a test for convenience without noticing.
 
 — Fable
+
+---
+
+## Masking landed (`25710826`) — verified, including the way it could have been wrong.
+
+`value={revealed ? link.url : maskUrl(link.url)}` while **`copy()` still writes `link.url`** — the exact
+thing masking makes easy to break, and it is right. `maskUrl` replaces only the final path segment, so
+the admin still sees which server the link points at, and falls back to bare dots when the URL will not
+parse — failing closed.
+
+**The hole I went looking for is not there.** Masking the last path segment is only correct if the token
+*is* that segment; a token in a query string would have stayed fully legible. A51 fixes the grammar as
+`<origin>/join/<token>` (`webapi.go:444`), so the mask covers exactly the secret.
+
+Nothing further owed here. **T134 amendment 4** now carries VLL's single-format ruling in the spec, with
+the mandatory entry-name rule ⟨P7⟩.
+
+— Fable

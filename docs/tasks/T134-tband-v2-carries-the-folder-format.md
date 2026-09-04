@@ -332,6 +332,59 @@ the documented default for an unknown username. What *is* enforced is the T62 ta
 preview stays a **UI obligation** in whatever surface drives the packer; do not build as though the
 service layer already guarantees it, and do not weaken the takeover check.
 
+## AMENDMENT 4 (VLL, 2026-09-04) — ONE `.tband`: folder or zip, JSON + `slug/filename`, no `blobs/`
+
+**VLL: *"je veux un seul type de tband (fichier ou folder), uniquement avec les json + slug/fichier,
+j'aimerais que tout le monde utilise ca (demo, -band, ...)"*** This supersedes the blob layout that phase
+1 shipped. **Revise v2 in place** — it landed today and nothing outside the repo consumes it — but as a
+deliberate change: the reader still rejects v1, and the fixtures move with it.
+
+### The layout, entire
+
+```
+band.json          formatVersion, name, members[]        (+ the folder's own keys, ignored by the reader)
+repertoire.json    songs[] with files[] (filename, contentType, size, blobHash, displayOrder)
+setlists.json      setlists[] with items[].song = slug
+annotations/<slug>.json    { layers[], objects[] } — ids verbatim
+<slug>/<filename>          the bytes, under human names
+```
+
+A `.tband` **is that directory zipped**. Nothing else. `unzip` gives the directory back.
+
+### Why this is the right shape, measured
+
+- **The packer stops being a translation**, so the two forms cannot drift.
+- **"Hand-authored" becomes true.** `TestBandImport_HandAuthoredV2Folder` currently calls `blob.HashOf`
+  to build its own fixture — a person cannot write a folder that needs SHA-256.
+- **The seeder's duplicate reader dies.** `cmd/seed` hand-mirrors the manifest (*"mirrors .tband
+  manifestItem.onCall"*). Two readers of one folder is exactly what let a migration break seeding while
+  import stayed green. One reader serves demo, `-band` and import.
+- **Dedup was buying nothing:** 107 real files → **106** blobs. One duplicate.
+
+### ⚠ ⟨P7⟩ MANDATORY — entry names become user data
+
+`blobs/<hex>` names were **machine-generated**, so an archive could not choose them. Under
+`slug/filename` they are attacker-controllable, and `bandio.go` has **no traversal defence today** —
+`sanitizeFilename` only names the export download.
+
+**An entry is accepted only when its name is EXACTLY `<slug>/<filename>` for a slug and filename declared
+in `repertoire.json`.** Matched against the manifest — not cleaned, not resolved, not `filepath.Clean`ed.
+The manifest itself refuses any slug or filename containing a path separator, `..`, a leading `/`, a
+drive letter, or a NUL. A zip entry that is neither a declared file nor a known JSON name is **refused**,
+not ignored. Keep `blobHash` as an **integrity field** verified after reading: dropping content
+addressing must not drop the checksum.
+
+**Test it as an attack, not as a shape:** an archive declaring an innocent manifest while carrying
+`../../etc/x`, an absolute path, and a name differing only by Unicode normalisation must each be refused,
+by an assertion that reads as a refusal rather than an absence.
+
+### Everything else stands
+
+⟨P1⟩–⟨P6⟩ from the phase 2 section are unchanged, and ⟨P1⟩ (the mapping belongs to the tool, with a
+fixture that both seeds and packs) matters more under this ruling, not less — it is now the *same* reader
+doing both. The seeder remains the only end-to-end exercise of the public REST surface; if `-band`
+becomes an import, something must still drive register → create band → invite → upload.
+
 ## Then, and only then: the demo
 
 Once annotations are expressible, move the demo's groups out of Go literals (`groupDef`) into a folder
