@@ -339,14 +339,12 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		// names the song being baked, not the one just finished: done advances 1..N here.
 		done, curSong = si+1, item.SongTitle
 		b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeRunning, Done: done, Total: total, Song: curSong})
-		st, req, berr := b.stageSong(ctx, si, bandID, actor, item)
+		st, reqs, berr := b.stageSong(ctx, si, bandID, actor, item)
 		if berr != nil {
 			return ConcertBundle{}, bakeID, fmt.Errorf("song %s: %w", item.SongID, berr)
 		}
 		staged = append(staged, st)
-		if req != nil {
-			batch = append(batch, *req)
-		}
+		batch = append(batch, reqs...) // T137: one request per pool file that draws something
 	}
 	// T96/T98 tail: phase 1 is done (done==total), but the bake is NOT finished — the single
 	// overlay RenderBatch (T98) + assembly + .tstage packaging still run (~2.4s of a ~13.5s bake).
@@ -361,7 +359,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		return ConcertBundle{}, bakeID, b.fail("The annotation renderer isn't available on the server. Ask an admin to check the bake setup.", oerr)
 	}
 	for _, st := range staged {
-		song, aerr := b.assembleSong(st, overlaysByKey[st.overlayKey], blobsDir, layerDefaults)
+		song, aerr := b.assembleSong(st, overlaysByKey, blobsDir, layerDefaults)
 		if aerr != nil {
 			done, curSong = st.si+1, detail.Items[st.si].SongTitle // name the failing song in the terminal state
 			return ConcertBundle{}, bakeID, fmt.Errorf("song %s: %w", st.song.SongID, aerr)
@@ -471,23 +469,35 @@ func effectiveKey(item app.SetlistItemView) string {
 	return item.SongKey
 }
 
-// stagedSong is a song after phase 1 (metadata + rasters), waiting for its overlays from the one
-// batch render before phase 3 assembles the blobs (T98).
-type stagedSong struct {
-	si           int
-	song         BakedSong
+// stagedFile is one source file's rasters + overlay wiring within a song's shared page POOL (T137). A
+// song with no divergent member selections has exactly one — the default — and bakes byte-identically to
+// before (the pool IS that file, no member_pages).
+type stagedFile struct {
+	fileID       string
 	rasters      [][]byte
 	nameByLayer  map[string]string
 	ownerByLayer map[string]string
-	overlayKey   string // "" for a metadata-only song or one with nothing to draw
-	metadataOnly bool
+	overlayKey   string // "" if this file has nothing to draw
 }
 
-// stageSong does everything up to the overlay render: metadata, snapshot, member cues, file
-// resolve/transpose, rasterize, and building the overlay doc. It returns the staged state plus the
-// overlay request for the batch — nil when the song has no PDF or no objects to draw (T97's skip
-// generalised: a song with nothing to draw never enters the batch, so it costs no spawn).
-func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView) (stagedSong, *overlaySong, error) {
+// stagedSong is a song after phase 1 (metadata + rasters), waiting for its overlays from the one
+// batch render before phase 3 assembles the blobs (T98).
+type stagedSong struct {
+	si   int
+	song BakedSong
+	// T137: the pool sources in a stable order; files[0] is the default (the "" / anonymous reader's
+	// sequence). One entry ⇒ today's single-file bundle, byte-identical.
+	files         []stagedFile
+	selections    []app.MemberFileSelection // per-member ordered file choices → member_pages (⟨D1⟩)
+	defaultFileID string                    // files[0].fileID, or "" if metadata-only / no default PDF
+	metadataOnly  bool
+}
+
+// stageSong does everything up to the overlay render: metadata, snapshot, member cues, and — per file in
+// the T137 POOL — resolve/transpose/rasterize + build the overlay doc. It returns the staged state plus
+// one overlay request per file that has something to draw (T97's skip generalised: a file with nothing to
+// draw never enters the batch, so it costs no spawn). One pool file ⇒ today's single-file song.
+func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.User, item app.SetlistItemView) (stagedSong, []overlaySong, error) {
 	song := BakedSong{
 		SongID:       item.SongID,
 		SongRev:      1,
@@ -529,42 +539,91 @@ func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.
 		song.MemberCues = append(song.MemberCues, MemberCues{MemberID: mc.MemberID, Cues: cues})
 	}
 
-	file, ok, err := b.defaultFile(actor, bandID, item.SongID)
+	// T137: resolve the pool SOURCES. files[0] is the DEFAULT — the lowest-DisplayOrder viewable PDF, or
+	// (⟨D3⟩: default-only) the generated chart when the item transposes (D1) — followed by the DISTINCT
+	// files any member selected, in Members order. Everything resolves through SongFiles so a stale
+	// selection ref (a deleted file) is skipped, never a bake failure.
+	allFiles, err := b.svc.SongFiles(actor, bandID, item.SongID)
 	if err != nil {
 		return stagedSong{}, nil, err
 	}
-	if !ok {
-		return stagedSong{si: si, song: song, metadataOnly: true}, nil, nil // no PDF to bake — metadata-only song
+	byID := make(map[string]app.SongFile, len(allFiles))
+	for _, f := range allFiles {
+		byID[f.ID] = f
 	}
-	// D1: when the item asks to transpose, bake the GENERATED chart — the exact file the
-	// playlist preview shows and the bake-warning / Studio checkbox key on. Otherwise, with
-	// an uploaded PDF at a lower DisplayOrder, the baker would bake that untransposed PDF
-	// while the band previewed the transposed chart — a silently wrong gig bundle.
-	if item.TransposeChords {
+	def, hasDefault, err := b.defaultFile(actor, bandID, item.SongID)
+	if err != nil {
+		return stagedSong{}, nil, err
+	}
+	if hasDefault && item.TransposeChords {
 		if gen, genOK, gerr := b.generatedChart(actor, bandID, item.SongID); gerr != nil {
 			return stagedSong{}, nil, gerr
 		} else if genOK {
-			file = gen
+			def = gen // D1: transpose forces the DEFAULT to the generated chart (the previewed file)
 		}
 	}
-	_, pdf, err := b.svc.DownloadSongFile(actor, file.ID)
-	if err != nil {
-		return stagedSong{}, nil, err
+	sels, serr := b.svc.AllFileSelections(actor, bandID, item.SongID)
+	if serr != nil {
+		return stagedSong{}, nil, serr
 	}
 
-	// T60 surface 2: burn the chart transposed to the item's key override, band-wide,
-	// when the item asks AND all conditions hold at bake time. A degraded case (key
-	// edited to garbage, chart replaced) falls through to the stored PDF — the bake must
-	// NOT fail (a failed bake the night before a gig, or a silent wrong-key page, are
-	// both worse; bakeapi surfaces a warning from the same TransposeEligible check). The
-	// transpose preserves line count ⇒ identical pagination/geometry ⇒ existing layer
-	// annotations stay anchored (chartpdf Part A invariant). Any sub-step failing leaves
-	// `pdf` as the stored bytes.
+	union := make([]app.SongFile, 0, 1+len(sels))
+	seen := map[string]bool{}
+	if hasDefault {
+		union = append(union, def)
+		seen[def.ID] = true
+	}
+	for _, sel := range sels {
+		for _, fid := range sel.FileIDs {
+			if seen[fid] {
+				continue
+			}
+			if f, exists := byID[fid]; exists { // skip a stale/deleted selection ref
+				union = append(union, f)
+				seen[fid] = true
+			}
+		}
+	}
+	if len(union) == 0 {
+		return stagedSong{si: si, song: song, metadataOnly: true}, nil, nil // no PDF anywhere
+	}
+
+	st := stagedSong{si: si, song: song, selections: sels}
+	if hasDefault {
+		st.defaultFileID = def.ID
+	}
+	var reqs []overlaySong
+	for fi, f := range union {
+		sf, req, ferr := b.stageFile(ctx, si, fi, bandID, actor, item, snap, f)
+		if ferr != nil {
+			return stagedSong{}, nil, ferr
+		}
+		st.files = append(st.files, sf)
+		if req != nil {
+			reqs = append(reqs, *req)
+		}
+	}
+	return st, reqs, nil
+}
+
+// stageFile stages ONE pool source: download, transpose (⟨D3⟩ — only when the item asks AND this file is
+// itself eligible; a member's explicit non-chart pick is baked as selected, never silently overridden),
+// rasterize, and build its overlay doc scoped to this file. [fi] is the file's position in the pool.
+func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor app.User, item app.SetlistItemView, snap domain.Snapshot, file app.SongFile) (stagedFile, *overlaySong, error) {
+	_, pdf, err := b.svc.DownloadSongFile(actor, file.ID)
+	if err != nil {
+		return stagedFile{}, nil, err
+	}
+	// T60 surface 2: burn the chart transposed to the item's key override when the item asks AND this file
+	// is eligible. A degraded case falls through to the stored PDF — the bake must NOT fail (a failed bake
+	// the night before a gig, or a silent wrong-key page, are both worse; bakeapi surfaces a warning from
+	// the same TransposeEligible check, which ⟨D3⟩ extends to name a member whose non-eligible pick reads
+	// in the original key). Transpose preserves line count ⇒ identical geometry ⇒ layers stay anchored.
 	if item.TransposeChords {
-		if song, serr := b.svc.SongForMember(actor, bandID, item.SongID); serr == nil {
-			if ok, _ := app.TransposeEligible(song.Key, item.KeyOverride, file.Generated); ok {
+		if s, serr := b.svc.SongForMember(actor, bandID, item.SongID); serr == nil {
+			if ok, _ := app.TransposeEligible(s.Key, item.KeyOverride, file.Generated); ok {
 				if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, file.ID); cerr == nil {
-					from, _ := chartpdf.ParseKey(song.Key)
+					from, _ := chartpdf.ParseKey(s.Key)
 					to, _ := chartpdf.ParseKey(item.KeyOverride)
 					if t, terr := chartpdf.TransposeToKey(src, item.KeyOverride, from, to); terr == nil { // D5
 						if tpdf, rerr := chartpdf.Render(t); rerr == nil {
@@ -579,26 +638,23 @@ func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.
 	rasters, err := b.raster.Rasterize(ctx, pdf)
 	if err != nil {
 		// poppler's stderr + its binary path; the user gets a one-line, song-named reason instead.
-		return stagedSong{}, nil, b.fail(fmt.Sprintf("Couldn't read the sheet music for %q — the file may be damaged.", item.SongTitle), err)
+		return stagedFile{}, nil, b.fail(fmt.Sprintf("Couldn't read the sheet music for %q — the file may be damaged.", item.SongTitle), err)
 	}
 	pageSizes := make([]pageSize, 0, len(rasters))
 	for i, r := range rasters {
 		cfg, _, derr := image.DecodeConfig(bytes.NewReader(r))
 		if derr != nil {
-			return stagedSong{}, nil, fmt.Errorf("decode page %d raster: %w", i, derr)
+			return stagedFile{}, nil, fmt.Errorf("decode page %d raster: %w", i, derr)
 		}
 		pageSizes = append(pageSizes, pageSize{Index: i, Width: cfg.Width, Height: cfg.Height})
 	}
-	// Overlays are drawn at the raster's pixel width so they composite 1:1 on the
-	// presenter. v1 assumes uniform page width (typical for a single PDF).
+	// Overlays are drawn at the raster's pixel width so they composite 1:1 on the presenter.
 	overlayWidth := 0
 	if len(pageSizes) > 0 {
 		overlayWidth = pageSizes[0].Width
 	}
-	// T53: the rendered overlay carries no name; look it up from the source snapshot's layers so the
-	// baked LayerImage can label the layer for the viewer. P205: also carry each layer's owner (member
-	// id, or "" for band-shared) so a band-wide bundle can be filtered to the viewer's identity at view
-	// time. Computed in stage; consumed in assembly.
+	// T53: the rendered overlay carries no name; look it up from the source snapshot's layers so the baked
+	// LayerImage can label the layer. P205: also carry each layer's owner (member id, or "" for shared).
 	nameByLayer := map[string]string{}
 	ownerByLayer := map[string]string{}
 	for _, l := range snap.Layers {
@@ -607,61 +663,95 @@ func (b *Baker) stageSong(ctx context.Context, si int, bandID string, actor app.
 			ownerByLayer[l.ID] = l.OwnerID
 		}
 	}
-	st := stagedSong{si: si, song: song, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer}
-	// T97/T98: a song enters the overlay batch only if it has objects to draw. Zero objects → no spawn
-	// contribution, and (byte-identical) the worker would have produced zero overlays anyway.
+	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer}
+	// T97/T98: a file enters the overlay batch only if it has objects to draw (scoped to THIS file — a
+	// multi-file song carries per-file layers, B11/T40). Zero objects → no spawn contribution.
 	doc := snapshotToDoc(snap, file.ID)
 	if len(doc.Objects) == 0 {
-		return st, nil, nil
+		return sf, nil, nil
 	}
-	st.overlayKey = fmt.Sprintf("s%d", si)
-	return st, &overlaySong{Key: st.overlayKey, Doc: doc, Pages: pageSizes, OverlayWidth: overlayWidth}, nil
+	sf.overlayKey = fmt.Sprintf("s%d-f%d", si, fi)
+	return sf, &overlaySong{Key: sf.overlayKey, Doc: doc, Pages: pageSizes, OverlayWidth: overlayWidth}, nil
 }
 
-// assembleSong writes the song's rasters + its batched overlays into the bundle blobs and returns the
-// completed BakedSong. `overlays` is this song's slice from RenderBatch (nil for a metadata-only song
-// or one that drew nothing).
-func (b *Baker) assembleSong(st stagedSong, overlays []renderedOverlay, blobsDir string, layerDefaults map[string]bool) (BakedSong, error) {
+// assembleSong writes the pool's rasters + batched overlays into the bundle blobs and returns the
+// completed BakedSong. `overlaysByKey` is the whole RenderBatch result, keyed per pool file (T137).
+func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedOverlay, blobsDir string, layerDefaults map[string]bool) (BakedSong, error) {
 	if st.metadataOnly {
 		return st.song, nil
 	}
 	song := st.song
-	overlaysByPage := map[int][]renderedOverlay{}
-	for _, ov := range overlays {
-		overlaysByPage[ov.Page] = append(overlaysByPage[ov.Page], ov)
+	// T137: the shared POOL — one PageImages entry per (pool file, page), each with its OWN overlays. ⟨D2⟩:
+	// the raster BLOB is written once per content hash and its ref reused, so identical pages cost one
+	// image; but the entries stay distinct, so two byte-identical files with DIFFERENT annotations (a part
+	// duplicated "pour flûte") never merge their marks. `pagesByFile` records each file's entry indices so
+	// per-member sequences (member_pages) can point into the pool.
+	rasterRefByHash := map[string]string{}
+	pagesByFile := map[string][]int32{}
+	for _, sf := range st.files {
+		overlaysByPage := map[int][]renderedOverlay{}
+		for _, ov := range overlaysByKey[sf.overlayKey] {
+			overlaysByPage[ov.Page] = append(overlaysByPage[ov.Page], ov)
+		}
+		seq := make([]int32, 0, len(sf.rasters))
+		for i, r := range sf.rasters {
+			entryIdx := len(song.Pages)
+			hash := Sha256Hex(r)
+			rasterRef, ok := rasterRefByHash[hash]
+			if !ok { // first time we see this raster — write the blob once and remember its ref (⟨D2⟩)
+				rasterRef = fmt.Sprintf("blobs/s%d-p%d-raster.png", st.si, entryIdx)
+				if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(rasterRef)), r, 0o600); err != nil {
+					return BakedSong{}, err
+				}
+				rasterRefByHash[hash] = rasterRef
+			}
+			page := PageImages{PageRasterRef: rasterRef, RasterHash: hash}
+			ovs := overlaysByPage[i]
+			sort.Slice(ovs, func(a, b int) bool { return ovs[a].Order < ovs[b].Order })
+			for _, ov := range ovs {
+				ref := fmt.Sprintf("blobs/s%d-p%d-%s.png", st.si, entryIdx, safeName(ov.LayerID))
+				if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(ref)), ov.PNG, 0o600); err != nil {
+					return BakedSong{}, err
+				}
+				li := LayerImage{
+					LayerID:     ov.LayerID,
+					ImageRef:    ref,
+					ContentHash: ov.ContentHash,
+					Order:       ov.Order,
+					Mandatory:   ov.Mandatory,
+					RoleTag:     ov.RoleTag,
+					Name:        sf.nameByLayer[ov.LayerID],
+					Owner:       sf.ownerByLayer[ov.LayerID], // P205: "" = shared; member id = personal
+				}
+				// P205 default_on capture (bake dialog): when the dialog ran, stamp an explicit default-on
+				// per layer (mandatory always on); otherwise leave it absent so the viewer computes as today.
+				if layerDefaults != nil {
+					on := ov.Mandatory || layerDefaults[sf.nameByLayer[ov.LayerID]]
+					li.DefaultOn = &on
+				}
+				page.Overlays = append(page.Overlays, li)
+			}
+			song.Pages = append(song.Pages, page)
+			seq = append(seq, int32(entryIdx))
+		}
+		pagesByFile[sf.fileID] = seq
 	}
-	for i, r := range st.rasters {
-		rasterRef := fmt.Sprintf("blobs/s%d-p%d-raster.png", st.si, i)
-		if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(rasterRef)), r, 0o600); err != nil {
-			return BakedSong{}, err
+	// ⟨D1⟩: emit member_pages ONLY when the pool holds more than one source (members diverge) — then the ""
+	// DEFAULT sequence (the default file's pool pages: the no-selection / anonymous reader) TOGETHER with a
+	// per-member entry for each divergent member. One pool file ⇒ no member_pages, byte-identical to today.
+	if len(st.files) > 1 {
+		if def := pagesByFile[st.defaultFileID]; len(def) > 0 {
+			song.MemberPages = append(song.MemberPages, MemberPages{MemberID: "", Page: def})
 		}
-		page := PageImages{PageRasterRef: rasterRef, RasterHash: Sha256Hex(r)}
-		ovs := overlaysByPage[i]
-		sort.Slice(ovs, func(a, b int) bool { return ovs[a].Order < ovs[b].Order })
-		for _, ov := range ovs {
-			ref := fmt.Sprintf("blobs/s%d-p%d-%s.png", st.si, i, safeName(ov.LayerID))
-			if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(ref)), ov.PNG, 0o600); err != nil {
-				return BakedSong{}, err
+		for _, sel := range st.selections {
+			seq := make([]int32, 0, len(sel.FileIDs))
+			for _, fid := range sel.FileIDs {
+				seq = append(seq, pagesByFile[fid]...)
 			}
-			li := LayerImage{
-				LayerID:     ov.LayerID,
-				ImageRef:    ref,
-				ContentHash: ov.ContentHash,
-				Order:       ov.Order,
-				Mandatory:   ov.Mandatory,
-				RoleTag:     ov.RoleTag,
-				Name:        st.nameByLayer[ov.LayerID],
-				Owner:       st.ownerByLayer[ov.LayerID], // P205: "" = shared; member id = personal
+			if len(seq) > 0 {
+				song.MemberPages = append(song.MemberPages, MemberPages{MemberID: sel.MemberID, Page: seq})
 			}
-			// P205 default_on capture (bake dialog): when the dialog ran, stamp an explicit default-on
-			// per layer (mandatory always on); otherwise leave it absent so the viewer computes as today.
-			if layerDefaults != nil {
-				on := ov.Mandatory || layerDefaults[st.nameByLayer[ov.LayerID]]
-				li.DefaultOn = &on
-			}
-			page.Overlays = append(page.Overlays, li)
 		}
-		song.Pages = append(song.Pages, page)
 	}
 	return song, nil
 }

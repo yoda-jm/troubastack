@@ -1687,6 +1687,40 @@ func (s *Service) AllMemberCues(caller User, bandID, songID string) ([]MemberSon
 	return out, nil
 }
 
+// MemberFileSelection is one member's ordered file choice for a song (T137 per-member
+// reading sequence in the band-wide bake).
+type MemberFileSelection struct {
+	MemberID string   `json:"memberId"`
+	FileIDs  []string `json:"fileIds"`
+}
+
+// AllFileSelections returns EVERY band member's personal, ordered file selection for a
+// song, keyed by member id, in the deterministic Members order (T137). ADMIN-only and
+// gated like the band-wide bake that consumes it (I11) — it exposes other members'
+// selections, exactly as AllMemberCues exposes their cues. A member with no selection is
+// omitted (they read the default; the baker resolves that), never a hollow entry.
+func (s *Service) AllFileSelections(caller User, bandID, songID string) ([]MemberFileSelection, error) {
+	if _, err := s.requireRole(bandID, caller.ID, RoleAdmin); err != nil {
+		return nil, err
+	}
+	if _, err := s.SongForMember(caller, bandID, songID); err != nil {
+		return nil, err
+	}
+	members, err := s.Members(caller, bandID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MemberFileSelection, 0, len(members))
+	for _, m := range members {
+		sel, err := s.repo.GetFileSelection(m.User.ID, songID)
+		if err != nil || len(sel.FileIDs) == 0 {
+			continue // ErrNotFound / empty → omit; this member reads the default
+		}
+		out = append(out, MemberFileSelection{MemberID: m.User.ID, FileIDs: sel.FileIDs})
+	}
+	return out, nil
+}
+
 // SetMyCues replaces the caller's ordered cue list for a song (T50). Self-only by
 // construction — cues are always keyed to caller.ID, so a member can never write
 // another's. An empty list clears the cues. Each icon id must be non-empty; each

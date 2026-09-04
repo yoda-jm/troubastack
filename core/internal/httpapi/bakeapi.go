@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -204,9 +205,58 @@ func (a *BakeAPI) transposeWarnings(u app.User, bandID, setlistID string) []stri
 			// D3: eligible, but the transform errored at bake so the chart baked
 			// UNTRANSPOSED — otherwise a silent wrong-key page.
 			warns = append(warns, title+": chords not transposed — the chart could not be transposed at bake")
+		} else {
+			// ⟨D3⟩ (T137): the item IS transposed for the default reader, but a member who selected a
+			// non-chart file reads THAT file — untransposed, in the original key — on stage. Name them, so
+			// the baker knows who will be on a different key rather than discovering it mid-song.
+			warns = append(warns, a.memberOriginalKeyWarnings(u, bandID, item.SongID, title)...)
 		}
 	}
 	return warns
+}
+
+// memberOriginalKeyWarnings names members (T137/⟨D3⟩) whose explicit file selection for a transposed song
+// includes a non-generated file: it bakes as selected (never silently overridden), so they read the
+// original key while the band reads transposed. Best-effort: any lookup error yields no warning.
+func (a *BakeAPI) memberOriginalKeyWarnings(u app.User, bandID, songID, title string) []string {
+	sels, err := a.svc.AllFileSelections(u, bandID, songID)
+	if err != nil || len(sels) == 0 {
+		return nil
+	}
+	files, ferr := a.svc.SongFiles(u, bandID, songID)
+	if ferr != nil {
+		return nil
+	}
+	byID := make(map[string]app.SongFile, len(files))
+	for _, f := range files {
+		byID[f.ID] = f
+	}
+	names := map[string]string{}
+	if members, merr := a.svc.Members(u, bandID); merr == nil {
+		for _, m := range members {
+			n := m.User.DisplayName
+			if n == "" {
+				n = m.User.Username
+			}
+			names[m.User.ID] = n
+		}
+	}
+	var out []string
+	for _, sel := range sels {
+		for _, fid := range sel.FileIDs {
+			f, ok := byID[fid]
+			if !ok || f.Generated { // a generated chart gets transposed; only a non-chart reads original
+				continue
+			}
+			who := names[sel.MemberID]
+			if who == "" {
+				who = sel.MemberID
+			}
+			out = append(out, fmt.Sprintf("%s: %s reads %q in the original key (their chosen file isn't a transposable chart)", title, who, f.Filename))
+			break // one warning per member is enough
+		}
+	}
+	return out
 }
 
 // listConcerts returns the baked concerts whose setlist belongs to this band.
