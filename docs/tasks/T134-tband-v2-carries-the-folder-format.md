@@ -430,8 +430,18 @@ Everything else — band, members, repertoire, files, setlists, annotations — 
 ### What this costs, honestly
 
 The `-band` and demo paths stop driving register → create band → invite → accept → create song → upload
-in sequence. Given the 111 `httpapi` tests, that is a **loss of scenario, not of coverage**. Keep one
-minimal band seeded the long way as a smoke path if it is cheap; do not keep the whole seeder alive for it.
+in sequence. Given the 111 `httpapi` tests, that is a loss of scenario, not of coverage.
+
+**And VLL closes even that** — *"on peut toujours deriver un test d'integration a partir des donnees de
+demo si vraiment on veut tester toute l'api."* Once the demo is a folder, the long REST path is a
+**function of that data**: walk the folder and replay it as register → create band → invite → accept →
+create song → upload → import annotations.
+
+**This inverts the concern rather than answering it.** A hand-written scenario drifts from the content it
+was written against; a derived one cannot, because there is one source. So the sequence is not something
+to preserve at a cost — it becomes cheaper and truer than what exists today. **Concern closed; I raised
+it three times and it was wrong to keep raising it.** Build it only if someone wants it, not as a
+condition on the split.
 
 ## Then, and only then: the demo
 
