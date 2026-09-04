@@ -186,7 +186,7 @@ function LiveModeCard({
     <section className="card live-card" data-testid="live-card">
       <div className="card-head">
         <h2>Rehearsal live mode</h2>
-        {on && <span className="chip live">● LIVE</span>}
+        {on && <span className="chip live" data-testid="live-chip">LIVE</span>}
       </div>
       <p className="muted">
         While live, edits to this setlist&rsquo;s songs auto-publish to performers (they

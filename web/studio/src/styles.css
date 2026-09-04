@@ -1659,10 +1659,14 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   font-weight: 600; font-size: .9rem;
 }
 .live-dot, .chip.live::before {
+  content: ""; /* the ::before had no content, so the card chip's dot never rendered — it leaned on a
+                  literal ● in the markup. Now the pseudo-element is the dot (T132), like .live-chip. */
   width: .55rem; height: .55rem; border-radius: 999px; background: currentColor;
   display: inline-block; animation: livePulse 1.6s ease-in-out infinite;
 }
-.chip.live { color: var(--error-fg); background: var(--error-bg); display: inline-flex; align-items: center; gap: .35rem; }
+/* T132 follow-up: the LiveModeCard's status chip is live STATE, not an error — same --live token as the
+   concert-row chip (crimson text + the ::before dot; no fill), never --error. */
+.chip.live { color: var(--live); background: transparent; padding-left: .1rem; display: inline-flex; align-items: center; gap: .35rem; }
 @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .live-dot, .chip.live::before, .live-chip::before { animation: none; } }
 .live-card .card-head { display: flex; align-items: center; gap: .6rem; }

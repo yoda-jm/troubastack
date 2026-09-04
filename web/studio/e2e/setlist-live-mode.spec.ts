@@ -39,6 +39,12 @@ test("admin toggles rehearsal live mode; the banner shows + persists", async ({ 
   await expect(page.getByTestId("live-banner")).toBeVisible();
   await expect(toggle).toHaveText(/Stop live/i);
 
+  // T132 follow-up: the card's status chip renders its dot (the ::before, which had no `content` and
+  // so never showed — the chip leaned on a literal ●). Guard the dot is a real, sized pseudo-element.
+  const chip = page.getByTestId("live-chip");
+  await expect(chip).toBeVisible();
+  expect(await chip.evaluate((el) => parseFloat(getComputedStyle(el, "::before").width))).toBeGreaterThan(0);
+
   // Persists across a reload (server-side state).
   await page.reload();
   await expect(page.getByTestId("live-banner")).toBeVisible();
