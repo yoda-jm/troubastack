@@ -1,84 +1,169 @@
 # First rehearsal with TroubaStack — field report, 2026-09-04
 
-Studio (web) on a phone, Stage on a tablet, both on one self-hosted server. VLL reported eight things.
+Studio (web) on a phone, Stage on a tablet, both on one self-hosted server. VLL reported twelve things.
 This file tracks each from **symptom → proof → root cause → fix task**, so nothing is closed on a story.
+
+**No band data in this file.** The repo is public. Songs are referred to by shape (`the 72-line chart`,
+`#20`), never by title; the same applies to every task file these entries point at.
 
 ## Ground rule for every fix here: **RED FIRST**
 
-VLL: *"red first les tests."* A fix in this file is not done until its test has been **seen failing**
-without the fix. Two reasons it matters more than usual here:
+VLL: *"red first les tests"*, and again: *"pour chaque bug un red first"*. **Every row in the board below
+carries its own red-first assertion** — not one shared gesture at testing. A fix in this file is not done
+until *its* test has been **seen failing** without *its* fix.
+
+Two reasons it matters more than usual here:
 
 - Several of these are **silent** — the wrong result looks like a normal one. A test that passes both
   before and after proves nothing about a silent bug.
 - We already shipped a test that **agreed with a defect** (T138's e2e excluded a file and expected the
   count an all-ticked editor produces). It was green in the same run that was red elsewhere.
 
-So: write the assertion, watch it fail on today's code, then fix.
+A red-first assertion also has to have **teeth**: its expected value must differ from what the buggy code
+produces. "Renders without error" is not a red-first test for a layout bug.
 
 ## Status board
 
-| # | Symptom (VLL's words) | Status | Evidence | Fix |
-|---|---|---|---|---|
-| 1 | *"toutes mes chansons etaient reordonnées"* | ✅ **ROOT-CAUSED + REPRODUCED** | bake timeline + scratch import | **T140** |
-| 2 | *"2 bake avec le meme nom, je ne sais pas quelle version, ni quel serveur, ni quel band"* | ✅ **CONFIRMED** — the row shows only a label; rev + bakedAt exist and are discarded | `ConcertRow` | **T143** |
-| 3 | *"je ne peux pas avoir des infos sur un bake ni le supprimer du device (manque un … ?)"* | ✅ **CONFIRMED** — the ⋮ exists but has no Delete; deletion is gated on `damaged` | `ConcertRow` | **T143** |
-| 4 | *"en scrolling les annotations ne sont plus alignés"* | ⬜ not yet investigated | — | — |
-| 5 | *"quand il y a des annotation trop loin l'ensemble des paroles est plus petit"* | ⬜ not yet investigated — likely same root as #4 | — | — |
-| 6 | *"failed to fetch sur tous les morceaux GVO"* (Studio) while the bake works | ✅ **ROOT-CAUSED + PROVEN** | `Content-Length` 1720 vs 3029-byte blob; fails on loopback too | **T141** |
-| 7 | *"diminuer la marge a gauche des fichiers textes rendu"* (enables a future 2-column option) | 🟢 enhancement | — | — |
-| 8 | *"dans Stage un chronometre (start/pause/reset) et une horloge"* | 🟢 enhancement | — | — |
-| 9 | reordering on a phone: arrows jump the scroll, drag won't auto-scroll, can't drop at the end, touch selects the title text | ✅ **all four confirmed in code** | see below | **T142** |
-| 10 | auto-update bake + a manual bake from Studio → **no toast in Stage** while sitting in the bake | ✅ **CONFIRMED by absence** — `applyUpdate` emits nothing; no message channel exists | `StageViewModel` | **T143** |
+| # | Symptom (VLL's words) | Status | Evidence | RED FIRST — the assertion that must fail today | Fix |
+|---|---|---|---|---|---|
+| 1 | *"toutes mes chansons etaient reordonnées"* | ✅ **FIXED** (`22842291`) | bake timeline + scratch import | ≥10 imported items come back in **folder order**, not all at `Position 0` | **T140** |
+| 2 | *"2 bake avec le meme nom, je ne sais pas quelle version, ni quel serveur, ni quel band"* | ✅ **CONFIRMED** — the row shows only a label; `concertRev` + `bakedAt` exist and are discarded | `ConcertRow` | two bundles differing only in rev/date render **two distinguishable rows** | **T143** |
+| 3 | *"je ne peux pas avoir des infos sur un bake ni le supprimer du device"* | ✅ **CONFIRMED — and worse than filed**: on the perform row there is **no ⋮ at all** | `ConcertRow`, `lean = !manage` | a non-damaged bake exposes a **delete affordance**; asserted on the row, not on Manage | **T143** |
+| 4 | *"en scrolling les annotations ne sont plus alignés"* | ✅ **ROOT-CAUSED + PROVEN** — not scrolling: **the render reflowed under the marks** | the tablet's 17:46 bundle vs tonight's 22:20 | same source + same annotation ⇒ the mark stays **on the same text**, across a renderer change | **T145** |
+| 5 | *"quand il y a des annotation trop loin l'ensemble des paroles est plus petit"* | ✅ **ROOT-CAUSED** — same event as #4; the type shrank and pages reflowed. **Not caused by the annotation** | page-extent measurements below | a fixed source renders to a **pinned page count + layout hash** | **T144** |
+| 6 | *"failed to fetch sur tous les morceaux"* (Studio) while the bake works | ✅ **ROOT-CAUSED + PROVEN** | `Content-Length` 1720 vs 3029-byte blob; fails on loopback too | `GET /api/files/{id}` returns **all** the blob's bytes when `Size` disagrees | **T141** |
+| 7 | *"diminuer la marge a gauche des fichiers textes rendu"* (enables a future 2-column option) | 🟢 enhancement | — | margin is a **named constant** with a test asserting the rendered left edge | **T146** |
+| 8 | *"dans Stage un chronometre (start/pause/reset) et une horloge"* | 🟢 enhancement | — | chrono state machine: start→pause→resume→reset returns to **00:00** | **T147** |
+| 9 | reordering on a phone is painful (4 distinct faults) | ✅ **all four confirmed in code** | see below | an item can be dropped **after the last row**; container auto-scrolls; arrows keep focus | **T142** |
+| 10 | auto-update bake + a manual bake from Studio → **no toast in Stage** | ✅ **CONFIRMED by absence** — `applyUpdate` emits nothing | `StageViewModel` | `applyUpdate` emits a message **and** leaves the page index unchanged | **T143** |
+| 11 | *"il faut regrouper par groupe (accordion), le titre + version et date en gris"* | 🟢 design input, folded into **T143** | — | a two-band library renders **two groups**; each row shows rev + date | **T143** |
+| 12 | *"j'ai jamais demandé d'auto adjustment"* | ✅ **ANSWERED — not the import** | 0/46 sources carry a `size:` directive, in **all three** snapshots | (no defect: auto-fit is the documented default when no size is given) | — |
 
-## 1 — The setlist order was silently scrambled (T140)
+## The evidence that settled #4 and #5: the tablet still had the afternoon bake
 
-**Proven.** Each `.tstage` is a timestamped snapshot of the running order, so the bakes are a timeline:
-the folder's order was correct, the first evening bake was scrambled, later bakes are correct again
-because VLL re-ordered by hand. Between them the band was **re-imported** (new band id, new setlist id,
-`bakes/` recreated).
+The 19:19 re-import **destroyed the afternoon bakes server-side**. The tablet did not re-download them, so
+the device held the only surviving copy — pulled read-only, without touching app state:
 
-**Root cause: one unset integer.** The v2 reader builds each imported setlist item without setting
-`Position`, so every item is `0`. The folder expresses order as **array order** — correct for a
-hand-written file — but nothing materialises it. Reproduced on the real library: 23 items, all at
+```
+adb exec-out 'run-as com.troubastack.app tar cf - files/bundles/<id>' > afternoon.tar
+```
+
+Two bundles were on the device: `c90335ac…` (**17:46**, `concertRev 9`, 22 songs) and `9d8b293e…`
+(**22:20**, `concertRev 10`, 23 songs). That is itself the proof for #2: the two bakes **are**
+distinguishable in the data, and only the display drops it.
+
+### The measurement — same song, same source, same annotation
+
+`0.000` is the top of the page, `1.000` the bottom. "text →" is where ink stops.
+
+| | page 2: text ends | the mark | verdict |
+|---|---|---|---|
+| **17:46 (afternoon)** | `0.409` | `0.328 → 0.424` | lands **exactly at the end of the text** — VLL: *"bien sur le Verse 5"* |
+| **22:20 (tonight)** | `0.051` | `0.328 → 0.424` | **orphaned in blank space** |
+
+The second page emptied — its content was pulled up onto page 1, whose ink now reaches `0.952` instead of
+`0.944`. **The mark never moved. The words moved out from under it.**
+
+And it is not one song. Every annotated song reflowed between the two bakes:
+
+| song (by shape) | pages | text ends — afternoon → tonight | mark |
+|---|---|---|---|
+| 4-page chart | **4 → 3** | 0.944 → 0.953 | unchanged, now over different words |
+| 2-page chart | **2 → 1** | 0.947 → 0.911 | unchanged |
+| 2-page chart | **2 → 1** | 0.944 → *(overlay gone entirely)* | **lost** |
+| 1-page chart | 1 → 1 | **0.754 → 0.949** | mark at 0.744 was at the end, now mid-text |
+| the 72-line chart | 2 → 2 | p2: **0.409 → 0.051** | **orphaned** |
+| 1-page chart | 1 → 1 | 0.734 → 0.924 | overlay extent also changed: `0.014–0.467` → `0.452–0.467` |
+
+One song's overlay **disappeared from the bundle altogether**, and one overlay's own extent changed — so
+the marks are not merely mis-positioned, some are being **re-rendered or dropped**.
+
+### What changed, and what did not
+
+Ruled out, each by measurement rather than reasoning:
+
+- **The source did not change.** The chart source is **byte-identical** (same md5) across the current
+  folder, the 16:21 backup, and the pre-v2 archive from 12:16.
+- **The import did not introduce auto-fit.** **0 of 46** sources carry a `size:` directive in any of those
+  three snapshots — including the archive predating any v2 import. Auto-fit has always applied; it is the
+  documented behaviour when no size is given. This closes #12: *the import did not create it.*
+- **T138's default-file change is not the cause.** Five of the six affected songs have **exactly one**
+  file, so which file is "default" cannot matter for them.
+
+What is established: **all 157 blobs were re-written at 19:19**, a full re-render, using the binary
+deployed at 19:18. The afternoon pages were rendered by the binary built at 16:32. So the deployed
+renderer moved from roughly `main@16:21` to `main@18:31` between the two, and **the same bytes rendered
+differently**.
+
+**Which commit did it is NOT yet established, and must not be asserted.** The falsifier is cheap and
+specific: build `chartpdf` at `3999abe0` (16:21) and at `8f662f60` (18:31), render that one source with
+each, and compare page count and ink extent. Do that before writing a cause into T144.
+
+## 1 — The setlist order was silently scrambled (T140 — fixed, `22842291`)
+
+**Proven.** Each `.tstage` is a timestamped snapshot of the running order, so the bakes are a timeline.
+
+**Root cause: one unset integer.** The v2 reader built each imported setlist item without setting
+`Position`, so every item was `0`. The folder expresses order as **array order** — correct for a
+hand-written file — but nothing materialised it. Reproduced on the real library: 23 items, all at
 position 0, order no one chose.
 
-**Red-first note:** an all-zero set can *accidentally* come back in order on a small fixture. The test
-needs ≥10 items in an order no sort would produce, and must be seen red before the fix.
+**Note on the two recovered bundles.** The 17:46 and 22:20 running orders differ, but the difference is
+fully explained by **two songs inserted** in the evening, not by a scramble — so this pair is *not*
+additional evidence for T140. Recorded so nobody re-reads it as such.
 
-## 2 — Two bakes, same name (T141)
+## 2 & 3 & 10 & 11 — Stage: which bake is this, and let me manage it (T143)
 
 `bundle.json` carries `concertId`, `name`, `concertRev`, `bakedAt`, `bakedBy`, `roster` — and **no band
-name, no server URL, no app version**.
+name, no server URL, no app version**. But `concertRev` increments and `bakedAt` is distinct, so the two
+bakes *are* distinguishable from data Stage already holds. **A display gap, not a format gap** — much
+cheaper. Adding band + server identity to the bundle is a separate, larger question.
 
-**But `concertRev` increments (1→10) and `bakedAt` is distinct per bake.** So the two bakes on the device
-*are* distinguishable from the data; **Stage simply doesn't show it**. That makes this a display gap, not
-a format gap — much cheaper. Adding band + server identity to the bundle is a separate, larger question
-(it changes the format), and worth doing only if the display alone proves insufficient.
+**Correction to the original filing (VLL, verified):** *"tu parlais du '...' sur le bake dans TroubaStage ?
+il n'y est pas actuellement."* He is right. `lean = !manage`, and the perform row renders only
+`entry.label` — **there is no ⋮ on it at all**; the menu exists solely in Manage, and even there it has no
+Delete (deletion is gated on `damaged`). So bake identity must appear **on the perform row**, and the
+delete affordance has to be added, not merely surfaced.
 
-## 3 — No bake info, no way to delete one on the device (T141)
+**VLL's design input, 2026-09-05** — *"regrouper par groupe (accordion ?) et en plus du titre avoir la
+version et la date en gris (et peut etre dans les ... l'id de la playlist)"*:
 
-Not yet investigated. Pairs naturally with #2: the same surface that shows *which* bake this is should
-let you remove one. Note the re-import **destroyed the afternoon bakes server-side**, so the device may
-hold the only copy of a bundle — deletion should say what it is deleting.
+- **Group the library by band**, collapsible.
+- Each row: **title**, with **revision and date in grey** as secondary text.
+- The **setlist id** belongs in the ⋮, not on the row — it is a support detail, not a performance one.
 
-## 4 & 5 — Annotations drift while scrolling; lyrics shrink when a mark is far away
+**#10, confirmed by absence:** `StageViewModel.applyUpdate` swaps the bundle and emits nothing; there is
+no toast, snackbar or message channel in the view model at all. The silence is deliberate *for the page* —
+the function exists to swap "WITHOUT moving the page the performer is on" — but **non-disruption of the
+page got conflated with saying nothing at all**. The sheet changed under a musician mid-rehearsal; that
+deserves a word, provided the word cannot steal the page.
 
-**One hypothesis raised and DISPROVEN — recorded so nobody re-runs it.** I expected a far-away annotation
-to widen the baked overlay's canvas, giving it a different aspect ratio from its page raster; in scroll
-mode each is decoded independently into a `widthPx × widthPx*3` box *preserving its own aspect*, so two
-different ratios would scale by different factors — misaligned marks **and** a smaller-looking page.
+## 4 & 5 — Annotations are anchored to a render that is regenerated (T145), and nothing pins the render (T144)
 
-Measured on VLL's own bake (`10.tstage`): **7 (raster, overlay) pairs, 0 with differing dimensions.** The
-overlays are exactly page-sized. **The hypothesis does not hold**, and the fault is not in the bake's
-overlay geometry.
+Measured above. The two faults are separable, and both need fixing:
 
-**What that leaves.** The remaining candidates are Stage-side and need the failing case to choose between
-them: a page whose aspect exceeds 1:3 becomes *height-bound* in that decode box (scaled to fit
-`widthPx*3`) rather than width-bound — worth checking against a real page's dimensions — or a scroll
-offset applied to one layer and not the other.
+**T144 — the render is not pinned.** The same source rendered differently after a deploy, and no test
+noticed. A layout change is invisible in a diff and invisible in CI. **Red first:** a golden test that
+renders a fixed, committed chart source and asserts **page count plus a layout hash**; break it by nudging
+any metric and watch it go red.
 
-**What would settle it in one step:** which song and page showed it. The bundle keeps every page's
-raster, so with the song name I can measure that exact page instead of sampling.
+**T145 — the anchor is the real bug.** A mark stores `(page index, fractional x/y)` **of a particular
+render**. The render is regenerated on every bake, so any reflow silently re-points every mark on the
+page — and here it pushed one onto a page that had emptied. This is the fault that turns a good rehearsal
+into a bad one, because **it looks like nothing is wrong**.
+
+Options, cheapest first — T145 should pick one and say why:
+1. **Anchor to the source**, not the render (line/character offset), and project to page coordinates at
+   render time. Survives reflow by construction.
+2. **Re-anchor on re-render**: keep page coordinates but record the render's identity, and remap when it
+   changes.
+3. **Detect and warn**: store the render identity with the mark and flag marks whose render no longer
+   matches. Does not fix anything, but stops a silent wrong answer — acceptable only as a stopgap.
+
+**A hypothesis raised earlier and DISPROVEN — recorded so nobody re-runs it.** That a far-away annotation
+widened the baked overlay's canvas, giving it a different aspect ratio from its page raster. Measured on
+the real bake: **70 (raster, overlay) pairs across 10 bundles, 0 with differing dimensions, 0 pages taller
+than 1:3.** The overlays are exactly page-sized. Not the fault.
 
 ## 6 — Studio: "failed to fetch" on every song, while the bake works (T141)
 
@@ -93,46 +178,55 @@ stored blob      : 3029  ← the rendered PDF
 ```
 
 **It fails on loopback**, so the external IP was a red herring — VLL's hypothesis and mine were both
-wrong, and one command settled it. **87 of 158 files are affected**, and of the 87 with a chart source,
-**87 have `size` exactly equal to the source length**: every generated chart, both bands.
+wrong, and one command settled it. **87 of 158 files are affected**: every generated chart, both bands.
 
 The bake works because it reads the blob directly and never consults `Size`.
 
 **Two things had to be true for a musician to see this**: the importer wrote a size describing a
 different object than the blob, *and* the handler trusted that stored field over the payload it was
-holding. T141 fixes both.
+holding. T141 fixes both, and must also repair the 87 live rows.
 
-## 7 & 8 — Enhancements
+## 7 & 8 — Enhancements (T146, T147)
 
-Left margin of rendered text charts is currently sized for a single column; reducing it is the
-prerequisite for a future two-column layout. Stage wants a chronometer (start/pause/reset) and a clock —
-HUD, with an option to keep the clock visible bottom-right.
+- **T146 — left margin.** The rendered chart's left margin is sized for a single column; reducing it is
+  the prerequisite for a future **two-column** layout. It should become a named constant, so that T144's
+  golden test pins it and a later two-column mode has one value to change.
+- **T147 — Stage HUD.** A **chronometer** (start / pause / reset) and a **clock**, with an option to keep
+  the clock visible bottom-right during performance.
 
 ## 9 — Reordering on a phone is painful (T142)
 
-All four of VLL's observations are confirmed **in the code**, and they share one cause: `SortableList`
-is built on **HTML5 drag-and-drop**, which is a desktop input model.
+All four of VLL's observations are confirmed **in the code**, and they share one cause: `SortableList` is
+built on **HTML5 drag-and-drop**, which is a desktop input model.
 
 | VLL's words | what the code says |
 |---|---|
-| *"on ne peut pas deplacer un morceau en dernier"* | `reorder` lands an item **above** the target row — "the drop hint is the row's top border". There is no row after the last, so **no drop position exists at the end**. The arrow can reach it (`canMoveDown` allows `length-1`); the drag cannot. |
-| *"la fenetre ne scroll pas quand on est tout en haut ou tout en bas"* | no `scrollBy`/`scrollTop` anywhere in the component — HTML5 DnD does not auto-scroll a container, it must be implemented |
+| *"on ne peut pas deplacer un morceau en dernier"* | `reorder` lands an item **above** the target row. There is no row after the last, so **no drop position exists at the end**. The arrow can reach it; the drag cannot. |
+| *"la fenetre ne scroll pas quand on est tout en haut ou tout en bas"* | no `scrollBy`/`scrollTop` anywhere — HTML5 DnD does not auto-scroll a container |
 | *"les fleches repositionne ou on se trouve dans la page"* | nothing calls `focus()`; the moved row re-renders, focus is lost to `<body>`, and the browser scrolls |
-| *"en tactile une fois sur deux ca faisait une selection du texte du titre"* | no `user-select: none` / `touch-action` on the grip or row: a touch that isn't recognised as a drag becomes a text selection |
+| *"en tactile une fois sur deux ca faisait une selection du texte du titre"* | no `user-select: none` / `touch-action` on the grip or row: a touch not recognised as a drag becomes a text selection |
 
 **The good news is VLL's own**: it is a single shared component (`SortableList.tsx`, 150 lines) used by
 the setlist, the song files and my-files — so one rewrite fixes every reorder surface at once. He asked
 for the established approach to be researched rather than invented; the modern answer is a
 **pointer-events based** implementation (one code path for mouse, touch and pen) with an explicit
 drop-zone model that includes an **end position**, container auto-scroll near the edges, `touch-action:
-none` on the handle, and keyboard moves that **restore focus to the moved row**.
+none` on the handle, and keyboard moves that **restore focus to the moved row**. VLL also asked for the
+**semi-transparent moved row** many components use, and for the UX research to be written down.
 
-## 10 — No toast in Stage when a bake it is showing gets updated (T143)
+## 12 — "I never asked for auto-adjustment"
 
-**Confirmed by absence.** `StageViewModel.applyUpdate` swaps the bundle in and emits nothing; there is no
-toast, snackbar or message channel in the Stage view model at all.
+**Answered, and the import is not responsible.** Measured across three time-separated snapshots:
 
-The silence is deliberate *for the page* — the whole point of that function is to swap "WITHOUT moving the
-page the performer is on", and it carefully remaps position and per-song layer choices. **But
-non-disruption of the page got conflated with saying nothing at all.** The sheet changed under a musician
-mid-rehearsal; that deserves a word, provided the word cannot steal the page.
+```
+current folder       : 0/46 sources with a size: directive
+backup 16:21         : 0/46
+pre-v2 archive 12:16 : 0/46
+```
+
+No source has ever carried an explicit size, so auto-fit has always applied — it is the documented default,
+not something the migration introduced. A long chart therefore renders smaller than a short one **by
+design**. If VLL wants a fixed size, the remedy is an explicit `size:` directive; if he wants long charts
+to stay readable instead of shrinking, that is **T146**'s two-column direction, not a bug fix.
+
+This is separate from #5: the *shrink between the two bakes* was real and is T144.
