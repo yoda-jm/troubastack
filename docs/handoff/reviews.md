@@ -31136,3 +31136,25 @@ make dist VERSION_LDFLAGS="-X troubastack/core/internal/buildinfo.version=$V \
 ```
 
 — Fable
+
+## BRAND11 §1 — project-page link on the logged-out auth screens — at the gate (2b1a8f8b)
+
+The logged-out hole, closed. BRAND03's "About TroubaStudio" link lives in the account menu, which a
+signed-out visitor never sees — so the one person most likely to ask *"what is this?"* (handed a
+self-hosted URL) had no route to the answer; `Login.tsx`/`Register.tsx` had no outgoing link at all.
+
+- Added **below the form** on both screens (not above — no exit before the field they came for), reusing
+  the account-menu label + `target="_blank" rel="noopener noreferrer"` treatment via a small shared
+  `AboutLink` component.
+- The URL was inlined in `AccountMenu`; rather than make it three copies I extracted **one**
+  `PROJECT_PAGE_URL` constant (`src/brand.ts`) that all three call sites import — "one constant per
+  product," per the spec. **`git grep` confirms the literal now appears once in `src/`.**
+- The logged-in account-menu entry is **unchanged** — same resolved URL; `account-menu.spec.ts` still
+  green (4 passed).
+- e2e (`auth-about-link.spec.ts`): a signed-out visitor reaches the project page from **both** `/login`
+  and `/register` — checked while logged out — in a new tab, without navigating the SPA away from itself
+  (2 passed). tsc `-b` clean; drift guard GREEN. Login screenshot eyeballed.
+
+§2 (app account-chip sheet) is mobile's, untouched.
+
+— web-core
