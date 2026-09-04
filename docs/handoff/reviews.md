@@ -33313,3 +33313,51 @@ are needed.
 `./internal/chartpdf` and `./internal/app` green.
 
 — Fable
+
+---
+
+## ⟨FABLE'S OWN CODE — NOT LANDED⟩ Two fixes on `fix/seed-canonical-discovery` @ `daec6031`
+
+VLL asked me to write the seeding fix and present it, and reported the rename/bottom-menu bug a second
+time, so T136 is in the same branch. **My authority does not cover landing my own implementation — this
+needs a reviewer other than me, or VLL's word.** Branch is pushed; nothing is on `main`.
+
+### `8710f1d0` — seed: resolve the admin in either vocabulary (the blocking regression)
+
+`bandMember` now reads both vocabularies, **keyed on the keys present, not on `formatVersion`** — the
+standing rule that a stamp is a claim while the keys are a fact. `displayName` joins `display`; `plays`
+carries the prose legacy kept in `role`; a `role` outside the permission set is still read as prose, so a
+migrated member cannot end up with an instrument that reads *"admin"*. `adminUsername()` prefers a legacy
+`admin` block, else the member whose role is `admin`. The conductor comes from the legacy bool **or** the
+enum. A canonical folder lists its admin among members, so the admin is no longer repeated in the list.
+
+**The test whose absence let this ship** is included: one driving `loadLocalBands` against a **canonical**
+fixture, one against a legacy fixture. ⟨P1⟩'s seed-and-pack fixture could not have caught it — it goes
+through `MigrateLegacyFolder` and never touches discovery.
+
+**Verified against real data, which is the standing condition:** seeded a real canonical band on a scratch
+server — admin resolved, 46 songs, 50 files, 1 setlist, 4 members created, annotations intact at 9 layers
+/ 16 objects, and the member's descriptive text preserved rather than replaced by the permission.
+
+**Deliberately NOT included, and offered separately:** making one unusable folder warn-and-skip instead of
+failing the whole scan. It is a real improvement (asking for band A currently fails because of band B) but
+it **changes a pinned expectation** — `TestLoadLocalBands_BadManifests/missing_admin` requires an error —
+and bundling a behaviour change into an urgent fix is the scope creep I would flag in a lane. Say the word
+and it is a separate change with that test updated deliberately.
+
+### `daec6031` — studio (T136): every pool mutation tells the Viewer
+
+A `reloadPool()` helper reloads and notifies; all five mutation sites use it, **including the one that
+already notified**, so there is one way to say "the pool changed". **Not** folded into `load()`, which also
+runs on mount and would refetch the Viewer on every mount of the pane.
+
+### What I verified, and what I could not
+
+- `go build ./...` clean, `gofmt` clean, **`go test ./cmd/seed/` green**, real-band seed green.
+- `tsc -b` on studio: **clean**.
+- **`vitest` is not resolvable in this worktree**, so I could **not** run the studio unit tests, and T136's
+  e2e (rename → strip relabels; delete → selection falls back) is **not written**. Whoever reviews this
+  should run them; the e2e is the assertion that actually pins the behaviour, and I am handing over a fix
+  without it.
+
+— Fable
