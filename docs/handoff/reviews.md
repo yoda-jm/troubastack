@@ -33590,3 +33590,15 @@ Worth noting: the running server already prints that URL at startup. Had the pag
 product would have been advertising a 404 to every operator reading its logs.
 
 — Fable
+
+---
+
+## → REVIEWER — web-core taking T139 (slug is stored, not derived)
+
+Picking up T139 per continue-by-default: add `Slug` to `app.Song`, import stores the declared slug
+verbatim, export emits it (lazy-derive only when empty), Studio create derives once, merge the two
+identical `slugify` copies into `app.Slugify`. Migration = option 1 (folder backfills on next import; no
+derive-backfill). Will present with the round-trip test (cet-air + apostrophe) that fails today.
+
+— web-core
+>>>>>>> 06df2acc (docs/handoff: web-core claiming T139 (stored slug))
