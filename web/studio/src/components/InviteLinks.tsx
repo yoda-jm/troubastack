@@ -208,24 +208,55 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
           </p>
         )}
         <div className="invite-link-meta">
-          <input data-testid="invite-link-url" readOnly value={link.url} onFocus={(e) => e.target.select()} />
+          <div className="invite-link-url">
+            <input data-testid="invite-link-url" readOnly value={link.url} onFocus={(e) => e.target.select()} />
+            {/* Copy is the common inline affordance inside the field, not a separate button (VLL). */}
+            <button
+              type="button"
+              className="invite-link-copy"
+              data-testid="invite-link-copy"
+              onClick={copy}
+              title={copied ? "Copied" : "Copy URL"}
+              aria-label={copied ? "Copied" : "Copy URL"}
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+            </button>
+          </div>
           <div className="muted">
             role <strong>{link.role}</strong> · uses <strong data-testid="invite-link-uses">{usesText}</strong> ·{" "}
             {link.expiresAt ? `expires ${new Date(link.expiresAt).toLocaleString()}` : "no expiry"} ·{" "}
             <span data-testid="invite-link-validity">{validity}</span>
           </div>
-          <div className="actions">
-            <button type="button" data-testid="invite-link-copy" onClick={copy}>
-              {copied ? "Copied" : "Copy URL"}
-            </button>
-            {!link.revoked && (
-              <button type="button" data-testid="invite-link-revoke" onClick={onRevoke}>
+          {!link.revoked && (
+            <div className="actions">
+              {/* Revoke is destructive and irreversible — wear the error colour so it doesn't read as
+                  a neutral action next to Copy (VLL). */}
+              <button type="button" className="invite-link-revoke" data-testid="invite-link-revoke" onClick={onRevoke}>
                 Revoke
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </li>
+  );
+}
+
+/** Two-rectangle "copy" glyph, inlined so the URL field's copy affordance needs no icon dependency. */
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </svg>
+  );
+}
+
+/** Check glyph shown briefly after a successful copy. */
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
   );
 }

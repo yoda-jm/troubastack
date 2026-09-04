@@ -1391,6 +1391,16 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    the note stole the width and crushed the meta (min-width:0) into a one-character strip. */
 .invite-link-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .5rem; }
 .invite-link-meta { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+/* Copy lives as an icon INSIDE the URL field (the common pattern) — the input reserves right padding so
+   its text never runs under the button; the button swaps to a check for ~1.5s after a copy. */
+.invite-link-url { position: relative; display: flex; align-items: center; }
+.invite-link-url input { width: 100%; padding-right: 2.4rem; }
+.invite-link-copy { position: absolute; right: .25rem; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem; padding: 0; border: none; background: transparent; color: var(--muted); cursor: pointer; border-radius: 6px; }
+.invite-link-copy:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--fg); }
+.invite-link-copy svg { width: 1.05rem; height: 1.05rem; }
+/* Revoke is destructive — red text + a faint red border, tinting solid on hover. */
+.invite-link-revoke { color: var(--error-fg); border-color: color-mix(in srgb, var(--error-fg) 40%, transparent); }
+.invite-link-revoke:hover { background: var(--error-bg); border-color: var(--error-fg); }
 .invite-link-meta input[data-testid="invite-link-url"] { width: 100%; font-family: monospace; font-size: .8rem; }
 
 /* ---- T04: headers, progressive-disclosure creation, tabs, member rows --- */
