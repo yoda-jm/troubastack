@@ -1400,21 +1400,20 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    its text never runs under the button; the button swaps to a check for ~1.5s after a copy. */
 .invite-link-url { position: relative; display: flex; align-items: center; }
 .invite-link-url input { width: 100%; padding-right: 2.4rem; }
-/* Hidden until revealed, in step with the QR: blur + unselectable so it can't be read or drag-copied
-   off the screen. The copy button (below) stays live, so hand-off never needs an on-screen reveal. */
-.invite-link-url:not(.revealed) input { filter: blur(5px); user-select: none; }
+/* When hidden the input value is already MASKED (JS), so there is nothing sensitive to blur or hide —
+   the real URL is never rendered. Dim it slightly so the masked state reads as "concealed". */
+.invite-link-url:not(.revealed) input { color: var(--muted); }
 .invite-link-copy { position: absolute; right: .25rem; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem; padding: 0; border: none; background: transparent; color: var(--muted); cursor: pointer; border-radius: 6px; }
 .invite-link-copy:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--fg); }
 .invite-link-copy svg { width: 1.05rem; height: 1.05rem; }
 /* Revoke is destructive — red text + a faint red border, tinting solid on hover. */
 .invite-link-revoke { color: var(--error-fg); border-color: color-mix(in srgb, var(--error-fg) 40%, transparent); }
 .invite-link-revoke:hover { background: var(--error-bg); border-color: var(--error-fg); }
-/* Print-to-PDF of a settings page is exactly where a blur (a filter) tends to be dropped, leaking a
-   printed credential (Fable). Use visibility, not a filter — it is always honoured — to keep an
-   un-revealed QR/URL off the printout entirely. A deliberately-revealed one still prints. */
+/* Print-to-PDF of a settings page is exactly where the QR's blur (a filter) tends to be dropped, leaking
+   a printed QR (Fable). Use visibility, not a filter — always honoured — to keep an un-revealed QR off
+   the printout. The URL needs no print rule: while hidden it renders the mask, never the real value. */
 @media print {
-  .invite-link-qr-box:not(.revealed) .qr,
-  .invite-link-url:not(.revealed) input { visibility: hidden !important; }
+  .invite-link-qr-box:not(.revealed) .qr { visibility: hidden !important; }
 }
 .invite-link-meta input[data-testid="invite-link-url"] { width: 100%; font-family: monospace; font-size: .8rem; }
 

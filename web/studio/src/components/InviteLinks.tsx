@@ -148,8 +148,9 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
   const [copied, setCopied] = useState(false);
   // A join link is a credential in TWO forms on this row: the QR (scan) and the URL (read/transcribe).
   // One toggle conceals BOTH until the admin reveals them — concealing only the QR while the URL sat
-  // legible beside it just moved the leak from "scan" to "type" (Fable). This raises the cost of a
-  // casual capture (a glance, a screen-share); it is not a guarantee against a deliberate photograph.
+  // legible beside it just moved the leak from "scan" to "type" (Fable). While hidden the URL shows a
+  // MASKED placeholder (the token replaced by dots) — the real value is never drawn, so there is nothing
+  // for a camera to resolve; the QR is blurred. The clipboard still gets the real link (see copy()).
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
@@ -210,12 +211,12 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
         )}
         <div className="invite-link-meta">
           <div className={`invite-link-url${revealed ? " revealed" : ""}`}>
-            {/* Blurred + unselectable until revealed (same toggle as the QR); copy still works while
-                hidden, so an admin can hand off the link without ever putting it on screen. */}
+            {/* Masked until revealed (same toggle as the QR); the real value never renders, so a photo of
+                the hidden row carries nothing. Copy still works while masked (copy() uses link.url). */}
             <input
               data-testid="invite-link-url"
               readOnly
-              value={link.url}
+              value={revealed ? link.url : maskUrl(link.url)}
               tabIndex={revealed ? 0 : -1}
               onFocus={revealed ? (e) => e.target.select() : undefined}
             />
@@ -249,6 +250,18 @@ function InviteLinkRow({ link, onRevoke }: { link: InviteLink; onRevoke: () => v
       </div>
     </li>
   );
+}
+
+/** The concealed form of a join URL: keep the origin + path shape (so it still reads as a join link),
+ *  replace the secret last segment (the token) with dots. `https://host/join/••••••••`. The real value
+ *  is never rendered while hidden — only this mask — so a photograph of the row resolves to nothing. */
+function maskUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname.replace(/[^/]+$/, "••••••••")}`;
+  } catch {
+    return "••••••••";
+  }
 }
 
 /** Two-rectangle "copy" glyph, inlined so the URL field's copy affordance needs no icon dependency. */
