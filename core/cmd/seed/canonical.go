@@ -464,22 +464,17 @@ func setMemberPassword(admin *apiClient, bandID, userID, password string) error 
 }
 
 // seedGroupViaImport seeds one group the T134-phase-2 way: build its canonical band directory (a demo
-// group in memory; a local band by migrating its folder on read), pack it, register the admin (the
+// group in memory; a local band read directly from its canonical folder), pack it, register the admin (the
 // importer), import with every other member `create`d, then give those members passwords. Import FIRST,
 // passwords SECOND — pre-creating members would make them consent-required and drop their personal
 // content (⟨P8⟩).
 func seedGroupViaImport(addr, password string, g groupDef, people map[string]person) (seededGroup, error) {
 	var entries map[string][]byte
 	if g.folderPath != "" {
-		var wasLegacy bool
 		var err error
-		entries, wasLegacy, err = app.MigrateLegacyFolder(os.DirFS(g.folderPath))
+		entries, err = app.ReadCanonicalDir(os.DirFS(g.folderPath))
 		if err != nil {
-			return seededGroup{}, fmt.Errorf("migrate %s: %w", g.folderPath, err)
-		}
-		if wasLegacy {
-			// ⟨F3⟩ bridge: warn, naming the folder. Stage D rewrites the folders on disk + removes it.
-			fmt.Printf("   ⚠ %s is legacy folder-vocab — migrating to canonical v2 on read (bridge; stage D rewrites + removes this)\n", g.folderPath)
+			return seededGroup{}, fmt.Errorf("read %s: %w", g.folderPath, err)
 		}
 	} else {
 		var err error

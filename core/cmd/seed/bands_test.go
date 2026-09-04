@@ -416,8 +416,8 @@ const canonicalManifest = `{
 }`
 
 // TestLoadLocalBands_CanonicalFolder: the DISCOVERY path must read a canonical folder. This is the test
-// whose absence let stage D ship a broken `make band=<shortname>`: ⟨P1⟩'s seed-and-pack fixture goes
-// through MigrateLegacyFolder and never touches loadLocalBands, so nothing drove the real entry point.
+// whose absence let stage D ship a broken `make band=<shortname>`: ⟨P1⟩'s seed-and-pack fixture drove the
+// packer, not loadLocalBands, so nothing exercised the real discovery entry point.
 func TestLoadLocalBands_CanonicalFolder(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("TROUBA_BANDS_DIR", dir)

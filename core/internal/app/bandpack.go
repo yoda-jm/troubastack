@@ -13,8 +13,8 @@ package app
 //
 // The packed zip is self-validated through the SAME parseV2 the importer uses, so a directory that would
 // not import fails at pack time, and ⟨P5⟩ unzip(pack(dir)) reproduces the directory's canonical content
-// byte-for-byte (JSON is copied, never re-marshalled). Legacy folder-vocab is NOT handled here — that is
-// a one-shot migration (stage C), by Fable's ruling; the on-disk directory is canonical v2.
+// byte-for-byte (JSON is copied, never re-marshalled). There is ONE vocabulary: the on-disk directory is
+// canonical v2, read directly — a folder in any other shape is refused, never silently translated.
 
 import (
 	"archive/zip"
@@ -31,19 +31,19 @@ import (
 // PackBandDir reads a canonical v2 band directory from fsys and returns the `.tband` zip bytes plus the
 // packed size. Required: band.json + repertoire.json. Optional: setlists.json, cues.json, annotations/.
 func PackBandDir(fsys fs.FS) (zipBytes []byte, size int, err error) {
-	entries, rerr := readCanonicalDir(fsys)
+	entries, rerr := ReadCanonicalDir(fsys)
 	if rerr != nil {
 		return nil, 0, rerr
 	}
 	return PackEntries(entries)
 }
 
-// readCanonicalDir reads a CANONICAL v2 directory into its entry set: the known JSON manifests +
+// ReadCanonicalDir reads a CANONICAL v2 directory into its entry set: the known JSON manifests +
 // annotations/<slug>.json, and ONLY the files DECLARED in repertoire.json under <slug>/<filename> (⟨P3⟩ —
 // a stray file or directory is never read, so it cannot ride along into the archive). ⟨P2⟩ verifies a
-// declared blobHash from disk; ⟨P4⟩ a declared file missing on disk is refused. Shared by PackBandDir and
-// the migration passthrough (a canonical folder), so both exclude strays identically.
-func readCanonicalDir(fsys fs.FS) (map[string][]byte, error) {
+// declared blobHash from disk; ⟨P4⟩ a declared file missing on disk is refused. Used by PackBandDir and by
+// cmd/seed to seed a local band directly from its canonical folder (one vocabulary — no translation).
+func ReadCanonicalDir(fsys fs.FS) (map[string][]byte, error) {
 	entries := map[string][]byte{}
 	for _, name := range []string{"band.json", "repertoire.json", "setlists.json", "cues.json"} {
 		b, rerr := fs.ReadFile(fsys, name)
@@ -90,7 +90,7 @@ func readCanonicalDir(fsys fs.FS) (map[string][]byte, error) {
 }
 
 // PackEntries zips a canonical v2 entry set (name→bytes) into a `.tband`, reporting the packed size. It
-// is the shared tail of PackBandDir and the migration path (cmd/seed): ⟨P6⟩ refuses past MaxImportBytes
+// is the shared tail of PackBandDir and cmd/seed's canonical build: ⟨P6⟩ refuses past MaxImportBytes
 // locally, and self-validates through the importer's own reader so an entry set that would not import
 // fails HERE rather than on someone else's upload (covering ⟨P7⟩ safety + integrity + declared-file
 // presence).
