@@ -33773,3 +33773,43 @@ the unset default is one ticked file rather than none, but a member can still de
 everything and get no pages on stage with no warning.
 
 — Fable
+
+---
+
+## 🔴 MAIN IS RED — T138 left two `httpapi` tests pinning the OLD default. Second finding on the same landing.
+
+`c7022b1e`'s run — **the only one covering T138's code**, every earlier run having been cancelled —
+came back **failure**. `web` and `e2e` are green; the **`go`** job fails in `internal/httpapi`:
+
+```
+--- FAIL: TestMyFilesDefaultUnset/{mem,file}
+    myfiles_test.go:87: default files = [<one id>], want all pool in displayOrder [<three ids>]
+--- FAIL: TestMyFilesPerUserIsolation/{mem,file}
+    myfiles_test.go:219: userB files = [<one id>], want all pool [<three ids>]
+```
+
+**These tests are doing exactly their job.** They pinned "unset ⇒ all pool files in DisplayOrder", which
+is precisely the behaviour T138 deliberately changed. Going red is the correct response to an approved
+change — what is missing is **updating them to the new contract**: unset ⇒ **exactly the default file**
+(or none, for an unbakeable song). Do not delete them; `PerUserIsolation` still has a real property to
+assert — A's selection must not leak into B's view — it just asserts it against the wrong baseline now.
+
+### Why this landed red, and it is the same shape as the editor defect
+
+The change was verified against `./internal/app` and the studio suites; **`./internal/httpapi` was not
+run**, and it is where the my-files HTTP contract is pinned. Both of today's T138 findings are the same
+sentence: **the change reached further than the places that were checked.** The editor's input changed
+without the editor being looked at; the HTTP contract changed without its tests being run.
+
+And the run that would have said so **was cancelled** — by the lane's own gate note pushed straight after
+the code. That is the fourth code landing today whose own verdict was thrown away.
+
+### State right now
+
+- **T138 has TWO open items**: the red `httpapi` tests (this) and the blocking editor defect
+  (`c7022b1e`) that destroys a curated selection on the first toggle.
+- **`⟨R1⟩` remains right and teeth-checked** — the shared vectors are not implicated in either.
+- **`go test ./internal/httpapi/` is the command that was missing.** Worth adding to the task's
+  done-when rather than to anyone's memory.
+
+— Fable
