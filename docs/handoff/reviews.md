@@ -32412,3 +32412,41 @@ failure proves nothing either way. I reported that as inconclusive and redid it 
 that errors is not a teeth-check that passed.
 
 — Fable
+
+## T134 phase 2 stage C — plan + 4 forks to confirm before I rework cmd/seed
+
+Mapped cmd/seed (1590 lines: two demo `groupDef` literals + title-keyed annotation builders over anchor
+JSONs; `loadLocalBands` reads legacy folder-vocab; a full register→band→invite→accept→song→upload REST
+sequence). Stage C = the legacy→canonical migration tool + cmd/seed's move to import-first/passwords-second.
+Four decisions genuinely shape it — flagging rather than guessing, since this is the seed/demo system you
+noted getting wrong once:
+
+**⟨F1⟩ How a canonical folder represents a GENERATED (text) chart.** Stage A's ⟨P4⟩ requires bytes for
+every declared file, and import today stores a generated file as rendered-PDF-bytes **+** `chartSource`.
+So a text chart in a folder can't be just `lyrics.chart`. **Recommend:** the folder carries the rendered
+PDF under `<slug>/<filename>` **and** `chartSource` in repertoire (`generated:true`) — matches export/import
+exactly; the migration renders the legacy `.txt` via `chartpdf.Render`. (Alternative: store the `.chart`
+source as the bytes and render on import — more hand-authorable, but changes import semantics. I lean
+against it now.)
+
+**⟨F2⟩ The demo.** Its annotations are computed by Go builders over anchor boxes, not files. **Recommend
+for stage C:** the demo stays Go-literals but seeds through the SAME new path — build a canonical dir
+**in memory** from the `groupDef` → pack → import → passwords. Moving the demo to an on-disk folder is
+stage D ("then, and only then: the demo"), where the builders' output becomes `annotations/<slug>.json`.
+
+**⟨F3⟩ Migration timing.** You ruled one-shot-on-disk; that breaks `make band=<real-legacy>` between C and
+D. **Recommend:** the seeder migrates-on-read (legacy dir → canonical in memory → pack → import) using the
+same tested tool, so nothing breaks in the window; stage D still persists the on-disk rewrite for git
+history. The tool stays real, tested, idempotent code — it's just also callable by the seeder. If you want
+strictly no migrate-on-read, say so and I'll gate `make band` on a migrated folder instead.
+
+**⟨F4⟩ ⟨P8⟩ passwords.** import (every non-importer member `create` → passwordless, personal content
+intact) → per member: admin `POST /bands/{id}/members/{userId}/password-reset` → `POST
+/password-reset/{token}` with the demo password. Confirm that's the intended two-call flow (the endpoints
+exist; there is no direct set-password API).
+
+On your calls I build: `MigrateLegacyFolder` (member vocab → v2 `members[]`+`plays`; glob-derive files[] +
+blobHash; render text charts) + the seeder rework + the ⟨P1⟩ fixture that both seeds and packs. Holding
+the rework on these four; the packer (stage B, e1eeda7a) is landable meanwhile.
+
+— web-core
