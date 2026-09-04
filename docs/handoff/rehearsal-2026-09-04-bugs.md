@@ -20,15 +20,15 @@ So: write the assertion, watch it fail on today's code, then fix.
 | # | Symptom (VLL's words) | Status | Evidence | Fix |
 |---|---|---|---|---|
 | 1 | *"toutes mes chansons etaient reordonnées"* | ✅ **ROOT-CAUSED + REPRODUCED** | bake timeline + scratch import | **T140** |
-| 2 | *"2 bake avec le meme nom, je ne sais pas quelle version, ni quel serveur, ni quel band"* | 🟡 **ESTABLISHED** — data can tell them apart, Stage doesn't show it | `bundle.json` fields | T141 |
-| 3 | *"je ne peux pas avoir des infos sur un bake ni le supprimer du device (manque un … ?)"* | ⬜ not yet investigated (Stage UI) | — | T141 |
+| 2 | *"2 bake avec le meme nom, je ne sais pas quelle version, ni quel serveur, ni quel band"* | ✅ **CONFIRMED** — the row shows only a label; rev + bakedAt exist and are discarded | `ConcertRow` | **T143** |
+| 3 | *"je ne peux pas avoir des infos sur un bake ni le supprimer du device (manque un … ?)"* | ✅ **CONFIRMED** — the ⋮ exists but has no Delete; deletion is gated on `damaged` | `ConcertRow` | **T143** |
 | 4 | *"en scrolling les annotations ne sont plus alignés"* | ⬜ not yet investigated | — | — |
 | 5 | *"quand il y a des annotation trop loin l'ensemble des paroles est plus petit"* | ⬜ not yet investigated — likely same root as #4 | — | — |
 | 6 | *"failed to fetch sur tous les morceaux GVO"* (Studio) while the bake works | ✅ **ROOT-CAUSED + PROVEN** | `Content-Length` 1720 vs 3029-byte blob; fails on loopback too | **T141** |
 | 7 | *"diminuer la marge a gauche des fichiers textes rendu"* (enables a future 2-column option) | 🟢 enhancement | — | — |
 | 8 | *"dans Stage un chronometre (start/pause/reset) et une horloge"* | 🟢 enhancement | — | — |
-| 9 | reordering on a phone: arrows jump the scroll, drag won't auto-scroll, can't drop at the end, touch selects the title text | ✅ **all four confirmed in code** | see below | T142 |
-| 10 | auto-update bake + a manual bake from Studio → **no toast in Stage** while sitting in the bake | ⬜ not yet investigated | — | — |
+| 9 | reordering on a phone: arrows jump the scroll, drag won't auto-scroll, can't drop at the end, touch selects the title text | ✅ **all four confirmed in code** | see below | **T142** |
+| 10 | auto-update bake + a manual bake from Studio → **no toast in Stage** while sitting in the bake | ✅ **CONFIRMED by absence** — `applyUpdate` emits nothing; no message channel exists | `StageViewModel` | **T143** |
 
 ## 1 — The setlist order was silently scrambled (T140)
 
@@ -127,7 +127,12 @@ for the established approach to be researched rather than invented; the modern a
 drop-zone model that includes an **end position**, container auto-scroll near the edges, `touch-action:
 none` on the handle, and keyboard moves that **restore focus to the moved row**.
 
-## 10 — No toast in Stage when a bake it is showing gets updated
+## 10 — No toast in Stage when a bake it is showing gets updated (T143)
 
-Not yet investigated. Reported with auto-update enabled, a manual bake fired from Studio, and Stage
-sitting *inside* the bake at the time.
+**Confirmed by absence.** `StageViewModel.applyUpdate` swaps the bundle in and emits nothing; there is no
+toast, snackbar or message channel in the Stage view model at all.
+
+The silence is deliberate *for the page* — the whole point of that function is to swap "WITHOUT moving the
+page the performer is on", and it carefully remaps position and per-song layer choices. **But
+non-disruption of the page got conflated with saying nothing at all.** The sheet changed under a musician
+mid-rehearsal; that deserves a word, provided the word cannot steal the page.
