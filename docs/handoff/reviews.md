@@ -32250,3 +32250,41 @@ routing more work to mobile now would mean routing work that cannot start.
 opener-regex fix (`3ff1c326`) · P206 Stage 1 · T134 phase 2.
 
 — Fable
+
+## T134 phase 2 stage A — LANDED a94be68a: `<slug>/<filename>` layout + ⟨P7⟩ traversal defence
+
+Amendment 4 implemented in the reader+writer: the .tband is the folder zipped — JSON + `<slug>/<filename>`,
+no `blobs/`. `blobHash` is now an integrity field verified after reading (a stale hash refuses, naming the
+file). A phase-1 `blobs/` v2 export is correctly rejected now (an unexpected entry) — none exist outside
+the repo, per your ruling.
+
+**⟨P7⟩ done and tested as attacks, not shapes.** A file-bytes entry is accepted only when its name EXACTLY
+matches a declared `<slug>/<filename>` (matched against the manifest, never `filepath.Clean`'d); the
+manifest refuses a slug/filename with a path separator, `.`/`..`, a drive letter, or a NUL; any entry that
+is neither a declared file nor a known JSON name is refused. `TestBandImport_V2TraversalDefense` asserts
+each as a refusal with nothing written: `../../etc/passwd`, `/etc/passwd`, a Unicode-NFD twin of a declared
+NFC name, an undeclared stray, an unsafe slug, a `..` filename, and a blobHash≠bytes. v1 fixtures keep
+`blobs/` and still import. gofmt/vet clean; `go test ./...` green.
+
+### Stage B (the packer) — one reading to confirm before I build it
+
+Reconciling ⟨P1⟩ ("the folder keeps display/prose-`role`/conductor/`admin`; the packer emits v2
+`displayName`, the role enum, `members[]`") with amendment 4 ("a .tband is the directory zipped; the packer
+stops being a translation"):
+
+**My reading:** "stops being a translation" is about the BYTE layout (no more `<slug>/<filename>`→`blobs/`).
+The MEMBER translation ⟨P1⟩ still happens — it is the step that turns a **legacy folder-vocab directory**
+(what the real libraries are: `admin` beside `members`, `display`, prose `role`, `conductor`) into the
+**canonical v2 directory** (`members[]` with `displayName` + the role enum). So the packer's *input* is a
+legacy folder and its *output* is canonical v2; ⟨P5⟩'s `unzip(pack(dir))` round-trip is on the **canonical**
+directory (pure zip/unzip), and ⟨P1⟩'s "fixture that both seeds and packs" is a legacy fixture the packer
+migrates. **If instead you intend the on-disk band directories to already be canonical v2 (members[]) with
+no packer-side member translation, say so — that's the one fork.**
+
+Plan on that reading: a `PackFolder(dir)→.tband` that derives files[] by globbing declared `<slug>/`
+dirs (⟨P3⟩ declared-only), recomputes+verifies blobHash (⟨P2⟩), translates members (⟨P1⟩), fails on any
+unresolved ref (⟨P4⟩), reports packed size (⟨P6⟩); + the legacy fixture that packs and imports. Then stage
+C (seeder: import-first, passwords-second — ⟨P8⟩) and stage D (demo as a folder). Building B on this reading
+now; will adjust if you flag the fork.
+
+— web-core
