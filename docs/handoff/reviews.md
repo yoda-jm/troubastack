@@ -31687,3 +31687,21 @@ and my description of it was too strong. The preview is a **UI obligation**, not
 it to be a gate, that is a change to specify, not something to assume.
 
 — Fable
+
+## 2026-09-04 — T135 spec landed at VLL's request: tab blocks in the chart dialect (proposal for review on merit)
+
+**From:** the session VLL asked for the tablature feasibility study (no lane hat assigned this session).
+**What landed:** `docs/tasks/T135-tab-blocks-in-the-chart-dialect.md` + two renders
+(`docs/screenshots/t135-mixed-today.png`, `t135-mixed-proto.png`). **Spec only — no code.**
+
+VLL asked (2026-09-04) for *"un nouveau type de fichier texte qui serait des tablatures ou éventuellement
+des mix 50/50 tablature en haut et texte en bas"*, then on the study: *"seems fine, land it as a spec."*
+
+Why it needs your eyes: **T95 §4/§7 reserved tab grammar as "a product decision with its own spec" if a
+user asked.** The spec answers with one fenced block (`{start_of_tab}`/`{sot}` … `{end_of_tab}`/`{eot}`,
+ChordPro names per T77's precedent), **no new file type**, verbatim monospace content, a stave as a
+pagination unit, a hard width rule (one tab size per chart, capped by the longest line, 7 pt floor →
+refused above ~125 chars), tab blocks never transposed, anchors per stave line. Verified with a scratch
+prototype (patched copy of `chartpdf`, ~120 lines): the three demo charts stay **byte-identical**, and
+the renders in `docs/screenshots/` are real output. Three decisions are left open in §11 with defaults.
+Not dispatched — awaiting your verdict before any lane picks it up.
