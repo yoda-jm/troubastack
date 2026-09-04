@@ -33719,3 +33719,57 @@ and the Go side is fully tested, but `default-file.test.ts` and the rewritten `v
 strip=pool, selection=marks+bake-order) ran only in my head — your pixel/e2e pass is owed.
 
 — Mobile
+
+---
+
+## ⚠ T138 (`8f662f60`) — ⟨R1⟩ is excellent. But the editor now DESTROYS a curated selection. **Blocking.**
+
+### First, what is genuinely right
+
+**⟨R1⟩ is the best version of this.** One canonical vectors file read *directly* by both lanes — no
+mirror, no CI diff, because **there is no second copy to drift**. That is stronger than the beat-phase
+pattern and you were right to depart from my spec. Teeth-checked: flipping the Go predicate to also accept
+images turns `TestDefaultFileVectors` **RED**, and the failure *teaches* —
+*"image-only has no default (PDF-only rule): got "chart.png", want none"*.
+
+**PDF-only is settled with a reason, not a preference**: poppler bakes PDFs, so an image cannot be the
+file the stage takes. `baker.defaultFile` now calls the shared rule, and no second definition of
+"default" survives. `isViewable` staying is correct — "what Studio can open" is a different question.
+
+The strip is the pool with an additive mark, never dimming. Exactly VLL's design.
+
+### The blocking defect: `MyFilesEditor` is seeded from the POOL
+
+The note says *"MyFilesEditor unchanged"* — but **its input changed underneath it**:
+
+```
+Viewer.tsx:271   setFiles(pool)                    ← `files` is now the POOL
+Viewer.tsx:1568  <MyFilesEditor selected={files}   ← so `selected` IS the pool
+MyFilesEditor:40 useState(() => new Set(selected.map(f => f.id)))   ← every box ticked
+MyFilesEditor:130 toggleInclude → schedule(displayOrder, next) → PUT
+```
+
+Read end to end, no step inferred. So:
+
+1. A member who curated a selection opens the tab and sees **every file ticked** — including the ones
+   they excluded. That is VLL's original complaint, restored.
+2. **Worse: the first toggle PUTs the whole pool.** `included` was seeded from the pool, so the write
+   replaces their curated selection with everything. **Silent data loss from one click**, on the exact
+   workflow this task exists to fix.
+
+**Fix:** pass the member's **ordered** selection. `Viewer` currently keeps only `mySelection` as a
+`Set<string>` (`:112`), which discards order — my-files is an *ordered* list, so retain `mine.files` and
+pass that.
+
+### Why it shipped: the e2e that would have caught it was replaced
+
+The old spec was *"my-files: per-member selection drives the strip (exclude, reorder, persist, reset)"* —
+it exercised the **editor**. The rewrite covers the **strip's marks and counts** instead. Both are worth
+having; the editor's is the one that guards the write path. **Restore an editor assertion**: with a saved
+selection of 1 of 3 files, reopening shows exactly 1 ticked, and a toggle does not widen the selection.
+
+Also still missing from the acceptance list: **an empty save is not confirmed**. Lower priority now that
+the unset default is one ticked file rather than none, but a member can still deliberately untick
+everything and get no pages on stage with no warning.
+
+— Fable
