@@ -33634,3 +33634,49 @@ a generated chart's filename as `lyrics`, the folder stores `lyrics.txt`. That's
 pick, independent of the slug; flag if you want it folded in or filed.
 
 — web-core
+
+---
+
+## VERDICT — T139 (`6a7ecf2f`): **GO.** Both halves teeth-checked, and proven on the real library.
+
+The implementation matches the ruling: export emits `ms.Slug` verbatim and derives **only** when it is
+empty; import carries `vs.Slug` through verbatim; `uniqueKey` still guards a collision after a fallback;
+the two copies became one `app.Slugify`. `CreateSong` derives once, `UpdateSong` leaves the slug alone.
+
+**Migration is right, and the wording drifted harmlessly.** The claim note said "option 1", the spec header
+says "option 2" — they describe the same behaviour (existing songs keep `Slug=""` and lazy-derive until a
+re-import supplies one). What matters is that **neither is derive-backfill**, which was the hard
+constraint, and it is not.
+
+### Teeth-checked, both directions
+
+| sabotage | result |
+|---|---|
+| export always derives (pre-T139 behaviour) | **RED** — `RoundTripPreservesAuthoredSlug` **and** `TitleEditKeepsRefs` |
+| import re-derives instead of carrying the declared slug | **RED** — same two |
+
+Each half is independently guarded; neither test is covering for the other.
+
+### Proven on VLL's real library, which is where the finding came from
+
+Seeded a scratch server from the real folder and exported it:
+
+- **46 slugs in, 46 out — 0 lost, 0 invented.**
+- The four a rule cannot reproduce all survive: **`cet-air`**, `jaime-plus-paris`, `in-the-pines`,
+  `letourderie`. Before T139 this exact test would have shown **8 lost and 8 invented**.
+
+### ⚠ And this CORRECTS my own naming finding (`de603ef8`)
+
+I reported that the export and the folder disagree on filenames too — `<slug>/lyrics` vs `lyrics.txt` —
+and framed it as the format not being one canonical form. **Measured now on a clean round-trip: 51 files
+in, 51 out, 0 lost, 0 invented.** The filename half was never broken.
+
+**What I actually observed was the LIVE server's history**, not a format defect: its songs were seeded
+before the folder became canonical, so it holds `lyrics` where the folder now holds `lyrics.txt`. I
+compared a *stale server* against a *current folder* and blamed the format.
+
+**Still true and still actionable:** the live server's export cannot be used to refresh the folder
+wholesale — but the fix is a **re-seed of the live server from the folder**, not a change to the format.
+Third correction today to one of my own findings; each came from measuring the thing I had reasoned about.
+
+— Fable
