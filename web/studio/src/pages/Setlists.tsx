@@ -130,20 +130,12 @@ export function Setlists() {
   }
 
   // T132: arm/disarm rehearsal live mode from the row — the SAME endpoint LiveModeCard uses, not a
-  // forked path. Arming CONFIRMS (naming the concert — the wrong-row risk) and states the 3-hour
-  // consequence the detail card otherwise carries; disarming is immediate (safe + reversible).
+  // forked path. No confirm (VLL: the ⋯ menu is anchored to the row, so the concert is unambiguous, and
+  // arming is instantly reversible — the chip is the feedback). The 3-hour consequence rides in the
+  // menu LABEL instead of a dialog, so it's read on touch too. Both directions are immediate.
   async function onToggleLive(sl: Setlist) {
-    const live = isLive(sl);
-    if (!live) {
-      const ok = await confirm({
-        title: `Arm live mode for “${sl.name}”?`,
-        body: "Edits to this concert’s songs will auto-bake for the next 3 hours (it turns itself off after that).",
-        confirmLabel: "Arm live mode",
-      });
-      if (!ok) return;
-    }
     try {
-      await api.setSetlistLive(bandId, sl.id, !live);
+      await api.setSetlistLive(bandId, sl.id, !isLive(sl));
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn’t change live mode");
@@ -289,12 +281,19 @@ export function Setlists() {
                               {myRole === "admin" && (
                                 <RowMenuItem
                                   testId="setlist-live-toggle"
+                                  title={
+                                    isLive(sl)
+                                      ? undefined
+                                      : "Edits to this concert’s songs will auto-bake for the next 3 hours (it turns itself off after that)."
+                                  }
                                   onClick={() => {
                                     closeMenu();
                                     void onToggleLive(sl);
                                   }}
                                 >
-                                  {isLive(sl) ? "Disarm live mode" : "Arm live mode"}
+                                  {/* T132: the 3-hour consequence lives in the LABEL (read on touch too),
+                                      not a dialog; title is the fuller sentence for mouse users. */}
+                                  {isLive(sl) ? "Disarm live mode" : "Arm live mode · auto-bakes for 3 h"}
                                 </RowMenuItem>
                               )}
                               {sl.downloadUrl && (
