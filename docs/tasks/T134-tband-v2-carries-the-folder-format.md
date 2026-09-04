@@ -158,6 +158,86 @@ title-keyed mapping, and titles are the field most likely to be corrected.
 What remains true from my earlier note: it is **head-only**, so it cannot restore that 531 KB of
 history — and nothing that ships should call it a backup.
 
+## AMENDMENT 2 (VLL, 2026-09-04) — filename carries the shortname, folders get migrated, import stays gated
+
+### ⟨D4⟩ REVISED — an absent `formatVersion` is an ERROR
+
+**VLL: *"pour les dossiers actuels on fera les modifications pour les rendre compatibles."*** So the
+importer does **not** need a legacy branch. My earlier requirement (absent version → glob the files) is
+withdrawn and replaced by a stricter one:
+
+**A folder or archive without `formatVersion` is refused, with a message naming the missing field and
+the expected value.** Not a default, not a fallback. The failure it prevents — importing songs with no
+charts, silently — becomes loud instead of handled, and there is no lenient path to maintain.
+
+Keep the fixture test, with its assertion flipped: a folder without `formatVersion` is **rejected**.
+
+### The migration is two edits per folder, and it is free *today*
+
+Measured against the real library (2 band folders, no band data reproduced here):
+
+| Folder | `formatVersion` | annotations |
+|---|---|---|
+| A | absent | `annotations.json`, 9 songs, **keyed by `title`**, 16 objects |
+| B | absent | none |
+
+So the work is: **add `formatVersion: 2`**, and **re-key the annotations by `slug`** into `annotations/`.
+
+**The re-key resolves 9/9 with no ambiguity and no misses right now.** That is the argument for doing it
+immediately rather than later: title→slug is a lookup that works until the first title is corrected, and
+then it silently drops that song's marks. Migrating while the mapping is total costs nothing; migrating
+after a rename costs annotations nobody notices are gone.
+
+**The migration tool must fail on an unresolved title, never skip it.** A skipped song looks exactly
+like a song that had no annotations.
+
+### The file list: derive it in a directory, declare it in a zip
+
+A hand-authored folder should not have to maintain a `files[]` that the directory already states. So:
+**in the directory form the file list IS the directory**; in the zip, the manifest declares entries
+because the zip is generated. This also removes the silent-chartless-import class entirely — you cannot
+forget to list a file that is found by being there.
+
+The constraint this puts on Gap 3 stands and must be honoured: derivation has to be **deterministic and
+sorted**, or `zip(dir)` stops being an exact inverse and the diffability argument dies.
+
+### Export filename ⟶ shortname (VLL's flow, accepted)
+
+**VLL: *"l'export sauve un tband, je recommanderais un slug comme name, mais si l'utilisateur le change
+alors ce sera le shortname."*** Accepted, and it is the cleanest answer to "the server has no shortname
+field": **the filename is the shortname.**
+
+- Export names the file from a **slug of the band name**.
+- If the user saves it under a different name, **that name becomes the `shortname`** on import.
+- Import falls back to a slug of `name` when the filename carries nothing distinct.
+
+This gives the field a home without adding a server column for it, and it matches what the folders
+already do — their directory name *is* their shortname today.
+
+### Importing a band folder = zip it, then the normal `.tband` path
+
+**VLL: *"pareil pour l'import des repertoire trouba bands est de zipper les folder et utiliser l'import
+tband."*** Accepted — one code path, no second importer.
+
+**With one hard condition: the zip flow must not bypass `ImportPreview`.** Importing a band **creates
+accounts on your server from a file somebody handed you**. The preview is the only thing standing
+between "a colleague sent me their band" and "a file I was sent decided who exists here". A convenience
+wrapper that zips a folder and posts it straight through would remove that check precisely where it
+matters most — the case where the input came from outside.
+
+### How users are created on import (settled, from the code — for the format doc)
+
+**Passwords never travel.** `.tband` carries no credential of any kind. `ImportPreview` classifies every
+member first, and each one is dispositioned:
+
+- **`create`** — a **passwordless** account. It cannot be logged into until an admin issues a reset via
+  `POST /api/bands/{bandId}/members/{userId}/password-reset`.
+- **`invite`** — the person is invited, not created.
+- **`skip`** — not imported.
+
+**`invite` and `skip` drop that member’s personal content**, which is a real data consequence and
+belongs in the format doc rather than in the code alone.
+
 ## Then, and only then: the demo
 
 Once annotations are expressible, move the demo's groups out of Go literals (`groupDef`) into a folder
