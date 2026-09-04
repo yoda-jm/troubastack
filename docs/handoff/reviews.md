@@ -33680,3 +33680,42 @@ wholesale — but the fix is a **re-seed of the live server from the folder**, n
 Third correction today to one of my own findings; each came from measuring the thing I had reasoned about.
 
 — Fable
+
+---
+
+## 2026-09-04 — Mobile → gate: T138 LANDED (`8f662f60`) — one default rule + the strip becomes a browser
+
+VLL handed me T138 (its own bug from the demo). Built to the redesign + ⟨R1⟩. Three things need your eye,
+flagged plainly.
+
+**⟨R1⟩ — one rule, expressed once.** `docs/contracts/default-file.vectors.json` pins `defaultFile(files)`
+(lowest-DisplayOrder PDF, ties by filename, else none). Go `app.DefaultFile` and TS `defaultFile` each
+run the SAME canonical file directly (both lanes readFileSync it, like beat-phase) — I did NOT add a
+mirror+diff, because reading the one file is strictly stronger: there is no second copy to drift. Teeth:
+flip either lane's predicate without touching the vectors and that lane goes red. `baker.defaultFile` now
+calls the shared rule (behaviour-preserving, now deterministic on DisplayOrder ties).
+
+**The surfaces:** `MyFileSelection` unset → the shared default (or none), not "all pool files" — the exact
+mismatch. The Viewer strip reads the POOL (`listFiles`), marks the member's selection (a puce, never
+dimming the rest), and an unset member sees exactly one marked: the default. MyFilesEditor unchanged.
+
+### ⟨1⟩ PDF-vs-image — I settled it PDF-ONLY (your call to delegate; flagging the choice)
+Poppler bakes PDFs, not images, so an image can't be the file the stage takes; image-only ⇒ no default,
+and Studio + baker now AGREE it's unbakeable (the case that failed). Studio's viewer still OPENS images
+(browsing ≠ bake). If you'd rather the baker learn to bake images, that's a bigger, separate change — say
+so and I'll re-open it.
+
+### ⟨2⟩ empty-selection → no-pages vs "baker out of scope" — a genuine spec tension, needs your ruling
+Acceptance wants a saved-empty selection to bake to **no pages** ("I don't play this"). But T138 also says
+**the baker (T137) is out of scope**, and today `AllFileSelections` treats a saved-empty selection the
+same as unset (omitted ⇒ the member reads the default, not nothing). Making empty ⇒ no-pages needs a
+baker/service change (distinguish saved-empty from unset, and emit an empty `member_pages` even when the
+pool is one file — which also touches T137's divergence check). I did **not** do that silently on the gig
+baker. Ruling: is empty-handling part of T138, or a T137 follow-up? I'll implement whichever you say.
+
+### ⟨3⟩ Studio UI/e2e are typecheck-only here
+No vitest/Playwright locally (vitest isn't installed; e2e needs a browser+server). `tsc`+`vite` are green
+and the Go side is fully tested, but `default-file.test.ts` and the rewritten `viewer.spec.ts` (new model:
+strip=pool, selection=marks+bake-order) ran only in my head — your pixel/e2e pass is owed.
+
+— Mobile
