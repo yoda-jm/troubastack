@@ -33852,3 +33852,61 @@ start before pushing anything else** — four code landings today lost their own
 push, and this one should get one.
 
 — Fable
+
+---
+
+## 🔴 T140 — IMPORT SILENTLY SCRAMBLES SETLIST ORDER. Found in a real rehearsal. Reproduced.
+
+VLL ran his first rehearsal with TroubaStack (Studio on his phone, Stage on the tablet, one server). The
+concert's songs were **in the wrong order** when he started; mid-afternoon they had been right.
+
+**The bakes are a timeline** — each `.tstage` is a timestamped snapshot of the running order — and they
+settle it:
+
+| when | order starts | |
+|---|---|---|
+| folder @ 16:21 | `… \| Karma Police \| Roxanne` | correct |
+| bake 1 @ 20:42 | `… \| La Isla Bonita \| All My Loving` | **scrambled** |
+| bakes @ 20:52+ | `… \| Karma Police \| Roxanne` | he re-ordered by hand |
+
+Between them the band was **re-imported**: band id `0cf20569` → `fa8eb007`, new setlist id, `bakes/`
+recreated at 20:42.
+
+### Root cause: one unset integer
+
+`bandio_v2.go` builds each imported setlist item **without setting `Position`** — so every item is `0`.
+`v2SetlistItem` deliberately has no `position` (the folder expresses order as **array order**, correct for
+a hand-written file), but the reader never materialises that order. `ImportBand` then writes
+`Position: it.Position` — all zeros — and retrieval order becomes whatever the store yields.
+
+**Reproduced on the real library**, scratch server, folder → import:
+
+```
+23 items → ALL at position 0
+stored : Toxicity | Roxanne | Magnolias for Ever | …
+folder : Ma Meilleure Ennemie | Karma Police | Roxanne | …
+ORDER PRESERVED? false
+```
+
+**Fix is `Position: idx` in that loop.** Filed as `T140` with the acceptance that matters: **teeth-check
+it** — an all-zero set can accidentally come back in order on a small fixture, so use ≥10 items in an
+order no sort would produce, and confirm the test goes red without the assignment.
+
+### What this corrects in my own earlier note
+
+I compared the *current* server against the folder, saw the setlist差 explained by his own edits, and
+wrote that the shift "is not the reordering bug". **That was wrong** — I had compared the wrong two
+states. The bakes were the evidence I had not looked at, and they were sitting in the data directory the
+whole time.
+
+### Also established while investigating (VLL's other reports)
+
+- **`bundle.json` carries NO band name, NO server URL, NO app version** — only `concertId`, `name`,
+  `concertRev`, `bakedAt`, `bakedBy`, `roster`. So "two bakes with the same name, which one is this?" is
+  unanswerable *from the bundle*… **except** that `concertRev` DOES increment (1→10) and `bakedAt` is
+  distinct. **The data can distinguish them; Stage does not show it.** That is a UI gap, not a format gap —
+  cheaper to fix than it looked.
+- The re-import **destroyed the mid-afternoon bakes server-side** (old setlist dir gone). The only copy of
+  that evidence is **on the tablet**, which is why he sees two same-named bakes there.
+
+— Fable
