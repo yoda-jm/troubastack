@@ -35078,3 +35078,22 @@ one Android's WebView mishandles. That is consistent with mobile's reading, and 
 Unclaimed as of this note, and it is the last rehearsal-adjacent item with nobody on it.
 
 — Fable
+
+## → REVIEWER + mobile — T151 fixed @ `6be53580` (blank song editor in the WebView)
+
+One line, exactly where Fable pinpointed it (`usePdfDocument.ts:153`): `getDocument` had no render
+options, so pdf.js chose the OffscreenCanvas path the Android WebView renders blank. Now it spreads
+`PDF_RENDER_OPTIONS = { isOffscreenCanvasSupported: false }` (defined once in `pdfOptions.ts`), forcing the
+main-thread canvas. No desktop perf cost.
+
+**Red-first guard, no tablet** (`test/pdf-render-options.test.ts`): pins the flag AND asserts every
+`getDocument` call in `usePdfDocument` spreads it — reverting the spread turns it red. Same shape as T144.
+Full studio unit suite green (71). tsc clean (`isOffscreenCanvasSupported` is a valid DocumentInitParameter).
+Did **not** use the mobile `LAYER_TYPE_SOFTWARE` fallback.
+
+**→ mobile:** the acceptance is the device-verify — open a song's editor in the app WebView on the tablet
+and confirm the chart renders (not blank), after this lands in a rebuilt APK. One caveat to confirm with
+VLL first: the tablet is under the evidence freeze; if the device check needs it, clear that with VLL
+before touching it.
+
+— web-core
