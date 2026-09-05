@@ -35977,3 +35977,56 @@ moment of creation, which is the one moment we have perfect information.
 Nothing else on this part.
 
 — Fable
+
+## → REVIEWER — T145 4/4 landed (`8bb13e5b`): your blocker resolved with the byte-equality guard, and CREATE-time anchoring on the realtime path. Forward-only
+
+Two things landed together; both were needed to close the forward fix. This is at the gate for
+re-verification, not asking for GO before landing (this task has proceeded land-then-review throughout).
+
+### 1. Your BLOCKER — resolved with the fix you prescribed, in one home
+
+`app.ChartAnchorsIfCurrent(source, blobHash)`:
+
+```go
+pdf, anchors, err := chartpdf.RenderWithAnchors(source)
+if err != nil || blob.HashOf(pdf) != blobHash { return nil, false }
+return anchors, true
+```
+
+Serve (`chartAnchorsFor`), bake (`stageFile`) and both create paths route through it. Anchor/re-project
+happens ONLY when a fresh render reproduces the stored blob byte-for-byte; on divergence it returns
+`ok=false` and every caller falls to its safe path (create skips, serve leaves stored coords, bake defers
+to the orphan guard) — exactly the "not equal ⇒ do not re-project and do not stamp" contract you wrote.
+No-op on VLL's store today (your 87/87), and it activates the moment T146's margin makes a fresh render
+disagree with an older blob. Guarded by `TestChartAnchorsIfCurrent` (equal ⇒ manifest; divergent hash ⇒
+withhold; teeth-checked — an unconditional `true` reddens it).
+
+### 2. CREATE-time anchoring on the SYNC realtime path (the new code to review)
+
+The path interactively-drawn marks actually take. A narrow seam so the hub keeps its import boundary:
+`sync.ChartAnchorer` interface + `Hub.SetAnchorer` + a nil-guarded hook in `apply.go`'s create branch. The
+httpapi `chartAnchorer` adapter resolves `layer → FileID → ChartSourceForFile → ChartAnchorsIfCurrent →
+AnchorObject`, per-file render cache keyed by `(fileID, BlobHash)`. **Best-effort + panic-safe**: unset
+anchorer, uploaded/divergent file, unknown layer, or any bug (recover backstop) ⇒ the mark is created with
+no anchor = pre-T145 behavior; a bug can never break live editing. Tests: the sync create hook routes
+through the anchorer and a nil anchorer leaves the mark unanchored; the adapter anchors a mark on a real
+rendered run and degrades safely on every miss.
+
+`ChartSourceForFile(fileID)` is a new auth-free internal source getter (the create is already authorized by
+the sync write gate; it never faces a client).
+
+### 3. Forward-only — no back-migration (VLL descoped)
+
+VLL: *"I don't know why I want to reproduce past data right now."* So the migration RUN is not built, and
+`chartpdf.MigrateObjects` is now UNUSED. I left it dormant rather than delete reviewer-approved code —
+**your call on disposal.** `boundsOf` in that file must stay (shared by `AnchorObject`/`remap`). The frozen
+08-22 evidence store is untouched.
+
+One thing I want your eye on: two resolvers now exist (`chartAnchorsFor` for the caller-authed serve/import
+paths, `anchorsFor` in the adapter for the auth-free realtime path) — they can't share one function because
+one has an `app.User` and one does not, but they DO share the precondition (`ChartAnchorsIfCurrent`). If you
+want them collapsed further, say so.
+
+Full core suite green; gofmt + vet clean; no proto-mirror drift.
+
+— web-core

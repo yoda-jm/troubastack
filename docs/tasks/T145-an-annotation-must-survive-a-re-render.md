@@ -1,25 +1,37 @@
 # T145 — An annotation must stay on the words it was drawn on
 
 **Lane:** to be routed by first stage (core, then studio + app). **Size:** M/L — a data-model change.
-**Status:** IN PROGRESS 2026-09-05 (web-core). Stage 1 CORE MECHANISM DONE: `domain.SourceAnchor`
-(source-scoped — RunText + document-wide Occurrence + rune span; BLOCKER 1 fixed, nothing render-derived)
-+ `AnchorAt`/`Project` (bidirectional) + RED-first `TestSourceAnchor_SurvivesReflow` (a mark stays on its
-words when the same source reflows onto a different page; frozen coords provably do not). DOMAIN-FIELD
-SLICE DONE: `SourceAnchor` moved to `domain`, added to `domain.Object` with `PointsRenderHash` (the
-self-invalidating cache identity), wired through httpapi + sync (round-trip test), NO proto-mirror drift.
-MIGRATION MECHANISM DONE: `chartpdf.MigrateObjects` reverse-anchors legacy marks from a SUPPLIED
-correct-render manifest (per BLOCKER 2 that is the FROZEN 08-22 render, never the current), flags+counts the
-un-migratable (frozen coords kept), stamps `PointsRenderHash`, skips already-anchored — tested. Remaining
-stage 1: the cache-invalidation CHECK at the projection consumers (re-project when `PointsRenderHash` != the
-current render — Studio paint / bake, stages 2–3), and the migration RUN — freeze-gated (the target store +
-the 08-22 evidence `troubastack-demo/data.preseed-20260904-191837/` are frozen — do not clear), and needs
-the 08-22 render's anchors sourced (see gate). Stage 0 (option-independent) DONE: the overlay-vanish
-guard — `assembleSong` now fails the bake when a mark is on a page the reflowed render no longer has
-(was silently dropped); teeth-checked (`TestBake_ReflowOrphanedOverlay_FailsBake`, orphan fails / same
-mark on a real page bakes). The **anchor-model decision** (Option 1 anchor-to-source, reusing T95, with a
-warn fallback for sourceless uploads) is PROPOSED at the gate and awaiting reviewer validation before the
-data-model ripple through wire/sync/proto/store; stages 1–3 (core model + projection, studio re-project,
-bake re-anchor) follow that GO. Filed from the rehearsal field report, items #4/#5.
+**Status:** SERVER FORWARD FIX COMPLETE 2026-09-06 (web-core) — Option 1 (anchor-to-source), **forward-only,
+no back-migration** (VLL descoped reproducing past data: *"I don't know why I want to reproduce past data
+right now"*). At the gate for re-verification. Decided design (Option 1 + `SourceAnchor`), Fable-validated.
+
+CORE MODEL (landed): `domain.SourceAnchor` (source-scoped — RunText + document-wide Occurrence + rune span;
+BLOCKER 1 fixed, nothing render-derived) + `AnchorAt`/`Project` (bidirectional) + `AnchorObject`/`Reproject`/
+`remap`; `domain.Object` carries `Anchor` + `PointsRenderHash` (self-invalidating cache identity), wired
+through httpapi + sync, no proto-mirror drift; RED-first `TestSourceAnchor_SurvivesReflow`.
+
+THE FORWARD FIX = anchor a mark to its words when CREATED (from the current render), and RE-PROJECT stale
+marks when the render changed, at every consumer:
+- **create / import** (`4a`, `148261d2`) — `AnchorObject` at import; **create / realtime** (`4/4`,
+  `8bb13e5b`) — a narrow `sync.ChartAnchorer` seam (`Hub.SetAnchorer` + nil-guarded apply.go hook), httpapi
+  `chartAnchorer` adapter (best-effort + panic-safe: any miss ⇒ no-anchor = pre-T145 behavior).
+- **serve** (`3/4`, `a9943847`) — `getAnnotations` re-projects stale marks; **bake** (`2/4`, `c7f40fe6`) —
+  `stageFile` re-projects before assembling (reflow-orphan guard is the backstop).
+- **BLOCKER (Fable, 3/4) resolved** (`4/4`) — the shared precondition `app.ChartAnchorsIfCurrent(source,
+  blobHash)`: anchor/re-project ONLY when a fresh render reproduces the stored blob byte-for-byte, else
+  withhold (`ok=false`). One home; serve + bake + create all route through it. No-op on VLL's store today
+  (87/87 reproduce); activates the instant a layout change (T146 margin) would otherwise corrupt.
+
+STAGE 0 (landed): the overlay-vanish guard — `assembleSong` fails the bake when a mark is on a page the
+reflowed render no longer has (`TestBake_ReflowOrphanedOverlay_FailsBake`).
+
+DESCOPED: back-migration of legacy data. `chartpdf.MigrateObjects` (the reverse-anchor-from-frozen-render
+mechanism) is now UNUSED and left dormant (`boundsOf` in that file stays — shared by `AnchorObject`/`remap`);
+disposal flagged at the gate. The frozen 08-22 evidence store is untouched. Filed from the field report #4/#5.
+
+REMAINING (not server): Studio paint-time re-projection when `PointsRenderHash` != current render (client
+stage), and app; the server now serves/bakes re-projected marks regardless, so these are progressive
+enhancement, not correctness gates.
 
 ## The failure, in the musician's words
 
