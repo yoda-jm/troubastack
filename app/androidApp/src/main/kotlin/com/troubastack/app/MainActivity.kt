@@ -70,6 +70,7 @@ import com.troubastack.shared.distribution.BakeStatus
 import com.troubastack.shared.distribution.BundleAction
 import com.troubastack.shared.distribution.bundleMenuActions
 import com.troubastack.shared.distribution.concertRowSubtitle
+import com.troubastack.shared.distribution.localUtcOffsetSeconds
 import com.troubastack.shared.distribution.groupByBand
 import com.troubastack.shared.distribution.setlistIdOf
 import com.troubastack.shared.distribution.bakeLabel
@@ -897,9 +898,10 @@ private fun ConcertRow(
             Column(Modifier.weight(1f)) {
                 Text(entry.label, style = MaterialTheme.typography.titleMedium)
                 // T143 §1: rev + bake time, so two bakes with the SAME name are distinguishable on the row.
+                // T148: render the bake time in the device's local zone (offset AT the bake instant), not UTC.
                 if (!entry.damaged) {
                     Text(
-                        concertRowSubtitle(entry.concertRev, entry.bakedAt),
+                        concertRowSubtitle(entry.concertRev, entry.bakedAt, localUtcOffsetSeconds(entry.bakedAt)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -11,21 +11,51 @@ class BundleRowTest {
     @Test
     fun subtitle_distinguishes_two_same_named_bakes() {
         // Same concert NAME, two bakes: the subtitle (rev + time) must differ — the whole point of T143 §1.
-        val a = concertRowSubtitle(1uL, 1_700_000_000L)
-        val b = concertRowSubtitle(10uL, 1_700_086_400L)
+        val a = concertRowSubtitle(1uL, 1_700_000_000L, offsetSeconds = 0)
+        val b = concertRowSubtitle(10uL, 1_700_086_400L, offsetSeconds = 0)
         assertTrue(a != b, "same-named bakes must render distinguishable subtitles: '$a' vs '$b'")
         assertTrue(a.contains("rev 1"))
         assertTrue(b.contains("rev 10"))
     }
 
     @Test
-    fun subtitle_formats_utc_minute() {
-        assertEquals("rev 7 · 2023-11-14 22:13", concertRowSubtitle(7uL, 1_700_000_000L))
+    fun subtitle_formats_utc_when_offset_is_zero() {
+        // A viewer whose zone IS UTC (offset 0) sees UTC with no label — the label is only for UNRESOLVED.
+        assertEquals("rev 7 · 2023-11-14 22:13", concertRowSubtitle(7uL, 1_700_000_000L, offsetSeconds = 0))
     }
 
     @Test
     fun subtitle_omits_absent_time() {
-        assertEquals("rev 0", concertRowSubtitle(0uL, 0L))
+        assertEquals("rev 0", concertRowSubtitle(0uL, 0L, offsetSeconds = 0))
+    }
+
+    // --- T148: the time reads in the musician's own zone, not UTC ---
+
+    @Test
+    fun subtitle_renders_local_hour_utc_plus_two() {
+        // 1_700_000_000 = 2023-11-14 22:13 UTC. VLL is on UTC+2 → 2023-11-15 00:13 local (and the DATE rolls).
+        // On the pre-T148 UTC code this is red by exactly the two-hour gap VLL hit.
+        assertEquals("rev 7 · 2023-11-15 00:13", concertRowSubtitle(7uL, 1_700_000_000L, offsetSeconds = 2 * 3600))
+    }
+
+    @Test
+    fun subtitle_renders_local_hour_zone_behind_utc() {
+        // A zone BEHIND UTC (−5h) → 2023-11-14 17:13. A sign error could not pass both this and the +2 case.
+        assertEquals("rev 7 · 2023-11-14 17:13", concertRowSubtitle(7uL, 1_700_000_000L, offsetSeconds = -5 * 3600))
+    }
+
+    @Test
+    fun subtitle_local_date_crosses_midnight() {
+        // The date-boundary case: 22:13 on the 14th UTC is 00:13 on the 15th at +2 — the DATE must advance,
+        // which a naive offset-on-the-time-only would get wrong (it would keep "11-14").
+        val s = concertRowSubtitle(7uL, 1_700_000_000L, offsetSeconds = 2 * 3600)
+        assertTrue(s.contains("2023-11-15"), "local date must roll to the 15th, got '$s'")
+    }
+
+    @Test
+    fun subtitle_labels_utc_when_zone_unresolved() {
+        // If the platform seam returns null (zone unresolvable), show UTC and SAY so — never a silent non-local time.
+        assertEquals("rev 7 · 2023-11-14 22:13 UTC", concertRowSubtitle(7uL, 1_700_000_000L, offsetSeconds = null))
     }
 
     @Test

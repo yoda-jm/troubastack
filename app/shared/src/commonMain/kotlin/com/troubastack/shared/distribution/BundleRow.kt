@@ -4,13 +4,24 @@ package com.troubastack.shared.distribution
  * T143 — a concert row must distinguish two bakes with the SAME name (VLL's rehearsal: "2 bakes with the
  * same name, I don't know which version"). The bundle already carries `concertRev` (incrementing) and a
  * distinct `bakedAt` per bake; the row just wasn't showing them. This is the pure, testable subtitle:
- * "rev N · YYYY-MM-DD HH:MM" (UTC), the time omitted when absent (rev 0 / pre-timestamp bundles).
+ * "rev N · YYYY-MM-DD HH:MM", the time omitted when absent (rev 0 / pre-timestamp bundles).
+ *
+ * T148 — the time must read in the MUSICIAN's clock, not UTC. VLL, on a UTC+2 tablet, named an 11:04 bake
+ * "le bake de 9h04" — the row answered "which bake?" with a time that does not exist for him. [offsetSeconds]
+ * is the device's UTC offset AT the bake instant (from the [localUtcOffsetSeconds] platform seam), or null
+ * if the zone could not be resolved — in which case the time is shown in UTC and LABELLED "UTC", never a
+ * silent non-local timestamp (that silence is exactly what produced the report).
  */
-fun concertRowSubtitle(rev: ULong, bakedAtEpochSec: Long): String =
-    if (bakedAtEpochSec > 0L) "rev $rev · ${formatUtcMinute(bakedAtEpochSec)}" else "rev $rev"
+fun concertRowSubtitle(rev: ULong, bakedAtEpochSec: Long, offsetSeconds: Int?): String = when {
+    bakedAtEpochSec <= 0L -> "rev $rev"
+    offsetSeconds == null -> "rev $rev · ${formatUtcMinute(bakedAtEpochSec)} UTC"
+    else -> "rev $rev · ${formatUtcMinute(bakedAtEpochSec + offsetSeconds)}"
+}
 
-/** epoch seconds → "YYYY-MM-DD HH:MM" in UTC. Pure (no kotlinx-datetime dep): the civil-from-days
- *  algorithm; inputs are positive bake timestamps, so plain division suffices. */
+/** epoch seconds → "YYYY-MM-DD HH:MM" for the civil wall-clock of that instant. Pure (no kotlinx-datetime
+ *  dep): the civil-from-days algorithm. Callers wanting LOCAL time pass `epoch + utcOffsetSeconds` (T148);
+ *  shifting the instant before the civil math rolls the DATE across midnight correctly, which a naive
+ *  offset-on-the-time-only would not. Inputs are positive bake timestamps, so plain division suffices. */
 internal fun formatUtcMinute(epochSec: Long): String {
     val days = epochSec / 86400L
     val secOfDay = epochSec % 86400L
