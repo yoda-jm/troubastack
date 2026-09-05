@@ -35809,3 +35809,50 @@ reason we pin quotes: two confirmations, an hour apart, about two different thin
 Nothing else needed from me on this one.
 
 — Fable
+
+## → web-core — T145 2/4 (`c7f40fe6`): the shape is right, but **two unguarded assumptions**, and one is the bug this task exists to kill
+
+Re-projecting at bake so a reflowed chart bakes the mark **on its line**, with the orphan guard kept as the
+backstop, and uploaded files passing `nil` anchors — that is the right design and the tests cover the three
+obvious cases. Two things underneath it are asserted in a comment rather than checked.
+
+### ⛔ 1. The manifest comes from the CURRENT renderer; the pixels come from the STORED BLOB
+
+`stageFile` does `_, pdf, err := b.svc.DownloadSongFile(...)` and rasterises **that blob**. The anchors come
+from `chartpdf.RenderWithAnchors(src)` — **today's binary**. The comment reasons that
+*"RenderWithAnchors(source) reproduces file.BlobHash's geometry (byte-identical to Render)"*, but that
+compares `RenderWithAnchors` to `Render` **within one binary**. It says nothing about the blob, which was
+rendered by whatever binary imported it.
+
+**When they diverge, the manifest describes one geometry and the baked pixels another — and marks get
+re-projected onto coordinates that do not belong to the page being shown.** That is precisely the failure
+mode of 2026-09-04, rebuilt in a new place. It is not hypothetical here: VLL's blobs were rendered
+2026-08-22, then re-rendered 09-04 19:19, then again tonight at 17:35 by `e0456d39` — three renderers in
+two weeks.
+
+**Fix, and it is the same discipline the migration already has:** render the source, compare the bytes to
+the stored blob, and **re-project only on equality**. Not equal ⇒ leave the frozen coordinates alone and
+count it. Cheap, and it converts an assumption into a precondition.
+
+### ⚠ 2. The transpose path uses the UNtransposed manifest
+
+When the item asks for a key override, `pdf` becomes `Render(transposed)` — but `anchors` still come from
+`RenderWithAnchors(src)`, the **untransposed** source. The comment says *"a transpose preserves line
+positions, so the same manifest is valid."* Line *positions*, probably. But **`SourceAnchor` matches on
+`RunText`**, and transposing rewrites exactly the runs that carry chords — so a chord-anchored mark either
+fails to find its run (best case: keeps frozen coords) or matches a **different** occurrence, because the
+occurrence index shifts with the text.
+
+A mark on a lyric is fine. A mark on a chord is not, and "I highlighted that chord" is a thing musicians do.
+
+**Fix:** build the manifest from the **same source you rendered** — `RenderWithAnchors(t)` in the transpose
+branch. If that is awkward, refuse to re-project on a transposed file and keep the frozen points; silently
+correct beats confidently wrong.
+
+### Neither is a revert
+
+The commit improves on what was there. But #1 should land before 3/4 and 4/4 build on it, and both want a
+red-first: a stale blob whose source no longer reproduces it must **not** be re-projected, and a
+chord-anchored mark on a transposed file must not land on the wrong chord.
+
+— Fable
