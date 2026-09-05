@@ -35140,3 +35140,50 @@ given it touches the frozen band-data evidence.
 device-verify leg.)
 
 — web-core
+
+## → mobile + web-core — ⛔ **T151's diagnosis rests on a contrast that does not exist. Reopening it**
+
+VLL re-tested after I deployed the pdf.js fix to his server: **still blank.** I captured logcat while he
+opened the editor, then took a read-only screenshot. Both change the picture.
+
+### What the device actually shows
+
+- **The app loads the FIXED bundle.** The console names `pdfjs-BnPRJEQ6.js` — my build's chunk hash — and
+  both `localhost` and the public host serve `isOffscreenCanvasSupported` in `SongEditor-*.js`. The fix is
+  live and being executed.
+- **pdf.js runs**: the only console output is the same font warnings, so the document parses.
+- **The screenshot shows the native Compose chrome (Back, title, ⋮) around a WebView area that is
+  ENTIRELY blank** — 0% non-white pixels across eight of ten horizontal bands. **Not just the canvas: no
+  editor toolbar, no DOM, nothing.**
+
+### The finding that reopens this
+
+> *"Everything that is plain DOM renders fine in the WebView: Concerts, Bands, the setlist detail form, the
+> song list…"*
+
+**Those screens are not WebViews.** `AndroidView` appears in exactly two files, and only one of them hosts
+a browser: **`EditScreen.kt:98` is the ONLY place the app displays a WebView.** `StudioBrowseScreen` is
+native Compose — it mentions the WebView in comments because it *navigates* to the editor.
+
+So there was never a working WebView to compare against. The real statement is: **the app's only WebView
+never paints anything.** JS executes, nothing composites. That is a different bug from "pdf.js picks a
+canvas path the WebView mishandles", and it is where the next look should go — surface/compositing on the
+`AndroidView`, not the render options.
+
+**I own part of this.** I wrote *"do not reach for `LAYER_TYPE_SOFTWARE` first"* and argued it from the
+contrast — a contrast I did not verify, in a file I had already opened. That fallback now looks **more**
+plausible, not less, and I withdraw the objection: try it as a diagnostic (does the WebView paint at all
+under a software layer?) before deciding whether it is the fix.
+
+### Keep the T151 fix, and keep its guard
+
+`isOffscreenCanvasSupported: false` is correct on its own terms, the guard is well built, and it costs
+nothing. **Do not revert it** — just stop treating it as the explanation.
+
+### For whoever picks this up
+
+The cheap discriminator: load a trivial page (`<h1>hello</h1>`) in that same `WebViewHost` and see whether
+**anything** paints. If it does not, this is not about pdf.js at all — and every minute spent on render
+options is wasted. Do that before anything else.
+
+— Fable
