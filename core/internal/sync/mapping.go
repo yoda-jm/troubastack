@@ -156,7 +156,23 @@ func objectToJSON(o domain.Object) objectJSON {
 			Stroke:   o.Style.Stroke,
 			Blend:    o.Style.Blend,
 		},
+		Anchor:           anchorToJSON(o.Anchor),
+		PointsRenderHash: o.PointsRenderHash,
 	}
+}
+
+func anchorToJSON(a *domain.SourceAnchor) *anchorJSON {
+	if a == nil {
+		return nil
+	}
+	return &anchorJSON{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+}
+
+func anchorFromJSON(a *anchorJSON) *domain.SourceAnchor {
+	if a == nil {
+		return nil
+	}
+	return &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
 }
 
 func objectFromJSON(j objectJSON) domain.Object {
@@ -182,6 +198,8 @@ func objectFromJSON(j objectJSON) domain.Object {
 			Stroke:   j.Style.Stroke,
 			Blend:    j.Style.Blend,
 		},
+		Anchor:           anchorFromJSON(j.Anchor),
+		PointsRenderHash: j.PointsRenderHash,
 	}
 }
 

@@ -123,6 +123,19 @@ type Style struct {
 	Blend    string // "" | "normal" | "multiply"
 }
 
+// SourceAnchor pins an annotation to the SOURCE text it was drawn on, not to one render's coordinates
+// (T145). RunText is the drawn run's text; Occurrence is the 1-based Nth run with that text in the SOURCE
+// (document-wide, never per page — a page index is a render property, so per-page counting re-breaks on
+// reflow); CharStart/CharEnd are the rune span within the run the mark covers. It is projected to render
+// coordinates (Points) at draw/bake time and survives a reflow, so a mark stays on its words. The
+// projection lives in chartpdf (which imports this package); domain stays a pure model.
+type SourceAnchor struct {
+	RunText    string
+	Occurrence int // 1-based, document-wide (source order)
+	CharStart  int // rune index within the run
+	CharEnd    int
+}
+
 // Object is an annotation identified by a client-generated UUID (I2). Applying the
 // same UUID twice is idempotent (no-op or in-place replace, never a duplicate).
 type Object struct {
@@ -142,6 +155,13 @@ type Object struct {
 	// ties fall back to insertion/creation order. Default 0 keeps legacy objects
 	// in their original order. Set via KindReorder (bring-to-front / send-to-back).
 	Order int
+	// T145: Anchor is the SOURCE-scoped position of this mark. When set, Points/Page are a PROJECTED
+	// CACHE of it for ONE render, and PointsRenderHash names that render (the generated chart's content
+	// hash) — so a consumer can see the cache is stale after a re-render and re-project from Anchor
+	// instead of reading orphaned coordinates. nil Anchor / empty hash = Points are authoritative (an
+	// uploaded PDF has no source; or a mark that predates T145 / could not be anchored).
+	Anchor           *SourceAnchor
+	PointsRenderHash string
 }
 
 // Clone returns a deep copy so callers cannot mutate stored state through aliases.
@@ -150,6 +170,10 @@ func (o Object) Clone() Object {
 	if o.Points != nil {
 		cp.Points = make([]Point, len(o.Points))
 		copy(cp.Points, o.Points)
+	}
+	if o.Anchor != nil { // deep-copy so callers cannot mutate stored state through the pointer
+		a := *o.Anchor
+		cp.Anchor = &a
 	}
 	return cp
 }

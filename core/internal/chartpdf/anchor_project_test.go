@@ -3,6 +3,7 @@ package chartpdf
 import (
 	"strings"
 	"testing"
+	"troubastack/core/internal/domain"
 )
 
 func anchorsOf(t *testing.T, src string) []Anchor {
@@ -57,13 +58,13 @@ func TestSourceAnchor_SurvivesReflow(t *testing.T) {
 	}
 
 	// The mark: a highlight over the whole target run. SourceAnchor carries no page/coords.
-	sa := SourceAnchor{RunText: target, Occurrence: 1, CharStart: 0, CharEnd: len([]rune(target))}
+	sa := domain.SourceAnchor{RunText: target, Occurrence: 1, CharStart: 0, CharEnd: len([]rune(target))}
 
 	// It resolves to the SAME words in both renders — on the page each render put the run.
-	if pg, _, _, _, _, ok := sa.Project(small); !ok || pg != pSmall {
+	if pg, _, _, _, _, ok := Project(sa, small); !ok || pg != pSmall {
 		t.Fatalf("project into the small render: ok=%v page=%d, want page %d", ok, pg, pSmall)
 	}
-	if pg, _, _, _, _, ok := sa.Project(big); !ok || pg != pBig {
+	if pg, _, _, _, _, ok := Project(sa, big); !ok || pg != pBig {
 		t.Fatalf("project into the big render: ok=%v page=%d, want page %d", ok, pg, pBig)
 	}
 	if pSmall == pBig {

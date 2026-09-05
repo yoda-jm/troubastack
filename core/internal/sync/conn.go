@@ -94,6 +94,17 @@ type objectJSON struct {
 	Order     int         `json:"order"`
 	CreatedAt int64       `json:"createdAt"`
 	Style     styleJSON   `json:"style"`
+	// T145: source-scoped anchor + the render hash the Points cache was projected from (both omitempty).
+	Anchor           *anchorJSON `json:"anchor,omitempty"`
+	PointsRenderHash string      `json:"pointsRenderHash,omitempty"`
+}
+
+// anchorJSON is the wire shape of domain.SourceAnchor (T145).
+type anchorJSON struct {
+	RunText    string `json:"runText"`
+	Occurrence int    `json:"occurrence"`
+	CharStart  int    `json:"charStart"`
+	CharEnd    int    `json:"charEnd"`
 }
 
 // ---- connection ----

@@ -74,6 +74,18 @@ type objectJSON struct {
 	Order     int         `json:"order"`     // z-order within the layer (T27)
 	CreatedAt int64       `json:"createdAt"` // z-order tiebreak after order (T27)
 	Style     styleJSON   `json:"style"`
+	// T145: the SOURCE-scoped anchor (when the mark sits on a generated chart), and the render hash the
+	// Points cache was projected from. Both omitempty — an uploaded PDF / legacy mark carries neither.
+	Anchor           *anchorJSON `json:"anchor,omitempty"`
+	PointsRenderHash string      `json:"pointsRenderHash,omitempty"`
+}
+
+// anchorJSON is the wire shape of domain.SourceAnchor (T145).
+type anchorJSON struct {
+	RunText    string `json:"runText"`
+	Occurrence int    `json:"occurrence"`
+	CharStart  int    `json:"charStart"`
+	CharEnd    int    `json:"charEnd"`
 }
 
 // annotationsJSON is both the GET response and the import request body.
@@ -279,7 +291,23 @@ func objectToJSON(o domain.Object) objectJSON {
 			Stroke:   o.Style.Stroke,
 			Blend:    o.Style.Blend,
 		},
+		Anchor:           anchorToJSON(o.Anchor),
+		PointsRenderHash: o.PointsRenderHash,
 	}
+}
+
+func anchorToJSON(a *domain.SourceAnchor) *anchorJSON {
+	if a == nil {
+		return nil
+	}
+	return &anchorJSON{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+}
+
+func anchorFromJSON(a *anchorJSON) *domain.SourceAnchor {
+	if a == nil {
+		return nil
+	}
+	return &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
 }
 
 func objectFromJSON(j objectJSON) domain.Object {
@@ -305,6 +333,8 @@ func objectFromJSON(j objectJSON) domain.Object {
 			Stroke:   j.Style.Stroke,
 			Blend:    j.Style.Blend,
 		},
+		Anchor:           anchorFromJSON(j.Anchor),
+		PointsRenderHash: j.PointsRenderHash,
 	}
 }
 
