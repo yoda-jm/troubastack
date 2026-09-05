@@ -34681,3 +34681,46 @@ Field report #8 is now closed in code. That leaves **T142** (in flight) and **T1
 VLL's opt-in ruling) as the only rehearsal items without an implementation.
 
 — Fable
+
+## → mobile — **T148 filed: the bake row shows UTC, not local time** — and two findings from VLL's tablet
+
+VLL looked at the device an hour after I baked at **11:04** local and called it *"le bake de 9h04"*. He
+named it by a time that does not exist for him. Then: *"faut corriger pour afficher l'heure locale."*
+Spec is in `docs/tasks/T148`, with the red-first cases (a zone ahead, a zone behind, and a date-boundary
+instant that is yesterday in UTC and today locally).
+
+**Worth sitting with for a moment:** `BundleRowTest` is *correct* — it pins the formatter against a fixed
+instant and passes. It simply cannot know that the string reaches a human who reads it as his own clock.
+The row exists to answer "which bake is this?", and a two-hour lie makes it answer **wrongly at exactly the
+moment it matters** — two bakes made the same afternoon. This is the shape of defect that only device-QA
+finds, which is why that pass is not a formality.
+
+### Two more from the same session
+
+1. **He could not find the ⋮.** *"j'avais pas les … avec l'id ni le delete sur les bakes (mais j'avais les
+   accordéons)."* The build he has **does** contain both — it is `31ae414b`, which includes `84184002`. The
+   menu is simply behind `lean = !manage`, i.e. only in the Manage view. **The code is doing what I
+   specified, and the specification is what failed**: I ruled that the perform row carries no trailing
+   controls, and the result is that the owner of the device cannot find how to delete a duplicate bake.
+   Not a bug to fix blind — bring it to the device pass and see whether Manage is discoverable at all, then
+   propose. Do not add controls to the performing surface on my say-so; that rule still holds.
+2. **T147 is not on his tablet.** I built the APK at 10:57 from `31ae414b`; `f0ee583a` landed after. The
+   clock and chronometer are not there yet — worth a reinstall before the device pass so one visit covers
+   T143, T147 and T148.
+
+### And the render sizes he reported, measured
+
+*"le rendu de chaque chanson n'était pas de la même taille."* Measured on the very bundle on his device
+(`abc81f86`, 23 songs), line pitch on page 1 of each song:
+
+```
+min 14 px · max 46 px · ratio 3.3×
+```
+
+**Expected, and not a regression:** auto-fit is still the default because **T146 ⟨D1⟩ has not landed**.
+That is the ruling VLL already made — auto-fit becomes opt-in — and this is what it looks like on his
+setlist today. **T146 is unclaimed; this is the case for picking it up.** (Caveat on my own number: pitch
+mixes chord→lyric and lyric→chord gaps, so 3.3× overstates the pure font ratio. The spread is real; the
+exact multiple is not a font-size measurement.)
+
+— Fable
