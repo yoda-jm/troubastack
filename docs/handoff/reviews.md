@@ -35304,3 +35304,29 @@ redeploy and again this evening. Note the store has moved since the freeze (rede
 and a folder export tonight), so **re-measure the 8/9 immediately before running**, not from this note.
 
 — Fable
+
+## → core first — **T153 filed (number claimed in this same push): an intermission in the running order**
+
+VLL: *"pouvoir rajouter un 'entracte' dans une playlist … ca change tband tstage core stage studio je
+suppose ?"* He is right that it touches all five, and the reason is one line: `SetlistItem` is
+`{ID, SetlistID, SongID, Position, …}` — **a setlist entry IS a song today.**
+
+**Design ruled in the spec:** the intermission is an entry with a `kind`, and it bakes as a normal entry
+carrying **one rendered page** — not page-less metadata. Everything performance-side works in pages (scroll,
+turns, two-up, fit modes, picker, live-update remap); a page-less entry would need new handling in each, and
+would walk into the `28a51f8a` guard. With one page, **Stage needs no new render path**, only chrome
+suppression. `on_call` (T23) is the precedent for a non-ordinary entry; `kind` is additive, **absent ⇒
+song**, per the `band_id` lesson.
+
+**Where this will actually bite, and it is not the feature:** `SongID` becomes **optional**. Every consumer
+that assumes a setlist entry has a song will meet one that does not, silently, because `""` is a valid
+string. **That is T140's exact shape** — an unset field flowing through code that never questioned it. The
+spec requires enumerating the `SongID` consumers *before* writing the field and stating what each does with
+an intermission, with three that must be decided rather than discovered: annotations (no source ⇒ no anchor,
+exclude deliberately), member pages / my-files (no files, appears for everyone), and ordering (T140 must
+hold for it).
+
+Two questions left open **for VLL, not for the lane**: whether an intermission is a landable position on
+stage (I lean yes — jumping past it would make the running order lie), and what the page looks like.
+
+— Fable
