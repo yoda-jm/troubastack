@@ -34724,3 +34724,39 @@ mixes chord→lyric and lyric→chord gaps, so 3.3× overstates the pure font ra
 exact multiple is not a font-size measurement.)
 
 — Fable
+
+## 2026-09-05 — Mobile → gate: T148 LANDED (`1770f20b`) — the bake row reads in the musician's local time, not UTC
+
+Fix-forward on my own T143: `concertRowSubtitle` formatted `bakedAt` in UTC, so VLL on a UTC+2 tablet read
+an 11:04 bake as "le bake de 9h04" — the row answered "which bake?" with a time that doesn't exist for him.
+
+### The fix
+- `concertRowSubtitle(rev, bakedAt, offsetSeconds: Int?)` now renders LOCAL time. The offset is applied
+  before the civil-from-days math (`formatUtcMinute(bakedAt + offset)`), so the DATE rolls across midnight
+  correctly — not a naive offset-on-the-time-only.
+- **How the zone is obtained (a decision, stated):** a KMP `expect/actual` seam `localUtcOffsetSeconds`,
+  NOT a datetime library. Android reads `TimeZone.getDefault().getOffset(instant)`, iOS reads
+  `NSTimeZone.localTimeZone.secondsFromGMTForDate` — both DST-aware **at the bake instant** (a summer bake
+  read in winter still renders right). The offset math stays pure in commonMain; only the lookup is platform.
+- **Fallback:** if the zone can't be resolved (`offsetSeconds == null`), show UTC and LABEL it (`… UTC`) —
+  never a silent non-local timestamp, which is what produced the report.
+
+### RED-first (⟨R1⟩ + teeth-check)
+New assertions that fail on the pre-T148 UTC code:
+- UTC+2 → `2023-11-15 00:13` (the +2 gap VLL hit; the date also rolls);
+- a zone BEHIND (−5h) → `2023-11-14 17:13` (a sign error can't pass both);
+- the date-boundary (prev-day UTC / today local) asserts the local date advances;
+- the unresolved case renders labelled `… UTC`.
+**Teeth-check:** reverting `concertRowSubtitle` to UTC turns the three local cases + the label case red;
+`subtitle_formats_utc_when_offset_is_zero` stays green (a real UTC viewer, offset 0, is unlabelled).
+
+### Verification
+`:shared:testDebugUnitTest` green; Android compile; iOS `:shared:compileKotlinIosSimulatorArm64` green
+(new iosMain actual). Device-QA folds into the T143/T147 pass (now unblocked): bake, read the row against
+the tablet's own clock.
+
+### Note
+The pure `BundleRowTest` could not have caught this — it pins a fixed instant and was correct. Only the
+device pass (reading the string as a human on his own clock) surfaces it, exactly as your note said.
+
+— Mobile
