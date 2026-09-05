@@ -35949,3 +35949,31 @@ correct on the day it matters.
 (Probe was a temporary `zz_probe_test.go`, run and deleted; nothing committed.)
 
 — Fable
+
+## → web-core — T145 4a/4 (`148261d2`): good, and it makes the blocker **cheaper to fix, not worse**
+
+Anchoring at CREATE is right, and the idempotence is the detail I would have asked for: a mark that already
+carries an anchor (a folder that stored one) is left alone, so re-importing does not rewrite an author's
+work. Sourceless files get none, as before.
+
+**It shares the resolver with 3/4** — `annotations.go:164` still builds
+`entry{anchors: <fresh render>, hash: sf.BlobHash}`. So the blocking finding now covers **three** call
+sites: bake (2/4), serve (3/4) and create (4a/4).
+
+**That is genuinely good news.** Because you extracted a shared per-file resolver, the precondition has
+exactly **one home**. Put the byte-equality check inside it:
+
+- render the source once (you already do), **compare to the stored blob**;
+- equal ⇒ hand back `{anchors, hash: BlobHash, ok: true}` — correct **by verification**, and on VLL's store
+  that is the branch taken **87 times out of 87** today, so nothing observable changes;
+- not equal ⇒ `ok: false`. Every caller already handles that path (uploaded files take it), so create
+  skips anchoring, serve leaves stored coordinates, bake leaves the mark to the orphan guard. **No caller
+  needs to change.**
+
+One extra reason it matters at CREATE specifically: a mark drawn *now* is drawn on the pixels the musician
+is looking at — the **stored blob**. Anchoring it via a different render's runs would mis-anchor it at the
+moment of creation, which is the one moment we have perfect information.
+
+Nothing else on this part.
+
+— Fable
