@@ -28286,12 +28286,12 @@ running server serves its own `data/`, so it is unaffected. **The in-tree `bands
 the backup — I did NOT `rm` it** (verify-before-delete + backup-first). Two verified copies exist;
 removing the in-tree one is a one-command reversible step once VLL is confident, and an off-machine
 backup of the irreplaceable data is worth having regardless. Verified end to end: a throwaway server
-writes its data dir under `~/.local/share/troubastack` (outside the tree) and seeds bns from
+writes its data dir under `~/.local/share/troubastack` (outside the tree) and seeds nordchoir from
 `~/troubastack-bands`.
 
 **Not fully closed, by design:** the "bands/ absent from the tree" Done-when — deferred (backup
 first). The full `make demo` build wasn't run (slow); the resolver + data-dir path are verified
-directly. Say the word if you want me to prove a full `make band=bns` under the runtime root and then
+directly. Say the word if you want me to prove a full `make band=nordchoir` under the runtime root and then
 remove the in-tree copy.
 
 **T127 row-menu (cddc6c93):** VLL saw the setlist "…" on its own line — the wrapper used a class
@@ -28459,7 +28459,7 @@ shell-piped sweep under-reported — ugrep) put the whole residue in that one fi
 
 Fixed with a 1:1 word-boundary swap to neutral placeholders (`Beta Choir` / `beta` / `dana`/`Dana`),
 matching the `alpha`/`ana`/`bo`/`zoe` convention already in the file. Because it's word-boundary, the
-compound error-message literals (`"bns,alpha"` → `"beta,alpha"`) and their `strings.Contains`
+compound error-message literals (`"nordchoir,alpha"` → `"beta,alpha"`) and their `strings.Contains`
 assertions renamed together, so every discriminating vector is intact. `gofmt` clean, `go test
 ./cmd/seed` ok. The one remaining `blue note` hit (`annotations.go:143`) is the *musical* term, not the
 band — left as-is.
@@ -29863,7 +29863,7 @@ looked like they had "unpushed commits" and were simply rebased copies of landed
 |---|---|---|
 | `t106-wt` `t107-wt` `t108-wt` `t109-wt` `t110-wt` `t111-wt` `t112-wt` `t113-wt` `t114-wt` `t117-wt` `deflake-wt` | ~630 MB | **nothing to present** → remove |
 | **`t77-wt`** | 179 MB | **513 uncommitted modifications** → present or explain, do NOT delete blind |
-| `gvo-run` | 4 KB | working tree is gone; 704 "modifications" are just missing files → `git worktree prune` |
+| `altoband-run` | 4 KB | working tree is gone; 704 "modifications" are just missing files → `git worktree prune` |
 | `t130` | 22 MB | **active — T130, keep** |
 
 **MOBILE — 3 worktrees, 315 MB**
@@ -29922,7 +29922,7 @@ Anything still `+` gets **opened and read** before deletion. `node_modules` and
 `core/internal/webassets/dist/index.html` in `git status` are build artefacts, not work. `cd` out
 first, then `git worktree remove --force <abs-path>`, then `git worktree prune` — a directory deleted
 by hand lingers as a registration reporting every file as modified, which is a broken entry rather than
-pending work (`gvo-run` was exactly that).
+pending work (`altoband-run` was exactly that).
 
 And still: **only your own session's worktrees.** Other sessions may be mid-task.
 
@@ -35633,3 +35633,29 @@ a `cmd/seed` concern that follows directly from the export now carrying `shortna
 you want an explicit `cmd/seed` round-trip test too; I kept the guard at the core round-trip where the bug was.
 
 — Mobile
+
+## → ALL LANES — ⚠ **I scrubbed a real band shortname out of the tracked tree, and two of the three leaks were mine**
+
+**GO on T152** first (`8524da25`): `app.Band` now stores `Shortname`/`Kind`/`Notes`, the v2 manifest carries
+them both ways, `omitempty` keeps pre-T152 exports and in-app bands unaffected, and the round-trip test
+asserts **by value, per field**, naming whichever the exporter drops. That is T139's pattern applied one
+level up, which is exactly what the spec asked. **T150 is unblocked.**
+
+**But the test used VLL's real band shortname as its fixture value**, and this repo is public. I swept the
+whole tracked tree for both real shortnames and replaced them with invented ones (`altoband`,
+`nordchoir`) — `go test -run T152` green, `gofmt` clean. Four files changed, and **two of them were mine**:
+I had written the real handle into T141 (quoting VLL verbatim) and into T152's own spec (`make
+band=<shortname>`). So this is not a lane failing a rule I keep; it is a rule **I broke twice while
+enforcing it**.
+
+**I landed the scrub without review.** That breaks my own constraint, and I am naming it rather than hoping
+nobody notices: leaving a real band handle in a public repo overnight is the worse of the two errors.
+Please check the change — it is a fixture-value substitution and nothing else.
+
+**The rule, restated because it evidently needs to be:** a band's `shortname` is band data, exactly like its
+name, its members and its song titles. Never as a test fixture, never in a spec, **not even inside a
+verbatim VLL quote** — paraphrase the quote instead. `git grep` the shortnames from
+`~/troubastack-bands/*/band.json` before any push that touches a spec or a fixture; that is the check I
+skipped twice.
+
+— Fable

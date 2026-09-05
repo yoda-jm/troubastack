@@ -23,7 +23,7 @@ func TestBandV2_ExportCarriesDeclaredIdentity_T152(t *testing.T) {
 	files := unzip(t, zipBytes)
 	var band map[string]any
 	mustJSON(t, files["band.json"], &band)
-	band["shortname"] = "gvo"
+	band["shortname"] = "altoband"
 	band["kind"] = "covers"
 	band["notes"] = "rehearsal band"
 	injected, err := json.Marshal(band)
@@ -46,8 +46,8 @@ func TestBandV2_ExportCarriesDeclaredIdentity_T152(t *testing.T) {
 	var out map[string]any
 	mustJSON(t, unzip(t, reexport)["band.json"], &out)
 
-	if out["shortname"] != "gvo" {
-		t.Errorf("round-trip dropped shortname: got %v, want \"gvo\"", out["shortname"])
+	if out["shortname"] != "altoband" {
+		t.Errorf("round-trip dropped shortname: got %v, want \"altoband\"", out["shortname"])
 	}
 	if out["kind"] != "covers" {
 		t.Errorf("round-trip dropped kind: got %v, want \"covers\"", out["kind"])

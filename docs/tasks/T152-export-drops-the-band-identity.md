@@ -21,7 +21,7 @@ round-trip. There we fixed it for song slugs; the band's own handle still evapor
 
 I exported VLL's band to write three server-side setlist additions back into his folder. Rather than
 overwrite, I diffed first — and `band.json` was in the changed set. **Had I copied the export wholesale, his
-`shortname` would have been erased** and the next `make band=gvo` would have failed to match anything.
+`shortname` would have been erased** and the next `make band=altoband` would have failed to match anything.
 
 **So: never restore a folder from an export without diffing it first**, and this task is what makes that
 caution unnecessary.

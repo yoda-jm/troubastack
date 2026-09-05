@@ -10,7 +10,7 @@ reviewer re-verify. **Severity: HIGH — every generated chart is unviewable in 
 ## Symptom
 
 VLL, after his first rehearsal: *"j'ai dans studio (web) actuellement un failed to fetch sur tous les
-morceaux gvo, alors que le bake marche."*
+morceaux altoband, alors que le bake marche."*
 
 ## Proof
 
