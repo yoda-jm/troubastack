@@ -59,21 +59,26 @@ class BundleRowTest {
     }
 
     @Test
-    fun menu_perform_lean_offers_nothing() {
-        assertTrue(bundleMenuActions(lean = true, damaged = false).isEmpty())
-        assertTrue(bundleMenuActions(lean = true, damaged = true).isEmpty()) // still lean, even if damaged
+    fun picker_offers_full_menu_whichever_door() {
+        // T143: the concert PICKER is a library whether reached via Stage or Studio — same menu, NOT gated on
+        // intent (Fable). Healthy → Delete + the freeze/pin controls (+ the setlist-id header the UI adds).
+        val healthy = bundleMenuActions(isPerformingSheet = false, damaged = false)
+        assertTrue(BundleAction.Delete in healthy, "a healthy duplicate must be deletable from the picker (VLL)")
+        assertTrue(BundleAction.Freeze in healthy && BundleAction.Pin in healthy)
     }
 
     @Test
-    fun menu_manage_healthy_offers_delete_alongside_the_rest() {
-        val actions = bundleMenuActions(lean = false, damaged = false)
-        assertTrue(BundleAction.Delete in actions, "a healthy duplicate must be deletable (VLL's case)")
-        assertTrue(BundleAction.Freeze in actions && BundleAction.Pin in actions)
+    fun picker_damaged_is_delete_only() {
+        assertEquals(listOf(BundleAction.Delete), bundleMenuActions(isPerformingSheet = false, damaged = true))
     }
 
     @Test
-    fun menu_damaged_is_delete_only() {
-        assertEquals(listOf(BundleAction.Delete), bundleMenuActions(lean = false, damaged = true))
+    fun performing_sheet_offers_nothing_at_all() {
+        // T143 guard (Fable): the INSTRUMENT — the sheet under the musician's hands — carries NO controls,
+        // ever, healthy or damaged. If a later change widens the picker rule, this fails before it can leak
+        // controls onto the instrument.
+        assertTrue(bundleMenuActions(isPerformingSheet = true, damaged = false).isEmpty())
+        assertTrue(bundleMenuActions(isPerformingSheet = true, damaged = true).isEmpty())
     }
 
     // --- T143 accordion: group the library by band ---

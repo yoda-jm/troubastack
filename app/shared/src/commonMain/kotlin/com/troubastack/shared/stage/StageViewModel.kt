@@ -26,6 +26,7 @@ class StageViewModel(
     // them from Storage on open). Defaults reproduce the old behaviour (a fresh, hidden, stopped chrono).
     initialChrono: Chrono = Chrono(),
     initialClockVisible: Boolean = false,
+    initialClockStyle: ClockStyle = ClockStyle.ANALOG,
 ) {
 
     // P205 Stage 3a: the loaded bundle is retained so setIdentity can re-derive cues + the default
@@ -41,6 +42,7 @@ class StageViewModel(
                 current = resolveStartPage(s, initialSongId, initialPageInSong),
                 chrono = initialChrono,
                 clockVisible = initialClockVisible,
+                clockStyle = initialClockStyle,
             )
         },
     )
@@ -110,6 +112,7 @@ class StageViewModel(
             // T147: identity is a view preference — the session chrono + clock keep running across it.
             chrono = s.chrono,
             clockVisible = s.clockVisible,
+            clockStyle = s.clockStyle,
         )
     }
 
@@ -145,6 +148,9 @@ class StageViewModel(
     /** show/hide the bottom-right time-of-day clock overlay. Never touches page/geometry. */
     fun setClockVisible(on: Boolean) = _state.update { s -> if (s.clockVisible == on) s else s.copy(clockVisible = on) }
 
+    /** choose the clock face (analog default / digital). A view preference; never touches page/geometry. */
+    fun setClockStyle(style: ClockStyle) = _state.update { s -> if (s.clockStyle == style) s else s.copy(clockStyle = style) }
+
     /**
      * P201/R10: swap in a freshly re-baked concert (the host fetched + imported a new rev
      * while auto-update was on) WITHOUT moving the page the performer is on. Rebuilds the
@@ -169,6 +175,7 @@ class StageViewModel(
                 updateNotice = notice,
                 chrono = old.chrono,
                 clockVisible = old.clockVisible,
+                clockStyle = old.clockStyle,
             )
         if (fresh.pages.isEmpty()) return@update fresh
         val target = remapCurrent(old, fresh)

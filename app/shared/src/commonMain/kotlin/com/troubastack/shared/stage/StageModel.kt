@@ -161,6 +161,8 @@ data class StageState(
     // T147: whether the bottom-right time-of-day clock overlay is shown. An overlay preference; toggling
     // it must NOT move the page or change page geometry (it is never part of the layout flow).
     val clockVisible: Boolean = false,
+    // T147: analog (default, VLL) or digital clock face. A view preference like clockVisible.
+    val clockStyle: ClockStyle = ClockStyle.ANALOG,
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)

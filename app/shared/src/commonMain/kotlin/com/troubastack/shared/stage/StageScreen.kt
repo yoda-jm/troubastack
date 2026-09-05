@@ -44,7 +44,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
@@ -188,10 +195,13 @@ fun StageScreen(
     // A46 (A33 drill 2): report the current reading position (logical songId + page-in-song) whenever it
     // changes, so the host can persist it and reopen there after a process death / exit. No-op default.
     onPositionChange: (songId: String, pageInSong: Int) -> Unit = { _, _ -> },
-    // T147: the current time-of-day as a short LOCAL string (e.g. "14:32") for the bottom-right clock
-    // overlay. Injected by the host (commonMain has no timezone-aware formatter, and it keeps the clock
-    // testable). Default "" ⇒ no clock host (iOS host / tests) — the overlay simply shows nothing.
+    // T147: the current time-of-day as a short LOCAL string (e.g. "14:32") for the DIGITAL clock face.
+    // Injected by the host (commonMain has no timezone-aware formatter, and it keeps the clock testable).
+    // Default "" ⇒ no clock host (iOS host / tests) — the digital overlay simply shows nothing.
     nowClockText: () -> String = { "" },
+    // T147: local (hour 0-23, minute, second) for the ANALOG clock face (the default). Host-provided for
+    // the same reason. Default midnight ⇒ tests/iOS-host render a static face; Android supplies live time.
+    nowLocalHms: () -> Triple<Int, Int, Int> = { Triple(0, 0, 0) },
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -206,7 +216,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms)
         }
     }
 }
@@ -225,6 +235,7 @@ private fun Performing(
     onIdentityChange: (String) -> Unit = {},
     onPositionChange: (songId: String, pageInSong: Int) -> Unit = { _, _ -> },
     nowClockText: () -> String = { "" },
+    nowLocalHms: () -> Triple<Int, Int, Int> = { Triple(0, 0, 0) },
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
@@ -246,13 +257,14 @@ private fun Performing(
     // the clock at read time (Chrono stores instants), so this only refreshes the display — a dropped tick
     // never loses time. It ticks only while the clock is shown or the chrono runs; re-keys on chrono
     // changes (start/pause/reset) so a just-paused value or a reset shows immediately.
-    var readout by remember { mutableStateOf(nowClockText() to 0L) }
+    // (digital text, local h/m/s for the analog face, chrono ms)
+    var readout by remember { mutableStateOf(Triple(nowClockText(), nowLocalHms(), vm.chronoElapsedMs())) }
     LaunchedEffect(state.clockVisible, state.chrono) {
         while (state.clockVisible || state.chrono.running) {
-            readout = nowClockText() to vm.chronoElapsedMs()
+            readout = Triple(nowClockText(), nowLocalHms(), vm.chronoElapsedMs())
             delay(1000)
         }
-        readout = nowClockText() to vm.chronoElapsedMs() // final settle (just-paused / clock hidden)
+        readout = Triple(nowClockText(), nowLocalHms(), vm.chronoElapsedMs()) // final settle
     }
     // A37: the ping-pong walk DIRECTION — momentary walk-state, never persisted. A fresh Stage entry
     // (cold start, or returning from a direct pick in Parameters) resets it to UP, so the first tap is
@@ -668,18 +680,30 @@ private fun Performing(
         // visible (not tied to the auto-hiding chrome) so a glance during performance answers "what time is
         // it / how long has this run-through taken" without leaving the sheet. The clock shows only when
         // toggled on; the chrono shows whenever it is running or holds a non-zero time.
-        val (clockText, chronoMs) = readout
-        val clock = if (state.clockVisible) clockText else ""
+        val (clockText, clockHms, chronoMs) = readout
         val showChrono = state.chrono.running || state.chrono.accumulatedMs > 0L
-        if (clock.isNotEmpty() || showChrono) {
+        if (state.clockVisible || showChrono) {
             Surface(
                 modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
                 color = Color(0xC0000000),
                 shape = MaterialTheme.shapes.medium,
             ) {
-                Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalAlignment = Alignment.End) {
-                    if (clock.isNotEmpty()) {
-                        Text(clock, color = Color.White, style = MaterialTheme.typography.titleMedium)
+                Column(
+                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    val clockShown = state.clockVisible && (state.clockStyle == ClockStyle.ANALOG || clockText.isNotEmpty())
+                    if (clockShown) {
+                        if (state.clockStyle == ClockStyle.ANALOG) {
+                            AnalogClock(clockHms, Modifier.size(56.dp))
+                        } else {
+                            Text(clockText, color = Color.White, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                    // A thin separator when both the clock and the chrono are shown (VLL).
+                    if (clockShown && showChrono) {
+                        HorizontalDivider(color = Color(0x80FFFFFF), thickness = 1.dp)
                     }
                     if (showChrono) {
                         Text(
@@ -717,6 +741,7 @@ private fun Performing(
         onToggleChrono = { vm.toggleChrono() },
         onResetChrono = { vm.resetChrono() },
         onToggleClock = { vm.setClockVisible(!state.clockVisible) },
+        onSetClockStyle = { vm.setClockStyle(it) },
         onDismiss = { showSettings = false },
     )
     if (showLayers) LayersDialog(state, vm) { showLayers = false }
@@ -730,6 +755,31 @@ private fun Performing(
             onPick = { m -> vm.setIdentity(m); onIdentityChange(m); switchIdentity = false; pickDismissed = false },
             onDismiss = { switchIdentity = false; pickDismissed = true },
         )
+    }
+}
+
+/** T147 — a small analog clock face for the bottom-right overlay (the default clock style). White strokes
+ *  on the translucent dark surface; hour/minute/second hands from the pure [clockHandAngles]. */
+@Composable
+private fun AnalogClock(hms: Triple<Int, Int, Int>, modifier: Modifier = Modifier) {
+    val (h, m, s) = hms
+    val (hourDeg, minDeg, secDeg) = clockHandAngles(h, m, s)
+    Canvas(modifier) {
+        val c = Offset(size.width / 2f, size.height / 2f)
+        val r = size.minDimension / 2f
+        drawCircle(Color.White, radius = r - 1.dp.toPx(), center = c, style = Stroke(width = 1.5.dp.toPx()))
+        fun hand(deg: Float, lenFrac: Float, widthDp: Float, color: Color) {
+            val rad = deg.toDouble() * PI / 180.0 // 0° = 12 o'clock, clockwise
+            val end = Offset(
+                c.x + (r * lenFrac) * sin(rad).toFloat(),
+                c.y - (r * lenFrac) * cos(rad).toFloat(),
+            )
+            drawLine(color, start = c, end = end, strokeWidth = widthDp.dp.toPx(), cap = StrokeCap.Round)
+        }
+        hand(hourDeg, 0.52f, 2.6f, Color.White)
+        hand(minDeg, 0.78f, 1.8f, Color.White)
+        hand(secDeg, 0.86f, 0.9f, Color(0xB3FFFFFF))
+        drawCircle(Color.White, radius = 1.6.dp.toPx(), center = c)
     }
 }
 
@@ -871,6 +921,7 @@ private fun SettingsSheet(
     onToggleChrono: () -> Unit,
     onResetChrono: () -> Unit,
     onToggleClock: () -> Unit,
+    onSetClockStyle: (ClockStyle) -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState()) {
@@ -948,10 +999,20 @@ private fun SettingsSheet(
             }
             // T147: chronometer — times the run-through (start / pause / resume / reset). The elapsed shows
             // here and on the bottom-right overlay; the value survives navigation, an auto-update and sleep.
+            // T147 fix: the readout must TICK while the sheet is open — it was a static Text sampled once at
+            // composition, so it appeared stalled. Re-seed on any chrono change (start/pause/reset shows
+            // immediately) and advance each second while running.
+            var chronoText by remember(state.chrono) { mutableStateOf(formatChrono(chronoElapsedMs())) }
+            LaunchedEffect(state.chrono) {
+                while (state.chrono.running) {
+                    delay(1000)
+                    chronoText = formatChrono(chronoElapsedMs())
+                }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Chronometer", style = MaterialTheme.typography.titleSmall)
-                    Text(formatChrono(chronoElapsedMs()), style = MaterialTheme.typography.headlineSmall)
+                    Text(chronoText, style = MaterialTheme.typography.headlineSmall)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = onToggleChrono) { Text(if (state.chrono.running) "Pause" else "Start") }
@@ -965,6 +1026,19 @@ private fun SettingsSheet(
                     Text("Current time, bottom-right", style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = state.clockVisible, onCheckedChange = { onToggleClock() })
+            }
+            // T147: analog (default) or digital face — only when the clock is shown.
+            if (state.clockVisible) {
+                val styles = listOf(ClockStyle.ANALOG to "Analog", ClockStyle.DIGITAL to "Digital")
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    styles.forEachIndexed { i, (st, label) ->
+                        SegmentedButton(
+                            selected = state.clockStyle == st,
+                            onClick = { onSetClockStyle(st) },
+                            shape = SegmentedButtonDefaults.itemShape(i, styles.size),
+                        ) { Text(label) }
+                    }
+                }
             }
         }
     }

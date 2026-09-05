@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -81,6 +82,7 @@ import com.troubastack.shared.distribution.UpdatesManager
 import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.ui.LocalBrandAccents
 import com.troubastack.shared.stage.Chrono
+import com.troubastack.shared.stage.ClockStyle
 import com.troubastack.shared.stage.FitMode
 import com.troubastack.shared.stage.ImageDecoder
 import com.troubastack.shared.stage.decodeChrono
@@ -103,6 +105,7 @@ private const val POLICIES_KEY = "trouba.update.policies"
 private const val COLOR_MODE_KEY = "stage.colorMode"
 private const val FIT_MODE_KEY = "stage.fitMode" // A14: persisted reading mode (page/width/scroll)
 private const val STAGE_CLOCK_KEY = "stage.clockVisible" // T147: persisted bottom-right clock preference
+private const val STAGE_CLOCK_STYLE_KEY = "stage.clockStyle" // T147: persisted analog/digital clock face
 private const val LAST_CONCERT_KEY = "home.lastConcertDir" // A27: resume-last from the Home landing
 // A38: the persisted server address (written by ConnectScreen on connect; survives signOut). Its
 // presence is how Home tells "Guest, server known → Sign in" apart from "nothing set up → Connect".
@@ -638,6 +641,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 monotonicNow = { SystemClock.elapsedRealtime() },
                 initialChrono = initialChrono,
                 initialClockVisible = storage.getSecret(STAGE_CLOCK_KEY) == "true",
+                initialClockStyle = if (storage.getSecret(STAGE_CLOCK_STYLE_KEY) == "DIGITAL") ClockStyle.DIGITAL else ClockStyle.ANALOG,
             ),
             AndroidImageDecoder(File(dir)),
         )
@@ -681,6 +685,9 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     LaunchedEffect(stageState.clockVisible) {
         storage.putSecret(STAGE_CLOCK_KEY, stageState.clockVisible.toString())
     }
+    LaunchedEffect(stageState.clockStyle) {
+        storage.putSecret(STAGE_CLOCK_STYLE_KEY, stageState.clockStyle.name)
+    }
 
     // A36: concert mode keeps its own performance look + A34's tuned amber/aqua beat — the brand
     // theme stops at Stage's door (VLL: "don't interact with the concert mode, ok as-is"). Restore
@@ -702,6 +709,11 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     onPositionChange = { s, p -> if (concertId.isNotEmpty()) storage.putSecret(posKey, encodeStagePosition(s, p)) },
                     // T147: the bottom-right clock reads the device's local time, honouring the user's 12/24h setting.
                     nowClockText = { android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date()) },
+                    // T147: local h/m/s for the analog face (the default clock style).
+                    nowLocalHms = {
+                        val cal = java.util.Calendar.getInstance()
+                        Triple(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), cal.get(java.util.Calendar.SECOND))
+                    },
                 )
             }
         }
@@ -834,8 +846,7 @@ private fun ConcertsScreen(
                     if (!isCollapsed) {
                         items(group.items, key = { it.dir }) { entry ->
                             ConcertRow(
-                                entry,
-                                lean = !manage, // A31: perform intent = tap-to-perform only, no manage menu
+                                entry, // A31/T143: this is the PICKER (a library), so the ⋮ shows whichever door you came through
                                 onOpen = { if (!entry.damaged) onOpen(entry.dir) },
                                 onDelete = { File(entry.dir).deleteRecursively(); refresh++ },
                                 onFreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.FROZEN); refresh++ },
@@ -883,7 +894,6 @@ private fun BandHeader(name: String, count: Int, collapsed: Boolean, onToggle: (
 @Composable
 private fun ConcertRow(
     entry: ConcertEntry,
-    lean: Boolean,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     onFreeze: () -> Unit,
@@ -907,9 +917,13 @@ private fun ConcertRow(
                     )
                 }
             }
-            // T143 §2: perform (lean) stays lean; manage offers the freeze/pin controls + Delete via ⋮.
-            val actions = bundleMenuActions(lean = lean, damaged = entry.damaged)
+            // T143: this row is the PICKER (a library) — it offers the ⋮ (Delete + setlist id, plus
+            // freeze/pin) whichever door you came through; only the performing SHEET stays controls-free.
+            val actions = bundleMenuActions(isPerformingSheet = false, damaged = entry.damaged) // the picker
             if (actions.isNotEmpty()) {
+                // Wrap in a Box so the DropdownMenu anchors to the ⋮ button (right edge) and opens under it,
+                // instead of anchoring to the row start and opening on the left (VLL).
+                Box {
                 TextButton(onClick = { menuOpen = true }) { Text("⋮") }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     // T143: the setlist id is a support detail — in the ⋮, not on the row (VLL: "dans les …
@@ -943,6 +957,7 @@ private fun ConcertRow(
                         })
                     }
                 }
+                } // Box (anchors the menu to the ⋮)
             }
         }
     }

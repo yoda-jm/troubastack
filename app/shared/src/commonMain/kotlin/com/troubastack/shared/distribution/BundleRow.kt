@@ -85,13 +85,19 @@ fun <T> groupByBand(items: List<T>, bandId: (T) -> String, bandName: (T) -> Stri
 enum class BundleAction { Freeze, Unfreeze, Pin, Unpin, Delete }
 
 /**
- * T143 — which ⋮ actions a bundle row offers. **Perform (lean) offers NONE** — managing bundles is not a
- * performance affordance (VLL: keep the performing surface lean). **Manage** adds Delete: a HEALTHY
- * bundle gets the freeze/pin controls PLUS Delete (VLL couldn't remove a healthy duplicate — Delete was
- * only reachable when damaged); a damaged one offers only Delete.
+ * T143 — which ⋮ actions a concert row offers, by SURFACE (not intent). The distinction Fable's rule
+ * governs is picker-vs-instrument, never perform-vs-manage: *"a library is a library whichever door you
+ * came through."* So the **picker** (the concert list, reached via Stage or Studio alike) offers the full
+ * management set — Delete + freeze/pin — with the setlist-id header the caller adds; a damaged row offers
+ * only Delete. The **performing sheet** (the instrument under a musician's hands) offers NOTHING, ever —
+ * that is the lean rule, and it must hold in both intents so a later widening can't leak onto the instrument.
+ *
+ * (VLL entered via TroubaStage and could not delete a bake or read its setlist id, because the code gated
+ * the ⋮ on `!manage` — intent — instead of surface. T143 fixes that; `ConcertRow` is the only caller and it
+ * is always a picker.)
  */
-fun bundleMenuActions(lean: Boolean, damaged: Boolean): List<BundleAction> = when {
-    lean -> emptyList()
+fun bundleMenuActions(isPerformingSheet: Boolean, damaged: Boolean): List<BundleAction> = when {
+    isPerformingSheet -> emptyList() // the INSTRUMENT — no trailing controls, ever
     damaged -> listOf(BundleAction.Delete)
     else -> listOf(
         BundleAction.Freeze,
