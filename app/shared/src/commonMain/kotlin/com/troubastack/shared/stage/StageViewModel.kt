@@ -18,6 +18,14 @@ class StageViewModel(
     // so reopening lands where the performer left off, not page 0. "" ⇒ start at the top (old behaviour).
     initialSongId: String = "",
     initialPageInSong: Int = 0,
+    // T147: a MONOTONIC millisecond source (Android: SystemClock.elapsedRealtime — advances through deep
+    // sleep) for the chronometer. Injectable so the state machine is tested without sleeping; the default
+    // stands still (fine for the many tests that never touch the chrono).
+    private val monotonicNow: () -> Long = { 0L },
+    // T147: seed a persisted chrono + clock-visibility so the chrono survives PROCESS DEATH (the host reads
+    // them from Storage on open). Defaults reproduce the old behaviour (a fresh, hidden, stopped chrono).
+    initialChrono: Chrono = Chrono(),
+    initialClockVisible: Boolean = false,
 ) {
 
     // P205 Stage 3a: the loaded bundle is retained so setIdentity can re-derive cues + the default
@@ -28,7 +36,12 @@ class StageViewModel(
     // A46: also seed the persisted reading position (resolveStartPage survives a re-bake reorder).
     private val _state = MutableStateFlow(
         stageStateFrom(loadResult, role, identity).let { s ->
-            s.copy(fitMode = initialFit, current = resolveStartPage(s, initialSongId, initialPageInSong))
+            s.copy(
+                fitMode = initialFit,
+                current = resolveStartPage(s, initialSongId, initialPageInSong),
+                chrono = initialChrono,
+                clockVisible = initialClockVisible,
+            )
         },
     )
     val state: StateFlow<StageState> = _state.asStateFlow()
@@ -94,6 +107,9 @@ class StageViewModel(
             current = resolveStartPage(fresh, songId, 0),
             fitMode = s.fitMode,
             autoUpdate = s.autoUpdate,
+            // T147: identity is a view preference — the session chrono + clock keep running across it.
+            chrono = s.chrono,
+            clockVisible = s.clockVisible,
         )
     }
 
@@ -105,6 +121,29 @@ class StageViewModel(
     /** T143: the view calls this once it has shown the auto-update notice, so it self-dismisses and does
      *  not re-appear on the next recomposition. */
     fun clearUpdateNotice() = _state.update { s -> if (s.updateNotice == null) s else s.copy(updateNotice = null) }
+
+    // --- T147 chronometer + clock ---
+
+    /** start / resume the chronometer from the current monotonic instant. A no-op while already running. */
+    fun startChrono() = _state.update { s -> s.copy(chrono = s.chrono.started(monotonicNow())) }
+
+    /** pause the chronometer, banking the live segment. A no-op while already paused. */
+    fun pauseChrono() = _state.update { s -> s.copy(chrono = s.chrono.paused(monotonicNow())) }
+
+    /** one-button convenience: pause if running, else start/resume. */
+    fun toggleChrono() = _state.update { s ->
+        s.copy(chrono = if (s.chrono.running) s.chrono.paused(monotonicNow()) else s.chrono.started(monotonicNow()))
+    }
+
+    /** reset the chronometer to 00:00, paused. */
+    fun resetChrono() = _state.update { s -> s.copy(chrono = s.chrono.reset()) }
+
+    /** the chrono's elapsed ms AT THE CURRENT INSTANT — the view reads this each display tick. Derived
+     *  from the monotonic clock, so a missed tick never loses time. */
+    fun chronoElapsedMs(): Long = _state.value.chrono.elapsedMs(monotonicNow())
+
+    /** show/hide the bottom-right time-of-day clock overlay. Never touches page/geometry. */
+    fun setClockVisible(on: Boolean) = _state.update { s -> if (s.clockVisible == on) s else s.copy(clockVisible = on) }
 
     /**
      * P201/R10: swap in a freshly re-baked concert (the host fetched + imported a new rev
@@ -122,7 +161,15 @@ class StageViewModel(
         // stealing; the view shows it and calls clearUpdateNotice). Names the rev that arrived.
         val notice = (newResult as? LoadResult.Loaded)?.let { "Updated to rev ${it.bundle.concertRev}" }
         val fresh = stageStateFrom(newResult, old.role, old.identity)
-            .copy(fitMode = old.fitMode, autoUpdate = old.autoUpdate, updateNotice = notice)
+            // T147: a bundle swap must NOT reset a running chrono or hide the clock — the sheet changed,
+            // the session did not (T143 keeps the page; this keeps the timer).
+            .copy(
+                fitMode = old.fitMode,
+                autoUpdate = old.autoUpdate,
+                updateNotice = notice,
+                chrono = old.chrono,
+                clockVisible = old.clockVisible,
+            )
         if (fresh.pages.isEmpty()) return@update fresh
         val target = remapCurrent(old, fresh)
         // A1: merge PER SONG. For a song that existed before, keep its overrides for layers that still

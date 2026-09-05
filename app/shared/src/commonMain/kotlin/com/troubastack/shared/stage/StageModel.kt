@@ -154,6 +154,13 @@ data class StageState(
     // the bake when it silently swapped). Set by applyUpdate, cleared by the view after it's shown; it
     // NEVER moves the page (the R10 remap already preserves position) — it only says a word.
     val updateNotice: String? = null,
+    // T147: the rehearsal chronometer — a pure state machine (start instant + accumulated, not a tick
+    // counter) so it survives screen-off/process death. It times the SESSION, so it must be PRESERVED
+    // across song navigation, setIdentity and applyUpdate — never rebuilt to a fresh Chrono().
+    val chrono: Chrono = Chrono(),
+    // T147: whether the bottom-right time-of-day clock overlay is shown. An overlay preference; toggling
+    // it must NOT move the page or change page geometry (it is never part of the layout flow).
+    val clockVisible: Boolean = false,
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)

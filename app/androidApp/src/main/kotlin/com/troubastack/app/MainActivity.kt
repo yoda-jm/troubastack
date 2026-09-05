@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,8 +79,11 @@ import com.troubastack.shared.distribution.UpdatePolicy
 import com.troubastack.shared.distribution.UpdatesManager
 import com.troubastack.shared.seams.Storage
 import com.troubastack.shared.ui.LocalBrandAccents
+import com.troubastack.shared.stage.Chrono
 import com.troubastack.shared.stage.FitMode
 import com.troubastack.shared.stage.ImageDecoder
+import com.troubastack.shared.stage.decodeChrono
+import com.troubastack.shared.stage.encodeChrono
 import com.troubastack.shared.stage.LocalVolumeTurnRegistrar
 import com.troubastack.shared.stage.PageTurn
 import com.troubastack.shared.stage.StageColorMode
@@ -97,6 +101,7 @@ import java.util.UUID
 private const val POLICIES_KEY = "trouba.update.policies"
 private const val COLOR_MODE_KEY = "stage.colorMode"
 private const val FIT_MODE_KEY = "stage.fitMode" // A14: persisted reading mode (page/width/scroll)
+private const val STAGE_CLOCK_KEY = "stage.clockVisible" // T147: persisted bottom-right clock preference
 private const val LAST_CONCERT_KEY = "home.lastConcertDir" // A27: resume-last from the Home landing
 // A38: the persisted server address (written by ConnectScreen on connect; survives signOut). Its
 // presence is how Home tells "Guest, server known → Sign in" apart from "nothing set up → Connect".
@@ -611,6 +616,11 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         if (concertId.isEmpty()) null else decodeStagePosition(storage.getSecret(posKey))
     }
 
+    // T147: restore the chronometer across process death (per concert) and the clock preference (global).
+    val chronoKey = "stage.chrono.$concertId"
+    val initialChrono = remember(dir) { if (concertId.isEmpty()) Chrono() else decodeChrono(storage.getSecret(chronoKey)) }
+    val ctx = LocalContext.current
+
     val opened = remember(dir, identity) {
         OpenedBundle(
             // A14: seed the persisted reading mode (page/width/scroll) into the VM (A10 pattern).
@@ -622,6 +632,11 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 initialFit = FitMode.parse(storage.getSecret(FIT_MODE_KEY)),
                 initialSongId = initialPos?.first ?: "",
                 initialPageInSong = initialPos?.second ?: 0,
+                // T147: a MONOTONIC source that advances through deep sleep — a paused chrono then can't
+                // drift and a running one counts the sleep, both correct (elapsedRealtime, not wall time).
+                monotonicNow = { SystemClock.elapsedRealtime() },
+                initialChrono = initialChrono,
+                initialClockVisible = storage.getSecret(STAGE_CLOCK_KEY) == "true",
             ),
             AndroidImageDecoder(File(dir)),
         )
@@ -655,6 +670,17 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         }
     }
 
+    // T147: persist the chrono (start instant + accumulated, per concert) and the clock preference
+    // (global) as they change, so the timer survives process death and the clock stays where it was set.
+    // The chrono object is stable while running (fixed start instant), so this writes only on
+    // start/pause/reset — not every second.
+    LaunchedEffect(stageState.chrono) {
+        if (concertId.isNotEmpty()) storage.putSecret(chronoKey, encodeChrono(stageState.chrono))
+    }
+    LaunchedEffect(stageState.clockVisible) {
+        storage.putSecret(STAGE_CLOCK_KEY, stageState.clockVisible.toString())
+    }
+
     // A36: concert mode keeps its own performance look + A34's tuned amber/aqua beat — the brand
     // theme stops at Stage's door (VLL: "don't interact with the concert mode, ok as-is"). Restore
     // the M3 baseline Stage was designed and approved against (a bare MaterialTheme would INHERIT the
@@ -673,6 +699,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     onIdentityChange = { m -> storage.putSecret(idKey, m) },
                     // A46 (A33 drill 2): persist the reading position per concert on every page move.
                     onPositionChange = { s, p -> if (concertId.isNotEmpty()) storage.putSecret(posKey, encodeStagePosition(s, p)) },
+                    // T147: the bottom-right clock reads the device's local time, honouring the user's 12/24h setting.
+                    nowClockText = { android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date()) },
                 )
             }
         }
