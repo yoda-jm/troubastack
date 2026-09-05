@@ -672,9 +672,22 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 		}
 	}
 	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer}
+	// T145 forward fix: for a generated chart, re-project marks whose cached coordinates predate the
+	// current render onto their words before baking, so a reflowed chart bakes the mark ON its line rather
+	// than orphaning it (the reflow-orphan guard in assembleSong is the backstop; this is the fix).
+	// RenderWithAnchors(source) reproduces file.BlobHash's geometry (byte-identical to Render); a transpose
+	// preserves line positions, so the same manifest is valid. Uploaded files have no source → no anchors.
+	var anchors []chartpdf.Anchor
+	if file.Generated {
+		if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, file.ID); cerr == nil {
+			if _, a, aerr := chartpdf.RenderWithAnchors(src); aerr == nil {
+				anchors = a
+			}
+		}
+	}
 	// T97/T98: a file enters the overlay batch only if it has objects to draw (scoped to THIS file — a
 	// multi-file song carries per-file layers, B11/T40). Zero objects → no spawn contribution.
-	doc := snapshotToDoc(snap, file.ID)
+	doc := snapshotToDoc(snap, file.ID, anchors, file.BlobHash)
 	if len(doc.Objects) == 0 {
 		return sf, nil, nil
 	}

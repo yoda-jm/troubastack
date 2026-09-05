@@ -1,6 +1,9 @@
 package bake
 
-import "troubastack/core/internal/domain"
+import (
+	"troubastack/core/internal/chartpdf"
+	"troubastack/core/internal/domain"
+)
 
 // The web/bake CLI input contract (its request.json). This mirrors the annotation
 // API's wire shape (core/internal/httpapi/annotations.go) and @troubastack/ink's
@@ -81,7 +84,11 @@ type cliBatchRequest struct {
 // file (the default part), so only that file's layers may composite onto it — otherwise
 // another part's ink (drum notes) bleeds onto the baked page. A layer with an empty
 // FileID is song-level (legacy/single-file) and composites onto whatever is baked.
-func snapshotToDoc(snap domain.Snapshot, fileID string) annotationsDoc {
+// snapshotToDoc scopes a snapshot to one pool file's overlay doc. anchors + renderHash drive the T145
+// forward fix: when renderHash is non-empty (a generated chart, with its current render's anchor manifest),
+// any mark whose cached coordinates predate that render is re-projected onto its words BEFORE it is baked —
+// so a reflowed chart no longer bakes an orphaned mark. Pass nil/"" for an uploaded file (no source).
+func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Anchor, renderHash string) annotationsDoc {
 	doc := annotationsDoc{Layers: []docLayer{}, Objects: []docObject{}}
 	keep := map[string]bool{}
 	for _, l := range snap.Layers {
@@ -96,7 +103,11 @@ func snapshotToDoc(snap domain.Snapshot, fileID string) annotationsDoc {
 			RoleTag:   l.RoleTag,
 		})
 	}
-	for _, o := range snap.LiveObjects() {
+	live := snap.LiveObjects()
+	if renderHash != "" && anchors != nil {
+		live, _ = chartpdf.Reproject(live, anchors, renderHash) // T145: marks follow their words after a reflow
+	}
+	for _, o := range live {
 		if !keep[o.LayerID] {
 			continue // object belongs to a layer scoped to another file
 		}

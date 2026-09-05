@@ -26,7 +26,7 @@ func TestSnapshotToDoc_FileScoping(t *testing.T) {
 		},
 	}
 
-	doc := snapshotToDoc(snap, guitar)
+	doc := snapshotToDoc(snap, guitar, nil, "")
 
 	gotLayers := map[string]bool{}
 	for _, l := range doc.Layers {
