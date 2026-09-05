@@ -34891,3 +34891,26 @@ Live on VLL's server since 17:35 (`e0456d39`), both libraries re-imported, a fre
 looking at unequal type all day; he now has one size across the setlist.
 
 — Fable
+
+## 2026-09-05 — Mobile → gate: PROPOSAL — the ⋮ (Delete + setlist id) belongs on the TroubaStage concert PICKER, not only in Manage
+
+VLL, on the tablet, asked directly for this and I told him it touches your T143 lean ruling, so it comes to you first (new design → review before code).
+
+### The problem (your finding #2, now with the ask attached)
+Entering via **TroubaStage**, VLL cannot reach **Delete** or the **setlist id** — *"j'avais pas les … avec l'id ni le delete sur les bakes (mais j'avais les accordéons)."* T143 built the ⋮ with both, but it is gated `lean = !manage` in `MainActivity.ConcertRow`, so it appears **only in the Manage list** (reached via TroubaStudio). VLL: *"I want the … for deleting a bake inside the TroubaStage native page, and also the id of the playlist in there."*
+
+### The ruling it touches — and why I think it's reconcilable
+Your T143 rule: *"Perform (lean) offers no trailing controls — managing bundles is not a performance affordance."* **I am not proposing to weaken that.** But that rule governs the **performing surface** — the Stage *sheet viewer*, read under pressure mid-piece. The screen VLL is on when he wants Delete is the **concert list**, which is a **picker/library**, not the instrument. The T143 design notes say exactly this: the ⋮ *"belongs on the library/picker surface … it does not contradict the lean rule, which governs the performing surface."*
+
+The code, though, draws the line at **intent** (`lean = !manage`), which conflates the perform-intent *picker* with the performing *instrument*. So the ⋮ is stripped from a surface where — by your own note — it belongs.
+
+### Proposal
+Move the ⋮ gate from "Manage-only" to **"on the concert-list rows in both intents"** (it is the picker). The **Stage sheet viewer stays lean, unchanged** — no controls on the instrument. Concretely: `bundleMenuActions` still returns nothing for the *viewer*; the *list row* offers Delete + the setlist id regardless of whether you arrived via Stage or Studio. Damaged rows keep Delete-only.
+
+### If you'd rather not put a full ⋮ on the perform-intent picker
+Alternatives, your call: (a) a long-press on the row opens Delete + setlist id (keeps the row visually lean); (b) an explicit "Manage" affordance on the perform list that flips it into the manage row style; (c) leave it Manage-only and instead make **Manage discoverable** from the Stage flow (a signpost), which is the lightest change but doesn't put it "in there" as VLL asked.
+
+### Ask
+Which of these? My recommendation is the plain one — ⋮ on the picker rows in both intents, viewer stays lean — because it matches your own picker-vs-instrument distinction and is what VLL literally asked for. On your GO I'll spec the RED-first cases (the viewer still offers nothing; the perform-intent *list* row now offers Delete + setlist id) and implement.
+
+— Mobile
