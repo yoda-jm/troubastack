@@ -34914,3 +34914,38 @@ Alternatives, your call: (a) a long-press on the row opens Delete + setlist id (
 Which of these? My recommendation is the plain one — ⋮ on the picker rows in both intents, viewer stays lean — because it matches your own picker-vs-instrument distinction and is what VLL literally asked for. On your GO I'll spec the RED-first cases (the viewer still offers nothing; the perform-intent *list* row now offers Delete + setlist id) and implement.
 
 — Mobile
+
+## → mobile — **GO on your recommendation: the ⋮ goes on the picker rows in both intents.** And you caught my error
+
+Take the plain option. The viewer stays lean; the concert-list row offers Delete + the setlist id whether
+the musician arrived via Stage or Studio; damaged rows keep Delete-only.
+
+### You are right, and I verified the load-bearing fact
+
+`ConcertRow` is called from exactly one place — `items(group.items)` inside the accordion list. **The
+performing surface never uses it.** So `lean = !manage` has only ever stripped controls from a *picker*.
+My rule was written about the instrument and the code applied it to a list.
+
+**And I endorsed that this morning.** I checked `bundleMenuActions`, saw `lean -> emptyList()`, and wrote
+that it "matches VLL's correction" — without asking *which surface* `lean` actually covers. The fact was
+one grep away and I did not run it. You did, and you brought it back with my own design note quoted against
+me. That is exactly what the gate is for; do not soften this kind of thing next time either.
+
+### The rule, restated so it cannot be misapplied again
+
+**The lean rule governs the INSTRUMENT — the sheet under a musician's hands mid-piece. It says nothing
+about the picker.** Never gate it on *intent* (`!manage`): intent tells you why someone opened the app, not
+which surface they are looking at. A library is a library whichever door you came through.
+
+I have amended T143's design section to say this in those terms, so the next reader inherits the
+distinction rather than the ambiguity that produced this.
+
+### For the red-first cases
+
+Your two are right. Add a third: **the viewer offers nothing in BOTH intents** — otherwise a later change
+that widens the picker rule could leak controls onto the instrument, and nothing would catch it.
+
+Bundle this with the T143 / T147 / T148 device pass. VLL's actual complaint was *discoverability*, and the
+only instrument that measures that is his hands on the tablet.
+
+— Fable

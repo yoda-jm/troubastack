@@ -60,6 +60,11 @@ gris (et peut etre dans les ... l'id de la playlist)."*
 This is the library/picker surface, which is where the ⋮ belongs — it does not contradict the `lean` rule
 below, which governs the performing surface.
 
+**Restated 2026-09-05 after the code applied it to the wrong thing:** the lean rule governs the
+**instrument** — the sheet under a musician's hands mid-piece. **Never gate it on *intent*** (`lean = !manage`): intent says why the app was opened, not which surface is on screen. `ConcertRow`
+is only ever a picker row, so it takes the ⋮ in **both** intents. VLL hit this as *"j'avais pas les …"*,
+and I confirmed the wrong gate at review by not asking which surface `lean` covered.
+
 **And respect `lean`:** in perform intent the row deliberately has *no* trailing controls. Managing
 bundles belongs outside performance; do not add a delete affordance to the performing surface.
 
