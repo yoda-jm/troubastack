@@ -67,6 +67,62 @@ Three that must be decided explicitly, not discovered:
 - **Teeth-check:** make `kind` default to song on a *new* bundle too, and confirm a test fails — otherwise
   "absent ⇒ song" is untested and the additive claim is a hope.
 
+## ⟨D1⟩ What the page shows — VLL, 2026-09-05
+
+*"une page qui donne la marque genre TroubaStage qui dit pause (ou le terme consacré pour le entracte en
+anglais) et aussi le nom du groupe."*
+
+**Three elements, in this order of prominence:** the **label** (largest — it is what a musician reads across
+a room), the **band name**, and the **TroubaStage mark** (smallest — it identifies the tool, it is not the
+message).
+
+### The label is CONTENT, not a hardcoded string
+
+"The consecrated English term" is **Intermission** (theatre and concert programmes); **Interval** is British
+usage; between two sets musicians usually say **Set break**. But VLL's band is French and would write
+**Entracte** — so **do not hardcode any of them.** The `Label` field from the section above is authored by
+whoever adds the break; the default is `Intermission` and it is freely editable. A French band types
+`Entracte` and sees `Entracte`. **No translation layer, no term debate in code.**
+
+An empty label renders the default rather than a blank card.
+
+### The band name comes from the bundle, and may be absent
+
+`band_name` exists since T143 (`bundle.proto:136`) — so it is already there for new bundles. **Absent ⇒ omit
+the line entirely.** Do not print "Unknown band" on something a musician looks at mid-gig: that placeholder
+is right for a library row and wrong for a performance page.
+
+### ⚠ The mark is where this will break, and it is not obvious
+
+The brand assets live under `docs/brand/dist/bricks/*.svg`. **`docs/` is excluded from the Docker build
+context**, so a server-side render that reads the asset from there works in-tree and **fails in the
+container image** — the exact failure shape recorded in this repo before (a build step reading outside its
+package). So:
+
+- **embed the mark in the package that renders it** (the `webassets` pattern), or copy it in at build time
+  and COPY it in the Dockerfile;
+- **verify by building the container**, not by running the test suite. "The Go test passes" is not the claim
+  to check here.
+
+Prefer the **outlined-path** wordmark (BRAND06 turned it into committed paths precisely so rendering does
+not depend on a font being present).
+
+### Render it through `chartpdf`, not beside it
+
+The baker turns PDFs into rasters; giving it a second, ad-hoc drawing path would put a page in the bundle
+that **T144's golden test cannot see**. Render the card as a minimal document through `chartpdf` so it goes
+down the same PDF→raster pipeline, and **add it to the golden fixtures** — a separator whose layout silently
+drifts is the same class of bug as the one T144 exists to catch.
+
+### ⟨R1⟩ additions
+
+- A break with no label renders `Intermission`; a break labelled `Entracte` renders `Entracte` — assert the
+  drawn text, not the field.
+- A bundle **without** `band_name` renders the card **without** a band line and without a placeholder.
+- The card is in T144's goldens, and a metric change moves its value.
+- **Container check**: the image builds and renders a separator. Red-first here means *building the image*,
+  since that is the only place the asset path can fail.
+
 ## Deliberately open, for VLL
 
 - **Is an intermission a landable position on stage?** I think yes — a musician wants to see "Entracte" on
