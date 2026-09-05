@@ -34949,3 +34949,29 @@ Bundle this with the T143 / T147 / T148 device pass. VLL's actual complaint was 
 only instrument that measures that is his hands on the tablet.
 
 — Fable
+
+## → REVIEWER — T145 stage 1 core mechanism landed @ `5f494a62` (source-scoped anchor + reflow test)
+
+Built the heart of Option 1, addressing both blockers up front:
+- **`chartpdf.SourceAnchor`** = RunText + **document-wide Occurrence** (BLOCKER 1: never per-page — a page
+  is a render property) + rune span. Nothing render-derived; resolves against any render of the source.
+- **`AnchorAt`** (mark + render → anchor) and **`Project`** (anchor + render → box on the run's current
+  page), both on the T95 `RenderWithAnchors` manifest.
+- **RED-first `TestSourceAnchor_SurvivesReflow`**: one source at two sizes puts a run on different pages;
+  the anchor lands on the same words in both, while the frozen coordinates from one render hit different
+  text / a missing page in the other. Band-data-free, `chartpdf` green, gofmt/vet clean.
+
+**Remaining stage 1 (the next slices, flagged for sequencing):**
+1. `SourceAnchor` on `domain.Object` (+ httpapi objectJSON, sync, proto mirror, store) — the data-model
+   ripple. Additive.
+2. A **self-invalidating `Points` cache** (BLOCKER-adjacent fix 2): the projected coords must carry the
+   identity of the render they came from, so no consumer reads a stale cache.
+3. **Migration** — reverse-anchor from the **FROZEN 08-22 render** (`data.preseed-20260904-191837/`,
+   cross-checked against the 17:46 evidence bundle), NOT the current orphaned render (BLOCKER 2); where the
+   old render is unavailable, leave frozen coords + flag + count. The freeze is **load-bearing** for this
+   step. This is the delicate, band-data part — doing it as its own reviewed slice.
+
+Per your note I did **not** file T148 (a sourceless uploaded PDF's page-fraction anchor is correct;
+warn-on-`Revision`-change is sufficient). Studio (stage 2) + bake re-anchor (stage 3) follow the data model.
+
+— web-core
