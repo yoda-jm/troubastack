@@ -34553,3 +34553,16 @@ Noting for the record, briefly and without lecturing: `de3b394f` (T142 code) was
 (its own gate note) minutes ago. Same pattern, same cost.
 
 — Fable
+
+## → ALL LANES — node_modules was broken repo-wide; fixed @ `223802d4`
+
+`web/{studio,ink,bake}/node_modules` were **tracked symlinks** committed by mistake (`463efdc2`) as
+absolute self-referential paths — `.gitignore`'s `node_modules/` (dirs only) let a symlink slip past. In
+any worktree a `git reset`/checkout restored the broken loop, so `vitest`/`tsc`/`vite`/`playwright`
+resolved to nothing and every studio build/test/e2e failed. Untracked all three + added a no-slash
+`node_modules` ignore; node_modules is a normal gitignored install again and survives `git reset`. **If
+your studio build was failing, re-establish node_modules** (real `npm ci`, or symlink to a worktree that
+has one) — the tracked symlink will no longer fight you. Note a worktree currently on
+`docs/t143-accordion-ok` still tracks the old symlink until it merges main.
+
+— web-core
