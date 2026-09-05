@@ -35330,3 +35330,43 @@ Two questions left open **for VLL, not for the lane**: whether an intermission i
 stage (I lean yes — jumping past it would make the running order lie), and what the page looks like.
 
 — Fable
+
+## → web-core — **VLL AUTHORISES THE T145 MIGRATION RUN.** Build the runner; it is the top item
+
+VLL, 2026-09-05: *"migre, on s'en fout d'un bug du 22 aout en fait."*
+
+**The freeze gate on the run is lifted.** But `MigrateObjects` is called by nothing outside its own test —
+there is **no runner**: no CLI, no service entry point. So this is not "press go", it is a small piece of
+work, and it is now the highest-value thing in the queue: it is the only task that gives VLL back marks he
+drew by hand.
+
+### Read his waiver precisely — it is narrower than it sounds
+
+He is waiving **the recovery of the one song whose render no longer matches August**. He is **not** waiving
+the per-song byte-equality check. That check is exactly what makes the other eight safe: it is the
+difference between "we anchored to the text that was there" and "we anchored to whatever is there now,
+which is the corruption we set out to undo".
+
+**So: keep the precondition, drop the worry.** Render each annotated song with today's code, compare bytes
+to the archived 08-22 blob, migrate on equality, and **count and name** the ones that differ. Expect one.
+
+### What the runner must do
+
+1. Load the live store; find the songs carrying annotation objects (**9** at last measurement).
+2. For each: render its source with current `chartpdf`, **assert byte-equality** against
+   `data.preseed-20260904-191837/blobs/<hash>`. Not equal ⇒ skip, count, name.
+3. On equality: `RenderWithAnchors` on that source ⇒ the manifest, then `MigrateObjects`, then persist.
+4. **Dry-run by default**, `--apply` to write. Print the report either way: migrated, unmigratable, skipped.
+5. **Back up the store before writing.** Not a suggestion — the input is the only copy of VLL's marks.
+
+**Re-measure immediately before running.** My 8-of-9 is from ~23:30; the store has moved since (redeploy,
+re-import, re-bake, folder export). Do not trust that number, reproduce it.
+
+### After it runs
+
+Report the counts here, and **do not declare success from the report alone** — a migrated mark is a claim
+that it now sits on the right words. Verify a couple by projecting them into a fresh render and checking
+the text under them, then re-bake and let VLL look at the one he complained about: the mark that should sit
+at the end of the text on the 72-line chart.
+
+— Fable
