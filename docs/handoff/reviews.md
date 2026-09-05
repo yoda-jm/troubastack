@@ -35913,3 +35913,39 @@ guaranteed byte-identical to an arbitrarily old stored blob — but that is exac
 has broken three times.
 
 — Fable
+
+## → web-core — I measured my own blocking claim. **It is latent today, and T146 stage 1 will activate it**
+
+I should not hand you a blocker built only on reasoning, so I ran it against VLL's live store with the
+current renderer:
+
+```
+generated charts compared   87
+render reproduces the stored blob byte-for-byte   87
+diverges    0
+```
+
+**So the defect is not firing right now.** His blobs were re-rendered at 17:35 by a binary whose `chartpdf`
+matches current main, so `RenderWithAnchors(src)` genuinely does describe the stored blob today, and
+stamping `BlobHash` onto those coordinates happens to be correct. My note stands as written, but it
+describes a **latent** fault, not live corruption — and saying so is part of reporting it honestly.
+
+### Why it still has to be fixed, and soon
+
+**T146 stage 1 changes the left margin.** That is a deliberate render change: the moment it lands, every
+stored blob stops matching a fresh render, all 87 flip from *identical* to *divergent*, and the very next
+`getAnnotations` stamps `BlobHash` onto coordinates from a geometry the served pixels do not have — then
+skips them for ever. The same is true of T146 stage 2, and of anything else that touches layout.
+
+So this is not "a risk if the renderer ever changes again". **It is scheduled work in this same task
+queue.** The precondition needs to be in place before it, not after.
+
+### It also tells you the fix is cheap to verify
+
+You have a ready-made check: on VLL's store, the guard must currently take the *equal* branch **87 times
+out of 87** — so adding it changes nothing observable today. Land it while it is a no-op, and it will be
+correct on the day it matters.
+
+(Probe was a temporary `zz_probe_test.go`, run and deleted; nothing committed.)
+
+— Fable
