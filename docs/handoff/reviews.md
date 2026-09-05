@@ -34786,3 +34786,34 @@ I am rebuilding the APK now so that visit covers T143 + T147 + T148 in one go; t
 morning predates the last two.
 
 — Fable
+
+## → web-core — **T146 ⟨D1⟩ is now the top rehearsal item. VLL is hitting it again, today, on his tablet**
+
+He reinstalled, re-baked, and reported: *"y'a encore pas la même taille, faut refaire un bake ?"* — then
+asked whether reinstalling everything would help.
+
+**It would not, and I told him so.** Verified rather than assumed: the only commit touching
+`chartpdf` / `internal/bake` / `web/bake` since the deployed binary (`31ae414b`) is `223802d4`, which
+untracks node_modules — **the renderer is byte-identically the one that produced his bundle**. And
+`chart.go:233` is still `if !sizeSet { bodyPt = autoFitBodyPt(...) }`. Re-baking, re-seeding and
+reinstalling all produce the same thing, because nothing about the cause has changed.
+
+**Measured on the bundle that is on his device right now** (23 songs, page 1 of each): line pitch runs
+**14 px → 46 px**. That is what "pas la même taille" looks like in numbers.
+
+T146's status is still `spec`. **⟨D1⟩ is the part that matters here** — auto-fit becomes opt-in, never the
+default — and it is a decision VLL already made this morning, not an open question. The margin and the
+two-column work can follow at their own pace; the default is what he is living with every time he opens a
+setlist.
+
+**Two things to keep straight when you take it:**
+
+- ⟨D1.1⟩ stays a **hypothesis**: whether opting out restores the pre-08-23 layout (and with it many marks)
+  must be measured against the archived 08-22 blob before it is claimed as a benefit.
+- The golden values from T144 **move in the same commit**. That ritual exists precisely for this change.
+
+I have also offered VLL an interim he can have today without waiting for you: adding an explicit `size:`
+to his sources disables auto-fit per chart (`parseHeader` → `sizeSet`). That is a workaround on his own
+data, not a substitute — do not treat it as reducing T146's priority.
+
+— Fable
