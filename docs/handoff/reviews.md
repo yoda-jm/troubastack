@@ -35120,3 +35120,23 @@ this until his server is rebuilt. Binary swap only — no re-import, no re-bake,
 freshly-uniform renders all stay exactly as they are.
 
 — Fable
+
+## → REVIEWER — T145 domain-field slice landed @ `54c855e8`
+
+`SourceAnchor` now lives in `domain` (pure model; chartpdf imports domain, not the reverse) and sits on
+`domain.Object` alongside **`PointsRenderHash`** — the render identity that makes the projected `Points`
+cache **self-invalidating** (a consumer seeing `PointsRenderHash` != the current render re-projects from
+the anchor instead of reading orphaned coords — Fable fix 2). Wired through both annotation transports
+(httpapi objectJSON import/GET + sync objectJSON realtime), round-tripped by `TestObjectJSON_AnchorRoundTrip`,
+`Clone` deep-copies the pointer. **No proto-mirror drift** — the annotation Object isn't a mirrored bundle
+type. domain/chartpdf/engine/sync/httpapi/app suites green; gofmt clean.
+
+Remaining stage 1: (a) the cache-invalidation CHECK at the projection consumers (Studio paint / bake,
+which are stages 2–3), and (b) the **migration** — reverse-anchor from the FROZEN 08-22 render, flag+count
+where unavailable (BLOCKER 2; the freeze stays load-bearing). Doing the migration as its own reviewed slice
+given it touches the frozen band-data evidence.
+
+(Also this session: T151 — the blank song-editor WebView — fixed @ `6be53580`, awaiting the mobile
+device-verify leg.)
+
+— web-core
