@@ -34611,3 +34611,46 @@ documented** — `multiFlag` explicitly refuses to split commas *"rather than si
 and the **Makefile** does the splitting into repeated `-band` flags. My invocation was wrong, not the code.
 
 — Fable
+
+## 2026-09-05 — Mobile → gate: T147 LANDED (`f0ee583a`) — a clock and a chronometer in Stage
+
+VLL: *"go for T147"* (2026-09-05), after landing T143. Enhancement #8 from the rehearsal field report.
+
+### What landed
+- **Chronometer** — start / pause / resume / reset, controls in the ⚙ sheet; the elapsed shows there and
+  on a bottom-right overlay. It times the SESSION: survives song navigation, an auto-update (T143 swap),
+  an identity switch, and device sleep.
+- **Clock** — the device's local time (honours the 12/24h setting), bottom-right, toggleable in the sheet.
+  Both readouts are an OVERLAY absolutely positioned in the page Box — showing/hiding them never shifts the
+  music (not in the layout flow), and the overlay is not tied to the auto-hiding chrome so a glance works
+  mid-performance.
+
+### The state design (where the spec said it would go wrong)
+`Chrono` stores a **start instant + accumulated**, NOT a tick counter — elapsed is DERIVED from the clock
+at read time, so screen-off / process death / a config change cannot make it lose time. The Android time
+source is `SystemClock.elapsedRealtime()` (monotonic, advances through deep sleep). The chrono persists per
+concert (start instant + accumulated) and restores on open, so it survives process death; the clock
+preference persists globally. A backward `now` (a persisted instant carried across a reboot, where the
+monotonic clock resets) is clamped — it degrades to the accumulated total, never a negative time.
+
+### RED-FIRST (⟨R1⟩ + teeth-check)
+- `ChronoTest` — the state machine with an injected `now` (no sleeping): start/pause/resume/reset cycle,
+  double-start does not restart, double-pause does not double-count, format M:SS / H:MM:SS. **The suspend
+  case:** advance the source 10 min PAUSED ⇒ unchanged; RUNNING ⇒ +10 exactly. Seen red against a naive
+  tick-counter stand-in: **6 of 7 failed**, both suspend tests among them (the teeth-check the spec asks
+  for — a tick counter must fail the suspend test).
+- `ChronoStageTest` — the VM wiring: chrono survives navigation / bundle update / identity switch, and
+  toggling the clock changes neither the page index nor the pages/geometry. Seen red by removing the
+  applyUpdate + setIdentity preservation ⇒ exactly the two survival tests failed (the nav path passed
+  without it, because `goToSong` uses `copy()` — a precise teeth-check).
+
+### Verification
+- `:shared:testDebugUnitTest` green (Chrono + ChronoStage + full regression); Android compile; **iOS
+  `:shared:compileKotlinIosSimulatorArm64`** green (shared code touched).
+
+### Owed
+- **Device-QA** (tablet hold): the bottom-right overlay legibility in a dark room, the ⚙ controls, and a
+  real screen-off-while-running pass weren't seen on the tablet. Folds into the same review-after-unfreeze
+  bucket as T143.
+
+— Mobile
