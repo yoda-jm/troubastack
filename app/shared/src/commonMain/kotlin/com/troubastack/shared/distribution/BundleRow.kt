@@ -30,6 +30,46 @@ internal fun formatUtcMinute(epochSec: Long): String {
     return "$y-${p2(m)}-${p2(d)} ${p2(hh)}:${p2(mm)}"
 }
 
+/** T143 — the setlist id behind a concert id, for the support detail shown in the ⋮ (VLL: "peut etre
+ *  dans les ... l'id de la playlist"). A band-wide bake's concert id IS the setlist id; a legacy
+ *  per-member variant is "<setlistId>~<userId>" (B07, ParseConcertID), so strip any '~' suffix. */
+fun setlistIdOf(concertId: String): String = concertId.substringBefore('~')
+
+/** T143 — one collapsible band section in the on-device library. `bandId` is the stable grouping key;
+ *  `bandName` is its display label (already resolved to "Unknown band" for identity-less bundles). */
+data class BundleGroup<T>(val bandId: String, val bandName: String, val items: List<T>)
+
+/** The label an identity-less (pre-T143 / old) bundle groups under. */
+const val UNKNOWN_BAND_LABEL: String = "Unknown band"
+
+/**
+ * T143 — group the on-device library by band, so a performer can answer "je ne sais pas … quel band".
+ * Groups are ordered alphabetically by band name (case-insensitive), the identity-less "Unknown band"
+ * group always LAST so a real band never hides behind it. Items keep their incoming (already-sorted)
+ * order within a band. Bundles with the same `bandId` merge even if an older bake stored a blank name;
+ * the group takes the first non-blank name it sees. Pure + deterministic — no bundle is ever dropped.
+ */
+fun <T> groupByBand(items: List<T>, bandId: (T) -> String, bandName: (T) -> String): List<BundleGroup<T>> {
+    val order = ArrayList<String>()           // group keys in first-seen order (stable pre-sort)
+    val byKey = LinkedHashMap<String, MutableList<T>>()
+    val labels = HashMap<String, String>()
+    for (it in items) {
+        val key = bandId(it)
+        if (key !in byKey) { byKey[key] = ArrayList(); order.add(key) }
+        byKey.getValue(key).add(it)
+        val nm = bandName(it)
+        if (nm.isNotBlank() && labels[key].isNullOrBlank()) labels[key] = nm
+    }
+    val groups = order.map { key ->
+        val label = if (key.isBlank()) UNKNOWN_BAND_LABEL else labels[key]?.takeIf { it.isNotBlank() } ?: UNKNOWN_BAND_LABEL
+        BundleGroup(key, label, byKey.getValue(key).toList())
+    }
+    return groups.sortedWith(
+        // Unknown ("" band id) always last; otherwise by display label (case-insensitive), ties by id.
+        compareBy<BundleGroup<T>>({ it.bandId.isBlank() }, { it.bandName.lowercase() }, { it.bandId }),
+    )
+}
+
 /** T143 — the actions a concert row's ⋮ offers, by intent. */
 enum class BundleAction { Freeze, Unfreeze, Pin, Unpin, Delete }
 

@@ -9,13 +9,16 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -24,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Surface
@@ -34,6 +38,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +69,8 @@ import com.troubastack.shared.distribution.BakeStatus
 import com.troubastack.shared.distribution.BundleAction
 import com.troubastack.shared.distribution.bundleMenuActions
 import com.troubastack.shared.distribution.concertRowSubtitle
+import com.troubastack.shared.distribution.groupByBand
+import com.troubastack.shared.distribution.setlistIdOf
 import com.troubastack.shared.distribution.bakeLabel
 import com.troubastack.shared.distribution.bakePollStep
 import com.troubastack.shared.distribution.Freeze
@@ -167,6 +174,8 @@ private data class ConcertEntry(
     val concertRev: ULong,
     val bakedAt: Long, // T143: epoch seconds — distinguishes two same-named bakes on the row
     val label: String,
+    val bandId: String, // T143: grouping key for the by-band accordion
+    val bandName: String, // T143: group label ("" for pre-T143 bundles → "Unknown band")
     val damaged: Boolean,
 )
 
@@ -778,18 +787,35 @@ private fun ConcertsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            // T143: group the library by band (collapsible) — the answer to "je ne sais pas … quel band".
+            val groups = remember(entries) { groupByBand(entries, { it.bandId }, { it.bandName }) }
+            // Expanded by default; a missing key reads as expanded, so grouping never hides a bundle silently.
+            val collapsed = remember { mutableStateMapOf<String, Boolean>() }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(entries) { entry ->
-                    ConcertRow(
-                        entry,
-                        lean = !manage, // A31: perform intent = tap-to-perform only, no manage menu
-                        onOpen = { if (!entry.damaged) onOpen(entry.dir) },
-                        onDelete = { File(entry.dir).deleteRecursively(); refresh++ },
-                        onFreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.FROZEN); refresh++ },
-                        onUnfreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.PROMPT); refresh++ },
-                        onPin = { updates.setFreeze(entry.concertId, Freeze.LocalPin(entry.concertRev)); refresh++ },
-                        onUnpin = { updates.setFreeze(entry.concertId, null); refresh++ },
-                    )
+                groups.forEach { group ->
+                    val isCollapsed = collapsed[group.bandId] == true
+                    item(key = "band-${group.bandId}") {
+                        BandHeader(
+                            name = group.bandName,
+                            count = group.items.size,
+                            collapsed = isCollapsed,
+                            onToggle = { collapsed[group.bandId] = !isCollapsed },
+                        )
+                    }
+                    if (!isCollapsed) {
+                        items(group.items, key = { it.dir }) { entry ->
+                            ConcertRow(
+                                entry,
+                                lean = !manage, // A31: perform intent = tap-to-perform only, no manage menu
+                                onOpen = { if (!entry.damaged) onOpen(entry.dir) },
+                                onDelete = { File(entry.dir).deleteRecursively(); refresh++ },
+                                onFreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.FROZEN); refresh++ },
+                                onUnfreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.PROMPT); refresh++ },
+                                onPin = { updates.setFreeze(entry.concertId, Freeze.LocalPin(entry.concertRev)); refresh++ },
+                                onUnpin = { updates.setFreeze(entry.concertId, null); refresh++ },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -808,6 +834,20 @@ private fun OfferChip(offer: Availability, names: Map<String, String>, onApply: 
             Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Button(onClick = onApply) { Text(action) }
         }
+    }
+}
+
+/** T143 — a collapsible band section header in the on-device library ("regrouper par groupe"). */
+@Composable
+private fun BandHeader(name: String, count: Int, collapsed: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(if (collapsed) "▸" else "▾", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.width(8.dp))
+        Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        Text("$count", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -842,6 +882,17 @@ private fun ConcertRow(
             if (actions.isNotEmpty()) {
                 TextButton(onClick = { menuOpen = true }) { Text("⋮") }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // T143: the setlist id is a support detail — in the ⋮, not on the row (VLL: "dans les …
+                    // l'id de la playlist"). Absent for a damaged bundle whose concert id failed to load.
+                    if (!entry.damaged && entry.concertId.isNotEmpty()) {
+                        Text(
+                            "Setlist ${setlistIdOf(entry.concertId)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                        HorizontalDivider()
+                    }
                     actions.forEach { a ->
                         val label = when (a) {
                             BundleAction.Freeze -> "Freeze (no updates)"
@@ -885,9 +936,10 @@ private fun listConcerts(storage: Storage): List<ConcertEntry> {
         when (val r = BundleLoader().load(d.path, FileBundleFiles())) {
             is LoadResult.Loaded -> ConcertEntry(
                 d.path, r.bundle.concertId, r.bundle.concertRev, r.bundle.bakedAt,
-                r.bundle.name.ifEmpty { r.bundle.concertId.ifEmpty { d.name } }, damaged = false,
+                r.bundle.name.ifEmpty { r.bundle.concertId.ifEmpty { d.name } },
+                bandId = r.bundle.bandId, bandName = r.bundle.bandName, damaged = false,
             )
-            is LoadResult.Failed -> ConcertEntry(d.path, "", 0uL, 0L, "Damaged bundle (${d.name})", damaged = true)
+            is LoadResult.Failed -> ConcertEntry(d.path, "", 0uL, 0L, "Damaged bundle (${d.name})", bandId = "", bandName = "", damaged = true)
         }
     }
 }

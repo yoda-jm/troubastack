@@ -45,4 +45,56 @@ class BundleRowTest {
     fun menu_damaged_is_delete_only() {
         assertEquals(listOf(BundleAction.Delete), bundleMenuActions(lean = false, damaged = true))
     }
+
+    // --- T143 accordion: group the library by band ---
+
+    private data class Row(val id: String, val band: String, val bandName: String)
+
+    @Test
+    fun group_by_band_collects_and_labels() {
+        val rows = listOf(
+            Row("c1", "b-zulu", "Zulu Choir"),
+            Row("c2", "b-alpha", "Alpha Band"),
+            Row("c3", "b-zulu", "Zulu Choir"),
+        )
+        val groups = groupByBand(rows, { it.band }, { it.bandName })
+        // Alphabetical by name: Alpha before Zulu.
+        assertEquals(listOf("Alpha Band", "Zulu Choir"), groups.map { it.bandName })
+        assertEquals(listOf("c2"), groups[0].items.map { it.id })
+        assertEquals(listOf("c1", "c3"), groups[1].items.map { it.id }) // both zulu, incoming order kept
+    }
+
+    @Test
+    fun group_by_band_puts_unknown_last_and_never_drops() {
+        val rows = listOf(
+            Row("c1", "", ""),               // pre-T143 / old bundle: no band identity
+            Row("c2", "b-alpha", "Alpha Band"),
+        )
+        val groups = groupByBand(rows, { it.band }, { it.bandName })
+        assertEquals(listOf("Alpha Band", UNKNOWN_BAND_LABEL), groups.map { it.bandName })
+        assertEquals(2, groups.sumOf { it.items.size }) // no bundle dropped
+        assertEquals("", groups.last().bandId)
+    }
+
+    @Test
+    fun group_by_band_merges_same_id_takes_first_nonblank_name() {
+        // Same band id, one bake stored a blank name (older baker): still one group, real name wins.
+        val rows = listOf(Row("c1", "b-x", ""), Row("c2", "b-x", "Real Name"))
+        val groups = groupByBand(rows, { it.band }, { it.bandName })
+        assertEquals(1, groups.size)
+        assertEquals("Real Name", groups[0].bandName)
+        assertEquals(2, groups[0].items.size)
+    }
+
+    // --- T143: setlist id in the ⋮ ---
+
+    @Test
+    fun setlist_id_of_band_wide_concert_is_the_concert_id() {
+        assertEquals("setlist-123", setlistIdOf("setlist-123"))
+    }
+
+    @Test
+    fun setlist_id_of_legacy_member_variant_strips_the_owner() {
+        assertEquals("setlist-123", setlistIdOf("setlist-123~user-456"))
+    }
 }
