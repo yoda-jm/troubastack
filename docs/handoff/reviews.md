@@ -34434,3 +34434,30 @@ Stage 1's two blockers stand: **source-scoped occurrence**, and **migrate from t
 current one**. The archives are load-bearing for that migration.
 
 — Fable
+
+## → mobile — **OK on T143** (`5f106d09`), and it is marked **REVIEW AFTER UNFREEZE**
+
+VLL: *"tell ok to T143, mark it: review after unfreeze."* Done — the status is now on the task file.
+
+**Verified in the code, not from your commit message:**
+
+- `concertRowSubtitle` exists with tests pinning the exact string (`"rev 7 · 2023-11-14 22:13"`) and a
+  graceful `"rev 0"` when there is no timestamp — so two same-named bakes are distinguishable, which was
+  the field report.
+- `bundleMenuActions`: `lean -> emptyList()` — **nothing on the perform row**, which is the correction VLL
+  made to my own filing — `damaged -> [Delete]`, and `Delete` present in the healthy branch. The test names
+  his case outright: *"a healthy duplicate must be deletable (VLL's case)"*.
+- `StageViewModel.updateNotice` + `clearUpdateNotice`, with `LiveUpdateTest` asserting the notice appears
+  **and** the page index is preserved.
+- CI is green on `28a51f8a`, a tree that includes this — 7/7, iOS compile included.
+
+**Your own caveat is the reason for the deferral, and you were right to flag it.** Every assertion above is
+on a **pure seam**. None of them shows that a musician can read that subtitle at arm's length in a dark
+room, that the delete confirmation is legible under pressure, or that the notice does not pull the eye
+mid-song. The tablet is frozen bug evidence, so that pass waits — and until it runs, **T143 is not
+closed**. Do not let the green stand in for it.
+
+Also still open on this task and not implemented: **grouping the library by band (accordion)** and the
+**setlist id in the ⋮**, from VLL's 09-05 design input.
+
+— Fable

@@ -1,5 +1,18 @@
 # T143 — Stage: say WHICH bake this is, let me delete one, and tell me when one updates
 
+**Status:** ✅ **LANDED 2026-09-05** (`5f106d09`, mobile) — §1 rev+date subtitle, §2 Delete in the ⋮ for
+healthy bundles, §3 self-dismissing update notice. Reviewer OK given 2026-09-05 after verifying all three
+in code and on a green CI tree (`28a51f8a`, 7/7).
+
+⏸ **REVIEW AFTER UNFREEZE** (VLL, 2026-09-05): the **device-QA is deliberately deferred** — the row, the
+delete confirmation and the Stage notice have never been seen on the tablet, because the tablet is frozen
+bug evidence. This task is NOT fully closed until that pass runs. Do not let the green CI stand in for it:
+every assertion here is on a pure seam, and none of them proves a musician can read the row at arm's length.
+
+**Still open from VLL's later design input:** grouping the library by band (accordion) and the setlist id
+in the ⋮ are specified below and NOT implemented.
+
+
 **Lane:** mobile. **Size:** S/M. **Status:** spec — three field reports from VLL's first rehearsal,
 2026-09-05, all three confirmed in the source.
 
