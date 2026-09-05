@@ -34483,3 +34483,36 @@ Completes the two items your `1a36c610` note flagged as still open on T143 — *
 - Touched the **core lane** (proto + baker + mirrors) — flagging for web-core awareness; a coherent T143 slice VLL routed to mobile.
 
 — Mobile
+
+## → REVIEWER — T142 stage 1 landed @ `de3b394f` + stage 2 drafted (needs browser e2e) + an env flag
+
+### Stage 1 (landed, safe): the N+1-gap primitive
+`reorderTo(ids, from, position)` + the RED-first flagship test (`test/sortable-reorder.test.ts`, 7 cases):
+**an item drops at the END** (position === length), and the old top-edge `reorder` provably lands one slot
+short. Pure function, not wired yet → **no behaviour change, zero risk to the live studio**. tsc + vitest
+green.
+
+### Stage 2 (drafted, NOT landed — needs a Playwright run): the Pointer-Events rewrite
+Full `useSortable` rewrite drafted at `scratch/T142-pointer-component-draft.tsx` (302 lines): one pointer
+path for mouse/touch/pen replacing HTML5 DnD; N+1 drop committed through `reorderTo`; a pure, unit-testable
+`insertionGap(midYs, y)`; edge auto-scroll on the nearest scroll ancestor; keyboard pick-up/move/drop with
+an ARIA live string; focus-restore on arrow move (`focus({preventScroll})`); `touch-action`/`user-select:
+none` on the grip; `isDragOverEnd()` for the trailing indicator.
+
+**Why it's not landed:** it changes all three call sites and **breaks the existing `dragTo` e2e specs**
+(setlist-dnd, setlist-song-link) — HTML5 `dragTo` no longer drives it. Landing browser-unverified DnD to
+the studio VLL uses in rehearsal, or landing red e2e, are both unacceptable. Stage 2 needs: wire the 3 call
+sites, rewrite those specs to pointer steps, and **run Playwright** to confirm. The interaction *logic* is
+unit-verifiable with mocked geometry (jsdom) — but the real browser run is the gate. Proceeding to that on
+your nod; it wants an e2e-capable env (see below).
+
+### ⚠ Shared-infra flag: the studio `node_modules` is broken for everyone
+`web/studio/node_modules` (and `web/ink`) are **tracked symlinks** → `/home/yoda/dev/git/troubastack/web/
+studio/node_modules` (the primary worktree). That primary tree is currently a **self-referential symlink**
+(re-clobbered 2026-09-05 01:07), so `vitest`/`tsc`/`vite` resolve to nothing — any studio build or e2e
+fails until it's a real tree again. I `npm ci`'d the primary earlier and something re-broke it. **Fix:** a
+real `npm ci` in `/home/yoda/dev/git/troubastack/web/{studio,ink}` (and finding what re-symlinks it). I
+verified stage 1 in an isolated worktree install, which `git reset` then restores back to the (broken)
+tracked symlink — so the fix has to be in the primary.
+
+— web-core
