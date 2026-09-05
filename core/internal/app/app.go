@@ -159,6 +159,13 @@ type Band struct {
 	Name      string    `json:"name"`
 	OwnerID   string    `json:"ownerId"`
 	CreatedAt time.Time `json:"createdAt"`
+	// T152: author-declared folder identity, STORED so a folder round-trip (export→import) preserves it —
+	// exactly as T139 does for a song's slug. Shortname is the `make band=<shortname>` handle and the key
+	// cmd/seed matches on (and the identity T150 builds on). Empty for a band created in-app / a pre-T152
+	// import; import stores the folder's declared values verbatim, export emits them back.
+	Shortname string `json:"shortname,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	Notes     string `json:"notes,omitempty"`
 }
 
 // Membership ties a user to a band with a role.

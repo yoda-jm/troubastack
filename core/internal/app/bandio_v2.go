@@ -69,9 +69,9 @@ type v2Band struct {
 	ExportedAt    string     `json:"exportedAt,omitempty"`
 	Name          string     `json:"name"`
 	Members       []v2Member `json:"members"`
-	// Shortname/Kind/Notes are the folder's own metadata (the reader ignores them; the app never stored
-	// them). The migration carries them through so `make band=<shortname>` keeps working after a folder
-	// is rewritten canonical on disk. An export leaves them empty (omitted).
+	// Shortname/Kind/Notes are the band's author-declared identity. T152: the app now STORES them (app.Band)
+	// and both import and export carry them, so `make band=<shortname>` keeps working across a round-trip
+	// (previously an export dropped them). Still omitempty: a pre-T152 export / an in-app band omits them.
 	Shortname string `json:"shortname,omitempty"`
 	Kind      string `json:"kind,omitempty"`
 	Notes     string `json:"notes,omitempty"`
@@ -217,7 +217,11 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 
 	// Member id -> username (for owner refs). Also emit band.json members.
 	userByID := map[string]string{}
-	band := v2Band{FormatVersion: BandExportFormatVersionV2, ExportedAt: man.ExportedAt, Name: man.Band.Name}
+	band := v2Band{
+		FormatVersion: BandExportFormatVersionV2, ExportedAt: man.ExportedAt, Name: man.Band.Name,
+		// T152: emit the author-declared identity so a folder round-trip preserves it.
+		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
+	}
 	for _, m := range man.Members {
 		userByID[m.ID] = m.Username
 		band.Members = append(band.Members, v2Member{
@@ -417,8 +421,9 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersionV2,
 		ExportedAt:    band.ExportedAt,
-		Band:          manifestBand{Name: band.Name},
-		Annotations:   map[string]manifestAnnots{},
+		// T152: carry the folder's declared identity into the manifest so import stores it.
+		Band:        manifestBand{Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
+		Annotations: map[string]manifestAnnots{},
 	}
 
 	// Members: synthetic id m-<username>; the id is only a manifest-internal join key.

@@ -70,6 +70,10 @@ type bandManifest struct {
 
 type manifestBand struct {
 	Name string `json:"name"`
+	// T152: author-declared identity, carried through the manifest so it survives a round-trip.
+	Shortname string `json:"shortname,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	Notes     string `json:"notes,omitempty"`
 }
 
 // manifestMember carries the orig member id (the key for the OwnerID rewrite) plus the
@@ -239,7 +243,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersion,
 		ExportedAt:    s.now().UTC().Format(time.RFC3339),
-		Band:          manifestBand{Name: band.Name},
+		Band:          manifestBand{Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
 		Annotations:   map[string]manifestAnnots{},
 	}
 
@@ -558,7 +562,11 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 
 	// ---- create (validation passed) ----
 	now := s.now().UTC()
-	band := Band{ID: s.newID(), Name: strings.TrimSpace(man.Band.Name), OwnerID: caller.ID, CreatedAt: now}
+	band := Band{
+		ID: s.newID(), Name: strings.TrimSpace(man.Band.Name), OwnerID: caller.ID, CreatedAt: now,
+		// T152: store the folder's declared identity verbatim so a later export re-emits it.
+		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
+	}
 	if band.Name == "" {
 		band.Name = "Imported band"
 	}
