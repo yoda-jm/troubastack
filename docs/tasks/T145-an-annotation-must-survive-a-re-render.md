@@ -1,7 +1,14 @@
 # T145 — An annotation must stay on the words it was drawn on
 
 **Lane:** to be routed by first stage (core, then studio + app). **Size:** M/L — a data-model change.
-**Status:** IN PROGRESS 2026-09-05 (web-core). Stage 0 (option-independent) DONE: the overlay-vanish
+**Status:** IN PROGRESS 2026-09-05 (web-core). Stage 1 CORE MECHANISM DONE: `chartpdf.SourceAnchor`
+(source-scoped — RunText + document-wide Occurrence + rune span; BLOCKER 1 fixed, nothing render-derived)
++ `AnchorAt`/`Project` (bidirectional) + RED-first `TestSourceAnchor_SurvivesReflow` (a mark stays on its
+words when the same source reflows onto a different page; frozen coords provably do not). Remaining stage 1:
+add `SourceAnchor` to `domain.Object` (+ wire/sync/proto/store), a self-invalidating `Points` cache
+(render identity), and the migration — which per BLOCKER 2 must reverse-anchor from the FROZEN 08-22
+render (`troubastack-demo/data.preseed-20260904-191837/`, load-bearing — do not clear), NOT the current
+one. Stage 0 (option-independent) DONE: the overlay-vanish
 guard — `assembleSong` now fails the bake when a mark is on a page the reflowed render no longer has
 (was silently dropped); teeth-checked (`TestBake_ReflowOrphanedOverlay_FailsBake`, orphan fails / same
 mark on a real page bakes). The **anchor-model decision** (Option 1 anchor-to-source, reusing T95, with a
