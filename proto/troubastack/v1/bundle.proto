@@ -124,6 +124,16 @@ message ConcertBundle {
   // Additive: absent ⇒ no roster (old bundles / pre-P205), viewer falls back to the
   // role picker only. I12 holds: identity is a local view preference, not an account.
   repeated BundleMember roster = 8;
+  // T143: the owning band's identity, so the on-device library can GROUP downloaded
+  // bundles by band ("je ne sais pas … quel band"). The baker has both at bake time
+  // (band_id from the bake request, band_name via GetBand). Additive: absent ⇒ old
+  // bundle / pre-T143, the library shows it in an "Unknown band" group and degrades
+  // to a flat list — never wrong. The SETLIST id is NOT duplicated here: it already
+  // equals `concert_id` for a band-wide bake (ParseConcertID), which the ⋮ reads. The
+  // SERVER origin is likewise absent by design — the app records the source server at
+  // download time (it knows its own server then; the baker does not know the public URL).
+  string band_id = 9;
+  string band_name = 10;
 }
 
 // BundleMember is one band member in the roster (P205), for view-time identity.

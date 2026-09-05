@@ -69,6 +69,8 @@ type ConcertBundle struct {
 	FinalLocked bool           `json:"finalLocked,omitempty"`
 	Songs       []BakedSong    `json:"songs,omitempty"`
 	Roster      []BundleMember `json:"roster,omitempty"`
+	BandID      string         `json:"bandId,omitempty"`
+	BandName    string         `json:"bandName,omitempty"`
 }
 
 // BundleMember mirrors proto troubastack.v1.BundleMember.

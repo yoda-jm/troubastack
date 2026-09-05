@@ -89,6 +89,8 @@ data class ConcertBundle(
     val finalLocked: Boolean = false,
     val songs: List<BakedSong> = emptyList(),
     val roster: List<BundleMember> = emptyList(),
+    val bandId: String = "",
+    val bandName: String = "",
 )
 
 /** proto troubastack.v1.BundleMember. */

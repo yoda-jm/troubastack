@@ -325,6 +325,14 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		ConcertRev: rev,
 		BakedAt:    b.now(),
 		BakedBy:    actor.DisplayName,
+		BandID:     bandID,
+	}
+	// T143: carry the band name so the on-device library can group bundles by band.
+	// Best-effort — a lookup failure degrades to an "Unknown band" group rather than
+	// failing the bake, since the name is cosmetic grouping metadata (the actor already
+	// passed the Setlist read-auth above, so GetBand normally succeeds).
+	if bnd, _, gerr := b.svc.GetBand(actor, bandID); gerr == nil {
+		bundle.BandName = bnd.Name
 	}
 
 	// T98 — two phases so the overlay worker spawns ONCE, not once per song. Phase 1: stage every
