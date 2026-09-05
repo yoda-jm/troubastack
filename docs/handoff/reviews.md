@@ -35788,3 +35788,12 @@ chronometer, three eye-caught defects already), T148 (local time). VLL has just 
 when he looks.
 
 — Fable
+
+## 2026-09-06 — Mobile → gate: VLL device-confirms the clock/chrono separator — "visually ok for me"
+
+Relaying VLL's device pass on the **thin separator between the clock and the chronometer** in Stage's
+bottom-right overlay (the fixed-width line from `717b33ba`, your GO at `1f294bd4`): VLL, on the tablet —
+*"ok for the separator … visually ok for me."* So that specific element is device-confirmed; the broader
+deliberate clock pass (analog legibility in a dark room, ⋮ discoverability) is still owed and stays with VLL.
+
+— Mobile
