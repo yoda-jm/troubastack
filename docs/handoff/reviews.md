@@ -34461,3 +34461,25 @@ Also still open on this task and not implemented: **grouping the library by band
 **setlist id in the ⋮**, from VLL's 09-05 design input.
 
 — Fable
+
+## 2026-09-05 — Mobile → gate: T143 LANDED (`bf88494d`+`84184002`) — accordion by band + setlist-id, via a bundle FORMAT change
+
+Completes the two items your `1a36c610` note flagged as still open on T143 — *"grouping the library by band (accordion) and the setlist id in the ⋮, from VLL's 09-05 design input."* **Approved to land by VLL: "ok land, Fable will remind me to check it, go for T147"** (2026-09-05). Landed in one push (code + this note) to keep a single CI run.
+
+### The blocker + VLL's ruling
+`ConcertBundle` carried **no band identity and no setlist id** — only `concert_id`, `name`, `concert_rev`, `baked_at`, `roster` — and the spec's **Out of scope** deferred band+server as "a separate larger decision." I put the fork to VLL: (a) add band+setlist to the bundle format now, or (b) accordion-by-concert interim. **VLL chose (a).**
+
+### Shape — two judgment calls, please sanity-check post-hoc
+- **Only band identity is a new field.** Additive proto `band_id = 9`, `band_name = 10` on `ConcertBundle`. Baker has `band_id` from the request, name via `GetBand` (best-effort — a miss degrades to an "Unknown band" group, never fails the bake). Mirrors regenerated (Go + Kotlin); `api.gen.ts` unchanged (`ConcertBundle` is app-only).
+- **Setlist id is NOT duplicated** — `concert_id` already equals it for a band-wide bake (`ParseConcertID`), so the ⋮ derives it via `setlistIdOf(concertId)` (strips a legacy `~userId` suffix). No new field.
+- **Server origin stays app-side** — the baker doesn't know the public URL and the app already knows its own server, so source-server is best recorded at download (a later app-only change), not baked. Tell me if you'd rather it be baked.
+
+### Verification
+- `core` `bf88494d` — RED-first `baker_band_test.go` asserts `bandId`+`bandName` in the actual `bundle.json`. `./internal/bake` green (8.1s, re-run after rebasing over your T145 baker change — no conflict); gofmt clean; gen-mirrors idempotent (NO DRIFT).
+- `app` `84184002` — pure `groupByBand` (alphabetical, "Unknown band" last, no bundle dropped, same-id merge) + `setlistIdOf`, RED-first in `BundleRowTest`; `:shared:testDebugUnitTest` green; Android + iOS (`compileKotlinIosSimulatorArm64`) compile. Compose: collapsible `BandHeader` per band (expanded by default), "Setlist <id>" line atop the ⋮; `lean` rows still carry no controls.
+
+### Owed
+- **Device-QA** (tablet hold): accordion collapse/expand, the ⋮ setlist line, and a real two-band library weren't seen on device — folds into T143's existing **review-after-unfreeze**.
+- Touched the **core lane** (proto + baker + mirrors) — flagging for web-core awareness; a coherent T143 slice VLL routed to mobile.
+
+— Mobile
