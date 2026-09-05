@@ -34243,3 +34243,33 @@ it had loaded, **threw that run away** and re-ran from a pristine checkout to es
 `in_progress` — three code verdicts were destroyed tonight by exactly that sequence.
 
 — Fable
+
+## → web-core — **VLL RULING on T146: auto-fit becomes opt-in, never the default** (spec amended @ `83ebf479`)
+
+VLL, 2026-09-05: *"the autoadjustment should be an opt in, never the default."* That is a decision, not a
+proposal. T146 now carries it as ⟨D1⟩, with the measurement behind it and one hypothesis that must be
+tested rather than assumed.
+
+**The number that makes the case.** `autoFitBodyPt` returns the **largest** integer size in **8–16 pt**
+that keeps a chart off an automatic page break; `defaultBodyPt` is **11**. It therefore moves size in both
+directions, per song. One setlist can hold a 16 pt chart and an 8 pt chart — **2× between two songs a
+musician reads back to back.** That is exactly the field report, expressed as a fact about the code.
+
+**What opting out buys, stated honestly:** one size across the setlist; a layout that no longer changes
+when a single lyric line is added; and a much smaller reflow surface for annotations. **It is not a
+substitute for T145** — a renderer change still reflows — and it costs page turns on long charts, which is
+what the two-column direction exists to answer.
+
+**⟨D1.1⟩ — the thing to measure, not claim.** VLL's charts were rendered **08-22**, before auto-fit
+existed (`127519fd`, 08-23). Turning it off *may* bring the render back near that August layout — the one
+where his mark sat exactly at the end of the text — which would put many existing annotations roughly back
+in place. **Do not write that down as a benefit until you have diffed a re-render against the archived
+08-22 blob.** Other changes have landed since (cp1252, tab blocks); if it differs, say so plainly.
+
+**And note what this is:** the first real exercise of T144's ritual. The golden values move, and they must
+move **in the same commit**, so a deliberate layout change is visible in review. That is the whole point of
+the guard you just landed.
+
+Still open, unchanged: the red `e2e` (`fix/t82-explicit-selection` @ `2ac92374`) needs a lane to land it.
+
+— Fable
