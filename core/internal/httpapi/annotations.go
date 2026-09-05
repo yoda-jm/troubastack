@@ -124,41 +124,49 @@ func (a *AnnotationsAPI) reprojectSnapshot(u app.User, bandID, songID string, sn
 	for _, l := range snap.Layers {
 		fileByLayer[l.ID] = l.FileID
 	}
-	type manifest struct {
-		anchors []chartpdf.Anchor
-		hash    string
-	}
-	byFile := map[string]*manifest{} // fileID -> manifest (nil entry = no source / uncacheable)
-	resolve := func(fileID string) *manifest {
-		if fileID == "" {
-			return nil
-		}
-		if m, seen := byFile[fileID]; seen {
-			return m
-		}
-		byFile[fileID] = nil // default: not re-projectable
-		sf, src, err := a.svc.ChartSource(u, bandID, songID, fileID)
-		if err != nil {
-			return nil
-		}
-		if _, anchors, rerr := chartpdf.RenderWithAnchors(src); rerr == nil {
-			byFile[fileID] = &manifest{anchors: anchors, hash: sf.BlobHash}
-		}
-		return byFile[fileID]
-	}
+	manifest := a.chartAnchorsFor(u, bandID, songID)
 	objs := make([]domain.Object, len(snap.Objects))
 	for i, o := range snap.Objects {
 		objs[i] = o
 		if o.Anchor == nil {
 			continue
 		}
-		if m := resolve(fileByLayer[o.LayerID]); m != nil {
-			rp, _ := chartpdf.Reproject([]domain.Object{o}, m.anchors, m.hash)
+		if anchors, hash, ok := manifest(fileByLayer[o.LayerID]); ok {
+			rp, _ := chartpdf.Reproject([]domain.Object{o}, anchors, hash)
 			objs[i] = rp[0]
 		}
 	}
 	snap.Objects = objs
 	return snap
+}
+
+// chartAnchorsFor returns a per-file resolver of (anchor manifest, current render hash) for a song's
+// GENERATED charts, shared by create-time anchoring (import) and re-projection (serve). Each generated
+// file's source is rendered once and cached; an uploaded / sourceless file resolves to ok=false. Best-
+// effort + read-only (auth via the caller's ChartSource).
+func (a *AnnotationsAPI) chartAnchorsFor(u app.User, bandID, songID string) func(fileID string) ([]chartpdf.Anchor, string, bool) {
+	type entry struct {
+		anchors []chartpdf.Anchor
+		hash    string
+		ok      bool
+	}
+	cache := map[string]entry{}
+	return func(fileID string) ([]chartpdf.Anchor, string, bool) {
+		if fileID == "" {
+			return nil, "", false
+		}
+		if e, seen := cache[fileID]; seen {
+			return e.anchors, e.hash, e.ok
+		}
+		var e entry
+		if sf, src, err := a.svc.ChartSource(u, bandID, songID, fileID); err == nil {
+			if _, anchors, rerr := chartpdf.RenderWithAnchors(src); rerr == nil {
+				e = entry{anchors: anchors, hash: sf.BlobHash, ok: true}
+			}
+		}
+		cache[fileID] = e
+		return e.anchors, e.hash, e.ok
+	}
 }
 
 // liveSetlists (P201 stage 2b) returns the band's setlists that are in rehearsal live
@@ -232,11 +240,25 @@ func (a *AnnotationsAPI) importAnnotations(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// T145 forward fix (create side): anchor imported marks to their words on a generated chart, so a later
+	// size/render change moves them with the text. Idempotent — a mark that already carries an anchor (a
+	// folder that stored one) is left as-is.
+	fileByLayer := map[string]string{}
+	for _, lj := range in.Layers {
+		fileByLayer[lj.ID] = lj.FileID
+	}
+	manifest := a.chartAnchorsFor(u, bandID, songID)
+
 	for _, oj := range in.Objects {
 		o := objectFromJSON(oj)
 		if o.UUID == "" {
 			writeErr(w, app.ErrInvalidInput)
 			return
+		}
+		if o.Anchor == nil {
+			if anchors, hash, ok := manifest(fileByLayer[o.LayerID]); ok {
+				o = chartpdf.AnchorObject(o, anchors, hash)
+			}
 		}
 		// Version 1 makes a re-imported object an idempotent same-version no-op
 		// rather than a tombstone-resurrection or LWW conflict.
