@@ -45,6 +45,15 @@ type Engine interface {
 	ObjectLayer(songID, uuid string) (layer domain.Layer, layerFound, objExists bool)
 }
 
+// ChartAnchorer attaches a T145 source anchor to a mark at create time. The hub calls it just before
+// applying a create so a mark drawn now records WHAT WORDS it is on, and survives a later size/render
+// change. It is a NARROW seam: the hub deliberately holds no app.Service or chartpdf dependency, so the
+// implementation (an adapter in httpapi over the service + renderer) resolves the layer's chart source and
+// does the anchoring. It must be best-effort — return the object unchanged on any failure, never panic.
+type ChartAnchorer interface {
+	AnchorMark(songID string, o domain.Object) domain.Object
+}
+
 // Hub fans realtime annotation traffic across clients and drives ONE apply engine
 // per song. Rooms are keyed by the engine songID (the relational Song.ID).
 //
@@ -68,6 +77,10 @@ type Hub struct {
 	// nil in tests/deployments without an autobaker. Must be cheap + non-blocking.
 	onCommit func(songID string)
 
+	// anchorer, if set, attaches a T145 source anchor to a mark at create time (via SetAnchorer, at wiring
+	// time). nil in tests / deployments without it → creates apply exactly as before.
+	anchorer ChartAnchorer
+
 	mu         sync.Mutex
 	rooms      map[string]*room  // keyed by engine songID
 	applyLocks map[string]*muRef // per-song apply serialization (read-version → Apply)
@@ -76,6 +89,10 @@ type Hub struct {
 // SetOnCommit registers the post-apply commit hook (P201). Call before Serve; it is
 // read without a lock on the apply path, so it must be set during single-threaded wiring.
 func (h *Hub) SetOnCommit(fn func(songID string)) { h.onCommit = fn }
+
+// SetAnchorer registers the T145 create-time anchorer (nil = no anchoring). Call before Serve; read
+// without a lock on the apply path, so set it during single-threaded wiring.
+func (h *Hub) SetAnchorer(a ChartAnchorer) { h.anchorer = a }
 
 // muRef is a per-song mutex guarding the hub's read-HEAD-then-Apply window so the
 // server-assigned object version is monotonic under concurrent senders.

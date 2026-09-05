@@ -1257,6 +1257,41 @@ func (s *Service) ChartSource(caller User, bandID, songID, fileID string) (SongF
 	return f, src, nil
 }
 
+// ChartSourceForFile is the auth-free, server-internal source lookup for T145 annotation anchoring: given
+// a fileID it returns the generated chart's SongFile + source, with no caller/band gate. Used only by the
+// realtime anchoring adapter, where the mark's create is already authorized by the sync write gate — it
+// never faces a client directly. ErrNotFound for an uploaded/unknown file (no source to anchor against).
+func (s *Service) ChartSourceForFile(fileID string) (SongFile, string, error) {
+	f, err := s.repo.GetSongFile(fileID)
+	if err != nil || !f.Generated {
+		return SongFile{}, "", ErrNotFound
+	}
+	src, err := s.repo.GetChartSource(fileID)
+	if err != nil {
+		return SongFile{}, "", ErrNotFound
+	}
+	return f, src, nil
+}
+
+// ChartAnchorsIfCurrent renders `source` and returns its T145 anchor manifest ONLY when the render
+// reproduces the stored blob byte-for-byte (sha256 equal to blobHash). This is the shared precondition
+// behind every anchoring/re-projection call site (create, serve, bake): a mark's coordinates refer to the
+// STORED blob's geometry, so anchoring or re-projecting against a fresh render that DIVERGES from the blob
+// would label those coordinates with a geometry the served pixels do not have — and, once stamped, skip
+// them for ever. On divergence (or a render error) it returns ok=false, and every caller falls back to its
+// safe path: create skips anchoring, serve leaves stored coordinates, bake defers to the orphan guard.
+//
+// The check is a no-op whenever the renderer still reproduces the blob (the normal case: charts are
+// re-rendered by the current binary), and only withholds anchoring the moment a render change (e.g. T146's
+// margin) makes a fresh render disagree with an older stored blob — exactly when trusting it would corrupt.
+func ChartAnchorsIfCurrent(source, blobHash string) ([]chartpdf.Anchor, bool) {
+	pdf, anchors, err := chartpdf.RenderWithAnchors(source)
+	if err != nil || blob.HashOf(pdf) != blobHash {
+		return nil, false
+	}
+	return anchors, true
+}
+
 // SaveChartSource re-renders a generated file from new source, in place (same
 // file id, Revision bumped). baseRevision is the revision the editor started from;
 // a mismatch means someone else saved first → ErrConflict ("reload"). Any member

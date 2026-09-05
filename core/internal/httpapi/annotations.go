@@ -160,7 +160,10 @@ func (a *AnnotationsAPI) chartAnchorsFor(u app.User, bandID, songID string) func
 		}
 		var e entry
 		if sf, src, err := a.svc.ChartSource(u, bandID, songID, fileID); err == nil {
-			if _, anchors, rerr := chartpdf.RenderWithAnchors(src); rerr == nil {
+			// Anchor/re-project ONLY against a render that reproduces the stored blob (byte-equal); a
+			// divergent fresh render (e.g. after a layout change) must not stamp the blob hash onto its own
+			// coordinates. See app.ChartAnchorsIfCurrent.
+			if anchors, ok := app.ChartAnchorsIfCurrent(src, sf.BlobHash); ok {
 				e = entry{anchors: anchors, hash: sf.BlobHash, ok: true}
 			}
 		}

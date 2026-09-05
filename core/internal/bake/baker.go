@@ -675,12 +675,14 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 	// T145 forward fix: for a generated chart, re-project marks whose cached coordinates predate the
 	// current render onto their words before baking, so a reflowed chart bakes the mark ON its line rather
 	// than orphaning it (the reflow-orphan guard in assembleSong is the backstop; this is the fix).
-	// RenderWithAnchors(source) reproduces file.BlobHash's geometry (byte-identical to Render); a transpose
-	// preserves line positions, so the same manifest is valid. Uploaded files have no source → no anchors.
+	// Anchor/re-project ONLY against a render that reproduces file.BlobHash byte-for-byte (a transpose
+	// preserves line positions, so its manifest is still valid); a divergent render is withheld so a stale
+	// mark is left to the reflow-orphan guard rather than re-projected onto a geometry the blob lacks. See
+	// app.ChartAnchorsIfCurrent. Uploaded files have no source → no anchors.
 	var anchors []chartpdf.Anchor
 	if file.Generated {
 		if _, src, cerr := b.svc.ChartSource(actor, bandID, item.SongID, file.ID); cerr == nil {
-			if _, a, aerr := chartpdf.RenderWithAnchors(src); aerr == nil {
+			if a, ok := app.ChartAnchorsIfCurrent(src, file.BlobHash); ok {
 				anchors = a
 			}
 		}

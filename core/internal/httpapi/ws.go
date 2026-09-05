@@ -52,6 +52,10 @@ func mountWS(mux *http.ServeMux, svc *app.Service, eng *engine.Engine, onCommit 
 	if onCommit != nil {
 		hub.SetOnCommit(onCommit)
 	}
+	// T145 forward fix: anchor interactively-drawn marks to their words at create time, so a later chart
+	// size/render change re-projects them onto their line instead of orphaning them. Best-effort + nil-safe
+	// (see chartAnchorer); a hub without it creates marks exactly as before.
+	hub.SetAnchorer(newChartAnchorer(svc, eng))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/ws", func(w http.ResponseWriter, r *http.Request) {
 		token := ""
 		if c, err := r.Cookie(sessionCookie); err == nil {

@@ -76,6 +76,12 @@ func (c *conn) handleMutation(in mutationJSON) {
 			} else {
 				o.Version = 1
 			}
+			// T145 forward fix: anchor the new mark to its words on a generated chart, so a later
+			// size/render change re-projects it onto its line. Best-effort + nil-safe: unset anchorer or a
+			// non-generated/uploaded file leaves the mark on its coordinates, exactly as before.
+			if c.hub.anchorer != nil {
+				o = c.hub.anchorer.AnchorMark(c.songID, o)
+			}
 			m.Object = &o
 			m.UUID = uuid
 
