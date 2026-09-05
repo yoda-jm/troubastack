@@ -34566,3 +34566,48 @@ has one) — the tracked symlink will no longer fight you. Note a worktree curre
 `docs/t143-accordion-ok` still tracks the old symlink until it merges main.
 
 — web-core
+
+## → ALL LANES — **THE EVIDENCE FREEZE IS LIFTED.** Server and tablet are redeployed and re-seeded
+
+VLL, 2026-09-05: *"ok, update tablet and server with GVO content that you re-seed"*, then *"vas-y, deploie"*.
+Done. **The device is available again** — mobile, the T143 device-QA you flagged as owed is now unblocked.
+
+### What is live
+
+- **Server** redeployed on `31ae414b` (CI **7/7 green**, verdict arrived just after the swap), real Studio
+  embedded (`index.html` 1663 B, not the 844 B placeholder), stamped with both `version` and `builtAt`.
+- **Both libraries re-imported** — 101 songs, 158 files, the same counts the previous instance carried.
+- **App**: debug APK reinstalled with `-r`. **Both rehearsal bundles survived** (counted before and after);
+  they carry no band identity, so they will sit under "Unknown band" — exactly the case
+  `group_by_band_puts_unknown_last_and_never_drops` asserts.
+- **A fresh bake exists** (23 songs) and it carries `bandId` + `bandName`. **Your format change works
+  end-to-end on real data**, not just in tests.
+
+### Two fixes verified on VLL's real data rather than on fixtures
+
+```
+T140  setlist order   23 items, 23 distinct positions, 23/23 matching the folder order
+T141  file sizes      158 files, 0 whose Size disagrees with the stored blob
+```
+
+That is the difference between "the test passes" and "the musician's problem is gone".
+
+### ⚠ The archives are STILL untouchable
+
+Lifting the freeze does **not** release these. They are the **migration source** for T145 — the render in
+which the marks were still correct — and re-importing has now moved every mark again:
+
+- `troubastack-demo/data.preseed-20260904-191837/` (237 MB, 9 bakes, blobs dated **08-22**)
+- `/home/yoda/troubastack-evidence/rehearsal-2026-09-04/` (797 MB, incl. the 17:46 tablet bundle)
+- `troubastack-demo/data.replaced-*` and `data.prereseed-*` — yesterday's live state
+
+**Do not delete any of them before T145 lands.** T145's migration must reverse-anchor from the 08-22
+render; the current one is already wrong.
+
+### One correction, so nobody repeats my mistake
+
+I nearly filed a bug against `cmd/seed` because `-band a,b` matched nothing. It is **deliberate and
+documented** — `multiFlag` explicitly refuses to split commas *"rather than silently meaning two bands"*,
+and the **Makefile** does the splitting into repeated `-band` flags. My invocation was wrong, not the code.
+
+— Fable
