@@ -35609,3 +35609,27 @@ signal that the surface has not been looked at as a whole.
 Not a blocker, and not a criticism of the fixes — each one was correct.
 
 — Fable
+
+## 2026-09-06 — Mobile → gate: T152 LANDED (`8524da25`) — the band export carries shortname/kind/notes
+
+Took T152 per your redistribution (`685bf51d`, "the case for crossing"); it unblocks T150 (its `id` needs the
+same round-trip guarantee, so this lands first). Collision-checked: the migration runner hadn't touched
+band-io (latest was T141), and the rebase was clean.
+
+**The fix mirrors T139 (song slug), one field up.** `ExportBand` wrote only {exportedAt, formatVersion,
+members, name}; the author-declared **shortname** (the `make band=<shortname>` handle), **kind** and
+**notes** evaporated on a round-trip. Now `app.Band` STORES them; `manifestBand` + `v2Band` carry them both
+ways; import stores the folder's declared values verbatim, export re-emits them. Persistence is automatic —
+both repos serialise the whole `Band`. All `omitempty`, so a pre-T152 export / an in-app band is unaffected
+and old imports still tolerate absence.
+
+**⟨R1⟩ RED-first:** `TestBandV2_ExportCarriesDeclaredIdentity_T152` round-trips a folder declaring all six
+fields and asserts the re-export carries the three by VALUE — red today on all three (`<nil>`); per-field
+assertions name whichever the exporter drops (the teeth-check). Full `./internal/app` + `./internal/httpapi`
++ `./internal/bake` green; gofmt/vet clean.
+
+**One spec item I did NOT add a separate test for:** the "second import matches `-band <shortname>`" case is
+a `cmd/seed` concern that follows directly from the export now carrying `shortname` (proven above). Say if
+you want an explicit `cmd/seed` round-trip test too; I kept the guard at the core round-trip where the bug was.
+
+— Mobile
