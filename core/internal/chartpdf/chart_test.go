@@ -268,7 +268,7 @@ func TestParseHeaderDirectives(t *testing.T) {
 		{"blank after title: no header", "# S\n\n## V\nx", "", 11, false, nil},
 	}
 	for _, c := range cases {
-		sub, _, pt, sizeSet, skip := parseHeader(strings.Split(c.src, "\n"))
+		sub, _, pt, sizeSet, _, skip := parseHeader(strings.Split(c.src, "\n"))
 		if sub != c.wantSub || pt != c.wantPt {
 			t.Errorf("%s: (sub=%q, pt=%v), want (%q, %v)", c.name, sub, pt, c.wantSub, c.wantPt)
 		}
@@ -395,7 +395,7 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 // traceOf runs the shared layout in paginated trace mode and returns each drawn element's page+y+kind.
 func traceOf(src string) []placed {
 	lines := chartLines(src)
-	subtitle, _, bodyPt, _, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	var tr []placed
 	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, trace: &tr})
@@ -554,7 +554,7 @@ func TestT77_MeasureMatchesRender_MultiPage(t *testing.T) {
 // chosenSize is the size auto-fit would pick for a directive-less chart (test hook).
 func chosenSize(src string) float64 {
 	lines := chartLines(src)
-	sub, _, _, _, skip := parseHeader(lines)
+	sub, _, _, _, _, skip := parseHeader(lines)
 	return autoFitBodyPt(lines, sub, skip)
 }
 
@@ -685,7 +685,7 @@ func TestT76_AutoFit_ExplicitBreaksNotCounted(t *testing.T) {
 // re-revs every concert containing a text chart. This breaks intentionally when the layout is
 // legitimately tuned — the same cost we accept on the explicit-size path (ExplicitSizeByteStable).
 func TestT76_AutoFitByteStable(t *testing.T) {
-	src := "# Anchor Song\nArtist\n\n## Verse\nAm        C\na short line of lyric here\n\n## Chorus\nF         G\nanother line to sing along\n"
+	src := "# Anchor Song\nfit: page\nArtist\n\n## Verse\nAm        C\na short line of lyric here\n\n## Chorus\nF         G\nanother line to sing along\n"
 	b, err := Render(src)
 	if err != nil {
 		t.Fatal(err)

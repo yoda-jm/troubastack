@@ -11,7 +11,7 @@ import (
 
 // The fixture the anchor tests pin. Small but exercises every run kind: title, subtitle, section,
 // a chord+lyric pair, and a text line split by **bold** (the per-word case B13 needs).
-const anchorFixture = "# Amazing Grace\nJohn Newton, 1779\n\n## Verse 1\n" +
+const anchorFixture = "# Amazing Grace\nfit: page\nJohn Newton, 1779\n\n## Verse 1\n" +
 	"G        G7      C   G\nA-ma-zing grace, how sweet the sound\n\n" +
 	"That **saved** a wretch like me\nI once was lost, but now am found\n"
 
@@ -79,7 +79,7 @@ func TestAnchors_boxSpansItsTextAtItsPosition(t *testing.T) {
 		t.Fatalf("RenderWithAnchors: %v", err)
 	}
 	lines := chartLines(anchorFixture)
-	subtitle, _, _, _, skip := parseHeader(lines)
+	subtitle, _, _, _, _, skip := parseHeader(lines)
 	scale := autoFitBodyPt(lines, subtitle, skip) / defaultBodyPt
 
 	fontOf := func(text string) (fam, style string, ptmm float64) {

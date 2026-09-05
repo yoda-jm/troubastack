@@ -62,12 +62,14 @@
 // The left chart's "The Artist" is adjacent to the title → header subtitle. The
 // right chart has a blank after the title → no subtitle, body starts at Verse 1.
 //
-// Header-block directives (T74): on the lines immediately after `# Title`, before the
-// first blank line or `## section`, a line `size: N` sets the chart's font size (8–16 pt;
-// out of range → default). Everything (header, sections, chords, lyrics, spacing) scales
-// from it. It is the ONLY directive; any other `key: value` line is NOT a directive — it
-// stays the subtitle/body — so an artist "Foo: Bar" is unaffected. The directive may sit
-// before or after the artist line and is never printed in the body:
+// Header-block directives (T74/T146): on the lines immediately after `# Title`, before the
+// first blank line or `## section`, `size: N` sets the chart's font size (8–16 pt; out of
+// range → default) and everything scales from it, and `fit: page` (alias `fit: auto`) opts
+// into auto-fit — shrinking the type to keep the chart on one page (T146 ⟨D1⟩; WITHOUT it a
+// chart renders at the default size and paginates, and a manual `size:` overrides both).
+// Those are the only directives; any other `key: value` line is NOT a directive — it stays
+// the subtitle/body — so an artist "Foo: Bar" is unaffected. A directive may sit before or
+// after the artist line and is never printed in the body:
 //
 //	# My Song            # My Song
 //	size: 13             The Artist
@@ -229,8 +231,12 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 	if err := validateTabWidth(lines); err != nil { // T135: refuse a tab that can't fit even at the floor
 		return nil, nil, 0, err
 	}
-	subtitle, _, bodyPt, sizeSet, skip := parseHeader(lines)
-	if !sizeSet {
+	subtitle, _, bodyPt, sizeSet, autoFit, skip := parseHeader(lines)
+	// T146 ⟨D1⟩ (VLL): auto-fit is OPT-IN, never the default. Without a `fit:` directive a chart renders at
+	// defaultBodyPt and paginates — so every chart in a setlist reads at one size, and adding a lyric line
+	// no longer re-sizes the whole chart. Only `fit: page` opts into T76's shrink-to-one-page; a manual
+	// `size:` still overrides both.
+	if !sizeSet && autoFit {
 		bodyPt = autoFitBodyPt(lines, subtitle, skip) // T76: largest size that keeps every segment on its page
 	}
 	scale := bodyPt / defaultBodyPt
@@ -258,7 +264,7 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 // contentHeight().
 func measure(source string) float64 {
 	lines := chartLines(source)
-	subtitle, _, bodyPt, _, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true})
 }
@@ -269,7 +275,7 @@ func measure(source string) float64 {
 // from measure()'s paginated end-y.
 func contentHeight(source string) float64 {
 	lines := chartLines(source)
-	subtitle, _, bodyPt, _, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: false})
 }
@@ -710,6 +716,11 @@ const (
 // is unaffected. Adding a second key later is a deliberate decision (T74).
 var reSizeDirective = regexp.MustCompile(`(?i)^size\s*:\s*(\d+)$`)
 
+// reFitDirective — T146 ⟨D1⟩: the opt-IN to auto-fit. `fit: page` (alias `fit: auto`) shrinks the body
+// type to keep the whole chart on one page; without it a chart renders at defaultBodyPt and paginates.
+// Same header vocabulary as `size:`; a manual `size:` still overrides it.
+var reFitDirective = regexp.MustCompile(`(?i)^fit\s*:\s*(page|auto)$`)
+
 // parseHeader scans the header block — the contiguous non-blank lines after `# Title`, before the
 // first blank line or `## section` — for the `size` directive and the subtitle. It returns the
 // subtitle text + line index (or -1), the body point size (default when the directive is
@@ -720,7 +731,7 @@ var reSizeDirective = regexp.MustCompile(`(?i)^size\s*:\s*(\d+)$`)
 // it is not a chord row. Zero or ≥2 non-directive lines → no subtitle (a title running straight
 // into body is not a header). Both `size`/artist orders work; `size: 99`/`size: abc` don't set a
 // size but the numeric one is still consumed.
-func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, sizeSet bool, skip map[int]bool) {
+func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, sizeSet bool, autoFit bool, skip map[int]bool) {
 	bodyPt, subIdx, skip = defaultBodyPt, -1, map[int]bool{}
 	t := -1
 	for i, l := range lines {
@@ -749,6 +760,13 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 			skip[i] = true // consumed whether or not the value was in range
 			continue
 		}
+		if reFitDirective.MatchString(s) {
+			// T146 ⟨D1⟩: opt IN to auto-fit. Consumed like `size:`; the render pass shrinks the type only
+			// when this is present. A manual `size:` above still wins (sizeSet disables auto-fit).
+			autoFit = true
+			skip[i] = true
+			continue
+		}
 		if isNewPageMarker(s) {
 			skip[i] = true // a leading {new_page} in the header block: consumed, never a subtitle
 			continue
@@ -767,7 +785,7 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 
 // subtitleOf is retained for the T70 tests: the subtitle text + index only.
 func subtitleOf(lines []string) (string, int) {
-	s, i, _, _, _ := parseHeader(lines)
+	s, i, _, _, _, _ := parseHeader(lines)
 	return s, i
 }
 
