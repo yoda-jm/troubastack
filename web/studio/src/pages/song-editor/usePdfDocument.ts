@@ -27,6 +27,7 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { renderObjects, type InkObject } from "@troubastack/ink";
 import { api, type AnnotationLayer, type AnnotationObject, type SongFile } from "../../api";
 import { toInkObject, compareObjectZ, rasterDpr, budgetedRasterDpr, type LayerVisibility } from "./helpers";
+import { PDF_RENDER_OPTIONS } from "./pdfOptions";
 
 // Discrete percentage stops the −/+ buttons step through.
 export const ZOOM_PERCENTS = [50, 75, 100, 125, 150, 200, 300];
@@ -150,7 +151,9 @@ export function usePdfDocument(args: {
         // T112: lazily pull pdf.js only now, when a PDF is actually being opened.
         const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
         GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-        const loadingTask = getDocument({ data: bytes });
+        // T151: ...PDF_RENDER_OPTIONS forces the main-thread canvas — the OffscreenCanvas path renders
+        // blank in the Android WebView (the editor was a blank page on the tablet).
+        const loadingTask = getDocument({ data: bytes, ...PDF_RENDER_OPTIONS });
         const pdfDoc = await loadingTask.promise;
         if (cancelled) {
           void pdfDoc.destroy();

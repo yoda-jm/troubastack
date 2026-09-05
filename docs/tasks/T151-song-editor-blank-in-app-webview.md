@@ -1,7 +1,11 @@
 # T151 — The song editor is blank in the app's WebView (pdf.js live render)
 
-**Lane:** web-core (studio SPA / pdf.js), with a mobile verification leg. **Size:** S–M. **Status:** spec,
-2026-09-05, from VLL on the tablet + a mobile device-investigation. **Routing:** filed by mobile, routed to
+**Lane:** web-core (studio SPA / pdf.js), with a mobile verification leg. **Size:** S–M. **Status:** fixed
+2026-09-05 (web-core) — `getDocument` now spreads `PDF_RENDER_OPTIONS` (`isOffscreenCanvasSupported: false`)
+at `usePdfDocument.ts:153`, forcing the main-thread canvas the WebView paints. Red-first guard
+(`test/pdf-render-options.test.ts`) pins the flag AND asserts every getDocument call spreads it (no tablet
+needed). Did NOT use the mobile `LAYER_TYPE_SOFTWARE` fallback. **Awaiting the mobile device-verify leg**
+on the tablet (the acceptance). Originally from VLL on the tablet + a mobile device-investigation. **Routing:** filed by mobile, routed to
 web-core — the reproduction is a WebView, but the failing code is the studio editor's live PDF render.
 
 ## What VLL reported
