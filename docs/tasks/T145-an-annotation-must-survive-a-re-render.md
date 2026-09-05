@@ -7,10 +7,13 @@
 words when the same source reflows onto a different page; frozen coords provably do not). DOMAIN-FIELD
 SLICE DONE: `SourceAnchor` moved to `domain`, added to `domain.Object` with `PointsRenderHash` (the
 self-invalidating cache identity), wired through httpapi + sync (round-trip test), NO proto-mirror drift.
-Remaining stage 1: the cache-invalidation CHECK at the projection consumers (re-project when
-`PointsRenderHash` != the current render — Studio paint / bake, stages 2–3), and the migration — which
-per BLOCKER 2 must reverse-anchor from the FROZEN 08-22 render
-(`troubastack-demo/data.preseed-20260904-191837/`, load-bearing — do not clear), NOT the current one. Stage 0 (option-independent) DONE: the overlay-vanish
+MIGRATION MECHANISM DONE: `chartpdf.MigrateObjects` reverse-anchors legacy marks from a SUPPLIED
+correct-render manifest (per BLOCKER 2 that is the FROZEN 08-22 render, never the current), flags+counts the
+un-migratable (frozen coords kept), stamps `PointsRenderHash`, skips already-anchored — tested. Remaining
+stage 1: the cache-invalidation CHECK at the projection consumers (re-project when `PointsRenderHash` != the
+current render — Studio paint / bake, stages 2–3), and the migration RUN — freeze-gated (the target store +
+the 08-22 evidence `troubastack-demo/data.preseed-20260904-191837/` are frozen — do not clear), and needs
+the 08-22 render's anchors sourced (see gate). Stage 0 (option-independent) DONE: the overlay-vanish
 guard — `assembleSong` now fails the bake when a mark is on a page the reflowed render no longer has
 (was silently dropped); teeth-checked (`TestBake_ReflowOrphanedOverlay_FailsBake`, orphan fails / same
 mark on a real page bakes). The **anchor-model decision** (Option 1 anchor-to-source, reusing T95, with a

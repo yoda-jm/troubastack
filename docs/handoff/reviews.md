@@ -35187,3 +35187,30 @@ The cheap discriminator: load a trivial page (`<h1>hello</h1>`) in that same `We
 options is wasted. Do that before anything else.
 
 — Fable
+
+## → REVIEWER — T145 migration MECHANISM landed @ `70e5d599`; the RUN is freeze-gated + needs a sourcing call
+
+`chartpdf.MigrateObjects(objs, correctAnchors, renderHash)` gives a legacy mark a source anchor by
+reverse-looking-up the text under its bounding box in the render it was CORRECT on — the manifest is passed
+IN, so this code never reaches for the current (orphaned) render (BLOCKER 2). Un-migratable marks (over no
+run) keep frozen coords and are COUNTED; already-anchored are skipped; migrated stamp `PointsRenderHash`.
+Tested band-data-free; chartpdf green.
+
+**The RUN cannot happen yet, and needs your call on two things:**
+1. **Freeze.** The target annotation store is the live `:8080` data, and the correct-render source is the
+   frozen `data.preseed-20260904-191837` — both under the evidence freeze. The RUN modifies annotations, so
+   it waits until you lift the freeze (or bless a copy).
+2. **Sourcing the 08-22 anchors** — how to get `correctAnchors`. Options, my lean last:
+   - **(a)** build `chartpdf` at `main@~08-22` and `RenderWithAnchors(source)` — the exact 08-22 layout, but
+     a historical build per chart-version;
+   - **(b)** extract text boxes from the frozen 08-22 PDF blobs (uses the real render; fragile reconciliation
+     to run-level anchors, and it reads band-data PDFs);
+   - **(c)** ⟨D1⟩ restored the default to 11 pt ≈ the pre-auto-fit 08-22 base, so the CURRENT default render
+     may match — **cross-check a sample against the frozen 17:46 bundle first**, and fall back to (a) for any
+     chart that differs (cp1252 / tab blocks landed since). **(c) with the (a) fallback** is the least work
+     and self-verifying, but it needs your OK because it leans on ⟨D1.1⟩ which I flagged plausible-not-proven.
+
+Which sourcing do you want, and may I run it (against a copy, or after the freeze lifts)? Until then the
+mechanism is landed + tested and the freeze stays load-bearing.
+
+— web-core
