@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"troubastack/core/internal/app"
+	"troubastack/core/internal/chartpdf"
 	"troubastack/core/internal/domain"
 	"troubastack/core/internal/engine"
 )
@@ -109,7 +110,55 @@ func (a *AnnotationsAPI) getAnnotations(w http.ResponseWriter, r *http.Request, 
 		writeErr(w, err)
 		return
 	}
+	snap = a.reprojectSnapshot(u, r.PathValue("bandId"), song.ID, snap)
 	writeJSON(w, http.StatusOK, snapshotToJSON(snap))
+}
+
+// reprojectSnapshot re-projects any mark whose cached coordinates predate its chart file's current render
+// (T145 forward fix, serve side), so the editor draws the mark on its words after a size/render change.
+// Per generated file referenced by a layer: render the source for the anchor manifest and re-project that
+// file's marks against the file's BlobHash. Best-effort + read-only: a file with no source (an uploaded
+// PDF) or a render error leaves its marks on their stored coordinates.
+func (a *AnnotationsAPI) reprojectSnapshot(u app.User, bandID, songID string, snap domain.Snapshot) domain.Snapshot {
+	fileByLayer := make(map[string]string, len(snap.Layers))
+	for _, l := range snap.Layers {
+		fileByLayer[l.ID] = l.FileID
+	}
+	type manifest struct {
+		anchors []chartpdf.Anchor
+		hash    string
+	}
+	byFile := map[string]*manifest{} // fileID -> manifest (nil entry = no source / uncacheable)
+	resolve := func(fileID string) *manifest {
+		if fileID == "" {
+			return nil
+		}
+		if m, seen := byFile[fileID]; seen {
+			return m
+		}
+		byFile[fileID] = nil // default: not re-projectable
+		sf, src, err := a.svc.ChartSource(u, bandID, songID, fileID)
+		if err != nil {
+			return nil
+		}
+		if _, anchors, rerr := chartpdf.RenderWithAnchors(src); rerr == nil {
+			byFile[fileID] = &manifest{anchors: anchors, hash: sf.BlobHash}
+		}
+		return byFile[fileID]
+	}
+	objs := make([]domain.Object, len(snap.Objects))
+	for i, o := range snap.Objects {
+		objs[i] = o
+		if o.Anchor == nil {
+			continue
+		}
+		if m := resolve(fileByLayer[o.LayerID]); m != nil {
+			rp, _ := chartpdf.Reproject([]domain.Object{o}, m.anchors, m.hash)
+			objs[i] = rp[0]
+		}
+	}
+	snap.Objects = objs
+	return snap
 }
 
 // liveSetlists (P201 stage 2b) returns the band's setlists that are in rehearsal live
