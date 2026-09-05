@@ -29,6 +29,47 @@ identity is **minted per import** instead of **declared by the folder**.
   re-import updates the existing one instead of adding a twin. Use its declared name if there is no id;
   say which, and make it explicit in the folder format rather than implicit in the importer.
 
+## ⟨D2⟩ VLL, same conversation: it must survive a from-scratch re-seed too
+
+*"et aussi quand on reinsere from scratch ce serait cool de garder le meme ID non ?"*
+
+**Yes — and this changes the design, so read it before implementing the section above.** Lookup-by-shortname
+makes an import idempotent *within one server*. A from-scratch re-seed has an empty store and nothing to
+look up, so the id must not be **found** — it must be **declared by the folder**.
+
+Which is this repo's own standing ruling, applied one level up: **an identity is stored, not derived**
+(T139). I specified only half of it.
+
+### The shape
+
+- **`band.json` carries an explicit `id`** — a UUID minted once when the folder is created, then never
+  changed. The importer uses it **verbatim**. Two seeds into two empty stores produce the same band id.
+- **Each entry in `setlists.json` carries an explicit `id`**, same rule.
+- **Songs need no new field.** T139 already gave them a declared, unique-per-band `slug`, so derive the
+  song id deterministically as **UUIDv5(band id, slug)**. Namespacing on the band's *declared* id — not on
+  the shortname — means two bands that happen to share a shortname on different servers cannot collide.
+- Keep the shortname lookup from the section above as a **fallback** for folders that predate `id`, and as
+  the uniqueness check.
+
+### The migration this makes possible, which is better than adoption
+
+When adopting an existing band, **write its CURRENT id back into `band.json`** rather than minting a new
+one. Then:
+
+- everything already on a device keeps matching — **VLL's existing tablet bundles stay valid**, which the
+  shortname-only design could not deliver;
+- the folder becomes the durable record from that moment on;
+- and the change is visible in his library as a normal file edit, not a hidden server-side mapping.
+
+Do the same for setlists and for the song slugs already stored. **Say how many ids were written back.**
+
+### ⟨R1⟩ additions
+
+- **Two seeds into two EMPTY stores produce identical band, setlist and song ids.** This is the assertion
+  that ⟨D2⟩ exists for, and no amount of lookup logic can pass it.
+- A folder with no `id` still imports (fallback), and adoption **writes one in**.
+- Changing a band's `shortname` does **not** change its id — that is the whole point of declaring it.
+
 ## Migration, which is the part that needs care
 
 Existing bands have **no** shortname, so the first import after this lands cannot match on it.
