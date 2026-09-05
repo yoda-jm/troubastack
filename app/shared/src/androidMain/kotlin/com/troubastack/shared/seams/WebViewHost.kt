@@ -32,6 +32,17 @@ actual class WebViewHost(context: Context) {
     private var handler: ((String) -> Unit)? = null
 
     val view: WebView = WebView(context).apply {
+        // T151: give the WebView EXPLICIT match_parent LayoutParams. Compose's AndroidView holder
+        // adds the view with ViewGroup's default (wrap_content) params, and Chromium's AwLayoutSizer
+        // turns a wrap_content HEIGHT into ForceZeroLayoutHeight — Blink then lays the page out with
+        // a 0-height layout viewport: every vh/svh/dvh unit and `html { height:100% }` resolve to 0
+        // while innerHeight stays correct. Studio's full-bleed editor is sized in 100svh, so its
+        // whole shell collapsed to 0px under overflow:hidden — the blank page. Plain DOM pages
+        // never noticed because they size from content, not from the viewport.
+        layoutParams = android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+        )
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true      // Studio keeps its session/login here
         settings.allowFileAccess = false       // safe default — no local file access
