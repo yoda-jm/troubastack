@@ -65,10 +65,12 @@ const BandExportFormatVersionV2 = 2
 // --- v2 wire shapes ------------------------------------------------------------------
 
 type v2Band struct {
-	FormatVersion int        `json:"formatVersion"`
-	ExportedAt    string     `json:"exportedAt,omitempty"`
-	Name          string     `json:"name"`
-	Members       []v2Member `json:"members"`
+	FormatVersion int    `json:"formatVersion"`
+	ExportedAt    string `json:"exportedAt,omitempty"`
+	// T150: the band's durable declared id (see manifestBand.ID). omitempty — a pre-T150 folder has none.
+	ID      string     `json:"id,omitempty"`
+	Name    string     `json:"name"`
+	Members []v2Member `json:"members"`
 	// Shortname/Kind/Notes are the band's author-declared identity. T152: the app now STORES them (app.Band)
 	// and both import and export carry them, so `make band=<shortname>` keeps working across a round-trip
 	// (previously an export dropped them). Still omitempty: a pre-T152 export / an in-app band omits them.
@@ -121,6 +123,8 @@ type v2SetlistsFile struct {
 }
 
 type v2Setlist struct {
+	// T150: the setlist's durable declared id. omitempty — a pre-T150 folder has none.
+	ID        string          `json:"id,omitempty"`
 	Name      string          `json:"name"`
 	EventDate string          `json:"eventDate,omitempty"`
 	Venue     string          `json:"venue,omitempty"`
@@ -218,8 +222,8 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 	// Member id -> username (for owner refs). Also emit band.json members.
 	userByID := map[string]string{}
 	band := v2Band{
-		FormatVersion: BandExportFormatVersionV2, ExportedAt: man.ExportedAt, Name: man.Band.Name,
-		// T152: emit the author-declared identity so a folder round-trip preserves it.
+		FormatVersion: BandExportFormatVersionV2, ExportedAt: man.ExportedAt, ID: man.Band.ID, Name: man.Band.Name,
+		// T150/T152: emit the declared id + author-declared identity so a folder round-trip preserves them.
 		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
 	}
 	for _, m := range man.Members {
@@ -323,7 +327,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 	// Setlists.
 	sls := v2SetlistsFile{}
 	for _, msl := range man.Setlists {
-		vsl := v2Setlist{Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes}
+		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes}
 		for _, it := range msl.Items {
 			slug := slugBySong[it.SongRef]
 			if slug == "" {
@@ -421,8 +425,9 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersionV2,
 		ExportedAt:    band.ExportedAt,
-		// T152: carry the folder's declared identity into the manifest so import stores it.
-		Band:        manifestBand{Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
+		// T150/T152: carry the folder's declared identity (id + shortname/kind/notes) into the manifest so
+		// import resolves + stores it.
+		Band:        manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
 		Annotations: map[string]manifestAnnots{},
 	}
 
@@ -556,7 +561,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 		}
 	}
 	for _, vsl := range sls.Setlists {
-		msl := manifestSetlist{Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes}
+		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes}
 		for idx, it := range vsl.Items {
 			songID, ok := songIDBySlug[it.Song]
 			if !ok {

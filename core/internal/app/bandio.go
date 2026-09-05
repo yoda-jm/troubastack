@@ -22,8 +22,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,6 +71,10 @@ type bandManifest struct {
 }
 
 type manifestBand struct {
+	// T150: the band's DURABLE id, declared by the folder. Used verbatim on import so a re-seed (even into
+	// an empty store) resolves to the same band instead of minting a twin. Empty for a pre-T150 folder →
+	// import falls back to shortname/name adoption, then a minted id.
+	ID   string `json:"id,omitempty"`
 	Name string `json:"name"`
 	// T152: author-declared identity, carried through the manifest so it survives a round-trip.
 	Shortname string `json:"shortname,omitempty"`
@@ -113,6 +119,9 @@ type manifestFile struct {
 }
 
 type manifestSetlist struct {
+	// T150: the setlist's declared durable id (same rule as the band's). Empty → import derives a stable id
+	// from the band id + setlist name.
+	ID        string         `json:"id,omitempty"`
 	Name      string         `json:"name"`
 	EventDate string         `json:"eventDate,omitempty"`
 	Venue     string         `json:"venue,omitempty"`
@@ -243,7 +252,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 	man := bandManifest{
 		FormatVersion: BandExportFormatVersion,
 		ExportedAt:    s.now().UTC().Format(time.RFC3339),
-		Band:          manifestBand{Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
+		Band:          manifestBand{ID: band.ID, Name: band.Name, Shortname: band.Shortname, Kind: band.Kind, Notes: band.Notes},
 		Annotations:   map[string]manifestAnnots{},
 	}
 
@@ -325,7 +334,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		return nil, "", err
 	}
 	for _, sl := range setlists {
-		msl := manifestSetlist{Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes}
+		msl := manifestSetlist{ID: sl.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes}
 		items, err := s.repo.ItemsOfSetlist(sl.ID)
 		if err != nil {
 			return nil, "", err
@@ -523,6 +532,87 @@ func (s *Service) PreviewImport(caller User, zipBytes []byte) (ImportPreview, er
 // ImportBand creates a NEW band from a .tband zip, owned by (and admin for) the caller.
 // All-or-nothing: the whole manifest is validated before anything is written.
 //
+// ownedBands returns the bands owned by userID (the caller can only adopt bands they own — importing a
+// folder must never let a same-named folder take over another owner's band).
+func (s *Service) ownedBands(userID string) ([]Band, error) {
+	all, err := s.repo.BandsForUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	owned := make([]Band, 0, len(all))
+	for _, b := range all {
+		if b.OwnerID == userID {
+			owned = append(owned, b)
+		}
+	}
+	return owned, nil
+}
+
+// resolveBandIdentity (T150) decides the durable band id for an import and whether it UPDATES an existing
+// caller-owned band (existing != nil) or creates a new one. Resolution order, most-explicit first:
+//
+//  1. a declared band.json `id` — adopt the caller's band with that id; if the id is FREE, create with it
+//     verbatim (this is what makes a from-scratch re-seed into an empty store reproduce the same id); if it
+//     belongs to ANOTHER user it is a shared/copied folder, so mint a fresh id (the importer gets their own
+//     band and the original owner's is never overwritten — Create* is overwrite-by-id, so reusing it would
+//     clobber the other band).
+//  2. `shortname` — adopt the caller's band with that shortname; else a new minted id (the folder has no
+//     durable id yet, so it cannot be reproduced from scratch — a later export writes one in).
+//  3. `name` — the pre-T150 migration case: adopt the caller's UNIQUE shortname-less band of that name;
+//     REFUSE (ErrConflict) when two match — guessing would merge two histories irreversibly.
+//
+// Empty everything ⇒ a new minted id.
+func (s *Service) resolveBandIdentity(caller User, mb manifestBand) (string, *Band, error) {
+	owned, err := s.ownedBands(caller.ID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if mb.ID != "" {
+		for i := range owned {
+			if owned[i].ID == mb.ID {
+				return mb.ID, &owned[i], nil // the caller's own band → adopt (update in place)
+			}
+		}
+		if other, gerr := s.repo.GetBand(mb.ID); gerr == nil {
+			if other.OwnerID == caller.ID {
+				b := other
+				return mb.ID, &b, nil // caller owns it (defensive: not surfaced by ownedBands) → adopt
+			}
+			// Belongs to another user — a shared/copied folder. Give the importer a fresh band; never take
+			// over or overwrite the original owner's.
+			return s.newID(), nil, nil
+		}
+		return mb.ID, nil, nil // id free → create verbatim (from-scratch re-seed stability)
+	}
+
+	if sn := strings.TrimSpace(mb.Shortname); sn != "" {
+		for i := range owned {
+			if owned[i].Shortname == sn {
+				return owned[i].ID, &owned[i], nil
+			}
+		}
+		return s.newID(), nil, nil
+	}
+
+	name := strings.TrimSpace(mb.Name)
+	var match *Band
+	n := 0
+	for i := range owned {
+		if owned[i].Shortname == "" && owned[i].Name == name {
+			match = &owned[i]
+			n++
+		}
+	}
+	if n > 1 {
+		return "", nil, fmt.Errorf("%w: %d bands named %q with no shortname — refusing to adopt (it would merge their histories); declare an id or shortname in band.json", ErrConflict, n, name)
+	}
+	if n == 1 {
+		return match.ID, match, nil
+	}
+	return s.newID(), nil, nil
+}
+
 // SECURITY (T63): membership is CONSENT-REQUIRED. The importer is the band admin; every
 // other manifest member is dispositioned — a pre-existing account (a username already on
 // this server) may only be invited (default) or skipped, NEVER silently attached (that was
@@ -562,15 +652,29 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 
 	// ---- create (validation passed) ----
 	now := s.now().UTC()
+
+	// T150: resolve the DURABLE band id so a re-seed updates the same band instead of minting a twin.
+	bandID, existingBand, err := s.resolveBandIdentity(caller, man.Band)
+	if err != nil {
+		return ImportReport{}, err
+	}
 	band := Band{
-		ID: s.newID(), Name: strings.TrimSpace(man.Band.Name), OwnerID: caller.ID, CreatedAt: now,
+		ID: bandID, Name: strings.TrimSpace(man.Band.Name), OwnerID: caller.ID, CreatedAt: now,
 		// T152: store the folder's declared identity verbatim so a later export re-emits it.
 		Shortname: man.Band.Shortname, Kind: man.Band.Kind, Notes: man.Band.Notes,
 	}
 	if band.Name == "" {
 		band.Name = "Imported band"
 	}
-	if err := s.repo.CreateBand(band); err != nil {
+	if existingBand != nil {
+		// Adopt: keep the durable id + the band's original ownership/creation time; refresh the folder's
+		// declared metadata (this is also where a name-adopted legacy band gets its shortname written in).
+		band.OwnerID = existingBand.OwnerID
+		band.CreatedAt = existingBand.CreatedAt
+		if err := s.repo.UpdateBand(band); err != nil {
+			return ImportReport{}, err
+		}
+	} else if err := s.repo.CreateBand(band); err != nil {
 		return ImportReport{}, err
 	}
 
@@ -648,13 +752,16 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 			memberMap[m.ID] = u.ID
 			usernameToNewID[m.Username] = u.ID
 			report.Created = append(report.Created, m.Username)
-			if err := s.repo.AddMembership(Membership{BandID: band.ID, UserID: u.ID, Role: m.Role, CreatedAt: now}); err != nil {
+			// T150: a re-import into an adopted band may re-add an existing membership — tolerate the
+			// duplicate-key conflict (idempotent) rather than fail the whole re-seed.
+			if err := s.repo.AddMembership(Membership{BandID: band.ID, UserID: u.ID, Role: m.Role, CreatedAt: now}); err != nil && !errors.Is(err, ErrConflict) {
 				return ImportReport{}, err
 			}
 		}
 	}
-	// The importer is always an admin member + the owner, whether or not in the manifest.
-	if err := s.repo.AddMembership(Membership{BandID: band.ID, UserID: caller.ID, Role: RoleAdmin, CreatedAt: now}); err != nil {
+	// The importer is always an admin member + the owner, whether or not in the manifest. T150: a re-import
+	// into an adopted band already has this membership — tolerate the conflict (idempotent).
+	if err := s.repo.AddMembership(Membership{BandID: band.ID, UserID: caller.ID, Role: RoleAdmin, CreatedAt: now}); err != nil && !errors.Is(err, ErrConflict) {
 		return ImportReport{}, err
 	}
 
@@ -662,10 +769,17 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 	songMap := map[string]string{} // orig songID → new songID
 	fileMap := map[string]string{} // orig fileID → new fileID
 	for _, sg := range man.Songs {
+		// T150: a stable song id derived from the band id + declared slug, so a re-import UPDATES the song
+		// (Create* is overwrite-by-id) rather than adding a twin, and a from-scratch re-seed reproduces it.
+		// A v1/pre-T139 song has no slug → fall back to a minted id (no determinism possible without a key).
+		sid := s.newID()
+		if sg.Slug != "" {
+			sid = uuidV5(band.ID, "song:"+sg.Slug)
+		}
 		ns := Song{
 			// T139: store the declared slug verbatim (v2/folder). A v1 import has none, so Slug stays ""
 			// and export derives it lazily — NOT derived-and-stored here, which would be a title backfill.
-			ID: s.newID(), BandID: band.ID, Slug: sg.Slug, Title: sg.Title, Artist: sg.Artist, Key: sg.Key,
+			ID: sid, BandID: band.ID, Slug: sg.Slug, Title: sg.Title, Artist: sg.Artist, Key: sg.Key,
 			Tempo: sg.Tempo, Meter: sg.Meter, Tags: sg.Tags, Notes: sg.Notes, CreatedAt: now,
 		}
 		if err := s.repo.CreateSong(ns); err != nil {
@@ -688,8 +802,14 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 				hash = h
 				size = int64(len(data))
 			}
+			// T150: stable file id derived from the song id + filename (unique within a song), so a re-import
+			// overwrites the file rather than adding a duplicate. A file with no name falls back to minted.
+			fid := s.newID()
+			if sg.Slug != "" && f.Filename != "" {
+				fid = uuidV5(ns.ID, "file:"+f.Filename)
+			}
 			nf := SongFile{
-				ID: s.newID(), SongID: ns.ID, BandID: band.ID, Filename: f.Filename, ContentType: f.ContentType,
+				ID: fid, SongID: ns.ID, BandID: band.ID, Filename: f.Filename, ContentType: f.ContentType,
 				Size: size, BlobHash: hash, DisplayOrder: f.DisplayOrder, UploadedBy: caller.ID, CreatedAt: now,
 				Generated: f.Generated, Revision: f.Revision,
 			}
@@ -779,14 +899,20 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 
 	// Setlists + items.
 	for _, sl := range man.Setlists {
-		nsl := Setlist{ID: s.newID(), BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, CreatedAt: now}
+		// T150: use the declared setlist id, else derive a stable one from the band id + setlist name, so a
+		// re-import updates the setlist in place. Items get a stable id from the setlist id + position.
+		slid := sl.ID
+		if slid == "" {
+			slid = uuidV5(band.ID, "setlist:"+sl.Name)
+		}
+		nsl := Setlist{ID: slid, BandID: band.ID, Name: sl.Name, EventDate: sl.EventDate, Venue: sl.Venue, Notes: sl.Notes, CreatedAt: now}
 		if err := s.repo.CreateSetlist(nsl); err != nil {
 			return ImportReport{}, err
 		}
 		report.Setlists++
 		for _, it := range sl.Items {
 			ni := SetlistItem{
-				ID: s.newID(), SetlistID: nsl.ID, SongID: songMap[it.SongRef], Position: it.Position,
+				ID: uuidV5(nsl.ID, "item:"+strconv.Itoa(it.Position)), SetlistID: nsl.ID, SongID: songMap[it.SongRef], Position: it.Position,
 				KeyOverride: it.KeyOverride, TempoOverride: it.TempoOverride, Notes: it.Notes,
 				OnCall: it.OnCall, TransposeChords: it.TransposeChords,
 			}

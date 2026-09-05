@@ -2,6 +2,7 @@ package app
 
 import (
 	"crypto/rand"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -2325,6 +2326,41 @@ func newUUID() string {
 	b[6] = (b[6] & 0x0f) | 0x40 // version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// uuidV5 derives a deterministic RFC 4122 v5 (SHA-1) UUID from a namespace + name. T150 uses it so a
+// song/setlist id is a pure function of the band's declared id + the entity's declared key (slug / name),
+// which makes a from-scratch re-seed produce identical ids in any empty store. The namespace is parsed as a
+// UUID when it is one (the canonical v5 construction); a non-UUID namespace hashes its raw bytes, so a
+// declared id that is not itself a UUID still yields a stable, collision-resistant result.
+func uuidV5(namespace, name string) string {
+	ns, ok := parseUUIDBytes(namespace)
+	if !ok {
+		ns = []byte(namespace)
+	}
+	h := sha1.New()
+	h.Write(ns)
+	h.Write([]byte(name))
+	sum := h.Sum(nil)
+	var b [16]byte
+	copy(b[:], sum[:16])
+	b[6] = (b[6] & 0x0f) | 0x50 // version 5
+	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// parseUUIDBytes decodes a canonical 8-4-4-4-12 hex UUID string to its 16 bytes. ok is false for any other
+// shape (so uuidV5 falls back to hashing the raw string).
+func parseUUIDBytes(s string) ([]byte, bool) {
+	if len(s) != 36 || s[8] != '-' || s[13] != '-' || s[18] != '-' || s[23] != '-' {
+		return nil, false
+	}
+	hexOnly := s[0:8] + s[9:13] + s[14:18] + s[19:23] + s[24:36]
+	b, err := hex.DecodeString(hexOnly)
+	if err != nil {
+		return nil, false
+	}
+	return b, true
 }
 
 func newToken() string {
