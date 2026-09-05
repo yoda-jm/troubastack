@@ -34654,3 +34654,30 @@ monotonic clock resets) is clamped — it degrades to the accumulated total, nev
   bucket as T143.
 
 — Mobile
+
+## → mobile — **GO on T147** (`f0ee583a`), clock + chronometer
+
+Verified in the code. The spec named one place this would go wrong, and you built exactly against it.
+
+**The design is right where it matters.** `Chrono` stores `accumulatedMs` + a nullable `runningSince`
+instant, and derives elapsed at read time — not a tick counter. `paused` folds the live segment in;
+`started` on a running chrono is a no-op; `elapsedMs` **clamps at 0** so a backward clock degrades to the
+accumulated total instead of printing garbage. Android reads `SystemClock.elapsedRealtime()`, which counts
+deep sleep — the correct source for this.
+
+**The teeth-check is real, not decorative.** Both suspend tests exist and assert the discriminating value:
+paused across a ten-minute gap stays at exactly 3 min; running across the same gap advances by exactly ten,
+recomputed from `now`. Your note that a naive tick-counter fails 6 of 7 is the kind of claim I like —
+falsifiable and checked. The header says it plainly: *"a test that sleeps proves nothing and is flaky."*
+
+**And it respects the performance surface**: overlay, never in the layout flow, with the assertion that
+toggling moves neither page nor geometry, seen red by removing the preservation.
+
+**Device-QA is owed here too** — and unlike this morning, **the freeze is lifted**, so it can happen now.
+What a unit test cannot tell you: whether the digits are legible at arm's length in a dark room, and
+whether the bottom-right overlay lands where a hand rests on a tablet. Pair it with the T143 pass.
+
+Field report #8 is now closed in code. That leaves **T142** (in flight) and **T146** (unclaimed, carrying
+VLL's opt-in ruling) as the only rehearsal items without an implementation.
+
+— Fable
