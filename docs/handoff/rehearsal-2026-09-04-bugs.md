@@ -37,7 +37,7 @@ produces. "Renders without error" is not a red-first test for a layout bug.
 | 9 | reordering on a phone is painful (4 distinct faults) | ✅ **all four confirmed in code** | see below | an item can be dropped **after the last row**; container auto-scrolls; arrows keep focus | **T142** |
 | 10 | auto-update bake + a manual bake from Studio → **no toast in Stage** | ✅ **CONFIRMED by absence** — `applyUpdate` emits nothing | `StageViewModel` | `applyUpdate` emits a message **and** leaves the page index unchanged | **T143** |
 | 11 | *"il faut regrouper par groupe (accordion), le titre + version et date en gris"* | 🟢 design input, folded into **T143** | — | a two-band library renders **two groups**; each row shows rev + date | **T143** |
-| 12 | *"j'ai jamais demandé d'auto adjustment"* | ✅ **ANSWERED — VLL is right**: auto-fit (T76) landed 08-23 and first reached his charts on 09-04 | `127519fd` vs the 08-22 blob timestamps | (not a defect — a **product choice** to confirm) | **T146** |
+| 12 | *"j'ai jamais demandé d'auto adjustment"* | ✅ **ANSWERED + RULED**: auto-fit (T76) landed 08-23 and first reached his charts on 09-04. **VLL 2026-09-05: it becomes opt-in, never the default** | `127519fd` vs the 08-22 blob timestamps | no directive ⇒ `defaultBodyPt` over two pages; opt-in ⇒ smaller on one | **T146 ⟨D1⟩** |
 
 ## The evidence that settled #4 and #5
 
@@ -143,10 +143,19 @@ size:`-directive measurement was correct, but **the conclusion was not**: auto-f
 d'auto adjustment"* describes exactly what happened — a behaviour appeared on his charts that he never
 asked for, two weeks after it was written.
 
-**That turns #12 from "not a bug" into a product question for VLL** (see T146): auto-fit shrinks type to
-keep a chart on one page. He can have a fixed size via an explicit `size:` directive, or the two-column
-route which trades width for type size — but the default that shrinks a 72-line chart is a **choice**, and
-it is his to make, not something to defend as documented behaviour.
+**That turned #12 from "not a bug" into a product question for VLL** (see T146) — and **he has now
+answered it**: *"the autoadjustment should be an opt in, never the default."*
+
+Measured while recording the ruling: `autoFitBodyPt` picks the **largest** size in **8–16 pt** that keeps
+a chart off an automatic page break, against a `defaultBodyPt` of **11**. So it moves size in both
+directions per song, and one setlist can hold a 16 pt chart and an 8 pt chart — **2×, back to back.** That
+is the complaint, stated as a number.
+
+Opting out buys one size across the setlist, a layout that no longer changes when a lyric line is added,
+and a much smaller reflow surface for annotations — though **not** a replacement for T145. It costs page
+turns on long charts, which is precisely what the two-column direction is for. See T146 ⟨D1⟩, including
+⟨D1.1⟩: whether this restores the pre-08-23 layout (and with it many marks) is a **hypothesis to measure
+against the archived 08-22 blob**, not a benefit to claim.
 
 ### And it makes T145 more important, not less
 

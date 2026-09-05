@@ -13,6 +13,59 @@ no longer has to shrink to fit. Today a long chart auto-fits by making the type 
 what made a 72-line chart unreadable next to a 41-line one at the rehearsal. **Two columns trade width for
 type size**, which is the trade a musician on a stand actually wants.
 
+## ⟨D1⟩ VLL's ruling, 2026-09-05: **auto-fit becomes opt-in, and is never the default**
+
+*"the autoadjustment should be an opt in, never the default."* This is a decision, not a proposal —
+implement it. It belongs in this task because it is the same question as two columns: **what do we do when
+a chart does not fit?**
+
+### What auto-fit does today, measured
+
+`autoFitBodyPt` returns the **largest** integer size in **8–16 pt** at which the chart needs no automatic
+page break; `defaultBodyPt` is **11**. So it moves size in *both* directions, per song, to maximise "fits
+on one page". In one setlist a short chart can render at 16 pt and a 72-line chart at 8 pt — **a 2×
+difference between two songs a musician reads back to back.** A manual `size:` already disables it.
+
+### What making it opt-in actually solves — and what it does not
+
+It solves three real things:
+
+1. **One size across the setlist.** Every chart renders at `defaultBodyPt` unless it asks otherwise. This
+   is VLL's original complaint, and no amount of per-song cleverness fixes it.
+2. **Predictability.** Adding one lyric line can currently re-size an entire chart. With a fixed size,
+   adding a line changes only what comes after it.
+3. **It shrinks the reflow surface that breaks annotations.** Today layout is a *function of content
+   length*, so any edit anywhere can move every mark on the page. **This does NOT replace T145** — a
+   renderer change still reflows — but it removes the most frequent trigger.
+
+It does **not** solve: fitting a long chart on one page. That cost is real (more page turns mid-song), and
+**two columns is the honest answer to it** — width traded for size, instead of legibility traded for a
+page turn. That is why both live in this task.
+
+### ⟨D1.1⟩ The hypothesis this creates, which MUST be tested, not assumed
+
+VLL's charts were rendered **2026-08-22**, before auto-fit existed (`127519fd`, 08-23). If the default
+returns to `defaultBodyPt`, the render should come back close to that August layout — **the one where his
+mark sat exactly at the end of the text.** If so, opting out would put many existing annotations back
+roughly where they belong.
+
+**Do not state this as a benefit until it is measured.** The archived 08-22 blob and T144's golden
+machinery make it a direct comparison: re-render the same source with auto-fit off and diff against the
+archived PDF. Report the answer at the gate. It may well differ for unrelated reasons (cp1252 rendering,
+tab blocks landed since) — say so plainly if it does.
+
+### Required for ⟨D1⟩
+
+- `autoFitBodyPt` runs **only** when the source opts in — same vocabulary as `size:`, e.g. a header
+  directive; do not invent a second mechanism.
+- With no directive: `defaultBodyPt`, and automatic page breaks where the content needs them.
+- A manual `size:` keeps disabling auto-fit, as today.
+- **Red first:** a fixture longer than one page renders at `defaultBodyPt` across **two** pages with no
+  directive, and at a smaller size on **one** page with the opt-in. Both assertions fail today — the first
+  because today it shrinks, the second because there is nothing to opt into.
+- Update T144's golden values **in the same commit**, so the layout change is visible in review rather
+  than silent. That is exactly the ritual T144 exists to create, and this is its first real exercise.
+
 ## Required
 
 **Stage 1 — the margin becomes a named constant.**
