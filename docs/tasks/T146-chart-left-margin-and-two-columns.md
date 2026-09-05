@@ -1,12 +1,16 @@
 # T146 — Shrink the chart's left margin, and open the door to two columns
 
 **Lane:** web-core (core, `chartpdf`). **Size:** S for the margin, M for the column option.
-**Status:** IN PROGRESS 2026-09-05 (web-core). ⟨D1⟩ DONE @ `e0456d39`: auto-fit is opt-in (`fit: page`/
+**Status:** IN PROGRESS 2026-09-06 (web-core). ⟨D1⟩ DONE @ `e0456d39`: auto-fit is opt-in (`fit: page`/
 `fit: auto`), default is `defaultBodyPt` + pagination; T144 golden updated in the same commit (the ritual).
-Stage 1 (left margin) DEFERRED — small change but it shifts every glyph's x, rippling the hand-maintained
-anchor/T76/footnote/T144 goldens; doing it as a focused commit to re-capture them carefully. Stage 2
-(two columns) DEFERRED behind T145 — a page-coordinate mark is meaningless across a re-layout, per the
-spec's own condition (T145's source anchor has not landed). ⟨D1.1⟩ measurement: reported at the gate.
+**Stage 1 (left margin) DONE @ `bdfa19fc`:** new `leftMargin = 8.0` constant (12→8mm, left edge only;
+top/right/bottom stay at `margin`), all left-edge draws + tabColW route through it; RED-first
+`TestLeftMargin_T146`; goldens re-captured in the same commit — verified a PURE left-shift (every X0→0.0381,
+every X1 −0.0190, all Y unchanged, all T144 page counts unchanged; footnote re-wraps at the wider column).
+At the gate for re-verification. **Stage 2 (two columns) now UNBLOCKED** — T145's source anchor landed
+(`8bb13e5b`), so a column re-layout no longer silently invalidates marks (the spec's own precondition is
+met) — deferred as its own larger commit, not yet started. ⟨D1.1⟩ (08-22-render comparison) needs the
+frozen evidence store (hands-off hold) → not run; reported at the gate.
 
 ## What VLL asked for
 

@@ -36175,3 +36175,37 @@ it has 3. Then the symmetric one: a song removed from the folder **survives**, a
 documented property has a test.
 
 — Fable
+
+## → REVIEWER — T146 stage 1 landed (`bdfa19fc`): left margin 12→8mm, and the goldens moved exactly the way they should
+
+`leftMargin = 8.0` (left edge only; top/right/bottom stay at `margin`=12), all left-edge draws + `tabColW`
+routed through it. VLL's ask — *"diminuer la marge a gauche des fichiers textes rendu"* — done; the body
+column widens 4mm. At the gate for re-verify.
+
+### The golden re-capture, and why I trust it
+
+RED-first `TestLeftMargin_T146` pins the leftmost glyph at 8/210 = 0.0381 and asserts `leftMargin < margin`.
+I re-captured every rippled golden IN THE SAME COMMIT (the T144 ritual) and verified the change is a **pure
+left-shift**, not a reflow:
+
+- every anchor X0 → 0.0381, every X1 shifted left by exactly (12-8)/210 = 0.0190, **every Y unchanged**;
+- **every T144 page count unchanged** (1→1, 2→2, 4→4, 1→1) — so nothing paginated differently;
+- the footnote golden re-wraps ("the" now fits line 1 at the wider column) — the one content-dependent
+  consequence, and the correct one.
+
+Updated: `anchors_test` golden + its margin-derived position asserts; `footnote_test` golden + colW/position
+asserts; the two byte-stable SHAs; all five T144 hashes.
+
+### Two notes for you
+
+1. **Stage 2 (two columns) is now UNBLOCKED.** Your precondition — "a page-coordinate mark is meaningless
+   across a re-layout, so stage 2 waits behind T145" — is met: T145's source anchor landed (`8bb13e5b`), and
+   a column re-layout will re-project marks through it. I did NOT start stage 2 (larger layout change); it is
+   its own commit. Flagging so you can route it.
+2. **⟨D1.1⟩ (does auto-fit-off return the layout near the 08-22 render?) I did not run** — it needs the
+   frozen evidence store, which is under the standing hands-off hold. When the hold lifts it is a direct
+   golden diff; parking it rather than touching the evidence.
+
+gofmt + vet clean; full core suite green (incl. bake overlay render); no proto-mirror drift.
+
+— web-core
