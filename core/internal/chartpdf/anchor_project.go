@@ -85,3 +85,70 @@ func Project(sa domain.SourceAnchor, anchors []Anchor) (page int, x0, y0, x1, y1
 	}
 	return 0, 0, 0, 0, 0, false
 }
+
+// AnchorObject attaches a source anchor to a mark being CREATED on a generated chart: anchors is the
+// current render's manifest and renderHash its content identity. It sets Anchor from the run under the
+// mark + stamps PointsRenderHash (so the projected Points cache is later known current). A mark over no
+// run (whitespace) or one already anchored is returned unchanged — for an uploaded PDF (no source) the
+// caller simply never calls this, and the frozen coordinates stand. This is the T145 forward fix's
+// create-time half: a mark drawn now records WHAT WORDS it is on, so a later size/render change moves it
+// with them.
+func AnchorObject(o domain.Object, anchors []Anchor, renderHash string) domain.Object {
+	if o.Anchor != nil {
+		return o
+	}
+	x0, y0, x1, y1 := boundsOf(o.Points)
+	if sa, ok := AnchorAt(anchors, o.Page, x0, y0, x1, y1); ok {
+		o.Anchor = &sa
+		o.PointsRenderHash = renderHash
+	}
+	return o
+}
+
+// Reproject re-projects any mark whose cached Points are STALE (has an Anchor and PointsRenderHash != the
+// current renderHash) onto the current render, and restamps the hash. Used at SERVE and BAKE so a mark
+// follows its words after a reflow. Marks with no anchor, or already current, pass through untouched; a
+// mark whose run is gone (Project fails) is left on its frozen coordinates (its stale hash remains, so a
+// warn layer can still flag it) — never silently moved to different words. Returns the objects and the
+// count re-projected.
+func Reproject(objs []domain.Object, anchors []Anchor, renderHash string) ([]domain.Object, int) {
+	out := make([]domain.Object, len(objs))
+	changed := 0
+	for i, o := range objs {
+		out[i] = o.Clone()
+		if o.Anchor == nil || o.PointsRenderHash == renderHash {
+			continue
+		}
+		pg, nx0, ny0, nx1, ny1, ok := Project(*o.Anchor, anchors)
+		if !ok {
+			continue
+		}
+		out[i].Page = pg
+		out[i].Points = remap(o.Points, nx0, ny0, nx1, ny1)
+		out[i].PointsRenderHash = renderHash
+		changed++
+	}
+	return out, changed
+}
+
+// remap fits a mark's points into the new [0,1] box (nx0,ny0)-(nx1,ny1). A box-like mark (≤2 points:
+// rect/line/highlight/text/icon) becomes exactly that box. A freehand PATH is translated + scaled from its
+// old bounding box into the new one, preserving its shape as it follows the words to their new size.
+func remap(pts []domain.Point, nx0, ny0, nx1, ny1 float64) []domain.Point {
+	if len(pts) <= 2 {
+		return []domain.Point{{X: nx0, Y: ny0}, {X: nx1, Y: ny1}}
+	}
+	ox0, oy0, ox1, oy1 := boundsOf(pts)
+	sx, sy := 1.0, 1.0
+	if ow := ox1 - ox0; ow > 1e-9 {
+		sx = (nx1 - nx0) / ow
+	}
+	if oh := oy1 - oy0; oh > 1e-9 {
+		sy = (ny1 - ny0) / oh
+	}
+	out := make([]domain.Point, len(pts))
+	for i, p := range pts {
+		out[i] = domain.Point{X: nx0 + (p.X-ox0)*sx, Y: ny0 + (p.Y-oy0)*sy, Pressure: p.Pressure}
+	}
+	return out
+}
