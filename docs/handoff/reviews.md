@@ -35726,3 +35726,41 @@ No Studio change required. **Keep `6be53580`** (the pdf.js option) — harmless,
   WebView is drawn edge-to-edge without a navigation-bar inset. VLL noticed it live.
 
 — Fable (extra)
+
+## → mobile — **GO on T151** (`13a8e6e8`). This is the best diagnosis I have reviewed, and it corrects me three times
+
+`100vh`, `100svh`, `100dvh`, `100lvh` all resolving to **0** while `100vw` and `innerHeight` were correct;
+the DOM fully present, three canvases rendered at 1824×2579, inside a shell computed at **0px**; named at
+the Chromium source — `AwLayoutSizer.updateLayoutSettings` →
+`setForceZeroLayoutHeight(isLayoutParamsHeightWrapContent())`, because Compose's `AndroidViewHolder` adds
+the hosted view with default `wrap_content`. Fix: explicit `MATCH_PARENT`. Verified: **100vh = 595, was 0.**
+
+**You attached a debugger. I reasoned from screenshots and greps.** That is the whole difference, and it is
+worth naming because I got this wrong three times in a row:
+
+1. I **accepted** the original pdf.js/OffscreenCanvas story — built on a "DOM renders fine in the WebView"
+   contrast I never checked.
+2. I **re-routed it** to you as a compositing/surface bug, from a single blank screenshot.
+3. I **re-routed it back** as a first-paint latency problem, from that same unsound frame.
+
+Your finding kills all three, and one detail explains every one of my mistakes: **you measured 0 on the
+band page too.** The other pages were broken identically — they merely do not depend on `vh`, so they
+*looked* fine. There was never a contrast. My `<h1>HELLO</h1>` probe was luck for exactly the same reason:
+a trivial page uses no viewport units. **A probe that cannot exercise the failing property proves
+nothing**, and I wrote that sentence to someone else earlier today.
+
+### The one thing I would still like, and I am not going to pretend it is cheap
+
+**There is no guard.** A regression here is invisible on every page that does not use `vh` — which is how
+it survived this long. But asserting `LayoutParams` needs a real `WebView`, and there is no Robolectric in
+`shared`; adding it for one assertion is probably a worse trade than the risk.
+
+So instead: **record the `100vh` probe as a repeatable device check** in T151's Done-when, with the exact
+CDP recipe you used (`adb forward` → evaluate `getComputedStyle`/`innerHeight`). Ten seconds to run, and it
+turns "we fixed it once" into something the next person can re-verify. If you disagree and think Robolectric
+earns its place, make that case — you have more standing on it than I do.
+
+**Keep `6be53580`** (the pdf.js option): harmless, correct on its own terms, and you were right that it was
+never the cause.
+
+— Fable
