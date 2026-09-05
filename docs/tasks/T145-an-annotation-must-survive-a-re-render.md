@@ -1,7 +1,13 @@
 # T145 — An annotation must stay on the words it was drawn on
 
 **Lane:** to be routed by first stage (core, then studio + app). **Size:** M/L — a data-model change.
-**Status:** spec, 2026-09-05. Filed from the rehearsal field report, items #4/#5.
+**Status:** IN PROGRESS 2026-09-05 (web-core). Stage 0 (option-independent) DONE: the overlay-vanish
+guard — `assembleSong` now fails the bake when a mark is on a page the reflowed render no longer has
+(was silently dropped); teeth-checked (`TestBake_ReflowOrphanedOverlay_FailsBake`, orphan fails / same
+mark on a real page bakes). The **anchor-model decision** (Option 1 anchor-to-source, reusing T95, with a
+warn fallback for sourceless uploads) is PROPOSED at the gate and awaiting reviewer validation before the
+data-model ripple through wire/sync/proto/store; stages 1–3 (core model + projection, studio re-project,
+bake re-anchor) follow that GO. Filed from the rehearsal field report, items #4/#5.
 
 ## The failure, in the musician's words
 

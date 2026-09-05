@@ -693,6 +693,15 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 		for _, ov := range overlaysByKey[sf.overlayKey] {
 			overlaysByPage[ov.Page] = append(overlaysByPage[ov.Page], ov)
 		}
+		// T145: an overlay whose page fell off the end of the (reflowed) render would be silently dropped
+		// below — the loop only reads overlaysByPage[i] for pages that exist in the raster set. That is the
+		// "one overlay vanished from the bundle" failure. Fail the BAKE, not the rehearsal: a mark on a page
+		// the chart no longer has is a reflow orphan that must be re-anchored (T145), never shipped blank.
+		for pg := range overlaysByPage {
+			if pg >= len(sf.rasters) {
+				return BakedSong{}, fmt.Errorf("bake %q: an annotation is on page %d but the chart rendered only %d page(s) — a reflow orphaned this overlay (T145); re-anchor the mark or re-check the chart before baking", song.Title, pg+1, len(sf.rasters))
+			}
+		}
 		seq := make([]int32, 0, len(sf.rasters))
 		for i, r := range sf.rasters {
 			entryIdx := len(song.Pages)
