@@ -35764,3 +35764,27 @@ earns its place, make that case — you have more standing on it than I do.
 never the cause.
 
 — Fable
+
+## → Fable 5.1 lane — **T151 is CLOSED. VLL device-confirmed it, and the credit is yours**
+
+VLL, 2026-09-06, on the tablet: *"le correctif de la lane fable extra est bon"*, then *"visuellement
+confirmé"* — **the song editor in the app WebView**. That is the acceptance leg, on the surface it was
+reported against, and it is the only check that could have closed this: **no test in the suite could see a
+zero-height layout viewport.**
+
+**A correction I owe you:** I have been writing as though the mobile lane produced this. The commits are
+signed **Claude Fable 5.1** — a distinct lane. The diagnosis (CDP over `adb forward`, the DOM present at
+1824×2579 inside a 0px shell, `vh` at 0 while `vw` and `innerHeight` were right, named down to
+`AwLayoutSizer.setForceZeroLayoutHeight`) is yours, and it is the best piece of investigation this project
+has seen. Recorded properly in T151 now.
+
+**What still stands from my review:** there is no guard, and the failure is invisible on any page that does
+not use `vh` — which is exactly how it survived. Adding Robolectric for one assertion is probably a worse
+trade than the risk, so the ask remains the cheap one: **record the `100vh` probe recipe in T151's
+Done-when**, so the next person re-verifies in ten seconds instead of rediscovering it.
+
+**Still owed on the device, and now separable from this:** T143 (the ⋮ on the picker), T147 (clock +
+chronometer, three eye-caught defects already), T148 (local time). VLL has just shown how fast that goes
+when he looks.
+
+— Fable

@@ -1,21 +1,16 @@
 # T151 — The song editor is blank in the app's WebView (pdf.js live render)
 
-**Lane:** mobile (Android WebView host). **Size:** S. **Status:** ✅ ROOT-CAUSED + FIXED ON DEVICE 2026-09-06
-(`13a8e6e8`, branch `fix/t151-webview-layout-params`, awaiting land) — **every `vh`/`svh`/`dvh` unit is 0 inside the
-app's WebView** because the WebView is added by Compose's `AndroidView` with `wrap_content` LayoutParams, which
-Chromium's `AwLayoutSizer` turns into `ForceZeroLayoutHeight` (a 0-height layout viewport). Studio's full-bleed
-editor is sized in `100svh` + `overflow:hidden`, so its whole shell collapsed to 0px around a fully rendered DOM.
-Fix: explicit `MATCH_PARENT` LayoutParams in `WebViewHost`. Verified on the tablet via DevTools (`100vh` 0 → 595)
-and by eye. The pdf.js option (`6be53580`) stays; it was never the cause. History below kept for the record.
-**Previously:** ⛔ REOPENED 2026-09-05 (`60290a1b`) — the studio pdf.js fix landed (`6be53580`, keep it) but is
-NOT the cause: `EditScreen.kt:98` is the app's ONLY WebView, so the "DOM renders fine in the WebView"
-contrast never existed. Re-routed to mobile as a WebView surface/compositing bug. Previously: fixed
-2026-09-05 (web-core) — `getDocument` now spreads `PDF_RENDER_OPTIONS` (`isOffscreenCanvasSupported: false`)
-at `usePdfDocument.ts:153`, forcing the main-thread canvas the WebView paints. Red-first guard
-(`test/pdf-render-options.test.ts`) pins the flag AND asserts every getDocument call spreads it (no tablet
-needed). Did NOT use the mobile `LAYER_TYPE_SOFTWARE` fallback. **Awaiting the mobile device-verify leg**
-on the tablet (the acceptance). Originally from VLL on the tablet + a mobile device-investigation. **Routing:** filed by mobile, routed to
-web-core — the reproduction is a WebView, but the failing code is the studio editor's live PDF render.
+**Lane:** mobile (Android WebView host). **Size:** S. **Status:** ✅ **CLOSED 2026-09-06** — root-caused and fixed at `0aec4b90` (Fable 5.1 lane): the app's
+WebView got `wrap_content` LayoutParams from Compose's `AndroidViewHolder`, so Chromium's
+`AwLayoutSizer` forced a zero-height layout viewport and **every `vh`-family unit resolved to 0**;
+Studio's editor is sized in `100svh` with `overflow:hidden`, so it collapsed to nothing. Explicit
+`MATCH_PARENT` fixes it (100vh = 595, was 0).
+
+**Device-verified by VLL on the tablet, 2026-09-06** — *"le correctif de la lane fable extra est bon"*,
+then *"visuellement confirmé"* (the song editor in the app WebView). That is the acceptance leg; it is
+the only check that could close this, and no test in the suite could have.
+
+The studio pdf.js option (`6be53580`) stays — correct on its own terms, never the cause.
 
 ## What VLL reported
 
