@@ -701,9 +701,11 @@ private fun Performing(
                             Text(clockText, color = Color.White, style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                    // A thin separator when both the clock and the chrono are shown (VLL).
+                    // A thin separator when both the clock and the chrono are shown (VLL). A fixed-width
+                    // Box, NOT HorizontalDivider — the latter fills the max constraint (the screen) and
+                    // stretched the whole overlay full-width. ~80% of the 56dp clock, centred by the Column.
                     if (clockShown && showChrono) {
-                        HorizontalDivider(color = Color(0x80FFFFFF), thickness = 1.dp)
+                        Box(Modifier.width(44.dp).height(1.dp).background(Color(0x80FFFFFF)))
                     }
                     if (showChrono) {
                         Text(
