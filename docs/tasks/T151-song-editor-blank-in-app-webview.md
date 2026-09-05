@@ -1,6 +1,8 @@
 # T151 — The song editor is blank in the app's WebView (pdf.js live render)
 
-**Lane:** web-core (studio SPA / pdf.js), with a mobile verification leg. **Size:** S–M. **Status:** fixed
+**Lane:** web-core (studio SPA / pdf.js), with a mobile verification leg. **Size:** S–M. **Status:** ⛔ REOPENED 2026-09-05 (`60290a1b`) — the studio pdf.js fix landed (`6be53580`, keep it) but is
+NOT the cause: `EditScreen.kt:98` is the app's ONLY WebView, so the "DOM renders fine in the WebView"
+contrast never existed. Re-routed to mobile as a WebView surface/compositing bug. Previously: fixed
 2026-09-05 (web-core) — `getDocument` now spreads `PDF_RENDER_OPTIONS` (`isOffscreenCanvasSupported: false`)
 at `usePdfDocument.ts:153`, forcing the main-thread canvas the WebView paints. Red-first guard
 (`test/pdf-render-options.test.ts`) pins the flag AND asserts every getDocument call spreads it (no tablet

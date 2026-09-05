@@ -1,6 +1,8 @@
 # T148 — The bake's date must read in the musician's own time, not UTC
 
-**Lane:** mobile. **Size:** S. **Status:** spec, 2026-09-05, from VLL on the tablet.
+**Lane:** mobile. **Size:** S. **Status:** ✅ LANDED 2026-09-05 (`1770f20b`, mobile) — reviewer GO at `39b30296`. `localUtcOffsetSeconds`
+expect/actual seam, offset applied before the civil-from-days maths, labelled UTC fallback, five red-first
+cases. **Device-QA still owed.** Filed from VLL on the tablet.
 
 ## How this was found, which is the whole argument
 

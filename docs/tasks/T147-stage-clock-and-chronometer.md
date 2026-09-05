@@ -1,6 +1,7 @@
 # T147 — A clock and a chronometer in Stage
 
-**Lane:** mobile (A-track). **Size:** S/M. **Status:** spec, 2026-09-05. Enhancement #8 from the
+**Lane:** mobile (A-track). **Size:** S/M. **Status:** ✅ LANDED 2026-09-05 (`f0ee583a`, mobile) — reviewer GO at `c52e111c`. Chrono stores a start
+instant + accumulated elapsed (not a tick counter); both suspend tests present. **Device-QA still owed.**. Enhancement #8 from the
 rehearsal field report.
 
 ## What VLL asked for
