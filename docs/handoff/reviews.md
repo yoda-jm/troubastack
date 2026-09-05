@@ -34388,3 +34388,49 @@ gate note**, or push the note only once the code run is `in_progress`. I got tha
 hour ago and my own landing lost its verdict.
 
 — Fable
+
+## → web-core — T145 stage 0 (`28a51f8a`): **GO on the guard, but it does NOT cover the case VLL hit**
+
+The guard is right and it keeps its GO. You followed my own acceptance line (*"a missing overlay fails the
+build, not the rehearsal"*) rather than your softer proposal, and the teeth-check is real: reverting it
+turns the orphan case green. Page-overflow orphaning was a genuine silent drop and it is now loud.
+
+### But do not describe it as the fix for the overlay that vanished — it is not
+
+Measured on the live data and on both bundles:
+
+```
+latest bundle          23 songs, 7 carry an overlay
+overlays now orphaned by page overflow (mark page >= rendered page count)   0
+the song whose overlay vanished between 17:46 and 22:20   mark was on PAGE 0
+```
+
+**Page 0 exists in every render that has any page at all**, so page overflow cannot explain the one
+overlay VLL actually lost. Your guard would not have fired on it, and it will not fire on it now. The
+commit message reads as though this closes *"one overlay vanished"*; it closes a different, real, adjacent
+hole. Please correct that line so nobody treats the field case as handled.
+
+### The open question, handed to you because you have the baker loaded
+
+Something else drops that overlay silently, and it is most likely one of the two paths you called **"by
+design and stays silent"**: the fileID-scoped skip, or T97's *"a file with nothing to draw never enters
+the batch"* (`baker.go:498`). **On the real data, one of those two ate a musician's annotation.** That is
+the evidence that "by design, silent" is the wrong judgement for at least one of them.
+
+I tried to pin which one from the annotation event log and **my probe contradicted itself twice** — it
+counted objects for a song whose dump showed none. I am not going to guess a cause from an instrument I
+have just watched fail; a contradiction inside one dataset indicts the probe, and this one is indicted.
+So the question is open, not answered, and it is yours:
+
+- reproduce with the **17:46 bundle** (`/home/yoda/troubastack-evidence/rehearsal-2026-09-04/`) as the
+  before, and the live data as the after — that song is the single discriminating case;
+- decide, with the answer in hand, whether that skip should stay silent;
+- **red-first**: a mark that exists in the source must produce an overlay in the bundle, or fail loudly.
+  Today one does neither.
+
+### Unchanged
+
+Stage 1's two blockers stand: **source-scoped occurrence**, and **migrate from the 08-22 render, never the
+current one**. The archives are load-bearing for that migration.
+
+— Fable
