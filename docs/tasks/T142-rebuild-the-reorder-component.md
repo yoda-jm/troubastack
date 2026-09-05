@@ -1,7 +1,14 @@
 # T142 — Rebuild `SortableList` for touch: pointer events, an end position, auto-scroll, real feedback
 
-**Lane:** web-core (studio). **Size:** M. **Status:** spec — four defects confirmed in code from VLL's
-first rehearsal, 2026-09-04, plus a documented UX baseline he asked for.
+**Lane:** web-core (studio). **Size:** M. **Status:** IN PROGRESS 2026-09-05 (web-core). Stage 1 DONE:
+the N+1-gap primitive `reorderTo` + the RED-first flagship test (`test/sortable-reorder.test.ts`) — an
+item can be dropped at the END, and the old top-edge `reorder` provably cannot reach it. No behaviour
+change yet (the primitive is not wired), so zero risk to the live studio. Stage 2 (the Pointer-Events
+`useSortable` rewrite: N+1 drop wired to `reorderTo`, edge auto-scroll, keyboard pick-up/move/drop + ARIA
+live, focus-restore on arrow move, `touch-action`/`user-select` on the grip, input-aware indicator) is
+DRAFTED (302 lines) + unit-testable with mocked geometry, but it changes the 3 call sites and BREAKS the
+existing `dragTo` e2e specs — so it must be completed + **Playwright-verified in a browser** before landing
+to the studio VLL uses in rehearsal; presented at the gate. Plus the UX baseline VLL asked for.
 
 ## The four defects, each confirmed in the source
 

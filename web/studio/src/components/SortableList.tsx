@@ -64,6 +64,20 @@ export function reorder(ids: string[], from: number, to: number): string[] {
   return arr;
 }
 
+// reorderTo moves the item at `from` into GAP `position` — the N+1-gap model (T142 stage 1). For N items
+// there are N+1 insertion gaps: 0 = before the first row, k = between rows k-1 and k, N = AFTER the last
+// row. The end gap (position === ids.length) is the one the old top-edge `reorder`/HTML5-drop model could
+// not express ("on ne peut pas deplacer un morceau en dernier") — there is no row after the last to hint
+// against. Removing the moved item first shifts every later gap down by one. The pointer-drag rewrite
+// (T142 stage 2) computes a gap from the pointer position and commits through here.
+export function reorderTo(ids: string[], from: number, position: number): string[] {
+  const arr = ids.slice();
+  const [moved] = arr.splice(from, 1);
+  const insertAt = position > from ? position - 1 : position;
+  arr.splice(Math.max(0, Math.min(insertAt, arr.length)), 0, moved);
+  return arr;
+}
+
 // SortableRowProps spread onto the call site's row element; GripProps onto its grip drag source.
 export interface SortableRowProps {
   ref: (el: HTMLElement | null) => void;
