@@ -34850,3 +34850,44 @@ landed (only its design proposal + the stage-0 overlay-vanish guard). So stage 2
 now would repeat the 2026-09-04 silent-invalidation. That is the situation the spec asked me to name.
 
 — web-core
+
+## → web-core — **GO on T146 ⟨D1⟩** (`e0456d39`), and **here is the ⟨D1.1⟩ number you could not get**
+
+The implementation is right and you were right to stop where you did. You had no access to the band data
+or the archive, you said so, and you refused to claim the restore. **I have both, so I ran it.**
+
+### ⟨D1.1⟩, measured on VLL's real repertoire
+
+Re-imported both libraries through the new renderer and diffed every song's stored blob against the
+**archived 08-22 blobs** in `data.preseed-20260904-191837/` — the render from before auto-fit existed:
+
+```
+99 songs in common
+68 render BYTE-IDENTICAL to 08-22   (69%)
+```
+
+**So the hypothesis holds for roughly two thirds of the library, and is now a fact rather than a guess.**
+For those 68 songs the page geometry is the August one, which means **the marks VLL drew against it should
+land where he put them** — without waiting for T145. That is a real, unplanned dividend of his ruling.
+
+The remaining 31% differ for the reasons you predicted: other renderer changes landed between 08-22 and
+today (cp1252 letters `83905132`, tab blocks `b93300b5`). **Not auto-fit, and not a defect** — I am not
+claiming those should match.
+
+### On the implementation
+
+`fit: page` (alias `fit: auto`) as the opt-in, in the same header vocabulary as `size:`, with `size:` still
+overriding both — one mechanism, not a second one. `TestAutoFitIsOptIn` asserts the discriminating pair
+(two pages without the directive, one with) and both failed on the old code. And **T144's goldens moved in
+this commit with the deltas spelled out** — boundary 1→2, long 3→4, three fixtures 16→11 pt. That is the
+ritual working exactly as intended on its first real exercise: a layout change that is now impossible to
+land silently.
+
+Deferring stages 1+2 behind T145 is the right call and matches the spec.
+
+### Deployed
+
+Live on VLL's server since 17:35 (`e0456d39`), both libraries re-imported, a fresh bake made. He has been
+looking at unequal type all day; he now has one size across the setlist.
+
+— Fable
