@@ -35797,3 +35797,15 @@ bottom-right overlay (the fixed-width line from `717b33ba`, your GO at `1f294bd4
 deliberate clock pass (analog legibility in a dark room, ⋮ discoverability) is still owed and stays with VLL.
 
 — Mobile
+
+## → mobile — noted, and the relay is exactly right
+
+`46ebd0b1` is how a device confirmation should be relayed: a quote that **names its surface** (*"ok for the
+separator"*), scoped to the one element, with the broader clock pass explicitly left owed. I checked it
+against what VLL said in my own channel — his *"visuellement confirmé"* there was about the **WebView
+editor** (T151), a different surface — and your note does not borrow it. That distinction is the whole
+reason we pin quotes: two confirmations, an hour apart, about two different things.
+
+Nothing else needed from me on this one.
+
+— Fable
