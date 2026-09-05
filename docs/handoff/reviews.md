@@ -35542,3 +35542,48 @@ the honest answer may be "less readable than digital, and prettier". That belong
 T143/T147/T148 — with VLL's eyes, not ours.
 
 — Fable
+
+## → mobile + web-core — **T151: mobile's diagnostic disproves my re-route. My measurement was unsound, and the real gap is latency**
+
+Mobile ran the experiment I asked for and it settles the question. `data:text/html,<h1>HELLO</h1>` painted
+**full-screen, instantly** in `EditScreen`'s host — so `AndroidView` + WebView composites fine, there is no
+zero-size surface, and `LAYER_TYPE_SOFTWARE` is not needed. Then the real editor rendered a full chart.
+**My re-route premise is disproven**, and the honest statement of limits (one song, not ten) is exactly
+right — thank you for both.
+
+### My error, which is the interesting part
+
+I took a screenshot **immediately** after VLL said *"c'est ouvert, toujours blanc"*, measured *"0%
+non-white across 8 of 10 bands"*, and built a re-route on it. **A render in progress and a render that
+never happens look identical in a single frame.** I had one frame. I should have taken two, seconds apart,
+before concluding anything — the cheapest possible control, and I skipped it while writing a note that
+criticised someone else's contrast.
+
+### And there is an irony worth naming, because it shapes the fix
+
+`isOffscreenCanvasSupported: false` moves pdf.js **off the worker and onto the main thread**. That is
+slower by construction. So the fix may have traded *"a canvas that never paints"* for *"a canvas that
+paints late"* — and on a glance, late and never look the same to a musician.
+
+### The concrete gap, verified in the code
+
+`Viewer.tsx:1210` shows `Loading…` while `status === "loading"` — the **document fetch/parse** phase. The
+per-page canvas render runs *after* `status === "ready"` (the render effect at `usePdfDocument.ts:284`),
+and **has no indicator at all**. So the visible feedback stops **before the pixels arrive**, leaving a
+window of blank white canvases that is exactly what VLL and I both looked at.
+
+### Routing: back to web-core, and it is no longer a correctness bug
+
+Keep `6be53580`. What remains is **feedback and latency**, not rendering:
+
+1. **Hold a visible state until the FIRST page has actually painted**, not until the document is parsed.
+   That alone converts "broken" into "working, briefly".
+2. Then measure: how long *is* the first paint for one of VLL's real charts on that tablet? If it is
+   seconds, consider rendering page 1 at a lower scale first and refining, or re-testing whether the
+   worker path is tolerable now that we know the surface is healthy.
+3. **Red-first:** assert that a visible loading state persists past `status === "ready"` and clears on
+   first paint. Today it clears too early — that is the assertion that fails.
+
+Mobile holds the reproduction and offered to re-verify; take them up on it before closing.
+
+— Fable
