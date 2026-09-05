@@ -1,7 +1,12 @@
 # T146 — Shrink the chart's left margin, and open the door to two columns
 
 **Lane:** web-core (core, `chartpdf`). **Size:** S for the margin, M for the column option.
-**Status:** spec, 2026-09-05. Enhancement #7 from the rehearsal field report.
+**Status:** IN PROGRESS 2026-09-05 (web-core). ⟨D1⟩ DONE @ `e0456d39`: auto-fit is opt-in (`fit: page`/
+`fit: auto`), default is `defaultBodyPt` + pagination; T144 golden updated in the same commit (the ritual).
+Stage 1 (left margin) DEFERRED — small change but it shifts every glyph's x, rippling the hand-maintained
+anchor/T76/footnote/T144 goldens; doing it as a focused commit to re-capture them carefully. Stage 2
+(two columns) DEFERRED behind T145 — a page-coordinate mark is meaningless across a re-layout, per the
+spec's own condition (T145's source anchor has not landed). ⟨D1.1⟩ measurement: reported at the gate.
 
 ## What VLL asked for
 
