@@ -53,22 +53,22 @@ func TestGoldenLayout(t *testing.T) {
 		{
 			"short",
 			"# Short Song\n## Demo\n\n## Verse\nC       G       Am      F\nthe kettle hums a quiet tune\nF       C       G\nbeneath a paper moon\n",
-			1, "9c7d4c98b2a030ef243ce094ef0fe849e3a433d6c2dc9f0b32a953cb0d24b7b8",
+			1, "895165961daa64c28c582a88231b713ddb5835b3f3d42ebbfb9c964de417a5e4",
 		},
 		{
 			"boundary",
 			fx(11, "# Boundary Song\n## Demo\n\n", "## Verse\nC       G       Am      F\nthe river folds the evening light\nF       C       G\nand carries it from sight\n\n"),
-			2, "70ab5c0fba83f08b445d41f55d73c0a442119f970398dcec881008f66c22b05c",
+			2, "f59b42f7b0437f3aaf6115cbf8d750ef1edee0259f994d1f9e01da45cbfcdb67",
 		},
 		{
 			"long",
 			fx(30, "# Long Song\n## Demo\n\n", "## Section\nC       G       Am      F\na longer wandering verse that keeps on going\nF       C       G       Am\nwith chords above the words still showing\n\n"),
-			4, "bab847d4ae81c14e45cea37cdd566c6bdad21eb7f0820a202542b3fbe07a8adf",
+			4, "7a4d3244e413fddc2dcaa9a75ba29c95f2886514b87a680b4ce329d788db04df",
 		},
 		{
 			"tab",
 			"# Tab Song\n## Demo\n\n## Riff\n{start_of_tab}\ne|-----0-----3-----|\nB|---1-----1-----1-|\nG|-0-----0-----0---|\n{end_of_tab}\n\n## Verse\nC       G\nthe intro rings and fades\n",
-			1, "c74e7cdc16619c1638159ddc16eb5d10c88b522fc697d351a8a1dac0288fb90d",
+			1, "34458f2b3c32fb09b6fcab435f2dbe3d85e58291d194216dccb8a4e5b7953ac3",
 		},
 		{
 			// lyric-ONLY lines (no chord rows) so the lyric-line leading is exercised — the chord+lyric
@@ -76,7 +76,7 @@ func TestGoldenLayout(t *testing.T) {
 			// them otherwise.
 			"lyriconly",
 			"# A Spoken Verse\n## Demo\n\nthe lantern sways above the quiet lane\nand every shadow learns your name again\nwe count the sparks that drift across the dark\nuntil the morning lifts them one by one\nand carries every ember toward the sun\nthe kettle cools, the window pales to grey\n",
-			1, "ff5f7e3dcb9926cd5f0b56fbcf432031a67be860b7b637fb27bfd2a8631c0e6f",
+			1, "7f11888c4948e8537effbe463772f817e453443cfc30e4460640f2cf30c322d0",
 		},
 	}
 	for _, c := range cases {

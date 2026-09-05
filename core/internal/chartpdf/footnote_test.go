@@ -53,15 +53,15 @@ func TestFootnote_boxContainsWrappedLineText(t *testing.T) {
 	tr := m.UnicodeTranslatorFromDescriptor("")
 
 	wrapped := 0
-	colW := right - margin
+	colW := right - leftMargin // T146: the body/footnote column now spans the reduced left margin
 	for _, a := range anchors {
 		if !(strings.Contains(a.Text, "Newton") || strings.Contains(a.Text, "wraps") ||
 			strings.Contains(a.Text, "attribution") || strings.Contains(a.Text, "wrapping path")) {
 			continue
 		}
-		// POSITION: every footnote line is drawn at the left margin — re-derived, not read from the box.
-		if gotX := a.X0 * pageW; math.Abs(gotX-margin) > 0.05 {
-			t.Errorf("wrapped footnote line %q: box LEFT = %.3fmm, drawn at margin %.3fmm (position drift)", a.Text, gotX, margin)
+		// POSITION: every footnote line is drawn at the (T146-reduced) left margin — re-derived, not read from the box.
+		if gotX := a.X0 * pageW; math.Abs(gotX-leftMargin) > 0.05 {
+			t.Errorf("wrapped footnote line %q: box LEFT = %.3fmm, drawn at margin %.3fmm (position drift)", a.Text, gotX, leftMargin)
 		}
 		// SIZE: independent re-measure of the width.
 		gotW := (a.X1 - a.X0) * pageW
@@ -90,9 +90,11 @@ func TestFootnote_goldenWrappedBoxes(t *testing.T) {
 			fn = append(fn, a)
 		}
 	}
+	// T146: the wider body column (left margin 12→8mm) re-wraps the footnote — "the" now fits on the first
+	// line — and every X shifts left by 0.0190 (X0 → 8/210 = 0.0381). Y is unchanged.
 	want := []Anchor{
-		{Page: 0, Text: "Words by John Newton (1725-1807), 1779; a public-domain hymn. This attribution line is intentionally long so that it wraps across", X0: 0.0571, Y0: 0.1407, X1: 0.9201, Y1: 0.1549},
-		{Page: 0, Text: "the body column several times to exercise the wrapping path.", X0: 0.0571, Y0: 0.1549, X1: 0.4672, Y1: 0.1690},
+		{Page: 0, Text: "Words by John Newton (1725-1807), 1779; a public-domain hymn. This attribution line is intentionally long so that it wraps across the", X0: 0.0381, Y0: 0.1407, X1: 0.9263, Y1: 0.1549},
+		{Page: 0, Text: "body column several times to exercise the wrapping path.", X0: 0.0381, Y0: 0.1549, X1: 0.4230, Y1: 0.1690},
 	}
 	if len(fn) != len(want) {
 		t.Fatalf("got %d footnote lines, want %d:\n%+v", len(fn), len(want), fn)

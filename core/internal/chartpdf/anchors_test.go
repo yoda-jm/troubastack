@@ -42,16 +42,18 @@ func TestAnchors_golden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderWithAnchors: %v", err)
 	}
+	// T146: the left margin dropped 12→8mm, so every X shifts left by (12-8)/210 = 0.0190 (X0 of a
+	// left-anchored run is now 8/210 = 0.0381); every Y is unchanged — the pure left-shift the change is.
 	want := []Anchor{
-		{Page: 0, Text: "Amazing Grace", X0: 0.0571, Y0: 0.0404, X1: 0.3418, Y1: 0.0796},
-		{Page: 0, Text: "John Newton, 1779", X0: 0.0571, Y0: 0.0796, X1: 0.2887, Y1: 0.1041},
-		{Page: 0, Text: "Verse 1", X0: 0.0571, Y0: 0.1237, X1: 0.1528, Y1: 0.1530},
-		{Page: 0, Text: "G        G7      C   G", X0: 0.0571, Y0: 0.1555, X1: 0.4119, Y1: 0.1800},
-		{Page: 0, Text: "A-ma-zing grace, how sweet the sound", X0: 0.0571, Y0: 0.1766, X1: 0.6377, Y1: 0.2010},
-		{Page: 0, Text: "That ", X0: 0.0571, Y0: 0.2148, X1: 0.1184, Y1: 0.2441},
-		{Page: 0, Text: "saved", X0: 0.1184, Y0: 0.2148, X1: 0.1946, Y1: 0.2441},
-		{Page: 0, Text: " a wretch like me", X0: 0.1946, Y0: 0.2148, X1: 0.3962, Y1: 0.2441},
-		{Page: 0, Text: "I once was lost, but now am found", X0: 0.0571, Y0: 0.2407, X1: 0.4635, Y1: 0.2701},
+		{Page: 0, Text: "Amazing Grace", X0: 0.0381, Y0: 0.0404, X1: 0.3227, Y1: 0.0796},
+		{Page: 0, Text: "John Newton, 1779", X0: 0.0381, Y0: 0.0796, X1: 0.2697, Y1: 0.1041},
+		{Page: 0, Text: "Verse 1", X0: 0.0381, Y0: 0.1237, X1: 0.1337, Y1: 0.1530},
+		{Page: 0, Text: "G        G7      C   G", X0: 0.0381, Y0: 0.1555, X1: 0.3929, Y1: 0.1800},
+		{Page: 0, Text: "A-ma-zing grace, how sweet the sound", X0: 0.0381, Y0: 0.1766, X1: 0.6187, Y1: 0.2010},
+		{Page: 0, Text: "That ", X0: 0.0381, Y0: 0.2148, X1: 0.0994, Y1: 0.2441},
+		{Page: 0, Text: "saved", X0: 0.0994, Y0: 0.2148, X1: 0.1756, Y1: 0.2441},
+		{Page: 0, Text: " a wretch like me", X0: 0.1756, Y0: 0.2148, X1: 0.3772, Y1: 0.2441},
+		{Page: 0, Text: "I once was lost, but now am found", X0: 0.0381, Y0: 0.2407, X1: 0.4445, Y1: 0.2701},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d anchors, want %d:\n%+v", len(got), len(want), got)
@@ -127,7 +129,7 @@ func TestAnchors_boxSpansItsTextAtItsPosition(t *testing.T) {
 	for _, key := range order {
 		line := byLine[key]
 		sort.SliceStable(line, func(i, j int) bool { return line[i].X0 < line[j].X0 })
-		expX := margin // first run on a line starts at the left margin — re-derived, not read from the box
+		expX := leftMargin // first run on a line starts at the (T146-reduced) left margin — re-derived, not read from the box
 		for _, a := range line {
 			gotX := a.X0 * pageW
 			if math.Abs(gotX-expX) > eps {

@@ -297,7 +297,7 @@ func TestRender_ExplicitSizeByteStable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "5ab509133439819c696da38985f811af8302e689f13b806b28dfea1f6e8dcb4c"
+	const want = "4280b9bf2c85a1756098dff64be988dbf4ef18b7c28ca8e7215b26adb85e661b" // T146: left margin 12→8mm
 	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != want {
 		t.Errorf("size:11 render sha = %s, want %s (scale-1 output changed vs pre-T74)", got, want)
 	}
@@ -690,7 +690,7 @@ func TestT76_AutoFitByteStable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "8da14f04976177ab3fe348e510f9fd459c75b5eafe0efd12fcd364d81bebbf0c"
+	const want = "9368ef44a7fe7bec7178de6f1f29f92e68e678210a953d122c8f86b6e7232e51" // T146: left margin 12→8mm
 	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != want {
 		t.Errorf("auto-fit render sha = %s, want %s (auto-fit output drifted)", got, want)
 	}

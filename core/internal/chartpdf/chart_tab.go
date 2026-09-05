@@ -72,7 +72,7 @@ func drawTabMarker(pdf *fpdf.Fpdf, tr func(string) string, originalKey string) {
 	}
 	pdf.SetFont("Helvetica", "I", 8)
 	pdf.SetTextColor(120, 120, 120)
-	pdf.SetXY(margin, pageBottom+3)
+	pdf.SetXY(leftMargin, pageBottom+3)
 	pdf.CellFormat(tabColW, 4, tr("tab in original key ("+originalKey+")"), "", 0, "R", false, 0, "")
 	pdf.SetTextColor(0, 0, 0)
 }
@@ -126,8 +126,9 @@ func longestTabLine(lines []string) (string, bool) {
 	return longest, found
 }
 
-// tabColW is the body column width the tab must fit (same 186 mm the rest of the body uses).
-const tabColW = right - margin
+// tabColW is the body column width the tab must fit (the same width the rest of the body uses — T146
+// widened it by moving the left edge to leftMargin).
+const tabColW = right - leftMargin
 
 // widthFitPt returns the largest point size at which s fits the body column in Courier, measured
 // through tr so cp1252 metrics are exact. +Inf for an empty string (no constraint). Scale-independent:
@@ -222,10 +223,10 @@ func drawTabLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, text string,
 			pdf.SetFont("Courier", "", tabPt)
 			pdf.SetTextColor(0, 0, 0)
 		}
-		pdf.SetXY(margin, y)
+		pdf.SetXY(leftMargin, y)
 		pdf.Cell(0, lead, tr(text))
 		if rec != nil {
-			rec(text, margin, y, pdf.GetStringWidth(tr(text)), lead)
+			rec(text, leftMargin, y, pdf.GetStringWidth(tr(text)), lead)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}

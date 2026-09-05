@@ -98,9 +98,14 @@ import (
 var ErrUnsupportedChar = errors.New("chartpdf: unsupported character")
 
 const (
-	pageW      = 210.0 // A4 width (mm)
-	pageH      = 297.0
-	margin     = 12.0 // T75: 18→12 all round (still a safe binder edge) — ~12mm of height + wider column
+	pageW  = 210.0 // A4 width (mm)
+	pageH  = 297.0
+	margin = 12.0 // T75: 18→12 all round (still a safe binder edge) — top/right/bottom edge
+	// leftMargin: T146 — the LEFT edge only, 12->8mm. A tablet held in portrait wastes width on the left
+	// (VLL: "diminuer la marge a gauche des fichiers textes rendu"); 8mm is still a safe edge and widens the
+	// body column by 4mm. Right/top/bottom stay at `margin`. Pinned by the T144 golden + the T146 left-edge
+	// test so it cannot drift the way the type size did (2026-09-04).
+	leftMargin = 8.0
 	topMargin  = 12.0
 	right      = pageW - margin
 	pageBottom = pageH - margin // add a page once a line would cross this
@@ -675,25 +680,25 @@ func headerBodyStart(subtitle string, scale float64) float64 {
 func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scale float64, rec recFn) float64 {
 	pdf.AddPage()
 	pdf.SetFont("Helvetica", "B", 16*scale)
-	pdf.SetXY(margin, topMargin)
+	pdf.SetXY(leftMargin, topMargin)
 	pdf.Cell(0, 8*scale, tr(title))
 	if rec != nil {
-		rec(title, margin, topMargin, pdf.GetStringWidth(tr(title)), 8*scale)
+		rec(title, leftMargin, topMargin, pdf.GetStringWidth(tr(title)), 8*scale)
 	}
 	ruleY := topMargin + 9*scale
 	if subtitle != "" {
 		pdf.SetFont("Helvetica", "I", 11*scale)
 		pdf.SetTextColor(90, 90, 90)
-		pdf.SetXY(margin, topMargin+8*scale)
+		pdf.SetXY(leftMargin, topMargin+8*scale)
 		pdf.Cell(0, 5*scale, tr(subtitle))
 		if rec != nil {
-			rec(subtitle, margin, topMargin+8*scale, pdf.GetStringWidth(tr(subtitle)), 5*scale)
+			rec(subtitle, leftMargin, topMargin+8*scale, pdf.GetStringWidth(tr(subtitle)), 5*scale)
 		}
 		pdf.SetTextColor(0, 0, 0)
 		ruleY = topMargin + 14*scale
 	}
 	pdf.SetLineWidth(0.3)
-	pdf.Line(margin, ruleY, right, ruleY)
+	pdf.Line(leftMargin, ruleY, right, ruleY)
 	return headerBodyStart(subtitle, scale)
 }
 
@@ -794,10 +799,10 @@ func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label strin
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Helvetica", "B", 11*scale)
 		pdf.SetTextColor(150, 90, 30)
-		pdf.SetXY(margin, y)
+		pdf.SetXY(leftMargin, y)
 		pdf.Cell(0, 6*scale, tr(label)) // T73: through tr() like every other string — an accented section name must not mojibake
 		if rec != nil {
-			rec(label, margin, y, pdf.GetStringWidth(tr(label)), 6*scale)
+			rec(label, leftMargin, y, pdf.GetStringWidth(tr(label)), 6*scale)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}
@@ -809,11 +814,11 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Courier", "B", 11*scale)
 		pdf.SetTextColor(20, 60, 150)
-		pdf.SetXY(margin, y)
+		pdf.SetXY(leftMargin, y)
 		chW := pdf.GetStringWidth(tr(chords))
 		pdf.CellFormat(chW, 5*scale, tr(chords), "", 0, "L", false, 0, "")
 		if rec != nil {
-			rec(chords, margin, y, chW, 5*scale)
+			rec(chords, leftMargin, y, chW, 5*scale)
 		}
 		if annot != "" {
 			// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
@@ -823,16 +828,16 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 			pdf.CellFormat(0, 5*scale, "  "+tr(annot), "", 0, "L", false, 0, "")
 			if rec != nil {
 				// box the annot glyphs (after the two-space lead-in), at the cursor left by the chords.
-				rec(annot, margin+chW+pdf.GetStringWidth("  "), y, pdf.GetStringWidth(tr(annot)), 5*scale)
+				rec(annot, leftMargin+chW+pdf.GetStringWidth("  "), y, pdf.GetStringWidth(tr(annot)), 5*scale)
 			}
 		}
 		pdf.SetTextColor(0, 0, 0)
 		if lyric != "" {
 			pdf.SetFont("Courier", "", 11*scale)
-			pdf.SetXY(margin, y+pairLyricDy*scale)
+			pdf.SetXY(leftMargin, y+pairLyricDy*scale)
 			pdf.Cell(0, 5*scale, tr(lyric))
 			if rec != nil {
-				rec(lyric, margin, y+pairLyricDy*scale, pdf.GetStringWidth(tr(lyric)), 5*scale)
+				rec(lyric, leftMargin, y+pairLyricDy*scale, pdf.GetStringWidth(tr(lyric)), 5*scale)
 			}
 		}
 	}
@@ -845,9 +850,9 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 // textLine renders a normal paragraph line in Helvetica, honoring inline **bold**.
 func textLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, scale float64, rec recFn) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
-		pdf.SetXY(margin, y)
+		pdf.SetXY(leftMargin, y)
 		bold := false
-		x := margin // track the cursor so each **bold** segment gets its own box at the right x
+		x := leftMargin // track the cursor so each **bold** segment gets its own box at the right x
 		for _, seg := range strings.Split(line, "**") {
 			if seg != "" {
 				if bold {
@@ -883,7 +888,7 @@ func newMeasurer() *fpdf.Fpdf {
 // than looping. `m` is the measurer (the real doc when drawing, a throwaway otherwise).
 func footnoteLines(m *fpdf.Fpdf, tr func(string) string, text string, scale float64) []string {
 	m.SetFont("Helvetica", "I", footnotePt*scale)
-	colW := right - margin
+	colW := right - leftMargin // T146: body/footnote column spans the reduced left margin to the right edge
 	var lines []string
 	cur := ""
 	for _, w := range strings.Fields(text) {
@@ -912,10 +917,10 @@ func drawFootnoteLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line st
 	if pdf != nil {
 		pdf.SetFont("Helvetica", "I", footnotePt*scale)
 		pdf.SetTextColor(100, 100, 100)
-		pdf.SetXY(margin, y)
+		pdf.SetXY(leftMargin, y)
 		pdf.Cell(0, leadFootnote*scale, tr(line))
 		if rec != nil {
-			rec(line, margin, y, pdf.GetStringWidth(tr(line)), leadFootnote*scale)
+			rec(line, leftMargin, y, pdf.GetStringWidth(tr(line)), leadFootnote*scale)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}
