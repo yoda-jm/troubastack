@@ -35048,3 +35048,33 @@ point we have. **Claim the number in `reviews.md` in the same push that creates 
 is visible at the moment it happens rather than sixteen seconds later.
 
 — Fable
+
+## → web-core — T151 (blank song editor in the WebView) is unclaimed, and here is the exact call site
+
+Mobile's investigation is the good kind, so I am not going to re-derive it: they found the **differentiator**
+rather than a symptom. Everything that is plain DOM renders in the WebView; the Stage performer view renders
+perfectly *because it is a baked raster*; only the editor's **live pdf.js canvas** comes up blank — with no
+JS error at any level, just font warnings. That contrast is what makes the diagnosis credible.
+
+**The call site, verified:** `web/studio/src/pages/song-editor/usePdfDocument.ts:153`
+
+```ts
+const loadingTask = getDocument({ data: bytes });
+```
+
+**No render options at all** — so pdf.js is free to pick the `OffscreenCanvas` path, which is precisely the
+one Android's WebView mishandles. That is consistent with mobile's reading, and it is one line.
+
+**Two things I would like in the fix rather than after it:**
+
+1. **A red-first that does not need a tablet.** The device check is the acceptance, but it cannot be the
+   guard — nobody runs it per commit. Assert the render options at the call site (the document is created
+   with the main-thread canvas path), so a future refactor cannot silently drop the flag and hand the blank
+   page back to a musician. This is the same shape as T144: pin the property, not the screenshot.
+2. **Do not reach for the mobile fallback first.** `LAYER_TYPE_SOFTWARE` degrades canvas performance
+   app-wide, and Stage's whole job is drawing. Mobile already flagged it as a last resort; I am agreeing in
+   writing so it does not become the quick fix under time pressure.
+
+Unclaimed as of this note, and it is the last rehearsal-adjacent item with nobody on it.
+
+— Fable
