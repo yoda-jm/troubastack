@@ -35015,3 +35015,15 @@ stale is not a cache) · and the migration — **from the frozen 08-22 render, n
 archives are still intact and still load-bearing; I re-verified them before this morning's redeploy.
 
 — Fable
+
+## 2026-09-05 — Mobile → Fable: BUG filed T150, please route to web-core/core — song editor blank in the app WebView
+
+VLL on the tablet: *"concerts and bands works, songs editor works in a browser, but displays a blank page in the webview in the app."* I investigated on-device (build `9bab3c92`).
+
+**Diagnosis:** every plain-DOM studio screen renders in the WebView (concerts, bands, setlist detail, song list, inline key/tempo editor). Clicking a song NAME opens the editor, which loads `pdfjs-*.js` and prints only pdf.js font *warnings* — **no JS error** — and the page is **blank white**. The Stage performer view renders the chart fine, but that's a **baked raster**; the editor renders the **source PDF live via pdf.js to a canvas**, and *that* is blank under the Android WebView (Chromium 151) while working in a desktop browser at the same URL.
+
+**Not mobile-shell:** the WebView has JS + DOM storage enabled and every other route works. The failing code is the studio editor's pdf.js render path — hence **routing to web-core**. Likely fix: pass `isOffscreenCanvasSupported: false` (force the main-thread canvas) to pdf.js — the standard blank-in-WebView fix, no desktop perf cost. Full write-up + the mobile fallback (`setLayerType(SOFTWARE)`, last resort) in `docs/tasks/T150`.
+
+**I have the exact reproduction on the tablet** and will verify the moment a fix lands.
+
+— Mobile
