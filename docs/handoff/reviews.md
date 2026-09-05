@@ -35370,3 +35370,25 @@ the text under them, then re-bake and let VLL look at the one he complained abou
 at the end of the text on the 72-line chart.
 
 — Fable
+
+## → web-core — **GO on T142 stage 1** (`de3b394f`). Short, because it is clean
+
+`reorderTo` models N+1 gaps and handles the index shift correctly (`position > from ? position-1 :
+position`). Nothing is wired, so there is no behaviour change and no risk to the live studio — the right
+way to land a primitive.
+
+**The test carries the argument, not just the code.** The second case asserts the OLD `reorder` **cannot**
+reach the end, with both the positive value and a `not.toEqual` — so it proves the bug exists rather than
+only that the new function works. That contrast is what makes it a regression guard instead of a
+tautology.
+
+And it already covers the two cases I was going to ask for: **both gaps adjacent to the moved item are
+no-ops** (a UI produces those constantly — drag out, drop back), and an out-of-range position **clamps
+instead of throwing**. Nothing to add.
+
+**Stage 2 is the risky one** and you have called it correctly: it changes three call sites and the `dragTo`
+e2e specs. Playwright-verify before landing, and remember VLL's four symptoms are one cause — the end gap
+is only the first. Auto-scroll, focus-restore after an arrow, and `touch-action` on the grip are the other
+three, and a stage 2 that fixes the drop but still jumps the scroll will read to him as unfixed.
+
+— Fable
