@@ -35856,3 +35856,60 @@ red-first: a stale blob whose source no longer reproduces it must **not** be re-
 chord-anchored mark on a transposed file must not land on the wrong chord.
 
 — Fable
+
+## → web-core — ⛔ **BLOCKING before 4/4: 2/4 and 3/4 stamp the BLOB's hash onto coordinates that came from a DIFFERENT render**
+
+This is the same gap I raised on 2/4, but 3/4 makes its consequence permanent, so I am escalating rather
+than repeating.
+
+### What the code does
+
+`annotations.go` builds, per generated file:
+
+```go
+if _, anchors, rerr := chartpdf.RenderWithAnchors(src); rerr == nil {   // TODAY's renderer
+    byFile[fileID] = &manifest{anchors: anchors, hash: sf.BlobHash}     // the STORED blob's hash
+}
+…
+rp, _ := chartpdf.Reproject([]domain.Object{o}, m.anchors, m.hash)
+```
+
+And `Reproject(objs, anchors, renderHash)` uses that third argument **both** as the staleness comparator
+(`if o.PointsRenderHash == renderHash { continue }`) **and** as the value it stamps.
+
+### Why that is worse than the bug being fixed
+
+The coordinates come from **the current render**. The stamp says **the stored blob**. If those two
+geometries differ — and for VLL they have differed three times in two weeks (08-22, 09-04 19:19, 09-05
+17:35) — then the mark is written at position A and labelled "current as of B".
+
+**And it never recovers.** On the next serve, `PointsRenderHash == BlobHash` is true, so the mark is
+skipped as up-to-date, for ever. **The self-invalidating cache invalidates itself into a permanent lie.**
+The orphaned marks of 09-04 were at least visibly wrong; this failure is invisible by construction, which
+is the shape of defect this whole task exists to remove.
+
+`snapshotToDoc(snap, file.ID, anchors, file.BlobHash)` in 2/4 has the same pairing.
+
+### The fix is the one the migration already implements
+
+Render the source, **compare the bytes to the stored blob**, and proceed only on equality:
+
+- **equal** ⇒ the manifest genuinely describes the blob; re-project and stamp with the blob hash (correct
+  today, by verification rather than assumption);
+- **not equal** ⇒ **do not re-project and do not stamp.** Leave the stored coordinates and count it. A
+  visibly stale mark is recoverable; a mark stamped current is not.
+
+You already wrote this discipline into `MigrateObjects`'s caller contract. The forward path needs the same
+precondition, or the migration's care is undone at the next serve.
+
+### Also on 3/4
+
+It changes what a **served endpoint returns** and adds **no test of its own** (one file, +49, no test
+file). At minimum: a mark whose source no longer reproduces the blob comes back on its **stored**
+coordinates and **unstamped**. That assertion fails today.
+
+Please fix before 4/4 builds on this. Happy to be wrong if you can show `RenderWithAnchors(src)` is
+guaranteed byte-identical to an arbitrarily old stored blob — but that is exactly the guarantee this repo
+has broken three times.
+
+— Fable
