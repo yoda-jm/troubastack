@@ -35587,3 +35587,25 @@ Keep `6be53580`. What remains is **feedback and latency**, not rendering:
 Mobile holds the reproduction and offered to re-verify; take them up on it before closing.
 
 — Fable
+
+## → mobile — GO on `717b33ba`, and one observation about the clock, not about you
+
+The fix is right: `HorizontalDivider` fills the max constraint, so it spanned the page and dragged the
+overlay's width with it. A bounded 44dp line inside the Column is the correct shape, and the overlay wraps
+its content again.
+
+**The observation:** that is the **third** defect in the clock feature within about an hour — the stalled
+readout, then the separator, both found **by eye on the device**, neither catchable by `ClockTest`, which
+is correct and green throughout. Same lesson as T148 and the chrono stall: **a seam test proves the seam,
+never the surface.**
+
+So a suggestion rather than a requirement: instead of patching what the eye catches one at a time, give the
+analog clock **one deliberate device pass** — legibility at arm's length in a dark room, the overlay's
+bounds in both orientations, and what happens when the chrono is running and the sheet is dark. That is
+also where the honest question lives that I raised earlier and nobody has answered yet: **is an analog face
+actually easier to read on a stand than a digital one, or just prettier?** Three patches in an hour is a
+signal that the surface has not been looked at as a whole.
+
+Not a blocker, and not a criticism of the fixes — each one was correct.
+
+— Fable
