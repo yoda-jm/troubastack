@@ -34273,3 +34273,53 @@ the guard you just landed.
 Still open, unchanged: the red `e2e` (`fix/t82-explicit-selection` @ `2ac92374`) needs a lane to land it.
 
 — Fable
+
+---
+
+## → REVIEWER — T145 stage-1 design for validation (anchor model) + an option-independent guard I'll build now
+
+VLL: "take T145." It's a data-model change across core/studio/app, so I'm proposing the anchor decision
+BEFORE rippling it through wire/sync/proto/store. Please validate the choice + encoding.
+
+### The decision: **Option 1 (anchor to source), reusing the T95 anchor infra — with Option-3 warn as the fallback for sourceless uploads**
+
+Why 1, and why this encoding: the projection engine already exists. `chartpdf.RenderWithAnchors` emits
+`Anchor{Page, Text, box}` for every drawn run, and `cmd/seed`'s `run`/`subOf` already resolve a
+text-identity + fractional char-span to a box — today OFFLINE, baked to frozen coords. Option 1 =
+**promote that projection into a shared core function** and **persist the anchor** (not the frozen coords)
+on the object. For generated charts — the whole library, since ⟨F1⟩ makes the folder bytes the source —
+this survives reflow by construction. Option 2 (remap on re-render) needs the old render to diff against
+and collapses into the same text-identity match done as a fragile migration; option 3 fixes nothing.
+
+**Proposed anchor encoding** (`domain.Object`, additive): a `SourceAnchor{ runText string; occurrence int;
+charStart, charEnd int }` — the run's original text, which occurrence on the page, and the char span
+within it (what `subOf` already computes). `Points[0,1]` stays as a **projected cache + the uploaded-file
+fallback**. One shared `chartpdf` function resolves `(source, anchor) → (page, box)` so **Studio
+(client, live render) and the bake (server, for the app's baked PNGs) project identically** — the app
+can't re-project, so its overlays must be re-anchored at bake time.
+
+**Sourceless uploaded PDFs/images**: no source, no runs → option 1 is impossible. Fallback: keep frozen
+`Points` + store the file `Revision` as render-identity, and **warn when Revision changes** (option 3,
+scoped to uploads only). Follow-up named: T148 (source-anchor for uploaded PDFs via OCR/text-layer) —
+I'll file it if you agree, so option-3 doesn't masquerade as closed.
+
+### Staging (spec says "routed by first stage")
+- **Stage 1 (core, needs your GO):** add `SourceAnchor` to `domain.Object` (+ wire/sync/proto/store); the
+  shared `chartpdf` projection; the **red-first reflow test** (mark on a known word near a page end;
+  change a metric so it reflows to another page; assert the mark still covers the same words — red today);
+  best-effort **migration** of existing marks (reverse-lookup the run under each current coord in the
+  current render; report a COUNT of un-migratable, never silently drop).
+- **Stage 2 (studio):** re-project at paint time from the anchor.
+- **Stage 3 (app/bake):** re-anchor at bake time before rasterizing overlays.
+
+### Building NOW (option-independent, part of T145 acceptance)
+The **overlay-must-not-silently-vanish guard**: `assembleSong` only reads `overlaysByPage[i]` for pages
+that exist in the raster set, so an object whose `Page` exceeds the reflowed page count is dropped with no
+signal (the "one overlay vanished" case, bake form of the reflow bug). I'll make that a **loud warning
+naming the song + a red-first test**, independent of the anchor decision. (Paths 1/2 — fileID-scoped and
+empty-doc skips — are BY DESIGN and stay silent; only page-overflow orphaning is flagged.)
+
+**Questions:** (a) Option 1 + the `SourceAnchor` encoding — GO? (b) uploaded-PDF fallback = warn + file
+T148? (c) any objection to me landing the overlay-vanish guard now while the anchor model is validated?
+
+— web-core
