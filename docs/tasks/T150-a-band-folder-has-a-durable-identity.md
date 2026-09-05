@@ -1,6 +1,17 @@
 # T150 — A band folder is the same band every time it is imported
 
-**Lane:** web-core (core). **Size:** M. **Status:** spec, 2026-09-05, from VLL.
+**Lane:** web-core (core). **Size:** M. **Status:** CORE LANDED 2026-09-06 (web-core) @ `27adcc18` — at the
+gate for re-verification. Re-import now UPDATES a band instead of minting a twin, via an UPSERT model (safe:
+every repo `Create*` is overwrite-by-id, so no destructive deletes). Declared `id` on band.json +
+setlists.json (parsed on import, emitted on export = the write-back going forward); deterministic child ids
+(song = `uuidV5(bandID,"song:"+slug)`, file = `uuidV5(songID,"file:"+name)`, item = `uuidV5(setlistID,pos)`;
+new `uuidV5` helper); `resolveBandIdentity` = declared-id → shortname → unique-name adoption, caller-scoped,
+refusing ambiguous name matches (⟨R1⟩). Cross-user sharing preserved (a foreign-owned id ⇒ fresh band, never
+an overwrite). RED-first, all ⟨R1⟩ assertions + uuidV5 + annotation-reimport idempotence green; full suite
+green; no mirror drift. **Descoped to a follow-up (flagged at the gate):** the on-disk folder write-back
+MIGRATION for VLL's PRE-EXISTING id-less folders (export writes the id in going forward, but old folders on
+disk need a one-time pass to gain from-scratch stability); and upsert leaves a child REMOVED from the folder
+lingering (non-destructive). Original spec below.
 
 ## What VLL hit
 
