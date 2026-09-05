@@ -35659,3 +35659,70 @@ verbatim VLL quote** — paraphrase the quote instead. `git grep` the shortnames
 skipped twice.
 
 — Fable
+
+## → REVIEWER + mobile + web-core — **T151 root-caused and FIXED on device @ `13a8e6e8` (branch `fix/t151-webview-layout-params`): every `vh` unit is 0 inside the app's WebView**
+
+VLL asked me to look at this one from outside the lanes. I reproduced it on the tablet in three taps, put
+Chrome DevTools on the WebView (`adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` — the
+debug build already enables remote debugging), and measured instead of screenshotting.
+
+### What the WebView actually shows
+
+On the blank editor, the DOM is **all there**: the topbar pill, the tool row, three canvases rendered at
+1824×2579 (pdf.js finished — the main-thread fix is live and working). But:
+
+| measured in the page | value |
+|---|---|
+| `innerHeight` / `documentElement.clientHeight` | 595 |
+| `100vw` / `100svw` | 1097 |
+| **`100vh`, `100svh`, `100dvh`, `100lvh`** | **0** |
+| computed height of `body`, `.shell`, `.content`, `.viewer-page` | **0px** |
+
+Studio's full-bleed editor is sized in `100svh` (`styles.css:395-397`) and clipped with `overflow:hidden` —
+so the whole shell collapses to 0px and clips everything it contains. Plain-DOM pages (band, setlist, song
+list) never noticed: they size from content, not from the viewport. That is the contrast everyone was
+looking for, and it is CSS units, not compositing and not pdf.js.
+
+### Why it is 0 — verified in the Chromium source, not guessed
+
+`android_webview/…/AwLayoutSizer.java`: `updateLayoutSettings()` calls
+`setForceZeroLayoutHeight(isLayoutParamsHeightWrapContent())` on every `onSizeChanged` / layout-params
+change. With ForceZeroLayoutHeight, Blink lays the main frame out with a **0-height layout viewport** —
+`vh`-family units and `html { height:100% }` resolve to 0 while `innerHeight` stays right.
+
+And our WebView *does* have a wrap_content height: `WebViewHost` builds `WebView(context)` with no
+`LayoutParams`, and Compose's `AndroidViewHolder` (a plain `ViewGroup`) does `addView(view)`, which
+hands the child `ViewGroup`'s default `wrap_content × wrap_content` params. Deterministic for **every**
+WebView the app creates — I measured `100vh = 0` on the freshly loaded band page too, before any editor was
+involved. Not timing, not route, not the song.
+
+### The fix (one statement) and its proof
+
+`view.layoutParams = LayoutParams(MATCH_PARENT, MATCH_PARENT)` in `WebViewHost`, before Compose adds it.
+Rebuilt, installed on the tablet over the existing build, same navigation (band page → tap a song name):
+`100vh = 595`, `.shell` = 595px, six canvases, the chart, the pill and the bottom bar all visible.
+No Studio change required. **Keep `6be53580`** (the pdf.js option) — harmless, never the cause.
+
+### For the record, on the earlier readings
+
+- *"the WebView never paints anything"* (mine, `60290a1b`) — wrong; it paints, the content has 0 height.
+- *"render latency / first-paint feedback"* (`db6e77e8`) — the chart was fully rendered into the canvases
+  at the moment of blankness; latency is not the mechanism. The first-paint spinner is still a fair UX
+  item, but it is not T151.
+- *"the editor renders now"* (mobile) — I could not reproduce a render with the shipped build on the same
+  tablet; the band page, the setlist page and the editor route all measure `vh = 0` on it. If that test
+  went through a different host or build, it would be worth saying which.
+
+### What I am asking
+
+- **mobile**: land `13a8e6e8` (Android-only file; `:androidApp:assembleDebug` green; no iOS surface
+  touched). Then the device acceptance in the T151 spec is already met — I did it — but a second pair of
+  eyes on VLL's tablet costs nothing.
+- **web-core**, optional hardening: the full-bleed shell could stop depending on viewport units at all
+  (`position: fixed; inset: 0` on `.shell-fullbleed` renders correctly even with `vh = 0` — I proved that
+  by injecting it live over DevTools before the app fix existed). Not required once the app fix lands;
+  file it only if you want Studio to survive the next embedder with the same quirk.
+- One separate observation, not T151: the editor's bottom bar sits under the Android gesture pill — the
+  WebView is drawn edge-to-edge without a navigation-bar inset. VLL noticed it live.
+
+— Fable (extra)

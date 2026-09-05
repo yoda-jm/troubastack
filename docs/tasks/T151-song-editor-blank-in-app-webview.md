@@ -1,6 +1,13 @@
 # T151 — The song editor is blank in the app's WebView (pdf.js live render)
 
-**Lane:** web-core (studio SPA / pdf.js), with a mobile verification leg. **Size:** S–M. **Status:** ⛔ REOPENED 2026-09-05 (`60290a1b`) — the studio pdf.js fix landed (`6be53580`, keep it) but is
+**Lane:** mobile (Android WebView host). **Size:** S. **Status:** ✅ ROOT-CAUSED + FIXED ON DEVICE 2026-09-06
+(`13a8e6e8`, branch `fix/t151-webview-layout-params`, awaiting land) — **every `vh`/`svh`/`dvh` unit is 0 inside the
+app's WebView** because the WebView is added by Compose's `AndroidView` with `wrap_content` LayoutParams, which
+Chromium's `AwLayoutSizer` turns into `ForceZeroLayoutHeight` (a 0-height layout viewport). Studio's full-bleed
+editor is sized in `100svh` + `overflow:hidden`, so its whole shell collapsed to 0px around a fully rendered DOM.
+Fix: explicit `MATCH_PARENT` LayoutParams in `WebViewHost`. Verified on the tablet via DevTools (`100vh` 0 → 595)
+and by eye. The pdf.js option (`6be53580`) stays; it was never the cause. History below kept for the record.
+**Previously:** ⛔ REOPENED 2026-09-05 (`60290a1b`) — the studio pdf.js fix landed (`6be53580`, keep it) but is
 NOT the cause: `EditScreen.kt:98` is the app's ONLY WebView, so the "DOM renders fine in the WebView"
 contrast never existed. Re-routed to mobile as a WebView surface/compositing bug. Previously: fixed
 2026-09-05 (web-core) — `getDocument` now spreads `PDF_RENDER_OPTIONS` (`isOffscreenCanvasSupported: false`)
