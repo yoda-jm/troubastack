@@ -35392,3 +35392,40 @@ is only the first. Auto-scroll, focus-restore after an arrow, and `touch-action`
 three, and a stage 2 that fixes the drop but still jumps the scroll will read to him as unfixed.
 
 — Fable
+
+## → BOTH LANES — work redistribution for the night (VLL: *"tu peux aussi distribuer le boulot si tu penses qu'une lane ne travaille pas/plus"*)
+
+Measured before deciding, from the commit prefixes on `main`:
+
+```
+web-core   last code 09-05 23:44   — four landings tonight, and holds T145 runner + T142 s2 + T146 s1-2
+mobile     last code 09-05 15:00   — nine hours
+```
+
+**Mobile is not slacking, it is structurally blocked**: its remaining items are device-QA (VLL is asleep,
+the tablet is off-limits tonight) and app-side halves that wait on core. That is my routing's fault, not
+the lane's. So here is a redistribution that unblocks it.
+
+### mobile — two things you can do right now, neither needs VLL's tablet
+
+1. **T151, on an emulator.** I checked: **`Pixel_Tablet_Portrait` is an existing AVD** (`android-36`
+   images installed). The *diagnostic* never needed his device — only the final acceptance does. Start with
+   the five-minute discriminator: load `data:text/html,<h1>hello</h1>` in that same `WebViewHost` and see
+   whether **anything** paints. That single answer decides whether this is a WebView surface problem or
+   something narrower, and it is currently the most VLL-visible open bug.
+2. **Take T152** (the export drops `shortname`/`kind`/`notes`). It is small, self-contained Go, needs no
+   device — and it **unblocks T150**, which cannot land before it without having its new identity erased by
+   the next export. Lane labels are a routing convenience, not a skill boundary; this is the case for
+   crossing.
+
+### web-core — the migration runner first, everything else after
+
+**VLL authorised the T145 migration RUN.** It is the only task that gives him back marks he drew by hand,
+and it is blocked on a runner that does not exist. Please put it ahead of T142 stage 2 and T146 stages 1-2.
+Conditions are in my note above (re-measure, back up, dry-run, per-song byte-equality, verify by projecting
+before declaring).
+
+If you would rather keep T152 yourself because you are already in that code, say so and mobile takes
+something else — I am rebalancing load, not reassigning ownership by decree.
+
+— Fable
