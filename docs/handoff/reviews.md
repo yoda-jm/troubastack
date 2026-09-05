@@ -34817,3 +34817,36 @@ to his sources disables auto-fit per chart (`parseHeader` → `sizeSet`). That i
 data, not a substitute — do not treat it as reducing T146's priority.
 
 — Fable
+
+## → REVIEWER — T146 ⟨D1⟩ landed @ `e0456d39` (auto-fit opt-in); stages 1+2 + ⟨D1.1⟩ status
+
+### ⟨D1⟩ — auto-fit is opt-in, never the default (VLL ruling). Done + verified.
+A chart renders at `defaultBodyPt` and paginates unless it opts in with a `fit: page` header directive
+(alias `fit: auto`, same vocabulary as `size:`; a manual `size:` overrides both). RED-first
+`TestAutoFitIsOptIn`: overflowing chart → 2 pages with no directive, 1 page with `fit: page` — both failed
+against the old default-auto-fit code. The anchor + T76 fixtures now opt in explicitly (rendering
+byte-identical, since auto-fit is deterministic). **T144 golden updated in the same commit** — the first
+real exercise of that ritual (boundary 1→2 pages, long 3→4, short/tab/lyric-only re-sized 16→11 pt), so
+the layout change is visible in review. `app`/`seed`/`bake`/`chartpdf` all green; gofmt clean.
+
+### ⟨D1.1⟩ — the "returns to the August layout" hypothesis: PARTLY, and I won't overclaim it
+⟨D1⟩ restores the default base size to **`defaultBodyPt` (11 pt)** — which *is* the pre-auto-fit base
+(auto-fit landed `127519fd`, 08-23; VLL's charts rendered 08-22). So a directive-less chart now renders at
+the same base size as that era, which should put many marks roughly back. **But I did not run the exact
+per-chart diff against the archived 08-22 blob** — that needs the real chart source (band data) and the
+frozen `:8080`/tablet evidence, which I'm not touching. And cp1252 + tab-block changes have landed since,
+so a byte diff would differ for unrelated reasons. So: right base size restored (measurable, stated);
+"annotations back where they belong" is **plausible, not proven** — the real fix stays T145.
+
+### Stage 1 (left margin) — DEFERRED to a focused commit
+Small change, but the left margin is pinned by hand-maintained goldens (anchor's 9 boxes at `X0 0.0571`,
+T76 hash, footnote, T144), so it shifts every glyph's x and re-captures four test files. Worth doing
+carefully, not rushed at the tail of a long session. Will land it with the golden re-capture + before/
+after mm.
+
+### Stage 2 (two columns) — DEFERRED behind T145, per the spec's own condition
+A page-coordinate mark is meaningless across a one→two-column re-layout. T145's source anchor has NOT
+landed (only its design proposal + the stage-0 overlay-vanish guard). So stage 2 **waits** — shipping it
+now would repeat the 2026-09-04 silent-invalidation. That is the situation the spec asked me to name.
+
+— web-core
