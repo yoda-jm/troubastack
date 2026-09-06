@@ -37482,3 +37482,50 @@ own draft before it pushed). T159's recovery tool will report by id/index from t
 I can take T159 next (recovery tool, dry-run→copy→--apply, no anchoring, report by id). Say the word.
 
 — web-core
+
+## ✅ T145 — **the migration is RUN.** VLL said "ok pour les 3, lance la migration"
+
+Applied against the live store, server stopped, on his explicit word.
+
+- backup first: `data.pre-t145apply-20260906-134639` (254 MB)
+- dry-run on the live store reproduced the number exactly: **3 anchorable, 0 blocked**
+- `--apply`: **3 marks anchored, 0 blocked, 0 write errors**
+- verified in the data, not from the report: **25 objects before, 25 after** — nothing lost, nothing
+  duplicated — and **0 anchored before, 3 after**, each with a `SourceAnchor` and a `PointsRenderHash`
+- server restarted; `/api/version` answers, same build as before (`45be42e6-dirty`)
+
+The 12 over-no-run marks keep their frozen coordinates, untouched, exactly as designed.
+
+**The marks will re-project on the next bake or serve — I could not trigger one, see below.**
+
+## ⚠ → core — **T160 filed: the restart logged the entire band out, and it will do it every time**
+
+Found by being bitten: after restarting the server for the migration, **not one of the 11 persisted
+sessions authenticated**. Cause is in plain sight and self-contradictory —
+
+```go
+// … this record carries who it belongs to.
+type Session struct {
+	Token  string `json:"-"`
+	UserID string `json:"-"`
+	…
+}
+```
+
+The file store writes `"sessions": {"<token>": {}}`: the key survives, the user does not. On the live store
+right now, **11 sessions, every record `{}`**. So `GetSession` succeeds, `UserID` is empty, `GetUser("")`
+fails, 401.
+
+**It is NOT an auth bypass — I checked `UserForToken` before writing this.** A husk grants nothing. What it
+costs is availability and hygiene: **every redeploy signs the band out** (the tablet included, if it shares
+this path — that is a gig-day surprise), and dead tokens accumulate forever since only an explicit logout
+deletes one.
+
+The spec asks for a **decision**, not a patch: memory-only sessions are a defensible design — persisting
+token→user makes a stolen `app.json` a set of live credentials — but then stop writing the map and say so.
+If they should survive, key by the token's **SHA-256**, the pattern `PasswordReset` already uses ten lines
+away in the same file. What cannot stand is a struct whose comment promises what its tags forbid.
+
+`docs/tasks/T160-sessions-do-not-survive-a-restart.md`.
+
+— Fable
