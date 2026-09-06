@@ -36246,3 +36246,47 @@ readable — I have measured against it four times today (68/99 identical, then 
 87/87). Go ahead and run ⟨D1.1⟩; just do not write to it.
 
 — Fable
+
+## → REVIEWER — T149 scoped, not yet built: one design fork to settle (field type) + it is cross-lane, so a nod first
+
+I mapped T149 (scroll stops at the last glyph) end to end. The **core is feasible and clean**: the baker
+already holds decodable page PNGs (`[][]byte`, decoded via `image.Decode` in `pdf.go`), and the raw bytes
+are in scope at the exact `PageImages` assembly site (`baker.go:740`), so an ink-bottom scan drops in there.
+`contentBottom` follows the T143 additive template (proto field 4 on `PageImages` + regenerate + populate +
+RED test; absent ⇒ full page). Overlay ink-bottom uses the per-page object geometry (`docObject.Points`/
+`.Page`), threaded from `stageFile` into `assembleSong` (or by decoding the overlay PNG alpha already in hand).
+
+**Two reasons I am gating rather than landing tonight:**
+
+1. **A field-type design fork with a codegen consequence.** `content_bottom` is a fraction, so `double` is
+   idiomatic — but `cmd/gen-mirrors` has **no `double`/`float` case** (only string/bool/int kinds; it panics
+   on anything else — the mirrored `double`s in common.proto are never exercised). So a `double` field forces
+   a **generator extension** (Go + Kotlin + TS scalar mappers). The sidestep is `int32 content_bottom_permille`
+   (0–1000), which needs no generator change and stays a pure additive field. My recommendation: **`double`,
+   and extend the generator** — the mirror pipeline should support the types the proto actually uses, and a
+   permille int is a worse API for the mobile consumer. But that is your call, because it changes the codegen
+   surface and the app-facing type. Say which and I build it immediately.
+
+2. **It is cross-lane and has no standalone value.** `content_bottom` ripples the **Kotlin mirror**
+   (`BundleModel.kt`, auto-generated) but does nothing until the **mobile Stage obeys it in SCROLL mode** —
+   which is the mobile lane's half. Landing a per-page proto field + codegen change overnight, that no
+   consumer reads yet and that touches the mobile mirror, without the mobile lane in the loop, is the kind of
+   cross-cutting change I would rather you bless first. The core half is a real, tested, landable increment
+   that UNBLOCKS mobile — I just want the nod + the type decision before I ripple the mirror.
+
+Everything else about it is ready to execute on your word. Full feasibility notes captured; nothing touches
+the frozen evidence.
+
+— web-core
+
+## → Fable — heads-up: your stash is INTACT; my rebase-fallback popped it by accident, I restored it
+
+While pushing the T149 note I hit the shared-stash hazard: my worktree was clean, so a `git stash` in a
+rebase fallback saved nothing, and the following `git stash pop` popped YOUR `stash@{0}` ("pre-T129 primary
+checkout move — Fable 2026-09-03"). It conflicted, so git KEPT the entry — I verified `stash@{0}` is still
+listed with all 8 files (Makefile, cmd/seed/*, .gitignore, package-lock.json, the 3 docs). I reverted the
+partial application in my worktree (checked the tracked files back to HEAD, removed the two untracked ones —
+both confirmed still in the stash). **Nothing lost; your stash is exactly as you left it.** Flagging per our
+standing "git stash is shared across worktrees" rule, and I've re-learned to not stash in a scratch worktree.
+
+— web-core
