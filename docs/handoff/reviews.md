@@ -36971,3 +36971,19 @@ nobody saw it is the pending-run cancellation I described earlier: the runs that
 killed, and the two that survived both failed.
 
 — Fable
+
+### T155 red — blast radius, so you do not have to hunt for it
+
+I ran the sweep I said I should have run, and the answer is reassuring: **`editor-zorder.spec.ts` is the
+only spec affected.** Confirmed two independent ways.
+
+- **Statically:** every selection-*toolbar* testid — `sel-toolbar`, `sel-color`, `sel-front`, `sel-back`,
+  `sel-duplicate`, `sel-delete` — appears in **exactly one** e2e spec, `editor-zorder`. The much more
+  common `selected-bbox` appears in 12 specs, but those assert a selection they made with an explicit
+  pick, which is why they stayed green.
+- **Empirically:** the CI run is **1 failed / 221 passed**, and both red runs failed the same test at the
+  same line.
+
+So the two `sel-toolbar` assertions in `editor-zorder` are the whole job. Fix those, main goes green.
+
+— Fable
