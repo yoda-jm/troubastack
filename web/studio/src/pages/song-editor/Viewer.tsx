@@ -26,6 +26,7 @@ import {
   newUuid,
   planUndo,
   pushBounded,
+  shouldCoalesceStyle,
   UNDO_LIMIT,
   type DrawTool,
   type Tool,
@@ -154,12 +155,18 @@ export function Viewer({
   useEffect(() => {
     setUndoStack([]);
   }, [songId]);
-  // Record one reversible action. Consecutive setStyle on the SAME object coalesce into one entry (a slider
-  // drag is one undo, not fifty) — keep the original `before`, advance `after` to the latest value.
+  // Record one reversible action. A setStyle within one GESTURE window of the previous setStyle on the same
+  // object coalesces into that entry (a slider drag is one undo, not fifty) — keep the original `before`,
+  // advance `after`. The time bound keeps colour-then-width as TWO undos (T161 fix-forward). The timestamp
+  // is read outside the state updater so the updater stays pure (StrictMode double-invokes it).
+  const lastStyleAtRef = useRef(0);
   const recordUndo = useCallback((entry: UndoEntry) => {
+    const now = Date.now();
+    const dt = entry.action === "setStyle" ? now - lastStyleAtRef.current : Infinity;
+    if (entry.action === "setStyle") lastStyleAtRef.current = now;
     setUndoStack((stack) => {
       const top = stack[stack.length - 1];
-      if (entry.action === "setStyle" && top && top.action === "setStyle" && top.uuid === entry.uuid) {
+      if (shouldCoalesceStyle(top, entry, dt)) {
         return [...stack.slice(0, -1), { ...top, after: entry.after }];
       }
       return pushBounded(stack, entry, UNDO_LIMIT);
@@ -901,15 +908,21 @@ export function Viewer({
   // layer) is skipped — no mutation sent.
   const deleteSelected = useCallback(() => {
     if (selectedUuids.length === 0 || !syncRef.current) return;
-    let deletedAny = false;
+    const removed: AnnotationObject[] = [];
     for (const uuid of selectedUuids) {
       const obj = doc.objects.find((o) => o.uuid === uuid);
       if (!obj || !isObjectEditableNow(obj)) continue;
       syncRef.current.deleteObject(uuid);
-      recordUndo({ action: "delete", uuid, layerId: obj.layerId, before: obj, after: null }); // undo = restore
-      deletedAny = true;
+      removed.push(obj);
     }
-    if (deletedAny) setSelectedUuids([]);
+    if (removed.length > 0) {
+      // ONE undo entry for the whole selection — restored all-or-nothing (T161 fix-forward: N independent
+      // entries could partially refuse and leave a state the user never created). Every removed object is on
+      // the active layer (isObjectEditableNow requires it), so they share one layerId for the permission
+      // re-check.
+      recordUndo({ action: "delete", layerId: removed[0].layerId, deleted: removed });
+      setSelectedUuids([]);
+    }
   }, [selectedUuids, doc.objects, isObjectEditableNow, recordUndo]);
 
   // T161 — undo THIS user's last action by APPENDING the inverse mutation (never rewriting history). It
@@ -928,8 +941,7 @@ export function Viewer({
       setUndoStack(rest);
       return;
     }
-    const current = doc.objects.find((o) => o.uuid === top.uuid);
-    const plan = planUndo(top, current);
+    const plan = planUndo(top, (uuid) => doc.objects.find((o) => o.uuid === uuid));
     if (plan.do === "refuse") {
       setLocalNotice(
         plan.reason === "changed"
@@ -940,8 +952,9 @@ export function Viewer({
       return;
     }
     if (plan.do === "delete") syncRef.current.deleteObject(plan.uuid);
-    else if (plan.do === "restore") syncRef.current.updateObject("restore", plan.object); // KindRestore revives (I5)
-    else syncRef.current.updateObject(plan.kind, plan.object);
+    else if (plan.do === "restore") {
+      for (const o of plan.objects) syncRef.current.updateObject("restore", o); // KindRestore revives (I5)
+    } else syncRef.current.updateObject(plan.kind, plan.object);
     setLocalNotice(null);
     setUndoStack(rest);
   }, [undoStack, doc.objects, layersById, myUserId, myRole]);

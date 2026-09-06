@@ -726,27 +726,48 @@ export const UNDO_LIMIT = 50;
  *  of scope for T161. */
 export type UndoActionKind = "create" | "move" | "resize" | "setStyle" | "setText" | "reorder" | "delete";
 
-/** One reversible action by THIS user. `before` is the object as it was BEFORE the action (what the inverse
- *  restores); `after` is the object as this user LEFT it (the content guard compares the live object to it,
- *  and it is the forward value a future redo would replay — recorded now so redo is an addition, not a
- *  rewrite). For a create, before is null (inverse = delete); for a delete, after is null (inverse =
- *  restore `before`). */
+/** One reversible action by THIS user. For a single-object action (create / move / resize / setStyle /
+ *  setText / reorder): `before` is the object as it was BEFORE (what the inverse restores) and `after` is
+ *  the object as this user LEFT it (the content guard compares the live object to it; it is also the forward
+ *  value a future redo would replay). For a create, before is null (inverse = delete). A `delete` instead
+ *  carries `deleted` — the object(s) removed, restored ALL-OR-NOTHING so a multi-select delete is one undo
+ *  that can never leave a partial state the user never created. All deleted objects share `layerId` (delete
+ *  only ever removes objects on the active layer). */
 export type UndoEntry = {
   action: UndoActionKind;
-  uuid: string;
   layerId: string;
-  before: AnnotationObject | null;
-  after: AnnotationObject | null;
+  uuid?: string;
+  before?: AnnotationObject | null;
+  after?: AnnotationObject | null;
+  deleted?: AnnotationObject[];
 };
 
-/** What undo should do for an entry, given the object's CURRENT state in the live doc. "refuse" carries
- *  why: "changed" = a bandmate mutated it since this user's action (rule 2 — do not overwrite their work),
- *  "gone" = it is already absent, so there is nothing to reverse. */
+/** What undo should do for an entry, given a lookup of the object's CURRENT state in the live doc. "refuse"
+ *  carries why: "changed" = a bandmate mutated it since this user's action (rule 2 — do not overwrite their
+ *  work), "gone" = it is already absent, so there is nothing to reverse. `restore` carries one or many
+ *  objects (a multi-select delete restores atomically). */
 export type UndoOutcome =
   | { do: "delete"; uuid: string }
-  | { do: "restore"; object: AnnotationObject }
+  | { do: "restore"; objects: AnnotationObject[] }
   | { do: "update"; kind: Exclude<UndoActionKind, "create" | "delete">; object: AnnotationObject }
   | { do: "refuse"; reason: "changed" | "gone" };
+
+/** How far apart (ms) two setStyle actions on one object may be and still count as ONE gesture — a slider
+ *  drag fires many times a second, deliberate edits (colour, then width) are seconds apart. */
+export const STYLE_COALESCE_MS = 500;
+
+/** Should a new setStyle MERGE into the previous undo entry (one continuous slider drag), rather than push a
+ *  distinct undo? Only when it targets the same object, the previous entry was also a setStyle, and they
+ *  fall within one gesture window — so colour-then-width stays TWO undos (T161 fix-forward: the unbounded
+ *  coalesce made a single undo revert both). */
+export function shouldCoalesceStyle(prev: UndoEntry | undefined, entry: UndoEntry, dtMs: number): boolean {
+  return (
+    entry.action === "setStyle" &&
+    prev?.action === "setStyle" &&
+    prev.uuid === entry.uuid &&
+    dtMs < STYLE_COALESCE_MS
+  );
+}
 
 function styleEqual(a: AnnotationStyle, b: AnnotationStyle): boolean {
   return (
@@ -779,25 +800,36 @@ export function objectContentEqual(a: AnnotationObject, b: AnnotationObject): bo
  *  longer exists). Pure — the caller performs the T30 permission re-check and dispatches the returned
  *  mutation. Removing the objectContentEqual guard here collapses "changed" into an apply, which is exactly
  *  the shared-canvas harm rule 2 prevents (the T161 teeth). */
-export function planUndo(entry: UndoEntry, current: AnnotationObject | undefined): UndoOutcome {
+export function planUndo(
+  entry: UndoEntry,
+  lookup: (uuid: string) => AnnotationObject | undefined,
+): UndoOutcome {
   switch (entry.action) {
-    case "create":
+    case "create": {
       // Inverse = delete. Only if the object still exists AND is unchanged since this user made it.
-      if (!current) return { do: "refuse", reason: "gone" };
-      if (!entry.after || !objectContentEqual(current, entry.after)) return { do: "refuse", reason: "changed" };
-      return { do: "delete", uuid: entry.uuid };
-    case "delete":
-      // Inverse = restore the object as it was. Only if it is still absent (nobody re-created/restored it).
-      if (current) return { do: "refuse", reason: "changed" };
-      if (!entry.before) return { do: "refuse", reason: "gone" };
-      return { do: "restore", object: entry.before };
-    default:
+      const cur = entry.uuid ? lookup(entry.uuid) : undefined;
+      if (!cur) return { do: "refuse", reason: "gone" };
+      if (!entry.after || !objectContentEqual(cur, entry.after)) return { do: "refuse", reason: "changed" };
+      return { do: "delete", uuid: entry.uuid! };
+    }
+    case "delete": {
+      // Inverse = restore the object(s), ATOMICALLY: every one must still be absent. If a bandmate
+      // re-created or restored ANY of them, refuse the whole batch rather than restore a subset (which would
+      // leave a state nobody created — Fable's T161 ruling).
+      const objs = entry.deleted ?? [];
+      if (objs.length === 0) return { do: "refuse", reason: "gone" };
+      for (const o of objs) if (lookup(o.uuid)) return { do: "refuse", reason: "changed" };
+      return { do: "restore", objects: objs };
+    }
+    default: {
       // move / resize / setStyle / setText / reorder: inverse = re-apply the previous value, only if the
       // live object still matches what this user left it as.
-      if (!current) return { do: "refuse", reason: "gone" };
-      if (!entry.after || !objectContentEqual(current, entry.after)) return { do: "refuse", reason: "changed" };
+      const cur = entry.uuid ? lookup(entry.uuid) : undefined;
+      if (!cur) return { do: "refuse", reason: "gone" };
+      if (!entry.after || !objectContentEqual(cur, entry.after)) return { do: "refuse", reason: "changed" };
       if (!entry.before) return { do: "refuse", reason: "gone" };
       return { do: "update", kind: entry.action, object: entry.before };
+    }
   }
 }
 

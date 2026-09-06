@@ -1,11 +1,13 @@
-// T161 — the pure undo core in editor.ts: which inverse an action needs, and the shared-canvas guard that
-// refuses when a bandmate changed the object since. Wrong answers here are the dangerous ones (undo eating
-// someone else's work), so they are pinned by hand-built vectors, not by re-deriving the impl.
+// T161 — the pure undo core in editor.ts: which inverse an action needs, the shared-canvas guard that
+// refuses when a bandmate changed the object since, ATOMIC multi-delete restore, and the gesture-bounded
+// setStyle coalesce. Wrong answers here are the dangerous ones (undo eating someone else's work, or a
+// partial restore), so they are pinned by hand-built vectors, not by re-deriving the impl.
 import { describe, it, expect } from "vitest";
 import {
   planUndo,
   objectContentEqual,
   pushBounded,
+  shouldCoalesceStyle,
   UNDO_LIMIT,
   type UndoEntry,
 } from "../src/editor";
@@ -29,6 +31,9 @@ function obj(over: Partial<AnnotationObject> = {}): AnnotationObject {
   };
 }
 
+/** A lookup over a fixed live-doc set, as planUndo consumes. */
+const live = (objs: AnnotationObject[]) => (uuid: string) => objs.find((o) => o.uuid === uuid);
+
 describe("objectContentEqual", () => {
   it("is true for the same user-content and ignores server-stamped createdAt", () => {
     expect(objectContentEqual(obj(), obj({ createdAt: 999 }))).toBe(true);
@@ -46,28 +51,37 @@ describe("objectContentEqual", () => {
 describe("planUndo — create", () => {
   const entry: UndoEntry = { action: "create", uuid: "o1", layerId: "L1", before: null, after: obj() };
   it("inverts to a delete when the object is unchanged since I made it", () => {
-    expect(planUndo(entry, obj())).toEqual({ do: "delete", uuid: "o1" });
+    expect(planUndo(entry, live([obj()]))).toEqual({ do: "delete", uuid: "o1" });
   });
   it("refuses 'changed' when a bandmate mutated it since (rule 2 — the teeth)", () => {
-    // Remove objectContentEqual from planUndo and this becomes a delete → it would erase the bandmate's edit.
-    expect(planUndo(entry, obj({ points: [{ x: 0.5, y: 0.5 }, { x: 0.8, y: 0.8 }] }))).toEqual({
+    expect(planUndo(entry, live([obj({ points: [{ x: 0.5, y: 0.5 }, { x: 0.8, y: 0.8 }] })]))).toEqual({
       do: "refuse",
       reason: "changed",
     });
   });
   it("refuses 'gone' when the object is already deleted", () => {
-    expect(planUndo(entry, undefined)).toEqual({ do: "refuse", reason: "gone" });
+    expect(planUndo(entry, live([]))).toEqual({ do: "refuse", reason: "gone" });
   });
 });
 
-describe("planUndo — delete", () => {
-  const deleted = obj({ text: "keepme" });
-  const entry: UndoEntry = { action: "delete", uuid: "o1", layerId: "L1", before: deleted, after: null };
-  it("inverts to a restore of the exact object (points + style kept, same uuid), not a re-create", () => {
-    expect(planUndo(entry, undefined)).toEqual({ do: "restore", object: deleted });
+describe("planUndo — delete (atomic, one or many)", () => {
+  it("restores a single deleted object when still absent", () => {
+    const d = obj({ text: "keepme" });
+    const entry: UndoEntry = { action: "delete", layerId: "L1", deleted: [d] };
+    expect(planUndo(entry, live([]))).toEqual({ do: "restore", objects: [d] });
   });
-  it("refuses 'changed' if the object reappeared (a bandmate restored/re-made it)", () => {
-    expect(planUndo(entry, obj())).toEqual({ do: "refuse", reason: "changed" });
+  it("restores a multi-select delete ALL at once", () => {
+    const a = obj({ uuid: "a" });
+    const b = obj({ uuid: "b" });
+    const entry: UndoEntry = { action: "delete", layerId: "L1", deleted: [a, b] };
+    expect(planUndo(entry, live([]))).toEqual({ do: "restore", objects: [a, b] });
+  });
+  it("refuses the WHOLE batch if a bandmate re-created any one of them (never a partial restore)", () => {
+    const a = obj({ uuid: "a" });
+    const b = obj({ uuid: "b" });
+    const entry: UndoEntry = { action: "delete", layerId: "L1", deleted: [a, b] };
+    // `a` reappeared → refuse everything, so `b` is not restored into a state the user never created.
+    expect(planUndo(entry, live([obj({ uuid: "a" })]))).toEqual({ do: "refuse", reason: "changed" });
   });
 });
 
@@ -76,14 +90,29 @@ describe("planUndo — move/resize/setStyle/setText/reorder", () => {
   const after = obj({ points: [{ x: 0.4, y: 0.4 }, { x: 0.6, y: 0.6 }] });
   const entry: UndoEntry = { action: "move", uuid: "o1", layerId: "L1", before, after };
   it("re-applies the previous value when the live object still matches what I left", () => {
-    expect(planUndo(entry, after)).toEqual({ do: "update", kind: "move", object: before });
+    expect(planUndo(entry, live([after]))).toEqual({ do: "update", kind: "move", object: before });
   });
   it("refuses 'changed' when someone moved it again after me", () => {
     const theirs = obj({ points: [{ x: 0.7, y: 0.7 }, { x: 0.9, y: 0.9 }] });
-    expect(planUndo(entry, theirs)).toEqual({ do: "refuse", reason: "changed" });
+    expect(planUndo(entry, live([theirs]))).toEqual({ do: "refuse", reason: "changed" });
   });
   it("refuses 'gone' when the object was deleted since", () => {
-    expect(planUndo(entry, undefined)).toEqual({ do: "refuse", reason: "gone" });
+    expect(planUndo(entry, live([]))).toEqual({ do: "refuse", reason: "gone" });
+  });
+});
+
+describe("shouldCoalesceStyle", () => {
+  const s = (uuid: string): UndoEntry => ({ action: "setStyle", uuid, layerId: "L1", before: obj(), after: obj() });
+  it("merges consecutive setStyle on one object within the gesture window (a slider drag)", () => {
+    expect(shouldCoalesceStyle(s("o1"), s("o1"), 30)).toBe(true);
+  });
+  it("does NOT merge two deliberate edits seconds apart (colour, then width)", () => {
+    expect(shouldCoalesceStyle(s("o1"), s("o1"), 1500)).toBe(false);
+  });
+  it("does NOT merge across different objects or a non-setStyle previous entry", () => {
+    expect(shouldCoalesceStyle(s("o1"), s("o2"), 30)).toBe(false);
+    const move: UndoEntry = { action: "move", uuid: "o1", layerId: "L1", before: obj(), after: obj() };
+    expect(shouldCoalesceStyle(move, s("o1"), 30)).toBe(false);
   });
 });
 
@@ -92,7 +121,7 @@ describe("pushBounded", () => {
     let s: number[] = [];
     for (let i = 0; i < UNDO_LIMIT + 10; i++) s = pushBounded(s, i, UNDO_LIMIT);
     expect(s.length).toBe(UNDO_LIMIT);
-    expect(s[0]).toBe(10); // 0..9 fell off
+    expect(s[0]).toBe(10);
     expect(s[s.length - 1]).toBe(UNDO_LIMIT + 9);
   });
   it("does not mutate the input array", () => {
