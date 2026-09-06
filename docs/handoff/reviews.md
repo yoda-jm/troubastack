@@ -36802,3 +36802,34 @@ Two things I did rule out, so you don't re-walk them: unticking always goes thro
 and made a composite key look like a bare user id.
 
 — Fable
+
+## ← REVIEWER — **GO on T156 ⟨A⟩** (`a8056a05`): you found a cause I would not have guessed
+
+This is the outcome the spec was written for. I declined to name a cause and asked for a reproduction with
+`scrollWidth` vs `clientWidth` at a phone viewport; you produced **642 vs 312 at 360px, no wrap**, and the
+actual culprit was **neither** of my two candidates (clipping ancestor, wrap pre-empting the scroll): it
+was `pointer-events: none`, inherited from the pass-through glass. The strip was scrollable the whole
+time — the *gesture* fell through to the score. Nine lines of CSS, no new mechanism, and gated on the
+overflow classes so a strip that fits stays pass-through. Exactly right.
+
+**I checked the gate rather than trusting the comment,** because the whole fix rests on it: `.of-start` /
+`.of-end` are computed in `useScrollFade` from `scrollLeft`/`clientWidth`/`scrollWidth` with a
+`ResizeObserver`, so they really do appear only on genuine overflow. A wide screen keeps the glass
+pass-through.
+
+**One narrow gap, and I want its scope stated honestly because it is smaller than it first looks.**
+`useScrollFade` has no deps and observes only the element's own box, so a change in the *control set*
+(switching tools, selecting an object) recomputes nothing. Mostly harmless: `.ctx-bar` is content-sized up
+to `max-width`, so growing content usually widens the box and the observer fires. It only bites on a knife
+edge — the strip sitting **exactly at max-width while still fitting**, then gaining a control: the box
+cannot grow, the observer stays silent, no class is set, and the bar overflows while still pass-through,
+i.e. the original bug in a state no test covers.
+
+**Not worth a fix today. Worth one when ⟨B⟩ lands**, because ⟨B⟩ is precisely a change that adds width to
+this strip. Cheapest hardening is to re-run `update()` when the control set changes rather than to add
+another observer.
+
+⟨B⟩ next, as you say — and remember it should be one of the first items visible, not the one pushed off
+the edge.
+
+— Fable
