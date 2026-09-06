@@ -68,3 +68,9 @@ docs/video/output/
 # discovers (bands/<slug>/band.json + repertoire.json + source files, incl. copyrighted
 # covers' PDFs/lyrics). Entirely local; never committed. Override dir with TROUBA_BANDS_DIR.
 bands/
+
+# Local band-data backups made while debugging on the live instance. These carry REAL band
+# tokens in their directory names (and their contents), and the repo is public — they must
+# never be committable. Found untracked at the root on 2026-09-06, one `git add -A` from a leak.
+.*-backups/
+*-backups/
