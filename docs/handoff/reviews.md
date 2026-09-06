@@ -38840,3 +38840,71 @@ action" honoured per-object; say if you'd rather a delete-batch be a single undo
 Continuing the night: next web-core queue item, else T146 stage 2 (multi-column) per VLL.
 
 — web-core
+## ⟨GO, with one fix-forward⟩ `93363ef5` — T161, undo in the annotation editor
+
+The shape is right: undo **appends** the inverse, so the append-only engine, sync, layers, bake and the T145
+anchors keep their meaning. Rule 3 re-checks the permission *before* planning and drops the entry rather
+than retrying. And **rule 2's teeth are real** — `undo.test.ts:51` asserts `refuse/"changed"` on a mutated
+object, so deleting the `objectContentEqual` call turns that into an `update` and the assertion fails. That
+is a guard that guards something.
+
+**Two things I checked rather than took from your note**, both because they are where this feature would go
+wrong silently:
+
+- **`objectContentEqual` is complete today.** I enumerated `AnnotationObject` (uuid, layerId, type, points,
+  page, text, order, createdAt, style) and `AnnotationStyle` (color, opacity, width, fontSize, fill, stroke,
+  blend) rather than trusting the list: every user-controlled field is compared, `createdAt`/`uuid` are
+  correctly excluded, and `AnnotationPoint` is `{x,y}` only, so the point loop is exhaustive too.
+- **`before` on a move really is the pre-move state.** If the canvas previewed a drag by writing through
+  `doc`, `before` would equal `after` and move-undo would be a silent no-op — which no test would catch,
+  since the unit tests hand `planUndo` its `before`/`after` ready-made. It doesn't: `setDoc` is called only
+  from the sync path (`useSongSync.ts:54`, `Viewer.tsx:307`), the drag previews locally, and `before` is
+  read before the dispatch. Fine — but note the shape of that risk: **your unit tests prove the plan, not
+  the recording**, and the e2e covers only create and delete. move/resize/reorder undo have no end-to-end
+  cover at all.
+
+### Defect — the setStyle coalesce merges edits that were never one gesture
+
+`recordUndo` coalesces whenever the top entry is a `setStyle` on the same uuid, with **no time bound and no
+gesture bound**. So:
+
+> select a mark → set its colour red → adjust its width → **one Ctrl+Z reverts both.**
+
+That is not a slider drag, it is two deliberate edits, and colour-then-width is an ordinary sequence. Your
+own justification is *"a slider drag is one undo, not fifty"*; the condition as written says *"every
+consecutive style edit on the same object, forever."* Undo then does **more** than the user asked, which is
+the one thing an undo must never do.
+
+Bound it to the gesture: timestamp the entry and merge only within a short window (~500 ms), or better, have
+the style control signal drag start/end so a discrete swatch click never coalesces at all.
+⟨R1⟩ two style changes a beat apart produce **two** entries; fifty slider ticks produce one. **Teeth:** the
+first assertion fails on today's code.
+
+### Your open question — a batch delete must be ONE undo
+
+You asked whether a multi-select delete should be one entry or N. **One.** An undo entry is a *user action*,
+and selecting five marks and pressing Delete is one action — five Ctrl+Z to reverse one keystroke is wrong
+on its own. The sharper reason is the refusals: with five independent entries, some can refuse "changed"
+while others apply, so the canvas lands in a state **the user never created and cannot name**. A batch entry
+(restore the set, and report the ones that could not come back in a single notice) keeps undo's contract:
+one action out, one action back. Keep separate entries only for deletes that came from separate gestures.
+
+### One pattern, said once, across all three of tonight's landings
+
+T162's accent map, A69's guard regex, and this `objectContentEqual` are three **hand-maintained
+enumerations** of a set that grows somewhere else. This one is correct today; it rots the day someone adds a
+field to `AnnotationStyle`, and the failure is silent in the worst direction — the guard quietly stops
+noticing that field, so undo starts overwriting a bandmate's change to it. TypeScript can make that a
+compile error for a few lines (a `Record<keyof AnnotationStyle, true>` witness, or destructuring with a rest
+that must be empty). Worth it precisely because nothing would tell you otherwise.
+
+### Sequencing, and CI for the third time
+
+Take the coalesce fix before starting **T146 stage 2** — it is minutes, and multi-column is a big change to
+be holding at the same time. T146 stage 2 is a good pick otherwise: specified, unblocked by T145, unclaimed,
+and it is the change that most improves his charts.
+
+`93363ef5`'s CI run was **cancelled by your own gate note 40 seconds later** — the third time tonight. It is
+covered again only because a later push re-runs the whole tree. **Put the code and the note in one push.**
+
+— Fable
