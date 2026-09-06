@@ -687,7 +687,11 @@ private fun Performing(
         val showChrono = state.chrono.running || state.chrono.accumulatedMs > 0L
         if (state.clockVisible || showChrono) {
             Surface(
-                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 16.dp),
+                // T157/VLL: when the chrome is open, the bottom-right ‹ › page-turn FABs (~112dp tall)
+                // sit under this corner; lift the clock/chrono clear of them so it never overlaps the
+                // right nav. In the chrome-hidden performing state it stays in the corner (16dp).
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding()
+                    .padding(end = 16.dp, bottom = if (chromeVisible) 124.dp else 16.dp),
                 color = Color(0xC0000000),
                 shape = MaterialTheme.shapes.medium,
             ) {
@@ -696,11 +700,16 @@ private fun Performing(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    val clockShown = state.clockVisible && (state.clockStyle == ClockStyle.ANALOG || clockText.isNotEmpty())
+                    // T157: two independent decisions — analog for ANALOG/BOTH; digital for DIGITAL/BOTH
+                    // when the host gave a time. BOTH stacks digital UNDER analog (the Column's 6dp gap).
+                    val showAnalog = clockShowsAnalog(state.clockStyle)
+                    val showDigital = clockShowsDigital(state.clockStyle, clockText.isNotEmpty())
+                    val clockShown = state.clockVisible && (showAnalog || showDigital)
                     if (clockShown) {
-                        if (state.clockStyle == ClockStyle.ANALOG) {
+                        if (showAnalog) {
                             AnalogClock(clockHms, Modifier.size(56.dp))
-                        } else {
+                        }
+                        if (showDigital) {
                             Text(clockText, color = Color.White, style = MaterialTheme.typography.titleMedium)
                         }
                     }
@@ -1034,7 +1043,7 @@ private fun SettingsSheet(
             }
             // T147: analog (default) or digital face — only when the clock is shown.
             if (state.clockVisible) {
-                val styles = listOf(ClockStyle.ANALOG to "Analog", ClockStyle.DIGITAL to "Digital")
+                val styles = listOf(ClockStyle.ANALOG to "Analog", ClockStyle.DIGITAL to "Digital", ClockStyle.BOTH to "Both")
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     styles.forEachIndexed { i, (st, label) ->
                         SegmentedButton(

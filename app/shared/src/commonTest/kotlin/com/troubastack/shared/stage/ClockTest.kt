@@ -2,6 +2,8 @@ package com.troubastack.shared.stage
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /** T147 — the analog clock hand angles are pure and testable (no Canvas). */
 class ClockTest {
@@ -28,4 +30,32 @@ class ClockTest {
     @Test fun twenty_four_hour_input_wraps_to_twelve_hour_face() =
         // 15:00 (3pm) renders the same as 3:00 on a 12-hour face
         assertAngles(15, 0, 0, 90f, 0f, 0f)
+
+    // --- T157: a third style (BOTH), and the two bugs the spec flags ---
+
+    @Test fun parse_restores_both_by_name() {
+        // ⟨1⟩ the old two-way `== "DIGITAL"` compare dropped a stored BOTH to ANALOG on relaunch.
+        assertEquals(ClockStyle.BOTH, ClockStyle.parse("BOTH"))
+        assertEquals(ClockStyle.DIGITAL, ClockStyle.parse("DIGITAL"))
+        assertEquals(ClockStyle.ANALOG, ClockStyle.parse("ANALOG"))
+    }
+
+    @Test fun parse_defaults_to_analog_for_null_or_unknown() {
+        assertEquals(ClockStyle.ANALOG, ClockStyle.parse(null))
+        assertEquals(ClockStyle.ANALOG, ClockStyle.parse("")) // a newer build's unknown value degrades to default, not a wrong face
+        assertEquals(ClockStyle.ANALOG, ClockStyle.parse("QUARTZ"))
+    }
+
+    @Test fun both_shows_the_analog_face_even_with_no_digital_text() {
+        // ⟨2⟩ on a formatter-less host (iOS/tests) clockText is "" — BOTH must still show the analog face.
+        assertTrue(clockShowsAnalog(ClockStyle.BOTH))
+        assertFalse(clockShowsDigital(ClockStyle.BOTH, clockTextPresent = false))
+        assertTrue(clockShowsDigital(ClockStyle.BOTH, clockTextPresent = true))
+    }
+
+    @Test fun each_style_shows_the_right_faces() {
+        assertTrue(clockShowsAnalog(ClockStyle.ANALOG)); assertFalse(clockShowsDigital(ClockStyle.ANALOG, true))
+        assertFalse(clockShowsAnalog(ClockStyle.DIGITAL)); assertTrue(clockShowsDigital(ClockStyle.DIGITAL, true))
+        assertTrue(clockShowsAnalog(ClockStyle.BOTH) && clockShowsDigital(ClockStyle.BOTH, true))
+    }
 }

@@ -641,7 +641,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 monotonicNow = { SystemClock.elapsedRealtime() },
                 initialChrono = initialChrono,
                 initialClockVisible = storage.getSecret(STAGE_CLOCK_KEY) == "true",
-                initialClockStyle = if (storage.getSecret(STAGE_CLOCK_STYLE_KEY) == "DIGITAL") ClockStyle.DIGITAL else ClockStyle.ANALOG,
+                initialClockStyle = ClockStyle.parse(storage.getSecret(STAGE_CLOCK_STYLE_KEY)), // T157: restore by name (BOTH survives)
             ),
             AndroidImageDecoder(File(dir)),
         )
