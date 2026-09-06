@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"troubastack/core/internal/httpapi"
@@ -98,7 +99,9 @@ func TestApps_withApk(t *testing.T) {
 	if ct := resp.Header.Get("Content-Type"); ct != "application/vnd.android.package-archive" {
 		t.Fatalf("Content-Type = %q, want the apk MIME", ct)
 	}
-	if cd := resp.Header.Get("Content-Disposition"); cd != `attachment; filename="troubastage-v2.3.4.apk"` {
+	// T162: the header now also carries an RFC 5987 filename*; the ASCII fallback (old-client parse) is
+	// unchanged and still leads. This name is pure ASCII, so both parts read the same versioned filename.
+	if cd := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, `attachment; filename="troubastage-v2.3.4.apk"`) {
 		t.Fatalf("Content-Disposition = %q, want versioned filename", cd)
 	}
 	got, _ := io.ReadAll(resp.Body)

@@ -935,7 +935,7 @@ func (a *WebAPI) downloadFile(w http.ResponseWriter, r *http.Request, u app.User
 	// claim that disagrees with the payload (e.g. a generated chart whose Size was the source length)
 	// must not be able to truncate the response — that turned a wrong listing number into a dead viewer.
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", downloadFilename(f.Filename, f.ContentType)))
+	w.Header().Set("Content-Disposition", contentDisposition("inline", downloadFilename(f.Filename, f.ContentType), "file"))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }
@@ -1073,7 +1073,7 @@ func (a *WebAPI) exportSetlist(w http.ResponseWriter, r *http.Request, u app.Use
 		return
 	}
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Header().Set("Content-Disposition", contentDisposition("attachment", filename, "setlist.pdf"))
 	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(pdf)

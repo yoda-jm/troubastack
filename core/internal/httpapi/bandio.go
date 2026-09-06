@@ -38,7 +38,7 @@ func (a *BandIOAPI) exportBand(w http.ResponseWriter, r *http.Request, u app.Use
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Header().Set("Content-Disposition", contentDisposition("attachment", filename, "band.tband"))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }

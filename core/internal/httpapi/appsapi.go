@@ -110,6 +110,6 @@ func (a *AppsAPI) download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", known.mime)
-	w.Header().Set("Content-Disposition", `attachment; filename="`+known.base+"-"+a.version+"."+known.ext+`"`)
+	w.Header().Set("Content-Disposition", contentDisposition("attachment", known.base+"-"+a.version+"."+known.ext, "download."+known.ext))
 	http.ServeContent(w, r, known.file, info.ModTime(), f)
 }

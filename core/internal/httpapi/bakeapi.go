@@ -333,7 +333,7 @@ func (a *BakeAPI) downloadBundle(w http.ResponseWriter, r *http.Request, u app.U
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+concertID+`.tstage"`)
+	w.Header().Set("Content-Disposition", contentDisposition("attachment", concertID+".tstage", "concert.tstage"))
 	http.ServeContent(w, r, concertID+".tstage", info.ModTime(), f)
 }
 
@@ -383,7 +383,7 @@ func (a *BakeAPI) concertPDF(w http.ResponseWriter, r *http.Request, u app.User)
 		return
 	}
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+concertID+`.pdf"`)
+	w.Header().Set("Content-Disposition", contentDisposition("attachment", concertID+".pdf", "concert.pdf"))
 	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
 	_, _ = w.Write(pdf)
 }
