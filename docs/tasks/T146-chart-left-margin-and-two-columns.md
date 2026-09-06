@@ -7,9 +7,13 @@
 top/right/bottom stay at `margin`), all left-edge draws + tabColW route through it; RED-first
 `TestLeftMargin_T146`; goldens re-captured in the same commit — verified a PURE left-shift (every X0→0.0381,
 every X1 −0.0190, all Y unchanged, all T144 page counts unchanged; footnote re-wraps at the wider column).
-At the gate for re-verification. **Stage 2 (two columns) now UNBLOCKED** — T145's source anchor landed
-(`8bb13e5b`), so a column re-layout no longer silently invalidates marks (the spec's own precondition is
-met) — deferred as its own larger commit, not yet started. ⟨D1.1⟩ (08-22-render comparison) needs the
+At the gate for re-verification. **Stage 2 (two columns) DONE (web-core, 2026-09-07):** `columns: 2` header
+directive; content flows down the left column then the right before a new page; auto-fit runs WITHIN the
+column count (columns opt into it implicitly — the width is traded for a larger type size). Column geometry
+is threaded so single-column output is BYTE-IDENTICAL (T144 golden unchanged). A tab chart stays one column
+(a stave is full-width — T135). Annotation precondition met by T145 (source anchors re-project across the
+re-layout, so no mark is silently invalidated). RED-first: a 2-page/1-col chart fits 1 page in 2 cols at a
+larger pt; tab-chart-ignores-columns; a 2-col drift golden. ⟨D1.1⟩ (08-22-render comparison) needs the
 frozen evidence store (hands-off hold) → not run; reported at the gate.
 
 ## What VLL asked for

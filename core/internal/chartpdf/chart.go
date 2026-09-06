@@ -110,6 +110,11 @@ const (
 	right      = pageW - margin
 	pageBottom = pageH - margin // add a page once a line would cross this
 
+	// colGutter: T146 stage 2 — the horizontal gap between the two body columns (opt-in `columns: 2`).
+	// The body [leftMargin, right] splits into N columns of (width − (N−1)·gutter)/N. 6mm keeps the
+	// columns visibly separate without stealing much of the width the two-column mode exists to buy back.
+	colGutter = 6.0
+
 	// T75 per-row advances at scale 1 (11 pt). Leading pulled toward typographic norms (was
 	// 1.5–1.7×): lyric 1.35×, chord 1.28× of the ~3.9 mm type. The chord row is tighter (short,
 	// mostly descender-free). measure() and the renderer share these — one source of truth.
@@ -236,13 +241,19 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 	if err := validateTabWidth(lines); err != nil { // T135: refuse a tab that can't fit even at the floor
 		return nil, nil, 0, err
 	}
-	subtitle, _, bodyPt, sizeSet, autoFit, skip := parseHeader(lines)
+	subtitle, _, bodyPt, sizeSet, autoFit, cols, skip := parseHeader(lines)
+	// T146 stage 2: a tab block spans the full width (a stave never narrows — T135), so a tab chart stays
+	// one column regardless of the directive.
+	if cols > 1 && hasTabBlock(lines) {
+		cols = 1
+	}
 	// T146 ⟨D1⟩ (VLL): auto-fit is OPT-IN, never the default. Without a `fit:` directive a chart renders at
 	// defaultBodyPt and paginates — so every chart in a setlist reads at one size, and adding a lyric line
-	// no longer re-sizes the whole chart. Only `fit: page` opts into T76's shrink-to-one-page; a manual
-	// `size:` still overrides both.
-	if !sizeSet && autoFit {
-		bodyPt = autoFitBodyPt(lines, subtitle, skip) // T76: largest size that keeps every segment on its page
+	// no longer re-sizes the whole chart. `columns: 2` opts in IMPLICITLY: the point of two columns is to
+	// trade the freed width for a LARGER type size, so it auto-fits within the column count. A manual `size:`
+	// still overrides both.
+	if !sizeSet && (autoFit || cols > 1) {
+		bodyPt = autoFitBodyPt(lines, subtitle, skip, cols) // T76: largest size that keeps every segment on its page/columns
 	}
 	scale := bodyPt / defaultBodyPt
 	pdf, tr := newDoc(firstTitle(lines))
@@ -259,7 +270,7 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 		}
 	}
 	y := header(pdf, tr, firstTitle(lines), subtitle, scale, rec)
-	y = layout(lines, scale, skip, y, layoutOpts{pdf: pdf, tr: tr, paginate: true, rec: rec})
+	y = layout(lines, scale, skip, y, layoutOpts{pdf: pdf, tr: tr, paginate: true, rec: rec, cols: cols})
 	return pdf, anchors, y, nil
 }
 
@@ -269,7 +280,7 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 // contentHeight().
 func measure(source string) float64 {
 	lines := chartLines(source)
-	subtitle, _, bodyPt, _, _, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, _, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true})
 }
@@ -280,7 +291,7 @@ func measure(source string) float64 {
 // from measure()'s paginated end-y.
 func contentHeight(source string) float64 {
 	lines := chartLines(source)
-	subtitle, _, bodyPt, _, _, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, _, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: false})
 }
@@ -292,9 +303,9 @@ func contentHeight(source string) float64 {
 // second page is allowed rather than printing type too small to read on a stand ("most songs, not
 // all"). Used only when no manual `size:` was given — a manual size disables auto-fit (parseHeader
 // sizeSet).
-func autoFitBodyPt(lines []string, subtitle string, skip map[int]bool) float64 {
+func autoFitBodyPt(lines []string, subtitle string, skip map[int]bool, cols int) float64 {
 	for pt := maxBodyPt; pt > minBodyPt; pt-- {
-		if fitsAt(lines, subtitle, skip, float64(pt)) {
+		if fitsAt(lines, subtitle, skip, float64(pt), cols) {
 			return float64(pt)
 		}
 	}
@@ -306,10 +317,12 @@ func autoFitBodyPt(lines []string, subtitle string, skip map[int]bool) float64 {
 // the top margin) and counts automatic breaks: zero means every segment fit its own page. Using the
 // real layout — not a raw height compare — means orphan control and the never-split-a-pair rule are
 // honoured exactly as they will be drawn, so a size fits here iff it renders on its segments' pages.
-func fitsAt(lines []string, subtitle string, skip map[int]bool, bodyPt float64) bool {
+func fitsAt(lines []string, subtitle string, skip map[int]bool, bodyPt float64, cols int) bool {
 	scale := bodyPt / defaultBodyPt
 	auto := 0
-	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, autoBreaks: &auto})
+	// In two-column mode a column break is NOT an automatic page break — "fits" means the content fits on
+	// ONE page across its columns, so autoBreaks (page crossings only) staying zero is the right test.
+	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, autoBreaks: &auto, cols: cols})
 	return auto == 0
 }
 
@@ -334,6 +347,10 @@ type layoutOpts struct {
 	// explicit {new_page} breaks. T76 auto-fit's fit-test: a size fits iff it forces zero automatic
 	// breaks, i.e. every {new_page}-delimited segment fits its own page (segment 1 under the header).
 	autoBreaks *int
+	// cols is the body column count (T146 stage 2). 0 or 1 ⇒ single column (byte-identical to pre-T146:
+	// the column box is exactly [leftMargin, right]). 2 ⇒ content flows down the left column then the right
+	// before a new page; a column break is not an automatic page break.
+	cols int
 }
 
 // layout walks the body once and returns the final y. It is the SINGLE source of the per-row advances
@@ -347,19 +364,40 @@ type layoutOpts struct {
 //     right after a header is obeyed as written).
 func layout(lines []string, scale float64, skip map[int]bool, y float64, o layoutOpts) float64 {
 	pg := 1
+	// T146 stage 2: column geometry. nCols==1 makes every column value equal the pre-T146 constants
+	// (curLeft==leftMargin, colW==right-leftMargin), so single-column output is byte-identical.
+	nCols := o.cols
+	if nCols < 1 {
+		nCols = 1
+	}
+	colW := (right - leftMargin - float64(nCols-1)*colGutter) / float64(nCols)
+	colIndex := 0
+	colTop := y // columns on the first page start below the header (the passed-in y); later pages at topMargin
+	curLeft := func() float64 { return leftMargin + float64(colIndex)*(colW+colGutter) }
 	newPage := func() {
 		if o.paginate {
 			if o.pdf != nil {
 				o.pdf.AddPage()
 			}
+			colIndex = 0
+			colTop = topMargin
 			y = topMargin
 			pg++
 		}
 	}
+	// page(need) breaks when the next unit would cross the page bottom. In two-column mode an unfilled next
+	// column absorbs the break WITHOUT a new page (and without counting as an automatic break — a column
+	// break is not a page turn); only when the last column is full does a new page start.
 	page := func(need float64) {
-		if o.paginate && y+need > pageBottom {
+		if !o.paginate || y+need <= pageBottom {
+			return
+		}
+		if colIndex < nCols-1 {
+			colIndex++
+			y = colTop
+		} else {
 			if o.autoBreaks != nil {
-				*o.autoBreaks++ // an automatic break: this size did not fit the segment (T76)
+				*o.autoBreaks++ // an automatic PAGE break: this size did not fit the segment (T76)
 			}
 			newPage()
 		}
@@ -442,10 +480,10 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			// **bold** is LITERAL inside a footnote (documented): the asterisks render as text, so a
 			// wrapped attribution can't accidentally trip Part 1's per-bold-word anchoring.
 			mpdf, mtr := getMeasurer()
-			for _, wl := range footnoteLines(mpdf, mtr, strings.Join(para, " "), scale) {
+			for _, wl := range footnoteLines(mpdf, mtr, strings.Join(para, " "), scale, colW) {
 				page(leadFootnote * scale)
 				note("footnote")
-				y = drawFootnoteLine(o.pdf, o.tr, y, wl, scale, o.rec)
+				y = drawFootnoteLine(o.pdf, o.tr, curLeft(), y, wl, scale, o.rec)
 			}
 			drew = true
 		case isTabStart(trimmed):
@@ -503,7 +541,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			// orphan control: keep the header with its first content line on one page.
 			page(leadSection*scale + firstUnitLead(lines, i, skip)*scale)
 			note("section")
-			y = sectionLabel(o.pdf, o.tr, y, strings.TrimSpace(trimmed[3:]), scale, o.rec)
+			y = sectionLabel(o.pdf, o.tr, curLeft(), y, strings.TrimSpace(trimmed[3:]), scale, o.rec)
 			drew = true
 		case isChordRow(trimmed) && i+1 < len(lines) && isLyric(lines[i+1]):
 			applyBreak()
@@ -511,7 +549,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			page(leadPair * scale) // the pair is one unit — never split a chord from its lyric
 			note("pair")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(o.pdf, o.tr, y, ch, an, strings.TrimRight(lines[i+1], " \t"), scale, o.rec)
+			y = chordLine(o.pdf, o.tr, curLeft(), y, ch, an, strings.TrimRight(lines[i+1], " \t"), scale, o.rec)
 			drew = true
 			i++ // consumed the lyric line
 		case isChordRow(trimmed):
@@ -520,14 +558,14 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			page(leadChord * scale)
 			note("chord")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(o.pdf, o.tr, y, ch, an, "", scale, o.rec)
+			y = chordLine(o.pdf, o.tr, curLeft(), y, ch, an, "", scale, o.rec)
 			drew = true
 		default:
 			applyBreak()
 			gap()
 			page(leadLyric * scale)
 			note("text")
-			y = textLine(o.pdf, o.tr, y, line, scale, o.rec)
+			y = textLine(o.pdf, o.tr, curLeft(), y, line, scale, o.rec)
 			drew = true
 		}
 	}
@@ -726,6 +764,12 @@ var reSizeDirective = regexp.MustCompile(`(?i)^size\s*:\s*(\d+)$`)
 // Same header vocabulary as `size:`; a manual `size:` still overrides it.
 var reFitDirective = regexp.MustCompile(`(?i)^fit\s*:\s*(page|auto)$`)
 
+// reColumnsDirective — T146 stage 2: the opt-IN to a two-column body. `columns: 2` flows the content down
+// the left column then the right, trading width for a LARGER auto-fit type size (the point of the feature).
+// Same header vocabulary as `size:`/`fit:`. Only `2` is supported today; any other count is ignored (stays
+// one column). A chart with a tab block stays one column (a tab stave is full-width — handled in renderChart).
+var reColumnsDirective = regexp.MustCompile(`(?i)^columns\s*:\s*(\d+)$`)
+
 // parseHeader scans the header block — the contiguous non-blank lines after `# Title`, before the
 // first blank line or `## section` — for the `size` directive and the subtitle. It returns the
 // subtitle text + line index (or -1), the body point size (default when the directive is
@@ -736,8 +780,8 @@ var reFitDirective = regexp.MustCompile(`(?i)^fit\s*:\s*(page|auto)$`)
 // it is not a chord row. Zero or ≥2 non-directive lines → no subtitle (a title running straight
 // into body is not a header). Both `size`/artist orders work; `size: 99`/`size: abc` don't set a
 // size but the numeric one is still consumed.
-func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, sizeSet bool, autoFit bool, skip map[int]bool) {
-	bodyPt, subIdx, skip = defaultBodyPt, -1, map[int]bool{}
+func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, sizeSet bool, autoFit bool, cols int, skip map[int]bool) {
+	bodyPt, subIdx, cols, skip = defaultBodyPt, -1, 1, map[int]bool{}
 	t := -1
 	for i, l := range lines {
 		if strings.HasPrefix(strings.TrimSpace(l), "# ") {
@@ -772,6 +816,15 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 			skip[i] = true
 			continue
 		}
+		if m := reColumnsDirective.FindStringSubmatch(s); m != nil {
+			// T146 stage 2: opt IN to a two-column body. Only 2 is supported; any other value is consumed but
+			// leaves cols=1. Auto-fit-within-columns is turned on by renderChart when cols>1.
+			if n, _ := strconv.Atoi(m[1]); n == 2 {
+				cols = 2
+			}
+			skip[i] = true
+			continue
+		}
 		if isNewPageMarker(s) {
 			skip[i] = true // a leading {new_page} in the header block: consumed, never a subtitle
 			continue
@@ -790,19 +843,19 @@ func parseHeader(lines []string) (subtitle string, subIdx int, bodyPt float64, s
 
 // subtitleOf is retained for the T70 tests: the subtitle text + index only.
 func subtitleOf(lines []string) (string, int) {
-	s, i, _, _, _, _ := parseHeader(lines)
+	s, i, _, _, _, _, _ := parseHeader(lines)
 	return s, i
 }
 
 // sectionLabel prints a section header (e.g. "Verse 1") and returns the next y.
-func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label string, scale float64, rec recFn) float64 {
+func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, label string, scale float64, rec recFn) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Helvetica", "B", 11*scale)
 		pdf.SetTextColor(150, 90, 30)
-		pdf.SetXY(leftMargin, y)
+		pdf.SetXY(left, y)
 		pdf.Cell(0, 6*scale, tr(label)) // T73: through tr() like every other string — an accented section name must not mojibake
 		if rec != nil {
-			rec(label, leftMargin, y, pdf.GetStringWidth(tr(label)), 6*scale)
+			rec(label, left, y, pdf.GetStringWidth(tr(label)), 6*scale)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}
@@ -810,15 +863,15 @@ func sectionLabel(pdf *fpdf.Fpdf, tr func(string) string, y float64, label strin
 }
 
 // chordLine prints a monospaced blue chord row and the lyric beneath it.
-func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot, lyric string, scale float64, rec recFn) float64 {
+func chordLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, chords, annot, lyric string, scale float64, rec recFn) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
 		pdf.SetFont("Courier", "B", 11*scale)
 		pdf.SetTextColor(20, 60, 150)
-		pdf.SetXY(leftMargin, y)
+		pdf.SetXY(left, y)
 		chW := pdf.GetStringWidth(tr(chords))
 		pdf.CellFormat(chW, 5*scale, tr(chords), "", 0, "L", false, 0, "")
 		if rec != nil {
-			rec(chords, leftMargin, y, chW, 5*scale)
+			rec(chords, left, y, chW, 5*scale)
 		}
 		if annot != "" {
 			// a performance note ("(x2)", "(2x, 1x Arpèges)") — an instruction, not something to
@@ -828,16 +881,16 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 			pdf.CellFormat(0, 5*scale, "  "+tr(annot), "", 0, "L", false, 0, "")
 			if rec != nil {
 				// box the annot glyphs (after the two-space lead-in), at the cursor left by the chords.
-				rec(annot, leftMargin+chW+pdf.GetStringWidth("  "), y, pdf.GetStringWidth(tr(annot)), 5*scale)
+				rec(annot, left+chW+pdf.GetStringWidth("  "), y, pdf.GetStringWidth(tr(annot)), 5*scale)
 			}
 		}
 		pdf.SetTextColor(0, 0, 0)
 		if lyric != "" {
 			pdf.SetFont("Courier", "", 11*scale)
-			pdf.SetXY(leftMargin, y+pairLyricDy*scale)
+			pdf.SetXY(left, y+pairLyricDy*scale)
 			pdf.Cell(0, 5*scale, tr(lyric))
 			if rec != nil {
-				rec(lyric, leftMargin, y+pairLyricDy*scale, pdf.GetStringWidth(tr(lyric)), 5*scale)
+				rec(lyric, left, y+pairLyricDy*scale, pdf.GetStringWidth(tr(lyric)), 5*scale)
 			}
 		}
 	}
@@ -848,11 +901,11 @@ func chordLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, chords, annot,
 }
 
 // textLine renders a normal paragraph line in Helvetica, honoring inline **bold**.
-func textLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, scale float64, rec recFn) float64 {
+func textLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, line string, scale float64, rec recFn) float64 {
 	if pdf != nil { // nil in measure/contentHeight mode: advance only, draw nothing
-		pdf.SetXY(leftMargin, y)
+		pdf.SetXY(left, y)
 		bold := false
-		x := leftMargin // track the cursor so each **bold** segment gets its own box at the right x
+		x := left // track the cursor so each **bold** segment gets its own box at the right x
 		for _, seg := range strings.Split(line, "**") {
 			if seg != "" {
 				if bold {
@@ -886,9 +939,10 @@ func newMeasurer() *fpdf.Fpdf {
 // ORIGINAL-text lines (widths measured through tr(), so cp1252 metrics are exact and the lines match
 // what drawFootnoteLine renders). A single word wider than the column overflows on its own line rather
 // than looping. `m` is the measurer (the real doc when drawing, a throwaway otherwise).
-func footnoteLines(m *fpdf.Fpdf, tr func(string) string, text string, scale float64) []string {
+func footnoteLines(m *fpdf.Fpdf, tr func(string) string, text string, scale float64, colW float64) []string {
 	m.SetFont("Helvetica", "I", footnotePt*scale)
-	colW := right - leftMargin // T146: body/footnote column spans the reduced left margin to the right edge
+	// colW is the current body column's width (T146 stage 2): the full body in one column, or a narrower
+	// column when the chart opted into two — footnotes wrap within their column.
 	var lines []string
 	cur := ""
 	for _, w := range strings.Fields(text) {
@@ -913,14 +967,14 @@ func footnoteLines(m *fpdf.Fpdf, tr func(string) string, text string, scale floa
 // nil pdf = advance only (measure mode). Every wrapped line advances by leadFootnote in BOTH modes, so
 // measure() and the renderer agree on the block's height (the T77 drift guard). **bold** is not parsed
 // here — inside a footnote the asterisks are literal (documented in the dialect header).
-func drawFootnoteLine(pdf *fpdf.Fpdf, tr func(string) string, y float64, line string, scale float64, rec recFn) float64 {
+func drawFootnoteLine(pdf *fpdf.Fpdf, tr func(string) string, left, y float64, line string, scale float64, rec recFn) float64 {
 	if pdf != nil {
 		pdf.SetFont("Helvetica", "I", footnotePt*scale)
 		pdf.SetTextColor(100, 100, 100)
-		pdf.SetXY(leftMargin, y)
+		pdf.SetXY(left, y)
 		pdf.Cell(0, leadFootnote*scale, tr(line))
 		if rec != nil {
-			rec(line, leftMargin, y, pdf.GetStringWidth(tr(line)), leadFootnote*scale)
+			rec(line, left, y, pdf.GetStringWidth(tr(line)), leadFootnote*scale)
 		}
 		pdf.SetTextColor(0, 0, 0)
 	}

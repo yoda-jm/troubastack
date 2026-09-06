@@ -268,7 +268,7 @@ func TestParseHeaderDirectives(t *testing.T) {
 		{"blank after title: no header", "# S\n\n## V\nx", "", 11, false, nil},
 	}
 	for _, c := range cases {
-		sub, _, pt, sizeSet, _, skip := parseHeader(strings.Split(c.src, "\n"))
+		sub, _, pt, sizeSet, _, _, skip := parseHeader(strings.Split(c.src, "\n"))
 		if sub != c.wantSub || pt != c.wantPt {
 			t.Errorf("%s: (sub=%q, pt=%v), want (%q, %v)", c.name, sub, pt, c.wantSub, c.wantPt)
 		}
@@ -395,7 +395,7 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 // traceOf runs the shared layout in paginated trace mode and returns each drawn element's page+y+kind.
 func traceOf(src string) []placed {
 	lines := chartLines(src)
-	subtitle, _, bodyPt, _, _, skip := parseHeader(lines)
+	subtitle, _, bodyPt, _, _, _, skip := parseHeader(lines)
 	scale := bodyPt / defaultBodyPt
 	var tr []placed
 	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, trace: &tr})
@@ -554,8 +554,8 @@ func TestT77_MeasureMatchesRender_MultiPage(t *testing.T) {
 // chosenSize is the size auto-fit would pick for a directive-less chart (test hook).
 func chosenSize(src string) float64 {
 	lines := chartLines(src)
-	sub, _, _, _, _, skip := parseHeader(lines)
-	return autoFitBodyPt(lines, sub, skip)
+	sub, _, _, _, _, _, skip := parseHeader(lines)
+	return autoFitBodyPt(lines, sub, skip, 1)
 }
 
 // A normal-length chart with no directive fits on exactly one page, and the size auto-fit picks is

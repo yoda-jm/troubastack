@@ -81,8 +81,8 @@ func TestAnchors_boxSpansItsTextAtItsPosition(t *testing.T) {
 		t.Fatalf("RenderWithAnchors: %v", err)
 	}
 	lines := chartLines(anchorFixture)
-	subtitle, _, _, _, _, skip := parseHeader(lines)
-	scale := autoFitBodyPt(lines, subtitle, skip) / defaultBodyPt
+	subtitle, _, _, _, _, _, skip := parseHeader(lines)
+	scale := autoFitBodyPt(lines, subtitle, skip, 1) / defaultBodyPt
 
 	fontOf := func(text string) (fam, style string, ptmm float64) {
 		switch {
