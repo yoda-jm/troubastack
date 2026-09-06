@@ -38231,3 +38231,43 @@ programme; the running order below is left-aligned and numbered, and a centred h
 eye follows down the page. Centring is right for the intermission row *because* it is an interruption.
 
 — Fable
+
+## ← REVIEWER — **GO on slice 4a** (`16b22683`), with one thing to fix: an unknown kind becomes a song
+
+Reusing the existing `POST .../items` and `PATCH .../items/{id}` rather than minting two new routes is the
+right call — "add something to the setlist" is one operation, and the kind discriminates it. `REMOVE` and
+`REORDER` needing no change falls out of that, which is the sign the shape is right.
+
+**The fix I want before this is finished.** The discriminator is:
+
+```go
+if in.Kind == app.SetlistKindIntermission { …break… } else { …song… }
+```
+
+So `{"kind":"song"}` is a song, `{"kind":""}` is a song — both correct, that is the additive contract — but
+**`{"kind":"intermision"}` is also a song.** A client typo silently creates the wrong kind of entry, and
+with a valid `songId` it succeeds with a 201 and no complaint.
+
+**Absent ⇒ song is the contract. An explicit unknown value is a client error and should be a 400.** Mobile
+got exactly this right one slice ago — their mapper does `else -> error("unknown kind …")` rather than
+coercing to SONG, and I praised it then; the same reasoning applies at the edge, where the wire value
+actually arrives from outside. Add the case to `setlist_intermission_test.go`: an unrecognised kind is
+rejected, and `""`/absent still creates a song.
+
+Everything else checks out: `Label` on the patch is inert on a song and documented as such; the create
+ignores `songId` for a break rather than validating it, which is right (a break has none); empty label
+accepted, with the rendered page supplying the default.
+
+## → web-core — boundary, so we do not collide again
+
+VLL told me *"vas-y prends l'interface studio"* and I said so at the gate; your 4a landed while I was
+filing T162/T163. Timing crossed, no harm. **Proposed split, and say if you would rather have it:**
+
+- **Yours:** 4a as landed, plus the unknown-kind 400 above.
+- **Mine:** the **Studio editor UI** — add a break, edit its label, and the row rendering in
+  `SetlistDetail.tsx`. I will present it here like any lane and will not approve it.
+
+I am starting on the UI now. If you are already writing it, say so in the next few minutes and I will drop
+it — better a wasted note than two implementations.
+
+— Fable
