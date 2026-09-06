@@ -219,6 +219,72 @@ function useScrollFade<T extends HTMLElement>() {
   return ref;
 }
 
+// T156 ⟨B⟩ — measure the on-screen page box so the size preview means the SAME thing as the ink. Ink is
+// stored page-relative (I3): a stroke's width is a fraction of page WIDTH, a text's fontSize a fraction of
+// page HEIGHT. The rendered `.pdf-page` element is exactly what the overlay ink is drawn onto, so its
+// clientWidth/Height ARE those page dimensions in CSS px at the current zoom — measured live (mirrors
+// useScrollFade's ResizeObserver) rather than plumbing scale through Viewer→toolbarProps→EditorToolbar.
+function usePageBox(): { w: number; h: number } {
+  const [box, setBox] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    let ro: ResizeObserver | null = null;
+    let raf = 0;
+    const attach = () => {
+      const el = document.querySelector('[data-testid="pdf-page"]') as HTMLElement | null;
+      if (!el) {
+        raf = requestAnimationFrame(attach); // the page may not be mounted the instant the bar appears
+        return;
+      }
+      const read = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+      ro = new ResizeObserver(read);
+      ro.observe(el);
+      read();
+    };
+    attach();
+    return () => {
+      if (ro) ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+  return box;
+}
+
+// The slim pill's inner height caps the preview — a very large size shows at the cap (still monotonic
+// below it), never fattening the bar past the T33 height guard. A4 fallback ratio before the page measures.
+const PREVIEW_MAX_PX = 24;
+const PREVIEW_SAMPLE = "Abc"; // neutral legend — deliberately NOT a brand word (i18n + maintenance, T156 ⟨B⟩)
+
+// SizePreview: a live, NON-interactive legend (pointer-events:none) — show the size, don't describe it. A
+// stroke target gets a greyed dotted circle whose diameter is the stroke width at the ink's own scale; a
+// text target gets a small "Abc" sample at the chosen font size. It updates as the size (or zoom) changes.
+function SizePreview({ style, isText }: { style: AnnotationStyle; isText: boolean }) {
+  const { w, h } = usePageBox();
+  if (isText) {
+    const px = Math.min(PREVIEW_MAX_PX, Math.max(6, style.fontSize * (h || 850)));
+    return (
+      <span className="style-size-preview-slot" aria-hidden="true">
+        <span
+          className="style-size-preview style-size-preview-text"
+          data-testid="style-size-preview"
+          style={{ fontSize: `${px}px` }}
+        >
+          {PREVIEW_SAMPLE}
+        </span>
+      </span>
+    );
+  }
+  const d = Math.min(PREVIEW_MAX_PX, Math.max(2, style.width * (w || 600)));
+  return (
+    <span className="style-size-preview-slot" aria-hidden="true">
+      <span
+        className="style-size-preview style-size-preview-circle"
+        data-testid="style-size-preview"
+        style={{ width: `${d}px`, height: `${d}px` }}
+      />
+    </span>
+  );
+}
+
 export function EditorToolbar({
   part,
   tool,
@@ -368,6 +434,8 @@ export function EditorToolbar({
               ? `Editing: ${selectedType}`
               : `Draw: ${tool}`}
         </span>
+        {/* T156 ⟨B⟩: a live size legend, among the first-visible items — see the size before you draw. */}
+        <SizePreview style={style} isText={targetType === "text"} />
         <span className="swatches">
           {COLOR_SWATCHES.map((c) => (
             <button

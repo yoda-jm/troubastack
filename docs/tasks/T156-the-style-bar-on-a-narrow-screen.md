@@ -15,10 +15,17 @@ controls reachable) ONLY when it overflows, and a strip that FITS stays pass-thr
 desktop width). RED-first `editor-t156-style-bar-overflow.spec.ts` (phone: overflow + `pointer-events!=none`;
 desktop teeth: fits + stays `none`).
 
-**⟨B⟩ (size preview) — NOT yet built.** ⟨A⟩ now makes the strip reach one more item, so ⟨B⟩ can be added
-into the scrollable strip (as one of the first-visible items): a greyed dotted circle whose diameter tracks
-the stroke width at the canvas zoom for stroke tools, and a neutral text sample (no brand string) at the
-chosen size/font for text; live, non-interactive. Next increment.
+**⟨B⟩ (size preview) LANDED.** A live, non-interactive legend among the first-visible strip items
+(`SizePreview` in Toolbar.tsx, `data-testid="style-size-preview"`): a stroke target shows a greyed dotted
+circle whose diameter is the stroke width at the ink's own scale (`style.width × page clientWidth`); a text
+target shows a neutral `Abc` sample (NOT a brand word) at the chosen size (`style.fontSize × page
+clientHeight` — fontSize is a page-HEIGHT fraction, confirmed via `editor.ts:textFontPx`). Sized by measuring
+the SAME `.pdf-page` element the ink draws onto (a `usePageBox` ResizeObserver hook mirroring
+`useScrollFade`), so it tracks zoom with no Viewer→toolbar plumbing. Capped at the pill's inner height (a
+very large size saturates at the cap — the T33 height guard holds, verified). RED-first tests: circle
+diameter grows with width (2.8→17.5px), text sample grows with fontSize (6→11.8px at a phone page height)
+and reads exactly "Abc". Regression-swept: ctx-thin (T33 height), overscan, T155 — 6 passed. Device-QA
+(dotted-circle legibility at arm's length) owed.
 
 ## ⟨A⟩ The second toolbar cannot be panned when it overflows
 

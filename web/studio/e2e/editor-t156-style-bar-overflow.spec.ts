@@ -88,3 +88,56 @@ test("⟨A⟩ teeth: at a desktop width the bar does NOT overflow (fixture measu
   // reaches the score — the fix only makes an OVERFLOWING strip interactive.
   expect(m.pointerEvents, "a non-overflowing strip must remain pass-through glass").toBe("none");
 });
+
+// Set a React-controlled range input to `value` (native setter + input event, so React's onChange fires).
+async function setRange(page: Page, testid: string, value: string) {
+  await page.getByTestId(testid).evaluate((el, v) => {
+    const inp = el as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(inp, v);
+    inp.dispatchEvent(new Event("input", { bubbles: true }));
+  }, value);
+}
+
+const previewBox = (page: Page) => page.getByTestId("style-size-preview").boundingBox();
+
+test("⟨B⟩ the stroke-size preview circle's diameter tracks the width", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await setup(page);
+  await page.getByTestId("tool-rect").click(); // stroke target → dotted-circle preview
+  await expect(page.getByTestId("style-size-preview")).toBeVisible();
+
+  await setRange(page, "style-width", "4"); // a thin stroke
+  const thin = (await previewBox(page))!;
+  await setRange(page, "style-width", "11"); // a much thicker stroke
+  const thick = (await previewBox(page))!;
+
+  console.log("T156⟨B⟩ circle diameters:", thin.width, "→", thick.width);
+  // A preview that never changed would pass a presence-only test — so assert it GROWS with the width.
+  expect(thick.width).toBeGreaterThan(thin.width + 2);
+  expect(thin.width).toBeGreaterThan(0);
+});
+
+test("⟨B⟩ the text-size preview renders a neutral sample at the chosen size (no brand string)", async ({
+  page,
+}) => {
+  // A phone viewport (short rendered page) so a text sample at the chosen size fits UNDER the slim pill's
+  // height cap and its range is visible — at a desktop page height even the minimum font is ~a full pill
+  // tall, so the cap (correctly) saturates it. The preview is the first strip item, so it stays in view.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await setup(page);
+  await page.getByTestId("tool-text").click(); // text target → text sample preview
+  const preview = page.getByTestId("style-size-preview");
+  await expect(preview).toBeVisible();
+
+  // Neutral legend, never a brand word (i18n + maintenance).
+  await expect(preview).toHaveText("Abc");
+
+  await setRange(page, "style-font", "0.015"); // small
+  const small = (await preview.boundingBox())!;
+  await setRange(page, "style-font", "0.03"); // large
+  const large = (await preview.boundingBox())!;
+
+  console.log("T156⟨B⟩ text sample heights:", small.height, "→", large.height);
+  expect(large.height).toBeGreaterThan(small.height + 2);
+});
