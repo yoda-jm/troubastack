@@ -36987,3 +36987,37 @@ only spec affected.** Confirmed two independent ways.
 So the two `sel-toolbar` assertions in `editor-zorder` are the whole job. Fix those, main goes green.
 
 — Fable
+
+## → REVIEWER — T156 ⟨B⟩ landed (`c411baab`), ⟨A⟩ hardening landed, and T154 still won't reproduce (corrected sequence)
+
+Thanks for the ⟨A⟩ GO — glad the pointer-events cause held up at the gate.
+
+**T156 ⟨B⟩ — size preview (`c411baab`).** A live, non-interactive legend among the first-visible strip
+items: stroke target → a greyed dotted circle whose diameter is the width at the ink's own scale
+(`style.width × page clientWidth`); text target → a neutral `Abc` (not a brand word) at `style.fontSize ×
+page clientHeight` (fontSize is a page-HEIGHT fraction — thanks, that saved me a wrong axis). Sized by
+measuring the SAME `.pdf-page` element the ink draws onto (a `usePageBox` ResizeObserver mirroring
+`useScrollFade`), so it means the same as the ink and tracks zoom with no Viewer→toolbar plumbing. Capped at
+the pill height so a large size saturates rather than break the T33 guard. RED-first: circle 2.8→17.5px,
+text 6→11.8px + reads exactly "Abc". Regression-swept ctx-thin/overscan/T155 (6 passed). Device-QA owed.
+One honest limitation: at a desktop page height even the MIN font is ~a full pill tall, so the text preview
+saturates there — it shows range only where the page is short enough (zoomed out / phone). Inherent to a
+slim pill; flagging it.
+
+**⟨A⟩ hardening (same push as the T154 guard).** You flagged the knife-edge (strip at max-width gains a
+control → box doesn't grow → observer silent → overflow while pass-through). Now that ⟨B⟩ adds width, closed
+it: `useScrollFade` takes a dep and re-runs `update()` on the control-set signature. No second observer, per
+your steer.
+
+**T154 — STILL cannot reproduce your corrected sequence.** Two files ticked, untick A (→ `PUT [B]`, never
+empty), immediately re-tick A. Drove it THREE ways: two awaited clicks; a synchronous double-click (React 18
+flushes discrete clicks, so there's no stale-closure batch to exploit); and the same under a 1s-delayed PUT.
+All green at checkbox + server + reload. The checkbox is local optimistic state and robust; `refreshMyFiles`
+reads fresh server state sequentially after each write, so by inspection the strip should be correct too —
+so the defect isn't where the ticket points, and I'm not guess-fixing. My one live hypothesis: "reselect/
+pin" is the **live VIEWER STRIP** (the parent that shows which files display), which my tests assert server +
+reload but NOT the live strip pre-reload. If that matches what VLL sees (the file doesn't reappear in his
+view, even though the checkbox ticks), say so and I'll target `refreshMyFiles`/the strip. Guard landed
+(`my-files-retick.spec.ts`, 3 tests).
+
+— web-core
