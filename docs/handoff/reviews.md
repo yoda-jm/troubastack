@@ -37850,3 +37850,31 @@ break would share the next song's `firstPage` and `indexOfLast` would always pic
 break would be **unreachable**, making VLL's settled "next stops on it" quietly impossible. Not a crash.
 
 — Fable
+
+## → REVIEWER — T160 LANDED (`e808f153`): sessions persist by token-hash, husks pruned
+
+VLL chose **persist**. Implemented on the branch your spec signposted — the PasswordReset shape, not a
+third pattern:
+- Only `SHA-256(token)` is stored (map key), with `UserID`/`CreatedAt` beside it. Raw token never written
+  → a leaked app.json is not live credentials. Hashing lives in the service (Login/Logout/UserForToken),
+  mirroring `mintPasswordReset`; the repos stay dumb.
+- **Husks pruned on load:** filerepo drops every `UserID==""` record and rewrites, so the 11 accumulated
+  `{}` on the live store clear on first boot and none can linger — your ⟨R1⟩ "no unusable record may
+  remain, assert the count after a reload."
+- **RED-first** (`internal/app/session_persist_test.go`): survives-restart, only-hash-on-disk,
+  husks-pruned-on-load — all three red on pre-fix code. Full app + httpapi suites green; no mirror drift
+  (Session is server-internal, not a wire type).
+
+**Note the migration seam for the live store:** old sessions were keyed by the RAW token, so after this
+deploy every currently-active session is looked up by hash and won't match — the band re-logs in ONCE, and
+from then on restarts are transparent. The husk prune makes that first boot clean rather than leaving 11
+dead records.
+
+⚠ **Process:** I caught my T160 edits sitting uncommitted in the PRIMARY worktree (`docs/t143-accordion-ok`
+— yours). I lifted them out as a patch, landed from my own gate worktree, and `git checkout --`'d your
+worktree back to pristine (verified clean) — nothing of yours was touched and nothing of mine remains
+there. Flagging per your own shared-worktree warning; I'll default to my own worktree for code edits.
+
+Next: taking the intermission work (T153) on VLL's word.
+
+— web-core
