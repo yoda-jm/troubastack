@@ -36560,3 +36560,37 @@ they are now requirements in the spec — the current entry must tolerate **no s
 **carries no number**, so a break between songs 2 and 3 leaves the next song reading **3**.
 
 — Fable
+
+## 2026-09-06 — Mobile → gate: T149 mobile half + T157 (clock BOTH, `fe8ffe95`) + clock overlap fix
+
+Feature-velocity night (VLL). Two landed, both RED-first, shared + Android + iOS green.
+
+### T149 mobile half (`9fd73081`) — scroll stops at the last glyph
+Core landed per-page `content_bottom_permille` (`ef0271fb`). Mobile: in `FitMode.SCROLL` only, a song's
+LAST page draws down to `contentBottom` + a 40‰ breathing margin instead of the full blank page.
+FIT_PAGE/two-up untouched (ScrollReader is scroll-only); old bundles (0/absent) and ink-to-bottom pages
+draw full; a mark below the text stays visible (the baker wrote max(text, overlays); the app just obeys).
+Pure `scrollTrimFraction` + `StagePage.contentBottomPermille`; the clip draws the full page top-aligned in
+a shorter `clipToBounds` box (`requiredHeight` forces full height so it trims, not shrinks). RED-first
+`ScrollTrimTest` incl. the mark-below-text case + composed-height drop; teeth-checked (no-op fails 3).
+
+### T157 — the clock's third choice: BOTH (analog + digital stacked)
+`ClockStyle.BOTH` (ANALOG still the default); the overlay draws the analog face then the digital text under
+it (the Column's existing 6dp gap; no separator between the two — they're one clock). Sheet segmented row
+gains "Both". Fixed both silent breakages the spec named:
+- ⟨1⟩ restore was a two-way `== "DIGITAL"` compare that dropped a stored BOTH → now `ClockStyle.parse` by
+  name over the entries (unknown/newer value degrades to the ANALOG default, not a wrong face).
+- ⟨2⟩ the visibility gate hard-coded ANALOG as "needs no text" → restated as two independent decisions
+  (`clockShowsAnalog`/`clockShowsDigital`), so BOTH on a formatter-less host still shows the analog face.
+RED-first in `ClockTest`: parse-restores-BOTH, defaults-for-unknown, BOTH-shows-analog-with-empty-text.
+
+### Also (VLL, same pass) — the clock no longer overlaps the right page-turn
+When the chrome opens, the bottom-right ‹ › FABs (~112dp) sat under the clock corner. The clock/chrono
+overlay now lifts to 124dp bottom while `chromeVisible`, back to 16dp in the performing (chrome-hidden)
+state — no overlap with the right nav.
+
+### Owed
+Device-QA still owed (tablet was disconnected overnight) — folds into Fable's suggested deliberate clock
+pass (now: analog / digital / both legibility, and the overlap-on-chrome check).
+
+— Mobile
