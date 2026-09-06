@@ -76,6 +76,56 @@ class ChronoTest {
         assertEquals(2 * MIN, c.elapsedMs(0L)) // degrades to accumulated, never negative
     }
 
+    // --- persistence across process death and REBOOT (T147 restore bug) — encode/decode were untested ---
+
+    @Test
+    fun paused_round_trips() {
+        val c = Chrono(accumulatedMs = 5 * MIN, runningSince = null)
+        val s = encodeChrono(c, nowMono = 10_000L, nowWall = 1_000_000L)
+        val back = decodeChrono(s, nowMono = 99_000L, nowWall = 2_000_000L)
+        assertFalse(back.running)
+        assertEquals(5 * MIN, back.elapsedMs(99_000L))
+    }
+
+    @Test
+    fun running_round_trips_within_the_same_boot() {
+        val c = Chrono(accumulatedMs = 0L, runningSince = 1_000L)     // started at mono=1s
+        val persistMono = 3 * MIN + 1_000L                           // 3 min in
+        val s = encodeChrono(c, nowMono = persistMono, nowWall = 1_000_000L)
+        // restore 30s of wall later; same boot ⇒ monotonic advanced by the same 30s
+        val back = decodeChrono(s, nowMono = persistMono + 30_000L, nowWall = 1_030_000L)
+        assertTrue(back.running)
+        assertEquals(3 * MIN + 30_000L, back.elapsedMs(persistMono + 30_000L))
+    }
+
+    @Test
+    fun running_survives_a_reboot_as_real_elapsed_not_garbage() {
+        // THE bug: persist while running, then REBOOT — monotonic resets (now small again) while wall time
+        // marched on 10 min. Real elapsed must be accumulated + live-so-far + the gap, never garbage.
+        val c = Chrono(accumulatedMs = 2 * MIN, runningSince = 500_000L)
+        val persistMono = 500_000L + 60_000L                         // 1 min into the live segment
+        val persistWall = 1_700_000_000_000L
+        val s = encodeChrono(c, nowMono = persistMono, nowWall = persistWall)
+        // reboot: monotonic back near 0; wall advanced 10 min past persist
+        val rebootMono = 5_000L
+        val rebootWall = persistWall + 10 * MIN
+        val back = decodeChrono(s, nowMono = rebootMono, nowWall = rebootWall)
+        assertTrue(back.running)
+        // 2m accumulated + 1m live-at-persist + 10m across the reboot = 13m — the REAL elapsed.
+        assertEquals(13 * MIN, back.elapsedMs(rebootMono))
+        assertEquals(13 * MIN + 7_000L, back.elapsedMs(rebootMono + 7_000L)) // and keeps counting forward
+    }
+
+    @Test
+    fun legacy_mono_format_migrates_to_paused_not_garbage() {
+        // TEETH: a value written by the pre-fix code ("acc:mono") must NOT be read as a wall instant — that
+        // is exactly what produced the ~16h garbage. It degrades to paused at its accumulated, safe.
+        val legacy = "120000:60000"                                  // acc=2min, a bare monotonic since
+        val back = decodeChrono(legacy, nowMono = 50_000_000L, nowWall = 1_700_000_000_000L)
+        assertFalse(back.running, "legacy running value degrades to paused, not a running garbage segment")
+        assertEquals(2 * MIN, back.elapsedMs(50_000_000L))
+    }
+
     @Test
     fun format_minutes_seconds_and_hours() {
         assertEquals("0:00", formatChrono(0L))

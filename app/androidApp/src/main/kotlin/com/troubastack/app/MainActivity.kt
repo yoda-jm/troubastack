@@ -622,7 +622,12 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
 
     // T147: restore the chronometer across process death (per concert) and the clock preference (global).
     val chronoKey = "stage.chrono.$concertId"
-    val initialChrono = remember(dir) { if (concertId.isEmpty()) Chrono() else decodeChrono(storage.getSecret(chronoKey)) }
+    // T147 restore: decode with BOTH clocks so a running chrono re-anchors to this boot's monotonic base
+    // (wall-clock start survives reboot; never the ~16h garbage a stale monotonic instant produced).
+    val initialChrono = remember(dir) {
+        if (concertId.isEmpty()) Chrono()
+        else decodeChrono(storage.getSecret(chronoKey), SystemClock.elapsedRealtime(), System.currentTimeMillis())
+    }
     val ctx = LocalContext.current
 
     val opened = remember(dir, identity) {
@@ -680,7 +685,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // The chrono object is stable while running (fixed start instant), so this writes only on
     // start/pause/reset — not every second.
     LaunchedEffect(stageState.chrono) {
-        if (concertId.isNotEmpty()) storage.putSecret(chronoKey, encodeChrono(stageState.chrono))
+        if (concertId.isNotEmpty()) storage.putSecret(chronoKey, encodeChrono(stageState.chrono, SystemClock.elapsedRealtime(), System.currentTimeMillis()))
     }
     LaunchedEffect(stageState.clockVisible) {
         storage.putSecret(STAGE_CLOCK_KEY, stageState.clockVisible.toString())

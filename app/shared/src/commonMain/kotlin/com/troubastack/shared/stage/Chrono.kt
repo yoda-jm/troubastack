@@ -62,21 +62,49 @@ fun formatChrono(ms: Long): String {
 }
 
 /**
- * T147 — persist a chrono across process death as "accumulated:runningSince" ("accumulated:" when paused).
- * Storing the raw instant + accumulated (not a rendered time) is what lets [Chrono.elapsedMs] stay correct
- * on restore. The saved `runningSince` is in the monotonic timebase; a reboot resets that clock, which
- * [Chrono.elapsedMs]'s backward-`now` clamp already handles (degrades to accumulated, never negative).
+ * T147 — persist a chrono across process death AND reboot. A running segment is stored by its start in
+ * WALL-CLOCK time ("accumulated:R:startWallMillis"); a paused chrono as "accumulated:" (no live segment).
+ *
+ * Why wall, not monotonic: the live [Chrono.runningSince] is a MONOTONIC instant (elapsedRealtime — right
+ * for LIVE counting: immune to clock changes, advances through sleep), but that clock RESETS on reboot, so
+ * a monotonic instant is meaningless once carried across one. The earlier format stored the raw monotonic
+ * instant and leaned on [Chrono.elapsedMs]'s clamp — but the clamp only catches `now < since` (a reboot
+ * that left `now` SMALLER); a reboot that left `now` LARGER than the stale instant produced a garbage
+ * elapsed (the T147 restore bug — a chrono reading ~16h). So at the persistence boundary we convert to
+ * wall: startWall = nowWall − liveMs. Real elapsed on restore is nowWall − startWall regardless of reboots
+ * (VLL 2026-09-06: the chrono counts real elapsed since Start).
+ *
+ * [nowMono]/[nowWall] are the two clocks read together at persist/restore (Android: SystemClock
+ * .elapsedRealtime() and System.currentTimeMillis()); passed in so this stays pure and testable.
  */
-fun encodeChrono(c: Chrono): String = "${c.accumulatedMs}:${c.runningSince ?: ""}"
+fun encodeChrono(c: Chrono, nowMono: Long, nowWall: Long): String {
+    val since = c.runningSince ?: return "${c.accumulatedMs}:"
+    val liveMs = (nowMono - since).coerceAtLeast(0L)
+    return "${c.accumulatedMs}:R:${nowWall - liveMs}"
+}
 
-/** Inverse of [encodeChrono]; a null/blank/malformed value decodes to a fresh (00:00, paused) chrono so a
- *  corrupt store can never crash Stage or resurrect a bogus running segment. */
-fun decodeChrono(s: String?): Chrono {
+/**
+ * Inverse of [encodeChrono]. A running value ("acc:R:startWall") is re-anchored into THIS process's
+ * monotonic timebase — runningSince = nowMono − (nowWall − startWall) — so [Chrono.elapsedMs] keeps
+ * counting live from the correct total (accumulated + the real wall gap since Start). A null/blank/malformed
+ * value → a fresh (00:00, paused) chrono, so a corrupt store can never crash Stage. A value in the pre-fix
+ * "acc:mono" shape (a bare number after the colon) degrades to PAUSED at its accumulated: its monotonic
+ * instant can't be trusted across the upgrade, and paused-at-accumulated is safe — never garbage.
+ */
+fun decodeChrono(s: String?, nowMono: Long, nowWall: Long): Chrono {
     if (s.isNullOrBlank()) return Chrono()
     val i = s.indexOf(':')
     if (i < 0) return Chrono()
-    val acc = s.substring(0, i).toLongOrNull() ?: return Chrono()
-    val sinceStr = s.substring(i + 1)
-    val since = if (sinceStr.isEmpty()) null else (sinceStr.toLongOrNull() ?: return Chrono())
-    return Chrono(accumulatedMs = acc.coerceAtLeast(0L), runningSince = since)
+    val acc = (s.substring(0, i).toLongOrNull() ?: return Chrono()).coerceAtLeast(0L)
+    val rest = s.substring(i + 1)
+    return when {
+        rest.isEmpty() -> Chrono(accumulatedMs = acc, runningSince = null) // paused
+        rest.startsWith("R:") -> {
+            val startWall = rest.substring(2).toLongOrNull()
+                ?: return Chrono(accumulatedMs = acc, runningSince = null)
+            val liveMs = (nowWall - startWall).coerceAtLeast(0L)
+            Chrono(accumulatedMs = acc, runningSince = nowMono - liveMs) // re-anchored to this boot's clock
+        }
+        else -> Chrono(accumulatedMs = acc, runningSince = null) // legacy "acc:mono" → paused (safe, never garbage)
+    }
 }
