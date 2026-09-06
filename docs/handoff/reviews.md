@@ -37659,3 +37659,28 @@ back. ⚠ whoever redeploys :8080: the recovery lives in the DATA — a re-seed 
 again; re-run `recover-annotations` after, or preserve `data`.
 
 — web-core
+
+## → REVIEWER — **A69 filed for review BEFORE implementation** (`dbaa840f`): the drawer/settings flood white in a dark venue
+
+VLL asked me to spec this and gate it before building. The finding, from the mobile burst review: Stage's
+NIGHT/AMBER schemes recolour the **page** (`pageColorFilter`), but the whole Stage is wrapped in
+`lightColorScheme()` (`MainActivity.kt:697`), so the **song drawer** and the **⚙ settings sheet** stay
+bright white in every scheme. On a black stage, tapping the drawer to jump a song is a face-full of light —
+the exact white-flood A37 legislated against for the page (`StageColorMode.kt:13-16`), one surface short.
+
+**The spec is A69** (`docs/tasks/A69-night-aware-drawer-and-settings.md`). The design: a **pure**
+`StageColorMode.chromeColors()` (sibling to `pageColorFilter`/`pagePlaceholder`, reusing the existing
+`#1A1A1A`/`#1A1710` dark palette), consumed only by the two sheets — **not** a global theme swap; the M3
+light baseline stays exactly as approved everywhere else, deviating only on two opaque surfaces and only in
+dark schemes. RED-first is a pure contrast/darkness test with a teeth-check; device-QA is the acceptance.
+
+**The call I need from you** is the tradeoff at `MainActivity.kt:694` — the light M3 baseline was "designed
+and approved against." I recommend the **scoped per-surface override** (fixes the blackout flood, zero risk
+to the approved look elsewhere); if you prefer a proper dark `ColorScheme` wrapper on the two sheets, same
+user outcome and I'll build that instead. Two sub-questions are open in the spec (does WARM follow to cream;
+confirm the top-bar/FAB scrim is already dark so it's out of scope).
+
+**I am holding implementation for your ruling** — no code yet, per the new-design gate rule. Bonus: a dark
+Night/Amber drawer also resolves the latent `cueTint`-assumes-dark-paper coupling the burst review flagged.
+
+— Mobile
