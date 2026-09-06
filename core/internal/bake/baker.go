@@ -343,22 +343,22 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	staged := make([]stagedSong, 0, len(detail.Items))
 	var batch []overlaySong
 	for si, item := range detail.Items {
-		// T153 slice 1 — the domain can express an intermission, but the baker cannot yet RENDER its page.
-		// Refuse, loudly. Silently skipping it would be worse than failing: the bundle would carry fewer
-		// entries than the running order, so the printed sheet and the stage would disagree about what
-		// comes next, and nothing would say so. Removed by the baker slice, which renders the page.
-		if item.IsIntermission() {
-			// A bakeError, not a bare error: the reason must survive humanize() and reach the musician who
-			// pressed Bake. "Ask an admin to check the server" would be useless here — the setlist is
-			// fine, the build simply cannot draw the page yet, and only they can decide to remove it.
-			return ConcertBundle{}, bakeID, b.fail(
-				"This setlist has an intermission, which this version cannot bake yet. Remove it to bake now.",
-				fmt.Errorf("T153: intermission at position %d, separator page not implemented", item.Position))
-		}
 		// Publish BEFORE the song's work (poppler dominates a bake, T97/T98) so the readout
 		// names the song being baked, not the one just finished: done advances 1..N here.
 		done, curSong = si+1, item.SongTitle
 		b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeRunning, Done: done, Total: total, Song: curSong})
+		// T153: an intermission is a break in the running order — one rendered separator page, no song,
+		// no overlays. It occupies its Position like any entry (so the bundle order matches the printed
+		// sheet and Stage's "next stops on it"), and it stages through the same assembly path as a song so
+		// nothing downstream needs an intermission branch. (This replaces slice 1's deliberate bake refusal.)
+		if item.IsIntermission() {
+			st, ierr := b.stageIntermission(ctx, si, item, bundle.BandName)
+			if ierr != nil {
+				return ConcertBundle{}, bakeID, fmt.Errorf("intermission at position %d: %w", item.Position, ierr)
+			}
+			staged = append(staged, st)
+			continue // no overlay requests — a break has nothing to draw
+		}
 		st, reqs, berr := b.stageSong(ctx, si, bandID, actor, item)
 		if berr != nil {
 			return ConcertBundle{}, bakeID, fmt.Errorf("song %s: %w", item.SongID, berr)
@@ -511,6 +511,43 @@ type stagedSong struct {
 	selections    []app.MemberFileSelection // per-member ordered file choices → member_pages (⟨D1⟩)
 	defaultFileID string                    // files[0].fileID, or "" if metadata-only / no default PDF
 	metadataOnly  bool
+}
+
+// bakedKindIntermission is the BakedSong.Kind value for a break. It is the ONE string the wire, the
+// baker, and both clients agree on — matching the domain's SetlistKindIntermission and the running-order
+// rule's KindIntermission (T153). A loader branches on this, never on "does it have pages" (a break has
+// one).
+const bakedKindIntermission = "intermission"
+
+// stageIntermission renders the T153 separator page and stages it as a one-page, no-overlay entry. It
+// flows through assembleSong exactly like a song — one stagedFile carrying the pre-rendered raster, with
+// an empty overlay key so nothing is drawn on it — so ordering, blob writing and .tstage packaging need
+// no intermission branch. bandName is the bundle's already-resolved band name; empty ⇒ the card omits the
+// band line rather than printing a placeholder (the T143 lesson).
+func (b *Baker) stageIntermission(ctx context.Context, si int, item app.SetlistItemView, bandName string) (stagedSong, error) {
+	pdf, err := chartpdf.RenderIntermission(item.Label, bandName)
+	if err != nil {
+		return stagedSong{}, fmt.Errorf("render separator page: %w", err)
+	}
+	rasters, err := b.raster.Rasterize(ctx, pdf)
+	if err != nil {
+		return stagedSong{}, fmt.Errorf("rasterize separator page: %w", err)
+	}
+	if len(rasters) != 1 {
+		// The one-page invariant is load-bearing: Stage resolves page→entry with indexOfLast{firstPage<=p},
+		// so a zero- or multi-page break would be unreachable or would swallow a neighbour. RenderIntermission
+		// draws exactly one page; guard it so a future change to the card cannot silently break navigation.
+		return stagedSong{}, fmt.Errorf("separator must render exactly one page, got %d", len(rasters))
+	}
+	song := BakedSong{
+		Kind:    bakedKindIntermission,
+		Label:   item.Label, // raw label (may be ""); the page drew the default, the drawer applies its own
+		OnCall:  item.OnCall,
+		SongRev: 1,
+	}
+	// One pool "file" holding the pre-rendered raster and no overlay key ⇒ assembleSong writes exactly one
+	// page with no overlays, and (single file) emits no member_pages.
+	return stagedSong{si: si, song: song, files: []stagedFile{{rasters: rasters}}}, nil
 }
 
 // stageSong does everything up to the overlay render: metadata, snapshot, member cues, and — per file in

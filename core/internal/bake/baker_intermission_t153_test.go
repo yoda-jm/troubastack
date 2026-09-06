@@ -2,48 +2,86 @@ package bake
 
 import (
 	"context"
-	"strings"
 	"testing"
 )
 
-// T153 slice 1 — the domain can express an intermission, but this build cannot RENDER its separator page.
-// The baker must refuse the whole bake rather than skip the entry.
+// T153 ⟨R1⟩ — a setlist of song–intermission–song bakes to THREE entries, the middle one an intermission
+// carrying exactly one page and no overlays, with the songs around it keeping their positions. This is the
+// baker slice: it replaces slice 1's deliberate refusal (the old TestBake_Refuses… test) with the render.
 //
-// Skipping would be the tempting choice and the wrong one: the bundle would carry fewer entries than the
-// running order, so the printed sheet and Stage would disagree about what comes next, and nothing would
-// say so — a plausible wrong answer, which is precisely the failure mode T153's spec is written against.
-// Refusing cannot corrupt a bundle, and it is removed by the baker slice that renders the page.
-//
-// Teeth: the same setlist WITHOUT the break must still bake, so the guard rejects the unrenderable entry
-// and not the setlist.
-func TestBake_RefusesASetlistContainingAnIntermission_T153(t *testing.T) {
-	svc, eng, u, bandID, setlistID := seed(t)
+// Teeth on "absent ⇒ song": a real song's BakedSong.Kind stays EMPTY (not "song"), so the field is
+// additive exactly as fields 5–14 are — a bundle baked before T153 reads as all-songs. If stageSong ever
+// stamped Kind:"song" this test goes red.
+func TestBake_IntermissionBakesAsOneUnnumberedPageBetweenSongs_T153(t *testing.T) {
+	svc, eng, u, bandID, setlistID := seed(t) // setlist starts as [song1]
 	png := tinyPNG(t, 40, 60)
-	newBaker := func() *Baker {
-		return &Baker{
-			svc:      svc,
-			eng:      eng,
-			raster:   fakeRaster{pages: 1, png: png},
-			overlays: fakeOverlays{png: png},
-			bakesDir: t.TempDir(),
-			now:      func() int64 { return 1700000000 },
-		}
-	}
 
-	// Without a break, the seeded setlist bakes — the control arm.
-	if _, _, err := newBaker().Bake(context.Background(), bandID, setlistID, u, nil, ""); err != nil {
-		t.Fatalf("control: the setlist must bake before a break is added: %v", err)
-	}
-
+	// A break after song1, then a second song after the break ⇒ [song1, intermission, song2] (both adders
+	// append at the end).
 	if _, err := svc.AddSetlistIntermission(u, bandID, setlistID, "Entracte"); err != nil {
 		t.Fatalf("add intermission: %v", err)
 	}
-
-	_, _, err := newBaker().Bake(context.Background(), bandID, setlistID, u, nil, "")
-	if err == nil {
-		t.Fatal("bake accepted a setlist containing an intermission — the bundle would silently carry fewer entries than the running order")
+	song2, err := svc.CreateSong(u, bandID, "Closer", "")
+	if err != nil {
+		t.Fatalf("create song2: %v", err)
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "intermission") {
-		t.Errorf("bake refused, but the error does not name the cause: %v", err)
+	if _, err := svc.UploadSongFile(u, bandID, song2.ID, "score2.pdf", "application/pdf", []byte("%PDF-1.4 fixture")); err != nil {
+		t.Fatalf("upload song2 file: %v", err)
+	}
+	if _, err := svc.AddSetlistItem(u, bandID, setlistID, song2.ID); err != nil {
+		t.Fatalf("add song2: %v", err)
+	}
+
+	b := &Baker{
+		svc:      svc,
+		eng:      eng,
+		raster:   fakeRaster{pages: 1, png: png},
+		overlays: fakeOverlays{png: png},
+		bakesDir: t.TempDir(),
+		now:      func() int64 { return 1700000000 },
+	}
+	bundle, _, err := b.Bake(context.Background(), bandID, setlistID, u, nil, "")
+	if err != nil {
+		t.Fatalf("bake: %v", err)
+	}
+
+	if len(bundle.Songs) != 3 {
+		t.Fatalf("baked %d entries, want 3 (song, intermission, song)", len(bundle.Songs))
+	}
+
+	// Order + kind: the flanking entries are songs (Kind absent), the middle is the break.
+	if k := bundle.Songs[0].Kind; k != "" {
+		t.Errorf("entry 0 (a song) Kind = %q, want \"\" — the field must stay additive (absent ⇒ song)", k)
+	}
+	if k := bundle.Songs[2].Kind; k != "" {
+		t.Errorf("entry 2 (a song) Kind = %q, want \"\"", k)
+	}
+	brk := bundle.Songs[1]
+	if brk.Kind != "intermission" {
+		t.Fatalf("middle entry Kind = %q, want \"intermission\"", brk.Kind)
+	}
+
+	// The break: its authored label, no song, exactly one page, no overlays.
+	if brk.Label != "Entracte" {
+		t.Errorf("break Label = %q, want %q", brk.Label, "Entracte")
+	}
+	if brk.SongID != "" {
+		t.Errorf("break SongID = %q, want empty (a break has no song)", brk.SongID)
+	}
+	if len(brk.Pages) != 1 {
+		t.Fatalf("break has %d pages, want exactly 1", len(brk.Pages))
+	}
+	if n := len(brk.Pages[0].Overlays); n != 0 {
+		t.Errorf("break page carries %d overlays, want 0 (a break has nothing to draw)", n)
+	}
+
+	// The flanking songs are intact: real ids and at least their page.
+	for _, i := range []int{0, 2} {
+		if bundle.Songs[i].SongID == "" {
+			t.Errorf("entry %d should be a real song with a SongID", i)
+		}
+		if len(bundle.Songs[i].Pages) == 0 {
+			t.Errorf("entry %d (a song) has no pages", i)
+		}
 	}
 }

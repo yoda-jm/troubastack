@@ -56,6 +56,8 @@ data class BakedSong(
     val meter: String = "",
     val artist: String = "",
     val memberPages: List<MemberPages> = emptyList(),
+    val kind: String = "",
+    val label: String = "",
 )
 
 /** proto troubastack.v1.MemberCues. */

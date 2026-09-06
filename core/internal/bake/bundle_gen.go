@@ -40,6 +40,8 @@ type BakedSong struct {
 	Meter          string        `json:"meter,omitempty"`
 	Artist         string        `json:"artist,omitempty"`
 	MemberPages    []MemberPages `json:"memberPages,omitempty"`
+	Kind           string        `json:"kind,omitempty"`
+	Label          string        `json:"label,omitempty"`
 }
 
 // MemberCues mirrors proto troubastack.v1.MemberCues.

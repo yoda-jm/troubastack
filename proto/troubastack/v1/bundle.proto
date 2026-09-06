@@ -90,6 +90,20 @@ message BakedSong {
   // exactly like fields 5–13: proto3 default-empty, old bundles stay valid, old loaders ignore it. Mirrors
   // MemberCues (field 11) — the same per-member idea applied to what you READ instead of what you write.
   repeated MemberPages member_pages = 14;
+  // T153: what this entry IS — "song" (or absent) vs "intermission" (a break in the
+  // running order, carrying exactly one rendered separator page and no overlays).
+  // ABSENT ⇒ song, so every bundle baked before T153 reads as all-songs and old
+  // loaders ignore it — the same additive-compatibility argument as fields 5–14 and
+  // the `band_id` lesson (T143). A loader must branch on this, never on "does it have
+  // pages", because an intermission DOES have a page.
+  string kind = 15;
+  // T153: the words shown on an intermission's page and in the running order —
+  // CONTENT, chosen by the band (French band ⇒ "Entracte"), not a hardcoded string.
+  // Empty is allowed; the presenter supplies its own default ("Intermission") rather
+  // than the bundle inventing one — do NOT reuse the "Song N" title fallback here
+  // (that fallback is for a song with no title; a break is not a song). Meaningless on
+  // a song entry.
+  string label = 16;
 }
 
 // MemberCues is one member's personal cues for a song in a band-wide bundle (P205).
