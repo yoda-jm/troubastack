@@ -701,7 +701,20 @@ export function Viewer({
           return;
         }
         syncRef.current.createObject(obj);
-        setSelectedUuids([obj.uuid]);
+        // T155: a freshly drawn shape must NOT be left selected. While a drawing tool is armed, nothing is
+        // selected — the selection box + handles say "you can move me" (you can't, not without the select
+        // tool), and for a line or freehand stroke they sit ON TOP of the ink and hide the very mark you
+        // just made. Marking up a chart is several strokes in a row, not draw-then-move, so the tool stays
+        // armed and the canvas shows the clean stroke. The object is still fully created (createObject
+        // above) — the reference is not lost, so a future undo still targets it. Selection is a state of
+        // the SELECT tool (pick-to-select is untouched). EXCEPTION: text — its flow switches to the select
+        // tool on resolve, so the new text is left selected for immediate restyle/reposition (VLL's stated
+        // carve-out).
+        if (tool === "text") {
+          setSelectedUuids([obj.uuid]);
+        } else {
+          setSelectedUuids([]);
+        }
         setLocalNotice(null); // T30: a successful commit clears any stale decline notice
       } catch (err) {
         // T32: a create path must NEVER throw into the void (the insecure-context

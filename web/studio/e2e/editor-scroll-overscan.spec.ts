@@ -118,9 +118,10 @@ test("editor: an annotation at the very top of page 1 is reachable + selectable 
   await page.mouse.move(px(0.5), py(0.06), { steps: 12 });
   await page.mouse.up();
 
-  // Drawing auto-provisions a personal layer (no-silent-ink) and auto-selects the
-  // new object → its selection bbox appears. That proves the top-of-page-1 extreme
-  // is genuinely editable, not merely visible.
-  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
+  // Drawing auto-provisions a personal layer (no-silent-ink) and CREATES the object —
+  // object-count proves the top-of-page-1 extreme is genuinely editable, not merely
+  // visible. T155: a freshly drawn shape is NOT left selected (selection is a state of
+  // the SELECT tool), so no selection bbox appears.
   await expect(page.getByTestId("object-count")).toHaveText("1 objects");
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(0);
 });

@@ -1,6 +1,19 @@
 # T155 — A shape you have just drawn should not stay selected
 
-**Lane:** web-core (studio, annotation canvas). **Size:** S/M. **Status:** spec, 2026-09-06, from VLL.
+**Lane:** web-core (studio, annotation canvas). **Size:** S/M. **Status:** LANDED 2026-09-06 (web-core) —
+at the gate. `commitDraw` (Viewer.tsx) no longer selects the new object: while a drawing tool is armed,
+finishing a stroke leaves the canvas showing the stroke and nothing else (`setSelectedUuids([])`), the tool
+stays armed, and the object is still created (so its reference is not lost — a future undo still targets it).
+Selection chrome keys off `selectedUuids`, so no bbox/handles render. **TEXT EXCEPTION** (as the spec
+invited): the text flow already switches to the select tool on resolve, so a new text object is left
+selected for immediate restyle/reposition. RED-first Playwright (`editor-t155-draw-no-select.spec.ts`):
+freehand/line/rect draw → 0 selected + object created; two strokes in a row → both exist, neither selected;
+select tool + click → selectable (chrome belongs to the select tool). Updated `editor-scroll-overscan`
+(asserted auto-select; now asserts object-count + 0 selected); `text-oneshot` stays green (exception).
+Interpretation note at the gate: "undo targets the last drawn object" is satisfied by the object persisting
+(createObject), not by a new undo feature (none exists); quick-delete-of-just-drawn via Delete-on-selection
+now requires the select tool — consistent with "selection is a state of the SELECT tool" — flagged for VLL.
+Device-QA owed.
 
 ## What VLL reported
 
