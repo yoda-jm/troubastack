@@ -88,8 +88,9 @@ test("editor: selection toolbar reorders z (render), duplicates, recolors, delet
   await page.reload();
   await openEditorReady(page);
 
-  // A writable layer + filled rect tool. Colour each rect right after drawing it
-  // (it's auto-selected), so labels are unambiguous: A red under, B blue on top.
+  // A writable layer + filled rect tool. Colour each rect right after drawing it — since T155 a
+  // completed draw no longer selects, so each one is PICKED with the select tool first (the same
+  // idiom this test already uses below). Labels stay unambiguous: A red under, B blue on top.
   await page.getByTestId("new-layer").click();
   await expect(page.getByTestId("active-layer")).not.toHaveValue("");
   // Dismiss the drawer so the wide draws / z-order drags aren't intercepted by it.
@@ -99,11 +100,20 @@ test("editor: selection toolbar reorders z (render), duplicates, recolors, delet
 
   await dragRect(page, { x0: 0.18, y0: 0.18, x1: 0.58, y1: 0.58 }); // A
   await expect.poll(() => objectCount(page)).toBe(1);
+  // T155: pick A (nothing is selected after a draw). Re-arming a draw tool clears the selection,
+  // so B below is drawn on a clean canvas.
+  await page.getByTestId("tool-select").click();
+  await clickPage(page, 0.22, 0.22);
   await expect(page.getByTestId("sel-toolbar")).toBeVisible();
   await setSelColor(page, "#ff0000");
 
+  await page.getByTestId("tool-rect").click();
   await dragRect(page, { x0: 0.4, y0: 0.4, x1: 0.8, y1: 0.8 }); // B (drawn last → on top)
   await expect.poll(() => objectCount(page)).toBe(2);
+  // T155: pick B at a point inside B ONLY (A spans 0.18–0.58, B spans 0.4–0.8), so the recolour
+  // below cannot land on A.
+  await page.getByTestId("tool-select").click();
+  await clickPage(page, 0.7, 0.7);
   await expect(page.getByTestId("sel-toolbar")).toBeVisible();
   await setSelColor(page, "#0000ff");
 
