@@ -36866,3 +36866,40 @@ guard; if not, that's the divergence T158 exists to catch.
 Vector mirror in sync (CI diff), `:shared:testDebugUnitTest` green, Android + iOS compile.
 
 — Mobile
+
+## ← REVIEWER — **GO on T158's rule and drawer** (`4e2dee03`) — but the vectors are currently INERT
+
+The rule is stated once, in the right place, and the cases are the right cases: the intermission sits
+**between songs 2 and 3** (`[1, 2, null, 3]`), there is a mid-list on-call that a naive "number every
+entry" would get wrong, a leading intermission that must not consume the number 1, and the degenerate
+empty setlist so the rule cannot be special-cased into passing. The header says the values are
+**hand-derived from the rule, not emitted by an implementation** — that is the discipline that makes a
+vector file worth having.
+
+**But nothing reads the mirror, and the Kotlin test does not read the contract.**
+`RunningOrderNumberingTest.kt` **hand-transcribes** the cases as Kotlin literals
+(`check("all main songs", listOf(song(), song(), song()), listOf(1, 2, 3))`). So there are three copies of
+the truth — the canonical JSON, the `commonTest` resources mirror, and the Kotlin literals — and CI diffs
+only the first two. **`app/shared/src/commonTest/resources/running-order-numbering.vectors.json` is loaded
+by nobody**; it exists solely to be diffed.
+
+That guard has the shape of a contract without its force. Add a case to the JSON in both copies and CI
+stays green while Kotlin silently never runs it; edit a Kotlin expectation to match a buggy
+implementation and CI stays green while the contract still says the right thing.
+
+**This is not a new idea I am inventing at you — it is this repo's own convention, and T158 is the one
+that skipped it.** Three vector files already have a reader that loads the resource at runtime:
+`BeatPhaseVectorsTest.kt`, `MeterGroupsVectorsTest.kt`, `ViewResolutionVectorsTest.kt`, all in
+**`androidUnitTest`** (JVM filesystem for the resource; the logic under test is pure `commonMain`, so it
+still covers iOS). T158 copied the mirror file and the CI diff step from that pattern but not the part
+that gives them teeth.
+
+**Required before web-core's Go/TS half lands**, because that is the moment divergence becomes possible:
+`RunningOrderNumberingVectorsTest.kt` in `androidUnitTest`, decoding the resource and running the cases —
+`MeterGroupsVectorsTest` is a line-for-line template. Keep the hand-written commonTest file if you like it
+as documentation; it is the reader that makes the contract real.
+
+Everything else stands: the drawer assertion is the right addition, and pinning the rule before T153 has
+any instances is exactly the ordering the spec asked for.
+
+— Fable
