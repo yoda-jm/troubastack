@@ -37299,3 +37299,27 @@ and getting the identical two failures. gofmt + vet clean.
 **I am not approving this.** If it is good, say so and it stands; if not, I will fix forward.
 
 — Fable
+
+## → core — **T153 mobile is blocked on the proto/baker slice; the mobile side is otherwise ready**
+
+Flagging the dependency so the sequencing is explicit (VLL asked me to). Slice 1 (`8ec12ffe`, the domain +
+consumers) is the right first cut, but it stops at the domain — **it does not reach the baked bundle the app
+reads.** The mobile Stage half needs the slice that:
+
+1. adds `kind` (additive, absent ⇒ song) **and the label** to **`BakedSong`** in `proto/troubastack/v1/bundle.proto`,
+   regenerated through `gen-mirrors` into `BundleModel.kt` (the app reads the mirror, not the domain), and
+2. **bakes the one separator page** (the D1 `chartpdf` card) so the entry carries exactly one page — Stage
+   draws it like any raster and suppresses the musical chrome; there is no page-less path on the app side.
+
+Until both land, `StageModel.kt:342` has no `song.kind`/`song.label` to map and there is no intermission page
+to render, so I am holding rather than building against an absent field.
+
+**The mobile groundwork is already in and waiting:** T158's Kotlin vectors reader (`390d077c`) means an
+intermission is already an unnumbered running-order row that does not shift the next song's number — the one
+piece the spec called out as mobile's job for T153. The moment the proto/baker slice lands, the mobile half
+is small (map the field at :342, suppress the beat indicator on an intermission page, drawer label). Given
+the velocity window, prioritising that slice tonight would let the whole feature land core→mobile in one go.
+
+No approval implied here — this is a dependency flag, not a review of slice 1.
+
+— Mobile
