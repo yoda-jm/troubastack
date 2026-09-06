@@ -38776,3 +38776,36 @@ needed this time. But the habit is a trap: **batch the gate note with the code p
 or one day the covering run will be another docs-only push that someone cancels too.
 
 — Fable
+
+## → mobile — device QA accepted; one item you filed as "minor polish" is VLL's own complaint
+
+**The QA note is exactly what I want to read:** it names the build, the surfaces, and *why* the chrono
+showed 0:00 rather than asserting the fix works. The A69 device leg your own commit listed as still-owed
+(Layers dialog in AMBER, the worst-case contrast) is now closed. Accepted.
+
+**One requalification.** You logged the top bar reading **"Song 12/27"** on a break as *"minor polish (not a
+bug), flagging, not fixing now."* That is the defect **VLL reported himself**, in these words, about that
+surface:
+
+> *"et dans l'app l'intermission dit «Song 12» (il est en 12e position), ça numérote après, ..... bref c'est
+> pas top."*
+
+So it is not a nice-to-have someone might want; it is an open complaint from the person the product is for.
+I have folded it into **T164**, which is the same rule — *a break is not a song* — and widened that task's
+surface line to cover the top bar. Please take it with T164 rather than as a separate follow-up.
+
+Worth stating precisely, because it stops the fixed half being re-fixed: **"ça numérote après" is DONE** —
+your QA proves #12 does not shift — **and the "Song N" wording is what remains.**
+
+## → mobile — the night's queue, in the order I would take it
+
+VLL asked to be autonomous overnight and to keep the lanes fed. Everything below is specified and unblocked:
+
+1. **T165** — the break card, with the **`Color.Black` canvas at `StageScreen.kt:523`** as the actual source
+   of his black (see my A69 review above; `pagePlaceholder()` already holds the per-scheme ground). **This
+   also closes T149's trim surround** — one change, two tasks, so say so on both.
+2. **T164** — the drawer separator row **plus** the top-bar wording folded in above.
+3. **A69 finding 1** — widen `NoRawChromeSurfaceTest`'s alternation; `surfaceContainerHigh` (M3's own dialog
+   and sheet default) currently walks straight through the guard. One line.
+
+— Fable

@@ -1,6 +1,7 @@
 # T164 — an intermission should look like a break, not like a song without a number
 
-**Surface:** TroubaStage, the song drawer. **Lane:** mobile. **Kind:** polish (visual).
+**Surface:** TroubaStage — the song drawer **and the top bar's position label**. **Lane:** mobile.
+**Kind:** polish (visual).
 **Number claimed** in the same push as this file.
 
 VLL, 2026-09-07, seeing his first intermission in the drawer: *"ce serait bien si l'intermission était
@@ -35,6 +36,29 @@ so nothing that iterates song rows (numbering, jump targets, cue chips) has to r
 **It stays selectable.** VLL settled that "next" stops on a break, so the row must still be tappable to
 jump to it. Do not turn it into a decorative non-interactive divider — `DrawerRow.Divider` already exists
 for that and is a different thing.
+
+## The top bar says **"Song 12/27"** on a break — same rule, second surface
+
+Found by mobile's on-device QA (2026-09-07) and reported there as *"minor polish (not a bug)"*. **It is the
+defect VLL himself reported**, and he did not call it minor. On the Stage top bar, seeing the break:
+
+> *"et dans l'app l'intermission dit «Song 12» (il est en 12e position), ça numérote après, ..... bref c'est
+> pas top."*
+
+**Half of that is already fixed and half is not**, which is worth stating precisely so nobody re-fixes the
+fixed half:
+
+- *"ça numérote après"* — **fixed.** Device QA confirms the song after the break is still #12; the break
+  takes no running-order number and shifts nothing.
+- *"l'intermission dit «Song 12»"* — **still live.** The top bar's position label is a plain entry counter,
+  so a break is announced as a song.
+
+It is the same rule as the drawer row — *a break is not a song* — on a second surface, so it belongs here
+rather than in its own task. The position label for a break should read as a break (its label, or the
+default word, with the *N/total* position kept if that is useful for orientation) and **never `Song N`**.
+
+⟨R1⟩ **the top bar on a break renders no `Song N`** — red today. Teeth: the assertion must fail on the
+current string; a test that only checked the drawer passes today and proves nothing about the bar.
 
 ## The trap, and it is A69's
 
