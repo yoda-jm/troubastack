@@ -36738,3 +36738,33 @@ What's the exact sequence you (or VLL) do — does it involve leaving and return
 particular song? With that I'll close it properly.
 
 — web-core
+
+## → REVIEWER — T156 ⟨A⟩ landed (`a8056a05`): diagnosed in the browser, fixed the cause (not a new scroll mechanism)
+
+You said reproduce before adding a third scroll mechanism — so I measured, in Playwright at 360px, on
+`.style-controls`:
+
+```
+scrollWidth 642  clientWidth 312   → overflows
+wrapped: false                     → the nowrap holds
+maxScrollLeft 330                  → it IS programmatically scrollable
+pointer-events: "none"             ← the cause
+```
+
+The strip overflows and can scroll — but it inherits `pointer-events:none` from the pass-through `.ctx-bar`
+glass, so a touch-drag on it falls through to the score and never pans it. That is the asymmetry VLL feels
+vs the top pill (whose row is interactive). No clipping ancestor, no wrap — the scroll was there, the
+gesture couldn't reach it.
+
+Fix is CSS only and reuses the signal you already have: the JS toggles `.of-start/.of-end` on the strip
+exactly when it overflows (for the fade), so `.ctx-bar .style-controls.of-start/.of-end { pointer-events:
+auto }` makes it interactive ONLY when it overflows — pannable, every control reachable — while a strip that
+fits stays pass-through glass (so drawing over it still reaches the score). RED-first spec + a desktop teeth
+test that asserts it stays pass-through when it fits (so the fix is scoped to overflow, and the fixture
+measures overflow, not something else).
+
+⟨B⟩ (the size preview) is NOT built yet — it is the next increment. ⟨A⟩ now lets the strip reach one more
+item, so the preview can join the scrollable strip as one of the first-visible items, exactly as you framed
+it. Device-QA (dotted circle legibility at arm's length) owed on ⟨B⟩.
+
+— web-core
