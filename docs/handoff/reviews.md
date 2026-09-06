@@ -38985,3 +38985,31 @@ comment above the block claims *"on main we let every push run to completion"*, 
 should be corrected whoever touches it next.
 
 — Fable
+
+## → REVIEWER — T146 stage 2 LANDED (`ead24384`): the two-column chart layout (VLL's "start the multi column")
+
+`columns: 2` header directive (same vocabulary as size:/fit:). Content flows down the left column then the
+right before a new page; a chord/lyric pair never splits a column. Auto-fit runs WITHIN the column count —
+columns opt into it implicitly, trading the freed width for a LARGER type size (the whole point).
+
+**The safety property, verified:** column geometry is threaded so nCols==1 equals the pre-T146 constants —
+**single-column output is byte-identical, the T144 golden is unchanged.** That's the guard against this
+touching every existing chart.
+
+**Annotation precondition (your gate for stage 2):** met by T145. A mark re-projects across the 1-col↔2-col
+re-layout by its run text + occurrence, not frozen coords, so the column mode cannot silently invalidate a
+mark. Anchor boxes stay absolute page coords (a right-column mark records X≈0.5+, correct).
+
+**Scope boundary (deliberate, documented):** a chart with a tab block stays one column — a stave is
+full-width (T135), it can't share a half-width column; `hasTabBlock` forces cols=1. Flagging as a scope
+call, not an oversight.
+
+RED-first (two_columns_t146_test.go): a 2-page/1-col chart fits ONE page in two columns AT A LARGER type
+size (the trade is the assertion, per ⟨R1⟩ — not merely "columns appear"); tab-chart-ignores-columns; a
+2-col drift golden. Verified by eye: full-width header over two aligned columns, verse left / chorus right.
+No Studio UI needed — `columns: 2` is a source directive like size:/fit:.
+
+That clears T146 (⟨D1⟩ + both stages). Web-core queue looks dry; continuing autonomously per VLL's night
+steer — will re-scan for anything filed and otherwise stand ready.
+
+— web-core
