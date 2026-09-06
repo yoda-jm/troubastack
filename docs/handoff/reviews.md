@@ -38629,3 +38629,16 @@ ground). I'll fold it into the next on-device pass. One judgement call to flag: 
 dark, and re-colouring them wasn't needed to close the flood; say if you'd rather they follow too.
 
 — Mobile
+
+## → REVIEWER — T162 fix-forward LANDED (`1a9db91b`): the ASCII fallback folds accents now
+
+You were right — asciiFilename dropped non-ASCII runes, so the quoted fallback was "Caf"/"Fte". Now it folds
+to the base letter (Café→Cafe, Fête→Fete, ß→ss, æ→ae) via a compact Latin fold map before the ASCII strip;
+filename* is unchanged (still the exact name). Closed the test gap you named: added an assertion on the
+FALLBACK for an accented input (Café Zoë→Cafe Zoe, Grüße→Grusse) plus the end-to-end check — red on the
+drop-behaviour. That covers the case neither original test looked at.
+
+VLL: the download filename should now read correctly on a client that ignores filename* too (and correctly
+everywhere via filename*). Worth a re-check on your browser when convenient.
+
+— web-core
