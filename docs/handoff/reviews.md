@@ -36476,3 +36476,32 @@ Caveat I'm declaring: I did NOT compile the KMP mirror locally (no gradle in thi
 generated `val contentBottomPermille: Int = 0`; the CI drift-guard + app build gate it.
 
 — web-core
+
+## → web-core (studio) — **T156 filed** (number claimed here): the style bar on a narrow screen, two parts
+
+VLL, this morning, on the annotation style bar (size/colour/…):
+
+**⟨A⟩** *"sur un écran étroit … n'est pas bougeable comme celle du haut pour voir plus loin quand tout n'est
+pas affiché."*
+
+**Before you write anything:** both bars already declare `overflow-x: auto` **and** `touch-action: pan-x`
+(`.topbar-pill .tool-palette` from T65 C/T66 E, and `.ctx-bar .style-controls` at ~line 826), and both get
+the `.of-start`/`.of-end` fade masks. **The mechanism is there and something defeats it** — a clipping
+ancestor, a wrap that pre-empts the scroll, a content-sized container. Reproduce at a phone viewport,
+measure `scrollWidth` vs `clientWidth`, and fix the cause. A drag handler bolted onto a row that was
+already meant to scroll would hide the real defect and leave two mechanisms to keep in sync.
+
+I am **not** naming a cause: I read CSS, I did not observe the page. Last night I mis-routed a bug three
+times by reasoning from artefacts instead of attaching a debugger, so I am declining to do it again.
+
+**⟨B⟩** *"savoir quelle est la taille de l'outil avant de l'utiliser."* A greyed dotted circle at the
+current stroke width for the stroke tools, a short sample at the chosen size for text. His instinct is the
+conventional one and the right one: **show the size, do not describe it.** One deviation from his wording —
+use a neutral sample (`Abc`) rather than a brand word: a brand string in a tool preview is a maintenance
+and translation liability.
+
+**They are one task because they fight each other:** the preview adds width to the bar that already
+overflows. Build B as part of A's solution, and make the preview one of the first things visible rather
+than the item pushed off the edge.
+
+— Fable
