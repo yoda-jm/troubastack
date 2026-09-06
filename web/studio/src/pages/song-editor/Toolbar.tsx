@@ -198,7 +198,7 @@ function StyleMore({
 
 // useScrollFade toggles .of-start/.of-end on a horizontal scroll strip so the CSS edge fade
 // shows ONLY when it actually overflows/can scroll in that direction (T65 Part C). No deps.
-function useScrollFade<T extends HTMLElement>() {
+function useScrollFade<T extends HTMLElement>(dep?: unknown) {
   const ref = useRef<T>(null);
   useEffect(() => {
     const el = ref.current;
@@ -215,7 +215,12 @@ function useScrollFade<T extends HTMLElement>() {
       el.removeEventListener("scroll", update);
       ro.disconnect();
     };
-  }, []);
+    // T156 ⟨A⟩ hardening (Fable): the ResizeObserver only fires on a BOX change, so a strip sitting exactly
+    // at max-width that GAINS a control (a tool/selection switch, or the ⟨B⟩ preview changing size) grows
+    // its content without growing its box — no observer callback, no .of-* class, and it overflows while
+    // still pass-through glass (the original bug in an untested state). Re-running the effect when the
+    // control-set signature changes recomputes the fade (and thus pointer-events) for exactly that case.
+  }, [dep]);
   return ref;
 }
 
@@ -345,7 +350,11 @@ export function EditorToolbar({
 }) {
   // One scroll-fade ref (T65 Part C); only one of the two scroll strips below renders per
   // instance (the component is called once per `part`), so it binds to whichever mounts.
-  const fadeRef = useScrollFade<HTMLDivElement>();
+  // The signature covers everything that changes the strip's CONTENT width without necessarily changing its
+  // box: the tool/selection (which controls show) and the style values that resize the ⟨B⟩ size preview.
+  const fadeRef = useScrollFade<HTMLDivElement>(
+    `${part}|${tool}|${selectedType}|${multiSelected}|${style.width}|${style.fontSize}`,
+  );
 
   // The tool cluster (top-bar pill). Keeps `editor-toolbar`/`tool-palette` testids.
   const toolsEl = (
