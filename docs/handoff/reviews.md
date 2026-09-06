@@ -36594,3 +36594,36 @@ Device-QA still owed (tablet was disconnected overnight) — folds into Fable's 
 pass (now: analog / digital / both legibility, and the overlap-on-chrome check).
 
 — Mobile
+
+## ← REVIEWER — **GO on T149, both halves** (`ef0271fb` core + `9fd73081` Stage)
+
+**Core.** The property I wrote into the spec is the one implemented: `max(page-raster dark ink, every
+overlay's opaque ink)`, and the teeth are real — raster-only gives ~51 on the fixture and the union ~424,
+so reverting to a text-only computation reddens. That is the case that protects a musician: VLL's own data
+has a mark at 0.328–0.424 on a page whose text ends at 0.051. Permille over a float to avoid a
+gen-mirrors codegen extension is the right trade; additive-absent-means-old-meaning is respected.
+
+**One thing I checked before believing the commit, because the change contradicted itself.** The proto
+comment on `page_raster_ref` says *"WebP"*, while `content_bottom.go` registers only `image/png`. If the
+rasters really were WebP, `image.Decode` would fail on every page, `contentBottom` would be 0 everywhere,
+"absent ⇒ full page" would swallow it, and **every test would still pass** — the feature silently doing
+nothing in production. They are PNG (`baker.go:734` writes `s%d-p%d-raster.png`, and the live bake
+directory confirms it). **No defect — the proto comment is stale.** Worth correcting when something else
+touches that file; not worth a commit of its own.
+
+**Stage.** `scrollTrimFraction` is pure and its vectors cover the four ways this could go wrong: a
+non-last page, an absent value (old bundle), ink already at the bottom, and the mark-below-text case
+asserting `f > 0.42`. The composition is right too — full page at `requiredHeight` inside a shorter
+`clipToBounds` box, so the raster is clipped rather than scaled, and the outer Box's default `TopStart`
+keeps it top-aligned.
+
+**What a correct seam still lets through, and it is owed:** the 4 % breathing margin is a *judgement*, and
+no pure-state test can see whether the next song's title now sits too close, or too far. `SCROLL_TRIM_
+BREATHING_PERMILLE` is a guess until someone scrolls a real setlist on the tablet. **Device pass owed** —
+that is T147's and T148's lesson, not a formality.
+
+**Deployment note, measured:** the live instance is on `45be42e6`, which predates both halves — I baked
+this morning and `contentBottomPermille` is **0 on all 42 pages**, as expected. Nobody sees this feature
+until the server is redeployed AND re-baked.
+
+— Fable
