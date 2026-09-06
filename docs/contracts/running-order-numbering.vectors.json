@@ -1,0 +1,53 @@
+{
+  "_comment": [
+    "Shared test vectors for the running-order NUMBERING rule (T158).",
+    "runningOrderNumbers(entries) -> a number (1-based) per entry, or null.",
+    "THE RULE, stated once: a number belongs only to a MAIN-ORDER SONG — a song that is NOT on-call and",
+    "NOT an intermission. An on-call (bench) song or an intermission carries no number and NEVER shifts the",
+    "number of the entry after it. So '7' means the 7th main song on the printed sheet, in the Stage drawer,",
+    "and in the Studio editor alike.",
+    "Three surfaces run these SAME vectors as a test so they cannot silently diverge: TroubaStage (Kotlin,",
+    "drawerRows), TroubaStudio (TS, SetlistDetail), TroubaCore (Go, the T158 export document). Each maps its",
+    "own model to (kind, onCall) and compares to `expected`. Values are hand-derived from the rule, not",
+    "emitted by any implementation, so an off-by-one or a bench/intermission that shifts the count fails.",
+    "kind is 'song' or 'intermission'; onCall applies only to a song. expected uses null for no number.",
+    "Intermission cases are forward-looking (T153): the numbering must already be correct when it lands."
+  ],
+  "cases": [
+    {
+      "name": "all main songs number 1..N",
+      "entries": [{"kind": "song", "onCall": false}, {"kind": "song", "onCall": false}, {"kind": "song", "onCall": false}],
+      "expected": [1, 2, 3]
+    },
+    {
+      "name": "a trailing on-call song is unnumbered",
+      "entries": [{"kind": "song", "onCall": false}, {"kind": "song", "onCall": false}, {"kind": "song", "onCall": true}],
+      "expected": [1, 2, null]
+    },
+    {
+      "name": "an on-call song mid-list does NOT shift the song after it",
+      "entries": [{"kind": "song", "onCall": false}, {"kind": "song", "onCall": true}, {"kind": "song", "onCall": false}],
+      "expected": [1, null, 2]
+    },
+    {
+      "name": "an intermission between songs 2 and 3 leaves the next song reading 3",
+      "entries": [{"kind": "song", "onCall": false}, {"kind": "song", "onCall": false}, {"kind": "intermission", "onCall": false}, {"kind": "song", "onCall": false}],
+      "expected": [1, 2, null, 3]
+    },
+    {
+      "name": "a leading intermission does not consume the number 1",
+      "entries": [{"kind": "intermission", "onCall": false}, {"kind": "song", "onCall": false}],
+      "expected": [null, 1]
+    },
+    {
+      "name": "intermission and on-call together, both unnumbered",
+      "entries": [{"kind": "song", "onCall": false}, {"kind": "intermission", "onCall": false}, {"kind": "song", "onCall": true}],
+      "expected": [1, null, null]
+    },
+    {
+      "name": "an empty setlist numbers nothing",
+      "entries": [],
+      "expected": []
+    }
+  ]
+}

@@ -143,6 +143,14 @@ jobs:
         run: |
           diff -u docs/contracts/meter-groups.vectors.json \
                   app/shared/src/commonTest/resources/meter-groups.vectors.json
+      # T158 running-order numbering contract: docs/contracts/running-order-numbering.vectors.json pins the
+      # ONE numbering rule across three surfaces (Go export, TS studio, Kotlin Stage drawer). The app mirrors
+      # it into commonTest resources and runs the SAME cases in Kotlin. Fail if the two copies drift, so
+      # "song number 7" can never silently fork between the printed sheet, the drawer and the editor.
+      - name: verify T158 running-order-numbering vectors are in sync across lanes
+        run: |
+          diff -u docs/contracts/running-order-numbering.vectors.json \
+                  app/shared/src/commonTest/resources/running-order-numbering.vectors.json
       # bake imports node builtins + @napi-rs/canvas, so it must be installed
       # before the typecheck below resolves its `-p bake` project.
       - name: install bake

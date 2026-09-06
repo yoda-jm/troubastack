@@ -1096,17 +1096,19 @@ internal sealed interface DrawerRow {
 internal fun drawerRows(state: StageState): List<DrawerRow> {
     // T23: bench/encore songs group below the running order under an "On call" header. withIndex keeps
     // each song's ORIGINAL index so a jump lands on the right pages regardless of bundle order.
+    // T158/P2: number via the ONE shared running-order rule so Stage stays in lock-step with the export +
+    // Studio (docs/contracts/running-order-numbering.vectors.json). SongInfo has no intermission yet (T153),
+    // so every entry maps to a SONG; on-call is the only thing that withholds a number today — but sourcing
+    // from runningOrderNumbers means the drawer is already correct when intermissions arrive.
+    val numbers = runningOrderNumbers(state.songs.map { RunningOrderEntry(RunningOrderKind.SONG, it.onCall) })
     val (bench, main) = state.songs.withIndex().partition { it.value.onCall }
     val rows = mutableListOf<DrawerRow>(DrawerRow.Header("Songs"))
-    // P2: number the running order from 1 (bands call "number seven"); the number is the position in
-    // the MAIN order, not the original bundle index.
-    main.forEachIndexed { pos, (i, s) -> rows += DrawerRow.Song(i, s, number = pos + 1) }
+    main.forEach { (i, s) -> rows += DrawerRow.Song(i, s, number = numbers[i]) }
     if (bench.isNotEmpty()) {
         rows += DrawerRow.Divider
         rows += DrawerRow.Header("On call")
-        // P2: NO numbers on the bench — an "on call" song is deliberately NOT in the running order, so
-        // numbering it would imply the opposite of what the group means.
-        bench.forEach { (i, s) -> rows += DrawerRow.Song(i, s, number = null) }
+        // NO numbers on the bench — runningOrderNumbers returns null for an on-call entry.
+        bench.forEach { (i, s) -> rows += DrawerRow.Song(i, s, number = numbers[i]) }
     }
     return rows
 }

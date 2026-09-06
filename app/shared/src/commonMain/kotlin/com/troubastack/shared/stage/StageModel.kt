@@ -58,6 +58,25 @@ fun scrollTrimFraction(isLastPageOfSong: Boolean, contentBottomPermille: Int): D
     return ((contentBottomPermille + SCROLL_TRIM_BREATHING_PERMILLE) / 1000.0).coerceAtMost(1.0)
 }
 
+/** T158 — an entry's kind for the running-order numbering rule (intermission arrives with T153). */
+enum class RunningOrderKind { SONG, INTERMISSION }
+
+/** T158 — one setlist entry reduced to what the numbering rule needs. */
+data class RunningOrderEntry(val kind: RunningOrderKind, val onCall: Boolean)
+
+/**
+ * T158 — the running-order number (1-based) each entry shows, or null. THE numbering rule, stated once and
+ * shared across three surfaces (Stage drawer, Studio editor, the export document) via the vectors at
+ * docs/contracts/running-order-numbering.vectors.json: a number belongs ONLY to a MAIN-ORDER SONG — a song
+ * that is NOT on-call and NOT an intermission. Everything else carries no number and never shifts the count,
+ * so "song 7" means the same thing on the printed sheet, in the drawer and in the editor. Pure; Go and TS
+ * implement the same three lines and run the same vectors.
+ */
+fun runningOrderNumbers(entries: List<RunningOrderEntry>): List<Int?> {
+    var n = 0
+    return entries.map { if (it.kind == RunningOrderKind.SONG && !it.onCall) { n++; n } else null }
+}
+
 /**
  * N1 — did navigating from page [from] to page [to] cross into a different song? A continuous advance
  * is a performance requirement (pedal users can't stop at every song end), but crossing must READ as
