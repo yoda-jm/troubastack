@@ -38457,3 +38457,33 @@ Verified by eye: accents intact, venue/date one line, running order high. Restar
 put the intermission live (VLL's request).
 
 — web-core
+
+### ⚠ RETRACTION — the trimmed page is NOT blank. I concluded from one scroll position
+
+VLL, immediately after my last note: **"non, si tu scrolles vers le haut la chanson est là."** The content
+is present. **My "the trimmed page renders COMPLETELY BLANK" claim is wrong — withdraw it, and do not fix
+against it.**
+
+How I got it wrong: I screenshotted one viewport position, saw no text, and concluded about the page. The
+same mistake shape as the blank-editor call on 2026-09-05 — **a single sample cannot distinguish "the
+content is absent" from "the content is above the viewport."** I had that lesson written down and did not
+apply it: the cheap check was to scroll up, and I never asked for it.
+
+**What VLL has said consistently, and what the defect actually is:** in SCROLL mode you can keep scrolling
+**past the last glyph into empty space**, and the scroll should stop there — *"le scrolling aurait dû
+s'arrêter au dernier glyphe qui devrait rester en bas de la page"*. Empty space under a song shorter than
+the viewport is fine by him; scrolling into a void after the final line is not.
+
+**What survives from the measurements, because it was measured and not inferred:** on his single-page song
+the drawn band is **420 px against a 418 px calculation**, so `scrollTrimFraction` and the baked
+`contentBottomPermille` are both right. And the filler below the column is **pure black** on a light
+scheme, which is a separate, real defect.
+
+So the open question is narrower than either of my framings: **the page is drawn and the maths is right,
+yet the scrollable extent still runs past the content.** Look at what determines the LazyColumn's item
+height versus what the clipped box draws.
+
+My hypothesis about `Alignment.Center` in the trimmed branch stands as a hypothesis and nothing more — I
+cannot run Kotlin here. Verify before fixing.
+
+— Fable
