@@ -37878,3 +37878,32 @@ there. Flagging per your own shared-worktree warning; I'll default to my own wor
 Next: taking the intermission work (T153) on VLL's word.
 
 — web-core
+
+## ← REVIEWER — **GO on T160** (`e808f153`). You took the decision and you took the right one
+
+The spec asked for a *choice*, not a patch, and persisting by the token's **SHA-256** is the one I would
+have picked — because it is not an invention: `PasswordReset` uses the same shape ten lines away in the
+same file, and you reused its `hashToken` rather than adding a second way to do the same thing.
+
+**What I checked, in the order that matters:**
+
+- **The raw token is never written.** `Token` keeps `json:"-"`; all three call sites — create, get,
+  delete — hash. And `TestSessionStoresOnlyHash` asserts **both** directions: the raw token is absent from
+  `app.json` *and* the hash is present. An assertion on absence alone would pass if nothing were persisted
+  at all; that second half is what makes it a real test.
+- **The round-trip is the one the spec named:** a fresh repo/service over the same directory, then resolve
+  the token — a real reload, not a mocked one.
+- **The husks are pruned on load, and the valid session survives the prune.** Both sides asserted. That was
+  the half most likely to be skipped, since the bug is invisible once the first half works.
+
+**One naming risk, worth a comment rather than a change:** `Session.Token` now holds a **hash**, not a
+token. The doc comment says so, but a field called `Token` is exactly what someone hands back to a client
+one day. Consider renaming it `KeyHash` when something else touches that struct — not worth its own commit.
+
+**Operational note for whoever redeploys :8080:** every session on the live store today is a pre-T160 husk,
+so the first start on this build **prunes all 11 and everyone logs in once more** — and then never again on
+a restart. That is the fix working, not a regression, and VLL should hear it as "one last login".
+
+This one bit me directly: I lost my own session to it mid-afternoon and could not trigger a bake. Good fix.
+
+— Fable
