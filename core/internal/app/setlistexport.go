@@ -20,18 +20,29 @@ func (s *Service) ExportSetlistPDF(caller User, bandID, setlistID string) ([]byt
 		return nil, "", err
 	}
 
-	// Number the running order via the shared rule (det.Items is already main-then-bench, in Position
-	// order). No intermission field on the model yet (T153); every real item is a song — when T153 lands,
-	// map its kind here and both the rule and the renderer already handle KindIntermission.
+	pdf, err := setlistpdf.Render(buildSetlistDoc(band.Name, det))
+	if err != nil {
+		return nil, "", err
+	}
+	return pdf, sanitizeFilename(band.Name+" - "+det.Setlist.Name) + ".pdf", nil
+}
+
+// buildSetlistDoc turns a resolved setlist into the printable Doc: it numbers the
+// running order via the ONE shared rule and maps each item to a row. Extracted from
+// ExportSetlistPDF as the testable seam T158's review flagged — the vectors prove
+// Numbers(), but nothing exercised this mapping, which is where an intermission was
+// silently numbered as a song (T153). det.Items is already main-then-bench in
+// Position order.
+func buildSetlistDoc(bandName string, det SetlistDetail) setlistpdf.Doc {
 	entries := make([]runningorder.Entry, len(det.Items))
 	for i, it := range det.Items {
-		entries[i] = runningorder.Entry{Kind: runningorder.KindSong, OnCall: it.OnCall}
+		entries[i] = runningorder.Entry{Kind: entryKind(it), OnCall: it.OnCall}
 	}
 	nums := runningorder.Numbers(entries)
 
 	var main, bench []setlistpdf.Row
 	for i, it := range det.Items {
-		row := setlistpdf.Row{Number: nums[i], Title: it.SongTitle, Kind: setlistpdf.KindSong}
+		row := setlistpdf.Row{Number: nums[i], Title: it.SongTitle, Kind: rowKind(it)}
 		if it.OnCall {
 			bench = append(bench, row)
 		} else {
@@ -39,16 +50,29 @@ func (s *Service) ExportSetlistPDF(caller User, bandID, setlistID string) ([]byt
 		}
 	}
 
-	pdf, err := setlistpdf.Render(setlistpdf.Doc{
-		BandName:    band.Name,
+	return setlistpdf.Doc{
+		BandName:    bandName,
 		SetlistName: det.Setlist.Name,
 		Venue:       det.Setlist.Venue,
 		EventDate:   det.Setlist.EventDate,
 		Main:        main,
 		OnCall:      bench,
-	})
-	if err != nil {
-		return nil, "", err
 	}
-	return pdf, sanitizeFilename(band.Name+" - "+det.Setlist.Name) + ".pdf", nil
+}
+
+// entryKind / rowKind map a setlist item to the kind its two consumers understand,
+// through the single IsIntermission interpreter so "absent ⇒ song" is stated once and
+// the export can never again number a break as a song (T153).
+func entryKind(it SetlistItemView) string {
+	if it.IsIntermission() {
+		return runningorder.KindIntermission
+	}
+	return runningorder.KindSong
+}
+
+func rowKind(it SetlistItemView) string {
+	if it.IsIntermission() {
+		return setlistpdf.KindIntermission
+	}
+	return setlistpdf.KindSong
 }
