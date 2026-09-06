@@ -2215,8 +2215,9 @@ type SetlistItemPatch struct {
 	KeyOverride     *string
 	TempoOverride   *int
 	Notes           *string
-	OnCall          *bool // move to/from the bench (T23)
-	TransposeChords *bool // burn the chart transposed to keyOverride at bake (T60)
+	OnCall          *bool   // move to/from the bench (T23)
+	TransposeChords *bool   // burn the chart transposed to keyOverride at bake (T60)
+	Label           *string // T153: rename an intermission's break label (meaningless on a song)
 }
 
 // UpdateSetlistItem patches an item's overrides/notes (any member).
@@ -2245,6 +2246,9 @@ func (s *Service) UpdateSetlistItem(caller User, bandID, setlistID, itemID strin
 	}
 	if p.TransposeChords != nil {
 		it.TransposeChords = *p.TransposeChords
+	}
+	if p.Label != nil {
+		it.Label = *p.Label // T153: the break's page + running-order label; meaningless on a song, harmless there
 	}
 	if err := s.repo.UpdateSetlistItem(it); err != nil {
 		return SetlistItem{}, err

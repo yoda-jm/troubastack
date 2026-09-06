@@ -1131,11 +1131,24 @@ func (a *WebAPI) setSetlistLive(w http.ResponseWriter, r *http.Request, u app.Us
 func (a *WebAPI) addSetlistItem(w http.ResponseWriter, r *http.Request, u app.User) {
 	var in struct {
 		SongID string `json:"songId"`
+		Kind   string `json:"kind"`  // T153: "intermission" ⇒ a break; absent/"song" ⇒ a song
+		Label  string `json:"label"` // T153: the break's label (only read for an intermission)
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	item, err := a.svc.AddSetlistItem(u, r.PathValue("bandId"), r.PathValue("setlistId"), in.SongID)
+	bandID, setlistID := r.PathValue("bandId"), r.PathValue("setlistId")
+	// T153: one "add to setlist" endpoint, discriminated by kind — an intermission has no song, so it
+	// takes the label path and ignores songId. Absent kind is a song (the additive default).
+	var (
+		item app.SetlistItem
+		err  error
+	)
+	if in.Kind == app.SetlistKindIntermission {
+		item, err = a.svc.AddSetlistIntermission(u, bandID, setlistID, in.Label)
+	} else {
+		item, err = a.svc.AddSetlistItem(u, bandID, setlistID, in.SongID)
+	}
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -1150,6 +1163,7 @@ func (a *WebAPI) updateSetlistItem(w http.ResponseWriter, r *http.Request, u app
 		Notes           *string `json:"notes"`
 		OnCall          *bool   `json:"onCall"`
 		TransposeChords *bool   `json:"transposeChords"`
+		Label           *string `json:"label"` // T153: rename an intermission
 	}
 	if !decode(w, r, &in) {
 		return
@@ -1160,6 +1174,7 @@ func (a *WebAPI) updateSetlistItem(w http.ResponseWriter, r *http.Request, u app
 		Notes:           in.Notes,
 		OnCall:          in.OnCall,
 		TransposeChords: in.TransposeChords,
+		Label:           in.Label,
 	})
 	if err != nil {
 		writeErr(w, err)
