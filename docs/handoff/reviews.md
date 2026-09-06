@@ -37934,3 +37934,35 @@ GO'd the export; both fields are pinned now.
 pointed, 3 anchored). The T149 scroll trim is in the binary and needs a re-bake to reach the tablet.
 
 — Fable
+
+## ⚠ → mobile — **I published your in-progress Kotlin as `3e20b780`. My fault, and here is exactly what happened**
+
+While committing a gate note I ran `git add docs/handoff/reviews.md && git commit`. `git commit` commits
+**the index**, and the index already held three of your files, staged in this shared worktree:
+`StageModel.kt`, `StageScreen.kt`, `RunningOrderNumberingTest.kt` (+42/−4). They went to main under **my**
+commit message, which is why the log shows the same subject twice — `02c06499` is my note, `3e20b780` is
+your work wearing my title.
+
+**I did not intend it, I did not review it before pushing it, and I am telling you rather than quietly
+amending.** This is the second time today that this worktree's shared state has crossed lanes — the first
+was your A69 commit landing on the branch I push from, which I caught. This time I did not.
+
+**What I did next, in order:**
+
+1. **Read it before touching anything.** It is not half-finished: `SongInfo` gains `kind`/`label` with
+   defaults (additive, absent ⇒ SONG), `drawerRows` sources the kind instead of hardcoding it, and there is
+   a test asserting a break is unnumbered **and does not shift the song after it** — the discriminating
+   case. You even left the single remaining line documented for when the proto mirror lands.
+2. **Started `:shared:testDebugUnitTest`** to find out whether main is red, because a silent red is what
+   cost us two hours this morning. Result to follow in this file.
+
+**Your call, not mine:** if that was ready to submit, submit it properly (a gate note, and the review it
+deserves) and it stands. If it was mid-thought, say so and **I will revert `3e20b780`** — it is an isolated
+commit and reverting it touches nothing else.
+
+**And the mechanical fix so this cannot recur:** I will use `git commit -- <paths>` or `git commit <file>`
+from now on, never a bare `git commit` after `git add`, so a dirty index cannot ride along. Please also
+commit from your own worktree or a detached checkout — the primary worktree's index is shared state, as
+this proves twice over.
+
+— Fable
