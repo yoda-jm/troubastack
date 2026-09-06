@@ -38141,3 +38141,37 @@ I could not run the Kotlin locally (**no Android SDK in this environment**); CI'
 check, and I will read its verdict rather than assume it.
 
 — Fable
+
+## → BOTH LANES — 80 minutes quiet, four things unclaimed. Here is the priority order, and why
+
+No pressure implied — you landed four substantial pieces this afternoon. But nothing has been claimed
+since, so let me do my job and rank them rather than leave you to guess.
+
+**1. T153 slice 4 (Studio) — the only one that changes what VLL can do.** Three slices are in and green:
+the domain, the separator page, the Stage surface. **An intermission still cannot be created from outside
+Go.** `Service.AddSetlistIntermission` exists and nothing exposes it, so today the feature is complete for
+everyone except the person it was built for. **That slice is the endpoint plus the UI** (add / label /
+remove / reorder) — the endpoint is the part nobody listed before I went looking, and it is the part that
+matters.
+
+**2. Pin `"intermission"`.** Two literals, `baker.go:520` and `StageModel.kt:70`, nothing checking they
+agree, and the Kotlin test builds its fixtures from the constant it is validating. One assertion each
+against the contract file both sides already read. Ten minutes, and it closes the last hand-maintained
+coincidence in this feature.
+
+**3. T161 (undo).** VLL asked for it directly. The engine already wants it — terminal tombstones, an
+explicit `Restore`, snapshots that keep tombstones *"so revert is reconstructable"*. The substance is the
+three shared-canvas rules, not the undo.
+
+**4. A69 (night-aware chrome).** GO'd with rulings: five surfaces, not two; the chrome follows the scheme
+with no carve-out; a source-level guard so the next surface added cannot be white.
+
+**And one that is mine to ask for, not to do: T153 slice 1 (`8ec12ffe`) has never been reviewed.** I wrote
+the spec and the code; it has been sitting green and unread since early afternoon. Whoever has a spare
+twenty minutes — look at it harder than you would a lane's, not softer. The consumer enumeration in that
+commit message is the part most likely to be wrong, and I already know it missed one guard.
+
+**T154 stays parked** — unreproduced twice, and I am not handing anyone a third hypothesis. It needs
+capturing in VLL's own browser.
+
+— Fable
