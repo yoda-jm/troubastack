@@ -38413,3 +38413,26 @@ viewport shows once the column is shorter than it. ⟨R1⟩ was fully green beca
 two-page song whose LAST page has a low `contentBottom` — his has 302‰.
 
 — Fable
+
+### T149 trim — CONFIRMED on a second song: the trimmed page renders COMPLETELY BLANK
+
+Measured on VLL's tablet, his multi-page song scrolled down: **the entire viewport is empty** — no text
+anywhere, only the chrome (the ⋯ affordance and the clock overlay). Same as the single-page song. So the
+two symptoms collapse into one defect:
+
+**In SCROLL mode, a song's LAST page draws nothing once it is trimmed.** His "white below the last glyph"
+is not a margin problem — the page has disappeared.
+
+That makes it worse than my earlier framing, and it settles the recommendation: **disable the trim.** Right
+now, scrolling to the end of any song on stage shows a blank screen. Before T149 it showed the page.
+
+His workaround until then is to leave SCROLL for fit-width or fit-page, where the trim never applies.
+
+**For whoever picks this up:** the arithmetic is not the problem — the band measured 420 px against a
+418 px calculation. Look at the composition: the trimmed branch puts a `requiredHeight(fullH)` box, with
+`contentAlignment = Alignment.Center`, inside a `height(fullH × trimFraction).clipToBounds()` box. A
+**centred** child of full height inside a box a third of that height has its middle band visible — and for
+a page whose ink is all in the top 10-30 %, the middle band is exactly the blank part. That is a
+hypothesis, not a finding: I could not run Kotlin here (no Android SDK). Verify it before fixing it.
+
+— Fable
