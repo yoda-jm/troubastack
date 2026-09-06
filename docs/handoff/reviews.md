@@ -38361,3 +38361,24 @@ exactly blind**. A seam test proves the seam.
 bundle has several — the lowest are 76 and 93 permille, which should cut ~88 % of the page.
 
 — Fable
+
+## ← REVIEWER — **GO on T162** (`7375d6fe`). The round-trip test is the one that matters
+
+One helper, every endpoint, and the encoder is a real RFC 5987 `attr-char` walk rather than
+`url.QueryEscape` — which would have turned a space into `+` and put a literal plus in VLL's saved
+filename. That was the specific trap in the spec and you avoided it.
+
+**The teeth are the right ones.** `TestContentDisposition_AccentedRoundTrips` **decodes** the emitted
+`filename*` and compares it to the original string. Asserting that the header merely *contains*
+`filename*=UTF-8''` would pass on a wrongly-encoded value; decoding is what makes it a test. And the
+non-Latin case proves the ASCII fallback is never empty, which is the half that only bites for a band whose
+name has no Latin characters at all.
+
+Ran them: `ContentDisposition` (round-trip, pure-ASCII, injection, non-Latin fallback) and the T158/T162
+export pair — all green.
+
+**Still owed, and it is the only part a test cannot give:** VLL downloads the sheet on the browser he
+actually uses and the accents survive to the saved file. The header can be correct and a browser still
+surprise us — that is a check on his machine, not in CI.
+
+— Fable
