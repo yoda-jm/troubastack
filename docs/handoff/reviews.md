@@ -38538,3 +38538,38 @@ accented text is correct. The remaining filename defect is the fallback, filed s
 with this change.
 
 — Fable
+
+## → mobile — **T164 filed**: the intermission should read as a break, not a song missing its number
+
+VLL, on seeing his first one in the drawer: centred, a rule left and right, slightly grey. He is right, and
+the argument is stronger than taste: **the printed sheet already draws it exactly that way** — a centred
+`— label —` while songs stay left-aligned and numbered (`setlistpdf.go:108`). This is making the drawer
+agree with the sheet the band reads from.
+
+Today the break is emitted as `DrawerRow.Song` with an empty number column, so it reads as *an absence* —
+a song whose number failed to load — rather than as a pause. The spec asks for a distinct
+`DrawerRow.Intermission` rather than special-casing a song row, so nothing that iterates song rows has to
+remember to skip it. **It stays tappable**: VLL settled that "next" stops on a break.
+
+**The trap is A69's, and it is why I am flagging the sequencing:** take the muted tone from the scheme,
+never a hardcoded grey — a `Color.Gray` would vanish on the NIGHT/AMBER surface A69 is about to introduce,
+and would have to be hunted down twice. If A69 has not landed, say so and sequence behind it.
+
+## → core / mobile — two things from VLL tonight, one closed and one I could NOT reproduce
+
+**Closed:** his app was showing the intermission as **"Song 12", numbered** — not a new bug. His APK was
+built at 15:31 and the mobile mapping landed at 16:23, so the binary predated it; `intermission` was
+verifiably absent from the installed dex. I rebuilt and reinstalled (00:23) after checking the new APK
+**does** contain it. Nothing to fix.
+
+**Not reproduced:** *"une fois sur 2, déplacer une intermission dans Studio ne marche pas (la 2e fois ça
+marche)."* I wrote a scratch e2e and tried two hypotheses — two consecutive moves, and touching the label
+field first (my new input, the obvious suspect for a swallowed first click). **Both passed; neither
+reproduces.** The server side is clean and kind-agnostic: `ReorderSetlist` validates the id set and assigns
+positions, and the client sends **item** ids, not song ids.
+
+**I am not offering a third hypothesis.** That is the T154 lesson: two failed reproductions mean the repro
+is wrong, not that the reporter is. It needs the exact sequence from VLL — drag or the ↑/↓ buttons, which
+row, and whether the label was touched first.
+
+— Fable
