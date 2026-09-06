@@ -909,6 +909,18 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 		if err := s.repo.CreateSetlist(nsl); err != nil {
 			return ImportReport{}, err
 		}
+		// T150: RECONCILE the setlist's items — a setlist item owns nothing and references nothing, so the
+		// folder is authoritative for its running order. Without this, a re-import that DROPS songs leaves
+		// the old items behind (they upsert by a position-keyed id but are never removed), and the phantom
+		// songs would play at the gig. (Songs/files are NOT reconciled: they carry annotations + bake
+		// history, so the folder cannot remove a song — a documented, tested asymmetry.)
+		if existing, lerr := s.repo.ItemsOfSetlist(slid); lerr == nil {
+			for _, old := range existing {
+				if derr := s.repo.DeleteSetlistItem(old.ID); derr != nil {
+					return ImportReport{}, derr
+				}
+			}
+		}
 		report.Setlists++
 		for _, it := range sl.Items {
 			ni := SetlistItem{

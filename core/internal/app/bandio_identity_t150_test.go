@@ -272,6 +272,75 @@ func TestBandImport_ReimportWithAnnotations_Idempotent(t *testing.T) {
 	}
 }
 
+// t150FolderNItems builds a folder whose one setlist has N songs (slugs s0..sN-1), with a declared band +
+// setlist id so a re-import adopts. Used to prove a re-import can SHRINK a setlist.
+func t150FolderNItems(t *testing.T, bandID, setlistID string, n int) []byte {
+	t.Helper()
+	content := []byte("%PDF t150 n")
+	band, _ := json.Marshal(map[string]any{"formatVersion": 2, "id": bandID, "name": "Durable Band", "members": []any{}})
+	songs := make([]any, n)
+	items := make([]any, n)
+	files := map[string][]byte{}
+	for i := 0; i < n; i++ {
+		slug := "s" + string(rune('0'+i))
+		songs[i] = map[string]any{"slug": slug, "title": "Song " + slug,
+			"files": []any{map[string]any{"filename": "c.pdf", "contentType": "application/pdf", "size": len(content)}}}
+		items[i] = map[string]any{"song": slug}
+		files[slug+"/c.pdf"] = content
+	}
+	rep, _ := json.Marshal(map[string]any{"songs": songs})
+	sls, _ := json.Marshal(map[string]any{"setlists": []any{map[string]any{"id": setlistID, "name": "Gig", "items": items}}})
+	files["band.json"] = band
+	files["repertoire.json"] = rep
+	files["setlists.json"] = sls
+	return rezip(t, files)
+}
+
+// TestBandImport_ReimportShrinksSetlist is the T150 GO defect (Fable): a re-import must RECONCILE setlist
+// items so a shortened folder removes the dropped songs — else phantom songs survive and play at the gig.
+// RED before the reconcile: item ids are upserted but never removed, so the setlist keeps 3.
+func TestBandImport_ReimportShrinksSetlist(t *testing.T) {
+	st := newStack()
+	owner, _ := st.svc.Register("owner", "Owner", "password123", "")
+	if _, err := st.svc.ImportBand(owner, st.eng, t150FolderNItems(t, "band-shrink", "sl-shrink", 3), nil); err != nil {
+		t.Fatalf("first import (3 items): %v", err)
+	}
+	r2, err := st.svc.ImportBand(owner, st.eng, t150FolderNItems(t, "band-shrink", "sl-shrink", 2), nil)
+	if err != nil {
+		t.Fatalf("second import (2 items): %v", err)
+	}
+	sl := firstSetlist(t, st, r2.Band.ID)
+	items, err := st.repo.ItemsOfSetlist(sl.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("re-import with 2 items left %d items — a shortened folder must remove the dropped songs (phantom songs would play)", len(items))
+	}
+}
+
+// TestBandImport_RemovedSongSurvives is the SYMMETRIC documented property (Fable): a song dropped from the
+// folder is NOT deleted on re-import (songs carry annotations + bake history — the folder cannot remove a
+// song). Asserted deliberately so the property has a test.
+func TestBandImport_RemovedSongSurvives(t *testing.T) {
+	st := newStack()
+	owner, _ := st.svc.Register("owner", "Owner", "password123", "")
+	if _, err := st.svc.ImportBand(owner, st.eng, t150FolderNItems(t, "band-keep", "sl-keep", 3), nil); err != nil {
+		t.Fatalf("first import (3 songs): %v", err)
+	}
+	r2, err := st.svc.ImportBand(owner, st.eng, t150FolderNItems(t, "band-keep", "sl-keep", 2), nil)
+	if err != nil {
+		t.Fatalf("second import (2 songs): %v", err)
+	}
+	songs, err := st.repo.SongsOfBand(r2.Band.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(songs) != 3 {
+		t.Fatalf("removed song was deleted (%d songs) — the folder must NOT remove a song (annotations/bake history live on it)", len(songs))
+	}
+}
+
 // TestBandExport_EmitsDeclaredIDs: export writes the band's current id + each setlist id into the folder
 // (the write-back that lets a subsequent from-scratch seed be stable).
 func TestBandExport_EmitsDeclaredIDs(t *testing.T) {
