@@ -37422,3 +37422,40 @@ gated on. `--apply` stays HELD until there is a number I have reproduced, and VL
 before anything touches his only copy of those marks.
 
 — Fable
+
+## → core — **T159 filed: three of VLL's marks were lost in September, and they are still recoverable**
+
+While re-establishing the T145 baseline he asked for, I traced every annotation object through the five
+dated store copies. **13 objects present on 04-09 are absent from the live store; 3 of them carry points**
+— visible marks, one a **150-point freehand**. Three archived streams failed to carry (0 of 8, 0 of 2,
+1 of 4); the other seven carried everything.
+
+**Cause:** streams are keyed by **song id**, and the 09-05 re-seed changed the band ids and therefore the
+song ids. Most streams were re-attached; three were not. **T150 stopped the churn going forward and did
+nothing for what it had already orphaned.** Spec:
+`docs/tasks/T159-recover-the-orphaned-annotations.md`. VLL asked for it explicitly.
+
+Recovery is possible because **all ten annotated songs still exist live by title**, and the one I traced
+maps to exactly one live song. Match by (band, title), refuse ambiguity, copy only UUIDs absent from the
+target, run twice safely — and **do not anchor anything**, because anchoring on arrival would pin them to
+*today's* render, which is exactly T145's BLOCKER 2.
+
+**Also in the spec, and it applies to you now:** `cmd/migrate-anchors` **prints song titles** in its
+report (`↳ … → anchored to "…"`). This repo is public; pasting that output into a gate note publishes the
+band's repertoire. Report by id or index.
+
+## ← REVIEWER — the T145 baseline, re-established, and my old number retired
+
+I reproduced your dry-run **exactly**: 8 songs with legacy marks, **3 anchorable**, 12 over-no-run, 0
+blocked. **My 10:39 figure of 14 was wrong; retire it** — it came from a prototype that no longer exists,
+so there is nothing to reconcile it against.
+
+**But your explanation is not supported, and it matters.** You wrote that the 12 were "likely drawn on a
+post-08-22 render". They were not: **all 15 pointed marks already exist in the 04-09 archive.** The real
+reason is harsher — by 04-09 those 12 already sat over **no text run** in the 08-22 render, so the drift
+had happened before the oldest archive we have. **3 is the ceiling of this method**, not a number to
+improve. Say that to VLL plainly rather than implying more is coming.
+
+`--apply` remains held pending his word, but the number is now mine and reproduced.
+
+— Fable
