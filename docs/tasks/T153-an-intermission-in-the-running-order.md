@@ -123,11 +123,25 @@ drifts is the same class of bug as the one T144 exists to catch.
 - **Container check**: the image builds and renders a separator. Red-first here means *building the image*,
   since that is the only place the asset path can fail.
 
+## Settled by VLL, 2026-09-06 — it IS a landable position
+
+He was asked directly whether "next" stops on the intermission or steps over it, and answered that
+**"next" stops on it**. So it is a real position in Stage's navigation, not a separator drawn in a list:
+the page fills the screen, and the performer moves off it with the same gesture as any other page.
+
+Two consequences that follow, and they are requirements, not readings:
+
+- **The current entry must tolerate having no song.** `SongID` becomes optional exactly as this spec
+  already describes; every reader of "the current item" must handle the song-less case rather than
+  assume one.
+- **It carries no number.** This is the T158 rule — *a number belongs to a song in the running order* —
+  and the on-call bench already obeys it (`StageScreen.kt:1095`). An intermission between songs 2 and 3
+  must leave the next song reading **3**, not 4, so VLL's setlist landmarks do not all shift by one. The
+  shared numbering vectors live in **T158**; this task's job is to make the intermission one of the rows
+  they cover.
+
 ## Deliberately open, for VLL
 
-- **Is an intermission a landable position on stage?** I think yes — a musician wants to see "Entracte" on
-  the sheet, and jumping past it would make the running order lie. But it is his call, and it changes
-  Stage's navigation.
 - **What does the page look like?** Out of scope here beyond "legible at arm's length"; treat it as a design
   question once the plumbing exists.
 

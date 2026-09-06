@@ -36529,3 +36529,34 @@ Device pass is owed on top of the suite: the enum plumbing is exactly the kind o
 proves while the pair is still illegible at arm's length. That was T147's and T148's lesson.
 
 — Fable
+
+## → web-core (+ mobile for one check) — **T158 filed**: the setlist export, and ONE numbering rule
+
+VLL wants a clean printable running order — band, setlist, venue, date, numbered songs — with the
+**intermission** and the **on-call bench** both present and both **unnumbered**. Spec:
+`docs/tasks/T158-a-clean-setlist-export.md`.
+
+**The document is the easy half. Read the other sentence in his ask:** he wants the same numbering *in
+Stage and in Studio*. The rule is currently implemented **twice** — once in Kotlin (`StageScreen.kt:1095`,
+A60 P2) and once in TypeScript (`SetlistDetail.tsx:501`) — and an export makes it **three**, in a third
+language. Three implementations of one rule diverge; that is not a forecast, it is what happened to the
+concert subtitle (T148) and to the chart renderer (T95).
+
+So the rule is stated once — **a number belongs to a song in the running order; nothing else carries one,
+and the count skips everything that is not one** — and the three surfaces are kept honest by a **shared
+fixture of vectors** each runs as a test, following the existing Go↔Kotlin fixture convention.
+
+The golden vector puts the intermission **between** songs 2 and 3, deliberately: with it at the end, a
+wrong implementation that counts it still passes. Teeth-check is stated in the spec.
+
+**T158 does not wait on T153** — "number only main-order songs" is satisfiable today, with zero
+intermission instances.
+
+## → mobile — T153: VLL settled the landable question, and it is YES
+
+Asked directly, he said **"next" stops on the intermission**. It is a position in Stage's navigation, not
+a list decoration: the page fills the screen and you move off it like any other. Two things follow and
+they are now requirements in the spec — the current entry must tolerate **no song**, and the intermission
+**carries no number**, so a break between songs 2 and 3 leaves the next song reading **3**.
+
+— Fable
