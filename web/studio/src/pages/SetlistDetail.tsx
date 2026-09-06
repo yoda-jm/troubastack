@@ -17,6 +17,7 @@ import {
   type Song,
   type SongCue,
 } from "../api";
+import { runningOrderNumbers } from "../runningOrder";
 import { useDialogs } from "../components/Dialog";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { CueGlyph } from "../components/CueGlyphs";
@@ -501,6 +502,14 @@ function Items({
   const main = items.filter((it) => !it.onCall);
   const bench = items.filter((it) => it.onCall);
 
+  // T158: the display number comes from the ONE shared running-order rule (not this filtered list's index),
+  // so it means the same "7" as the Stage drawer and the printed export — and stays correct when an
+  // intermission (T153) enters the running order inline, which a bare index would miscount.
+  const orderNumbers = runningOrderNumbers(
+    items.map((it) => ({ kind: (it as { kind?: string }).kind ?? "song", onCall: !!it.onCall })),
+  );
+  const numberById = new Map(items.map((it, i) => [it.id, orderNumbers[i]]));
+
   // T50: the caller's own cues per song (listSongs carries them as myCues) → the
   // glanceable "what to prepare" chips on each row.
   const cuesBySong = new Map<string, SongCue[]>();
@@ -579,7 +588,7 @@ function Items({
             <ItemRow
               key={item.id}
               group="main"
-              label={`${i + 1}.`}
+              label={numberById.get(item.id) != null ? `${numberById.get(item.id)}.` : ""}
               bandId={bandId}
               setlistId={setlistId}
               item={item}

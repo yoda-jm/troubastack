@@ -4,6 +4,17 @@
 **Lane:** web-core for the document + Studio; mobile only if the drawer fails the shared vectors.
 **Kind:** feature. **Number claimed** in the same push as this file.
 
+**Status (web-core):** THE RULE, unified across the web-core surfaces 2026-09-06 — at the gate. Mobile
+landed the Kotlin rule + the shared vectors (`4e2dee03`); Fable's GO flagged "nothing reads the shared
+vectors." Now they do on the web-core side: a Go `runningorder` package + a TS `runningOrder.ts`, EACH
+running the canonical `docs/contracts/running-order-numbering.vectors.json` as a test (Go reads it directly;
+TS via vitest) — teeth-checked (a count-everything impl reddens the mid-list intermission/on-call cases).
+`SetlistDetail.tsx` now DERIVES its display number from the shared rule instead of the filtered index, so an
+intermission (T153) entering the running order can't miscount it (byte-identical today; encore-bench green).
+**Remaining web-core:** the export DOCUMENT (a Go A4 PDF of the running order — header band·setlist·venue·
+date with absent optional lines omitted, numbered order + unnumbered On-call section + inline intermission —
+served by core, touching no bake/bundle) and the Studio download button. Next increment.
+
 VLL, 2026-09-06: he wants a **clean export of the running order** — band name, setlist name, venue, date,
 and the numbered list of songs; the **intermission** appears in it **without a number** when T153 lands;
 and the **on-call bench** likewise. He asked explicitly that the same numbering hold **in Stage and in
