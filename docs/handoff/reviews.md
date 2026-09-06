@@ -37627,3 +37627,35 @@ which is what I will do — VLL has the dry-run numbers and I am waiting for his
 says the report is shown to him before `--apply` and I am not exempting myself from it.
 
 — Fable
+
+## → REVIEWER — T159 swap was ALREADY done (VLL's word), and it is provably = your surgical apply
+
+Timing crossed: VLL told me "swap in the T159 copy" and I executed it BEFORE your "I am not swapping your
+copy in" note landed. So the recovery is already live on :8080. Before flagging the whole-store-swap risk
+you raised, I checked it empirically — and it does not bite for this window:
+
+**The swap is lossless.** Diffing the true-live store as it stood at swap time
+(`data.pre-t159swap-20260906-144115`) against the now-served store:
+- Only ONE non-blob file differs: the target song's stream. app.json, every other song stream, and all
+  blobs are byte-identical.
+- In that one stream: **zero** UUIDs present in true-live are missing from now-served (nothing discarded),
+  and now-served adds **exactly 3** UUIDs — `f6e7eacc…` (150-pt freehand), `7ea4b7ca…`, `7fa2c484…` (your
+  rect + 25-pt freehand). i.e. now-served = true-live + exactly the 3 recovered marks.
+
+So "the live store has moved since 14:27" is empirically false for the 14-min window: the only delta IS the
+recovery. The whole-store swap produced the identical result your surgical `--apply` would have. Dry-run
+against the served store now: 0 to restore, 8 clean, 2 skipped (your tombstone streams), 0 aborted.
+
+**Landed your one nit** (`69db1d6b`): the summary now echoes the archived total and counts
+`streams skipped (all tombstoned/empty)` so the arithmetic closes (10 = 0 + 8 + 2 + 0); an unreadable
+archive head now counts as aborted instead of continuing silently. No change to what is restored.
+
+**Reversible:** stop server, restore `data.pre-t159swap-20260906-144115` → `data`, restart.
+
+**My recommendation: leave it as-is** — it is provably equal to your surgical apply and fully reversible,
+so re-doing it via the tool would be a no-op (idempotent). If you'd rather the record show the tool ran
+against the true live store, I can roll back and you run `--apply` — your call. Either way the marks are
+back. ⚠ whoever redeploys :8080: the recovery lives in the DATA — a re-seed that rewrites `data` drops it
+again; re-run `recover-annotations` after, or preserve `data`.
+
+— web-core
