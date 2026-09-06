@@ -39,6 +39,25 @@ fun scrollNextPage(top: Int, pageCount: Int): Int = (top + 1).coerceIn(0, (pageC
 /** Scroll-mode page turn (A14): move the topmost page back one, clamped at the first page. */
 fun scrollPrevPage(top: Int): Int = (top - 1).coerceAtLeast(0)
 
+/** T149 — the breathing margin left below the last glyph so the final line isn't flush against the next
+ *  song's title (permille of full page height). "A few percent" (spec). */
+const val SCROLL_TRIM_BREATHING_PERMILLE = 40
+
+/**
+ * T149 — the fraction (0..1) of a page's full height to draw in SCROLL mode. Only a SONG'S LAST page is
+ * trimmed, and only when the baker measured content: [contentBottomPermille] in 1..999 ⇒ draw down to the
+ * ink bottom plus a breathing margin (capped at full). Everything else — a non-last page, an old bundle
+ * (0/absent), or a page whose ink already reaches the bottom (>=1000) — draws the FULL page. The caller
+ * (ScrollReader) only ever runs in SCROLL mode, so FIT_PAGE/two-up are untouched by construction.
+ *
+ * The baker already wrote max(text ink, overlay ink), so obeying this value keeps a mark BELOW the text
+ * visible (T149's protect-the-annotation case) — the app just obeys; it never re-measures.
+ */
+fun scrollTrimFraction(isLastPageOfSong: Boolean, contentBottomPermille: Int): Double {
+    if (!isLastPageOfSong || contentBottomPermille <= 0 || contentBottomPermille >= 1000) return 1.0
+    return ((contentBottomPermille + SCROLL_TRIM_BREATHING_PERMILLE) / 1000.0).coerceAtMost(1.0)
+}
+
 /**
  * N1 — did navigating from page [from] to page [to] cross into a different song? A continuous advance
  * is a performance requirement (pedal users can't stop at every song end), but crossing must READ as
@@ -92,6 +111,9 @@ data class StagePage(
     val key: String = "",
     val tempo: Int = 0,
     val meter: String = "",         // A35: the song's metre (proto 12); "" ⇒ 4/4 (pre-T86 bundles)
+    // T149: the page's ink bottom as a fraction of full height, in permille (baker = max(raster, overlays));
+    // 0/absent ⇒ full page. Stage trims a SONG'S LAST page to this (+ a breathing margin) in SCROLL mode.
+    val contentBottomPermille: Int = 0,
 )
 
 /**
@@ -319,6 +341,7 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
                     key = song.key,
                     tempo = song.tempo,
                     meter = song.meter,
+                    contentBottomPermille = page.contentBottomPermille,
                 ),
             )
         }

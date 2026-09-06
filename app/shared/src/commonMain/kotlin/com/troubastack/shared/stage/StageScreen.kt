@@ -23,6 +23,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -32,7 +33,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -1283,7 +1286,12 @@ private fun ScrollReader(
         itemsIndexed(songPages) { index, page ->
             Column(Modifier.fillMaxWidth()) {
                 MetaStrip(page) // renders only on the song's first page
-                ScrollPage(page, state.visibleFor(page.songId), decoder, cache, colorMode, widthPx)
+                // T149: trim the SONG'S LAST page (the last item in this per-song column) to its content
+                // bottom + a breathing margin, so scroll stops at the last glyph, not the blank tail.
+                ScrollPage(
+                    page, state.visibleFor(page.songId), decoder, cache, colorMode, widthPx,
+                    trimFraction = scrollTrimFraction(index == songPages.lastIndex, page.contentBottomPermille),
+                )
             }
         }
     }
@@ -1298,6 +1306,7 @@ private fun ScrollPage(
     cache: PageImageCache,
     colorMode: StageColorMode,
     widthPx: Int,
+    trimFraction: Double = 1.0, // T149: <1 for a song's last page in SCROLL — draw only the top fraction
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
         PlaceholderCard(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT))
@@ -1336,13 +1345,25 @@ private fun ScrollPage(
         }
         else -> {
             val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
-            Box(Modifier.fillMaxWidth().aspectRatio(aspect), contentAlignment = Alignment.Center) {
+            val pageInk: @Composable BoxScope.() -> Unit = {
                 Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorMode.pageColorFilter())
                 bitmaps.overlays.forEach {
                     // A64 part 2: the transform is already baked into the overlay pixels → NO colour filter.
                     Image(BitmapPainter(it), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = null)
                 }
                 MissingLayersBadge(bitmaps.missingOverlays, Modifier.align(Alignment.TopEnd))
+            }
+            if (trimFraction >= 1.0) {
+                Box(Modifier.fillMaxWidth().aspectRatio(aspect), contentAlignment = Alignment.Center, content = pageInk)
+            } else {
+                // T149: draw the FULL page top-aligned inside a shorter, clipped box — the blank tail below
+                // the content bottom is cut, no raster altered, and a mark below the text stays visible (the
+                // baker measured it into contentBottom). requiredHeight forces full height so the clip trims
+                // rather than the aspectRatio shrinking the page to fit.
+                val fullH = with(LocalDensity.current) { (widthPx / aspect).toDp() }
+                Box(Modifier.fillMaxWidth().height(fullH * trimFraction.toFloat()).clipToBounds()) {
+                    Box(Modifier.fillMaxWidth().requiredHeight(fullH), contentAlignment = Alignment.Center, content = pageInk)
+                }
             }
         }
     }
