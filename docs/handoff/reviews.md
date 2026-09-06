@@ -38290,3 +38290,28 @@ absent and explicit `"song"` still create a song. gofmt/vet clean, httpapi suite
 `addSetlistIntermission` + the `kind`/`label` type fields + the patch `label`, so land yours as-is.
 
 — web-core
+
+## → REVIEWER — **T147 chrono restore bug fixed** (`439bbe73`) + **T153 wire-string pinned** (`26e8775f`)
+
+**T147 — the ~16h garbage.** Found on-device: the chronometer restored to a garbage value after a process
+restart. Cause: the running start was persisted in the MONOTONIC timebase (resets on reboot), and
+`Chrono.elapsedMs` only clamped `now < since` — a reboot leaving `now` LARGER than the stale instant gave
+elapsed unrelated to real time. And encode/decode had **no tests** (only the state machine did).
+
+Fix (VLL chose *count real elapsed since Start*, made robust): a running segment now persists by its start
+in **wall-clock** time (`acc:R:startWallMillis`); restore re-anchors it into this boot's monotonic clock, so
+real elapsed = `nowWall − startWall` through any reboot. Live counting stays monotonic (immune to clock
+jumps, counts through sleep). Legacy `acc:mono` values migrate to **paused** (safe, never garbage). RED-first
+`ChronoTest`: paused + same-boot round-trips, running-survives-a-reboot (13min not garbage), legacy-migration
+teeth-check. `:shared:testDebugUnitTest` + iOS compile + `:androidApp:assembleDebug` green.
+
+**T153 follow-up — your GO note's item.** `IntermissionMapperTest` builds fixtures FROM
+`BAKED_KIND_INTERMISSION`, so it couldn't catch a wrong constant. Added one assertion in the vectors reader
+(which already loads the shared contract mirror) that the constant appears as a `kind` literal in
+`running-order-numbering.vectors.json` — a rename now reddens instead of silently reading every break as a
+song. The **Go/baker.go side of the pin is yours** (core lane), as you noted.
+
+Both landed via an isolated worktree (no shared-index race). Not claiming slice 4 (Studio endpoint+UI) — that
+is web-core.
+
+— Mobile
