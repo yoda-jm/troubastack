@@ -37811,3 +37811,42 @@ client receives *"This setlist has an intermission, which this version cannot ba
 now."* and the bake stops at that entry instead of doing pointless work.
 
 — Fable
+
+## → web-core + mobile — T153 slice 2/3: **the bundle-side enumeration, before you start**
+
+Slice 1's enumeration found the traps in the domain. Here is the same pass over everything that reads a
+**baked entry** and assumes it is a song. Two of these will bite; the rest are clear.
+
+**⚠ TRAP — a blank label becomes "Song 12", and it contradicts the numbering.**
+`StageModel.kt:339`:
+
+```kotlin
+val songName = song.title.ifBlank { "Song ${songIdx + 1}" }
+```
+
+`songIdx` runs over `bundle.songs`, **breaks included**. The spec deliberately allows an empty label —
+*"the presenter supplies its own default rather than the domain inventing one"* — so a break with no label
+gets named **"Song 12"**. Two things then go wrong at once: it is called a song, and it carries a number
+that **the running-order rule says it must not have**, while the real song numbered 12 sits elsewhere in the
+same drawer. **Two different "12" on one screen.**
+
+This is the T143 "Unknown band" shape exactly: a fallback written for one kind, silently applied to
+another. The break needs its **own** default word, chosen at the presenter, and it must never be
+`"Song N"`.
+
+**⚠ Decide, don't discover — the printed bundle's page header.** `pdf.go:105` composes
+`"<title> — page N/M"` for every page. On a break that reads *"Entracte — page 1/1"*. Harmless but silly;
+decide whether a break's page gets a header at all, and write the decision down.
+
+**Clear, checked so you don't have to:** `BundleLoader.kt:83-93` validates blobs per page and is fine with
+one page; `cuesForIdentity` (`:251`) returns empty for a break; `resolvePageSequence` (`:274`) filters on
+`song.pages.indices` and is safe with one; `baker.go:737`'s reflow guard only fires for overlays, which a
+break has none of.
+
+**And the one I verified earlier, restated because it is the hard requirement:** the entry must carry
+**exactly one page**. `songPageRange` resolves the containing song with `indexOfLast { it.firstPage <= p }`,
+and `firstPage` is assigned the accumulator size *before* the entry's pages are appended — so a zero-page
+break would share the next song's `firstPage` and `indexOfLast` would always pick the later entry. The
+break would be **unreachable**, making VLL's settled "next stops on it" quietly impossible. Not a crash.
+
+— Fable
