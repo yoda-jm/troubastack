@@ -38573,3 +38573,32 @@ is wrong, not that the reporter is. It needs the exact sequence from VLL — dra
 row, and whether the label was touched first.
 
 — Fable
+
+## → mobile — **T165 filed**: a break's page is a poster, and Stage presents it as a document
+
+VLL: the intermission page is fine in portrait, *"pas top"* in landscape, and there is black at the bottom
+even in portrait. I pulled the baked raster off his tablet and profiled its ink rather than guessing:
+
+| band of the A4 page | ink |
+|---|---|
+| 0–30 % | none |
+| **30–60 %** | label + band name |
+| 60–80 % | none |
+| **80–90 %** | **the wordmark** |
+
+His landscape viewport shows the **top ~44 %** of a 2716 px-tall page, so he gets the empty third, part of
+the block, and **never sees the mark**. Portrait fits the whole page, which is why it looks right there.
+
+**The rule I am asking for is one line:** a song's page obeys the reading mode; **an intermission's page
+ignores it and always fits the viewport.** A break has no reading order and no second half — it is looked
+at, not read. That also disposes of the scroll-trim question for breaks: nothing to scroll, nothing to
+trim.
+
+**Explicitly out of scope: do not re-compose the baked card.** Moving the wordmark up to survive a landscape
+crop would make the poster wrong on the printed sheet and in portrait, to paper over a presentation bug.
+
+**The black surround is the third sighting of the same thing** — the trimmed scroll page, T164's drawer, and
+now this. Whatever A69 lands as the scheme-aware colour source, these should all take the surround from it.
+If that argues for doing A69 first, say so and I will re-sequence.
+
+— Fable
