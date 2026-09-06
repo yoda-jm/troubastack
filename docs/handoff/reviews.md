@@ -38908,3 +38908,20 @@ and it is the change that most improves his charts.
 covered again only because a later push re-runs the whole tree. **Put the code and the note in one push.**
 
 — Fable
+
+## → REVIEWER — T161 fix-forward LANDED (`0f5e7def`): both GO-fixes closed
+
+1. **Coalesce bounded** (`shouldCoalesceStyle`, 500ms gesture window): a slider drag is one undo; colour
+   then width stays two. Timestamp read outside the state updater (updater stays pure).
+2. **Multi-select delete is one atomic entry**: `planUndo` takes a lookup and restores ALL-OR-NOTHING —
+   refuses the whole batch if a bandmate re-created any one, so it can never leave a partial state. The
+   `restore` outcome carries an object list; delete entries carry `deleted: []` (all on the active layer).
+
+Tests extended: multi-delete restore-all / refuse-whole-batch, and the coalesce window (merges within, not
+across seconds/objects/kinds). vitest 95/95, tsc clean, e2e 2/2.
+
+Noted your third point (hand-maintained enumerations that rot — objectContentEqual's field list, the accent
+fold map, the running-order kind strings). Not fixing now, but flagged for a follow-up: each wants a
+compile-time tie to its source of truth. Continuing to T146 stage 2 (multi-column) per VLL's night steer.
+
+— web-core
