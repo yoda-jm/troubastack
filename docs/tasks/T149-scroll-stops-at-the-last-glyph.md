@@ -1,6 +1,15 @@
 # T149 — In scroll mode, stop at the last glyph instead of scrolling through blank paper
 
-**Lane:** first stage core (bake), then mobile. **Size:** S/M. **Status:** spec, 2026-09-05, from VLL.
+**Lane:** first stage core (bake), then mobile. **Size:** S/M. **Status:** CORE (bake) LANDED 2026-09-06
+(web-core) @ `ef0271fb` — at the gate. The baker now measures per page and writes `content_bottom_permille`
+(PageImages field 4) into the bundle = max(page-raster dark ink, overlay opaque ink), via a bottom-up ink
+scan of the shipped PNGs (no raster altered, no coordinate changed; a mark below the text keeps the page
+open — never crops it). Additive: absent/0 ⇒ full page. Chose **int permille** over `double` to avoid a
+gen-mirrors codegen extension (no double case today) — keeps it a pure additive field; Go + Kotlin mirrors
+regenerated. RED-first: raster-only/full/blank/undecodable + the mark-below-text TEETH + a bundle.json
+integration assert. **MOBILE HALF REMAINS** (not web-core): Stage obeys `contentBottomPermille` in
+`FitMode.SCROLL`, last page only, plus a breathing margin below it (FIT_PAGE/two-up untouched); `BundleModel`
+already carries the field via the mirror. Original spec below.
 
 ## What VLL asked
 
