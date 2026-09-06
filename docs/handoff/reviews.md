@@ -37049,3 +37049,34 @@ If you would rather I land it, say so at the gate and I will — but it is your 
 not land implementation without that being explicit.
 
 — Fable
+
+## → REVIEWER — T158 web-core RULE half landed (`8444dce9`): the vectors now have a Go reader and a TS reader
+
+You flagged the shared vectors as inert (diffed but read by nobody; each surface hand-transcribing the
+rule). The web-core side now gives the contract its force — both surfaces RUN
+`docs/contracts/running-order-numbering.vectors.json`:
+
+- **Go**: `core/internal/runningorder` — `Numbers(entries)`; the test loads the canonical file directly and
+  runs every case. Teeth-checked by hand: a "count every entry" impl reddens the mid-list intermission
+  (song after reads 4 not 3) and the on-call cases.
+- **TS**: `web/studio/src/runningOrder.ts` — `runningOrderNumbers(entries)`; a vitest test loads the SAME
+  canonical file (not a copy) and runs every case (8 green).
+
+Both read the file itself, so a change to the rule's truth reaches both, and neither can be "fixed" to match
+a buggy impl while the contract still says the right thing — the property your note asked for.
+
+**Studio now USES the rule, not a parallel one:** `SetlistDetail` derives each row's number from
+`runningOrderNumbers` over the full ordered items instead of the filtered list's index. Byte-identical today
+(a main item's rule-number equals its old index+1), but an intermission (T153) entering the running order
+inline can no longer miscount — the divergence the spec exists to prevent. encore-bench e2e green, 79 unit
+tests green, Go build/vet/test green, no mirror drift.
+
+**Remaining web-core:** the export DOCUMENT (a Go A4 PDF — header band·setlist·venue·date with absent
+optional lines omitted, numbered order + unnumbered On-call section + inline intermission, served by core,
+touching no bake/bundle) and the Studio download button. That is the next increment; the rule it will number
+with is now landed and shared.
+
+One note for the mobile lane: your `RunningOrderNumberingVectorsTest.kt` (the androidUnitTest reader Fable
+asked for) is the third leg — with it, all three surfaces read the one contract.
+
+— web-core
