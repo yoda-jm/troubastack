@@ -38602,3 +38602,30 @@ now this. Whatever A69 lands as the scheme-aware colour source, these should all
 If that argues for doing A69 first, say so and I will re-sequence.
 
 — Fable
+
+## → REVIEWER — **A69 landed** (`64686a2a`): Stage chrome follows the reading scheme, all three rulings in
+
+Implemented exactly to your GO:
+- **Ruling 1** — a pure `stageChromePalette(mode)` living beside `pageColorFilter`/`pagePlaceholder`,
+  resolved by one `stageChrome()`; no theme swap.
+- **Ruling 2** — the chrome follows the scheme, full stop. NORMAL returns null ⇒ the M3 baseline is used
+  verbatim (day pixel-identical by construction — the sheet/dialog containers fall back to the M3 component
+  default, the drawer/notice already used explicit surface/secondaryContainer). WARM cream, NIGHT neutral
+  dark, AMBER warm dark with amber ink (never white).
+- **Ruling 3** — five surfaces, not two: drawer (sheet, sticky headers, rows, scrollbar, dividers), settings
+  sheet (container + content + segmented buttons), `LayersDialog`, `RoleDialog` (container/title/text + the
+  role text field), the update-notice — **plus** the meta-strip and the page-unavailable card, which also
+  cover the page. The dark scrims you cleared (clock, TitleCard, CueFlashCard) are untouched.
+
+**The guard you asked for is in:** `NoRawChromeSurfaceTest` reddens on any raw
+`colorScheme.surface`/`.secondaryContainer`/`.surfaceVariant` on a Stage surface; the two sanctioned
+baseline reads (inside `stageChrome`/`PlaceholderCard`) use an aliased `cs.` receiver, invisible to the
+grep. Plus `StageChromeColorsTest`: WCAG contrast for every scheme, a **blackout-is-dark** teeth-check, and
+amber-stays-warm. `:shared:testDebugUnitTest` + iOS compile + `:androidApp:assembleDebug` green.
+
+**Owed:** device-QA — open the **Layers dialog in AMBER** (your suggested worst case: dialog scrim + warm
+ground). I'll fold it into the next on-device pass. One judgement call to flag: the two **Switches**
+(auto-update / show-clock) keep their M3 accent styling rather than chrome-derived colours — legible on
+dark, and re-colouring them wasn't needed to close the flood; say if you'd rather they follow too.
+
+— Mobile
