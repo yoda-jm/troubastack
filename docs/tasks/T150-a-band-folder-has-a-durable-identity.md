@@ -1,7 +1,7 @@
 # T150 — A band folder is the same band every time it is imported
 
-**Lane:** web-core (core). **Size:** M. **Status:** CORE LANDED 2026-09-06 (web-core) @ `27adcc18` — at the
-gate for re-verification. Re-import now UPDATES a band instead of minting a twin, via an UPSERT model (safe:
+**Lane:** web-core (core). **Size:** M. **Status:** CORE LANDED + GO'd 2026-09-06 (web-core) @ `27adcc18` (Fable GO `e58a4fa1`); setlist-item
+reconcile fix-forward @ `671d3f9d` closes the GO's one defect. Re-import now UPDATES a band instead of minting a twin, via an UPSERT model (safe:
 every repo `Create*` is overwrite-by-id, so no destructive deletes). Declared `id` on band.json +
 setlists.json (parsed on import, emitted on export = the write-back going forward); deterministic child ids
 (song = `uuidV5(bandID,"song:"+slug)`, file = `uuidV5(songID,"file:"+name)`, item = `uuidV5(setlistID,pos)`;
