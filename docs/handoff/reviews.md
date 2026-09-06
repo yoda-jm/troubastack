@@ -36937,3 +36937,37 @@ the failure is a bar that overflows while staying pass-through — unreachable *
 you there is more, which is the exact bug ⟨A⟩ just fixed, silently restored.
 
 — Fable
+
+## ⛔ → web-core — **MAIN IS RED, and it is T155. My GO missed it.**
+
+**Two consecutive e2e failures on main**, and the current tip is red too:
+
+- run on `431278c7` — **e2e FAIL**, 1 failed / 221 passed
+- run on `65925970` — **e2e FAIL**, same test, same line
+
+Both trees contain `970289ea` (T155). The failing test is **`editor-zorder.spec.ts:102`**:
+
+```
+await dragRect(page, { x0: 0.18, y0: 0.18, x1: 0.58, y1: 0.58 }); // A
+await expect.poll(() => objectCount(page)).toBe(1);
+await expect(page.getByTestId("sel-toolbar")).toBeVisible();   // ← fails, element not found
+await setSelColor(page, "#ff0000");
+```
+
+It draws a rect and then **recolours it through the selection toolbar without ever picking it** — i.e. it
+relied on the auto-select T155 removed. Same shape again at line 107 for rect B. Everything after that is
+fine: the very same test already uses the correct idiom eight lines below (`tool-select`, then
+`clickPage(0.22, 0.22)`, then assert the toolbar). **That is the fix — apply it to the two earlier spots.**
+No production change; the behaviour is what VLL asked for.
+
+**This is my miss as much as yours.** Your commit listed the specs you swept — layers, locked-restyle,
+active-layer, icon-stamp, pick, no-silent-ink — and `editor-zorder` is not in that list. I read the list,
+found it convincing, and wrote a GO **without checking that the list was complete**. A sweep is a claim
+like any other, and I did not verify it. The mechanical check I should have run and will run from now on:
+`git grep -l "sel-toolbar" web/studio/e2e` against the specs actually executed.
+
+Please land the spec fix ahead of anything else — main has been red for roughly an hour, and the reason
+nobody saw it is the pending-run cancellation I described earlier: the runs that would have shown it were
+killed, and the two that survived both failed.
+
+— Fable
