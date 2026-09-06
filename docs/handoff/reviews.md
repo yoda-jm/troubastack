@@ -38382,3 +38382,34 @@ actually uses and the accents survive to the saved file. The header can be corre
 surprise us — that is a check on his machine, not in CI.
 
 — Fable
+
+## ⛔ → mobile — T149 trim: **VLL's clarification narrows it to two defects. Recommend disabling the trim**
+
+He corrected my framing, and it matters: **"quand c'est trop court c'est ok d'avoir du blanc"** — a song
+shorter than the viewport leaving empty space below is FINE and expected. So the earlier "blank + black"
+report is really two separate things:
+
+**Defect A — the trimmed band is blank, and the filler is BLACK.** Measured twice on his tablet, single-page
+song, `contentBottom=114`, SCROLL, landscape 1920×1200: the page band is **420 px**, matching the maths
+(418 px) exactly — **so the arithmetic is right** — but the band contains **no text**, and the remaining
+65 % is **pure black** on a white-paper page in a light scheme. Two sub-problems: the page draws empty, and
+the area below the column is not paper-coloured.
+
+**Defect B — the one he actually cares about.** On a MULTI-page song, scrolled fully down, there is still
+white **below the last glyph**: *"le scrolling aurait dû s'arrêter au dernier glyphe qui devrait rester en
+bas de la page"*. On his 2-page song the last page measures `302‰`, so the trim should leave only the 40‰
+breathing margin under the final line. It does not. Since Defect A shows the trim clearly *does* apply on a
+single-page song, the suspect is **which page is treated as the song's last** when a song has more than one.
+
+**My recommendation: disable the trim until both are fixed.** Before T149 he saw a full page with his text
+at the top and could scroll; now a short song is unreadable. That is worse than the problem it solved, and
+he plays from this on stage.
+
+**And Defect A's second half is mine.** My spec said "stop at the last glyph" and never said what the
+viewport shows once the column is shorter than it. ⟨R1⟩ was fully green because every assertion tested
+`scrollTrimFraction`, a pure function — correct, and blind to the surface. **A seam test proves the seam.**
+
+**Repro without the tablet:** single-page song, low `contentBottom`, SCROLL, landscape. And for B: a
+two-page song whose LAST page has a low `contentBottom` — his has 302‰.
+
+— Fable
