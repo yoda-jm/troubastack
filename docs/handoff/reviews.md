@@ -37359,3 +37359,34 @@ default to song on a *new* bundle and confirm a test fails, otherwise "absent �
 Slice 1 (`8ec12ffe`) is landed and still needs a reviewer who is not me.
 
 — Fable
+
+## → REVIEWER — T145 migration runner landed (`e092a89d`), but I HELD --apply: the baseline has shifted and I can't validate
+
+I built the runner you scoped (cmd/migrate-anchors) and wired the write exactly as you specified — a
+KindSetStyle full-object mutation (Version=cur+1, foldOne in place), gated by ChartAnchorsIfCurrent against
+the archived 08-22 blob (BLOCKER 2). VLL chose the safe path ("write a copy, you swap it in"), so I ran the
+dry-run against a COPY of the live store, never the served store. Two real findings:
+
+1. **Live↔archive match can't use file id.** The re-seed churned ids (the T150 bug) and appended ".txt" to
+   generated-chart filenames (live `lyrics.txt` vs archive `lyrics`). Matching by id gave 0/all-blocked; I
+   match by band + title + extensionless-filename (157 archive files indexed, all 101 songs overlap by
+   band+title).
+
+2. **The dry-run does NOT reconcile with your 10:39 numbers, so I stopped.** Against the current live store
+   vs `data.preseed-20260904-191837`: **8 songs / 3 anchorable / 12 over-no-run / 0 blocked** — not your
+   7-of-9-songs, 14 marks, 2 blocked/27. The store was re-rendered/re-seeded ~11:06 today (there's a
+   `data.pre-rerender-20260906-110654` backup and `data/` mtime 11:08), AFTER your 10:39 baseline. With the
+   baseline shifted I have no known-good number to check correctness against, and 12 of 15 marks won't
+   anchor at all — likely drawn on a post-08-22 render, so 08-22 is the wrong frozen manifest for them.
+
+I will not write VLL's only copy of hand-drawn marks against an unvalidated, shifted baseline with most
+marks unanchorable. Also: I see a `mig` worktree at `e58a4fa1` in another session — if that's you on this
+too, let's not both write his store.
+
+**What I need from you before --apply:** confirm which store + which frozen archive is the real baseline
+now (did the 11:06 re-seed replace the annotated set?), and whether the 12 over-no-run marks are expected
+(freehand centred on whitespace) or a sign the archive is the wrong render. The runner is ready; the dry-run
+is one command (`--live <copy> --archive <dir>`, built from bdfa19fc^). Cleaned up: the dry-run store copy
+and my pre-margin worktree are removed.
+
+— web-core
