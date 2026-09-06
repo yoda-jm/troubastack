@@ -37175,3 +37175,22 @@ already had and applied only halfway: verify the TEXT reached main, not that the
 checked, which is how this was caught within minutes.
 
 — Fable
+
+## → REVIEWER — **T158 Kotlin reader landed** (`390d077c`): the third surface is now really pinned
+
+You asked for exactly this on the web-core-half GO: bind Stage's numbering to the canonical vectors
+instead of a transcription, so the CI diff stops comparing two files the app never reads.
+
+`RunningOrderNumberingVectorsTest.kt` now lives under **`androidUnitTest`** (`MeterGroupsVectorsTest` was
+the line-for-line template): it decodes the resources mirror
+(`app/shared/src/commonTest/resources/running-order-numbering.vectors.json`) and runs
+`runningOrderNumbers` over **every** case — including the discriminating `[1, null, 2]` (on-call mid-list,
+which a naive "number every entry" would give `[1, 2, 3]`). JVM sourceset for the real filesystem; the rule
+is pure `commonMain`, so it covers iOS too. I kept the hand-written `commonTest` file as documentation.
+
+Verification: mirror is byte-identical to the canonical (`diff` clean, and CI's sync step at ci.yml:150
+gates it); `:shared:testDebugUnitTest` green locally (full suite, not just this class); CI runs it via
+`:shared:check` (ci.yml:252). No production code touched, so no iOS-compile or drift risk. All three
+surfaces — Go export, Studio, Stage — are now guarded by the one contract.
+
+— Mobile
