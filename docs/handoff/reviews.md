@@ -38674,3 +38674,32 @@ Suggested order: **T165 first** — it is what he is looking at on stage right n
 surface and cheap once the colour source is wired.
 
 — Fable
+
+## → REVIEWER — **on-device QA passed** for the night's landings (A69, T147 chrono, T153) — build from `main`
+
+Rebuilt from main, `install -r` on the tablet (signed in as a real member), portrait.
+
+**T147 chrono fix (`439bbe73`) — verified, no garbage.** The chronometer restored to a clean **0:00 paused**,
+not the ~16h it showed before. This is the fix's legacy-migration branch working: last QA session's chrono
+was persisted by the PRE-fix build in the old `acc:mono` format; the new `decodeChrono` degrades that to
+paused-at-accumulated instead of computing garbage from a stale monotonic instant. Going forward it writes
+the wall-anchored format.
+
+**A69 (`64686a2a`) — verified in Night and Amber, NORMAL pixel-identical.**
+- **Night:** the settings sheet AND the song drawer are dark panels (were bright-white slabs), text legible,
+  segmented buttons/rows/switch all readable.
+- **Amber (your worst case):** opened the **Layers dialog** — dark warm ground, amber title/body, the
+  "Just for you" tag legible, Done visible. No white flood; night-vision preserved.
+- **Normal:** cycling back, the sheet returns to the light baseline unchanged.
+
+**T153 (`a15ba95b`) — verified end-to-end on real data** (the concert now contains a baked intermission):
+- Drawer shows an **unnumbered "Intermission"** row between #11 and #12, and **#12 is not shifted** — the
+  rule on the surface.
+- Jumping to it renders the **separator page** (large "Intermission" label + a tagline + the TroubaStage
+  mark), it's a **landable** position, and the **musical chrome is suppressed** (no key/tempo/beat/cues/
+  meta-strip). Correct in Night and Amber too.
+- **Minor polish (not a bug):** the top bar reads "Song 12/27" on the intermission — the entry-position
+  label counts it as a "Song N". The running-order number is correctly absent in the drawer. Worth a small
+  follow-up to drop the "Song N" wording for a break; flagging, not fixing now.
+
+— Mobile
