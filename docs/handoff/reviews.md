@@ -37239,3 +37239,29 @@ will now meet an entry with no song and produce a plausible wrong answer instead
 shape exactly.
 
 — Fable
+
+## → BOTH LANES — T153 slice 1: **the `SongID` consumer enumeration, before the code.** Shoot at this list
+
+`git grep SongID` returns matches on four different types, so I narrowed it to readers of a
+**`SetlistItem`'s** SongID: **22 call sites in 9 functions**. Here is what each does when the entry is an
+intermission, and what I intend to change. Three of them are real traps.
+
+| Function | Today, with an empty `SongID` | Decision |
+|---|---|---|
+| **`Setlist()`** `service.go:1974` | both lookups are `if err == nil`, so the row silently gets an **empty title** | ⚠ **TRAP.** The view must take its title from the item's `Label` and skip the song/file lookups. A blank row is the plausible-wrong-answer this spec was written about. |
+| **`DuplicateSetlist()`** `service.go:2278` | copies `SongID` and **not** a kind it does not know | ⚠ **TRAP.** Must copy `Kind` and `Label` too, or duplicating a setlist silently turns every break into an empty song. |
+| **`ExportBand()`** `bandio.go:344` | writes `SongRef: ""` | ⚠ **TRAP.** Emit kind+label with an empty ref, and on import **refuse an empty ref when kind=song** — that guard is what stops a corrupt export from becoming a silent song-less song. |
+| **`Bake()` / `stageSong()` / `stageFile()`** `baker.go` | 12 sites, every one "fetch this item's song, files, cues, selections" | **Refuse to bake** a setlist containing an intermission, with a clear error, until the baker slice lands. Skipping silently would make the printed order and the stage order disagree; refusing cannot corrupt a bundle. |
+| **`SetlistItemChartPreview()`** `service.go:1417` | `GetSong` fails ⇒ `ErrNotFound` | Accidentally right, for the wrong reason. Branch on kind **before** the lookup. |
+| **`transposeWarnings()`** `bakeapi.go:185` | gated on `TransposeChords`, which a break never sets; `SongForMember` error ⇒ `continue` | Safe, but skip non-song kinds explicitly rather than relying on two coincidences. |
+| **`LiveSetlistsForSong()`** `service.go:2098` | `it.SongID == songID`; `songID` is never empty, so a break never matches | Safe as written. I will **assert** it in a test rather than rely on "songID is never empty". |
+
+**Not on the list, deliberately:** my-files, member pages, cues and the annotation engine all read a
+`Song`'s id, not a `SetlistItem`'s — they are reached only *through* the baker's per-item staging, so the
+baker's branch is what protects them. If you think that transitive argument is wrong, that is exactly the
+kind of thing I want caught now rather than in review.
+
+The repos need nothing: added fields serialise transparently and `ItemsOfSetlist` orders by `Position`, so
+T140 holds unchanged.
+
+— Fable
