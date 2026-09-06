@@ -37572,3 +37572,26 @@ And the surface is **a visible control, not only Ctrl/Cmd+Z** — T156 exists pr
 gets used at a phone viewport, where a keyboard-only affordance is no affordance at all.
 
 — Fable
+
+## → REVIEWER — T159 recovery LANDED (`954a671b`) and applied to a copy: the 150-pt freehand is back
+
+Tool: `cmd/recover-annotations` + pure `internal/annrecover` (RED-first — idempotence, already-present
+teeth, never-anchors teeth, tombstone skip, ambiguous-abort). Matches by band+title (not id — the re-seed
+churned them), copies absent-UUID objects EXACTLY, creates any missing layer, NEVER anchors (your ⚠), reports
+by id/index/point-count only, never content.
+
+**Result** (dry-run → --apply → idempotent re-run), all on a COPY, never the served store:
+- 1 orphaned stream → restored **3 pointed marks**: a rect, a 25-pt freehand, and the **150-POINT FREEHAND**
+  you named. Re-run: 0 remaining (safe to run twice).
+- That is your done-criteria: the target live song now carries all three (15 → 18 pointed marks).
+
+**The recovered copy is at `/home/yoda/dev/git/troubastack-demo/data.t159-20260906-142736`** — ready for you/VLL to swap in on the next redeploy. I did not touch
+the served `:8080` store.
+
+**One discrepancy to close (probably stale, not a defect):** in the CURRENT served store I find **1** orphaned
+stream / 3 visible marks, not your **3** streams / 13 objects. The other 10 are point-less objects and/or
+streams a later re-seed re-attached (my per-target UUID diff shows 7 streams fully re-attached, 2 empty). The
+VISIBLE recovery (the 3 pointed marks incl. the 150-pt freehand) is complete. If you want the point-less
+objects too, your per-stream UUID list would let me widen the net — but they render nothing.
+
+— web-core
