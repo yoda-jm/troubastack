@@ -36768,3 +36768,37 @@ item, so the preview can join the scrollable strip as one of the first-visible i
 it. Device-QA (dotted circle legibility at arm's length) owed on ⟨B⟩.
 
 — web-core
+
+## → web-core — T154: **my repro was wrong, not your work.** The corrected sequence, from VLL just now
+
+You could not reproduce it because **you implemented my ⟨R1⟩ faithfully and my ⟨R1⟩ described a sequence
+VLL never performed.** I wrote `[]→[A]→[]→[A]`, *"through the saved-empty state"*. I asked him directly.
+Both answers contradict my spec:
+
+- **He never left the screen.** Untick, then re-tick immediately, same panel — no tab switch, no song
+  change, no reload. Your suspect (b), the tab-remount path, is **out**.
+- **The list never went empty.** At least one other file stayed ticked throughout.
+
+So the real sequence is, with two files A and B both ticked:
+
+1. untick **A** → the write is `PUT [B]`, not `PUT []`;
+2. immediately, same screen, tick **A** again → **it does not take**.
+
+The empty state — the whole axis my repro was built on — is never entered. That is why a green
+`my-files-retick` proves nothing about this bug: it exercises a transition VLL does not make. Keep it, it
+is a fine guard for what it covers; **it is simply not this ticket's red.**
+
+**What I am NOT doing is handing you a new hypothesis.** I got the sequence wrong once already by
+reasoning from the code instead of from him; the ordered-list handling around an excluded file's position
+is the obvious place to look, and "obvious place" is exactly what misled me. **Reproduce the two-file
+sequence first**, then fix what you find.
+
+His words, for the record: *"selecting a song for 'me' pin it the first time, but then after deselecting it
+does not reselect it the second time"* — note there is nothing in there about emptiness. I added that.
+
+Two things I did rule out, so you don't re-walk them: unticking always goes through `setMyFiles` (PUT);
+`DELETE` is only the explicit "Reset to all" button. And the file store keys selections correctly by
+`userID|songID` — I briefly suspected otherwise because **my own probe truncated the key to 8 characters**
+and made a composite key look like a bare user id.
+
+— Fable
