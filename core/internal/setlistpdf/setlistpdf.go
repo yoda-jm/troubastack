@@ -41,9 +41,9 @@ type Doc struct {
 	OnCall      []Row
 }
 
-// Render draws the sheet and returns the PDF bytes. Auto page-break carries a long running order onto
-// further A4 pages.
-func Render(d Doc) ([]byte, error) {
+// newSheet builds the deterministic A4 document (fixed dates + catalog sort → byte-stable) with the page
+// margins set and the first page added, ready to draw onto.
+func newSheet() (*fpdf.Fpdf, func(string) string) {
 	pdf := fpdf.New("P", "mm", "A4", "")
 	// Deterministic bytes (mirrors chartpdf): a fixed creation/modification date + catalog sort so the same
 	// setlist always renders to the same PDF — friendly to caching and to any future golden.
@@ -55,28 +55,45 @@ func Render(d Doc) ([]byte, error) {
 	pdf.SetMargins(margin, margin, margin)
 	pdf.SetAutoPageBreak(true, margin)
 	pdf.AddPage()
+	return pdf, tr
+}
 
+// drawHeader draws the sheet's header block and leaves the cursor at the Y where the running order begins.
+// It is the seam the T163 layout test measures (the first-song Y), so Render and the test can never
+// disagree about where the header ends.
+func drawHeader(pdf *fpdf.Fpdf, tr func(string) string, d Doc) {
 	body := pageW - 2*margin
-
-	// Header: band · setlist · (venue) · (date). Optional lines are omitted entirely when empty.
-	pdf.SetFont("Helvetica", "B", 20)
-	pdf.MultiCell(body, 9, tr(d.BandName), "", "L", false)
-	pdf.SetFont("Helvetica", "B", 14)
-	pdf.MultiCell(body, 7, tr(d.SetlistName), "", "L", false)
-	pdf.SetFont("Helvetica", "", 11)
-	pdf.SetTextColor(90, 90, 90)
-	if d.Venue != "" {
-		pdf.MultiCell(body, 6, tr(d.Venue), "", "L", false)
+	// T163: three rows, not four. Band + setlist stay LEFT (a working sheet, not a centred programme —
+	// the running order below is left-aligned and numbered, and a centred title would fight that reading
+	// line). The two short facts share ONE row — venue left, date right — the conventional gig-sheet
+	// arrangement, and the heights + gaps are tightened so the running order starts high on the page.
+	pdf.SetFont("Helvetica", "B", 16)
+	pdf.MultiCell(body, 7, tr(d.BandName), "", "L", false)
+	pdf.SetFont("Helvetica", "B", 12)
+	pdf.MultiCell(body, 5.5, tr(d.SetlistName), "", "L", false)
+	// Venue · date on the same row, drawn only when at least one is present. An absent one leaves its half
+	// blank — no bare label, no zero date, no dangling separator (T158's omission rule, kept).
+	if d.Venue != "" || d.EventDate != "" {
+		pdf.SetFont("Helvetica", "", 10)
+		pdf.SetTextColor(90, 90, 90)
+		half := body / 2
+		pdf.CellFormat(half, 5, tr(d.Venue), "", 0, "L", false, 0, "")
+		pdf.CellFormat(half, 5, tr(d.EventDate), "", 1, "R", false, 0, "")
+		pdf.SetTextColor(0, 0, 0)
 	}
-	if d.EventDate != "" {
-		pdf.MultiCell(body, 6, tr(d.EventDate), "", "L", false)
-	}
-	pdf.SetTextColor(0, 0, 0)
-	pdf.Ln(3)
+	pdf.Ln(2)
 	ry := pdf.GetY()
 	pdf.SetLineWidth(0.3)
 	pdf.Line(margin, ry, pageW-margin, ry)
-	pdf.Ln(4)
+	pdf.Ln(2.5)
+}
+
+// Render draws the sheet and returns the PDF bytes. Auto page-break carries a long running order onto
+// further A4 pages.
+func Render(d Doc) ([]byte, error) {
+	pdf, tr := newSheet()
+	body := pageW - 2*margin
+	drawHeader(pdf, tr, d)
 
 	// Running order.
 	pdf.SetFont("Helvetica", "", 12)
