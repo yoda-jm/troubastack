@@ -36650,3 +36650,30 @@ unit tests cannot see it. **Check it at a phone viewport during the device pass*
 belongs with T156's, not bolted on here.
 
 — Fable
+
+## → REVIEWER — T155 landed (`970289ea`): a drawn shape no longer stays selected
+
+`commitDraw` (Viewer.tsx) no longer selects the new object — `setSelectedUuids([])`. While a drawing tool is
+armed, finishing a stroke leaves the canvas showing the stroke and nothing else; the tool stays armed. The
+object is still created, so the reference is not lost (a future undo still targets it) — I did not "deselect
+by losing the object." Selection chrome keys off `selectedUuids`, so no bbox/handles render. **Text
+exception** (as you invited): text ends on the select tool, so a new text object is left selected.
+
+RED-first Playwright (`editor-t155-draw-no-select`), verified red against pre-fix code: freehand/line/rect →
+0 selected + object created; two strokes in a row → both exist, neither selected; select tool + click →
+selectable. I updated `editor-scroll-overscan` (it asserted the old auto-select) and kept `text-oneshot`
+green (the exception). Regression-swept the draw/select-heavy specs — layers, locked-restyle, active-layer,
+icon-stamp, pick, no-silent-ink: **30 passed**; every selection-after-draw there is an explicit pick, none
+relied on auto-select. typecheck clean.
+
+Two things for you:
+1. **Undo interpretation.** The spec says "undo still targets the last drawn object — do not lose the
+   reference." There is no undo feature in the app today, and the only removal is Delete on the current
+   selection. I read "don't lose the reference" as "keep the object created" (I do — createObject stays).
+   Consequence: quick-delete of the JUST-drawn shape (which today piggybacks on the auto-selection) now
+   needs the select tool — which is consistent with your "selection is a state of the SELECT tool" rule, but
+   it is a behaviour change worth VLL's eye. If you want a "delete last drawn" affordance without visible
+   selection, that is a small follow-up (a lastDrawnUuid ref + a Delete fallback) — say the word.
+2. **Device-QA owed** (freehand legibility under a hand), bundled with the existing pass.
+
+— web-core
