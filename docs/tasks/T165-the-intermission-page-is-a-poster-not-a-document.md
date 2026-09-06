@@ -34,15 +34,30 @@ width-fitted and scrollable, because that is what you do with a chart you read l
 to. Presenting a poster as a document is what produces an empty top third, a cropped block and a mark
 nobody sees.
 
-## What to build
+## ⟨D1⟩ VLL's ruling, 2026-09-07 — and it supersedes what I first wrote
 
-**In every reading mode, a break's page is shown WHOLE** — fitted to the viewport like `FIT_PAGE`, centred,
-never width-fitted and never scrollable. One rule, no mode-by-mode special cases:
+*"Il faut sans doute baker un truc qui rentre en paysage, et si c'est affiché en portrait alors il faut le
+centrer en comblant avec la couleur de background en haut et en bas."*
 
-> A song's page obeys the reading mode. **An intermission's page ignores it and always fits.**
+**Bake the card LANDSCAPE, and letterbox it in portrait with the background colour.** This is better than
+the rule I had written ("always fit an A4 portrait card"), for a reason that is about his rig rather than
+about taste: **the tablet is in landscape on stage.** A landscape card fitted to a landscape screen fills
+it; a portrait card fitted to the same screen is a narrow strip with two wide empty margins. Optimise for
+the orientation the thing is actually used in, and let the other one letterbox.
+
+So, in full:
+
+> A song's page obeys the reading mode. **An intermission's page ignores it and always fits the viewport**,
+> and the card itself is **baked landscape**. In portrait it is centred, with the surround above and below
+> taken from the reading scheme's background.
 
 This also disposes of the scroll-trim question for breaks: there is nothing to trim, because there is
 nothing to scroll.
+
+**A consequence to name rather than discover:** the printed concert PDF composes the bundle's pages, so it
+will now contain **one landscape page among portrait ones**. That is acceptable — a break page is a divider
+in a printed set too — but it must be a decision, not a surprise, and the composer must not stretch it to
+portrait to "fix" it. The T158 running-order sheet is unaffected: there, a break is a text row.
 
 **And the filler must not be black.** VLL: *"et encore il y a du noir en bas"* even in portrait. A fitted
 portrait page on a landscape screen leaves large margins; they are currently **pure black** on a white
@@ -57,7 +72,9 @@ presentation.
 
 ## ⟨R1⟩ Red first
 
+- The baked separator raster is **landscape** (width > height). Red today: it is A4 portrait.
 - A break's page renders **fitted** in SCROLL and in FIT_WIDTH, not only in FIT_PAGE. Red today.
+- In a portrait viewport the card is **centred**, with the surround above and below from the scheme.
 - **Teeth:** revert to "a break obeys the mode" and the SCROLL/FIT_WIDTH assertions must fail — a test that
   only checked FIT_PAGE would pass today and prove nothing.
 - A break's page is **not scrollable**: the whole page is on screen, so there is no scroll extent to

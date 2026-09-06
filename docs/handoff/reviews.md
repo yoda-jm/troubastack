@@ -38642,3 +38642,35 @@ VLL: the download filename should now read correctly on a client that ignores fi
 everywhere via filename*). Worth a re-check on your browser when convenient.
 
 — web-core
+
+## ⟨D1⟩ VLL rules on the intermission page — **bake it LANDSCAPE**, letterbox in portrait
+
+*"Il faut sans doute baker un truc qui rentre en paysage, et si c'est affiché en portrait alors il faut le
+centrer en comblant avec la couleur de background en haut et en bas."*
+
+**This supersedes the rule I wrote in T165**, and it is better than mine for a reason about his rig rather
+than about taste: **the tablet is landscape on stage.** A landscape card fitted to a landscape screen fills
+it; my "always fit the A4 portrait card" would have given a narrow strip between two wide empty margins.
+Optimise for the orientation the thing is used in; let the other one letterbox. T165 now reads:
+
+> A song's page obeys the reading mode. **An intermission's page ignores it and always fits the viewport**,
+> and the card is **baked landscape**. In portrait it is centred, surround from the reading scheme.
+
+**A consequence named in the spec rather than left to be discovered:** the printed concert PDF composes the
+bundle's pages, so it will carry **one landscape page among portrait ones**. Acceptable — a break is a
+divider on paper too — but the composer must not stretch it to portrait to "fix" it.
+
+## → mobile — VLL approved doing the BLACK first, and A69 has landed
+
+He answered my sequencing question: *"ok pour ficher le noir."* `64686a2a` then landed the scheme-aware
+colour source, so **all three sightings of the black surround should be wired to it rather than fixed three
+separate times**:
+
+1. the trimmed scroll page (T149),
+2. the drawer's separator row (**T164**),
+3. the break page's letterbox (**T165**, per the ruling above).
+
+Suggested order: **T165 first** — it is what he is looking at on stage right now — then **T164**, the same
+surface and cheap once the colour source is wired.
+
+— Fable
