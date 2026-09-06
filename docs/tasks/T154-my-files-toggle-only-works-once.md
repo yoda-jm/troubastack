@@ -1,7 +1,16 @@
 # T154 — Re-ticking a file in "my files" does not take the second time
 
-**Lane:** web-core (studio). **Size:** S. **Status:** CANNOT REPRODUCE on current main 2026-09-06
-(web-core) — a faithful ⟨R1⟩ e2e is GREEN, no fix shipped; awaiting Fable's exact repro (see the gate).
+**Lane:** web-core (studio). **Size:** S. **Status:** STILL CANNOT REPRODUCE after Fable's CORRECTED repro
+2026-09-06 (web-core) — no fix shipped; likely the live VIEWER STRIP, not the checkbox (see the gate).
+Fable corrected the sequence (my ⟨R1⟩ described a path VLL never took): two files both ticked, untick A
+(→ `PUT [B]`, never empty), then IMMEDIATELY re-tick A. I drove that EXACT sequence three ways — two awaited
+clicks, a synchronous double-click (React 18 flushes discrete clicks so no stale-closure batch), and the
+same under a 1s-delayed PUT — all GREEN at checkbox + server + reload. The MyFilesEditor checkbox is local
+optimistic state and robust; the strip refresh (`refreshMyFiles`) reads fresh server state sequentially
+after each write, so by inspection it should also be correct. So the defect is not where the ticket points.
+NEW hypothesis for the gate: "reselect/pin" = the file reappearing in the live VIEWER STRIP (the parent),
+which my tests do not assert — that is the layer to target next. Guard `my-files-retick.spec.ts` (3 tests)
+covers the checkbox+server+reload path.
 Landed `e2e/my-files-retick.spec.ts` as a regression guard: the 3-step include→exclude→include **through the
 saved-empty state** ([]→[A]→[]→[A]), asserting the live checkbox AND server persistence AND survival across
 a reload — plus a rapid re-tick under a 1.2s-delayed PUT (the race window). Both pass. The current code

@@ -110,6 +110,92 @@ test("my-files: re-ticking a file takes the second time (include → exclude →
   await expect(rowA().getByTestId("my-files-include")).toBeChecked();
 });
 
+test("my-files: untick then immediately re-tick, with another file kept (Fable's corrected T154 repro)", async ({
+  page,
+}) => {
+  await register(page, `myfr4_${stamp()}`);
+  await page.getByTestId("new-band-btn").click();
+  await page.getByTestId("band-name").fill(`RetickBand ${stamp()}`);
+  await page.getByTestId("create-band").click();
+  await page.getByTestId("band-link").first().click();
+  const bandId = page.url().split("/bands/")[1];
+  await page.getByTestId("new-song-btn").click();
+  await page.getByTestId("song-title").fill(`RetickSong ${stamp()}`);
+  await page.getByTestId("create-song").click();
+  await page.getByTestId("song-link").first().click();
+  const songId = page.url().split("/songs/")[1];
+
+  await page.getByTestId("my-files-edit").click();
+  for (let i = 0; i < 2; i++) {
+    await page.getByTestId("file-input").setInputFiles(PDF);
+    await page.getByTestId("file-upload").click();
+    await expect(page.getByTestId("file-row")).toHaveCount(i + 1);
+  }
+  const ids = await page.evaluate(async ([b, s]) => {
+    const r = await fetch(`/api/bands/${b}/songs/${s}/files`, { credentials: "include" });
+    return ((await r.json()) as { files: { id: string }[] }).files.map((f) => f.id);
+  }, [bandId, songId]);
+  await page.evaluate(
+    async ([b, s, fids]) => {
+      const ns = ["fileA", "fileB"];
+      for (let i = 0; i < fids.length; i++) {
+        await fetch(`/api/bands/${b}/songs/${s}/files/${fids[i]}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: ns[i], displayOrder: i }),
+        });
+      }
+      // BOTH ticked to start — the state VLL is in (nothing empty).
+      await fetch(`/api/bands/${b}/songs/${s}/my-files`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: fids }),
+      });
+    },
+    [bandId, songId, ids] as const,
+  );
+
+  await page.reload();
+  await openMineTab(page);
+  const rowA = () => page.getByTestId("my-files-row").filter({ hasText: "fileA" });
+  const boxA = () => rowA().getByTestId("my-files-include");
+  await expect(boxA()).toBeChecked();
+
+  // Delay the PUT so the untick's write is still in flight when the re-tick fires — the untick→re-tick
+  // window with a real network in between, and B kept so nothing is ever empty.
+  await page.route("**/my-files", async (route) => {
+    if (route.request().method() === "PUT") await new Promise((r) => setTimeout(r, 1000));
+    await route.continue();
+  });
+
+  // Untick A (→ PUT [B], NOT empty), then IMMEDIATELY re-tick A — same screen.
+  await boxA().evaluate((el) => {
+    (el as HTMLElement).click();
+    (el as HTMLElement).click();
+  });
+
+  await expect(boxA()).toBeChecked();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          async ([b, s, a]) => {
+            const r = await fetch(`/api/bands/${b}/songs/${s}/my-files`, { credentials: "include" });
+            const j = (await r.json()) as { files: { id: string }[] };
+            return j.files.some((f) => f.id === a);
+          },
+          [bandId, songId, ids[0]] as const,
+        ),
+      { timeout: 8000 },
+    )
+    .toBe(true);
+  await page.reload();
+  await openMineTab(page);
+  await expect(rowA().getByTestId("my-files-include")).toBeChecked();
+});
+
 test("my-files: rapid re-tick under a slow write still persists (race)", async ({ page }) => {
   await register(page, `myfr3_${stamp()}`);
   await page.getByTestId("new-band-btn").click();
