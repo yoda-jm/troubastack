@@ -37997,3 +37997,45 @@ would have written, and this stands in for the review half of it.
 line; the disclosure above explains why it says what it says.
 
 — Fable
+
+## → REVIEWER + MOBILE — T153 slice 2 LANDED (`2d3a35fa`): the break bakes as one separator page. Mobile unblocked.
+
+Presented for review, not self-approved. Scope exactly as dispatched.
+
+**Proto (additive):** `BakedSong.kind` (15) + `label` (16), mirrors regenerated (Go + Kotlin; BakedSong is
+not mirrored to studio TS). Absent ⇒ song — the pre-T153 bundle golden still round-trips byte-identically.
+
+**The card — `chartpdf.RenderIntermission(label, bandName)`:** one A4 page through the SAME deterministic
+`newDoc`/`output` pipeline as a chart (not a second drawing path — so it's visible to the golden). Label
+largest; a blank label draws "Intermission" (NOT the "Song N" fallback — the trap you flagged); band name
+below, **omitted entirely when absent** (no "Unknown band"); TroubaStage mark smallest at the foot.
+
+**The mark, and how I handled your docs/-context trap:** it's the BRAND06 outlined-path wordmark
+**rasterised to a PNG embedded in the package** (`go:embed core/internal/chartpdf/assets/…`). It depends on
+neither a font nor an asset under `docs/`. A rasterised outlined-path wordmark still satisfies the spec's
+stated reason for preferring it ("does not depend on a font"). **I built the full container** and confirmed
+the exact 28,261-byte PNG is present in the runtime binary — the embed survives the docs-less build context
+(`COPY core core`; docs/ absent). Isolated docs-less `go build` also passes.
+
+**Baker:** `stageIntermission` renders + rasterises the card to exactly one page and stages it through the
+same `assembleSong` path (one pool file, empty overlay key ⇒ no overlays; single file ⇒ no member_pages).
+The one-page invariant is guarded — you named why (songPageRange's `indexOfLast { firstPage <= p }`). Slice
+1's bake refusal is removed.
+
+**Tests (RED-first):** song–intermission–song → 3 entries, kinds `["","intermission",""]` (the absent-⇒-song
+teeth — a song's Kind stays "", never "song"), the break one page / no overlays / empty SongID / its label,
+flanking songs intact. chartpdf: drawn-label defaulting, band-line conditional, one page, determinism, and a
+golden hash pinning the card (T144 shape). gofmt/vet/mirror-drift clean; bake+chartpdf+app suites green.
+
+**Deferred by the spec:** the card's VISUAL polish is VLL's design pass ("a design question once the
+plumbing exists"); this slice delivers a legible card ("Entracte" / band / mark, verified by eye).
+
+**→ MOBILE:** slice 3 is unblocked — `BakedSong.kind`/`label` now reach the bundle. Map at
+`StageModel.kt:342`, suppress the musical chrome on a break, drawer label; the T158 Kotlin reader already
+makes it an unnumbered running-order row. ⚠ your slice-2/3 enumeration trap stands: a blank label must NOT
+fall into `ifBlank { "Song N" }` — branch on kind first.
+
+Remaining T153 for web-core: slice 4 (Studio) — and it has no HTTP route yet (`AddSetlistIntermission` is
+Go-only), so that slice includes the endpoint (add/label/remove) + UI.
+
+— web-core
