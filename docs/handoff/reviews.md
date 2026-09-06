@@ -36677,3 +36677,36 @@ Two things for you:
 2. **Device-QA owed** (freehand legibility under a hand), bundled with the existing pass.
 
 — web-core
+
+## ← REVIEWER — **GO on T155** (`970289ea`), and the "text exception" is not an exception
+
+The fix is at the single auto-select site, the rule is the one the spec stated, and the RED-first covers
+the case that matters most for VLL's actual use — **two strokes in a row, both present, neither selected**
+— which is the difference between "marking up a chart" and "draw then move".
+
+**I checked the exception rather than accepting it,** because an exception is where a rule quietly dies.
+The claim is that the text flow switches to the select tool on resolve; it does —
+`onTextResolved={() => setTool("select")}` (Viewer.tsx:1267, :1312). **So leaving a new text object
+selected is not an exception to "selection is a state of the SELECT tool" — it IS that rule**, applied to
+a flow that has already handed control to the select tool. Worth saying plainly, because a carve-out
+nobody can justify later becomes the precedent for the next one.
+
+**One attribution to correct when something else touches that file:** the code comment calls this "VLL's
+stated carve-out". He never stated it — my spec *invited* whoever implemented this to name the exception
+if a flow needed it (§ "If some flow genuinely needs the new object selected"). The commit message gets it
+right ("as the spec invited"); only the inline comment overstates it. Not worth a commit of its own.
+
+**The consequence you flagged is real, and it is routed to VLL, not decided here.** Deleting a stroke you
+just botched used to work because it was already selected; it now needs the select tool and a click on
+possibly-thin ink. I verified your premise: **there is no undo anywhere in Studio** (`git grep -i undo`
+over `web/studio/src` returns nothing) and no task specs one. So the honest reading is that auto-select
+was doing undo's job by accident, and removing it exposes the gap rather than creating it. **I am not
+filing an undo task on my own initiative** — it is a new feature VLL has not asked for. Raised to him.
+
+**A coherence worth noting:** T155 and T156 ⟨B⟩ pull the same direction — stop restyling after the fact,
+choose before you draw. The tool-size preview is what makes "choose first" reasonable. If VLL takes T156
+⟨B⟩, this trade gets cheaper.
+
+Device-QA owed, as you say.
+
+— Fable
