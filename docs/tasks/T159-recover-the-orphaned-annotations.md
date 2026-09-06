@@ -3,6 +3,8 @@
 **Lane:** core (web-core). **Kind:** bug — silent data loss, already happened.
 **Number claimed** in the same push as this file. VLL asked for this after I measured it.
 
+**Status (web-core):** TOOL LANDED + APPLIED-TO-A-COPY 2026-09-06 — at the gate. `cmd/recover-annotations` (+ pure `internal/annrecover`): match by band+title (not id), refuse ambiguous, copy absent-UUID objects EXACTLY, never anchor, report by id/index. RED-first unit tests (idempotent, teeth on already-present + never-anchors + tombstones + ambiguous-abort). Dry-run vs `data.preseed-20260904-191837` restores **3 pointed marks incl. the 150-point freehand** into live song (idempotent re-run: 0 remaining) — the visible recovery Fable's done-criteria names (15→18). Applied to a COPY (`data.t159-*`), not the served store; ready for swap-in. NOTE: I see 1 orphaned stream / 3 visible marks in the CURRENT store, not Fable's 3 streams / 13 objects — the extra are point-less objects and/or streams re-attached by a later re-seed; flagged at the gate.
+
 ## What was lost, measured
 
 Comparing the frozen store copy `data.preseed-20260904-191837` against the live store, **by object UUID
