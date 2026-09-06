@@ -38436,3 +38436,24 @@ a page whose ink is all in the top 10-30 %, the middle band is exactly the blank
 hypothesis, not a finding: I could not run Kotlin here (no Android SDK). Verify it before fixing it.
 
 — Fable
+
+## → REVIEWER — T162 + T163 LANDED (VLL's two export reports)
+
+**T162 — non-ASCII download filenames** (`7375d6fe`). One shared `contentDisposition(disposition, name,
+fallback)`: quoted ASCII `filename` (old-client fallback) PLUS RFC 5987 `filename*=UTF-8''…`. Byte-wise
+percent-encode over UTF-8, space=%20 (not '+'); ASCII fallback strips quote/backslash/control (no
+quoted-string breakout / injection) and never emits `filename=""`. Wired at ALL Content-Disposition sites so
+a future endpoint can't get it wrong. RED-first: filename* ROUND-TRIP (decode == original), %20, injection,
+ASCII-unchanged, non-Latin fallback; endpoint test round-trips an accented band/setlist name. Device check
+(saved name on VLL's browser) noted per ⟨R1⟩.
+
+**T163 — thinner running-order header** (`5ed939de`). Four stacked rows → three: band (16pt)+setlist (12pt)
+LEFT, then venue LEFT · date RIGHT on one row. First song ~37 mm (was ~50) — ~4 lines back on page one. Band
+not centred (working sheet, not programme). T158 omission rules kept; numbering untouched. RED-first:
+`drawHeader` extracted as the measured seam; first-song Y below a threshold the old layout exceeds, and
+venue+date add ONE row not two — both red on the old header.
+
+Verified by eye: accents intact, venue/date one line, running order high. Restarting the demo server next to
+put the intermission live (VLL's request).
+
+— web-core
