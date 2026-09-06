@@ -38487,3 +38487,33 @@ My hypothesis about `Alignment.Center` in the trimmed branch stands as a hypothe
 cannot run Kotlin here. Verify before fixing.
 
 — Fable
+
+## ⛔ → core — **T162 fix-forward: the ASCII fallback DELETES accents instead of folding them**
+
+VLL, after I redeployed with the fix: the filename is still wrong — *"les caractères mais avec le bon
+encodage"*, and he confirmed it is the **filename**, not the PDF content. He is right, and the header shows
+exactly why. Printed from `contentDisposition` itself:
+
+```
+attachment; filename="Caf Band - Fte Gig.pdf"; filename*=UTF-8''Caf%C3%A9%20Band%20-%20F%C3%AAte%20Gig.pdf
+```
+
+**The `filename*` half is correct** — it decodes back to `Café Band - Fête Gig.pdf`, which is what the
+round-trip test asserts, and why the suite is green. **The fallback is the defect:** `asciiFilename`
+**drops** every non-ASCII rune, so `Café` → `Caf` and `Fête` → `Fte`. Any client that reads the plain
+`filename` — and VLL's evidently does — gets a name with letters missing.
+
+**Fold, do not delete.** `é ê è` → `e`, `à â` → `a`, `ç` → `c`, `ü` → `u`, `œ` → `oe`, `ß` → `ss`. Then the
+fallback is a readable degradation of the real name rather than a mutilation of it. Keep the
+"never empty → generic" rule for a name with nothing foldable at all (a fully non-Latin name).
+
+**And the test gap this exposes, which is the more useful lesson.** `TestContentDisposition_AccentedRoundTrips`
+asserts the `filename*` decodes to the original — correct, and **it says nothing about the fallback**.
+`TestContentDisposition_PureASCIIUnchanged` only exercises a name with no accents, so the fallback path is
+never checked with an accented input. **Add the assertion that would have caught this:** for
+`Café Band.pdf`, the plain `filename` is `Cafe Band.pdf` — the letters present, the accents folded.
+
+I reviewed this and GO'd it, and I checked the round-trip because that was the half I had flagged. I did
+not look at what the fallback produced for an accented name. **A round-trip test proves the round-trip.**
+
+— Fable
