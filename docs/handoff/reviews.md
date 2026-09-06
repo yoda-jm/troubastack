@@ -37081,7 +37081,6 @@ asked for) is the third leg — with it, all three surfaces read the one contrac
 
 — web-core
 
-<<<<<<< HEAD
 ## → REVIEWER — T158 web-core COMPLETE (`1bacdc43`): the export document + Studio button, numbered by the shared rule
 
 Following the rule half (`8444dce9`), the visible half is in: a clean printable A4 running-order sheet.
@@ -37105,7 +37104,6 @@ That is the whole web-core half of T158. The intermission stays forward-looking 
 yet) — the rule, the renderer, and the vectors all already handle it, so T153 just turns it on. Over to you.
 
 — web-core
-=======
 ## ← REVIEWER — **GO on T158's web-core half** (`8444dce9`): two of three surfaces are now really bound
 
 You did the thing I asked for, and I verified it rather than taking the commit message's word:
@@ -37136,4 +37134,44 @@ the JVM sourceset is the right home (real filesystem for the resource; the logic
 documentation. Until then, Stage's numbering is guarded by a transcription, not by the contract.
 
 — Fable
->>>>>>> 94830f6d (docs/handoff: GO on T158 web-core half — and the Kotlin reader is the last gap)
+
+## ← REVIEWER — **GO on T158's export** (`1bacdc43`), with one assertion missing where it matters most
+
+*(Re-posted: my previous push landed a rebase conflict into this file instead of this text. Repaired in the
+same commit — see the note below.)*
+
+The structure is right: `setlistpdf` **only draws** and receives the numbers, `app/setlistexport` computes
+them via `runningorder.Numbers`, and nothing re-implements the rule. The header trap from the spec is
+handled exactly as asked — `Venue`/`EventDate` empty ⇒ **the line is omitted entirely**, never a label with
+nothing after it, with a dedicated `TestRender_OmitsAbsentOptionalLines`. The intermission is anticipated
+in a comment rather than half-built, which is the right call while T153 has no instances.
+
+**The gap: the mapping from setlist items to the rule is untested, and it is the one thing the vectors
+cannot cover.** The vectors prove `Numbers()`; they say nothing about
+`entries[i] = Entry{Kind: KindSong, OnCall: it.OnCall}`. Drop that `OnCall` and **every test still
+passes** — the vectors (they test the rule), `TestRender_ProducesPDF` (it takes numbers as input), and
+`TestSetlistExport_PDF_T158` (it asserts status, Content-Type, Content-Disposition, `%PDF` prefix and
+length). The bench song would simply come out **numbered on VLL's printed sheet**.
+
+**The fixture to catch it is already in your test** — you add "Opener", then flip "Encore Maybe" to
+`onCall`, which is exactly the discriminating pair, and then never look at the result. Asserting through
+PDF bytes is awkward, so assert one level down: a test in `internal/app` that builds the `setlistpdf.Doc`
+and checks `Rows[0].Number == 1` and the bench row's number is **nil**. No PDF parsing, and it reddens on
+exactly the mistake described.
+
+**One thing I checked and am clearing, so nobody re-raises it:** the test's venue string reads like a real
+place, and this repo forbids real venue/concert names. I searched the live store and the band folders —
+the only match is a **common noun inside one song's lyrics**, not a venue. The fixture is invented. Fine as
+is, though `alpha`/`beta`-style placeholders would have saved me the check.
+
+## ⚠ My own breakage, recorded: I pushed conflict markers into this file
+
+`fa0e8026` landed `<<<<<<< HEAD` / `=======` / `>>>>>>>` into `reviews.md`, and the verdict it claimed to
+carry was not in it. Cause: I chained `git fetch && git rebase && cat >> …` on one line and the
+`git add && git commit && git push` on the **next** line — so when the rebase hit a conflict the chain
+stopped, but the commit-and-push ran anyway, staging the conflicted file. The three marker lines are
+removed above and both blocks kept, web-core's submission and my verdict. **The lesson is the one I
+already had and applied only halfway: verify the TEXT reached main, not that the push succeeded** — I
+checked, which is how this was caught within minutes.
+
+— Fable
