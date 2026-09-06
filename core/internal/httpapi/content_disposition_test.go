@@ -106,3 +106,29 @@ func TestRFC5987_SpaceIsPercent20(t *testing.T) {
 		t.Errorf("rfc5987Encode(\"a b\") = %q, want a%%20b", got)
 	}
 }
+
+// TestContentDisposition_FallbackFoldsAccents is the T162 fix-forward: the ASCII fallback must FOLD an
+// accented letter to its base (Café → Cafe), not DROP it (Café → Caf), so an old client that reads only
+// the quoted filename still gets a legible name. This is the case the original T162 tests missed — the
+// round-trip only exercised filename*, and the ASCII test used an unaccented name.
+func TestContentDisposition_FallbackFoldsAccents(t *testing.T) {
+	cases := map[string]string{
+		"Café Zoë.pdf":    "Cafe Zoe.pdf",
+		"Fête d'été.pdf":  "Fete d'ete.pdf",
+		"Bøîte française": "Boite francaise",
+		"Grüße.tband":     "Grusse.tband", // ß folds to ss, ü to u
+	}
+	for in, want := range cases {
+		if got := asciiFilename(in); got != want {
+			t.Errorf("asciiFilename(%q) = %q, want %q (accents must fold, not drop)", in, got, want)
+		}
+	}
+	// End-to-end: the header's quoted fallback carries the folded name, and filename* still round-trips.
+	h := contentDisposition("attachment", "Café Zoë.pdf", "setlist.pdf")
+	if fb := quotedFilename(t, h); fb != "Cafe Zoe.pdf" {
+		t.Errorf("quoted fallback = %q, want Cafe Zoe.pdf", fb)
+	}
+	if got := decodeFilenameStar(t, h); got != "Café Zoë.pdf" {
+		t.Errorf("filename* = %q, want the exact original", got)
+	}
+}

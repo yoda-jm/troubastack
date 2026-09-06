@@ -29,13 +29,35 @@ func contentDisposition(disposition, name, fallback string) string {
 	return fmt.Sprintf(`%s; filename="%s"; filename*=UTF-8''%s`, disposition, ascii, rfc5987Encode(encoded))
 }
 
-// asciiFilename keeps only printable ASCII, dropping the two quoted-string metacharacters (" and \) and
-// all control characters — so the result is always safe to place inside a quoted-string unescaped. It
-// strips (does not transliterate) non-ASCII, so "Bånd" becomes "Bnd"; that is the OLD-client fallback,
-// while the filename* carries the exact name for everyone else.
+// accentFolder maps the common accented Latin letters European band names use to their ASCII base, so the
+// old-client fallback degrades "Café" to "Cafe" rather than "Caf" (T162 fix-forward — dropping the rune
+// deleted the letter entirely). It only needs to be reasonable, not exhaustive: modern clients read the
+// exact name from filename*; this is the legible fallback for the few that don't. Covers Latin-1 Supplement
+// plus the common Latin Extended-A letters; ligatures/ß expand (æ→ae, ß→ss).
+var accentFolder = strings.NewReplacer(
+	"À", "A", "Á", "A", "Â", "A", "Ã", "A", "Ä", "A", "Å", "A", "à", "a", "á", "a", "â", "a", "ã", "a", "ä", "a", "å", "a",
+	"Æ", "AE", "æ", "ae",
+	"Ç", "C", "ç", "c", "Č", "C", "č", "c", "Ć", "C", "ć", "c",
+	"È", "E", "É", "E", "Ê", "E", "Ë", "E", "è", "e", "é", "e", "ê", "e", "ë", "e",
+	"Ì", "I", "Í", "I", "Î", "I", "Ï", "I", "ì", "i", "í", "i", "î", "i", "ï", "i",
+	"Ñ", "N", "ñ", "n", "Ń", "N", "ń", "n",
+	"Ò", "O", "Ó", "O", "Ô", "O", "Õ", "O", "Ö", "O", "Ø", "O", "ò", "o", "ó", "o", "ô", "o", "õ", "o", "ö", "o", "ø", "o",
+	"Œ", "OE", "œ", "oe",
+	"Ù", "U", "Ú", "U", "Û", "U", "Ü", "U", "ù", "u", "ú", "u", "û", "u", "ü", "u",
+	"Ý", "Y", "ý", "y", "ÿ", "y",
+	"ß", "ss",
+	"Š", "S", "š", "s", "Ś", "S", "ś", "s", "Ž", "Z", "ž", "z", "Ź", "Z", "ź", "z", "Ż", "Z", "ż", "z",
+	"Đ", "D", "đ", "d", "Ł", "L", "ł", "l", "Ř", "R", "ř", "r",
+)
+
+// asciiFilename folds accents to their ASCII base (accentFolder), then keeps only printable ASCII, dropping
+// the two quoted-string metacharacters (" and \) and all control characters — so the result is always safe
+// to place inside a quoted-string unescaped. "Café" becomes "Cafe"; a rune with no ASCII fold (e.g. a
+// non-Latin script) is dropped, and the caller supplies a generic when nothing survives. This is the
+// OLD-client fallback; the filename* carries the exact name for everyone else.
 func asciiFilename(name string) string {
 	var b strings.Builder
-	for _, r := range name {
+	for _, r := range accentFolder.Replace(name) {
 		if r >= 0x20 && r < 0x7f && r != '"' && r != '\\' {
 			b.WriteRune(r)
 		}
