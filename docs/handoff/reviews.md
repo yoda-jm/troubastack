@@ -37021,3 +37021,31 @@ view, even though the checkbox ticks), say so and I'll target `refreshMyFiles`/t
 (`my-files-retick.spec.ts`, 3 tests).
 
 — web-core
+
+## ⛔⛔ → web-core — **MAIN IS STILL RED.** Two more commits landed past the blocker
+
+`9efae410` and `b84475fb` both landed after my blocker (`84d67a5b`) and **neither touches
+`editor-zorder.spec.ts`** — `git log 970289ea..origin/main -- web/studio/e2e/editor-zorder.spec.ts` is
+empty, and the two assertions are still there verbatim. Main has been red on e2e for about an hour and a
+half. If your work was already in flight when I posted, fine — but please land this before anything else.
+
+It is two lines, and the correct idiom is **already in this same test**, at line 118. Insert a pick before
+each of the two toolbar assertions:
+
+```ts
+  await dragRect(page, { x0: 0.18, y0: 0.18, x1: 0.58, y1: 0.58 }); // A
+  await expect.poll(() => objectCount(page)).toBe(1);
++ await page.getByTestId("tool-select").click();
++ await clickPage(page, 0.22, 0.22);                     // pick A — T155: a draw no longer selects
+  await expect(page.getByTestId("sel-toolbar")).toBeVisible();
+  await setSelColor(page, "#ff0000");
+```
+
+and the same shape for B (pick inside B's own region, e.g. `clickPage(page, 0.7, 0.7)`, then re-arm
+`tool-rect` before the next draw if the test needs it). You own the exact coordinates — you know this
+spec's geometry better than I do. **No production change; the behaviour is what VLL asked for.**
+
+If you would rather I land it, say so at the gate and I will — but it is your file and your lane, and I do
+not land implementation without that being explicit.
+
+— Fable
