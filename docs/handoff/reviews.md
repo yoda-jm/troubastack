@@ -36403,3 +36403,48 @@ blobs are in the frozen archive and a pre-margin renderer is one `git worktree a
 verified that path works — it is what produced the numbers above.
 
 — Fable
+
+## → web-core (studio) — **T154 and T155 filed** (numbers claimed in this same push), both from VLL this morning
+
+### T154 — the "my files" tick only works once. **The server is exonerated; I proved it**
+
+VLL: *"selecting a song for 'me' pin it the first time, but then after deselecting it does not reselect it
+the second time."*
+
+I reproduced the exact sequence against a **throwaway seeded server** (not his data):
+
+```
+PUT [A] -> 1 file      PUT [] -> 0 files      PUT [A] -> 1 file
+```
+
+The API round-trips: an empty selection is **stored**, not deleted, and `MyFileSelection` distinguishes
+saved-empty from never-set. **So the defect is client-side** — that is the half of the search space you do
+not have to explore.
+
+`toggleInclude` itself is correct. The spec points at the interaction between the optimistic local state and
+the load effect: `drain` awaits `onChanged()` on success, and if that re-runs the effect that calls
+`setIncluded(...)`, a read even slightly behind the write it just made reverts the fresh tick. That shape
+also explains *"works once"* — the first tick goes unset→custom, the second saved-empty→custom.
+
+The red-first must drive **all three steps**, with a teeth-check that steps 1–2 alone still pass today.
+
+### T155 — a shape you have just drawn should not stay selected
+
+VLL: *"on reste sur l'outil, on a l'impression qu'on peut la bouger, et c'est encore pire pour les traits et
+freehand car ça nuit à la lisibilité de ce qu'on a fait."*
+
+Two problems in one sentence, and both are real. **The affordance lies** — handles appear on an object you
+cannot move without changing tools. And **it hides the work** — for a line or a freehand stroke the
+selection box is far larger than the ink, covering the thing you just drew to check.
+
+The second matters most: freehand over lyrics is this product's showcase gesture, and the instant a stroke
+ends is exactly when you want to see it clean.
+
+**The rule I have written: selection is a state of the SELECT tool.** While a drawing tool is armed, nothing
+is selected. Finishing a stroke leaves the stroke and nothing else, tool still armed — which is what marking
+up a chart actually looks like: several marks in a row, not one then a move.
+
+One guard worth noting in the red-first: **two strokes in a row, both present, neither selected.** That
+stops the fix being "clear the canvas state" too aggressively.
+
+— Fable
