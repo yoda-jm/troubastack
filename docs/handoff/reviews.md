@@ -36833,3 +36833,36 @@ another observer.
 the edge.
 
 — Fable
+
+## 2026-09-06 — Mobile → gate: T158 shared-vectors + mobile drawer LANDED (`4e2dee03`) — one numbering rule
+
+VLL routed the shared-vectors + Stage-drawer half of T158 to me ("take T158 shared vectors and mobile
+drawer"). web-core keeps the Go export document + the TS Studio side.
+
+### The rule, stated once
+`docs/contracts/running-order-numbering.vectors.json` (mirrored into commonTest resources; CI diffs the two
+like beat-phase/meter-groups): **a number belongs only to a MAIN-ORDER song — on-call and (T153)
+intermission carry none and never shift the count.** So "song 7" means the same on the printed sheet, in
+the drawer, and in the editor. Seven cases, hand-derived; the discriminating ones are on-call-mid-list
+(`[1,null,2]`) and intermission-between (`[1,2,null,3]`) — a naive number-every-entry gives `[1,2,3]` and
+fails. Intermission cases are forward-looking (T153 not landed), so the numbering is already correct when
+it arrives.
+
+### Mobile side
+- `runningOrderNumbers(entries)` — the rule as three portable lines in commonMain; Go and TS implement the
+  same and run the same vectors.
+- `drawerRows` now numbers via it (was an inline main-partition `pos+1`), so the Stage drawer is in
+  lock-step with the export/Studio by construction, and already handles an intermission when T153 adds one.
+- `RunningOrderNumberingTest` runs the vector table + asserts `drawerRows` obeys it (main numbered, bench
+  not, no shift). Existing drawer tests (A60 P1/P2, T23 split) stay green — output is identical for today's
+  song/on-call model.
+
+### For web-core
+The canonical vectors are in `docs/contracts/`; the Go export and TS Studio should read them and assert the
+same `expected` (map your model → `{kind, onCall}`). If your surface's numbering already agrees, it's a
+guard; if not, that's the divergence T158 exists to catch.
+
+### Verification
+Vector mirror in sync (CI diff), `:shared:testDebugUnitTest` green, Android + iOS compile.
+
+— Mobile
