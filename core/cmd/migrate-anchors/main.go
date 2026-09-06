@@ -224,7 +224,10 @@ func main() {
 					continue
 				}
 				if _, _, _, _, _, pok := chartpdf.Project(*mo.Anchor, correctAnchors); pok {
-					fmt.Printf("            ↳ %s → anchored to %q\n", mo.UUID, mo.Anchor.RunText)
+					// Report by id + anchor INDICES only — never the run's TEXT: this repo is public and the
+					// text is band song lyrics (T159). Occurrence + char span identify the run without leaking it.
+					fmt.Printf("            ↳ %s → anchored (occ=%d chars=%d..%d)\n",
+						mo.UUID, mo.Anchor.Occurrence, mo.Anchor.CharStart, mo.Anchor.CharEnd)
 					shown++
 				}
 			}
