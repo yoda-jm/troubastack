@@ -11,9 +11,17 @@ running the canonical `docs/contracts/running-order-numbering.vectors.json` as a
 TS via vitest) — teeth-checked (a count-everything impl reddens the mid-list intermission/on-call cases).
 `SetlistDetail.tsx` now DERIVES its display number from the shared rule instead of the filtered index, so an
 intermission (T153) entering the running order can't miscount it (byte-identical today; encore-bench green).
-**Remaining web-core:** the export DOCUMENT (a Go A4 PDF of the running order — header band·setlist·venue·
-date with absent optional lines omitted, numbered order + unnumbered On-call section + inline intermission —
-served by core, touching no bake/bundle) and the Studio download button. Next increment.
+**THE DOCUMENT + UI — landed.** `internal/setlistpdf.Render(Doc)` draws the A4 sheet (header
+band·setlist·venue·date with absent optional lines omitted; numbered running order; inline unnumbered
+intermission; unnumbered "On call" section) with deterministic bytes (fixed date + catalog sort, like
+chartpdf); it is a document — no bake, blob, or bundle. `Service.ExportSetlistPDF` (mirrors `ExportBand`:
+membership-gated, reuses `sanitizeFilename`) numbers via the shared `runningorder` rule and maps to the
+renderer. `GET /api/bands/{bandId}/setlists/{setlistId}/export` serves it as an attachment; Studio's
+`SetlistDetail` has an "Export PDF" button (`api.exportSetlist`, download via a blob URL). Tests: renderer
+unit tests (accents, intermission, bench, omitted lines); the httpapi endpoint test (member gets a real PDF
+attachment, non-member 403/404); encore-bench + 79 studio unit tests green; Go build/vet/test green, no
+mirror drift. **Web-core half COMPLETE.** (Mobile's `RunningOrderNumberingVectorsTest.kt` reader is the
+third leg of the shared-contract discipline.)
 
 VLL, 2026-09-06: he wants a **clean export of the running order** — band name, setlist name, venue, date,
 and the numbered list of songs; the **intermission** appears in it **without a number** when T153 lands;

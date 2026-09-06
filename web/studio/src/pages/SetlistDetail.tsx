@@ -83,6 +83,25 @@ export function SetlistDetail() {
   const benchCount = items.length - mainCount;
   const sub = [setlist.eventDate, setlist.venue].filter(Boolean).join(" · ");
 
+  // T158: download the running order as a printable A4 PDF (the sheet for the floor / a sound engineer).
+  async function exportPdf() {
+    setError(null);
+    try {
+      // bandId/setlistId are guaranteed by the guard above; the assertion just carries that into this closure.
+      const { blob, filename } = await api.exportSetlist(bandId!, setlistId!);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to export the setlist");
+    }
+  }
+
   return (
     <div className="page">
       {liveNow(setlist) && (
@@ -107,6 +126,16 @@ export function SetlistDetail() {
             </span>
             {benchCount > 0 && <span className="chip brand">{benchCount} on call</span>}
           </div>
+        </div>
+        <div className="phead-actions">
+          <button
+            type="button"
+            className="secondary"
+            data-testid="export-setlist-pdf"
+            onClick={() => void exportPdf()}
+          >
+            Export PDF
+          </button>
         </div>
       </header>
       <div className="staff sig" aria-hidden="true" />

@@ -415,6 +415,18 @@ export const api = {
     return { blob: await res.blob(), filename: match?.[1] ?? `band-${bandId}.tband.zip` };
   },
 
+  // T158 — download a setlist's running order as a printable A4 PDF (a document, not a bundle). Same
+  // shape as exportBand: fetch with the session cookie, read the server's filename from Content-Disposition.
+  exportSetlist: async (bandId: string, setlistId: string): Promise<{ blob: Blob; filename: string }> => {
+    const res = await fetch(`/api/bands/${bandId}/setlists/${setlistId}/export`, { credentials: "include" });
+    if (!res.ok) {
+      await decode<void>(res); // throws ApiError with the server message
+    }
+    const disp = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="?([^"]+)"?/.exec(disp);
+    return { blob: await res.blob(), filename: match?.[1] ?? `setlist-${setlistId}.pdf` };
+  },
+
   // Preview a .tband before importing (T63): classify members (matched vs missing) and
   // report counts, without writing anything.
   previewImport: (file: File) => {

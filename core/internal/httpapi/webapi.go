@@ -92,6 +92,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bands/{bandId}/setlists", a.auth(a.listSetlists))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists", a.auth(a.createSetlist))
 	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}", a.auth(a.getSetlist))
+	mux.HandleFunc("GET /api/bands/{bandId}/setlists/{setlistId}/export", a.auth(a.exportSetlist))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/setlists/{setlistId}", a.auth(a.updateSetlist))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/setlists/{setlistId}", a.auth(a.deleteSetlist))
 	mux.HandleFunc("POST /api/bands/{bandId}/setlists/{setlistId}/items", a.auth(a.addSetlistItem))
@@ -1061,6 +1062,21 @@ func (a *WebAPI) getSetlist(w http.ResponseWriter, r *http.Request, u app.User) 
 		detail.Items = []app.SetlistItemView{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"setlist": detail.Setlist, "items": detail.Items})
+}
+
+// exportSetlist (T158) serves the running-order sheet as a printable A4 PDF download. Membership-gated by
+// the service; a document, not a bundle.
+func (a *WebAPI) exportSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
+	pdf, filename, err := a.svc.ExportSetlistPDF(u, r.PathValue("bandId"), r.PathValue("setlistId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(pdf)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(pdf)
 }
 
 func (a *WebAPI) updateSetlist(w http.ResponseWriter, r *http.Request, u app.User) {
