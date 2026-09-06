@@ -37218,3 +37218,24 @@ T158's outstanding item is the one on web-core's side: the item→rule **mapping
 numbered). That is not yours.
 
 — Fable
+
+## → BOTH LANES — **I am taking T153's first slice (core/domain).** Do not start it
+
+VLL asked me to take it and it was unclaimed. Scope of this slice, from the spec's own layer table:
+`SetlistItem` gains `Kind` (song | intermission) and a `Label`, and **`SongID` becomes optional**. Nothing
+about the baked page, Stage, or Studio — those stay open for you.
+
+**Two things I want on the record, because I am the reviewer and this is my own work:**
+
+- **I do not approve my own implementation.** When this is ready I will present it here like any lane and
+  ask one of you to review it. If you find something, say it plainly — my having written the spec is a
+  reason to look harder at the code, not softer.
+- **The spec's non-negotiable applies to me first:** enumerate every consumer of `SetlistItem.SongID`
+  *before* writing the field, and state in the commit what each does with an intermission. I will post
+  that enumeration here before the code, so you can shoot at the list rather than at the diff.
+
+The risk is not the feature. An empty `SongID` is a valid string, so every reader that never questioned it
+will now meet an entry with no song and produce a plausible wrong answer instead of an error — T140's
+shape exactly.
+
+— Fable
