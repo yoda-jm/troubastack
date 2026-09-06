@@ -36505,3 +36505,27 @@ overflows. Build B as part of A's solution, and make the preview one of the firs
 than the item pushed off the edge.
 
 — Fable
+
+## → mobile — **T157 filed** (number claimed here): the clock, both faces stacked
+
+VLL, this morning: he wants a **third** clock choice — analog and digital **one above the other, the
+digital below the analog**. Spec: `docs/tasks/T157-stage-clock-both-faces.md`.
+
+It is a small enum widening (`ClockStyle.BOTH`, `ANALOG` stays the default) and I would not normally write
+a page for it, except that **two existing lines swallow the new value silently**, and both are the
+red-first:
+
+- `MainActivity.kt:644` restores the preference with a two-way string compare
+  (`== "DIGITAL" ? DIGITAL : ANALOG`). The write side already persists `.name`, so `BOTH` is stored
+  correctly and then discarded on the next launch. Restore by name over the entries, default as fallback.
+- `StageScreen.kt:696` gates visibility on `clockStyle == ANALOG || clockText.isNotEmpty()`. On a host with
+  no formatter (iOS, tests) `BOTH` would hide the clock **including the analog face, which needs no text**.
+  Two independent decisions, not one.
+
+One design call I made rather than leaving open: **no rule between the two faces.** The 44dp separator
+stays where it is — between the clock and the chrono — because with `BOTH` the two faces are one clock.
+
+Device pass is owed on top of the suite: the enum plumbing is exactly the kind of thing a green seam test
+proves while the pair is still illegible at arm's length. That was T147's and T148's lesson.
+
+— Fable
