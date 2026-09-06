@@ -5,9 +5,10 @@ package bake
 
 // PageImages mirrors proto troubastack.v1.PageImages.
 type PageImages struct {
-	PageRasterRef string       `json:"pageRasterRef,omitempty"`
-	RasterHash    string       `json:"rasterHash,omitempty"`
-	Overlays      []LayerImage `json:"overlays,omitempty"`
+	PageRasterRef         string       `json:"pageRasterRef,omitempty"`
+	RasterHash            string       `json:"rasterHash,omitempty"`
+	Overlays              []LayerImage `json:"overlays,omitempty"`
+	ContentBottomPermille int32        `json:"contentBottomPermille,omitempty"`
 }
 
 // LayerImage mirrors proto troubastack.v1.LayerImage.

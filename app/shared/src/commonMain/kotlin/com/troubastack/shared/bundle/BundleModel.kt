@@ -22,6 +22,7 @@ data class PageImages(
     val pageRasterRef: String = "",
     val rasterHash: String = "",
     val overlays: List<LayerImage> = emptyList(),
+    val contentBottomPermille: Int = 0,
 )
 
 /** proto troubastack.v1.LayerImage. */

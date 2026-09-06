@@ -763,6 +763,15 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 				}
 				page.Overlays = append(page.Overlays, li)
 			}
+			// T149: measure how far down content reaches on this page (raster dark ink ∪ overlay opaque ink),
+			// in permille of page height, so Stage can trim the scroll blank tail. Raw extent — the presenter
+			// adds a breathing margin and trims only a song's last page. Best-effort: an undecodable image
+			// contributes 0, i.e. the page shows full (today's behaviour).
+			ovPNGs := make([][]byte, 0, len(ovs))
+			for _, ov := range ovs {
+				ovPNGs = append(ovPNGs, ov.PNG)
+			}
+			page.ContentBottomPermille = contentBottomPermille(r, ovPNGs)
 			song.Pages = append(song.Pages, page)
 			seq = append(seq, int32(entryIdx))
 		}

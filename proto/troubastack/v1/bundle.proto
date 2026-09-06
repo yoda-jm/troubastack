@@ -12,6 +12,13 @@ message PageImages {
   string page_raster_ref = 1;       // PDF page raster (WebP), ~2-3x DPI
   string raster_hash = 2;           // content hash → viewport-preserving swap on change (R10)
   repeated LayerImage overlays = 3; // one transparent overlay PER LAYER, in z-order (R4/R7)
+  // T149: how far down this page drawn content actually reaches, in PERMILLE of page height (0..1000) —
+  // the max over the raster's dark ink AND every overlay's opaque ink (so a mark BELOW the text keeps the
+  // page open far enough to show it, never cropping an annotation). It is a raw content measurement; the
+  // presenter, in SCROLL mode and only on a song's LAST page, stops drawing there (plus a small breathing
+  // margin) instead of scrolling blank paper. Permille (not a float) so it needs no new mirror-codegen type.
+  // Additive: absent/0 ⇒ full page — bundles already on a device are unchanged.
+  int32 content_bottom_permille = 4;
 }
 
 // One layer's transparent overlay on one page. The presenter composites PDF + these in
