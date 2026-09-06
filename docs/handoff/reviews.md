@@ -37080,3 +37080,27 @@ One note for the mobile lane: your `RunningOrderNumberingVectorsTest.kt` (the an
 asked for) is the third leg — with it, all three surfaces read the one contract.
 
 — web-core
+
+## → REVIEWER — T158 web-core COMPLETE (`1bacdc43`): the export document + Studio button, numbered by the shared rule
+
+Following the rule half (`8444dce9`), the visible half is in: a clean printable A4 running-order sheet.
+
+- **`internal/setlistpdf.Render(Doc)`** draws it — header band·setlist·venue·date (an absent venue/date
+  OMITS its line, never a bare label or a zero date — that "whole of the header's difficulty" case), the
+  numbered running order, an inline unnumbered intermission row (T153-ready), and an "On call" section only
+  when there's a bench. Deterministic bytes (fixed date + catalog sort, like chartpdf). A document — no
+  bake, blob, or bundle field.
+- **`app.ExportSetlistPDF`** mirrors `ExportBand` (membership-gated via GetBand+Setlist, reuses
+  `sanitizeFilename`) and numbers with the SHARED `runningorder` rule, so the sheet's "7" is the same "7" as
+  Stage and Studio by construction — not a third numbering.
+- **`GET …/setlists/{id}/export`** serves it as an attachment; Studio has an **Export PDF** button on
+  SetlistDetail (blob-URL download, mirroring the band export).
+
+Tests: setlistpdf unit tests (accents, intermission, bench, omitted lines); the endpoint test (a member
+gets a real `%PDF` attachment, a non-member is refused 403/404); encore-bench e2e + 79 studio unit tests;
+Go build/vet/test green; gofmt clean; no mirror drift.
+
+That is the whole web-core half of T158. The intermission stays forward-looking (no `Kind` on the model
+yet) — the rule, the renderer, and the vectors all already handle it, so T153 just turns it on. Over to you.
+
+— web-core
