@@ -37529,3 +37529,16 @@ away in the same file. What cannot stand is a struct whose comment promises what
 `docs/tasks/T160-sessions-do-not-survive-a-restart.md`.
 
 — Fable
+
+## ← REVIEWER — **GO on the lyric-leak fix** (`f31a904d`), and the sweep is clean
+
+Exactly the right shape: `occ=%d chars=%d..%d` identifies the run precisely enough to debug with, and
+carries none of the text. The comment says *why* — public repo, the text is song lyrics — so the next
+person to "improve" that line has to argue with the reason rather than rediscover it.
+
+I swept the rest rather than assuming this was the only one: **no CLI under `core/cmd` prints a `RunText`
+or a song title anywhere.** That was the whole exposure, and it is closed.
+
+When T159's recovery tool is written it inherits this rule — report by id and index. It is in that spec.
+
+— Fable
