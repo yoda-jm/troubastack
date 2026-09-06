@@ -24,8 +24,12 @@ import {
   isNonDraw,
   pointsForTool,
   newUuid,
+  planUndo,
+  pushBounded,
+  UNDO_LIMIT,
   type DrawTool,
   type Tool,
+  type UndoEntry,
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
 import { IconGlyphPalette } from "./IconGlyphPalette";
@@ -143,6 +147,24 @@ export function Viewer({
   // T30 — commit-time notice for client-side declines (rendered through the same
   // alert surface as server rejects; cleared on the next successful commit).
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+  // T161 — per-song, in-session, bounded undo stack of THIS user's actions. Each entry knows how to append
+  // the inverse mutation (undo never rewrites history). Cleared when the song changes (not persisted, not a
+  // document history). setState (not a ref) so the toolbar's disabled state re-renders.
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  useEffect(() => {
+    setUndoStack([]);
+  }, [songId]);
+  // Record one reversible action. Consecutive setStyle on the SAME object coalesce into one entry (a slider
+  // drag is one undo, not fifty) — keep the original `before`, advance `after` to the latest value.
+  const recordUndo = useCallback((entry: UndoEntry) => {
+    setUndoStack((stack) => {
+      const top = stack[stack.length - 1];
+      if (entry.action === "setStyle" && top && top.action === "setStyle" && top.uuid === entry.uuid) {
+        return [...stack.slice(0, -1), { ...top, after: entry.after }];
+      }
+      return pushBounded(stack, entry, UNDO_LIMIT);
+    });
+  }, []);
   // P201 stage 2b: names of the live-mode setlists containing this song (empty = not
   // live). Polled so the editor's LIVE banner reflects an admin toggling it elsewhere.
   const [liveSetlists, setLiveSetlists] = useState<string[]>([]);
@@ -701,6 +723,7 @@ export function Viewer({
           return;
         }
         syncRef.current.createObject(obj);
+        recordUndo({ action: "create", uuid: obj.uuid, layerId, before: null, after: obj }); // T161: undo = delete it
         // T155: a freshly drawn shape must NOT be left selected. While a drawing tool is armed, nothing is
         // selected — the selection box + handles say "you can move me" (you can't, not without the select
         // tool), and for a line or freehand stroke they sit ON TOP of the ink and hide the very mark you
@@ -727,7 +750,7 @@ export function Viewer({
         );
       }
     },
-    [ensureActiveLayer, doc.layers, myUserId, style, activeGlyph],
+    [ensureActiveLayer, doc.layers, myUserId, style, activeGlyph, recordUndo],
   );
 
   // Is THIS object on a layer I may ever edit (owner / rw)? Drives the lock cue
@@ -761,9 +784,11 @@ export function Viewer({
     (obj: AnnotationObject) => {
       if (!syncRef.current) return;
       if (!isObjectEditableNow(obj)) return;
+      const before = doc.objects.find((o) => o.uuid === obj.uuid); // pre-move state, for undo
       syncRef.current.updateObject("move", obj);
+      if (before) recordUndo({ action: "move", uuid: obj.uuid, layerId: obj.layerId, before, after: obj });
     },
-    [isObjectEditableNow],
+    [doc.objects, isObjectEditableNow, recordUndo],
   );
 
   // Commit a resize: send the resized object (resize mutation). Same gate.
@@ -771,9 +796,11 @@ export function Viewer({
     (obj: AnnotationObject) => {
       if (!syncRef.current) return;
       if (!isObjectEditableNow(obj)) return;
+      const before = doc.objects.find((o) => o.uuid === obj.uuid);
       syncRef.current.updateObject("resize", obj);
+      if (before) recordUndo({ action: "resize", uuid: obj.uuid, layerId: obj.layerId, before, after: obj });
     },
-    [isObjectEditableNow],
+    [doc.objects, isObjectEditableNow, recordUndo],
   );
 
   // Live restyle: send a setStyle mutation with the object carrying the new
@@ -783,9 +810,12 @@ export function Viewer({
       if (!syncRef.current) return;
       const obj = doc.objects.find((o) => o.uuid === uuid);
       if (!obj || !isObjectEditableNow(obj)) return;
-      syncRef.current.updateObject("setStyle", { ...obj, style: { ...nextStyle } });
+      const after = { ...obj, style: { ...nextStyle } };
+      syncRef.current.updateObject("setStyle", after);
+      // A live slider fires many of these; recordUndo coalesces consecutive setStyle on one object.
+      recordUndo({ action: "setStyle", uuid, layerId: obj.layerId, before: obj, after });
     },
-    [doc.objects, isObjectEditableNow],
+    [doc.objects, isObjectEditableNow, recordUndo],
   );
 
   // ---- selection-toolbar actions (T27 stage 2) ---------------------------
@@ -815,9 +845,11 @@ export function Viewer({
       const nextOrder =
         dir === "front" ? Math.max(...orders) + 1 : Math.min(...orders) - 1;
       if (nextOrder === (obj.order ?? 0)) return; // already there
-      syncRef.current.reorderObject({ ...obj, order: nextOrder });
+      const after = { ...obj, order: nextOrder };
+      syncRef.current.reorderObject(after);
+      recordUndo({ action: "reorder", uuid, layerId: obj.layerId, before: obj, after });
     },
-    [doc.objects, isObjectEditableNow],
+    [doc.objects, isObjectEditableNow, recordUndo],
   );
 
   // Duplicate the selected object: a copy on the SAME (active editable) layer,
@@ -838,9 +870,10 @@ export function Viewer({
         })),
       };
       syncRef.current.createObject(copy);
+      recordUndo({ action: "create", uuid: copy.uuid, layerId: copy.layerId, before: null, after: copy });
       setSelectedUuids([copy.uuid]);
     },
-    [doc.objects, isObjectEditableNow],
+    [doc.objects, isObjectEditableNow, recordUndo],
   );
 
   // Scroll the page that contains an object into view (objects live on canvas,
@@ -873,25 +906,66 @@ export function Viewer({
       const obj = doc.objects.find((o) => o.uuid === uuid);
       if (!obj || !isObjectEditableNow(obj)) continue;
       syncRef.current.deleteObject(uuid);
+      recordUndo({ action: "delete", uuid, layerId: obj.layerId, before: obj, after: null }); // undo = restore
       deletedAny = true;
     }
     if (deletedAny) setSelectedUuids([]);
-  }, [selectedUuids, doc.objects, isObjectEditableNow]);
+  }, [selectedUuids, doc.objects, isObjectEditableNow, recordUndo]);
 
-  // Delete/Backspace removes the current selection (ignored while typing in a
-  // form field, so the Details inputs below keep working normally).
+  // T161 — undo THIS user's last action by APPENDING the inverse mutation (never rewriting history). It
+  // re-checks permission (T30) and refuses — dropping the entry rather than retrying forever — when a
+  // bandmate changed the object since, so an undo can never overwrite their work. The tool stays armed:
+  // undo is an edit, not a mode change.
+  const undo = useCallback(() => {
+    if (!syncRef.current) return;
+    const top = undoStack[undoStack.length - 1];
+    if (!top) return;
+    const rest = undoStack.slice(0, -1);
+    // Permission re-check at undo time — the layer may have gone read-only since the action.
+    const layer = layersById.get(top.layerId);
+    if (!layer || !isEditableLayer(layer, myUserId, myRole)) {
+      setLocalNotice("Can't undo — that layer is read-only now."); // T30, same alert surface
+      setUndoStack(rest);
+      return;
+    }
+    const current = doc.objects.find((o) => o.uuid === top.uuid);
+    const plan = planUndo(top, current);
+    if (plan.do === "refuse") {
+      setLocalNotice(
+        plan.reason === "changed"
+          ? "Can't undo — someone else changed this since."
+          : "Nothing to undo there — it's already gone.",
+      );
+      setUndoStack(rest);
+      return;
+    }
+    if (plan.do === "delete") syncRef.current.deleteObject(plan.uuid);
+    else if (plan.do === "restore") syncRef.current.updateObject("restore", plan.object); // KindRestore revives (I5)
+    else syncRef.current.updateObject(plan.kind, plan.object);
+    setLocalNotice(null);
+    setUndoStack(rest);
+  }, [undoStack, doc.objects, layersById, myUserId, myRole]);
+
+  // Delete/Backspace removes the current selection; Ctrl/Cmd+Z undoes. Both ignored while typing in a
+  // form field, so the Details inputs below keep working normally.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== "Delete" && e.key !== "Backspace") return;
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      if (typing) return;
+      if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (selectedUuids.length === 0) return;
       e.preventDefault();
       deleteSelected();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedUuids, deleteSelected]);
+  }, [selectedUuids, deleteSelected, undo]);
 
   // Drop any selected uuids whose objects have disappeared (deleted remotely).
   useEffect(() => {
@@ -1035,6 +1109,21 @@ export function Viewer({
         <span className="tb-divider" aria-hidden="true" />
 
         <EditorToolbar part="tools" {...toolbarProps} />
+
+        {/* T161 — undo lives in the always-visible top bar (the contextual style pill hides when no tool/
+            selection is active, so undo can't live there). Disabled, not hidden, when the stack is empty,
+            so it doesn't appear and disappear under the thumb. */}
+        <button
+          type="button"
+          className="icon-btn undo-btn"
+          data-testid="undo"
+          onClick={undo}
+          disabled={undoStack.length === 0}
+          title="Undo your last change (Ctrl/Cmd+Z)"
+          aria-label="Undo your last change"
+        >
+          ↶
+        </button>
 
         <span className="tb-spring" />
 

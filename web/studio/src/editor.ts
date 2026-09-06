@@ -711,3 +711,98 @@ export function objectLabel(obj: AnnotationObject): string {
   }
   return obj.type;
 }
+
+// ---- T161: undo -------------------------------------------------------------
+// Undo APPENDS the inverse mutation to the append-only engine — it never rewrites, removes, or rolls back
+// history (an undo looks like any other edit, so sync/layers/bake/anchors keep their meaning). The stack is
+// per user, per song, in-session and bounded. Each entry records how to reverse ONE of this user's actions,
+// plus the object as they LEFT it, so undo can refuse when a bandmate has changed it since (rule 2) — done
+// by content comparison against the live doc, needing nothing new on the wire.
+
+/** The per-song undo stack is bounded; older entries fall off. 50 is plenty for a session. */
+export const UNDO_LIMIT = 50;
+
+/** The user actions undo can reverse. Marks on the page only — layer create/update/delete/reorder are out
+ *  of scope for T161. */
+export type UndoActionKind = "create" | "move" | "resize" | "setStyle" | "setText" | "reorder" | "delete";
+
+/** One reversible action by THIS user. `before` is the object as it was BEFORE the action (what the inverse
+ *  restores); `after` is the object as this user LEFT it (the content guard compares the live object to it,
+ *  and it is the forward value a future redo would replay — recorded now so redo is an addition, not a
+ *  rewrite). For a create, before is null (inverse = delete); for a delete, after is null (inverse =
+ *  restore `before`). */
+export type UndoEntry = {
+  action: UndoActionKind;
+  uuid: string;
+  layerId: string;
+  before: AnnotationObject | null;
+  after: AnnotationObject | null;
+};
+
+/** What undo should do for an entry, given the object's CURRENT state in the live doc. "refuse" carries
+ *  why: "changed" = a bandmate mutated it since this user's action (rule 2 — do not overwrite their work),
+ *  "gone" = it is already absent, so there is nothing to reverse. */
+export type UndoOutcome =
+  | { do: "delete"; uuid: string }
+  | { do: "restore"; object: AnnotationObject }
+  | { do: "update"; kind: Exclude<UndoActionKind, "create" | "delete">; object: AnnotationObject }
+  | { do: "refuse"; reason: "changed" | "gone" };
+
+function styleEqual(a: AnnotationStyle, b: AnnotationStyle): boolean {
+  return (
+    a.color === b.color &&
+    a.opacity === b.opacity &&
+    a.width === b.width &&
+    a.fontSize === b.fontSize &&
+    (a.fill ?? undefined) === (b.fill ?? undefined) &&
+    (a.stroke ?? undefined) === (b.stroke ?? undefined) &&
+    (a.blend ?? undefined) === (b.blend ?? undefined)
+  );
+}
+
+/** Compare the USER-controlled content of two objects — everything the inverse would restore, and nothing
+ *  the server stamps (createdAt) or that is not on the wire object (version). This is the T161 rule-2 guard:
+ *  if the live object no longer matches what this user left, a bandmate changed it since. */
+export function objectContentEqual(a: AnnotationObject, b: AnnotationObject): boolean {
+  if (a.layerId !== b.layerId || a.type !== b.type || a.page !== b.page) return false;
+  if ((a.order ?? 0) !== (b.order ?? 0)) return false;
+  if ((a.text ?? "") !== (b.text ?? "")) return false;
+  if (!styleEqual(a.style, b.style)) return false;
+  if (a.points.length !== b.points.length) return false;
+  for (let i = 0; i < a.points.length; i++) {
+    if (a.points[i].x !== b.points[i].x || a.points[i].y !== b.points[i].y) return false;
+  }
+  return true;
+}
+
+/** Decide what undo does for `entry`, given the object's current state in the live doc (undefined if it no
+ *  longer exists). Pure — the caller performs the T30 permission re-check and dispatches the returned
+ *  mutation. Removing the objectContentEqual guard here collapses "changed" into an apply, which is exactly
+ *  the shared-canvas harm rule 2 prevents (the T161 teeth). */
+export function planUndo(entry: UndoEntry, current: AnnotationObject | undefined): UndoOutcome {
+  switch (entry.action) {
+    case "create":
+      // Inverse = delete. Only if the object still exists AND is unchanged since this user made it.
+      if (!current) return { do: "refuse", reason: "gone" };
+      if (!entry.after || !objectContentEqual(current, entry.after)) return { do: "refuse", reason: "changed" };
+      return { do: "delete", uuid: entry.uuid };
+    case "delete":
+      // Inverse = restore the object as it was. Only if it is still absent (nobody re-created/restored it).
+      if (current) return { do: "refuse", reason: "changed" };
+      if (!entry.before) return { do: "refuse", reason: "gone" };
+      return { do: "restore", object: entry.before };
+    default:
+      // move / resize / setStyle / setText / reorder: inverse = re-apply the previous value, only if the
+      // live object still matches what this user left it as.
+      if (!current) return { do: "refuse", reason: "gone" };
+      if (!entry.after || !objectContentEqual(current, entry.after)) return { do: "refuse", reason: "changed" };
+      if (!entry.before) return { do: "refuse", reason: "gone" };
+      return { do: "update", kind: entry.action, object: entry.before };
+  }
+}
+
+/** Push onto a bounded stack, returning a NEW array (drops the oldest beyond `limit`). */
+export function pushBounded<T>(stack: readonly T[], entry: T, limit: number): T[] {
+  const next = [...stack, entry];
+  return next.length > limit ? next.slice(next.length - limit) : next;
+}
