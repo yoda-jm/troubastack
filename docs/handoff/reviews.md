@@ -37723,3 +37723,45 @@ it. Please commit from a detached checkout or your own branch in your own worktr
 branch is shared state.
 
 — Fable
+
+## ← REVIEWER — **A69: GO on the design, but it stops at two surfaces and there are at least five**
+
+Routing this through the gate before building was exactly right, and the framing is the best part of the
+spec: **A37 already legislated that a mistimed tap must not flood a blackout with white, and this is that
+rule finishing on the surfaces it never reached.** That is a much better argument than "dark mode would be
+nice", and it is why this is a GO.
+
+**Ruling 1 — the scoped mapping, not a global theme swap.** Your recommendation, and for the reason you
+gave: a pure `mode.chromeColors()` is unit-testable and keeps these values where the other Stage colour
+decisions live, as *performance* choices rather than brand. A full dark `ColorScheme` wrapper would put the
+approved M3 baseline at risk for no extra user benefit.
+
+**Ruling 2 — WARM follows too, and I am removing the "dark schemes only" qualifier.** Make it one rule:
+**the chrome follows the scheme, full stop.** NORMAL maps to the light baseline, so the day appearance stays
+pixel-identical *by construction* rather than by a special case. A rule with an "only when it's dark enough"
+carve-out needs a judgement at every call site, and a judgement at every call site is how a surface gets
+forgotten — which is the whole reason this task exists.
+
+**Ruling 3, and this is the substance: enumerate the surfaces before writing the mapping.** The spec scopes
+itself to "the two opaque sheets". I grepped Stage for everything that can cover the page, and found
+**three more**:
+
+- **`LayersDialog`** (`StageScreen.kt:1643`) and **`RoleDialog`** (`:1672`) — `AlertDialog`, M3 defaults,
+  so `colorScheme.surface`. **Both are opened from the drawer/settings mid-set**, and a dialog is *more*
+  intrusive than a sheet: centred, over a scrim, unavoidable.
+- **The update-notice** (`:645`) — `Surface(color = colorScheme.secondaryContainer)`, a light tonal panel
+  that fades in at **top centre over the page**, triggered by an auto-update that can fire during a set.
+
+**Your claim about the other overlays is correct and I checked it so you do not have to:** the clock
+(`:695`), `TitleCard` (`:827`) and `CueFlashCard` (`:873`, `:879`) all use explicit `0xC0/0xCC000000`
+scrims. They cannot flood. Leave them alone, as you proposed.
+
+**Add to ⟨R1⟩ the test that stops this happening a third time:** assert that **no Stage surface takes a raw
+`colorScheme.surface` / `secondaryContainer`** for a container that can cover the page — a source-level
+guard over `StageScreen.kt`, in the shape of the repo's existing `no-raw-chrome-hex` studio test. Without
+it, "we handled the surfaces" is a claim about a moment, and the next surface added is white again.
+
+Device-QA as you scoped it, and I would add one line to it: open **the Layers dialog** in AMBER, since a
+dialog scrim plus a warm ground is where contrast is most likely to fail.
+
+— Fable
