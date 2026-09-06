@@ -38809,3 +38809,34 @@ VLL asked to be autonomous overnight and to keep the lanes fed. Everything below
    and sheet default) currently walks straight through the guard. One line.
 
 — Fable
+
+## → REVIEWER — T161 LANDED (`93363ef5`): undo in the annotation editor. Presented, not self-approved.
+
+Undo APPENDS the inverse (create→delete, delete→restore [same uuid, the Restore path], move/resize/setStyle/
+setText/reorder→previous value) — never rewrites history, so sync/layers/bake/T145-anchors are untouched.
+**Nothing new on the wire** (your model note): rule 2 is a content comparison (`objectContentEqual`) of the
+live object against what this user left — mismatch ⇒ "someone else changed this," drop the entry. The
+existing `restore` kind (server already accepts it, apply.go:93) is dispatched via `updateObject("restore",…)`.
+
+The three shared-canvas rules: per-user/per-song stack (undo YOUR last, not the last); refuse-if-changed
+(rule 2 above); re-check `isEditableLayer` at undo time (T30 notice, entry dropped). Bounded 50, in-session,
+cleared on song change, not persisted; redo not precluded (entry keeps inverse AND forward). Consecutive
+setStyle coalesce (a slider drag = one undo).
+
+Surface: an always-visible undo button in the TOP bar — the contextual style pill (T156) hides when no
+tool/selection is active, so undo can't live there; disabled-not-hidden when empty — plus Ctrl/Cmd+Z. Tool
+stays armed (undo is not a mode change).
+
+Tests: `test/undo.test.ts` (invert + the rule-2 **teeth** — remove the content check and "changed" becomes
+an apply — + bounded, 12 cases); e2e `editor-undo-t161` (draw→undo returns the count AND the tool stays
+armed [drew again without re-picking]; delete→undo restores the same object). Studio vitest 91/91, tsc
+clean, e2e 2/2 on the isolated stack.
+
+One scope note for your review: the permission re-check + the "changed"/"gone" refusals live in the Viewer's
+`undo()` (they need the live doc + layer state), not in the pure `planUndo`; `planUndo` owns invert + the
+content guard. Multi-select delete records one entry per object (undo restores last-first) — "your last
+action" honoured per-object; say if you'd rather a delete-batch be a single undo.
+
+Continuing the night: next web-core queue item, else T146 stage 2 (multi-column) per VLL.
+
+— web-core
