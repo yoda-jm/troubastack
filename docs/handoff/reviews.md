@@ -38703,3 +38703,76 @@ the wall-anchored format.
   follow-up to drop the "Song N" wording for a break; flagging, not fixing now.
 
 — Mobile
+## ⟨GO⟩ `1a9db91b` — T162 fix-forward, the ASCII fallback folds accents
+
+**GO.** It closes exactly the gap I left open when I GO'd T162: an accented input is now asserted on the
+**quoted** `filename` (`Café Zoë.pdf` → `Cafe Zoe.pdf`) *and* on `filename*` round-tripping the original, so
+the fallback is finally covered by a test rather than by hope. Verified locally: `go test ./internal/httpapi`
+ok, `gofmt` clean.
+
+**One finding, not a blocker — the mechanism does not generalise.** The fold is a hand-written map, so the
+letters outside it are still *deleted*, which is the same defect VLL reported, in another alphabet. Measured,
+not guessed:
+
+| input | today |
+|---|---|
+| `Přítel`, `Dvořák`, `Håkan` | `Pritel`, `Dvorak`, `Hakan` ✅ |
+| `Mąka` | **`Mka`** |
+| `Węgiel` | **`Wgiel`** |
+| `Þór` | **`or`** |
+
+The generic form is NFD-normalise then drop the combining marks, which folds all of Latin Extended-A with no
+map to maintain (ß/æ/œ/þ still need the small map, they do not decompose). **Cost to know before choosing:**
+`golang.org/x/text` is in `go.sum` but **not** in `go.mod` — it is an indirect dependency today, so this
+means promoting it to direct. That is a real decision, not a free import, which is why I am filing it rather
+than asking for it now. Polish/Icelandic names are not in his world today; if they never are, the map is
+fine and this stays closed.
+
+## ⟨GO⟩ `64686a2a` — A69, Stage chrome follows the reading scheme
+
+**GO.** I checked the code rather than the commit message, because a GO is a claim too and my last one cost
+main two hours. All three rulings hold:
+
+- **Ruling 1** — `stageChromePalette` is pure, lives beside `pageColorFilter`/`pagePlaceholder`, `NORMAL`
+  returns `null` ⇒ the M3 baseline verbatim, so day is pixel-identical *by construction*.
+- **Ruling 2** — no carve-out; AMBER's ink is asserted warm (`red > blue + 0.2`), NIGHT/AMBER asserted
+  actually dark. The teeth are right: "fix" it by returning a light surface and the test reddens.
+- **Ruling 3 — five surfaces, and I counted them in the file:** update notice `:669`, settings sheet `:969`,
+  drawer `:1211`/`:1536`, and **both** dialogs `:1699` and `:1732` (plus the role field `:1666`). The
+  scrollbar's raw-token *default parameter* at `:1229` is dead — the only call site `:1192` passes
+  `chrome.onSurfaceVariant`.
+
+Verified green locally: `:shared:testDebugUnitTest` exit 0.
+
+**Finding 1 — the guard is narrower than its own docstring.** `NoRawChromeSurfaceTest` forbids
+`colorScheme.(surface|secondaryContainer|surfaceVariant)\b`. The `\b` means **`surfaceContainerHigh`,
+`surfaceContainer`, `surfaceContainerHighest` and `background` all pass** — and `surfaceContainerHigh` is
+M3's *own* default container token for `AlertDialog` and `ModalBottomSheet`. So the single most likely next
+mistake is the one the guard does not see. Widening the alternation is a one-line change and worth it: a
+guard is only worth what it is scoped to.
+
+**Finding 2 — and this is the one that matters tonight: the black VLL keeps seeing is NOT chrome.** A69
+could not have fixed it. It is a colour **literal** at `StageScreen.kt:523`:
+
+```kotlin
+Box(Modifier.fillMaxSize().background(Color.Black)   // N3/N8: the page floats on a BLACK canvas
+```
+
+invisible to the guard, which looks for `colorScheme.*` tokens. It shows only when the page does not fill
+the viewport — which is precisely his three sightings. **And the per-scheme ground already exists:**
+`pagePlaceholder()` (near-paper `#EDEDED` in NORMAL, cream in WARM, dark in NIGHT/AMBER), already used at
+`:1481`. So I was wrong in my earlier note when I said all three sightings hang off A69's colour source —
+**two of them hang off this one literal**, and fixing it is one change, not three. T165 is updated with the
+line number, the right source, and the teeth: assert it in **NORMAL**, where black is wrong and near-paper is
+right; a NIGHT-only assertion passes on the bug.
+
+## ⚠ Both code commits landed with their CI **cancelled**
+
+`64686a2a` and `1a9db91b` each had their run cancelled by the gate note pushed seconds later
+(`concurrency: cancel-in-progress`). Neither has a green run of its own. I checked before worrying: there is
+**no workflow-level `paths:` filter**, so the run now pending on `adf07f5a` does execute `go` and `android`
+over the whole tree and will cover them — and I ran both suites locally in the meantime, green. No action
+needed this time. But the habit is a trap: **batch the gate note with the code push, or wait for green**,
+or one day the covering run will be another docs-only push that someone cancels too.
+
+— Fable

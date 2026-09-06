@@ -59,10 +59,27 @@ will now contain **one landscape page among portrait ones**. That is acceptable 
 in a printed set too — but it must be a decision, not a surprise, and the composer must not stretch it to
 portrait to "fix" it. The T158 running-order sheet is unaffected: there, a break is a text row.
 
-**And the filler must not be black.** VLL: *"et encore il y a du noir en bas"* even in portrait. A fitted
-portrait page on a landscape screen leaves large margins; they are currently **pure black** on a white
-page. Take the surround from the scheme (A69's `chromeColors()` or its successor), never a literal — the
-same trap T164 flags. On a light scheme it should read as paper or a quiet neutral, not as a hole.
+**And the filler must not be black.** VLL: *"et encore il y a du noir en bas"*, and then *"ok pour ficher
+le noir."* **I have now located it, and it is not chrome — so A69 did not and could not fix it.** The
+surround is the page canvas at `StageScreen.kt:523`:
+
+```kotlin
+Box(Modifier.fillMaxSize().background(Color.Black)   // N3/N8: "the page floats edge-to-edge on a BLACK canvas"
+```
+
+A hardcoded `Color.Black`, invisible to A69's guard because that guard looks for raw `colorScheme.*`
+tokens and this is a colour literal. It only shows when the page does not fill the viewport — which is
+**exactly** the three cases he reported: a fitted break card, a trimmed scroll page, a short page.
+
+**The per-scheme ground already exists: `StageColorMode.pagePlaceholder()`** — near-paper `#EDEDED` in
+NORMAL, cream in WARM, dark in NIGHT/AMBER — already used at `:1481` for the decode placeholder, and
+already correct for exactly this job. Take the canvas ground from it. **Do not** take it from A69's
+`stageChromePalette()`: that is the palette for *chrome* (drawer, sheets, dialogs), and the surround
+around a page is *page ground*. Using the chrome surface here would look right by accident in NIGHT and
+wrong in NORMAL.
+
+**This one change also closes T149's trim surround**, which is the same canvas — so do it once, here, and
+say so on both tasks rather than fixing black twice.
 
 ## Not in scope, deliberately
 
@@ -81,6 +98,10 @@ presentation.
   consume.
 - A song's page is **unchanged** in all three modes — this must not leak into normal pages.
 - The surround colour comes from the scheme, asserted different between a light and a dark scheme.
+- **The canvas ground is `pagePlaceholder(mode)`, not `Color.Black`.** Teeth: a test that only asserted
+  "the surround is not black in NIGHT" would pass on the bug, because NIGHT's ground is dark anyway —
+  assert it in **NORMAL**, where the current literal is black and the correct value is near-paper. That is
+  the assertion the defect actually fails.
 
 ## Done means
 
