@@ -1901,3 +1901,25 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
 .route-fallback, .route-error { display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: .6rem; min-height: 60vh; text-align: center; padding: 2rem; }
 .route-error h2 { margin: 0; }
+
+/* T153 — an intermission's label is edited in place on its setlist row. It is a real input, but it must
+   read as the row's title, not as a form field dropped into a list: no box until you touch it, the same
+   weight as a song title beside it, and a visible focus ring so keyboard users can see where they are. */
+.intermission-label {
+  font: inherit;
+  font-style: italic;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: .1rem .35rem;
+  min-width: 12ch;
+}
+.intermission-label:hover { border-color: var(--border); }
+.intermission-label:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+  border-color: transparent;
+  color: var(--text);
+  font-style: normal;
+}

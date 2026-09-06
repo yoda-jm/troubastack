@@ -17,7 +17,7 @@ import {
   type Song,
   type SongCue,
 } from "../api";
-import { runningOrderNumbers } from "../runningOrder";
+import { runningOrderNumbers, isIntermission } from "../runningOrder";
 import { useDialogs } from "../components/Dialog";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { CueGlyph } from "../components/CueGlyphs";
@@ -516,6 +516,34 @@ function Items({
     }
   }
 
+  // T153: a break in the running order. It rides the SAME "add to the setlist" endpoint as a song,
+  // discriminated by kind — so there is one way to append to a setlist, not two. The label is left
+  // EMPTY on purpose: the band names its own break, and an empty one falls back to the presenter's
+  // default rather than the editor inventing a word here.
+  async function addIntermission() {
+    setError(null);
+    setBusy(true);
+    try {
+      await api.addSetlistIntermission(bandId, setlistId, "");
+      await reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to add an intermission");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // T153: rename a break. Same PATCH the other per-item overrides use.
+  async function relabel(itemId: string, label: string) {
+    setError(null);
+    try {
+      await api.updateSetlistItem(bandId, setlistId, itemId, { label });
+      await reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to rename the intermission");
+    }
+  }
+
   async function remove(itemId: string) {
     setError(null);
     try {
@@ -535,7 +563,7 @@ function Items({
   // so it means the same "7" as the Stage drawer and the printed export — and stays correct when an
   // intermission (T153) enters the running order inline, which a bare index would miscount.
   const orderNumbers = runningOrderNumbers(
-    items.map((it) => ({ kind: (it as { kind?: string }).kind ?? "song", onCall: !!it.onCall })),
+    items.map((it) => ({ kind: it.kind ?? "song", onCall: !!it.onCall })),
   );
   const numberById = new Map(items.map((it, i) => [it.id, orderNumbers[i]]));
 
@@ -630,6 +658,7 @@ function Items({
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
+              onRelabel={(id, l) => void relabel(id, l)}
               reload={reload}
             />
           ))}
@@ -666,6 +695,7 @@ function Items({
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
+              onRelabel={(id, l) => void relabel(id, l)}
               reload={reload}
             />
           ))}
@@ -690,6 +720,16 @@ function Items({
         <button type="submit" data-testid="add-item" disabled={busy}>
           Add to order
         </button>
+        {/* T153: a break is not a song, so it gets its own action rather than a disguised entry in the
+            song list — a "— Intermission —" option would sit among real songs and sort with them. */}
+        <button
+          type="button"
+          data-testid="add-intermission"
+          onClick={() => void addIntermission()}
+          disabled={busy}
+        >
+          Add an intermission
+        </button>
       </form>
 
       <div style={{ padding: "0 1.25rem 1rem" }}>
@@ -711,6 +751,7 @@ function ItemRow({
   onMove,
   onRemove,
   onSetOnCall,
+  onRelabel,
   rowProps,
   gripProps,
   dragOver,
@@ -727,6 +768,7 @@ function ItemRow({
   onMove: (group: "main" | "bench", index: number, dir: -1 | 1) => void;
   onRemove: (itemId: string) => void;
   onSetOnCall: (itemId: string, onCall: boolean) => void;
+  onRelabel: (itemId: string, label: string) => void;
   rowProps: SortableRowProps;
   gripProps: GripProps;
   dragOver: boolean;
@@ -808,14 +850,31 @@ function ItemRow({
               draggable=false stops the browser's own anchor-drag. A real <Link> gives
               middle/ctrl-click + keyboard for free (hover-only affordance, no blue noise). */}
           {label}{" "}
-          <Link
-            to={`/bands/${bandId}/songs/${item.songId}`}
-            className="item-title-link"
-            data-testid="item-title-link"
-            draggable={false}
-          >
-            {item.songTitle ?? item.songId}
-          </Link>
+          {isIntermission(item) ? (
+            // T153: a break has no song, so it must NOT render a link to /songs/<empty> — that would be
+            // a dead route dressed as a title. Its label is editable in place: renaming a break is the
+            // only thing you can do to it, so it should not need a dialog.
+            <input
+              className="intermission-label"
+              data-testid="item-intermission-label"
+              aria-label="Intermission label"
+              defaultValue={item.label ?? ""}
+              placeholder="Intermission"
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                if (next !== (item.label ?? "")) onRelabel(item.id, next);
+              }}
+            />
+          ) : (
+            <Link
+              to={`/bands/${bandId}/songs/${item.songId}`}
+              className="item-title-link"
+              data-testid="item-title-link"
+              draggable={false}
+            >
+              {item.songTitle ?? item.songId}
+            </Link>
+          )}
         </div>
         {item.songArtist && <div className="by">{item.songArtist}</div>}
         {cues && cues.length > 0 && (
@@ -828,21 +887,30 @@ function ItemRow({
       </div>
 
       <div className="tags">
-        {item.keyOverride && <span className="chip mono">{item.keyOverride}</span>}
-        {item.tempoOverride ? <span className="chip mono">{item.tempoOverride} bpm</span> : null}
+        {/* T153: a break carries no musical overrides. They are empty on one today, but saying so
+            keeps a future "show something here" from quietly applying to breaks too. */}
+        {!isIntermission(item) && item.keyOverride && <span className="chip mono">{item.keyOverride}</span>}
+        {!isIntermission(item) && item.tempoOverride ? (
+          <span className="chip mono">{item.tempoOverride} bpm</span>
+        ) : null}
       </div>
 
       <div className="rowacts">
-        <button
-          type="button"
-          className="icon-btn"
-          data-testid="item-edit"
-          title="Edit key / tempo / notes"
-          aria-expanded={editing}
-          onClick={() => setEditing((v) => !v)}
-        >
-          ✎
-        </button>
+        {/* T153: a break has no key, tempo or chart, so the musical editor is not offered for one.
+            Move/remove stay — reordering and deleting a break are exactly what you do to it. Its own
+            editable field is the label, in place on the row. */}
+        {!isIntermission(item) && (
+          <button
+            type="button"
+            className="icon-btn"
+            data-testid="item-edit"
+            title="Edit key / tempo / notes"
+            aria-expanded={editing}
+            onClick={() => setEditing((v) => !v)}
+          >
+            ✎
+          </button>
+        )}
         <button
           type="button"
           className="icon-btn"

@@ -192,6 +192,12 @@ export type SetlistItem = {
   notes?: string;
   // T23: a bench/on-call item — baked + jumpable on Stage, outside the running order.
   onCall?: boolean;
+  // T153: what this entry IS. Absent ⇒ a song — every item written before T153 has no kind,
+  // and that default is what keeps the field additive. Read it through isIntermission().
+  kind?: string;
+  // T153: an intermission's own words, shown in the running order and on its baked page.
+  // Empty is allowed; the presenter supplies the default rather than the editor inventing one.
+  label?: string;
   songTitle?: string;
   songArtist?: string;
   // T60: burn the chart transposed to keyOverride at bake. songKey/hasChart are view
@@ -207,6 +213,7 @@ export type SetlistItemPatch = {
   notes?: string;
   onCall?: boolean;
   transposeChords?: boolean;
+  label?: string; // T153: rename an intermission (meaningless on a song)
 };
 
 /** A baked concert (the proto AvailableConcert shape, B03) — 64-bit ints arrive as
@@ -749,6 +756,15 @@ export const api = {
       "POST",
       `/api/bands/${bandId}/setlists/${setlistId}/items`,
       { songId },
+    ).then((r) => r.item),
+
+  // T153: the SAME "add to the setlist" endpoint, discriminated by kind — a break has no song.
+  // Kept as its own function so no caller has to remember the discriminator's spelling.
+  addSetlistIntermission: (bandId: string, setlistId: string, label: string) =>
+    request<{ item: SetlistItem }>(
+      "POST",
+      `/api/bands/${bandId}/setlists/${setlistId}/items`,
+      { kind: "intermission", label },
     ).then((r) => r.item),
 
   updateSetlistItem: (

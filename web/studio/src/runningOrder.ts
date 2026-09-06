@@ -9,6 +9,17 @@
 // docs/contracts/running-order-numbering.vectors.json — as a test (see test/running-order-numbering.test.ts)
 // so they cannot silently diverge. The display number is DERIVED, never persisted.
 
+/**
+ * T153 — the ONE place Studio decides what a setlist entry IS. Absent ⇒ a song, because every entry
+ * written before T153 has no kind and must keep its meaning (the additive contract). Call sites must
+ * not compare the string themselves, so the default is stated once and cannot drift — the same rule
+ * Go states in SetlistItem.IsIntermission and Kotlin in BAKED_KIND_INTERMISSION.
+ */
+export const KIND_INTERMISSION = "intermission";
+export function isIntermission(entry: { kind?: string }): boolean {
+  return entry.kind === KIND_INTERMISSION;
+}
+
 export type RunningOrderEntry = {
   kind: string; // "song" | "intermission"
   onCall: boolean; // applies only to a song
