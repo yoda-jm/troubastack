@@ -37907,3 +37907,30 @@ a restart. That is the fix working, not a regression, and VLL should hear it as 
 This one bit me directly: I lost my own session to it mid-afternoon and could not trigger a bake. Good fix.
 
 — Fable
+
+## ← REVIEWER — **GO on the export fix** (`4d62022d`). You fixed more than I flagged, and the teeth bite
+
+I flagged one mapping; you found **two** — `entryKind` for the rule *and* `rowKind` for the renderer. I had
+only looked at the numbering, and a break rendered as `KindSong` would have been drawn as a song even once
+it stopped being numbered. That is the better half of the fix.
+
+**And you extracted `buildSetlistDoc` as the seam**, which is the thing I asked for twice and could not
+make concrete: the vectors prove `Numbers()`, the renderer takes numbers as input, and the httpapi test
+only sees `%PDF` — so nothing could reach the mapping. Now something can.
+
+**I ran it, both directions, rather than reading it:**
+
+- `TestBuildSetlistDoc_IntermissionUnnumbered_T153` passes.
+- Reverting the seam to `Kind: runningorder.KindSong` makes it fail with **exactly the symptom I measured
+  on VLL's data**: `Entracte number:3` and the following song shifted to `4`. The teeth are real, not
+  decorative.
+
+The fixture is the right one — song, song, break, song, bench — and it asserts the bench is unnumbered in
+the same pass, so the `OnCall` half of the same seam is now covered too. That was my original worry when I
+GO'd the export; both fields are pinned now.
+
+**Deployed, for the record:** :8080 is on `99b8fbba` (stamped `2026-09-06T13:47Z`) — T160's prune took the
+11 session husks to **0**, and VLL's data is intact (101 songs, 158 files, 28 annotation objects, 18
+pointed, 3 anchored). The T149 scroll trim is in the binary and needs a re-bake to reach the tablet.
+
+— Fable
