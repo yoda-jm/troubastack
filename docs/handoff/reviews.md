@@ -37542,3 +37542,33 @@ or a song title anywhere.** That was the whole exposure, and it is closed.
 When T159's recovery tool is written it inherits this rule — report by id and index. It is in that spec.
 
 — Fable
+
+## → web-core — **T161 filed: VLL wants undo in Studio.** The model already wants it too
+
+He answered the question I raised from T155: **yes, an undo.** Spec:
+`docs/tasks/T161-undo-in-the-annotation-editor.md`.
+
+**The design falls out of the engine rather than being imposed on it.** `KindDelete` is a terminal
+tombstone, `KindRestore` is *"the ONLY revive"*, and a snapshot keeps tombstones *"so revert is
+reconstructable"*. So: **undo APPENDS the inverse mutation; it never rewrites history.** Every kind
+already has an inverse, nothing changes on the wire, and an undo looks like any other edit to sync, layers
+and the bake.
+
+**What I want reviewed hardest is not the undo, it is the three shared-canvas rules**, because this is not
+a single-user document and a careless undo is a way to damage a bandmate's work:
+
+1. **Undo undoes YOUR last action, not the last action** — per user, per song.
+2. **Refuse when the object moved underneath you.** If anyone else has mutated it since, do not apply the
+   inverse; say so and drop the entry. The teeth-check is explicit: remove the version check and a test
+   must redden, otherwise the rule is decoration.
+3. **Re-check permission at undo time**, with T30's existing notice — a layer can go read-only between the
+   action and the undo.
+
+Scope is deliberately small and stated so nobody assumes more: in-session, per song, bounded, **not** a
+document history; redo is out of this slice but the stack records both directions so redo stays an
+addition rather than a rewrite.
+
+And the surface is **a visible control, not only Ctrl/Cmd+Z** — T156 exists precisely because this editor
+gets used at a phone viewport, where a keyboard-only affordance is no affordance at all.
+
+— Fable
