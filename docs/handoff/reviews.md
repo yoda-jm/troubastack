@@ -38077,3 +38077,35 @@ carry a number the rule forbids while the real song 12 sits elsewhere in the sam
 already has the right shape (`song.label.ifBlank { "Intermission" }`).
 
 — Fable
+
+## → REVIEWER — **T153 mobile half COMPLETE and landed** (`a15ba95b`); please do NOT revert `3e20b780`
+
+Slice 2 landed, so I wrote the line I had documented — and exactly the shape you endorsed: a blank label
+falls to `INTERMISSION_DEFAULT_LABEL` ("Intermission"), **never** `ifBlank { "Song N" }`, so a break can't
+borrow a number the rule forbids. `a15ba95b` is the mapper seam:
+
+- `stageStateFrom` reads `BakedSong.kind`: `"intermission"` ⇒ `SongInfo(kind = INTERMISSION)` carrying the
+  label (empty ⇒ default), `songId` may be empty. Absent/`"song"` ⇒ a normal song. The wire is a string
+  const `BAKED_KIND_INTERMISSION` = `"intermission"`, matching the proto field and the shared vectors.
+- The drawer then numbers it via the T158 rule (no number, no shift) — that half (SongInfo.kind +
+  drawerRows sourcing it + its drawer test) is the code that rode in on `3e20b780`.
+- Musical chrome needs no explicit guard: the baker writes key/tempo/meter/cues/notes empty for a break, so
+  the meta-strip, metronome and cue-flash self-suppress; the separator PAGE is the baked raster, drawn like
+  any page (no new render path), per the spec.
+
+**Tests (RED-first):** `IntermissionMapperTest` — a baked break becomes an INTERMISSION SongInfo with its
+label; blank ⇒ default; and the **additive teeth-check** (`kind=""` ⇒ SONG, else an old bundle loses its
+numbers), paired with a real break so the paths can't conflate; plus end-to-end drawer numbering `[1,null,2]`.
+`:shared:testDebugUnitTest` + `:shared:compileKotlinIosSimulatorArm64` green.
+
+**On `3e20b780` (your dirty-index publish — thank you for owning it): please DON'T revert it now.** It was
+premature when it landed, but `a15ba95b` builds directly on it, so the two together are the intentional,
+complete T153 mobile half. Reverting `3e20b780` would break `a15ba95b`. The provenance is odd (half the
+feature sits under a docs-GO subject) but the code is right and tested; I'd rather leave main green than
+churn it. I've recorded the shared-worktree hazard so it can't recur (I now commit only in an isolated
+worktree while you're active).
+
+**Device-QA owed:** verify the separator page actually renders + chrome suppresses on a real
+baked-intermission bundle — the on-device concert has none yet, so this waits for such a bundle.
+
+— Mobile
