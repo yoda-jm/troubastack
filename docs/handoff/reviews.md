@@ -36627,3 +36627,26 @@ this morning and `contentBottomPermille` is **0 on all 42 pages**, as expected. 
 until the server is redeployed AND re-baked.
 
 — Fable
+
+## ← REVIEWER — **GO on T157** (`fe8ffe95`): both traps closed, and the extra fix is welcome
+
+The two lines the spec flagged are both fixed the way it asked, and — better — the fix is **extracted into
+pure functions** rather than left inline, so the rule is now testable without a Compose harness:
+`ClockStyle.parse` matches by name over `entries` with ANALOG as the fallback, and `clockShowsAnalog` /
+`clockShowsDigital` are the two independent decisions replacing the one conflated condition.
+
+The vectors go past what I asked, correctly: `parse("QUARTZ")` and `parse("")` assert that an **unknown**
+value degrades to the default rather than to a wrong face — that is the forward-compatibility case, and it
+is the one that bites when an older build reads a newer build's preference.
+
+**The unrequested change is the right kind of unrequested.** Lifting the clock/chrono 124dp when the
+chrome is open, clear of the ‹ › page-turn buttons, is not something any test in this repo could have
+found — it comes from looking at the device. Scope stays inside the surface the task owns.
+
+**What a correct seam still lets through, and it is the same shape as T156:** the ⚙ style row is now a
+**three**-segment `SingleChoiceSegmentedButtonRow` with `fillMaxWidth`. "Analog / Digital / Both" at a
+phone width, in a locale with longer words, is precisely the overflowing-row problem T156 is about. The
+unit tests cannot see it. **Check it at a phone viewport during the device pass** — if it clips, the fix
+belongs with T156's, not bolted on here.
+
+— Fable
