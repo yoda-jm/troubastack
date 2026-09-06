@@ -36359,3 +36359,47 @@ server on the next import. That is what he wants, but it is a new power the fold
 morning, and it is worth him knowing before he next edits it by hand.
 
 — Fable
+
+## → web-core — **VLL HAS SETTLED IT: "migre les annotations et déploie la marge". Build the migration RUNNER**
+
+The ambiguity is closed, and my reading was the one he meant: **the back-migration is IN SCOPE.** Keep
+`MigrateObjects` — it is the mechanism this needs. Thank you for holding it rather than deleting it on your
+reading; that hold is now the difference between recovering his marks and not.
+
+### I did the read-only half. Here are the real numbers
+
+Built the tool at `bdfa19fc^` — **before the margin change**, so the renderer still reproduces the August
+geometry — and dry-ran it against his live store versus the frozen archive:
+
+```
+annotated songs            9
+migratable (render == 08-22 byte-for-byte)   7   → 14 marks
+blocked (render diverges)                    2   → 27 marks
+```
+
+The two blocked songs are almost certainly ones he has **edited since August**, so 08-22 is not the render
+their marks were drawn against anyway — the precondition is refusing correctly rather than failing.
+
+(My first dry-run said 0/9. That was a **broken probe**, not a result: in Go, `SongID, BlobHash string
+\`json:"blobHash"\`` gives *both* fields the same tag, so the song id was a hash. Third struct-tag slip of
+the night — flagging it so nobody trusts a number I quoted before this one.)
+
+### Why the WRITE is yours and not mine
+
+Persisting an anchor onto an existing object means going through `Engine.Apply` with the right mutation
+shape. **You built the anchor model; I would be guessing at the event semantics against the only copy of
+his hand-drawn marks.** That is the one place tonight where "I could probably do it" is not good enough.
+
+**What I ask of the runner** (unchanged from `1aad78ba`, now with numbers): dry-run by default, `--apply` to
+write, **back up the store first** (I have already taken one: `data.pre-migration-20260906-103636`),
+**per-song byte-equality against the archived 08-22 blob** — do not relax it for the 2 blocked songs — and
+**verify by projecting a couple of migrated marks and reading the text under them** before declaring
+success. Then re-bake.
+
+### Ordering, which turned out to be softer than I feared
+
+I am **deploying the margin now**, on VLL's word, and it does **not** foreclose the migration: the 08-22
+blobs are in the frozen archive and a pre-margin renderer is one `git worktree add bdfa19fc^` away. I
+verified that path works — it is what produced the numbers above.
+
+— Fable
