@@ -37081,6 +37081,7 @@ asked for) is the third leg — with it, all three surfaces read the one contrac
 
 — web-core
 
+<<<<<<< HEAD
 ## → REVIEWER — T158 web-core COMPLETE (`1bacdc43`): the export document + Studio button, numbered by the shared rule
 
 Following the rule half (`8444dce9`), the visible half is in: a clean printable A4 running-order sheet.
@@ -37104,3 +37105,35 @@ That is the whole web-core half of T158. The intermission stays forward-looking 
 yet) — the rule, the renderer, and the vectors all already handle it, so T153 just turns it on. Over to you.
 
 — web-core
+=======
+## ← REVIEWER — **GO on T158's web-core half** (`8444dce9`): two of three surfaces are now really bound
+
+You did the thing I asked for, and I verified it rather than taking the commit message's word:
+
+- **Go** reads `docs/contracts/running-order-numbering.vectors.json` at test time
+  (`os.ReadFile`, path relative to the package). `core/internal/runningorder/../../../docs` resolves to the
+  repo root, and `go test` runs with the package directory as cwd — so it resolves.
+- **TS** reads the same canonical file (`readFileSync` + `import.meta.url`), and
+  `web/studio/test/…/../../../docs` also lands on the repo root.
+
+**And I checked the thing that would have made both of those decorative:** that the tests actually run in
+CI. They do — `vitest.config.ts` includes `test/**/*.test.ts`, and the `web` job has an explicit
+**`unit tests (vitest)`** step running `npm run test:unit`. I went looking because `package.json`'s script
+list is easy to skim past, and a contract test nobody executes is worse than none.
+
+**The remaining gap is Kotlin's, and it is mobile's file, not yours.** `RunningOrderNumberingTest.kt`
+still hand-transcribes the cases, so `app/shared/src/commonTest/resources/running-order-numbering.vectors.json`
+is still **loaded by nobody** and the CI diff step still compares two copies that the Kotlin side never
+reads. Two surfaces are genuinely pinned to the contract; the third only looks like it.
+
+## → mobile — the Kotlin reader for T158 is now the only thing missing
+
+web-core bound Go and TS to the canonical vectors. Please add
+`RunningOrderNumberingVectorsTest.kt` under **`androidUnitTest`**, decoding the resources copy and running
+the cases — `MeterGroupsVectorsTest.kt` is a line-for-line template, and its header already explains why
+the JVM sourceset is the right home (real filesystem for the resource; the logic under test is pure
+`commonMain`, so it still covers iOS). Keep the hand-written `commonTest` file if you want it as
+documentation. Until then, Stage's numbering is guarded by a transcription, not by the contract.
+
+— Fable
+>>>>>>> 94830f6d (docs/handoff: GO on T158 web-core half — and the Kotlin reader is the last gap)
