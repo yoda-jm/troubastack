@@ -70,6 +70,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Switch
@@ -79,11 +81,13 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -93,6 +97,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -164,6 +169,24 @@ internal fun cacheKey(ref: String, ver: String, w: Int, h: Int): String = "$ref#
 
 /** A64 part 2: an overlay's cache key is scheme-augmented (the transformed bitmap differs per scheme);
  *  NORMAL is identity, so it shares the plain (raster-style) key — no wasted second copy. */
+/**
+ * A69 — the chrome colours for [mode]. NORMAL returns the app's approved M3 light baseline VERBATIM (day
+ * stays pixel-identical); WARM/NIGHT/AMBER return the pure [stageChromePalette]. EVERY opaque Stage surface
+ * that can cover the page reads this instead of the raw M3 surface / secondaryContainer / surfaceVariant
+ * tokens directly — a source-guard test forbids those raw tokens so a new surface can't silently ship white
+ * (Ruling 3). The `cs.` alias is deliberate: it keeps the baseline read out of the guard's grep.
+ */
+@Composable
+private fun stageChrome(mode: StageColorMode): ChromeColors {
+    stageChromePalette(mode)?.let { return it }
+    val cs = MaterialTheme.colorScheme // NORMAL only: the approved light baseline, used verbatim
+    return ChromeColors(
+        surface = cs.surface, onSurface = cs.onSurface, onSurfaceVariant = cs.onSurfaceVariant,
+        outline = cs.outline, outlineVariant = cs.outlineVariant,
+        container = cs.secondaryContainer, onContainer = cs.onSecondaryContainer,
+    )
+}
+
 internal fun overlayCacheKey(ref: String, ver: String, w: Int, h: Int, scheme: StageColorMode): String =
     if (scheme == StageColorMode.NORMAL) cacheKey(ref, ver, w, h) else cacheKey(ref, ver, w, h) + "@" + scheme.name
 
@@ -588,10 +611,10 @@ private fun Performing(
                 when {
                     scrollMode -> {}
                     twoUp -> Row(Modifier.fillMaxWidth()) {
-                        Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it]) } }
-                        Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it]) } }
+                        Box(Modifier.weight(1f)) { spread.getOrNull(0)?.let { MetaStrip(state.pages[it], colorMode) } }
+                        Box(Modifier.weight(1f)) { spread.getOrNull(1)?.let { MetaStrip(state.pages[it], colorMode) } }
                     }
-                    else -> MetaStrip(page)
+                    else -> MetaStrip(page, colorMode)
                 }
             }
         }
@@ -642,11 +665,12 @@ private fun Performing(
             exit = fadeOut(tween(400)),
             modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp),
         ) {
-            Surface(shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp, color = MaterialTheme.colorScheme.secondaryContainer) {
+            val noticeChrome = stageChrome(colorMode) // A69: the notice fades in over the page — follow the scheme
+            Surface(shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp, color = noticeChrome.container) {
                 Text(
                     shownNotice,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = noticeChrome.onContainer,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
@@ -758,8 +782,8 @@ private fun Performing(
         onSetClockStyle = { vm.setClockStyle(it) },
         onDismiss = { showSettings = false },
     )
-    if (showLayers) LayersDialog(state, vm) { showLayers = false }
-    if (showRole) RoleDialog(state, vm) { showRole = false }
+    if (showLayers) LayersDialog(state, vm, colorMode) { showLayers = false }
+    if (showRole) RoleDialog(state, vm, colorMode) { showRole = false }
     // P205 Stage 3a: the "Who are you?" picker. Shows once on a band-wide bundle with no resolved
     // identity (VLL: connected+match auto-selects and SKIPS this — resolveIdentity already did), or
     // whenever the reader taps "Switch". Picking re-seeds the VM (setIdentity) and persists (host).
@@ -899,12 +923,13 @@ private fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean):
  * This chip makes it explicit they are personal: they only change YOUR view. Pure, themeable.
  */
 @Composable
-private fun PersonalTag(modifier: Modifier = Modifier) {
+private fun PersonalTag(colorMode: StageColorMode, modifier: Modifier = Modifier) {
+    val chrome = stageChrome(colorMode) // A69: the tag sits on the (scheme-following) sheet/dialog
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        color = chrome.container,
+        contentColor = chrome.onContainer,
     ) {
         Text(
             "👤 Just for you",
@@ -938,7 +963,22 @@ private fun SettingsSheet(
     onSetClockStyle: (ClockStyle) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState()) {
+    val chrome = stageChrome(colorMode) // A69: the sheet follows the reading scheme
+    // NORMAL keeps the M3 default sheet colour (pixel-identical day); dark schemes take chrome.surface.
+    val sheetContainer = stageChromePalette(colorMode)?.surface ?: BottomSheetDefaults.ContainerColor
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(), containerColor = sheetContainer) {
+        CompositionLocalProvider(LocalContentColor provides chrome.onSurface) {
+        // A69: SegmentedButtons set their OWN content colours (they don't inherit LocalContentColor), so on a
+        // dark sheet the inactive labels would go dark-on-dark unless coloured from chrome. Using onSurface for
+        // the inactive content keeps NORMAL identical (M3's default is onSurface) and legible when dark.
+        val segColors = SegmentedButtonDefaults.colors(
+            activeContainerColor = chrome.container,
+            activeContentColor = chrome.onContainer,
+            inactiveContainerColor = Color.Transparent,
+            inactiveContentColor = chrome.onSurface,
+            activeBorderColor = chrome.outline,
+            inactiveBorderColor = chrome.outline,
+        )
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -960,6 +1000,7 @@ private fun SettingsSheet(
                         selected = state.fitMode == mode,
                         onClick = { onFitMode(mode) },
                         shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                        colors = segColors,
                     ) { Text(label) }
                 }
             }
@@ -1004,7 +1045,7 @@ private fun SettingsSheet(
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Auto-update", style = MaterialTheme.typography.titleSmall)
-                            PersonalTag()
+                            PersonalTag(colorMode)
                         }
                         Text("Apply new bakes as they arrive", style = MaterialTheme.typography.bodySmall)
                     }
@@ -1050,11 +1091,13 @@ private fun SettingsSheet(
                             selected = state.clockStyle == st,
                             onClick = { onSetClockStyle(st) },
                             shape = SegmentedButtonDefaults.itemShape(i, styles.size),
+                            colors = segColors,
                         ) { Text(label) }
                     }
                 }
             }
         }
+        } // CompositionLocalProvider (A69)
     }
 }
 
@@ -1121,8 +1164,11 @@ private fun SongDrawerSheet(state: StageState, colorMode: StageColorMode, onJump
     // and how much more there is, in both directions, which a full-looking first/last row hid. Shown
     // only when the content exceeds the viewport.
     val scrollable by remember { derivedStateOf { listState.canScrollForward || listState.canScrollBackward } }
-    val sheetColor = MaterialTheme.colorScheme.surface
-    ModalDrawerSheet(drawerContainerColor = sheetColor) {
+    // A69: the drawer follows the reading scheme (never a white slab over a black stage). CompositionLocal
+    // sets the default content colour so every row's text follows too; the container + separators are explicit.
+    val chrome = stageChrome(colorMode)
+    ModalDrawerSheet(drawerContainerColor = chrome.surface) {
+        CompositionLocalProvider(LocalContentColor provides chrome.onSurface) {
         // A60 P1: the rows live in a LazyColumn, not the sheet's plain ColumnScope — a real setlist
         // (VLL was rehearsing 22 songs) is taller than the screen, and the old direct-into-ColumnScope
         // layout laid every row out with no way to reach anything past the fold. LazyColumn over a
@@ -1134,8 +1180,8 @@ private fun SongDrawerSheet(state: StageState, colorMode: StageColorMode, onJump
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             drawerRows(state).forEach { row ->
                 when (row) {
-                    is DrawerRow.Header -> stickyHeader(key = "h:${row.title}") { DrawerSectionHeader(row.title) }
-                    DrawerRow.Divider -> item(key = "div") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+                    is DrawerRow.Header -> stickyHeader(key = "h:${row.title}") { DrawerSectionHeader(row.title, colorMode) }
+                    DrawerRow.Divider -> item(key = "div") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = chrome.outline) }
                     is DrawerRow.Song -> item(key = "s:${row.songIndex}") { SongDrawerItem(state, row.songIndex, row.info, onJump, row.number, colorMode) }
                 }
             }
@@ -1146,9 +1192,11 @@ private fun SongDrawerSheet(state: StageState, colorMode: StageColorMode, onJump
             DrawerScrollbar(
                 listState,
                 Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = 48.dp, bottom = 4.dp, end = 2.dp),
+                thumb = chrome.onSurfaceVariant,
             )
         }
         } // Box
+        } // CompositionLocalProvider
     } // ModalDrawerSheet
 }
 
@@ -1158,16 +1206,17 @@ private fun SongDrawerSheet(state: StageState, colorMode: StageColorMode, onJump
  *  scrollbar signals more). outline (darker than the rows' outlineVariant) so the header edge reads
  *  clearly stronger than a between-songs hairline. */
 @Composable
-private fun DrawerSectionHeader(text: String) {
-    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+private fun DrawerSectionHeader(text: String, colorMode: StageColorMode) {
+    val chrome = stageChrome(colorMode) // A69: opaque, and follows the reading scheme like the drawer it sits in
+    Surface(color = chrome.surface, modifier = Modifier.fillMaxWidth()) {
         Column {
             Text(
                 text,
                 Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = chrome.onSurfaceVariant,
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            HorizontalDivider(color = chrome.outline)
         }
     }
 }
@@ -1177,8 +1226,8 @@ private fun DrawerSectionHeader(text: String) {
  *  full-looking first/last row still signals there is more. Approximate (rows vary in height: 1- vs
  *  2-line songs, headers), which is fine for an indicator. */
 @Composable
-private fun DrawerScrollbar(state: LazyListState, modifier: Modifier = Modifier) {
-    val color = MaterialTheme.colorScheme.outline
+private fun DrawerScrollbar(state: LazyListState, modifier: Modifier = Modifier, thumb: Color = MaterialTheme.colorScheme.outline) {
+    val color = thumb // A69: scheme-aware so the thumb stays visible on a dark drawer
     BoxWithConstraints(modifier.width(5.dp)) {
         val info = state.layoutInfo
         val total = info.totalItemsCount
@@ -1210,14 +1259,15 @@ private fun DrawerScrollbar(state: LazyListState, modifier: Modifier = Modifier)
 @Composable
 private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int) -> Unit, number: Int?, colorMode: StageColorMode) {
     val meta = songMetaLine(state, i)
-    val neutral = MaterialTheme.colorScheme.onSurfaceVariant
+    val chrome = stageChrome(colorMode) // A69: the row lives in the drawer, so it follows the scheme
+    val neutral = chrome.onSurfaceVariant
     val selected = i == state.currentSong
     Column {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clickable { onJump(i) }
-                .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                .background(if (selected) chrome.container else Color.Transparent)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1261,7 +1311,7 @@ private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int)
         // A60 (VLL): a hairline between songs to delineate the dense list. outlineVariant at full weight
         // (the M3 standard divider) — the earlier 0.4-alpha version read as almost invisible on the
         // light paper theme. The heavier group divider (main ↔ "On call") still reads as a section break.
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(color = chrome.outlineVariant) // A69: fainter hairline, scheme-aware
     }
 }
 
@@ -1296,7 +1346,7 @@ private fun ScrollReader(
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(songPages) { index, page ->
             Column(Modifier.fillMaxWidth()) {
-                MetaStrip(page) // renders only on the song's first page
+                MetaStrip(page, colorMode) // renders only on the song's first page
                 // T149: trim the SONG'S LAST page (the last item in this per-song column) to its content
                 // bottom + a breathing margin, so scroll stops at the last glyph, not the blank tail.
                 ScrollPage(
@@ -1320,7 +1370,7 @@ private fun ScrollPage(
     trimFraction: Double = 1.0, // T149: <1 for a song's last page in SCROLL — draw only the top fraction
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
-        PlaceholderCard(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT))
+        PlaceholderCard(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT), colorMode)
         return
     }
     // R10/#23: key on the overlay MODELS (LayerImage carries contentHash), not the ref strings, so a
@@ -1352,7 +1402,7 @@ private fun ScrollPage(
     val bitmaps = decoded
     when {
         bitmaps?.raster == null -> Box(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT)) {
-            if (bitmaps != null) PlaceholderCard(Modifier.fillMaxSize()) // decoded but raster failed
+            if (bitmaps != null) PlaceholderCard(Modifier.fillMaxSize(), colorMode) // decoded but raster failed
         }
         else -> {
             val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
@@ -1393,7 +1443,7 @@ private fun PageView(
     modifier: Modifier,
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
-        PlaceholderCard(modifier)
+        PlaceholderCard(modifier, colorMode)
         return
     }
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
@@ -1429,7 +1479,7 @@ private fun PageView(
             // BLACK void; with N9 prefetch the incoming page is usually already decoded, so this only
             // shows for the rare uncached page.
             bitmaps == null -> Box(Modifier.fillMaxSize().background(placeholder))
-            bitmaps.raster == null -> PlaceholderCard(Modifier.fillMaxSize()) // decode failed at render time
+            bitmaps.raster == null -> PlaceholderCard(Modifier.fillMaxSize(), colorMode) // decode failed at render time
             else -> {
                 val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
                 val scroll = rememberScrollState()
@@ -1478,11 +1528,12 @@ private fun MissingLayersBadge(missing: Int, modifier: Modifier = Modifier) {
  * I12). The tempo/metronome moved to the top-bar [StageBeatControl] (A34), so there's no chip here.
  */
 @Composable
-private fun MetaStrip(page: StagePage) {
+private fun MetaStrip(page: StagePage, colorMode: StageColorMode) {
     if (page.pageInSong != 0) return
     // notes · key only; the tempo/metronome control moved to the top-bar FAB (A34), no chip here.
     val prefix = metaStripText(page.displayNotes, page.key, 0) ?: return
-    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)) {
+    val chrome = stageChrome(colorMode) // A69: the strip sits over the page — follow the scheme, not white-on-night
+    Surface(Modifier.fillMaxWidth(), color = chrome.surface.copy(alpha = 0.75f), contentColor = chrome.onSurface) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1606,9 +1657,13 @@ private suspend fun decodeOverlayCached(cache: PageImageCache, ref: String, ver:
     }
 
 @Composable
-private fun PlaceholderCard(modifier: Modifier) {
+private fun PlaceholderCard(modifier: Modifier, colorMode: StageColorMode) {
+    // A69: the "page unavailable" card is centred over the page — follow the scheme so it isn't a white slab
+    // on a night stage. `cs` is aliased so the NORMAL fallback stays out of the source-guard's grep.
+    val cs = MaterialTheme.colorScheme
+    val p = stageChromePalette(colorMode)
     Box(modifier, contentAlignment = Alignment.Center) {
-        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
+        Surface(color = p?.surface ?: cs.surfaceVariant, contentColor = p?.onSurface ?: cs.onSurfaceVariant, shape = MaterialTheme.shapes.medium) {
             Text("Page unavailable", Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge)
         }
     }
@@ -1630,7 +1685,7 @@ private fun CenteredMessage(title: String, body: String, onExit: () -> Unit) {
 }
 
 @Composable
-private fun LayersDialog(state: StageState, vm: StageViewModel, onDismiss: () -> Unit) {
+private fun LayersDialog(state: StageState, vm: StageViewModel, colorMode: StageColorMode, onDismiss: () -> Unit) {
     // A1: layer visibility is PER-SONG — show/toggle the CURRENT song's set. Role-first (Q3): this is
     // the "Advanced: layers" exception path; most users just pick a role and let the defaults ride.
     val songId = state.currentPage?.songId ?: ""
@@ -1640,15 +1695,19 @@ private fun LayersDialog(state: StageState, vm: StageViewModel, onDismiss: () ->
     // per-song (title + toggle, A1), so the list must be too. Friendlier interim labels until real
     // names ride the bundle (T53).
     val layers = songLayerLabels(state, songId)
+    val p = stageChromePalette(colorMode) // A69: dialogs are intrusive (centred, over a scrim) — follow the scheme
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = p?.surface ?: AlertDialogDefaults.containerColor,
+        titleContentColor = p?.onSurface ?: AlertDialogDefaults.titleContentColor,
+        textContentColor = p?.onSurfaceVariant ?: AlertDialogDefaults.textContentColor,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
         title = { Text(if (songName.isEmpty()) "Layers — this song" else "Layers — $songName") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Overrides just this song; changing your role resets it.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                    PersonalTag() // Scheme-A: toggling a layer only changes YOUR view, not a bandmate's
+                    PersonalTag(colorMode) // Scheme-A: toggling a layer only changes YOUR view, not a bandmate's
                 }
                 layers.forEach { (layer, label) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1666,18 +1725,30 @@ private fun LayersDialog(state: StageState, vm: StageViewModel, onDismiss: () ->
 }
 
 @Composable
-private fun RoleDialog(state: StageState, vm: StageViewModel, onDismiss: () -> Unit) {
+private fun RoleDialog(state: StageState, vm: StageViewModel, colorMode: StageColorMode, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(state.role) }
     val suggestions = remember(state.layers) { state.layers.map { it.roleTag }.filter { it.isNotEmpty() }.distinct() }
+    val p = stageChromePalette(colorMode) // A69: follow the reading scheme (same as LayersDialog)
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = p?.surface ?: AlertDialogDefaults.containerColor,
+        titleContentColor = p?.onSurface ?: AlertDialogDefaults.titleContentColor,
+        textContentColor = p?.onSurfaceVariant ?: AlertDialogDefaults.textContentColor,
         confirmButton = { TextButton(onClick = { vm.setRole(text.trim()); onDismiss() }) { Text("Set") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         title = { Text("My role") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Sets which optional layers show by default. This is a reading preference, not a login.")
-                OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true)
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it }, singleLine = true,
+                    // A69: the input text/border default to onSurface/outline — invisible on a dark dialog;
+                    // colour them from chrome when dark, keep the M3 default when NORMAL (pixel-identical).
+                    colors = if (p != null) OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = p.onSurface, unfocusedTextColor = p.onSurface, cursorColor = p.onSurface,
+                        focusedBorderColor = p.onSurfaceVariant, unfocusedBorderColor = p.outline,
+                    ) else OutlinedTextFieldDefaults.colors(),
+                )
                 if (suggestions.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         suggestions.forEach { s -> OutlinedButton(onClick = { text = s }) { Text(s) } }

@@ -144,3 +144,41 @@ fun StageColorMode.pagePlaceholder(): Color = when (this) {
     StageColorMode.NIGHT -> Color(0xFF1A1A1A)  // dark, still distinct from the pure-black canvas
     StageColorMode.AMBER -> Color(0xFF1A1710)  // dark, faintly warm — no cool flash before amber ink
 }
+
+/**
+ * A69 — the colours for Stage's opaque CHROME (the song drawer, the ⚙ settings sheet, the Layers/Role
+ * dialogs, the auto-update notice) so they follow the reading scheme instead of flooding a dark venue with
+ * a bright-white panel. This is the same idea as [pageColorFilter]/[pagePlaceholder] and A37's ping-pong:
+ * a performance decision about a dark room, not a brand choice — so the values live here, next to them, and
+ * are PURE (unit-tested for contrast) rather than a theme wrapper that would risk the approved M3 baseline.
+ *
+ * [stageChromePalette] returns null for NORMAL: day chrome uses the M3 light baseline VERBATIM (the resolver
+ * in StageScreen reads MaterialTheme.colorScheme), so the daytime appearance stays pixel-identical by
+ * construction, not by a hand-copied value that could drift. WARM/NIGHT/AMBER return an explicit palette —
+ * WARM a cream (its comfort paper), NIGHT a neutral dark, AMBER a warm dark with amber ink (night-vision).
+ */
+data class ChromeColors(
+    val surface: Color,          // opaque sheet / dialog / drawer background
+    val onSurface: Color,        // primary text on [surface]
+    val onSurfaceVariant: Color, // secondary text (section headers, artist, hints)
+    val outline: Color,          // stronger hairline: header/group separators
+    val outlineVariant: Color,   // fainter hairline: the between-songs divider
+    val container: Color,        // tonal accent: selected drawer row, the update notice
+    val onContainer: Color,      // text on [container]
+)
+
+fun stageChromePalette(mode: StageColorMode): ChromeColors? = when (mode) {
+    StageColorMode.NORMAL -> null // ⇒ the M3 light baseline, used verbatim (day stays pixel-identical)
+    StageColorMode.WARM -> ChromeColors(
+        surface = Color(0xFFEDE4C2), onSurface = Color(0xFF2A2620), onSurfaceVariant = Color(0xFF5C5646),
+        outline = Color(0xFFB8AE8E), outlineVariant = Color(0xFFCFC6A2), container = Color(0xFFDCD2A8), onContainer = Color(0xFF2A2620),
+    )
+    StageColorMode.NIGHT -> ChromeColors(
+        surface = Color(0xFF1A1A1A), onSurface = Color(0xFFEDEDED), onSurfaceVariant = Color(0xFFB0B0B0),
+        outline = Color(0xFF4A4A4A), outlineVariant = Color(0xFF2E2E2E), container = Color(0xFF333333), onContainer = Color(0xFFEDEDED),
+    )
+    StageColorMode.AMBER -> ChromeColors( // amber ink, never white — preserves dark-adapted vision
+        surface = Color(0xFF1A1710), onSurface = Color(0xFFFFBF73), onSurfaceVariant = Color(0xFFC79A5E),
+        outline = Color(0xFF4A3E28), outlineVariant = Color(0xFF2E2818), container = Color(0xFF332B1A), onContainer = Color(0xFFFFBF73),
+    )
+}
