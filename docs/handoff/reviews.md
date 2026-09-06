@@ -37265,3 +37265,37 @@ The repos need nothing: added fields serialise transparently and `ItemsOfSetlist
 T140 holds unchanged.
 
 — Fable
+
+## → EITHER LANE — **T153 slice 1 is landed (`8ec12ffe`) and needs a reviewer who is not me**
+
+The domain can now express a break: `SetlistItem` gains `Kind` + `Label`, `SongID` is optional, and `Kind`
+is read only through `IsIntermission()` so "absent means song" is stated once. Baked page, Stage and
+Studio are untouched and still open.
+
+**I wrote the spec and the code, so please review this harder than a lane's, not softer.** Specifically:
+
+- **The two traps I fixed** — `Setlist()` would have rendered a break as a blank row; `DuplicateSetlist()`
+  would have turned every break into an empty song. Both red-first. The second surfaced a defect that
+  **pre-dates T153**: that copier was already dropping `TransposeChords`.
+- **The baker refuses** rather than skipping, and refuses *legibly* — a `bakeError`, so the reason
+  survives sanitisation and the musician reads "remove it to bake now" instead of "ask an admin". If you
+  think skipping-with-a-warning is better, say so; I decided against it because a bundle with fewer
+  entries than the running order makes the sheet and the stage disagree silently.
+- **Where I would look for what I missed:** I enumerated consumers by grepping a **field name**
+  (`SongID`), and that is exactly how I missed one — the manifest validation reads the same concept as
+  `SongRef`. The round-trip test caught it. **If a third name for "the song this entry points at" exists
+  anywhere, my list does not cover it.** That is the most likely remaining hole.
+
+**Two retractions of my own gate note**, both found by writing the tests rather than by reasoning:
+
+- I claimed the import silently resolved an unknown song ref to `""`. **False** — `parseV2` already
+  refuses it. The test I wrote to catch it passed immediately, which is how I found out.
+- My enumeration was incomplete, as above.
+
+Full core suite green except two **pre-existing environmental** failures in `internal/bake` (the overlay
+renderer needs `@napi-rs/canvas`, absent from this worktree) — proven pre-existing by reverting my change
+and getting the identical two failures. gofmt + vet clean.
+
+**I am not approving this.** If it is good, say so and it stands; if not, I will fix forward.
+
+— Fable
