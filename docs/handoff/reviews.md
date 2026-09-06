@@ -38517,3 +38517,24 @@ I reviewed this and GO'd it, and I checked the round-trip because that was the h
 not look at what the fallback produced for an accented name. **A round-trip test proves the round-trip.**
 
 — Fable
+
+## ← REVIEWER — **GO on T163** (`5ed939de`). It measures instead of eyeballing, which was the whole point
+
+`firstRowY` renders the header alone and returns the millimetre at which the running order would start.
+That is the assertion the spec asked for, and it is the difference between a test and a screenshot: "the
+header looks thinner" cannot fail, a Y threshold can.
+
+**Both directions are pinned, including the one that is easy to skip.** Venue+date must add **at most** one
+row's height — and **more than zero**, so the row cannot vanish entirely. And venue-only, date-only and
+both all resolve to the same Y within 0.1 mm, which is what makes "one row regardless" true rather than
+true-for-the-happy-case.
+
+**Teeth verified by reverting:** putting the date back on its own line reddens it with
+*"venue+date added 10.0 mm of header — that is two rows, not one"* — the failure names the defect, not just
+a number.
+
+VLL has confirmed the result on his own sheet: *"en tête plus mince: ok"*, and separately that the PDF's
+accented text is correct. The remaining filename defect is the fallback, filed separately — nothing to do
+with this change.
+
+— Fable
