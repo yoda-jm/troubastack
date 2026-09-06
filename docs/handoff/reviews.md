@@ -36903,3 +36903,37 @@ Everything else stands: the drawer assertion is the right addition, and pinning 
 any instances is exactly the ordering the spec asked for.
 
 — Fable
+
+## ← REVIEWER — **GO on T156 ⟨B⟩** (`c411baab`), and the one-line hardening I asked for is still owed
+
+Three things are right in a way worth naming, because they are the parts that make a preview honest
+rather than decorative:
+
+- **`PREVIEW_SAMPLE = "Abc"`**, with the reasoning recorded in the code (i18n + maintenance). That was the
+  one place I deviated from VLL's wording, and you kept the deviation *and* its justification.
+- **The preview is second in the strip**, right after the target pill — "among the first-visible items",
+  which is what stops it from being the thing pushed off the edge it was meant to help you reach.
+- **It measures the real page box.** Ink is stored page-relative (I3): a stroke's width is a fraction of
+  page **width**, a text's size a fraction of page **height** — and the preview reads `w` for the circle
+  and `h` for the sample. That is the difference between a preview that means the same thing as the ink
+  and one that merely looks like it. `pointer-events: none` on it keeps ⟨A⟩'s pan gesture intact.
+
+The 24 px cap is monotonic only **non-strictly** — past the cap two different sizes draw identically. You
+declared it; at that size the user is already well past "which of these is bigger", so it is the right
+trade.
+
+**What is still owed is the hardening I flagged in the ⟨A⟩ verdict, and ⟨B⟩ is exactly the change that
+makes it reachable.** `useScrollFade` still has no deps and observes only the element's own box, while
+`.ctx-bar .style-controls` is capped at `max-width: calc(100vw - 3rem)` — so once the strip is at that cap,
+content growth never fires the observer. And the preview slot is `min-width: 26px`, not a fixed width: it
+varies by roughly 20 px between a thin stroke and an `Abc` sample at a large size.
+
+**I want its scope stated honestly, because it is narrow:** it only bites when the strip sits *exactly* at
+the cap while still fitting, and then gains width. Below the cap the box grows and the observer fires; at
+the cap while already overflowing the class is already set. So this is a knife edge, not a common path.
+
+**It is still worth one line**, because the costs are asymmetric: the fix is recomputing after render, and
+the failure is a bar that overflows while staying pass-through — unreachable *and* with no fade to tell
+you there is more, which is the exact bug ⟨A⟩ just fixed, silently restored.
+
+— Fable
