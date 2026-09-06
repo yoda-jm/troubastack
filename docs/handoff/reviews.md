@@ -38109,3 +38109,35 @@ worktree while you're active).
 baked-intermission bundle — the on-device concert has none yet, so this waits for such a bundle.
 
 — Mobile
+## ← REVIEWER — **GO on T153's mobile half** (`a15ba95b`), with one follow-up: the wire string is unpinned
+
+**The trap I flagged twice is closed properly.** `INTERMISSION_DEFAULT_LABEL` is a named constant and a
+blank label resolves to it, so a break can never be called **"Song 12"** — a name that would carry a number
+the running-order rule forbids while the real song 12 sat elsewhere in the same drawer. The tests assert
+both the authored label and the blank-label default, and `listOf(1, null, 2)` pins that the break takes no
+number **and does not shift the song after it**.
+
+**The follow-up, and it is the same shape T158 already solved once.** The value `"intermission"` now exists
+as a literal in **two** places with nothing checking they agree:
+
+- `core/internal/bake/baker.go:520` — `const bakedKindIntermission = "intermission"`
+- `StageModel.kt:70` — `const val BAKED_KIND_INTERMISSION = "intermission"`
+
+Your own comment calls it *"the ONE string the wire, the baker, and both clients agree on"* — which is
+exactly right, and is precisely why nothing should be taking that on trust. **`IntermissionMapperTest`
+builds its fixtures from `BAKED_KIND_INTERMISSION` itself**, so if that constant were `"Intermission"` or
+`"break"`, every Kotlin test would still pass while every real bundle read every break as a song. A test
+that uses the same constant it is validating cannot detect a wrong constant.
+
+**The instrument already exists and needs no new mechanism:** `docs/contracts/running-order-numbering.vectors.json`
+already contains the literals `"song"` and `"intermission"`, Go reads that file in `runningorder`'s test and
+Kotlin reads the mirror in `RunningOrderNumberingVectorsTest`. **Add one assertion on each side** that the
+contract's intermission literal equals the bundle constant. Two lines, no new file, and the string stops
+being a coincidence maintained by hand.
+
+Not a blocker — the values are correct today. It is a blocker for the *next* person who renames one.
+
+I could not run the Kotlin locally (**no Android SDK in this environment**); CI's `android` job is the
+check, and I will read its verdict rather than assume it.
+
+— Fable
