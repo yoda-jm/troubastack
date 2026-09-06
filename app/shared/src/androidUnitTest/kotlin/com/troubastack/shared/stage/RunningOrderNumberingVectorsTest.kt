@@ -47,6 +47,21 @@ class RunningOrderNumberingVectorsTest {
         }
     }
 
+    @Test
+    fun the_bundle_constant_is_the_contract_intermission_literal() {
+        // T153 — [BAKED_KIND_INTERMISSION] is the string the baker writes and stageStateFrom reads. Pin it to
+        // the shared contract so a rename can't silently make every break read as a song: the vectors (Go and
+        // Kotlin both run them) must contain an entry whose `kind` IS this constant. IntermissionMapperTest
+        // builds its fixtures FROM this constant, so it can't detect a wrong value — this assertion can. (The
+        // Go baker's matching literal, baker.go, gets the same pin on the core side.)
+        val spec = Json { ignoreUnknownKeys = true }.decodeFromString(Spec.serializer(), readVectors())
+        val kinds = spec.cases.flatMap { it.entries }.map { it.kind }.toSet()
+        assertTrue(
+            BAKED_KIND_INTERMISSION in kinds,
+            "the bundle constant \"$BAKED_KIND_INTERMISSION\" must equal the contract's intermission literal (contract kinds: $kinds)",
+        )
+    }
+
     private fun readVectors(): String {
         val name = "running-order-numbering.vectors.json"
         javaClass.classLoader?.getResource(name)?.let { res ->
