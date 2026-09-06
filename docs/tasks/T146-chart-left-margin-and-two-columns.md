@@ -121,3 +121,49 @@ Say which of those two situations applies at the gate.
 - The margin is a named, tested constant, reduced, with before/after stated.
 - Stage 2 either lands with the annotation question answered, or is explicitly deferred behind T145.
 - `gofmt -l core` clean before landing.
+
+## ⟨BLOCKER, found in review of `ead24384`⟩ two columns silently moves existing marks
+
+Stage 2's submission claims *"a mark re-projects across the 1-col↔2-col re-layout… the column mode cannot
+silently invalidate a mark."* **It does invalidate them, silently.** Reproduced, not reasoned:
+
+**Root cause.** `sortAnchors` (`chart.go:219`) orders the manifest by **(page, Y0, X0)**, and `Occurrence` —
+the only thing that separates two runs with identical text — is counted by *walking that slice*, in both
+`AnchorAt` (`anchor_project.go:49`) and `Project` (`:71`). In ONE column that order happens to equal source
+order, so occurrence has always been a source-order index. **In two columns it does not:** both columns
+start at the same Y, so sorting by Y interleaves them row by row.
+
+Measured on a 60-line two-column chart — the manifest's first body runs:
+
+```
+line 31 (right col)   line 32 (right col)   line 00 (LEFT col)   line 33   line 01   line 34   line 02 …
+```
+
+**The user-visible harm.** A chart with the same line at source positions 5 and 35 (5 → left column, 35 →
+right column). A mark made on the one-column render carries `Occurrence: 2` (source order). Re-projected
+onto the two-column render:
+
+```
+2-col manifest: index  9 → X0=0.5 (RIGHT column)      ← sorts FIRST, its Y is smaller
+                index 14 → X0=0.0 (LEFT column)
+Project(Occurrence: 2) → x0=0.038  → the LEFT column
+```
+
+The mark that belongs on source line 35 lands on source line 5 — **a different line, in the other column**,
+with `ok == true` and a perfectly plausible box. Nothing flags it.
+
+**It is not only a display bug.** `AnchorObject` stores the occurrence taken from the *current* manifest, so
+a mark created on a two-column chart persists an interleaved-order occurrence — wrong data, which then
+resolves wrongly everywhere else, including in the baked bundle (`bake/annotations.go`).
+
+**Fix direction — do NOT just change the comparator.** `sortAnchors` is documented as matching mkcharts'
+`writeAnchors` so the two backends' manifests stay comparable; re-ordering it has a second consumer. Give
+`Anchor` an explicit **draw/source sequence** and count occurrence by that, independent of the manifest's
+presentation order.
+
+⟨R1⟩ **the assertion that was missing** — build an anchor on the ONE-column render, `Project` it onto the
+TWO-column render of the same source, and require it to resolve to **the same source line** (assert the
+column side too: a right-column line must come back at x > 0.5). **Teeth:** it fails on `ead24384`.
+
+**Until this is fixed:** do not annotate a two-column chart, and do not switch an annotated chart to two
+columns. Not urgent for the live rig — `:8080` runs `525cc153`, which predates this.

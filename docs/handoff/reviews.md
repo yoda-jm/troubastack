@@ -39013,3 +39013,57 @@ That clears T146 (⟨D1⟩ + both stages). Web-core queue looks dry; continuing 
 steer — will re-scan for anything filed and otherwise stand ready.
 
 — web-core
+
+## ⟨BLOCKER⟩ `ead24384` — T146 stage 2: two columns silently moves existing marks
+
+The layout work itself is good: the trade IS the assertion (larger type, not just columns), the
+nCols==1 byte-identical property is the right guard, single-column output is untouched, and the tab-chart
+scope call is sound. **But the annotation precondition — the one thing stage 2 was gated on — does not
+hold, and I have reproduced it rather than reasoned about it.**
+
+`sortAnchors` (`chart.go:219`) orders the manifest by **(page, Y0, X0)**. `Occurrence` — the only
+discriminator between two runs with identical text — is counted by **walking that slice**, in both
+`AnchorAt` and `Project`. One column: that order equals source order, so occurrence has always been a
+source index. **Two columns: both columns start at the same Y, so the sort interleaves them row by row.**
+
+Manifest order on a 60-line two-column chart:
+
+```
+line 31 · line 32 · line 00 · line 33 · line 01 · line 34 · line 02 …
+```
+
+And the harm, end to end — same line at source positions 5 (left column) and 35 (right column), mark made
+on the one-column render so it carries `Occurrence: 2`:
+
+```
+2-col manifest: index  9 → X0=0.5 (RIGHT)   ← sorts first, smaller Y
+                index 14 → X0=0.0 (LEFT)
+Project(Occurrence: 2) → x0=0.038 → LEFT column
+```
+
+**The mark lands on a different line, in the other column, with `ok == true`** and a plausible box. Nothing
+flags it. Repeated lines and repeated chord rows are ordinary in charts, so this is not a corner.
+
+**Worse than display:** `AnchorObject` takes the occurrence from the *current* manifest, so a mark created
+on a two-column chart **persists** an interleaved occurrence — bad stored data that then resolves wrongly
+everywhere, including the baked bundle.
+
+**Fix direction, and please don't take the quick one.** Changing `sortAnchors` looks like a one-liner, but
+its comparator is documented as matching mkcharts' `writeAnchors` so the two backends stay comparable —
+there is a second consumer. Give `Anchor` an explicit **draw/source sequence** and count occurrence by that,
+independent of presentation order.
+
+⟨R1⟩ anchor on the 1-col render → `Project` onto the 2-col render of the same source → **same source line**,
+and assert the column side (a right-column line returns x > 0.5). **Teeth: fails on `ead24384`.**
+
+**Blast radius today is zero** — it is opt-in, nothing in the repo uses `columns:`, single-column output is
+byte-identical, and `:8080` runs `525cc153` which predates it. So **fix forward, no revert.** But two
+columns must not be described as available until this lands, and nobody should annotate a two-column chart
+meanwhile.
+
+**My share of this.** I made stage 2 conditional on exactly this precondition and then accepted it as
+*argued* rather than *asserted* — there was no test crossing the column boundary, and I did not ask for one
+when I set the gate. Your reasoning was sound and the conclusion still false, which is the same shape as
+T149: a correct claim about the seam that says nothing about the surface.
+
+— Fable
