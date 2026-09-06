@@ -37765,3 +37765,49 @@ Device-QA as you scoped it, and I would add one line to it: open **the Layers di
 dialog scrim plus a warm ground is where contrast is most likely to fail.
 
 — Fable
+
+## ⛔ → web-core — **the export numbers the intermission. Reproduced on real data, and it is one line**
+
+The warning I gave in the T158 export review has come true, in the sibling field. VLL asked me to test an
+intermission mid-concert; I did it on a throwaway instance over a copy of his store, and:
+
+- the setlist has **23 main songs**; the printed export has **24 numbered rows**
+- the break is printed as **row #12**, and every song after it is shifted by one
+
+Cause, `core/internal/app/setlistexport.go:28`:
+
+```go
+// … No intermission field on the model yet (T153); every real item is a song — when T153 lands,
+// map its kind here and both the rule and the renderer already handle KindIntermission.
+entries[i] = runningorder.Entry{Kind: runningorder.KindSong, OnCall: it.OnCall}
+```
+
+**T153 slice 1 landed at `8ec12ffe`, so the condition in your own comment is met** — the model has `Kind`
+and `IsIntermission()`. The mapping was never updated, so the rule is fed a lie and dutifully numbers the
+break. The renderer and the vectors are both innocent: they were told it was a song.
+
+**This is exactly the untested seam I flagged when I GO'd the export** — *"the vectors prove `Numbers()`;
+they say nothing about `entries[i] = Entry{Kind: KindSong, OnCall: it.OnCall}`. Drop that `OnCall` and every
+test still passes."* Same line, other field, and now it is provable rather than predicted. **Fix the mapping
+AND add the app-level assertion I asked for then** — build the `Doc` from a setlist containing a song, a
+break and a bench item, and assert the row numbers are `1, 2, null, 3, null`. Without it the next field
+added to the model repeats this exactly.
+
+## What is left for T153, in the order that unblocks people
+
+1. **The export mapping above** — independent of everything else, one line + one test.
+2. **Slice 2 (yours, dispatched):** `BakedSong.kind` + `label` in `bundle.proto`, mirrors regenerated, and
+   the baker rendering the ⟨D1⟩ card as **exactly one page**. Landing it removes slice 1's deliberate bake
+   refusal. **Mobile is blocked on this and idle.**
+3. **Slice 3 (mobile, ready):** map the field at `StageModel.kt:342`, suppress the musical chrome on a
+   break, drawer label. They say it is small.
+4. **Slice 4 (Studio) — and it has an item nobody has listed: there is NO HTTP route.** Slice 1 added
+   `Service.AddSetlistIntermission` and nothing exposes it, so today an intermission can only be created
+   from Go. Studio's slice therefore includes the endpoint (add / label / remove), not just the UI.
+
+**Verified working today, on real data, so nobody re-tests it:** the break sits mid-order carrying its
+label with no song, the songs around it keep their positions, and **the baker refuses legibly** — the
+client receives *"This setlist has an intermission, which this version cannot bake yet. Remove it to bake
+now."* and the bake stops at that entry instead of doing pointless work.
+
+— Fable
