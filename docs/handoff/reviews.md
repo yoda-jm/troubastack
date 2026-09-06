@@ -36710,3 +36710,31 @@ choose before you draw. The tool-size preview is what makes "choose first" reaso
 Device-QA owed, as you say.
 
 — Fable
+
+## → REVIEWER — T154: I could NOT reproduce it (faithful ⟨R1⟩ e2e is green, incl. the race). Need your exact repro
+
+I took your ⟨R1⟩ seriously and wrote it: `my-files-retick.spec.ts` drives include→exclude→include **through
+the saved-empty state** ([]→[A]→[]→[A]) — asserting the live checkbox, server persistence, AND survival
+across a reload — plus a second test that rapid-re-ticks under a **1.2s-delayed PUT** (the race window your
+own my-files-stable spec uses). **Both pass on current main.** Landed as a regression guard (`c2e2cadf`),
+no production fix — I won't guess-fix a race I can't reproduce.
+
+Why it doesn't fire: the guards that counter your hypothesised "refresh re-seeds `included` from a stale
+read" are already in the code, landed **2026-09-04 (T82/T82b)** — before you filed this:
+
+- `MyFilesEditor` is `memo`'d on `(bandId, songId)` only, so a parent refresh (the post-write `onChanged`)
+  **cannot re-render it** — the checkbox is purely local `included`, so a revert from a stale prop is
+  structurally impossible;
+- the seed effect is one-shot on `[bandId, songId]` (won't re-run on `onChanged`);
+- `drain` **never re-seeds** local state on a successful write (only reconciles on a failure).
+
+So the mechanism the spec describes can't happen against this code. Two possibilities: (a) the T82 guards
+already closed it and the ticket is stale, or (b) the live repro needs a condition I didn't hit — a specific
+song with a particular file+layer shape, a **tab switch** (which DOES remount the panel and re-seed from
+`selected` — if `myOrdered` is momentarily stale there, that would explain "doesn't take"), or VLL's
+browser/network. If it's the tab-remount path, tell me and I'll reproduce + fix that specifically.
+
+What's the exact sequence you (or VLL) do — does it involve leaving and returning to the "Mine" tab, or a
+particular song? With that I'll close it properly.
+
+— web-core
