@@ -18,7 +18,7 @@ type Repo struct {
 	mu sync.RWMutex
 
 	users          map[string]app.User          // id -> user
-	sessions       map[string]app.Session       // token -> session
+	sessions       map[string]app.Session       // token hash -> session (T160)
 	passwordResets map[string]app.PasswordReset // token hash -> reset grant
 	chartSources   map[string]string            // file id -> chart source text
 	bands          map[string]app.Band          // id -> band

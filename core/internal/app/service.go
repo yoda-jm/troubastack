@@ -119,7 +119,10 @@ func (s *Service) Login(username, password string) (User, string, error) {
 		return User{}, "", ErrUnauthorized
 	}
 	token := newToken()
-	if err := s.repo.CreateSession(Session{Token: token, UserID: u.ID, CreatedAt: s.now().UTC()}); err != nil {
+	// Stored under the token's SHA-256 hash (the PasswordReset shape), never the raw
+	// token — so a leaked app.json is not a set of live credentials. The raw token
+	// goes back to the caller for the cookie and is never persisted.
+	if err := s.repo.CreateSession(Session{Token: hashToken(token), UserID: u.ID, CreatedAt: s.now().UTC()}); err != nil {
 		return User{}, "", err
 	}
 	return u, token, nil
@@ -130,7 +133,7 @@ func (s *Service) Logout(token string) error {
 	if token == "" {
 		return nil
 	}
-	err := s.repo.DeleteSession(token)
+	err := s.repo.DeleteSession(hashToken(token))
 	if err == ErrNotFound {
 		return nil
 	}
@@ -143,7 +146,7 @@ func (s *Service) UserForToken(token string) (User, error) {
 	if token == "" {
 		return User{}, ErrUnauthorized
 	}
-	sess, err := s.repo.GetSession(token)
+	sess, err := s.repo.GetSession(hashToken(token))
 	if err != nil {
 		return User{}, ErrUnauthorized
 	}

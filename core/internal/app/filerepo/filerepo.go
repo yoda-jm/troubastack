@@ -189,6 +189,22 @@ func (r *Repo) load() error {
 	if r.d.ChartSources == nil {
 		r.d.ChartSources = map[string]string{}
 	}
+	// T160: drop session husks — records that authenticate nobody. Before T160 the
+	// UserID was json:"-", so every persisted session reloaded as {} (empty UserID)
+	// and accumulated forever (DeleteSession runs only on explicit logout). Prune
+	// them on load and rewrite so no unusable record lingers.
+	pruned := 0
+	for key, sess := range r.d.Sessions {
+		if sess.UserID == "" {
+			delete(r.d.Sessions, key)
+			pruned++
+		}
+	}
+	if pruned > 0 {
+		if err := r.flush(); err != nil {
+			return fmt.Errorf("filerepo: prune session husks: %w", err)
+		}
+	}
 	return nil
 }
 

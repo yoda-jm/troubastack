@@ -132,12 +132,17 @@ func (u User) Public() PublicUser {
 	}
 }
 
-// Session is an opaque bearer token bound to a user. The token is stored as the
-// map key in the repo; this record carries who it belongs to.
+// Session is a bearer token bound to a user, PERSISTED so a server restart no
+// longer signs the whole band out (T160). Only the SHA-256 HASH of the token is
+// stored — as the repo map key, the same shape PasswordReset uses — so a leaked
+// app.json yields no usable tokens. UserID/CreatedAt are serialised; the raw token
+// is never written and the Token field is empty on a record loaded from disk.
+// (Before T160 every field was json:"-", so each persisted record was an empty
+// husk that authenticated nobody after a restart — the bug this fixes.)
 type Session struct {
 	Token     string    `json:"-"`
-	UserID    string    `json:"-"`
-	CreatedAt time.Time `json:"-"`
+	UserID    string    `json:"userId"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // PasswordReset is a one-time, admin-issued credential-recovery grant (T21). The
