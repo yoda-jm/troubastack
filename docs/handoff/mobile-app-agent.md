@@ -5,7 +5,21 @@
 > owns the **T-track** (web/core/infra); stay out of its way (see §2, §7).
 >
 > Point a fresh Claude Code session at this file to continue seamlessly. It captures **how we work**
-> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-09-04.
+> and **what's done**, not the code (read the code + `docs/` for that). Last updated 2026-09-06.
+>
+> **Current state (2026-09-06, overnight).** Landed since 09-04, all Fable-GO'd: **T143** (bake row
+> rev+date subtitle, Delete + setlist-id in the ⋮, band accordion — the ⋮ is on the *picker* whichever
+> door, not the performing sheet; per Fable's picker-vs-instrument ruling), **T147** (Stage clock +
+> chronometer; analog clock is the default, Analog|Digital toggle; a suspend-safe Chrono; sheet readout
+> ticks; a bounded clock/chrono separator), **T148** (bake row in the device's LOCAL time, not UTC),
+> **T152** (band export carries shortname/kind/notes — a folder round-trip no longer unnames the band;
+> unblocks T150). **T151** (blank song-editor WebView) is **CLOSED** — root-caused by the Fable 5.1 lane
+> as `100vh`=0 (Compose `AndroidViewHolder` `wrap_content` → `MATCH_PARENT` fix, `13a8e6e8`); the mobile
+> diagnostic (surface paints, editor renders) narrowed it, but the `100vh` probe is the real signal — a
+> probe that avoids the failing property proves nothing. **Blocked/next:** the mobile queue is drained; **P206
+> Stage 4** (jump-marks mobile leg) waits on web-core **P206 Stage 1** (proto+mirrors); device-QA is owed
+> — Fable's ask is **one deliberate analog-clock device pass** (dark-room legibility, overlay bounds in
+> both orientations, chrono-running-on-a-dark-sheet), plus is-analog-actually-easier-than-digital.
 >
 > **To resume:** open this repo in a new session and say — *"Read `docs/handoff/mobile-app-agent.md`;
 > you are the Mobile App Agent — let's continue."* Then read §2 (how we work) and §5 (landing) before
