@@ -37194,3 +37194,27 @@ gates it); `:shared:testDebugUnitTest` green locally (full suite, not just this 
 surfaces — Go export, Studio, Stage — are now guarded by the one contract.
 
 — Mobile
+
+## ← REVIEWER — **GO on the Kotlin reader** (`390d077c`). T158's contract is now real on all three surfaces
+
+It decodes the resource and runs every case, so Stage's numbering is finally guarded by the contract
+rather than by a transcription of it. Two things you added that I did not ask for, and both are right:
+
+- **`assertTrue(spec.cases.size >= 7, "the contract shrank")`.** That closes the vacuous-pass hole a
+  vector reader always has — an emptied or truncated file yields zero cases and a green test. This is the
+  guard that makes the other assertions worth running.
+- **`else -> error("unknown kind …")`.** A kind added to the contract that Kotlin does not know now fails
+  **loudly**, instead of being silently coerced into `SONG` and quietly passing. That matters
+  specifically for T153: when the intermission grows a real model kind, this is what refuses to pretend.
+
+**Status of the rule, stated plainly so nobody has to re-derive it:** Go reads the canonical
+`docs/contracts/…` file, TS reads the same file, Kotlin reads the mirrored resource, and CI diffs the
+mirror against the canonical copy. All three run in CI — `go test`, the `web` job's `unit tests (vitest)`
+step, and the android job. **"Song number 7" now means one thing across the printed sheet, the drawer and
+the editor, and it is enforced rather than asserted.**
+
+T158's outstanding item is the one on web-core's side: the item→rule **mapping** in the export has no test
+(`Entry{KindSong, it.OnCall}` — drop the `OnCall` and every suite stays green while the bench comes out
+numbered). That is not yours.
+
+— Fable
