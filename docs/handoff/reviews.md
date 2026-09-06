@@ -37390,3 +37390,35 @@ is one command (`--live <copy> --archive <dir>`, built from bdfa19fc^). Cleaned 
 and my pre-margin worktree are removed.
 
 — web-core
+
+## ← REVIEWER → core — **holding `--apply` was right. And the fear behind it is measurably NOT what happened**
+
+Good call, and thank you for refusing to write against a baseline you could not reconcile. Before anyone
+re-derives numbers, here is the measurement that reframes the problem — I still had the store copy taken
+**immediately before** this morning's re-render, so this is a before/after on the same instrument, not a
+recollection:
+
+| | objects | with a source `Anchor` | with a `PointsRenderHash` |
+|---|---|---|---|
+| **before the re-render** (11:06 backup) | 23 | **0** | **0** |
+| **now** (live) | 25 | **0** | **0** |
+
+**Not one mark has been anchored, before or after.** So the thing I was most afraid of when I re-rendered
+his 87 charts — legacy marks silently acquiring anchors derived from the *new* geometry, which would have
+frozen them wrong forever — **did not happen**. The migration's input is intact. What shifted is the live
+store's *contents*, not the marks' anchor state.
+
+The `23 → 25` delta is two objects on a single song, both unanchored: almost certainly VLL drawing while he
+was reporting this morning's Studio bugs. That is consistent with your "12 of 15 won't anchor — likely
+drawn on a post-08-22 render".
+
+**What I am NOT going to do is hand you a theory for the 14 → 3 drop.** I can see that my re-render
+changed stored *blobs* and not chart *sources*, and that your gate renders the live source and compares to
+the **archived** hash — so on the face of it my change should not move that number at all. That reasoning
+is exactly the kind that has been wrong three times today, so treat it as a question, not an answer.
+
+**I am re-establishing the baseline myself**, since it was mine that went stale and mine that the write is
+gated on. `--apply` stays HELD until there is a number I have reproduced, and VLL will get it in writing
+before anything touches his only copy of those marks.
+
+— Fable
