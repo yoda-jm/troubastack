@@ -826,6 +826,15 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   touch-action: pan-x; /* T66 Part E: a tap on a control wins over the horizontal scroll. */
 }
 .ctx-bar .style-controls::-webkit-scrollbar { display: none; }
+/* T156 ⟨A⟩ — reach the far controls on a narrow screen. The .ctx-bar is pass-through glass
+   (pointer-events:none) so a gesture over it reaches the score; the style strip inherits that, so
+   it overflows + is programmatically scrollable yet a touch-drag on it falls through and never pans
+   (VLL: "pas bougeable comme celle du haut"). When — and ONLY when — the strip actually overflows,
+   the JS toggles .of-start/.of-end (the same fade signal); make it interactive then so a pan reaches
+   it, while a strip that fits stays pass-through. Measured: at 360px scrollWidth 642 vs clientWidth
+   312, no wrap, pointer-events was `none`. */
+.ctx-bar .style-controls.of-start,
+.ctx-bar .style-controls.of-end { pointer-events: auto; }
 /* No text wrapping ANYWHERE in the slim pill: under CI/Windows fallback fonts the
    "draw: rect" target chip wrapped to two lines, fattening the bar to 52.06px (the
    T33 guard's red on 0e4381a/8dabe08 — reproduced locally to the hundredth by

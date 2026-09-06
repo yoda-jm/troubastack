@@ -1,7 +1,24 @@
 # T156 — The style bar on a narrow screen: reach it, and see the size before you draw
 
-**Lane:** web-core (studio). **Size:** M. **Status:** spec, 2026-09-06, from VLL. Two parts on one surface,
-and they interact — B adds width to the bar A is trying to make reachable.
+**Lane:** web-core (studio). **Size:** M. **Status:** ⟨A⟩ LANDED 2026-09-06 (web-core) — at the gate; ⟨B⟩
+(size preview) remains. Two parts on one surface, and they interact — B adds width to the bar A is trying to
+make reachable.
+
+**⟨A⟩ diagnosed (in the browser, as mandated) + fixed.** Playwright at a 360px viewport MEASURED the strip:
+`scrollWidth 642` vs `clientWidth 312` (it OVERFLOWS), `wrapped:false` (no second line), and
+`maxScrollLeft 330` (it IS programmatically scrollable) — but its computed `pointer-events` was **`none`**.
+The `.style-controls` scroll container inherits `pointer-events:none` from the pass-through `.ctx-bar` glass,
+so a touch-drag on it falls through to the score and never pans it (the top pill's row differs). Fix (CSS
+only, mirroring the existing fade signal): `.ctx-bar .style-controls.of-start/.of-end { pointer-events: auto }`
+— the JS already toggles `.of-*` exactly when the strip overflows, so it becomes interactive (pannable, all
+controls reachable) ONLY when it overflows, and a strip that FITS stays pass-through glass (teeth-tested at
+desktop width). RED-first `editor-t156-style-bar-overflow.spec.ts` (phone: overflow + `pointer-events!=none`;
+desktop teeth: fits + stays `none`).
+
+**⟨B⟩ (size preview) — NOT yet built.** ⟨A⟩ now makes the strip reach one more item, so ⟨B⟩ can be added
+into the scrollable strip (as one of the first-visible items): a greyed dotted circle whose diameter tracks
+the stroke width at the canvas zoom for stroke tools, and a neutral text sample (no brand string) at the
+chosen size/font for text; live, non-interactive. Next increment.
 
 ## ⟨A⟩ The second toolbar cannot be panned when it overflows
 
