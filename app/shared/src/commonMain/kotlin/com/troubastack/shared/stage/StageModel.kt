@@ -64,6 +64,15 @@ enum class RunningOrderKind { SONG, INTERMISSION }
 /** T158 — one setlist entry reduced to what the numbering rule needs. */
 data class RunningOrderEntry(val kind: RunningOrderKind, val onCall: Boolean)
 
+/** T153 — the `BakedSong.kind` string that marks an intermission (a break baked as one separator page);
+ *  absent/"song" ⇒ a normal song. A string, not an enum, mirroring the additive proto field and the shared
+ *  running-order vectors (docs/contracts/running-order-numbering.vectors.json use "song"/"intermission"). */
+const val BAKED_KIND_INTERMISSION = "intermission"
+
+/** T153 ⟨D1⟩ — shown on an intermission whose author left the label blank ("An empty label renders the
+ *  default rather than a blank card"). Freely edited upstream (a French band bakes "Entracte"). */
+const val INTERMISSION_DEFAULT_LABEL = "Intermission"
+
 /**
  * T158 — the running-order number (1-based) each entry shows, or null. THE numbering rule, stated once and
  * shared across three surfaces (Stage drawer, Studio editor, the export document) via the vectors at
@@ -347,15 +356,24 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
         val songName = song.title.ifBlank { "Song ${songIdx + 1}" }
         // P205 Stage 3a: show the viewer identity's cues (member_cues), falling back to the song's own
         // `cues` (a -mine bake or an old bundle). Anonymous (identity "") ⇒ the fallback.
-        // T153 (held for the core proto/baker slice): when BakedSong gains `kind`/`label` in the mirror,
-        // wire the intermission here — the only remaining line of the mobile half:
-        //   val break_ = song.kind == BakedSong.Kind.INTERMISSION   // or whatever the mirror names it
-        //   SongInfo(song.songId, if (break_) song.label.ifBlank { "Intermission" } else songName, pages.size,
-        //            artist = song.artist, onCall = song.onCall, cues = cuesForIdentity(song, identity),
-        //            kind = if (break_) RunningOrderKind.INTERMISSION else RunningOrderKind.SONG, label = song.label)
-        // Until then every baked entry is a SONG (the additive/absent⇒song contract); the drawer + tests below
-        // already exercise the INTERMISSION path via hand-built state, so this stays a one-line change.
-        songs.add(SongInfo(song.songId, songName, pages.size, artist = song.artist, onCall = song.onCall, cues = cuesForIdentity(song, identity)))
+        // T153: an entry whose baked `kind` is "intermission" is a break, not a song — it shows its authored
+        // label (empty ⇒ the default) instead of the title, has no song data (songId may be empty), and takes
+        // no running-order number (drawerRows via the T158 rule). Absent/"song" ⇒ a normal song (additive, so
+        // a pre-T153 bundle reads every entry as a song). The musical chrome self-suppresses: the baker writes
+        // key/tempo/meter/cues/notes empty for a break, so the meta-strip, metronome and cue-flash draw nothing.
+        val isIntermission = song.kind == BAKED_KIND_INTERMISSION
+        songs.add(
+            SongInfo(
+                song.songId,
+                if (isIntermission) song.label.ifBlank { INTERMISSION_DEFAULT_LABEL } else songName,
+                pages.size,
+                artist = song.artist,
+                onCall = song.onCall,
+                cues = cuesForIdentity(song, identity),
+                kind = if (isIntermission) RunningOrderKind.INTERMISSION else RunningOrderKind.SONG,
+                label = song.label,
+            ),
+        )
         // T137: read the viewer identity's own SEQUENCE into the pool, not the raw pool order. pageInSong
         // counts within that resolved sequence (so it stays 0..N and songStarts/facing-pages derive from
         // it); the POOL index (`poolIdx`) still keys the loader's per-page blob-availability check.
