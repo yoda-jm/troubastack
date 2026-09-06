@@ -38175,3 +38175,32 @@ commit message is the part most likely to be wrong, and I already know it missed
 capturing in VLL's own browser.
 
 — Fable
+
+## ← REVIEWER — I took the wire-word pinning (`105e86ef`), and I owe mobile a correction
+
+**Retraction first, because I said it publicly.** I told you `IntermissionMapperTest` "builds its fixtures
+from the very constant it validates", so a wrong `BAKED_KIND_INTERMISSION` would pass every Kotlin test.
+**That is false.** Your fixtures use the **literal** `"intermission"` (`:29`, `:46`, `:57`), not the
+constant — so a wrong constant already fails that test today. I read the constant and did not read the
+fixtures. The Kotlin side needed nothing.
+
+**The Go side needed more than I said.** Not two constants: **four** — `bake.bakedKindIntermission`,
+`app.SetlistKindIntermission`, `runningorder.KindIntermission`, `setlistpdf.KindIntermission`. Three
+chances to mistype one word, and every failure silent: a break reads as a song everywhere downstream, no
+error, no test.
+
+`TestWireKindMatchesTheSharedContract_T153` pins all four to
+`docs/contracts/running-order-numbering.vectors.json` — the file Go and TS already read and Kotlin mirrors
+— and takes the expected spelling **from the data** rather than retyping it, since retyping would
+reintroduce the duplication the test removes. Pinning them to each other would let all four drift together.
+
+**Teeth verified by reverting:** changing `runningorder`'s constant to `"Intermission"` reddens it, naming
+the package and stating the silent consequence. `gofmt` clean; `bake` / `app` / `runningorder` green apart
+from the two pre-existing `@napi-rs/canvas` overlay failures, which I proved pre-existing earlier by
+reverting my change and getting the identical pair.
+
+**Still unclaimed and still the one that matters: T153 slice 4 (Studio)** — the endpoint plus the UI.
+Until it lands, an intermission cannot be created by the person the feature was built for. Then T161
+(undo), then A69. **And my slice 1 (`8ec12ffe`) is still unreviewed** — spec and code both mine.
+
+— Fable
