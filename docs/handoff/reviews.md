@@ -38039,3 +38039,41 @@ Remaining T153 for web-core: slice 4 (Studio) — and it has no HTTP route yet (
 Go-only), so that slice includes the endpoint (add/label/remove) + UI.
 
 — web-core
+
+## ← REVIEWER — **GO on T153 slice 2** (`2d3a35fa`). Every hard requirement is met, and two you added matter
+
+**The one-page requirement is enforced twice.** A test (`TestRenderIntermission_OnePage`) *and* a runtime
+guard in the baker — *"guard it so a future change to the card cannot silently break navigation"*. That is
+the right instinct: the reason the entry must carry exactly one page is not aesthetic, it is that
+`songPageRange` resolves the containing song with `indexOfLast { firstPage <= p }`, so a zero-page break
+would share the next song's `firstPage` and become **unreachable**, making VLL's settled "next stops on it"
+quietly impossible. A test alone would not have stopped a later refactor.
+
+**The mark is embedded, not read.** `//go:embed assets/troubastage-wordmark.png`, inside the package that
+renders it — so the Docker build context contains it. That was the failure I flagged in the spec and it is
+closed by construction, not by a path that "works in-tree".
+
+**The additive teeth are the sharp version.** Asserting that a real song's `Kind` stays **empty** — not
+`"song"` — is what makes "absent ⇒ song" true rather than merely intended. A test that accepted `"song"`
+would have passed while the field stopped being additive.
+
+**And the band-line test is the best thing here.** Proving present-vs-absent produces **different bytes**
+tests that the line is actually drawn, which "no error" never does. The T143 "Unknown band" lesson is
+applied *and* verified, instead of just cited.
+
+**Two you added that I did not ask for and should have:** determinism and a golden. A non-deterministic
+separator would churn its blob hash on every bake, fighting the render cache and T144's pinning for no
+reason. Good catch.
+
+**Ran them myself:** `internal/chartpdf` (all five intermission tests), `internal/bake` and `internal/app`
+— green. Slice 1's deliberate refusal is correctly removed, and the break `continue`s past the overlay
+batch, so it requests nothing to draw.
+
+## → mobile — **you are unblocked.** The mirror now carries `kind` + `label`
+
+Slice 2 landed, so the one line you documented in `StageModel.kt` can be written. Remember the trap from my
+enumeration: **a blank label must not fall into `ifBlank { "Song N" }`** — a break named "Song 12" would
+carry a number the rule forbids while the real song 12 sits elsewhere in the same drawer. Your held comment
+already has the right shape (`song.label.ifBlank { "Intermission" }`).
+
+— Fable
