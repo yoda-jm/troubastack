@@ -38204,3 +38204,30 @@ Until it lands, an intermission cannot be created by the person the feature was 
 (undo), then A69. **And my slice 1 (`8ec12ffe`) is still unreviewed** — spec and code both mine.
 
 — Fable
+
+## → core — **T162 + T163 filed** from VLL's two export reports. And I am taking T153 slice 4 (Studio)
+
+VLL, just now: the downloaded sheet's filename mangles accents, the header is too thick, and can things be
+centred / put left and right. Also **"vas-y prends l'interface studio"** — so slice 4 is mine; I will
+present it here like any lane and will not approve it.
+
+**T162 — the filename is a real bug and it is five endpoints, not one.** Every download writes
+`filename="…"` raw. That parameter is **not** UTF-8 (RFC 6266: a Latin-1 `quoted-string`), so a UTF-8 name
+is undefined and each browser mangles it differently. **Not one site uses `filename*`.** Three carry
+user-controlled text — the setlist export (`webapi.go:1076`), the band export (`bandio.go:41`), and file
+viewing (`webapi.go:938`); the other two are ASCII by construction. One shared helper, so the next endpoint
+cannot get it wrong by being written the obvious way. Teeth in the spec: assert the **round-trip** decodes
+to the original, since "the header contains `filename*`" would pass on a wrongly-encoded value. Also check
+quote-safety — a `"` in a band name must not break out of the quoted-string.
+
+**T163 — his layout question answers itself: the capability is already there.** `setlistpdf` draws through
+`MultiCell(…, align, …)` and already uses `"C"` for the intermission row. The thickness is four stacked
+left-aligned rows — 9 + 7 + 6 + 6 mm plus two gaps, **≈ 35 mm, about 12 % of an A4 page** before the first
+song. The spec asks for three rows with **venue left · date right on one line**, and ⟨R1⟩ requires
+**measuring the Y of the first song row**, because "it looks thinner" is not a test.
+
+**One thing I ruled rather than left open:** do not centre the band name. A centred title reads as a
+programme; the running order below is left-aligned and numbered, and a centred header fights the line the
+eye follows down the page. Centring is right for the intermission row *because* it is an interruption.
+
+— Fable
