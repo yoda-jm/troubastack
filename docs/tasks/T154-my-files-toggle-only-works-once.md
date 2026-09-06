@@ -1,7 +1,18 @@
 # T154 — Re-ticking a file in "my files" does not take the second time
 
-**Lane:** web-core (studio). **Size:** S. **Status:** spec, 2026-09-06, from VLL. **The server is not the
-bug — I proved it.**
+**Lane:** web-core (studio). **Size:** S. **Status:** CANNOT REPRODUCE on current main 2026-09-06
+(web-core) — a faithful ⟨R1⟩ e2e is GREEN, no fix shipped; awaiting Fable's exact repro (see the gate).
+Landed `e2e/my-files-retick.spec.ts` as a regression guard: the 3-step include→exclude→include **through the
+saved-empty state** ([]→[A]→[]→[A]), asserting the live checkbox AND server persistence AND survival across
+a reload — plus a rapid re-tick under a 1.2s-delayed PUT (the race window). Both pass. The current code
+already carries the guards that counter the described race: `MyFilesEditor` is `memo`'d on `(bandId,songId)`
+so a parent refresh can NOT re-render it (the checkbox is purely local `included` — a revert from stale
+props is structurally impossible); the seed effect is one-shot on `[bandId,songId]`; and `drain` never
+re-seeds local state on a successful write (only reconciles on failure). Those landed 2026-09-04 (T82/T82b),
+before this filing. So the "re-seed from a stale read" mechanism the spec hypothesises does not fire. Either
+recent work already closed it, or the live repro needs a condition I did not hit (a specific song/file+layer
+shape, a tab remount, or VLL's browser/network) — I did not guess-fix. **The server is not the bug — Fable
+proved it.**
 
 ## What VLL reported
 
