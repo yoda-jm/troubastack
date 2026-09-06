@@ -343,6 +343,18 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	staged := make([]stagedSong, 0, len(detail.Items))
 	var batch []overlaySong
 	for si, item := range detail.Items {
+		// T153 slice 1 — the domain can express an intermission, but the baker cannot yet RENDER its page.
+		// Refuse, loudly. Silently skipping it would be worse than failing: the bundle would carry fewer
+		// entries than the running order, so the printed sheet and the stage would disagree about what
+		// comes next, and nothing would say so. Removed by the baker slice, which renders the page.
+		if item.IsIntermission() {
+			// A bakeError, not a bare error: the reason must survive humanize() and reach the musician who
+			// pressed Bake. "Ask an admin to check the server" would be useless here — the setlist is
+			// fine, the build simply cannot draw the page yet, and only they can decide to remove it.
+			return ConcertBundle{}, bakeID, b.fail(
+				"This setlist has an intermission, which this version cannot bake yet. Remove it to bake now.",
+				fmt.Errorf("T153: intermission at position %d, separator page not implemented", item.Position))
+		}
 		// Publish BEFORE the song's work (poppler dominates a bake, T97/T98) so the readout
 		// names the song being baked, not the one just finished: done advances 1..N here.
 		done, curSong = si+1, item.SongTitle

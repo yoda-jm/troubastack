@@ -1414,6 +1414,11 @@ func (s *Service) SetlistItemChartPreview(caller User, bandID, setlistID, itemID
 	if err != nil || it.SetlistID != setlistID {
 		return nil, ErrNotFound
 	}
+	// T153: a break has no chart to preview. It would 404 anyway once the song lookup failed, but for the
+	// wrong reason — say so here, so the answer does not depend on a lookup coincidentally failing.
+	if it.IsIntermission() {
+		return nil, ErrNotFound
+	}
 	song, err := s.repo.GetSong(it.SongID)
 	if err != nil || song.BandID != bandID {
 		return nil, ErrNotFound
@@ -1971,6 +1976,14 @@ func (s *Service) Setlist(caller User, bandID, setlistID string) (SetlistDetail,
 	views := make([]SetlistItemView, 0, len(items))
 	for _, it := range items {
 		v := SetlistItemView{SetlistItem: it}
+		// T153: a break has no song, so both lookups below would simply fail and leave the row with an
+		// EMPTY title — a blank line in Studio and on the printed sheet, with nothing erroring. Its title
+		// is its own Label (content, chosen by the band); no song fields apply.
+		if it.IsIntermission() {
+			v.SongTitle = it.Label
+			views = append(views, v)
+			continue
+		}
 		if song, err := s.repo.GetSong(it.SongID); err == nil {
 			v.SongTitle = song.Title
 			v.SongArtist = song.Artist
@@ -2159,6 +2172,41 @@ func (s *Service) AddSetlistItem(caller User, bandID, setlistID, songID string) 
 	return item, nil
 }
 
+// AddSetlistIntermission appends a break to the running order (T153). It is a real
+// entry with a real Position — T140's ordering applies to it exactly like a song — but
+// it has NO SongID, which is the whole risk this feature carries and the reason every
+// consumer was enumerated before the field existed.
+//
+// label is CONTENT (the band's words); empty is allowed and means "the presenter picks
+// the wording", so the domain never invents a string of its own.
+func (s *Service) AddSetlistIntermission(caller User, bandID, setlistID, label string) (SetlistItem, error) {
+	sl, err := s.getSetlistForMember(caller, bandID, setlistID)
+	if err != nil {
+		return SetlistItem{}, err
+	}
+	items, err := s.repo.ItemsOfSetlist(setlistID)
+	if err != nil {
+		return SetlistItem{}, err
+	}
+	pos := 0
+	for _, it := range items {
+		if it.Position >= pos {
+			pos = it.Position + 1
+		}
+	}
+	item := SetlistItem{
+		ID:        s.newID(),
+		SetlistID: sl.ID,
+		Position:  pos,
+		Kind:      SetlistKindIntermission,
+		Label:     label,
+	}
+	if err := s.repo.CreateSetlistItem(item); err != nil {
+		return SetlistItem{}, err
+	}
+	return item, nil
+}
+
 // SetlistItemPatch carries optional per-item overrides.
 type SetlistItemPatch struct {
 	KeyOverride     *string
@@ -2281,6 +2329,13 @@ func (s *Service) DuplicateSetlist(caller User, bandID, setlistID string) (Setli
 			TempoOverride: it.TempoOverride,
 			Notes:         it.Notes,
 			OnCall:        it.OnCall, // bench membership copies too (T23)
+			// T153: copy WHAT THE ENTRY IS, not just its overrides. Without these two a duplicated setlist
+			// turns every break into an empty song. TransposeChords was already being dropped here before
+			// T153 — a field added to the struct and never added to this copier, which is exactly the
+			// failure this enumeration was written to catch.
+			Kind:            it.Kind,
+			Label:           it.Label,
+			TransposeChords: it.TransposeChords,
 		}); err != nil {
 			return Setlist{}, err
 		}

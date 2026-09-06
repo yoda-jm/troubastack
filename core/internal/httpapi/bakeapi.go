@@ -179,6 +179,11 @@ func (a *BakeAPI) transposeWarnings(u app.User, bandID, setlistID string) []stri
 	}
 	var warns []string
 	for _, item := range detail.Items {
+		// T153: a break has no song to transpose. Today it is protected by two coincidences — a break
+		// never sets TransposeChords, and SongForMember would fail anyway — so state it once instead.
+		if item.IsIntermission() {
+			continue
+		}
 		if !item.TransposeChords {
 			continue
 		}

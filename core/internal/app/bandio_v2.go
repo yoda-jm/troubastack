@@ -133,12 +133,16 @@ type v2Setlist struct {
 }
 
 type v2SetlistItem struct {
-	Song            string `json:"song"` // repertoire slug
+	Song            string `json:"song"` // repertoire slug; EMPTY for an intermission (T153)
 	KeyOverride     string `json:"keyOverride,omitempty"`
 	TempoOverride   int    `json:"tempoOverride,omitempty"`
 	Notes           string `json:"notes,omitempty"`
 	OnCall          bool   `json:"onCall,omitempty"`
 	TransposeChords bool   `json:"transposeChords,omitempty"`
+	// T153: absent ⇒ "song", so every folder written before T153 keeps its meaning. An intermission
+	// declares kind:"intermission" and carries no `song`; its Label is the band's own words.
+	Kind  string `json:"kind,omitempty"`
+	Label string `json:"label,omitempty"`
 }
 
 type v2Annotations struct {
@@ -329,6 +333,12 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 	for _, msl := range man.Setlists {
 		vsl := v2Setlist{ID: msl.ID, Name: msl.Name, EventDate: msl.EventDate, Venue: msl.Venue, Notes: msl.Notes}
 		for _, it := range msl.Items {
+			// T153: an intermission has no song, so it has no slug to resolve. Export it by kind+label;
+			// the unknown-song guard below still protects every entry that CLAIMS to be a song.
+			if it.Kind == SetlistKindIntermission {
+				vsl.Items = append(vsl.Items, v2SetlistItem{Kind: it.Kind, Label: it.Label, Notes: it.Notes})
+				continue
+			}
 			slug := slugBySong[it.SongRef]
 			if slug == "" {
 				return nil, fmt.Errorf("export v2: setlist %q references unknown song %q", msl.Name, it.SongRef)
@@ -563,6 +573,14 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 	for _, vsl := range sls.Setlists {
 		msl := manifestSetlist{ID: vsl.ID, Name: vsl.Name, EventDate: vsl.EventDate, Venue: vsl.Venue, Notes: vsl.Notes}
 		for idx, it := range vsl.Items {
+			// T153: an intermission occupies a position like any entry but references no song. Everything
+			// else in the loop (Position from array order, T140) applies to it unchanged.
+			if it.Kind == SetlistKindIntermission {
+				msl.Items = append(msl.Items, manifestItem{
+					Position: idx, Notes: it.Notes, Kind: it.Kind, Label: it.Label,
+				})
+				continue
+			}
 			songID, ok := songIDBySlug[it.Song]
 			if !ok {
 				return bandManifest{}, nil, fmt.Errorf("%w: setlist %q references unknown song slug %q", ErrInvalidInput, vsl.Name, it.Song)

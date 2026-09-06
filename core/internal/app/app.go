@@ -346,7 +346,36 @@ type SetlistItem struct {
 	// OnCall, a mirror-layer field with no proto setlist-item message; it reaches the
 	// wire only as transposed BakedSong chart pages. Absent = false = bake as stored.
 	TransposeChords bool `json:"transposeChords,omitempty"`
+
+	// Kind (T153) is what this entry IS: a song, or an intermission (a break in the
+	// running order). ABSENT ⇒ SONG — every entry written before T153 is a song, and
+	// that default is what makes the field additive (the T143 band_id lesson). Read it
+	// through IsIntermission, never by comparing strings at the call site.
+	//
+	// An intermission has NO SongID. That is the whole risk of this feature: an empty
+	// string is a valid string, so a reader that never questioned SongID gets a
+	// plausible wrong answer instead of an error (T140's shape). Every consumer was
+	// enumerated before this field was added — see the T153 gate note.
+	Kind string `json:"kind,omitempty"`
+
+	// Label (T153) is the words shown on an intermission's page and in the running
+	// order — CONTENT, chosen by the band, not a hardcoded string. Empty is allowed;
+	// the presenter supplies its own default rather than the domain inventing one.
+	// Meaningless on a song entry.
+	Label string `json:"label,omitempty"`
 }
+
+// T153 — the values of SetlistItem.Kind. The zero value ("") is a SONG, deliberately:
+// it is what every pre-T153 entry carries, so the field is additive.
+const (
+	SetlistKindSong         = "song"
+	SetlistKindIntermission = "intermission"
+)
+
+// IsIntermission reports whether this entry is a break rather than a song. The ONE
+// place the kind is interpreted — call sites must not compare the string themselves,
+// so that "absent means song" is stated once and cannot drift.
+func (i SetlistItem) IsIntermission() bool { return i.Kind == SetlistKindIntermission }
 
 // Repo is the swappable persistence contract for the relational domain. It mirrors
 // the annotation store's "interface + multiple backends" pattern but is a plain

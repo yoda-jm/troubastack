@@ -137,6 +137,8 @@ type manifestItem struct {
 	Notes           string `json:"notes,omitempty"`
 	OnCall          bool   `json:"onCall,omitempty"`
 	TransposeChords bool   `json:"transposeChords,omitempty"`
+	Kind            string `json:"kind,omitempty"`  // T153; absent ⇒ song
+	Label           string `json:"label,omitempty"` // T153; an intermission's words
 }
 
 type manifestSelection struct {
@@ -341,7 +343,7 @@ func (s *Service) ExportBand(caller User, eng *engine.Engine, bandID string) ([]
 		}
 		for _, it := range items {
 			msl.Items = append(msl.Items, manifestItem{
-				SongRef: it.SongID, Position: it.Position, KeyOverride: it.KeyOverride,
+				SongRef: it.SongID, Kind: it.Kind, Label: it.Label, Position: it.Position, KeyOverride: it.KeyOverride,
 				TempoOverride: it.TempoOverride, Notes: it.Notes, OnCall: it.OnCall, TransposeChords: it.TransposeChords,
 			})
 		}
@@ -449,6 +451,12 @@ func (s *Service) validateImport(man bandManifest, blobs map[string][]byte) erro
 	}
 	for _, sl := range man.Setlists {
 		for _, it := range sl.Items {
+			// T153: an intermission references no song, so this guard does not apply to it. It still
+			// applies in full to every entry that CLAIMS to be a song — that is what stops a bad ref
+			// from becoming an entry with no song at all.
+			if it.Kind == SetlistKindIntermission {
+				continue
+			}
 			if !songIDs[it.SongRef] {
 				return fmt.Errorf("%w: setlist %q item references unknown song %s", ErrInvalidInput, sl.Name, it.SongRef)
 			}
@@ -927,6 +935,7 @@ func (s *Service) ImportBand(caller User, eng *engine.Engine, zipBytes []byte, d
 				ID: uuidV5(nsl.ID, "item:"+strconv.Itoa(it.Position)), SetlistID: nsl.ID, SongID: songMap[it.SongRef], Position: it.Position,
 				KeyOverride: it.KeyOverride, TempoOverride: it.TempoOverride, Notes: it.Notes,
 				OnCall: it.OnCall, TransposeChords: it.TransposeChords,
+				Kind: it.Kind, Label: it.Label, // T153: what the entry IS survives a round-trip
 			}
 			if err := s.repo.CreateSetlistItem(ni); err != nil {
 				return ImportReport{}, err
