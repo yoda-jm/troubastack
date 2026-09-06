@@ -124,11 +124,13 @@ func main() {
 	}
 	fmt.Printf("T159 recovery — %s\n  live:    %s\n  archive: %s\n  archived annotated streams: %d\n\n", mode, *live, *archive, len(archSongs))
 
-	var streamsRecovered, streamsAborted, streamsClean, objsCopied, layersCreated, writeErrors int
+	var streamsRecovered, streamsAborted, streamsClean, streamsSkipped, objsCopied, layersCreated, writeErrors int
 
 	for i, archSongID := range archSongs {
 		snap, err := archS.eng.Head(archSongID)
 		if err != nil {
+			fmt.Printf("  stream #%d: ABORTED — archive head unreadable: %v\n", i, err)
+			streamsAborted++
 			continue
 		}
 		live := 0
@@ -137,7 +139,10 @@ func main() {
 			live++
 		}
 		if live == 0 {
-			continue // nothing to recover from this stream
+			// Every object in this stream is a tombstone (or it is empty): nothing to restore. Counted
+			// so the summary arithmetic closes — these are marks VLL erased, NOT losses to recover.
+			streamsSkipped++
+			continue
 		}
 		sg, err := archS.repo.GetSong(archSongID)
 		if err != nil {
@@ -217,8 +222,8 @@ func main() {
 		}
 	}
 
-	fmt.Printf("\nsummary\n  streams recovered   %d\n  streams already clean %d\n  streams aborted     %d\n  objects restored    %d\n  layers created      %d\n",
-		streamsRecovered, streamsClean, streamsAborted, objsCopied, layersCreated)
+	fmt.Printf("\nsummary\n  archived annotated streams   %d\n  streams recovered            %d\n  streams already clean         %d\n  streams skipped (all tombstoned/empty) %d\n  streams aborted              %d\n  objects restored             %d\n  layers created               %d\n",
+		len(archSongs), streamsRecovered, streamsClean, streamsSkipped, streamsAborted, objsCopied, layersCreated)
 	if *apply {
 		fmt.Printf("  write errors        %d\n", writeErrors)
 		if writeErrors > 0 {
