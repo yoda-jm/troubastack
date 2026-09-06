@@ -150,6 +150,14 @@ data class SongInfo(
     // T50/A20: the baked-for member's personal cues for this song (icon + tint), in bake order. Shown
     // in the A15 drawer row and flashed center on song entry. Empty when the member has none.
     val cues: List<SongCue> = emptyList(),
+    // T153: an intermission entry — a baked page with no song, carried in the running order between songs.
+    // Additive (absent ⇒ SONG), so a pre-T153 bundle keeps reading every entry as a song. It carries no
+    // number (the T158 rule; drawerRows sources this) and its [songId] may be empty. The musical chrome
+    // (key/tempo/beat/cues) self-suppresses because the baker writes those fields empty for it.
+    val kind: RunningOrderKind = RunningOrderKind.SONG,
+    // T153: the intermission's authored label (e.g. "Entracte"); empty for a song, and empty on an
+    // intermission ⇒ the default is shown. Held in [name] for display; kept distinct so the mapper knows.
+    val label: String = "",
 )
 
 /** A distinct layer aggregated across the bundle, for the Layers panel.
@@ -339,6 +347,14 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
         val songName = song.title.ifBlank { "Song ${songIdx + 1}" }
         // P205 Stage 3a: show the viewer identity's cues (member_cues), falling back to the song's own
         // `cues` (a -mine bake or an old bundle). Anonymous (identity "") ⇒ the fallback.
+        // T153 (held for the core proto/baker slice): when BakedSong gains `kind`/`label` in the mirror,
+        // wire the intermission here — the only remaining line of the mobile half:
+        //   val break_ = song.kind == BakedSong.Kind.INTERMISSION   // or whatever the mirror names it
+        //   SongInfo(song.songId, if (break_) song.label.ifBlank { "Intermission" } else songName, pages.size,
+        //            artist = song.artist, onCall = song.onCall, cues = cuesForIdentity(song, identity),
+        //            kind = if (break_) RunningOrderKind.INTERMISSION else RunningOrderKind.SONG, label = song.label)
+        // Until then every baked entry is a SONG (the additive/absent⇒song contract); the drawer + tests below
+        // already exercise the INTERMISSION path via hand-built state, so this stays a one-line change.
         songs.add(SongInfo(song.songId, songName, pages.size, artist = song.artist, onCall = song.onCall, cues = cuesForIdentity(song, identity)))
         // T137: read the viewer identity's own SEQUENCE into the pool, not the raw pool order. pageInSong
         // counts within that resolved sequence (so it stays 0..N and songStarts/facing-pages derive from

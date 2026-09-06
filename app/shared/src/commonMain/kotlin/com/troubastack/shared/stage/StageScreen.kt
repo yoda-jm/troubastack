@@ -1097,10 +1097,10 @@ internal fun drawerRows(state: StageState): List<DrawerRow> {
     // T23: bench/encore songs group below the running order under an "On call" header. withIndex keeps
     // each song's ORIGINAL index so a jump lands on the right pages regardless of bundle order.
     // T158/P2: number via the ONE shared running-order rule so Stage stays in lock-step with the export +
-    // Studio (docs/contracts/running-order-numbering.vectors.json). SongInfo has no intermission yet (T153),
-    // so every entry maps to a SONG; on-call is the only thing that withholds a number today — but sourcing
-    // from runningOrderNumbers means the drawer is already correct when intermissions arrive.
-    val numbers = runningOrderNumbers(state.songs.map { RunningOrderEntry(RunningOrderKind.SONG, it.onCall) })
+    // Studio (docs/contracts/running-order-numbering.vectors.json). T153: an intermission entry carries
+    // kind=INTERMISSION, so it lands in the main running order (onCall=false) but takes no number and never
+    // shifts the song after it — the rule handles it, this just sources the kind instead of hardcoding SONG.
+    val numbers = runningOrderNumbers(state.songs.map { RunningOrderEntry(it.kind, it.onCall) })
     val (bench, main) = state.songs.withIndex().partition { it.value.onCall }
     val rows = mutableListOf<DrawerRow>(DrawerRow.Header("Songs"))
     main.forEach { (i, s) -> rows += DrawerRow.Song(i, s, number = numbers[i]) }

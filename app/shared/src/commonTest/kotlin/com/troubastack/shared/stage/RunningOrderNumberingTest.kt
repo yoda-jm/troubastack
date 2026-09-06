@@ -54,4 +54,26 @@ class RunningOrderNumberingTest {
         assertEquals(null, numbered["s2"]) // on-call → no number
         assertEquals(2, numbered["s3"]) // the bench song did not shift it to 3
     }
+
+    @Test fun the_drawer_shows_an_intermission_as_an_unnumbered_labelled_row() {
+        // T153: a break between songs 1 and 2 is a MAIN-order entry (onCall=false) that carries kind
+        // INTERMISSION, so it appears in the drawer, takes no number, and does NOT shift the song after it —
+        // the T158 rule, now driven off SongInfo.kind through the Stage drawer surface. A naive "number every
+        // main entry" would number the break and push the next song to 3; this asserts it reads 2.
+        val state = StageState(
+            pages = listOf(StagePage("s1", "A", 0, "a", overlays = emptyList(), status = PageStatus.READY)),
+            songs = listOf(
+                SongInfo("s1", "A", firstPage = 0),
+                SongInfo("", "Entracte", firstPage = 0, kind = RunningOrderKind.INTERMISSION, label = "Entracte"),
+                SongInfo("s3", "C", firstPage = 0),
+            ),
+        )
+        val songRows = drawerRows(state).filterIsInstance<DrawerRow.Song>()
+        val brk = songRows.first { it.info.kind == RunningOrderKind.INTERMISSION }
+        assertEquals(null, brk.number, "an intermission carries no running-order number")
+        assertEquals("Entracte", brk.info.name, "the intermission renders its label")
+        val byId = songRows.associate { it.info.songId to it.number }
+        assertEquals(1, byId["s1"])
+        assertEquals(2, byId["s3"]) // the break did not shift the next song to 3
+    }
 }
