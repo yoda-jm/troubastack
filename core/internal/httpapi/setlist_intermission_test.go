@@ -62,3 +62,30 @@ func TestSetlistIntermissionEndpoints_T153(t *testing.T) {
 	resp, _ = admin.do(http.MethodDelete, slBase+"/items/"+brk.ID, nil)
 	mustStatus(t, resp, http.StatusNoContent)
 }
+
+// TestSetlistAddItem_KindDiscriminator_T153: absent ⇒ song (the additive contract), an explicit
+// unknown kind is a client error (400), NOT silently a song — a typo like "intermision" with a valid
+// songId must not create the wrong entry with a quiet 201.
+func TestSetlistAddItem_KindDiscriminator_T153(t *testing.T) {
+	srv := bakeServer(t)
+	admin := &client{t: t, srv: srv}
+	band := admin.makeBand("alice", "Band")
+	song := admin.makeSong(band.ID, "Opener")
+	base := "/api/bands/" + band.ID
+	_, slb := admin.do(http.MethodPost, base+"/setlists", map[string]string{"name": "Gig"})
+	var sl app.Setlist
+	unmarshalField(t, slb, "setlist", &sl)
+	items := base + "/setlists/" + sl.ID + "/items"
+
+	// Absent kind ⇒ song.
+	resp, _ := admin.do(http.MethodPost, items, map[string]any{"songId": song.ID})
+	mustStatus(t, resp, http.StatusCreated)
+
+	// Explicit kind:"song" ⇒ song.
+	resp, _ = admin.do(http.MethodPost, items, map[string]any{"kind": "song", "songId": song.ID})
+	mustStatus(t, resp, http.StatusCreated)
+
+	// A typo'd kind with a VALID songId must be rejected, not coerced to a song.
+	resp, _ = admin.do(http.MethodPost, items, map[string]any{"kind": "intermision", "songId": song.ID})
+	mustStatus(t, resp, http.StatusBadRequest)
+}

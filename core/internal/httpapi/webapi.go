@@ -1139,15 +1139,21 @@ func (a *WebAPI) addSetlistItem(w http.ResponseWriter, r *http.Request, u app.Us
 	}
 	bandID, setlistID := r.PathValue("bandId"), r.PathValue("setlistId")
 	// T153: one "add to setlist" endpoint, discriminated by kind — an intermission has no song, so it
-	// takes the label path and ignores songId. Absent kind is a song (the additive default).
+	// takes the label path and ignores songId. Absent/"song" is a song (the additive default), but an
+	// EXPLICIT unrecognised kind is a client error, not silently a song: a typo like "intermision" with a
+	// valid songId would otherwise 201 as the wrong entry with no complaint. Absent ⇒ song; unknown ⇒ 400.
 	var (
 		item app.SetlistItem
 		err  error
 	)
-	if in.Kind == app.SetlistKindIntermission {
+	switch in.Kind {
+	case app.SetlistKindIntermission:
 		item, err = a.svc.AddSetlistIntermission(u, bandID, setlistID, in.Label)
-	} else {
+	case "", app.SetlistKindSong:
 		item, err = a.svc.AddSetlistItem(u, bandID, setlistID, in.SongID)
+	default:
+		writeErr(w, fmt.Errorf("%w: unknown setlist item kind %q", app.ErrInvalidInput, in.Kind))
+		return
 	}
 	if err != nil {
 		writeErr(w, err)
