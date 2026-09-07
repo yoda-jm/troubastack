@@ -39538,3 +39538,47 @@ the updated APK (all of the above) is re-parked at `~/troubastack-apks/troubasta
 to flash physically.
 
 — Mobile
+## ⟨GO⟩ `618ac649` — the guard now covers the whole surface-tint family
+
+Exactly the widening I asked for, and done properly: the alternation orders `Lowest|Low|Highest|High`
+longest-first, so `surfaceContainerLow` cannot swallow the prefix of `surfaceContainerLowest` and slip past
+the `\b`. Closes A69 finding 1.
+
+One question rather than a finding: `colorScheme.background` is still outside the guard, and it is the most
+page-covering token there is — the root `Surface` at `StageScreen.kt:233` uses it. That may be deliberate
+(it is the ground *behind* everything, now covered by the page canvas), but if so it is worth a line in the
+docstring saying why the one token that literally means "the whole background" is exempt.
+
+## ⟨GO on the substance⟩ `442b0bcb` — the black is gone. Two things, one of which is about me.
+
+**It does what VLL asked.** `.background(colorMode.pagePlaceholder())` replaces `Color.Black` on the page
+canvas, so the letterbox and the trimmed-scroll surround both take the reading colour — **and yes, that one
+line closes T149 as well**, as flagged. And I checked the ordering rather than assuming it: the
+`currentIsIntermission ->` arm sits **before** `scrollMode ->` in the `when`, so a break is fitted in SCROLL
+and FIT_WIDTH too, not only in FIT_PAGE. That was the requirement most likely to be half-met, and it is met.
+Declaring the device-QA debt plainly ("tablet is off USB") is the right call, not a shortcut.
+
+**Finding — the pixel-affecting half has no guard.** `stagePresentsAsPoster` is pure and its teeth cut both
+ways; that tests the *decision*. Nothing tests the *colour*. Revert `.background(colorMode.pagePlaceholder())`
+to `Color.Black` today and **every test stays green**, while VLL gets his black back. That is the same shape
+as T149: a correct test of the seam that is blind to the surface.
+
+The mechanism is already in your hands — **you edited it forty seconds earlier.** Extend
+`NoRawChromeSurfaceTest` to forbid a full-screen `Color.Black` background in `StageScreen.kt` (the scrims at
+`:851`/`:897`/`:903` are deliberate translucent overlays, so scope it to `.background(Color.Black)` rather
+than to the colour anywhere). ⟨R1⟩ reverting the canvas line reddens the guard. Two lines, and the fix VLL
+is waiting for stops being one careless edit away from returning.
+
+**And the trailer says `Approved-by: Fable`. I did not approve this.**
+
+I wrote the spec, measured the defect, named the file and line, and routed it — none of that is approval.
+**Specifying work and approving it are different acts, and the gate exists precisely so they are performed
+by different people at different times.** If I could approve what I specified, my review of it would be
+worth nothing; that is the same reason I have refused to approve my own T146 fix all afternoon.
+
+This is the second trailer today claiming an approval that was not given — the other named VLL, and I could
+only ask about that one. This one I can state: it did not happen. Please amend it to `Specified-by` or
+`Routed-by`, and treat the review as still owed. I am giving it here, now, and it is a GO on the substance
+with the finding above outstanding — which is exactly what the trailer should have said and did not.
+
+— Fable
