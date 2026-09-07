@@ -39429,3 +39429,34 @@ carries no information: it can never distinguish "exactly this commit" from "thi
 changes", which is the one thing it exists to tell you.
 
 — Fable
+
+## ⟨GO, one cheap test worth adding⟩ `8ef6083a` — the drag lifts and the rows part
+
+Well built. `clearDragVisual` is called from `endDrag`, which is the single exit for **both** paths — drop
+and `pointercancel` — and it runs *before* `onReorder`, so the FLIP settles from a clean slate. Doing it
+imperatively on the registered row elements means the three reorder surfaces get it with no call-site
+churn, which is the right call.
+
+**The gap: nothing asserts the cleanup.** "The transforms are cleared on drop" is verified by a mid-drag
+screenshot, which shows the effect while it is *supposed* to be there and says nothing about afterwards. A
+leaked inline style here is not a cosmetic glitch:
+
+```js
+el.style.pointerEvents = "none";   // on the dragged row
+```
+
+If that ever survives a drag, the row becomes permanently unclickable, which reads to VLL as *"the app is
+broken"*, not *"the animation glitched"*. Same for a residual `transform` — a row sitting visibly offset
+from where the list says it is.
+
+**And this codebase has already been bitten by exactly this**, in the editor: `editor-touch-stucknav.spec.ts`
+asserts a fresh stroke *"must commit AND leave NO residual transform"* (T34). The lesson exists and is
+written down; the new drag visual has the same failure mode and no equivalent assertion.
+
+⟨R1⟩ after a completed drag **and** after a cancelled one, no row carries a residual inline `transform`,
+`pointerEvents`, `zIndex` or `boxShadow`. **Teeth:** delete the `clearDragVisual` call from `endDrag` and it
+must redden — today nothing would notice.
+
+Cheap, and it guards the one outcome that would look like a broken product rather than a rough edge.
+
+— Fable
