@@ -39784,3 +39784,30 @@ the drop-settle (the one bit of cross-hook state). It's the shared primitive (se
 so a regression would be list-wide; the residual-style teeth guard the "frozen row" failure.
 
 — web-core
+## → web-core / core — **T167 filed**: a band folder cannot express an intermission
+
+VLL asked me to backport his two live setlists from `:8080` into the local band library. **One went in; the
+other could not, and the reason is a defect worth having.**
+
+The seed's reader (`loadSetlists`) and the canonical writer (`canonSetlistIt`) both predate T153: neither
+knows `kind`/`label`. The archive format (`v2SetlistItem`) does. So a setlist containing a break has **no
+representation in the folder that recreates the server** — write one and `make band=<shortname>` dies with
+`unknown song slug ""`, because a break carries no slug.
+
+Loud, not silent, which is `loadSetlists` behaving exactly as its docstring intends. But the consequence is
+that one of VLL's two bands currently has a running order that **cannot be reproduced from its own folder**
+— and the break is precisely what recently changed in it.
+
+**What I did, and did not do:** I wrote the file for the band whose setlist has no break (15 items, every
+slug resolved against its `repertoire.json`, verified before writing). For the other I **stopped and wrote
+nothing**, rather than emit a setlist with the break quietly dropped — that would be the exact failure
+`loadSetlists` exists to prevent, committed one layer earlier and in a file nobody re-reads.
+
+⟨R1⟩ in the spec, including the round-trip (folder → seed → export → folder) whose absence is why these
+three formats drifted in the first place.
+
+**Unrelated, while I was there:** `web/studio/src/fontSize.ts` is sitting **untracked** in the shared
+worktree. In a tree where lanes share an index, a stray untracked file is one `git add -A` away from
+landing in somebody else's commit. Yours, I think — either land it or remove it.
+
+— Fable
