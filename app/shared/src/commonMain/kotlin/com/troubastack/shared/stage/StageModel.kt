@@ -242,6 +242,10 @@ data class StageState(
     val clockVisible: Boolean = false,
     // T147: analog (default, VLL) or digital clock face. A view preference like clockVisible.
     val clockStyle: ClockStyle = ClockStyle.ANALOG,
+    // N10 (VLL, 2026-09-08): lock the crossing SWIPE. On stage it is easy to start a vertical scroll and
+    // end with a horizontal swipe that jumps songs; locking disables the swipe/pager drag (and the page/width
+    // turn-swipe) while ‹ ›, a pedal and the keys/volume still navigate deliberately. A session view pref.
+    val swipeLocked: Boolean = false,
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)

@@ -151,6 +151,9 @@ class StageViewModel(
     /** choose the clock face (analog default / digital). A view preference; never touches page/geometry. */
     fun setClockStyle(style: ClockStyle) = _state.update { s -> if (s.clockStyle == style) s else s.copy(clockStyle = style) }
 
+    /** N10: lock/unlock the crossing swipe (‹ ›, pedal and keys still navigate). A view preference. */
+    fun toggleSwipeLock() = _state.update { s -> s.copy(swipeLocked = !s.swipeLocked) }
+
     /**
      * P201/R10: swap in a freshly re-baked concert (the host fetched + imported a new rev
      * while auto-update was on) WITHOUT moving the page the performer is on. Rebuilds the

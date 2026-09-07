@@ -540,7 +540,10 @@ private fun Performing(
                 .background(colorMode.schemePaper())
                 .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
                 .then(
-                    if (scrollMode) Modifier // N10: the HorizontalPager owns horizontal drag in scroll mode
+                    // N10: in scroll mode the HorizontalPager owns horizontal drag (locked via its
+                    // userScrollEnabled below); in page/width the turn-swipe is dropped when the swipe is
+                    // locked. Either way ‹ ›, a pedal and the keys/volume still navigate.
+                    if (scrollMode || state.swipeLocked) Modifier
                     else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)
                 ),
         ) {
@@ -580,6 +583,7 @@ private fun Performing(
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = !state.swipeLocked, // N10: lock disables the finger-drag cross (‹ ›/pedal still work)
                         beyondViewportPageCount = 1, // pre-compose the neighbour so the drag reveals real content
                         key = { it },
                     ) { page ->
@@ -845,6 +849,7 @@ private fun Performing(
         onResetChrono = { vm.resetChrono() },
         onToggleClock = { vm.setClockVisible(!state.clockVisible) },
         onSetClockStyle = { vm.setClockStyle(it) },
+        onToggleSwipeLock = { vm.toggleSwipeLock() },
         onDismiss = { showSettings = false },
     )
     if (showLayers) LayersDialog(state, vm, colorMode) { showLayers = false }
@@ -1035,6 +1040,7 @@ private fun SettingsSheet(
     onResetChrono: () -> Unit,
     onToggleClock: () -> Unit,
     onSetClockStyle: (ClockStyle) -> Unit,
+    onToggleSwipeLock: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val chrome = stageChrome(colorMode) // A69: the sheet follows the reading scheme
@@ -1077,6 +1083,15 @@ private fun SettingsSheet(
                         colors = segColors,
                     ) { Text(label) }
                 }
+            }
+            // N10 (VLL, 2026-09-08): lock the crossing swipe — on stage a vertical scroll easily ends in a
+            // horizontal swipe that jumps songs. Locked, ‹ ›, a pedal and the keys/volume still navigate.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Lock swipe", style = MaterialTheme.typography.titleSmall)
+                    Text("Stop an accidental scroll from changing the song — use ‹ › or a pedal.", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = state.swipeLocked, onCheckedChange = { onToggleSwipeLock() })
             }
             // A63 — the three controls were three OutlinedButtons drawn identically, none labelled, so
             // they read as one kind of thing (VLL misread the colour value as a label like the reading
