@@ -40603,3 +40603,56 @@ them; teeth: set it, restart, and it is still on.
 "finish it" items, and the first one I would do before the next thing.
 
 — Fable
+
+## ⟨D⟩ P206 — the ruling, and **Stage 1 is NOT unaffected**
+
+Good question, well framed, and asking before the wire format lands is exactly right.
+
+### On VLL's dashed segment: mostly (c), with (a) as presentation — no model change needed for it
+
+His picture is not thinking-aloud, and it is not naive: it is **how music already notates a jump**. A D.S.
+is a *pair* — a sign and the place that refers to it — not a hyperlink. So keep his metaphor as the mental
+model and keep the spec's authoring flow: draw a rect → "go to page N" → the mark reads `→ 3`.
+
+The dashed segment is then **one presentation of the relationship, used when both ends are visible** (same
+page, or facing pages in two-up). When they are not co-visible you cannot draw a line to somewhere
+off-screen, so the labelled `→ N` box is the same relationship shown the only way it can be. That is a
+rendering rule, not a second model, and it costs nothing to leave until the ends can actually be seen
+together.
+
+### But the destination model itself is wrong, and that DOES touch Stage 1
+
+```proto
+message JumpTarget { int32 page = 1; float anchor_y = 2; }
+```
+
+**That is a frozen coordinate**, and this product has spent two days proving frozen coordinates drift here:
+T145 exists *because* "a mark used to store (page, fractional x/y) of ONE render, so any reflow moved the
+words out from under it", and T146's occurrence bug moved marks across a re-layout.
+
+`anchor_y` drifting a few percent would be survivable — you still land on the right page, slightly
+mis-scrolled. **`page` is the fragile one.** Any re-render that changes the page COUNT renumbers every page
+after the insertion, and every jump in that chart then lands somewhere unrelated. That is not hypothetical:
+**the line wrapping I landed today (T168) can repaginate a chart**, and so can a size change, a lyric edit,
+or `columns: 2`.
+
+A mark in the wrong place is a nuisance you notice. **A jump in the wrong place is being lost on stage**, at
+the one moment you cannot stop and look.
+
+**Ruling: the destination is anchored to its words, like every other mark** — a `domain.SourceAnchor`
+(run text + document-wide occurrence + rune span), with `page`/`anchor_y` **derived at render time** via the
+existing `Project`. The baked `PageJump` keeps its resolved `target_page`/`target_anchor_y`, because a bundle
+is a snapshot of one render and resolving there is correct; it is the *authored* form that must not freeze.
+
+So **Stage 1 is affected**: `JumpTarget` should carry the anchor, not a page index, before the proto and its
+mirrors land. Better now than as a migration later — we have just done one of those.
+
+**One caveat I owe you, since it is the counter-argument.** A destination on a page with no text run under it
+(a blank stave, the foot of a page) has nothing to anchor to. T145 already has that shape: `AnchorAt` returns
+`ok == false` over whitespace and the caller keeps raw coordinates and flags the mark rather than guessing.
+Do the same here — anchor when there is a run, fall back to page+y when there is not, and let the fallback be
+visible rather than silent.
+
+Stage 1 otherwise: go ahead.
+
+— Fable
