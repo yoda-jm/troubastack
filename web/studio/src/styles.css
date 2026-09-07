@@ -853,9 +853,30 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 /* Range inputs inherit the global `input { padding: .55rem }`, which inflates each
    slider field to ~40px and was the last thing making the bar tall — strip it. */
 .ctx-bar .style-field input[type="range"] { width: 72px; padding: 0; height: 1.4rem; }
-/* Text size is a dropdown (VLL: a slider couldn't land on exact sizes) — keep it slim like the range it
-   replaced so the one-row bar height is unchanged. */
-.ctx-bar .style-field select.style-font-select { width: 56px; padding: 0 .2rem; height: 1.4rem; }
+/* Text size is a CUSTOM dropdown (VLL): a button showing the current size + a portaled listbox whose items
+   preview live on hover. Kept slim so the one-row bar height is unchanged. */
+.ctx-bar .style-field .size-select {
+  font: inherit; height: 1.4rem; padding: 0 .35rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: .15rem; min-width: 3.4ch;
+  background: var(--surface-2); color: inherit;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.ctx-bar .style-field .size-select:disabled { opacity: .5; cursor: default; }
+.ctx-bar .style-field .size-select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+/* The portaled list (on <body>, so no .ctx-bar scoping). */
+.size-select-list {
+  position: fixed; z-index: 70; margin: 0; padding: .25rem; list-style: none;
+  max-height: 260px; overflow-y: auto; min-width: 3.5rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+.size-select-option {
+  padding: .3rem .7rem; border-radius: 5px; cursor: pointer; text-align: center;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.size-select-option.active { background: color-mix(in srgb, var(--brand) 18%, transparent); }
+.size-select-option.current { font-weight: 700; }
 .ctx-bar .style-field input[type="color"] { height: 22px; }
 
 /* ---- T33: thin the ctx style bar to ONE slim row (~top-bar height). Labels are gone

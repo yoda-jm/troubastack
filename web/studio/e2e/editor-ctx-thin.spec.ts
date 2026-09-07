@@ -71,11 +71,12 @@ test("ctx style bar is one slim row (≤ top-bar height + 2px), shape and text",
   await expect(page.getByTestId("style-blend")).toHaveValue("multiply");
 });
 
-// VLL: "font size 8 and some others cannot be selected, maybe a dropdown is better than a slider there?"
-// The old control was an input[type=range] min 0.015 (→ label 15), so small sizes were unreachable and the
-// slider couldn't land on an exact value. It's a <select> off a discrete ladder now (fontSize.ts).
-// RED on the slider: tagName was INPUT and there was no option "8".
-test("text size is a dropdown offering small sizes the slider couldn't reach (VLL)", async ({ page }) => {
+// VLL: a custom text-size dropdown (a native <select> can't preview a size on option-hover). It offers
+// small sizes the old min-0.015 slider couldn't reach, and picking one commits it. RED before: the control
+// was a native <select> (or slider) with no hoverable <li> options.
+test("text size is a custom dropdown offering small sizes, and picking one commits it (VLL)", async ({
+  page,
+}) => {
   await register(page, `cf_${stamp()}`);
   await createBandAndOpen(page, `CFBand ${stamp()}`);
   await createSongAndOpen(page, `CFSong ${stamp()}`);
@@ -86,10 +87,11 @@ test("text size is a dropdown offering small sizes the slider couldn't reach (VL
   await page.getByTestId("tool-text").click();
   const font = page.getByTestId("style-font");
   await expect(font).toBeVisible();
-  await expect(font).toHaveJSProperty("tagName", "SELECT");
-  await expect(font.locator("option", { hasText: /^8$/ })).toHaveCount(1); // 0.008 — below the old min
-  await font.selectOption("0.008");
-  await expect(font).toHaveValue("0.008");
+  await font.click(); // open the custom list
+  const opt8 = page.getByTestId("style-font-option").filter({ hasText: /^8$/ });
+  await expect(opt8).toHaveCount(1); // 8 (0.008) — below the old slider min
+  await opt8.click();
+  await expect(font).toHaveText(/^8\b/); // the button reflects the pick (not 48/80/…)
 });
 
 // Set a React range input to a stop index (native setter + events so onChange fires).
@@ -145,13 +147,40 @@ test("text size preview shows a sample at the bottom on tool-select, scaling wit
   await page.getByTestId("tool-text").click();
   await expect(page.getByTestId("style-size-preview")).toBeVisible(); // shown on select, no hover
   const sample = page.locator(".size-hud-text");
+  const pick = async (label: RegExp) => {
+    await page.getByTestId("style-font").click();
+    await page.getByTestId("style-font-option").filter({ hasText: label }).click();
+  };
 
-  await page.getByTestId("style-font").selectOption("0.012"); // small
+  await pick(/^12$/); // small
   const small = (await sample.boundingBox())!;
-  await page.getByTestId("style-font").selectOption("0.048"); // large
+  await pick(/^48$/); // large
   const big = (await sample.boundingBox())!;
 
   expect(big.height, "the sample grows with the font size").toBeGreaterThan(small.height + 2);
+});
+
+// The headline of the custom dropdown (VLL): HOVERING a size in the open list previews it in the HUD, live,
+// WITHOUT committing. RED before: a native <select> has no per-option hover.
+test("hovering a size in the dropdown previews it live, without committing (VLL)", async ({ page }) => {
+  await register(page, `chp_${stamp()}`);
+  await createBandAndOpen(page, `ChpBand ${stamp()}`);
+  await createSongAndOpen(page, `ChpSong ${stamp()}`);
+  await uploadPdf(page);
+  await page.reload();
+  await openEditorReady(page);
+
+  await page.getByTestId("tool-text").click();
+  // Commit a small size, then open the list and HOVER a large one.
+  await page.getByTestId("style-font").click();
+  await page.getByTestId("style-font-option").filter({ hasText: /^10$/ }).click();
+  await page.getByTestId("style-font").click();
+  await page.getByTestId("style-font-option").filter({ hasText: /^48$/ }).hover();
+
+  // The button still shows 10 (hover did NOT commit) but the HUD previews the hovered 48 (much taller).
+  await expect(page.getByTestId("style-font")).toHaveText(/^10\b/);
+  const hovered = (await page.locator(".size-hud-text").boundingBox())!;
+  expect(hovered.height, "the HUD previews the hovered 48, not the committed 10").toBeGreaterThan(24);
 });
 
 // VLL: "no text on hover over the dropdown item, could be nice" — on desktop, hovering a size control

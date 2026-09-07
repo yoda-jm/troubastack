@@ -266,17 +266,20 @@ function BottomSizePreview({
   isText,
   show,
   ping,
+  previewSize,
 }: {
   style: AnnotationStyle;
   isText: boolean;
   show: boolean;
   ping: number;
+  previewSize: number | null; // a font size being HOVERED in the custom dropdown (overrides the committed one)
 }) {
   const { w, h } = usePageBox();
   const [visible, setVisible] = useState(false);
   const timer = useRef<number | null>(null);
-  // Flash on tool-select, on any size change, AND on a size-control hover (`ping`, desktop only — VLL:
-  // "no text on hover over the dropdown item, could be nice"), then FADE OUT ("just like the tool size").
+  // Flash on tool-select, size change, or a size-control hover (`ping`), then fade. BUT while a dropdown
+  // size is being hovered (`previewSize`), stay visible and track it — no fade — so you can scan the list
+  // (VLL: "hover 36 → HUD shows TroubaStudio at 36 live"). Fades once the hover ends (previewSize → null).
   useEffect(() => {
     if (!show) {
       setVisible(false);
@@ -284,22 +287,25 @@ function BottomSizePreview({
     }
     setVisible(true);
     if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setVisible(false), 1500);
+    if (previewSize == null) {
+      timer.current = window.setTimeout(() => setVisible(false), 1500);
+    }
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [show, isText, style.width, style.fontSize, ping]);
+  }, [show, isText, style.width, style.fontSize, ping, previewSize]);
   if (!show) return null;
   let visual: ReactNode;
   let label: string;
   if (isText) {
-    const px = Math.min(HUD_MAX_TEXT, Math.max(8, style.fontSize * (h || 850)));
+    const font = previewSize ?? style.fontSize;
+    const px = Math.min(HUD_MAX_TEXT, Math.max(8, font * (h || 850)));
     visual = (
       <span className="size-hud-text" style={{ fontSize: `${px}px` }}>
         TroubaStudio
       </span>
     );
-    label = `${Math.round(style.fontSize * 1000)}`;
+    label = `${Math.round(font * 1000)}`;
   } else {
     const d = Math.min(HUD_MAX_CIRCLE, Math.max(2, style.width * (w || 600)));
     visual = <span className="size-hud-circle" style={{ width: `${d}px`, height: `${d}px` }} />;
@@ -311,6 +317,136 @@ function BottomSizePreview({
       <span className="size-hud-label">{label}</span>
     </div>,
     document.body,
+  );
+}
+
+// SizeSelect: a CUSTOM text-size dropdown (VLL) — a native <select>'s option list is OS-rendered, so you
+// can't preview a size by hovering an item. Here each option is a real element, so onMouseEnter drives the
+// bottom HUD live (onPreview) before you commit (onClick). Button + a portaled listbox (the ctx-bar's
+// translateX(-50%) transform + overflow would otherwise mis-place / clip an in-bar popup). Keyboard:
+// ↑/↓ move + preview the active option, Enter commits, Esc closes; outside-click closes.
+function SizeSelect({
+  value,
+  disabled,
+  tabbable,
+  onChange,
+  onPreview,
+}: {
+  value: number;
+  disabled: boolean;
+  tabbable: boolean;
+  onChange: (v: number) => void;
+  onPreview: (v: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+  const [active, setActive] = useState(0);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const idx = nearestFontStopIndex(value);
+
+  useEffect(() => {
+    if (!open) {
+      setCoords(null);
+      onPreview(null); // closing clears any hover-preview → HUD reverts to the committed size
+      return;
+    }
+    setActive(nearestFontStopIndex(value));
+    const place = () => {
+      const b = btnRef.current?.getBoundingClientRect();
+      if (b) setCoords({ left: b.left, top: b.bottom + 4 });
+    };
+    place();
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Element;
+      if (btnRef.current?.contains(t) || t.closest?.(".size-select-list")) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, value, onPreview]);
+
+  const commit = (i: number) => {
+    onChange(FONT_STOPS[i]);
+    onPreview(null);
+    setOpen(false);
+    btnRef.current?.focus();
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="size-select"
+        data-testid="style-font"
+        aria-label="Text size"
+        title="Text size"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled}
+        tabIndex={tabbable ? undefined : -1}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!open) {
+              setOpen(true);
+              return;
+            }
+            const next = Math.max(0, Math.min(active + (e.key === "ArrowDown" ? 1 : -1), FONT_STOPS.length - 1));
+            setActive(next);
+            onPreview(FONT_STOPS[next]);
+          } else if (open && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            commit(active);
+          }
+        }}
+      >
+        {FONT_LABELS[idx]} <span aria-hidden="true">▾</span>
+      </button>
+      {open &&
+        coords &&
+        createPortal(
+          <ul
+            className="size-select-list"
+            data-testid="style-font-list"
+            role="listbox"
+            aria-label="Text size"
+            style={{ left: coords.left, top: coords.top }}
+            onMouseLeave={() => onPreview(null)}
+          >
+            {FONT_STOPS.map((f, i) => (
+              <li
+                key={f}
+                role="option"
+                aria-selected={i === idx}
+                data-testid="style-font-option"
+                data-value={String(f)}
+                className={`size-select-option${i === active ? " active" : ""}${i === idx ? " current" : ""}`}
+                onMouseEnter={() => {
+                  setActive(i);
+                  onPreview(f);
+                }}
+                onClick={() => commit(i)}
+              >
+                {FONT_LABELS[i]}
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -383,6 +519,8 @@ export function EditorToolbar({
   // without changing it (VLL). Touch never fires mouseenter, so it stays a desktop-only cue.
   const [sizeHoverPing, setSizeHoverPing] = useState(0);
   const pingSize = () => setSizeHoverPing((n) => n + 1);
+  // A font size being HOVERED in the custom size dropdown → the HUD previews it live before you commit.
+  const [previewFont, setPreviewFont] = useState<number | null>(null);
 
   // The tool cluster (top-bar pill). Keeps `editor-toolbar`/`tool-palette` testids.
   const toolsEl = (
@@ -469,6 +607,7 @@ export function EditorToolbar({
           isText={showFont && !showWidth}
           show={showWidth || showFont}
           ping={sizeHoverPing}
+          previewSize={showFont && !showWidth ? previewFont : null}
         />
         {/* Shape/type indicator: the selection's type/count, else the draw tool. */}
         <span className="pill style-target" data-testid="style-target">
@@ -576,25 +715,16 @@ export function EditorToolbar({
         {/* TEXT SIZE — relevant only for a text target; hidden (space reserved)
             for shapes/strokes. */}
         <label className={slot(showFont)} aria-hidden={!showFont} onMouseEnter={pingSize}>
-          {/* VLL: a slider couldn't land on specific sizes ("font size 8 and some others cannot be
-              selected"). A dropdown picks an EXACT stop; an off-ladder stored size (legacy / freehand
-              resize) shows as the nearest without being rewritten until you pick (fontSize.ts). */}
-          <select
-            className="style-font-select"
-            data-testid="style-font"
-            aria-label="Text size"
-            title="Text size"
-            value={String(FONT_STOPS[nearestFontStopIndex(style.fontSize)])}
+          {/* Custom dropdown (VLL): each option is a real element, so hovering one previews that size in the
+              bottom HUD live (onPreview) before you commit — a native <select>'s OS-rendered list can't.
+              An off-ladder stored size shows as the nearest stop without being rewritten (fontSize.ts). */}
+          <SizeSelect
+            value={style.fontSize}
             disabled={disabled || !showFont}
-            tabIndex={showFont ? undefined : -1}
-            onChange={(e) => onStyle({ ...style, fontSize: Number(e.target.value) })}
-          >
-            {FONT_STOPS.map((f, i) => (
-              <option key={f} value={String(f)}>
-                {FONT_LABELS[i]}
-              </option>
-            ))}
-          </select>
+            tabbable={showFont}
+            onChange={(f) => onStyle({ ...style, fontSize: f })}
+            onPreview={setPreviewFont}
+          />
         </label>
         {/* ⋯ overflow: fill / border / blend / hex (#5). Always present (fixed
             footprint → no shift); shape-only controls gated inside by showShape. */}
