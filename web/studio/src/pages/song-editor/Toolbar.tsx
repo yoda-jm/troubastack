@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import type { AnnotationLayer, AnnotationObject, AnnotationStyle } from "../../api";
 import { type Tool, type PresetId, COLOR_SWATCHES, applyPreset, matchPreset, isNonDraw } from "../../editor";
 import { WIDTH_STOPS, nearestStopIndex, widthToMm } from "../../strokeWidth";
+import { FONT_STOPS, FONT_LABELS, nearestFontStopIndex } from "../../fontSize";
 import { descriptorFor, toolsInOrder } from "../../annotations/registry";
 import { AudienceTag, audienceForZone } from "../../components/AudienceTag";
 
@@ -542,22 +543,25 @@ export function EditorToolbar({
         {/* TEXT SIZE — relevant only for a text target; hidden (space reserved)
             for shapes/strokes. */}
         <label className={slot(showFont)} aria-hidden={!showFont}>
-          <input
-            type="range"
+          {/* VLL: a slider couldn't land on specific sizes ("font size 8 and some others cannot be
+              selected"). A dropdown picks an EXACT stop; an off-ladder stored size (legacy / freehand
+              resize) shows as the nearest without being rewritten until you pick (fontSize.ts). */}
+          <select
+            className="style-font-select"
             data-testid="style-font"
             aria-label="Text size"
             title="Text size"
-            min={0.015}
-            max={0.08}
-            step={0.005}
-            value={style.fontSize}
+            value={String(FONT_STOPS[nearestFontStopIndex(style.fontSize)])}
             disabled={disabled || !showFont}
             tabIndex={showFont ? undefined : -1}
             onChange={(e) => onStyle({ ...style, fontSize: Number(e.target.value) })}
-          />
-          <span className="style-value" data-testid="style-font-value">
-            {(style.fontSize * 1000).toFixed(0)}
-          </span>
+          >
+            {FONT_STOPS.map((f, i) => (
+              <option key={f} value={String(f)}>
+                {FONT_LABELS[i]}
+              </option>
+            ))}
+          </select>
         </label>
         {/* ⋯ overflow: fill / border / blend / hex (#5). Always present (fixed
             footprint → no shift); shape-only controls gated inside by showShape. */}

@@ -70,3 +70,62 @@ test("ctx style bar is one slim row (≤ top-bar height + 2px), shape and text",
   await page.getByTestId("style-blend").selectOption("multiply");
   await expect(page.getByTestId("style-blend")).toHaveValue("multiply");
 });
+
+// VLL: "font size 8 and some others cannot be selected, maybe a dropdown is better than a slider there?"
+// The old control was an input[type=range] min 0.015 (→ label 15), so small sizes were unreachable and the
+// slider couldn't land on an exact value. It's a <select> off a discrete ladder now (fontSize.ts).
+// RED on the slider: tagName was INPUT and there was no option "8".
+test("text size is a dropdown offering small sizes the slider couldn't reach (VLL)", async ({ page }) => {
+  await register(page, `cf_${stamp()}`);
+  await createBandAndOpen(page, `CFBand ${stamp()}`);
+  await createSongAndOpen(page, `CFSong ${stamp()}`);
+  await uploadPdf(page);
+  await page.reload();
+  await openEditorReady(page);
+
+  await page.getByTestId("tool-text").click();
+  const font = page.getByTestId("style-font");
+  await expect(font).toBeVisible();
+  await expect(font).toHaveJSProperty("tagName", "SELECT");
+  await expect(font.locator("option", { hasText: /^8$/ })).toHaveCount(1); // 0.008 — below the old min
+  await font.selectOption("0.008");
+  await expect(font).toHaveValue("0.008");
+});
+
+// VLL: the toolbar size preview "is capped to the toolbar size, we need to find something else". The chosen
+// answer: show the stroke's TRUE diameter as a ring ON THE PAGE (uncapped), following a draw-tool hover.
+// RED before: no brush-ring element existed; the only size preview was clamped to PREVIEW_MAX_PX = 24.
+test("stroke size shows as a true-scale ring on the page, uncapped by the toolbar (VLL)", async ({ page }) => {
+  await register(page, `cr_${stamp()}`);
+  await createBandAndOpen(page, `CRBand ${stamp()}`);
+  await createSongAndOpen(page, `CRSong ${stamp()}`);
+  await uploadPdf(page);
+  await page.reload();
+  await openEditorReady(page);
+
+  await page.getByTestId("tool-rect").click();
+  // Crank the stroke width to its largest stop.
+  const slider = page.getByTestId("style-width");
+  const stops = (await slider.getAttribute("data-stops"))!.split(",").map(Number);
+  const frac = stops[stops.length - 1];
+  await slider.evaluate((el, idx) => {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")!.set!;
+    setter.call(el, String(idx));
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }, stops.length - 1);
+
+  const canvas = page.getByTestId("edit-canvas").first();
+  const cb = (await canvas.boundingBox())!;
+  // A real pointermove over the canvas (two moves → a delta) drives the hover-ring path.
+  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2 - 12);
+  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+
+  const ring = page.getByTestId("brush-ring").first(); // one overlay per page; the first is the hovered one
+  await expect(ring).toBeVisible();
+  const rb = (await ring.boundingBox())!;
+  const expectedPx = frac * cb.width; // true diameter = width-fraction × page px
+  expect(expectedPx, "premise: the largest stroke exceeds the old 24px toolbar cap").toBeGreaterThan(24);
+  expect(Math.abs(rb.width - expectedPx), `ring ${rb.width} vs true ${expectedPx}`).toBeLessThanOrEqual(4);
+  expect(Math.abs(rb.width - rb.height), "the ring is a circle").toBeLessThanOrEqual(3);
+});

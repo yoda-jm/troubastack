@@ -870,6 +870,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 /* Range inputs inherit the global `input { padding: .55rem }`, which inflates each
    slider field to ~40px and was the last thing making the bar tall — strip it. */
 .ctx-bar .style-field input[type="range"] { width: 72px; padding: 0; height: 1.4rem; }
+/* Text size is a dropdown (VLL: a slider couldn't land on exact sizes) — keep it slim like the range it
+   replaced so the one-row bar height is unchanged. */
+.ctx-bar .style-field select.style-font-select { width: 56px; padding: 0 .2rem; height: 1.4rem; }
 .ctx-bar .style-field input[type="color"] { height: 22px; }
 
 /* ---- T33: thin the ctx style bar to ONE slim row (~top-bar height). Labels are gone
@@ -1161,6 +1164,17 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    canvas, so they are queryable and crisp at any zoom; positioned in % of the
    page box (inset:0 fills the .pdf-page wrapper, which hugs the page canvas). */
 .selection-overlay { position: absolute; inset: 0; pointer-events: none; }
+/* Brush-size ring (VLL): the stroke's TRUE diameter drawn on the page, uncapped by the toolbar. Sized +
+   positioned imperatively (WetCanvas.sizeBrushRingAt); a dashed brand ring with a faint fill so it reads
+   over both light page and dark ink. */
+.brush-ring {
+  position: absolute;
+  border: 1.5px dashed var(--brand);
+  border-radius: 50%;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+}
 .selected-bbox {
   position: absolute; box-sizing: border-box;
   border: 1.5px dashed var(--accent);

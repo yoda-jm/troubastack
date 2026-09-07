@@ -622,7 +622,9 @@ test("editor: style controls show live value readouts", async ({ page }) => {
   await expect(page.getByTestId("style-opacity-value")).toHaveText(/%$/);
   await expect(page.getByTestId("style-width-value")).toBeVisible();
   await page.getByTestId("tool-text").click();
-  await expect(page.getByTestId("style-font-value")).toBeVisible();
+  // Text size is a dropdown now (VLL: a slider couldn't land on exact sizes) — visible, and offering "8".
+  await expect(page.getByTestId("style-font")).toBeVisible();
+  await expect(page.getByTestId("style-font").locator('option[value="0.008"]')).toHaveCount(1);
   await page.getByTestId("tool-rect").click();
 
   // Default opacity is 1 → 100%.

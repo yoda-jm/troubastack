@@ -489,6 +489,54 @@ export function EditCanvas({
     return w > 0 && h > 0 ? { w, h } : null;
   }, []);
 
+  // --- Brush-size ring (VLL) ----------------------------------------------------------------------
+  // Show the stroke's TRUE diameter ON THE PAGE, not a toolbar chip capped to the bar height. A draw-tool
+  // hover rings the cursor at the real size; changing the width flashes the ring at the page centre so
+  // touch (no hover) sees it too. Positioned imperatively (like the hover cursor) — no re-render per move.
+  // style.width is a fraction of page WIDTH, so a true circle needs its height scaled by the page's w/h.
+  const brushRingRef = useRef<HTMLDivElement | null>(null);
+  const ringFlashTimer = useRef<number | null>(null);
+  const prevWidthRef = useRef(style.width);
+  const toolUsesWidth =
+    tool === "freehand" || tool === "line" || tool === "rect" || tool === "ellipse" || tool === "arrow";
+  const sizeBrushRingAt = (fracX: number, fracY: number) => {
+    const ring = brushRingRef.current;
+    const dims = pageDims();
+    if (!ring || !dims || dims.h <= 0) return;
+    // An explicit position (a hover) supersedes a pending centre-flash auto-hide, so the hover ring
+    // stays until the pointer leaves rather than vanishing 900ms after the last width change.
+    if (ringFlashTimer.current) {
+      window.clearTimeout(ringFlashTimer.current);
+      ringFlashTimer.current = null;
+    }
+    const wPct = (style.width ?? 0) * 100;
+    const hPct = (style.width ?? 0) * (dims.w / dims.h) * 100;
+    ring.style.left = `${fracX * 100 - wPct / 2}%`;
+    ring.style.top = `${fracY * 100 - hPct / 2}%`;
+    ring.style.width = `${wPct}%`;
+    ring.style.height = `${hPct}%`;
+    ring.style.display = "block";
+  };
+  const hideBrushRing = () => {
+    const ring = brushRingRef.current;
+    if (ring) ring.style.display = "none";
+  };
+  // Touch has no hover, so flash the ring at the page centre whenever the width changes.
+  useEffect(() => {
+    if (prevWidthRef.current === style.width) return; // skip mount + width-unrelated re-renders
+    prevWidthRef.current = style.width;
+    if (!toolUsesWidth) return;
+    sizeBrushRingAt(0.5, 0.5);
+    if (ringFlashTimer.current) window.clearTimeout(ringFlashTimer.current);
+    ringFlashTimer.current = window.setTimeout(hideBrushRing, 900);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [style.width]);
+  // Switching to a tool with no stroke width drops any lingering ring.
+  useEffect(() => {
+    if (!toolUsesWidth) hideBrushRing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool]);
+
   // The bbox of the single selected object on this page (drives resize handles).
   const selectedSingle = selectedOnPage.length === 1 ? selectedOnPage[0] : null;
 
@@ -592,6 +640,7 @@ export function EditCanvas({
     // ---- Multi-touch (T27 stage 4): track pointers; a SECOND pointer starts a
     //      two-finger navigation (pinch-zoom + pan), in every tool. ----
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    hideBrushRing(); // a press starts a gesture — the wet stroke shows the size now, drop the hover ring
     if (pointersRef.current.size >= 2 && !navRef.current) {
       cancelWetGesture(); // abandon any one-finger stroke/pan; two fingers = navigate
       const ids = [...pointersRef.current.keys()].slice(-2);
@@ -794,6 +843,13 @@ export function EditCanvas({
       // No active gesture → this is a HOVER. Set an action-reflecting cursor from
       // the SAME pickAt the press will use, so the cursor predicts the next drag.
       updateHoverCursor(e);
+      // …and ring the cursor at the stroke's true size (draw tools only).
+      if (toolUsesWidth) {
+        const p = pageRelative(e);
+        sizeBrushRingAt(p.x, p.y);
+      } else {
+        hideBrushRing();
+      }
       return;
     }
     const pt = pageRelative(e);
@@ -963,11 +1019,15 @@ export function EditCanvas({
           // cursor doesn't linger; CSS `.tool-*` default takes over.
           const c = canvasRef.current;
           if (c && c.style.cursor) c.style.cursor = "";
+          hideBrushRing(); // the cursor left the page — drop the size ring
         }}
       />
       {/* Selection overlays: DOM elements positioned in % of the page box, so
           they track the page under any zoom AND are queryable in e2e. */}
       <div className="selection-overlay" aria-hidden="true">
+        {/* Brush-size ring (VLL): the stroke's true diameter, on the page, uncapped by the toolbar. Sized
+            + positioned imperatively (see sizeBrushRingAt); hidden until a draw-tool hover / width change. */}
+        <div ref={brushRingRef} className="brush-ring" data-testid="brush-ring" style={{ display: "none" }} />
         {selectedOnPage.map((o) => {
           // While resizing THIS object, draw the live preview box so the bbox +
           // handles follow the drag.
