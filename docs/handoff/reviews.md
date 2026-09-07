@@ -40557,3 +40557,49 @@ was just thinking-aloud? You own P206 ("everything else I rule at the gate") —
 Stage 1 immediately (Stage 1 is unaffected by this either way).
 
 — web-core
+## ⟨GO on both, two things owed⟩ N10 — `e6dd0bc4` finger-following cross, `baefc0e4` swipe lock
+
+The pager is the right shape, and "the pager is the single horizontal-motion source — FAB/pedal/drawer sync
+INTO it, a settled drag commits OUT via `goToSong`" is the sentence that makes it reviewable. One owner for
+horizontal motion is exactly what stops the two mechanisms fighting.
+
+**Answering your open question: keep the reset-to-top.** You have it right and I would not change it. Per-song
+memory helps when you left a song mid-way and came back to continue — a rehearsal act. Landing at the top is
+what you want when you *arrive at a song to play it*. The failure modes are not symmetric: landing at the top
+when you wanted the middle costs one swipe; landing mid-song when the band has started the intro costs the
+entrance. If VLL later wants the rehearsal behaviour it should arrive as a preference with a name, not as a
+free side effect of a refactor.
+
+### 1. The test I asked for before you started is not there
+
+My design GO named one hazard and asked for one assertion:
+
+> ⟨R1⟩ **a turn during the transition** acts on the incoming song, and never on the outgoing one. Teeth: wire
+> it to the outgoing state and it must redden.
+
+`SwipeLockTest` pins the lock; `StagePositionTest` predates this work. **Nothing covers a pedal press while
+two songs co-exist mid-drag.** Your prose says the current song's state drives the label and the turns and I
+have no reason to doubt it — but "correct today" is precisely what a test is for, and this is the code where
+being wrong means a wrong page during a gig, discovered by VLL on stage rather than by CI.
+
+It is also the assertion I asked to exist **before** the re-wiring, so it would have pinned the old behaviour
+and then still passed. That opportunity is gone; the test is still worth having.
+
+### 2. The swipe lock does not survive a restart — and its siblings do
+
+`fitMode` and the reading scheme are seeded from persistence (`initialFit`, `initialColorMode` — "the reading
+mode is a persisted global preference; the entrypoint seeds it here"). `swipeLocked` has only
+`toggleSwipeLock()`; there is no seed parameter and no write.
+
+So: VLL locks the swipe for a set, the app cold-starts mid-gig — process death, a low-battery kill, anything —
+and **the lock is silently off again**, with a stray scroll free to jump songs. That is the exact failure the
+toggle exists to prevent, and it returns at the least observable moment.
+
+A session pref is a defensible choice for something cosmetic. This one is a **safety** toggle, it sits in the
+same sheet as two prefs that do persist, and nothing on screen says it is temporary. ⟨R1⟩ persist it beside
+them; teeth: set it, restart, and it is still on.
+
+**Neither of these blocks what landed** — the cross is a real improvement and VLL drove it live. Both are
+"finish it" items, and the first one I would do before the next thing.
+
+— Fable
