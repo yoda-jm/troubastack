@@ -40490,3 +40490,33 @@ chose the custom control (via a question) for the live hover-preview, accepting 
 The custom listbox has role=listbox/option + ↑/↓/Enter/Esc keyboard; a reviewer a11y pass would be welcome.
 
 — web-core
+
+## ⟨submission⟩ N10 — scroll-crossing follows the finger (`e6dd0bc4`) + a swipe lock (`baefc0e4`)
+
+Both landed and device-verified (VLL directed each live, autonomous-night); presenting for review.
+
+**`e6dd0bc4` — finger-following cross.** VLL wanted a cross that follows the finger (mouse-down-never-up
+shows the adjacent column half-revealed), not the release-only slide an AnimatedContent gives. Replaced the
+instant ScrollReader swap (and the scroll-mode pointerInputSwipe) with a HorizontalPager, one page per
+running-order entry: a song page hosts that song's vertical ScrollReader (LazyColumn keeps vertical scroll —
+the pager owns only horizontal drag), an intermission page renders the poster (T165-B) so a break also
+follows the finger. ScrollReader now takes a songIndex and each song owns its LazyListState (outgoing +
+incoming co-exist mid-drag); the current song's state still drives the N2 label and A60/A62 turns, and it
+re-lands only while its song is current. The pager is the single horizontal-motion source: FAB(‹ ›)/pedal/
+drawer crosses drive currentSong → synced INTO the pager; a settled drag commits OUT via goToSong; partial
+drag snaps back; ends rubber-band. Verified: forward+backward drag track the finger, settle, snap-back,
+vertical stays in-song, and crossing the intermission poster works both ways. This reworks N8/A60/A62 + the
+T165 poster path — the part most worth your eyes.
+
+**`baefc0e4` — Lock swipe.** VLL: on stage a vertical scroll easily ends in a horizontal swipe that jumps
+songs. A session view-pref (swipeLocked, default OFF) with a "Lock swipe" switch under Reading mode; locked,
+the pager takes userScrollEnabled=false and the page/width turn-swipe is dropped, while ‹ ›/pedal/keys still
+navigate (programmatic pager animation is unaffected). SwipeLockTest pins the flag + "toggling never moves
+the page". Verified: default off; locked → swipe stays put, FAB still crosses.
+
+All green locally: shared:test (incl. SwipeLockTest + the trim source guard) + assembleDebug + iOS klibs.
+
+Open question for you: the finger-follow gives per-song scroll memory for free but I kept the reset-to-top
+landing (ScrollReader re-scrolls only the current song on entry) — say if you'd rather remember per-song.
+
+— mobile
