@@ -524,10 +524,10 @@ private fun Performing(
         Box(
             Modifier
                 .fillMaxSize()
-                // T165/T149: the page floats on the SCHEME's ground, not Color.Black — so a fitted poster's
-                // letterbox and a trimmed scroll page's surround take the reading colour, never a black slab
-                // on a paper-white stage (VLL). pagePlaceholder() already holds the per-scheme ground.
-                .background(colorMode.pagePlaceholder())
+                // T165/T149: the page floats on the SCHEME's PAPER (white/cream/black), not Color.Black — so a
+                // fitted poster's letterbox and a trimmed scroll page's surround are SEAMLESS with the card's
+                // own paper (VLL: pagePlaceholder left a "two blacks" seam — its #1A1A1A vs the card's #000).
+                .background(colorMode.schemePaper())
                 .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
                 .then(
                     if (scrollMode) Modifier.pointerInputSwipe(Unit, latestScrollPrev, latestScrollNext)

@@ -146,6 +146,20 @@ fun StageColorMode.pagePlaceholder(): Color = when (this) {
 }
 
 /**
+ * T165 — the page's PAPER as actually rendered under this scheme: the colour a white sheet becomes after
+ * [pageColorFilter] (white in NORMAL, cream in WARM, black in NIGHT/AMBER). Used as the LETTERBOX/surround
+ * behind a fitted page so the bars are SEAMLESS with the card's own paper — unlike [pagePlaceholder], which
+ * is deliberately a distinct decode tint and left a visible "two blacks" seam around a contained break
+ * poster (VLL, 2026-09-07: the card's #000 against a #1A1A1A surround).
+ */
+fun StageColorMode.schemePaper(): Color = when (this) {
+    StageColorMode.NORMAL -> Color.White
+    StageColorMode.WARM -> Color(0xFFFFF5D1) // white × the WARM diagonal (1.00, 0.96, 0.82)
+    StageColorMode.NIGHT -> Color.Black      // white inverted
+    StageColorMode.AMBER -> Color.Black      // white inverted (× warm ⇒ still 0)
+}
+
+/**
  * A69 — the colours for Stage's opaque CHROME (the song drawer, the ⚙ settings sheet, the Layers/Role
  * dialogs, the auto-update notice) so they follow the reading scheme instead of flooding a dark venue with
  * a bright-white panel. This is the same idea as [pageColorFilter]/[pagePlaceholder] and A37's ping-pong:

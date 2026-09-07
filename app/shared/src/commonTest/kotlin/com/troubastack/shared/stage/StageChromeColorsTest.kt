@@ -44,6 +44,16 @@ class StageChromeColorsTest {
         }
     }
 
+    @Test fun schemePaper_is_the_cards_paper_so_the_letterbox_is_seamless() {
+        // T165: the letterbox behind a fitted page must be the card's paper AS RENDERED — white in NORMAL
+        // (never black on a paper-white stage, VLL's first complaint), black in NIGHT/AMBER (matching the
+        // inverted card, so no "two blacks" seam). TEETH: NORMAL asserted light, NIGHT/AMBER asserted dark.
+        assertTrue(lum(StageColorMode.NORMAL.schemePaper()) > 0.9, "NORMAL paper is white, not black")
+        assertTrue(lum(StageColorMode.WARM.schemePaper()) > 0.8, "WARM paper is light cream")
+        assertTrue(lum(StageColorMode.NIGHT.schemePaper()) < 0.02, "NIGHT paper is black (matches the inverted card)")
+        assertTrue(lum(StageColorMode.AMBER.schemePaper()) < 0.02, "AMBER paper is black (matches the inverted card)")
+    }
+
     @Test fun amber_ink_stays_warm_never_white() {
         // AMBER preserves dark-adapted vision: its ink is amber, not a cold white (red must lead blue).
         val ink = stageChromePalette(StageColorMode.AMBER)!!.onSurface
