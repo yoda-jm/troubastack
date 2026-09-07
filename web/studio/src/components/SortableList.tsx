@@ -8,7 +8,15 @@
 // Scope is a SINGLE ordered group (the spec's steer: extract the row/drag primitive, not the
 // setlist's main/bench grouping). The setlist composes two groups by using two useSortable() over a
 // shared useFlipRows(), so cross-group ★ moves still animate list-wide.
-import { useCallback, useLayoutEffect, useRef, useState, type DragEvent } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 const FLIP_MS = 200;
 
@@ -78,87 +86,233 @@ export function reorderTo(ids: string[], from: number, position: number): string
   return arr;
 }
 
-// SortableRowProps spread onto the call site's row element; GripProps onto its grip drag source.
+// dropGapFor returns the insertion GAP (0..N) a pointer is over, given each row's vertical midpoint in
+// order. A pointer above row i's midpoint ⇒ gap i (insert before row i); past the last midpoint ⇒ gap N —
+// the END gap the old top-edge model could not reach ("on ne peut pas deplacer un morceau en dernier").
+// Pure + geometry-mocked, so the gap math is unit-tested (T142 stage 2).
+export function dropGapFor(midpointsY: number[], pointerY: number): number {
+  for (let i = 0; i < midpointsY.length; i++) {
+    if (pointerY < midpointsY[i]) return i;
+  }
+  return midpointsY.length;
+}
+
+// scrollParent walks up to the nearest vertically-scrollable ancestor — the container edge auto-scroll
+// acts on — falling back to the document scroller.
+function scrollParent(el: HTMLElement | null): HTMLElement {
+  for (let n = el?.parentElement ?? null; n; n = n.parentElement) {
+    const oy = getComputedStyle(n).overflowY;
+    if ((oy === "auto" || oy === "scroll") && n.scrollHeight > n.clientHeight) return n;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? document.body;
+}
+
+const EDGE_PX = 48; // distance from a container edge where auto-scroll engages
+const EDGE_SPEED = 12; // px per animation frame while held at the edge
+
+// SortableRowProps spread onto the call site's row element; GripProps onto its grip. Pointer Events replace
+// HTML5 drag-and-drop (T142 stage 2): one code path for mouse/touch/pen, an END drop position, edge
+// auto-scroll, focus-preserving keyboard reorder, and no accidental text selection on a touch grip.
 export interface SortableRowProps {
   ref: (el: HTMLElement | null) => void;
-  onDragOver: (e: DragEvent) => void;
-  onDragLeave: (e: DragEvent) => void;
-  onDrop: (e: DragEvent) => void;
 }
 export interface GripProps {
-  draggable: true;
-  onDragStart: (e: DragEvent) => void;
+  ref: (el: HTMLElement | null) => void;
+  onPointerDown: (e: ReactPointerEvent) => void;
+  onKeyDown: (e: ReactKeyboardEvent) => void;
+  tabIndex: 0;
+  role: "button";
+  "aria-label": string;
+  style: CSSProperties;
 }
 
 export interface Sortable {
   rowProps: (index: number) => SortableRowProps; // spread onto each row element
   gripProps: (index: number) => GripProps; // spread onto each row's grip/handle
-  isDragOver: (index: number) => boolean; // true for the row currently hinted as the drop target
+  isDragOver: (index: number) => boolean; // an insertion line goes ABOVE this row (drop gap === index)
+  isDropAtEnd: () => boolean; // the drop gap is AFTER the last row — render a line below it (the END gap)
+  dragging: boolean; // a pointer drag is in progress (for a source-dim / cursor cue)
   canMoveUp: (index: number) => boolean;
   canMoveDown: (index: number) => boolean;
-  move: (index: number, dir: -1 | 1) => void; // keyboard / …-menu reorder — same persisted result
+  move: (index: number, dir: -1 | 1) => void; // arrow / …-menu reorder — restores focus to the moved row
+  liveMessage: string; // ARIA live-region text announcing the latest keyboard reorder
 }
 
-// useSortable wires drag + move over `ids`, calling onReorder(newOrderedIds) after any successful
-// reorder (the caller persists — reorderSetlist for the setlist, displayOrder PATCHes for Files).
-// registerRef comes from a useFlipRows() so the caller controls the FLIP scope (list-wide for the
-// setlist's two groups; per-list for Files).
+// useSortable wires a Pointer-Events drag + keyboard reorder over `ids`, calling onReorder(newOrderedIds)
+// after any successful reorder (the caller persists — reorderSetlist for the setlist, displayOrder PATCHes
+// for Files). registerRef comes from a useFlipRows() so the caller controls the FLIP scope.
 export function useSortable(
   ids: string[],
   onReorder: (orderedIds: string[]) => void | Promise<void>,
   registerRef: (id: string, el: HTMLElement | null) => void,
 ): Sortable {
-  const dragFrom = useRef<number | null>(null);
-  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const rowEls = useRef(new Map<string, HTMLElement>());
+  const gripEls = useRef(new Map<string, HTMLElement>());
+  const [dropGap, setDropGap] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [live, setLive] = useState("");
 
-  const commit = useCallback(
-    (from: number, to: number) => {
-      if (from === to) return;
-      void onReorder(reorder(ids, from, to));
-    },
-    [ids, onReorder],
+  // Fresh ids/onReorder for the imperative document listeners (added at drag start), so they never act on
+  // a stale order.
+  const cur = useRef({ ids, onReorder });
+  cur.current = { ids, onReorder };
+
+  // The active pointer drag. Held in a ref (not state) so the listeners mutate it without re-rendering.
+  const drag = useRef<{
+    from: number;
+    pointerId: number;
+    lastY: number;
+    gap: number;
+    raf: number;
+    container: HTMLElement;
+  } | null>(null);
+
+  // After a reorder the list re-renders; focus the moved row's grip so an arrow move never drops focus to
+  // <body> and jumps the page ("les fleches repositionne ou on se trouve dans la page").
+  const focusAfter = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const id = focusAfter.current;
+    focusAfter.current = null;
+    if (id) gripEls.current.get(id)?.focus({ preventScroll: true });
+  }, [ids]);
+
+  const midpoints = useCallback(
+    () =>
+      cur.current.ids.map((id) => {
+        const el = rowEls.current.get(id);
+        if (!el) return Number.POSITIVE_INFINITY;
+        const r = el.getBoundingClientRect();
+        return r.top + r.height / 2;
+      }),
+    [],
   );
+
+  const recomputeGap = useCallback(
+    (clientY: number) => {
+      const g = dropGapFor(midpoints(), clientY);
+      if (drag.current) drag.current.gap = g;
+      setDropGap(g);
+    },
+    [midpoints],
+  );
+
+  const onMove = useRef<(e: PointerEvent) => void>(() => {});
+  const onUp = useRef<(e: PointerEvent) => void>(() => {});
+  const onCancel = useRef<() => void>(() => {});
+  // STABLE listener identities (created once) that delegate to the latest .current — so add/remove
+  // EventListener always match the same reference and a drag's listeners actually detach on drop (a fresh
+  // closure each render would leak the old ones and re-fire on the next drag).
+  const moveWrap = useRef((e: PointerEvent) => onMove.current(e)).current;
+  const upWrap = useRef((e: PointerEvent) => onUp.current(e)).current;
+  const cancelWrap = useRef(() => onCancel.current()).current;
+
+  const endDrag = useCallback(
+    (commit: boolean) => {
+      const d = drag.current;
+      if (!d) return;
+      cancelAnimationFrame(d.raf);
+      document.removeEventListener("pointermove", moveWrap);
+      document.removeEventListener("pointerup", upWrap);
+      document.removeEventListener("pointercancel", cancelWrap);
+      drag.current = null;
+      setDragging(false);
+      setDropGap(null);
+      // Gaps that leave the item in place (its own slot, before or after) are no-ops — don't persist them.
+      if (commit && d.gap !== d.from && d.gap !== d.from + 1) {
+        focusAfter.current = cur.current.ids[d.from];
+        void cur.current.onReorder(reorderTo(cur.current.ids, d.from, d.gap));
+      }
+    },
+    [],
+  );
+
+  const autoScroll = useCallback(() => {
+    const d = drag.current;
+    if (!d) return;
+    const c = d.container;
+    const isDoc = c === document.scrollingElement || c === document.body;
+    const top = isDoc ? 0 : c.getBoundingClientRect().top;
+    const bottom = isDoc ? window.innerHeight : c.getBoundingClientRect().bottom;
+    let dy = 0;
+    if (d.lastY < top + EDGE_PX) dy = -EDGE_SPEED;
+    else if (d.lastY > bottom - EDGE_PX) dy = EDGE_SPEED;
+    if (dy !== 0) {
+      c.scrollBy(0, dy);
+      recomputeGap(d.lastY); // rows moved under a stationary finger — keep the indicator honest
+    }
+    d.raf = requestAnimationFrame(autoScroll);
+  }, [recomputeGap]);
+
+  onMove.current = (e: PointerEvent) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.pointerId) return;
+    d.lastY = e.clientY;
+    recomputeGap(e.clientY);
+  };
+  onUp.current = (e: PointerEvent) => {
+    if (drag.current && e.pointerId === drag.current.pointerId) endDrag(true);
+  };
+  onCancel.current = () => endDrag(false);
+
+  const move = useCallback((index: number, dir: -1 | 1) => {
+    const ids0 = cur.current.ids;
+    const to = index + dir;
+    if (to < 0 || to >= ids0.length) return;
+    const arr = ids0.slice();
+    [arr[index], arr[to]] = [arr[to], arr[index]]; // adjacent swap = one step up/down
+    focusAfter.current = ids0[index];
+    setLive(`Moved to position ${to + 1} of ${ids0.length}`);
+    void cur.current.onReorder(arr);
+  }, []);
 
   return {
     rowProps: (index: number): SortableRowProps => ({
-      ref: (el) => registerRef(ids[index], el),
-      onDragOver: (e) => {
-        if (dragFrom.current === null) return; // not our drag
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        setOverIndex(index);
-      },
-      onDragLeave: (e) => {
-        // only clear when the pointer truly leaves the row — dragleave also fires crossing a CHILD
-        // (grip, buttons) still inside the row, which made the hint flicker (T52).
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-          setOverIndex((cur) => (cur === index ? null : cur));
-        }
-      },
-      onDrop: (e) => {
-        e.preventDefault();
-        const from = dragFrom.current;
-        dragFrom.current = null;
-        setOverIndex(null);
-        if (from !== null) commit(from, index);
+      ref: (el) => {
+        const id = ids[index];
+        registerRef(id, el); // FLIP scope (caller-controlled)
+        if (el) rowEls.current.set(id, el);
+        else rowEls.current.delete(id);
       },
     }),
     gripProps: (index: number): GripProps => ({
-      draggable: true,
-      onDragStart: (e) => {
-        e.dataTransfer.effectAllowed = "move";
-        dragFrom.current = index;
+      ref: (el) => {
+        const id = ids[index];
+        if (el) gripEls.current.set(id, el);
+        else gripEls.current.delete(id);
       },
+      onPointerDown: (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return; // left button only for a mouse
+        e.preventDefault(); // a touch that isn't yet a drag must not select the title text (defect 4)
+        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+        const container = scrollParent(rowEls.current.get(cur.current.ids[0]) ?? null);
+        drag.current = { from: index, pointerId: e.pointerId, lastY: e.clientY, gap: index, raf: 0, container };
+        setDragging(true);
+        setDropGap(index);
+        document.addEventListener("pointermove", moveWrap);
+        document.addEventListener("pointerup", upWrap);
+        document.addEventListener("pointercancel", cancelWrap);
+        drag.current.raf = requestAnimationFrame(autoScroll);
+      },
+      onKeyDown: (e) => {
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          move(index, -1);
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault();
+          move(index, 1);
+        }
+      },
+      tabIndex: 0,
+      role: "button",
+      "aria-label": `Reorder: drag, or focus and use arrow keys (position ${index + 1} of ${ids.length})`,
+      style: { touchAction: "none", userSelect: "none", cursor: "grab" },
     }),
-    isDragOver: (index: number) => overIndex === index,
+    isDragOver: (index: number) => dropGap === index,
+    isDropAtEnd: () => dropGap === ids.length,
+    dragging,
     canMoveUp: (index: number) => index > 0,
     canMoveDown: (index: number) => index < ids.length - 1,
-    move: (index: number, dir: -1 | 1) => {
-      const to = index + dir;
-      if (to < 0 || to >= ids.length) return;
-      // For an adjacent swap the "land above `to`" hint math differs by direction; go through the
-      // same commit path with the destination expressed as a hint row so drag and move agree.
-      commit(index, dir === 1 ? to + 1 : to);
-    },
+    move,
+    liveMessage: live,
   };
 }

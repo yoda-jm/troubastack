@@ -655,6 +655,7 @@ function Items({
               rowProps={mainSort.rowProps(i)}
               gripProps={mainSort.gripProps(i)}
               dragOver={mainSort.isDragOver(i)}
+              dropAtEnd={mainSort.isDropAtEnd() && i === main.length - 1}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
@@ -692,6 +693,7 @@ function Items({
               rowProps={benchSort.rowProps(i)}
               gripProps={benchSort.gripProps(i)}
               dragOver={benchSort.isDragOver(i)}
+              dropAtEnd={benchSort.isDropAtEnd() && i === bench.length - 1}
               onMove={move}
               onRemove={remove}
               onSetOnCall={setOnCall}
@@ -755,6 +757,7 @@ function ItemRow({
   rowProps,
   gripProps,
   dragOver,
+  dropAtEnd,
   reload,
 }: {
   group: "main" | "bench";
@@ -772,6 +775,7 @@ function ItemRow({
   rowProps: SortableRowProps;
   gripProps: GripProps;
   dragOver: boolean;
+  dropAtEnd: boolean;
   reload: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -828,17 +832,13 @@ function ItemRow({
   return (
     <div
       ref={rowProps.ref}
-      className={`row${editing ? " editing" : ""}${dragOver ? " drag-over" : ""}`}
+      className={`row${editing ? " editing" : ""}${dragOver ? " drag-over" : ""}${dropAtEnd ? " drop-at-end" : ""}`}
       data-testid={group === "bench" ? "bench-row" : "item-row"}
-      onDragOver={rowProps.onDragOver}
-      onDragLeave={rowProps.onDragLeave}
-      onDrop={rowProps.onDrop}
     >
       <span
         className="grip"
         data-testid="item-grip"
         title="Drag to reorder"
-        aria-label="Drag to reorder"
         {...gripProps}
       >
         ⠿

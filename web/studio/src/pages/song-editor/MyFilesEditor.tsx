@@ -198,16 +198,12 @@ function MyFilesEditorInner({
                 key={f.id}
                 ref={row.ref}
                 data-testid="my-files-row"
-                className={`my-files-row${on ? " included" : " excluded"}${sortable.isDragOver(i) ? " drag-over" : ""}`}
-                onDragOver={row.onDragOver}
-                onDragLeave={row.onDragLeave}
-                onDrop={row.onDrop}
+                className={`my-files-row${on ? " included" : " excluded"}${sortable.isDragOver(i) ? " drag-over" : ""}${sortable.isDropAtEnd() && i === rows.length - 1 ? " drop-at-end" : ""}`}
               >
                 <span
                   className="grip"
                   data-testid="my-files-grip"
                   title="Drag to reorder"
-                  aria-label="Drag to reorder"
                   {...sortable.gripProps(i)}
                 >
                   ⠿

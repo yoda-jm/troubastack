@@ -516,17 +516,13 @@ export function Files({
                 <div
                   key={f.id}
                   ref={row.ref}
-                  className={`file-row${f.generated ? " gen" : ""}${sortable.isDragOver(i) ? " drag-over" : ""}`}
+                  className={`file-row${f.generated ? " gen" : ""}${sortable.isDragOver(i) ? " drag-over" : ""}${sortable.isDropAtEnd() && i === files.length - 1 ? " drop-at-end" : ""}`}
                   data-testid="file-row"
-                  onDragOver={row.onDragOver}
-                  onDragLeave={row.onDragLeave}
-                  onDrop={row.onDrop}
                 >
                   <span
                     className="grip"
                     data-testid="file-grip"
                     title="Drag to reorder"
-                    aria-label="Drag to reorder"
                     {...sortable.gripProps(i)}
                   >
                     ⠿

@@ -48,6 +48,7 @@ test("setlist item title links to the song editor; reorder still works (T61)", a
   const rows = page.getByTestId("item-row");
   const grip = rows.nth(1).getByTestId("item-grip");
   const target = rows.nth(0);
-  await grip.dragTo(target);
+  // T142 stage 2 (Pointer Events): release in the target row's TOP half so the dragged row lands above it.
+  await grip.dragTo(target, { targetPosition: { x: 30, y: 3 } });
   await expect(page.getByTestId("item-title").nth(0)).toContainText("Bbb");
 });
