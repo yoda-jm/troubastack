@@ -14,7 +14,7 @@ scores in a fullscreen, canvas-first web editor (**TroubaStudio**); a server
 (**TroubaCore**, one Go binary) holds the single authoritative truth, bakes setlists
 into performable concert bundles, and distributes them in-app; an offline presenter
 (**TroubaStage**, inside the mobile app) *performs* them on stage — pedal page turns,
-night mode, count-in, facing pages, per-role layers.
+four reading schemes for a dark venue, count-in, facing pages, per-role layers.
 
 > The name is a troubadour pun, and it maps onto the architecture:
 > a **troubadour** *composes* (the editor), a **joglar** *performs* (the presenter).
@@ -268,16 +268,38 @@ The product loop is closed and CI-gated end to end:
   **personal song cues** (per-member icon+color reminders — "mic + red guitar" — that
   ride the band bake, tagged per member), animated drag-reorder setlists (titles link to the song),
   duplication, admin password reset, and a top-right account menu (profile · get the
-  app · build/version-mismatch check · log out).
+  app · build/version-mismatch check · log out). **Undo** appends the inverse edit rather
+  than rewriting history, and refuses when a bandmate has touched the object since.
+  Reordering is Pointer-Events throughout — one code path for mouse, touch and pen, with
+  the grabbed row lifting under the finger, keyboard arrows, and a drop at the very end.
+- **The chart dialect:** lyrics and chords in plain text, rendered to a PDF that joins the
+  song's file pool. Beyond `# title` / `## section` / chord-over-lyric lines there are seven
+  directives — `{np}` page break, `{fn}` footnotes, `{sot}`/`{eot}` verbatim tablature, and
+  a header block setting `size:`, `fit:` and **`columns: 2`** for a two-column body (more
+  room, larger type, a rule down the gutter; a line too long for its column wraps carrying
+  its chords with it). The vocabulary lives in one contract that the engine and the editor's
+  own help are both pinned to, so the two cannot drift.
+- **Setlists:** a running order that is not only songs — an **intermission** is a first-class
+  entry with the band's own label, taking no number, shifting nothing after it, landable on
+  stage and baked as its own page. Plus a printable running-order sheet with the band, the
+  venue and the date.
 - **The pipeline:** server-side bake (concurrent-safe, one band-wide bundle per setlist,
   encore/bench songs, retention via `troubacore gc`), in-app offer/download distribution,
   **rehearsal live mode** (opt-in: annotation edits debounce-autobake and, for a performer
   who opts in on Stage, auto-update the open concert in place — viewport-preserving, so
   the page doesn't jump), and the committed demo bundle above — studio pixels and baked
-  pixels come from the same renderer (I8) and are parity-tested.
+  pixels come from the same renderer (I8) and are parity-tested. Marks are **anchored to
+  their words**, not to coordinates: edit a lyric, change the type size or set the chart in
+  two columns, and a highlight follows the run it was drawn on instead of drifting onto
+  whatever now occupies that spot.
 - **The presenter:** Android + iOS-simulator TroubaStage with the stage ergonomics
-  arc (A08–A15) landed: metadata strip, pedal page turns, night mode, count-in,
-  facing pages, scroll mode, song drawer.
+  arc landed: metadata strip, pedal page turns, count-in, facing pages, scroll mode,
+  song drawer, analog or digital clock. **Four reading schemes** — paper, warm, night,
+  amber — cycle without ever flashing white at a player in a blackout, and the drawer,
+  sheets and dialogs follow the scheme rather than staying daylight-white. In scroll mode
+  a page stops at its last glyph instead of scrolling into blank paper, and the surround
+  is the scheme's own paper, not black. A **swipe lock** disables the crossing swipe for
+  a set where a vertical scroll keeps turning into a song jump.
 - **Production serving:** the [`deploy/`](deploy/README.md) story above (compose +
   Caddy/TLS + tested backups) — the attended first bring-up and the signed release
   APK are the remaining steps.
