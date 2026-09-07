@@ -120,6 +120,34 @@ export const GLYPHS = {
     ["circle", 6.5, 18, 2.5],
     ["circle", 15.5, 16, 2.5],
   ],
+  // --- P206 jump-mark landmarks -------------------------------------------------------
+  // Matchable symbols for jump marks (a pair of icons with the SAME glyph + colour — a
+  // D.S. and its Segno). Authored here, NEVER Unicode, so chartpdf (cp1252, Latin-1 only)
+  // renders them on the printed sheet too (Fable ⟨D⟩ RESPEC). Distinct simple SHAPES read
+  // best at a distance under stage light, which is the whole point.
+  circle: [["circle", 12, 12, 8]],
+  square: [["rect", 4, 4, 16, 16, 1]],
+  triangle: [["path", "M12 3.5L20.5 19H3.5Z"]],
+  diamond: [["path", "M12 3L21 12L12 21L3 12Z"]],
+  star: [
+    [
+      "path",
+      "M12 3L14.12 9.09L20.56 9.22L15.42 13.11L17.29 19.28L12 15.6L6.71 19.28L8.58 13.11L3.44 9.22L9.88 9.09Z",
+    ],
+  ],
+  // Coda (𝄌): a ring with a full crosshair through it — the "to Coda" target.
+  coda: [
+    ["circle", 12, 12, 6],
+    ["path", "M12 2.5V21.5"],
+    ["path", "M2.5 12H21.5"],
+  ],
+  // Segno (𝄋): an S traversed by a diagonal slash, with a dot in each opposing quadrant.
+  segno: [
+    ["path", "M16.5 6.5C16.5 4 13 3.5 11 5C9 6.5 9.5 9 12 10.5C14.5 12 15 14.5 13 16C11 17.5 7.5 17 7.5 14.5"],
+    ["path", "M6.5 17.5L17.5 6.5"],
+    ["circle", 15.5, 15, 1, true],
+    ["circle", 8.5, 9, 1, true],
+  ],
 };
 
 // The picker/consumer order and the required fallback id.
