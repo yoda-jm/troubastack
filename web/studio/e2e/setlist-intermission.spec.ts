@@ -47,19 +47,24 @@ test("setlist: add an intermission between two songs — unnumbered, renameable,
   await expect(rows.nth(1)).not.toContainText("2.");
 
   // A break is not a song: it must not render a link into /songs/<empty>, which would be a dead route
-  // wearing a title. It renders its own editable label instead.
+  // wearing a title. It renders a centered divider (its name between two rules) instead.
   const breakLabel = rows.nth(1).getByTestId("item-intermission-label");
   await expect(breakLabel).toBeVisible();
   await expect(rows.nth(1).getByTestId("item-title-link")).toHaveCount(0);
-  // Nor the musical editor — a break has no key, tempo or chart.
-  await expect(rows.nth(1).getByTestId("item-edit")).toHaveCount(0);
 
-  // Rename it, and prove the rename REACHED THE SERVER by reloading rather than trusting the field.
-  await breakLabel.fill("Entracte");
-  await breakLabel.blur();
-  await expect(page.getByTestId("item-row")).toHaveCount(3);
+  // Its message is changed behind the pencil, like a song's editor (VLL) — not an always-live field.
+  await rows.nth(1).getByTestId("item-edit").click();
+  const breakInput = rows.nth(1).getByTestId("item-intermission-input");
+  // A break still has no musical editor: the pencil opens only its label, never key / tempo.
+  await expect(rows.nth(1).getByTestId("item-key")).toHaveCount(0);
+  await breakInput.fill("Entracte");
+  await breakInput.press("Enter");
+
+  // The rename round-trips (relabel awaits the server + reload); the divider shows the new name.
+  await expect(rows.nth(1).getByTestId("item-intermission-label")).toContainText("Entracte");
+  // Prove it PERSISTED (reached the server, not just React state) with a fresh reload.
   await page.reload();
-  await expect(page.getByTestId("item-row").nth(1).getByTestId("item-intermission-label")).toHaveValue(
+  await expect(page.getByTestId("item-row").nth(1).getByTestId("item-intermission-label")).toContainText(
     "Entracte",
   );
 

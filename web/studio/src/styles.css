@@ -1905,24 +1905,45 @@ button.btn-sm { padding: .38rem .65rem; font-size: .82rem; }
   gap: .6rem; min-height: 60vh; text-align: center; padding: 2rem; }
 .route-error h2 { margin: 0; }
 
-/* T153 — an intermission's label is edited in place on its setlist row. It is a real input, but it must
-   read as the row's title, not as a form field dropped into a list: no box until you touch it, the same
-   weight as a song title beside it, and a visible focus ring so keyboard users can see where they are. */
-.intermission-label {
-  font: inherit;
+/* T153 + VLL polish — an intermission reads as a centered divider on its setlist row (a rule either side
+   of its name), echoing the baked break card and the Stage running order rather than a form field in the
+   song list. Its message is changed behind the row's pencil (.intermission-edit), like a song's editor. */
+.intermission-divider {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  width: 100%;
+}
+.intermission-divider .rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--border);
+}
+.intermission-divider .intermission-text {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
   font-style: italic;
   color: var(--muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: .1rem .35rem;
-  min-width: 12ch;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  font-size: .82rem;
+  white-space: nowrap;
 }
-.intermission-label:hover { border-color: var(--border); }
-.intermission-label:focus {
+/* The pencil-triggered edit field: centered like the divider it replaces, with a visible focus ring. */
+.intermission-edit {
+  font: inherit;
+  font-style: italic;
+  text-align: center;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .18rem .5rem;
+  width: 100%;
+  max-width: 22rem;
+}
+.intermission-edit:focus {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
   border-color: transparent;
-  color: var(--text);
-  font-style: normal;
 }

@@ -66,6 +66,24 @@ export function SetlistDetail() {
     void load();
   }, [load]);
 
+  // Optimistic reorder: apply the new order to local state IMMEDIATELY so a drag / ↑↓ settles with no
+  // server round-trip. The old path awaited reorderSetlist + reload, so on release every row snapped back
+  // to the OLD order, paused for the network, then reflowed to the new one — which read as "it moves too
+  // much" and "a full refresh when releasing". The reorder is a pure permutation, so array order + the
+  // onCall split is all the render needs; the server call rides in the background (a failure reverts via
+  // reload). Guarded to a complete permutation so a partial/garbled list never half-applies.
+  const applyOrder = useCallback((orderedIds: string[]) => {
+    setItems((prev) => {
+      const byId = new Map(prev.map((it) => [it.id, it]));
+      const next: SetlistItem[] = [];
+      for (const id of orderedIds) {
+        const it = byId.get(id);
+        if (it) next.push(it);
+      }
+      return next.length === prev.length ? next : prev;
+    });
+  }, []);
+
   if (!bandId || !setlistId) return <div className="page">Loading…</div>;
   if (error && !setlist) {
     return (
@@ -141,7 +159,14 @@ export function SetlistDetail() {
       <div className="staff sig" aria-hidden="true" />
 
       <SetlistMeta bandId={bandId} setlist={setlist} onSaved={setSetlist} />
-      <Items bandId={bandId} setlistId={setlistId} items={items} songs={songs} reload={load} />
+      <Items
+        bandId={bandId}
+        setlistId={setlistId}
+        items={items}
+        songs={songs}
+        reload={load}
+        onReorder={applyOrder}
+      />
       <DuplicateAction
         bandId={bandId}
         setlistId={setlistId}
@@ -487,12 +512,14 @@ function Items({
   items,
   songs,
   reload,
+  onReorder,
 }: {
   bandId: string;
   setlistId: string;
   items: SetlistItem[];
   songs: Song[];
   reload: () => Promise<void>;
+  onReorder: (orderedIds: string[]) => void;
 }) {
   const [songId, setSongId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -572,26 +599,32 @@ function Items({
   const cuesBySong = new Map<string, SongCue[]>();
   for (const s of songs) if (s.myCues?.length) cuesBySong.set(s.id, s.myCues);
 
-  // move reorders WITHIN a group, then sends the full order (the other group
-  // unchanged) since ReorderSetlist rewrites every item's position.
-  async function move(group: "main" | "bench", index: number, dir: -1 | 1) {
+  // Persist a new order optimistically: paint it now (onReorder → local state), then reorderSetlist in the
+  // background. A failed save reloads to revert. This is what makes a drop / ↑↓ settle without the old
+  // snap-back-then-reflow. Defined before move + the sortables so both reorder paths share it.
+  const persist = useCallback(
+    (orderedIds: string[]) => {
+      onReorder(orderedIds);
+      setError(null);
+      void api.reorderSetlist(bandId, setlistId, orderedIds).catch((err) => {
+        setError(err instanceof ApiError ? err.message : "Failed to reorder");
+        void reload();
+      });
+    },
+    [onReorder, bandId, setlistId, reload],
+  );
+
+  // move reorders WITHIN a group, then sends the full order (the other group unchanged) since
+  // ReorderSetlist rewrites every item's position. Routed through persist so ↑/↓ get the same optimistic,
+  // no-reload settle as a drag.
+  function move(group: "main" | "bench", index: number, dir: -1 | 1) {
     const arr = group === "main" ? main.slice() : bench.slice();
     const other = index + dir;
     if (other < 0 || other >= arr.length) return;
     const [moved] = arr.splice(index, 1);
     arr.splice(other, 0, moved);
     const full = group === "main" ? [...arr, ...bench] : [...main, ...arr];
-    setError(null);
-    try {
-      await api.reorderSetlist(
-        bandId,
-        setlistId,
-        full.map((i) => i.id),
-      );
-      await reload();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to reorder");
-    }
+    persist(full.map((i) => i.id));
   }
 
   async function setOnCall(itemId: string, onCall: boolean) {
@@ -611,18 +644,6 @@ function Items({
   // position); the ↑/↓ buttons keep their own `move` path.
   const mainIds = main.map((it) => it.id);
   const benchIds = bench.map((it) => it.id);
-  const persist = useCallback(
-    async (orderedIds: string[]) => {
-      setError(null);
-      try {
-        await api.reorderSetlist(bandId, setlistId, orderedIds);
-        await reload();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Failed to reorder");
-      }
-    },
-    [bandId, setlistId, reload],
-  );
   const mainSort = useSortable(mainIds, (ids) => persist([...ids, ...benchIds]), registerRow);
   const benchSort = useSortable(benchIds, (ids) => persist([...mainIds, ...ids]), registerRow);
 
@@ -851,20 +872,35 @@ function ItemRow({
               middle/ctrl-click + keyboard for free (hover-only affordance, no blue noise). */}
           {label}{" "}
           {isIntermission(item) ? (
-            // T153: a break has no song, so it must NOT render a link to /songs/<empty> — that would be
-            // a dead route dressed as a title. Its label is editable in place: renaming a break is the
-            // only thing you can do to it, so it should not need a dialog.
-            <input
-              className="intermission-label"
-              data-testid="item-intermission-label"
-              aria-label="Intermission label"
-              defaultValue={item.label ?? ""}
-              placeholder="Intermission"
-              onBlur={(e) => {
-                const next = e.target.value.trim();
-                if (next !== (item.label ?? "")) onRelabel(item.id, next);
-              }}
-            />
+            // T153 + VLL polish: a break reads as a centered divider — a rule either side of its name —
+            // the way it appears on the baked card and the Stage running order, not as a form field
+            // dropped into the song list. Its message is changed behind the pencil (like a song's editor),
+            // not an always-live input. A break has no song, so it never links to /songs/<empty>.
+            editing ? (
+              <input
+                className="intermission-edit"
+                data-testid="item-intermission-input"
+                aria-label="Intermission label"
+                autoFocus
+                defaultValue={item.label ?? ""}
+                placeholder="Intermission"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                  else if (e.key === "Escape") setEditing(false);
+                }}
+                onBlur={(e) => {
+                  const next = e.target.value.trim();
+                  if (next !== (item.label ?? "")) onRelabel(item.id, next);
+                  setEditing(false);
+                }}
+              />
+            ) : (
+              <span className="intermission-divider" data-testid="item-intermission-label">
+                <span className="rule" aria-hidden="true" />
+                <span className="intermission-text">{(item.label ?? "").trim() || "Intermission"}</span>
+                <span className="rule" aria-hidden="true" />
+              </span>
+            )
           ) : (
             <Link
               to={`/bands/${bandId}/songs/${item.songId}`}
@@ -896,21 +932,19 @@ function ItemRow({
       </div>
 
       <div className="rowacts">
-        {/* T153: a break has no key, tempo or chart, so the musical editor is not offered for one.
-            Move/remove stay — reordering and deleting a break are exactly what you do to it. Its own
-            editable field is the label, in place on the row. */}
-        {!isIntermission(item) && (
-          <button
-            type="button"
-            className="icon-btn"
-            data-testid="item-edit"
-            title="Edit key / tempo / notes"
-            aria-expanded={editing}
-            onClick={() => setEditing((v) => !v)}
-          >
-            ✎
-          </button>
-        )}
+        {/* The pencil edits the row: key/tempo/notes for a song, the message for a break (T153 + VLL:
+            "changing the message should be done with a pencil like songs"). A break still has no musical
+            editor — its pencil opens only the label field (guarded below). Move/remove stay. */}
+        <button
+          type="button"
+          className="icon-btn"
+          data-testid="item-edit"
+          title={isIntermission(item) ? "Rename this break" : "Edit key / tempo / notes"}
+          aria-expanded={editing}
+          onClick={() => setEditing((v) => !v)}
+        >
+          ✎
+        </button>
         <button
           type="button"
           className="icon-btn"
@@ -963,7 +997,7 @@ function ItemRow({
         </button>
       </div>
 
-      {editing && (
+      {editing && !isIntermission(item) && (
         <div className="row-edit">
           <div className="form-grid">
             <div className="field">
