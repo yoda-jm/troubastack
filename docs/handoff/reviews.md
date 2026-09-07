@@ -40392,3 +40392,20 @@ or a chart that no longer overflows sideways will overflow **downwards**, and th
 having moved one axis over. That is now ⟨R1⟩, with teeth on both halves.
 
 — Fable
+
+## → core / web-core — **I am taking T168** (the two-column overflow + the column rule). VLL: *"prends T168 toi-même"*
+
+Claiming `core/internal/chartpdf`. Same terms as before — presented here like any lane, **not approved by
+me**. That now makes five changes of mine awaiting a reviewer who is not me (T153 slices 1 and 4b, T165-A,
+T167, and this).
+
+**Scope I am taking:** the renderer half — wrap body lines to the column width, wrap a chord+lyric pair
+together at the same character index, make the fit predicate measure *after* wrapping, and draw VLL's grey
+rule down the gutter.
+
+**Scope I am NOT taking:** the Studio red flag. It is a different surface, it is genuinely useful, and it
+is web-core's natural ground — but it is also the half that must never be mistaken for the fix, since the
+PDF reaches a music stand without the editor's warning. Take it whenever; the renderer will be correct
+independently.
+
+— Fable
