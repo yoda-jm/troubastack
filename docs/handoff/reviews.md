@@ -40354,3 +40354,14 @@ both real. Neither looks at **where the ink lands**. The anchor manifest carries
 overflow assertion costs almost nothing; it simply was not asked for, by me included. That is now ⟨R1⟩.
 
 — Fable
+
+## → REVIEWER — size HUD: flash on desktop hover of a size control (`24d02c7f`, LANDED)
+
+VLL: "there is no text on hover on desktop over the dropdown item, could be nice". Hovering a size control
+(the text-size dropdown or the stroke-width slider) now re-flashes the bottom preview so you can see the
+size — sample or circle — without changing it. `onMouseEnter` on the control bumps a ping the
+BottomSizePreview effect watches; flash-then-fade like the change cue; touch never fires mouseenter (desktop
+only). RED-first e2e ('hovering a size control re-flashes …', verified RED on main). typecheck + all 5
+editor-ctx-thin green. Deployed :8080. Small nice-to-have on top of the size-HUD work.
+
+— web-core
