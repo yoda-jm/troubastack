@@ -13,7 +13,9 @@ func longBody(nLines int) string {
 	var b strings.Builder
 	b.WriteString("# A Long Invented Chart\n\n## Verse\n")
 	for i := 0; i < nLines; i++ {
-		b.WriteString("la la la and the road rolls on beneath a paper moon\n")
+		b.WriteString("la la la and the road rolls on\n") // T168: short enough NOT to wrap in a half-width
+		// column. With a longer line the wrap doubles the line count and two columns can no longer buy a
+		// larger size — which is true, and is the T168 tension, but it is not what THIS test is about.
 	}
 	return b.String()
 }
@@ -82,7 +84,12 @@ func TestTwoColumns_Golden_T146(t *testing.T) {
 	if p := len(goldenPageRe.FindAll(pdf, -1)); p != 1 {
 		t.Fatalf("two-col golden page count = %d, want 1", p)
 	}
-	const wantHash = "84454e24976d4358ceb7c41737da4549647f9dd1815e2de3b5f92d94e38e9397"
+	// Updated DELIBERATELY (T168, 2026-09-08): two-column output changed twice, both intended — body
+	// lines now WRAP to the column instead of running off the paper (VLL's ⟨D1⟩), and a grey hairline is
+	// drawn down the gutter (his second ask). One-column output is unchanged, byte for byte: the T144
+	// goldens and both byte-stability tests stayed green through this change, which is the property
+	// stage 2 rests on. Previous hash: 84454e24…e38e9397.
+	const wantHash = "c0e6625d8aa6e6185594963e810e2d7ba88b27522ae3d1c3f6909f9c30fae4b7"
 	if got := hex.EncodeToString(sha256Sum(pdf)); got != wantHash {
 		t.Fatalf("two-col golden hash = %s, want %s (update deliberately if the layout changed)", got, wantHash)
 	}

@@ -24,7 +24,9 @@ import (
 // with its chord line. The assertion is then the one a musician would make: the mark is still on its line.
 const repeatedChords = "G     D     Am    C"
 
-func waypointLyric(k int) string { return fmt.Sprintf("waypoint number %d on the winding road", k) }
+// Short enough to fit a HALF-width column: T168 wraps a line that does not, which would split this
+// landmark in two and make the test about wrapping instead of about occurrence stability.
+func waypointLyric(k int) string { return fmt.Sprintf("waypoint %d here", k) }
 
 // columnsFixture: a body long enough to need two columns, carrying `pairs` copies of the SAME chord line,
 // each over its own unique lyric, spread so that at least one pair falls on each side of the column break —
@@ -42,7 +44,7 @@ func columnsFixture(twoCol bool, pairs int) string {
 			fmt.Fprintf(&b, "%s\n%s\n", repeatedChords, waypointLyric(i/every+1))
 			continue
 		}
-		fmt.Fprintf(&b, "filler line %02d rolling on beneath a paper moon\n", i)
+		fmt.Fprintf(&b, "filler %02d short\n", i)
 	}
 	return b.String()
 }
@@ -91,7 +93,7 @@ func chordAboveWaypoint(t *testing.T, anchors []Anchor, k int) Anchor {
 func waypointBelow(anchors []Anchor, page int, x0, y0 float64) string {
 	best, bestDy := "", 0.0
 	for _, a := range anchors {
-		if a.Page != page || !strings.HasPrefix(a.Text, "waypoint number ") {
+		if a.Page != page || !strings.HasPrefix(a.Text, "waypoint ") {
 			continue
 		}
 		if (a.X0 > 0.5) != (x0 > 0.5) {

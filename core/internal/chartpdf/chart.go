@@ -391,6 +391,24 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 	colIndex := 0
 	colTop := y // columns on the first page start below the header (the passed-in y); later pages at topMargin
 	curLeft := func() float64 { return leftMargin + float64(colIndex)*(colW+colGutter) }
+	// T168 (VLL): "je veux la ligne verticale pour les séparer, quelque chose de gris". A hairline down
+	// each gutter so two columns read as two columns rather than as one wide ragged block. Muted grey at
+	// the weight of the existing hairlines — a separator, not a new visual language. Drawn over the BODY
+	// area of the page: it starts where the body starts (below the header on page 1, at the top margin
+	// after) and stops at the body's bottom edge. Never drawn in one column, so single-column output
+	// stays byte-identical.
+	drawColumnRules := func(top float64) {
+		if o.pdf == nil || nCols < 2 {
+			return
+		}
+		o.pdf.SetDrawColor(190, 190, 190)
+		o.pdf.SetLineWidth(0.2)
+		for c := 1; c < nCols; c++ {
+			x := leftMargin + float64(c)*colW + (float64(c)-0.5)*colGutter
+			o.pdf.Line(x, top, x, pageBottom)
+		}
+	}
+	drawColumnRules(colTop) // page 1: below the header
 	newPage := func() {
 		if o.paginate {
 			if o.pdf != nil {
@@ -400,6 +418,7 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 			colTop = topMargin
 			y = topMargin
 			pg++
+			drawColumnRules(colTop)
 		}
 	}
 	// page(need) breaks when the next unit would cross the page bottom. In two-column mode an unfilled next
@@ -450,6 +469,17 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 	var measurer *fpdf.Fpdf
 	var measureTr func(string) string
 	tabPt := 0.0 // T135: the chart's tab size (one for all blocks), computed lazily on the first block
+	// T168: wrapping must NEVER measure with the drawing document. getMeasurer returns o.pdf in the
+	// draw pass, and touching its font state there changes the emitted bytes — which broke the T144
+	// goldens and the byte-stability tests the moment wrapping was wired in. A standalone measurer also
+	// guarantees the measure and draw passes wrap IDENTICALLY, which is what keeps fitsAt honest.
+	wrapMeasurer := func() (*fpdf.Fpdf, func(string) string) {
+		if measurer == nil {
+			measurer = newMeasurer()
+			measureTr = measurer.UnicodeTranslatorFromDescriptor("")
+		}
+		return measurer, measureTr
+	}
 	getMeasurer := func() (*fpdf.Fpdf, func(string) string) {
 		if o.pdf != nil {
 			return o.pdf, o.tr // draw pass: measure with the real doc + its translator
@@ -563,26 +593,47 @@ func layout(lines []string, scale float64, skip map[int]bool, y float64, o layou
 		case isChordRow(trimmed) && i+1 < len(lines) && isLyric(lines[i+1]):
 			applyBreak()
 			gap()
-			page(leadPair * scale) // the pair is one unit — never split a chord from its lyric
-			note("pair")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(o.pdf, o.tr, curLeft(), y, ch, an, strings.TrimRight(lines[i+1], " \t"), scale, o.rec)
+			// T168: wrap to the column. Both rows are Courier at one size, so wrapPair splits them at the
+			// SAME character index and every chord stays over its word. Each continuation is itself a pair,
+			// so page() per segment keeps the pair rule (a chord is never split from its lyric).
+			mp, _ := wrapMeasurer()
+			for si, seg := range wrapPair(ch, strings.TrimRight(lines[i+1], " \t"), monoColChars(mp, scale, colW)) {
+				page(leadPair * scale)
+				note("pair")
+				a := an
+				if si > 0 {
+					a = "" // the performance note belongs to the first line of the pair, not to every continuation
+				}
+				y = chordLine(o.pdf, o.tr, curLeft(), y, seg.ch, a, seg.ly, scale, o.rec)
+			}
 			drew = true
 			i++ // consumed the lyric line
 		case isChordRow(trimmed):
 			applyBreak()
 			gap()
-			page(leadChord * scale)
-			note("chord")
 			ch, an, _ := chordRowParts(line)
-			y = chordLine(o.pdf, o.tr, curLeft(), y, ch, an, "", scale, o.rec)
+			mp, _ := wrapMeasurer() // T168: a chord row alone wraps on the same grid
+			for si, seg := range wrapPair(ch, "", monoColChars(mp, scale, colW)) {
+				page(leadChord * scale)
+				note("chord")
+				a := an
+				if si > 0 {
+					a = ""
+				}
+				y = chordLine(o.pdf, o.tr, curLeft(), y, seg.ch, a, "", scale, o.rec)
+			}
 			drew = true
 		default:
 			applyBreak()
 			gap()
-			page(leadLyric * scale)
-			note("text")
-			y = textLine(o.pdf, o.tr, curLeft(), y, line, scale, o.rec)
+			// T168: a normal body line wraps to the column too, bold runs reconstructed per line.
+			mp, mt := wrapMeasurer()
+			for _, wl := range wrapProse(mp, mt, line, scale, colW) {
+				page(leadLyric * scale)
+				note("text")
+				y = textLine(o.pdf, o.tr, curLeft(), y, wl, scale, o.rec)
+			}
 			drew = true
 		}
 	}
