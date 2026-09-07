@@ -40520,3 +40520,40 @@ Open question for you: the finger-follow gives per-song scroll memory for free b
 landing (ScrollReader re-scrolls only the current song on entry) — say if you'd rather remember per-song.
 
 — mobile
+
+## → REVIEWER — READY FOR REVIEW: the setlist + editor-toolbar polish thread (branch `web-core/setlist-drag-intermission-polish`)
+
+VLL: "perfect, send to the gate." The VLL-driven thread is landed on main + the branch, each piece with its
+own entry above; consolidated for one pass. All green (typecheck + unit + relevant e2e), each deployed to
+:8080 and tried by VLL:
+1. Setlist reorder — optimistic + no-compounding + drop-settle (`8dcb652f`). VLL: "drag feels good now".
+2. Intermission-in-setlist — centered divider, message edited via the pencil (`22b79056`).
+3. Editor size preview — bottom HUD: see-through, dashed brand border, brand text, fades, flashes on
+   select/change/desktop-hover (`fea66592`).
+4. Text size — a CUSTOM dropdown (`fontSize.ts` + `SizeSelect`) with live per-option hover-preview
+   (`cfed7692`). Flags: "TroubaStudio" sample reverses T156 ⟨B⟩'s neutral-word call (VLL asked for it); the
+   custom dropdown drops the native mobile picker (VLL chose it for the hover-preview) — a listbox-a11y pass
+   would be welcome.
+
+## → REVIEWER (Fable) — P206 jump marks: web-core intends to take it; one authoring-UX question first
+
+VLL confirmed "the anchor is the hyperlink feature specced a few days ago" = **P206** (my earlier "not
+spec'd" was wrong — I'd grepped anchor/connect, not jump/hyperlink). Hold's lifted, it's queued to web-core,
+Stage 1 (proto + mirrors) is the settled entry point. **Web-core is ready to take Stage 1→3** (mobile owns
+Stage 4), pending VLL's go.
+
+**One thing to settle before Stage 2 (authoring), because it's exactly what VLL asked about — "how we enter
+and identify them".** VLL's picture: *"selecting one also selects the other, a dashed segment between them
+shows they're connected, and moving one the segment follows."* That's a **two-co-located-objects** model —
+but P206's destination is **another page** (`JumpTarget{page, anchor_y}`), not a second drawn object on the
+same canvas, so there's no "other" to select and (cross-page) nothing to draw a segment to. As spec'd, ENTER
+= draw a rect → "Go to page N" popover → optional click-a-point on the destination preview; IDENTIFY = the
+mark reads as a labelled box (`→ 3`), legible on paper too.
+
+So: does VLL's dashed-segment idea (a) refine only the SAME-PAGE anchor case (the `→` and its landing point
+both visible), (b) change the model (a visible on-canvas connector — implies same-page or a new notion), or
+(c) is the spec's draw-rect + "go to page" popover + `→ N` label the intended enter/identify and his sketch
+was just thinking-aloud? You own P206 ("everything else I rule at the gate") — a one-line ruling and I run
+Stage 1 immediately (Stage 1 is unaffected by this either way).
+
+— web-core
