@@ -19,6 +19,32 @@ message PageImages {
   // margin) instead of scrolling blank paper. Permille (not a float) so it needs no new mirror-codegen type.
   // Additive: absent/0 ⇒ full page — bundles already on a device are unchanged.
   int32 content_bottom_permille = 4;
+  // P206: tappable jump marks resolved onto this page. The authored source icon carries
+  // only the destination object's uuid (object.proto); the baker resolves it to a page +
+  // anchor on THIS song and emits it here. Additive: old bundles carry none (proto3
+  // default-empty), so a device already holding one is unchanged.
+  repeated PageJump jumps = 5;
+}
+
+// P206: a baked jump mark — the source's hotspot rect plus its RESOLVED destination,
+// within this song. A bundle is a snapshot of ONE render, so resolving the page here is
+// correct; it is the AUTHORED form (object.proto) that must not freeze. `layer_id` and
+// `owner` are not conveniences — they are the two visibility filters (A1 layer, P205
+// owner); a PageJump without them cannot be filtered and must not exist.
+message PageJump {
+  // Source-rect bbox + target anchor in PERMILLE (0..1000) of the normalized [0,1] value
+  // (I3), NOT float — the same choice T149 made for content_bottom_permille, and for the
+  // same reason: the Kotlin/TS mirror codegen has no float kind, so permille needs no new
+  // mirror type. 0.1% of a page is ~0.3 mm — ample for a tappable hotspot and a scroll
+  // anchor. (Spec wrote `float`; permille substituted per the T149 precedent — flagged.)
+  int32 x0_permille = 1;
+  int32 y0_permille = 2;
+  int32 x1_permille = 3;
+  int32 y1_permille = 4;
+  int32 target_page = 5;              // 0-based page index WITHIN THIS SONG
+  int32 target_anchor_y_permille = 6; // [0..1000] on the target page; 0 = the page top
+  string layer_id = 7;                // visibility follows THIS layer, exactly (A1/R7)
+  string owner = 8;                   // P205: "" = shared; a member id = personal
 }
 
 // One layer's transparent overlay on one page. The presenter composites PDF + these in

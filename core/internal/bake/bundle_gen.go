@@ -9,6 +9,7 @@ type PageImages struct {
 	RasterHash            string       `json:"rasterHash,omitempty"`
 	Overlays              []LayerImage `json:"overlays,omitempty"`
 	ContentBottomPermille int32        `json:"contentBottomPermille,omitempty"`
+	Jumps                 []PageJump   `json:"jumps,omitempty"`
 }
 
 // LayerImage mirrors proto troubastack.v1.LayerImage.
@@ -81,4 +82,16 @@ type BundleMember struct {
 	MemberID    string `json:"memberId,omitempty"`
 	DisplayName string `json:"displayName,omitempty"`
 	Role        string `json:"role,omitempty"`
+}
+
+// PageJump mirrors proto troubastack.v1.PageJump.
+type PageJump struct {
+	X0Permille            int32  `json:"x0Permille,omitempty"`
+	Y0Permille            int32  `json:"y0Permille,omitempty"`
+	X1Permille            int32  `json:"x1Permille,omitempty"`
+	Y1Permille            int32  `json:"y1Permille,omitempty"`
+	TargetPage            int32  `json:"targetPage,omitempty"`
+	TargetAnchorYPermille int32  `json:"targetAnchorYPermille,omitempty"`
+	LayerID               string `json:"layerId,omitempty"`
+	Owner                 string `json:"owner,omitempty"`
 }

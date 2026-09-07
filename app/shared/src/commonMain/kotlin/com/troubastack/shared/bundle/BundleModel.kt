@@ -23,6 +23,20 @@ data class PageImages(
     val rasterHash: String = "",
     val overlays: List<LayerImage> = emptyList(),
     val contentBottomPermille: Int = 0,
+    val jumps: List<PageJump> = emptyList(),
+)
+
+/** proto troubastack.v1.PageJump. */
+@Serializable
+data class PageJump(
+    val x0Permille: Int = 0,
+    val y0Permille: Int = 0,
+    val x1Permille: Int = 0,
+    val y1Permille: Int = 0,
+    val targetPage: Int = 0,
+    val targetAnchorYPermille: Int = 0,
+    val layerId: String = "",
+    val owner: String = "",
 )
 
 /** proto troubastack.v1.LayerImage. */

@@ -79,6 +79,9 @@ type objectJSON struct {
 	// Points cache was projected from. Both omitempty — an uploaded PDF / legacy mark carries neither.
 	Anchor           *anchorJSON `json:"anchor,omitempty"`
 	PointsRenderHash string      `json:"pointsRenderHash,omitempty"`
+	// JumpTo (P206): on a jump-source icon, the destination icon's uuid. omitempty — an
+	// ordinary icon / any other type carries none.
+	JumpTo string `json:"jumpTo,omitempty"`
 }
 
 // anchorJSON is the wire shape of domain.SourceAnchor (T145).
@@ -367,6 +370,7 @@ func objectToJSON(o domain.Object) objectJSON {
 		},
 		Anchor:           anchorToJSON(o.Anchor),
 		PointsRenderHash: o.PointsRenderHash,
+		JumpTo:           o.JumpTo,
 	}
 }
 
@@ -409,6 +413,7 @@ func objectFromJSON(j objectJSON) domain.Object {
 		},
 		Anchor:           anchorFromJSON(j.Anchor),
 		PointsRenderHash: j.PointsRenderHash,
+		JumpTo:           j.JumpTo,
 	}
 }
 

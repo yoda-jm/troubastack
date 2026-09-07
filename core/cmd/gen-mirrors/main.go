@@ -30,7 +30,7 @@ import (
 // deliberately; new FIELDS on these messages flow automatically.
 var bundleMessages = []string{
 	"PageImages", "LayerImage", "BakedSong", "MemberCues", "MemberPages", "SongCue",
-	"ConcertBundle", "BundleMember",
+	"ConcertBundle", "BundleMember", "PageJump", // P206: baked jump marks on a page
 }
 
 // tsMessages is the subset mirrored into the studio's TS (web/studio/src/api.gen.ts).

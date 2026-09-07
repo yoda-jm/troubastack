@@ -289,6 +289,10 @@ export type AnnotationObject = {
   // Server-stamped on create; 0 for objects created before this field existed.
   createdAt: number;
   style: AnnotationStyle;
+  // P206: on a jump-source icon, the destination icon's uuid (the matching glyph it
+  // jumps to). Absent on an ordinary icon / any other type. A jump is a pair of placed
+  // icons that look the same; this is the only thing that makes one the source.
+  jumpTo?: string;
 };
 
 export type AnnotationDoc = {

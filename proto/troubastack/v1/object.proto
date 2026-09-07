@@ -84,4 +84,13 @@ message Object {
   // order); default 0 keeps legacy docs in their original insertion order. Set via
   // the `reorder` mutation (bring-to-front = maxSibling+1, send-to-back = minSibling-1).
   int32 order = 11;
+  // P206 (⟨D⟩ RESPEC 2026-09-08): a JUMP MARK is a PAIR of placed OBJECT_TYPE_ICON
+  // landmarks carrying the same glyph + colour — a D.S. and its Segno. This field, set
+  // only on the SOURCE icon, is the `uuid` of the DESTINATION icon it jumps to. Empty =
+  // an ordinary icon. No page number and no coordinate: the destination is its own
+  // placed, already-anchored object, so nothing here can drift. What makes an icon a
+  // jump is that it carries this — the `IsJumpSource()` predicate, guarded at the source.
+  // A deleted destination makes the source read as BROKEN (refuse to navigate), never a
+  // guess — T145's discipline. Additive; reuses OBJECT_TYPE_ICON (no new type).
+  string jump_to = 12;
 }

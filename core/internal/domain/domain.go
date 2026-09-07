@@ -162,7 +162,17 @@ type Object struct {
 	// uploaded PDF has no source; or a mark that predates T145 / could not be anchored).
 	Anchor           *SourceAnchor
 	PointsRenderHash string
+	// JumpTo (P206): set only on an OBJECT_TYPE_ICON that is a JUMP SOURCE — the UUID of
+	// the destination icon (the matching glyph) this mark jumps to. Empty = an ordinary
+	// icon. The pair matches by looking the same (same glyph + colour), which is the whole
+	// point; the destination is its own placed object, so nothing here can drift. Use
+	// IsJumpSource() to test it. A deleted destination makes the source read as broken.
+	JumpTo string
 }
+
+// IsJumpSource reports whether this object is a P206 jump mark's SOURCE — an icon that
+// carries a destination reference. What makes an icon a jump is that it carries a target.
+func (o Object) IsJumpSource() bool { return o.JumpTo != "" }
 
 // Clone returns a deep copy so callers cannot mutate stored state through aliases.
 func (o Object) Clone() Object {
