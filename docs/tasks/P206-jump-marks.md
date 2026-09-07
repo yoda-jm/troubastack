@@ -116,12 +116,39 @@ and on `Object`:
   JumpTarget jump = 12;
 
 message JumpTarget {
-  int32 page = 1;      // 0-based page index within the SAME file
-  float anchor_y = 2;  // [0,1] normalized y on that page (I3). 0 = the page top, which
-                       // is also the proto3 default — absent and "top" are the same
-                       // thing here, so no presence wrapper is needed.
+  // ⟨D⟩ 2026-09-08 — the destination is ANCHORED TO ITS WORDS, not to a page number.
+  // The same SourceAnchor every mark uses (T145): run text + document-wide occurrence
+  // + rune span. `page`/`anchor_y` are DERIVED at render time via chartpdf.Project.
+  SourceAnchor anchor = 1;
+
+  // Fallback ONLY when there is no text run to anchor to (a blank stave, the foot of a
+  // page). AnchorAt already returns ok=false over whitespace; the caller keeps these raw
+  // coordinates and the mark is flagged, exactly as T145 does — visible, never silent.
+  int32 page = 2;      // 0-based page index within the SAME file
+  float anchor_y = 3;  // [0,1] normalized y on that page (I3); 0 = the page top
 }
 ```
+
+**Why not the page number.** It was `{page, anchor_y}` — a frozen coordinate — and this product has twice
+proved frozen coordinates drift here: T145 exists *because* "a mark used to store (page, fractional x/y) of
+ONE render, so any reflow moved the words out from under it", and T146's occurrence bug moved marks across a
+re-layout.
+
+`anchor_y` drifting a few percent is survivable — you land on the right page, slightly mis-scrolled.
+**`page` is the fragile one.** Any re-render that changes the page COUNT renumbers every page after it, and
+every jump in that chart then lands somewhere unrelated. Not hypothetical: **T168's line wrapping can
+repaginate a chart**, and so can a size change, a lyric edit, or `columns: 2`.
+
+A mark in the wrong place is a nuisance you notice. **A jump in the wrong place is being lost on stage**, at
+the one moment you cannot stop and look.
+
+**On VLL's picture — "selecting one also selects the other, a dashed segment between them shows they're
+connected".** That is not thinking-aloud, and it is not naive: it is **how music already notates a jump**. A
+D.S. is a *pair* — a sign and the place it refers to — not a hyperlink. Keep it as the mental model. The
+dashed segment is then **one presentation of that relationship, used when both ends are visible** (same page,
+or facing pages in two-up); when they are not co-visible you cannot draw a line to somewhere off-screen, so
+the labelled `→ N` box shows the same relationship the only way it can be. A rendering rule, not a second
+model — and it costs nothing to defer until both ends can actually be seen together.
 
 **No `anchor_x`.** Deliberate: no Stage mode can pan horizontally — `FIT_PAGE` fits, `FIT_WIDTH` and
 `SCROLL` fill the width — so an x would be carried, tested and never read. It is additive if a zoom
