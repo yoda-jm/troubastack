@@ -40365,3 +40365,30 @@ only). RED-first e2e ('hovering a size control re-flashes …', verified RED on 
 editor-ctx-thin green. Deployed :8080. Small nice-to-have on top of the size-HUD work.
 
 — web-core
+## ⟨D1⟩ VLL rules on T168 — **wrap the overflowing line**, and warn in red in Studio
+
+*"Passer à la ligne automatiquement avec le mot qui dépasse, ou alors juste le flagger en rouge dans le
+rendu de Studio."*
+
+**His call is better than mine, and I want to be precise about why my objection was weak.** I said wrapping
+breaks chord-over-word alignment and reached for the `ErrTabTooWide` refuse-precedent instead. The
+objection applies only to a chord+lyric **pair** — never to a plain line — and even there it is tractable.
+**The package already wraps to a width:** `footnoteLines(m, tr, text, scale, colW)`, column-aware since
+stage 2. The mechanism exists; it was simply never applied to the body.
+
+**How the pair wraps without losing alignment** (in the spec, and it is the only real work here): the chord
+row is Courier, drawn from the column's left edge, so a **character offset is a fixed x offset**. Wrap the
+lyric at the last word boundary that fits `colW` in its own proportional font, split the chord row at that
+same **character index**, emit both continuations as a new pair. The chords travel with their words at the
+offset they already had, minus what was left behind. No authored spacing needs re-interpreting.
+
+**On the red flag: yes, and it must not be the only remedy.** As an authoring aid it is excellent — it
+tells the author while editing that this chart does not sit in two columns. But **the PDF reaches a music
+stand without the editor's warning attached.** So: wrap in the renderer, warn in Studio.
+
+**The coupling that will bite whoever takes this.** Wrapping changes the number of drawn lines → the body
+height → `fitsAt` and pagination. The fit predicate must measure **after** wrapping at the candidate size,
+or a chart that no longer overflows sideways will overflow **downwards**, and the bug will look fixed while
+having moved one axis over. That is now ⟨R1⟩, with teeth on both halves.
+
+— Fable
