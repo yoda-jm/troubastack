@@ -20,21 +20,39 @@ import {
 
 const FLIP_MS = 200;
 
+// The row-registrar useFlipRows hands to a call site (and on to useSortable). suppressNext() tells the
+// NEXT commit to skip its FLIP animation and just re-baseline — used by the drag drop-settle, which has
+// already glided rows to their final positions imperatively and must not have FLIP animate them again.
+export type RowRegister = ((id: string, el: HTMLElement | null) => void) & {
+  suppressNext?: () => void;
+};
+
 // useFlipRows — FLIP reorder motion (T52, lifted verbatim from SetlistDetail). Rows register their
 // element by id into ONE map, so on each commit (dep change) every tracked row that moved plays an
 // inverse-translate → zero transition — drag, move up/down and cross-group moves animate uniformly,
 // dependency-free, on every browser. prefers-reduced-motion skips the transforms (instant).
-export function useFlipRows(dep: unknown): (id: string, el: HTMLElement | null) => void {
+export function useFlipRows(dep: unknown): RowRegister {
   const els = useRef(new Map<string, HTMLElement>());
   const prev = useRef(new Map<string, DOMRect>());
+  const suppress = useRef(false);
   const register = useCallback((id: string, el: HTMLElement | null) => {
     if (el) els.current.set(id, el);
     else els.current.delete(id);
-  }, []);
+  }, []) as RowRegister;
+  register.suppressNext = () => {
+    suppress.current = true;
+  };
   useLayoutEffect(() => {
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
     const next = new Map<string, DOMRect>();
     els.current.forEach((el, id) => next.set(id, el.getBoundingClientRect()));
+    // A suppressed commit (a drag drop-settle just placed the rows) skips the animation and re-baselines,
+    // so the committed reorder doesn't FLIP the rows a second time back through the origin.
+    if (suppress.current) {
+      suppress.current = false;
+      prev.current = next;
+      return;
+    }
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
     if (!reduce) {
       next.forEach((r, id) => {
         const p = prev.current.get(id);
@@ -144,7 +162,7 @@ export interface Sortable {
 export function useSortable(
   ids: string[],
   onReorder: (orderedIds: string[]) => void | Promise<void>,
-  registerRef: (id: string, el: HTMLElement | null) => void,
+  registerRef: RowRegister,
 ): Sortable {
   const rowEls = useRef(new Map<string, HTMLElement>());
   const gripEls = useRef(new Map<string, HTMLElement>());
@@ -167,6 +185,11 @@ export function useSortable(
     gap: number;
     raf: number;
     container: HTMLElement;
+    // Geometry SNAPSHOTTED at grab, before any lift/part transform. The gap + slot height must come from
+    // the static layout, never the live (transformed) rects — else each move re-measures shifted rows and
+    // the parting compounds (a row slid several slots: "it moves too much during the drag").
+    restMids: number[]; // each row's rest midpoint (viewport Y at grab)
+    slotH: number; // rest row-to-row pitch — CONSTANT, so a parted row opens exactly one slot
   } | null>(null);
 
   // After a reorder the list re-renders; focus the moved row's grip so an arrow move never drops focus to
@@ -191,8 +214,14 @@ export function useSortable(
 
   const recomputeGap = useCallback(
     (clientY: number) => {
-      const g = dropGapFor(midpoints(), clientY);
-      if (drag.current) drag.current.gap = g;
+      const d = drag.current;
+      // During a drag, use the geometry snapshotted at grab (shifted by any auto-scroll since), NOT the
+      // live rects — those carry the lift/part transforms and would feed back into the gap.
+      const mids = d
+        ? d.restMids.map((m) => m - (d.container.scrollTop - d.startScrollTop))
+        : midpoints();
+      const g = dropGapFor(mids, clientY);
+      if (d) d.gap = g;
       setDropGap(g);
     },
     [midpoints],
@@ -205,14 +234,7 @@ export function useSortable(
     const d = drag.current;
     if (!d) return;
     const ids0 = cur.current.ids;
-    const dragged = rowEls.current.get(ids0[d.from]);
-    if (!dragged) return;
-    // slotH: the row-to-row spacing (how far a neighbour must move to open a slot).
-    const mids = midpoints();
-    let slotH = dragged.getBoundingClientRect().height;
-    const spacing =
-      d.from + 1 < mids.length ? Math.abs(mids[d.from + 1] - mids[d.from]) : Math.abs(mids[d.from] - mids[d.from - 1]);
-    if (Number.isFinite(spacing) && spacing > 0) slotH = spacing;
+    const slotH = d.slotH; // snapshotted rest pitch — CONSTANT, so a parted row opens exactly one slot
     const followY = d.lastY - d.startY + (d.container.scrollTop - d.startScrollTop);
     for (let i = 0; i < ids0.length; i++) {
       const el = rowEls.current.get(ids0[i]);
@@ -233,7 +255,7 @@ export function useSortable(
       el.style.transition = "transform 160ms ease";
       el.style.transform = shift ? `translateY(${shift}px)` : "";
     }
-  }, [midpoints]);
+  }, []);
 
   // Reset every row's inline drag styling so the post-drop reorder + FLIP start from a clean slate.
   const clearDragVisual = useCallback((ids0: string[]) => {
@@ -268,17 +290,42 @@ export function useSortable(
       document.removeEventListener("pointermove", moveWrap);
       document.removeEventListener("pointerup", upWrap);
       document.removeEventListener("pointercancel", cancelWrap);
-      clearDragVisual(cur.current.ids); // reset the lift/part transforms before the reorder + FLIP settle it
+      const ids0 = cur.current.ids;
       drag.current = null;
       setDragging(false);
       setDropGap(null);
-      // Gaps that leave the item in place (its own slot, before or after) are no-ops — don't persist them.
-      if (commit && d.gap !== d.from && d.gap !== d.from + 1) {
-        focusAfter.current = cur.current.ids[d.from];
-        void cur.current.onReorder(reorderTo(cur.current.ids, d.from, d.gap));
+      // Gaps that leave the item in place (its own slot, before or after) are no-ops — just drop the lift.
+      const shouldReorder = commit && d.gap !== d.from && d.gap !== d.from + 1;
+      if (!shouldReorder) {
+        clearDragVisual(ids0);
+        return;
       }
+      focusAfter.current = ids0[d.from];
+      const commitReorder = () => void cur.current.onReorder(reorderTo(ids0, d.from, d.gap));
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+      if (reduce) {
+        clearDragVisual(ids0);
+        commitReorder();
+        return;
+      }
+      // Drop-settle: glide the grabbed row from where it was RELEASED to its target slot (the parted rows
+      // already sit at their final positions), THEN commit the reorder with the next FLIP suppressed — so
+      // the new DOM order lands exactly where the settle left it, with no snap-back-to-origin then reflow
+      // (VLL: "a full refresh when releasing"). reorderTo lands `from` at newIndex; the row's rest-to-final
+      // travel is (newIndex − from) slots.
+      const newIndex = d.gap > d.from ? d.gap - 1 : d.gap;
+      const dragged = rowEls.current.get(ids0[d.from]);
+      if (dragged) {
+        dragged.style.transition = `transform ${FLIP_MS}ms ease`;
+        dragged.style.transform = `translateY(${(newIndex - d.from) * d.slotH}px)`;
+      }
+      window.setTimeout(() => {
+        registerRef.suppressNext?.();
+        clearDragVisual(ids0);
+        commitReorder();
+      }, FLIP_MS);
     },
-    [clearDragVisual],
+    [clearDragVisual, registerRef],
   );
 
   const autoScroll = useCallback(() => {
@@ -342,6 +389,16 @@ export function useSortable(
         e.preventDefault(); // a touch that isn't yet a drag must not select the title text (defect 4)
         (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         const container = scrollParent(rowEls.current.get(cur.current.ids[0]) ?? null);
+        // Snapshot the REST geometry ONCE, before any lift/part transform — the gap + slot pitch are read
+        // from this, never the live (transformed) rects (see the drag ref's restMids/slotH).
+        const restMids = midpoints();
+        const rowH = rowEls.current.get(cur.current.ids[index])?.getBoundingClientRect().height ?? 0;
+        const slotH =
+          index + 1 < restMids.length && Number.isFinite(restMids[index + 1])
+            ? Math.abs(restMids[index + 1] - restMids[index])
+            : index > 0 && Number.isFinite(restMids[index - 1])
+              ? Math.abs(restMids[index] - restMids[index - 1])
+              : rowH;
         drag.current = {
           from: index,
           pointerId: e.pointerId,
@@ -351,6 +408,8 @@ export function useSortable(
           gap: index,
           raf: 0,
           container,
+          restMids,
+          slotH,
         };
         setDragging(true);
         setDropGap(index);

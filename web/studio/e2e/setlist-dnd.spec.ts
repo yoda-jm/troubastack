@@ -106,6 +106,36 @@ test("pointer-drag drops a running-order song at the very end", async ({ page })
   await expect(page.getByTestId("item-title").nth(2)).toContainText("3. Bbb");
 });
 
+// T142 ⟨feel⟩ (VLL: "still moves too much during the drag"): a parted row must open EXACTLY one slot,
+// never more. The bug: slotH was `|mids[from+1] − mids[from]|` with mids[from] the LIFTED row (translated
+// far under the finger), and midpoints() read the LIVE (transformed) rects every move — so each pointermove
+// re-measured already-shifted rows and the parting compounded. Measured travel before the fix: up to ~3.4
+// slots (−193px on a 57px pitch). Snapshotting the rest geometry + a constant slotH at grab fixes it.
+test("a parted row opens at most one slot during a drag (no compounding)", async ({ page }) => {
+  await seedSetlist(page, ["Aaa", "Bbb", "Ccc", "Ddd", "Eee"]);
+  const rows = page.getByTestId("item-row");
+  const restTops = await rows.evaluateAll((els) =>
+    els.map((e) => Math.round((e as HTMLElement).getBoundingClientRect().top)),
+  );
+  const pitch = restTops[1] - restTops[0];
+  // Drag row 0 down in MANY small steps (what makes the old feedback loop compound), to past row 3's rest.
+  const grip = page.getByTestId("item-grip").nth(0);
+  const gb = (await grip.boundingBox())!;
+  const x = gb.x + gb.width / 2;
+  await page.mouse.move(x, gb.y + gb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, restTops[3] + pitch, { steps: 20 });
+  const tops = await rows.evaluateAll((els) =>
+    els.map((e) => Math.round((e as HTMLElement).getBoundingClientRect().top)),
+  );
+  await page.mouse.up();
+  // Row 0 is the lifted row (it follows the finger); every OTHER row may open one slot (±pitch) at most.
+  const overshoot = tops
+    .map((t, i) => ({ i, delta: t - restTops[i] }))
+    .filter((d) => d.i !== 0 && Math.abs(d.delta) > pitch + 4);
+  expect(overshoot, `rows travelling >1 slot (pitch=${pitch}): ${JSON.stringify(overshoot)}`).toEqual([]);
+});
+
 test("the grip's arrow keys reorder and keep focus (no page jump)", async ({ page }) => {
   const s = stamp();
   await register(page, `dndkb_${s}`);
