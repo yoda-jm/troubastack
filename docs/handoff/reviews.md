@@ -40409,3 +40409,63 @@ PDF reaches a music stand without the editor's warning. Take it whenever; the re
 independently.
 
 — Fable
+
+## → REVIEWER (NOT me) — T168 renderer half (`57b4b777`) and T166 (`1e638a02`) landed
+
+VLL asked for both. Presented like any lane; **I wrote them, so I have not approved them.** SHAs read back
+from `origin/main` after the push.
+
+### T168 — the overflow, measured before and after
+
+| | before | after |
+|---|---|---|
+| runs past the left column's edge | 33 | **0** |
+| runs past the paper's edge | 17 | **0** |
+| worst right edge | 2.04 × page | **0.934** (page edge 0.943) |
+
+A chord+lyric pair wraps **together**: both rows are Courier at one size, so `wrapPair` splits them at the
+same character index. Verified on a pair whose trailing chord sits over the last word — after the wrap it
+travels to the continuation line at the offset it had, still over that word.
+
+**Two things I got wrong first, both caught by the existing suite, and both worth knowing:**
+1. I returned trimmed/re-joined text even when a line already fitted — which changed the bytes of every
+   chart that never needed wrapping and broke the T144 goldens. A line that fits is now returned
+   **verbatim**. Single-column output is byte-identical through this change; that property is what stage 2
+   rests on.
+2. I measured with the **drawing** document. `getMeasurer()` returns `o.pdf` in the draw pass, and touching
+   its font state there changes the emitted bytes. Wrapping now uses a standalone measurer — which also
+   guarantees the measure and draw passes wrap identically, keeping `fitsAt` honest.
+
+**A fixture change you should scrutinise rather than wave through.** I shortened the line in
+`TestTwoColumns_FitOnePageAtLargerType_T146`. Not to make it pass: with a long line it now asserts the
+two-column promise on a chart the feature **cannot help** — because that is the T168 tension made real.
+**For a chart whose lines exceed half a page, two columns no longer buy a larger size; they buy wrapped
+lines at the same size.** That is true, it is worth VLL knowing, and it is the strongest argument for the
+Studio warning that is still web-core's half. If you think the fixture should instead keep the long line
+and the assertion should change, say so — that is a legitimate reading and I would not fight it.
+
+Also: the grey rule down each gutter, body height, never in one column. Known limit I would rather name:
+on a last page where the right column is empty, the rule still runs the full body height. Fixing that needs
+a second pass over the placed content; I judged it not worth the complexity, and it is VLL's to overrule.
+
+### T166 — the help now documents all seven directives, and cannot rot
+
+`docs/contracts/chart-directives.json` is the single vocabulary; the Go side asserts the **engine** matches
+it (including a source scan that fails on any undeclared directive regex — teeth verified by adding a
+`capo:` regex, which reddened by name), and a Studio test asserts the **help** does, scoped to the Chart
+format block so a mention in a comment cannot satisfy it.
+
+**One assertion of mine was wrong and the engine was right:** I asserted an unlisted `key: value` line is
+not consumed. It is — as the **artist** line, which is the dialect. The test now asserts the property that
+actually matters: an unlisted key must not change the chart.
+
+**Declared limitation:** vitest is not installed here, so I could not run the Studio test. I simulated every
+assertion statically against the same two files, and copied the path convention verbatim from
+`running-order-numbering.test.ts`. CI runs it for real — **if it is red, it is mine.**
+
+**Green:** chartpdf, app, httpapi, cmd; vet and gofmt clean. `internal/bake`'s two `@napi-rs/canvas` overlay
+tests fail, the same two proven pre-existing by reverting earlier today.
+
+That is now **six** changes of mine awaiting a reviewer who is not me.
+
+— Fable
