@@ -189,6 +189,18 @@ type Anchor struct {
 	Y0   float64 `json:"y0"`
 	X1   float64 `json:"x1"`
 	Y1   float64 `json:"y1"`
+
+	// Seq is the run's DRAW order, which is SOURCE order: the layout walks the source once, filling one
+	// column before starting the next (T146 stage 2). A mark's Occurrence is counted along this — never
+	// along the slice, which sortAnchors has reordered for presentation. In one column the two orders
+	// coincide, which is why counting along the slice worked until columns existed; in two columns they do
+	// not, and counting along the slice silently re-numbered every mark whose run text repeats.
+	//
+	// Not serialised: the published manifest keeps mkcharts' exact shape (nothing reads it back into an
+	// Anchor — the server always works from a fresh RenderWithAnchors). A manifest built by hand, as tests
+	// do, leaves every Seq at 0; sourceOrder's sort is stable, so such a manifest keeps slice order and
+	// behaves exactly as before.
+	Seq int `json:"-"`
 }
 
 // recFn records one drawn text run: (x,y) its top-left in mm, (w,h) its size in mm. nil in the
@@ -216,6 +228,10 @@ func RenderWithAnchors(source string) ([]byte, []Anchor, error) {
 
 // sortAnchors orders the manifest deterministically: page, then top-to-bottom, then left-to-right —
 // identical to mkcharts' writeAnchors, so the two backends' manifests are directly comparable.
+//
+// This is PRESENTATION order and it is NOT source order once a chart has more than one column: both
+// columns share a Y range, so the sort interleaves them row by row. Anything that needs source order
+// (Occurrence, above all) must go through Anchor.Seq — see sourceOrder in anchor_project.go.
 func sortAnchors(a []Anchor) {
 	sort.SliceStable(a, func(i, j int) bool {
 		if a[i].Page != a[j].Page {
@@ -266,6 +282,7 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 			anchors = append(anchors, Anchor{
 				Page: pdf.PageNo() - 1, Text: text,
 				X0: x / pageW, Y0: y / pageH, X1: (x + w) / pageW, Y1: (y + h) / pageH,
+				Seq: len(anchors), // draw order = source order; see Anchor.Seq
 			})
 		}
 	}

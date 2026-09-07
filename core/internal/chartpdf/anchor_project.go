@@ -2,6 +2,7 @@ package chartpdf
 
 import (
 	"math"
+	"sort"
 
 	"troubastack/core/internal/domain"
 )
@@ -24,8 +25,29 @@ func clampInt(v, lo, hi int) int {
 	return v
 }
 
+// sourceOrder returns the anchors' indices in SOURCE order — the order the runs were drawn, which is the
+// order they appear in the chart source, because the layout walks the source once and fills one column
+// before starting the next.
+//
+// This is NOT the order of the slice. The manifest is sorted for presentation (page, then top, then left),
+// and in a two-column chart both columns share a Y range, so that sort interleaves them row by row. Counting
+// Occurrence along the slice therefore gave the same source line a different number depending on how the
+// page happened to be laid out, and a mark re-projected across a re-layout landed on another line (T146).
+//
+// A hand-built manifest (tests, fixtures) leaves every Seq at 0; the sort is stable, so it keeps slice
+// order and behaves exactly as it did before this existed.
+func sourceOrder(anchors []Anchor) []int {
+	idx := make([]int, len(anchors))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(i, j int) bool { return anchors[idx[i]].Seq < anchors[idx[j]].Seq })
+	return idx
+}
+
 // AnchorAt builds a domain.SourceAnchor for a mark drawn at the [0,1] box (mx0,my0)-(mx1,my1) on `page`,
-// given a render's anchors (from RenderWithAnchors — already in source order: page, then top, then left).
+// given a render's anchors (from RenderWithAnchors). The occurrence it records is counted in SOURCE order
+// (sourceOrder), so it does not depend on the layout the mark happened to be made on.
 // It picks the run under the mark's centre and records its DOCUMENT-WIDE occurrence + the rune span the
 // mark's x-range covers. ok is false when the mark is over no text run (e.g. whitespace) — the caller then
 // keeps the raw coordinates and flags the mark as un-anchorable, never guesses.
@@ -45,11 +67,21 @@ func AnchorAt(anchors []Anchor, page int, mx0, my0, mx1, my1 float64) (domain.So
 		return domain.SourceAnchor{}, false
 	}
 	a := anchors[best]
-	occ := 0 // document-wide occurrence: count same-text runs up to and including this one, in source order
-	for i := 0; i <= best; i++ {
-		if anchors[i].Text == a.Text {
-			occ++
+	// Document-wide occurrence: count same-text runs up to and including this one, walking SOURCE order —
+	// never the slice, which is in presentation order (see sourceOrder).
+	occ, found := 0, false
+	for _, i := range sourceOrder(anchors) {
+		if anchors[i].Text != a.Text {
+			continue
 		}
+		occ++
+		if i == best {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return domain.SourceAnchor{}, false // unreachable: best has this text
 	}
 	n := len([]rune(a.Text))
 	cs, ce := 0, n
@@ -63,10 +95,12 @@ func AnchorAt(anchors []Anchor, page int, mx0, my0, mx1, my1 float64) (domain.So
 // Project resolves a domain.SourceAnchor against a render's anchors, returning the mark's box in [0,1] on
 // the page the run now occupies. ok is false when the run is no longer present (the source text was edited
 // away) — the caller flags the mark rather than moving it to unrelated words. Because Occurrence is
-// document-wide, a run that reflowed onto a different page still resolves to the right text.
+// document-wide AND counted in source order, a run that reflowed onto a different page — or into another
+// column — still resolves to the right text (T146).
 func Project(sa domain.SourceAnchor, anchors []Anchor) (page int, x0, y0, x1, y1 float64, ok bool) {
 	seen := 0
-	for _, a := range anchors {
+	for _, i := range sourceOrder(anchors) { // SOURCE order, so a re-layout cannot renumber the run
+		a := anchors[i]
 		if a.Text != sa.RunText {
 			continue
 		}
