@@ -36,10 +36,11 @@ class IntermissionMapperTest {
         assertEquals(RunningOrderKind.SONG, s.songs[0].kind)
         assertEquals(RunningOrderKind.SONG, s.songs[2].kind)
 
-        // End-to-end: the drawer numbers via the shared rule off the mapped kind — the break carries no
-        // number and does not shift the song after it (1, null, 2), not (1, 2, 3).
-        val rows = drawerRows(s).filterIsInstance<DrawerRow.Song>()
-        assertEquals(listOf(1, null, 2), rows.map { it.number })
+        // End-to-end: the drawer renders the mapped break as its own row, and the two songs keep 1 and 2
+        // (the break does not shift the next song to 3).
+        val rows = drawerRows(s)
+        assertEquals(listOf(1, 2), rows.filterIsInstance<DrawerRow.Song>().map { it.number })
+        assertEquals(1, rows.filterIsInstance<DrawerRow.Intermission>().size)
     }
 
     @Test fun an_intermission_with_a_blank_label_shows_the_default() {

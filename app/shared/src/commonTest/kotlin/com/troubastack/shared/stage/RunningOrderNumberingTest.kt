@@ -55,11 +55,10 @@ class RunningOrderNumberingTest {
         assertEquals(2, numbered["s3"]) // the bench song did not shift it to 3
     }
 
-    @Test fun the_drawer_shows_an_intermission_as_an_unnumbered_labelled_row() {
-        // T153: a break between songs 1 and 2 is a MAIN-order entry (onCall=false) that carries kind
-        // INTERMISSION, so it appears in the drawer, takes no number, and does NOT shift the song after it —
-        // the T158 rule, now driven off SongInfo.kind through the Stage drawer surface. A naive "number every
-        // main entry" would number the break and push the next song to 3; this asserts it reads 2.
+    @Test fun the_drawer_shows_an_intermission_as_its_own_labelled_row() {
+        // T153: a break between songs 1 and 2 is a MAIN-order entry (onCall=false, kind INTERMISSION). In the
+        // drawer it is its OWN row type (a labelled break), NOT a numberless song row, and it does NOT shift
+        // the song after it — a naive "number every main entry" would push the next song to 3; it reads 2.
         val state = StageState(
             pages = listOf(StagePage("s1", "A", 0, "a", overlays = emptyList(), status = PageStatus.READY)),
             songs = listOf(
@@ -68,12 +67,12 @@ class RunningOrderNumberingTest {
                 SongInfo("s3", "C", firstPage = 0),
             ),
         )
-        val songRows = drawerRows(state).filterIsInstance<DrawerRow.Song>()
-        val brk = songRows.first { it.info.kind == RunningOrderKind.INTERMISSION }
-        assertEquals(null, brk.number, "an intermission carries no running-order number")
-        assertEquals("Entracte", brk.info.name, "the intermission renders its label")
-        val byId = songRows.associate { it.info.songId to it.number }
+        val rows = drawerRows(state)
+        val brk = rows.filterIsInstance<DrawerRow.Intermission>().single()
+        assertEquals("Entracte", brk.info.name, "the intermission row carries its label")
+        // the two real songs keep their numbers; the break (its own row now) did not shift the next song to 3
+        val byId = rows.filterIsInstance<DrawerRow.Song>().associate { it.info.songId to it.number }
         assertEquals(1, byId["s1"])
-        assertEquals(2, byId["s3"]) // the break did not shift the next song to 3
+        assertEquals(2, byId["s3"])
     }
 }

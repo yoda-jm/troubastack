@@ -119,6 +119,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -1137,6 +1138,10 @@ internal sealed interface DrawerRow {
     data class Header(val title: String) : DrawerRow
     object Divider : DrawerRow
     data class Song(val songIndex: Int, val info: SongInfo, val number: Int?) : DrawerRow
+    // T153: an intermission sits in the running order but is NOT a song — it gets its own row type so the
+    // drawer can render it distinctly (a labelled break, not a numberless song row). Carries its bundle
+    // index so a tap still jumps to the separator page (it is a landable position, per VLL).
+    data class Intermission(val songIndex: Int, val info: SongInfo) : DrawerRow
 }
 
 internal fun drawerRows(state: StageState): List<DrawerRow> {
@@ -1149,7 +1154,12 @@ internal fun drawerRows(state: StageState): List<DrawerRow> {
     val numbers = runningOrderNumbers(state.songs.map { RunningOrderEntry(it.kind, it.onCall) })
     val (bench, main) = state.songs.withIndex().partition { it.value.onCall }
     val rows = mutableListOf<DrawerRow>(DrawerRow.Header("Songs"))
-    main.forEach { (i, s) -> rows += DrawerRow.Song(i, s, number = numbers[i]) }
+    // T153: a main-order intermission gets its own row type (a labelled break); real songs keep the numbered
+    // Song row. Both stay in running order, so the break sits between the songs it separates.
+    main.forEach { (i, s) ->
+        rows += if (s.kind == RunningOrderKind.INTERMISSION) DrawerRow.Intermission(i, s)
+        else DrawerRow.Song(i, s, number = numbers[i])
+    }
     if (bench.isNotEmpty()) {
         rows += DrawerRow.Divider
         rows += DrawerRow.Header("On call")
@@ -1186,6 +1196,7 @@ private fun SongDrawerSheet(state: StageState, colorMode: StageColorMode, onJump
                     is DrawerRow.Header -> stickyHeader(key = "h:${row.title}") { DrawerSectionHeader(row.title, colorMode) }
                     DrawerRow.Divider -> item(key = "div") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = chrome.outline) }
                     is DrawerRow.Song -> item(key = "s:${row.songIndex}") { SongDrawerItem(state, row.songIndex, row.info, onJump, row.number, colorMode) }
+                    is DrawerRow.Intermission -> item(key = "int:${row.songIndex}") { IntermissionDrawerItem(row.info, row.songIndex, onJump, colorMode, selected = row.songIndex == state.currentSong) }
                 }
             }
         }
@@ -1315,6 +1326,38 @@ private fun SongDrawerItem(state: StageState, i: Int, s: SongInfo, onJump: (Int)
         // (the M3 standard divider) — the earlier 0.4-alpha version read as almost invisible on the
         // light paper theme. The heavier group divider (main ↔ "On call") still reads as a section break.
         HorizontalDivider(color = chrome.outlineVariant) // A69: fainter hairline, scheme-aware
+    }
+}
+
+/**
+ * T153 — the drawer row for an intermission: a labelled break, NOT a numberless song row. Its authored
+ * label (e.g. "Entracte") sits centred between two thin rules so it reads as a divider in the running
+ * order, unmistakable against the left-aligned numbered songs. Tappable — a break is a landable position
+ * (VLL), so a tap jumps to the separator page like any song. Follows the reading scheme (A69) and, like a
+ * song row, highlights when it is the current position.
+ */
+@Composable
+private fun IntermissionDrawerItem(info: SongInfo, songIndex: Int, onJump: (Int) -> Unit, colorMode: StageColorMode, selected: Boolean) {
+    val chrome = stageChrome(colorMode)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onJump(songIndex) }
+            .background(if (selected) chrome.container else Color.Transparent)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.weight(1f).height(1.dp).background(chrome.outline))
+        Text(
+            info.name.ifBlank { INTERMISSION_DEFAULT_LABEL },
+            style = MaterialTheme.typography.labelLarge,
+            fontStyle = FontStyle.Italic,
+            color = chrome.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Box(Modifier.weight(1f).height(1.dp).background(chrome.outline))
     }
 }
 
