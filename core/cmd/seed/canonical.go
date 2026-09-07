@@ -110,6 +110,10 @@ type canonSetlistIt struct {
 	Notes           string `json:"notes,omitempty"`
 	OnCall          bool   `json:"onCall,omitempty"`
 	TransposeChords bool   `json:"transposeChords,omitempty"`
+	// T167: mirrors v2SetlistItem. Absent ⇒ "song", so a plain item emits neither field and every
+	// folder written before T153 round-trips byte-for-byte.
+	Kind  string `json:"kind,omitempty"`
+	Label string `json:"label,omitempty"`
 }
 type canonCuesFile struct {
 	Selections []canonSelection `json:"selections,omitempty"`
@@ -259,6 +263,12 @@ func groupToCanonical(g groupDef, people map[string]person) (map[string][]byte, 
 			items = sl.items
 		}
 		for _, ov := range items {
+			// T167: a break has no slug to look up. Emit it as itself, or the next canonicalisation
+			// strips it back out and re-opens the hole from the writing end.
+			if ov.kind == app.SetlistKindIntermission {
+				csl.Items = append(csl.Items, canonSetlistIt{Kind: ov.kind, Label: ov.label})
+				continue
+			}
 			slug, ok := slugByTitle[ov.song]
 			if !ok {
 				return nil, fmt.Errorf("setlist %q references unknown song %q", sl.name, ov.song)

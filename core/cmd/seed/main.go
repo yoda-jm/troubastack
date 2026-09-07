@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"troubastack/core/internal/app"
 )
 
 func main() {
@@ -171,6 +173,12 @@ type overrideDef struct {
 	notes           string
 	onCall          bool // T100: mirrors .tband manifestItem.onCall
 	transposeChords bool // T100: mirrors .tband manifestItem.transposeChords
+	// T167: an item may be an INTERMISSION rather than a song. Empty kind ⇒ a song, so every folder
+	// written before T153 keeps its meaning. A break carries no `song` (it has no repertoire slug),
+	// and its label is the band's own words — content, which is why it travels here rather than
+	// being invented downstream.
+	kind  string // "" (a song) or app.SetlistKindIntermission
+	label string
 }
 
 // setlistDef is a setlist to create for a group, with optional item overrides.
@@ -684,6 +692,9 @@ func loadSetlists(bandDir string, songs []songDef) ([]setlistDef, error) {
 				Notes           string `json:"notes"`
 				OnCall          bool   `json:"onCall"`
 				TransposeChords bool   `json:"transposeChords"`
+				// T167: absent ⇒ "song", so every pre-T153 folder keeps its meaning.
+				Kind  string `json:"kind"`
+				Label string `json:"label"`
 			} `json:"items"`
 		} `json:"setlists"`
 	}
@@ -703,6 +714,16 @@ func loadSetlists(bandDir string, songs []songDef) ([]setlistDef, error) {
 		}
 		def := setlistDef{name: sl.Name, eventDate: sl.EventDate, venue: sl.Venue, notes: sl.Notes}
 		for _, it := range sl.Items {
+			// T167: an intermission is not a song — it has no repertoire slug, so it must not be
+			// slug-resolved. An UNKNOWN kind is a loud error for the same reason an unknown slug is:
+			// quietly treating it as a song would put the wrong thing into a gig list.
+			if k := strings.TrimSpace(it.Kind); k != "" && k != app.SetlistKindSong {
+				if k != app.SetlistKindIntermission {
+					return nil, fmt.Errorf("%s: setlist %q has an item of unknown kind %q", path, sl.Name, k)
+				}
+				def.items = append(def.items, overrideDef{kind: app.SetlistKindIntermission, label: it.Label})
+				continue
+			}
 			title, ok := titleBySlug[it.Song]
 			if !ok {
 				// Loud, and it names the slug: a gig list that quietly loses a song is the failure
