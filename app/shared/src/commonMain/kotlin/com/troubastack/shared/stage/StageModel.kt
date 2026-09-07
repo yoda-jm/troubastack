@@ -11,6 +11,7 @@ import com.troubastack.shared.bundle.ConcertBundle
 import com.troubastack.shared.bundle.LayerImage
 import com.troubastack.shared.bundle.LoadResult
 import com.troubastack.shared.bundle.SongCue
+import kotlin.math.roundToInt
 
 /**
  * The reading mode, cycled on the single Stage toggle (A14). FIT_PAGE shows the whole page (and is
@@ -56,6 +57,26 @@ const val SCROLL_TRIM_BREATHING_PERMILLE = 40
 fun scrollTrimFraction(isLastPageOfSong: Boolean, contentBottomPermille: Int): Double {
     if (!isLastPageOfSong || contentBottomPermille <= 0 || contentBottomPermille >= 1000) return 1.0
     return ((contentBottomPermille + SCROLL_TRIM_BREATHING_PERMILLE) / 1000.0).coerceAtMost(1.0)
+}
+
+/** T149 — how a trimmed scroll page is laid out: [measuredPx] is the height the raster is MEASURED at
+ *  (its full, untrimmed height), [reportedPx] is the height the node reports to the column (the trimmed
+ *  fraction, so scroll stops at the content bottom), and [yPx] is where the raster is PLACED. */
+data class ScrollTrimPlacement(val measuredPx: Int, val reportedPx: Int, val yPx: Int)
+
+/**
+ * T149 placement — extracted so the surface decision is unit-testable, not just the fraction (the
+ * regression that clipped song titles lived in the PLACEMENT, and [scrollTrimFraction] was always right).
+ *
+ * The raster is measured at its FULL height [fullPx] and PLACED at y=0 (top-anchored), while the node
+ * reports only `round(fullPx × trimFraction)` — so the clip removes the blank BOTTOM tail and never the
+ * title at the top. The earlier `Box { Box(requiredHeight(full)) }` composition centred the oversized
+ * child (yPx ≈ −(fullPx − reportedPx)/2) and cut the title; y MUST stay 0.
+ */
+fun scrollTrimPlacement(fullPx: Int, trimFraction: Double): ScrollTrimPlacement {
+    val full = fullPx.coerceAtLeast(1)
+    val reported = (full * trimFraction).roundToInt().coerceIn(1, full)
+    return ScrollTrimPlacement(measuredPx = full, reportedPx = reported, yPx = 0)
 }
 
 /** T158 — an entry's kind for the running-order numbering rule (intermission arrives with T153). */

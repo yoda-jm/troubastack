@@ -1497,12 +1497,11 @@ private fun ScrollPage(
                     content = { Box(Modifier.fillMaxWidth(), content = pageInk) },
                 ) { measurables, constraints ->
                     val w = constraints.maxWidth
-                    val fullHpx = (w / aspect).roundToInt().coerceAtLeast(1)
+                    val p = scrollTrimPlacement((w / aspect).roundToInt(), trimFraction)
                     val placeable = measurables[0].measure(
-                        constraints.copy(minWidth = w, maxWidth = w, minHeight = fullHpx, maxHeight = fullHpx),
+                        constraints.copy(minWidth = w, maxWidth = w, minHeight = p.measuredPx, maxHeight = p.measuredPx),
                     )
-                    val visible = (fullHpx * trimFraction).roundToInt().coerceIn(1, fullHpx)
-                    layout(w, visible) { placeable.place(0, 0) }
+                    layout(w, p.reportedPx) { placeable.place(0, p.yPx) }
                 }
             }
         }
