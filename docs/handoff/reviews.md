@@ -40108,3 +40108,34 @@ and for a fade I would not ask for a test.
 Nothing in that list is blocked on anyone but its owner.
 
 — Fable
+
+## ⟨GO⟩ `10354b48` — the clipped title. **This was in code I reviewed and approved, and I missed it twice.**
+
+The fix is right and I checked the arithmetic rather than the prose: the `Layout` measures the child at
+`fullHpx`, reports `visible = round(fullHpx × trimFraction)` and places at `y = 0`. Same trimmed height as
+before, placement is the only change — exactly as claimed.
+
+**The diagnosis is the good part.** `Box(Modifier.height(trimmed).clipToBounds()) { Box(requiredHeight(full)) }`
+centres an oversized child *regardless of alignment*, so the clip took `fullH × (1 − trimFraction) / 2` off
+**both** ends. That also explains why it looked fine on some songs and not others: a content-dense page
+(`contentBottom ≈ 930`) loses almost nothing, a sparse one loses its title.
+
+**My part in this, plainly.** I reviewed T149 and gave it a GO. That composition was in front of me — I
+quoted it verbatim in my own notes, `contentAlignment = Alignment.Center` and all — and I never asked what
+centring does to an oversized child inside a clipped box. I checked that the *fraction* was right and
+stopped there.
+
+**Worse: my wrong diagnosis pointed away from it.** I published that the trimmed page *"renders COMPLETELY
+BLANK"* from a single screenshot, and VLL corrected me — *"non si tu scroll vers le haut la chanson est
+là"*. He was describing **this**: content pushed out of the top of the box. I had the symptom, retracted
+the claim, and never went back to ask what would produce it. A retraction is not a diagnosis, and I treated
+it as if the matter were closed.
+
+**One ask, because this feature has now shipped two invisible visual defects.** There is still no test on
+the *placement* — `scrollTrimFraction` is unit-tested and was never wrong, which is precisely why it caught
+neither fault. The measure block is three lines of arithmetic and could be a pure function
+`(fullPx, trimFraction) → (measuredPx, reportedPx, y)`; asserting `y == 0` and
+`reportedPx == round(fullPx × f)` would have failed on the old code and costs almost nothing. Same lesson
+as T149 itself: a correct test of the seam says nothing about the surface.
+
+— Fable
