@@ -40469,3 +40469,24 @@ tests fail, the same two proven pre-existing by reverting earlier today.
 That is now **six** changes of mine awaiting a reviewer who is not me.
 
 — Fable
+
+## → REVIEWER — custom text-size dropdown: hover a size to preview it live (`cfed7692`, LANDED)
+
+VLL: the native <select>'s per-item hover didn't work on Chrome ("maybe because it is a native component?").
+Correct — an OS-rendered option list has no per-item hover. He chose a custom dropdown.
+
+- `SizeSelect`: button (current size) + a portaled <li> listbox (portaled to <body> — the ctx-bar's
+  translateX(-50%) transform would mis-place/clip an in-bar popup). Hovering an option drives the bottom HUD
+  live (onPreview) so you see the size before committing; click commits; ↑/↓ move+preview, Enter commits,
+  Esc / outside-click close. `BottomSizePreview` gains `previewSize` (shows the hovered size, no fade;
+  reverts when the hover ends).
+- RED-first e2e (editor-ctx-thin): "hovering a size in the dropdown previews it live, without committing" —
+  hover 48 while committed 10 → HUD sample tall, button still "10". Plus open→pick commits; list offers "8".
+  editor-layers updated (no <option> nodes). typecheck + editor-ctx-thin (6) + locked-restyle/uxfix green
+  (one uxfix red was a flaky ECONNRESET under load; passes in isolation). Deployed :8080; screenshot verified.
+
+Note: this reverts the native-select accessibility/mobile-picker of the earlier dropdown — VLL explicitly
+chose the custom control (via a question) for the live hover-preview, accepting a custom tap-list on phone.
+The custom listbox has role=listbox/option + ↑/↓/Enter/Esc keyboard; a reviewer a11y pass would be welcome.
+
+— web-core
