@@ -77,7 +77,11 @@ func TestRenderIntermission_Deterministic(t *testing.T) {
 // any change to the card's layout or the embedded mark moves this hash and must be
 // updated deliberately in the same commit.
 func TestRenderIntermission_Golden(t *testing.T) {
-	const wantHash = "ea3c62afb7c5d9b19ef456b70f984604a7db931f155732a6a745ea045ca0032e"
+	// Updated DELIBERATELY on 2026-09-07: the card is now baked LANDSCAPE (T165 ⟨D1⟩, VLL) instead of A4
+	// portrait, and its three elements are placed from fractions of the page rather than fixed millimetres.
+	// Nothing else about the card changed. Previous hash, for the record:
+	// ea3c62afb7c5d9b19ef456b70f984604a7db931f155732a6a745ea045ca0032e (portrait).
+	const wantHash = "c1aa51acd321439ce356addd37cdffbe6bfe1d6f478570a24d266ea5371233d9"
 	pdf, err := RenderIntermission("Entracte", "The Band")
 	if err != nil {
 		t.Fatalf("render: %v", err)

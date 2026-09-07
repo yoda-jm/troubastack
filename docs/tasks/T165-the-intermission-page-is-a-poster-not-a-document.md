@@ -67,10 +67,19 @@ So, in full:
 This also disposes of the scroll-trim question for breaks: there is nothing to trim, because there is
 nothing to scroll.
 
-**A consequence to name rather than discover:** the printed concert PDF composes the bundle's pages, so it
-will now contain **one landscape page among portrait ones**. That is acceptable — a break page is a divider
-in a printed set too — but it must be a decision, not a surprise, and the composer must not stretch it to
-portrait to "fix" it. The T158 running-order sheet is unaffected: there, a break is a text row.
+**A consequence I named, and then found I had got wrong — corrected here rather than left to mislead.** I
+wrote that the printed concert PDF would now contain *"one landscape page among portrait ones"*. It will
+not. `bake/pdf.go` composes **every** baked page onto a portrait A4 sheet and fits the raster
+`aspect-preserved, centered` (`scale := math.Min(availW/iw, availH/ih)`). So the printed set stays uniformly
+portrait and the break simply prints as a wide band centred on its sheet, white above and below.
+
+Two things follow. The outcome is **better** than I predicted — a printed set that does not change
+orientation mid-way is easier to handle on a stand. And my warning that *"the composer must not stretch it"*
+was already structurally impossible: `math.Min` cannot stretch, only fit. The warning was right in spirit
+and unnecessary in fact. The T158 running-order sheet is unaffected either way: there, a break is a text row.
+
+*(If a landscape card printed at band-width ever feels too small on paper, the option is to emit a landscape
+SHEET for a landscape page — a deliberate change to `ConcertPDF`, and VLL's call, not a silent one.)*
 
 **And the filler must not be black.** VLL: *"et encore il y a du noir en bas"*, and then *"ok pour ficher
 le noir."* **I have now located it, and it is not chrome — so A69 did not and could not fix it.** The
