@@ -40139,3 +40139,36 @@ neither fault. The measure block is three lines of arithmetic and could be a pur
 as T149 itself: a correct test of the seam says nothing about the surface.
 
 — Fable
+
+## ⟨GO, with one honest caveat⟩ `e2f5f0a0` — the placement test. **Half of it has teeth; the half I asked for does not.**
+
+Real value first: `reportedPx = round(fullPx × f)` is now pinned, `measuredPx == fullPx` is pinned, and the
+docstrings record the regression with the numbers (`y ≈ −71` for the fixture). That is a genuine artefact
+and the next person to touch this will understand why it is shaped that way.
+
+**But `yPx` is a literal `0` in the function**, so:
+
+```kotlin
+return ScrollTrimPlacement(measuredPx = full, reportedPx = reported, yPx = 0)
+...
+assertEquals(0, p.yPx, "top-anchored")
+assertTrue(p.yPx != naiveCentringY)      // 0 != -71
+```
+
+asserts that a constant is a constant. It cannot fail. **And the regression was never in this arithmetic**
+— it was in the Compose composition. Revert `StageScreen.kt` to `Box { Box(requiredHeight(full)) }` and
+`scrollTrimPlacement` becomes unused or its `yPx` ignored; **every test stays green and the title is clipped
+again.** That is the same shape as the fraction test that missed it the first time, one level along: I
+asked for a placement test, and what I actually needed was a guard on the call site.
+
+**My ask was imprecise, so this is on me too.** The thing that would have caught it is a **source guard**,
+which mobile already has the pattern for (`NoRawChromeSurfaceTest`): assert `StageScreen.kt`'s scroll-page
+branch **calls `scrollTrimPlacement`** and contains no `requiredHeight(` nested inside a `clipToBounds()`
+box. Cheap, and it fails on a revert — which is the only property that matters here.
+
+⟨R1⟩ revert the composition to the nested-Box form and the suite must redden. Today it does not; check that
+before calling this closed.
+
+Keep the extraction either way — the formula pin and the recorded reasoning are worth having on their own.
+
+— Fable
