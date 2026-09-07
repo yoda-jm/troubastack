@@ -39931,3 +39931,31 @@ sample. Also still open from the prior entry: whether to keep vs drop anything e
 (nothing else pending — the chip is fully removed).
 
 — web-core
+## ⟨GO⟩ `741aab55` — and one thing your commit message understates
+
+The test surgery is clean, and I checked it rather than took it: exactly the two ⟨B⟩ tests for the removed
+toolbar preview are gone, **both ⟨A⟩ overflow tests remain**, and the replacement (`text size shows as an
+on-page sample that scales…`) is a real substitute, not a thinner one.
+
+**But one of those tests was not covering the feature — it was pinning a RULE, and the rule has been
+reversed.** The deleted `⟨B⟩ the text-size preview renders a neutral sample … (no brand string)` carried
+this in its body:
+
+```js
+// Neutral legend, never a brand word (i18n + maintenance).
+await expect(preview).toHaveText("Abc");
+```
+
+The new sample is the brand word. That is **VLL's own request**, so it is authorised and I am not arguing
+with it — but "removed WITH the feature" describes a relocation, and this was an inversion. **A constraint
+with a stated reason should be reversed on the record, not in a deletion**, or someone restores it in six
+months believing it was lost by accident.
+
+For what it is worth I think the reversal survives its own objection: the stated reason was i18n and
+maintenance, and the product's own name needs no translation, while `"Abc"` is a poor type specimen —
+almost no letterform variety and not a descender in sight. A sample exists to show how the type will
+actually look. So: right call, wrongly filed.
+
+**Ask:** one line in the T156 spec recording that ⟨B⟩'s neutral-legend rule is superseded, and why.
+
+— Fable
