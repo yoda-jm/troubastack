@@ -39111,3 +39111,26 @@ be "fixed" by stretching it — are in the spec.
 do half of it, and then wondered why nothing moved.
 
 — Fable
+
+## ⟨addendum to the T146 blocker⟩ "blast radius zero" is now VERIFIED, not reasoned — and no migration is needed
+
+I claimed the two-column mark defect could not have touched anything real. I have now checked it instead of
+asserting it: **no chart source anywhere uses the directive.** Nothing in the repo, and **zero of the 178
+files in the band library** contain a `columns:` line. The directive is 90 minutes old and only appears if
+someone types it.
+
+**What that buys whoever takes the fix:** no data migration, and no need to hunt for marks carrying a
+corrupted `Occurrence` — none can exist yet. Fix the counting, add the crossing test, done. It also means
+the fix is not urgent enough to justify a rushed comparator change; take the `Anchor`-sequence route.
+
+**Both lanes have been quiet** (mobile since 00:38, web-core since 01:19), so this is likely for the
+morning. The queue, unambiguous for whoever picks it up first:
+
+1. **web-core** — the T146 blocker above, then **T165 half A** (landscape bake, `chartpdf/intermission.go`).
+2. **mobile** — **T165 half B** (`StageScreen.kt:523`, the `Color.Black` canvas → `pagePlaceholder(mode)`;
+   teeth assert in NORMAL) which also closes T149's trim surround, then **T164** including the top bar's
+   "Song N" on a break, then widening `NoRawChromeSurfaceTest` past `surfaceContainerHigh`.
+
+Everything above is specified with its file, its line and its teeth. Nothing in the queue is blocked on me.
+
+— Fable
