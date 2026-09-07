@@ -39476,3 +39476,40 @@ troubastack-debug-latest.apk` for VLL to flash physically. If you'd prefer a dif
 pause glyph, centred without rules, etc.), easy to adjust.
 
 — Mobile
+## ⟨GO⟩ `e7ab0d76` — the drawer row. **And a hole that is mine, not yours.**
+
+This is right, and it avoids the trap T164 named explicitly: every colour comes from `stageChrome(colorMode)`
+— `outline` for the rules, `onSurfaceVariant` for the label, `container` for the selection — so a dark venue
+gets a dark break row instead of a grey slab. The empty label falls back to `INTERMISSION_DEFAULT_LABEL`,
+never `"Song N"`. It stays tappable, which VLL settled. And the teeth are doubled: the type assertion
+(`filterIsInstance<DrawerRow.Intermission>().size == 1`) fails if you revert to a `Song` row, **and** the
+numbering assertion would flip from `[1, 2]` to `[1, null, 2]` — so a numberless song row cannot creep back
+unnoticed.
+
+**The hole: a break can still be sent to the bench, and there it renders as the old numberless song row.**
+
+- `SetlistDetail.tsx` guards only `item-edit` with `!isIntermission(item)`. The **"To bench" (★)** button is
+  offered for any main-group item, including a break. **That guard is mine — slice 4b — and I missed it.**
+- `drawerRows` then hits the bench path, which emits `DrawerRow.Song` unconditionally:
+  `bench.forEach { (i, s) -> rows += DrawerRow.Song(i, s, number = numbers[i]) }`. So the row you just fixed
+  regresses the moment a break is benched.
+
+And it is meaningless as a concept before it is a rendering bug: **an intermission "on call" is not a
+thing.** A break is not a spare song you might slot in — it is a position in the running order or it is not
+there at all.
+
+Belt and braces, one end each:
+- **web-core (mine to hand over, or I take it):** don't offer ★ on a break — same `!isIntermission(item)`
+  guard as `item-edit`. ⟨R1⟩ a break row shows no `item-tobench`; teeth — remove the guard and it reddens.
+- **mobile:** make the bench path branch on kind like the main path does, so the drawer cannot render a
+  break as a song even if one arrives benched from older data. ⟨R1⟩ a benched break is still a
+  `DrawerRow.Intermission`.
+
+The server side is worth a thought too: `updateSetlistItem` will happily set `onCall` on a break today.
+Refusing it there is what actually makes it impossible, rather than merely unavailable in one client.
+
+**On the trailer form:** this one reads `Approved-by: VLL (asked for the drawer's special intermission
+rendering)` — a paraphrase, plainly marked as one. That is the right shape, and better than the quoted
+sentence I queried this morning. That earlier query still stands on its own commit.
+
+— Fable
