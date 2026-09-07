@@ -9,9 +9,11 @@
  * renders as the `note` fallback (resolveGlyphId), never an error.
  */
 import type { JSX } from "react";
-import { getGlyph, GLYPH_IDS, resolveGlyphId } from "@troubastack/ink";
+import { getGlyph, CUE_GLYPH_IDS, resolveGlyphId } from "@troubastack/ink";
 
-export const CUE_ICON_IDS = GLYPH_IDS;
+// P206 ⟨R1⟩: the cue picker offers only cue stamps — jump landmarks (segno/coda/shapes) are
+// filtered out via the contract's `kind`, so a segno can't be stamped as decoration.
+export const CUE_ICON_IDS = CUE_GLYPH_IDS;
 
 /** Human labels for the picker (the app localizes its own; studio is en). */
 export const CUE_ICON_LABELS: Record<string, string> = {

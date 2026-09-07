@@ -153,3 +153,9 @@ export const GLYPHS = {
 // The picker/consumer order and the required fallback id.
 export const GLYPH_IDS = Object.keys(GLYPHS);
 export const FALLBACK_ID = "note";
+
+// P206 (Fable ⟨R1⟩): which glyphs are JUMP LANDMARKS vs cue stamps. The generator writes each
+// glyph's `kind` into glyphs.json so BOTH pickers filter on the CONTRACT, not a hand-maintained
+// list — the cue picker shows kind="cue", the jump picker shows kind="landmark". A stray landmark
+// in the cue picker (a segno stamped as decoration) is exactly what this prevents.
+export const LANDMARK_IDS = new Set(["circle", "square", "triangle", "diamond", "star", "coda", "segno"]);

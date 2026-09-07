@@ -544,4 +544,12 @@ registerInkDraw("text", drawText);
 registerInkDraw("icon", drawIcon);
 
 // T50/T51 — the shared cue/stamp glyph geometry (generated contract; see src/glyphs.ts).
-export { getGlyph, resolveGlyphId, GLYPH_IDS, FALLBACK_GLYPH_ID, type Glyph } from "./glyphs.js";
+export {
+  getGlyph,
+  resolveGlyphId,
+  GLYPH_IDS,
+  CUE_GLYPH_IDS,
+  LANDMARK_GLYPH_IDS,
+  FALLBACK_GLYPH_ID,
+  type Glyph,
+} from "./glyphs.js";

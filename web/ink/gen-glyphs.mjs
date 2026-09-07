@@ -9,7 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { BOX, STROKE_WIDTH, GLYPHS } from "./glyphs.authoring.mjs";
+import { BOX, STROKE_WIDTH, GLYPHS, LANDMARK_IDS } from "./glyphs.authoring.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Max chord deviation from the true curve, in BOX (24) units. Fable's ruling pins
@@ -344,7 +344,11 @@ function buildGlyph(shapes) {
 }
 
 const glyphs = {};
-for (const [id, shapes] of Object.entries(GLYPHS)) glyphs[id] = buildGlyph(shapes);
+for (const [id, shapes] of Object.entries(GLYPHS)) {
+  glyphs[id] = buildGlyph(shapes);
+  // P206 ⟨R1⟩: the pickers curate on this, not on hand-maintained id lists.
+  glyphs[id].kind = LANDMARK_IDS.has(id) ? "landmark" : "cue";
+}
 
 const outPath = join(HERE, "glyphs.json");
 writeFileSync(outPath, JSON.stringify({ version: 1, glyphs }, null, 2) + "\n");
