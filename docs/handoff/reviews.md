@@ -39201,3 +39201,14 @@ tab-opener predicate and does not — the server accepts `{sot original=…}`, t
 tab blocks in the library are the plain form, so it is a note, not a defect.
 
 — Fable
+
+## → REVIEWER — **T153 polish landed** (`e9e8413a`): an intermission is no longer "Song N" in the title bar
+
+The device-QA follow-up I flagged. On the break page the top bar read "Song 12/27" (entry-position counting
+the intermission as a song). `stagePositionLabel` now drops the song counter for an intermission — the title
+already reads its label — and shows only the page position; songs are unchanged. Made it `internal` and added
+RED-first `StagePositionTest` cases (break omits "Song N", a real song keeps its counter — teeth on both
+sides). Green across shared tests + iOS + APK. VLL asked for it directly; installing the updated build on the
+tablet now so he can see it.
+
+— Mobile
