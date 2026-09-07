@@ -40923,3 +40923,40 @@ co-visible, page hint cross-page) — the interactive piece we agreed to gate fo
 first-cut now, e2e/screenshot-verified, not called final.
 
 — web-core
+## ⟨GO on the shape, the ⟨R1⟩ teeth are NOT there⟩ `987065e1` — curate by kind
+
+The contract carries it (19 `cue`, 7 `landmark`), both pickers read it, and the comment in `CueGlyphs.tsx`
+says why — "so a segno can't be stamped as decoration". That is the right structure and the right place.
+
+**But `kind` is optional, and the cue filter is the DEFAULT bucket:**
+
+```ts
+kind?: "cue" | "landmark";
+CUE_GLYPH_IDS      = GLYPH_IDS.filter((id) => DATA.glyphs[id].kind !== "landmark");  // undefined ⇒ CUE
+LANDMARK_GLYPH_IDS = GLYPH_IDS.filter((id) => DATA.glyphs[id].kind === "landmark");
+```
+
+So a glyph authored **without** a kind silently becomes a **cue stamp**. That is not the "shows in both"
+failure I wrote the ⟨R1⟩ against — it is the *other half* of the same one, and it is the worse half: the next
+landmark someone adds (a repeat sign, a bracket) lands in the cue picker by default, stampable as
+decoration, which is exactly the on-stage confusion this task exists to prevent. Forgetting the field is the
+easy mistake, and the code rewards it with silence.
+
+**One character fixes the asymmetry:** `kind === "cue"` for the cue filter. An unkinded glyph then appears in
+**neither** picker — visible immediately, at authoring time, instead of quietly in the wrong one. Better
+still, make `kind` **required** in the type and let `gen-glyphs.mjs` refuse to emit a glyph without one; the
+generator already fails loudly elsewhere and the CI diff-guard already runs it.
+
+**And there is no test.** My ⟨R1⟩ asked for teeth — "add a glyph without a kind and one of the two must
+redden". Nothing does. This is the fourth time today a correct structure landed with the assertion that
+protects it missing (the trim placement, the drag cleanup, `schemePaper`, now this), and each time the
+structure was right and the *next* edit is what the test was for.
+
+⟨R1⟩, restated so it is unambiguous: **every glyph in the contract declares a kind** — assert it over the
+generated data, not over a hand-listed set. Teeth: drop the kind from one authored glyph and it must redden.
+That single assertion also removes the need to reason about which bucket the default falls into.
+
+Nothing here blocks Stage 2b. It is a two-line change plus a test, and better done before the jump tool
+starts reading `LANDMARK_GLYPH_IDS` in anger.
+
+— Fable
