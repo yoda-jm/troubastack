@@ -40,6 +40,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -107,6 +109,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -353,9 +356,13 @@ private fun Performing(
         val ms = if (blockedCueVisible) BLOCKED_TURN_CUE_MS else BOUNDARY_CUE_MS
         autoHideChrome(ms) { boundaryCueVisible = false; blockedCueVisible = false }
     }
-    // A14: the continuous-scroll column's list state — the source of truth for the topmost page while
-    // in SCROLL mode (pager label + page turns read/drive it). Unused in page/width modes.
-    val scrollListState = rememberLazyListState()
+    // A14: the continuous-scroll column's list state, held PER SONG. N10 (VLL, 2026-09-08): a song CROSS in
+    // scroll mode follows the finger via the HorizontalPager below, which composes the outgoing AND incoming
+    // columns at once — so they cannot share one LazyListState. Each song keeps its own; the CURRENT song's
+    // is the source of truth for the pager label + page turns (which only ever act on the current song).
+    // Session-scoped (I12), reset to the landing page on entry by ScrollReader — no cross-session persistence.
+    val scrollListStates = remember { mutableMapOf<Int, LazyListState>() }
+    val scrollListState = scrollListStates.getOrPut(state.currentSong) { LazyListState() }
 
     // Hardware page turns (A09): BT pedals/keyboards send PageUp/Down, arrows, Space. Capture at the
     // root before children so a keyboard turns the page while on-screen taps still work. (Android
@@ -483,8 +490,8 @@ private fun Performing(
             if (isBlockedSongCross(state.currentSong, state.songs.size, forward = false)) flashBlocked(false)
             else vm.goToSong(state.currentSong - 1)
         }
-        val latestScrollNext = rememberUpdatedState(scrollSwipeNext)
-        val latestScrollPrev = rememberUpdatedState(scrollSwipePrev)
+        // N10: scroll-mode crossing is now the HorizontalPager's own drag, so the old swipe-forwarders are
+        // gone; the ‹ › FABs still call scrollSwipePrev/Next directly (they drive currentSong → the pager).
         val spread = spreadPages(state.current, songStarts, state.pageCount)
 
         // A13: Android volume keys can't reach Compose; androidApp intercepts them in the Activity and
@@ -520,9 +527,10 @@ private fun Performing(
                 },
         ) {
         // N3/N8: the page floats edge-to-edge on a BLACK canvas. ANY tap toggles the chrome (stageTaps,
-        // all modes). A HORIZONTAL swipe navigates in EVERY mode — page/width turns pages, scroll crosses
-        // songs (N8) — via the axis-locked detectHorizontalDragGestures, which only claims horizontal-
-        // dominant drags so the LazyColumn keeps its vertical scroll untouched.
+        // all modes). A HORIZONTAL swipe navigates: page/width turns pages via the axis-locked
+        // detectHorizontalDragGestures; SCROLL crosses songs via the HorizontalPager below (N10) — which owns
+        // horizontal drag itself (finger-following), so no pointerInputSwipe is attached in scroll mode. Both
+        // leave the LazyColumn's vertical scroll untouched.
         Box(
             Modifier
                 .fillMaxSize()
@@ -532,19 +540,60 @@ private fun Performing(
                 .background(colorMode.schemePaper())
                 .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
                 .then(
-                    if (scrollMode) Modifier.pointerInputSwipe(Unit, latestScrollPrev, latestScrollNext)
+                    if (scrollMode) Modifier // N10: the HorizontalPager owns horizontal drag in scroll mode
                     else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)
                 ),
         ) {
             when {
-                // T165-B: always fit the whole break card to the viewport (ContentScale.Fit via FIT_PAGE),
-                // letterboxed by the scheme ground — the wordmark is never off-screen in landscape and the
-                // surround is never a black slab. Overrides the reading mode; independent of core's
-                // landscape-bake half (T165-A).
-                currentIsIntermission -> state.currentPage?.let { p ->
+                // T165-B: fit the whole break card to the viewport (poster), letterboxed by the scheme —
+                // the wordmark is never off-screen. Overrides the reading mode in page/width. In SCROLL the
+                // pager below renders the poster for an intermission page itself, so a cross into/out of a
+                // break still follows the finger (N10) instead of snapping out of the pager.
+                currentIsIntermission && !scrollMode -> state.currentPage?.let { p ->
                     PageView(p, state.visibleFor(p.songId), FitMode.FIT_PAGE, decoder, cache, colorMode, colorMode.pagePlaceholder(), Modifier.fillMaxSize())
                 }
-                scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode, widthPx)
+                // N10 (VLL, 2026-09-08): in SCROLL mode a HorizontalPager makes a song cross FOLLOW THE
+                // FINGER — drag and the adjacent column tracks under the touch, release settles (a plain
+                // AnimatedContent only slid AFTER release; VLL: "properly done it follows the finger"). One
+                // pager page per song: the page hosts that song's vertical ScrollReader (its LazyColumn keeps
+                // vertical scroll), or the poster for an intermission page. The pager is the single source of
+                // horizontal motion — FAB/pedal/drawer crosses drive state.currentSong which is synced INTO
+                // the pager, and a settled finger-drag is committed back OUT via goToSong.
+                scrollMode -> {
+                    val songCount = state.songs.size.coerceAtLeast(1)
+                    val pagerState = rememberPagerState(initialPage = state.currentSong.coerceIn(0, songCount - 1)) { songCount }
+                    // state → pager: a FAB/pedal/drawer cross (or the initial land) moves currentSong; animate
+                    // the pager to it, unless the user is mid-drag or it is already there.
+                    LaunchedEffect(state.currentSong) {
+                        val target = state.currentSong.coerceIn(0, songCount - 1)
+                        if (!pagerState.isScrollInProgress && pagerState.currentPage != target) {
+                            pagerState.animateScrollToPage(target)
+                        }
+                    }
+                    // pager → state: when a finger-drag SETTLES on a new song, commit it — goToSong lands at the
+                    // song's first page (A62); ScrollReader then positions that song's column.
+                    LaunchedEffect(pagerState) {
+                        snapshotFlow { pagerState.settledPage }.collect { page ->
+                            if (page != state.currentSong && page in state.songs.indices) vm.goToSong(page)
+                        }
+                    }
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        beyondViewportPageCount = 1, // pre-compose the neighbour so the drag reveals real content
+                        key = { it },
+                    ) { page ->
+                        if (state.songs.getOrNull(page)?.kind == RunningOrderKind.INTERMISSION) {
+                            // T165-B: an intermission page is a POSTER even in scroll mode, inside the pager.
+                            state.pages.getOrNull(state.songs[page].firstPage)?.let { p ->
+                                PageView(p, state.visibleFor(p.songId), FitMode.FIT_PAGE, decoder, cache, colorMode, colorMode.pagePlaceholder(), Modifier.fillMaxSize())
+                            }
+                        } else {
+                            val songListState = scrollListStates.getOrPut(page) { LazyListState() }
+                            ScrollReader(state, page, songListState, decoder, cache, colorMode, widthPx)
+                        }
+                    }
+                }
                 // N4: page/width turns animate as a direction-aware horizontal slide (presentation only —
                 // the turn is still the single goToPage funnel, so swipe/FABs/pedals/keys/volume all
                 // animate identically). Keyed on state.current: a turn mid-animation just retargets, the
@@ -1397,18 +1446,24 @@ private const val SCROLL_PLACEHOLDER_ASPECT = 0.773f // US Letter portrait (8.5 
 @Composable
 private fun ScrollReader(
     state: StageState,
+    songIndex: Int,
     listState: LazyListState,
     decoder: ImageDecoder,
     cache: PageImageCache,
     colorMode: StageColorMode,
     widthPx: Int,
 ) {
-    val range = songPageRange(state, state.current)
+    // N10: render [songIndex]'s own pages (not always state.current's) — during a cross slide the OUTGOING
+    // song is composed alongside the incoming one, each from its own column.
+    val range = songPageRange(state, state.songs.getOrNull(songIndex)?.firstPage ?: state.current)
     val songPages = if (range.isEmpty()) emptyList() else state.pages.subList(range.first, range.last + 1)
     LaunchedEffect(state.currentSong) {
-        // Land on the current page WITHIN this song's column (local index); a cross set current to the
-        // song's first/last page, so this positions the column at its top/bottom accordingly.
-        listState.scrollToItem((state.current - range.first).coerceIn(0, (songPages.size - 1).coerceAtLeast(0)))
+        // Land on the current page WITHIN this song's column (local index) — but ONLY while this song IS the
+        // current one. A cross set current to the song's first/last page, so this positions the column at its
+        // top/bottom. The outgoing song must NOT be re-scrolled: it keeps its position while it slides away.
+        if (songIndex == state.currentSong) {
+            listState.scrollToItem((state.current - range.first).coerceIn(0, (songPages.size - 1).coerceAtLeast(0)))
+        }
     }
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(songPages) { index, page ->
