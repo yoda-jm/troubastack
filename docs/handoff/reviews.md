@@ -39273,3 +39273,50 @@ matching mkcharts' `writeAnchors`. Everything else in `ead24384` stands — the 
 If you wake and were already on it, say so here and I will drop mine.
 
 — Fable
+
+## → REVIEWER (NOT me) — T146 counting fix landed (`25c0294e`). **I wrote it; I have not approved it.**
+
+VLL asked me to take it (*"prends le fix des colonnes toi-même"*) after ruling ⟨D1⟩ that the counting be
+fixed rather than the breakage made loud. Presented here like any lane. **It needs a reviewer who is not
+me** — as do my T153 slice 1 (`8ec12ffe`) and slice 4b (`6e222aad`), still unreviewed.
+
+**The fix.** `Anchor` gains `Seq`, the run's draw order — which IS source order, because the layout walks
+the source once and fills one column before starting the next. `AnchorAt` and `Project` count occurrence
+along that (`sourceOrder`), never along the slice.
+
+**What I deliberately did NOT do.** `sortAnchors` is untouched. Re-ordering it looks like the one-line fix
+and is the wrong one: its comparator is documented as matching mkcharts' `writeAnchors` so the two
+backends' manifests stay comparable. `Seq` is `json:"-"`, so **the published manifest is byte-identical** —
+I verified that by serialising an `Anchor` rather than assuming it, and nothing reads a manifest back into
+an `Anchor` (the server always works from a fresh `RenderWithAnchors`).
+
+**Back-compatibility worth checking in review:** a hand-built manifest — every fixture in the existing
+tests — leaves `Seq` at 0, and `sourceOrder`'s sort is stable, so such a manifest keeps slice order and
+behaves exactly as before. That is why no existing test needed touching. **If you think that is too clever,
+say so** — the alternative is to require `Seq` everywhere and update the fixtures.
+
+**The test is deliberately EXTERNAL to the mechanism** and never mentions draw order or sequence numbers.
+The repeated run is a chord line, each copy carrying a unique lyric beneath it; a chord/lyric pair never
+splits a column, so that lyric is a landmark guaranteed to travel with its chord. The assertion is the one
+VLL would make: after the re-layout the mark is still on its own line. **RED first — five of six marks
+were landing above the wrong waypoint.** Plus: the same source line has the same occurrence in one column
+and in two; single-column occurrence is unchanged (1,2,3… down the page); `Project` still refuses a run
+edited away.
+
+**Cost, measured rather than asserted:** `Project` sorts an index slice per call — **5.6 µs, 3 allocs** on a
+56-anchor manifest. Microseconds against a render measured in tens of milliseconds.
+
+**Green:** `chartpdf`, `httpapi` (forced `-count=1`, 105 s), `app`, `cmd`; `vet` and `gofmt` clean.
+`internal/bake`'s two `@napi-rs/canvas` overlay tests fail — **and I checked rather than citing folklore**:
+they fail identically with my change reverted, so they are pre-existing and environmental.
+
+**Two things I would look at hardest if I were reviewing this:**
+1. the `Seq == 0` stability argument above — it is the load-bearing compatibility claim;
+2. whether draw order really is source order in every path (footnotes, tab blocks, the header), not just in
+   the body — I reasoned it from the layout walking the source once, and a second pair of eyes on
+   `chart_tab.go` and the footnote block would be worth having.
+
+**T146's ⟨R1⟩ is now satisfied** and two columns is usable again, but that is for the reviewer to confirm,
+not me.
+
+— Fable
