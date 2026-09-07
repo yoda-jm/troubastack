@@ -1153,34 +1153,45 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .size-hud {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: 104px; /* clear of the bottom bar + the scroll hint (VLL: don't sit over the bottom bar) */
   transform: translateX(-50%);
-  z-index: 60;
+  z-index: 55;
   pointer-events: none;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: .6rem;
   max-width: 90vw;
-  padding: .5rem .85rem;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  padding: .45rem .85rem;
+  border-radius: 12px;
+  /* Light, see-through, dashed brand border (VLL) — reads as a transient cue over the score, not a solid chip. */
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--brand) 60%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity .3s ease; /* fade in on change, fade out after the flash */
 }
+@media (prefers-reduced-motion: reduce) { .size-hud { transition: none; } }
+.size-hud.show { opacity: 1; }
 .size-hud-circle {
   display: inline-block;
   box-sizing: border-box;
   border: 1.5px dashed var(--brand);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .size-hud-text {
-  color: color-mix(in srgb, var(--brand) 72%, var(--muted));
+  color: var(--brand); /* brand-coloured sample (VLL) */
+  opacity: .9;
   line-height: 1;
   white-space: nowrap;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-.size-hud-label { font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.size-hud-label {
+  font-size: .75rem;
+  color: color-mix(in srgb, var(--brand) 70%, var(--muted));
+  font-variant-numeric: tabular-nums;
+}
 .selected-bbox {
   position: absolute; box-sizing: border-box;
   border: 1.5px dashed var(--accent);

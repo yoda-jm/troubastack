@@ -263,6 +263,22 @@ const HUD_MAX_CIRCLE = 140;
 const HUD_MAX_TEXT = 96;
 function BottomSizePreview({ style, isText, show }: { style: AnnotationStyle; isText: boolean; show: boolean }) {
   const { w, h } = usePageBox();
+  const [visible, setVisible] = useState(false);
+  const timer = useRef<number | null>(null);
+  // Flash on tool-select AND on any size change, then FADE OUT (VLL: "fade out just like the tool size") —
+  // so it's a light, transient cue, not a chip parked over the bottom bar.
+  useEffect(() => {
+    if (!show) {
+      setVisible(false);
+      return;
+    }
+    setVisible(true);
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setVisible(false), 1500);
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current);
+    };
+  }, [show, isText, style.width, style.fontSize]);
   if (!show) return null;
   let visual: ReactNode;
   let label: string;
@@ -280,7 +296,7 @@ function BottomSizePreview({ style, isText, show }: { style: AnnotationStyle; is
     label = `${widthToMm(style.width).toFixed(2)} mm`;
   }
   return createPortal(
-    <div className="size-hud" data-testid="style-size-preview" aria-hidden="true">
+    <div className={`size-hud${visible ? " show" : ""}`} data-testid="style-size-preview" aria-hidden="true">
       {visual}
       <span className="size-hud-label">{label}</span>
     </div>,
