@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -116,6 +117,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -1482,13 +1484,25 @@ private fun ScrollPage(
             if (trimFraction >= 1.0) {
                 Box(Modifier.fillMaxWidth().aspectRatio(aspect), contentAlignment = Alignment.Center, content = pageInk)
             } else {
-                // T149: draw the FULL page top-aligned inside a shorter, clipped box — the blank tail below
-                // the content bottom is cut, no raster altered, and a mark below the text stays visible (the
-                // baker measured it into contentBottom). requiredHeight forces full height so the clip trims
-                // rather than the aspectRatio shrinking the page to fit.
-                val fullH = with(LocalDensity.current) { (widthPx / aspect).toDp() }
-                Box(Modifier.fillMaxWidth().height(fullH * trimFraction.toFloat()).clipToBounds()) {
-                    Box(Modifier.fillMaxWidth().requiredHeight(fullH), contentAlignment = Alignment.Center, content = pageInk)
+                // T149: show only the TOP `trimFraction` of the page — the blank tail below the content
+                // bottom is cut so scroll stops at the last glyph, not the blank (a mark below the text
+                // stays visible: the baker measured it into contentBottom). No raster altered.
+                // T149 defect (VLL, 2026-09-07): the original `Box { Box(requiredHeight(full)) }` rendered
+                // the page CENTERED in the trimmed box (Compose Box centres an oversized child regardless of
+                // Top alignment), clipping the SONG TITLE off the top of every trimmed page ("Toxicity top is
+                // cut"). A custom Layout measures the page at full height and PLACES it at y=0, reporting
+                // only the trimmed height, so the clip can only ever remove the bottom tail.
+                Layout(
+                    modifier = Modifier.fillMaxWidth().clipToBounds(),
+                    content = { Box(Modifier.fillMaxWidth(), content = pageInk) },
+                ) { measurables, constraints ->
+                    val w = constraints.maxWidth
+                    val fullHpx = (w / aspect).roundToInt().coerceAtLeast(1)
+                    val placeable = measurables[0].measure(
+                        constraints.copy(minWidth = w, maxWidth = w, minHeight = fullHpx, maxHeight = fullHpx),
+                    )
+                    val visible = (fullHpx * trimFraction).roundToInt().coerceIn(1, fullHpx)
+                    layout(w, visible) { placeable.place(0, 0) }
                 }
             }
         }
