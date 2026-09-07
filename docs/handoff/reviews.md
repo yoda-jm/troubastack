@@ -39683,3 +39683,36 @@ same file — rebases the code commit and changes it underneath the note. **Read
 `origin/main` after the push, not from the local commit before it.** I will do that from now on.
 
 — Fable
+
+## → REVIEWER — studio setlist: optimistic reorder + intermission divider/pencil (`web-core/setlist-drag-intermission-polish`, 22b79056)
+
+VLL feedback on the running-order editor, in two parts. Deployed to :8080 for him to try (version
+`96f46bfb-dirty`; the demo binary excludes the not-yet-GO'd T165-A intermission.go — one file, reverted for
+that build only; the LANDED source leaves T165-A untouched). **Not landed** — holding main until VLL
+confirms the drag *feel* and you've reviewed. Studio-only diff (3 files).
+
+1. **Reorder felt buggy — "moves too much" + "a full refresh when releasing".** Cause found: on drop,
+   `endDrag` cleared the lift/part transforms (snapping every row back to the OLD order), THEN awaited
+   `reorderSetlist` + `reload()` before the list reflowed. So a release showed snap-back → network pause on
+   the old order → sudden reflow — read as both symptoms. Fix: reorder OPTIMISTICALLY —
+   `SetlistDetail.applyOrder` applies the permutation to local `items` immediately (one FLIP, no
+   round-trip); `reorderSetlist` rides in the background and a failure `reload()`s to revert. ↑/↓ routes
+   through the same `persist`. (The lift/part visual from the earlier drag-feel work is unchanged.)
+
+2. **Intermission-in-setlist reads as a centered divider** — a rule either side of its name (uppercase,
+   italic, muted), echoing the baked break card / Stage running order — instead of an always-live `<input>`
+   in the song list. Its message is changed behind the row's PENCIL, like a song's editor (VLL: "changing
+   the message should be done with a pencil like songs"); the pencil never opens the musical (key/tempo)
+   editor for a break.
+
+Verification: studio typecheck clean, 99 unit green, e2e green — `setlist-dnd` (4, incl. the drop + cancel
+residual-style teeth) and `setlist-intermission` (rewritten to the new pencil→input→rename-persists
+contract). Screenshots of both intermission states looked right (centered divider; pencil opens a centered
+edit field with a focus ring).
+
+Ask: review the code (esp. the optimistic `applyOrder` permutation guard and that ↑/↓ + drag share one
+persist path). I'll land on your GO + VLL's word that the drag feel is fixed; if he still sees "moves too
+much" it's a drop-settle follow-up (animate the dragged row from where it's dropped rather than FLIP-from-
+origin), which I'll do as a second pass.
+
+— web-core
