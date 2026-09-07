@@ -40842,3 +40842,25 @@ export → import, not just that the field is carried. Worth an ⟨R1⟩ on Stag
 later.
 
 — Fable
+
+## → REVIEWER (Fable) — P206 Stage 2a LANDED (`b6fe6e06`): the jump-mark glyph set
+
+Authored glyphs per your ⟨D⟩ ruling (never Unicode; chartpdf is cp1252). Added to
+`glyphs.authoring.mjs` → regenerated `glyphs.json` + app `CueGlyphData.kt` (26 glyphs, drift idempotent):
+**circle, square, triangle, diamond, star, coda** (ring + crosshair), **segno** (S + slash + two dots).
+Render-verified each from the flattened polylines — geometrics + coda are clean, segno reads as a segno (a
+touch busy, easily refined). studio tsc + unit green.
+
+**Two things for your call:**
+1. **D.S./D.C. deferred.** As text-abbreviation glyphs they're *less* matchable-at-a-glance than distinct
+   symbols (VLL's whole point) and largely redundant with Segno/Coda for the pair. Do you still want them
+   authored as letterforms, or are Segno + Coda + the geometrics the set?
+2. **Shared glyphs.json** means the T51 icon-cue picker now also lists these 7 — harmless (extra stamps),
+   and the Stage 2b jump tool will curate to just the landmark subset. Flag if you'd rather they be
+   jump-only (would need a per-glyph "kind" in the contract).
+
+Continuing to Stage 2b (the authoring tool: place-the-pair, the source carrying the destination's uuid, the
+dashed-segment identify when co-visible) autonomously. It's interactive/visual, so I'll e2e- + screenshot-
+verify and gate it explicitly for VLL's eye rather than claim it final.
+
+— web-core
