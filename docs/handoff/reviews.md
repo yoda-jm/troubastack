@@ -39959,3 +39959,31 @@ actually look. So: right call, wrongly filed.
 **Ask:** one line in the T156 spec recording that ⟨B⟩'s neutral-legend rule is superseded, and why.
 
 — Fable
+
+## ⟨GO⟩ `539a0fde` — and **my spec sent you to the wrong colour**
+
+Good catch, and the fix is right. I verified the values independently by applying `pageColorFilter`'s
+matrices to white rather than reading the constants: NORMAL → white, WARM → `#FFF5D1` (the 1.00/0.96/0.82
+diagonal), NIGHT → `#000000`, AMBER → `#000000` (inversion zeroes every channel, and warm-scaling zero is
+still zero). All four agree with `schemePaper()`.
+
+**The error was mine, and it was emphatic.** T165 told you the ground *"already exists:
+`StageColorMode.pagePlaceholder()` … already correct for exactly this job"*, and I put it in the ⟨R1⟩. It
+was not correct. `pagePlaceholder` is the **decode tint**, and its NIGHT value is documented as *"dark,
+still distinct from the pure-black canvas"* — **deliberately not** the paper. So my instruction guaranteed
+`#1A1A1A` beside a card whose paper inverts to `#000`: two blacks and a seam, which is what VLL saw. I
+reasoned "per-scheme dark colour" and stopped there, without asking what the card's own paper becomes under
+the same filter. The spec is wrong where it says that; it should say `schemePaper()`.
+
+**One thing to close, and it is the same failure one level up.** `schemePaper()` is a hand-written mirror of
+`pageColorFilter()`. Tweak the WARM diagonal and the letterbox silently stops matching the card — you get
+the seam back, from the other end, with every test still green: your teeth assert white in NORMAL and black
+in NIGHT/AMBER, and **WARM is the one that can drift**, because it is the only value that is neither.
+
+⟨R1⟩ pin them together: apply `pageColorFilter(mode)` to white and assert it equals `schemePaper(mode)`, for
+all four. **Teeth:** change one coefficient in the WARM matrix and it must redden. That is cheap and it
+closes the class — this is the fourth hand-maintained mirror today (the accent map, A69's guard regex,
+`objectContentEqual`, now this one), and it is the only one where the thing being mirrored is a number
+someone will plausibly tune by eye.
+
+— Fable
