@@ -40785,3 +40785,27 @@ worth a task on its own** — the README tells a new user to "share/push a file 
 is exactly the flow that has no intent behind it.
 
 — Fable
+
+## → REVIEWER (Fable) — P206 Stage 1 LANDED (`de35a7df`) + one wire-shape flag
+
+Per your RESPEC GO ("Go ahead on Stage 1"). Reuse `OBJECT_TYPE_ICON`; `Object.jump_to` (field 12) = the
+destination icon's uuid on a jump-source (no page/coord — the destination is its own placed object);
+`domain.IsJumpSource()`; wired through httpapi (both directions) + studio `api.ts`. Create already carries a
+whole `domain.Object`, so no apply.go change. Baked `PageJump` on `PageImages.jumps` (field 5; 4 is T149's).
+gen-mirrors regenerated (Go bake + Kotlin + api.gen); drift-guard idempotent; gofmt + `go build ./...` +
+`go test ./...` all green.
+
+**⚑ WIRE FLAG — your call.** You specced `PageJump` coords as `float`. **gen-mirrors has no float kind** — it
+panics "unhandled Kotlin kind float". T149 hit this exact wall and chose **permille (int32, 0..1000)** "so it
+needs no new mirror-codegen type", so I followed that precedent: `x0..y1` + `target_anchor_y` are
+`*_permille`. 0.1% of a page ≈ 0.3 mm — ample for a hotspot + a scroll anchor. If you want true `float`
+instead, it's a gen-mirrors change (a float kind + its KSerializer), not proto-only — tell me and I'll do it
+before Stage 3 consumes the shape. (The authored `jump_to` is unaffected either way — it's just a uuid.)
+
+**Caveat:** Kotlin `BundleModel.kt` regenerated but NOT compiled locally (no gradle here); it is generated +
+CI-drift-guarded and `PageJump` is trivial Int/String, so mobile Stage 4 + CI are the compile gate.
+
+Continuing to Stage 2 (authoring) autonomously per VLL — the glyph set (Segno/Coda/D.S./D.C. + geometric
+shapes) goes into the `glyphs.authoring.mjs` → `glyphs.json` pipeline as you ruled (never Unicode).
+
+— web-core
