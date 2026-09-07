@@ -159,3 +159,13 @@ export const FALLBACK_ID = "note";
 // list — the cue picker shows kind="cue", the jump picker shows kind="landmark". A stray landmark
 // in the cue picker (a segno stamped as decoration) is exactly what this prevents.
 export const LANDMARK_IDS = new Set(["circle", "square", "triangle", "diamond", "star", "coda", "segno"]);
+
+// Cue/utility stamps (T50/T51). EXPLICIT (not "everything not a landmark") so a new glyph the author
+// forgot to categorize fails LOUDLY (gen-glyphs throws; glyph-kind.test asserts it) rather than silently
+// defaulting to a cue and appearing in the wrong picker (Fable ⟨R1⟩ teeth). Every GLYPHS id must be in
+// EXACTLY one of CUE_IDS / LANDMARK_IDS.
+export const CUE_IDS = new Set([
+  "guitar-electric", "guitar-acoustic", "guitar-classical", "bass", "ukulele", "autoharp", "melodica",
+  "keys", "cajon", "bongo", "djembe", "guiro", "cuica", "shaker", "egg-shaker", "tambourine", "mic",
+  "warning", "note",
+]);

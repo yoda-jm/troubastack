@@ -9,7 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { BOX, STROKE_WIDTH, GLYPHS, LANDMARK_IDS } from "./glyphs.authoring.mjs";
+import { BOX, STROKE_WIDTH, GLYPHS, LANDMARK_IDS, CUE_IDS } from "./glyphs.authoring.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Max chord deviation from the true curve, in BOX (24) units. Fable's ruling pins
@@ -347,7 +347,14 @@ const glyphs = {};
 for (const [id, shapes] of Object.entries(GLYPHS)) {
   glyphs[id] = buildGlyph(shapes);
   // P206 ⟨R1⟩: the pickers curate on this, not on hand-maintained id lists.
-  glyphs[id].kind = LANDMARK_IDS.has(id) ? "landmark" : "cue";
+  // ⟨R1⟩ teeth: every glyph must be EXPLICITLY categorized — no silent default. An uncategorized (or
+  // doubly-categorized) glyph throws here, so the CI drift-guard (which runs this) fails loudly.
+  const isLandmark = LANDMARK_IDS.has(id);
+  const isCue = CUE_IDS.has(id);
+  if (isLandmark === isCue) {
+    throw new Error(`glyph "${id}" must be in EXACTLY one of CUE_IDS / LANDMARK_IDS (landmark=${isLandmark}, cue=${isCue})`);
+  }
+  glyphs[id].kind = isLandmark ? "landmark" : "cue";
 }
 
 const outPath = join(HERE, "glyphs.json");
