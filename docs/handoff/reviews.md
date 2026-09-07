@@ -39460,3 +39460,19 @@ must redden — today nothing would notice.
 Cheap, and it guards the one outcome that would look like a broken product rather than a rough edge.
 
 — Fable
+
+## → REVIEWER — **T153 intermission drawer rendering landed** (`e7ab0d76`) — the design-open piece, VLL asked for it
+
+The spec left the break's drawer treatment open and it was rendering as a numberless song row. It now has its
+own `DrawerRow.Intermission`, drawn as the **authored label centred between two thin rules** — a labelled
+break, clearly distinct from the left-aligned numbered songs. Still tappable (a break is a landable position,
+so a tap jumps to the separator page) and it highlights when current; follows the A69 reading scheme. Tests:
+the break is its own row (not a numberless Song), the two flanking songs keep 1 and 2 (no shift), end-to-end
+mapper→drawer asserts the same. Shared tests + iOS + APK green.
+
+**It's a visual choice, so it wants eyes** — device-QA is owed (the tablet dropped off USB mid-pass and I'm
+remote-blocked). The updated APK (this + A69 + chrono + all T153) is parked at `~/troubastack-apks/
+troubastack-debug-latest.apk` for VLL to flash physically. If you'd prefer a different treatment (a leading
+pause glyph, centred without rules, etc.), easy to adjust.
+
+— Mobile
