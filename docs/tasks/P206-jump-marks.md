@@ -97,6 +97,80 @@ already crosses songs, and it is the right tool for it.
 
 ---
 
+## ⟨D⟩ RESPEC 2026-09-08 — a jump is a PAIR OF PLACED SYMBOLS, not a box with a page number
+
+VLL: *"the landmark should also be a symbol with a color that we can size, so it is easier to match when
+navigating"*, and *"probably some other symbols (geometrical + musical code DS …)"*.
+
+**He is describing musical notation, and it solves the problem better than the spec did.** A D.S. al Segno
+does not say "go to page 3": it draws a 𝄋, and you find the other 𝄋. The match is made by the EYE, on a
+glyph, at a distance, under stage light — which is exactly the moment page numbers fail. Centuries of
+notation already settled this; we should not out-design it.
+
+### The model
+
+**A jump is a relationship between TWO PLACED LANDMARKS**, both ordinary icon objects carrying the same
+glyph and colour:
+
+- the **destination** landmark is placed first (the Segno);
+- the **source** landmark refers to it (the D.S.);
+- they match because they *look* the same, which is the whole point.
+
+**This supersedes my ruling of two hours ago.** I said the destination should carry a `SourceAnchor` inside
+`JumpTarget`. That was right in direction and stopped short: if the destination is **its own placed object**,
+it is already anchored, already layered, already owned, already baked — and the authored form needs **no page
+number and no coordinate at all**. The source stores the destination's **object id**. Nothing to drift.
+
+### Q1 — reuse `OBJECT_TYPE_ICON`; do NOT add `OBJECT_TYPE_LINK`
+
+"A symbol with a colour that we can size" *is* the icon model: glyph id, colour, size, already rendered,
+picked, anchored, baked and layer/owner-filtered. A new type would duplicate every one of those to express a
+single extra field. What makes a landmark a jump is that it **carries a target**, not that it is a different
+kind of thing. Give it one predicate (`IsJumpSource()`) and guard it at the source, the way this repo already
+guards patterns it cannot afford to forget.
+
+### Q2 — yes, the destination is a real placed object
+
+Consequences worth stating, because they are all gains:
+
+- **Matchability is by construction** — same glyph, same colour, both ends. VLL's requirement is the data
+  model, not a rendering convention someone must remember to honour.
+- **Both ends follow their words**, because both are ordinary anchored marks. The whole drift problem
+  disappears rather than being managed.
+- **Moving either end is just moving a mark.** So is deleting one — see below.
+- **The same-page dashed segment becomes trivial**: two objects, one canvas. His earlier sketch stands
+  unchanged for that case.
+
+**Dangling destination.** If the destination object is deleted, the source must read as **broken** and refuse
+to navigate — never jump to a neighbour, never silently do nothing. Same discipline as T145's un-anchorable
+mark: flag it, never guess.
+
+### Q3 — enter and identify
+
+**ENTER:** pick a glyph + colour, place the destination landmark, then place the source (or the reverse —
+the tool holds the pairing until both are down). One chain, two placements, no page-number dialog anywhere.
+
+**IDENTIFY:** the glyph *is* the identity. Same page (or facing pages) → draw VLL's dashed segment between
+the pair, moving with either end. Cross-page → the matching glyph and colour, with a small page hint on the
+source for the reader who wants it.
+
+### The constraint that would bite on day one
+
+**The musical signs must be AUTHORED GLYPHS, never Unicode text.** `chartpdf` renders through cp1252 and
+rejects anything outside Latin-1 (`ErrUnsupportedChar`), so `𝄋` typed as a character cannot render at all.
+The project already has the right pipeline: hand-authored primitives in `web/ink/glyphs.authoring.mjs`,
+flattened by `gen-glyphs.mjs` into the `glyphs.json` contract that TS ink, Go bake and the Studio picker all
+read, with a CI guard that regenerating produces no diff. **Add Segno, Coda, D.S., D.C. and the geometric
+shapes there**, exactly like the existing cue glyphs. No font dependency, no runtime SVG, and the printed
+sheet gets them too.
+
+### What this means for Stage 1
+
+The proto below is superseded: `JumpTarget` becomes a **reference to the destination object**, and
+`OBJECT_TYPE_LINK` is not added. The baked `PageJump` still carries a resolved `target_page` /
+`target_anchor_y`, because a bundle is a snapshot of ONE render and resolving there is correct — it is the
+*authored* form that must not freeze.
+
 ## Stage 1 — proto + mirrors (core lane)
 
 Additive; every mirror carries `AUTHORITY: proto/…`.
