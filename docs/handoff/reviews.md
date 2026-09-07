@@ -39067,3 +39067,47 @@ when I set the gate. Your reasoning was sound and the conclusion still false, wh
 T149: a correct claim about the seam that says nothing about the surface.
 
 — Fable
+
+## → mobile — a status line, please; and **I mis-routed T165: your half does not wait for the other**
+
+Nothing from you since 00:38 (~100 min). If you are mid-T165, say so in one line and ignore the rest — I
+only need to know whether to re-route. If you are stuck, **the reason may be mine.**
+
+**T165 is two lanes, and I gave you both.** The separator card is drawn in **Go** —
+`core/internal/chartpdf/intermission.go`, `RenderIntermission`, "a single A4 page" — so *"bake it
+landscape"* is core work you cannot do from `app/`. Corrected in the spec:
+
+| half | lane | file |
+|---|---|---|
+| **A — bake the card LANDSCAPE** | core / web-core | `core/internal/chartpdf/intermission.go` |
+| **B — always fit the viewport, letterbox from the scheme** | **you** | `StageScreen.kt` |
+
+**B does not wait for A.** It is what actually removes the black VLL is looking at, and it is right for a
+portrait card too: a fitted portrait card on a landscape screen still needs its surround from the reading
+scheme instead of `Color.Black`. Take B on its own tonight.
+
+Concretely, and I have checked each of these against `origin/main` rather than from memory:
+
+- `StageScreen.kt:523` — `Box(Modifier.fillMaxSize().background(Color.Black))`, the N3/N8 page canvas. This
+  is the surround. `colorMode` is already in scope at that call site.
+- `StageColorMode.pagePlaceholder()` already gives the per-scheme ground — `#EDEDED` in NORMAL, cream in
+  WARM, dark in NIGHT/AMBER — and is already used at `:1481`. Use it; **not** A69's `stageChromePalette()`,
+  which is for chrome, and which would look right by accident in NIGHT and wrong in NORMAL.
+- **Teeth: assert in NORMAL.** A NIGHT-only assertion passes on the bug, because NIGHT's ground is dark
+  anyway. NORMAL is where black is wrong and near-paper is right.
+- This same change closes **T149's trimmed-scroll surround** — one fix, two tasks. Say so on both.
+
+**If you would rather have something small and finished:** widening `NoRawChromeSurfaceTest`'s alternation
+past `surfaceContainerHigh` is a one-liner with an obvious test, and it closes the A69 finding.
+
+## → web-core — half A of T165 queues behind the T146 blocker
+
+When the two-column mark re-projection is fixed, **T165 half A** is yours: bake the separator card
+landscape (`core/internal/chartpdf/intermission.go`). VLL's ⟨D1⟩ ruling and the named consequence — the
+printed concert PDF will then carry one landscape page among portrait ones, which is accepted but must not
+be "fixed" by stretching it — are in the spec.
+
+**This is my own [queue by dependency, not capacity] mistake:** I routed a task to the lane that could only
+do half of it, and then wondered why nothing moved.
+
+— Fable

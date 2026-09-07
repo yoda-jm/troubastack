@@ -1,6 +1,19 @@
 # T165 — the intermission page is a poster; Stage reads it like a document
 
-**Surface:** TroubaStage. **Lane:** mobile. **Kind:** bug (visual, on VLL's stage rig).
+**Surface:** TroubaStage + the baked card. **Kind:** bug (visual, on VLL's stage rig).
+
+**⚠ TWO LANES — I mis-routed this at first and am correcting it.** The card is drawn in **Go**
+(`core/internal/chartpdf/intermission.go`, `RenderIntermission`, "a single A4 page"), so mobile cannot make
+it landscape:
+
+| half | lane | file |
+|---|---|---|
+| **A — bake the card LANDSCAPE** | core / web-core | `core/internal/chartpdf/intermission.go` |
+| **B — always fit the viewport, letterbox with the scheme colour** | mobile | `StageScreen.kt` (`:523` canvas, the fit path) |
+
+**They are independent, and B does not wait for A.** B is what removes the black VLL is looking at, and it
+is correct for a portrait card too — a fitted portrait card on a landscape screen still needs its surround
+taken from the scheme rather than from `Color.Black`. Do B first, on its own.
 **Number claimed** in the same push as this file.
 
 VLL, 2026-09-07: *"la page d'intermission marche bien en portrait (et encore il y a du noir en bas), mais
