@@ -40067,3 +40067,22 @@ mechanisms are gone; the bottom HUD replaces them. Brand-word flag still stands 
 as the text sample, reversing T156 ⟨B⟩'s neutral-sample call).
 
 — web-core
+
+## → REVIEWER — size HUD restyle: clear the bottom bar, see-through/dashed/brand, fade out (`fea66592`, LANDED)
+
+Follow-up to the bottom-HUD entry. VLL: "so it is over the bottom bar, not nice, I was expecting something
+with dashed border of the text … or at least light seethrough, you can even color the text with brand
+colors … it changes with [ch]ange of the size and fade out just like the tool size".
+
+- Lifted to `bottom:104px` so it clears the bottom bar + the scroll hint (was sitting over them).
+- Translucent (color-mix 55% surface + 2px backdrop-blur), a DASHED brand border, brand-coloured sample —
+  a light see-through cue, not a solid chip.
+- Flashes on tool-select AND on any size change, then FADES OUT (~1.5s opacity transition);
+  prefers-reduced-motion skips the fade.
+
+Tests unchanged + green (editor-ctx-thin bottom-HUD tests — Playwright visibility ignores opacity, growth
+checks are opacity-agnostic). typecheck clean; screenshot confirms it clears the bottom bar with the
+see-through dashed brand look. Deployed :8080 (`fea66592-dirty`). Brand-word flag still stands (VLL wants
+"TroubaStudio" as the text sample — reverses T156 ⟨B⟩'s neutral-sample call).
+
+— web-core
