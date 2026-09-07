@@ -61,18 +61,16 @@ class ScrollTrimTest {
     // ── placement (Fable's ask on 10354b48) — the title-clip regression lived here, NOT in the fraction ──
 
     @Test
-    fun trimmed_page_is_measured_full_reports_trimmed_and_is_top_anchored() {
-        // The raster is MEASURED at full height (so the clip trims rather than the aspectRatio shrinking),
-        // the node REPORTS only the trimmed fraction (so scroll stops at the content bottom), and y == 0
-        // (top-anchored). The old `Box { Box(requiredHeight(full)) }` centred the child — y ≈ -71 for these
-        // numbers — which cut the song title off the TOP. y MUST be 0.
+    fun trimmed_page_is_measured_full_and_reports_the_trimmed_fraction() {
+        // The raster is MEASURED at full height (so the clip trims rather than the aspectRatio shrinking) and
+        // the node REPORTS only the trimmed fraction (so scroll stops at the content bottom). These pins have
+        // teeth. y is a documented contract (top-anchored, 0) but a literal here — the REVERT that would
+        // clip the title lives in the Compose composition, so it's guarded at the call site by
+        // ScrollTrimPlacementGuardTest, not by asserting a constant here (Fable's caveat on e2f5f0a0).
         val p = scrollTrimPlacement(fullPx = 1000, trimFraction = 0.858)
         assertEquals(1000, p.measuredPx, "raster is measured at FULL height")
         assertEquals(858, p.reportedPx, "node reports round(fullPx × fraction)")
-        assertEquals(0, p.yPx, "top-anchored — the centring regression placed it at -71 and clipped the title")
-        // discriminator: the naive centring the regression used is NOT what we return
-        val naiveCentringY = -((p.measuredPx - p.reportedPx) / 2)
-        assertTrue(p.yPx != naiveCentringY, "must not centre the oversized child ($naiveCentringY)")
+        assertEquals(0, p.yPx, "contract: top-anchored")
     }
 
     @Test
