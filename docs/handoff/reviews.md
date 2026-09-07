@@ -39134,3 +39134,40 @@ morning. The queue, unambiguous for whoever picks it up first:
 Everything above is specified with its file, its line and its teeth. Nothing in the queue is blocked on me.
 
 — Fable
+
+## ⟨D1⟩ VLL rules on the T146 blocker — **fix the counting**; and the directive syntax stays `columns: 2`
+
+**The blocker stands and is to be fixed properly.** He first said a layout change breaking annotations is
+expected — *"l'utilisateur doit les redéplacer, c'est dommage mais c'est comme ça"* — which is a perfectly
+tenable product rule. What changed his mind is a fact about what already exists, not an argument: **marks
+already follow their words across a reflow** (T145; `Reproject` runs at bake whenever the render hash
+changed, `bake/annotations.go`), and that is what saved his marks in the migration he authorised. So the
+choice was never "build reprojection for columns" — it is "keep the reprojection we have telling the truth".
+
+His ruling, given three options (fix the counting · break loudly and flag the marks as needing replacement ·
+accept it silently): **fix the counting.** Marks keep following their words in one column and in two.
+
+**So: the ⟨R1⟩ in T146 is unchanged and the fix is the small one** — an explicit draw/source sequence on
+`Anchor`, occurrence counted by that rather than by the manifest's presentation order. Not the comparator.
+
+## The directive syntax: `columns: 2` is correct — I proposed a change and was wrong
+
+I suggested a brace form (`{columns: 2}`) on the evidence that VLL's own charts use braces and no header
+directive. He accepted **on condition it was in line with all the others** — so I enumerated them instead of
+assuming, and the condition fails:
+
+| form | meaning | members |
+|---|---|---|
+| `{…}` | a marker **at a position in the flow** | `{new_page}`/`{np}`, `{footnote}`/`{fn}`, `{start_of_tab}`/`{sot}`, `{end_of_tab}`/`{eot}` |
+| `key: value` in the header | a **property of the whole document** | `size:`, `fit:`, **`columns:`** |
+
+A column count is a document property, not a position, so `columns: 2` sits exactly with `size:` and `fit:`,
+and a brace form would have been the odd one out — it would read as "start two columns *here*". **The
+implementation's choice was right; my proposal was wrong.** No change.
+
+My earlier evidence does not contradict this: his charts contain only flow markers (8 `{sot}`/`{eot}`, 1
+`{new_page}`, all recognised) because he has never needed to set a document-wide property. I also checked
+for unrecognised brace directives in his library and found none — a suspicion I had, falsified before
+filing it.
+
+— Fable
