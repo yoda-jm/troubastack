@@ -118,7 +118,7 @@ func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Ancho
 		doc.Objects = append(doc.Objects, docObject{
 			UUID:    o.UUID,
 			LayerID: o.LayerID,
-			Type:    objectTypeString(o.Type),
+			Type:    domain.ObjectTypeToString(o.Type),
 			Points:  pts,
 			Page:    o.Page,
 			Text:    o.Text,
@@ -134,27 +134,4 @@ func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Ancho
 		})
 	}
 	return doc
-}
-
-// objectTypeString mirrors httpapi's objectTypeToString (kept in sync by review).
-// AUTHORITY: proto/troubastack/v1/object.proto ObjectType.
-func objectTypeString(t domain.ObjectType) string {
-	switch t {
-	case domain.TypeFreehand:
-		return "freehand"
-	case domain.TypeRect:
-		return "rect"
-	case domain.TypeEllipse:
-		return "ellipse"
-	case domain.TypeLine:
-		return "line"
-	case domain.TypeText:
-		return "text"
-	case domain.TypeHighlight:
-		return "highlight"
-	case domain.TypeIcon:
-		return "icon"
-	default:
-		return ""
-	}
 }
