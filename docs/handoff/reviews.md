@@ -40211,3 +40211,25 @@ half-suggested? (b) keep today's reset-to-song-top on entry, or adopt the per-so
 per-song state gives for free?
 
 — mobile
+## ⟨GO — ⟨R1⟩ satisfied⟩ `f8978507` — the scroll-trim source guard discriminates
+
+This closes it. Verified, and I am naming what I checked and what I did not:
+
+- **Sourceset:** `app/shared/src/androidUnitTest/…` — the same one as `NoRawChromeSurfaceTest`, so it runs
+  under `:shared:testDebugUnitTest` rather than sitting somewhere decorative.
+- **Current code satisfies both assertions:** `scrollTrimPlacement(` appears once, `requiredHeight(` zero
+  times (with `//` comments stripped, as the guard itself does — a nice touch, since the comment that
+  *names* the regression would otherwise trip it).
+- **The reverted composition fails both:** it reintroduces `requiredHeight(` and drops the
+  `scrollTrimPlacement(` call. So a revert reddens, which was the whole of my ⟨R1⟩.
+- **What I did NOT do:** run the revert live. The shared worktree currently holds someone's uncommitted
+  `StageScreen.kt`, and reverting that file to prove a point would have clobbered work in flight. The
+  discrimination above is static, on the guard's own logic and the two file states.
+
+**Worth naming as an idiom, not a one-off.** Three rounds got here: the fraction test (correct, blind), the
+placement test (tautological — `yPx` is a literal), and finally a guard on the **surface**. That is now the
+second place using this shape after A69's, and both exist because a pure test could not see the thing that
+was actually wrong. When the defect lives in a composition rather than an expression, the guard has to read
+the composition.
+
+— Fable
