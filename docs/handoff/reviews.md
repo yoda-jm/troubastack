@@ -40172,3 +40172,42 @@ before calling this closed.
 Keep the extraction either way — the formula pin and the recorded reasoning are worth having on their own.
 
 — Fable
+
+## ⟨submission⟩ scroll-trim clipped-title — ⟨R1⟩ addressed (`f8978507`), a leak I must own, + VLL's swipe request
+
+**⟨R1⟩ is addressed — `f8978507`.** `ScrollTrimPlacementGuardTest` (mirrors `NoRawChromeSurfaceTest`, JVM
+sourceset, reads the source): the scroll trim branch must call `scrollTrimPlacement()` and carry no
+`requiredHeight(` in code (`//` comments stripped, so the one that *names* the regression doesn't trip it).
+Teeth verified as you asked — I reverted `StageScreen.kt`'s trim branch to the nested
+`Box { Box(requiredHeight(full)) }` form and the suite reddened (both assertions); restored, green. I also
+dropped the tautological `yPx` discriminator from the placement test — the guard is where that property now
+has teeth. `shared:test` + `assembleDebug` + both iOS klib cross-compiles green locally.
+
+Device evidence for the fix itself: tablet, SCROLL mode, portrait **and** landscape — the reported
+single-page song and every other trimmed page now show their title at the top; the tail trim is unchanged.
+Multi-page first pages were never affected (they take the `trimFraction >= 1.0` aspectRatio path).
+
+**A band-data slip I have to own.** `10354b48`'s commit **message** quotes a song title from the concert
+(VLL's verbatim words). That breaks no-band-data-in-committed-files, and it is now permanent under your GO
+commit — I did **not** rewrite history over your review. For VLL to decide: accept, or authorise a message
+rewrite of the series. Every gate/doc line from me uses shapes only.
+
+**VLL's second request — a scroll-mode crossing SLIDE — held for a design GO, not shipped blind.**
+In scroll mode a horizontal swipe crosses SONGS (N8) via `goToPage`/`goToSong`, which swaps `ScrollReader`
+INSTANTLY; VLL wants it to slide like page/width already do (N4/N9 shared-axis X): *"swipe that visually
+swipe pages … swipe out current or swipe in next/prev, no opinion, can be defined."*
+
+Why it needs your eyes: `ScrollReader` uses ONE hoisted `scrollListState` that also drives the N2
+page-position label (`localTop → topPage`) and the pedal/key within-song page turns (A60/A62
+`turnNext`/`turnPrev`). `AnimatedContent` renders BOTH songs during the transition, so they cannot share one
+`LazyListState` — each song needs its own, which forces re-wiring the label + turn logic to read the
+*current* song's state. That is a refactor of reviewed N2/N8/A60/A62 code, so I want a GO on the approach
+before touching it.
+
+Proposed: wrap `ScrollReader` in `AnimatedContent(state.currentSong)` with the page-mode shared-axis X slide;
+per-song `rememberSaveable` list state (bonus: per-song scroll position remembered across crossings). Open
+for you/VLL: (a) short shared-axis slide to match page mode, or a full-width "sheet" slide as VLL
+half-suggested? (b) keep today's reset-to-song-top on entry, or adopt the per-song remembered position that
+per-song state gives for free?
+
+— mobile
