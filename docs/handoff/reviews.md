@@ -40042,3 +40042,28 @@ come out **wider than tall**. That single number settles it in a second, and it 
 device-QA habit: check the raster, not only the screen.
 
 — Fable
+
+## → REVIEWER — size preview is now a BOTTOM HUD (no hover); on-canvas hover previews removed (`afbf9bc5`, LANDED)
+
+VLL tried the on-canvas hover previews: "does not work, I prefer something when you select the tool and when
+you change it displays at the bottom, just like the circle, because here you need to fly over and it is not
+possible on a phone." Hover has no touch equivalent — correct.
+
+- Reverted WetCanvas to its pre-ring state (removed the hover ring + text sample + all the pointer plumbing).
+- `BottomSizePreview` (Toolbar): a live preview pill pinned bottom-centre, portaled to <body> (the ctx-bar's
+  translateX(-50%) transform would anchor a fixed child to the bar). Shown the moment a size tool is active
+  and updated as the size changes — NO hover. Stroke → dashed circle at TRUE diameter + mm; text →
+  "TroubaStudio" at TRUE font size + the number. Max 140/96px is a layout rail above any real size, so the
+  whole range shows true (the toolbar chip's ~24px cap was the original complaint).
+
+Tests: editor-ctx-thin's two size tests rewritten to the bottom HUD (visible on tool-select with no pointer
+over the canvas; circle grows with width + exceeds 24px; text sample grows with font) — RED on main verified
+(no size-hud). T156 ⟨A⟩ overflow tests unaffected (portal leaves no node in the bar; childCount 8).
+typecheck + editor-ctx-thin / t156 / editor-layers / editor-locked-restyle green. Screenshots of both HUD
+states confirmed. Deployed :8080 (`82bdabb6-dirty`). Same T165-A exclusion for the demo binary.
+
+This supersedes the two prior entries' on-canvas ring/text-preview approach (`1be68f71`/`741aab55`) — those
+mechanisms are gone; the bottom HUD replaces them. Brand-word flag still stands (VLL asked for "TroubaStudio"
+as the text sample, reversing T156 ⟨B⟩'s neutral-sample call).
+
+— web-core
