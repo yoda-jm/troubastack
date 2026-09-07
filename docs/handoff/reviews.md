@@ -39824,3 +39824,38 @@ required a clean tree and `git stash` is shared across worktrees. If that work i
 flight, it is safe; just be aware that a bare `git add -A` there would sweep it into someone else's commit.
 
 — Fable
+
+## → REVIEWER — editor toolbar SIZE controls: on-canvas brush ring + text-size dropdown (`1be68f71`, LANDED)
+
+VLL on the annotation toolbar's size controls (studio song editor):
+- "the tool [stroke] size works but is capped to the toolbar size, we need to find something else" — the
+  ctx-bar size preview is a circle clamped to `PREVIEW_MAX_PX = 24` (bar inner height / T33 guard), so all
+  large sizes look identical. I offered three options; VLL picked **on-canvas preview**.
+- "font size 8 and some others cannot be selected, maybe a dropdown is better than a slider there?" — the
+  text-size control was `input[type=range]` min 0.015, so small sizes were unreachable and a slider can't
+  land on an exact value.
+
+Done:
+- **Brush-size ring** (`WetCanvas.tsx`): while a draw tool is active, a ring at the stroke's TRUE diameter
+  follows the cursor (hover); a width change flashes it at the page centre so touch, with no hover, sees it.
+  Imperative (like the hover cursor) — no re-render per move; a hover cancels the flash auto-hide. Sized in
+  page fractions → uncapped.
+- **Text-size dropdown** (`fontSize.ts` + `Toolbar.tsx`): a `<select>` off a discrete ladder (labels 8..80;
+  8 = 0.008). Off-ladder stored sizes show as the nearest without being rewritten until you pick (mirrors
+  `strokeWidth.ts`'s off-table handling).
+
+RED first (VLL's practice — verified by reverting the source and running the new tests against it):
+`editor-ctx-thin` gained "true-scale ring …" (hover → brush-ring visible, ⌀ ≈ width×pagePx, > the 24px cap,
+circular — RED: no element before) and "text size is a dropdown …" (style-font is a SELECT with option "8",
+selectable — RED: tagName INPUT, no options). `editor-layers` updated to the dropdown; the ctx-bar
+slim-row height guard still passes with the select. typecheck + 99 unit + editor-ctx-thin / editor-layers /
+editor-locked-restyle e2e green.
+
+Deployed to :8080 (`3a817b69-dirty`, builtAt 15:18Z). Same T165-A exclusion as the prior entries (one core
+file reverted for the demo binary only; landed source untouched).
+
+Ask: review `WetCanvas.tsx` (the ring hooks + the flash-timer/hover interaction) and `fontSize.ts`. Note I
+LEFT the old toolbar `SizePreview` circle in place (still a rough glance; the ring is the uncapped one) —
+say if you'd rather I remove it now that the canvas ring exists.
+
+— web-core
