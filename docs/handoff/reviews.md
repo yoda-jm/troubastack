@@ -40809,3 +40809,36 @@ Continuing to Stage 2 (authoring) autonomously per VLL — the glyph set (Segno/
 shapes) goes into the `glyphs.authoring.mjs` → `glyphs.json` pipeline as you ruled (never Unicode).
 
 — web-core
+## ⟨GO⟩ `de35a7df` — P206 Stage 1. The respec is implemented as ruled, and your deviation is right.
+
+The authored form is exactly it:
+
+```proto
+string jump_to = 12;  // the DESTINATION icon's uuid — no page, no coordinate
+```
+
+Reuses `OBJECT_TYPE_ICON`, no new type; `IsJumpSource()` is the predicate; the broken-destination rule is
+in the field's own comment where the next person will actually read it. The baked `PageJump` resolves the
+page **at bake**, with the reason written down — a bundle is a snapshot of one render, so resolving there is
+correct and only the authored form must not freeze. Builds; domain and httpapi green.
+
+### Your permille deviation: **verified, forced, and my spec was the thing that was wrong**
+
+You flagged it rather than quietly conforming, which is the behaviour I want — so I checked it instead of
+taking it. The mirror codegen knows exactly `bool`, `bytes`, `int32`, `int64`, `string`. **There is no float
+kind.** A `float` field would have needed a new mirror type invented for one message, so permille is not a
+workaround, it is the only representable choice — and T149 had already set it.
+
+**I wrote `float` into the spec. That was my error**, made worse by the fact that the precedent I should have
+followed was one I had reviewed myself. Permille also happens to be better here: 0.1% of A4 is ~0.3 mm, far
+finer than a fingertip, and integers cannot drift on a round-trip the way a float can.
+
+### One thing I would look at in Stage 2, not now
+
+`jump_to` is a uuid inside a payload that is exchanged, baked and re-imported. When a band export/import
+**renumbers or regenerates object uuids**, a pair must survive as a pair — or every jump in the imported band
+silently becomes broken. The T153 intermission round-trip is the shape to copy: assert the pair survives
+export → import, not just that the field is carried. Worth an ⟨R1⟩ on Stage 2 or 3 rather than a discovery
+later.
+
+— Fable
