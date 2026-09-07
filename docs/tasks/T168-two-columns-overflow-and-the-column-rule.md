@@ -42,20 +42,40 @@ type for the same line to fit. For a chart with long lines those two pull in opp
 naive "shrink until the widest line fits" can land on a size **smaller than the one-column render** — the
 directive would then make the chart worse while appearing to work.
 
-**Recommendation, and the precedent is in this package already.** A tab stave that cannot fit is
-**refused** (`ErrTabTooWide`) rather than clipped, because a silently clipped stave is a lie. Do the same
-here, in three steps:
+## ⟨D1⟩ VLL rules, 2026-09-08 — **wrap the line**, and warn in Studio
 
-1. **Measure width in the fit predicate.** `fitsAt` must also require that every drawn line fits `colW` at
-   the candidate size. That alone removes the overflow.
-2. **Compare honestly.** If the best two-column size is not larger than the one-column size for that chart,
-   the directive has nothing to offer it.
-3. **Say so rather than degrade.** Either refuse with a message naming the chart (the tab precedent), or
-   render one column and report why. **Do not silently render two columns of tiny type**, and above all do
-   not render text off the paper.
+*"Ce serait top de passer à la ligne automatiquement avec le mot qui dépasse, ou alors juste le flagger en
+rouge dans le rendu de Studio pour dire : attention."*
 
-Whether step 3 refuses or falls back is **VLL's call** — refusing is safer for a gig sheet, falling back is
-kinder to an author experimenting. Ask before choosing.
+**This is better than what I proposed** (refuse, or fall back to one column), and it is better for a reason
+I had dismissed too quickly. I argued that wrapping breaks chord-over-word alignment. That objection is
+real but narrow: it applies only to a chord+lyric **pair**, and even there it is tractable. For a plain
+text line it does not apply at all — and **the package already wraps to a width**:
+
+```go
+func footnoteLines(m *fpdf.Fpdf, tr func(string) string, text string, scale float64, colW float64) []string
+```
+
+used for footnote prose, and already column-aware since stage 2. So the mechanism exists; it was simply
+never applied to the body.
+
+**How to wrap a chord+lyric pair without losing the alignment.** The chord row is drawn in **Courier
+(monospace) from the column's left edge**, so a character offset in that row *is* a fixed x offset. The
+lyric is proportional. So: choose the wrap point as the last word boundary of the LYRIC that fits `colW` in
+its own font, then split the CHORD row at that same **character index** and emit both continuations as a
+new pair. The chords that belonged over the wrapped words travel with them, at the offset they already had
+minus the characters left behind. Nothing about the authored spacing has to be re-interpreted.
+
+**The red flag in Studio is worth having, and must NOT be the only remedy.** As an authoring aid it is
+excellent — it tells the author, while they are editing, that this chart does not sit in two columns. But
+the renderer must never print past the paper edge *regardless of whether anyone read the warning*: the PDF
+is what reaches a music stand, and a warning that lives in the editor does not travel with it. So: wrap in
+the renderer, warn in Studio.
+
+**The coupling to design around, because it is the thing that will bite.** Wrapping changes the number of
+drawn lines, which changes the body height, which feeds `fitsAt` and pagination. So the fit predicate must
+measure the chart **after** wrapping at the candidate size — otherwise a chart that no longer overflows
+sideways will overflow *downwards* instead, and the bug will look fixed while moving one axis over.
 
 ## The column rule (VLL's second ask)
 
@@ -70,6 +90,11 @@ it ends. Absent in one-column mode, obviously.
   half a page. **Red today: 26 runs escape the left column and 14 leave the paper (worst 2.085 × page
   width).** Assert on the anchor manifest — it carries every run's box, so this is measurable without
   rasterising.
+- **A wrapped chord+lyric pair keeps its chords over its words:** after wrapping, the chord run on the
+  continuation line starts at the character offset the wrap left behind. Teeth: wrap the lyric without
+  splitting the chord row and the assertion must fail.
+- **Wrapping is measured by the fit predicate:** a chart whose lines wrap must not then overflow the page
+  vertically. Teeth: measure before wrapping and the page count assertion must fail.
 - The same chart in **one column** is unchanged — the fix must not shrink type that was fitting before.
 - **Teeth:** a chart whose longest line already fits the column keeps the SAME size it gets today, so the
   new width constraint cannot quietly shrink every chart.
