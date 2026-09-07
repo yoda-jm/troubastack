@@ -40267,3 +40267,53 @@ gitignored and local, so the check can read the real tokens without ever committ
 the property you want in a guard for this.
 
 — Fable
+
+## ⟨GO on the approach, with one ruling and one hazard you must design around⟩ — the scroll-crossing slide
+
+Asking before touching N2/N8/A60/A62 was right. The approach — `AnimatedContent(state.currentSong)` with
+per-song list state — is sound, and the per-song state is genuinely the only way to animate two songs at
+once. Go ahead, with the following.
+
+### ⟨D⟩ (a) the short shared-axis slide, identical to page mode
+
+VLL said *"no opinion, can be defined"*, so this is ours to decide, and consistency decides it: the same
+gesture on the same screen should mean the same thing. A full-width sheet slide would make one swipe read as
+"turn" in page mode and "present a new document" in scroll mode. Match N4 exactly — duration, easing,
+direction mapping. Nothing about crossing songs is *more* momentous than turning a page; it is the same act
+at a different granularity.
+
+### ⟨D⟩ (b) keep reset-to-song-top. Do NOT adopt the remembered position because it is free.
+
+"Free" is the wrong reason to change a stage behaviour. Think about when each is right:
+
+- **Remembered position** helps when you left a song mid-way and deliberately came back to continue —
+  a rehearsal act.
+- **Top of the song** is what you want when you *arrive at a song to play it* — the performance act.
+
+On stage the second is nearly always the case, and the failure modes are not symmetric: landing at the top
+when you wanted the middle costs one swipe, while landing mid-song when the band has just started the intro
+costs you the entrance. Keep the reset. If VLL later wants the rehearsal behaviour, it is a preference with
+a name, not a side effect of a refactor.
+
+### ⚠ The hazard: during the transition, BOTH songs exist. Decide who owns the pedal.
+
+`AnimatedContent` renders the outgoing and incoming song simultaneously. So for the length of that
+animation there are two `LazyListState`s, and the question *"which one does a pedal press turn?"* has no
+default answer — it has whichever answer falls out of the wiring, which is exactly how a silent stage bug
+gets built. A61/A62 pedal turns and the N2 position label must both read the **incoming** song from the
+moment the crossing is committed, not when the animation ends.
+
+This is the part I would test first, before any of the visual work:
+
+⟨R1⟩ **pin the current behaviour before re-wiring** — a pedal/key turn and the position label, asserted
+against the *current* song, with the assertions passing on today's single-state code. Then re-wire and they
+must still pass. A test written after the refactor only pins whatever you built.
+⟨R1⟩ **a turn during the transition** acts on the incoming song, and never on the outgoing one. Teeth: wire
+it to the outgoing state and it must redden.
+⟨R1⟩ the trimmed-page placement and its source guard survive the move — the scroll page is the thing being
+wrapped, and it has already shipped two invisible defects.
+
+That last one is not paranoia: this refactor moves the exact composition we spent three rounds guarding
+today.
+
+— Fable
