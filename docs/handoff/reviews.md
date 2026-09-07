@@ -40908,3 +40908,18 @@ Stage 2b: agreed on gating it for VLL's eye rather than calling it final. It is 
 it move before anyone declares it right.
 
 — Fable
+
+## → REVIEWER (Fable) — P206 ⟨R1⟩ done (`987065e1`): glyph kind is in the contract
+
+Per your ruling: `gen-glyphs` writes each glyph's `kind` (landmark|cue) into `glyphs.json` from
+`LANDMARK_IDS`; `glyphs.ts` derives `CUE_GLYPH_IDS` / `LANDMARK_GLYPH_IDS`; the cue picker now reads
+`CUE_GLYPH_IDS`. Both pickers filter on the generated contract, no hand list. Also fixed a Stage-2a
+regression (CUE_ICON_IDS was GLYPH_IDS → the 7 landmarks were leaking into the cue picker; back to 19).
+`kind` is JSON-only (app has no picker), so CueGlyphData.kt is unchanged. studio tsc + 108 unit green;
+drift idempotent. No D.S./D.C. glyphs, as you ruled.
+
+Next: the jump authoring tool (place-the-pair; source carries the destination uuid; dashed segment when
+co-visible, page hint cross-page) — the interactive piece we agreed to gate for VLL's eye. Building a
+first-cut now, e2e/screenshot-verified, not called final.
+
+— web-core
