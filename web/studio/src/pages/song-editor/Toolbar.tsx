@@ -261,12 +261,22 @@ function usePageBox(): { w: number; h: number } {
 // to <body>: the ctx-bar has a translateX(-50%) transform, which would anchor a fixed child to the bar.
 const HUD_MAX_CIRCLE = 140;
 const HUD_MAX_TEXT = 96;
-function BottomSizePreview({ style, isText, show }: { style: AnnotationStyle; isText: boolean; show: boolean }) {
+function BottomSizePreview({
+  style,
+  isText,
+  show,
+  ping,
+}: {
+  style: AnnotationStyle;
+  isText: boolean;
+  show: boolean;
+  ping: number;
+}) {
   const { w, h } = usePageBox();
   const [visible, setVisible] = useState(false);
   const timer = useRef<number | null>(null);
-  // Flash on tool-select AND on any size change, then FADE OUT (VLL: "fade out just like the tool size") —
-  // so it's a light, transient cue, not a chip parked over the bottom bar.
+  // Flash on tool-select, on any size change, AND on a size-control hover (`ping`, desktop only — VLL:
+  // "no text on hover over the dropdown item, could be nice"), then FADE OUT ("just like the tool size").
   useEffect(() => {
     if (!show) {
       setVisible(false);
@@ -278,7 +288,7 @@ function BottomSizePreview({ style, isText, show }: { style: AnnotationStyle; is
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [show, isText, style.width, style.fontSize]);
+  }, [show, isText, style.width, style.fontSize, ping]);
   if (!show) return null;
   let visual: ReactNode;
   let label: string;
@@ -369,6 +379,10 @@ export function EditorToolbar({
   const fadeRef = useScrollFade<HTMLDivElement>(
     `${part}|${tool}|${selectedType}|${multiSelected}|${style.width}|${style.fontSize}`,
   );
+  // Bumped when a size control is hovered (desktop) → the bottom preview flashes so you can see the size
+  // without changing it (VLL). Touch never fires mouseenter, so it stays a desktop-only cue.
+  const [sizeHoverPing, setSizeHoverPing] = useState(0);
+  const pingSize = () => setSizeHoverPing((n) => n + 1);
 
   // The tool cluster (top-bar pill). Keeps `editor-toolbar`/`tool-palette` testids.
   const toolsEl = (
@@ -450,7 +464,12 @@ export function EditorToolbar({
         ref={fadeRef}
       >
         {/* Live size preview pinned at the bottom (VLL) — shown on tool-select, no hover; portals to body. */}
-        <BottomSizePreview style={style} isText={showFont && !showWidth} show={showWidth || showFont} />
+        <BottomSizePreview
+          style={style}
+          isText={showFont && !showWidth}
+          show={showWidth || showFont}
+          ping={sizeHoverPing}
+        />
         {/* Shape/type indicator: the selection's type/count, else the draw tool. */}
         <span className="pill style-target" data-testid="style-target">
           {multiSelected
@@ -504,7 +523,7 @@ export function EditorToolbar({
           </span>
         </label>
         {/* WIDTH — stroke width. Relevant for shapes/strokes, not text. */}
-        <label className={slot(showWidth)} aria-hidden={!showWidth}>
+        <label className={slot(showWidth)} aria-hidden={!showWidth} onMouseEnter={pingSize}>
           <input
             type="range"
             data-testid="style-width"
@@ -556,7 +575,7 @@ export function EditorToolbar({
         </div>
         {/* TEXT SIZE — relevant only for a text target; hidden (space reserved)
             for shapes/strokes. */}
-        <label className={slot(showFont)} aria-hidden={!showFont}>
+        <label className={slot(showFont)} aria-hidden={!showFont} onMouseEnter={pingSize}>
           {/* VLL: a slider couldn't land on specific sizes ("font size 8 and some others cannot be
               selected"). A dropdown picks an EXACT stop; an off-ladder stored size (legacy / freehand
               resize) shows as the nearest without being rewritten until you pick (fontSize.ts). */}

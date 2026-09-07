@@ -153,3 +153,23 @@ test("text size preview shows a sample at the bottom on tool-select, scaling wit
 
   expect(big.height, "the sample grows with the font size").toBeGreaterThan(small.height + 2);
 });
+
+// VLL: "no text on hover over the dropdown item, could be nice" — on desktop, hovering a size control
+// re-flashes the bottom preview so you can see the size without changing it. RED before: no hover trigger,
+// so once the initial select-flash fades, a hover does nothing.
+test("hovering a size control re-flashes the bottom preview (desktop) (VLL)", async ({ page }) => {
+  await register(page, `chov_${stamp()}`);
+  await createBandAndOpen(page, `ChovBand ${stamp()}`);
+  await createSongAndOpen(page, `ChovSong ${stamp()}`);
+  await uploadPdf(page);
+  await page.reload();
+  await openEditorReady(page);
+
+  await page.getByTestId("tool-text").click();
+  const hud = page.getByTestId("style-size-preview");
+  await expect(hud).toHaveClass(/\bshow\b/); // the tool-select flash
+  await expect(hud).not.toHaveClass(/\bshow\b/, { timeout: 3000 }); // …then it fades out
+
+  await page.getByTestId("style-font").hover(); // hovering the dropdown re-flashes it
+  await expect(hud).toHaveClass(/\bshow\b/);
+});
