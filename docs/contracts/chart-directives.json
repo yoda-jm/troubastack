@@ -1,0 +1,14 @@
+{
+  "_comment": "T166 — the chart dialect's directive vocabulary, in ONE place. The engine (core/internal/chartpdf) and the editor's Chart format help (web/studio) are each pinned to this file by a test, because a hand-maintained list mirroring a set defined in another language is exactly the shape that goes stale silently. Add a directive here in the same commit that adds it to the engine.",
+  "markers": [
+    { "canonical": "new_page", "alias": "np", "what": "break the page here" },
+    { "canonical": "footnote", "alias": "fn", "what": "start the footnotes / credits block" },
+    { "canonical": "start_of_tab", "alias": "sot", "what": "open tablature, kept verbatim" },
+    { "canonical": "end_of_tab", "alias": "eot", "what": "close tablature" }
+  ],
+  "header": [
+    { "key": "size", "what": "body type size in points" },
+    { "key": "fit", "what": "shrink the type to keep the chart on one page" },
+    { "key": "columns", "what": "how many columns the body is set in" }
+  ]
+}

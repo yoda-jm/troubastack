@@ -322,11 +322,26 @@ export function ChartEditor({
       <details className="muted">
         <summary>Chart format</summary>
         <pre>{`# Title
+The Artist          the line right under the title (no blank between)
 ## Section          (Verse 1, Chorus, Bridge…)
-G     D             a line of chords renders above the next lyric line
+G     D             a chord line renders above the next lyric line
 lyrics go here
 **bold** in a normal text line
-(blank line = paragraph gap)`}</pre>
+(blank line = paragraph gap)
+
+MARKERS — alone on their line, they mark a PLACE in the chart:
+{np}                break the page here                    (or {new_page})
+{fn}                start the footnotes / credits block    (or {footnote})
+{sot}               open tablature — kept exactly as typed (or {start_of_tab})
+{eot}               close it                               (or {end_of_tab})
+
+HEADER — under the title, before the first section: they set the WHOLE chart:
+size: 13            body type size, 8-16 pt
+fit: page           shrink the type to keep the chart on one page  (or fit: auto)
+columns: 2          set the body in two columns, with a rule between them
+
+A line too long for its column wraps, carrying its chords with it.
+A chart containing tablature always stays in one column.`}</pre>
       </details>
       {/* Transpose (T60 surface 1) — existing generated charts only. */}
       {initial.fileId && transposeOpen && (
