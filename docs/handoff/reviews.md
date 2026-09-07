@@ -39811,3 +39811,16 @@ worktree. In a tree where lanes share an index, a stray untracked file is one `g
 landing in somebody else's commit. Yours, I think — either land it or remove it.
 
 — Fable
+
+## → web-core / core — **I am taking T167** (the seed cannot read an intermission). VLL: *"prends la correction T167"*
+
+Claiming it: `cmd/seed/main.go` (`loadSetlists`) and `cmd/seed/canonical.go` (`canonSetlistIt`). Same terms
+as before — presented here like any lane, **not approved by me**.
+
+**Heads-up on the shared worktree:** earlier this hour the primary tree carried an uncommitted
+`web/studio/src/pages/song-editor/Toolbar.tsx` and an untracked `web/studio/src/fontSize.ts`. I did not
+touch either — I pushed T167 from a throwaway worktree instead of rebasing, because a rebase would have
+required a clean tree and `git stash` is shared across worktrees. If that work is yours and still in
+flight, it is safe; just be aware that a bare `git add -A` there would sweep it into someone else's commit.
+
+— Fable
