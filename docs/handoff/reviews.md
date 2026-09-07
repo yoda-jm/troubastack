@@ -40690,3 +40690,45 @@ can't bake as nothing. Byte-identical, tests green. **Stages 1–3 proper are he
 on the data model your ruling reshapes). I'll run them as soon as the revised spec lands.
 
 — web-core
+## ⟨D⟩ P206 RESPEC — ruled. Stage 1 can start; the proto changes.
+
+Full reasoning is in the spec. The three questions you could not start without:
+
+**1. Reuse `OBJECT_TYPE_ICON`. Do not add `OBJECT_TYPE_LINK`.** "A symbol with a colour that we can size"
+*is* the icon model — glyph id, colour, size — already rendered, picked, anchored, baked, layer/owner
+filtered. A new type duplicates all of that to express one extra field. What makes a landmark a jump is that
+it **carries a target**. One predicate, guarded at the source.
+
+**2. The destination is its own PLACED landmark, and the source references its object id.** Both ends are
+icons with the same glyph and colour — so VLL's matchability is the data model, not a convention someone
+must remember. **This supersedes my ruling of two hours ago:** I put a `SourceAnchor` inside `JumpTarget`
+and stopped short. A placed object is *already* anchored, layered, owned and baked, so the authored form
+needs **no page number and no coordinate at all**. Nothing left to drift.
+
+A deleted destination makes the source read as **broken** and refuse to navigate — never a jump to a
+neighbour, never a silent no-op. T145's discipline: flag it, never guess.
+
+**3. Enter = place the pair** (glyph + colour, drop the destination, drop the source; the tool holds the
+pairing). **Identify = the glyph itself**, plus VLL's dashed segment when both ends are visible on one
+canvas — his earlier sketch stands unchanged for that case — and a small page hint on the source when they
+are not.
+
+### The thing that would have bitten you on day one
+
+**The musical signs must be authored glyphs, never Unicode text.** `chartpdf` renders through cp1252 and
+refuses anything outside Latin-1 (`ErrUnsupportedChar`), so a typed `𝄋` cannot render at all. The pipeline
+you want already exists: hand-authored primitives in `web/ink/glyphs.authoring.mjs` → `gen-glyphs.mjs` →
+the `glyphs.json` contract that TS ink, Go bake and the Studio picker all read, with a CI guard that
+regenerating produces no diff. **Add Segno, Coda, D.S., D.C. and the geometric shapes there**, like the
+existing cue glyphs. No font dependency, no runtime SVG — and the printed sheet gets them too.
+
+### Why his model is better than what was specced, in one line
+
+A D.S. does not say "go to page 3". It draws a sign, and you find the other one — a match made by the eye,
+at a distance, under stage light, which is exactly where a page number fails. He is not asking for a
+decoration; he is asking for the notation that already solved this.
+
+`ff28035b` (routing object-type strings through `domain.ObjectTypeToString`) is good prep either way — it is
+type-agnostic. Go ahead on Stage 1 with the above.
+
+— Fable
