@@ -161,6 +161,8 @@ export function useSortable(
   const drag = useRef<{
     from: number;
     pointerId: number;
+    startY: number; // pointer Y at grab — the lifted row follows (lastY − startY)
+    startScrollTop: number; // container scroll at grab — compensates the lift during auto-scroll
     lastY: number;
     gap: number;
     raf: number;
@@ -196,6 +198,58 @@ export function useSortable(
     [midpoints],
   );
 
+  // The "nice" drag feel (T142 stage 2 polish): the grabbed row LIFTS and tracks the finger, and the other
+  // rows slide to open the slot at the current drop gap — so you see where it will land, not just a line.
+  // Applied imperatively on the registered row elements (like useFlipRows), so no call-site markup changes.
+  const applyDragVisual = useCallback(() => {
+    const d = drag.current;
+    if (!d) return;
+    const ids0 = cur.current.ids;
+    const dragged = rowEls.current.get(ids0[d.from]);
+    if (!dragged) return;
+    // slotH: the row-to-row spacing (how far a neighbour must move to open a slot).
+    const mids = midpoints();
+    let slotH = dragged.getBoundingClientRect().height;
+    const spacing =
+      d.from + 1 < mids.length ? Math.abs(mids[d.from + 1] - mids[d.from]) : Math.abs(mids[d.from] - mids[d.from - 1]);
+    if (Number.isFinite(spacing) && spacing > 0) slotH = spacing;
+    const followY = d.lastY - d.startY + (d.container.scrollTop - d.startScrollTop);
+    for (let i = 0; i < ids0.length; i++) {
+      const el = rowEls.current.get(ids0[i]);
+      if (!el) continue;
+      if (i === d.from) {
+        el.style.transition = "none";
+        el.style.transform = `translateY(${followY}px)`;
+        el.style.zIndex = "20";
+        el.style.position = "relative";
+        el.style.boxShadow = "0 6px 18px rgba(0,0,0,0.18)";
+        el.style.opacity = "0.97";
+        el.style.pointerEvents = "none";
+        continue;
+      }
+      let shift = 0;
+      if (d.from < d.gap && i > d.from && i < d.gap) shift = -slotH; // dragging down: rows between rise
+      else if (d.from >= d.gap && i >= d.gap && i < d.from) shift = slotH; // dragging up: rows between fall
+      el.style.transition = "transform 160ms ease";
+      el.style.transform = shift ? `translateY(${shift}px)` : "";
+    }
+  }, [midpoints]);
+
+  // Reset every row's inline drag styling so the post-drop reorder + FLIP start from a clean slate.
+  const clearDragVisual = useCallback((ids0: string[]) => {
+    for (const id of ids0) {
+      const el = rowEls.current.get(id);
+      if (!el) continue;
+      el.style.transform = "";
+      el.style.transition = "";
+      el.style.zIndex = "";
+      el.style.position = "";
+      el.style.boxShadow = "";
+      el.style.opacity = "";
+      el.style.pointerEvents = "";
+    }
+  }, []);
+
   const onMove = useRef<(e: PointerEvent) => void>(() => {});
   const onUp = useRef<(e: PointerEvent) => void>(() => {});
   const onCancel = useRef<() => void>(() => {});
@@ -214,6 +268,7 @@ export function useSortable(
       document.removeEventListener("pointermove", moveWrap);
       document.removeEventListener("pointerup", upWrap);
       document.removeEventListener("pointercancel", cancelWrap);
+      clearDragVisual(cur.current.ids); // reset the lift/part transforms before the reorder + FLIP settle it
       drag.current = null;
       setDragging(false);
       setDropGap(null);
@@ -223,7 +278,7 @@ export function useSortable(
         void cur.current.onReorder(reorderTo(cur.current.ids, d.from, d.gap));
       }
     },
-    [],
+    [clearDragVisual],
   );
 
   const autoScroll = useCallback(() => {
@@ -239,15 +294,17 @@ export function useSortable(
     if (dy !== 0) {
       c.scrollBy(0, dy);
       recomputeGap(d.lastY); // rows moved under a stationary finger — keep the indicator honest
+      applyDragVisual();
     }
     d.raf = requestAnimationFrame(autoScroll);
-  }, [recomputeGap]);
+  }, [recomputeGap, applyDragVisual]);
 
   onMove.current = (e: PointerEvent) => {
     const d = drag.current;
     if (!d || e.pointerId !== d.pointerId) return;
     d.lastY = e.clientY;
     recomputeGap(e.clientY);
+    applyDragVisual();
   };
   onUp.current = (e: PointerEvent) => {
     if (drag.current && e.pointerId === drag.current.pointerId) endDrag(true);
@@ -285,7 +342,16 @@ export function useSortable(
         e.preventDefault(); // a touch that isn't yet a drag must not select the title text (defect 4)
         (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         const container = scrollParent(rowEls.current.get(cur.current.ids[0]) ?? null);
-        drag.current = { from: index, pointerId: e.pointerId, lastY: e.clientY, gap: index, raf: 0, container };
+        drag.current = {
+          from: index,
+          pointerId: e.pointerId,
+          startY: e.clientY,
+          startScrollTop: container.scrollTop,
+          lastY: e.clientY,
+          gap: index,
+          raf: 0,
+          container,
+        };
         setDragging(true);
         setDropGap(index);
         document.addEventListener("pointermove", moveWrap);
