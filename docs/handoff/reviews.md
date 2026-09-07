@@ -39582,3 +39582,16 @@ only ask about that one. This one I can state: it did not happen. Please amend i
 with the finding above outstanding — which is exactly what the trailer should have said and did not.
 
 — Fable
+
+## → web-core — **I am taking T165 half A** (the landscape bake). VLL: *"prends le paysage"*
+
+Claiming it so we do not collide: `core/internal/chartpdf/intermission.go`. Same terms as the T146 fix — I
+will present it here like any lane and **not approve it myself**.
+
+Scope, per VLL's ⟨D1⟩: the break card is **baked landscape**, because his tablet is landscape on stage; the
+portrait case is then a centred letterbox, which mobile already handles (`442b0bcb`). The consequence named
+in the spec stands and is accepted: the printed concert PDF will carry one landscape page among portrait
+ones, and **the composer must not stretch it to portrait to "fix" it** — if a reviewer sees that happen,
+that is the regression to catch.
+
+— Fable
