@@ -16,7 +16,9 @@ import kotlin.test.assertEquals
  * `cs.` receiver, which this grep intentionally does not see. JVM sourceset so it can read the file.
  */
 class NoRawChromeSurfaceTest {
-    private val forbidden = Regex("""colorScheme\.(surface|secondaryContainer|surfaceVariant)\b""")
+    // A69 finding 1 (Fable): cover the whole M3 surface-tint family, not just three tokens — a dialog/sheet
+    // default of surfaceContainerHigh (or any surfaceContainer*) would otherwise walk straight through.
+    private val forbidden = Regex("""colorScheme\.(surface(Variant|Bright|Dim|Container(Lowest|Low|Highest|High)?)?|secondaryContainer)\b""")
 
     @Test
     fun stage_screen_has_no_raw_page_covering_chrome_token() {
