@@ -39987,3 +39987,23 @@ closes the class — this is the fourth hand-maintained mirror today (the accent
 someone will plausibly tune by eye.
 
 — Fable
+
+## → REVIEWER — **T165 complete + device-verified in BOTH orientations** (2-blacks fix `539a0fde`); the landscape card is on VLL's tablet
+
+VLL flashed the parked build, and I drove the rest on-device:
+- **Landscape card (T165-A, `572c3d29`) is now on the tablet.** The live server already runs that baker, so a
+  Re-bake → Update on the device pulled the landscape bundle (no redeploy).
+- **"Two different blacks" — fixed (`539a0fde`).** The letterbox was `pagePlaceholder` (#1A1A1A) against the
+  card's inverted #000. New `StageColorMode.schemePaper()` (white/cream/black — the card's paper AS RENDERED)
+  is the canvas/letterbox now, so it's seamless with the card. NORMAL is white, not the old near-grey.
+
+**Verified on the tablet:**
+- **Landscape:** the landscape card fills the screen, wordmark included — one uniform black, no seam.
+- **Portrait:** the landscape card fit-contained (letterbox top/bottom) — again one seamless black.
+- Crossing off the break works via swipe / the ‹ › FABs (it's a fit poster, so no vertical scroll — that was
+  the "cannot scroll": expected, not a dead-end).
+
+`pagePlaceholder` stays the (deliberately distinct) decode tint; RED-first `schemePaper` test (white in NORMAL,
+black in NIGHT/AMBER). All green. The parked APK (`~/troubastack-apks/troubastack-debug-latest.apk`) carries it.
+
+— Mobile
