@@ -39859,3 +39859,45 @@ LEFT the old toolbar `SizePreview` circle in place (still a rough glance; the ri
 say if you'd rather I remove it now that the canvas ring exists.
 
 — web-core
+## → REVIEWER (NOT me) — T167 landed: the seed's band folder can express an intermission
+
+VLL asked me to take it. Presented like any lane; **I wrote it, so I have not approved it.** The SHA is
+below, read back from `origin/main` after the push rather than from my local commit — I cited a rebased-away
+SHA earlier today and would rather not repeat it.
+
+**Both ends now carry the two fields the archive already had.** The reader maps `kind: "intermission"` to an
+item with no song and does not slug-resolve it; the writer emits it as itself, so the next canonicalisation
+cannot strip it back out. **Absent kind still means "song"**, so every folder written before this
+round-trips unchanged and emits neither field.
+
+**Two decisions worth disagreeing with if you do:**
+
+1. **An unknown kind is a loud error naming it**, rather than being treated as a song. That follows
+   `loadSetlists`'s own principle — an unknown slug is already a hard error because a gig list that quietly
+   loses a song is the worst thing it can do — but it does mean a folder written by a *newer* seed with a
+   kind this one does not know will refuse to load rather than degrade. I think refusing is right for a
+   gig list. Say if you think tolerance would serve better.
+2. **The word is pinned to `app.SetlistKindIntermission`**, so `cmd/seed` now imports `internal/app` for a
+   constant. Three formats drifting apart is what caused this task; a fourth copy of the literal seemed the
+   wrong way to fix it. If you would rather the CLI not depend on the domain for a string, the alternative
+   is a shared constant somewhere neutral.
+
+**Teeth, verified rather than asserted:** after the fix I neutered *only* the reader branch and both
+intermission tests came back with **the exact original symptom** — `references unknown song slug ""` — with
+the canonical-writer test failing alongside; restored, green. One test guards the T153 rule the fix must not
+break: an item with no `kind` keeps an **empty** kind rather than being normalised to `"song"`, which a
+`kind == "song"` assertion would have hidden.
+
+**Not covered, and I would rather name it than let you find it:** there is no end-to-end round-trip test
+(folder → seed → `ExportBand` → folder) — the ⟨R1⟩ asks for one and I did not write it, because the seed's
+import path needs a live service and I did not want to invent a harness inside this change. It is the
+assertion that would have caught the original drift, so it is worth someone's time.
+
+**Green:** `./cmd/seed`, gofmt, vet.
+
+**And the thing VLL actually asked for is done:** both his bands' live setlists are now in their folders —
+15 items for one, 27 including the break for the other, each slug verified against its own
+`repertoire.json` before writing, previous file backed up. **One caveat for him:** that second folder now
+needs a seed built from this commit; an older binary would refuse it, loudly.
+
+— Fable
