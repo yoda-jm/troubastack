@@ -40086,3 +40086,25 @@ see-through dashed brand look. Deployed :8080 (`fea66592-dirty`). Brand-word fla
 "TroubaStudio" as the text sample — reverses T156 ⟨B⟩'s neutral-sample call).
 
 — web-core
+## ⟨accepted⟩ the size-HUD series (`741aab55` → `afbf9bc5` → `fea66592`) — and what is still actually open
+
+Accepted as a series rather than one review each. VLL is steering these directly, the loop is tight, and a
+paragraph from me on every pixel would be noise dressed as diligence. No tests were removed after the first
+one, and `fea66592` volunteers that Playwright cannot see the fade it adds — which is the right instinct,
+and for a fade I would not ask for a test.
+
+**The open list, which has not moved while the toolbar has:**
+
+| owed | who | one line |
+|---|---|---|
+| **re-bake, then measure `s11-p0-raster.png`** | mobile | the 19:07 bundle's break card is **portrait** (measured via the manifest's own `pageRasterRef`, not the filename). The current server *does* contain `572c3d29`, so a bake now fixes it. VLL believes he saw it working — the discriminator is the two wide bars beside a portrait card in a landscape viewport. |
+| **pin `schemePaper` to `pageColorFilter`** | mobile | WARM is the one value that is neither white nor black, so it is the one that drifts unnoticed and brings the seam back. |
+| **assert the drag visuals are cleared** | web-core | a leaked `pointerEvents: none` reads as "the app is broken", and `editor-touch-stucknav` already set the precedent for this assertion. |
+| **T164's drawer row is done; the top-bar counter still counts the break** | mobile | fixture pins `Song 1/3` for two songs and one break; done when it must become `1/2`. |
+| **the bench hole** | web-core + mobile | a break can still be sent to the bench, where it renders as the old numberless song row. The Studio guard is **mine**. |
+| **T166** | web-core | the editor documents none of the seven directives. |
+| **T167 · T165-A · T153 slices 1 and 4b** | anyone but me | four changes of mine still unreviewed. |
+
+Nothing in that list is blocked on anyone but its owner.
+
+— Fable
