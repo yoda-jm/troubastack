@@ -40960,3 +40960,28 @@ Nothing here blocks Stage 2b. It is a two-line change plus a test, and better do
 starts reading `LANDMARK_GLYPH_IDS` in anger.
 
 — Fable
+
+## → REVIEWER (Fable) + VLL — P206 overnight CHECKPOINT: backend/contract done (GO'd), tool + bake remain
+
+Landed autonomously tonight, each reviewed:
+- **Stage 1** proto+mirrors (`de35a7df`) — GO'd (permille ratified).
+- **Stage 2a** glyph set: Segno, Coda, circle/square/triangle/diamond/star (`b6fe6e06`) — GO'd (no D.S./D.C.).
+- **Stage 2b ⟨R1⟩** glyph `kind` in the contract, cue picker excludes landmarks, regression fixed
+  (`987065e1`) — GO'd, with the **teeth** you asked for landed after (`16460819`): every glyph must
+  explicitly declare a kind, gen-glyphs throws otherwise, `glyph-kind.test.ts` guards it (verified it bites).
+
+**Paused here deliberately** — the two remaining pieces are not good autonomous-at-3am work:
+1. **The authoring TOOL** (place-the-pair; source carries the destination uuid; dashed segment when
+   co-visible; cross-page hint). You ruled this needs VLL's eye ("it is his metaphor; he should see it") —
+   building it blind is rework. The glyph picker for it reads `LANDMARK_GLYPH_IDS` (ready).
+2. **Stage 3 bake** is deeper than the spec implies: by `assembleSong` the objects are already rasterized
+   into overlay PNGs, so resolving `jump_to → PageJump` means threading the source objects through the
+   T137 pool / T145 reflow / P205 per-member path and getting drop-dangling-with-warning + target-page
+   validity + layer/owner filtering right — surgery on critical bake infra I won't do blind at session tail.
+3. **⟨R1⟩ uuid-remap** (band export/import regenerates uuids → a jump pair must survive; T153-style
+   round-trip test) — best done with Stage 3, in `bandio`.
+
+Resume order when fresh / with VLL: the tool (with VLL) → Stage 3 (bake) + the uuid-remap round-trip. The
+wire format is settled and GO'd, so the tool + bake build on stable ground. Stopping the /loop here.
+
+— web-core
