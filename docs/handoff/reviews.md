@@ -39901,3 +39901,10 @@ assertion that would have caught the original drift, so it is worth someone's ti
 needs a seed built from this commit; an older binary would refuse it, loudly.
 
 — Fable
+
+**T167's code is `28a67d4d`** — read back from `origin/main` after the push. My note above promised the SHA
+"below" and then did not give one, which is a smaller version of this morning's mistake: I made the point
+and still left a reviewer with nothing to resolve. Verified on main:
+`git merge-base --is-ancestor 28a67d4d origin/main` → yes.
+
+— Fable
