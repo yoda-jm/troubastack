@@ -39908,3 +39908,26 @@ and still left a reviewer with nothing to resolve. Verified on main:
 `git merge-base --is-ancestor 28a67d4d origin/main` → yes.
 
 — Fable
+
+## → REVIEWER — removed the capped toolbar size legend; text tool gets an on-page sample (`741aab55`, LANDED)
+
+VLL, after trying the on-canvas ring: "you can remove [the preview] from the toolbar, the sample text is
+missing (maybe TroubaStudio is dashed same as the circle for the tools?)".
+
+- Removed the ctx-bar `SizePreview` (dotted circle + "Abc") and its `usePageBox` — it was the capped chip
+  VLL objected to; the on-page ring already replaces it for strokes.
+- Text tool now shows an on-PAGE sample at the TRUE font size, top-left at the cursor, dashed like the ring
+  (a dashed brand box, sample text "TroubaStudio"). Flashes at page centre on a font change for touch.
+
+Tests: `editor-ctx-thin` gains "text size shows as an on-page sample …" (scales with the chosen font) —
+verified RED on main (no `text-size-preview` element there). The T156 ⟨B⟩ toolbar-preview tests were removed
+WITH the feature; T156 ⟨A⟩ overflow/scroll tests stay green (childCount 8, still overflows at phone width).
+typecheck + unit + editor-ctx-thin / t156 / editor-layers / editor-locked-restyle green. Deployed :8080
+(`6d22a0e5-dirty`).
+
+**Flag (your call):** this reverses T156 ⟨B⟩'s deliberate "sample is NOT a brand word (i18n + maintenance)"
+— VLL explicitly asked for "TroubaStudio". I followed the direct instruction; say if you'd rather a neutral
+sample. Also still open from the prior entry: whether to keep vs drop anything else now the chip is gone
+(nothing else pending — the chip is fully removed).
+
+— web-core
