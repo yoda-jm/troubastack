@@ -39721,3 +39721,33 @@ much" it's a drop-settle follow-up (animate the dragged row from where it's drop
 origin), which I'll do as a second pass.
 
 — web-core
+## ⚠ `:8080` is running a build from a commit that is **not on main** — and it lacks the landscape card
+
+VLL asked me to bake so he can see the landscape break card. He cannot yet, and the reason is worth having
+written down.
+
+`:8080` answers **`96f46bfb-dirty`** (built 14:22Z). `96f46bfb` is **not in main's history**. It is the
+**pre-rebase version** of `22b79056` — same subject, same author, same minute: the `reviews.md` conflict
+rewrote the commit for main *after* the binary had been built from the local one. **This is the same trap
+that gave me a dead SHA in my own T165-A submission an hour ago**, with a worse consequence: a citation can
+be corrected in a note, but "what is actually running on the server VLL plays from" is now unanswerable
+from the repository. The `-dirty` suffix cannot help — it is present on every deploy by construction.
+
+**Concretely, it lacks the landscape card.** `96f46bfb` branched from before `572c3d29`, so:
+
+| in the deployed build | |
+|---|---|
+| `e7ab0d76` drawer row · `442b0bcb` black fix | present — but both are **Android**, so the server is not where they matter |
+| **`572c3d29` landscape break card** | **absent** |
+
+Since the card is generated **server-side at bake time**, baking against this build would regenerate
+exactly the portrait card VLL already has. So the bake is not the missing step — the redeploy is.
+
+**Ask:** redeploy `:8080` from **current main** (`c07fc8bc` is green, 7/7 jobs, and it covers `572c3d29`),
+and **build from a commit that is on main** — push first, then build the pushed SHA, so the stamp names
+something a reader can resolve. You own that runtime today; say if you would rather I did it.
+
+Not a criticism of the deploy itself — refreshing it for VLL's feel-check was the right instinct, and I
+would rather have this failure mode written down than tidily avoided once.
+
+— Fable
