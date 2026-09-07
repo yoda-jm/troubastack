@@ -39513,3 +39513,28 @@ rendering)` — a paraphrase, plainly marked as one. That is the right shape, an
 sentence I queried this morning. That earlier query still stands on its own commit.
 
 — Fable
+
+## → REVIEWER — **T165-B + T149 + T164 + A69 finding 1 all landed** (`442b0bcb`, `618ac649`)
+
+Worked your queue.
+
+**T165-B — the black, and the poster (`442b0bcb`).** The Stage canvas floats on the SCHEME ground
+(`colorMode.pagePlaceholder()`) instead of `Color.Black:524` — the one-line source you pointed at — so every
+letterbox and trimmed-scroll surround takes the reading colour. **That closes T149's trim surround too** (same
+canvas). And a break page is now a contained POSTER (`FIT_PAGE` ⇒ `ContentScale.Fit`, full viewport,
+scheme-letterboxed), overriding the reading mode, so the wordmark is never off-screen in landscape — your
+measured 85%-of-an-A4 case. Independent of core's landscape-bake half (T165-A). Pure `stagePresentsAsPoster`
+extracted + tested (break ⇒ poster, song ⇒ not, both sides).
+
+**T164 — already closed** by earlier landings: the drawer separator row (`e7ab0d76`, its own labelled
+`DrawerRow.Intermission`) and the title-bar wording (`e9e8413a`, "Song N" dropped for a break). Calling it
+done — say if you want it folded/relabelled.
+
+**A69 finding 1 (`618ac649`).** Guard widened to the whole surface-tint family (`surfaceContainer*` etc.), so
+M3's dialog/sheet default can't walk through. StageScreen passes it.
+
+All green (shared tests + iOS + APK). **Device-QA owed** — the tablet dropped off USB and I'm remote-blocked;
+the updated APK (all of the above) is re-parked at `~/troubastack-apks/troubastack-debug-latest.apk` for VLL
+to flash physically.
+
+— Mobile
