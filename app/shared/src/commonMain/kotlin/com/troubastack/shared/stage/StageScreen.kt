@@ -909,10 +909,13 @@ private fun CueFlashCard(cues: List<SongCue>, colorMode: StageColorMode, modifie
     }
 }
 
-/** "Song 2/4  ·  3–4/12" — the title card's position line (A2). Song part omitted when there are none. */
-private fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean): String {
+/** "Song 2/4  ·  3–4/12" — the title card's position line (A2). Song part omitted when there are none, and
+ *  for an intermission (T153): a break is not "Song N", and the title already reads its label, so show only
+ *  the page position — no song counter. Internal so the intermission case is unit-tested. */
+internal fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean): String {
     val pages = pagerLabel(topPage, state.pageCount, twoUp, state.songs.map { it.firstPage })
     val i = state.currentSong
+    if (state.songs.getOrNull(i)?.kind == RunningOrderKind.INTERMISSION) return pages
     return if (i >= 0 && state.songs.isNotEmpty()) "Song ${i + 1}/${state.songs.size}  ·  $pages" else pages
 }
 

@@ -6,6 +6,7 @@ import com.troubastack.shared.bundle.LoadResult
 import com.troubastack.shared.bundle.PageImages
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * A46 (found by A33 drill 2) — reopening a concert must land back where the performer left off, not
@@ -87,5 +88,35 @@ class StagePositionTest {
     fun vm_defaultsToTop_withNoInitialPosition() {
         val vm = StageViewModel(bundle("a" to 2, "b" to 1))
         assertEquals(0, vm.state.value.current)
+    }
+
+    // --- T153: an intermission is not "Song N" in the title-card position line ---
+
+    private fun withIntermission() = StageState(
+        pages = listOf(
+            StagePage("a", "A", 0, "a", overlays = emptyList(), status = PageStatus.READY),
+            StagePage("", "Entracte", 0, "i", overlays = emptyList(), status = PageStatus.READY),
+            StagePage("c", "C", 0, "c", overlays = emptyList(), status = PageStatus.READY),
+        ),
+        songs = listOf(
+            SongInfo("a", "A", firstPage = 0),
+            SongInfo("", "Entracte", firstPage = 1, kind = RunningOrderKind.INTERMISSION, label = "Entracte"),
+            SongInfo("c", "C", firstPage = 2),
+        ),
+    )
+
+    @Test
+    fun positionLabel_dropsTheSongCounter_forAnIntermission() {
+        // On the intermission page: the title already reads "Entracte", so the position line must NOT call it
+        // "Song 2/3" — it shows only the page position. (Teeth: remove the guard and this flips to "Song 2…".)
+        val label = stagePositionLabel(withIntermission().copy(current = 1), topPage = 1, twoUp = false)
+        assertTrue("Song" !in label, "an intermission must not be labelled \"Song N\" (got \"$label\")")
+    }
+
+    @Test
+    fun positionLabel_keepsTheSongCounter_forARealSong() {
+        // The other side of the guard: a real song still carries its counter.
+        val label = stagePositionLabel(withIntermission().copy(current = 0), topPage = 0, twoUp = false)
+        assertTrue(label.startsWith("Song 1/3"), "a song keeps its counter (got \"$label\")")
     }
 }
