@@ -93,12 +93,27 @@ A hardcoded `Color.Black`, invisible to A69's guard because that guard looks for
 tokens and this is a colour literal. It only shows when the page does not fill the viewport — which is
 **exactly** the three cases he reported: a fitted break card, a trimmed scroll page, a short page.
 
-**The per-scheme ground already exists: `StageColorMode.pagePlaceholder()`** — near-paper `#EDEDED` in
-NORMAL, cream in WARM, dark in NIGHT/AMBER — already used at `:1481` for the decode placeholder, and
-already correct for exactly this job. Take the canvas ground from it. **Do not** take it from A69's
-`stageChromePalette()`: that is the palette for *chrome* (drawer, sheets, dialogs), and the surround
-around a page is *page ground*. Using the chrome surface here would look right by accident in NIGHT and
-wrong in NORMAL.
+**⚠ CORRECTED 2026-09-07 — I named the wrong colour here, emphatically, and VLL caught it on his tablet.**
+
+I wrote that the ground *"already exists: `StageColorMode.pagePlaceholder()` … already correct for exactly
+this job"*. It is not. `pagePlaceholder` is the **decode tint**, and its own docstring says the NIGHT value
+is *"dark, still distinct from the pure-black canvas"* — **deliberately not** the paper. Following my
+instruction put `#1A1A1A` beside a card whose white paper inverts to `#000`: **two different blacks and a
+visible seam**, which is what VLL reported. I reasoned "a per-scheme dark colour" and stopped, without
+asking what the card's own paper *becomes* under the same filter.
+
+**The right source is `StageColorMode.schemePaper()`** (added in `539a0fde`) — the colour a white sheet
+becomes under `pageColorFilter`: white in NORMAL, `#FFF5D1` in WARM, black in NIGHT and AMBER. Verified by
+applying the matrices to white rather than by reading the constants. The letterbox then matches the card's
+own paper exactly, in every scheme, and there is no seam to see.
+
+**Do not** take it from A69's `stageChromePalette()` either: that is the palette for *chrome* (drawer,
+sheets, dialogs), and the surround around a page is *page ground*. Using the chrome surface would look
+right by accident in NIGHT and wrong in NORMAL.
+
+**The lesson worth keeping:** "a colour that varies per scheme" was not a specific enough requirement. The
+requirement is "the colour THIS card's paper turns into" — and there was exactly one way to find it, which
+was to apply the filter rather than to shop among the existing palettes.
 
 **This one change also closes T149's trim surround**, which is the same canvas — so do it once, here, and
 say so on both tasks rather than fixing black twice.
@@ -120,10 +135,13 @@ presentation.
   consume.
 - A song's page is **unchanged** in all three modes — this must not leak into normal pages.
 - The surround colour comes from the scheme, asserted different between a light and a dark scheme.
-- **The canvas ground is `pagePlaceholder(mode)`, not `Color.Black`.** Teeth: a test that only asserted
-  "the surround is not black in NIGHT" would pass on the bug, because NIGHT's ground is dark anyway —
-  assert it in **NORMAL**, where the current literal is black and the correct value is near-paper. That is
-  the assertion the defect actually fails.
+- **The canvas ground is `schemePaper(mode)`** — NOT `Color.Black`, and NOT `pagePlaceholder(mode)` (see
+  the correction above: that is the decode tint and it seams against the card). Teeth: a test that only
+  asserted "the surround is not black in NIGHT" would pass on the bug, because NIGHT's ground is dark
+  anyway — assert it in **NORMAL**, where the literal is black and the paper is white.
+- **Pin `schemePaper` to the filter it mirrors:** apply `pageColorFilter(mode)` to white and assert it
+  equals `schemePaper(mode)`, for all four schemes. Teeth: change one coefficient of the WARM diagonal and
+  it must redden — WARM is the only value that is neither white nor black, so it is the one that drifts.
 
 ## Done means
 
