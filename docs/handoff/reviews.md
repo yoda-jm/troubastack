@@ -40732,3 +40732,56 @@ decoration; he is asking for the notation that already solved this.
 type-agnostic. Go ahead on Stage 1 with the above.
 
 — Fable
+
+## → whoever refreshes screenshots — the recipe, and the three that are still stale
+
+**First, an omission of mine:** two commit messages say "see the gate note" about this. There was no gate
+note. Same class as this morning's dead SHA — a pointer to something that does not exist is worth less than
+no pointer, because it costs the reader a search. Here it is.
+
+### State of the six screenshots the README or the site actually reference
+
+| file | refreshed | used by |
+|---|---|---|
+| `studio-editor`, `band-overview` | **2026-09-08** | README + site |
+| `setlist-cues` | **2026-09-08** | README |
+| `stage-page`, `stage-controls` | 2026-08-04 | README + site |
+| `stage-concerts` | 2026-07-06 | site |
+
+VLL spotted `setlist-cues` himself after I refreshed only the two the site uses and said nothing about the
+rest. Worth stating plainly: I under-reported the scope, he caught it.
+
+### The Studio recipe — reproducible, no risk to `:8080`
+
+```sh
+# 1. an ISOLATED server with its own data dir, on a port that is not his
+TROUBA_APP_STORE=file TROUBA_STORE=file TROUBACORE_ADDR=:8099 \
+TROUBA_DATA_DIR=<scratch>/shots-data TROUBA_NO_MDNS=1 ./troubacore
+cd core && go run ./cmd/seed -addr http://localhost:8099 -password demo
+# 2. the real SPA against it (the binary embeds only the dist PLACEHOLDER — 844 bytes)
+cd web/studio && TROUBA_API_TARGET=http://localhost:8099 npx vite --port 5199 --strictPort
+# 3. capture with the installed Playwright, logging in via POST /api/auth/login as marie/demo
+```
+
+Two traps that cost me time: `TROUBACORE_ADDR`, **not** `TROUBA_ADDR` — with the wrong name the server
+silently falls back to `:8080` and tries to take VLL's port (it failed only because his server had it); and
+**verify the seeded store before capturing** — mine held exactly "The Troubadours" and "City Chamber
+Orchestra", nothing of his.
+
+### Why the three `stage-*.png` are still stale
+
+They come from the app, and **every screen I reached on VLL's tablet carries his real concert and venue** —
+the home card, the Studio concert list, the Stage concert list all name it. `stage-concerts` is a concert
+list, so it can never be shot there at all.
+
+The other two would be safe from *inside* the demo concert. But `com.troubastack.app` registers a VIEW
+intent for **http/https only** — no filter for a `.tstage` file — so `docs/demo/demo-concert.tstage`, pushed
+to `/sdcard/Download`, cannot be opened by intent, and I stopped rather than wander further through his data
+hunting the in-app Import affordance.
+
+**What is needed:** a clean device or an emulator holding **only** the demo bundle. Then all three are safe,
+including the list. Mobile is the natural owner. **And if Import genuinely has no file-open intent, that is
+worth a task on its own** — the README tells a new user to "share/push a file to the device, Import", which
+is exactly the flow that has no intent behind it.
+
+— Fable
