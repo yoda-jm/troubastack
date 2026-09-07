@@ -495,10 +495,14 @@ export function EditCanvas({
   // touch (no hover) sees it too. Positioned imperatively (like the hover cursor) — no re-render per move.
   // style.width is a fraction of page WIDTH, so a true circle needs its height scaled by the page's w/h.
   const brushRingRef = useRef<HTMLDivElement | null>(null);
+  const textPreviewRef = useRef<HTMLDivElement | null>(null);
   const ringFlashTimer = useRef<number | null>(null);
+  const textFlashTimer = useRef<number | null>(null);
   const prevWidthRef = useRef(style.width);
+  const prevFontRef = useRef(style.fontSize);
   const toolUsesWidth =
     tool === "freehand" || tool === "line" || tool === "rect" || tool === "ellipse" || tool === "arrow";
+  const toolIsText = tool === "text";
   const sizeBrushRingAt = (fracX: number, fracY: number) => {
     const ring = brushRingRef.current;
     const dims = pageDims();
@@ -521,6 +525,25 @@ export function EditCanvas({
     const ring = brushRingRef.current;
     if (ring) ring.style.display = "none";
   };
+  // The text tool's on-page preview: a sample at the TRUE font size (fontSize is a fraction of page HEIGHT),
+  // its top-left at the cursor — where the text would anchor. Styled dashed like the ring (VLL).
+  const sizeTextPreviewAt = (fracX: number, fracY: number) => {
+    const el = textPreviewRef.current;
+    const dims = pageDims();
+    if (!el || !dims || dims.h <= 0) return;
+    if (textFlashTimer.current) {
+      window.clearTimeout(textFlashTimer.current);
+      textFlashTimer.current = null;
+    }
+    el.style.left = `${fracX * 100}%`;
+    el.style.top = `${fracY * 100}%`;
+    el.style.fontSize = `${(style.fontSize ?? 0) * dims.h}px`;
+    el.style.display = "inline-block";
+  };
+  const hideTextPreview = () => {
+    const el = textPreviewRef.current;
+    if (el) el.style.display = "none";
+  };
   // Touch has no hover, so flash the ring at the page centre whenever the width changes.
   useEffect(() => {
     if (prevWidthRef.current === style.width) return; // skip mount + width-unrelated re-renders
@@ -531,9 +554,20 @@ export function EditCanvas({
     ringFlashTimer.current = window.setTimeout(hideBrushRing, 900);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [style.width]);
-  // Switching to a tool with no stroke width drops any lingering ring.
+  // Touch has no hover: flash the text sample at the page centre when the font size changes.
+  useEffect(() => {
+    if (prevFontRef.current === style.fontSize) return;
+    prevFontRef.current = style.fontSize;
+    if (!toolIsText) return;
+    sizeTextPreviewAt(0.5, 0.5);
+    if (textFlashTimer.current) window.clearTimeout(textFlashTimer.current);
+    textFlashTimer.current = window.setTimeout(hideTextPreview, 900);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [style.fontSize]);
+  // Switching tools drops any preview that no longer applies.
   useEffect(() => {
     if (!toolUsesWidth) hideBrushRing();
+    if (!toolIsText) hideTextPreview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool]);
 
@@ -640,7 +674,8 @@ export function EditCanvas({
     // ---- Multi-touch (T27 stage 4): track pointers; a SECOND pointer starts a
     //      two-finger navigation (pinch-zoom + pan), in every tool. ----
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    hideBrushRing(); // a press starts a gesture — the wet stroke shows the size now, drop the hover ring
+    hideBrushRing(); // a press starts a gesture — the wet stroke shows the size now, drop the hover preview
+    hideTextPreview();
     if (pointersRef.current.size >= 2 && !navRef.current) {
       cancelWetGesture(); // abandon any one-finger stroke/pan; two fingers = navigate
       const ids = [...pointersRef.current.keys()].slice(-2);
@@ -843,12 +878,19 @@ export function EditCanvas({
       // No active gesture → this is a HOVER. Set an action-reflecting cursor from
       // the SAME pickAt the press will use, so the cursor predicts the next drag.
       updateHoverCursor(e);
-      // …and ring the cursor at the stroke's true size (draw tools only).
+      // …and preview the size on the page: a ring at the cursor for draw tools, a sample at the true font
+      // size for the text tool (only one shows at a time).
       if (toolUsesWidth) {
         const p = pageRelative(e);
         sizeBrushRingAt(p.x, p.y);
+        hideTextPreview();
+      } else if (toolIsText) {
+        const p = pageRelative(e);
+        sizeTextPreviewAt(p.x, p.y);
+        hideBrushRing();
       } else {
         hideBrushRing();
+        hideTextPreview();
       }
       return;
     }
@@ -1019,7 +1061,8 @@ export function EditCanvas({
           // cursor doesn't linger; CSS `.tool-*` default takes over.
           const c = canvasRef.current;
           if (c && c.style.cursor) c.style.cursor = "";
-          hideBrushRing(); // the cursor left the page — drop the size ring
+          hideBrushRing(); // the cursor left the page — drop the size previews
+          hideTextPreview();
         }}
       />
       {/* Selection overlays: DOM elements positioned in % of the page box, so
@@ -1028,6 +1071,15 @@ export function EditCanvas({
         {/* Brush-size ring (VLL): the stroke's true diameter, on the page, uncapped by the toolbar. Sized
             + positioned imperatively (see sizeBrushRingAt); hidden until a draw-tool hover / width change. */}
         <div ref={brushRingRef} className="brush-ring" data-testid="brush-ring" style={{ display: "none" }} />
+        {/* Text tool: a sample at the true font size, dashed like the ring (VLL). */}
+        <div
+          ref={textPreviewRef}
+          className="text-size-preview"
+          data-testid="text-size-preview"
+          style={{ display: "none" }}
+        >
+          TroubaStudio
+        </div>
         {selectedOnPage.map((o) => {
           // While resizing THIS object, draw the live preview box so the bbox +
           // handles follow the drag.

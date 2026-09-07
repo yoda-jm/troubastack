@@ -129,3 +129,35 @@ test("stroke size shows as a true-scale ring on the page, uncapped by the toolba
   expect(Math.abs(rb.width - expectedPx), `ring ${rb.width} vs true ${expectedPx}`).toBeLessThanOrEqual(4);
   expect(Math.abs(rb.width - rb.height), "the ring is a circle").toBeLessThanOrEqual(3);
 });
+
+// VLL: "the sample text is missing" — the text tool needs an on-page size preview too (the toolbar chip is
+// gone). A sample is shown at the TRUE font size, dashed like the ring. RED before: no text-size-preview.
+test("text size shows as an on-page sample that scales with the chosen size (VLL)", async ({ page }) => {
+  await register(page, `ctp_${stamp()}`);
+  await createBandAndOpen(page, `CTPBand ${stamp()}`);
+  await createSongAndOpen(page, `CTPSong ${stamp()}`);
+  await uploadPdf(page);
+  await page.reload();
+  await openEditorReady(page);
+
+  await page.getByTestId("tool-text").click();
+  const canvas = page.getByTestId("edit-canvas").first();
+  const cb = (await canvas.boundingBox())!;
+  const hover = async () => {
+    await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2 - 12);
+    await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+  };
+
+  await page.getByTestId("style-font").selectOption("0.048"); // large
+  await hover();
+  const sample = page.getByTestId("text-size-preview").first();
+  await expect(sample).toBeVisible();
+  const big = (await sample.boundingBox())!;
+
+  await page.getByTestId("style-font").selectOption("0.012"); // small
+  await hover();
+  const small = (await sample.boundingBox())!;
+
+  // The on-page sample tracks the chosen size (not clamped to a toolbar height).
+  expect(big.height).toBeGreaterThan(small.height + 2);
+});

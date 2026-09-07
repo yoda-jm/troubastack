@@ -844,23 +844,6 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 .ctx-bar .style-target,
 .ctx-bar .style-value,
 .ctx-bar .style-field { white-space: nowrap; }
-/* T156 ⟨B⟩ — the size legend. A fixed-height slot centres the circle/text sample so the bar's height
-   never changes as the size does; the legend is non-interactive (a legend, not a control), so a pan
-   gesture over it still reaches the scrollable strip. */
-.ctx-bar .style-size-preview-slot {
-  flex: 0 0 auto; pointer-events: none; white-space: nowrap;
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 26px; height: 24px;
-}
-.ctx-bar .style-size-preview { pointer-events: none; }
-.ctx-bar .style-size-preview-circle {
-  display: inline-block; box-sizing: border-box;
-  border: 1.5px dashed var(--muted); border-radius: 50%;
-}
-.ctx-bar .style-size-preview-text {
-  color: var(--muted); line-height: 1;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
 /* In the floating .ctx the row stays a SINGLE slim line (matches the mockup): the
    canvas no longer shifts (the pill floats + zero-shift is the live guard), so hidden
    per-type slots collapse to display:none instead of reserving space. */
@@ -1174,6 +1157,21 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   box-sizing: border-box;
   pointer-events: none;
   background: color-mix(in srgb, var(--brand) 8%, transparent);
+}
+/* Text tool's on-page size preview (VLL): a sample at the TRUE font size, dashed like the ring. Sized +
+   positioned imperatively (WetCanvas.sizeTextPreviewAt); its top-left sits where the text would anchor. */
+.text-size-preview {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  white-space: nowrap;
+  line-height: 1.1;
+  padding: 1px 5px;
+  border: 1.5px dashed var(--brand);
+  border-radius: 5px;
+  color: color-mix(in srgb, var(--brand) 72%, var(--muted));
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 .selected-bbox {
   position: absolute; box-sizing: border-box;
