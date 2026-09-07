@@ -225,9 +225,68 @@ function useScrollFade<T extends HTMLElement>(dep?: unknown) {
   return ref;
 }
 
-// The size preview moved OUT of the toolbar and onto the page (VLL): the ctx-bar chip was capped to the
-// bar height so large sizes looked identical. WetCanvas now shows the stroke's true diameter as a ring at
-// the cursor, and the text tool a sample at true size — both uncapped. (Was: usePageBox + SizePreview.)
+// Measure the on-screen page box so the preview means the SAME thing as the ink: a stroke's width is a
+// fraction of page WIDTH, a text's fontSize a fraction of page HEIGHT (I3). The rendered `.pdf-page` element
+// is what the ink draws onto, so its clientWidth/Height ARE those dimensions in CSS px at the current zoom.
+function usePageBox(): { w: number; h: number } {
+  const [box, setBox] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    let ro: ResizeObserver | null = null;
+    let raf = 0;
+    const attach = () => {
+      const el = document.querySelector('[data-testid="pdf-page"]') as HTMLElement | null;
+      if (!el) {
+        raf = requestAnimationFrame(attach);
+        return;
+      }
+      const read = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+      ro = new ResizeObserver(read);
+      ro.observe(el);
+      read();
+    };
+    attach();
+    return () => {
+      if (ro) ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+  return box;
+}
+
+// BottomSizePreview (VLL): a live size preview pinned at the BOTTOM of the viewport — shown the moment a
+// size tool is selected and updated as the size changes, NO hover required (a hover ring is impossible on a
+// phone). It shows the TRUE size — a dashed circle at the stroke's real diameter, or a text sample at the
+// real font size — with room the toolbar chip never had (that was capped to the bar height). The generous
+// max is a layout safety rail, well above any real width/size, so the whole range still shows true. Portaled
+// to <body>: the ctx-bar has a translateX(-50%) transform, which would anchor a fixed child to the bar.
+const HUD_MAX_CIRCLE = 140;
+const HUD_MAX_TEXT = 96;
+function BottomSizePreview({ style, isText, show }: { style: AnnotationStyle; isText: boolean; show: boolean }) {
+  const { w, h } = usePageBox();
+  if (!show) return null;
+  let visual: ReactNode;
+  let label: string;
+  if (isText) {
+    const px = Math.min(HUD_MAX_TEXT, Math.max(8, style.fontSize * (h || 850)));
+    visual = (
+      <span className="size-hud-text" style={{ fontSize: `${px}px` }}>
+        TroubaStudio
+      </span>
+    );
+    label = `${Math.round(style.fontSize * 1000)}`;
+  } else {
+    const d = Math.min(HUD_MAX_CIRCLE, Math.max(2, style.width * (w || 600)));
+    visual = <span className="size-hud-circle" style={{ width: `${d}px`, height: `${d}px` }} />;
+    label = `${widthToMm(style.width).toFixed(2)} mm`;
+  }
+  return createPortal(
+    <div className="size-hud" data-testid="style-size-preview" aria-hidden="true">
+      {visual}
+      <span className="size-hud-label">{label}</span>
+    </div>,
+    document.body,
+  );
+}
 
 export function EditorToolbar({
   part,
@@ -374,6 +433,8 @@ export function EditorToolbar({
         data-testid="style-controls"
         ref={fadeRef}
       >
+        {/* Live size preview pinned at the bottom (VLL) — shown on tool-select, no hover; portals to body. */}
+        <BottomSizePreview style={style} isText={showFont && !showWidth} show={showWidth || showFont} />
         {/* Shape/type indicator: the selection's type/count, else the draw tool. */}
         <span className="pill style-target" data-testid="style-target">
           {multiSelected

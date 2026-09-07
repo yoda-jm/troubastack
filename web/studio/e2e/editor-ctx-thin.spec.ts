@@ -92,10 +92,22 @@ test("text size is a dropdown offering small sizes the slider couldn't reach (VL
   await expect(font).toHaveValue("0.008");
 });
 
-// VLL: the toolbar size preview "is capped to the toolbar size, we need to find something else". The chosen
-// answer: show the stroke's TRUE diameter as a ring ON THE PAGE (uncapped), following a draw-tool hover.
-// RED before: no brush-ring element existed; the only size preview was clamped to PREVIEW_MAX_PX = 24.
-test("stroke size shows as a true-scale ring on the page, uncapped by the toolbar (VLL)", async ({ page }) => {
+// Set a React range input to a stop index (native setter + events so onChange fires).
+async function setRange(page: Page, testid: string, value: string) {
+  await page.getByTestId(testid).evaluate((el, v) => {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")!.set!;
+    setter.call(el, v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }, value);
+}
+
+// VLL: the toolbar size preview "is capped to the toolbar size" AND a hover preview "is not possible on a
+// phone" — he wants it "at the bottom … when you select the tool and when you change it". So a live preview
+// pinned bottom-centre, shown on tool-select (NO hover) and uncapped. RED before: no bottom preview existed.
+test("stroke size preview shows at the bottom on tool-select (no hover), scaling + uncapped (VLL)", async ({
+  page,
+}) => {
   await register(page, `cr_${stamp()}`);
   await createBandAndOpen(page, `CRBand ${stamp()}`);
   await createSongAndOpen(page, `CRSong ${stamp()}`);
@@ -103,36 +115,26 @@ test("stroke size shows as a true-scale ring on the page, uncapped by the toolba
   await page.reload();
   await openEditorReady(page);
 
+  // Selecting the tool alone shows the preview — no pointer over the canvas.
   await page.getByTestId("tool-rect").click();
-  // Crank the stroke width to its largest stop.
-  const slider = page.getByTestId("style-width");
-  const stops = (await slider.getAttribute("data-stops"))!.split(",").map(Number);
-  const frac = stops[stops.length - 1];
-  await slider.evaluate((el, idx) => {
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")!.set!;
-    setter.call(el, String(idx));
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-  }, stops.length - 1);
+  await expect(page.getByTestId("style-size-preview")).toBeVisible();
+  const circle = page.locator(".size-hud-circle");
 
-  const canvas = page.getByTestId("edit-canvas").first();
-  const cb = (await canvas.boundingBox())!;
-  // A real pointermove over the canvas (two moves → a delta) drives the hover-ring path.
-  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2 - 12);
-  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+  const stops = (await page.getByTestId("style-width").getAttribute("data-stops"))!.split(",").map(Number);
+  await setRange(page, "style-width", "3");
+  const thin = (await circle.boundingBox())!;
+  await setRange(page, "style-width", String(stops.length - 1));
+  const thick = (await circle.boundingBox())!;
 
-  const ring = page.getByTestId("brush-ring").first(); // one overlay per page; the first is the hovered one
-  await expect(ring).toBeVisible();
-  const rb = (await ring.boundingBox())!;
-  const expectedPx = frac * cb.width; // true diameter = width-fraction × page px
-  expect(expectedPx, "premise: the largest stroke exceeds the old 24px toolbar cap").toBeGreaterThan(24);
-  expect(Math.abs(rb.width - expectedPx), `ring ${rb.width} vs true ${expectedPx}`).toBeLessThanOrEqual(4);
-  expect(Math.abs(rb.width - rb.height), "the ring is a circle").toBeLessThanOrEqual(3);
+  expect(thick.width, "the circle grows with the width").toBeGreaterThan(thin.width + 2);
+  expect(thick.width, "uncapped: past the old 24px toolbar cap").toBeGreaterThan(24);
 });
 
-// VLL: "the sample text is missing" — the text tool needs an on-page size preview too (the toolbar chip is
-// gone). A sample is shown at the TRUE font size, dashed like the ring. RED before: no text-size-preview.
-test("text size shows as an on-page sample that scales with the chosen size (VLL)", async ({ page }) => {
+// VLL: "the sample text is missing" — the text tool gets the same bottom preview, a sample at the true font
+// size, shown on tool-select without hovering. RED before: no bottom preview / sample.
+test("text size preview shows a sample at the bottom on tool-select, scaling with the font (VLL)", async ({
+  page,
+}) => {
   await register(page, `ctp_${stamp()}`);
   await createBandAndOpen(page, `CTPBand ${stamp()}`);
   await createSongAndOpen(page, `CTPSong ${stamp()}`);
@@ -141,23 +143,13 @@ test("text size shows as an on-page sample that scales with the chosen size (VLL
   await openEditorReady(page);
 
   await page.getByTestId("tool-text").click();
-  const canvas = page.getByTestId("edit-canvas").first();
-  const cb = (await canvas.boundingBox())!;
-  const hover = async () => {
-    await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2 - 12);
-    await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
-  };
-
-  await page.getByTestId("style-font").selectOption("0.048"); // large
-  await hover();
-  const sample = page.getByTestId("text-size-preview").first();
-  await expect(sample).toBeVisible();
-  const big = (await sample.boundingBox())!;
+  await expect(page.getByTestId("style-size-preview")).toBeVisible(); // shown on select, no hover
+  const sample = page.locator(".size-hud-text");
 
   await page.getByTestId("style-font").selectOption("0.012"); // small
-  await hover();
   const small = (await sample.boundingBox())!;
+  await page.getByTestId("style-font").selectOption("0.048"); // large
+  const big = (await sample.boundingBox())!;
 
-  // The on-page sample tracks the chosen size (not clamped to a toolbar height).
-  expect(big.height).toBeGreaterThan(small.height + 2);
+  expect(big.height, "the sample grows with the font size").toBeGreaterThan(small.height + 2);
 });
