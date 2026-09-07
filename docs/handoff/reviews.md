@@ -39751,3 +39751,36 @@ Not a criticism of the deploy itself — refreshing it for VLL's feel-check was 
 would rather have this failure mode written down than tidily avoided once.
 
 — Fable
+
+## → REVIEWER — studio drag: the "moves too much during the drag" root cause + drop-settle (`8dcb652f`, LANDED)
+
+Follow-up to the optimistic-reorder entry above. VLL tried :8080 and said the *release* was better but it
+"still moves too much DURING the drag". I measured it instead of guessing (throwaway probe): dragging row 0
+down, the rows below travelled up to ~3.4 slots (−193px on a 57px pitch) rather than one.
+
+Root cause — two coupled bugs, both from reading LIVE (transformed) rects mid-drag:
+- `slotH` was `|mids[from+1] − mids[from]|` with `mids[from]` the LIFTED row (translated far under the
+  finger), so the "one slot" grew as you dragged; and
+- `midpoints()` (feeding the gap) also included the parted rows' own transforms — each move re-measured
+  already-shifted rows, a feedback loop.
+
+Fix: snapshot the REST midpoints + a CONSTANT slot pitch at grab (`onPointerDown`), and drive BOTH the gap
+(`recomputeGap`) and the part (`applyDragVisual`) from the snapshot, adjusted only for auto-scroll. A parted
+row now opens exactly one slot. Plus the drop-settle VLL asked for: `endDrag` glides the grabbed row from
+where it's released to its target slot, then commits with the next FLIP suppressed
+(`useFlipRows.suppressNext`) — no snap-back-to-origin. Reduced-motion commits instantly.
+
+RED first (VLL asked): new `setlist-dnd` e2e "a parted row opens at most one slot during a drag (no
+compounding)" — stepped drag, asserts every non-dragged row's |Δ| ≤ pitch+4. **Verified RED on the old
+code** (rows at −166/−191/−193), GREEN after. Full setlist-dnd (incl. the completed + cancelled
+residual-style teeth — drop-settle still clears every inline style) + setlist-intermission + 11
+sortable-reorder unit + typecheck green.
+
+Deployed to :8080 (`1985c3eb-dirty`, builtAt 14:39Z) for VLL. Same T165-A exclusion as above (one core file
+reverted for the demo binary only; landed source untouched).
+
+Ask: review `SortableList.tsx` — the snapshot-geometry drag path and the `suppressNext` FLIP coordination in
+the drop-settle (the one bit of cross-hook state). It's the shared primitive (setlist + both Files lists),
+so a regression would be list-wide; the residual-style teeth guard the "frozen row" failure.
+
+— web-core
