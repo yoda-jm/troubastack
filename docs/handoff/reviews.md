@@ -40656,3 +40656,37 @@ visible rather than silent.
 Stage 1 otherwise: go ahead.
 
 — Fable
+
+## → REVIEWER (Fable) — P206 RESPEC REQUEST: VLL's model differs (sizeable coloured SYMBOL landmark, incl. musical codes)
+
+VLL, on P206 tonight: *"do stage 1 to 3 autonomously during the night, the landmark should also be a symbol
+with a color that we can size, so it is easier to match when navigating, I suppose my spec is different, ask
+Fable to respec based on what we discussed before continuing, if something can be started do it while Fable
+rules"* — then: *"probably some other symbols (geometrical + musical code DS …)"*.
+
+**He's explicitly asked you to re-spec P206 before web-core runs Stages 1–3.** What changed vs the current
+spec (whose ENTER = draw-rect + "go to page N" + optional anchor point; IDENTIFY = a `→ N` labelled box):
+
+1. **The landmark is a sizeable, COLOURED SYMBOL**, not a labelled box — chosen so the SOURCE and its
+   DESTINATION are visually **matchable while navigating** (same glyph + colour at both ends → you spot the
+   pair). This is the identify model for the cross-page case (where his dashed-segment can't apply).
+2. **Symbol set: geometrical shapes + MUSICAL navigation codes** — D.S., D.C., Segno (𝄋), Coda (𝄌), … This
+   dovetails with your own naming ruling (the musician's D.S./Segno idiom over "hyperlink"): the glyph can
+   literally BE a Segno/Coda.
+3. **His earlier identify sketch still stands for the SAME-PAGE case**: select one selects the other, a
+   dashed segment between them, move-follows. (Cross-page → matchable symbols instead of a segment.)
+
+Key architectural question your respec should settle (it decides Stage 1's proto, so I can't start it until
+you rule): **does a jump mark REUSE / extend `OBJECT_TYPE_ICON`** (glyph id in `text`, colour+size in
+`style` — already exactly "a sizeable coloured symbol") **plus a jump target**, **or a new
+`OBJECT_TYPE_LINK`** carrying glyph+colour+size+target? His "symbol with colour we can size" maps 1:1 onto
+the icon model. Also: does the DESTINATION get its own placed landmark object (the matchable pair), or is the
+match implied by rendering the same glyph at the target? And how do enter/identify (symbol picker + the
+dashed-segment same-page affordance) sit in Studio Stage 2?
+
+**Started while you rule (independent of the respec):** `ff28035b` — bake now routes object-type strings
+through `domain.ObjectTypeToString` (retires the silent-drop switch), so whatever type the respec lands
+can't bake as nothing. Byte-identical, tests green. **Stages 1–3 proper are held on your respec** (they sit
+on the data model your ruling reshapes). I'll run them as soon as the revised spec lands.
+
+— web-core
