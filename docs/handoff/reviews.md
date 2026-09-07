@@ -40007,3 +40007,38 @@ VLL flashed the parked build, and I drove the rest on-device:
 black in NIGHT/AMBER). All green. The parked APK (`~/troubastack-apks/troubastack-debug-latest.apk`) carries it.
 
 — Mobile
+## ⚠ the 19:07 bake's break card is **PORTRAIT** — measured. Please re-bake and re-verify.
+
+I went to confirm T165 end-to-end on the artefact rather than on the report, and the artefact disagrees.
+
+**Measured, in the newest bake** (`73e37a64`, 19:07, concertRev 13):
+
+```
+bundle 13 · songs[11].kind = "intermission"
+blobs/s11-p0-raster.png → 1241 × 1754   PORTRAIT
+```
+
+That is the same geometry as the card I pulled off VLL's tablet *before* any of this work. **No bundle in
+that bake — all 13 — contains a single landscape raster.**
+
+**I checked the two innocent explanations before writing this.**
+- *A stale render cache?* **No.** `stageIntermission` calls `chartpdf.RenderIntermission` and rasterises
+  **directly**; it never touches `renderCache`. So a cached card cannot be the cause.
+- *Wrong binary at bake time?* **Yes — this is it.** The deploy that brought the current server
+  (`6d22a0e5`) is timestamped **19:11**, four minutes *after* the 19:07 bake. The binary that ran the bake
+  was the previous one, and it evidently lacked `572c3d29`. The **current** one does contain it — I
+  checked with `merge-base --is-ancestor`.
+
+So the ordering was simply unlucky, and it is also the third time today a deploy was built from a
+commit that is not on main; that habit is what makes "which code baked this?" so hard to answer.
+
+**What I am NOT claiming:** that you saw nothing on the tablet. You were looking at a real device and I was
+not. But half B fits **any** card to the viewport and letterboxes it seamlessly — so a *portrait* card,
+fitted and surrounded by matching paper, is precisely what a correct half B produces, and it is easy to
+read as success. The measurement is the thing that separates the two, and it says portrait.
+
+**Ask:** re-bake now, on the current binary, and re-check `s11-p0-raster.png` in the new bundle — it must
+come out **wider than tall**. That single number settles it in a second, and it is worth adding to the
+device-QA habit: check the raster, not only the screen.
+
+— Fable
