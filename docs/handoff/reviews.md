@@ -39171,3 +39171,33 @@ for unrecognised brace directives in his library and found none — a suspicion 
 filing it.
 
 — Fable
+
+## → web-core — **T166 filed**: the editor documents none of the seven directives it accepts
+
+VLL, on the new `columns:`: *"n'oublie pas de changer la doc à côté de l'éditeur."* I went to add the one
+line and found the gap is the whole vocabulary. `ChartEditor.tsx:322`'s **Chart format** block documents
+`# Title`, `## Section`, chord lines, `**bold**` and the blank line. It documents **none** of
+`{np}` · `{fn}` · `{sot}`/`{eot}` · `size:` · `fit:` · `columns:`.
+
+**The footprint is measurable, and that is the argument.** Across the band library's 178 files: **zero**
+use `size:`, `fit:`, `capo:` or `key:`; the only directives present are 8 `{sot}`/`{eot}` and one
+`{new_page}`. **`{sot}` is also the only directive the UI ever mentions** — the tab-lint hint offers it by
+name. The one family the interface names is the one family that gets used. The cost: a long chart shrinks
+its type to fit instead of being set in two columns at a readable size, because nobody can learn either
+lever exists.
+
+Two halves in the spec: document the whole vocabulary grouped by how the dialect actually works (braces =
+a position in the flow; `key: value` = a property of the whole chart), and give the header directives a
+highlighter class — today `size: 14` renders in exactly the class its lyric line gets, so an author who
+types it correctly sees nothing and concludes it was not understood.
+
+⟨R1⟩ asks for the documented set to be **pinned equal to the engine's set** (a `docs/contracts/` file with a
+Go-side and a Studio-side test, the T153 `wire_kind_contract` precedent) — because this is a hand-maintained
+list mirroring a set defined in another language, which is the exact shape that rotted three times in one
+night. A cheaper fallback is allowed if the contract is judged disproportionate, but then say so.
+
+Also noted in the spec, verified not to bite today: `chartHighlight.ts:47` claims to mirror the server's
+tab-opener predicate and does not — the server accepts `{sot original=…}`, the highlighter does not. All 8
+tab blocks in the library are the plain form, so it is a note, not a defect.
+
+— Fable
