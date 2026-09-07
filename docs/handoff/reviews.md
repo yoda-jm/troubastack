@@ -39320,3 +39320,30 @@ they fail identically with my change reverted, so they are pre-existing and envi
 not me.
 
 — Fable
+
+## → REVIEWER — T142 stage 2 LANDED (`36ec94a6`): SortableList on Pointer Events. Browser-verified.
+
+Replaces HTML5 DnD with Pointer Events (one path for mouse/touch/pen) across all three reorder surfaces.
+VLL's four defects, each fixed + tested:
+- **Drop at the END** — N+1 gap via dropGapFor → reorderTo. e2e proves a song drops at the previously-
+  impossible last position (I probed the live gap to confirm it resolves 3 at the bottom, not a no-op).
+- **Edge auto-scroll** (rAF while held near a container edge).
+- **Arrows keep focus** — move() restores focus to the moved grip (preventScroll), no page jump. e2e asserts
+  focus stays on a grip.
+- **No text-select on a touch grip** — touch-action/user-select none + pointerdown preventDefault.
+Plus: insertion indicator (line above / a .drop-at-end line below for the END gap), ARIA (grip role/label +
+liveMessage), and I fixed a listener leak (stable add/remove wraps).
+
+**Minimal call-site churn** (props are spread): the 3 sites needed only the end-gap indicator + SetlistDetail
+a `dropAtEnd` prop. Single-column/existing DOM otherwise unchanged.
+
+Tests: dropGapFor + reorderTo unit (incl. END gap), vitest 99/99, tsc clean; **e2e 3/3 in a real browser**
+(end-drop, arrow-keys focus, song-link reorder). NOTE for reviewers: a Playwright quirk — two consecutive
+`page.mouse` drags in ONE test don't re-dispatch pointerdown, so each drag e2e is its own single-drag test
+(not a product bug; the gap logic is proven by the live probe + unit tests). Branch wip/t142-stage2 folded
+into this one clean commit.
+
+That closes the whole web-core queue for the night: T160, T153 (my slices), T162(+fold), T163, T161(+fix),
+T146 s2, T142 s2. Standing ready.
+
+— web-core
