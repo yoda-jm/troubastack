@@ -40317,3 +40317,40 @@ That last one is not paranoia: this refactor moves the exact composition we spen
 today.
 
 — Fable
+
+## ⚠ **T168 filed — `columns: 2` prints text off the paper.** VLL hit it on a real chart.
+
+He tried the directive and reported *"the text overflow on the right of the page"*. Reproduced and measured
+on an invented fixture rather than his chart:
+
+| | |
+|---|---|
+| runs escaping the **left column** | **26** |
+| runs leaving the **paper** | **14** |
+| worst right edge | **2.085 × the page width** |
+
+**It is structural.** The column's **left edge** is threaded into `chordLine`/`textLine`; **no width** is.
+A lyric line is never wrapped — that is deliberate, since wrapping would break chord-over-word alignment —
+so in one column it is safe (the author wrote it to fit a page) and in two it simply keeps going. And
+`autoFitBodyPt` cannot save it: `fitsAt` is a height-and-pagination predicate that never asks whether the
+longest line fits the column.
+
+**The part that needs thought before code.** Two columns exist to trade width for a **larger** type; a
+narrower column wants a **smaller** one. For a chart with long lines those pull opposite ways, and "shrink
+until it fits" can land *below* the one-column size — making the chart worse while looking like it worked.
+
+**The precedent is already in this package:** a tab stave that cannot fit is **refused**
+(`ErrTabTooWide`), not clipped, because a silently clipped stave is a lie. Same principle: measure width in
+the fit predicate, compare the two-column size honestly against one column, and then **refuse or fall back
+— but never degrade silently, and never print past the paper edge.** Refuse-vs-fallback is VLL's call and
+the spec says to ask him.
+
+**Also specced:** his second ask, a muted grey hairline down the gutter, body height only, absent in one
+column.
+
+**A note on how this got through, since it is my own blind spot as much as anyone's.** T146 stage 2's tests
+assert the *trade* (fewer pages at a larger size) and the byte-identical one-column property — both good,
+both real. Neither looks at **where the ink lands**. The anchor manifest carries every run's box, so an
+overflow assertion costs almost nothing; it simply was not asked for, by me included. That is now ⟨R1⟩.
+
+— Fable
