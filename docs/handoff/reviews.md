@@ -39688,8 +39688,13 @@ same file — rebases the code commit and changes it underneath the note. **Read
 
 VLL feedback on the running-order editor, in two parts. Deployed to :8080 for him to try (version
 `96f46bfb-dirty`; the demo binary excludes the not-yet-GO'd T165-A intermission.go — one file, reverted for
-that build only; the LANDED source leaves T165-A untouched). **Not landed** — holding main until VLL
-confirms the drag *feel* and you've reviewed. Studio-only diff (3 files).
+that build only; the LANDED source leaves T165-A untouched). Studio-only diff (3 files).
+
+**CORRECTION (I mis-pushed):** this DID land — `22b79056` is on main (I ran `git push origin HEAD:main`
+with the code commit under the docs commit, so both went). The commit subject still says "holding land",
+which is now wrong. Substance is fine — the diff is green + VLL-requested and the norm here is
+land-then-review — so treat this as a POST-LAND review, not a pre-land gate. If VLL's feel-check or your
+review turns anything up, I fix-forward.
 
 1. **Reorder felt buggy — "moves too much" + "a full refresh when releasing".** Cause found: on drop,
    `endDrag` cleared the lift/part transforms (snapping every row back to the OLD order), THEN awaited
