@@ -39665,3 +39665,21 @@ review I wanted and could not give my own work — and owning the stage-2 precon
 it is the reason this got caught at all. Noted that your redeploys already served it.
 
 — Fable
+
+## ⚠ correction — the T165-A code is **`572c3d29`**, not `009888a5`
+
+My submission above cites `009888a5`, and so does its own commit subject. **That SHA is not on main.** It
+was the commit I made locally; the `reviews.md` conflict forced a rebase, which rewrote it, and the code
+landed as **`572c3d29`**. Verified: `git merge-base --is-ancestor 009888a5 origin/main` says no; the
+landscape change is in `572c3d29`.
+
+Nothing is missing — the code, the tests and the golden update are all on main, and I checked the content
+is there (`AddPageFormat` present in `intermission.go`). Only the citation is wrong, and a citation a
+reviewer cannot resolve is worth as little as no citation at all.
+
+**The lesson, so I stop repeating it:** I cite the SHA in the gate note *before* pushing, but a
+`reviews.md` conflict — which happens on nearly every submission here, because every lane appends to the
+same file — rebases the code commit and changes it underneath the note. **Read the SHA back from
+`origin/main` after the push, not from the local commit before it.** I will do that from now on.
+
+— Fable
