@@ -397,6 +397,9 @@ private fun Performing(
         val scrollMode = state.fitMode == FitMode.SCROLL
         // A14: scroll wins over two-up (a single column); two-up only in landscape FIT_PAGE.
         val twoUp = maxWidth > maxHeight && state.fitMode == FitMode.FIT_PAGE
+        // T165: a break is a POSTER — presented fit-to-viewport (contained), not width-fitted/scrolled like a
+        // chart you read line by line. Overrides the reading mode; pure so the decision is unit-tested.
+        val currentIsIntermission = stagePresentsAsPoster(state)
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
         val heightPx = with(LocalDensity.current) { maxHeight.roundToPx() }
         // N2: in scroll mode the column holds ONLY the current song's pages, so the LazyList index is
@@ -521,7 +524,10 @@ private fun Performing(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                // T165/T149: the page floats on the SCHEME's ground, not Color.Black — so a fitted poster's
+                // letterbox and a trimmed scroll page's surround take the reading colour, never a black slab
+                // on a paper-white stage (VLL). pagePlaceholder() already holds the per-scheme ground.
+                .background(colorMode.pagePlaceholder())
                 .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
                 .then(
                     if (scrollMode) Modifier.pointerInputSwipe(Unit, latestScrollPrev, latestScrollNext)
@@ -529,6 +535,13 @@ private fun Performing(
                 ),
         ) {
             when {
+                // T165-B: always fit the whole break card to the viewport (ContentScale.Fit via FIT_PAGE),
+                // letterboxed by the scheme ground — the wordmark is never off-screen in landscape and the
+                // surround is never a black slab. Overrides the reading mode; independent of core's
+                // landscape-bake half (T165-A).
+                currentIsIntermission -> state.currentPage?.let { p ->
+                    PageView(p, state.visibleFor(p.songId), FitMode.FIT_PAGE, decoder, cache, colorMode, colorMode.pagePlaceholder(), Modifier.fillMaxSize())
+                }
                 scrollMode -> ScrollReader(state, scrollListState, decoder, cache, colorMode, widthPx)
                 // N4: page/width turns animate as a direction-aware horizontal slide (presentation only —
                 // the turn is still the single goToPage funnel, so swipe/FABs/pedals/keys/volume all
@@ -913,6 +926,12 @@ private fun CueFlashCard(cues: List<SongCue>, colorMode: StageColorMode, modifie
 /** "Song 2/4  ·  3–4/12" — the title card's position line (A2). Song part omitted when there are none, and
  *  for an intermission (T153): a break is not "Song N", and the title already reads its label, so show only
  *  the page position — no song counter. Internal so the intermission case is unit-tested. */
+/** T165 — is the current entry a break, so Stage presents its page as a POSTER (fit-to-viewport, contained,
+ *  scheme-letterboxed) rather than a width-fitted / scrolled document? Pure so the presentation decision is
+ *  testable without Compose; the render reads it to override the reading mode for a break. */
+internal fun stagePresentsAsPoster(state: StageState): Boolean =
+    state.songs.getOrNull(state.currentSong)?.kind == RunningOrderKind.INTERMISSION
+
 internal fun stagePositionLabel(state: StageState, topPage: Int, twoUp: Boolean): String {
     val pages = pagerLabel(topPage, state.pageCount, twoUp, state.songs.map { it.firstPage })
     val i = state.currentSong

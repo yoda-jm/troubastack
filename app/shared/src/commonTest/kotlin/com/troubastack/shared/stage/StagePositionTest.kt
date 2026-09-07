@@ -6,6 +6,7 @@ import com.troubastack.shared.bundle.LoadResult
 import com.troubastack.shared.bundle.PageImages
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -111,6 +112,16 @@ class StagePositionTest {
         // "Song 2/3" — it shows only the page position. (Teeth: remove the guard and this flips to "Song 2…".)
         val label = stagePositionLabel(withIntermission().copy(current = 1), topPage = 1, twoUp = false)
         assertTrue("Song" !in label, "an intermission must not be labelled \"Song N\" (got \"$label\")")
+    }
+
+    @Test
+    fun a_break_presents_as_a_poster_but_a_song_does_not() {
+        // T165: the intermission page is fit-to-viewport (a poster); song pages read as documents. TEETH:
+        // both sides asserted, so "make everything a poster" or "never a poster" each reddens.
+        val s = withIntermission()
+        assertTrue(stagePresentsAsPoster(s.copy(current = 1)), "the break page presents as a poster")
+        assertFalse(stagePresentsAsPoster(s.copy(current = 0)), "a song does not")
+        assertFalse(stagePresentsAsPoster(s.copy(current = 2)), "nor the song after the break")
     }
 
     @Test
