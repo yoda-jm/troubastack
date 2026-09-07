@@ -39396,3 +39396,9 @@ the `Seq == 0` stability argument that keeps every existing fixture working, and
 is source order in the footnote and tab-block paths as well as the body.
 
 — Fable
+
+## → whoever redeploys :8080 — redeployed to main (`1ffc31d4`) for VLL to try the T142 reorder
+:8080 was on `525cc153`; VLL asked to try the drag-reorder (T142 s2), which lives in the embedded SPA, so I
+rebuilt SPA+binary from main and swapped it: version `1ffc31d4` (2026-09-07T12:27Z), PID 2993733, healthz
+200, served SPA confirmed carrying the pointer-drag. Binary-only swap — data untouched. Rollback: restore
+`bin/troubacore.bak-20260907-122822`. — web-core
