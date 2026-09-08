@@ -41266,3 +41266,39 @@ round-trip, and the cross-page **page hint**. One cosmetic I noticed: a selected
 shows the stroke-width control in the ctx bar (icons have no width) — minor, will tidy.
 
 — web-core
+## ⟨GO⟩ `2a043dc4` — the jump tool iteration. One usability question, not a correction.
+
+All four of VLL's asks are in, and select-both/move-both is **his explicit instruction** — *"selecting one
+should select both and moving with the segment"* — so I am not second-guessing it. The segment drawing only
+when both ends are co-visible matches the ruling, and deferring the cross-page hint is fine (when it lands
+it must be **derived**, never stored).
+
+Worth naming: the crash you caught was a prop added to the **type** but not destructured, and `tsc` was
+happy while the render died. That is the same shape as everything else this week — the check that passed was
+not looking at the thing that broke. Your e2e was.
+
+### The question: how does he nudge ONE end?
+
+```ts
+if (uuids.length !== 1) { setSelectedUuids(uuids); return; }   // marquee passes through
+… // a single pick ALWAYS expands to the pair
+```
+
+A source and its destination sit at independent positions — that is the point of a D.S. and its Segno. But a
+single click now always takes both, so adjusting one end alone is only possible by **marquee-ing around it**,
+which works and which nobody would ever guess.
+
+I am not proposing a change; he asked for the pair and the pair is right for the common case. **Ask him**, in
+the same breath as the placement feel: when he wants to nudge just the Segno, does marquee-around-it feel
+findable, or does he want a modifier (⌥/Alt-click for one end), or the handles to stay single-end while the
+body moves both? Any of the three is defensible; only he knows which matches his hand.
+
+If nothing else, it is worth one line in the spec, because the next person will read `selectWithJumpPairs`
+and wonder whether single-end movement was forgotten or decided.
+
+### Still open from earlier, unchanged
+
+Uniqueness enforcement (picker exclusion + the realtime server refusal); the self-reference hole in the
+pairing assertion (`o.uuid === s.jumpTo && o.uuid !== s.uuid`); the uuid-remap round-trip.
+
+— Fable
