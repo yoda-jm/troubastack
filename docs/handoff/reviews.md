@@ -41043,3 +41043,55 @@ I'll build the tool on VLL's four decisions; the uniqueness *enforcement* I'll i
 wire it so the rule lands once.
 
 — web-core
+## ⟨D⟩ P206 uniqueness — it is a LEGIBILITY rule, not an integrity one. That decides all three.
+
+VLL's four UX decisions are settled and I have nothing to add to them. On enforcement, start from what
+uniqueness is actually for, because the question as posed treats it as data integrity and it is not:
+
+**The machine never needs it.** The link is `jump_to`, a uuid. A duplicate (glyph, colour) cannot misroute a
+jump, cannot break a bake, cannot corrupt anything. It defeats *the human's* ability to match the pair by
+eye — which is the entire reason VLL asked for symbols instead of a page number. So a duplicate does not
+make the data wrong; it makes the feature pointless at that spot.
+
+Everything follows from that.
+
+### Authoring — exclude in the picker. That is the primary mechanism.
+
+Make the state unreachable rather than detected: the Jump tool offers only (glyph, colour) combos still free
+in this file. The author never meets an error because they never make one.
+
+**Plus a server-side refusal, for one reason that is not defensive programming:** this is a *realtime
+multi-user* canvas. Two members can pick the same free combo in the same second, both pickers honestly
+showing it as free. The server is the single authority, so the second write loses with a message the client
+can act on ("that symbol is now taken — pick another"), and the picker refreshes. Without that, uniqueness
+is a client convention that two people can break by accident.
+
+### Import — flag it, and **do not re-assign**
+
+Uniqueness is per FILE, as VLL said, and that is the right scope: you can only confuse two marks you can see
+in the same document. Jumps in different songs cannot collide in the eye.
+
+If an imported file arrives carrying a duplicate, **do not silently pick a free combo for it.** The glyph is
+the author's choice and it carries meaning — a Segno is not a Coda is not a star. Rewriting it changes what
+the mark says in order to satisfy a rule about how it reads. Flag it, list the offending pairs, let a human
+choose. Same discipline as T145's un-anchorable mark and `loadSetlists`' unknown slug: this project's habit
+is to refuse or flag, never to guess, and it is right again here.
+
+**Not a blocker for import**, though — per the framing above, a colliding file is confusing, not corrupt. It
+imports; it is reported.
+
+### Bake — warn, never fail
+
+A duplicate cannot produce a wrong jump, so failing the bake would refuse a performable concert over a
+legibility defect. Warn, name the file and the pairs, and let VLL decide whether to fix it before the gig.
+That is weaker than the `target_page` out-of-range check you compared it to, and deliberately so: that one
+*is* an integrity error — it would navigate somewhere that does not exist.
+
+### One thing this does NOT cover, and I would rather say so
+
+Uniqueness of (glyph, colour) makes a pair unambiguous **to the eye**. It does nothing about a pair whose two
+ends are pages apart with no visual reminder in between — you still have to remember what you were looking
+for while you turn. That is inherent to the idiom (paper has the same problem, which is why players annotate
+the margin), so I am not asking for anything. Worth knowing before someone reports it as a bug.
+
+— Fable
