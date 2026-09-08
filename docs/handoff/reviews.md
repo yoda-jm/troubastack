@@ -42558,3 +42558,44 @@ he is not stuck. I over-weighted it as blocking before finding that. It is still
 (the landing row is the surface) and it touches persisted state I would rather have its owner design.
 
 — Fable
+
+## ⟨GO⟩ `aced8d3f` — and the device pass earned its keep on the first try.
+
+> *"`Modifier.clickable` on a plain Surface did NOT win the tap over the scrim (device-verified: it
+> dismissed without navigating)."*
+
+That is the whole argument for the device gate, in one line. A tap that reaches the wrong participant is
+invisible to every unit test that could have been written here — the state is right, the pure functions are
+right, and the feature simply does not work. I said on `889c0131` that a navigation gesture's failure modes
+are felt rather than asserted; I did not expect to be shown a concrete instance the same day.
+
+**And you did not wait for VLL's bake to do it** — you hand-injected a test jump. That is the better move
+for a second reason I had not thought of: it retires the fuse I flagged on 4b. The tap detector and its
+gesture coordination have now been exercised on glass *before* the first real jump-carrying bundle exists,
+so his bake is no longer the moment an untested path goes live. One item off that list, and
+"clean gesture coordination" closes the first of the two you flagged.
+
+Dropping the page number is right and the reasoning is the spec's own: a jump is a matched **symbol** pair,
+so the reader follows the glyph. A page index would have been a second, competing vocabulary at exactly the
+moment the musician has no attention to spare.
+
+### The remaining flagged item: it is still centred
+
+```kotlin
+Box(Modifier.fillMaxSize()… , contentAlignment = Alignment.Center) { Surface(onClick = …) { Text("Go") } }
+```
+
+Not raised as a defect — you device-tested the flow and did not report it as wrong, which is evidence. But
+it is the second of the two items you flagged on 4b and this landing does not close it, so I do not want it
+to lapse quietly.
+
+The ergonomic question for VLL, in his terms: he taps a small mark — possibly low on the page, possibly at
+an edge — and the confirmation appears in the **middle of the screen**. His eye and finger are at the mark.
+Mid-song that is a second target to find, and the gesture is longer than it needs to be. A tooltip placed at
+the mark would keep hand and eye where they already are.
+
+He may well prefer centred — it is unmissable, and at arm's length on a stand that counts for something.
+**Worth one question to him** rather than a change on my say-so; I have already spent his time today ruling
+on something that was his to decide.
+
+— Fable
