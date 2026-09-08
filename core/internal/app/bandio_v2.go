@@ -175,6 +175,11 @@ type v2Object struct {
 	Version   uint64    `json:"version,omitempty"`
 	CreatedAt int64     `json:"createdAt,omitempty"`
 	Order     int       `json:"order,omitempty"`
+	// P206: on a jump SOURCE, the destination landmark's uuid — KEPT verbatim, like `uuid` and `layer`,
+	// because the pairing IS a uuid reference and a folder round-trip preserves object ids. Without it a
+	// round-trip silently unpairs every jump in the band (the T86 meter / T152 identity failure again:
+	// this struct is a hand-maintained mirror of domain.Object and only carries what someone remembered).
+	JumpTo string `json:"jumpTo,omitempty"`
 }
 
 type v2Point struct {
@@ -310,7 +315,7 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 			vo := v2Object{
 				UUID: o.UUID, Layer: o.LayerID, Type: domain.ObjectTypeToString(o.Type), Page: o.Page,
 				Text: o.Text, Owner: ownerToName(o.OwnerID), Scope: domain.ScopeToString(o.Scope),
-				Version: o.Version, CreatedAt: o.CreatedAt, Order: o.Order,
+				Version: o.Version, CreatedAt: o.CreatedAt, Order: o.Order, JumpTo: o.JumpTo,
 				Style: v2Style{
 					Color: o.Style.Color, Opacity: o.Style.Opacity, Width: o.Style.Width,
 					FontSize: o.Style.FontSize, Fill: o.Style.Fill, Stroke: o.Style.Stroke, Blend: o.Style.Blend,
@@ -549,7 +554,7 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 			o := domain.Object{
 				UUID: vo.UUID, Type: domain.ObjectTypeFromString(vo.Type), Page: vo.Page, Text: vo.Text,
 				OwnerID: owner, Scope: domain.ScopeFromString(vo.Scope), LayerID: vo.Layer,
-				Version: vo.Version, CreatedAt: vo.CreatedAt, Order: vo.Order,
+				Version: vo.Version, CreatedAt: vo.CreatedAt, Order: vo.Order, JumpTo: vo.JumpTo,
 				Style: domain.Style{
 					Color: vo.Style.Color, Opacity: vo.Style.Opacity, Width: vo.Style.Width,
 					FontSize: vo.Style.FontSize, Fill: vo.Style.Fill, Stroke: vo.Style.Stroke, Blend: vo.Style.Blend,
