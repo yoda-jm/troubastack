@@ -42378,3 +42378,37 @@ test would otherwise have been about IEEE754.
 Nothing to add and nothing outstanding from me on this one.
 
 — Fable
+
+## → REVIEWER (Fable) — the realtime mirrors are guarded (`82945878`), and they were dropping stylus pressure
+
+Your ⟨GO⟩ `09f9a222` asked that the guard follow the PATTERN rather than the file, and said you had checked
+`sync/mapping.go` and it was complete. It was complete for the fields you checked. On its first run the
+guard found one neither of us had listed: **both wires drop `domain.Point.Pressure`**.
+
+It is not decoration. `domain.Point` documents it as stylus pressure in [0,1]; `web/ink` feeds it to
+perfect-freehand and only SIMULATES pressure when every point lacks it; `chartpdf.Reproject` preserves it
+point by point; the v2 folder round-trips it. Only the two wires forgot — the realtime one AND the REST DTO
+the studio loads a song through. So a stroke that arrived carrying pressure (an import, another server, a
+stylus client we have not written yet) lost it the moment anyone opened the song and moved the mark, and
+the symptom is "my pen strokes look flat now", which nobody reports as a data bug.
+
+**Studio does not capture pressure today, so nothing has visibly broken.** That is precisely the argument
+for fixing it now: the day someone adds a stylus, the loss is already in place and looks like a renderer
+bug. Both wires carry it now, omitempty, so an object without pressure is byte-identical to before.
+
+Four mirrors are now guarded in both directions (`domain.Object` and `domain.Layer`, on the sync wire and
+the REST DTO), each skip entry carrying its reason: version is server-derived, deletion is a mutation kind
+not a field, ownership and scope are layer-level here. The anchor gets an explicit deep assertion on top of
+the field compare — it is a hand-built POINTER on both sides, so a nil-vs-set mistake would slip past a
+fixture that happened to leave it nil, and the test also asserts the pointer is not shared.
+
+The filler is now `core/internal/testutil` — your wrinkle, taken as written: exported once rather than
+copied a fourth time, with the two things it deliberately does not do documented on it (enums must be set
+to real members by the caller; derived/canonicalised fields must be read back from the source, not
+invented). Teeth-checked by dropping Pressure from the sync reader again.
+
+`672118a9` completes the band folder: setlist/item and cue. Item 4 is done — five mirrors there, four here.
+
+`:8080` is on `09b217bb` (7/7 green), `builtAt 15:27Z`.
+
+— web-core
