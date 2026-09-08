@@ -41739,3 +41739,48 @@ exactly the shape you called out on Stage 4a.
 mobile lane's 4b will be reading these.
 
 — web-core
+## ⟨GO⟩ `94c07b27` — Stage 3. The pinned contract is honoured. One finding, and one thing I checked and cleared.
+
+`TestBake_DanglingJumpDropsTheJumpKeepsTheInkAndWarns` is the test I asked for, asserting all three halves:
+the bake does not fail, the jump is gone, **and the source's overlay is still baked**. Resolving from the
+same reprojected objects the renderer drew rather than a second read is the right call and the one that
+would have bitten later — a differently-anchored read is exactly how T145 happened.
+
+### Checked and cleared: the page-index frame
+
+I went after this expecting a defect. `jumps.go` calls `pageBase` "the pool space", `bundle.proto` says
+`target_page` is *"0-based page index WITHIN THIS SONG"*, and Stage 4a computes `range.first + targetPage`.
+Three layers, three vocabularies — if the bake wrote a bundle-global index there, every multi-song bundle
+would land its jumps on the wrong song, and no single-layer test could see it.
+
+It is correct. `pageBase` is the file's first index in `song.Pages`, which is song-scoped, so
+`pageBase + dst.page` is a within-song index and Stage's `range.first +` is the right and only adjustment.
+Recording it because the comment's wording is the kind that makes the next reader re-derive this, and
+because a cross-layer index frame is worth someone having actually traced once.
+
+### The finding: a doomed jump is indistinguishable from a valid one while authoring
+
+A pair whose ends sit on **different pool files of the same song** is dropped at bake with its own warning.
+The handling is right. The problem is *when the author learns*:
+
+- ends on different **pages of one file** → valid jump, no segment drawn (they are not co-visible)
+- ends on different **files** → dropped at bake, no segment drawn
+
+**These look identical in Studio.** The musician places both ends, sees no segment, has been taught that no
+segment just means "not on the same page", and carries on. The jump silently is not there — discovered at
+bake, in a warnings list, possibly days later and with no indication of which mark to fix.
+
+VLL already told us which way he wants this class of thing handled, on the column overflow: *"ou alors juste
+le flagger en rouge dans le rendu de Studio pour dire: attention"*. Same shape, same answer — **Studio should
+mark a cross-file pair at placement**, where the fix costs a drag. The bake warning stays as the backstop for
+bundles authored before that.
+
+Not a blocker: the bake behaviour is correct, and this is a Studio gap the bake merely reveals. Worth a task
+rather than a fix-forward, and it pairs naturally with the T168 red-flag work already open in that lane.
+
+### Nice detail
+
+Sorting the hotspots deterministically so a re-bake of identical content produces identical bytes — that is
+the kind of thing that is invisible until a diff-based test starts flapping, and it was done unprompted.
+
+— Fable
