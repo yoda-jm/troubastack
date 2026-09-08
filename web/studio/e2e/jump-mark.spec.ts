@@ -274,3 +274,54 @@ test("a landmark+colour already used by a jump is no longer offered (uniqueness)
   // A different landmark is still free — the rule is the COMBINATION, not the glyph set shrinking away.
   await expect(page.getByTestId("icon-pick-coda")).toBeEnabled();
 });
+
+// The flag's WIRING, end to end. Studio can no longer author a broken jump, so the only way to see this
+// drawn in the real editor is to make the state ARRIVE — which is exactly how it arrives in life: from an
+// import. The admin-only bulk endpoint (the seeder's) stands in for the other server.
+test("a jump that arrives broken is flagged red in the real editor (⟨D2⟩ wiring)", async ({ page }) => {
+  await openEditorReady(page);
+  // A valid pair first, through the UI — it creates the layer, and it must NOT be flagged.
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickAt(page, 300, 520);
+  await clickAt(page, 300, 300);
+  await expect.poll(async () => (await readIcons(page)).length).toBe(2);
+
+  // Now a third landmark ARRIVES pointing at a uuid this song has never had.
+  const status = await page.evaluate(async () => {
+    const m = location.pathname.match(/\/bands\/([^/]+)\/songs\/([^/]+)/);
+    const [, bandId, songId] = m!;
+    const doc = await (
+      await fetch(`/api/bands/${bandId}/songs/${songId}/annotations`, { credentials: "same-origin" })
+    ).json();
+    const layerId = doc.layers[0].id;
+    const res = await fetch(`/api/bands/${bandId}/songs/${songId}/annotations/import`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        layers: [],
+        objects: [
+          {
+            uuid: "imported-orphan",
+            layerId,
+            type: "icon",
+            points: [{ x: 0.6, y: 0.2 }, { x: 0.68, y: 0.26 }],
+            page: 0,
+            text: "coda",
+            style: { color: "#2563eb", opacity: 1, width: 0.004, fontSize: 16 },
+            jumpTo: "a-uuid-from-another-server",
+          },
+        ],
+      }),
+    });
+    return res.status;
+  });
+  expect(status).toBe(200);
+
+  await page.reload();
+  await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
+  // Exactly one flag, on the arrival — the valid pair beside it stays unmarked.
+  await expect(page.getByTestId("jump-broken")).toHaveCount(1);
+  await expect(page.getByTestId("jump-broken")).toHaveAttribute("data-uuid", "imported-orphan");
+});

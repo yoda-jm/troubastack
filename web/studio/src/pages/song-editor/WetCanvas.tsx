@@ -32,6 +32,7 @@ import {
 } from "../../editor";
 import { buildWet, budgetedRasterDpr, compareObjectZ, measureTextWidth, toInkObject, rasterDpr, type PRPoint, type LayerVisibility } from "./helpers";
 import { SelectionToolbar } from "./Toolbar";
+import { JumpFlags } from "./JumpFlags";
 
 /** Capture a pointer id, best-effort (T34). Exotic/synthetic pointer ids (e.g. an e2e-
  *  dispatched PointerEvent) can't be captured and throw NotFoundError; capture is a
@@ -981,27 +982,13 @@ export function EditCanvas({
         {/* P206 ⟨D2⟩: a jump that will be dropped at bake, marked where it is authored. Drawn for every
             such source on the page whether or not it is selected — the author has to see it without
             hunting for it (VLL on this class of problem: "juste le flagger en rouge dans le rendu de
-            Studio pour dire: attention"). */}
-        {pageObjects
-          .filter((o) => brokenJumps.has(o.uuid))
-          .map((o) => {
-            const rm = pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined;
-            const b = objectBBox(o, rm);
-            return (
-              <div
-                key={`broken-${o.uuid}`}
-                className="jump-broken"
-                data-testid="jump-broken"
-                data-uuid={o.uuid}
-                style={{
-                  left: `${b.minX * 100}%`,
-                  top: `${b.minY * 100}%`,
-                  width: `${(b.maxX - b.minX) * 100}%`,
-                  height: `${(b.maxY - b.minY) * 100}%`,
-                }}
-              />
-            );
-          })}
+            Studio pour dire: attention"). Its own component so it can be rendered from state in a test:
+            nothing authorable can produce a broken jump any more, but imports and older songs still do. */}
+        <JumpFlags
+          objects={pageObjects}
+          broken={brokenJumps}
+          measure={pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined}
+        />
         {(() => {
           // P206 (VLL): "if one is selected the other is not selected, but we see the link." Selecting a
           // jump's end selects THAT end only; this dashed segment to its partner is what shows the pair —
