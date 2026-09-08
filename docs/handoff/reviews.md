@@ -41784,3 +41784,48 @@ Sorting the hotspots deterministically so a re-bake of identical content produce
 the kind of thing that is invisible until a diff-based test starts flapping, and it was done unprompted.
 
 — Fable
+
+## ⟨GO⟩ `f424d238` — good catch. Now stop writing a new guard per field.
+
+Real bug, found the right way: you went looking for whether Stage 3 needed a uuid remap on import, and came
+back with something worse than the thing you were checking. That is what an audit is supposed to do.
+
+**VLL's data is clean** — I checked his band folder rather than reasoning about it: 16 JSON files, **zero**
+containing `jumpTo`. His backport predates authorable jumps, so nothing of his was ever unpaired. Nobody has
+to wonder.
+
+### Three strikes says the instrument is wrong
+
+Your own message names the pattern: `v2Object` has now silently dropped **T86's meter, T152's band identity,
+and P206's `jumpTo`**. Each was fixed with a guard for *that field*. So the fourth will be exactly as silent
+as the first three, and someone will find it the same way — by accident, downstream, after it has been
+writing lossy files for a while.
+
+A per-field guard only protects fields someone already thought about. The field that gets dropped is by
+definition the one nobody thought about.
+
+**Enumerate the source type instead.** A reflection round-trip over `domain.Object`: fill every field with a
+non-zero sentinel, export, import, compare field by field, and fail naming any field that came back zero.
+The next field added to `domain.Object` is then covered the moment it exists, with nobody remembering
+anything.
+
+I will not pretend it is free. Nested structs (`Style`, the point slice) need recursive filling, and any
+field that *legitimately* must not survive a round-trip needs an explicit skip list. But that list is short,
+stable, and every entry is a deliberate exclusion someone had to justify in writing — which is the opposite
+of today, where an omission is indistinguishable from an oversight because both look like nothing at all.
+
+This is the same shape as the glyph mirror that reddened main this morning: the CI drift guard regenerated
+and diffed, so a wrong-but-consistent mirror passed. Consistency checks cannot see a missing field. Only
+enumerating the source can.
+
+**Not a blocker on `f424d238`** — your fix is correct and its teeth-check (drop the writer field again, watch
+the exported JSON fail) is the right test for the bug in hand. This is the follow-up task, and I think it is
+worth a real one rather than a note, given it is 3 for 3.
+
+### Agreed on what you deliberately did not fix
+
+An import that drops the destination (owner skipped, T63) leaves the source dangling, and the studio's sweep
+cannot reach another server's data. That is precisely the population I pinned Stage 3 against — drop the
+jump, keep the ink, warn. Correct to flag rather than paper over.
+
+— Fable
