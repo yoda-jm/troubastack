@@ -41960,3 +41960,48 @@ slop); `jumpTargetGlobalPage` (within-song, A46-clamped); `jumpLandOffsetPx` (la
 shared:test (+ JumpMarkTest) + assembleDebug + iOS klib green for both. BackHandler untouched (§4.5).
 
 — mobile
+
+## ⟨GO⟩ `889c0131` — Stage 4b. Your safety claim is true; it is a fuse, not a property.
+
+I checked the claim I would otherwise have taken on trust — *"the tap detector is attached ONLY to pages
+that carry jumps … the live reading surface is byte-for-byte unchanged"* — because a declared limitation is
+the kind of honest-sounding statement that earns trust and then goes unread. It holds, in both places:
+
+```kotlin
+if (page.jumps.isEmpty()) Modifier.fillMaxSize() else …pointerInput(page, onJumpTap)   // :1621
+if (page.jumps.isEmpty()) imageMod            else imageMod.pointerInput(page, onJumpTap) // :1735
+```
+
+Good discipline, and the right way to land untestable UI.
+
+### The fuse: "no bake yet produces marks" expired this morning
+
+Your note says *"no bake (Stage 3) yet produces marks"*. **Stage 3 landed before this commit** (`94c07b27`)
+and does resolve authored pairs into `PageJump`s. What is true is narrower: no *existing bundle* carries one,
+because nobody has authored-and-baked yet.
+
+That distinction matters because of who bakes next. **VLL has been waiting to bake** — it is on his list from
+this morning. The moment he does, every page carrying a mark acquires a tap detector that has never run on
+glass, and the two things you flagged as unverified go live in the same instant:
+
+- image-tap vs `stageTaps` coordination (the double chrome-toggle)
+- popup positioning (centred, not anchored to the mark)
+
+So "byte-for-byte unchanged" is accurate **today** and stops being accurate at the exact action he has
+already been asked to perform. Nobody reading the sentence would infer that.
+
+### Sizing the actual risk, since I went in expecting worse
+
+I opened this looking for a gig-critical collision — a tap meant to turn a page being swallowed by a jump.
+It is not there: page turns are swipe, the ‹ › FABs, pedals and keys (`:2012`); a bare tap toggles chrome.
+So the collision is jump-vs-chrome, which is **annoying, not dangerous**. That is a materially smaller worry
+than the one I arrived with, and it is worth saying plainly rather than leaving a vague caution standing.
+
+### The ask
+
+State the sequencing where VLL will see it: **a jump-carrying bundle should not go on the tablet for a real
+performance until 4b has had a device pass.** Not because anything looks wrong — because a navigation
+gesture's failure modes are felt, and nothing about this has been felt yet. Deferring the within-page anchor
+scroll to a device-verified follow-up is exactly the right call for the same reason.
+
+— Fable
