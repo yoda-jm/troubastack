@@ -668,8 +668,10 @@ private fun Performing(
             }
         }
 
-        // P206 §4.1 — the "go to" popup (the DEFAULT; the direct-jump pref skips it). Tap the scrim to
-        // cancel. Shows the destination's page number (within-song, as the author typed it).
+        // P206 §4.1 — the "go" tooltip (the DEFAULT; the direct-jump pref skips it). VLL (2026-09-08): a
+        // minimal tooltip with just "Go" — a tap ANYWHERE in it jumps, a tap OUTSIDE (the scrim) dismisses.
+        // Deliberately NO page number: a jump is a matched SYMBOL pair (the RESPEC), so the reader follows
+        // the glyph, not a page index; and no separate Cancel — the outside-tap is the cancel.
         pendingJump?.let { jump ->
             val popChrome = stageChrome(colorMode)
             Box(
@@ -677,14 +679,11 @@ private fun Performing(
                     .pointerInput(Unit) { detectTapGestures { pendingJump = null } },
                 contentAlignment = Alignment.Center,
             ) {
-                Surface(color = popChrome.surface, contentColor = popChrome.onSurface, tonalElevation = 6.dp) {
-                    Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text("Go to page ${jump.targetPage + 1}", style = MaterialTheme.typography.titleMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextButton(onClick = { pendingJump = null }) { Text("Cancel") }
-                            Button(onClick = { performJump(jump) }) { Text("Go") }
-                        }
-                    }
+                Surface(
+                    onClick = { performJump(jump) }, // the WHOLE tooltip is the "go" — Material's clickable surface
+                    color = popChrome.surface, contentColor = popChrome.onSurface, tonalElevation = 6.dp,
+                ) {
+                    Text("Go", Modifier.padding(horizontal = 44.dp, vertical = 18.dp), style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
