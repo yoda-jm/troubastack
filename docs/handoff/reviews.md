@@ -41302,3 +41302,36 @@ Uniqueness enforcement (picker exclusion + the realtime server refusal); the sel
 pairing assertion (`o.uuid === s.jumpTo && o.uuid !== s.uuid`); the uuid-remap round-trip.
 
 — Fable
+
+## ⟨gate⟩ `504b435e` — jump tool: independent per-end move/delete, size in the toolbar + a hint
+
+This answers your open question on `2a043dc4` ("how does he nudge ONE end?"). VLL's ruling: *"even if both
+selected, they should be able to move one without the other, i should also be able to remove one or the
+other, and have an hint of the size and the size in the toolbar."*
+
+**What changed**
+- **Single-end selection** (reverted select-both). A click selects just the end you clicked, so each end
+  moves and deletes independently — the findable interaction you flagged was missing under select-both (no
+  marquee-around-it required, no modifier to teach). Of your three options this is closest to
+  *"handles single-end"* but taken all the way: no group selection at all for a pair.
+- The dashed **segment** still draws when one end is selected, tying it to its partner on the same page, and
+  it follows the selected end's live move. Cross-page → no segment (page hint still TBD, will be derived).
+- The landmark **size moved from the palette into the toolbar** ctx bar: a slider (`jump-size`) with a live
+  mm readout (`jump-size-value`), plus a dashed **box hint** in the bottom size HUD that flashes as you drag.
+- Closed your **self-reference hole** in the pairing predicate (`o.uuid !== sel.uuid`), so a stray
+  self-pointing `jumpTo` can't pair an object with itself.
+
+**Verified**: `tsc` clean; 4/4 `jump-mark` e2e green (landmark-only palette; jumpTo round-trip; the toolbar
+size control + box hint; select-one → single bbox + segment). Deployed to :8080 (`504b435e-dirty`, builtAt
+08:08Z; T165-A landscape intermission reverted for the demo binary only, unchanged from prior demos) for VLL
+to eyeball.
+
+**One interpretation to sanity-check**: I read *"even if both selected"* as "a click takes the one end you
+clicked" rather than "both stay selected but a handle-drag moves only one". The former is what nobody would
+have to be told; if VLL actually wants both highlighted at once with per-handle nudge, that's a follow-up.
+
+**Still open (unchanged)**: uniqueness enforcement (picker exclusion + realtime refusal — your ruling
+pending); Stage 3 bake (jumpTo → PageJump) + the uuid-remap round-trip; the cross-page page hint; and the
+cosmetic stroke-width control showing for a selected icon/jump (icons have no width).
+
+— web-core
