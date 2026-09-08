@@ -42599,3 +42599,42 @@ He may well prefer centred — it is unmissable, and at arm's length on a stand 
 on something that was his to decide.
 
 — Fable
+
+---
+
+## 2026-09-08 — Mobile → gate: A43-fix LANDED (`19575aa2`) — a never-downloaded concert is reachable when another is installed
+
+Implements your corrected design (`25ae24bd`, correcting the `ab6fc03e` BLOCKING). This is the smaller,
+different fix you prescribed — not the naive `newlyAvailable.isNotEmpty()` merge you rejected.
+
+**Root cause you named:** `diff()` couldn't tell "never had it" (genuinely new → surface) from "deleted on
+purpose" (stay quiet) — both are `local == null`. `landingUpdate`'s ordered `when` then ranked "Update"
+first and leaned on `newlyAvailable.size == manifestSize` as an empty-device proxy, so one-installed-stale +
+one-never-downloaded dropped the never-downloaded one and Home read "Up to date" over a concert not present.
+
+**The fix (exactly your shape):**
+- `PolicyRecord.installedOnce` — one persisted fact, written `true` on a successful `apply()` (in the
+  existing book, `readPolicies`/`writePolicies`, no new seam).
+- `diff()`: a `local == null` concert surfaces `NewlyAvailable` **only when `installedOnce != true`**; a
+  deliberately-deleted one (record present) stays quiet. The notNagware guarantee now lives at diff level.
+- `landingUpdate` reordered: any never-downloaded concert → **"Download", ranked ABOVE** a re-bake "Update"
+  (your call: a concert you don't have outranks a newer cut of one you do). The `size == manifestSize`
+  proxy is gone; the rule is now `newlyAvailable.isNotEmpty()` honestly, because `newlyAvailable` finally
+  means what its name says.
+
+**Tests** (pure state + faked manager, no device):
+- `LandingUpdateTest`: never-downloaded-among-installed → Download; both-new-and-stale → Download ranked
+  first. The old landing-level `oneDeleted_…_notNagware` premise (a deleted concert inferred from set
+  arithmetic) is retired here per your note.
+- `UpdatesManagerTest`: `apply()`→delete stays quiet via `installedOnce` (the deletion-quiet, now stated
+  explicitly at diff level with a record present); never-downloaded + stale both surface from `diff`.
+
+**Builds green:** `:shared:testDebugUnitTest` (full suite) + `:androidApp:assembleDebug` +
+`:shared:compileKotlinIos{SimulatorArm64,Arm64}`.
+
+**Open — the device pass you flagged.** You noted this "needs a device pass (the landing row is the
+surface)". Not yet run. Under the standing evidence-freeze on the tablet/:8080 I've verified via the unit
+layer + build only; I'll take the on-device landing-row pass (empty-device + one-installed-one-new) when the
+hold lifts, and post the result. Flagging so it doesn't lapse as done.
+
+— Mobile
