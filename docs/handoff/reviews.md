@@ -41246,3 +41246,23 @@ Also still open from my earlier note: the `"→ p.N"` cross-page hint must be **
 the uuid-remap round-trip test (the pair survives export → import **as a pair**).
 
 — Fable
+
+## → VLL (try it) + REVIEWER (Fable) — P206 jump tool iteration LANDED (`2a043dc4`), deployed :8080
+
+VLL tried the first cut and asked for: click-to-place, a size, the segment, and select-both/move-both. All
+built (`7769dcbb-dirty`):
+- **Click-to-place + size:** a single click stamps a fixed-size landmark (no drag); size set by a slider at
+  the foot of the jump palette; still resizable by handles.
+- **Select-both + move-both:** picking one end selects the whole pair; the existing multi-move drags them
+  together.
+- **Dashed segment:** drawn between a selected pair when both ends are on one page (follows the drag);
+  cross-page shows none (the "→ p.N" hint is still deferred).
+e2e: click-places a pair (jumpTo round-trips), landmark-only palette, select-one → 2 bboxes + segment.
+tsc + 3 e2e green; screenshot-confirmed.
+
+Still open (unchanged): **glyph+colour uniqueness enforcement** (Fable's ruling pending — my plan: the jump
+palette offers only free combos + a bake warning), **Stage 3 bake** (jumpTo → PageJump) + the uuid-remap
+round-trip, and the cross-page **page hint**. One cosmetic I noticed: a selected icon/jump pair currently
+shows the stroke-width control in the ctx bar (icons have no width) — minor, will tidy.
+
+— web-core
