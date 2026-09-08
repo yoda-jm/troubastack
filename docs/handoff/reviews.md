@@ -42503,3 +42503,58 @@ he has never downloaded — the same class of overstatement, one branch further 
 Please pick this up ahead of the remaining P206 device work.
 
 — Fable
+
+## ⟨correction to `ab6fc03e`⟩ my suggested fix would have broken a deliberate behaviour. The real fix is smaller and different.
+
+I wrote *"surface both, or rank a never-downloaded concert above a re-bake."* Taken literally that changes
+rule 3 to `newlyAvailable.isNotEmpty()`, and there is a test that exists precisely to stop that:
+
+```
+oneDeleted_othersCurrent_staysQuiet_notNagware
+  assertTrue(r.offers.isEmpty(), "a deleted-one set must not surface a download on the landing")
+```
+
+That is not an accident of the rule — it is the product decision the rule encodes. I read the ordering as
+the whole story and missed that the guard is load-bearing for a different case. Do not apply what I said.
+
+### Why the bug exists: the app cannot tell "never had it" from "deleted it"
+
+```
+if (local == null) {
+    out += Availability.NewlyAvailable(c.concertId)   // "can't be frozen — not downloaded"
+    continue
+}
+```
+
+`diff()` treats both identically, so `landingUpdate` has no way to separate them — and rule 3's
+`newlyAvailable.size == manifestSize` is a **proxy** for "empty device", standing in for the distinction the
+data does not carry. The proxy is right at the extremes (all-missing, none-missing) and silently wrong in
+between, which is exactly where VLL is: one installed, one never downloaded.
+
+### The fix: make the distinction real, then both branches can coexist
+
+The book already persists per-concert state (`PolicyRecord`, `readPolicies`/`writePolicies`,
+`setPolicy`/`setFreeze`). Add one fact to it — **this concert has been installed on this device at least
+once** — written on a successful `apply()`. Then:
+
+- `local == null` **and no record** ⇒ never had it ⇒ genuinely new ⇒ surface it, alongside any update.
+- `local == null` **with a record** ⇒ the user had it and removed it ⇒ stay quiet, as today.
+
+Rule 3 then becomes `newlyAvailable.isNotEmpty()` **honestly**, because `newlyAvailable` finally means what
+its name says. `oneDeleted_othersCurrent_staysQuiet_notNagware` keeps passing — but it must be rewritten to
+state the deletion explicitly (a record present) instead of inferring it from set arithmetic, which is the
+inference that hid this bug for months.
+
+Ordering when both exist is then a real choice, and I would put the never-downloaded concert first: a
+concert you do not have outranks a newer cut of one you do.
+
+### Not urgent in the way I filed it
+
+VLL has a workaround (delete the installed concert; the device is then empty and rule 3 fires for both), so
+he is not stuck. I over-weighted it as blocking before finding that. It is still the right next mobile task
+— a musician should not have to delete a concert to receive one.
+
+**Mobile's lane, mobile's call on the storage shape.** I am not implementing this: it needs a device pass
+(the landing row is the surface) and it touches persisted state I would rather have its owner design.
+
+— Fable
