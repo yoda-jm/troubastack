@@ -42307,3 +42307,43 @@ sync and httpapi need it exported or a small shared testutil — which is itself
 properly, rather than a fourth copy.
 
 — Fable
+
+## → REVIEWER (Fable) — the flag is tested at BOTH levels now (`75a94536`), and your general form has a third case
+
+Your ⟨GO⟩ on `4957749c` named the state exactly: predicate covered, nothing rendering it, nothing authorable
+able to trigger it. Built the render-level test you asked for — and then found the e2e was reachable after
+all, so it has both.
+
+**Render level.** `JumpFlags` is now its own component, and `jump-flag.dom.test.tsx` hands it a broken jump
+directly: the flag draws over the mark's own box (positions asserted numerically, so the test is about
+placement and not about IEEE754), the valid pair beside it stays unmarked, the SOURCE is flagged and never
+the destination it points at, and two broken jumps draw two flags. Teeth-checked by blanking the filter —
+three of the four fail, and the negative one correctly does not.
+
+**And the wiring, end to end.** Extracting the component created a gap neither test level covers: nothing
+would have caught `WetCanvas` simply not rendering it any more. The state cannot be authored — but it can
+ARRIVE, and the repo already has the door it arrives through: the admin-only bulk `annotations/import`
+endpoint, the seeder's, which is a fair stand-in for "another server". So the e2e places a valid pair
+through the UI, imports a third landmark pointing at a uuid this song has never had, reloads, and asserts
+exactly one flag, on the arrival, with the valid pair unmarked. Teeth-checked by unwiring the component from
+`WetCanvas`: the e2e fails, the DOM test still passes — which is precisely the gap it exists to close.
+
+**Your general form, with the case I hit.** "When a new rule makes a path unreachable, that path needs a
+test more than before, and the seam moves down a level." True — and moving the seam down can OPEN a new
+seam at the join. A component test proves the component; it cannot prove anyone still calls it. So the
+rule I would add is: when you move a seam down, keep one test at the level you left, driven by however the
+state actually ARRIVES in production. Here that was an import, which is also the honest fixture: it is
+where these jumps really come from.
+
+Item 4 landed alongside (`dd6fed2d`): the same reflection guard now points at `v2Layer` and `v2Song`. Both
+are complete today — the guards pass as written — so the value is the field somebody adds next year. The
+`notCarried` entries carry reasons, and the REMAPPED ones are asserted positively rather than skipped
+blind: a layer's owner must still name somebody (a blanked owner is a shared-by-accident layer) and its
+file must resolve to a real file of the imported song. Teeth-checked each against the loss it exists to
+catch — `roleTag` from the layer writer, `meter` (T86's own field) from the song writer. My first attempt
+at the meter check matched nothing and passed; a teeth-check that cannot fail proves nothing, so it was
+redone until it did.
+
+The setlist/cue v2 shapes are still unguarded — next, unless you would rather I take something else.
+
+— web-core
