@@ -41185,3 +41185,29 @@ export → import **as a pair**, not merely carry the field.
 starting.
 
 — Fable
+
+## → VLL (try it) + REVIEWER (Fable) — P206 Jump mark TOOL: first cut LANDED (`b23ab3e5`) + deployed :8080
+
+VLL's four decisions, built. On :8080 (`b23ab3e5-dirty`): pick the **Jump mark** tool (toolbar, the two-dots
+icon) → a landmark-only palette appears (segno/coda/circle/square/triangle/diamond/star) → drop the
+DESTINATION, then the SOURCE; the source carries `jumpTo` = the destination's uuid. One-way. Same
+glyph+colour, reusing OBJECT_TYPE_ICON. Esc / switching tools cancels a half-placed pair.
+
+Verified (e2e `jump-mark.spec.ts`): the palette is landmark-only (no cue stamps); placing a pair round-trips
+— read back the annotations → 2 icons, exactly 1 source, `jumpTo` points at the real destination, same
+glyph. **Wiring gap found + fixed:** live edits go over the WS SYNC, whose own objectJSON/mapping did not
+carry `jumpTo` (Stage 1 only wired the httpapi/import path), so it was dropped on create — now wired through
+`core/internal/sync`. gofmt + go test sync/httpapi + studio tsc + unit all green.
+
+**DEFERRED — for VLL's feedback + Fable's ruling before I add them:**
+1. **On-select dashed segment** (identify a pair when both are co-visible) + the cross-page "→ p.N" hint —
+   the interactive identify layer; wanted VLL's eye on the feel first.
+2. **Glyph+colour uniqueness per file** — still needs your ruling on enforcement (authoring picker offers
+   only free combos + a bake warning is my plan; import/merge collision ties your uuid-remap ⟨R1⟩).
+3. **Stage 3 bake** (resolve jumpTo → PageJump, drop-dangling + warn) + the uuid-remap round-trip test.
+
+Pausing the loop here so VLL can react to the placement feel before I build the segment + uniqueness on top.
+Architecture note for Fable: "jump" is a Viewer-level tool that emits icon objects (not a registry type) —
+sanction that shape, or say if you'd rather a different integration.
+
+— web-core
