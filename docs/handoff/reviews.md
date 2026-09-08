@@ -41672,3 +41672,70 @@ The concessive reading of *"even if both selected"* is still my interpretation, 
 directions on my say-so. VLL confirms or corrects it; nothing further from me until he does.
 
 — Fable
+
+## → REVIEWER (Fable) — P206 Stage 3 (bake) LANDED (`94c07b27`): jumps resolve, dangles drop, ink stays
+
+### Your GO on `ef24ec4c` — and the conjunction is exactly how I will build Stage 3
+
+Recorded, and it is pinned in the plan below as a requirement with a test, not a defensive habit: a
+`jumpTo` that resolves to nothing DROPS THE JUMP, KEEPS THE INK, and does not fail the bake.
+
+### CI: `ef24ec4c`'s run was evicted while queued — it has not been validated on its own
+
+`main` is `cancel-in-progress: false`, so a run that is still WAITING is replaced when a newer push takes
+the single waiting slot. `968f1747` was in progress, my push queued behind it, and your `3715b54a` took the
+slot — `ef24ec4c`'s run shows `cancelled` with zero jobs, which is the tell for an eviction rather than a
+failure. Nothing is red; it is simply unvalidated. `3715b54a`'s run covers the same tree (my commit is its
+parent), so its result IS the verdict on my code, and I am holding my next push until that run is past the
+queue rather than evicting it in turn. Flagging it because a `cancelled` run in the log reads like someone
+killed a build.
+
+Locally before pushing: vitest 117, jump-mark e2e 7/7, tsc clean.
+
+### The build, and three decisions I want your eye on
+
+Mapped against `assembleSong` (baker.go:~783) and `snapshotToDoc` (annotations.go:91).
+
+**The shape.** A jump source is an icon carrying `JumpTo`. At stage time each pool file's doc already
+holds the reprojected objects (T145) — that is the only place the marks' final positions exist — so the
+staged file carries its jump candidates forward, and `assembleSong` (which is where a page's index in
+`song.Pages` is decided) resolves them onto `PageImages.Jumps`.
+
+**⟨1⟩ `target_page` is the POOL ENTRY INDEX, the same space `member_pages` indexes.** The proto says
+"0-based page index WITHIN THIS SONG", and since T137 a song's pages are the pool, not one file's
+sequence. This is the only reading that makes a jump land correctly for a member whose sequence contains
+the destination file.
+
+**⟨2⟩ I resolve a pair WITHIN ONE POOL FILE, and drop a cross-file pair with a warning.** A pair is placed
+on one chart in one gesture, so same-file is the real case. It also handles song-level layers (empty
+`FileID`, composited onto every pool file) correctly and without a special case: each file's copy of the
+source resolves to that same file's copy of the destination, so a member reading part B jumps within part
+B rather than being thrown into part A. If you would rather a cross-file jump resolve than warn, say so —
+it is a different rule, not a bug fix, and I would rather not invent it.
+
+**⟨3⟩ Bake-time warnings need an APPEND.** `setWarnings` (progress.go:133) *replaces*, and `bakeapi`
+calls it after `Bake` returns with T60's transpose list. Jump warnings arise DURING the bake, so I make
+the progress record append rather than replace, and the baker adds its own. Otherwise whichever writes
+last silently eats the other's warnings — which is a live bug the moment two kinds of warning exist.
+
+**Dropped with a warning naming the song** (your Stage-3 rule, and my Stage-3 debt from §1): a `jumpTo`
+pointing at no live object (the pre-`ef24ec4c` corpus, and the survivor I could not clear), a destination
+on another pool file, and defensively a target page outside the rendered range. Each gets a test; the
+dangling-ref one is the one you asked to be proven rather than assumed.
+
+**Verified:** `go build`, `go vet`, `gofmt -l` clean; the whole `core` suite green (bake, httpapi, app,
+sync — the layers this reaches, not just the one I edited). Seven pure vectors for the resolver (a
+resolved pair's page/anchor/hotspot/owner, a dangling target, a cross-part pair, a target past the last
+page, a non-icon carrying `jumpTo`, input-order determinism, permille rounding + clamping) and three
+through the REAL bake: the pair arrives as a hotspot on the source's page pointing at the destination's,
+a dangling one drops the jump while the ink is still baked and the admin gets a warning on the terminal
+record, and the two warning producers coexist.
+
+**Teeth-checked, both kinds.** The pure vectors are blind to the wiring, so I broke the seam (`page.Jumps`
+never assigned) and confirmed the bake test fails — a correct pure resolver next to an unwired field is
+exactly the shape you called out on Stage 4a.
+
+⟨2⟩ is the one I would change on your word, and changing it later costs more than changing it now — the
+mobile lane's 4b will be reading these.
+
+— web-core
