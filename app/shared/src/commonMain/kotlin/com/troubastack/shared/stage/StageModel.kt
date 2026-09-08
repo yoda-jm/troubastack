@@ -125,6 +125,34 @@ fun jumpLandOffsetPx(anchorYPermille: Int, pageHeightPx: Int, leadInPx: Int, max
     return (anchorPx - leadInPx).coerceIn(0, maxScrollPx.coerceAtLeast(0))
 }
 
+/**
+ * §4.1 — map a tap (px, in the page composable's own box) to the raster's normalized permille coords, or
+ * null if the tap fell OUTSIDE the raster (the FIT_PAGE letterbox). [letterboxed] = true for FIT_PAGE
+ * (ContentScale.Fit centres + contains the raster in the box); false for FIT_WIDTH / SCROLL (the box IS
+ * the raster, width-filled, so the mapping is a straight ratio). [aspect] = raster width / height. Pure so
+ * the hit geometry — the one part of "does this tap land in a mark" that isn't already jumpAt — is testable
+ * off-device (A58).
+ */
+fun tapToPagePermille(
+    tapXpx: Int, tapYpx: Int, boxWpx: Int, boxHpx: Int, aspect: Double, letterboxed: Boolean,
+): Pair<Int, Int>? {
+    if (boxWpx <= 0 || boxHpx <= 0 || aspect <= 0.0) return null
+    if (!letterboxed) {
+        if (tapXpx !in 0..boxWpx || tapYpx !in 0..boxHpx) return null
+        return (tapXpx * 1000 / boxWpx) to (tapYpx * 1000 / boxHpx)
+    }
+    // ContentScale.Fit: the raster is scaled to the LARGER letterbox that still fits, then centred.
+    val boxAspect = boxWpx.toDouble() / boxHpx
+    val rw: Int; val rh: Int
+    if (aspect > boxAspect) { rw = boxWpx; rh = (boxWpx / aspect).roundToInt() } // width-bound, bars top/bottom
+    else { rh = boxHpx; rw = (boxHpx * aspect).roundToInt() }                    // height-bound, bars left/right
+    if (rw <= 0 || rh <= 0) return null
+    val x = tapXpx - (boxWpx - rw) / 2
+    val y = tapYpx - (boxHpx - rh) / 2
+    if (x !in 0..rw || y !in 0..rh) return null // tap fell in a letterbox bar
+    return (x * 1000 / rw) to (y * 1000 / rh)
+}
+
 /** T158 — an entry's kind for the running-order numbering rule (intermission arrives with T153). */
 enum class RunningOrderKind { SONG, INTERMISSION }
 
@@ -295,6 +323,9 @@ data class StageState(
     // end with a horizontal swipe that jumps songs; locking disables the swipe/pager drag (and the page/width
     // turn-swipe) while ‹ ›, a pedal and the keys/volume still navigate deliberately. A session view pref.
     val swipeLocked: Boolean = false,
+    // P206 §4.1 (VLL, 2026-09-08): tapping a jump mark opens a small "go to" popup by default; this opt-in
+    // skips it and jumps STRAIGHT there. A session view pref (like [swipeLocked]); popup is the default.
+    val jumpDirect: Boolean = false,
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)

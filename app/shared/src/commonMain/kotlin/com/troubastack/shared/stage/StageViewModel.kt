@@ -154,6 +154,9 @@ class StageViewModel(
     /** N10: lock/unlock the crossing swipe (‹ ›, pedal and keys still navigate). A view preference. */
     fun toggleSwipeLock() = _state.update { s -> s.copy(swipeLocked = !s.swipeLocked) }
 
+    /** P206 §4.1: toggle direct-jump (skip the go-to popup). A view preference; never touches the page. */
+    fun toggleJumpDirect() = _state.update { s -> s.copy(jumpDirect = !s.jumpDirect) }
+
     /**
      * P201/R10: swap in a freshly re-baked concert (the host fetched + imported a new rev
      * while auto-update was on) WITHOUT moving the page the performer is on. Rebuilds the

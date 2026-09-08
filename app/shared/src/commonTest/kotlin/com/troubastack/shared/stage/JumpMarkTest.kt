@@ -113,4 +113,31 @@ class JumpMarkTest {
         // a page shorter than the viewport cannot scroll at all
         assertEquals(0, jumpLandOffsetPx(900, 3000, 200, 0))
     }
+
+    // ── tapToPagePermille: tap → raster coords, letterbox-aware ──
+
+    @Test
+    fun width_filled_tap_is_a_straight_ratio() {
+        // FIT_WIDTH / SCROLL: the box IS the raster; centre → (500,500), quarter → (250,250)
+        assertEquals(500 to 500, tapToPagePermille(500, 800, 1000, 1600, aspect = 0.625, letterboxed = false))
+        assertEquals(250 to 250, tapToPagePermille(250, 400, 1000, 1600, aspect = 0.625, letterboxed = false))
+    }
+
+    @Test
+    fun fit_page_maps_through_the_letterbox_and_rejects_the_bars() {
+        // a portrait raster (aspect 0.5) in a landscape box (2000x1000): height-bound, rw = 1000*0.5 = 500,
+        // centred → bars from x=0..750 and x=1250..2000.
+        assertNull(tapToPagePermille(100, 500, 2000, 1000, aspect = 0.5, letterboxed = true), "left bar → miss")
+        assertNull(tapToPagePermille(1900, 500, 2000, 1000, aspect = 0.5, letterboxed = true), "right bar → miss")
+        // dead centre of the box is the centre of the raster
+        assertEquals(500 to 500, tapToPagePermille(1000, 500, 2000, 1000, aspect = 0.5, letterboxed = true))
+        // left edge of the raster (x = 750) maps to permille x≈0
+        assertEquals(0, tapToPagePermille(750, 500, 2000, 1000, aspect = 0.5, letterboxed = true)?.first)
+    }
+
+    @Test
+    fun degenerate_box_is_a_safe_miss() {
+        assertNull(tapToPagePermille(10, 10, 0, 100, aspect = 0.7, letterboxed = false))
+        assertNull(tapToPagePermille(10, 10, 100, 100, aspect = 0.0, letterboxed = true))
+    }
 }

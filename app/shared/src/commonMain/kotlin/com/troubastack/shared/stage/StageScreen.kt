@@ -5,6 +5,7 @@
 package com.troubastack.shared.stage
 
 import com.troubastack.shared.bundle.LayerImage
+import com.troubastack.shared.bundle.PageJump
 import com.troubastack.shared.bundle.SongCue
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -512,6 +513,33 @@ private fun Performing(
             onDispose { volumeTurnRegistrar(null) }
         }
 
+        // P206 §4.1/§4.2/§4.3 — jump-mark activation. A tap that lands in a visible mark (jumpAt) either
+        // opens the "go to" popup (default) or jumps straight there (jumpDirect pref). performJump sets
+        // state.current to the resolved target (A46-clamped, within the song) — every mode derives from
+        // that: FIT_PAGE shows the page/spread, SCROLL's re-keyed effect repositions the column. A jump
+        // bumps jumpArrivalEpoch, which flashes the arrival cue (§4.3 — the only feedback in the same-spread
+        // two-up case). NOTE (4b follow-up): landing at the passage ANCHOR near the top (FIT_WIDTH's own
+        // scroll + SCROLL's within-page offset) is not wired yet — a jump lands on the target PAGE's top.
+        var pendingJump by remember { mutableStateOf<PageJump?>(null) }
+        var jumpArrivalEpoch by remember { mutableStateOf(0) }
+        var jumpFlash by remember { mutableStateOf(false) }
+        LaunchedEffect(jumpArrivalEpoch) {
+            if (jumpArrivalEpoch == 0) return@LaunchedEffect
+            jumpFlash = true
+            autoHideChrome(700) { jumpFlash = false } // §4.3: a brief arrival pulse, clock-injectable like the cues
+        }
+        val performJump: (PageJump) -> Unit = { jump ->
+            vm.goToPage(jumpTargetGlobalPage(state, state.current, jump))
+            jumpArrivalEpoch++
+            pendingJump = null
+        }
+        // Returns true iff the tap hit a visible+owned mark (so the page composable knows NOT to toggle
+        // chrome). The layer + owner filter is jumpAt's (§4.4); coords are the page's own permille.
+        val onJumpTap: (StagePage, Int, Int) -> Boolean = { page, xP, yP ->
+            val j = jumpAt(page, xP, yP, state.visibleFor(page.songId), state.identity)
+            if (j != null) { if (state.jumpDirect) performJump(j) else pendingJump = j; true } else false
+        }
+
         Box(
             Modifier
                 .fillMaxSize()
@@ -553,7 +581,7 @@ private fun Performing(
                 // pager below renders the poster for an intermission page itself, so a cross into/out of a
                 // break still follows the finger (N10) instead of snapping out of the pager.
                 currentIsIntermission && !scrollMode -> state.currentPage?.let { p ->
-                    PageView(p, state.visibleFor(p.songId), FitMode.FIT_PAGE, decoder, cache, colorMode, colorMode.pagePlaceholder(), Modifier.fillMaxSize())
+                    PageView(p, state.visibleFor(p.songId), FitMode.FIT_PAGE, decoder, cache, colorMode, colorMode.pagePlaceholder(), Modifier.fillMaxSize(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible })
                 }
                 // N10 (VLL, 2026-09-08): in SCROLL mode a HorizontalPager makes a song cross FOLLOW THE
                 // FINGER — drag and the adjacent column tracks under the touch, release settles (a plain
@@ -590,11 +618,11 @@ private fun Performing(
                         if (state.songs.getOrNull(page)?.kind == RunningOrderKind.INTERMISSION) {
                             // T165-B: an intermission page is a POSTER even in scroll mode, inside the pager.
                             state.pages.getOrNull(state.songs[page].firstPage)?.let { p ->
-                                PageView(p, state.visibleFor(p.songId), FitMode.FIT_PAGE, decoder, cache, colorMode, colorMode.pagePlaceholder(), Modifier.fillMaxSize())
+                                PageView(p, state.visibleFor(p.songId), FitMode.FIT_PAGE, decoder, cache, colorMode, colorMode.pagePlaceholder(), Modifier.fillMaxSize(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible })
                             }
                         } else {
                             val songListState = scrollListStates.getOrPut(page) { LazyListState() }
-                            ScrollReader(state, page, songListState, decoder, cache, colorMode, widthPx)
+                            ScrollReader(state, page, songListState, decoder, cache, colorMode, widthPx, onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible })
                         }
                     }
                 }
@@ -628,16 +656,42 @@ private fun Performing(
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
                         Row(Modifier.fillMaxSize()) {
                             spreadPages(cur, songStarts, state.pageCount).forEach { idx ->
-                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight())
+                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible })
                             }
                         }
                     } else {
                         state.pages.getOrNull(cur)?.let { p ->
-                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize())
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible })
                         }
                     }
                 }
             }
+        }
+
+        // P206 §4.1 — the "go to" popup (the DEFAULT; the direct-jump pref skips it). Tap the scrim to
+        // cancel. Shows the destination's page number (within-song, as the author typed it).
+        pendingJump?.let { jump ->
+            val popChrome = stageChrome(colorMode)
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+                    .pointerInput(Unit) { detectTapGestures { pendingJump = null } },
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(color = popChrome.surface, contentColor = popChrome.onSurface, tonalElevation = 6.dp) {
+                    Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Go to page ${jump.targetPage + 1}", style = MaterialTheme.typography.titleMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TextButton(onClick = { pendingJump = null }) { Text("Cancel") }
+                            Button(onClick = { performJump(jump) }) { Text("Go") }
+                        }
+                    }
+                }
+            }
+        }
+        // P206 §4.3 — a brief arrival pulse (the ONLY feedback in the same-spread two-up case, and the
+        // signal that a clamped landing put the target mid-screen). A faint scheme-accent wash, no input.
+        AnimatedVisibility(visible = jumpFlash, enter = fadeIn(tween(120)), exit = fadeOut(tween(400))) {
+            Box(Modifier.fillMaxSize().background(Color(0x22198060)))
         }
 
         // A34: the visual beat — a pulsing frame on the page border PLUS a big, faint, tinted beat
@@ -850,6 +904,7 @@ private fun Performing(
         onToggleClock = { vm.setClockVisible(!state.clockVisible) },
         onSetClockStyle = { vm.setClockStyle(it) },
         onToggleSwipeLock = { vm.toggleSwipeLock() },
+        onToggleJumpDirect = { vm.toggleJumpDirect() },
         onDismiss = { showSettings = false },
     )
     if (showLayers) LayersDialog(state, vm, colorMode) { showLayers = false }
@@ -1041,6 +1096,7 @@ private fun SettingsSheet(
     onToggleClock: () -> Unit,
     onSetClockStyle: (ClockStyle) -> Unit,
     onToggleSwipeLock: () -> Unit,
+    onToggleJumpDirect: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val chrome = stageChrome(colorMode) // A69: the sheet follows the reading scheme
@@ -1092,6 +1148,15 @@ private fun SettingsSheet(
                     Text("Stop an accidental scroll from changing the song — use ‹ › or a pedal.", style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = state.swipeLocked, onCheckedChange = { onToggleSwipeLock() })
+            }
+            // P206 §4.1 (VLL, 2026-09-08): a jump-mark tap opens a "go to" popup by default; this skips it and
+            // jumps straight there.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Skip the go-to popup", style = MaterialTheme.typography.titleSmall)
+                    Text("Tapping a jump mark goes straight there — no confirmation.", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = state.jumpDirect, onCheckedChange = { onToggleJumpDirect() })
             }
             // A63 — the three controls were three OutlinedButtons drawn identically, none labelled, so
             // they read as one kind of thing (VLL misread the colour value as a label like the reading
@@ -1467,15 +1532,20 @@ private fun ScrollReader(
     cache: PageImageCache,
     colorMode: StageColorMode,
     widthPx: Int,
+    onJumpTap: (StagePage, Int, Int) -> Boolean = { _, _, _ -> false }, // P206 §4.1
+    onToggleChrome: () -> Unit = {},
 ) {
     // N10: render [songIndex]'s own pages (not always state.current's) — during a cross slide the OUTGOING
     // song is composed alongside the incoming one, each from its own column.
     val range = songPageRange(state, state.songs.getOrNull(songIndex)?.firstPage ?: state.current)
     val songPages = if (range.isEmpty()) emptyList() else state.pages.subList(range.first, range.last + 1)
-    LaunchedEffect(state.currentSong) {
+    // Keyed on state.current (not just currentSong) so a P206 jump to ANOTHER page of the SAME song
+    // repositions the column — within-song vertical scrolling doesn't change state.current, so this only
+    // fires on a deliberate move (cross / edge-turn / jump), never fighting the reader's own scroll.
+    LaunchedEffect(state.current) {
         // Land on the current page WITHIN this song's column (local index) — but ONLY while this song IS the
-        // current one. A cross set current to the song's first/last page, so this positions the column at its
-        // top/bottom. The outgoing song must NOT be re-scrolled: it keeps its position while it slides away.
+        // current one. A cross set current to the song's first/last page; a jump set it to the target. The
+        // outgoing song must NOT be re-scrolled: it keeps its position while it slides away.
         if (songIndex == state.currentSong) {
             listState.scrollToItem((state.current - range.first).coerceIn(0, (songPages.size - 1).coerceAtLeast(0)))
         }
@@ -1489,6 +1559,7 @@ private fun ScrollReader(
                 ScrollPage(
                     page, state.visibleFor(page.songId), decoder, cache, colorMode, widthPx,
                     trimFraction = scrollTrimFraction(index == songPages.lastIndex, page.contentBottomPermille),
+                    onJumpTap = onJumpTap, onToggleChrome = onToggleChrome,
                 )
             }
         }
@@ -1505,6 +1576,8 @@ private fun ScrollPage(
     colorMode: StageColorMode,
     widthPx: Int,
     trimFraction: Double = 1.0, // T149: <1 for a song's last page in SCROLL — draw only the top fraction
+    onJumpTap: (StagePage, Int, Int) -> Boolean = { _, _, _ -> false }, // P206 §4.1
+    onToggleChrome: () -> Unit = {},
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
         PlaceholderCard(Modifier.fillMaxWidth().aspectRatio(SCROLL_PLACEHOLDER_ASPECT), colorMode)
@@ -1543,8 +1616,16 @@ private fun ScrollPage(
         }
         else -> {
             val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
+            // P206 §4.1: tap detector on the RASTER (width-filled ⇒ its own coords are a straight ratio) —
+            // ONLY on pages that carry jumps, so a jump-less page keeps the exact existing tap behaviour.
+            val rasterTapMod = if (page.jumps.isEmpty()) Modifier.fillMaxSize() else Modifier.fillMaxSize().pointerInput(page, onJumpTap) {
+                detectTapGestures { off ->
+                    val c = tapToPagePermille(off.x.toInt(), off.y.toInt(), size.width, size.height, aspect.toDouble(), letterboxed = false)
+                    if (!(c != null && onJumpTap(page, c.first, c.second))) onToggleChrome()
+                }
+            }
             val pageInk: @Composable BoxScope.() -> Unit = {
-                Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = colorMode.pageColorFilter())
+                Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = rasterTapMod, contentScale = ContentScale.FillWidth, colorFilter = colorMode.pageColorFilter())
                 bitmaps.overlays.forEach {
                     // A64 part 2: the transform is already baked into the overlay pixels → NO colour filter.
                     Image(BitmapPainter(it), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillWidth, colorFilter = null)
@@ -1589,6 +1670,10 @@ private fun PageView(
     colorMode: StageColorMode,
     placeholder: Color,
     modifier: Modifier,
+    // P206 §4.1: a tap on the raster → jump (if it lands in a visible mark) else chrome toggle. Defaults
+    // keep non-reading callers (none today) inert.
+    onJumpTap: (StagePage, Int, Int) -> Boolean = { _, _, _ -> false },
+    onToggleChrome: () -> Unit = {},
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
         PlaceholderCard(modifier, colorMode)
@@ -1638,8 +1723,23 @@ private fun PageView(
                     if (fitMode == FitMode.FIT_WIDTH) Modifier.fillMaxWidth().aspectRatio(aspect)
                     else Modifier.fillMaxSize()
                 val scale = if (fitMode == FitMode.FIT_WIDTH) ContentScale.FillWidth else ContentScale.Fit
+                // P206 §4.1: the tap detector rides the RASTER image, so its offsets are in the image's own
+                // space — correct even when FIT_WIDTH has scrolled. FIT_PAGE is letterboxed (Fit), so map
+                // through the contained rect; FIT_WIDTH fills the width, so it's a straight ratio. A tap that
+                // misses every visible mark toggles chrome (N3), and consuming here keeps stageTaps from also
+                // firing. Activation is a TAP; a drag still reaches the swipe/scroll detectors unchanged.
+                // Attach the tap detector ONLY on pages that carry jumps — a jump-less page (every page until
+                // the bake ships marks) keeps the EXACT existing tap behaviour (stageTaps toggles chrome), so
+                // this change is inert on the live reading surface and the gesture path only matters where a
+                // mark exists (verifiable once the bake produces one).
+                val rasterTapMod = if (page.jumps.isEmpty()) imageMod else imageMod.pointerInput(page, onJumpTap) {
+                    detectTapGestures { off ->
+                        val c = tapToPagePermille(off.x.toInt(), off.y.toInt(), size.width, size.height, aspect.toDouble(), fitMode == FitMode.FIT_PAGE)
+                        if (!(c != null && onJumpTap(page, c.first, c.second))) onToggleChrome()
+                    }
+                }
                 Box(container, contentAlignment = Alignment.Center) {
-                    Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = colorMode.pageColorFilter())
+                    Image(BitmapPainter(bitmaps.raster), contentDescription = null, modifier = rasterTapMod, contentScale = scale, colorFilter = colorMode.pageColorFilter())
                     bitmaps.overlays.forEach {
                         // A64 part 2: transform baked into the overlay pixels → NO colour filter.
                         Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = null)
