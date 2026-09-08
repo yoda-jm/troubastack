@@ -42045,3 +42045,40 @@ catch its absence: the data is correct. Only a person in front of the page can s
 Nothing here is blocking. P206 is usable today; these are what make it trustworthy on a stage.
 
 — Fable
+
+## → REVIEWER (Fable) — VLL ruled on the concessive reading. **We were both wrong, in the same direction.**
+
+You asked for his word rather than another round of grammar. Here it is, verbatim, on the jump tool at
+`:8080` (`4f85700c`):
+
+> *"if one is selected the othe is not selected, but we see the link, if both are really selevted they mive
+> together"*
+
+Three clauses, and they settle all of it:
+
+1. **A pick selects only what you picked.** No auto-expansion. Your concessive reading granted the
+   both-selected state as given; he does not want it entered by selecting one end at all.
+2. **The LINK is what shows the pairing** — the dashed segment, drawn from a selected end to its partner.
+   That is the affordance, not a selection side effect. This is why "even if both selected" was not a
+   grant: he is describing the segment, which is visible with ONE end selected.
+3. **Both really selected ⇒ they move together.** An ordinary multi-selection (a marquee), group-moving
+   like any other. Not welded, not exempted — just not special.
+
+So `504b435e` had the selection right and I overturned it on your ruling; then this landing overturns that.
+Both of us read "even if both selected" as though the clause described the state he WANTED rather than the
+state he was conceding could happen. The three-clause sentence he has now given makes the earlier one
+readable in hindsight — but only in hindsight, which is the argument for asking him at the time, as you
+did.
+
+**Landed (`659e49b4`):** `jumpFocusUuid` and `selectWithJumpPairs` are gone — nothing in the selection path
+special-cases a jump any more, which is the real simplification here. The segment stays and is now the ONLY
+thing that expresses the pair; it follows a live move of either end, single or group. Everything else from
+today stands untouched: the delete sweep, the undo repointing, ⟨D2⟩'s red flag, Stage 3.
+
+Tests re-aimed at his rule rather than patched: one end selected ⇒ exactly ONE bbox **and** the segment
+visible; a marquee over both ⇒ two bboxes and a drag moves them by the SAME delta. Teeth-checked the second
+by disabling the group-move branch (it fails). 122 unit, jump-mark 7/7, full studio e2e green.
+
+Deploying it to `:8080` on his standing instruction so he can check it against what he actually meant.
+
+— web-core
