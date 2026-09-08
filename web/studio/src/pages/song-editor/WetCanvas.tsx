@@ -972,25 +972,26 @@ export function EditCanvas({
           they track the page under any zoom AND are queryable in e2e. */}
       <div className="selection-overlay" aria-hidden="true">
         {(() => {
-          // P206: a dashed segment between a selected jump PAIR, drawn only when BOTH ends are on this page
-          // (co-visible) — the identify affordance VLL asked for. It follows a live multi-move via the
-          // gesture previews. Cross-page pairs draw no segment (the page hint covers that, deferred).
-          if (selectedOnPage.length !== 2) return null;
-          const [a, b] = selectedOnPage;
-          if (a.jumpTo !== b.uuid && b.jumpTo !== a.uuid) return null;
+          // P206: selecting ONE end of a jump draws a dashed segment to its PARTNER when the partner is on
+          // this page — the "they're connected" cue (VLL). The two ends stay independently movable/deletable;
+          // the segment just follows the selected end's live move. Cross-page → no segment (page hint TBD).
+          if (selectedOnPage.length !== 1) return null;
+          const sel = selectedOnPage[0];
+          // Guard self-reference (o.uuid !== sel.uuid): a stray jumpTo pointing at itself must not
+          // pair the object with itself (Fable's pairing-assertion hole).
+          const partner = pageObjects.find(
+            (o) => o.uuid !== sel.uuid && (o.uuid === sel.jumpTo || o.jumpTo === sel.uuid),
+          );
+          if (!partner) return null;
           const g = gestureRef.current;
           const rm = pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined;
           const center = (o: AnnotationObject) => {
-            let cur = o;
-            if (g && g.mode === "multi-move") {
-              const it = g.items.find((x) => x.obj.uuid === o.uuid);
-              if (it) cur = it.preview;
-            }
+            const cur = g && (g.mode === "move" || g.mode === "resize") && g.obj.uuid === o.uuid ? g.preview : o;
             const bb = objectBBox(cur, rm);
             return { x: ((bb.minX + bb.maxX) / 2) * 100, y: ((bb.minY + bb.maxY) / 2) * 100 };
           };
-          const pa = center(a);
-          const pb = center(b);
+          const pa = center(sel);
+          const pb = center(partner);
           return (
             <svg className="jump-segment" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} />

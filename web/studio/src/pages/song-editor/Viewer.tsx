@@ -813,23 +813,6 @@ export function Viewer({
     [ensureActiveLayer, doc.layers, myUserId, myRole, style, activeGlyph, activeJumpGlyph, jumpSize, pendingJumpDest, recordUndo],
   );
 
-  // P206: selecting ONE end of a jump selects BOTH (VLL) — a source picks up its destination, a destination
-  // picks up the source that points at it. With both selected, the existing multi-move drags them together
-  // and the dashed segment (drawn in WetCanvas) follows. A single pick of a non-jump object is unchanged;
-  // a marquee (multi) passes through untouched.
-  const selectWithJumpPairs = useCallback(
-    (uuids: string[]) => {
-      if (uuids.length !== 1) {
-        setSelectedUuids(uuids);
-        return;
-      }
-      const id = uuids[0];
-      const obj = doc.objects.find((o) => o.uuid === id);
-      const partner = obj?.jumpTo || doc.objects.find((o) => o.jumpTo === id)?.uuid;
-      setSelectedUuids(partner && doc.objects.some((o) => o.uuid === partner) ? [id, partner] : uuids);
-    },
-    [doc.objects],
-  );
 
   // Is THIS object on a layer I may ever edit (owner / rw)? Drives the lock cue
   // (a truly read-only object shows a 🔒). NOT the mutation gate — see below.
@@ -1126,6 +1109,8 @@ export function Viewer({
     },
     style: effectiveStyle,
     onStyle: applyStyle,
+    jumpSize,
+    onJumpSize: setJumpSize,
     controlsLocked,
     multiSelected: selectedUuids.length > 1,
     selectedType: selectedObject?.type ?? null,
@@ -1395,8 +1380,6 @@ export function Viewer({
           ids={LANDMARK_GLYPH_IDS}
           testid="jump-palette"
           ariaLabel="Jump landmark"
-          size={jumpSize}
-          onSize={setJumpSize}
           reflowKey={`${zoomSelectValue}|${customZoomPercent ?? ""}|${numPages}|${selectedFileId ?? ""}`}
         />
       )}
@@ -1473,7 +1456,7 @@ export function Viewer({
                   selectedUuids={selectedUuids}
                   isObjectEditable={isEditableObject}
                   isObjectEditableNow={isObjectEditableNow}
-                  onSelect={selectWithJumpPairs}
+                  onSelect={setSelectedUuids}
                   onFocusLayer={focusLayerOnly}
                   onCommitDraw={commitDraw}
                   onTextResolved={() => setTool("select")}
@@ -1518,7 +1501,7 @@ export function Viewer({
                 selectedUuids={selectedUuids}
                 isObjectEditable={isEditableObject}
                 isObjectEditableNow={isObjectEditableNow}
-                onSelect={selectWithJumpPairs}
+                onSelect={setSelectedUuids}
                 onFocusLayer={focusLayerOnly}
                 onCommitDraw={commitDraw}
                 onTextResolved={() => setTool("select")}

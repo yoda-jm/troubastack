@@ -278,12 +278,14 @@ function BottomSizePreview({
   show,
   ping,
   previewSize,
+  jumpSize,
 }: {
   style: AnnotationStyle;
   isText: boolean;
   show: boolean;
   ping: number;
   previewSize: number | null; // a font size being HOVERED in the custom dropdown (overrides the committed one)
+  jumpSize: number | null; // P206: the jump landmark's size (bbox side, page-width fraction) — a box hint
 }) {
   const { w, h } = usePageBox();
   const [visible, setVisible] = useState(false);
@@ -304,11 +306,16 @@ function BottomSizePreview({
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [show, isText, style.width, style.fontSize, ping, previewSize]);
+  }, [show, isText, style.width, style.fontSize, ping, previewSize, jumpSize]);
   if (!show) return null;
   let visual: ReactNode;
   let label: string;
-  if (isText) {
+  if (jumpSize != null) {
+    // P206: the jump landmark size hint — a dashed square at the true size, with the mm.
+    const d = Math.min(HUD_MAX_CIRCLE, Math.max(6, jumpSize * (w || 600)));
+    visual = <span className="size-hud-box" style={{ width: `${d}px`, height: `${d}px` }} />;
+    label = `${(jumpSize * 210).toFixed(0)} mm`;
+  } else if (isText) {
     const font = previewSize ?? style.fontSize;
     const px = Math.min(HUD_MAX_TEXT, Math.max(8, font * (h || 850)));
     visual = (
@@ -467,6 +474,8 @@ export function EditorToolbar({
   onTool,
   style,
   onStyle,
+  jumpSize,
+  onJumpSize,
   controlsLocked,
   multiSelected,
   selectedType,
@@ -495,6 +504,10 @@ export function EditorToolbar({
   onTool: (t: Tool) => void;
   style: AnnotationStyle;
   onStyle: (s: AnnotationStyle) => void;
+  // P206: the jump landmark's size (bbox side, page-width fraction) + its setter — shown in the ctx bar
+  // when the jump tool is active.
+  jumpSize: number;
+  onJumpSize: (n: number) => void;
   // The selected object is on a locked layer → style controls reflect but are disabled.
   controlsLocked: boolean;
   // More than one object is selected (#4): style/restyle controls are disabled,
@@ -618,9 +631,10 @@ export function EditorToolbar({
         <BottomSizePreview
           style={style}
           isText={showFont && !showWidth}
-          show={showWidth || showFont}
+          show={showWidth || showFont || tool === "jump"}
           ping={sizeHoverPing}
           previewSize={showFont && !showWidth ? previewFont : null}
+          jumpSize={tool === "jump" ? jumpSize : null}
         />
         {/* Shape/type indicator: the selection's type/count, else the draw tool. */}
         <span className="pill style-target" data-testid="style-target">
@@ -694,6 +708,26 @@ export function EditorToolbar({
             {widthToMm(style.width).toFixed(2)} mm
           </span>
         </label>
+        {/* P206: the jump landmark's SIZE, shown only for the jump tool (VLL: "the size in the toolbar"). */}
+        {tool === "jump" && (
+          <label className="style-field" onMouseEnter={pingSize}>
+            <input
+              type="range"
+              data-testid="jump-size"
+              aria-label="Jump mark size"
+              title="Jump mark size"
+              min={0.03}
+              max={0.16}
+              step={0.005}
+              value={jumpSize}
+              disabled={disabled}
+              onChange={(e) => onJumpSize(Number(e.target.value))}
+            />
+            <span className="style-value" data-testid="jump-size-value">
+              {(jumpSize * 210).toFixed(0)} mm
+            </span>
+          </label>
+        )}
         {/* Shape style (#5): fill / border(stroke) / blend + presets. Relevant for
             shape/draw targets; hidden (space reserved) for text/none. */}
         {/* Shape presets as an icon trio (#4). Fill/Border/Blend + the hex readout moved

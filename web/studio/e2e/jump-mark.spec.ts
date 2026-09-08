@@ -73,7 +73,26 @@ test("two placements create a matching pair; the source carries jumpTo = the des
   expect(pair!.sameGlyph).toBe(true);
 });
 
-test("selecting one end selects the WHOLE pair and draws the dashed segment (VLL)", async ({ page }) => {
+test("the size lives in the toolbar (a mm readout) with a live box hint (VLL)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  // The size control is in the toolbar (not the palette): a slider + a mm readout.
+  const size = page.getByTestId("jump-size");
+  await expect(size).toBeVisible();
+  const value = page.getByTestId("jump-size-value");
+  await expect(value).toHaveText(/^\d+ mm$/);
+  const before = await value.textContent();
+  // Dragging the size updates the readout AND flashes the hint box.
+  await size.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect(value).not.toHaveText(before ?? "");
+  await expect(page.getByTestId("style-size-preview").locator(".size-hud-box")).toBeVisible();
+});
+
+test("selecting ONE end draws the segment to its partner, but selects only that end (VLL)", async ({
+  page,
+}) => {
   await openEditorReady(page);
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
@@ -82,7 +101,7 @@ test("selecting one end selects the WHOLE pair and draws the dashed segment (VLL
   // Switch to select and pick just ONE end…
   await page.getByTestId("tool-select").click();
   await clickAt(page, 300, 300);
-  // …both ends are selected, and the segment is drawn between them.
-  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+  // …only THAT end is selected (so it moves/deletes independently), and the segment ties it to the partner.
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
   await expect(page.locator(".jump-segment").first()).toBeVisible();
 });

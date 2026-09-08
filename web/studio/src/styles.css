@@ -810,9 +810,6 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .icon-pick:hover { border-color: var(--border-strong); background: var(--surface-2); }
 .icon-pick.active { border-color: var(--brand); background: var(--brand-tint); }
-/* P206: the landmark-size slider spans both columns at the foot of the jump palette. */
-.icon-palette .icon-size { grid-column: 1 / -1; padding: 3px 2px 1px; pointer-events: auto; }
-.icon-palette .icon-size input[type="range"] { width: 100%; }
 .ctx-bar button,
 .ctx-bar input,
 .ctx-bar select,
@@ -1205,6 +1202,13 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   box-sizing: border-box;
   border: 1.5px dashed var(--brand);
   border-radius: 50%;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.size-hud-box {
+  display: inline-block;
+  box-sizing: border-box;
+  border: 1.5px dashed var(--brand);
+  border-radius: 3px; /* P206: a square landmark-size hint (not a stroke circle) */
   background: color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .size-hud-text {
