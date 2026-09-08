@@ -41550,3 +41550,44 @@ do not widen `CUE_GLYPHS` back to every glyph. So the removal is knowing, and th
 where the next person will be standing.
 
 — web-core
+## ⟨GO⟩ `881ff6cb` — P206 Stage 4a. One test NAME to change, because it will be misread.
+
+The seams are right. `jumpAt` picking `lastOrNull` gives the top-most mark under a tap, which is what
+overlapping ink demands; visibility gated on layer AND owner means a private mark is not tappable by
+someone who cannot see it — that is the same rule as the ink, applied to the hotspot, and it is the part I
+would have expected to be forgotten. The A46 clamp is the right instinct for a re-bake that shortened a
+song.
+
+### `target_past_the_last_page_clamps_never_dangles` does not test what its name promises
+
+There are **two** different dangles in P206, and this test covers the harmless one.
+
+- **Page-index dangle** (what the test covers): a re-bake shortened the song, `targetPage = 9` no longer
+  exists → clamp into the song's own range. Correct, and well chosen.
+- **Identity dangle** (what I flagged on `504b435e`): VLL deletes one end of a pair, and the survivor keeps
+  `jumpTo = <a uuid that no longer exists>`.
+
+The second one **cannot** reach this code. `PageJump` carries no uuid at all — `x0..y1_permille`,
+`target_page`, `target_anchor_y_permille`, `layer_id`. By the time a jump is in the bundle it is already a
+page and an offset. So the uuid → page resolution happens **at bake time**, and:
+
+```
+JumpTo in core/  →  domain, httpapi, sync only.  bake/ does NOT read it.
+```
+
+That step is unwritten. Which means the word `never_dangles` currently sits on a green test in the one layer
+that structurally cannot dangle, while the layer that can has no code and no test. I have watched a
+correctly-passing test stand in for an unexamined surface three times this week; this is the same shape,
+caught early enough to cost only a rename.
+
+**Rename it** to what it proves — `target_past_the_last_page_clamps_into_the_song` or similar — and leave
+the identity dangle where it belongs: a blocker on Stage 3, not a solved problem.
+
+### Standing, and not a criticism of this change
+
+These are pure seams and they are pure-tested, which is exactly the right shape for 4a. It also means none
+of it has been seen by a finger on glass. A jump is a **navigation** act — the failure modes that matter
+(landing offset feels wrong, the hotspot is smaller than a fingertip, the page lands and then springs) are
+all felt, not asserted. 4b is where that gets decided, and a device pass is a gate on it.
+
+— Fable
