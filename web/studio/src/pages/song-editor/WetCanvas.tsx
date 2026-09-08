@@ -63,7 +63,6 @@ export function EditCanvas({
   layerRank,
   visible,
   selectedUuids,
-  jumpFocusUuid,
   isObjectEditable,
   isObjectEditableNow,
   onSelect,
@@ -95,11 +94,6 @@ export function EditCanvas({
   layerRank: Map<string, number>;
   visible: LayerVisibility;
   selectedUuids: string[];
-  // P206 (Fable ⟨review⟩ 3350c809): when the selection is an auto-expanded JUMP PAIR, the end the user
-  // actually grabbed. Both ends highlight (VLL: "selecting one should select both"), but the pair is shown,
-  // not welded — handles, move, resize and the object toolbar all act on this end alone ("even if both
-  // selected, they should be able to move one without the other"). null for every other selection.
-  jumpFocusUuid: string | null;
   // Whether an object's layer is editable at all (owner/rw) — drives the lock cue.
   isObjectEditable: (obj: AnnotationObject) => boolean;
   // Whether an object may be moved/resized/deleted/restyled RIGHT NOW: it is on
@@ -505,11 +499,8 @@ export function EditCanvas({
     return w > 0 && h > 0 ? { w, h } : null;
   }, []);
 
-  // The bbox of the single selected object on this page (drives resize handles + the object toolbar).
-  // P206: a jump PAIR is two selected objects with ONE focused end — that end is the "single" here, so a
-  // paired landmark keeps its handles and its toolbar exactly as an unpaired one has them.
-  const jumpFocused = jumpFocusUuid ? selectedOnPage.find((o) => o.uuid === jumpFocusUuid) ?? null : null;
-  const selectedSingle = selectedOnPage.length === 1 ? selectedOnPage[0] : jumpFocused;
+  // The bbox of the single selected object on this page (drives resize handles).
+  const selectedSingle = selectedOnPage.length === 1 ? selectedOnPage[0] : null;
 
   // Assemble the PickContext used by BOTH the pointer-down gesture and the hover
   // cursor, so the cursor always predicts what the next drag will do. pageObjects
@@ -550,7 +541,7 @@ export function EditCanvas({
     // A multi-selection grab predicts a group move (Bug #4): hovering inside the
     // selection shows `move` when at least one member is editable-now.
     const dims = pageDims();
-    if (selectedOnPage.length > 1 && !jumpFocusUuid && dims) {
+    if (selectedOnPage.length > 1 && dims) {
       const measure = textMeasure();
       if (
         hitsMultiSelection(pt, selectedOnPage, dims.w, dims.h, measure) &&
@@ -685,9 +676,7 @@ export function EditCanvas({
       // the editable-now members actually translate (others stay put); if none
       // are editable-now, fall through to a normal pick (no group move).
       const dims = pageDims();
-      // P206: a jump pair is NOT a group — a press inside it picks the end under the pointer and moves
-      // that one (VLL). Every other multi-selection still drags as a group (Bug #4).
-      if (selectedOnPage.length > 1 && !jumpFocusUuid && dims) {
+      if (selectedOnPage.length > 1 && dims) {
         const measure = textMeasure();
         if (hitsMultiSelection(pt, selectedOnPage, dims.w, dims.h, measure)) {
           const items = selectedOnPage
@@ -1014,11 +1003,11 @@ export function EditCanvas({
             );
           })}
         {(() => {
-          // P206: a selected jump draws a dashed segment between its two ends when both are on this page —
-          // the "they're connected" cue (VLL). Selecting one end selects both, so the usual case is the two
-          // selected ends; a partner reached any other way (marquee, a single pick that could not pair)
-          // still ties to whatever is on the page. It follows a live move of EITHER end (the ends move
-          // independently now). Cross-page → no segment (the page hint covers that, deferred).
+          // P206 (VLL): "if one is selected the other is not selected, but we see the link." Selecting a
+          // jump's end selects THAT end only; this dashed segment to its partner is what shows the pair —
+          // the relationship is displayed, never a selection side effect. Works the same when both ends are
+          // genuinely selected (a marquee), and follows a live move of either end, single or group.
+          // Cross-page → no segment (the page hint covers that, deferred).
           // Guard self-reference (x.uuid !== o.uuid): a stray jumpTo pointing at itself must not pair an
           // object with itself (Fable's pairing-assertion hole).
           let sel: AnnotationObject | null = null;
@@ -1077,8 +1066,7 @@ export function EditCanvas({
           // Bug #2: suppress handles when the on-screen bbox is too small to show them
           // safely — the object is then move-only (handles would overlap the body).
           const bigEnough = pageBoxPx ? handlesVisible(b, pageBoxPx.w, pageBoxPx.h) : false;
-          const showHandles =
-            editableNow && (selectedOnPage.length === 1 || o.uuid === jumpFocusUuid) && bigEnough;
+          const showHandles = editableNow && selectedOnPage.length === 1 && bigEnough;
           return (
             <div
               key={o.uuid}

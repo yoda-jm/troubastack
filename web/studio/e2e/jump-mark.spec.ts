@@ -128,72 +128,53 @@ test("the size lives in the toolbar (a mm readout) with a live box hint (VLL)", 
   await expect(page.getByTestId("style-size-preview").locator(".size-hud-box")).toBeVisible();
 });
 
-test("selecting ONE end selects BOTH and draws the segment (VLL: \"selecting one should select both\")", async ({
-  page,
-}) => {
+test("selecting ONE end selects only THAT end, and the link is shown (VLL)", async ({ page }) => {
   await openEditorReady(page);
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
   await clickAt(page, 300, 540); // destination
   await clickAt(page, 300, 300); // source
-  // Switch to select and pick just ONE end…
   await page.getByTestId("tool-select").click();
   await clickAt(page, 300, 300);
-  // …and BOTH ends highlight, tied by the dashed segment. The pair is SHOWN (Fable's ruling on 504b435e:
-  // "even if both selected" grants the state) — the next two tests prove it is not WELDED.
-  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+  // VLL, 2026-09-08: "if one is selected the other is not selected, but we see the link". The pairing is
+  // shown by the SEGMENT, never by selecting something the user did not pick.
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
   await expect(page.locator(".jump-segment").first()).toBeVisible();
 });
 
-// The teeth for the ruling: with BOTH ends selected, a drag on one end must move that end ALONE. If the
-// pair were welded (the group move this selection used to trigger), the partner would travel by the same
-// delta and this assertion would fail on the partner, not on the dragged end.
-test("with both selected, dragging one end moves ONLY that end (VLL)", async ({ page }) => {
+// "if both are really selected they move together" (VLL) — genuinely selecting both (a marquee) makes an
+// ordinary multi-selection, which group-moves like any other. Nothing special-cases a jump: this test
+// exists to pin that the pair is NOT welded by selection and NOT exempted from grouping either.
+test("when both ends are REALLY selected, they move together (VLL)", async ({ page }) => {
   await openEditorReady(page);
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
-  await clickAt(page, 300, 540); // destination
-  await clickAt(page, 300, 300); // source (carries jumpTo)
+  await clickAt(page, 300, 520); // destination
+  await clickAt(page, 300, 300); // source
   await page.getByTestId("tool-select").click();
-  await clickAt(page, 300, 300); // selects BOTH ends, focused on the source
+
+  // Marquee from empty space around BOTH ends.
+  const cb = (await page.getByTestId("edit-canvas").first().boundingBox())!;
+  await page.mouse.move(cb.x + 180, cb.y + 230);
+  await page.mouse.down();
+  await page.mouse.move(cb.x + 460, cb.y + 600, { steps: 8 });
+  await page.mouse.up();
   await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
 
   const before = await readEnds(page);
-  const cb = (await page.getByTestId("edit-canvas").first().boundingBox())!;
-  await page.mouse.move(cb.x + 300, cb.y + 300);
+  // Drag from INSIDE the selection (between the two marks) — a group move.
+  await page.mouse.move(cb.x + 300, cb.y + 410);
   await page.mouse.down();
-  await page.mouse.move(cb.x + 380, cb.y + 300, { steps: 8 }); // drag the SOURCE right
+  await page.mouse.move(cb.x + 380, cb.y + 410, { steps: 8 });
   await page.mouse.up();
-  await expect
-    .poll(async () => (await readEnds(page)).source.x > before.source.x + 0.02)
-    .toBe(true); // the grabbed end travelled…
+  await expect.poll(async () => (await readEnds(page)).source.x > before.source.x + 0.02).toBe(true);
   const after = await readEnds(page);
-  expect(Math.abs(after.dest.x - before.dest.x)).toBeLessThan(0.005); // …and its partner stayed put
+  const dSource = after.source.x - before.source.x;
+  const dDest = after.dest.x - before.dest.x;
+  expect(Math.abs(dDest - dSource)).toBeLessThan(0.005); // the SAME delta — they travelled together
   expect(Math.abs(after.dest.y - before.dest.y)).toBeLessThan(0.005);
 });
 
-test("with both selected, Delete removes ONLY the end you grabbed (VLL)", async ({ page }) => {
-  await openEditorReady(page);
-  await page.getByTestId("tool-jump").click();
-  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
-  await clickAt(page, 300, 540); // destination
-  await clickAt(page, 300, 300); // source
-  await page.getByTestId("tool-select").click();
-  await clickAt(page, 300, 300); // both selected, source focused
-  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
-
-  await page.keyboard.press("Delete");
-  // One landmark survives — the destination, the end that was NOT grabbed.
-  await expect(page.getByTestId("selected-bbox")).toHaveCount(0);
-  await expect.poll(async () => (await readIcons(page)).length).toBe(1);
-  const [survivor] = await readIcons(page);
-  expect(survivor.jumpTo ?? "").toBe(""); // the survivor is the destination (it never carried a target)
-});
-
-// Fable's verified finding on 504b435e: per-end delete leaves the survivor pointing at a uuid that no
-// longer exists, and nothing downstream rejects it (the Stage-3 bake, its only consumer, is unwritten). So
-// the pointer is swept at authoring time — and undo has to put the PAIR back, not just the mark, or it
-// leaves a state the user never created: two landmarks that are no longer a jump.
 test("deleting one end clears the survivor's dangling jumpTo; undo restores the pair whole (Fable)", async ({
   page,
 }) => {
@@ -206,7 +187,7 @@ test("deleting one end clears the survivor's dangling jumpTo; undo restores the 
 
   const destUuid = (await readIcons(page)).find((o) => !o.jumpTo)!.uuid;
   await clickAt(page, 300, 540); // grab the DESTINATION — the end the survivor points at
-  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
   await page.keyboard.press("Delete");
 
   // The source survives, and its pointer is gone — no reference to a deleted object is persisted.
