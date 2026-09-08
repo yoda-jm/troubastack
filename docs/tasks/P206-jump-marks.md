@@ -548,3 +548,48 @@ anything that makes `StageModel.kt` stop being a pure compositor + pager beyond 
 4. **Cross-song jumps stay out of scope**, as specified.
 
 Everything else in this document I rule on at the gate.
+
+---
+
+## ⟨D2⟩ 2026-09-08 — "the same pdf" means the same FILE, and Studio must say so at placement
+
+Stage 3 (`94c07b27`) drops a pair whose two ends sit on **different pool files of the same song**, with its
+own warning. Reviewing it I first read that as an unstated restriction. It is not — it is VLL's rule, in his
+words: *"somewhere in the same **pdf**"*. A song may carry several files; "the same pdf" is one of them.
+
+The gap is that **this document never said so**. §Scope rules out cross-**song** jumps and argues it well,
+and the phrase "within one document" reads as *song* everywhere else in this file. The per-file rule was
+therefore correct in the bake and invisible in the spec. Stating it:
+
+> **A jump's two ends must be on the SAME FILE.** Not merely the same song. Cross-file is dropped at bake
+> exactly as cross-song is out of scope, and for the milder version of the same reason: the destination is a
+> position on a rendered page, and two files are two independent page spaces.
+
+### What Studio must do about it
+
+The bake warning is the wrong place to learn this, because the invalid case is **visually identical to a
+valid one** while authoring:
+
+| ends are on | jump | segment drawn |
+|---|---|---|
+| different pages, one file | works | no — not co-visible |
+| different files | **dropped at bake** | no |
+
+An author places both ends, sees no segment, and has already been taught that no segment means "not on the
+same page". Nothing distinguishes the doomed pair from the working one until a bake warning appears, possibly
+days later, naming the song but not the mark.
+
+**Requirement.** Studio refuses or flags a cross-file pairing **at placement**, while the second end is
+being dropped and the fix costs one drag. Refusing outright is defensible — there is no valid reason to
+author it — but VLL's stated preference for this whole class of problem is the softer one, from the column
+overflow: *"ou alors juste le flagger en rouge dans le rendu de Studio pour dire: attention"*. Follow that
+unless he says otherwise: place it, mark it visibly wrong, let him fix it.
+
+The bake warning **stays** regardless — it is the backstop for every bundle authored before this exists, and
+for the dangling refs the studio sweep provably cannot reach (⟨GO⟩ `ef24ec4c`: survivors on a layer the
+deleting user could not edit).
+
+**Sizing:** small, and it belongs with the T168 Studio red-flag work — same surface, same mechanism, same
+authoring-time-warning idea. Whether it ships as part of that or separately is the lane's call.
+
+**Not started. Needs no ruling from me beyond this; it needs VLL only if he wants refusal instead of a flag.**
