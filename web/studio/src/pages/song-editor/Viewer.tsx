@@ -23,8 +23,11 @@ import {
   isMeaningfulGesture,
   isNonDraw,
   pointsForTool,
+  jumpKey,
   newUuid,
+  withJumpPartners,
   planUndo,
+  takenJumpKeys,
   pushBounded,
   shouldCoalesceStyle,
   UNDO_LIMIT,
@@ -431,6 +434,24 @@ export function Viewer({
     [doc.objects, layersById, selectedFileId],
   );
 
+  // P206 uniqueness (⟨D⟩: "a LEGIBILITY rule, not an integrity one", per FILE): the landmark glyphs
+  // already spoken for by a jump in THIS file at the CURRENT colour. The palette offers them unpickable,
+  // so a reader never meets two identical segnos on one page with no way to tell which one is the
+  // destination — the failure no test can see, because the data is correct.
+  const takenJumpGlyphs = useMemo(() => {
+    const claimed = takenJumpKeys(objectsForFile, pendingJumpDest);
+    return new Set(LANDMARK_GLYPH_IDS.filter((id) => claimed.has(jumpKey(id, style.color))));
+  }, [objectsForFile, pendingJumpDest, style.color]);
+
+  // Once the armed glyph becomes spoken for (the pair just completed), move to the next free landmark —
+  // the author's next placement should just work rather than be refused by the guard above.
+  useEffect(() => {
+    if (tool !== "jump" || pendingJumpDest) return;
+    if (!takenJumpGlyphs.has(activeJumpGlyph)) return;
+    const free = LANDMARK_GLYPH_IDS.find((id) => !takenJumpGlyphs.has(id));
+    if (free) setActiveJumpGlyph(free);
+  }, [tool, pendingJumpDest, takenJumpGlyphs, activeJumpGlyph]);
+
   const sortedLayers = useMemo(
     () => sortLayers(doc.layers, myUserId),
     [doc.layers, myUserId],
@@ -723,6 +744,15 @@ export function Viewer({
       // P206: a jump mark is a PAIR of icon landmarks (same glyph + colour). First placement drops the
       // DESTINATION and holds its uuid; the second drops the SOURCE carrying jumpTo = that uuid. One-way.
       if (tool === "jump") {
+        // P206 uniqueness, defence in depth: the palette already excludes a taken combination, but the
+        // colour can change after the glyph was picked. Only the FIRST placement is checked — while a
+        // destination is pending it holds the key itself, and its source must be allowed to match it.
+        if (!pendingJumpDest && takenJumpKeys(objectsForFile, null).has(jumpKey(activeJumpGlyph, style.color))) {
+          setLocalNotice(
+            "That landmark and colour are already used by a jump in this part — pick another glyph or colour so the two can be told apart.",
+          );
+          return;
+        }
         try {
           const target = doc.layers.find((l) => l.id === layerId);
           if (target && !isEditableLayer(target, myUserId, myRole)) {
@@ -984,8 +1014,12 @@ export function Viewer({
   // layer) is skipped — no mutation sent.
   const deleteSelected = useCallback(() => {
     if (selectedUuids.length === 0 || !syncRef.current) return;
+    // P206 (VLL): "deleting one of the jumpmark should delete both" — a jump is ONE thing wearing two
+    // marks, so grabbing either end deletes the pair. An end the user may not edit right now is skipped by
+    // the rule below and its pointer swept instead, which is the only way a half-pair can still arise.
+    const targets = withJumpPartners(selectedUuids, doc.objects);
     const removed: AnnotationObject[] = [];
-    for (const uuid of selectedUuids) {
+    for (const uuid of targets) {
       const obj = doc.objects.find((o) => o.uuid === uuid);
       if (!obj || !isObjectEditableNow(obj)) continue;
       syncRef.current.deleteObject(uuid);
@@ -1020,6 +1054,33 @@ export function Viewer({
       selectOnly([]);
     }
   }, [selectedUuids, doc.objects, isObjectEditableNow, recordUndo, selectOnly]);
+
+  // P206 (VLL): "not completing the dual creation ... unpaired is only allowed during creation". Abandoning
+  // the chain — another tool, Esc, another part — removes the landmark that was placed for it, rather than
+  // leaving a lone symbol that reads as a jump and is not one. Its create-undo goes with it: undo must not
+  // offer to un-create something that is already gone.
+  const abandonPendingJump = useCallback(() => {
+    const uuid = pendingJumpDest;
+    setPendingJumpDest(null);
+    setLocalNotice(null);
+    if (!uuid || !syncRef.current) return;
+    const obj = doc.objects.find((o) => o.uuid === uuid);
+    if (obj && isObjectEditableNow(obj)) syncRef.current.deleteObject(uuid);
+    setUndoStack((st) => {
+      const top = st[st.length - 1];
+      return top && top.action === "create" && top.uuid === uuid ? st.slice(0, -1) : st;
+    });
+  }, [pendingJumpDest, doc.objects, isObjectEditableNow]);
+
+  // Switching PART mid-chain abandons it too: a jump lives within one file (⟨D2⟩), so a destination left
+  // behind on the part you just left could never become one. A ref, not a dep, so this fires on a CHANGE
+  // and never on mount.
+  const lastJumpFile = useRef(selectedFileId);
+  useEffect(() => {
+    if (lastJumpFile.current === selectedFileId) return;
+    lastJumpFile.current = selectedFileId;
+    if (pendingJumpDest) abandonPendingJump();
+  }, [selectedFileId, pendingJumpDest, abandonPendingJump]);
 
   // T161 — undo THIS user's last action by APPENDING the inverse mutation (never rewriting history). It
   // re-checks permission (T30) and refuses — dropping the entry rather than retrying forever — when a
@@ -1070,11 +1131,10 @@ export function Viewer({
         undo();
         return;
       }
-      // P206: Esc cancels a half-placed jump pair (the destination stays as a plain landmark).
+      // P206: Esc cancels a half-placed jump — and removes the landmark it had already placed.
       if (e.key === "Escape" && pendingJumpDest) {
         e.preventDefault();
-        setPendingJumpDest(null);
-        setLocalNotice(null);
+        abandonPendingJump();
         return;
       }
       if (e.key !== "Delete" && e.key !== "Backspace") return;
@@ -1084,7 +1144,7 @@ export function Viewer({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedUuids, deleteSelected, undo, pendingJumpDest]);
+  }, [selectedUuids, deleteSelected, undo, pendingJumpDest, abandonPendingJump]);
 
   // Drop any selected uuids whose objects have disappeared (deleted remotely).
   useEffect(() => {
@@ -1143,11 +1203,8 @@ export function Viewer({
     onTool: (t: Tool) => {
       setTool(t);
       if (t !== "select") selectOnly([]);
-      // P206: leaving the jump tool mid-pair cancels the pending destination (it stays a plain landmark).
-      if (t !== "jump" && pendingJumpDest) {
-        setPendingJumpDest(null);
-        setLocalNotice(null);
-      }
+      // P206: leaving the jump tool mid-pair abandons the creation, and the placed landmark goes with it.
+      if (t !== "jump" && pendingJumpDest) abandonPendingJump();
       // T84: restore this tool group's remembered draw width (freehand vs line vs shape).
       const remembered = widthByTool.current[toolWidthKey(t)];
       if (remembered != null) setStyle((s) => ({ ...s, width: remembered }));
@@ -1423,6 +1480,7 @@ export function Viewer({
           color={style.color}
           onPick={setActiveJumpGlyph}
           ids={LANDMARK_GLYPH_IDS}
+          taken={takenJumpGlyphs}
           testid="jump-palette"
           ariaLabel="Jump landmark"
           reflowKey={`${zoomSelectValue}|${customZoomPercent ?? ""}|${numPages}|${selectedFileId ?? ""}`}

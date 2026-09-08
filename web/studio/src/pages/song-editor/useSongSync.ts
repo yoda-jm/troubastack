@@ -77,7 +77,11 @@ export function useSongSync(bandId: string, songId: string, myUserId: string | n
             ? "That layer is read-only — your edit wasn't saved."
             : reason === "deleted-remotely"
               ? "That object was deleted by someone else."
-              : "Your edit couldn't be saved (out of date).",
+              : reason === "jump-duplicate"
+                ? // P206 uniqueness: the server refused a second jump wearing an existing one's glyph and
+                  // colour. Actionable, because the fix is a different glyph or colour — not a retry.
+                  "A jump in this part already uses that landmark and colour — pick another so they can be told apart."
+                : "Your edit couldn't be saved (out of date).",
         );
         window.setTimeout(() => setRejectNotice(null), 4000);
       },

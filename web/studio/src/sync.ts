@@ -58,7 +58,7 @@ type SnapshotFrame = {
   seq: number;
 };
 type EchoFrame = { type: "echo"; mutation: Mutation };
-export type RejectReason = "deleted-remotely" | "stale" | "forbidden";
+export type RejectReason = "deleted-remotely" | "stale" | "forbidden" | "jump-duplicate";
 type RejectFrame = {
   type: "reject";
   uuid: string;

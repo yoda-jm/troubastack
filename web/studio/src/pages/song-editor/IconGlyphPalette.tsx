@@ -21,6 +21,7 @@ export function IconGlyphPalette({
   onPick,
   reflowKey,
   ids = CUE_ICON_IDS,
+  taken,
   testid = "icon-palette",
   ariaLabel = "Stamp icon",
 }: {
@@ -31,6 +32,10 @@ export function IconGlyphPalette({
   reflowKey?: string;
   /** Glyph ids to offer (default: the cue set). P206 passes LANDMARK_GLYPH_IDS for the jump tool. */
   ids?: string[];
+  /** P206 uniqueness: ids already spoken for by a jump in this file AT THE CURRENT COLOUR — offered but
+   *  not pickable, so the author sees the whole set and why one is unavailable rather than a set that
+   *  silently shrinks. Same glyph in another colour stays free: the rule is the COMBINATION. */
+  taken?: ReadonlySet<string>;
   testid?: string;
   ariaLabel?: string;
 }) {
@@ -77,20 +82,26 @@ export function IconGlyphPalette({
       ref={ref}
       style={left != null ? { left } : undefined}
     >
-      {ids.map((id) => (
+      {ids.map((id) => {
+        const isTaken = taken?.has(id) ?? false;
+        const label = CUE_ICON_LABELS[id] ?? id;
+        return (
         <button
           key={id}
           type="button"
-          className={`icon-pick${active === id ? " active" : ""}`}
+          className={`icon-pick${active === id ? " active" : ""}${isTaken ? " taken" : ""}`}
           data-testid={`icon-pick-${id}`}
-          title={CUE_ICON_LABELS[id] ?? id}
-          aria-label={CUE_ICON_LABELS[id] ?? id}
+          title={isTaken ? `${label} — already used by a jump in this part, in this colour` : label}
+          aria-label={isTaken ? `${label}, already used by a jump in this part` : label}
           aria-pressed={active === id}
+          aria-disabled={isTaken || undefined}
+          disabled={isTaken}
           onClick={() => onPick(id)}
         >
           <CueGlyph icon={id} color={color} size={22} />
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }

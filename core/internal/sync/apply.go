@@ -2,6 +2,7 @@ package sync
 
 import (
 	"encoding/json"
+	"strings"
 
 	"troubastack/core/internal/domain"
 	"troubastack/core/internal/engine"
@@ -237,6 +238,9 @@ func (c *conn) authorizeWrite(kind domain.Kind, in mutationJSON) (string, bool) 
 		if !c.canWriteLayer(layer) {
 			return "forbidden", false
 		}
+		if in.Object != nil && c.jumpDuplicate(objectFromJSON(*in.Object)) {
+			return "jump-duplicate", false
+		}
 		return "", true
 
 	default: // move, resize, setStyle, setText, delete, restore
@@ -259,8 +263,57 @@ func (c *conn) authorizeWrite(kind domain.Kind, in mutationJSON) (string, bool) 
 		if !c.canWriteLayer(layer) {
 			return "forbidden", false
 		}
+		// An EDIT can create the collision too: recolour or re-glyph a jump onto one that already exists.
+		if in.Object != nil && c.jumpDuplicate(objectFromJSON(*in.Object)) {
+			return "jump-duplicate", false
+		}
 		return "", true
 	}
+}
+
+// jumpDuplicate reports whether `obj` would be a SECOND jump wearing the same (glyph, colour) as an
+// existing one on the same FILE — the server-side backstop for the P206 uniqueness rule.
+//
+// Fable's ⟨D⟩ ruling: this is a LEGIBILITY rule, not an integrity one. Pairing is by uuid, so a collision
+// corrupts nothing — the bake resolves both pairs correctly and every downstream test passes. The harm is
+// to a musician meeting two identical segnos on one page mid-song, unable to tell the destination from the
+// source. Studio excludes the combination in its palette; this refuses the one that gets past it (an older
+// client, a script, a race between two authors), because a rule only the UI enforces is not enforced.
+//
+// Scoped per FILE, matching the ⟨D2⟩ rule that a jump lives within one file: two identical segnos on
+// different parts are never read side by side. Keyed on the SOURCE — two pairs cannot look alike without
+// their sources colliding — and colours compare case-insensitively.
+func (c *conn) jumpDuplicate(obj domain.Object) bool {
+	if !obj.IsJumpSource() {
+		return false
+	}
+	fileOf := func(layerID string) (string, bool) {
+		l, ok := c.hub.eng.Layer(c.songID, layerID)
+		if !ok {
+			return "", false
+		}
+		return l.FileID, true
+	}
+	file, ok := fileOf(obj.LayerID)
+	if !ok {
+		return false // no layer to scope against yet; the engine's own checks still apply
+	}
+	snap, err := c.hub.eng.Head(c.songID)
+	if err != nil {
+		return false
+	}
+	for _, o := range snap.LiveObjects() {
+		if o.UUID == obj.UUID || !o.IsJumpSource() {
+			continue
+		}
+		if !strings.EqualFold(o.Text, obj.Text) || !strings.EqualFold(o.Style.Color, obj.Style.Color) {
+			continue
+		}
+		if f, ok := fileOf(o.LayerID); ok && f == file {
+			return true
+		}
+	}
+	return false
 }
 
 // canWriteLayer reports whether this connection's authenticated author may write

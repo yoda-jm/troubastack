@@ -719,6 +719,71 @@ export function objectLabel(obj: AnnotationObject): string {
 // plus the object as they LEFT it, so undo can refuse when a bandmate has changed it since (rule 2) — done
 // by content comparison against the live doc, needing nothing new on the wire.
 
+/** P206 (VLL, 2026-09-08): "deleting one of the jumpmark should delete both". A jump is one thing wearing
+ *  two marks, so a delete takes the WHOLE pair — expand a selection to every partner it touches, in both
+ *  directions (a source pulls its destination, a destination pulls the sources aimed at it).
+ *
+ *  Returns the uuids to delete, the given order first. A mark whose partner is not in `objects` (another
+ *  part, or already gone) simply brings nobody — the caller's own editability rules still apply, so an
+ *  end on a layer the user may not edit survives and its pointer is swept instead. */
+export function withJumpPartners(
+  uuids: readonly string[],
+  objects: readonly AnnotationObject[],
+): string[] {
+  const out = [...uuids];
+  const seen = new Set(uuids);
+  const add = (uuid: string) => {
+    if (uuid && !seen.has(uuid)) {
+      seen.add(uuid);
+      out.push(uuid);
+    }
+  };
+  for (const uuid of uuids) {
+    const o = objects.find((x) => x.uuid === uuid);
+    if (!o) continue;
+    // Only a partner that is actually HERE: a uuid pointing at nothing (an import's dangle, or another
+    // part when the caller scoped the list) must not be queued for a delete that would be a no-op.
+    if (o.jumpTo && o.jumpTo !== o.uuid && objects.some((x) => x.uuid === o.jumpTo)) add(o.jumpTo);
+    for (const x of objects) if (x.jumpTo === uuid && x.uuid !== uuid) add(x.uuid); // …and vice versa
+  }
+  return out;
+}
+
+/** P206 uniqueness (⟨D⟩ ruling: "it is a LEGIBILITY rule, not an integrity one", per FILE) — the
+ *  (glyph, colour) combinations a jump in this file has already spoken for.
+ *
+ *  Pairing is by uuid, so two pairs sharing a glyph and a colour corrupt nothing: the bake resolves each
+ *  one correctly and every test passes. The damage is entirely to the READER — two identical segnos on one
+ *  page, one a destination and one not, at a page turn mid-song. No test can ever catch its absence,
+ *  because the data is right; only excluding the combination at authoring can.
+ *
+ *  Claimed by: a jump source, the destination it points at, and a destination placed but not yet paired
+ *  (`pendingDestUuid`) — which is a claim in progress and must not be handed out twice.
+ *  Colours compare case-insensitively: "#E11D48" and "#e11d48" are one colour to a reader. */
+export function jumpKey(glyph: string, color: string): string {
+  return `${glyph}|${color.trim().toLowerCase()}`;
+}
+
+export function takenJumpKeys(
+  fileObjects: readonly AnnotationObject[],
+  pendingDestUuid?: string | null,
+): Set<string> {
+  const claimed = new Set<string>();
+  const byUuid = new Map(fileObjects.map((o) => [o.uuid, o]));
+  for (const o of fileObjects) {
+    const claims =
+      (o.jumpTo != null && o.jumpTo !== "") || // a source
+      (pendingDestUuid != null && o.uuid === pendingDestUuid) || // a destination mid-placement
+      fileObjects.some((x) => x.jumpTo === o.uuid); // a destination already pointed at
+    if (!claims) continue;
+    claimed.add(jumpKey(o.text, o.style.color));
+    // A source also speaks for its destination's appearance, even if that end is on another page.
+    const dest = o.jumpTo ? byUuid.get(o.jumpTo) : undefined;
+    if (dest) claimed.add(jumpKey(dest.text, dest.style.color));
+  }
+  return claimed;
+}
+
 /** P206 ⟨D2⟩ — the jump SOURCES in one FILE's objects whose pair cannot resolve: the destination is not in
  *  this file (it was deleted, or the author placed the two ends on different parts) or it is the source
  *  itself. These are exactly the jumps the bake DROPS, so Studio marks them at authoring time, where the

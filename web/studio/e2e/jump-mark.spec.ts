@@ -175,39 +175,54 @@ test("when both ends are REALLY selected, they move together (VLL)", async ({ pa
   expect(Math.abs(after.dest.y - before.dest.y)).toBeLessThan(0.005);
 });
 
-test("deleting one end clears the survivor's dangling jumpTo; undo restores the pair whole (Fable)", async ({
-  page,
-}) => {
+// VLL, 2026-09-08: "deleting one of the jumpmark should delete both". A jump is one thing wearing two
+// marks. This also removes at the source the dangling-pointer population the earlier per-end delete
+// created — you can no longer author half a jump.
+test("deleting either end deletes the PAIR; undo brings both back (VLL)", async ({ page }) => {
   await openEditorReady(page);
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
   await clickAt(page, 300, 540); // destination
-  await clickAt(page, 300, 300); // source (carries jumpTo = destination)
+  await clickAt(page, 300, 300); // source (carries jumpTo)
   await page.getByTestId("tool-select").click();
+  await expect.poll(async () => (await readIcons(page)).length).toBe(2);
 
-  const destUuid = (await readIcons(page)).find((o) => !o.jumpTo)!.uuid;
-  await clickAt(page, 300, 540); // grab the DESTINATION — the end the survivor points at
+  // Grab the DESTINATION — the end that carries no pointer, so nothing about it says "I am half of a pair".
+  await clickAt(page, 300, 540);
   await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
   await page.keyboard.press("Delete");
+  await expect.poll(async () => (await readIcons(page)).length).toBe(0);
 
-  // The source survives, and its pointer is gone — no reference to a deleted object is persisted.
-  await expect.poll(async () => (await readIcons(page)).length).toBe(1);
-  await expect.poll(async () => (await readIcons(page))[0].jumpTo ?? "").toBe("");
-
-  // Undo restores BOTH: the destination comes back and the source points at it again.
+  // One undo, both back — the pair is restored all-or-nothing (T161), pointer included.
   await page.keyboard.press("Control+z");
   await expect.poll(async () => (await readIcons(page)).length).toBe(2);
-  await expect
-    .poll(async () => (await readIcons(page)).find((o) => o.uuid !== destUuid)?.jumpTo ?? "")
-    .toBe(destUuid);
+  const back = await readIcons(page);
+  const src = back.find((o) => o.jumpTo)!;
+  expect(back.some((o) => o.uuid === src.jumpTo)).toBe(true);
 });
 
-// P206 ⟨D2⟩ (Fable, from VLL's "somewhere in the same pdf"): a jump's two ends must be on the SAME FILE —
-// two files are two independent page spaces, and the bake drops the pair. The reason this needs a Studio
-// flag at all is that the doomed pair is INDISTINGUISHABLE from a valid one while authoring: ends on two
-// pages of one file draw no segment either. So the author sees nothing wrong until a bake warning names
-// the song (not the mark), possibly days later.
-test("a pair placed across two files is flagged in the page, and says so at placement (⟨D2⟩)", async ({
+// "not completing the dual creation ... unpaired is only allowed during creation" (VLL). Leaving the tool
+// mid-chain must take the landmark with it — a lone symbol that reads as a jump and is not one is exactly
+// what the reader cannot afford on stage.
+test("abandoning a half-placed jump removes the landmark it placed (VLL)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickAt(page, 300, 300); // the destination only — the chain is open
+  await expect(page.getByText(/now place the source/i)).toBeVisible();
+  await expect.poll(async () => (await readIcons(page)).length).toBe(1);
+
+  await page.getByTestId("tool-select").click(); // change tool → abandon
+  await expect.poll(async () => (await readIcons(page)).length).toBe(0);
+  await expect(page.getByText(/now place the source/i)).toHaveCount(0);
+});
+
+// P206 ⟨D2⟩ — "a jump is within one FILE" (VLL: "somewhere in the same pdf"). Under his later rule that an
+// unpaired landmark exists only DURING creation, this is now enforced by construction rather than flagged
+// after the fact: switching part mid-chain abandons the creation, so the cross-file pair the bake would
+// have dropped can no longer be authored at all. The red flag stays for data that already carries one — an
+// import, or a song authored before this — and is pinned by the brokenJumpUuids vectors.
+test("switching part mid-chain abandons it, so a cross-file pair cannot be authored (⟨D2⟩)", async ({
   page,
 }) => {
   await register(page, `jx_${stamp()}`);
@@ -225,25 +240,37 @@ test("a pair placed across two files is flagged in the page, and says so at plac
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
   await expect(page.getByTestId("file-tab")).toHaveCount(2);
 
-  // Destination on file A…
+  // Destination on part A, then leave for part B before placing the source.
   await page.getByTestId("file-tab").nth(0).click();
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
   await clickFrac(page, 0.5, 0.3);
   await expect(page.getByText(/now place the source/i)).toBeVisible();
+  await expect.poll(async () => (await readIcons(page)).length).toBe(1);
 
-  // …source on file B. It is PLACED (VLL prefers a flag over a refused gesture) and told to the author.
   await page.getByTestId("file-tab").nth(1).click();
-  await clickFrac(page, 0.5, 0.3);
-  await expect(page.getByText(/same part/i)).toBeVisible();
-  // And it stays visible on the page as a red mark, with no selection needed to see it.
-  await expect(page.getByTestId("jump-broken")).toHaveCount(1);
+  // The landmark left behind on part A is gone: it could never have become a jump from here.
+  await expect.poll(async () => (await readIcons(page)).length).toBe(0);
+  await expect(page.getByText(/now place the source/i)).toHaveCount(0);
+  // Nothing is flagged, because nothing broken was created.
+  await expect(page.getByTestId("jump-broken")).toHaveCount(0);
+});
 
-  // The valid case must NOT be flagged: a pair placed entirely on file B draws no flag. (Without this
-  // half the test would pass on a component that flags EVERY jump.)
-  await clickFrac(page, 0.22, 0.2);
-  await expect(page.getByText(/now place the source/i)).toBeVisible();
-  await clickFrac(page, 0.22, 0.38);
-  await expect(page.getByTestId("file-tab").nth(1)).toHaveAttribute("aria-selected", "true"); // still on B
-  await expect(page.getByTestId("jump-broken")).toHaveCount(1); // still only the cross-file source
+test("a landmark+colour already used by a jump is no longer offered (uniqueness)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  const palette = page.getByTestId("jump-palette");
+  await palette.getByRole("button", { name: "segno" }).click();
+  await expect(page.getByTestId("icon-pick-segno")).toBeEnabled();
+
+  await clickAt(page, 300, 520); // destination
+  await clickAt(page, 300, 300); // source → the pair now owns (segno, this colour)
+
+  // Offered but not pickable — the author sees the whole set and which combination is spoken for.
+  await expect(page.getByTestId("icon-pick-segno")).toBeDisabled();
+  // And the armed tool has moved off it, so the next placement just works instead of being refused.
+  await expect(page.getByTestId("icon-pick-segno")).toHaveAttribute("aria-pressed", "false");
+  await expect(palette.locator('button[aria-pressed="true"]')).toHaveCount(1);
+  // A different landmark is still free — the rule is the COMBINATION, not the glyph set shrinking away.
+  await expect(page.getByTestId("icon-pick-coda")).toBeEnabled();
 });

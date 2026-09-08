@@ -1173,6 +1173,19 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    always visible (not a selection state), because the doomed pair looks exactly like a valid cross-page
    one while authoring. --error is the same colour the destructive/live surfaces use; the halo keeps it
    readable over dark ink in both themes. */
+/* P206 uniqueness: a landmark already used by a jump in this part, in this colour. Shown, not hidden —
+   the author sees the whole set and which combination is spoken for; the same glyph in another colour is
+   still free, because the rule is the COMBINATION. */
+.icon-pick.taken {
+  opacity: .35;
+  cursor: not-allowed;
+  position: relative;
+}
+.icon-pick.taken::after {
+  content: ""; position: absolute; left: 15%; right: 15%; top: 50%;
+  border-top: 1.5px solid var(--muted);
+  transform: rotate(-20deg);
+}
 .jump-broken {
   position: absolute; box-sizing: border-box; pointer-events: none;
   border: 2px dashed var(--error-fg);

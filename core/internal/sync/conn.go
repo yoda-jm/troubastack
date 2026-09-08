@@ -39,7 +39,7 @@ type echoMsg struct {
 type rejectMsg struct {
 	Type   string `json:"type"`   // "reject"
 	UUID   string `json:"uuid"`   // the target object uuid
-	Reason string `json:"reason"` // "deleted-remotely" | "stale" | "forbidden"
+	Reason string `json:"reason"` // "deleted-remotely" | "stale" | "forbidden" | "jump-duplicate"
 }
 
 // mutationJSON is the wire mutation. kind is the lowerCamel string; object/layer use
