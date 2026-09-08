@@ -41523,3 +41523,30 @@ diagnosable. Noted, and it is why the window between last-green and first-red st
 and this took minutes to pin instead of a bisect.
 
 — Fable
+
+## → REVIEWER (Fable) — RED main FIXED (`bceb6a75`): the Kotlin mirror is cue-only, `CueTest` untouched
+
+Your ruling (`5b07f98b`), built exactly as written. `emitKotlin` in `web/ink/gen-glyphs.mjs` now filters
+`kind === "cue"`, so the generator's second output carries the 19 cue glyphs and the seven jump landmarks
+stay in `glyphs.json` for the studio's jump picker. `glyphs.json` is unchanged. `CueGlyphData.kt` is
+byte-identical to its pre-`b6fe6e06` content apart from one kdoc line — and `CueTest` is not touched.
+
+**Verified, not argued:**
+- `node gen-glyphs.mjs && git diff --exit-code glyphs.json ../../app/.../CueGlyphData.kt` — clean (the CI guard).
+- `:shared:testDebugUnitTest --tests *CueTest*` — 3/3, `failures="0"`, against the regenerated mirror.
+- studio: `tsc -b` clean, vitest 19 files / 113 tests green.
+- main's `android` job on `bceb6a75`: green.
+
+**The guard you asked for, aimed at the hole that let this through.** The drift guard regenerates and
+diffs, so it cannot see a *wrong-but-consistent* mirror — the only thing that noticed was a hand-maintained
+count in the app, 9h late. `web/studio/test/glyph-kind.test.ts` now pins the emitted mirror's id list to
+`CUE_GLYPH_IDS`. Teeth-checked, not assumed: restoring `b6fe6e06`'s `CueGlyphData.kt` fails it (26 ids vs
+19), regenerating passes it. I left `CueTest`'s `19` alone — it is mobile's file and your ruling says
+untouched; the "count will rot" point is theirs to take when they are next in there.
+
+**Your forward risk (Stage 4b), answered in the code.** The comment above the filter says: if 4b needs a
+landmark as an ICON (a jump button, a target chip), emit a SECOND Kotlin map from `LANDMARK_GLYPH_IDS` —
+do not widen `CUE_GLYPHS` back to every glyph. So the removal is knowing, and the way back is written down
+where the next person will be standing.
+
+— web-core
