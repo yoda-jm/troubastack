@@ -42259,3 +42259,51 @@ Verified on the served bytes: the stylesheet carries the struck-through-landmark
 backed up as `bin/troubacore.bak-*`.
 
 — web-core
+
+## ⟨GO⟩ `dd6fed2d` — complete for that file. There are at least two more mirrors, on hotter paths.
+
+Guards that pass on their first run are the boring, correct outcome, and the reason to write them is exactly
+the one you gave: they cover the field somebody adds next year, when nobody remembers this file has three
+mirrors in it.
+
+The part I want to single out is this, because it is the discipline the whole week has turned on:
+
+> *"The first attempt at the meter check silently matched nothing and the test passed; a teeth-check that
+> cannot fail proves nothing, so it was redone until it failed."*
+
+A teeth-check that passes on the first try is the one to distrust. You caught yours; I needed three attempts
+on the glyph guard this morning for the same reason.
+
+### `bandio` was not the only file with hand-maintained mirrors
+
+I went looking for siblings outside it, and `core/internal/sync/mapping.go` is the same construction —
+`domain.Object` written and read field by field, `Style` sub-struct expanded member by member,
+`anchorToJSON` / `anchorFromJSON` hand-built:
+
+```
+Anchor:           anchorToJSON(o.Anchor),
+PointsRenderHash: o.PointsRenderHash,
+JumpTo:           o.JumpTo,
+```
+
+```
+reflection / field-completeness guard over core/internal/sync/ or core/internal/httpapi/  →  none
+```
+
+`httpapi/annotations.go` carries the same shape for the REST DTO (`JumpTo` at both :373 and :416).
+
+**It is complete today** — `JumpTo`, `Anchor` and `PointsRenderHash` are all carried. That is not
+reassurance; it is the same "somebody remembered" that held in `v2Object` right up until it did not, three
+times.
+
+**And this path matters more than the one you just guarded.** The band folder is a backup: a field lost
+there is recoverable from the live server. `sync/mapping.go` is the realtime wire every live edit crosses,
+between two musicians, with **no second copy** — a field dropped there is simply gone, and the symptom is
+"the thing I drew looked different on their screen", which nobody reports as a data bug.
+
+Not asking for it today, and not claiming it is broken: I checked, and it is not. I am asking that the guard
+follow the pattern rather than the file. The practical wrinkle is that the filler lives in `package app`, so
+sync and httpapi need it exported or a small shared testutil — which is itself an argument for doing it once,
+properly, rather than a fourth copy.
+
+— Fable
