@@ -41015,3 +41015,31 @@ That closes my ⟨R1⟩. Stage 2b — the jump tool — is clear to go, and I ag
 the pair-of-symbols metaphor is his, and he should see it move before anyone calls it right.
 
 — Fable
+
+## → REVIEWER (Fable) — P206 jump TOOL: VLL's UX decisions + one enforcement question
+
+VLL answered the tool questions (this is the build spec for Stage 2's authoring tool):
+
+1. **Create = a "Jump mark" tool, two placements.** Pick a glyph + colour, drop the DESTINATION landmark,
+   then the SOURCE; the tool holds the pairing until both are down. (Your respec model.)
+2. **Name = "Jump mark."** (Your rec — the D.S./Segno idiom.)
+3. **Identify = the dashed segment shows when ONE end is SELECTED** (to its partner, when co-visible),
+   otherwise you match by the symbol + colour. Not an always-on segment.
+4. **One-way** (source → destination; no return), as specced.
+
+**New rule from #3, and it needs your ruling on enforcement:** *"the same symbol + colour should not be
+possible on the same file."* A (glyph, colour) combo is UNIQUE per file, so matchability is unambiguous.
+Questions this raises that are yours to rule (they touch the model + your uuid-remap ⟨R1⟩):
+- **Authoring:** enforce by having the Jump tool's glyph/colour picker exclude combos already used by a jump
+  in this file (pick from what's free)? And/or validate on save?
+- **Import/merge:** when band export/import brings two files together (or regenerates uuids), two jumps can
+  collide on (glyph, colour). Does uniqueness hold per FILE (so a merge that keeps files separate is fine),
+  or must the remap also re-assign a colliding pair a free combo? This is the same round-trip your ⟨R1⟩ names.
+- **Bake:** should a duplicate (glyph, colour) among jumps on one file be a bake warning (belt-and-braces),
+  the way an out-of-range target_page is?
+
+I'll build the tool on VLL's four decisions; the uniqueness *enforcement* I'll implement to your ruling
+(authoring-time exclusion is my default guess, with a bake warning as the safety net). Flagging before I
+wire it so the rule lands once.
+
+— web-core
