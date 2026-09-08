@@ -46,18 +46,37 @@ class LandingUpdateTest {
     }
 
     @Test
-    fun oneDeleted_othersCurrent_staysQuiet_notNagware() {
-        // 3 listed, 1 not on device (deliberately deleted), the other 2 installed & current. This must
-        // stay quiet — re-offering the one you deleted while you hold the rest is nagware. Teeth: a
-        // blanket "any NewlyAvailable ⇒ offer" would turn this into Available.
+    fun neverDownloaded_amongInstalled_surfacesDownload_a43fix() {
+        // A43-fix: one concert installed-and-current, one NEVER downloaded. The never-downloaded one must
+        // be REACHABLE — the old ordered `when` dropped it (an installed-stale concert won the "Update"
+        // branch, and rule 3's `== manifestSize` "empty device" proxy could never fire with one installed),
+        // so Home said "Up to date" over a concert never on the device. `diff` now lists ONLY a genuinely-new
+        // concert here (a deliberately-DELETED one is filtered out by installedOnce — the notNagware
+        // guarantee moved to UpdatesManagerTest.deletedConcert_staysQuiet), so surfacing any is honest.
         val r = landingUpdate(
-            manifestSize = 3,
+            manifestSize = 2,
             offered = emptyList(),
-            newlyAvailable = listOf(Availability.NewlyAvailable("deleted")),
+            newlyAvailable = listOf(Availability.NewlyAvailable("new")),
             nameOf = name,
         )
-        assertEquals(UpdateStatus.UpToDate, r.status)
-        assertTrue(r.offers.isEmpty(), "a deleted-one set must not surface a download on the landing")
+        assertEquals(UpdateStatus.Available("Concert new — not on this device", action = "Download"), r.status)
+        assertEquals(1, r.offers.size)
+    }
+
+    @Test
+    fun bothNewAndStale_ranksNeverDownloadedFirst_a43fix() {
+        // THE bug's exact shape: one stale-installed (an Update) + one never-downloaded (a Download). The
+        // never-downloaded one outranks the re-bake (both reachable: download now; the update surfaces once
+        // it's applied and `newlyAvailable` empties). Teeth: the old order returned the Update and lost the
+        // Download entirely.
+        val r = landingUpdate(
+            manifestSize = 2,
+            offered = listOf(Availability.UpdateOffered("stale", localRev = 1uL, serverRev = 2uL)),
+            newlyAvailable = listOf(Availability.NewlyAvailable("new")),
+            nameOf = name,
+        )
+        assertEquals("Download", (r.status as UpdateStatus.Available).action)
+        assertEquals(listOf<Availability>(Availability.NewlyAvailable("new")), r.offers)
     }
 
     @Test

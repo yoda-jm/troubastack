@@ -61,6 +61,44 @@ class UpdatesManagerTest {
     }
 
     @Test
+    fun neverDownloaded_alongsideStaleInstalled_bothSurface_a43() {
+        // A43-fix — THE bug's shape: one concert installed-but-stale (an Update) and one NEVER downloaded
+        // (a Download). diff must EMIT BOTH so the landing can rank them; the old bug was upstream in the
+        // landing's ordered `when` (Update won, Download lost), but if diff ever dropped the never-downloaded
+        // one the landing couldn't recover it. Both must be present.
+        val m = manager(FakeTransport(), installed = mapOf("stale" to 1uL))
+        val out = m.diff(AvailableConcerts(listOf(concert("stale", 2uL), concert("new", 1uL))))
+        assertTrue(out.any { it is Availability.UpdateOffered && it.concertId == "stale" }, "stale → update, was $out")
+        assertTrue(out.any { it is Availability.NewlyAvailable && it.concertId == "new" }, "never-downloaded → available, was $out")
+    }
+
+    @Test
+    fun deletedConcert_staysQuiet_installedOnceMovesNotNagwareHere() = runTest {
+        // A43-fix — the notNagware guarantee, now stated at diff level (it used to be inferred in the landing
+        // from set arithmetic). A concert is installed, then DELETED: because a successful apply recorded
+        // installedOnce, diff must NOT re-offer it as NewlyAvailable. A genuinely-new concert (no record)
+        // still surfaces. Teeth: without installedOnce, the deleted one reappears every diff (nagware).
+        val kv = FakeKV()
+        var installed = mapOf<String, ULong>()
+        val m = UpdatesManager(
+            transport = FakeTransport(),
+            tempDir = { "/tmp" },
+            installedRevs = { installed },
+            importBundle = { ImportResult.Imported("del") },
+            readPolicies = kv.read,
+            writePolicies = kv.write,
+        )
+        // Download it once (records installedOnce), then it's on the device and current.
+        assertIs<ImportResult.Imported>(m.apply(Availability.NewlyAvailable("del")))
+        installed = mapOf("del" to 2uL)
+        assertTrue(m.diff(AvailableConcerts(listOf(concert("del", 2uL)))).isEmpty(), "current → nothing offered")
+        // The performer DELETES it. It must stay QUIET (chosen), while a brand-new one still surfaces.
+        installed = emptyMap()
+        val out = m.diff(AvailableConcerts(listOf(concert("del", 2uL), concert("fresh", 1uL))))
+        assertEquals(listOf<Availability>(Availability.NewlyAvailable("fresh")), out)
+    }
+
+    @Test
     fun installedBehindServer_offersUpdate_andSameRevOffersNothing() {
         val m = manager(FakeTransport(), installed = mapOf("a" to 2uL, "b" to 5uL))
         val out = m.diff(AvailableConcerts(listOf(concert("a", 3uL), concert("b", 5uL))))

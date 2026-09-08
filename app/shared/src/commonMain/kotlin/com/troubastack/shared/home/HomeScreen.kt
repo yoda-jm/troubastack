@@ -350,15 +350,19 @@ data class LandingUpdate(
  *
  * [manifestSize] is the number of concerts the band's manifest lists, or **null** if it couldn't be
  * fetched. [offered] are installed-but-stale concerts (A39); [newlyAvailable] are manifest concerts not
- * on the device. Rules, in order:
+ * on the device AND never-before-installed here — `diff` already filters out a deliberately-DELETED one
+ * (via [PolicyRecord.installedOnce]), so the deletion-quiet guarantee lives there, not in this arithmetic
+ * (A43-fix). Rules, in order:
  *  1. **Couldn't check ([manifestSize] == null) ⇒ [Hidden]** — make NO currency claim; silence, never a
  *     green light (keeps the "don't nag on a transient failure" intent).
- *  2. **Stale installed ⇒ [Available] "Update"** — A39, unchanged.
- *  3. **Every listed concert is missing (empty device) while the band HAS concerts ⇒ [Available]
- *     "Download"** — an empty device is not "up to date". This is the ONLY place the landing surfaces
- *     [Availability.NewlyAvailable] (bounded B; blanket re-offering is nagware).
- *  4. **Otherwise ⇒ [UpToDate]** — the quiet, narrow reassurance. A partial set with one deleted concert
- *     lands here (still-quiet: the deleted one is a Manage-screen download, not a landing nag).
+ *  2. **Any never-downloaded concert ⇒ [Available] "Download"** — a concert not on the device is the more
+ *     urgent pre-gig fact, so it OUTRANKS a re-bake (A43-fix: the old ordering ranked "Update" first and,
+ *     when one concert was installed-and-stale, dropped the never-downloaded one entirely — an empty-device
+ *     `== manifestSize` proxy could never fire with something installed, so Home read "up to date" over a
+ *     concert that wasn't there). This is the only place the landing surfaces [Availability.NewlyAvailable].
+ *  3. **Stale installed ⇒ [Available] "Update"** — A39, unchanged.
+ *  4. **Otherwise ⇒ [UpToDate]** — the quiet, narrow reassurance (everything listed is on the device and
+ *     current; a deliberately-deleted concert never reaches here — `diff` dropped it).
  */
 fun landingUpdate(
     manifestSize: Int?,
@@ -367,14 +371,18 @@ fun landingUpdate(
     nameOf: (String) -> String,
 ): LandingUpdate = when {
     manifestSize == null -> LandingUpdate(UpdateStatus.Hidden)
+    // A43-fix: a concert NEVER downloaded to this device outranks a re-bake of one you already have — it's
+    // the more urgent pre-gig fact, and it must not be dropped when another concert is installed-and-stale
+    // (the old ordered `when` returned the update and lost the download; rule 3's `== manifestSize` "empty
+    // device" proxy could then never fire with one installed). `diff` now only lists a GENUINELY-new concert
+    // here (a deliberately-deleted one is filtered by installedOnce), so surfacing any is honest, not nagware.
+    newlyAvailable.isNotEmpty() -> {
+        val names = newlyAvailable.map { nameOf(it.concertId) }
+        LandingUpdate(UpdateStatus.Available(downloadSummary(names), action = "Download"), newlyAvailable, names)
+    }
     offered.isNotEmpty() -> {
         val names = offered.map { nameOf(it.concertId) }
         LandingUpdate(UpdateStatus.Available(updateSummary(names)), offered, names)
-    }
-    // Zero of the band's concerts installed (every listed one is NewlyAvailable) — offer the download.
-    manifestSize > 0 && newlyAvailable.size == manifestSize -> {
-        val names = newlyAvailable.map { nameOf(it.concertId) }
-        LandingUpdate(UpdateStatus.Available(downloadSummary(names), action = "Download"), newlyAvailable, names)
     }
     else -> LandingUpdate(UpdateStatus.UpToDate)
 }

@@ -81,7 +81,15 @@ sealed interface UpdateProgress {
  * an optional LocalPin are stored per concert here.
  */
 @Serializable
-private data class PolicyRecord(val policy: UpdatePolicy = UpdatePolicy.PROMPT, val pinnedRev: ULong? = null)
+private data class PolicyRecord(
+    val policy: UpdatePolicy = UpdatePolicy.PROMPT,
+    val pinnedRev: ULong? = null,
+    // A43-fix: has this concert EVER been installed on THIS device? Written true on a successful apply().
+    // Without it, diff() can't tell a NEVER-downloaded concert (genuinely new — surface it) from one the
+    // user DELETED on purpose (stay quiet): both have local==null. That ambiguity hid the bug where a
+    // never-downloaded concert was unreachable once another was installed (rule 3's "empty device" proxy).
+    val installedOnce: Boolean = false,
+)
 
 @Serializable
 private data class PolicyBook(val byConcert: Map<String, PolicyRecord> = emptyMap())
@@ -119,7 +127,10 @@ class UpdatesManager(
         for (c in manifest.concerts) {
             val local = installed[c.concertId]
             if (local == null) {
-                out += Availability.NewlyAvailable(c.concertId)   // can't be frozen — not downloaded
+                // A43-fix: surface a concert only if it was NEVER installed here. One the user deleted on
+                // purpose (a record with installedOnce) stays quiet — re-offering it is nagware (the
+                // oneDeleted…notNagware decision). "Never had it" is the genuinely-new, more-urgent case.
+                if (book[c.concertId]?.installedOnce != true) out += Availability.NewlyAvailable(c.concertId)
                 continue
             }
             if (c.currentRev > local && !offerSuppressed(c, book[c.concertId])) {
@@ -150,7 +161,11 @@ class UpdatesManager(
                 onProgress(UpdateProgress.Downloading(read, total))
             }
             onProgress(UpdateProgress.Installing) // A42 ①: download done → the coarse install tail
-            importBundle(dest)
+            val result = importBundle(dest)
+            // A43-fix: record that this concert has been on the device — so a later deletion is
+            // distinguishable from never-having-had-it, and diff() stays quiet on the former only.
+            if (result is ImportResult.Imported) markInstalled(concertId)
+            result
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             // A39 is the first CANCELLABLE caller of apply() (Home's Cancel). CancellationException IS an
             // Exception, so the generic catch below would turn a cancel into Failed and let the caller's
@@ -181,6 +196,9 @@ class UpdatesManager(
             is ImportResult.Failed -> null
         }
     }
+
+    /** A43-fix: remember this concert has been installed here at least once (see [PolicyRecord.installedOnce]). */
+    private fun markInstalled(concertId: String) = mutate(concertId) { it.copy(installedOnce = true) }
 
     /** Set the per-concert update policy (PROMPT/FROZEN/AUTO). AUTO is inert in B03. */
     fun setPolicy(concertId: String, policy: UpdatePolicy) = mutate(concertId) { it.copy(policy = policy) }
