@@ -41,6 +41,12 @@ func (a *AnnotationsAPI) Mount(mux *http.ServeMux, authed func(authedHandler) ht
 type pointJSON struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
+	// Pressure (stylus, [0,1]) drives the variable freehand width — ink feeds it to perfect-freehand and
+	// only simulates when every point lacks it. domain.Point has carried it since I3 and the band folder
+	// round-trips it; this wire silently did not, so a stroke that arrived WITH pressure (an import, another
+	// client) lost it the first time anyone edited the object through here. omitempty: an object without
+	// pressure is byte-identical to before.
+	Pressure float64 `json:"pressure,omitempty"`
 }
 
 type styleJSON struct {
@@ -348,7 +354,7 @@ func layerFromJSON(j layerJSON) domain.Layer {
 func objectToJSON(o domain.Object) objectJSON {
 	pts := make([]pointJSON, len(o.Points))
 	for i, p := range o.Points {
-		pts[i] = pointJSON{X: p.X, Y: p.Y}
+		pts[i] = pointJSON{X: p.X, Y: p.Y, Pressure: p.Pressure}
 	}
 	return objectJSON{
 		UUID:      o.UUID,
@@ -391,7 +397,7 @@ func anchorFromJSON(a *anchorJSON) *domain.SourceAnchor {
 func objectFromJSON(j objectJSON) domain.Object {
 	pts := make([]domain.Point, len(j.Points))
 	for i, p := range j.Points {
-		pts[i] = domain.Point{X: p.X, Y: p.Y}
+		pts[i] = domain.Point{X: p.X, Y: p.Y, Pressure: p.Pressure}
 	}
 	return domain.Object{
 		UUID:      j.UUID,

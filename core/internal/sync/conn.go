@@ -60,6 +60,12 @@ type mutationJSON struct {
 type pointJSON struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
+	// Pressure (stylus, [0,1]) drives the variable freehand width — ink feeds it to perfect-freehand and
+	// only simulates when every point lacks it. domain.Point has carried it since I3 and the band folder
+	// round-trips it; this wire silently did not, so a stroke that arrived WITH pressure (an import, another
+	// client) lost it the first time anyone edited the object through here. omitempty: an object without
+	// pressure is byte-identical to before.
+	Pressure float64 `json:"pressure,omitempty"`
 }
 
 type styleJSON struct {

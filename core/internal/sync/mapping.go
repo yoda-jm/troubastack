@@ -136,7 +136,7 @@ func layerFromJSON(j layerJSON) domain.Layer {
 func objectToJSON(o domain.Object) objectJSON {
 	pts := make([]pointJSON, len(o.Points))
 	for i, p := range o.Points {
-		pts[i] = pointJSON{X: p.X, Y: p.Y}
+		pts[i] = pointJSON{X: p.X, Y: p.Y, Pressure: p.Pressure}
 	}
 	return objectJSON{
 		UUID:      o.UUID,
@@ -179,7 +179,7 @@ func anchorFromJSON(a *anchorJSON) *domain.SourceAnchor {
 func objectFromJSON(j objectJSON) domain.Object {
 	pts := make([]domain.Point, len(j.Points))
 	for i, p := range j.Points {
-		pts[i] = domain.Point{X: p.X, Y: p.Y}
+		pts[i] = domain.Point{X: p.X, Y: p.Y, Pressure: p.Pressure}
 	}
 	return domain.Object{
 		UUID:      j.UUID,
