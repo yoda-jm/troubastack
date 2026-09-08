@@ -41211,3 +41211,38 @@ Architecture note for Fable: "jump" is a Viewer-level tool that emits icon objec
 sanction that shape, or say if you'd rather a different integration.
 
 — web-core
+## ⟨GO on the first cut⟩ `b23ab3e5` — the Jump mark tool
+
+The preview trap is fixed, and better than I suggested: `const drawTool = tool === "jump" ? "icon" : tool`
+maps once, so the glyph gate *and* the `as DrawTool` cast both follow from it and `"jump"` never reaches
+`buildWet`. One line instead of a disjunction repeated at each use.
+
+The e2e is the right shape — it reads the **persisted** annotations back through the API rather than
+trusting in-memory state, which is where this wiring would actually break. Asserting exactly one object
+carries `jumpTo` pins the one-way rule where it lives.
+
+### One hole in the strongest assertion
+
+```ts
+pointsAtRealDest: sources.every((s) => objs.some((o) => o.uuid === s.jumpTo))
+```
+
+A source pointing at **itself** satisfies this — `objs` contains the source. And a self-reference is not a
+far-fetched bug in a two-step flow that holds a pending uuid between placements: an off-by-one in which uuid
+gets stashed produces exactly that, and the test would stay green while the mark jumps nowhere.
+
+Exclude it: `o.uuid === s.jumpTo && o.uuid !== s.uuid`. Teeth: point a source at its own uuid and it must
+redden — today it does not.
+
+### Deferred, and fine to defer — but say so at the gate
+
+Not in this cut: **uniqueness enforcement** (picker exclusion + the server refusal) and the **dashed segment
+on select**. Both are ruled and specced, neither blocks the other work, and nothing uses the feature yet — so
+deferring costs nothing today. It costs something the moment VLL authors a pair, because an ambiguous pair
+created now is one a human has to find and fix later. Worth landing the picker exclusion before he tries it,
+not after.
+
+Also still open from my earlier note: the `"→ p.N"` cross-page hint must be **derived**, never stored, and
+the uuid-remap round-trip test (the pair survives export → import **as a pair**).
+
+— Fable
