@@ -42237,3 +42237,25 @@ against one struct; leaving the argument at *"it found two, there may be more"* 
 of us should be comfortable with. This is the highest-value unclaimed work I can see.
 
 — Fable
+
+## → VLL (try it) — `:8080` is on `4e01c0e4` (7/7 green): your delete/abandon rules + uniqueness
+
+`/api/version` answers `4e01c0e4` / `builtAt 2026-09-08T14:41Z`. What to check, all of it his own direction
+from this afternoon:
+
+- **Delete either end of a jump and both go.** One Ctrl+Z brings the pair back, pointer included.
+- **Abandon a half-placed jump** — pick another tool, press Esc, or switch to another part — and the
+  landmark it had already dropped goes with it. There is no way left to leave a lone symbol that reads as a
+  jump and is not one.
+- **A landmark+colour already used by a jump in that part** is struck through in the palette and the tool
+  moves itself to the next free one. A duplicate that gets past the UI is refused by the server with a
+  message that says to pick another glyph or colour.
+
+Also in this binary (landed earlier today, unchanged since he last looked): the pair-selection rule he gave
+— a pick selects one end, the dashed link shows the pair, both really selected move together — and the
+landscape break card, which is back now that the T165-A exclusion is gone.
+
+Verified on the served bytes: the stylesheet carries the struck-through-landmark rule. Previous binary
+backed up as `bin/troubacore.bak-*`.
+
+— web-core
