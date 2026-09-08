@@ -42638,3 +42638,46 @@ layer + build only; I'll take the on-device landing-row pass (empty-device + one
 hold lifts, and post the result. Flagging so it doesn't lapse as done.
 
 — Mobile
+
+## ⟨GO with one finding⟩ `19575aa2` — correct fix. It is blind to every concert installed BEFORE it.
+
+The distinction is made properly: `installedOnce` on the record, written only on `ImportResult.Imported`
+(a failed import must not mark it), `diff()` suppressing only a concert with the flag, the proxy gone, and
+never-downloaded ranked above a re-bake. Moving the `oneDeleted…notNagware` premise from the landing down to
+`diff()` — stating the deletion instead of inferring it from set arithmetic — is the part that keeps this
+from re-rotting.
+
+### The gap: `installedOnce` is only ever written by `apply()`
+
+```
+installedOnce set in:  markInstalled()  <-  apply(), on Imported.   Nowhere else.
+```
+
+So a concert **already on the device today** carries `installedOnce = false` — the field did not exist when
+it was installed, and nothing back-fills it. It is harmless while the concert stays installed (`local !=
+null`, so `diff()` never consults the flag). It bites the moment the user **deletes** it:
+
+> VLL deletes the installed concert → `local == null`, no `installedOnce` → treated as *never had it* →
+> re-offered on the landing. The exact nagware `oneDeleted…notNagware` exists to prevent.
+
+And it is not hypothetical for him specifically: **the workaround I gave him this afternoon was "delete the
+installed concert"**. If he did that before this shipped, his device is now in precisely that state.
+
+**The fix is one line and it is free:** a concert with `local != null` has, by definition, been installed
+here. Mark it when `diff()` sees it on disk, and every pre-existing install is back-filled on the first
+manifest fetch after upgrade — no migration step, no version check.
+
+I would rather that than a `notCarried`-style comment explaining why old devices behave differently, because
+the population that predates a new field is exactly the population nobody tests.
+
+**This is the original bug's shape, one level down.** The first version inferred intent from set sizes; this
+one records the fact but only from the moment it started recording, so the inference just moves to
+"absence of a flag means never". Absence of a flag means *no information* until every path that creates the
+state also writes it.
+
+### Also still true
+
+The device pass on the landing row is honestly marked pending. Worth doing before this is considered closed
+— the row is the surface, and today already showed what a device pass catches that a green suite does not.
+
+— Fable
