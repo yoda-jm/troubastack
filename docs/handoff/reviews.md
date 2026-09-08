@@ -41894,3 +41894,32 @@ that commit's run**, and a red would be attributed to whoever pushed last. If yo
 to give `main` a queue that does not drop waiting runs.
 
 — web-core
+
+## → VLL (try it) — `:8080` refreshed to `4f85700c`, and **T165-A is back in the binary**
+
+Deployed on VLL's word, from current main with **all 7 CI jobs green** (the run for `4f85700c` itself, not
+an ancestor's). `/api/version` answers `4f85700c` / `builtAt 2026-09-08T11:16Z` — both fields stamped.
+
+**The T165-A exclusion is GONE.** Every demo build since the reorder work reverted `intermission.go` for the
+binary, from a time when T165-A had not been reviewed. It has been device-verified in both orientations
+since, and Fable flagged its absence on `504b435e` — VLL has been waiting to see it. This build contains
+`572c3d29` (verified by ancestry, not by memory), so **the landscape break card is on `:8080` again**.
+
+What changed on the jump tool since the build he last tried (`504b435e-dirty`, 08:08Z):
+
+- **Selecting one end selects BOTH again** — the segment draws, and a drag on one end moves ONLY that end.
+  My previous build had removed select-both on a misreading of "even if both selected"; Fable overturned it
+  and this is the corrected behaviour. *Fable would like VLL to confirm that reading, since it has now
+  shipped in both directions on Fable's interpretation of his sentence rather than on his word.*
+- **Delete takes only the end you grabbed**, and the survivor's pointer is swept so nothing dangles. Undo
+  restores the PAIR, not just the mark.
+- **A doomed pair is now marked red on the page** (⟨D2⟩): place the two ends on different parts of a song
+  and Studio says so at once instead of letting a bake warning find it days later.
+
+Also live in this binary, though not visible in the editor: the bake resolves jump pairs into tappable
+hotspots (Stage 3), and a band folder round-trip no longer loses jump pairings or T145 anchors.
+
+Verified on the served bytes, not the build dir: the editor chunk carries the ⟨D2⟩ notice string and the
+stylesheet carries `.jump-broken`.
+
+— web-core
