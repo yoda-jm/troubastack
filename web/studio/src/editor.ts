@@ -740,6 +740,11 @@ export type UndoEntry = {
   before?: AnnotationObject | null;
   after?: AnnotationObject | null;
   deleted?: AnnotationObject[];
+  /** P206: SURVIVORS whose `jumpTo` this delete cleared because it pointed at one of `deleted` — carried in
+   *  their PRE-clear state. Undoing the delete restores the objects AND re-points these, so a jump pair
+   *  comes back whole: the same all-or-nothing rule `deleted` already follows (never a state the user did
+   *  not create). Absent for every delete that broke no pair. */
+  repointed?: AnnotationObject[];
 };
 
 /** What undo should do for an entry, given a lookup of the object's CURRENT state in the live doc. "refuse"
@@ -748,7 +753,7 @@ export type UndoEntry = {
  *  objects (a multi-select delete restores atomically). */
 export type UndoOutcome =
   | { do: "delete"; uuid: string }
-  | { do: "restore"; objects: AnnotationObject[] }
+  | { do: "restore"; objects: AnnotationObject[]; repoint?: AnnotationObject[] }
   | { do: "update"; kind: Exclude<UndoActionKind, "create" | "delete">; object: AnnotationObject }
   | { do: "refuse"; reason: "changed" | "gone" };
 
@@ -819,7 +824,14 @@ export function planUndo(
       const objs = entry.deleted ?? [];
       if (objs.length === 0) return { do: "refuse", reason: "gone" };
       for (const o of objs) if (lookup(o.uuid)) return { do: "refuse", reason: "changed" };
-      return { do: "restore", objects: objs };
+      // P206: re-point only the survivors that are still there AND still un-pointed. A survivor a bandmate
+      // has since aimed at something else keeps THEIR target (rule 2), and one they deleted is simply not
+      // there — neither refuses the restore, which is about the deleted objects.
+      const repoint = (entry.repointed ?? []).filter((o) => {
+        const cur = lookup(o.uuid);
+        return cur !== undefined && !cur.jumpTo;
+      });
+      return { do: "restore", objects: objs, ...(repoint.length > 0 ? { repoint } : {}) };
     }
     default: {
       // move / resize / setStyle / setText / reorder: inverse = re-apply the previous value, only if the

@@ -1008,12 +1008,32 @@ export function Viewer({
       syncRef.current.deleteObject(uuid);
       removed.push(obj);
     }
+    // P206 (Fable ⟨review⟩ 3350c809): deleting one end of a jump leaves the survivor pointing at a uuid
+    // that no longer exists. Nothing downstream rejects it — the consumer (Stage-3 bake) is unwritten — so
+    // every dangling pair made from now on would persist into saved songs and meet the bake on its first
+    // run. Clear the pointer here, where the pair is still known. A survivor I may not edit right now (a
+    // bandmate's layer) is left alone rather than sent a mutation the server would refuse; the bake must
+    // still tolerate a dangling ref for those, and for the corpus made before this.
+    const removedIds = new Set(removed.map((o) => o.uuid));
+    const orphaned = doc.objects.filter(
+      (o) => !removedIds.has(o.uuid) && o.jumpTo && removedIds.has(o.jumpTo) && isObjectEditableNow(o),
+    );
+    for (const o of orphaned) {
+      // `setText` is the content-edit kind on the wire (an icon's glyph id lives in `text`, its partner in
+      // `jumpTo`); the server folds every content kind the same way. There is no setJump kind.
+      syncRef.current.updateObject("setText", { ...o, jumpTo: undefined });
+    }
     if (removed.length > 0) {
       // ONE undo entry for the whole selection — restored all-or-nothing (T161 fix-forward: N independent
       // entries could partially refuse and leave a state the user never created). Every removed object is on
       // the active layer (isObjectEditableNow requires it), so they share one layerId for the permission
       // re-check.
-      recordUndo({ action: "delete", layerId: removed[0].layerId, deleted: removed });
+      recordUndo({
+        action: "delete",
+        layerId: removed[0].layerId,
+        deleted: removed,
+        ...(orphaned.length > 0 ? { repointed: orphaned } : {}),
+      });
       selectOnly([]);
     }
   }, [selectedUuids, jumpFocusUuid, doc.objects, isObjectEditableNow, recordUndo, selectOnly]);
@@ -1047,6 +1067,9 @@ export function Viewer({
     if (plan.do === "delete") syncRef.current.deleteObject(plan.uuid);
     else if (plan.do === "restore") {
       for (const o of plan.objects) syncRef.current.updateObject("restore", o); // KindRestore revives (I5)
+      // P206: a delete that orphaned a jump pointer restores the pair WHOLE — the revived end plus the
+      // survivor's target. planUndo already dropped any survivor a bandmate re-pointed since.
+      for (const o of plan.repoint ?? []) syncRef.current.updateObject("setText", o);
     } else syncRef.current.updateObject(plan.kind, plan.object);
     setLocalNotice(null);
     setUndoStack(rest);

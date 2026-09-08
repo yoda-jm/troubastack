@@ -174,3 +174,34 @@ test("with both selected, Delete removes ONLY the end you grabbed (VLL)", async 
   const [survivor] = await readIcons(page);
   expect(survivor.jumpTo ?? "").toBe(""); // the survivor is the destination (it never carried a target)
 });
+
+// Fable's verified finding on 504b435e: per-end delete leaves the survivor pointing at a uuid that no
+// longer exists, and nothing downstream rejects it (the Stage-3 bake, its only consumer, is unwritten). So
+// the pointer is swept at authoring time — and undo has to put the PAIR back, not just the mark, or it
+// leaves a state the user never created: two landmarks that are no longer a jump.
+test("deleting one end clears the survivor's dangling jumpTo; undo restores the pair whole (Fable)", async ({
+  page,
+}) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickAt(page, 300, 540); // destination
+  await clickAt(page, 300, 300); // source (carries jumpTo = destination)
+  await page.getByTestId("tool-select").click();
+
+  const destUuid = (await readIcons(page)).find((o) => !o.jumpTo)!.uuid;
+  await clickAt(page, 300, 540); // grab the DESTINATION — the end the survivor points at
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+  await page.keyboard.press("Delete");
+
+  // The source survives, and its pointer is gone — no reference to a deleted object is persisted.
+  await expect.poll(async () => (await readIcons(page)).length).toBe(1);
+  await expect.poll(async () => (await readIcons(page))[0].jumpTo ?? "").toBe("");
+
+  // Undo restores BOTH: the destination comes back and the source points at it again.
+  await page.keyboard.press("Control+z");
+  await expect.poll(async () => (await readIcons(page)).length).toBe(2);
+  await expect
+    .poll(async () => (await readIcons(page)).find((o) => o.uuid !== destUuid)?.jumpTo ?? "")
+    .toBe(destUuid);
+});

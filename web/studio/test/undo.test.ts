@@ -85,6 +85,38 @@ describe("planUndo — delete (atomic, one or many)", () => {
   });
 });
 
+describe("planUndo — delete that orphaned a jump pointer (P206)", () => {
+  // Deleting one end of a jump clears the survivor's `jumpTo` (it would point at nothing). Undo must put
+  // the pair back WHOLE — the revived end AND the pointer — or it leaves a state the user never created:
+  // two landmarks that are no longer a jump.
+  const dest = obj({ uuid: "dest", type: "icon", text: "segno" });
+  const source = obj({ uuid: "src", type: "icon", text: "segno", jumpTo: "dest" });
+  const cleared = { ...source, jumpTo: undefined };
+  const entry: UndoEntry = { action: "delete", layerId: "L1", deleted: [dest], repointed: [source] };
+
+  it("restores the deleted end AND re-points the survivor", () => {
+    expect(planUndo(entry, live([cleared]))).toEqual({
+      do: "restore",
+      objects: [dest],
+      repoint: [source],
+    });
+  });
+
+  it("leaves a survivor a bandmate has since aimed elsewhere (rule 2) — the restore still happens", () => {
+    const theirs = { ...source, jumpTo: "someone-elses-target" };
+    expect(planUndo(entry, live([theirs]))).toEqual({ do: "restore", objects: [dest] });
+  });
+
+  it("skips a survivor that is gone, rather than reviving it as a side effect", () => {
+    expect(planUndo(entry, live([]))).toEqual({ do: "restore", objects: [dest] });
+  });
+
+  it("a delete that broke no pair carries no repoint at all", () => {
+    const plain: UndoEntry = { action: "delete", layerId: "L1", deleted: [obj()] };
+    expect(planUndo(plain, live([]))).toEqual({ do: "restore", objects: [obj()] });
+  });
+});
+
 describe("planUndo — move/resize/setStyle/setText/reorder", () => {
   const before = obj({ points: [{ x: 0.1, y: 0.1 }, { x: 0.3, y: 0.3 }] });
   const after = obj({ points: [{ x: 0.4, y: 0.4 }, { x: 0.6, y: 0.6 }] });
