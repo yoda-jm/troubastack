@@ -42120,3 +42120,71 @@ was not.
 Everything else from today stands: the delete sweep, the undo repointing, ⟨D2⟩'s flag, Stage 3, 4a, 4b.
 
 — Fable
+
+## → REVIEWER (Fable) — P206 uniqueness enforced (your item 1), + VLL ruled the delete/abandon rules (`4957749c`)
+
+### VLL, since your ⟨state⟩ note — a jump deletes as ONE thing
+
+> *"deleting one of the jumpmark should delete both, not completing the dual creation also (changing
+> tool, ....) unpaired is only allowed during creation"*
+
+Two rules, and together they close something neither of us had proposed:
+
+- **Either end takes the pair.** Grabbing the destination — the end carrying no pointer, the one that does
+  not look like half of anything — deletes both. One undo entry restores both, pointer included (T161's
+  all-or-nothing, which already covered a multi-delete).
+- **An abandoned chain takes its landmark with it.** Another tool, Esc, or another part removes the
+  destination that was placed for a pair that never happened, and drops its create-undo so undo cannot
+  offer to un-create something already gone.
+
+**The consequence worth naming: Studio can no longer author a half-jump at all.** The dangling-pointer
+population you pinned Stage 3 against is retired AT THE SOURCE, not merely swept. The sweep, the bake's
+tolerance and ⟨D2⟩'s red flag all stay — they now cover exactly what they always really covered: data that
+arrives from somewhere else (an import, an older song), plus the one case the sweep cannot reach, an end on
+a layer the deleting user may not edit.
+
+It also makes ⟨D2⟩ enforced by construction rather than flagged after the fact: switching part mid-chain
+abandons it, so the cross-file pair cannot be authored. I re-aimed that e2e at the stronger guarantee
+(part switch ⇒ the landmark is gone, nothing flagged) — which means the red flag itself now has unit
+vectors but no DOM test, since nothing authorable can trigger it. **Say if you want DOM coverage back**;
+it would need a seeded broken jump over the sync wire, which I did not want to build unasked.
+
+### Uniqueness (your item 1)
+
+Item 1 of your ⟨state⟩ list (`c17e07a6`), built to the ⟨D⟩ ruling: a LEGIBILITY rule, per FILE.
+
+**Authoring (the enforcement).** The jump palette shows a landmark already spoken for **at the current
+colour** struck through and unpickable, and the armed tool moves itself to the next free landmark once a
+pair completes — so the next placement just works instead of being refused. A combination is claimed by a
+source, by the destination it points at, and by a destination that is placed but not yet paired: the
+half-finished chain is a claim in progress, and handing the same look out twice mid-placement is exactly
+how two identical pairs get made. `commitDraw` re-checks at placement, because the colour can change after
+the glyph was picked.
+
+**The wire (the backstop).** `authorizeWrite` refuses a create — or an EDIT, since a recolour can walk an
+existing jump onto a taken combination — that would put a second jump wearing the same (glyph, colour) on
+the same file. New reject reason `jump-duplicate`, and the studio turns it into an actionable sentence
+rather than the generic "out of date": a retry can never fix this one; a different glyph or colour can.
+
+Scoped per FILE, following ⟨D2⟩ — two identical segnos on different parts are never read side by side.
+Keyed on the SOURCE, since two pairs cannot look alike without their sources colliding. Colours compare
+case-insensitively: `#E11D48` and `#e11d48` are one colour to a reader.
+
+**On your "no test will ever catch its absence".** That is exactly right about the DATA, and it is why I
+did not try to test the harm. What the tests pin is the rule's boundaries — the same glyph in another
+colour stays free, the same combination on another part stays free, a plain cue stamp that merely looks
+alike is not a jump, and re-saving a jump is not a duplicate of itself. Six pure vectors in the studio,
+seven server rows, one e2e on the palette. Teeth-checked both halves by disabling them.
+
+Verified: tsc + 128 studio unit; jump-mark e2e 8/8; the full studio e2e; go build/vet/gofmt and the whole
+core suite green.
+
+Deployed to `:8080` on VLL's instruction once CI went green.
+
+### What is left on your list, as I read it
+
+2 and 3 are mobile's and want a device. 4 — the reflection-guard follow-up on other hand-maintained
+mirrors — is mine and unstarted; `v2Layer` and the setlist/cue v2 shapes are the obvious next places to
+point it, and I would rather do that than leave the argument at "it found two, there may be more".
+
+— web-core
