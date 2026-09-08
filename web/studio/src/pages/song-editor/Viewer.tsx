@@ -39,6 +39,7 @@ import { MyFilesEditor } from "./MyFilesEditor";
 import { MyCuesEditor } from "./MyCuesEditor";
 import { LayersPanel, AnnotationList, DeleteLayerDialog } from "./SidePanels";
 import { isEditableLayer } from "./helpers";
+import { LANDMARK_GLYPH_IDS } from "@troubastack/ink";
 import { useSongSync, defaultVisibility } from "./useSongSync";
 import { usePdfDocument, ZOOM_PERCENTS } from "./usePdfDocument";
 import { usePanelDismiss } from "./usePanelDismiss";
@@ -208,6 +209,10 @@ export function Viewer({
   const beat = useBeat(song.tempo, song.meter);
   // T51 — the glyph the "Icon" tool stamps next (its id rides in the object's text).
   const [activeGlyph, setActiveGlyph] = useState("mic");
+  // P206 — the jump tool's landmark glyph, and the pending DESTINATION uuid held between the two
+  // placements of a pair (null = the next placement is a fresh destination).
+  const [activeJumpGlyph, setActiveJumpGlyph] = useState("segno");
+  const [pendingJumpDest, setPendingJumpDest] = useState<string | null>(null);
   // T54 — Details panel tab by AUDIENCE (Band 👥 / Mine 👤 / Admin). Remembered per
   // session (default Band — metadata is the commonest first read). Only the active
   // tab's content mounts, so switching to Mine re-fetches the pool (self-sufficient
@@ -702,12 +707,47 @@ export function Viewer({
   // and send a create (optimistically added by the sync client).
   const commitDraw = useCallback(
     (tool: DrawTool, page: number, path: { x: number; y: number }[], text?: string) => {
-      if (!isMeaningfulGesture(tool, path)) return;
+      // P206: the jump tool places ICON objects, so it is meaningful under the icon's rule.
+      if (!isMeaningfulGesture(tool === "jump" ? ("icon" as DrawTool) : tool, path)) return;
       const layerId = ensureActiveLayer();
       if (!layerId || !syncRef.current) {
         // T30: never swallow a gesture silently — say why it didn't land. (The wet
         // stroke is already cleared by WetCanvas after every gesture.)
         setLocalNotice("Couldn't place the annotation — no layer to draw on.");
+        return;
+      }
+      // P206: a jump mark is a PAIR of icon landmarks (same glyph + colour). First placement drops the
+      // DESTINATION and holds its uuid; the second drops the SOURCE carrying jumpTo = that uuid. One-way.
+      if (tool === "jump") {
+        try {
+          const target = doc.layers.find((l) => l.id === layerId);
+          if (target && !isEditableLayer(target, myUserId, myRole)) {
+            setLocalNotice("Couldn't place the jump — the layer isn't editable."); // T30
+            return;
+          }
+          const obj = buildObject({
+            tool: "icon",
+            points: pointsForTool("icon", path),
+            page,
+            layerId,
+            style,
+            text: activeJumpGlyph,
+          });
+          if (pendingJumpDest) obj.jumpTo = pendingJumpDest; // the SECOND placement is the source
+          syncRef.current.createObject(obj);
+          recordUndo({ action: "create", uuid: obj.uuid, layerId, before: null, after: obj });
+          if (pendingJumpDest) {
+            setPendingJumpDest(null);
+            setLocalNotice(null);
+          } else {
+            setPendingJumpDest(obj.uuid);
+            setLocalNotice("Jump destination placed — now place the source mark (Esc to cancel).");
+          }
+          setSelectedUuids([]);
+        } catch (err) {
+          console.error("commitDraw(jump) failed", err);
+          setLocalNotice(`Couldn't place the jump — ${err instanceof Error ? err.message : String(err)}`);
+        }
         return;
       }
       try {
@@ -757,7 +797,7 @@ export function Viewer({
         );
       }
     },
-    [ensureActiveLayer, doc.layers, myUserId, style, activeGlyph, recordUndo],
+    [ensureActiveLayer, doc.layers, myUserId, myRole, style, activeGlyph, activeJumpGlyph, pendingJumpDest, recordUndo],
   );
 
   // Is THIS object on a layer I may ever edit (owner / rw)? Drives the lock cue
@@ -971,6 +1011,13 @@ export function Viewer({
         undo();
         return;
       }
+      // P206: Esc cancels a half-placed jump pair (the destination stays as a plain landmark).
+      if (e.key === "Escape" && pendingJumpDest) {
+        e.preventDefault();
+        setPendingJumpDest(null);
+        setLocalNotice(null);
+        return;
+      }
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (selectedUuids.length === 0) return;
       e.preventDefault();
@@ -978,7 +1025,7 @@ export function Viewer({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedUuids, deleteSelected, undo]);
+  }, [selectedUuids, deleteSelected, undo, pendingJumpDest]);
 
   // Drop any selected uuids whose objects have disappeared (deleted remotely).
   useEffect(() => {
@@ -1037,6 +1084,11 @@ export function Viewer({
     onTool: (t: Tool) => {
       setTool(t);
       if (t !== "select") setSelectedUuids([]);
+      // P206: leaving the jump tool mid-pair cancels the pending destination (it stays a plain landmark).
+      if (t !== "jump" && pendingJumpDest) {
+        setPendingJumpDest(null);
+        setLocalNotice(null);
+      }
       // T84: restore this tool group's remembered draw width (freehand vs line vs shape).
       const remembered = widthByTool.current[toolWidthKey(t)];
       if (remembered != null) setStyle((s) => ({ ...s, width: remembered }));
@@ -1303,6 +1355,18 @@ export function Viewer({
           reflowKey={`${zoomSelectValue}|${customZoomPercent ?? ""}|${numPages}|${selectedFileId ?? ""}`}
         />
       )}
+      {/* P206 — the jump tool offers only landmark glyphs (segno/coda/shapes). */}
+      {tool === "jump" && toolbarProps.canDraw && (
+        <IconGlyphPalette
+          active={activeJumpGlyph}
+          color={style.color}
+          onPick={setActiveJumpGlyph}
+          ids={LANDMARK_GLYPH_IDS}
+          testid="jump-palette"
+          ariaLabel="Jump landmark"
+          reflowKey={`${zoomSelectValue}|${customZoomPercent ?? ""}|${numPages}|${selectedFileId ?? ""}`}
+        />
+      )}
 
       {(rejectNotice ?? localNotice) && (
         <p className="notice editor-reject-notice" data-testid="reject-notice" role="alert">
@@ -1367,7 +1431,7 @@ export function Viewer({
                   page={i}
                   tool={tool}
                   style={style}
-                  iconGlyph={activeGlyph}
+                  iconGlyph={tool === "jump" ? activeJumpGlyph : activeGlyph}
                   drawLocked={focusLocked || offline}
                   objects={objectsForFile}
                   layersById={layersById}
@@ -1412,7 +1476,7 @@ export function Viewer({
                 page={0}
                 tool={tool}
                 style={style}
-                iconGlyph={activeGlyph}
+                iconGlyph={tool === "jump" ? activeJumpGlyph : activeGlyph}
                 drawLocked={focusLocked || offline}
                 objects={objectsForFile}
                 layersById={layersById}

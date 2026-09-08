@@ -288,7 +288,10 @@ export function EditCanvas({
 
     const g = gestureRef.current;
     if (g?.mode === "draw" && g.path.length > 0 && !isNonDraw(tool)) {
-      const wet = buildWet(tool as DrawTool, g.path, style, tool === "icon" ? iconGlyph : "");
+      // P206: a jump places an ICON object, so preview the drag as an icon glyph (iconGlyph carries the
+      // jump landmark when the jump tool is active).
+      const drawTool = tool === "jump" ? "icon" : tool;
+      const wet = buildWet(drawTool as DrawTool, g.path, style, drawTool === "icon" ? iconGlyph : "");
       if (wet) renderObjects(ctx, [toInkObject(wet) as InkObject], box);
     } else if (g?.mode === "move" || g?.mode === "resize") {
       renderObjects(ctx, [toInkObject(g.preview) as InkObject], box);

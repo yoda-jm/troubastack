@@ -97,6 +97,8 @@ type objectJSON struct {
 	// T145: source-scoped anchor + the render hash the Points cache was projected from (both omitempty).
 	Anchor           *anchorJSON `json:"anchor,omitempty"`
 	PointsRenderHash string      `json:"pointsRenderHash,omitempty"`
+	// P206: on a jump-source icon, the destination icon's uuid (omitempty for every other object).
+	JumpTo string `json:"jumpTo,omitempty"`
 }
 
 // anchorJSON is the wire shape of domain.SourceAnchor (T145).

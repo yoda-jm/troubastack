@@ -40,6 +40,15 @@ const MOVE_ICON = (
   </svg>
 );
 
+// P206: a jump mark is a PAIR of matching landmarks — two dots joined by a dashed tie.
+const JUMP_ICON = (
+  <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <circle cx="4" cy="12" r="2" />
+    <circle cx="12" cy="4" r="2" />
+    <path d="M5.4 10.6l5.2-5.2" strokeDasharray="1.7 1.7" strokeLinecap="round" />
+  </svg>
+);
+
 type ToolButton = { tool: Tool; label: string; testid: string; icon: ReactNode };
 const TOOLS: ToolButton[] = [
   // T66: Move is first — the editor opens in pan mode; Select follows, then the draw tools.
@@ -51,6 +60,8 @@ const TOOLS: ToolButton[] = [
     testid: `tool-${t.id}`,
     icon: t.icon,
   })),
+  // P206: not a registry type — it PLACES icon objects (a pair) via the Viewer's two-step jump flow.
+  { tool: "jump", label: "Jump mark", testid: "tool-jump", icon: JUMP_ICON },
 ];
 
 // The shape-style presets shown as one-click buttons (#5).
@@ -587,7 +598,9 @@ export function EditorToolbar({
       // selected" indicator + restyle-lock stay visible.
       if (neutral && !multiSelected) return null;
       const targetType =
-        selectedType ?? (!isNonDraw(tool) ? (tool as AnnotationObject["type"]) : null);
+        selectedType ??
+        // P206: the jump tool places ICON objects, so it wears the icon's controls (colour/opacity).
+        (tool === "jump" ? "icon" : !isNonDraw(tool) ? (tool as AnnotationObject["type"]) : null);
       const controls = targetType ? (descriptorFor(targetType)?.styleControls ?? []) : [];
       const showWidth = neutral || controls.includes("width");
       const showShape = neutral || controls.includes("shapePreset");

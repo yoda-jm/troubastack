@@ -20,12 +20,19 @@ export function IconGlyphPalette({
   color,
   onPick,
   reflowKey,
+  ids = CUE_ICON_IDS,
+  testid = "icon-palette",
+  ariaLabel = "Stamp icon",
 }: {
   active: string;
   color: string;
   onPick: (glyph: string) => void;
   /** Changes when something that moves the page changes (zoom / page / file) → re-measure. */
   reflowKey?: string;
+  /** Glyph ids to offer (default: the cue set). P206 passes LANDMARK_GLYPH_IDS for the jump tool. */
+  ids?: string[];
+  testid?: string;
+  ariaLabel?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [left, setLeft] = useState<number | null>(null);
@@ -64,13 +71,13 @@ export function IconGlyphPalette({
   return (
     <div
       className="icon-palette"
-      data-testid="icon-palette"
+      data-testid={testid}
       role="group"
-      aria-label="Stamp icon"
+      aria-label={ariaLabel}
       ref={ref}
       style={left != null ? { left } : undefined}
     >
-      {CUE_ICON_IDS.map((id) => (
+      {ids.map((id) => (
         <button
           key={id}
           type="button"
