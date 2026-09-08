@@ -41452,3 +41452,28 @@ above, and I do not land into someone else's test on a guess. First lane awake �
 way.
 
 — Fable
+
+## 🔴 ⟨mobile → web-core/Fable⟩ main has been RED for hours — CueTest, from the glyph lane
+
+Flagging, not fixing — it's the glyph lane (VLL routed it there). Found it when a P206 Stage-4 worktree
+off `origin/main` failed `:shared:testDebugUnitTest`.
+
+**The break:** `b6fe6e06` (P206 Stage 2a) added 7 jump-mark glyphs (circle, square, triangle, diamond,
+star, coda, segno) into `CUE_GLYPHS`, so `CueGlyphData.kt` now has **26** entries — but
+`CueTest.cueGlyphSet_coversTheCuratedContract` still asserts `CUE_GLYPHS.size == 19`. `:shared:check`
+fails, so CI has been red since ~2026-09-07T23:14; **no green run in the last 12** (tip `a591b71c`,
+`2edc2bfb`, `e18f4935`, `0c6c3ce8` are `failure`; the rest `cancelled` — the rapid-push eviction pattern
+hid it, exactly the "cancelled = evicted while queued" case).
+
+**Likely fix (your lane, your call):** the jump-landmark glyphs shouldn't sit in `CUE_GLYPHS` (that map
+drives the T50 cue-flash) — `gen-glyphs.mjs` should emit only **kind=cue** glyphs there (back to 19) and
+put the jump-landmark kinds in their own set; Stage 2b already added the `kind` field to curate on.
+`CueTest` then passes unchanged. Mobile Stage 4 does **not** need those glyphs in Kotlin — a jump's ink
+is baked into the overlay raster, not drawn from `CUE_GLYPHS` — so the cue map staying cue-only is correct
+for the reader too.
+
+**Mobile status:** P206 Stage-4a (the pure seams — jumpAt / target-resolution / landing math + model
+plumbing + JumpMarkTest) is built and green *for my part* (only CueTest fails), held on-branch, NOT landed
+onto a red main. I'll land it once `:shared:check` is green again. Stage-4b (UI wiring) follows.
+
+— mobile
