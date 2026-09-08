@@ -365,6 +365,14 @@ console.log(`wrote ${outPath}: ${Object.keys(glyphs).length} glyphs`);
 // One generator, TWO outputs: the same flattened geometry also emits the app's
 // CueGlyphData.kt, so a new glyph lands in glyphs.json AND the app in one run — the CI
 // `node gen-glyphs.mjs && git diff --exit-code` guard covers both, no drift folklore.
+//
+// The mirror carries the `kind: "cue"` glyphs ONLY (P206: the jump landmarks stay in
+// glyphs.json for the studio's jump picker). `CUE_GLYPHS` is the app's cue-stamp map — a
+// landmark in it is not a bigger set, it is a wrong one: `cueGlyph()` would resolve a
+// segno as a stamp. A jump's landmark reaches the app baked into the overlay raster, so
+// nothing in Kotlin reads one today. If Stage 4b ever needs a landmark as an ICON (a jump
+// button, a target chip), emit a SECOND Kotlin map from LANDMARK_GLYPH_IDS here — do not
+// widen CUE_GLYPHS back to every glyph.
 function emitKotlin(glyphs) {
   const num = (v) => `${v}f`;
   const poly = (p) => "listOf(" + p.map(([x, y]) => `O(${num(x)},${num(y)})`).join(", ") + ")";
@@ -383,9 +391,11 @@ function emitKotlin(glyphs) {
   L.push("");
   L.push("private fun O(x: Float, y: Float) = Offset(x, y)");
   L.push("");
-  L.push("/** The curated cue glyph set (T50), in authoring/picker order. Unknown ids resolve to `note`. */");
+  L.push("/** The curated cue glyph set (T50), in authoring/picker order — `kind=cue` only: the P206");
+  L.push(" *  jump landmarks live in glyphs.json for the studio, never here. Unknown ids resolve to `note`. */");
   L.push("internal val CUE_GLYPHS: Map<String, CueGlyph> = mapOf(");
   for (const [id, g] of Object.entries(glyphs)) {
+    if (g.kind !== "cue") continue;
     L.push(`    "${id}" to CueGlyph(strokes = ${polys(g.strokes)}, fills = ${polys(g.fills)}, strokeWidth = ${num(g.strokeWidth)}),`);
   }
   L.push(")");
@@ -400,4 +410,4 @@ function emitKotlin(glyphs) {
 
 const ktPath = join(HERE, "..", "..", "app", "shared", "src", "commonMain", "kotlin", "com", "troubastack", "shared", "stage", "CueGlyphData.kt");
 writeFileSync(ktPath, emitKotlin(glyphs));
-console.log(`wrote ${ktPath}: ${Object.keys(glyphs).length} glyphs`);
+console.log(`wrote ${ktPath}: ${Object.values(glyphs).filter((g) => g.kind === "cue").length} cue glyphs`);

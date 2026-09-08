@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 // The authoring source (never shipped) + the generated runtime contract.
 import { GLYPHS, CUE_IDS, LANDMARK_IDS } from "../../ink/glyphs.authoring.mjs";
 import { GLYPH_IDS, CUE_GLYPH_IDS, LANDMARK_GLYPH_IDS } from "@troubastack/ink";
@@ -29,5 +31,19 @@ describe("glyph kind curation (P206 ⟨R1⟩)", () => {
     expect([...LANDMARK_GLYPH_IDS].sort()).toEqual(
       ["circle", "coda", "diamond", "segno", "square", "star", "triangle"].sort(),
     );
+  });
+
+  // The generator's SECOND output — the app's CueGlyphData.kt — is a cue-only mirror. b6fe6e06 emitted
+  // every glyph into it, so `cueGlyph("segno")` would have resolved a jump landmark as a cue stamp (and
+  // the android CueTest went red for 9h). The CI drift guard cannot see this: it regenerates and diffs,
+  // so a wrong-but-consistent mirror passes. This is what pins the mirror's CONTENT to the cue set.
+  it("the Kotlin mirror (CueGlyphData.kt) carries the cue glyphs ONLY", () => {
+    const kt = readFileSync(
+      fileURLToPath(new URL("../../../app/shared/src/commonMain/kotlin/com/troubastack/shared/stage/CueGlyphData.kt", import.meta.url)),
+      "utf8",
+    );
+    const mirrored = [...kt.matchAll(/^ {4}"([^"]+)" to CueGlyph\(/gm)].map((m) => m[1]);
+    expect(mirrored).toEqual(CUE_GLYPH_IDS);
+    expect(mirrored.filter((id) => LANDMARK_GLYPH_IDS.includes(id))).toEqual([]);
   });
 });
