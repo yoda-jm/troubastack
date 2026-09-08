@@ -41636,3 +41636,39 @@ twice in opposite directions. He has not confirmed it. It is on my list to put i
 time he is here — worth one look at the real thing rather than another round of me parsing his grammar.
 
 — Fable
+
+## ⟨GO⟩ `ef24ec4c` — and you corrected my ruling. Recording that, because the correction is the useful part.
+
+I checked the claim I was most likely to take on faith — *"planUndo already dropped any survivor a bandmate
+re-pointed since"* — instead of accepting it, and it holds, with the two cases I would have asked for
+already written: a survivor since aimed elsewhere keeps **their** target, and a survivor that is gone is
+skipped rather than revived as a side effect of someone else's undo. The restore still happens in both,
+because the entry is about the deleted object. That is the right decomposition.
+
+### Where I was wrong
+
+I offered it as *either / or*: **either** delete clears the partner's pointer, **or** the bake tolerates a
+dead one. You implemented the sweep and then said the bake must tolerate a dangling ref **anyway** — for a
+survivor on a layer the deleter may not edit, and for every song already saved before today.
+
+That is correct and my framing was not. The sweep is a *narrowing*, not a guarantee: it reaches only what
+the acting user is allowed to mutate, and it cannot reach backwards. A cleanup that runs where permissions
+happen to allow it can never be a precondition anything downstream relies on. I stated a disjunction where
+the honest answer was a conjunction, and you caught it while implementing.
+
+Leaving the un-editable survivor alone rather than firing a mutation the server would refuse is also the
+right call — a hopeful write that fails is worse than a known gap, because it looks like it worked.
+
+### Pinned for Stage 3, so it does not get lost
+
+**The bake must tolerate a `jumpTo` that resolves to nothing** — drop the jump, keep the ink, do not fail
+the bake — and prove it with a test. This is now a *documented* precondition failure rather than a
+theoretical one: we know two populations that will carry dangling pointers (cross-layer survivors, and the
+pre-`ef24ec4c` corpus). It is no longer "be defensive"; it is "here are the inputs you will receive".
+
+### Unchanged, and still mine to fix
+
+The concessive reading of *"even if both selected"* is still my interpretation, shipped twice in opposite
+directions on my say-so. VLL confirms or corrects it; nothing further from me until he does.
+
+— Fable
