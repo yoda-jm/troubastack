@@ -751,7 +751,21 @@ export function Viewer({
           recordUndo({ action: "create", uuid: obj.uuid, layerId, before: null, after: obj });
           if (pendingJumpDest) {
             setPendingJumpDest(null);
-            setLocalNotice(null);
+            // P206 ⟨D2⟩: a jump's two ends must be on the SAME FILE (VLL: "somewhere in the same pdf") —
+            // two files are two independent page spaces, and the bake drops the pair. Say it HERE, while
+            // the fix is one drag, because a cross-file pair looks exactly like a valid cross-page one
+            // (neither draws a segment). Placed anyway and flagged red on the page, per VLL's stated
+            // preference for this class of problem over refusing the gesture.
+            const destLayer = layersById.get(
+              doc.objects.find((o) => o.uuid === pendingJumpDest)?.layerId ?? "",
+            );
+            if (destLayer && destLayer.fileId !== layersById.get(layerId)?.fileId) {
+              setLocalNotice(
+                "Both ends of a jump must be on the same part — this pair is marked in red and won't work until you move one end.",
+              );
+            } else {
+              setLocalNotice(null);
+            }
           } else {
             setPendingJumpDest(obj.uuid);
             setLocalNotice("Jump destination placed — now place the source mark (Esc to cancel).");

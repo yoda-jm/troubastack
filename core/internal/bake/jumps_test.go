@@ -67,6 +67,20 @@ func TestResolveJumps_DanglingTargetIsDroppedNotFatal(t *testing.T) {
 	}
 }
 
+func TestResolveJumps_SelfPointingJumpIsDropped(t *testing.T) {
+	// The lookup table contains the source, so a self-reference would resolve to the source's own page —
+	// a jump to where the reader already is. Fable flagged this shape on the Studio side; the bake must
+	// not accept what Studio refuses to pair.
+	objs := []docObject{icon("src", 0, 0.1, 0.6, 0.18, 0.66, "src")}
+	byPage, warns := resolveJumps("Waltz", objs, 0, 1, nil, nil)
+	if len(byPage[0]) != 0 {
+		t.Fatalf("a self-pointing jump must not be baked, got %+v", byPage[0])
+	}
+	if len(warns) != 1 || !strings.Contains(warns[0], "itself") {
+		t.Fatalf("want the self-reference wording, got %v", warns)
+	}
+}
+
 func TestResolveJumps_CrossPartPairSaysSo(t *testing.T) {
 	// The destination lives on another pool file (part B). Same outcome — dropped — but the admin is told
 	// the real reason instead of "it no longer exists", which would send them looking for a deletion.

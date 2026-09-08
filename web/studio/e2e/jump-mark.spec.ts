@@ -4,6 +4,7 @@
  * destination's uuid. Reuses OBJECT_TYPE_ICON (no new type); the tool offers only landmark glyphs.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { fileURLToPath } from "node:url";
 import { stamp, register, createBandAndOpen, createSongAndOpen, uploadPdf } from "./setup-helpers";
 
 async function openEditorReady(page: Page) {
@@ -43,6 +44,20 @@ async function readEnds(page: Page) {
 async function clickAt(page: Page, cx: number, cy: number) {
   const cb = (await page.getByTestId("edit-canvas").first().boundingBox())!;
   await page.mouse.click(cb.x + cx, cb.y + cy);
+}
+
+/** Click at a FRACTION of the page box. Fixed pixels are a trap in the two-file layout: the canvas is
+ *  shorter there, and a y that overshoots lands on the file strip below — which switches files silently
+ *  instead of placing a mark, so the test fails somewhere else entirely. Keep the fractions in the upper
+ *  part of the page: mouse.click takes VIEWPORT coordinates, so a point far down a tall canvas is below
+ *  the fold and never reaches it. */
+async function clickFrac(page: Page, fx: number, fy: number) {
+  // Switching file tabs remounts the canvas, so wait for it before measuring — boundingBox() on a
+  // detached element is null, which fails as an unrelated TypeError three lines later.
+  const canvas = page.getByTestId("edit-canvas").first();
+  await expect(canvas).toBeVisible();
+  const cb = (await canvas.boundingBox())!;
+  await page.mouse.click(cb.x + cb.width * fx, cb.y + cb.height * fy);
 }
 
 test("jump tool offers ONLY landmark glyphs (curated), not cue stamps", async ({ page }) => {
@@ -204,4 +219,50 @@ test("deleting one end clears the survivor's dangling jumpTo; undo restores the 
   await expect
     .poll(async () => (await readIcons(page)).find((o) => o.uuid !== destUuid)?.jumpTo ?? "")
     .toBe(destUuid);
+});
+
+// P206 ⟨D2⟩ (Fable, from VLL's "somewhere in the same pdf"): a jump's two ends must be on the SAME FILE —
+// two files are two independent page spaces, and the bake drops the pair. The reason this needs a Studio
+// flag at all is that the doomed pair is INDISTINGUISHABLE from a valid one while authoring: ends on two
+// pages of one file draw no segment either. So the author sees nothing wrong until a bake warning names
+// the song (not the mark), possibly days later.
+test("a pair placed across two files is flagged in the page, and says so at placement (⟨D2⟩)", async ({
+  page,
+}) => {
+  await register(page, `jx_${stamp()}`);
+  await createBandAndOpen(page, `JxBand ${stamp()}`);
+  await createSongAndOpen(page, `JxSong ${stamp()}`);
+  // Two files on one song — the shared uploadPdf asserts exactly one row, so upload locally (T116).
+  for (let i = 0; i < 2; i++) {
+    await page.getByTestId("my-files-edit").click();
+    await page.getByTestId("file-input").setInputFiles(fileURLToPath(new URL("./fixtures/sample.pdf", import.meta.url)));
+    await page.getByTestId("file-upload").click();
+    await page.getByTestId("my-files-edit").click();
+  }
+  await page.reload();
+  await expect(page.getByTestId("edit-canvas").first()).toBeVisible();
+  await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
+  await expect(page.getByTestId("file-tab")).toHaveCount(2);
+
+  // Destination on file A…
+  await page.getByTestId("file-tab").nth(0).click();
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickFrac(page, 0.5, 0.3);
+  await expect(page.getByText(/now place the source/i)).toBeVisible();
+
+  // …source on file B. It is PLACED (VLL prefers a flag over a refused gesture) and told to the author.
+  await page.getByTestId("file-tab").nth(1).click();
+  await clickFrac(page, 0.5, 0.3);
+  await expect(page.getByText(/same part/i)).toBeVisible();
+  // And it stays visible on the page as a red mark, with no selection needed to see it.
+  await expect(page.getByTestId("jump-broken")).toHaveCount(1);
+
+  // The valid case must NOT be flagged: a pair placed entirely on file B draws no flag. (Without this
+  // half the test would pass on a component that flags EVERY jump.)
+  await clickFrac(page, 0.22, 0.2);
+  await expect(page.getByText(/now place the source/i)).toBeVisible();
+  await clickFrac(page, 0.22, 0.38);
+  await expect(page.getByTestId("file-tab").nth(1)).toHaveAttribute("aria-selected", "true"); // still on B
+  await expect(page.getByTestId("jump-broken")).toHaveCount(1); // still only the cross-file source
 });

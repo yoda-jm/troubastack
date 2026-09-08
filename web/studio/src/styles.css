@@ -1169,6 +1169,17 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    page box (inset:0 fills the .pdf-page wrapper, which hugs the page canvas). */
 .selection-overlay { position: absolute; inset: 0; pointer-events: none; }
 /* P206: the dashed brand tie between a selected jump PAIR (both ends on one page). */
+/* P206 ⟨D2⟩: a jump whose pair cannot resolve within this file — the bake will drop it. Red, dashed and
+   always visible (not a selection state), because the doomed pair looks exactly like a valid cross-page
+   one while authoring. --error is the same colour the destructive/live surfaces use; the halo keeps it
+   readable over dark ink in both themes. */
+.jump-broken {
+  position: absolute; box-sizing: border-box; pointer-events: none;
+  border: 2px dashed var(--error-fg);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--error-fg) 10%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface) 70%, transparent);
+}
 .jump-segment { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .jump-segment line { stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: .85; }
 /* BottomSizePreview (VLL): the live size preview, pinned bottom-centre of the viewport — visible the moment

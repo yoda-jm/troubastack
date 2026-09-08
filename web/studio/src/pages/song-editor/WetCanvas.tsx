@@ -16,6 +16,7 @@ import {
   intersectsRect,
   isMarquee,
   normalizeRect,
+  brokenJumpUuids,
   objectBBox,
   pickAt,
   isNonDraw,
@@ -214,6 +215,12 @@ export function EditCanvas({
   const WET_MIN_STEP = 0.0015;
 
   // Objects on THIS page that are currently visible (for hit-testing on select).
+  // P206 ⟨D2⟩: the jumps on THIS FILE that cannot resolve — flagged in the page, selected or not, because
+  // a doomed pair is otherwise indistinguishable from a valid cross-page one (both draw no segment) until
+  // a bake warning appears days later. `objects` is already scoped to the open file (T40), which is the
+  // same scope the baker resolves in.
+  const brokenJumps = useMemo(() => brokenJumpUuids(objects), [objects]);
+
   const pageObjects = useMemo(
     () =>
       objects
@@ -982,6 +989,30 @@ export function EditCanvas({
       {/* Selection overlays: DOM elements positioned in % of the page box, so
           they track the page under any zoom AND are queryable in e2e. */}
       <div className="selection-overlay" aria-hidden="true">
+        {/* P206 ⟨D2⟩: a jump that will be dropped at bake, marked where it is authored. Drawn for every
+            such source on the page whether or not it is selected — the author has to see it without
+            hunting for it (VLL on this class of problem: "juste le flagger en rouge dans le rendu de
+            Studio pour dire: attention"). */}
+        {pageObjects
+          .filter((o) => brokenJumps.has(o.uuid))
+          .map((o) => {
+            const rm = pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined;
+            const b = objectBBox(o, rm);
+            return (
+              <div
+                key={`broken-${o.uuid}`}
+                className="jump-broken"
+                data-testid="jump-broken"
+                data-uuid={o.uuid}
+                style={{
+                  left: `${b.minX * 100}%`,
+                  top: `${b.minY * 100}%`,
+                  width: `${(b.maxX - b.minX) * 100}%`,
+                  height: `${(b.maxY - b.minY) * 100}%`,
+                }}
+              />
+            );
+          })}
         {(() => {
           // P206: a selected jump draws a dashed segment between its two ends when both are on this page —
           // the "they're connected" cue (VLL). Selecting one end selects both, so the usual case is the two

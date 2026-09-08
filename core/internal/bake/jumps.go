@@ -98,6 +98,13 @@ func resolveJumps(
 			warnings = append(warnings, fmt.Sprintf("%q: a jump mark sits on a page the chart no longer has — the jump was dropped.", songTitle))
 			continue
 		}
+		if src.JumpTo == src.UUID {
+			// A landmark pointing at ITSELF is not a jump — it is a mark that would send the reader to
+			// where they already are. targets contains the source, so without this it resolves happily
+			// (Fable's pairing-assertion hole, guarded in Studio and now here too).
+			warnings = append(warnings, fmt.Sprintf("%q: a jump points at itself — the jump was dropped (its mark is still on the page).", songTitle))
+			continue
+		}
 		dst, ok := targets[src.JumpTo]
 		if !ok {
 			if elsewhere[src.JumpTo] {

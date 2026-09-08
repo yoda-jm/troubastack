@@ -719,6 +719,23 @@ export function objectLabel(obj: AnnotationObject): string {
 // plus the object as they LEFT it, so undo can refuse when a bandmate has changed it since (rule 2) — done
 // by content comparison against the live doc, needing nothing new on the wire.
 
+/** P206 ⟨D2⟩ — the jump SOURCES in one FILE's objects whose pair cannot resolve: the destination is not in
+ *  this file (it was deleted, or the author placed the two ends on different parts) or it is the source
+ *  itself. These are exactly the jumps the bake DROPS, so Studio marks them at authoring time, where the
+ *  fix costs one drag; the bake warning stays as the backstop for what was authored before.
+ *
+ *  `fileObjects` must be ONE file's objects (Viewer's objectsForFile, T40) — the bake resolves a pair
+ *  within one file, so a set spanning files would call a doomed pair valid. */
+export function brokenJumpUuids(fileObjects: readonly AnnotationObject[]): Set<string> {
+  const present = new Set(fileObjects.map((o) => o.uuid));
+  const broken = new Set<string>();
+  for (const o of fileObjects) {
+    if (!o.jumpTo) continue;
+    if (o.jumpTo === o.uuid || !present.has(o.jumpTo)) broken.add(o.uuid);
+  }
+  return broken;
+}
+
 /** The per-song undo stack is bounded; older entries fall off. 50 is plenty for a session. */
 export const UNDO_LIMIT = 50;
 
