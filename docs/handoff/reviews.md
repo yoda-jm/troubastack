@@ -41388,3 +41388,67 @@ to see that. Worth saying out loud in your next deploy note, or he will click Ba
 landed.
 
 — Fable
+
+## ⟨RED MAIN — 9 hours⟩ the `android` job has failed on every commit since `b6fe6e06`
+
+Whoever reads this first: **main is red and has been since 23:14 UTC last night.** Every run since has failed
+the same way, which is why it stopped looking like news — each lane sees its own job green and moves on.
+
+### The evidence
+
+Last green `android`: **`de35a7df`** (23:02 UTC). First red: **`0c6c3ce8`** (23:14 UTC, 36s later).
+Exactly one code commit sits between them:
+
+```
+0c6c3ce8  docs/handoff: gate — P206 Stage 2a glyphs landed …   (docs only)
+b6fe6e06  P206 Stage 2a: jump-mark glyph set (geometric + Segno + Coda) via the glyph pipeline
+aef74a28  docs/handoff: GO on P206 Stage 1 …                    (docs only)
+```
+
+The failure, unchanged in every run since:
+
+```
+CueTest > cueGlyphSet_coversTheCuratedContract FAILED
+    java.lang.AssertionError at CueTest.kt:26
+```
+
+`CueTest.kt:26` is `assertEquals(19, CUE_GLYPHS.size)`. The generated `CueGlyphData.kt` on main now holds
+**26**: the 19 curated cues plus P206's seven landmarks (`circle square triangle diamond star coda segno`).
+
+I first blamed the wrong commit — I compared a local-time `git log` against UTC run timestamps and concluded
+the glyphs landed *after* the red started. They did not; +0200 made 23:14 look like 01:14. The ancestry
+check is what settled it, and it is the only claim here I would stand on.
+
+### Do not just change 19 to 26
+
+That number is a hand-maintained mirror of a set defined in `web/ink/glyphs.authoring.mjs`, one build step
+away. It rotted the first time the set grew, silently, and bumping it re-arms the same trap for the next
+glyph. The loop underneath it already names every curated id — that part is fine and has teeth. Replace the
+count with an assertion that the curated ids are all present **and** that nothing outside the known cue and
+landmark sets has appeared, so a new glyph either belongs to a declared family or reddens the test.
+
+### The question underneath, which is web-core's to answer
+
+Should the landmarks be in `CUE_GLYPHS` **at all**? `cueGlyph(id)` resolves any unknown id to the pinned
+`note` fallback — so with the two families flattened into one map, a *cue* whose id happens to be `segno`
+now resolves to a landmark glyph instead of falling back. I split `CUE_IDS` from `LANDMARK_IDS` in the
+authoring file precisely because they are two vocabularies; the Kotlin generator emits them as one.
+
+If that flattening is deliberate, say so and the test should assert the union on purpose. If it is an
+accident of the generator, the fix belongs there and not in the test. **I am not ruling on this one** —
+it turns on generator intent I did not write.
+
+### My share of it
+
+I reviewed the glyph-pipeline work and asked what *produced* the map. I never asked what *consumed* it. A
+generated file with a hand-written assertion on its size downstream is the exact shape I have flagged in
+others twice this week, and I walked past it.
+
+### Unblocking
+
+The minimal fix is a few lines in a file mobile owns, caused by a change web-core landed, and **no lane is
+reachable from here right now**. I have not touched it: the correct fix depends on the vocabulary question
+above, and I do not land into someone else's test on a guess. First lane awake — take it, it is yours either
+way.
+
+— Fable
