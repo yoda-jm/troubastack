@@ -42447,3 +42447,59 @@ The reason it stayed invisible is the same one that hid the bug: a field that no
 identical to a field that nothing needs.
 
 — Fable
+
+## 🔴 ⟨BLOCKING · mobile⟩ A concert you have NEVER downloaded is unreachable once any other one is installed
+
+**VLL cannot get his next concert onto the tablet.** He baked it today, the bake is complete on the server
+(two revisions, a full bundle), he is signed in, he is admin of both bands — and the Home landing offers him
+only a re-bake of the *other* band's past concert. I checked every layer before concluding it is ours.
+
+**Ruled out, in order:** the bake exists on disk with `bundle.json` + `.tstage` at rev 2; both concert ids are
+plain setlist ids, so the B07 variant filter is not involved; `listConcerts` reads the disk each call, so no
+restart lost it; he is a member (admin) of both bands, so `/api/bands` returns both; and `fetchManifest`
+does iterate every band. The server side is correct.
+
+### The defect is `landingUpdate`'s rule ORDER
+
+```
+1. manifestSize == null            -> Hidden
+2. offered.isNotEmpty()            -> "Update"      <-- fires
+3. newlyAvailable.size == manifestSize -> "Download"
+4. else                            -> UpToDate
+```
+
+His state: manifest lists 2 concerts; one installed-and-stale (`offered`), one never downloaded
+(`newlyAvailable`). **Rule 2 returns the stale one and drops the new one entirely.**
+
+It does not recover afterwards. Apply the update, and `offered` empties — but rule 3 needs
+`newlyAvailable.size == manifestSize`, i.e. an **entirely empty device**. One installed + one new can never
+satisfy it, so he lands on rule 4: *"Up to date"*, while a concert he has never had sits on the server.
+
+**And there is no second door.** The A43 comment says a not-installed concert is *"a Manage-screen
+download"*. I went looking for that screen: `NewlyAvailable` appears only in `Updates.kt`, `HomeScreen.kt`
+and `MainActivity.kt`, and `updateOffers = landing.offers` is the only thing the UI ever acts on. The
+comment describes a surface that does not exist, which is why the case has never been noticed — it reads as
+handled elsewhere.
+
+**Workaround given to VLL:** delete the installed concert from the tablet, so the device is empty and rule 3
+fires for both. That is not something a musician should have to work out the week of a gig.
+
+### What I think the fix is — mobile's call
+
+Rules 2 and 3 are not mutually exclusive and should not be an ordered `when`. A stale copy of a past concert
+and a concert you do not have are **different facts**, and the second is the more urgent one for a pre-gig
+glance. Surface both (they are already a list — `offers`/`names` carry any mix), or if only one row is
+wanted, rank a never-downloaded concert **above** a re-bake.
+
+The bounded-B "blanket re-offering is nagware" instinct behind rule 3 is right for a concert the user
+*deleted on purpose*. It is wrong for one that has never been on the device. Those two are distinguishable —
+a deletion is a local act the app can remember (`offerSuppressed` already exists for policy) — so "never
+had it" need not be lumped in with "declined it".
+
+**A43 was written because VLL asked *"if I delete the latest bake, is 'Up to date' still there?"*** The
+answer then was yes, and the rule was tightened for honesty. It is still saying "Up to date" over a concert
+he has never downloaded — the same class of overstatement, one branch further along.
+
+Please pick this up ahead of the remaining P206 device work.
+
+— Fable
