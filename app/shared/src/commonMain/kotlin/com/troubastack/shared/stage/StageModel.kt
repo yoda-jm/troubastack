@@ -10,6 +10,7 @@ import com.troubastack.shared.bundle.BundleMember
 import com.troubastack.shared.bundle.ConcertBundle
 import com.troubastack.shared.bundle.LayerImage
 import com.troubastack.shared.bundle.LoadResult
+import com.troubastack.shared.bundle.PageJump
 import com.troubastack.shared.bundle.SongCue
 import kotlin.math.roundToInt
 
@@ -77,6 +78,51 @@ fun scrollTrimPlacement(fullPx: Int, trimFraction: Double): ScrollTrimPlacement 
     val full = fullPx.coerceAtLeast(1)
     val reported = (full * trimFraction).roundToInt().coerceIn(1, full)
     return ScrollTrimPlacement(measuredPx = full, reportedPx = reported, yPx = 0)
+}
+
+// ── P206 jump marks — the pure Stage-4 seams (hit-test / target resolution / landing), unit-tested ──
+// off-device because this repo has zero instrumented tests (A58). The UI wiring calls these; the
+// load-bearing decisions live here.
+
+/** P206 fraction of the viewport height kept ABOVE a jump's anchor, so the target reads as "here" and
+ *  not "cut off at the top edge" (§4.2 LEAD_IN). */
+const val JUMP_LEAD_IN_FRACTION = 0.12
+
+/**
+ * §4.1/§4.4 — the jump under a tap, or null. A jump is hittable IFF its ink is visible: its layer is in
+ * [visibleLayers] (per-song A1) AND its owner is visible to [identity] (P205). NO touch-slop padding —
+ * the hotspot is exactly the drawn bbox (Studio's minimum-size rule is the counterweight). [xPermille]/
+ * [yPermille] are the tap in the page's OWN normalized space (0..1000, I3). On overlap the topmost
+ * (last-drawn) mark wins. Pure, so N3's "a tap in a mark activates, doesn't toggle chrome" is testable.
+ */
+fun jumpAt(page: StagePage, xPermille: Int, yPermille: Int, visibleLayers: Set<String>, identity: String): PageJump? =
+    page.jumps.lastOrNull { j ->
+        j.layerId in visibleLayers &&
+            visibleToIdentity(j.owner, identity) &&
+            xPermille in minOf(j.x0Permille, j.x1Permille)..maxOf(j.x0Permille, j.x1Permille) &&
+            yPermille in minOf(j.y0Permille, j.y1Permille)..maxOf(j.y0Permille, j.y1Permille)
+    }
+
+/**
+ * §4.2/§Scope — resolve a jump's within-song [PageJump.targetPage] to a GLOBAL page index, clamped to the
+ * song that owns [fromGlobalPage] (cross-song jumps are out of scope). A46 clamp discipline: a target past
+ * the song's last page (a shorter re-bake removed it) lands on the last page and never dangles.
+ */
+fun jumpTargetGlobalPage(state: StageState, fromGlobalPage: Int, jump: PageJump): Int {
+    val range = songPageRange(state, fromGlobalPage)
+    if (range.isEmpty()) return fromGlobalPage
+    return (range.first + jump.targetPage).coerceIn(range.first, range.last)
+}
+
+/**
+ * §4.2 — the vertical scroll offset (px, measured from the target PAGE's top) that lands
+ * [anchorYPermille] near the top with a small [leadInPx] of context above, clamped into [0, maxScrollPx].
+ * anchor_y=0 ⇒ page top (0). Clamping is a valid landing (an anchor near the end lands as high as the
+ * column allows), never a bounce/overscroll.
+ */
+fun jumpLandOffsetPx(anchorYPermille: Int, pageHeightPx: Int, leadInPx: Int, maxScrollPx: Int): Int {
+    val anchorPx = (anchorYPermille / 1000.0 * pageHeightPx).roundToInt()
+    return (anchorPx - leadInPx).coerceIn(0, maxScrollPx.coerceAtLeast(0))
 }
 
 /** T158 — an entry's kind for the running-order numbering rule (intermission arrives with T153). */
@@ -163,6 +209,9 @@ data class StagePage(
     // T149: the page's ink bottom as a fraction of full height, in permille (baker = max(raster, overlays));
     // 0/absent ⇒ full page. Stage trims a SONG'S LAST page to this (+ a breathing margin) in SCROLL mode.
     val contentBottomPermille: Int = 0,
+    // P206: baked jump marks on this page, already filtered to THIS identity at load (buildLoaded §4.4);
+    // the per-song LAYER filter is applied dynamically at hit-test (jumpAt). Empty on a pre-P206 bundle.
+    val jumps: List<PageJump> = emptyList(),
 )
 
 /**
@@ -298,7 +347,12 @@ internal fun cuesForIdentity(song: BakedSong, identity: String): List<SongCue> =
  * anywhere (the Layers dialog can't even show it). Anonymous (identity "") sees only shared layers.
  */
 internal fun visibleToIdentity(overlay: LayerImage, identity: String): Boolean =
-    overlay.owner.isEmpty() || overlay.owner == identity
+    visibleToIdentity(overlay.owner, identity)
+
+/** P205 owner rule, by raw owner string — shared ("") is visible to everyone; a personal owner only to
+ *  that member. Used for overlays (above) AND P206 jump marks, so the two filters cannot drift. */
+internal fun visibleToIdentity(owner: String, identity: String): Boolean =
+    owner.isEmpty() || owner == identity
 
 /**
  * T137 — the pool page indices this [identity] READS for [song], in order. `song.pages` is a shared pool
@@ -414,6 +468,10 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
                     rasterHash = page.rasterHash,
                     // Stage 3b: drop other members' personal overlays (owner != me) — never composited.
                     overlays = page.overlays.filter { visibleToIdentity(it, identity) },
+                    // P206 §4.4: drop other members' personal JUMP marks in the SAME pass, from the SAME
+                    // predicate — so an invisible tappable hotspot can never leak another member's private
+                    // annotation. The per-song LAYER filter is dynamic and applied later, at hit-test (jumpAt).
+                    jumps = page.jumps.filter { visibleToIdentity(it.owner, identity) },
                     status = if (rasterBad) PageStatus.UNAVAILABLE else PageStatus.READY,
                     displayNotes = song.displayNotes,
                     key = song.key,
