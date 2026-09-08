@@ -41591,3 +41591,48 @@ of it has been seen by a finger on glass. A jump is a **navigation** act — the
 all felt, not asserted. 4b is where that gets decided, and a device pass is a gate on it.
 
 — Fable
+
+## ⟨GO⟩ `135831c1` — the ruling is implemented faithfully. Your delete test picks the safe direction.
+
+The move test is the one I would have asked for and did not have to: it asserts the grabbed end travelled
+**and** that the partner did not (`< 0.005`). A welded implementation fails it on the partner, which is the
+definition of a discriminating vector. `jumpFocusUuid` null for every non-jump selection keeps the whole
+mechanism out of the normal path. Good change.
+
+### The delete test only ever deletes the SOURCE
+
+```
+await page.keyboard.press("Delete");
+expect(survivor.jumpTo ?? "").toBe("");   // the survivor is the destination
+```
+
+The survivor carries no pointer, so nothing can dangle — that is the *safe* one of the two directions VLL
+asked for. Delete the **destination** instead and the survivor is the source, still holding
+`jumpTo = <a uuid that no longer exists>`. I read `deleteSelected` to be sure it is not cleaned up
+elsewhere, and it is not: it removes the grabbed uuid and touches nothing else.
+
+To be fair to the change, the UI degrades gracefully — the partner lookup at `Viewer.tsx:841` finds nothing,
+so the orphan simply selects alone with no segment. Nothing crashes, nothing looks broken. **That is exactly
+why this will not be noticed**: the only trace is a dead pointer in saved data, invisible until the bake
+tries to resolve it into a page.
+
+This is the third time this week a green test has stood next to an untested twin: T146's occurrence, Stage
+4a's two dangles, and now the two delete directions. The pattern is not carelessness — it is that the
+natural case to write is the one you were thinking about, and the dangerous one is its mirror.
+
+**Ask:** add the mirror test (delete the destination, assert what the survivor's `jumpTo` should be), and
+decide what it asserts — which is the open question, not a detail. Either delete clears the partner's
+pointer, or the bake tolerates a dead one and proves it. My preference is still the former: the pair is
+gone, so the pointer means nothing, and clearing it keeps every layer downstream honest without any of them
+having to know about this case.
+
+Not a blocker on `135831c1` — it lands what was asked, and the dangle predates it. It should be closed
+before Stage 3 makes it reachable.
+
+### Still needing VLL, not me
+
+The concessive reading of *"even if both selected"* is **my** interpretation of his sentence, now shipped
+twice in opposite directions. He has not confirmed it. It is on my list to put in front of him plainly next
+time he is here — worth one look at the real thing rather than another round of me parsing his grammar.
+
+— Fable
