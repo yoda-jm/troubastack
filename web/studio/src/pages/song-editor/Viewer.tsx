@@ -756,7 +756,7 @@ export function Viewer({
             setPendingJumpDest(obj.uuid);
             setLocalNotice("Jump destination placed — now place the source mark (Esc to cancel).");
           }
-          setSelectedUuids([]);
+          selectOnly([]);
         } catch (err) {
           console.error("commitDraw(jump) failed", err);
           setLocalNotice(`Couldn't place the jump — ${err instanceof Error ? err.message : String(err)}`);
@@ -794,9 +794,9 @@ export function Viewer({
         // tool on resolve, so the new text is left selected for immediate restyle/reposition (VLL's stated
         // carve-out).
         if (tool === "text") {
-          setSelectedUuids([obj.uuid]);
+          selectOnly([obj.uuid]);
         } else {
-          setSelectedUuids([]);
+          selectOnly([]);
         }
         setLocalNotice(null); // T30: a successful commit clears any stale decline notice
       } catch (err) {
@@ -811,6 +811,42 @@ export function Viewer({
       }
     },
     [ensureActiveLayer, doc.layers, myUserId, myRole, style, activeGlyph, activeJumpGlyph, jumpSize, pendingJumpDest, recordUndo],
+  );
+
+  // P206 (Fable ⟨review⟩ 3350c809 on 504b435e): selecting ONE end of a jump selects BOTH — VLL's "selecting
+  // one should select both" — and his "even if both selected, they should be able to move one without the
+  // other" is CONCESSIVE: it grants the both-selected state and asks for per-end action anyway. So the pair
+  // is SHOWN, not WELDED: both ends highlight and the dashed segment draws, while `jumpFocusUuid` — the end
+  // actually clicked — is what moves, resizes, restyles and deletes. It is null for every selection that is
+  // not an auto-expanded pair (a marquee still group-moves; see WetCanvas).
+  const [jumpFocusUuid, setJumpFocusUuid] = useState<string | null>(null);
+
+  // Set the selection with NO pairing (every path except a canvas pick): clears the jump focus so a stale
+  // focus can never survive into an unrelated selection.
+  const selectOnly = useCallback((uuids: string[]) => {
+    setJumpFocusUuid(null);
+    setSelectedUuids(uuids);
+  }, []);
+
+  const selectWithJumpPairs = useCallback(
+    (uuids: string[]) => {
+      if (uuids.length !== 1) {
+        selectOnly(uuids);
+        return;
+      }
+      const id = uuids[0];
+      const obj = doc.objects.find((o) => o.uuid === id);
+      // Guard self-reference (o.uuid !== id): a stray jumpTo pointing at itself must not pair an object
+      // with itself (Fable's pairing-assertion hole).
+      const partner = doc.objects.find((o) => o.uuid !== id && (o.uuid === obj?.jumpTo || o.jumpTo === id));
+      if (!partner) {
+        selectOnly(uuids);
+        return;
+      }
+      setJumpFocusUuid(id);
+      setSelectedUuids([id, partner.uuid]);
+    },
+    [doc.objects, selectOnly],
   );
 
 
@@ -932,7 +968,7 @@ export function Viewer({
       };
       syncRef.current.createObject(copy);
       recordUndo({ action: "create", uuid: copy.uuid, layerId: copy.layerId, before: null, after: copy });
-      setSelectedUuids([copy.uuid]);
+      selectOnly([copy.uuid]);
     },
     [doc.objects, isObjectEditableNow, recordUndo],
   );
@@ -962,8 +998,11 @@ export function Viewer({
   // layer) is skipped — no mutation sent.
   const deleteSelected = useCallback(() => {
     if (selectedUuids.length === 0 || !syncRef.current) return;
+    // P206: "I should also be able to remove one or the other" (VLL) — with a jump pair selected, delete
+    // takes only the end you grabbed, never its partner.
+    const targets = jumpFocusUuid ? [jumpFocusUuid] : selectedUuids;
     const removed: AnnotationObject[] = [];
-    for (const uuid of selectedUuids) {
+    for (const uuid of targets) {
       const obj = doc.objects.find((o) => o.uuid === uuid);
       if (!obj || !isObjectEditableNow(obj)) continue;
       syncRef.current.deleteObject(uuid);
@@ -975,9 +1014,9 @@ export function Viewer({
       // the active layer (isObjectEditableNow requires it), so they share one layerId for the permission
       // re-check.
       recordUndo({ action: "delete", layerId: removed[0].layerId, deleted: removed });
-      setSelectedUuids([]);
+      selectOnly([]);
     }
-  }, [selectedUuids, doc.objects, isObjectEditableNow, recordUndo]);
+  }, [selectedUuids, jumpFocusUuid, doc.objects, isObjectEditableNow, recordUndo, selectOnly]);
 
   // T161 — undo THIS user's last action by APPENDING the inverse mutation (never rewriting history). It
   // re-checks permission (T30) and refuses — dropping the entry rather than retrying forever — when a
@@ -1047,15 +1086,18 @@ export function Viewer({
       const next = cur.filter((u) => doc.objects.some((o) => o.uuid === u));
       return next.length === cur.length ? cur : next;
     });
+    setJumpFocusUuid((cur) => (cur && !doc.objects.some((o) => o.uuid === cur) ? null : cur));
   }, [doc.objects]);
 
   // ---- selection ↔ style controls ----
   // The single selected object (only when exactly one is selected). Drives the
   // style controls (reflect its style) and live restyle.
-  const selectedObject = useMemo(
-    () => (selectedUuids.length === 1 ? doc.objects.find((o) => o.uuid === selectedUuids[0]) ?? null : null),
-    [selectedUuids, doc.objects],
-  );
+  // P206: the focused end of a selected jump pair is the "single" selection here — a paired landmark keeps
+  // the same style controls, colour and toolbar it has unpaired.
+  const selectedObject = useMemo(() => {
+    const uuid = jumpFocusUuid ?? (selectedUuids.length === 1 ? selectedUuids[0] : null);
+    return uuid ? doc.objects.find((o) => o.uuid === uuid) ?? null : null;
+  }, [selectedUuids, jumpFocusUuid, doc.objects]);
   // Is the (single) selection editable RIGHT NOW (on the active editable layer)?
   // Drives whether the style controls are live. An object on a locked layer OR
   // on a non-active editable layer is inspect-only → controls disabled.
@@ -1097,7 +1139,7 @@ export function Viewer({
     tool,
     onTool: (t: Tool) => {
       setTool(t);
-      if (t !== "select") setSelectedUuids([]);
+      if (t !== "select") selectOnly([]);
       // P206: leaving the jump tool mid-pair cancels the pending destination (it stays a plain landmark).
       if (t !== "jump" && pendingJumpDest) {
         setPendingJumpDest(null);
@@ -1112,7 +1154,7 @@ export function Viewer({
     jumpSize,
     onJumpSize: setJumpSize,
     controlsLocked,
-    multiSelected: selectedUuids.length > 1,
+    multiSelected: selectedUuids.length > 1 && jumpFocusUuid == null,
     selectedType: selectedObject?.type ?? null,
     editableLayers,
     activeLayerId,
@@ -1128,8 +1170,8 @@ export function Viewer({
     focusedLayerName: focusedLayer?.name ?? null,
     onEditLayer: editFocusedLayer,
     showEditLayerHint: selectionOnInactiveEditable,
-    selectionCount: selectedUuids.length,
-    canDeleteSelection: selectedUuids.some((u) => {
+    selectionCount: jumpFocusUuid ? 1 : selectedUuids.length,
+    canDeleteSelection: (jumpFocusUuid ? [jumpFocusUuid] : selectedUuids).some((u) => {
       const o = doc.objects.find((x) => x.uuid === u);
       return o != null && isObjectEditableNow(o);
     }),
@@ -1454,9 +1496,10 @@ export function Viewer({
                   layerRank={layerRank}
                   visible={visible}
                   selectedUuids={selectedUuids}
+                  jumpFocusUuid={jumpFocusUuid}
                   isObjectEditable={isEditableObject}
                   isObjectEditableNow={isObjectEditableNow}
-                  onSelect={setSelectedUuids}
+                  onSelect={selectWithJumpPairs}
                   onFocusLayer={focusLayerOnly}
                   onCommitDraw={commitDraw}
                   onTextResolved={() => setTool("select")}
@@ -1499,9 +1542,10 @@ export function Viewer({
                 layerRank={layerRank}
                 visible={visible}
                 selectedUuids={selectedUuids}
+                jumpFocusUuid={jumpFocusUuid}
                 isObjectEditable={isEditableObject}
                 isObjectEditableNow={isObjectEditableNow}
-                onSelect={setSelectedUuids}
+                onSelect={selectWithJumpPairs}
                 onFocusLayer={focusLayerOnly}
                 onCommitDraw={commitDraw}
                 onTextResolved={() => setTool("select")}
@@ -1586,7 +1630,7 @@ export function Viewer({
                   focusLocked={focusLocked}
                   selectedUuids={selectedUuids}
                   onSelect={(uuid) => {
-                    setSelectedUuids([uuid]);
+                    selectOnly([uuid]);
                     scrollObjectIntoView(uuid);
                   }}
                 />

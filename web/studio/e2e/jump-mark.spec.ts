@@ -16,6 +16,29 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
 }
 
+type IconRow = { uuid: string; jumpTo?: string; points: { x: number; y: number }[] };
+
+/** The persisted icon objects of the open song — the ground truth the canvas is drawn from. */
+async function readIcons(page: Page): Promise<IconRow[]> {
+  return await page.evaluate(async () => {
+    const m = location.pathname.match(/\/bands\/([^/]+)\/songs\/([^/]+)/);
+    if (!m) return [];
+    const [, bandId, songId] = m;
+    const doc = await (
+      await fetch(`/api/bands/${bandId}/songs/${songId}/annotations`, { credentials: "same-origin" })
+    ).json();
+    return (doc.objects ?? []).filter((o: { type: string }) => o.type === "icon");
+  });
+}
+
+/** The pair as {source (carries jumpTo), dest}, each by its first point — enough to see one end move. */
+async function readEnds(page: Page) {
+  const icons = await readIcons(page);
+  const source = icons.find((o) => o.jumpTo)!;
+  const dest = icons.find((o) => !o.jumpTo)!;
+  return { source: source.points[0], dest: dest.points[0] };
+}
+
 // P206: a jump is placed by a CLICK (a fixed-size stamp), not a drag.
 async function clickAt(page: Page, cx: number, cy: number) {
   const cb = (await page.getByTestId("edit-canvas").first().boundingBox())!;
@@ -90,7 +113,7 @@ test("the size lives in the toolbar (a mm readout) with a live box hint (VLL)", 
   await expect(page.getByTestId("style-size-preview").locator(".size-hud-box")).toBeVisible();
 });
 
-test("selecting ONE end draws the segment to its partner, but selects only that end (VLL)", async ({
+test("selecting ONE end selects BOTH and draws the segment (VLL: \"selecting one should select both\")", async ({
   page,
 }) => {
   await openEditorReady(page);
@@ -101,7 +124,53 @@ test("selecting ONE end draws the segment to its partner, but selects only that 
   // Switch to select and pick just ONE end…
   await page.getByTestId("tool-select").click();
   await clickAt(page, 300, 300);
-  // …only THAT end is selected (so it moves/deletes independently), and the segment ties it to the partner.
-  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
+  // …and BOTH ends highlight, tied by the dashed segment. The pair is SHOWN (Fable's ruling on 504b435e:
+  // "even if both selected" grants the state) — the next two tests prove it is not WELDED.
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
   await expect(page.locator(".jump-segment").first()).toBeVisible();
+});
+
+// The teeth for the ruling: with BOTH ends selected, a drag on one end must move that end ALONE. If the
+// pair were welded (the group move this selection used to trigger), the partner would travel by the same
+// delta and this assertion would fail on the partner, not on the dragged end.
+test("with both selected, dragging one end moves ONLY that end (VLL)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickAt(page, 300, 540); // destination
+  await clickAt(page, 300, 300); // source (carries jumpTo)
+  await page.getByTestId("tool-select").click();
+  await clickAt(page, 300, 300); // selects BOTH ends, focused on the source
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+
+  const before = await readEnds(page);
+  const cb = (await page.getByTestId("edit-canvas").first().boundingBox())!;
+  await page.mouse.move(cb.x + 300, cb.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(cb.x + 380, cb.y + 300, { steps: 8 }); // drag the SOURCE right
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await readEnds(page)).source.x > before.source.x + 0.02)
+    .toBe(true); // the grabbed end travelled…
+  const after = await readEnds(page);
+  expect(Math.abs(after.dest.x - before.dest.x)).toBeLessThan(0.005); // …and its partner stayed put
+  expect(Math.abs(after.dest.y - before.dest.y)).toBeLessThan(0.005);
+});
+
+test("with both selected, Delete removes ONLY the end you grabbed (VLL)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickAt(page, 300, 540); // destination
+  await clickAt(page, 300, 300); // source
+  await page.getByTestId("tool-select").click();
+  await clickAt(page, 300, 300); // both selected, source focused
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+
+  await page.keyboard.press("Delete");
+  // One landmark survives — the destination, the end that was NOT grabbed.
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(0);
+  await expect.poll(async () => (await readIcons(page)).length).toBe(1);
+  const [survivor] = await readIcons(page);
+  expect(survivor.jumpTo ?? "").toBe(""); // the survivor is the destination (it never carried a target)
 });
