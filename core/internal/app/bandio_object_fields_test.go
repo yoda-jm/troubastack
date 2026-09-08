@@ -304,3 +304,198 @@ func TestBandFolder_RoundTripsEverySongField(t *testing.T) {
 		t.Errorf("CreatedAt is zero — it is re-stamped on import, not dropped")
 	}
 }
+
+// The fourth and last hand-maintained mirror pair in this file: v2Setlist / v2SetlistItem. A setlist is
+// the thing the band plays FROM, and an item's fields are the per-performance decisions (the key it is in,
+// whether the chart is transposed, whether it is on the bench, whether it is a break at all). A silent
+// loss here is a gig played in the wrong key.
+var setlistNotCarried = map[string]string{
+	"ID":        "the folder declares its own id (T150) and the importer honours it; asserted separately",
+	"BandID":    "the import creates a new band; asserted separately as the imported band's id",
+	"CreatedAt": "stamped by the importing server — a folder is a description, not a history",
+	"LiveUntil": "rehearsal live mode is a self-expiring RUNTIME flag (P201); a folder must never carry a deadline",
+	"LiveBy":    "the other half of live mode, and json:\"-\" — never leaves the server it was set on",
+}
+
+var itemNotCarried = map[string]string{
+	"ID":        "the importing server mints item ids",
+	"SetlistID": "…and setlist ids; asserted separately as the imported setlist's",
+	"SongID":    "the folder references a song by SLUG, not by id; asserted separately as the imported song's",
+	"Position":  "carried by ARRAY ORDER, not as a field (T140); asserted separately as 0..n-1 in order",
+}
+
+func TestBandFolder_RoundTripsEverySetlistField(t *testing.T) {
+	src := newStack()
+	admin, _, bandID, songID, _, _ := buildSourceBand(t, src)
+
+	// buildSourceBand leaves one setlist with one item; fill the rest of the surface: every override on
+	// the song item, plus an intermission, whose Kind/Label are the T153 fields most likely to be missed.
+	sls, err := src.svc.Setlists(admin, bandID)
+	if err != nil || len(sls) != 1 {
+		t.Fatalf("setlists: %v (%d)", err, len(sls))
+	}
+	sl := sls[0]
+	detail, err := src.svc.Setlist(admin, bandID, sl.ID)
+	if err != nil {
+		t.Fatalf("detail: %v", err)
+	}
+	tempo, notes := 137, "second half, capo 2"
+	if _, err := src.svc.UpdateSetlistItem(admin, bandID, sl.ID, detail.Items[0].ID,
+		app.SetlistItemPatch{TempoOverride: &tempo, Notes: &notes}); err != nil {
+		t.Fatalf("patch item: %v", err)
+	}
+	if _, err := src.svc.AddSetlistIntermission(admin, bandID, sl.ID, "Fifteen minutes"); err != nil {
+		t.Fatalf("intermission: %v", err)
+	}
+	want, err := src.svc.Setlist(admin, bandID, sl.ID)
+	if err != nil {
+		t.Fatalf("re-read: %v", err)
+	}
+
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	tgt := newStack()
+	importer, err := tgt.svc.Register("owner", "Owner", "password123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	gotLists, err := tgt.svc.Setlists(importer, rep.Band.ID)
+	if err != nil || len(gotLists) != 1 {
+		t.Fatalf("imported setlists: %v (%d)", err, len(gotLists))
+	}
+	got, err := tgt.svc.Setlist(importer, rep.Band.ID, gotLists[0].ID)
+	if err != nil {
+		t.Fatalf("imported detail: %v", err)
+	}
+
+	compare := func(label string, w, g reflect.Value, skip map[string]string) {
+		ty := w.Type()
+		for i := 0; i < ty.NumField(); i++ {
+			name := ty.Field(i).Name
+			if _, s := skip[name]; s {
+				continue
+			}
+			if !reflect.DeepEqual(w.Field(i).Interface(), g.Field(i).Interface()) {
+				t.Errorf("%s.%s did not survive the band-folder round-trip:\n  wrote %#v\n  read  %#v\n"+
+					"Either carry it in the v2 shape (both directions), or add it to the skip map with the reason.",
+					label, name, w.Field(i).Interface(), g.Field(i).Interface())
+			}
+		}
+	}
+	compare("Setlist", reflect.ValueOf(want.Setlist), reflect.ValueOf(got.Setlist), setlistNotCarried)
+
+	if len(got.Items) != len(want.Items) {
+		t.Fatalf("imported %d items, want %d", len(got.Items), len(want.Items))
+	}
+	// The DETAIL view is ordered for reading (a bench item sorts after the main order, T23), which is not
+	// the same as the running order's positions. Compare by POSITION, and compare the embedded
+	// app.SetlistItem — the view's own fields (song title, and friends) are derived, not carried.
+	byPosition := func(items []app.SetlistItemView) map[int]app.SetlistItem {
+		m := map[int]app.SetlistItem{}
+		for _, it := range items {
+			m[it.Position] = it.SetlistItem
+		}
+		return m
+	}
+	wantByPos, gotByPos := byPosition(want.Items), byPosition(got.Items)
+	for pos, w := range wantByPos {
+		g, ok := gotByPos[pos]
+		if !ok {
+			t.Fatalf("position %d is missing from the imported setlist", pos)
+			continue
+		}
+		compare("SetlistItem", reflect.ValueOf(w), reflect.ValueOf(g), itemNotCarried)
+	}
+
+	// The REMAPPED fields, asserted rather than skipped blind.
+	if got.Setlist.BandID != rep.Band.ID {
+		t.Errorf("setlist belongs to %q, want the imported band %q", got.Setlist.BandID, rep.Band.ID)
+	}
+	if got.Setlist.CreatedAt.IsZero() {
+		t.Errorf("setlist CreatedAt is zero — re-stamped on import, not dropped")
+	}
+	if !got.Setlist.LiveUntil.IsZero() {
+		t.Errorf("an imported setlist must NOT arrive in live mode (%v)", got.Setlist.LiveUntil)
+	}
+	songs, _ := tgt.repo.SongsOfBand(rep.Band.ID)
+	// Positions are carried by the folder's ARRAY ORDER (T140), so they must come back as a dense 0..n-1
+	// with each entry where the source had it — a gap or a duplicate here is a scrambled running order.
+	for pos := range wantByPos {
+		if _, ok := gotByPos[pos]; !ok {
+			t.Errorf("position %d did not survive; imported positions are %v", pos, gotByPos)
+		}
+	}
+	if len(gotByPos) != len(got.Items) {
+		t.Errorf("imported items share positions: %d entries, %d distinct positions", len(got.Items), len(gotByPos))
+	}
+	for i, it := range got.Items {
+		if it.SetlistID != got.Setlist.ID {
+			t.Errorf("item %d belongs to setlist %q, want %q", i, it.SetlistID, got.Setlist.ID)
+		}
+		if it.IsIntermission() {
+			if it.SongID != "" {
+				t.Errorf("an intermission must carry no song id, got %q", it.SongID)
+			}
+			continue
+		}
+		if it.SongID != songs[0].ID {
+			t.Errorf("item %d points at song %q, want the imported song %q", i, it.SongID, songs[0].ID)
+		}
+	}
+	_ = songID
+}
+
+// SongCue is the last of the mirrored shapes: two fields, so a guard looks like overkill — except that
+// `color` is the one that is optional, and a cue whose colour is dropped comes back as a DIFFERENT cue to
+// the eye. Same instrument, so the next field added to a cue is covered too.
+func TestBandFolder_RoundTripsEveryCueField(t *testing.T) {
+	src := newStack()
+	admin, member, bandID, songID, _, _ := buildSourceBand(t, src)
+	want := []app.SongCue{{Icon: "mic", Color: "#e11d48"}, {Icon: "shaker"}} // one tinted, one plain
+	if _, err := src.svc.SetMyCues(member, bandID, songID, want); err != nil {
+		t.Fatalf("set cues: %v", err)
+	}
+
+	zipBytes, _, err := src.svc.ExportBand(admin, src.eng, bandID)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	tgt := newStack()
+	importer, err := tgt.svc.Register("owner", "Owner", "password123", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep, err := tgt.svc.ImportBand(importer, tgt.eng, zipBytes, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	// The member's cues are PRIVATE to them, so read them back as the imported member, not as the importer.
+	leo, err := tgt.repo.GetUserByUsername("leo")
+	if err != nil {
+		t.Fatalf("imported member: %v", err)
+	}
+	songs, _ := tgt.repo.SongsOfBand(rep.Band.ID)
+	got, err := tgt.svc.MyCues(leo, rep.Band.ID, songs[0].ID)
+	if err != nil {
+		t.Fatalf("read cues: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("imported %d cues, want %d (%+v)", len(got), len(want), got)
+	}
+	for i := range want {
+		wv, gv := reflect.ValueOf(want[i]), reflect.ValueOf(got[i])
+		ty := wv.Type()
+		for f := 0; f < ty.NumField(); f++ {
+			if !reflect.DeepEqual(wv.Field(f).Interface(), gv.Field(f).Interface()) {
+				t.Errorf("SongCue[%d].%s did not survive: wrote %#v, read %#v — carry it in manifestCue (both directions)",
+					i, ty.Field(f).Name, wv.Field(f).Interface(), gv.Field(f).Interface())
+			}
+		}
+	}
+}
