@@ -33,6 +33,11 @@ type docObject struct {
 	Page    int        `json:"page"`
 	Text    string     `json:"text"`
 	Style   docStyle   `json:"style"`
+	// P206: on a jump SOURCE, the destination landmark's uuid. The overlay renderer ignores it (a jump
+	// end draws as the icon it is); it is carried here so Stage 3 resolves jumps from the SAME
+	// reprojected objects the renderer drew (T145) rather than from a second, differently-anchored read
+	// of the snapshot. omitempty — an ordinary icon adds no field.
+	JumpTo string `json:"jumpTo,omitempty"`
 }
 
 // docLayer carries only what the renderer + manifest need (z-order + role flags).
@@ -122,6 +127,7 @@ func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Ancho
 			Points:  pts,
 			Page:    o.Page,
 			Text:    o.Text,
+			JumpTo:  o.JumpTo,
 			Style: docStyle{
 				Color:    o.Style.Color,
 				Opacity:  o.Style.Opacity,

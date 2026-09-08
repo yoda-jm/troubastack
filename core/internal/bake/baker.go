@@ -240,6 +240,11 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 	}
 	var done, total int
 	var curSong string
+	// P206: warnings the BAKE itself produced (a jump that could not be resolved). They ride the terminal
+	// success record — the same field and surface T60's transpose warnings use — and must be set THERE,
+	// because `publish` replaces the whole progress entry, so anything attached mid-bake is overwritten by
+	// the terminal state. bakeapi appends its transpose list to this afterwards.
+	var bakeWarnings []string
 	// Terminal state on EVERY exit: an error, or a client disconnect that cancels ctx, must
 	// never leave the bake stuck on "running" forever (the A39 stall). Fires on each return.
 	defer func() {
@@ -252,7 +257,7 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 			b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeFailed, Done: done, Total: total, Song: curSong, Error: err.Error()})
 			return
 		}
-		b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeSucceeded, Done: total, Total: total, Song: curSong})
+		b.publish(bakeID, bandID, setlistID, BakeProgress{State: BakeSucceeded, Done: total, Total: total, Song: curSong, Warnings: bakeWarnings})
 	}()
 
 	detail, err := b.svc.Setlist(actor, bandID, setlistID)
@@ -379,11 +384,12 @@ func (b *Baker) Bake(ctx context.Context, bandID, setlistID string, actor app.Us
 		return ConcertBundle{}, bakeID, b.fail("The annotation renderer isn't available on the server. Ask an admin to check the bake setup.", oerr)
 	}
 	for _, st := range staged {
-		song, aerr := b.assembleSong(st, overlaysByKey, blobsDir, layerDefaults)
+		song, warns, aerr := b.assembleSong(st, overlaysByKey, blobsDir, layerDefaults)
 		if aerr != nil {
 			done, curSong = st.si+1, detail.Items[st.si].SongTitle // name the failing song in the terminal state
 			return ConcertBundle{}, bakeID, fmt.Errorf("song %s: %w", st.song.SongID, aerr)
 		}
+		bakeWarnings = append(bakeWarnings, warns...)
 		bundle.Songs = append(bundle.Songs, song)
 	}
 
@@ -498,6 +504,10 @@ type stagedFile struct {
 	nameByLayer  map[string]string
 	ownerByLayer map[string]string
 	overlayKey   string // "" if this file has nothing to draw
+	// P206: this file's reprojected objects — the SAME ones handed to the overlay renderer (T145). Jump
+	// hotspots are resolved from these at assembly time, where a page's index in the pool is known, so a
+	// hotspot can never disagree with the ink it belongs to. Empty for a file with nothing drawn.
+	objects []docObject
 }
 
 // stagedSong is a song after phase 1 (metadata + rasters), waiting for its overlays from the one
@@ -739,6 +749,7 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 	// T97/T98: a file enters the overlay batch only if it has objects to draw (scoped to THIS file — a
 	// multi-file song carries per-file layers, B11/T40). Zero objects → no spawn contribution.
 	doc := snapshotToDoc(snap, file.ID, anchors, file.BlobHash)
+	sf.objects = doc.Objects
 	if len(doc.Objects) == 0 {
 		return sf, nil, nil
 	}
@@ -748,10 +759,19 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 
 // assembleSong writes the pool's rasters + batched overlays into the bundle blobs and returns the
 // completed BakedSong. `overlaysByKey` is the whole RenderBatch result, keyed per pool file (T137).
-func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedOverlay, blobsDir string, layerDefaults map[string]bool) (BakedSong, error) {
+func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedOverlay, blobsDir string, layerDefaults map[string]bool) (BakedSong, []string, error) {
 	if st.metadataOnly {
-		return st.song, nil
+		return st.song, nil, nil
 	}
+	// P206: uuids living on ANOTHER pool file, so a cross-part pair is reported as what it is rather than
+	// as a deleted landmark. Built once, before any file resolves.
+	uuidFile := map[string]string{}
+	for _, sf := range st.files {
+		for _, o := range sf.objects {
+			uuidFile[o.UUID] = sf.fileID
+		}
+	}
+	var warnings []string
 	song := st.song
 	// T137: the shared POOL — one PageImages entry per (pool file, page), each with its OWN overlays. ⟨D2⟩:
 	// the raster BLOB is written once per content hash and its ref reused, so identical pages cost one
@@ -771,9 +791,19 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 		// the chart no longer has is a reflow orphan that must be re-anchored (T145), never shipped blank.
 		for pg := range overlaysByPage {
 			if pg >= len(sf.rasters) {
-				return BakedSong{}, fmt.Errorf("bake %q: an annotation is on page %d but the chart rendered only %d page(s) — a reflow orphaned this overlay (T145); re-anchor the mark or re-check the chart before baking", song.Title, pg+1, len(sf.rasters))
+				return BakedSong{}, nil, fmt.Errorf("bake %q: an annotation is on page %d but the chart rendered only %d page(s) — a reflow orphaned this overlay (T145); re-anchor the mark or re-check the chart before baking", song.Title, pg+1, len(sf.rasters))
 			}
 		}
+		// P206 Stage 3: resolve this file's authored jump pairs into hotspots. pageBase is the file's first
+		// index in song.Pages — the pool space PageJump.target_page and member_pages both index.
+		elsewhere := map[string]bool{}
+		for uuid, fid := range uuidFile {
+			if fid != sf.fileID {
+				elsewhere[uuid] = true
+			}
+		}
+		jumpsByPage, jw := resolveJumps(song.Title, sf.objects, len(song.Pages), len(sf.rasters), sf.ownerByLayer, elsewhere)
+		warnings = append(warnings, jw...)
 		seq := make([]int32, 0, len(sf.rasters))
 		for i, r := range sf.rasters {
 			entryIdx := len(song.Pages)
@@ -782,7 +812,7 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 			if !ok { // first time we see this raster — write the blob once and remember its ref (⟨D2⟩)
 				rasterRef = fmt.Sprintf("blobs/s%d-p%d-raster.png", st.si, entryIdx)
 				if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(rasterRef)), r, 0o600); err != nil {
-					return BakedSong{}, err
+					return BakedSong{}, nil, err
 				}
 				rasterRefByHash[hash] = rasterRef
 			}
@@ -792,7 +822,7 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 			for _, ov := range ovs {
 				ref := fmt.Sprintf("blobs/s%d-p%d-%s.png", st.si, entryIdx, safeName(ov.LayerID))
 				if err := os.WriteFile(filepath.Join(blobsDir, "..", filepath.FromSlash(ref)), ov.PNG, 0o600); err != nil {
-					return BakedSong{}, err
+					return BakedSong{}, nil, err
 				}
 				li := LayerImage{
 					LayerID:     ov.LayerID,
@@ -821,6 +851,7 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 				ovPNGs = append(ovPNGs, ov.PNG)
 			}
 			page.ContentBottomPermille = contentBottomPermille(r, ovPNGs)
+			page.Jumps = jumpsByPage[i]
 			song.Pages = append(song.Pages, page)
 			seq = append(seq, int32(entryIdx))
 		}
@@ -843,7 +874,7 @@ func (b *Baker) assembleSong(st stagedSong, overlaysByKey map[string][]renderedO
 			}
 		}
 	}
-	return song, nil
+	return song, warnings, nil
 }
 
 // defaultFile is the shared-pool single-file choice for a member who has chosen nothing. T138 ⟨R1⟩: it is

@@ -128,8 +128,12 @@ func validBakeID(s string) bool {
 	return true
 }
 
-// setWarnings attaches T60 warnings to an existing (terminal) record, scoped to band+setlist. A no-op
-// if the id is unknown/expired or scoped elsewhere — warnings are decoration, never worth a failure.
+// setWarnings APPENDS warnings to an existing (terminal) record, scoped to band+setlist. A no-op if the
+// id is unknown/expired or scoped elsewhere — warnings are decoration, never worth a failure.
+//
+// P206: it appends rather than replaces because there are now TWO producers — the bake itself (a jump
+// that could not be resolved, published with the terminal state) and bakeapi afterwards (T60's transpose
+// list). Replacing meant whichever wrote last silently ate the other's warnings.
 func (r *progressRegistry) setWarnings(id, bandID, setlistID string, warnings []string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -138,7 +142,7 @@ func (r *progressRegistry) setWarnings(id, bandID, setlistID string, warnings []
 	if !ok || e.bandID != bandID || e.setlistID != setlistID {
 		return
 	}
-	e.prog.Warnings = warnings
+	e.prog.Warnings = append(e.prog.Warnings, warnings...)
 	r.entries[id] = e
 }
 
