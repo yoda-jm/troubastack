@@ -175,11 +175,24 @@ type v2Object struct {
 	Version   uint64    `json:"version,omitempty"`
 	CreatedAt int64     `json:"createdAt,omitempty"`
 	Order     int       `json:"order,omitempty"`
+	// T145: the mark's SOURCE anchor and the render its cached Points belong to. Without these a folder
+	// round-trip strips a generated-chart mark back to bare coordinates, so it can never be re-projected
+	// after a reflow — the very orphaning T145 exists to prevent, silently reintroduced by an import.
+	Anchor           *v2Anchor `json:"anchor,omitempty"`
+	PointsRenderHash string    `json:"pointsRenderHash,omitempty"`
 	// P206: on a jump SOURCE, the destination landmark's uuid — KEPT verbatim, like `uuid` and `layer`,
 	// because the pairing IS a uuid reference and a folder round-trip preserves object ids. Without it a
 	// round-trip silently unpairs every jump in the band (the T86 meter / T152 identity failure again:
 	// this struct is a hand-maintained mirror of domain.Object and only carries what someone remembered).
 	JumpTo string `json:"jumpTo,omitempty"`
+}
+
+// v2Anchor mirrors domain.SourceAnchor: the words a mark is pinned to, not one render's coordinates.
+type v2Anchor struct {
+	RunText    string `json:"runText"`
+	Occurrence int    `json:"occurrence"`
+	CharStart  int    `json:"charStart"`
+	CharEnd    int    `json:"charEnd"`
 }
 
 type v2Point struct {
@@ -316,10 +329,14 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 				UUID: o.UUID, Layer: o.LayerID, Type: domain.ObjectTypeToString(o.Type), Page: o.Page,
 				Text: o.Text, Owner: ownerToName(o.OwnerID), Scope: domain.ScopeToString(o.Scope),
 				Version: o.Version, CreatedAt: o.CreatedAt, Order: o.Order, JumpTo: o.JumpTo,
+				PointsRenderHash: o.PointsRenderHash,
 				Style: v2Style{
 					Color: o.Style.Color, Opacity: o.Style.Opacity, Width: o.Style.Width,
 					FontSize: o.Style.FontSize, Fill: o.Style.Fill, Stroke: o.Style.Stroke, Blend: o.Style.Blend,
 				},
+			}
+			if a := o.Anchor; a != nil {
+				vo.Anchor = &v2Anchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
 			}
 			for _, p := range o.Points {
 				vo.Points = append(vo.Points, v2Point{X: p.X, Y: p.Y, Pressure: p.Pressure})
@@ -555,10 +572,14 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 				UUID: vo.UUID, Type: domain.ObjectTypeFromString(vo.Type), Page: vo.Page, Text: vo.Text,
 				OwnerID: owner, Scope: domain.ScopeFromString(vo.Scope), LayerID: vo.Layer,
 				Version: vo.Version, CreatedAt: vo.CreatedAt, Order: vo.Order, JumpTo: vo.JumpTo,
+				PointsRenderHash: vo.PointsRenderHash,
 				Style: domain.Style{
 					Color: vo.Style.Color, Opacity: vo.Style.Opacity, Width: vo.Style.Width,
 					FontSize: vo.Style.FontSize, Fill: vo.Style.Fill, Stroke: vo.Style.Stroke, Blend: vo.Style.Blend,
 				},
+			}
+			if a := vo.Anchor; a != nil {
+				o.Anchor = &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
 			}
 			for _, p := range vo.Points {
 				o.Points = append(o.Points, domain.Point{X: p.X, Y: p.Y, Pressure: p.Pressure})
