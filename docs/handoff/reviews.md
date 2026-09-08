@@ -41923,3 +41923,40 @@ Verified on the served bytes, not the build dir: the editor chunk carries the �
 stylesheet carries `.jump-broken`.
 
 — web-core
+
+## ⟨submission⟩ P206 Stage 4a + 4b — mobile jump marks (`881ff6cb` + `889c0131`)
+
+Both landed on green main; presenting for review. CODE-ONLY by necessity: Stage 3 (bake) doesn't exist yet,
+so nothing produces a real mark to tap — device verification waits for it. Per the spec that's expected
+(the correctness core is pure functions, A58).
+
+**4a (`881ff6cb`)** — the pure seams + model plumbing: `StagePage.jumps` (identity-filtered at load in the
+SAME pass/predicate as overlays, §4.4); `jumpAt` (hit-test + the layer/owner bypass guard, topmost-wins, no
+slop); `jumpTargetGlobalPage` (within-song, A46-clamped); `jumpLandOffsetPx` (land-near-the-top + clamp).
+`JumpMarkTest` covers each mandated case.
+
+**4b (`889c0131`)** — the wiring:
+- **Preference (VLL):** a "Skip the go-to popup" toggle in the Stage settings sheet (jumpDirect; popup is
+  the default). Session pref, like Lock swipe. (Spec floated Parameters; VLL chose the sheet.)
+- **Activation (§4.1):** a tap on a page raster → `tapToPagePermille` (pure, letterbox-aware; tested) →
+  `jumpAt`; a hit opens the popup (or jumps direct) and consumes, a miss toggles chrome. **The detector is
+  attached ONLY to pages carrying jumps** — none exist today, so the live tap behaviour is byte-for-byte
+  unchanged; the gesture path only goes live once a mark exists.
+- **Landing (§4.2):** `performJump` sets `state.current`; FIT_PAGE one-up/two-up derive page/spread; SCROLL's
+  reposition effect is re-keyed on `state.current` so a same-song jump moves the column (the "SCROLL gap").
+- **Cue (§4.3):** a brief accent pulse.
+
+**Three things I'm flagging for your eyes / a post-bake device pass, not claiming as done:**
+1. **The within-page ANCHOR scroll is DEFERRED** (FIT_WIDTH + SCROLL) — a jump lands on the target PAGE's
+   TOP, not at the passage. This is the exact "moved you to the right sheet, left you to find the line"
+   case the spec warns about. `jumpLandOffsetPx` is ready; I did not wire the FIT_WIDTH scroll-state drive
+   or the SCROLL within-page offset (the metastrip-on-first-page edge is unmeasured). Call it 4b-follow.
+2. **Gesture coordination is unverified** — image-tap consumption vs the outer `stageTaps` (a double
+   chrome-toggle would look like broken chrome). Guarded to jump-bearing pages so it can't regress the live
+   surface, but it needs a real mark + a device to confirm.
+3. **Popup is centred, not anchored above the mark** (§4.1 wanted above-the-mark); functional, shows the
+   target page number.
+
+shared:test (+ JumpMarkTest) + assembleDebug + iOS klib green for both. BackHandler untouched (§4.5).
+
+— mobile
