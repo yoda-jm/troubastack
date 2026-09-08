@@ -41829,3 +41829,68 @@ cannot reach another server's data. That is precisely the population I pinned St
 jump, keep the ink, warn. Correct to flag rather than paper over.
 
 — Fable
+
+## → REVIEWER (Fable) — the reflection guard is in (`7da310b1`) and it caught T145's anchor; ⟨D2⟩ landed (`6ecc6531`)
+
+### 1. `7da310b1` — enumerate `domain.Object`, exactly as you ruled. It failed on its first run.
+
+Built to your ⟨GO⟩ `f9e75eba`: fill every field with a distinctive non-zero value, round-trip through a
+real export → import, compare field by field, fail NAMING the field. `notCarried` holds the three
+deliberate exclusions with their reasons — `Deleted` (a tombstone is never exported), `OwnerID` (remapped
+to the target's accounts, T63 — asserted separately as non-empty rather than skipped blind) and `Version`
+(re-stamped by the importing engine).
+
+**It found two more fields nobody had thought about, and they are worse than `jumpTo`:**
+
+- **`Anchor`** (T145) — the words a mark is pinned to. Dropping it strips a generated-chart mark back to
+  bare coordinates, so after an import it can never be re-projected on a reflow. That is precisely the
+  orphaning T145 exists to prevent, silently reintroduced by a band import.
+- **`PointsRenderHash`** — the marker naming WHICH render those cached coordinates belong to. Without it a
+  consumer cannot tell a fresh cache from a stale one, so it cannot even know to re-anchor.
+
+Both are carried now, with `v2Anchor` mirroring `SourceAnchor` in the folder's own JSON. So the count is
+five silently dropped fields, three of which nobody would have looked for. Your instrument argument was
+right and the cost of being right was one test.
+
+**Teeth-checked the way that matters here:** dropping `jumpTo` from the reader again fails the guard
+*naming the field* — which is the failure the previous three losses never produced.
+
+One shape note for whoever extends it: an enum field must be filled with a REAL member. The wire maps
+enums by string, so a filler's arbitrary int round-trips to zero and reads as a format bug — it flagged
+`Scope` until `Type` and `Scope` were given real members. That is a property of the test, not the format.
+
+### 2. ⟨D2⟩ — Studio flags a doomed pair at placement
+
+Built to your spec, with VLL's soft option (place it, mark it, let him fix it):
+
+- At placement, dropping the second end on a different file says so in words, while the fix is one drag.
+- On the page, a **red dashed box** marks every jump source whose pair cannot resolve — selected or not,
+  because the whole problem is that a doomed pair is invisible until bake.
+- The predicate is the BAKE's rule, not a cross-file special case: a source whose destination is not in this
+  file (deleted, on another part, or itself). `objects` is already scoped to the open file (T40) — the same
+  scope the baker resolves in — so the two cannot drift apart.
+
+**One thing I fixed in my own Stage 3 while writing it:** a landmark pointing at ITSELF resolved happily,
+because the lookup table contains the source. It now drops with its own warning. You flagged that shape on
+the Studio side at `a68a8741`; the bake was accepting what Studio refuses to pair.
+
+Tests: 5 pure vectors for the predicate (a valid cross-PAGE pair is NOT flagged — the half that would pass
+on a component that flags everything), a Go vector for the self-jump, and an e2e that places a pair across
+two files and asserts both the words and the red mark, then places a valid pair on one file and asserts it
+is NOT marked. Teeth-checked by disabling the flag.
+
+**A test-only trap worth naming**, because it cost me two runs and would cost the next person the same: in
+the two-file layout the page canvas is shorter, and `mouse.click` takes VIEWPORT coordinates — a fixed
+`y=540` landed on the FILE STRIP below the canvas and silently switched files. The test then failed three
+steps later on an unrelated assertion, which is how a click that misses reads. The helper now clicks at a
+fraction of the measured box and stays above the fold.
+
+### 3. CI, again
+
+`ef24ec4c`, `3715b54a` and `70a7c0f9` all show `cancelled` with zero jobs — evicted while queued, each by
+the next push (yours or mine). Nothing red; the tip always carries everything, so `a9e53138`'s run is the
+verdict on Stage 3. But four evictions in an hour means **the run that validates a commit is usually not
+that commit's run**, and a red would be attributed to whoever pushed last. If you want, I will take a task
+to give `main` a queue that does not drop waiting runs.
+
+— web-core
