@@ -16,12 +16,10 @@ async function openEditorReady(page: Page) {
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
 }
 
-async function dragRect(page: Page, cx: number, cy: number) {
+// P206: a jump is placed by a CLICK (a fixed-size stamp), not a drag.
+async function clickAt(page: Page, cx: number, cy: number) {
   const cb = (await page.getByTestId("edit-canvas").first().boundingBox())!;
-  await page.mouse.move(cb.x + cx, cb.y + cy);
-  await page.mouse.down();
-  await page.mouse.move(cb.x + cx + 34, cb.y + cy + 34, { steps: 6 });
-  await page.mouse.up();
+  await page.mouse.click(cb.x + cx, cb.y + cy);
 }
 
 test("jump tool offers ONLY landmark glyphs (curated), not cue stamps", async ({ page }) => {
@@ -44,9 +42,9 @@ test("two placements create a matching pair; the source carries jumpTo = the des
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
 
-  await dragRect(page, 260, 520); // destination first
+  await clickAt(page, 260, 520); // destination first — a CLICK stamps it (no drag)
   await expect(page.getByText(/now place the source/i)).toBeVisible(); // the two-step guides you
-  await dragRect(page, 260, 300); // source second
+  await clickAt(page, 260, 300); // source second
 
   await expect(page.getByText("2 objects")).toBeVisible(); // both landmarks placed
 
@@ -73,4 +71,18 @@ test("two placements create a matching pair; the source carries jumpTo = the des
   expect(pair!.sources).toBe(1); // one-way: only the source carries a target
   expect(pair!.pointsAtRealDest).toBe(true);
   expect(pair!.sameGlyph).toBe(true);
+});
+
+test("selecting one end selects the WHOLE pair and draws the dashed segment (VLL)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickAt(page, 300, 540); // destination
+  await clickAt(page, 300, 300); // source
+  // Switch to select and pick just ONE end…
+  await page.getByTestId("tool-select").click();
+  await clickAt(page, 300, 300);
+  // …both ends are selected, and the segment is drawn between them.
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(2);
+  await expect(page.locator(".jump-segment").first()).toBeVisible();
 });

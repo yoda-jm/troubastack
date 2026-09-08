@@ -213,6 +213,9 @@ export function Viewer({
   // placements of a pair (null = the next placement is a fresh destination).
   const [activeJumpGlyph, setActiveJumpGlyph] = useState("segno");
   const [pendingJumpDest, setPendingJumpDest] = useState<string | null>(null);
+  // P206: the jump landmark's size — the bbox SIDE as a fraction of page width (a CLICK stamps one at
+  // this size; still resizable by its handles afterwards). Default ~17 mm on A4.
+  const [jumpSize, setJumpSize] = useState(0.08);
   // T54 — Details panel tab by AUDIENCE (Band 👥 / Mine 👤 / Admin). Remembered per
   // session (default Band — metadata is the commonest first read). Only the active
   // tab's content mounts, so switching to Mine re-fetches the pool (self-sufficient
@@ -708,7 +711,8 @@ export function Viewer({
   const commitDraw = useCallback(
     (tool: DrawTool, page: number, path: { x: number; y: number }[], text?: string) => {
       // P206: the jump tool places ICON objects, so it is meaningful under the icon's rule.
-      if (!isMeaningfulGesture(tool === "jump" ? ("icon" as DrawTool) : tool, path)) return;
+      // P206: a jump is placed by a CLICK (a fixed-size stamp), so the span check does not apply to it.
+      if (tool !== "jump" && !isMeaningfulGesture(tool, path)) return;
       const layerId = ensureActiveLayer();
       if (!layerId || !syncRef.current) {
         // T30: never swallow a gesture silently — say why it didn't land. (The wet
@@ -725,9 +729,18 @@ export function Viewer({
             setLocalNotice("Couldn't place the jump — the layer isn't editable."); // T30
             return;
           }
+          // A CLICK stamps a fixed-size landmark centred on the point (jumpSize = the bbox side, a page-
+          // WIDTH fraction; the y half is aspect-corrected for ~square on A4). Resizable by its handles.
+          const c = path[0];
+          const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+          const hx = jumpSize / 2;
+          const hy = (jumpSize / 2) * (210 / 297);
           const obj = buildObject({
             tool: "icon",
-            points: pointsForTool("icon", path),
+            points: [
+              { x: clamp01(c.x - hx), y: clamp01(c.y - hy) },
+              { x: clamp01(c.x + hx), y: clamp01(c.y + hy) },
+            ],
             page,
             layerId,
             style,
@@ -797,7 +810,25 @@ export function Viewer({
         );
       }
     },
-    [ensureActiveLayer, doc.layers, myUserId, myRole, style, activeGlyph, activeJumpGlyph, pendingJumpDest, recordUndo],
+    [ensureActiveLayer, doc.layers, myUserId, myRole, style, activeGlyph, activeJumpGlyph, jumpSize, pendingJumpDest, recordUndo],
+  );
+
+  // P206: selecting ONE end of a jump selects BOTH (VLL) — a source picks up its destination, a destination
+  // picks up the source that points at it. With both selected, the existing multi-move drags them together
+  // and the dashed segment (drawn in WetCanvas) follows. A single pick of a non-jump object is unchanged;
+  // a marquee (multi) passes through untouched.
+  const selectWithJumpPairs = useCallback(
+    (uuids: string[]) => {
+      if (uuids.length !== 1) {
+        setSelectedUuids(uuids);
+        return;
+      }
+      const id = uuids[0];
+      const obj = doc.objects.find((o) => o.uuid === id);
+      const partner = obj?.jumpTo || doc.objects.find((o) => o.jumpTo === id)?.uuid;
+      setSelectedUuids(partner && doc.objects.some((o) => o.uuid === partner) ? [id, partner] : uuids);
+    },
+    [doc.objects],
   );
 
   // Is THIS object on a layer I may ever edit (owner / rw)? Drives the lock cue
@@ -1364,6 +1395,8 @@ export function Viewer({
           ids={LANDMARK_GLYPH_IDS}
           testid="jump-palette"
           ariaLabel="Jump landmark"
+          size={jumpSize}
+          onSize={setJumpSize}
           reflowKey={`${zoomSelectValue}|${customZoomPercent ?? ""}|${numPages}|${selectedFileId ?? ""}`}
         />
       )}
@@ -1440,7 +1473,7 @@ export function Viewer({
                   selectedUuids={selectedUuids}
                   isObjectEditable={isEditableObject}
                   isObjectEditableNow={isObjectEditableNow}
-                  onSelect={setSelectedUuids}
+                  onSelect={selectWithJumpPairs}
                   onFocusLayer={focusLayerOnly}
                   onCommitDraw={commitDraw}
                   onTextResolved={() => setTool("select")}
@@ -1485,7 +1518,7 @@ export function Viewer({
                 selectedUuids={selectedUuids}
                 isObjectEditable={isEditableObject}
                 isObjectEditableNow={isObjectEditableNow}
-                onSelect={setSelectedUuids}
+                onSelect={selectWithJumpPairs}
                 onFocusLayer={focusLayerOnly}
                 onCommitDraw={commitDraw}
                 onTextResolved={() => setTool("select")}

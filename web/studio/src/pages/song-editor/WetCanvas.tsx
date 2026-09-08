@@ -971,6 +971,32 @@ export function EditCanvas({
       {/* Selection overlays: DOM elements positioned in % of the page box, so
           they track the page under any zoom AND are queryable in e2e. */}
       <div className="selection-overlay" aria-hidden="true">
+        {(() => {
+          // P206: a dashed segment between a selected jump PAIR, drawn only when BOTH ends are on this page
+          // (co-visible) — the identify affordance VLL asked for. It follows a live multi-move via the
+          // gesture previews. Cross-page pairs draw no segment (the page hint covers that, deferred).
+          if (selectedOnPage.length !== 2) return null;
+          const [a, b] = selectedOnPage;
+          if (a.jumpTo !== b.uuid && b.jumpTo !== a.uuid) return null;
+          const g = gestureRef.current;
+          const rm = pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined;
+          const center = (o: AnnotationObject) => {
+            let cur = o;
+            if (g && g.mode === "multi-move") {
+              const it = g.items.find((x) => x.obj.uuid === o.uuid);
+              if (it) cur = it.preview;
+            }
+            const bb = objectBBox(cur, rm);
+            return { x: ((bb.minX + bb.maxX) / 2) * 100, y: ((bb.minY + bb.maxY) / 2) * 100 };
+          };
+          const pa = center(a);
+          const pb = center(b);
+          return (
+            <svg className="jump-segment" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} />
+            </svg>
+          );
+        })()}
         {selectedOnPage.map((o) => {
           // While resizing THIS object, draw the live preview box so the bbox +
           // handles follow the drag.

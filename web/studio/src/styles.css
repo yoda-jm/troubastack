@@ -810,6 +810,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .icon-pick:hover { border-color: var(--border-strong); background: var(--surface-2); }
 .icon-pick.active { border-color: var(--brand); background: var(--brand-tint); }
+/* P206: the landmark-size slider spans both columns at the foot of the jump palette. */
+.icon-palette .icon-size { grid-column: 1 / -1; padding: 3px 2px 1px; pointer-events: auto; }
+.icon-palette .icon-size input[type="range"] { width: 100%; }
 .ctx-bar button,
 .ctx-bar input,
 .ctx-bar select,
@@ -1168,6 +1171,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
    canvas, so they are queryable and crisp at any zoom; positioned in % of the
    page box (inset:0 fills the .pdf-page wrapper, which hugs the page canvas). */
 .selection-overlay { position: absolute; inset: 0; pointer-events: none; }
+/* P206: the dashed brand tie between a selected jump PAIR (both ends on one page). */
+.jump-segment { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.jump-segment line { stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: .85; }
 /* BottomSizePreview (VLL): the live size preview, pinned bottom-centre of the viewport — visible the moment
    a size tool is selected (no hover, so it works on a phone), showing the TRUE size with room the toolbar
    chip never had. A floating pill portaled to <body>. */

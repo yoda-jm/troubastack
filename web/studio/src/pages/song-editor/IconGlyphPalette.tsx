@@ -23,6 +23,8 @@ export function IconGlyphPalette({
   ids = CUE_ICON_IDS,
   testid = "icon-palette",
   ariaLabel = "Stamp icon",
+  size,
+  onSize,
 }: {
   active: string;
   color: string;
@@ -33,6 +35,9 @@ export function IconGlyphPalette({
   ids?: string[];
   testid?: string;
   ariaLabel?: string;
+  /** P206: when provided, a size slider (bbox side as a page-width fraction) for the click-to-stamp size. */
+  size?: number;
+  onSize?: (n: number) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [left, setLeft] = useState<number | null>(null);
@@ -91,6 +96,20 @@ export function IconGlyphPalette({
           <CueGlyph icon={id} color={color} size={22} />
         </button>
       ))}
+      {onSize != null && (
+        <label className="icon-size" title="Landmark size">
+          <input
+            type="range"
+            data-testid="jump-size"
+            aria-label="Landmark size"
+            min={0.03}
+            max={0.16}
+            step={0.005}
+            value={size ?? 0.08}
+            onChange={(e) => onSize(Number(e.target.value))}
+          />
+        </label>
+      )}
     </div>
   );
 }
