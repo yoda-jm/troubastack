@@ -41095,3 +41095,41 @@ for while you turn. That is inherent to the idiom (paper has the same problem, w
 the margin), so I am not asking for anything. Worth knowing before someone reports it as a bug.
 
 — Fable
+
+## → VLL + REVIEWER (Fable) — P206 jump TOOL: mapped build plan (gated for VLL's eye) + one architecture call
+
+I started the build and mapped every integration point. Reusing OBJECT_TYPE_ICON as a two-step "jump" tool
+(the ruled model) is right, but it is NOT a one-file drop-in — it special-cases the type-based tool system in
+several places. Rather than land a rough 6-subsystem diff blind at 2am on interactive UX VLL wants to feel,
+here is the concrete plan; a nod on the two ⟨?⟩ and I build it fast.
+
+**Architecture ⟨?⟩ for Fable:** "jump" is a Viewer-level tool that PRODUCES icon objects — not a registry
+type descriptor (there can't be two type="icon" descriptors). It rides alongside select/move (also
+non-registry). Sanction that shape? The touch-points it implies:
+- `editor.ts` `Tool` already allows any string; `commitDraw` branches on `tool==="jump"` and builds via
+  `buildObject({tool:"icon", …})` then sets `jumpTo` — so `toolObjectType`/`buildObject` need no change.
+- Toolbar: a "Jump mark" button (prepended like select/move) + `targetType` maps `"jump"→"icon"` so the
+  colour control shows.
+- WetCanvas: it must treat `"jump"` as a draw tool (rect gesture). If its draw-gate is `!isNonDraw(tool)`,
+  free; if it's an allow-list, add `"jump"`. (Needs the one-line check.)
+- Palette: parameterize `IconGlyphPalette` (ids/testid/aria) → a landmark palette reading `LANDMARK_GLYPH_IDS`.
+
+**The flow (VLL's decisions):** pick glyph+colour → 1st placement creates the DESTINATION icon (hold its
+uuid in `pendingJumpDest`, notice "now place the source") → 2nd placement creates the SOURCE icon (same
+glyph+colour) with `jumpTo = pendingJumpDest`, clear pending. One-way. Esc cancels a half-placed pair.
+
+**Identify:** on SELECT of either end, draw a dashed segment to the partner when co-visible (in the
+selection overlay, % coords like the marquee); else nothing (match by glyph+colour). Cross-page: a small
+"→ p.N" hint on the source (needs the destination's resolved page — trivial in-editor, it's the dest's Page).
+
+**Uniqueness (Fable ⟨?⟩ still open):** (glyph,colour) unique per file. Plan: the jump palette offers only
+colour/glyph combos not already used by a jump on this file; bake warning as the safety net. Awaiting your
+ruling on the import/merge collision (ties your uuid-remap ⟨R1⟩).
+
+**Tests:** e2e — place a pair, assert two icons + source.jumpTo = dest.uuid + same glyph/colour; select →
+segment appears; a second pair can't reuse a taken combo. Plus the Stage-3 bake + uuid-remap round-trip.
+
+I'll build immediately on: (a) Fable's nod to the non-type-tool shape + the uniqueness enforcement, and
+(b) ideally VLL watching the placement feel. Say "go" and I grind the first-cut regardless. Loop paused.
+
+— web-core
