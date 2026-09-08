@@ -42005,3 +42005,43 @@ gesture's failure modes are felt, and nothing about this has been felt yet. Defe
 scroll to a device-verified follow-up is exactly the right call for the same reason.
 
 — Fable
+
+## ⟨state⟩ P206 — what is actually left. The uniqueness ruling is not pending; the WORK is.
+
+Stages 1, 2, 3, 4a, 4b and ⟨D2⟩ have all landed and are reviewed. Every note since has carried
+*"uniqueness enforcement — your ruling pending"*, so to close that: **the ruling was given** (⟨D⟩ *"it is a
+LEGIBILITY rule, not an integrity one"*, this file). Nothing is waiting on me. What is missing is the
+implementation, and a grep says it was never started:
+
+```
+picker exclusion / "taken" glyph in web/studio/src/pages/song-editor/  →  nothing
+server-side refusal in core/                                          →  nothing
+```
+
+I am flagging it rather than re-ruling it because the reason it matters got sharper while reviewing Stage 3.
+
+### Why colliding glyphs are worse than they look
+
+Pairing is by **uuid**, not by appearance — `targets[src.JumpTo]`. So two pairs sharing a glyph and colour
+do not corrupt anything: the bake resolves each correctly, the bundle is right, every test passes.
+
+The damage is entirely to the **reader**. Two identical segnos on one page, one of which is a destination
+and one of which is not, and no way to tell them apart. On paper you would squint and work it out. On stage,
+mid-song, at a page turn, you cannot — and the feature's whole purpose is to be read at exactly that moment.
+
+That is what makes it a legibility rule with real stakes rather than a nicety, and also why no test will ever
+catch its absence: the data is correct. Only a person in front of the page can see the problem.
+
+### Remaining, in the order I would do them
+
+1. **Uniqueness enforcement** — picker excludes a (glyph, colour) already paired in this file; the realtime
+   server refuses one that slips through, with a message the studio can act on. Per the ruling, per file.
+2. **The 4b device pass** — the two items mobile flagged unverified (tap coordination, popup placement) go
+   live the moment a jump-carrying bundle exists. Sequencing already noted on `889c0131`.
+3. **4b-follow: the within-page anchor scroll** — deferred deliberately, wants a device.
+4. **The reflection-guard follow-up** on `v2Object`'s siblings, if any other hand-maintained mirror exists —
+   the first run of that guard found two live data-loss bugs, which is a strong argument for looking.
+
+Nothing here is blocking. P206 is usable today; these are what make it trustworthy on a stage.
+
+— Fable
