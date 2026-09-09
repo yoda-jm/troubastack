@@ -593,3 +593,74 @@ deleting user could not edit).
 authoring-time-warning idea. Whether it ships as part of that or separately is the lane's call.
 
 **Not started. Needs no ruling from me beyond this; it needs VLL only if he wants refusal instead of a flag.**
+
+---
+
+## ⟨D3⟩ 2026-09-09 — Direction: source FIRST, arrows along the tie, and a reverse button
+
+VLL, on the authoring tool: *"quand on dessine une jump mark il semble que le lien soit du 2e qu'on place
+vers le premier, ce n'est pas naturel; aussi on n'a pas le sens — il faudrait des petites flèches tout du
+long pour voir la direction. En plus dans la barre de cet outil (la 2e) il faudrait un bouton pour inverser
+le sens."*
+
+He is right about the mechanism. `commitDraw` holds `pendingJumpDest` from the **first** click and gives
+`jumpTo` to the **second**, so the arrow of meaning runs backwards from the order of the gesture.
+
+**That is my error, not the lane's.** §Q3 says *"place the destination landmark, then place the source (or
+the reverse — the tool holds the pairing until both are down)"*. I wrote an order, hedged it in a
+parenthesis, and never decided. The implementation took the first clause, correctly. A parenthetical
+"or the reverse" is not a specification; it is a decision deferred onto whoever reads it next.
+
+### R1 — the FIRST placement is the SOURCE
+
+You point at where you are, then at where you are going. That is what the hand means by the gesture, and it
+is the order of every "link" tool a musician has used elsewhere.
+
+Consequences, none of them free, all of them small:
+
+- **`jumpTo` moves to a second mutation.** Today the source is *created* carrying `jumpTo`. With the order
+  flipped, the source exists before its target does, so the second placement must create the destination
+  **and** edit the source. Two mutations where there was one. Do not "fix" this by deferring the first
+  landmark's creation until the second lands — VLL asked for a click to land the mark immediately
+  (`504b435e`), and that must not regress.
+- **The uniqueness check stays on the first placement of the chain.** It is already written that way (a
+  pending end holds its own key); only the label changes from "destination" to "source".
+
+### R2 — arrows along the tie
+
+Small chevrons repeated along the dashed segment, pointing **source → destination**. Requirements:
+
+- they follow a live drag of either end, like the segment already does;
+- they read at the segment's natural length — a pair a few centimetres apart must still show at least one,
+  and a long tie must not become a dotted-arrow rope. Space them, do not scale them;
+- **cross-page and cross-file are unchanged**: no segment, therefore no arrows, and the ⟨D2⟩ red flag still
+  owns the doomed case.
+
+The segment lives in `WetCanvas.tsx` (~:994–1030, `partner` lookup + the dashed path); the arrows belong
+there, on the same geometry, not as a second overlay that could drift from it.
+
+### R3 — a reverse button in the tool's ctx bar
+
+Alongside the size slider (`jump-size`), shown when a jump end is selected. It swaps which end is the
+source: clear `jumpTo` on the current source, set it on the current destination.
+
+**The non-obvious constraint, and the reason this is not a two-line change.** Uniqueness is keyed on the
+**source** (`takenJumpKeys`, per `4957749c`). Reversing moves the key from one object to the other — so a
+reverse can *create a duplicate* that the authoring guard would have refused at placement, and the server's
+`jump-duplicate` refusal would then reject it after the fact. **Re-check the key on reverse**, and refuse
+with the same actionable sentence rather than letting the wire bounce it.
+
+Two further rules:
+
+- **One undo entry.** The swap is two mutations and must undo as one — the `repointed` machinery from
+  `ef24ec4c` is the precedent, and the reason is the same: never leave a state the user did not create.
+- **Both ends must be editable.** If the partner sits on a layer the user may not edit, the button is
+  **disabled with a reason**, never a hopeful mutation the server refuses (the lesson from the delete
+  sweep: a write that fails looks like it worked).
+
+### Sizing
+
+R1 and R3 are web-core; R2 is web-core too but independent of both and could land first — it is the one that
+makes the current behaviour *legible*, which has value even before the order changes.
+
+**Not started.** No further ruling needed from me; R1's direction is VLL's call and he has made it.
