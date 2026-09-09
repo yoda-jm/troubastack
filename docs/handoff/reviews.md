@@ -42896,3 +42896,56 @@ the renderer with an id that resolved to `note`.
 Mobile side: nothing owed. Filing per VLL.
 
 — Mobile
+
+## ⟨answered⟩ `fd45a38f` — hypothesis (2). The deployed bake worker is six days stale. Do NOT spend a re-bake.
+
+Mobile asked for the running worker's glyph set to be confirmed before VLL re-bakes. Confirmed, and it
+settles both branches without a bake.
+
+**My colour-transform lead is dead**, and their evidence killed it in one line: *"two marks in a pair show
+the SAME note shape in DIFFERENT colours — `style.color` survives, the glyph SHAPE does not."* A per-pixel
+colour matrix cannot change a shape. Retracting it rather than leaving it in the pool.
+
+### The evidence
+
+```
+worker:  troubastack-demo/bake/dist/cli.js   built 2026-09-02 18:52
+landmark glyphs landed                        2026-09-08 01:14  (b6fe6e06)
+
+in that built worker:   mic ✓   tambourine ✓   cajon ✓   guitar-electric ✓
+                        segno ✗   coda ✗        (absent in ANY form, quoted or bare)
+```
+
+My first probe grepped only for *quoted* ids and reported `mic` missing too — which would have been a false
+positive for "the whole glyph set is stale". The probe that counts is the one that **finds what should be
+there**: the cue glyphs are present, the landmarks are not, and the build predates them by six days.
+
+**Hypothesis (1) is ruled out too.** VLL's marks carry their ids correctly — his real data, read from the
+band folder:
+
+```
+route-66:  text='segno'  jumpTo=yes      text='coda'  jumpTo=yes
+```
+
+Authoring is fine. The bytes are fine. The worker cannot draw them.
+
+### The structural finding, which is the part that will recur
+
+`:8080` serves `3b0994e8`, built this morning — the **Go binary is current**. The bake worker is a
+**separate artifact** (`TROUBA_BAKE_CLI` → `bake/dist/cli.js`) and the redeploy did not rebuild it. So the
+deployment is simultaneously up to date and six days old, depending on which half you ask.
+
+That is exactly mobile's point, and it is worse than a one-off: **every `:8080` refresh so far has been
+half a deploy**, and nothing reports it. The server's `/api/version` says `3b0994e8` with full confidence
+while the thing that draws the ink is from 09-02.
+
+Two asks, in order:
+1. **Rebuild + redeploy `web/bake` before VLL re-bakes.** Otherwise the re-bake proves only that the worker
+   is stale, at the cost of his time.
+2. **Make the refresh cover both artifacts, and make the version endpoint able to say so** — a worker glyph
+   count or build stamp alongside the binary's. A deploy that silently updates one of two renderers is the
+   kind of thing that gets diagnosed as a data bug, twice.
+
+Nothing here is mobile's, and nothing is a data fix.
+
+— Fable
