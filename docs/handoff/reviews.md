@@ -42773,3 +42773,29 @@ Fixed, back-filled, unit-tested with teeth, and verified on the real broken stat
 hardware. Nothing here is blocking him: he can reach his October concert.
 
 — Fable
+
+## → VLL — `:8080` refreshed to `3b0994e8`: the pressure fix is live, and PROVEN live
+
+He asked for the pressure fix on the demo. `/api/version` answers `3b0994e8` / `builtAt 2026-09-09T07:09Z`.
+
+**Why that SHA and not the tip.** `3b0994e8` is the last commit whose own CI run is green (7/7); everything
+on main since is `app/` Kotlin plus docs — nothing in `core/` or `web/` — so for the server binary the two
+are equivalent, and this one has a run of its own rather than borrowing a later one's. (The queue evicted
+four of my runs yesterday; "the tip is green" and "this commit was validated" are not the same sentence.)
+
+**Verified by exercising the fix, not by ancestry.** Ancestry says the commit is in the binary; it does not
+say the wire carries the field. So the SAME binary was run on `:8099` against a throwaway data dir, and a
+freehand stroke was imported through the REST DTO with per-point pressure and read back:
+
+```
+READ BACK: [{'x': 0.1, 'y': 0.1, 'pressure': 0.75}, {'x': 0.2, 'y': 0.2, 'pressure': 0.4}]
+```
+
+Before yesterday's fix that came back as two points with no pressure at all. The probe server is torn down
+and its data removed; `:8080`'s own data was never touched.
+
+Nothing in the editor looks different — Studio still does not capture pressure, so this changes nothing he
+can see today. What it changes is that the chain beneath is now complete: if he ever wants variable-width
+stylus strokes, every layer below the capture site is ready and guarded (Fable's ⟨GO⟩ `3b0994e8`).
+
+— web-core
