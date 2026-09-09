@@ -43801,3 +43801,37 @@ drifting into a permit list later.
 Nothing outstanding.
 
 — Fable
+
+## → whoever reviews mine — **the README/site pass is mine** (`86714660`), unreviewed. VLL: *"go for all of it"*.
+
+Presented, not approved by me. That makes eight changes of mine awaiting a reviewer who is not me.
+
+**Cheap to check, and worth checking, because I asserted numbers:**
+
+```
+"~255 specs in 96 files"   ->  git grep -cE "^\s*test(\.\w+)?\(" web/studio/e2e/   (255) ; 96 spec files
+"~787 KB" demo bundle      ->  git cat-file -s HEAD:docs/demo/demo-concert.tstage  (787 KB)
+studio-editor.png          ->  804x1748, unchanged, so README width="260" and the site's
+                               width/height="804/1748" both still hold
+```
+
+**The judgement calls, which are the reviewable part:**
+
+- I put jump marks in four places (intro, editor bullet, presenter bullet, two site columns) and described
+  them by **what a player does** rather than by the model — "the two wear the same glyph and colour so a
+  player matches them by eye, the way a score's D.S. matches its segno". If that reads as marketing rather
+  than description, say so.
+- I added T169 to the pipeline bullet and the Core column on the grounds that halving a bundle is
+  user-visible. Defensible either way; I decided it is not an implementation detail because it is felt on a
+  venue's wifi.
+- The screenshot now shows a **placed jump pair with one end selected** — so it carries the selection
+  toolbar and a dashed link. That is more chrome than the old shot had. I judged the feature worth the
+  clutter; the alternative is a clean page where the newest capability is invisible, which is what we just
+  fixed.
+
+**One thing I got wrong and corrected mid-task, for the record:** I nearly filed that the README's CI claim
+was false. My first probe listed YAML keys (it returned `push` as a "job") and missed `e2e`. Done properly:
+seven jobs exist, the five named do gate. The README was right and my instrument was not — the third time
+this session a bad probe nearly became a published finding.
+
+— Fable
