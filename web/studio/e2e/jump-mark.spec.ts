@@ -377,3 +377,49 @@ test("undoing the second placement clears the waiting source's pointer (VLL orde
   await expect.poll(async () => (await readIcons(page)).length).toBe(1); // the destination is gone…
   await expect.poll(async () => (await readIcons(page))[0].jumpTo ?? "").toBe(""); // …and so is the pointer
 });
+
+// VLL, 2026-09-09, on a real pair: "when I select a jump mark (source in this case), I don't see any
+// segment to the other". A jump usually goes to ANOTHER PAGE — his both do — and the segment only draws
+// when the two ends are co-visible; the cross-page hint had been deferred at spec time. So the common case
+// showed nothing at all. This is the case, authored the way he authors it: one end per page.
+test("a cross-page pair shows the direction and the target page on each end (VLL)", async ({ page }) => {
+  await openEditorReady(page);
+  const pages = page.getByTestId("edit-canvas");
+  await expect(pages).toHaveCount(2); // the fixture is two pages
+
+  // Two traps in one helper, both learned the hard way. (1) A page is TALLER than the viewport, so its top
+  // sits above the fold and a click at a fraction of the PAGE's height lands off-screen — mouse.click takes
+  // VIEWPORT coordinates. (2) Clicking a fraction of the VISIBLE SLICE is scroll-dependent, so placing and
+  // then re-selecting the same mark hit different page positions and the second one misses. Align the
+  // page's TOP to the scroller first: the box is then stable across calls, and `fy` means the same thing
+  // every time.
+  const clickOnPage = async (idx: number, fx: number, fy: number) => {
+    const c = pages.nth(idx);
+    await c.evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await page.waitForTimeout(150); // let the smooth-scroll settle before measuring
+    const b = (await c.boundingBox())!;
+    await page.mouse.click(b.x + b.width * fx, b.y + b.height * fy);
+  };
+
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickOnPage(0, 0.4, 0.12); // the SOURCE, page 1
+  await expect(page.getByText(/now place the destination/i)).toBeVisible();
+  await clickOnPage(1, 0.4, 0.12); // the DESTINATION, page 2
+  await expect.poll(async () => (await readIcons(page)).length).toBe(2);
+
+  await page.getByTestId("tool-select").click();
+  // Select the SOURCE: no segment is possible (the partner is a page away), so the hint has to carry it.
+  await clickOnPage(0, 0.4, 0.12);
+  await expect(page.getByTestId("jump-page-hint")).toHaveText("→ p.2");
+  // …and the swap button is offered even though the ends are pages apart.
+  await expect(page.getByTestId("sel-swap-jump")).toBeVisible();
+
+  // The other end says where the jump comes FROM.
+  await clickOnPage(1, 0.4, 0.12);
+  await expect(page.getByTestId("jump-page-hint")).toHaveText("← p.1");
+
+  // And swapping from here reverses both readings.
+  await page.getByTestId("sel-swap-jump").click();
+  await expect(page.getByTestId("jump-page-hint")).toHaveText("→ p.1");
+});

@@ -33,6 +33,7 @@ import {
 import { buildWet, budgetedRasterDpr, compareObjectZ, measureTextWidth, toInkObject, rasterDpr, type PRPoint, type LayerVisibility } from "./helpers";
 import { SelectionToolbar } from "./Toolbar";
 import { JumpFlags } from "./JumpFlags";
+import { JumpPageHints, jumpPageHints } from "./JumpPageHint";
 
 /** Capture a pointer id, best-effort (T34). Exotic/synthetic pointer ids (e.g. an e2e-
  *  dispatched PointerEvent) can't be captured and throw NotFoundError; capture is a
@@ -990,6 +991,13 @@ export function EditCanvas({
         <JumpFlags
           objects={pageObjects}
           broken={brokenJumps}
+          measure={pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined}
+        />
+        {/* P206: a selected jump whose partner is on another page — which way, and to which page. The
+            segment covers the co-visible case; this is the one a real jump actually is. */}
+        <JumpPageHints
+          objects={pageObjects}
+          hints={jumpPageHints(selectedOnPage, objects, page)}
           measure={pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined}
         />
         {(() => {

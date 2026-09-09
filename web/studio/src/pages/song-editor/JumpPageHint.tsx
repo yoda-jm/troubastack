@@ -1,0 +1,72 @@
+/**
+ * P206 — the direction cue for a jump whose partner is on ANOTHER PAGE.
+ *
+ * The dashed segment only exists when both ends are co-visible, and the cross-page case was deferred at
+ * spec time as "a page hint, later". In practice that is the COMMON case — a jump usually goes somewhere
+ * else in the chart — so selecting a real jump showed nothing at all: no link, and no way to tell a source
+ * from a destination (VLL, 2026-09-09). This is that hint: which way, and to which page.
+ *
+ * Its own component for the same reason as JumpFlags — it renders off derived state, so it can be tested
+ * at the render level without authoring a two-page pair through the UI.
+ */
+import { objectBBox, type TextMeasure } from "../../editor";
+import type { AnnotationObject } from "../../api";
+
+export interface JumpPageHintItem {
+  uuid: string;
+  /** true when the SELECTED mark carries the pointer (it jumps away), false when it is the target. */
+  outgoing: boolean;
+  /** 1-based page of the partner, as a reader counts pages. */
+  page: number;
+}
+
+/** The hints for the selected marks on this page whose partner is elsewhere in the file. */
+export function jumpPageHints(
+  selectedOnPage: readonly AnnotationObject[],
+  fileObjects: readonly AnnotationObject[],
+  thisPage: number,
+): JumpPageHintItem[] {
+  const out: JumpPageHintItem[] = [];
+  for (const sel of selectedOnPage) {
+    // Guard self-reference: a mark pointing at itself is broken, not a pair (⟨D2⟩ flags it separately).
+    const partner = fileObjects.find(
+      (o) => o.uuid !== sel.uuid && (o.uuid === sel.jumpTo || o.jumpTo === sel.uuid),
+    );
+    if (!partner || partner.page === thisPage) continue; // co-visible pairs get the segment instead
+    out.push({ uuid: sel.uuid, outgoing: sel.jumpTo === partner.uuid, page: partner.page + 1 });
+  }
+  return out;
+}
+
+export function JumpPageHints({
+  objects,
+  hints,
+  measure,
+}: {
+  /** The objects on THIS page (for placing each hint on its mark). */
+  objects: AnnotationObject[];
+  hints: JumpPageHintItem[];
+  measure?: TextMeasure;
+}) {
+  return (
+    <>
+      {hints.map((h) => {
+        const o = objects.find((x) => x.uuid === h.uuid);
+        if (!o) return null;
+        const b = objectBBox(o, measure);
+        return (
+          <div
+            key={`hint-${h.uuid}`}
+            className="jump-page-hint"
+            data-testid="jump-page-hint"
+            data-uuid={h.uuid}
+            // Pinned to the mark's top-right corner, outside its box so it never covers the glyph.
+            style={{ left: `${b.maxX * 100}%`, top: `${b.minY * 100}%` }}
+          >
+            {h.outgoing ? `→ p.${h.page}` : `← p.${h.page}`}
+          </div>
+        );
+      })}
+    </>
+  );
+}
