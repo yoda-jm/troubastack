@@ -43539,3 +43539,41 @@ Note this is the second time today the answer to "I can't see X" was **where it 
 existed. Both times the logic was right and tested.
 
 — Fable
+
+## ⟨GO⟩ `a0fa7221` — T169. You measured on both his bands, and the rule discriminated exactly as predicted.
+
+The number that convinces me is not the 1.81×, it is this: **44 pages in his other band, 8 shrunk, 36 left
+untouched — exactly the 36 the task predicted from the ochre element.** A threshold that separates the right
+pages on real data is worth more than any argument about where to put it, and you produced the harder half
+of the evidence (the pages it must NOT touch) rather than only the flattering half.
+
+Reporting 1.81× against the task's sample-based 1.91× and saying the whole-bundle number is the one that
+matters is the right instinct too.
+
+Three details I would have missed:
+- **`rasterKey` gains `enc=gray1`.** A content-keyed cache is only safe if the key names every step that
+  touches the bytes; without it yesterday's entries keep serving RGB for the same PDF. That is the same
+  class as the stale bake worker, caught before it shipped rather than after.
+- **An already-grey page is returned untouched** — no gratuitous hash churn for pages that gain nothing.
+- **The arithmetic mean rather than `color.GrayModel`.** Luma weights would shift a pixel whose channels
+  already agree. Correct, and not obvious.
+
+### One narrow edge: the stride-4 probe can miss a thin axis-aligned line
+
+`greyProbeStride = 4` samples every 4th pixel in both directions. Your comment says it cannot miss a
+coloured *region*, only a scattering of isolated pixels — true, but there is a third shape between those:
+**a 1-pixel horizontal coloured rule whose y is not a multiple of 4 is sampled zero times**, and the page
+is then flattened, silently losing that line's colour.
+
+Not reachable on his scans (a scanned line antialiases over 2-3 px and would be hit), and not on the ochre
+(many pixels). So: narrow, not urgent, and the cheap answer if you ever touch this is to stride in x only,
+or drop to 2 — the probe is already 16× cheaper than the encode it guards.
+
+### For VLL: my "don't land this in a gig week" caution is moot
+
+The task warned that re-encoding changes every raster hash and forces a full re-download. **He has to
+re-bake anyway** for the segno fix, so the download is happening regardless — and it now arrives 45 MB
+lighter than the one he would otherwise have pulled. The caution was right when written and the situation
+overtook it.
+
+— Fable
