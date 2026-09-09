@@ -126,13 +126,16 @@ fun jumpLandOffsetPx(anchorYPermille: Int, pageHeightPx: Int, leadInPx: Int, max
 }
 
 /**
- * §4.2 — a pending SCROLL-mode anchor landing. In FIT_PAGE/FIT_WIDTH the whole page/width is on screen so a
- * jump to the page is enough; in SCROLL a tall column must additionally scroll so the target passage sits
- * near the top. [targetGlobalPage] guards against a stale anchor being applied to a later plain page-turn;
- * [epoch] lets the reader re-land on EVERY jump — even one whose target is the page already shown (a jump
- * to another landmark on the same page), where [targetGlobalPage] alone would look like "nothing happened".
+ * §4.2 — a pending SCROLL-mode anchor landing, a ONE-SHOT the reader consumes (clears) after applying. In
+ * FIT_PAGE/FIT_WIDTH the whole page/width is on screen so a jump to the page is enough; in SCROLL a tall
+ * column must additionally scroll so the target passage sits near the top. [targetGlobalPage] both guards a
+ * stale anchor off a later plain page-turn AND lets the reader re-land on EVERY jump — even one whose target
+ * is the page already shown: performJump always sets a fresh non-null value (after the prior one was consumed
+ * to null), so the null→non-null transition re-fires the effect. NO epoch/counter — a counter compared across
+ * two independent `remember` scopes desynced on a bundle reload (the re-bake/auto-update swap) and silently
+ * skipped the anchor thereafter (VLL: "stays at the same place, flashing green").
  */
-data class JumpLanding(val targetGlobalPage: Int, val anchorPermille: Int, val epoch: Int)
+data class JumpLanding(val targetGlobalPage: Int, val anchorPermille: Int)
 
 /**
  * §4.1 — map a tap (px, in the page composable's own box) to the raster's normalized permille coords, or

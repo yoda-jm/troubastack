@@ -516,14 +516,15 @@ private fun Performing(
         // P206 §4.1/§4.2/§4.3 — jump-mark activation. A tap that lands in a visible mark (jumpAt) either
         // opens the "go to" popup (default) or jumps straight there (jumpDirect pref). performJump sets
         // state.current to the resolved target (A46-clamped, within the song) — every mode derives from
-        // that: FIT_PAGE shows the page/spread, SCROLL's re-keyed effect repositions the column. A jump
-        // bumps jumpArrivalEpoch, which flashes the arrival cue (§4.3 — the only feedback in the same-spread
-        // two-up case). §4.2 (VLL, 2026-09-09): in SCROLL a jump also lands at the passage ANCHOR (not the
-        // page top — a tall column would leave the target off-screen; page/width already show the whole page).
-        // jumpLanding carries the target + anchor to ScrollReader; its epoch re-lands on EVERY jump, so a
-        // jump whose target is the page already shown still moves to the passage (VLL: "does nothing, just a
-        // slight greenish flash" — the flash was the arrival cue firing while goToPage was a no-op).
-        var pendingJump by remember { mutableStateOf<PageJump?>(null) }
+        // that: FIT_PAGE shows the page/spread, SCROLL lands at the passage anchor (§4.2). A jump bumps
+        // jumpArrivalEpoch, which flashes the arrival cue (§4.3 — the only feedback in the same-spread two-up
+        // case). The target is a resolved JumpLanding (target page + passage anchor) computed at TAP time from
+        // the TAPPED PAGE's own song — NOT from state.current, which can lag the visually-shown page right
+        // after a swipe-away-and-back (VLL: "swipe to another song and come back, then click → stays at the
+        // same place, flashing green" — resolving off the stale current sent the jump into the wrong song).
+        // jumpLanding is a ONE-SHOT the ScrollReader consumes, so a repeat jump (even to the page already
+        // shown) re-fires via the null→non-null transition — no fragile epoch counter (§4.2).
+        var pendingJump by remember { mutableStateOf<JumpLanding?>(null) }
         var jumpArrivalEpoch by remember { mutableStateOf(0) }
         var jumpFlash by remember { mutableStateOf(false) }
         var jumpLanding by remember { mutableStateOf<JumpLanding?>(null) }
@@ -532,20 +533,26 @@ private fun Performing(
             jumpFlash = true
             autoHideChrome(700) { jumpFlash = false } // §4.3: a brief arrival pulse, clock-injectable like the cues
         }
-        val performJump: (PageJump) -> Unit = { jump ->
-            val target = jumpTargetGlobalPage(state, state.current, jump)
-            vm.goToPage(target)
+        val performJump: (JumpLanding) -> Unit = { landing ->
+            vm.goToPage(landing.targetGlobalPage)
             jumpArrivalEpoch++
-            // §4.2: record the passage anchor for SCROLL's lander. epoch = jumpArrivalEpoch so it re-lands even
-            // when target == the current page (goToPage was a no-op then). anchor 0 ⇒ land at the page top.
-            jumpLanding = JumpLanding(target, jump.targetAnchorYPermille, jumpArrivalEpoch)
+            jumpLanding = landing // the ScrollReader anchors + consumes it (SCROLL); page/width just show the page
             pendingJump = null
         }
         // Returns true iff the tap hit a visible+owned mark (so the page composable knows NOT to toggle
         // chrome). The layer + owner filter is jumpAt's (§4.4); coords are the page's own permille.
         val onJumpTap: (StagePage, Int, Int) -> Boolean = { page, xP, yP ->
             val j = jumpAt(page, xP, yP, state.visibleFor(page.songId), state.identity)
-            if (j != null) { if (state.jumpDirect) performJump(j) else pendingJump = j; true } else false
+            if (j != null) {
+                // Resolve from the TAPPED page's own global index (song firstPage + pageInSong), never
+                // state.current — see the note above (the swipe-away-and-back lag). Falls back to current only
+                // if the song can't be located (a pre-P207 bundle with no matching SongInfo).
+                val srcGlobal = state.songs.firstOrNull { it.songId == page.songId }
+                    ?.let { it.firstPage + page.pageInSong } ?: state.current
+                val landing = JumpLanding(jumpTargetGlobalPage(state, srcGlobal, j), j.targetAnchorYPermille)
+                if (state.jumpDirect) performJump(landing) else pendingJump = landing
+                true
+            } else false
         }
 
         Box(
@@ -630,7 +637,7 @@ private fun Performing(
                             }
                         } else {
                             val songListState = scrollListStates.getOrPut(page) { LazyListState() }
-                            ScrollReader(state, page, songListState, decoder, cache, colorMode, widthPx, onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, jumpLanding = jumpLanding)
+                            ScrollReader(state, page, songListState, decoder, cache, colorMode, widthPx, onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, jumpLanding = jumpLanding, onJumpConsumed = { jumpLanding = null })
                         }
                     }
                 }
@@ -1541,40 +1548,43 @@ private fun ScrollReader(
     widthPx: Int,
     onJumpTap: (StagePage, Int, Int) -> Boolean = { _, _, _ -> false }, // P206 §4.1
     onToggleChrome: () -> Unit = {},
-    jumpLanding: JumpLanding? = null, // P206 §4.2: a jump's target + passage anchor (SCROLL lands AT it)
+    jumpLanding: JumpLanding? = null, // P206 §4.2: a jump's resolved target + passage anchor (SCROLL lands AT it)
+    onJumpConsumed: () -> Unit = {}, // P206 §4.2: clear the one-shot after this song's column has applied it
 ) {
     // N10: render [songIndex]'s own pages (not always state.current's) — during a cross slide the OUTGOING
     // song is composed alongside the incoming one, each from its own column.
     val range = songPageRange(state, state.songs.getOrNull(songIndex)?.firstPage ?: state.current)
     val songPages = if (range.isEmpty()) emptyList() else state.pages.subList(range.first, range.last + 1)
     val localOf = { global: Int -> (global - range.first).coerceIn(0, (songPages.size - 1).coerceAtLeast(0)) }
-    // Keyed on state.current AND jumpLanding so a P206 jump to ANOTHER page of the SAME song repositions the
-    // column — and, because jumpLanding's epoch changes on EVERY jump, so does one whose target is the page
-    // already shown (within-song vertical scroll doesn't change state.current, so state.current alone would
-    // miss it — VLL's "does nothing, slight green flash"). Ordinary vertical scrolling never fires this.
-    var lastJumpEpoch by remember { mutableStateOf(0) }
-    LaunchedEffect(state.current, jumpLanding) {
-        // Land on the current page WITHIN this song's column (local index) — but ONLY while this song IS the
-        // current one. A cross set current to the song's first/last page; a jump set it to the target. The
-        // outgoing song must NOT be re-scrolled: it keeps its position while it slides away.
+    // Ordinary landing (a cross/edge-turn changed state.current): land on that page's TOP within this song's
+    // column — but ONLY while this song IS the current one (the outgoing song keeps its position as it slides
+    // away). Skipped when a jump owns THIS landing (jumpLanding targets this page), so the anchor effect below
+    // places the passage without this one first yanking to the top.
+    LaunchedEffect(state.current) {
         if (songIndex != state.currentSong) return@LaunchedEffect
+        if (jumpLanding?.targetGlobalPage == state.current) return@LaunchedEffect
+        listState.scrollToItem(localOf(state.current))
+    }
+    // §4.2 — jump anchor landing (a ONE-SHOT). Keyed on jumpLanding IDENTITY: performJump always sets a fresh
+    // non-null value (after the prior was consumed to null), so even a repeat jump to the page already shown
+    // re-fires (the null→non-null transition) — no epoch. Consuming (onJumpConsumed → null) makes it a no-op
+    // refire, so it never fights the ordinary landing. Only the CURRENT song's column (and only for a target
+    // ON it) applies + consumes; other columns ignore it.
+    LaunchedEffect(jumpLanding) {
+        val jl = jumpLanding ?: return@LaunchedEffect
+        if (songIndex != state.currentSong || jl.targetGlobalPage != state.current) return@LaunchedEffect
         val local = localOf(state.current)
         listState.scrollToItem(local)
-        // §4.2 — a JUMP (fresh epoch, landing on THIS page) additionally scrolls so the passage anchor sits
-        // near the top. A plain turn/cross has no fresh landing here, so it stops at the page top as before.
-        val jl = jumpLanding
-        if (jl != null && jl.epoch > lastJumpEpoch && jl.targetGlobalPage == state.current) {
-            lastJumpEpoch = jl.epoch // consume; this effect isn't keyed on lastJumpEpoch, so no re-fire
-            if (jl.anchorPermille > 0) {
-                // Measure the just-landed item; in SCROLL a page is width-filled so its height IS the raster's.
-                // (On a song's FIRST page the item also carries the MetaStrip, a small over-estimate we accept.)
-                val itemH = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == local }?.size ?: 0
-                if (itemH > 0) {
-                    val leadIn = (listState.layoutInfo.viewportSize.height * JUMP_LEAD_IN_FRACTION).roundToInt()
-                    listState.scrollToItem(local, jumpLandOffsetPx(jl.anchorPermille, itemH, leadIn, itemH))
-                }
+        if (jl.anchorPermille > 0) {
+            // Measure the just-landed item; in SCROLL a page is width-filled so its height IS the raster's.
+            // (On a song's FIRST page the item also carries the MetaStrip, a small over-estimate we accept.)
+            val itemH = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == local }?.size ?: 0
+            if (itemH > 0) {
+                val leadIn = (listState.layoutInfo.viewportSize.height * JUMP_LEAD_IN_FRACTION).roundToInt()
+                listState.scrollToItem(local, jumpLandOffsetPx(jl.anchorPermille, itemH, leadIn, itemH))
             }
         }
+        onJumpConsumed()
     }
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(songPages) { index, page ->
