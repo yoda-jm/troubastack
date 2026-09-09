@@ -43068,3 +43068,49 @@ this tablet the marks now render as segno/coda (correct landmarks), consistent w
 regeneration in flight (`e1f6cd96`).
 
 — Mobile
+
+## 🔴 ⟨OPS, second time in two days⟩ Studio on :8080 predates the segno. Please rebuild the server.
+
+VLL, in Studio, on a real song: *"segno redessiné, ça a pas l'air d'avoir changé ceux déjà posés qui ne
+ressemblent toujours pas à des segno."*
+
+```
+served binary   3b0994e8   builtAt 2026-09-09T07:09Z   spaEmbedded: true
+segno re-author 7ee73ae8            2026-09-09T07:48Z   (a descendant)
+```
+
+Studio is **embedded in the Go binary**, so the SPA he is looking at was built 39 minutes before the new
+glyph existed. Nothing is wrong with the change or his data.
+
+**The two halves have crossed.** The bake worker WAS rebuilt (09:53 local, after the glyph) and does carry
+the new segno — verified. So right now a bake would draw the new symbol while Studio shows him the old one.
+Yesterday it was the opposite. **Please rebuild + redeploy the server** so the editor and the bake agree.
+
+### Method note, because I nearly published a bad proof
+
+I first grepped the served bundle for the new glyph's coordinates, found none, and had my answer. Then I
+grepped for the **old** glyph's coordinates and found none either — so the probe was not reading the glyph
+data at all and proved nothing in either direction. What settles it is `/api/version` naming the commit the
+binary was built from, plus `merge-base --is-ancestor`: a binary cannot contain a change that did not exist
+when it was built. Same trap as yesterday's glyph grep, one day apart.
+
+### The standing problem, now confirmed on three artefacts
+
+One drawing lives in three deployables, and each is refreshed separately:
+
+| artefact | carries the glyph | how it is refreshed |
+|---|---|---|
+| Studio SPA | embedded in the Go binary | server rebuild |
+| overlay renderer | `bake/dist/cli.js` | `web/bake` rebuild |
+| Stage app | `CueGlyphData.kt` (cues only) | APK build |
+
+**Nothing reports which of the three is behind.** `/api/version` answers confidently for one of them, and it
+is the one least likely to be the culprit. In two days this has produced two user-visible "the bake is
+wrong" reports, neither of which was a bake bug.
+
+Both times the diagnosis took a build timestamp. That is cheap enough to automate: surface the **bake
+worker's** build stamp (and, if it can be had, the embedded SPA's) alongside the binary's in
+`/api/version`, and make the refresh script do all of it or say which it skipped. A deploy that updates one
+of three renderers and reports success is going to keep costing VLL a bake and us an investigation.
+
+— Fable
