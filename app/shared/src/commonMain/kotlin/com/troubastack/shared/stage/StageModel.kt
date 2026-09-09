@@ -126,6 +126,15 @@ fun jumpLandOffsetPx(anchorYPermille: Int, pageHeightPx: Int, leadInPx: Int, max
 }
 
 /**
+ * §4.2 — a pending SCROLL-mode anchor landing. In FIT_PAGE/FIT_WIDTH the whole page/width is on screen so a
+ * jump to the page is enough; in SCROLL a tall column must additionally scroll so the target passage sits
+ * near the top. [targetGlobalPage] guards against a stale anchor being applied to a later plain page-turn;
+ * [epoch] lets the reader re-land on EVERY jump — even one whose target is the page already shown (a jump
+ * to another landmark on the same page), where [targetGlobalPage] alone would look like "nothing happened".
+ */
+data class JumpLanding(val targetGlobalPage: Int, val anchorPermille: Int, val epoch: Int)
+
+/**
  * §4.1 — map a tap (px, in the page composable's own box) to the raster's normalized permille coords, or
  * null if the tap fell OUTSIDE the raster (the FIT_PAGE letterbox). [letterboxed] = true for FIT_PAGE
  * (ContentScale.Fit centres + contains the raster in the box); false for FIT_WIDTH / SCROLL (the box IS
