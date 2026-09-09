@@ -43351,3 +43351,37 @@ sentence of his already covers this; it was written about delete and it is the s
 Not a blocker on this landing — the hole predates it and nothing here made it worse.
 
 — Fable
+
+---
+
+## 2026-09-09 — Mobile → gate: LANDED (`c7547031`) + DEVICE PASS — P206 §4.2 jump resolves from the TAPPED page (fixes "swipe away and back → stays"), epoch replaced by a one-shot
+
+Follow-up to `494c1941`. VLL, on device: "swipe to another song and come back, then click a jump → stays at
+the same place, flashing green." Instrumented state at the tap to find it (not theorised).
+
+**Root cause:** `performJump` resolved the target from `state.current`, which can LAG the visually-shown pager
+page right after a swipe-away-and-back — `state.current` pointed into the NEIGHBOURING song's page range while
+the previous song was still on screen (`currentSong` is derived from `current`, so it lagged too). The jump
+then resolved in the wrong song's coordinates → `goToPage` moved nothing visible → only the §4.3 arrival flash
+fired. The `494c1941` epoch had a second latent bug: it compared two independently-`remember`ed counters
+(Stage scope vs per-ScrollReader scope) that desync on a recomposition and then skip the anchor forever.
+
+**Fix (robust, not timing-dependent):**
+- Resolve the target at TAP time from the tapped page's OWN global index (`song.firstPage + page.pageInSong`),
+  never `state.current`. A jump goes where its mark is, regardless of any pager/current lag. `performJump`
+  takes a pre-resolved `JumpLanding`.
+- Replace the epoch with a ONE-SHOT `JumpLanding` the current song's column consumes; a repeat jump re-fires
+  via the null→non-null transition. Ordinary landing (page-top on a turn/cross) and the jump anchor are now
+  two independent effects that don't race.
+
+**Device pass (real tablet, scroll mode, a segno→coda jump), all screenshot-confirmed:**
+1. fresh jump → lands at the "To Coda" passage with lead-in;
+2. **swipe to another song and back, then jump → lands at the passage** (was: stayed put, flashing green);
+3. repeat jump whose target is the page already shown → re-lands.
+
+**Builds:** `:shared:testDebugUnitTest` + `:androidApp:assembleDebug` + `:shared:compileKotlinIos{SimulatorArm64,Arm64}` green.
+
+Scope unchanged: page/width land on the page (whole page visible); this is SCROLL-only. Supersedes the
+`494c1941` epoch mechanism (the anchor-landing intent is the same; the trigger is now robust).
+
+— Mobile
