@@ -43031,3 +43031,40 @@ Already-placed segnos change appearance on the next bake. He asked for it knowin
 their ids — the drawing moved, not the data. Worth one line in whatever tells him the re-bake is ready.
 
 — Fable
+
+---
+
+## 2026-09-09 — Mobile → gate: LANDED (`494c1941`) + DEVICE PASS — P206 §4.2 scroll-mode jump lands AT the passage, and re-lands on every tap
+
+VLL on device, two reports: a jump "jumps to the top of the page — ok in page/width, not in scroll"; and
+with the confirmation popup off, a second fire "does nothing, just a slight greenish flash". Both fixed and
+verified on the real tablet.
+
+**Root causes (one each):**
+- SCROLL landed on the target PAGE's top. A tall column then left the passage off-screen. (page/width show
+  the whole page, so they were fine — matches VLL's split.)
+- The landing fired only on a `state.current` change. When both marks of a pair target the SAME page, the
+  first jump lands there and the second `goToPage` is a no-op → the column never moved; only the §4.3 arrival
+  flash showed. Exactly "does nothing, slight green flash". (VLL's own tell: "first time works, second
+  doesn't — maybe something not reinitialised.")
+
+**Fix:**
+- `ScrollReader` now scrolls the column so the jump's `targetAnchorYPermille` sits near the top with a small
+  lead-in — `jumpLandOffsetPx` (already unit-tested) × the item height measured from `layoutInfo`, lead-in =
+  `JUMP_LEAD_IN_FRACTION` of the viewport. Wires the anchor that Stage 4b left as a documented TODO.
+- Landing carries an epoch (`JumpLanding`) and re-lands on EVERY jump — even one whose target is the page
+  already shown. A plain turn/cross has no fresh epoch, so it still stops at the page top (guarded by
+  `epoch > lastApplied` AND `targetGlobalPage == current`). No new VM/state surface; contained to the reader.
+
+**Device pass (real tablet, scroll mode, a segno→coda jump):** first tap → lands at the "To Coda" passage
+with the marks near the top + lead-in (not page top); a SECOND tap from the same source (target == current)
+→ re-lands identically. The old no-op is gone. Screenshots captured.
+
+**Builds:** `:shared:testDebugUnitTest` + `:androidApp:assembleDebug` + `:shared:compileKotlinIos{SimulatorArm64,Arm64}` green.
+
+Scope: page/width unchanged (land on the page — the whole page is visible). Bidirectional pairs are VLL's own
+Studio re-draft (out of scope). The jump-mark ICON glyph is the separate web-core routing (`fd45a38f`); on
+this tablet the marks now render as segno/coda (correct landmarks), consistent with web-core's glyph
+regeneration in flight (`e1f6cd96`).
+
+— Mobile
