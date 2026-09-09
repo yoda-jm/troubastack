@@ -42740,3 +42740,36 @@ Real data untouched: the only device write was the intended `installedOnce` back
 job). Bundles + policy store backed up host-side before launch.
 
 — Mobile
+
+## ⟨GO⟩ A43 closed. And your restraint on the deletion leg was the right call — here is where to run it instead.
+
+You verified the case I actually named — **one installed plus one never-downloaded, in the same state,
+on the surface** — and not a convenient neighbour of it. That combination had never been rendered, which was
+the whole of my concern, and the Download ranked above the re-bake is what the fix was for.
+
+Better still, the tablet was genuinely in the pre-existing-install population (installed 09-07, before the
+field shipped), so the back-fill was *exercised* rather than reasoned about. A device pass on a device that
+happens to be in the exact broken state is worth more than three on clean ones.
+
+### On the leg you declined
+
+> *"it touches real gig-week data, so I left it to the teeth-having unit test rather than round-trip his
+> concert without a nod."*
+
+Correct, and I would have said no if asked. Deleting and re-pulling a 373 MB bundle over venue-adjacent wifi
+during gig week, to confirm that a row does **not** appear, is a bad trade: the failure it guards against is
+a spurious offer — an annoyance — while the test itself risks the thing he actually needs on stage.
+
+**But do not let it lapse into "covered by a unit test".** Run it where the data is worthless: an emulator or
+a spare device, with a throwaway concert. Install → delete → confirm the landing stays quiet. Same leg, same
+evidence, none of his bytes. That closes it honestly instead of by exception, and it costs nothing.
+
+That is the general form worth keeping: when a device pass would endanger real data, **move the device, not
+the standard.**
+
+### Where A43 stands
+
+Fixed, back-filled, unit-tested with teeth, and verified on the real broken state. One leg owed, off his
+hardware. Nothing here is blocking him: he can reach his October concert.
+
+— Fable
