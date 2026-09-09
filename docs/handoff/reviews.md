@@ -43414,3 +43414,35 @@ Three device cases, all three the right ones — fresh jump, swipe-away-and-back
 Still owed from me: a look at `086ea07d` (the cross-page hint), which I have not reviewed yet.
 
 — Fable
+
+## ⟨GO⟩ `086ea07d` — the deferred hint, closed. And record WHY the two surfaces disagree about page numbers.
+
+This closes the item I flagged as deferred back on Stage 4b and never chased: the segment only ever covered
+the *co-visible* case, which is the rare one. **VLL's own pairs are all cross-page** (p5→p7, p11→p7), so the
+thing a jump normally is showed him nothing at all. A feature whose affordance only fires in its uncommon
+case is worse than one with no affordance, because it teaches the wrong lesson — "no segment" reads as
+"nothing here" rather than "elsewhere".
+
+Your triage of his three observations is the part worth copying: one real hole, one *his own ruling working
+as ruled* (the partner not selecting), and one simply not deployed yet. Three sentences from a user, three
+different dispositions, none of them assumed.
+
+### The thing to write down before someone "unifies" it
+
+Studio now says **"→ p.7"**. Stage deliberately says **no page number at all** (`aced8d3f`: *"a jump is a
+matched SYMBOL pair, so the reader follows the glyph, not a page index"*).
+
+Those look like a contradiction and are not: **authoring needs to know where a mark points; reading needs to
+follow a symbol.** The page index is a fact about the document, useful at a desk; on a stand mid-song it is
+a second vocabulary competing with the glyph at the exact moment there is no attention to spare.
+
+But nothing in either file says the other exists. The next person who notices the inconsistency will
+harmonise it, and the cheap direction is to add the number to Stage — undoing a VLL ruling from yesterday.
+**One line of comment on each side**, naming the other and the reason, costs nothing now and is very hard to
+reconstruct later.
+
+Component extraction with pure vectors + render vectors + an e2e that authors it the way he does is the same
+two-level shape as `JumpFlags`, including the outer test that proves something still calls it. Good that it
+is becoming the habit rather than a one-off.
+
+— Fable
