@@ -74,6 +74,7 @@ export function EditCanvas({
   onCommitResize,
   onReorder,
   onDuplicate,
+  onSwapJump,
   onSetColor,
   onDelete,
   beginGesture,
@@ -114,6 +115,8 @@ export function EditCanvas({
   // selection and are gated in the Viewer (owner/RW/active layer).
   onReorder: (uuid: string, dir: "front" | "back") => void;
   onDuplicate: (uuid: string) => void;
+  /** P206: swap which end of this jump is the source. Offered only for a mark that IS one end of a pair. */
+  onSwapJump: (uuid: string) => void;
   onSetColor: (uuid: string, color: string) => void;
   onDelete: () => void;
   // Two-finger pinch/pan pipeline (T27 stage 4) — from usePdfDocument. beginGesture
@@ -1022,11 +1025,42 @@ export function EditCanvas({
             const bb = objectBBox(cur, rm);
             return { x: ((bb.minX + bb.maxX) / 2) * 100, y: ((bb.minY + bb.maxY) / 2) * 100 };
           };
-          const pa = center(sel);
-          const pb = center(partner);
+          // P206 (VLL, 2026-09-09): the segment carries the DIRECTION — an arrowhead at the destination.
+          // Both ends wear the same glyph and colour on purpose (that is how a reader matches them), so
+          // nothing on the page says which end jumps and which is jumped to; on Stage only the source
+          // navigates, making a reversed pair a mark that does nothing when tapped. This is a SELECTION
+          // affordance: it is drawn in Studio, never in the baked ink.
+          const source = sel.jumpTo === partner.uuid ? sel : partner;
+          const dest = source === sel ? partner : sel;
+          // In PIXEL space, not the 0..100 box: the page is not square, and a viewBox scaled
+          // non-uniformly would shear the arrowhead into a wedge that points somewhere else.
+          if (!pageBoxPx) return null;
+          const toPx = (p: { x: number; y: number }) => ({ x: (p.x / 100) * pageBoxPx.w, y: (p.y / 100) * pageBoxPx.h });
+          const a = toPx(center(source));
+          const b = toPx(center(dest));
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const len = Math.hypot(dx, dy);
+          if (len < 1) return null;
+          const ux = dx / len, uy = dy / len;
+          // Stop the shaft short of the destination mark so the head sits beside it, not on top of it.
+          const destBB = objectBBox(dest, rm);
+          const inset = Math.min(
+            len * 0.35,
+            (Math.max(destBB.maxX - destBB.minX, 0) * pageBoxPx.w) / 2 + 6,
+          );
+          const tip = { x: b.x - ux * inset, y: b.y - uy * inset };
+          const HEAD = 11, HALF = 5.5;
+          const back = { x: tip.x - ux * HEAD, y: tip.y - uy * HEAD };
+          const head = `${tip.x},${tip.y} ${back.x - uy * HALF},${back.y + ux * HALF} ${back.x + uy * HALF},${back.y - ux * HALF}`;
           return (
-            <svg className="jump-segment" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} />
+            <svg
+              className="jump-segment"
+              viewBox={`0 0 ${pageBoxPx.w} ${pageBoxPx.h}`}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <line x1={a.x} y1={a.y} x2={back.x} y2={back.y} />
+              <polygon className="jump-arrow" points={head} data-testid="jump-arrow" />
             </svg>
           );
         })()}
@@ -1144,6 +1178,16 @@ export function EditCanvas({
               onSendToBack={() => onReorder(selectedSingle.uuid, "back")}
               onDuplicate={() => onDuplicate(selectedSingle.uuid)}
               onDelete={onDelete}
+              onSwapJump={
+                // Only for a mark that is actually one end of a pair — a lone landmark has no direction.
+                objects.some(
+                  (o) =>
+                    (o.uuid === selectedSingle.jumpTo && o.uuid !== selectedSingle.uuid) ||
+                    (o.jumpTo === selectedSingle.uuid && o.uuid !== selectedSingle.uuid),
+                )
+                  ? () => onSwapJump(selectedSingle.uuid)
+                  : undefined
+              }
             />
           </div>
         );

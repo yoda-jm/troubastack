@@ -212,10 +212,14 @@ export function Viewer({
   const beat = useBeat(song.tempo, song.meter);
   // T51 — the glyph the "Icon" tool stamps next (its id rides in the object's text).
   const [activeGlyph, setActiveGlyph] = useState("mic");
-  // P206 — the jump tool's landmark glyph, and the pending DESTINATION uuid held between the two
-  // placements of a pair (null = the next placement is a fresh destination).
+  // P206 — the jump tool's landmark glyph, and the SOURCE placed and waiting for its destination
+  // (null = the next placement starts a fresh pair).
+  //
+  // VLL, 2026-09-09: the chain is SOURCE FIRST — "I am here, I jump there" — which is the order a player
+  // thinks in. The pointer lives on the source and can only name a destination that exists, so completing
+  // the pair UPDATES the waiting source rather than stamping the pointer at creation.
   const [activeJumpGlyph, setActiveJumpGlyph] = useState("segno");
-  const [pendingJumpDest, setPendingJumpDest] = useState<string | null>(null);
+  const [pendingJumpSrc, setPendingJumpSrc] = useState<string | null>(null);
   // P206: the jump landmark's size — the bbox SIDE as a fraction of page width (a CLICK stamps one at
   // this size; still resizable by its handles afterwards). Default ~17 mm on A4.
   const [jumpSize, setJumpSize] = useState(0.08);
@@ -439,18 +443,18 @@ export function Viewer({
   // so a reader never meets two identical segnos on one page with no way to tell which one is the
   // destination — the failure no test can see, because the data is correct.
   const takenJumpGlyphs = useMemo(() => {
-    const claimed = takenJumpKeys(objectsForFile, pendingJumpDest);
+    const claimed = takenJumpKeys(objectsForFile, pendingJumpSrc);
     return new Set(LANDMARK_GLYPH_IDS.filter((id) => claimed.has(jumpKey(id, style.color))));
-  }, [objectsForFile, pendingJumpDest, style.color]);
+  }, [objectsForFile, pendingJumpSrc, style.color]);
 
   // Once the armed glyph becomes spoken for (the pair just completed), move to the next free landmark —
   // the author's next placement should just work rather than be refused by the guard above.
   useEffect(() => {
-    if (tool !== "jump" || pendingJumpDest) return;
+    if (tool !== "jump" || pendingJumpSrc) return;
     if (!takenJumpGlyphs.has(activeJumpGlyph)) return;
     const free = LANDMARK_GLYPH_IDS.find((id) => !takenJumpGlyphs.has(id));
     if (free) setActiveJumpGlyph(free);
-  }, [tool, pendingJumpDest, takenJumpGlyphs, activeJumpGlyph]);
+  }, [tool, pendingJumpSrc, takenJumpGlyphs, activeJumpGlyph]);
 
   const sortedLayers = useMemo(
     () => sortLayers(doc.layers, myUserId),
@@ -742,12 +746,12 @@ export function Viewer({
         return;
       }
       // P206: a jump mark is a PAIR of icon landmarks (same glyph + colour). First placement drops the
-      // DESTINATION and holds its uuid; the second drops the SOURCE carrying jumpTo = that uuid. One-way.
+      // SOURCE and holds its uuid; the second drops the DESTINATION and points the source at it. One-way.
       if (tool === "jump") {
         // P206 uniqueness, defence in depth: the palette already excludes a taken combination, but the
         // colour can change after the glyph was picked. Only the FIRST placement is checked — while a
-        // destination is pending it holds the key itself, and its source must be allowed to match it.
-        if (!pendingJumpDest && takenJumpKeys(objectsForFile, null).has(jumpKey(activeJumpGlyph, style.color))) {
+        // source is pending it holds the key itself, and its destination must be allowed to match it.
+        if (!pendingJumpSrc && takenJumpKeys(objectsForFile, null).has(jumpKey(activeJumpGlyph, style.color))) {
           setLocalNotice(
             "That landmark and colour are already used by a jump in this part — pick another glyph or colour so the two can be told apart.",
           );
@@ -776,20 +780,23 @@ export function Viewer({
             style,
             text: activeJumpGlyph,
           });
-          if (pendingJumpDest) obj.jumpTo = pendingJumpDest; // the SECOND placement is the source
           syncRef.current.createObject(obj);
           recordUndo({ action: "create", uuid: obj.uuid, layerId, before: null, after: obj });
-          if (pendingJumpDest) {
-            setPendingJumpDest(null);
+          if (pendingJumpSrc) {
+            // The second click is the DESTINATION: aim the waiting source at it. The pointer lives on the
+            // source and can only name an object that exists, so this is an update, not a stamp.
+            const src = doc.objects.find((o) => o.uuid === pendingJumpSrc);
+            if (src) syncRef.current.updateObject("setText", { ...src, jumpTo: obj.uuid });
+            setPendingJumpSrc(null);
             // P206 ⟨D2⟩: a jump's two ends must be on the SAME FILE (VLL: "somewhere in the same pdf") —
             // two files are two independent page spaces, and the bake drops the pair. Say it HERE, while
             // the fix is one drag, because a cross-file pair looks exactly like a valid cross-page one
             // (neither draws a segment). Placed anyway and flagged red on the page, per VLL's stated
             // preference for this class of problem over refusing the gesture.
-            const destLayer = layersById.get(
-              doc.objects.find((o) => o.uuid === pendingJumpDest)?.layerId ?? "",
+            const srcLayer = layersById.get(
+              doc.objects.find((o) => o.uuid === pendingJumpSrc)?.layerId ?? "",
             );
-            if (destLayer && destLayer.fileId !== layersById.get(layerId)?.fileId) {
+            if (srcLayer && srcLayer.fileId !== layersById.get(layerId)?.fileId) {
               setLocalNotice(
                 "Both ends of a jump must be on the same part — this pair is marked in red and won't work until you move one end.",
               );
@@ -797,8 +804,8 @@ export function Viewer({
               setLocalNotice(null);
             }
           } else {
-            setPendingJumpDest(obj.uuid);
-            setLocalNotice("Jump destination placed — now place the source mark (Esc to cancel).");
+            setPendingJumpSrc(obj.uuid);
+            setLocalNotice("Jump source placed — now place the destination it jumps to (Esc to cancel).");
           }
           selectOnly([]);
         } catch (err) {
@@ -854,7 +861,7 @@ export function Viewer({
         );
       }
     },
-    [ensureActiveLayer, doc.layers, myUserId, myRole, style, activeGlyph, activeJumpGlyph, jumpSize, pendingJumpDest, recordUndo],
+    [ensureActiveLayer, doc.layers, myUserId, myRole, style, activeGlyph, activeJumpGlyph, jumpSize, pendingJumpSrc, recordUndo],
   );
 
   // P206 (VLL, 2026-09-08, overruling the reading Fable and I had settled on): "if one is selected the
@@ -1012,6 +1019,54 @@ export function Viewer({
   // Delete the current selection (one or many objects). Only objects on the
   // ACTIVE editable layer are deleted; everything else (locked OR on a non-active
   // layer) is skipped — no mutation sent.
+  // P206 (Fable ⟨review⟩ 3350c809): nothing may point at an object that has LEFT. One home for the rule,
+  // because objects leave by two different doors — a delete, and an undo that un-creates one — and the
+  // second is how a fresh pair's destination vanishes while its source still names it. Returns the
+  // survivors it re-pointed, PRE-clear, so a caller can put them back on undo.
+  //
+  // A survivor the user may not edit right now (a bandmate's layer) is left alone rather than sent a
+  // mutation the server would refuse; the bake tolerates that dangling ref by contract, and a hopeful
+  // write that fails is worse than a known gap because it looks like it worked.
+  const sweepPointersTo = useCallback(
+    (gone: Set<string>): AnnotationObject[] => {
+      if (!syncRef.current) return [];
+      const orphaned = doc.objects.filter(
+        (o) => !gone.has(o.uuid) && o.jumpTo && gone.has(o.jumpTo) && isObjectEditableNow(o),
+      );
+      for (const o of orphaned) {
+        // `setText` is the content-edit kind on the wire (an icon's glyph id lives in `text`, its partner
+        // in `jumpTo`); the server folds every content kind the same way. There is no setJump kind.
+        syncRef.current.updateObject("setText", { ...o, jumpTo: undefined });
+      }
+      return orphaned;
+    },
+    [doc.objects, isObjectEditableNow],
+  );
+
+  // P206 (VLL, 2026-09-09): flip which end of a jump is the source. The pointer moves to the other end
+  // and the old one is cleared — two updates, one meaning. Deliberately records NO undo entry: a swap is
+  // its own inverse, so the undo of it is the button itself, and an entry would only add a second way to
+  // do the same thing (with the worse failure mode of undoing something else if pressed later).
+  const swapJumpDirection = useCallback(
+    (uuid: string) => {
+      if (!syncRef.current) return;
+      const a = doc.objects.find((o) => o.uuid === uuid);
+      if (!a) return;
+      const b = doc.objects.find(
+        (o) => o.uuid !== uuid && (o.uuid === a.jumpTo || o.jumpTo === uuid),
+      );
+      if (!b) return;
+      const [src, dst] = a.jumpTo === b.uuid ? [a, b] : [b, a];
+      if (!isObjectEditableNow(src) || !isObjectEditableNow(dst)) {
+        setLocalNotice("Can't swap this jump — one of its ends is on a layer you can't edit right now.");
+        return;
+      }
+      syncRef.current.updateObject("setText", { ...src, jumpTo: undefined });
+      syncRef.current.updateObject("setText", { ...dst, jumpTo: src.uuid });
+    },
+    [doc.objects, isObjectEditableNow],
+  );
+
   const deleteSelected = useCallback(() => {
     if (selectedUuids.length === 0 || !syncRef.current) return;
     // P206 (VLL): "deleting one of the jumpmark should delete both" — a jump is ONE thing wearing two
@@ -1025,21 +1080,7 @@ export function Viewer({
       syncRef.current.deleteObject(uuid);
       removed.push(obj);
     }
-    // P206 (Fable ⟨review⟩ 3350c809): deleting one end of a jump leaves the survivor pointing at a uuid
-    // that no longer exists. Nothing downstream rejects it — the consumer (Stage-3 bake) is unwritten — so
-    // every dangling pair made from now on would persist into saved songs and meet the bake on its first
-    // run. Clear the pointer here, where the pair is still known. A survivor I may not edit right now (a
-    // bandmate's layer) is left alone rather than sent a mutation the server would refuse; the bake must
-    // still tolerate a dangling ref for those, and for the corpus made before this.
-    const removedIds = new Set(removed.map((o) => o.uuid));
-    const orphaned = doc.objects.filter(
-      (o) => !removedIds.has(o.uuid) && o.jumpTo && removedIds.has(o.jumpTo) && isObjectEditableNow(o),
-    );
-    for (const o of orphaned) {
-      // `setText` is the content-edit kind on the wire (an icon's glyph id lives in `text`, its partner in
-      // `jumpTo`); the server folds every content kind the same way. There is no setJump kind.
-      syncRef.current.updateObject("setText", { ...o, jumpTo: undefined });
-    }
+    const orphaned = sweepPointersTo(new Set(removed.map((o) => o.uuid)));
     if (removed.length > 0) {
       // ONE undo entry for the whole selection — restored all-or-nothing (T161 fix-forward: N independent
       // entries could partially refuse and leave a state the user never created). Every removed object is on
@@ -1053,15 +1094,15 @@ export function Viewer({
       });
       selectOnly([]);
     }
-  }, [selectedUuids, doc.objects, isObjectEditableNow, recordUndo, selectOnly]);
+  }, [selectedUuids, doc.objects, isObjectEditableNow, recordUndo, selectOnly, sweepPointersTo]);
 
   // P206 (VLL): "not completing the dual creation ... unpaired is only allowed during creation". Abandoning
   // the chain — another tool, Esc, another part — removes the landmark that was placed for it, rather than
   // leaving a lone symbol that reads as a jump and is not one. Its create-undo goes with it: undo must not
   // offer to un-create something that is already gone.
   const abandonPendingJump = useCallback(() => {
-    const uuid = pendingJumpDest;
-    setPendingJumpDest(null);
+    const uuid = pendingJumpSrc;
+    setPendingJumpSrc(null);
     setLocalNotice(null);
     if (!uuid || !syncRef.current) return;
     const obj = doc.objects.find((o) => o.uuid === uuid);
@@ -1070,7 +1111,7 @@ export function Viewer({
       const top = st[st.length - 1];
       return top && top.action === "create" && top.uuid === uuid ? st.slice(0, -1) : st;
     });
-  }, [pendingJumpDest, doc.objects, isObjectEditableNow]);
+  }, [pendingJumpSrc, doc.objects, isObjectEditableNow]);
 
   // Switching PART mid-chain abandons it too: a jump lives within one file (⟨D2⟩), so a destination left
   // behind on the part you just left could never become one. A ref, not a dep, so this fires on a CHANGE
@@ -1079,8 +1120,8 @@ export function Viewer({
   useEffect(() => {
     if (lastJumpFile.current === selectedFileId) return;
     lastJumpFile.current = selectedFileId;
-    if (pendingJumpDest) abandonPendingJump();
-  }, [selectedFileId, pendingJumpDest, abandonPendingJump]);
+    if (pendingJumpSrc) abandonPendingJump();
+  }, [selectedFileId, pendingJumpSrc, abandonPendingJump]);
 
   // T161 — undo THIS user's last action by APPENDING the inverse mutation (never rewriting history). It
   // re-checks permission (T30) and refuses — dropping the entry rather than retrying forever — when a
@@ -1108,7 +1149,13 @@ export function Viewer({
       setUndoStack(rest);
       return;
     }
-    if (plan.do === "delete") syncRef.current.deleteObject(plan.uuid);
+    if (plan.do === "delete") {
+      // Un-creating an object is an object LEAVING: if it was a jump's destination, the source that names
+      // it must not be left pointing at a ghost (source-first placement makes this the ordinary case —
+      // undo right after finishing a pair).
+      syncRef.current.deleteObject(plan.uuid);
+      sweepPointersTo(new Set([plan.uuid]));
+    }
     else if (plan.do === "restore") {
       for (const o of plan.objects) syncRef.current.updateObject("restore", o); // KindRestore revives (I5)
       // P206: a delete that orphaned a jump pointer restores the pair WHOLE — the revived end plus the
@@ -1117,7 +1164,7 @@ export function Viewer({
     } else syncRef.current.updateObject(plan.kind, plan.object);
     setLocalNotice(null);
     setUndoStack(rest);
-  }, [undoStack, doc.objects, layersById, myUserId, myRole]);
+  }, [undoStack, doc.objects, layersById, myUserId, myRole, sweepPointersTo]);
 
   // Delete/Backspace removes the current selection; Ctrl/Cmd+Z undoes. Both ignored while typing in a
   // form field, so the Details inputs below keep working normally.
@@ -1132,7 +1179,7 @@ export function Viewer({
         return;
       }
       // P206: Esc cancels a half-placed jump — and removes the landmark it had already placed.
-      if (e.key === "Escape" && pendingJumpDest) {
+      if (e.key === "Escape" && pendingJumpSrc) {
         e.preventDefault();
         abandonPendingJump();
         return;
@@ -1144,7 +1191,7 @@ export function Viewer({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedUuids, deleteSelected, undo, pendingJumpDest, abandonPendingJump]);
+  }, [selectedUuids, deleteSelected, undo, pendingJumpSrc, abandonPendingJump]);
 
   // Drop any selected uuids whose objects have disappeared (deleted remotely).
   useEffect(() => {
@@ -1204,7 +1251,7 @@ export function Viewer({
       setTool(t);
       if (t !== "select") selectOnly([]);
       // P206: leaving the jump tool mid-pair abandons the creation, and the placed landmark goes with it.
-      if (t !== "jump" && pendingJumpDest) abandonPendingJump();
+      if (t !== "jump" && pendingJumpSrc) abandonPendingJump();
       // T84: restore this tool group's remembered draw width (freehand vs line vs shape).
       const remembered = widthByTool.current[toolWidthKey(t)];
       if (remembered != null) setStyle((s) => ({ ...s, width: remembered }));
@@ -1213,6 +1260,7 @@ export function Viewer({
     onStyle: applyStyle,
     jumpSize,
     onJumpSize: setJumpSize,
+    jumpAwaitingDest: pendingJumpSrc != null,
     controlsLocked,
     multiSelected: selectedUuids.length > 1,
     selectedType: selectedObject?.type ?? null,
@@ -1567,6 +1615,7 @@ export function Viewer({
                   onCommitResize={commitResize}
                   onReorder={reorderSelected}
                   onDuplicate={duplicateSelected}
+                  onSwapJump={swapJumpDirection}
                   onSetColor={setObjectColor}
                   onDelete={deleteSelected}
                   beginGesture={beginGesture}
@@ -1612,6 +1661,7 @@ export function Viewer({
                 onCommitResize={commitResize}
                 onReorder={reorderSelected}
                 onDuplicate={duplicateSelected}
+                onSwapJump={swapJumpDirection}
                 onSetColor={setObjectColor}
                 onDelete={deleteSelected}
                 beginGesture={beginGesture}

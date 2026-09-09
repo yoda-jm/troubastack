@@ -757,8 +757,9 @@ export function withJumpPartners(
  *  page, one a destination and one not, at a page turn mid-song. No test can ever catch its absence,
  *  because the data is right; only excluding the combination at authoring can.
  *
- *  Claimed by: a jump source, the destination it points at, and a destination placed but not yet paired
- *  (`pendingDestUuid`) — which is a claim in progress and must not be handed out twice.
+ *  Claimed by: a jump source, the destination it points at, and an end placed but not yet paired
+ *  (`pendingEndUuid`) — which is a claim in progress and must not be handed out twice. Source-first since
+ *  2026-09-09 (VLL), so that half-finished end is the SOURCE; the rule does not care which.
  *  Colours compare case-insensitively: "#E11D48" and "#e11d48" are one colour to a reader. */
 export function jumpKey(glyph: string, color: string): string {
   return `${glyph}|${color.trim().toLowerCase()}`;
@@ -766,14 +767,14 @@ export function jumpKey(glyph: string, color: string): string {
 
 export function takenJumpKeys(
   fileObjects: readonly AnnotationObject[],
-  pendingDestUuid?: string | null,
+  pendingEndUuid?: string | null,
 ): Set<string> {
   const claimed = new Set<string>();
   const byUuid = new Map(fileObjects.map((o) => [o.uuid, o]));
   for (const o of fileObjects) {
     const claims =
       (o.jumpTo != null && o.jumpTo !== "") || // a source
-      (pendingDestUuid != null && o.uuid === pendingDestUuid) || // a destination mid-placement
+      (pendingEndUuid != null && o.uuid === pendingEndUuid) || // a destination mid-placement
       fileObjects.some((x) => x.jumpTo === o.uuid); // a destination already pointed at
     if (!claims) continue;
     claimed.add(jumpKey(o.text, o.style.color));

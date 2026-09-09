@@ -1195,6 +1195,9 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 }
 .jump-segment { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .jump-segment line { stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: .85; }
+/* P206: the arrowhead names the DIRECTION (source → destination). Solid, so it reads as a head rather
+   than another dash; same brand colour as the shaft. Studio-only — never baked. */
+.jump-segment .jump-arrow { fill: var(--brand); opacity: .9; }
 /* BottomSizePreview (VLL): the live size preview, pinned bottom-centre of the viewport — visible the moment
    a size tool is selected (no hover, so it works on a phone), showing the TRUE size with room the toolbar
    chip never had. A floating pill portaled to <body>. */

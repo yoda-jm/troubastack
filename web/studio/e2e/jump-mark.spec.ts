@@ -80,9 +80,9 @@ test("two placements create a matching pair; the source carries jumpTo = the des
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
 
-  await clickAt(page, 260, 520); // destination first — a CLICK stamps it (no drag)
-  await expect(page.getByText(/now place the source/i)).toBeVisible(); // the two-step guides you
-  await clickAt(page, 260, 300); // source second
+  await clickAt(page, 260, 520); // SOURCE first (VLL) — a CLICK stamps it (no drag)
+  await expect(page.getByText(/now place the destination/i)).toBeVisible(); // the two-step guides you
+  await clickAt(page, 260, 300); // destination second; the waiting source is aimed at it
 
   await expect(page.getByText("2 objects")).toBeVisible(); // both landmarks placed
 
@@ -132,8 +132,8 @@ test("selecting ONE end selects only THAT end, and the link is shown (VLL)", asy
   await openEditorReady(page);
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
-  await clickAt(page, 300, 540); // destination
-  await clickAt(page, 300, 300); // source
+  await clickAt(page, 300, 540); // source
+  await clickAt(page, 300, 300); // destination
   await page.getByTestId("tool-select").click();
   await clickAt(page, 300, 300);
   // VLL, 2026-09-08: "if one is selected the other is not selected, but we see the link". The pairing is
@@ -149,8 +149,8 @@ test("when both ends are REALLY selected, they move together (VLL)", async ({ pa
   await openEditorReady(page);
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
-  await clickAt(page, 300, 520); // destination
-  await clickAt(page, 300, 300); // source
+  await clickAt(page, 300, 520); // source
+  await clickAt(page, 300, 300); // destination
   await page.getByTestId("tool-select").click();
 
   // Marquee from empty space around BOTH ends.
@@ -182,8 +182,8 @@ test("deleting either end deletes the PAIR; undo brings both back (VLL)", async 
   await openEditorReady(page);
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
-  await clickAt(page, 300, 540); // destination
-  await clickAt(page, 300, 300); // source (carries jumpTo)
+  await clickAt(page, 300, 540); // source
+  await clickAt(page, 300, 300); // destination
   await page.getByTestId("tool-select").click();
   await expect.poll(async () => (await readIcons(page)).length).toBe(2);
 
@@ -209,12 +209,12 @@ test("abandoning a half-placed jump removes the landmark it placed (VLL)", async
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
   await clickAt(page, 300, 300); // the destination only — the chain is open
-  await expect(page.getByText(/now place the source/i)).toBeVisible();
+  await expect(page.getByText(/now place the destination/i)).toBeVisible();
   await expect.poll(async () => (await readIcons(page)).length).toBe(1);
 
   await page.getByTestId("tool-select").click(); // change tool → abandon
   await expect.poll(async () => (await readIcons(page)).length).toBe(0);
-  await expect(page.getByText(/now place the source/i)).toHaveCount(0);
+  await expect(page.getByText(/now place the destination/i)).toHaveCount(0);
 });
 
 // P206 ⟨D2⟩ — "a jump is within one FILE" (VLL: "somewhere in the same pdf"). Under his later rule that an
@@ -240,18 +240,18 @@ test("switching part mid-chain abandons it, so a cross-file pair cannot be autho
   await expect(page.getByTestId("conn-status")).toHaveText("live", { timeout: 10_000 });
   await expect(page.getByTestId("file-tab")).toHaveCount(2);
 
-  // Destination on part A, then leave for part B before placing the source.
+  // Source on part A, then leave for part B before placing the destination.
   await page.getByTestId("file-tab").nth(0).click();
   await page.getByTestId("tool-jump").click();
   await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
-  await clickFrac(page, 0.5, 0.3);
-  await expect(page.getByText(/now place the source/i)).toBeVisible();
+  await clickFrac(page, 0.5, 0.3); // the source only — the chain is open
+  await expect(page.getByText(/now place the destination/i)).toBeVisible();
   await expect.poll(async () => (await readIcons(page)).length).toBe(1);
 
   await page.getByTestId("file-tab").nth(1).click();
   // The landmark left behind on part A is gone: it could never have become a jump from here.
   await expect.poll(async () => (await readIcons(page)).length).toBe(0);
-  await expect(page.getByText(/now place the source/i)).toHaveCount(0);
+  await expect(page.getByText(/now place the destination/i)).toHaveCount(0);
   // Nothing is flagged, because nothing broken was created.
   await expect(page.getByTestId("jump-broken")).toHaveCount(0);
 });
@@ -263,8 +263,8 @@ test("a landmark+colour already used by a jump is no longer offered (uniqueness)
   await palette.getByRole("button", { name: "segno" }).click();
   await expect(page.getByTestId("icon-pick-segno")).toBeEnabled();
 
-  await clickAt(page, 300, 520); // destination
-  await clickAt(page, 300, 300); // source → the pair now owns (segno, this colour)
+  await clickAt(page, 300, 520); // source
+  await clickAt(page, 300, 300); // destination → the pair now owns (segno, this colour)
 
   // Offered but not pickable — the author sees the whole set and which combination is spoken for.
   await expect(page.getByTestId("icon-pick-segno")).toBeDisabled();
@@ -324,4 +324,56 @@ test("a jump that arrives broken is flagged red in the real editor (⟨D2⟩ wir
   // Exactly one flag, on the arrival — the valid pair beside it stays unmarked.
   await expect(page.getByTestId("jump-broken")).toHaveCount(1);
   await expect(page.getByTestId("jump-broken")).toHaveAttribute("data-uuid", "imported-orphan");
+});
+
+// VLL, 2026-09-09: "the direction initial and a swap button". Both ends wear the same glyph and colour by
+// design — that is how a reader matches them — so nothing on the page says which end jumps and which is
+// jumped to, and on Stage only a SOURCE navigates. The direction is therefore a Studio affordance: an
+// arrowhead on the selection segment, and one click to reverse it.
+test("the segment names the direction, and the swap button reverses it (VLL)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  // Source first (VLL): the chain reads "I am here, I jump there".
+  await expect(page.getByTestId("jump-step")).toHaveText(/next: source/i);
+  await clickAt(page, 300, 540);
+  await expect(page.getByTestId("jump-step")).toHaveText(/next: destination/i);
+  await clickAt(page, 300, 300);
+  await expect(page.getByTestId("jump-step")).toHaveText(/next: source/i); // the pair is closed
+
+  const before = await readIcons(page);
+  const src0 = before.find((o) => o.jumpTo)!;
+  // The FIRST placement is the source — that is the whole point of the order change.
+  expect(src0.points[0].y).toBeGreaterThan(before.find((o) => !o.jumpTo)!.points[0].y);
+
+  await page.getByTestId("tool-select").click();
+  await clickAt(page, 300, 540);
+  await expect(page.getByTestId("jump-arrow")).toBeVisible(); // direction is drawn, not implied
+
+  // Swap: the pointer moves to the other end, and nothing else about the marks changes.
+  await page.getByTestId("sel-swap-jump").click();
+  await expect.poll(async () => (await readIcons(page)).find((o) => o.jumpTo)?.uuid).toBe(
+    before.find((o) => !o.jumpTo)!.uuid,
+  );
+  const after = await readIcons(page);
+  expect(after.length).toBe(2); // no mark was created or destroyed
+  expect(after.find((o) => o.jumpTo)!.jumpTo).toBe(src0.uuid); // …it now points back at the old source
+  // Its own inverse: pressing it again restores the original direction.
+  await page.getByTestId("sel-swap-jump").click();
+  await expect.poll(async () => (await readIcons(page)).find((o) => o.jumpTo)?.uuid).toBe(src0.uuid);
+});
+
+// Undo right after finishing a pair un-creates the DESTINATION — and the source must not be left naming a
+// ghost. Source-first placement makes this the ordinary case rather than an exotic one.
+test("undoing the second placement clears the waiting source's pointer (VLL order)", async ({ page }) => {
+  await openEditorReady(page);
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickAt(page, 300, 540); // source
+  await clickAt(page, 300, 300); // destination → the source is aimed at it
+  await expect.poll(async () => (await readIcons(page)).filter((o) => o.jumpTo).length).toBe(1);
+
+  await page.keyboard.press("Control+z");
+  await expect.poll(async () => (await readIcons(page)).length).toBe(1); // the destination is gone…
+  await expect.poll(async () => (await readIcons(page))[0].jumpTo ?? "").toBe(""); // …and so is the pointer
 });

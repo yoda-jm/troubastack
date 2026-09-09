@@ -476,6 +476,7 @@ export function EditorToolbar({
   onStyle,
   jumpSize,
   onJumpSize,
+  jumpAwaitingDest,
   controlsLocked,
   multiSelected,
   selectedType,
@@ -507,6 +508,8 @@ export function EditorToolbar({
   // P206: the jump landmark's size (bbox side, page-width fraction) + its setter — shown in the ctx bar
   // when the jump tool is active.
   jumpSize: number;
+  /** P206: true between the two clicks of a pair — the source is down and the destination is next. */
+  jumpAwaitingDest: boolean;
   onJumpSize: (n: number) => void;
   // The selected object is on a locked layer → style controls reflect but are disabled.
   controlsLocked: boolean;
@@ -708,7 +711,19 @@ export function EditorToolbar({
             {widthToMm(style.width).toFixed(2)} mm
           </span>
         </label>
-        {/* P206: the jump landmark's SIZE, shown only for the jump tool (VLL: "the size in the toolbar"). */}
+        {/* P206 (VLL, 2026-09-09): which END the next click drops. The chain is source-first, and it used
+            to be announced only by a notice that vanished — so an author returning to the canvas had no way
+            to know whether the next click starts a pair or finishes one. Persistent, in the bar, and it
+            names the end rather than the step number. */}
+        {tool === "jump" && (
+          <span
+            className={`chip jump-step${jumpAwaitingDest ? " warn" : ""}`}
+            data-testid="jump-step"
+            title={jumpAwaitingDest ? "Next click places the destination" : "Next click places the source"}
+          >
+            {jumpAwaitingDest ? "next: destination →" : "next: source"}
+          </span>
+        )}
         {tool === "jump" && (
           <label className="style-field" onMouseEnter={pingSize}>
             <input
@@ -882,6 +897,7 @@ export function SelectionToolbar({
   onSendToBack,
   onDuplicate,
   onDelete,
+  onSwapJump,
 }: {
   color: string;
   onColor: (c: string) => void;
@@ -889,6 +905,8 @@ export function SelectionToolbar({
   onSendToBack: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  /** P206: present only when the selected mark is one end of a jump — swaps which end is the source. */
+  onSwapJump?: () => void;
 }) {
   return (
     <div
@@ -908,6 +926,23 @@ export function SelectionToolbar({
           aria-label="Colour"
         />
       </label>
+      {onSwapJump && (
+        // P206 (VLL, 2026-09-09): getting the direction wrong used to mean deleting the pair (and since
+        // "a jump deletes as ONE thing", that means both ends) and placing it again. One click now. It is
+        // its own inverse — press it twice and you are back — so it records no undo entry.
+        <button
+          type="button"
+          data-testid="sel-swap-jump"
+          title="Swap jump direction"
+          aria-label="Swap jump direction"
+          onClick={onSwapJump}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M2.5 5.5h9M9 3l2.5 2.5L9 8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M13.5 10.5h-9M7 8l-2.5 2.5L7 13" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
       <button type="button" data-testid="sel-front" title="Bring to front" aria-label="Bring to front" onClick={onBringToFront}>
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
           <rect x="2" y="2" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" opacity="0.5" />
