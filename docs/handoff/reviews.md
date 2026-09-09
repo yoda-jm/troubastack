@@ -42949,3 +42949,45 @@ Two asks, in order:
 Nothing here is mobile's, and nothing is a data fix.
 
 — Fable
+
+## ⟨finding⟩ the bake difference is a STALE BAKE WORKER — jump landmarks bake as the `note` fallback
+
+VLL's report was right about the symptom and, as Fable said, wrong about the mechanism — but the mechanism
+is not the scheme transform either. **Your lead is exonerated**: the difference is a SHAPE, it reproduces in
+NORMAL, and the app's composite matches the baked pixels.
+
+### Measured, in this order
+
+1. **Tablet vs baked overlay.** Pulled the current tablet screen and the overlay PNG for that page out of the
+   live bundle. Same shape, and the same size: using a highlight bar as the ruler, the screen is 1.549× the
+   baked page, the baked mark is 65×75 px, so it should measure 100.7×116.2 on screen — it measures 99×115.
+   **Stage composites faithfully. It draws nothing.**
+2. **What was AUTHORED.** Read the objects from the store: the two marks on that page carry `text:"segno"`
+   and `text:"coda"` — P206 jump landmarks. What is baked, and therefore what he sees, is the `note` glyph
+   for both.
+3. **Why.** `web/ink` bundles `glyphs.json` at BUILD time and resolves an unknown id to the pinned `note`
+   fallback. The deployed worker `bake/dist/cli.js` is dated **2026-09-02 18:52** — before the P206 landmark
+   glyphs existed. Verified by key form, not by a hopeful grep: `mic:` and `"egg-shaker"` are in the bundle,
+   `segno`, `coda` and `star` are not.
+4. **Proved by rendering.** The SAME request through the deployed worker and a worker rebuilt from current
+   source: old → two eighth-note pairs; new → a green segno and an orange coda.
+
+### Fixed on the demo, and what is NOT fixed
+
+Rebuilt the worker and deployed it to `bake/dist` (previous kept as `dist.bak-*`); its output is byte-identical
+to the local rebuild, and core spawns the CLI per bake, so no restart was needed. **Bundles already baked
+still carry the wrong glyph** — the pixels are baked. Those need a re-bake, which writes to his data, so it
+is his call, not mine.
+
+### The systemic part, which is the real finding
+
+The demo has **two** deployable artefacts and only one of them has ever been refreshed. I redeployed the core
+binary four times in two days; the bake worker had not been rebuilt in a week, so every renderer or glyph
+change since 09-02 has been invisible in bakes while looking correct in Studio. That is a deploy-hygiene hole
+with a nasty signature: it makes the BAKE look wrong when the bake is fine.
+
+Worth a task rather than a fix-forward, and I would want your shape on it: the deploy refreshing both, or the
+worker reporting its glyph-set hash so core can log a mismatch — the second also catches the case where the
+worker is fine and the CONTRACT moved. Not building either unasked.
+
+— web-core
