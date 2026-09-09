@@ -158,3 +158,65 @@ func TestPopplerRasterizer_AppliesTheGreyscalePass(t *testing.T) {
 		t.Fatalf("a grey page came back as %T — the rasterizer is not applying the T169 pass", img)
 	}
 }
+
+// The shape the first cut's stride-4 probe could not see (Fable, ⟨GO⟩ a0fa7221): a 1-pixel coloured rule
+// whose y is not a multiple of the stride was sampled zero times, and the page was flattened — silently
+// discarding the only colour on it. No stride above 1 can catch this, which is why the probe is exact.
+func TestGreyscale_ThinColouredRuleIsNotFlattened(t *testing.T) {
+	for _, y0 := range []int{1, 3, 5, 7, 41} { // none of them a multiple of 4
+		img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+		for y := 0; y < 64; y++ {
+			for x := 0; x < 64; x++ {
+				img.Set(x, y, color.RGBA{R: 250, G: 250, B: 250, A: 255})
+			}
+		}
+		for x := 0; x < 64; x++ { // a 1px ochre rule, the width of the page
+			img.Set(x, y0, color.RGBA{R: 0x92, G: 0x6b, B: 0x1f, A: 255})
+		}
+		src := encodePNG(t, img)
+		if out := greyscaleIfMono(src); !bytes.Equal(src, out) {
+			t.Fatalf("a 1px coloured rule at y=%d was flattened — its colour is gone", y0)
+		}
+	}
+}
+
+// …and a 1px VERTICAL rule, which the other cheap fix (striding in x only) would still have missed.
+func TestGreyscale_ThinVerticalRuleIsNotFlattened(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+	for y := 0; y < 64; y++ {
+		for x := 0; x < 64; x++ {
+			img.Set(x, y, color.RGBA{R: 250, G: 250, B: 250, A: 255})
+		}
+	}
+	for y := 0; y < 64; y++ {
+		img.Set(7, y, color.RGBA{R: 0x1f, G: 0x6b, B: 0x92, A: 255})
+	}
+	src := encodePNG(t, img)
+	if out := greyscaleIfMono(src); !bytes.Equal(src, out) {
+		t.Fatalf("a 1px vertical coloured rule was flattened")
+	}
+}
+
+// The other half of "is this page coloured": HOW MUCH. Exactly one of his 158 scanned pages carries a
+// single pixel at spread 33 — scan noise one step over the line — and the first exact probe excluded the
+// whole page for it, winning the reader nothing and costing ~300 KB. A page is coloured when it carries a
+// coloured MARK, not a coloured pixel.
+func TestGreyscale_ASingleNoisyPixelIsNotColour(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+	for y := 0; y < 64; y++ {
+		for x := 0; x < 64; x++ {
+			img.Set(x, y, color.RGBA{R: 200, G: 200, B: 200, A: 255})
+		}
+	}
+	img.Set(17, 43, color.RGBA{R: 0x98, G: 0x87, B: 0x77, A: 255}) // spread 33: his real page's one pixel
+	src := encodePNG(t, img)
+	out := greyscaleIfMono(src)
+	if bytes.Equal(src, out) {
+		t.Fatalf("one noisy pixel must not cost the page its re-encode")
+	}
+	if img2, _ := png.Decode(bytes.NewReader(out)); img2 != nil {
+		if _, ok := img2.(*image.Gray); !ok {
+			t.Fatalf("page should have been re-encoded grey, got %T", img2)
+		}
+	}
+}

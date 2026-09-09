@@ -22,10 +22,14 @@ import (
 // on both sides.
 const greyThreshold = 32
 
-// greyProbeStride subsamples the probe: a coloured page is coloured at ANY scale, so the decision does not
-// need every pixel. Reading every 4th pixel in each direction is 16× less work and cannot miss a coloured
-// REGION — only a scattering of isolated coloured pixels, which is not what a coloured page looks like.
-const greyProbeStride = 4
+// minColouredPixels is how many over-threshold pixels a page needs before it counts as COLOURED. One
+// pixel is not colour: measured on his 158 scanned pages, exactly one page carries a single pixel at
+// spread 33 (#988777) — scan noise one step over the line — and excluding a whole page for it wins the
+// reader nothing and costs ~300 KB. A real coloured element is thousands of pixels (the generated chart's
+// ochre is 1671), and the thinnest thing worth protecting — a 1-pixel rule drawn across a page — is over a
+// thousand. 32 sits in the wide gap between one noisy pixel and the smallest deliberate mark: about 5 mm
+// of a hairline at 150 dpi.
+const minColouredPixels = 32
 
 // greyscaleIfMono re-encodes a page raster as 8-bit greyscale when it carries no real colour, and returns
 // the ORIGINAL BYTES UNTOUCHED otherwise — including on any decode/encode error, because a page that
@@ -71,32 +75,82 @@ func greyscaleIfMono(src []byte) []byte {
 	return buf.Bytes()
 }
 
-// isMono reports whether every probed pixel's channels agree to within greyThreshold.
+// isMono reports whether a page carries no real colour: fewer than minColouredPixels pixels whose channels
+// disagree by more than greyThreshold.
+//
+// Every pixel, not a sample. The first cut probed every 4th pixel in each direction, on the argument that a
+// coloured page is coloured at any scale — true for a region, false for a THIN LINE: a 1-pixel horizontal
+// rule whose y is not a multiple of the stride is sampled zero times, and the page would then be flattened,
+// silently discarding that line's colour (Fable, ⟨GO⟩ a0fa7221). No stride above 1 can fix that shape, so
+// the sampling is gone.
+//
+// It costs nothing to be exact here: the fast path walks the pixel buffer directly and returns on the FIRST
+// coloured pixel, which makes a genuinely coloured page cheaper to reject than it was to sample, and a grey
+// page's full scan is still far below the encode it guards.
 func isMono(img image.Image) bool {
+	switch im := img.(type) {
+	case *image.RGBA:
+		return monoPix(im.Pix, im.Stride, im.Rect, true)
+	case *image.NRGBA:
+		return monoPix(im.Pix, im.Stride, im.Rect, false)
+	}
+	// Any other model (paletted, 16-bit, YCbCr): correctness over speed, one At() per pixel.
 	b := img.Bounds()
-	for y := b.Min.Y; y < b.Max.Y; y += greyProbeStride {
-		for x := b.Min.X; x < b.Max.X; x += greyProbeStride {
+	coloured := 0
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
 			r, g, bl, a := img.At(x, y).RGBA()
 			if a < 0xffff {
-				// Any transparency and we stop: greyscale has no alpha channel, so re-encoding would
-				// silently flatten it. A page raster from poppler is opaque, so this costs nothing on the
-				// real path — it is here so the pass can never be the thing that made a page opaque.
-				return false
+				return false // transparency is not a quantity question: one pixel of it stops the pass
 			}
-			r8, g8, b8 := int(r>>8), int(g>>8), int(bl>>8)
-			hi, lo := r8, r8
-			for _, v := range [2]int{g8, b8} {
-				if v > hi {
-					hi = v
+			if spread8(int(r>>8), int(g>>8), int(bl>>8)) > greyThreshold {
+				coloured++
+				if coloured >= minColouredPixels {
+					return false
 				}
-				if v < lo {
-					lo = v
-				}
-			}
-			if hi-lo > greyThreshold {
-				return false
 			}
 		}
 	}
 	return true
+}
+
+// monoPix walks a packed 8-bit RGBA/NRGBA buffer. `premul` says whether the samples are alpha-premultiplied
+// (image.RGBA); either way an opaque pixel's three channels are directly comparable, and a non-opaque one
+// stops the pass (greyscale has no alpha to carry).
+func monoPix(pix []uint8, stride int, r image.Rectangle, premul bool) bool {
+	_ = premul // the comparison is the same; the distinction matters only for what the values MEAN
+	w, h := r.Dx(), r.Dy()
+	coloured := 0
+	for y := 0; y < h; y++ {
+		row := pix[y*stride : y*stride+w*4]
+		for x := 0; x < w*4; x += 4 {
+			if row[x+3] != 0xff {
+				return false // transparency stops the pass outright — there is no alpha to carry
+			}
+			if spread8(int(row[x]), int(row[x+1]), int(row[x+2])) > greyThreshold {
+				coloured++
+				if coloured >= minColouredPixels {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func spread8(r, g, b int) int {
+	hi, lo := r, r
+	if g > hi {
+		hi = g
+	}
+	if g < lo {
+		lo = g
+	}
+	if b > hi {
+		hi = b
+	}
+	if b < lo {
+		lo = b
+	}
+	return hi - lo
 }
