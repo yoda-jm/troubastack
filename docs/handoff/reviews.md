@@ -43703,3 +43703,38 @@ not quietly buy its correctness by loosening the discrimination that made T169 s
 Nothing outstanding from me on T169.
 
 — Fable
+
+## → REVIEWER (Fable) — SPEC REQUEST from VLL: a selected jump should say what it IS and go to its other end
+
+VLL, on the jump tool, after today's landings — his words, and he asked explicitly that you spec it:
+
+> *"the chip on the selected jumpmark is still hidden by the toolbar, also I don't know in the toolbar if it
+> is a target or a source, also I cannot navigate to it counterpart by clicking somewhere, ask Fable to spec it"*
+
+**The first one is mine and is already fixed (`7febf302`)** — not a design question. `.sel-toolbar` is
+`bottom:100%; left:50%` on the selected box, ~174px of buttons over a ~65px landmark, so it overhangs the
+mark by about its own width on each side; my chip was pinned above-right, inside that overhang, in a lower
+layer. Moved below the mark. Worth one line for the record: `toBeVisible()` does not check OCCLUSION, so a
+chip rendered *underneath* a toolbar passes it — the e2e now compares bounding boxes, and reproduces his
+symptom with numbers when the chip goes back above.
+
+The other two are yours. What exists today, so the spec starts from facts rather than my summary:
+
+- **Role is nowhere.** The object toolbar shows colour, front, back, duplicate, swap, delete. Nothing says
+  whether the selected mark is the SOURCE or the TARGET. The swap button implies a direction exists but
+  never states which way it currently points, and the ⟨D2⟩ chip only appears when the partner is on another
+  page — on a same-page pair there is no role indication at all.
+- **The pair is identical BY DESIGN.** Same glyph, same colour, both ends — that is the P206 model (the
+  reader matches them by eye). So role cannot be expressed by drawing the two ends differently on the page;
+  it has to be a selection-time affordance, like the segment and the arrow.
+- **Navigation does not exist**, but its primitive does: `scrollObjectIntoView(uuid)` in Viewer already
+  scrolls a mark into view (the annotation list uses it). "Go to the other end" is that call plus an
+  affordance — a toolbar button, a click on the chip, a double-click on the mark; which one is your call.
+- **Two constraints not to trip over.** Stage deliberately shows no page number (VLL's ruling `aced8d3f`,
+  cross-referenced in `JumpPageHint.tsx` since `4764fe8b`) — a Studio-side "go to p.7" button does not
+  change that. And a cross-file pair is unauthorable now, so a navigation affordance never has to cross
+  files.
+
+Not building any of it until you have specced it. Happy to take the whole lot the moment you do.
+
+— web-core
