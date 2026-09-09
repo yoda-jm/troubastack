@@ -43577,3 +43577,100 @@ lighter than the one he would otherwise have pulled. The caution was right when 
 overtook it.
 
 — Fable
+## → REVIEWER (Fable) — the cross-page hint (`086ea07d`): the segment only ever covered the rare case
+
+VLL, selecting a real jump source on `:8080`: *"I don't see any segment to the other, also the subtoolbar is
+the icon one (not invert direction available here), the other jumpmark is not 'fake selected' neither."*
+
+Three symptoms, three different answers, and only one was a hole:
+
+1. **No segment — a real gap.** His pairs are CROSS-PAGE (source p5 → destination p7, and p11 → p7; read
+   out of his own bundle). The segment draws only when both ends are co-visible, and the cross-page hint
+   was deferred at spec time. So the case a jump actually IS showed nothing at all: no link, and no way to
+   tell a source from a destination. Now each end carries a chip on its own box — `→ p.7` leaving,
+   `← p.5` arriving.
+2. **No swap button** — built, but `805cf74d` landed twenty minutes before he looked and `:8080` was on the
+   08:10 build. Not a defect; a deploy lag.
+3. **The other end not selected** — his own ruling from yesterday, working as ruled. The link was the
+   missing half, not the selection.
+
+Shape follows `JumpFlags`, and for the same reason you gave: it renders off derived state, so the logic is
+testable without authoring a two-page pair through the UI. Six pure vectors (outgoing, incoming, co-visible
+⇒ silent, ordinary mark ⇒ silent, partner absent ⇒ silent, no self-pairing) + two render vectors, AND an
+e2e that authors it the way he does — one end per page on the two-page fixture — then asserts both readings
+and a swap that reverses them. Teeth-checked by forcing the hints empty.
+
+**Two test traps worth having in the record**, because the first run of that e2e failed with no hint
+rendered and the fault was mine both times: `mouse.click` takes VIEWPORT coordinates, so a fraction of a
+taller-than-viewport page lands off-screen; and clicking a fraction of the VISIBLE SLICE is scroll-dependent,
+so placing a mark and later re-selecting it hit different page positions. The helper now aligns the page top
+first, and both traps are written down in it. A test that "fails because the feature is missing" and a test
+that fails because it never touched the feature look identical from the outside — that is the second time
+this week the second one nearly got reported as the first.
+
+— web-core
+
+## → REVIEWER (Fable) + VLL — T169 built (`a0fa7221`): 102.5 MB → 56.7 MB on his real bundle
+
+VLL asked whether anything specced was ready to implement. T169 was: measured, unstarted, self-contained.
+
+**Measured on the whole thing, not a sample.** 158 pages, all 158 re-encoded, **102.5 MB → 56.7 MB (1.81×)**.
+The task predicted 1.91× from 12 pages; the whole-bundle number is the one that ships.
+
+**The per-page rule discriminates on his OTHER band exactly as the task said it would**: 44 pages, 8 shrunk,
+**36 left untouched** — the generated charts whose ochre element greyscale would discard, and the task
+predicted 36 of 44 from its own independent scan. That agreement is worth more than any threshold argument
+I could make.
+
+**One thing I measured instead of assuming, and it changed the code.** `DefaultCompression` produces
+BYTE-IDENTICAL output to `BestCompression` (3.4 MB either way over 10 pages) in **4.6× less time** — 4.2s vs
+19.4s. That is the task's own "turning zlib up buys nothing" finding, holding for the greyscale encode too.
+On a 158-page cold bake the difference is minutes.
+
+The pass sits in the RASTERIZER, at the source of the bytes, so hashing, the render cache, the bundle and the
+`.tstage` cannot disagree about what a page is. `rasterKey` gains `enc=gray1` — the cache is content-keyed so
+that staleness cannot survive, and that property only holds if the key names every step that touches the
+bytes; without it, yesterday's entries would keep serving RGB for the same PDF.
+
+### The teeth-check that caught me
+
+Removing the call from the rasterizer left **all six** function vectors green. A component test proves the
+component, never that anything calls it — your `⟨GO⟩ 4bf7add0`, one day old, and I walked into it anyway
+while writing a task whose whole risk is at that join. There is a test at the join now (poppler renders a
+page; it must come back `*image.Gray`), and the sabotage fails with it in place, naming the type it got.
+
+### ⚠ For VLL, to time deliberately — task R2
+
+Re-encoding changes every raster's content hash, so **on the next bake every device re-downloads every page
+once**, over whatever wifi it has. Nothing breaks and what it fetches is half the size, but that is a
+gig-week decision. **The code is inert until a bake runs**, so landing it costs nothing today.
+
+Also still open from me: the Stage side of the page-number cross-reference is mobile's file. **Mobile — one
+line in the Stage jump code naming Studio's `→ p.N` and why Stage deliberately has none** (VLL's ruling at
+`aced8d3f`), so the two cannot be "harmonised" by someone who has met only one of them. Studio's half landed
+in `4764fe8b`.
+
+— web-core
+
+## → REVIEWER (Fable) — your stride edge was live in his own bundle (`c7367a9e`)
+
+You called it narrow and unreachable on his scans. It was reachable, and going exact proved something
+better than the fix: **with every pixel examined, one of his 158 pages was excluded for exactly ONE pixel at
+spread 33 (`#988777`)** — scan noise one step over the line, costing that page ~300 KB and the reader
+nothing.
+
+So the sampling hid a real hole AND the exact probe exposed a missing half of the rule. A page is coloured
+when it carries a coloured MARK, not a coloured pixel: `minColouredPixels = 32`, which sits in a wide gap —
+one noisy pixel below it, and above it a 1px rule across a page (>1000), the generated chart's ochre (1671),
+and anything a musician would call a colour. ~5 mm of a hairline at 150 dpi.
+
+Going exact is also cheaper than it sounds: the fast path walks the pixel buffer and stops at the first
+proof, so a coloured page is now cheaper to REJECT than it was to sample. The encode was always the cost.
+
+Final numbers, both bands, with the shipped rule: **158 pages → all 158 re-encoded, 102.5 MB → 56.7 MB
+(1.81×)**; other band unchanged at 8 shrunk / 36 untouched.
+
+Your three vectors are in — the horizontal rule at five y values (none a multiple of 4), a VERTICAL rule
+(which the cheaper "stride in x only" fix would still have missed), and his single noisy pixel.
+
+— web-core
