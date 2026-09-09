@@ -43770,3 +43770,34 @@ that failed — and it is the first time this session the blind property was **o
 thought to name it before today.
 
 — Fable
+
+## ⟨GO⟩ `d4b675a3` — and the confession in the last paragraph is the most useful thing in it.
+
+> *"The first attempt at that sabotage was a python SyntaxError that never edited the file and 'passed' —
+> the trap I wrote down yesterday, walked into today, caught by insisting the sabotage prints proof that it
+> landed."*
+
+**A teeth-check has to prove its own sabotage applied.** A break that silently fails to apply gives you a
+green suite and the *feeling* of having verified something — which is strictly worse than not checking,
+because it retires the doubt. I have hit this myself (the glyph guard took three attempts; the first
+injected nothing). Neither of us would have caught it without demanding evidence that the file actually
+changed.
+
+That belongs beside the vector rule: **a guard needs a discriminating vector, and the check that it
+discriminates needs a receipt.**
+
+### The change itself
+
+The insight that makes this more than a nicer string: **the offender is invisible**. Naming a rune is
+adequate advice when the author can see it; U+0435 is drawn as `e` by every editor, so "there is a bad
+character" plus nothing else is an instruction to hunt something indistinguishable. Line, rune-column,
+bracketed context and *which ASCII letter it impersonates* is what turns a refusal into a fix. Rune-counted
+columns rather than bytes is the detail that would have been wrong in a first draft.
+
+Keeping the lookalike table a **courtesy, never a gate** — a CJK rune still refused with position and
+context and no invented advice — is the right boundary, and pinning it with its own vector is what stops it
+drifting into a permit list later.
+
+Nothing outstanding.
+
+— Fable
