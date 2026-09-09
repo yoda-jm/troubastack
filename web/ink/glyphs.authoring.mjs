@@ -142,11 +142,19 @@ export const GLYPHS = {
     ["path", "M2.5 12H21.5"],
   ],
   // Segno (𝄋): an S traversed by a diagonal slash, with a dot in each opposing quadrant.
+  //
+  // Re-authored 2026-09-09 (VLL, after the first bake that showed real landmarks). The first cut
+  // occupied ~11 of the 24 box units against 16-19 for every other landmark, so at one authored size a
+  // segno READ SMALLER than a circle beside it; and its S was cramped against its own slash, which at
+  // 0.0667 box-unit stroke closed the counters into a blob. Both faults only appear at stage distance,
+  // which is the one place this glyph has to work. Now: the S spans the box, its two hooks turn well
+  // clear of the spine, the slash runs corner to corner, and the dots are pushed into the far corners
+  // of the free quadrants at a radius that survives the stroke width.
   segno: [
-    ["path", "M16.5 6.5C16.5 4 13 3.5 11 5C9 6.5 9.5 9 12 10.5C14.5 12 15 14.5 13 16C11 17.5 7.5 17 7.5 14.5"],
-    ["path", "M6.5 17.5L17.5 6.5"],
-    ["circle", 15.5, 15, 1, true],
-    ["circle", 8.5, 9, 1, true],
+    ["path", "M19 7.4C19 3.9 14.2 2.1 11 4.4C8.2 6.4 8.6 9.9 11.9 11.9C15.2 13.9 15.8 17.3 13 19.4C9.8 21.8 5 20 5 16.5"],
+    ["path", "M4.2 20.4L19.8 4.2"],
+    ["circle", 17.4, 16.6, 1.5, true],
+    ["circle", 6.6, 8, 1.5, true],
   ],
 };
 
