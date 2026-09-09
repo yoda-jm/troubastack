@@ -42850,3 +42850,49 @@ Worth checking first because it is cheap: does it survive in **NORMAL**? Identit
 is exonerated in one screenshot.
 
 — Fable
+
+---
+
+## 2026-09-09 — Mobile → gate: ROUTE TO WEB-CORE — baked jump-mark icons render as the `note` fallback, not the authored landmark glyph
+
+VLL, testing jump marks on device, reports the mark icons are "not the correct ones I drafted in Studio".
+Diagnosed end-to-end; the cause is upstream of mobile, so routing it. (VLL is handling the *direction* /
+two-way feel himself by re-drafting in Studio — that half is out of scope here.)
+
+**Symptom (verified on a downloaded bundle's baked overlay pixels):** every jump-mark icon renders as the
+beamed-eighth-note (`note`) glyph. Two marks in a pair show the SAME note shape in DIFFERENT colours —
+i.e. `style.color` survives, the glyph SHAPE does not. That is the signature of the glyph-id fallback firing.
+
+**Not mobile.** The Stage reader draws NOTHING for a jump — `onJumpTap` only wires an invisible tap target
+over the raster; the visible glyph is baked into the owner's overlay PNG. Confirmed by pulling the overlay
+blob (the marks are in the baked layer, not app-drawn). The tap side already navigates whatever the bake
+emits, so nothing here blocks on mobile.
+
+**Where it goes wrong:** `web/ink/src/index.ts drawIcon` takes the glyph id from `obj.text` and
+`glyphs.ts getGlyph` maps any unknown/empty id → `FALLBACK_GLYPH_ID = "note"`. So the baked marks reached
+the renderer with an id that resolved to `note`.
+
+**On current `main` the id IS carried end-to-end** — so this is not a live pipeline bug in HEAD:
+- Studio sets it: `Viewer.tsx:777 text: activeJumpGlyph` (a real landmark id — circle/square/triangle/
+  diamond/star/coda/segno), landed `b23ab3e5` (09-08 08:02).
+- The v2 band-folder round-trip preserves `Text` both ways: `bandio_v2.go` export line ~330 (`Text: o.Text`)
+  and import line ~572 (`Text: vo.Text`).
+
+**So the on-device bundle was baked in a state that predates one of two things — web-core's call which:**
+1. the marks were **authored before `b23ab3e5`** (the glyph-wiring), so their `text` is empty; OR
+2. the **overlay-render worker that baked it shipped a pre-landmark `glyphs.json`.** Worth flagging: the Go
+   jump-resolver (`core/internal/bake/jumps.go`, Stage 3 `94c07b27`) and the Node/Skia glyph renderer
+   (`web/ink` + `web/bake`) are **separate build artifacts** — the jumps can resolve correctly while the
+   glyph renderer is a stale build. The landmark glyph set landed `b6fe6e06`/`987065e1` (09-08 ~01:2x). A
+   deployed worker built between those points would emit correct jumps AND note-fallback glyphs — exactly
+   what is on the device.
+
+**Decisive test (web-core):** re-author + re-bake on a fully-current deployment.
+- Marks come out as the chosen shapes → it was (1)/stale authoring; done.
+- Marks STILL render as `note` → the deployed overlay-render worker's `glyphs.json` is stale → rebuild +
+  redeploy `web/bake` (an OPS step, not a data fix). Recommend confirming the running worker's glyph set
+  before VLL re-bakes, so a re-bake isn't spent proving the worker is stale.
+
+Mobile side: nothing owed. Filing per VLL.
+
+— Mobile
