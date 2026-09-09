@@ -124,6 +124,7 @@ class UpdatesManager(
         val installed = installedRevs()
         val book = loadBook()
         val out = ArrayList<Availability>()
+        val backfill = ArrayList<String>()
         for (c in manifest.concerts) {
             val local = installed[c.concertId]
             if (local == null) {
@@ -133,10 +134,19 @@ class UpdatesManager(
                 if (book[c.concertId]?.installedOnce != true) out += Availability.NewlyAvailable(c.concertId)
                 continue
             }
+            // A43-fix follow-up (Fable 7d0e2d44): a concert ON DISK has, by definition, been installed here —
+            // so back-fill installedOnce even though apply() didn't write it. Without this, a concert installed
+            // BEFORE this field existed carries installedOnce=false and, once deleted, reads as "never had it"
+            // and re-nags — the exact nagware the flag prevents. apply() is not the only path that produces the
+            // installed state; diff() seeing it on disk is one too. Back-filled on the first fetch after upgrade,
+            // no migration step. (Absence of a flag means NO information, not "never" — until every path that
+            // creates the state also records it.)
+            if (book[c.concertId]?.installedOnce != true) backfill += c.concertId
             if (c.currentRev > local && !offerSuppressed(c, book[c.concertId])) {
                 out += Availability.UpdateOffered(c.concertId, local, c.currentRev)
             }
         }
+        if (backfill.isNotEmpty()) markInstalledAll(backfill)
         return out
     }
 
@@ -199,6 +209,16 @@ class UpdatesManager(
 
     /** A43-fix: remember this concert has been installed here at least once (see [PolicyRecord.installedOnce]). */
     private fun markInstalled(concertId: String) = mutate(concertId) { it.copy(installedOnce = true) }
+
+    /** A43-fix follow-up: back-fill [PolicyRecord.installedOnce] for concerts [diff] found on disk, in ONE
+     *  KV write (the pre-existing-install back-fill; see the note in [diff]). Preserves each concert's policy
+     *  and pin — it only flips the flag on. */
+    private fun markInstalledAll(concertIds: Collection<String>) {
+        if (concertIds.isEmpty()) return
+        val book = loadBook().toMutableMap()
+        for (id in concertIds) book[id] = (book[id] ?: PolicyRecord()).copy(installedOnce = true)
+        writePolicies(json.encodeToString(PolicyBook(book)))
+    }
 
     /** Set the per-concert update policy (PROMPT/FROZEN/AUTO). AUTO is inert in B03. */
     fun setPolicy(concertId: String, policy: UpdatePolicy) = mutate(concertId) { it.copy(policy = policy) }

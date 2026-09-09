@@ -99,6 +99,32 @@ class UpdatesManagerTest {
     }
 
     @Test
+    fun preExistingInstall_backfilledOnDiff_thenDeletion_staysQuiet_a43followup() {
+        // Fable 7d0e2d44 — installedOnce was written ONLY by apply(), so a concert already on the device before
+        // this shipped has no record. Deleting it would then read as never-had-it and re-nag. diff() must
+        // back-fill the flag when it sees the concert on disk, so a later deletion stays quiet — no migration.
+        // Teeth: without the back-fill the SECOND diff returns NewlyAvailable("old") and this fails.
+        val kv = FakeKV()
+        var installed = mapOf("old" to 2uL)
+        val m = UpdatesManager(
+            transport = FakeTransport(),
+            tempDir = { "/tmp" },
+            installedRevs = { installed },
+            importBundle = { ImportResult.Imported("old") },
+            readPolicies = kv.read,
+            writePolicies = kv.write,
+        )
+        // First manifest fetch after upgrade — the concert is on disk, current, with NO policy record yet.
+        assertTrue(m.diff(AvailableConcerts(listOf(concert("old", 2uL)))).isEmpty(), "current install → nothing")
+        // The performer now DELETES it. It must NOT be re-offered — the back-fill recorded it as ever-installed.
+        installed = emptyMap()
+        assertTrue(
+            m.diff(AvailableConcerts(listOf(concert("old", 2uL)))).isEmpty(),
+            "a pre-existing install, deleted after upgrade, must stay quiet (installedOnce back-filled by diff)",
+        )
+    }
+
+    @Test
     fun installedBehindServer_offersUpdate_andSameRevOffersNothing() {
         val m = manager(FakeTransport(), installed = mapOf("a" to 2uL, "b" to 5uL))
         val out = m.diff(AvailableConcerts(listOf(concert("a", 3uL), concert("b", 5uL))))
