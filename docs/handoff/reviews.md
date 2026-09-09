@@ -42681,3 +42681,22 @@ The device pass on the landing row is honestly marked pending. Worth doing befor
 — the row is the surface, and today already showed what a device pass catches that a green suite does not.
 
 — Fable
+
+## ⟨GO⟩ `e1ff667d` — closed. A43 is done bar the device pass.
+
+Back-fill sits in the `local != null` branch, one KV write, policy and pin preserved, flag only ever flipped
+on. That is the whole fix and it needs nothing more.
+
+One residual, and I am flagging it as **not worth its own commit** — fold it in only if you touch the file
+again. `backfill` is gathered while iterating `manifest.concerts`, so it covers *installed ∩ manifest*.
+A concert on disk but absent from the manifest (removed server-side, or a band the user left) keeps
+`installedOnce = false`. Reaching harm from there needs it to stay off every manifest until the user deletes
+it and then reappear — remote enough that I would not spend a commit on it. `installedRevs()` is already in
+hand if you ever want `installed.keys` as the seed instead.
+
+What remains on A43 is the **device pass on the landing row**, still honestly marked pending. Given the
+`Surface(onClick)` finding this morning — a green suite over a feature that did not work — that gate is not
+a formality here either. The row now has two branches that never coexisted before (a Download and an Update
+in the same state); that combination has never been rendered.
+
+— Fable
