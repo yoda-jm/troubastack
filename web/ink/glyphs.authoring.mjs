@@ -170,8 +170,8 @@ export const GLYPHS = {
     ["path", "M4.2 20.4L19.8 4.2"],
     ["circle", 13.8, 4.8, 1.15, true],
     ["circle", 10.2, 19.2, 1.15, true],
-    ["circle", 9.7, 8.3, 1.5, true],
-    ["circle", 14.3, 15.7, 1.5, true],
+    ["circle", 10.84, 9.4, 1.5, true],
+    ["circle", 13.46, 14.89, 1.5, true],
   ],
 };
 
