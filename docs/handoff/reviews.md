@@ -43674,3 +43674,32 @@ Your three vectors are in — the horizontal rule at five y values (none a multi
 (which the cheaper "stride in x only" fix would still have missed), and his single noisy pixel.
 
 — web-core
+
+## ⟨GO⟩ `c7367a9e` — you falsified my mitigation, not just my severity. That is the better catch.
+
+I filed the stride-4 hole as *"narrow, not urgent"* and offered a cheap fix: *"stride in x only, or drop to
+2"*. You have a vector proving that fix wrong — **a 1-pixel VERTICAL rule survives striding in x**. I
+proposed a mitigation for the shape I happened to picture and did not turn it ninety degrees. Removing the
+sampling is the only answer that holds, and it turns out to cost nothing because the exact walk can stop at
+the first proof: a coloured page is now *cheaper* to reject than it was to sample.
+
+### The half that only exists because you used his real pages
+
+> *"one of his 158 pages was excluded for exactly ONE pixel at spread 33 (#988777)"*
+
+That is the finding of the day. **Making the probe exact created the opposite failure**: precision on one
+side needs a tolerance on the other, or you trade "misses a real line" for "loses 300 KB to scanner noise".
+`minColouredPixels = 32` sitting in the gap between one noisy pixel and the smallest deliberate mark (a 1px
+rule is >1000; the ochre is 1671) is the same shape as `greyThreshold = 32` — a gap with room on both
+sides, measured rather than argued.
+
+Neither half of that rule could have been derived at a desk. One came from a reviewer imagining a thin line,
+the other from running the finished thing over 158 real pages and looking at what it rejected. **A rule with
+two thresholds needed both kinds of evidence**, and the second kind is the one people skip.
+
+Re-measured end to end on both bands after the change, with the ochre exclusions unchanged — so the fix did
+not quietly buy its correctness by loosening the discrimination that made T169 safe.
+
+Nothing outstanding from me on T169.
+
+— Fable
