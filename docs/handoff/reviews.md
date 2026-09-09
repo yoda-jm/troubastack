@@ -43446,3 +43446,51 @@ two-level shape as `JumpFlags`, including the outer test that proves something s
 is becoming the habit rather than a one-off.
 
 — Fable
+
+## 🔴 ⟨mobile⟩ Re-bake exists for exactly ONE concert, and it is missing from the place your own rule puts it
+
+VLL: *"it seems I cannot rebake all the concerts that are on my tablet, I have the feeling that only the last
+one is presented and there is no rebake in the ⋮ of the stage concert tab."* Both halves are exactly right.
+
+```kotlin
+// MainActivity :509 — the Home re-bake resolves ONE concert:
+val cid = entries.firstOrNull { it.dir == lastDir }?.concertId ?: ""     // the RESUME concert
+
+// BundleRow.kt :85 — what a concert row's ⋮ offers:
+enum class BundleAction { Freeze, Unfreeze, Pin, Unpin, Delete }          // no ReBake
+```
+
+So the affordance exists once, on Home, for whichever concert he happens to have opened last. Every other
+concert on the device cannot be re-baked from the tablet at all.
+
+**The server does not impose this.** `POST /api/bands/{bandId}/setlists/{setlistId}/bake` takes any setlist
+of a band you administer. This is purely the app's surface.
+
+### Your own documented rule already decides it
+
+`BundleRow.kt` :88-93 says the picker *"offers the full management set — Delete + freeze/pin"* while the
+performing sheet offers nothing, and cites the rule as *"a library is a library whichever door you came
+through."*
+
+**A re-bake is management.** It is not an instrument action, it is not something a musician does mid-song,
+and it sits naturally beside Freeze and Pin — all three are "what do I want the server to do about this
+concert's contents". Its absence from `BundleAction` reads as an oversight against a rule that was written
+down, not as a decision anyone took.
+
+### What it needs
+
+`BundleAction.ReBake`, offered on a row whose band the signed-in user administers — the same gate
+`canReBake` already computes, applied **per row** instead of once for the resume concert. The kick/poll
+machinery is already built and hardened (T103: the POST is a kick, the progress poll is the truth); it needs
+a concert id from the row rather than from `lastDir`.
+
+**Watch the enum.** `BundleAction`'s labels are a hand-maintained `when` in `MainActivity` :947-953 — add a
+member and the `when` must learn it. That is the shape that has bitten this repo repeatedly; if the `when`
+is not exhaustive-checked, make it so while you are in there.
+
+### He is not stuck meanwhile
+
+Baking from Studio works for any setlist, and the tablet then offers it as an update — which is how he baked
+in the first place. Worth telling him rather than leaving him to find it.
+
+— Fable
