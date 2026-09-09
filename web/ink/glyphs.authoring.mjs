@@ -143,18 +143,35 @@ export const GLYPHS = {
   ],
   // Segno (𝄋): an S traversed by a diagonal slash, with a dot in each opposing quadrant.
   //
-  // Re-authored 2026-09-09 (VLL, after the first bake that showed real landmarks). The first cut
-  // occupied ~11 of the 24 box units against 16-19 for every other landmark, so at one authored size a
-  // segno READ SMALLER than a circle beside it; and its S was cramped against its own slash, which at
-  // 0.0667 box-unit stroke closed the counters into a blob. Both faults only appear at stage distance,
-  // which is the one place this glyph has to work. Now: the S spans the box, its two hooks turn well
-  // clear of the spine, the slash runs corner to corner, and the dots are pushed into the far corners
-  // of the free quadrants at a radius that survives the stroke width.
+  // Re-authored twice. The first cut read SMALLER than its neighbours and closed to a blob; the second
+  // fixed the size but pushed the dots into the far corners, which VLL called out on the rebuilt Studio:
+  // "les 2 points ne sont pas au bon endroit (trop loin de la barre) et le S pas etire de la bonne facon
+  // — tu peux regarder sur la partition juste a cote il y en a un qui est bien fait".
+  //
+  // There IS an engraved segno printed a few centimetres from his own mark, so this pass was measured
+  // against it rather than eyeballed (the reference is his band's score and cannot live in this repo;
+  // the numbers can). Two faults, and the second was the structural one:
+  //
+  //  - DOTS: engraved, a dot sits ~1.9x its own radius from the slash; ours sat at 4.3x. They were far
+  //    out because they were jammed against the S — the counters had no room. Opening the bowls is what
+  //    let them come in, not moving them.
+  //  - THE S'S AXIS: the engraved S leans on the OTHER diagonal — its spine runs upper-left to
+  //    lower-right, roughly perpendicular to the slash, with a round bowl curling off each end. Ours
+  //    stood upright with the slash cutting across it. That is "pas etire de la bonne facon": not a
+  //    proportion error, an AXIS error, and no amount of dot-nudging fixes it.
+  //
+  // Still not engraved-faithful in one respect, deliberately: the reference is a broad-nib stroke with
+  // real thick/thin and ball terminals, while this model is one constant `strokeWidth` per glyph. The
+  // ball terminals are approximated with a filled circle at each S tip; true modulation would mean
+  // authoring the S as a `fills` outline, which would make segno the only glyph built that way. Not
+  // taken without VLL seeing this first.
   segno: [
-    ["path", "M19 7.4C19 3.9 14.2 2.1 11 4.4C8.2 6.4 8.6 9.9 11.9 11.9C15.2 13.9 15.8 17.3 13 19.4C9.8 21.8 5 20 5 16.5"],
+    ["path", "M13.8 4.8C9.6 3.0 5.2 5.8 5.9 9.9C6.4 12.9 9.2 13.8 12 12C14.8 10.2 17.6 11.1 18.1 14.1C18.8 18.2 14.4 21.0 10.2 19.2"],
     ["path", "M4.2 20.4L19.8 4.2"],
-    ["circle", 17.4, 16.6, 1.5, true],
-    ["circle", 6.6, 8, 1.5, true],
+    ["circle", 13.8, 4.8, 1.15, true],
+    ["circle", 10.2, 19.2, 1.15, true],
+    ["circle", 9.7, 8.3, 1.5, true],
+    ["circle", 14.3, 15.7, 1.5, true],
   ],
 };
 
