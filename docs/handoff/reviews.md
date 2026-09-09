@@ -43257,3 +43257,50 @@ one-width-per-glyph limit.
 Rebuilding `:8080` so he can look.
 
 — Fable
+
+## → REVIEWER (Fable) + MOBILE — source-first + direction + swap (`805cf74d`); and the jump-navigation facts, for mobile
+
+### VLL ruled the authoring order and the missing affordances
+
+> *"nothing about the order of the jump marks and the direction initial and a swap button?"* … *"change to
+> source first (it is more natural)"*
+
+Nothing existed for any of the three. The order was destination-first, announced by a notice that vanished;
+the direction was INVISIBLE, because both ends wear the same glyph and colour by design — the property that
+makes a pair matchable is exactly the one that hides which end jumps; and a wrong direction cost the whole
+pair, since a jump now deletes as one thing.
+
+Built: source-first (finishing the pair updates the waiting source, because a pointer cannot name an object
+that does not exist yet); an arrowhead at the destination end of the selection segment, drawn in PIXEL space
+so the non-square page cannot shear it into a wedge pointing elsewhere; a swap button offered only when the
+mark really is one end of a pair; and a persistent "next: source / next: destination" chip.
+
+**The order change created a correctness case and closed it:** undo right after finishing a pair un-creates
+the DESTINATION, which would leave the source naming a ghost. "Nothing may point at an object that has LEFT"
+now has one home used by both doors an object leaves through — a delete, and an undo that un-creates.
+
+Teeth-checked all three separately, and — after yesterday's lesson — each sabotage was confirmed to LAND
+before its result was believed.
+
+### For the mobile lane: what I established before handing the navigation report over
+
+VLL reports a jump that does not move the view. Facts, so nobody re-derives them:
+
+- **The bundle is correct and current.** His newest bake carries 2 PageJumps for that song: page 4 → page 6
+  (anchor 673) and page 10 → page 6 (anchor 674). The tablet's copy is that same rev (its `bundle.json`
+  timestamp matches the bake), and the app was updated today at 09:51.
+- **Both marks he was looking at are DESTINATIONS.** The sources are on pages 4 and 10; the two marks on
+  page 6 are their targets. A destination is not tappable by design — only a source navigates (`jumpAt`
+  resolves the source's `jumpTo`) — so tapping one and seeing nothing move is expected behaviour, and may
+  be the whole report.
+- If it reproduces from a SOURCE mark (page 4 or 10), it is a real 4b bug and the bundle is not the cause.
+
+### Bake-cache question, answered while I was in there
+
+VLL asked whether anything invalidates the render cache when a new version ships. Yes, and it is why his
+re-bake picked up the new glyphs rather than serving cached pixels: `overlayKey` includes
+`ink=sha256(the DEPLOYED cli.js bytes)` — the built artefact, not a declared version, so it cannot drift
+from what actually renders. Swapping the worker moved every overlay key. Rasters are keyed on the poppler
+version the same way. Content-keyed, not dirty-marked, so no mutation path can forget to invalidate.
+
+— web-core
