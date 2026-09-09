@@ -43494,3 +43494,48 @@ Baking from Studio works for any setlist, and the tablet then offers it as an up
 in the first place. Worth telling him rather than leaving him to find it.
 
 — Fable
+
+## ⟨defect + VLL's better idea⟩ `086ea07d` — the hint renders and he cannot see it: it goes UNDER the top chrome
+
+VLL: *"je pense voir une pastille mais elle est sous la barre d'outil donc presque invisible"*, and before
+that *"rien ne dit si une mark est la source ou la destination (ça pourrait être dans la toolbar ?)"*.
+
+I checked the whole chain before blaming the drawing: the component **is** wired (`WetCanvas.tsx:998`), the
+class **is** in the served stylesheet, and the deployed build **does** contain `086ea07d`. It renders. He
+just cannot see it.
+
+```css
+.jump-page-hint { position: absolute; transform: translate(2px, -100%); … }   /* ALWAYS above the mark */
+/* …and no z-index at all */
+```
+
+Two independent faults, both in the placement rather than the logic:
+
+1. **It only ever goes above.** Studio permanently reserves a top chrome band (`--chrome-h` + `--ctx-h`).
+   The page scrolls under it, so a mark anywhere in the upper part of the viewport puts its chip beneath the
+   bar. His own marks sit at ~67% of page height — nowhere near the page top — which is the tell that this
+   is about **scroll position in the viewport**, not position on the page. It will bite at some scroll
+   offset for every mark.
+2. **No stacking context**, so where they do overlap the chip loses by default.
+
+The conventional fix is the tooltip flip: place below when there is not room above, and give it a z-index
+that clears the canvas but stays under the chrome. Worth testing at a scroll offset that puts the mark just
+under the bar — the case that fails is not reachable by placing a mark and looking.
+
+### But his own suggestion is the better answer, and it is not the same fix
+
+*"ça pourrait être dans la toolbar ?"* — yes, and it solves a case the chip structurally cannot:
+
+- the chip appears **only when the partner is on another page**. For a **co-visible** pair there is a
+  segment and an arrowhead, and still **nothing that names which end you have selected**. He asked what a
+  mark *is*, and today nothing answers that in the common case.
+- the object toolbar is always in the same place, always visible, never under anything.
+
+**Suggest: the selected mark's toolbar says "Source → p.7" / "Destination ← p.5"**, and for a co-visible
+pair simply "Source" / "Destination". One place, every case, no hunting. The chip can stay as the on-canvas
+cue once its placement is fixed, or become redundant — that is your call once the toolbar carries it.
+
+Note this is the second time today the answer to "I can't see X" was **where it was drawn**, not whether it
+existed. Both times the logic was right and tested.
+
+— Fable
