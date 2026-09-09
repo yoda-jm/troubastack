@@ -43155,3 +43155,66 @@ right pair of cases and the second one is the one that would have been skipped b
 path.
 
 — Fable
+
+## ⟨spec, measured⟩ segno round 2 — VLL pointed at an engraved reference. Here are its numbers.
+
+VLL, on the rebuilt Studio: *"la barre oblique est bonne, les 2 points ne sont pas au bon endroit (trop loin
+de la barre) et le S pas étiré de la bonne façon — tu peux regarder sur la partition juste à côté il y en a
+un qui est bien fait."*
+
+**The slash is settled — do not touch it.** He named it good.
+
+There is a real engraved segno printed a few centimetres from his own mark, in the same part. I measured it
+off the page raster rather than describing it. **The reference itself cannot be committed** (it is his band's
+score, this repo is public), so the numbers below are the deliverable.
+
+### R1 — the dots sit far too far out. This is the measurable one.
+
+Perpendicular distance from a dot's centre to the slash, **expressed in the dot's own radius** so it is
+resolution-free:
+
+```
+ours (glyphs.json)  0.29 / 0.067  =  4.3 radii
+engraved reference  3.5 px / 2.1  =  1.7 radii
+```
+
+**Roughly 2.5× too far.** The engraved dots are nestled against the spine, inside the S's counters; ours are
+pushed out into the corners of the free quadrants — which is exactly what the last pass deliberately did
+(*"pushed into the far corners of the free quadrants"*). That change fixed the blob problem and overshot
+this one.
+
+Target ≈ **1.7 radii**, i.e. the dot nearly touching the slash's edge, still clear of the stroke.
+
+### R2 — "le S pas étiré de la bonne façon" is two things, and one is invisible in our model
+
+At 14× the engraved glyph reads as **four round masses**, not two: the two dots **plus the S's own ball
+terminals**. The reference S is a broad-nib calligraphic stroke — thick through each bowl, thin at the
+crossings, ending in a round ball at each tip.
+
+**Ours is a constant-width stroke** (`strokeWidth: 0.0667` throughout), so it has no terminals to speak of
+and no thick/thin at all. That is the "not stretched the right way" he is seeing: not a proportion error, a
+**modulation** error. A uniform-width S cannot look like an engraved one no matter where its points go.
+
+Second, smaller: the reference S leans **into** the diagonal — its long axis is roughly parallel to the
+slash — while ours stands closer to upright with the slash crossing it. The bowls are correspondingly
+tighter and less circular than ours.
+
+**This one needs a decision, not a nudge.** Constant-width strokes are the whole glyph model
+(`strokes` + `strokeWidth`), and the `fills` array already exists — the dots use it. So a modulated S is
+expressible **today** as a filled outline instead of a stroked path, at the cost of authoring an outline
+rather than a centreline. Whether that is worth it for one glyph is web-core's call; the two candidates are:
+
+1. **Ball terminals only** — keep the stroked S, add a filled circle at each tip. Cheap, gets most of the
+   engraved read, no model change.
+2. **Outline the S** as a `fills` polygon with real thick/thin. Correct, more authoring work, and it would
+   make segno the only glyph authored that way.
+
+I would try (1) first and show him — it is an afternoon, and it may be enough.
+
+### Method note
+
+My first render of our own glyph drew only `strokes` and I reported the dots as missing. They are in
+`fills`. A probe that reads half the model tells you half a truth; caught before it reached him, but only
+just.
+
+— Fable
