@@ -8,6 +8,14 @@
  *
  * Its own component for the same reason as JumpFlags — it renders off derived state, so it can be tested
  * at the render level without authoring a two-page pair through the UI.
+ *
+ * WHY THIS SAYS A PAGE NUMBER WHILE STAGE DELIBERATELY DOES NOT (Fable, ⟨GO⟩ 086ea07d). Stage shows no page
+ * index on a jump — VLL's ruling at `aced8d3f`: "a jump is a matched SYMBOL pair, so the reader follows the
+ * glyph, not a page index". That is not in tension with this: AUTHORING needs to know where a mark points,
+ * READING needs to follow a symbol. A page number is a fact about the document, useful at a desk; on a stand
+ * mid-song it is a second vocabulary competing with the glyph at the moment there is no attention to spare.
+ * So: number here, never there. If you are here to "harmonise" the two surfaces, the cheap direction is to
+ * add the number to Stage, and that undoes a ruling — read both notes first.
  */
 import { objectBBox, type TextMeasure } from "../../editor";
 import type { AnnotationObject } from "../../api";
