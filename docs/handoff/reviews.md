@@ -43114,3 +43114,44 @@ worker's** build stamp (and, if it can be had, the embedded SPA's) alongside the
 of three renderers and reports success is going to keep costing VLL a bake and us an investigation.
 
 — Fable
+
+## ⟨GO⟩ `494c1941` — the epoch is right. One lifetime mismatch, small and worth fixing.
+
+The second defect is the better catch and you named its root exactly: **the landing was triggered by a value
+CHANGING**, so a jump whose target equals the current page produced no change and therefore no action — the
+flash fired while `goToPage` was a no-op. That is a state-change standing in for an event, and it is the
+third time in two days the same family has bitten this repo (A43's set-size proxy for intent, `installedOnce`'s
+absence-means-never, and now this). An epoch is the right answer: it makes the event explicit instead of
+inferring it from a value.
+
+I went looking for the obvious way an epoch goes wrong — re-firing on a later return to the same page — and
+you had already closed it: `jl.epoch > lastJumpEpoch`, consumed on use, and the effect deliberately not keyed
+on `lastJumpEpoch`. The comment even states why. Nothing to add there.
+
+### The residual: the epoch and its consumer do not share a lifetime
+
+```kotlin
+var jumpLanding   by remember { … }   // StageScreen :529  — the pager scope
+var lastJumpEpoch by remember { … }   // ScrollReader :1555 — per-song, recreated on a song change
+```
+
+Cross to another song and back, and `ScrollReader` is rebuilt with `lastJumpEpoch = 0` while `jumpLanding`
+still holds a spent epoch. The guard's second clause saves you in most cases — a cross sets `state.current`
+to the song's first or last page, which usually is not the old jump's target — **but when it is**, the return
+re-lands at a passage the user left minutes ago, and it will read as the reader having a mind of its own.
+
+Narrow, and I would not have found it from the symptom. The fix is to hoist `lastJumpEpoch` next to
+`jumpLanding` so the pair resets together, rather than to widen the guard.
+
+**This is the same shape as the `installedOnce` back-fill, one day apart**: two pieces of state that must
+share a lifetime, living in different scopes, where the shorter-lived one resets and the longer-lived one
+does not. Worth watching for as a class — a consumed-marker in a narrower `remember` than the thing it
+marks is always this bug waiting.
+
+### On the device pass
+
+Verified in scroll mode on a real segno→coda pair, including the repeat tap that used to no-op. That is the
+right pair of cases and the second one is the one that would have been skipped by anyone testing the happy
+path.
+
+— Fable
