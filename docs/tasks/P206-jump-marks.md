@@ -664,3 +664,71 @@ R1 and R3 are web-core; R2 is web-core too but independent of both and could lan
 makes the current behaviour *legible*, which has value even before the order changes.
 
 **Not started.** No further ruling needed from me; R1's direction is VLL's call and he has made it.
+
+---
+
+## ⟨D4⟩ 2026-09-09 — A selected jump states its role, and one click goes to the other end
+
+VLL: *"I don't know in the toolbar if it is a target or a source, also I cannot navigate to its counterpart
+by clicking somewhere."*
+
+### R1 — the toolbar states the relationship, not a role name
+
+Do **not** print "Source" / "Destination". Those are our words for our data model; what he needs is what the
+mark *does*, and the relationship subsumes the role:
+
+| the selected end | the toolbar reads |
+|---|---|
+| carries `jumpTo`, partner elsewhere | **Jumps to p.7** |
+| is pointed at, partner elsewhere | **Jumped to from p.5** |
+| carries `jumpTo`, partner on this page | **Jumps to the other mark** |
+| is pointed at, partner on this page | **Jumped to from the other mark** |
+
+Two properties this buys that a role noun does not: the **swap button becomes legible** (press it and the
+sentence flips, so the control explains itself), and the **same-page case is finally covered** — today a
+co-visible pair has a segment and an arrow but nothing that says which end you are holding.
+
+Keep the page number here. It is Studio, and `4764fe8b` already records why Stage does not have one; a
+number at a desk is not the same claim as a number on a stand.
+
+### R2 — the affordance IS the label
+
+Make that sentence the button. He said *"navigate to its counterpart by clicking somewhere"* — the
+"somewhere" a person will try is whatever names the other end, and the label is now the only thing that
+does in every case. A second dedicated icon in a bar that already carries colour/front/back/duplicate/swap/
+delete buys nothing and costs a slot.
+
+**Also make the on-canvas chip clickable**, same action. It is the other thing that names the counterpart,
+and *"a library is a library whichever door you came through"* applies here too. **Its `pointer-events:
+none` is deliberate** — it exists so the chip never eats a canvas gesture — so this must be scoped: the chip
+only renders for a **selected** mark, so give it `pointer-events: auto` only in that state and prove with a
+test that a drawing gesture starting under where the chip *would* be is unaffected when nothing is selected.
+
+### R3 — what "go" does: scroll it into view AND select it
+
+`scrollObjectIntoView(uuid)` exists. Follow it with selecting the partner, for a reason beyond convenience:
+**the action becomes its own inverse.** Land on the other end, and the toolbar now offers the trip back —
+so a musician can bounce between the two ends of a jump to check it reads, which is exactly what he is doing
+when he asks for this. That is the same argument that justified the swap button recording no undo entry.
+
+This does not touch VLL's selection ruling (*"if one is selected the other is not selected"*): that governs
+what a **pick** does. This is an explicit navigation command, and the user pressed it.
+
+### R4 — two edges, both of which must refuse rather than mislead
+
+- **The partner is on a hidden layer.** Scrolling to a mark the user cannot see is worse than not moving:
+  the page jumps and nothing is there. **Disable the affordance with the reason** — "its other end is on a
+  hidden layer" — and do not silently reveal the layer (that is the user's decision, not a side effect of
+  navigation).
+- **The partner does not exist** (a dangling pointer from an import or a cross-layer delete, per ⟨GO⟩
+  `ef24ec4c`). No label, no affordance; the ⟨D2⟩ red flag already owns that state and must stay the only
+  thing that speaks about it.
+
+Editability does **not** gate this — navigation is read-only. Only visibility does.
+
+### Sizing
+
+Small: one derived string, one click handler, one existing scroll primitive, plus the two refusals. The
+tests that matter are the two edges and the pointer-events scoping — the happy path is the easy part.
+
+**Not started.** No further ruling needed from me.
