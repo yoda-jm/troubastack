@@ -84,7 +84,10 @@ func (r popplerRasterizer) Rasterize(ctx context.Context, pdf []byte) ([][]byte,
 		if rerr != nil {
 			return nil, rerr
 		}
-		pages = append(pages, b)
+		// T169: a scanned page is grey stored in three channels — half the bundle. Re-encode HERE, at the
+		// source of the bytes, so every consumer (hashing, the render cache, the bundle, the .tstage) sees
+		// one set of page bytes and none of them can disagree about what a page is.
+		pages = append(pages, greyscaleIfMono(b))
 	}
 	return pages, nil
 }

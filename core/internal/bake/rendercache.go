@@ -158,12 +158,18 @@ func PurgeCacheDir(dir string) error {
 
 // ---- keys ---------------------------------------------------------------
 
-// rasterKey covers EVERY input that can change a page raster: the PDF bytes, the DPI, and the poppler
-// version (a poppler upgrade can change pixels for the same PDF+dpi).
+// rasterKey covers EVERY input that can change a page raster: the PDF bytes, the DPI, the poppler version
+// (a poppler upgrade can change pixels for the same PDF+dpi), and the ENCODING the rasterizer applies
+// afterwards. T169 added the greyscale re-encode, so `enc` moves the key: without it, every cached entry
+// written before that change would keep serving the old RGB bytes for the same PDF — the cache is
+// content-keyed precisely so no such staleness can survive, and that only holds if the key names every
+// step that touches the bytes. Bump `enc` whenever the raster encoding changes.
+const rasterEncoding = "gray1"
+
 func rasterKey(pdf []byte, dpi int, popplerVer string) string {
 	h := sha256.New()
 	h.Write(pdf)
-	fmt.Fprintf(h, "\x00dpi=%d\x00poppler=%s", dpi, popplerVer)
+	fmt.Fprintf(h, "\x00dpi=%d\x00poppler=%s\x00enc=%s", dpi, popplerVer, rasterEncoding)
 	return "r" + hex.EncodeToString(h.Sum(nil))
 }
 
