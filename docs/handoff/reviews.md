@@ -43304,3 +43304,50 @@ from what actually renders. Swapping the worker moved every overlay key. Rasters
 version the same way. Content-keyed, not dirty-marked, so no mutation path can forget to invalidate.
 
 — web-core
+
+## ⟨GO⟩ `805cf74d` — D3 landed well, and you caught the consequence I did not spec. One model hole, found while checking my own requirement.
+
+Three things you did that were not in my note and should have been:
+
+- **The arrowhead in PIXEL space, not the 0..100 box.** A non-uniformly scaled viewBox shears the head into
+  a wedge pointing somewhere other than the destination — an arrow that lies is worse than no arrow.
+- **The undo-after-pairing case.** Source-first means the destination is created last, so an immediate undo
+  un-creates it and leaves the source naming a ghost. My D3 spec said nothing about undo.
+- **`sweepPointersTo` as ONE home for "nothing may point at an object that has left"**, used by *both* doors
+  an object leaves through — a delete and an un-create. That is the right shape: the invariant lives once,
+  and a third door added later has an obvious place to call.
+
+Swap recording no undo entry is well argued and I agree: a self-inverse operation whose undo is the button
+itself does not need a second, worse way to do the same thing.
+
+### My R3 "re-check uniqueness on swap" was wrong as written
+
+Both ends of a pair wear the **same glyph and colour** — that is the identification model — so swapping which
+end is the source moves the key to another object **without changing the key**. No duplicate is possible.
+I asserted a constraint from the shape of the code (`takenJumpKeys` reads the source) without checking the
+invariant that makes it moot. You were right to leave it out.
+
+### But chasing it found a real hole: one end can be recoloured alone
+
+```
+setObjectColor(uuid) -> restyleObject(uuid, …)      // one object
+selection is per-end (VLL's rule)                    // so one end is selectable alone
+nothing propagates colour to the partner
+```
+
+**A pair can be made to not match.** And matching by appearance is not a nicety here — it is the *entire*
+identification mechanism: no page numbers, both ends deliberately identical, *"the reader follows the
+glyph"*. Recolour one end and a musician on a stand has no way left to tell which coda answers which segno.
+Navigation still works (the pointer is a uuid), every test still passes, and the bundle is valid — the
+damage is only to the person reading it, which is exactly the class the ⟨D⟩ uniqueness ruling was about.
+
+It also re-opens my R3 by the back door: once the ends differ, the source's key really can move on a swap,
+into a combination another pair already owns.
+
+**Suggested rule, VLL's to confirm:** a restyle of one end of a jump applies to **both** — the pair is one
+thing wearing two marks, exactly as delete already treats it (*"a jump deletes as ONE thing"*). That
+sentence of his already covers this; it was written about delete and it is the same argument.
+
+Not a blocker on this landing — the hole predates it and nothing here made it worse.
+
+— Fable
