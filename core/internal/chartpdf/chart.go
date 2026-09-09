@@ -674,16 +674,72 @@ func firstUnitLead(lines []string, headerIdx int, skip map[int]bool) float64 {
 	return 0
 }
 
-// validateChars rejects any rune the cp1252 renderer can't represent (outside
-// Latin-1 and not in the small typographic allowlist), naming the first one.
+// validateChars rejects any rune the cp1252 renderer can't represent (outside Latin-1 and not in the small
+// typographic allowlist), naming the first one AND WHERE IT IS.
+//
+// VLL, 2026-09-09, on pasting a lyric sheet: "message should point a line or things arround it to be
+// useful". Naming the rune alone is not actionable, and this failure mode is the one where that hurts most:
+// the offenders are CONFUSABLES — U+0435 CYRILLIC SMALL LETTER IE renders as an ordinary "e" in every editor
+// — so the author is told a character is wrong and then cannot see it. Hence: line, column, the line's text
+// with the character bracketed so it becomes visible, and, when it is a known lookalike, what to type
+// instead.
 func validateChars(s string) error {
-	for _, r := range s {
-		if r == '\n' || r == '\t' || r < 0x100 || extraRunes[r] {
+	line, col, lineStart := 1, 0, 0
+	for i, r := range s {
+		if r == '\n' {
+			line, col, lineStart = line+1, 0, i+1
 			continue
 		}
-		return fmt.Errorf("%w: %q (U+%04X) — charts are ASCII/Latin-1 only", ErrUnsupportedChar, r, r)
+		col++
+		if r == '\t' || r < 0x100 || extraRunes[r] {
+			continue
+		}
+		return fmt.Errorf("%w %q (U+%04X) at line %d, column %d%s. Charts are ASCII/Latin-1 only. Line %d: %s",
+			ErrUnsupportedChar, r, r, line, col, lookalikeHint(r), line, markedLine(s, lineStart, i, r))
 	}
 	return nil
+}
+
+// lookalikeHint names the ASCII letter a confusable rune impersonates. Copied lyrics (Genius and friends)
+// carry Cyrillic letters that are pixel-identical to Latin ones, which is why "unsupported character 'е'"
+// reads as nonsense to the person looking at it. A rune missing from this map simply gets no hint — it is a
+// courtesy, never a gate, so it cannot rot into a wrong refusal.
+func lookalikeHint(r rune) string {
+	latin, ok := confusables[r]
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf(" — a Cyrillic letter that looks exactly like %q, so retype it as %q (pasted lyrics carry these)", latin, latin)
+}
+
+// confusables: the Cyrillic letters whose lowercase forms are visually identical to ASCII, which is the
+// entire set that survives a lyrics copy-paste unnoticed.
+var confusables = map[rune]rune{
+	'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x', 'ѕ': 's', 'і': 'i', 'ј': 'j',
+	'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T',
+	'Х': 'X', 'У': 'Y',
+}
+
+// markedLine returns the offending line with the bad rune wrapped in brackets, windowed so a long line
+// stays readable. Bracketing is the point: the character is invisible on its own, so a bare excerpt would
+// show the author a line that looks perfectly fine.
+func markedLine(s string, lineStart, at int, r rune) string {
+	end := strings.IndexByte(s[lineStart:], '\n')
+	if end < 0 {
+		end = len(s)
+	} else {
+		end += lineStart
+	}
+	const window = 40 // runes of context each side
+	before, after := s[lineStart:at], s[at+len(string(r)):end]
+	prefix, suffix := "", ""
+	if br := []rune(before); len(br) > window {
+		before, prefix = string(br[len(br)-window:]), "…"
+	}
+	if ar := []rune(after); len(ar) > window {
+		after, suffix = string(ar[:window]), "…"
+	}
+	return prefix + before + "[" + string(r) + "]" + after + suffix
 }
 
 // Title returns the chart's title — the first `# Title` line, or "Chart" if none.
