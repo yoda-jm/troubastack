@@ -14,7 +14,8 @@ scores in a fullscreen, canvas-first web editor (**TroubaStudio**); a server
 (**TroubaCore**, one Go binary) holds the single authoritative truth, bakes setlists
 into performable concert bundles, and distributes them in-app; an offline presenter
 (**TroubaStage**, inside the mobile app) *performs* them on stage — pedal page turns,
-four reading schemes for a dark venue, count-in, facing pages, per-role layers.
+four reading schemes for a dark venue, count-in, facing pages, per-role layers, and
+**jump marks** — tap a segno and land on the passage it points at.
 
 > The name is a troubadour pun, and it maps onto the architecture:
 > a **troubadour** *composes* (the editor), a **joglar** *performs* (the presenter).
@@ -22,7 +23,7 @@ four reading schemes for a dark venue, count-in, facing pages, per-role layers.
 
 | TroubaStudio — annotate together, live | TroubaStage — perform offline |
 |---|---|
-| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — The Open Road lead sheet: a green highlight on 'Capo 2' with an orange warning sign, a gold margin bracket on the chorus, and a red conductor cue ringing the final-chorus G chord with 'rit. — watch me', over chords-and-lyrics — with the slim one-row tool strip above the score: the Move/pan tool active by default and first, then the dashed-rectangle Select tool, then the draw tools" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: The Open Road, with chords over lyrics, a green 'Capo 2' highlight, a gold chorus bracket and the 'everyone in!' section note over the chart" width="260"> |
+| <img src="docs/screenshots/studio-editor.png" alt="The fullscreen canvas-first TroubaStudio editor on a phone — The Open Road lead sheet with a green highlight on 'Capo 2', a gold margin bracket on the chorus and a red conductor cue, plus a JUMP MARK: two matching segno landmarks joined by a dashed link with an arrowhead naming the direction, and the selected end's toolbar offering the swap-direction control — with the tool strip above the score: Move, Select, the draw tools, the icon stamp and the jump tool" width="260"> | <img src="docs/screenshots/stage-page.png" alt="A page of the demo bundle as TroubaStage composites it: The Open Road, with chords over lyrics, a green 'Capo 2' highlight, a gold chorus bracket and the 'everyone in!' section note over the chart" width="260"> |
 
 The full loop works end to end today: **compose → annotate (realtime, multi-user) →
 bake → offer → download in-app → perform offline** — on Android, iOS (simulator-proven)
@@ -89,7 +90,7 @@ Other useful targets (`make help` lists everything):
 |---|---|
 | `make dev` | development loop: Go API + Vite hot-reload SPA on :5173 |
 | `make test` | Go tests (engine, stores, HTTP API, bake) |
-| `make e2e` | Playwright end-to-end suite (~80 specs, drives a real core+SPA) |
+| `make e2e` | Playwright end-to-end suite (~255 specs in 96 files, drives a real core+SPA) |
 | `make check` | `go vet` + strict `gofmt` gate (same as CI) |
 | `make app` | build the Android app (see below) |
 | `make fixtures` | regenerate the demo/torture bundle fixtures (`core/cmd/mkbundle`) |
@@ -192,7 +193,7 @@ GitHub Actions run (**android** job → `troubastage-debug-apk` artifact) and in
 ### Demo it with zero servers
 
 A baked concert with **real music and real annotations** is committed at
-[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~716 KB — the seeded
+[`docs/demo/demo-concert.tstage`](docs/demo/demo-concert.tstage) (~787 KB — the seeded
 *"Sat @ The Anchor"* setlist of copyright-safe music: the original *The Open Road*, the
 traditional *House of the Rising Sun*, *Amazing Grace*, and *Greensleeves* (a real
 Mutopia edition) — real lead sheets, tab and text charts, flattened by the real bake
@@ -270,6 +271,10 @@ The product loop is closed and CI-gated end to end:
   duplication, admin password reset, and a top-right account menu (profile · get the
   app · build/version-mismatch check · log out). **Undo** appends the inverse edit rather
   than rewriting history, and refuses when a bandmate has touched the object since.
+  **Jump marks** are authored as a *pair of matching landmarks*: place the source, place the destination,
+  and the two wear the same glyph and colour — so a player matches them by eye, the way a score's D.S.
+  matches its segno. Selecting either end draws a dashed link with an arrowhead naming the direction, a
+  chip says which page the other end is on, and one button swaps which way it points.
   Reordering is Pointer-Events throughout — one code path for mouse, touch and pen, with
   the grabbed row lifting under the finger, keyboard arrows, and a drop at the very end.
 - **The chart dialect:** lyrics and chords in plain text, rendered to a PDF that joins the
@@ -288,7 +293,8 @@ The product loop is closed and CI-gated end to end:
   **rehearsal live mode** (opt-in: annotation edits debounce-autobake and, for a performer
   who opts in on Stage, auto-update the open concert in place — viewport-preserving, so
   the page doesn't jump), and the committed demo bundle above — studio pixels and baked
-  pixels come from the same renderer (I8) and are parity-tested. Marks are **anchored to
+  pixels come from the same renderer (I8) and are parity-tested. A scanned band's bundle is
+  **half the size** it was: page rasters are grey, and are no longer stored in three channels. Marks are **anchored to
   their words**, not to coordinates: edit a lyric, change the type size or set the chart in
   two columns, and a highlight follows the run it was drawn on instead of drifting onto
   whatever now occupies that spot.
@@ -300,6 +306,8 @@ The product loop is closed and CI-gated end to end:
   a page stops at its last glyph instead of scrolling into blank paper, and the surround
   is the scheme's own paper, not black. A **swipe lock** disables the crossing swipe for
   a set where a vertical scroll keeps turning into a song jump.
+  **Tapping a jump mark navigates**: a minimal "Go" confirmation — or straight there, if you turn the
+  confirmation off — landing at the passage itself in scroll mode, not at the top of its page.
 - **Production serving:** the [`deploy/`](deploy/README.md) story above (compose +
   Caddy/TLS + tested backups) — the attended first bring-up and the signed release
   APK are the remaining steps.
