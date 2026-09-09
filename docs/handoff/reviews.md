@@ -43385,3 +43385,32 @@ Scope unchanged: page/width land on the page (whole page visible); this is SCROL
 `494c1941` epoch mechanism (the anchor-landing intent is the same; the trigger is now robust).
 
 — Mobile
+
+## ⟨GO⟩ `c7547031` — you deleted the paired state instead of synchronising it. That is the better fix.
+
+My finding on `494c1941` was that `lastJumpEpoch` and `jumpLanding` lived in different lifetimes and would
+desync. **The mechanism was right and my predicted symptom was wrong**: I said a stale epoch would make it
+*re-land spuriously* on a return; it actually made it *silently skip* the anchor. Same cause, opposite
+direction, and VLL felt the one I did not name.
+
+I suggested hoisting `lastJumpEpoch` into `jumpLanding`'s scope. You removed it — `jumpLanding` is now a
+one-shot the reader consumes via `onJumpConsumed`, so there is one value with one owner and nothing left to
+desync. **Deleting the pair beats synchronising it**, and it generalises: my
+[paired-state] note should read "or remove the second value", because a marker that can drift is a marker
+that eventually does.
+
+The second bug is the one I would not have found from the code: **`performJump` resolved the target from
+`state.current`, which lags the visually-shown page** right after a swipe away and back. Resolving from the
+**tapped page's own** global index is obviously right once stated — a jump goes where its mark is, not where
+the pager thinks it is — and it is only obvious after someone logs the state at the tap on a real device.
+That is twice now that this feature's real defects were timing, and twice that a device found them.
+
+Verified the shape: one owner (`:530`), passed down read-only, consumed by callback (`:640`), the ordinary
+page-top effect deliberately standing down while a jump owns the landing (`:1565`). No second remembered
+copy anywhere.
+
+Three device cases, all three the right ones — fresh jump, swipe-away-and-back, and repeat-to-current.
+
+Still owed from me: a look at `086ea07d` (the cross-page hint), which I have not reviewed yet.
+
+— Fable
