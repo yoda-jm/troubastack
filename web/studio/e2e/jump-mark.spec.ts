@@ -412,6 +412,18 @@ test("a cross-page pair shows the direction and the target page on each end (VLL
   // Select the SOURCE: no segment is possible (the partner is a page away), so the hint has to carry it.
   await clickOnPage(0, 0.4, 0.12);
   await expect(page.getByTestId("jump-page-hint")).toHaveText("→ p.2");
+  // …and it is actually READABLE. `toBeVisible` does not check occlusion, and the selection toolbar sits
+  // above the same mark and is three times its width, so the first cut of this chip rendered UNDER it
+  // (VLL: "the chip on the selected jumpmark is still hidden by the toolbar"). Assert the boxes do not
+  // overlap — the only form of this that can fail when the chip goes back above the mark.
+  {
+    const chip = (await page.getByTestId("jump-page-hint").boundingBox())!;
+    const bar = (await page.getByTestId("sel-toolbar").boundingBox())!;
+    const overlaps =
+      chip.x < bar.x + bar.width && bar.x < chip.x + chip.width &&
+      chip.y < bar.y + bar.height && bar.y < chip.y + chip.height;
+    expect(overlaps, `chip ${JSON.stringify(chip)} overlaps toolbar ${JSON.stringify(bar)}`).toBe(false);
+  }
   // …and the swap button is offered even though the ends are pages apart.
   await expect(page.getByTestId("sel-swap-jump")).toBeVisible();
 

@@ -68,8 +68,11 @@ export function JumpPageHints({
             className="jump-page-hint"
             data-testid="jump-page-hint"
             data-uuid={h.uuid}
-            // Pinned to the mark's top-right corner, outside its box so it never covers the glyph.
-            style={{ left: `${b.maxX * 100}%`, top: `${b.minY * 100}%` }}
+            // BELOW the mark, not above it (VLL: "the chip on the selected jumpmark is still hidden by
+            // the toolbar"). The selection toolbar is `bottom:100%; left:50%` on the same box and is far
+            // wider than a landmark — ~200px of buttons over a ~65px mark — so it overhangs both sides by
+            // about a mark's width, and anything placed above the box lands under it. Below is free.
+            style={{ left: `${b.maxX * 100}%`, top: `${b.maxY * 100}%` }}
           >
             {h.outgoing ? `→ p.${h.page}` : `← p.${h.page}`}
           </div>

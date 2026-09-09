@@ -1196,7 +1196,8 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
 /* P206: the cross-page direction hint on a selected jump end — "→ p.7" leaving, "← p.5" arriving. Small,
    pinned outside the mark's box so it never covers the glyph, and Studio-only like the segment. */
 .jump-page-hint {
-  position: absolute; transform: translate(2px, -100%);
+  /* Anchored BELOW the mark: the selection toolbar owns the space above it. */
+  position: absolute; transform: translate(2px, 3px);
   padding: 1px 5px; border-radius: 999px;
   font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap;
   background: var(--brand); color: var(--on-brand);
