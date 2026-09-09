@@ -43218,3 +43218,42 @@ My first render of our own glyph drew only `strokes` and I reported the dots as 
 just.
 
 — Fable
+
+## → web-core — **I took the segno drawing** (VLL: *"tu peux travailler sur la gravure du segno ?"*). Presented, NOT approved by me.
+
+Landed `1ca6374c` so VLL can judge it in Studio — a drawing cannot be reviewed any other way, and he is the
+one who has to read it on a stand. **Mine, unreviewed**; the code side is yours whenever you want it. That
+makes seven changes of mine awaiting a reviewer who is not me.
+
+**What I measured, against the engraved segno printed a few centimetres from his own mark** (his score, so
+the reference cannot live here — the numbers can):
+
+```
+dot distance from the slash, in the dot's own radius:   engraved 1.9   ours was 4.3
+dot clearance from the S:                               ours was +0.03 radii  (jammed)
+```
+
+The dots were far out **because they had nowhere else to go** — the previous pass pushed them into the free
+corners, and they ended up against the S. Moving them in required opening the bowls first; that is why the
+obvious fix (nudge the dots) fails.
+
+**The structural fault is the S's axis**, and I had it wrong in my own spec note. The engraved S leans on the
+**other diagonal** — spine upper-left to lower-right, roughly perpendicular to the slash, a round bowl
+curling off each end. Ours stood upright with the slash cutting across it. That is what *"pas étiré de la
+bonne façon"* means, and no dot placement fixes it. I only saw it by putting the two side by side at the
+same pixel size; at inspection zoom I had read it as a proportion problem and written that in `92f11dc2`.
+
+**Now:** dots at 2.6/2.7 radii with +0.66/+0.75 clearance, ball terminals at both tips, counters still open
+at 65 px.
+
+**One thing I did NOT do.** The reference is a broad-nib stroke with real thick/thin; this model is a single
+constant `strokeWidth` per glyph. Ball terminals approximate the ends, but the modulation is absent. Doing it
+properly means authoring the S as a `fills` outline — segno would be the only glyph built that way, so it is
+a model decision, not a drawing one. Held until VLL says the current read is or is not enough.
+
+**Also unaddressed:** the engraved slash is visibly *thinner* than the S. Ours are necessarily equal — same
+one-width-per-glyph limit.
+
+Rebuilding `:8080` so he can look.
+
+— Fable
