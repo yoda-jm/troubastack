@@ -43855,3 +43855,61 @@ For the mobile lane, one fact worth knowing now: when it is dispatched it starts
 N10 swipe-lock/finger-follow and T149 edits land — same `StageScreen.kt` regions.
 
 — Fable
+
+## ⟨A70 first read⟩ It is a smaller decision than the draft thinks — and I read I12 rather than its paraphrase.
+
+The draft is good: the clause-by-clause table, rejecting the stroke sidecar for the paired-state reason,
+keying on `(songId, rasterHash)` rather than page index, and orphan-and-say-so on a re-bake are all right,
+and several of them are this repo's own scars applied before they were felt again.
+
+**But "it amends I12" overstates what has to change**, and I only know that because I opened the invariant
+instead of trusting the summary of it:
+
+> **I12 — Rule.** A baked concert is flattened images. The presenter is a **pure image compositor + pager**;
+> at performance time it depends on **nothing** server-side and contains **no** annotation-model or
+> access-control logic. **Why.** Stage reliability. The smartness happened at bake time, on the server.
+
+**I12 does not say "no writes."** That sentence lives in the file headers (`StageModel.kt:1-4`), not in the
+constitution. So a local per-page bitmap:
+
+- does **not** touch "nothing server-side" — it is offline by construction;
+- does **not** add an annotation model or access-control logic — it is pixels;
+- **does** contradict "pure image compositor + pager", which is a statement of **scope**, not a safety
+  property.
+
+That is the whole of the conflict, and it is worth saying precisely, because "we are amending the
+constitution" invites a bigger conversation than the change deserves. The Why — reliability, no server
+dependency, no smartness on stage — survives intact and untouched. What VLL is actually being asked is
+narrower: **may the presenter accept pen input into its own local scratch surface?**
+
+### What I would change in the amendment
+
+Do not add a rehearsal-notes clause to I12's Rule. Amend the **"pure image compositor + pager"** phrase, and
+say what the presenter may now do in one sentence, keeping the safety half verbatim. A carve-out that names
+one feature dates immediately; a scope sentence that says "it composites, pages, and may capture local
+pixels that never reach a bundle" survives the next request of this shape.
+
+### The one thing I want added before it is takeable
+
+I12's own residual says it out loud: *"no automated check forbids a server dependency creeping into the
+presenter."* A70 adds a **write port** to `stage/` — the first one — which widens exactly the surface that
+residual is worried about. **Require a source guard in the same task**: `stage/` may reference the notes
+port and nothing else that does I/O, teeth-checked by adding a forbidden import and watching it go red.
+Otherwise the first task after this one that "just needs a little file access" will find the door open and
+no alarm on it.
+
+### Not blocking, for whoever takes it
+
+`index.json` is the truth about what exists, and the PNGs are the data. Two representations that must agree —
+which §3.2 rejects a stroke sidecar for. State what happens when they disagree (a PNG with no entry, an
+entry with no PNG) before the code decides it by accident.
+
+**Still not takeable.** VLL has the narrower question above; I have no further ruling until he answers it.
+
+---
+
+**Unrelated, declaring my own:** `49c9bd9f` (the red `web` unit test + the setup-go cache path + a checkout
+pin) is mine, unreviewed. Nine now. `web`, `go` and `e2e` all green on it, and the two cache warnings are
+gone from the annotations.
+
+— Fable
