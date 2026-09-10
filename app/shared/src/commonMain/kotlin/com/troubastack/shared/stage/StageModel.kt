@@ -12,6 +12,13 @@ import com.troubastack.shared.bundle.LayerImage
 import com.troubastack.shared.bundle.LoadResult
 import com.troubastack.shared.bundle.PageJump
 import com.troubastack.shared.bundle.SongCue
+import com.troubastack.shared.stage.notes.AttachedNotes
+import com.troubastack.shared.stage.notes.NoteEntry
+import com.troubastack.shared.stage.notes.NoteIndex
+import com.troubastack.shared.stage.notes.NoteKey
+import com.troubastack.shared.stage.notes.NoteTool
+import com.troubastack.shared.stage.notes.NoteTools
+import com.troubastack.shared.stage.notes.NotesWarning
 import kotlin.math.roundToInt
 
 /**
@@ -338,6 +345,23 @@ data class StageState(
     // P206 §4.1 (VLL, 2026-09-08): tapping a jump mark opens a small "go to" popup by default; this opt-in
     // skips it and jumps STRAIGHT there. A session view pref (like [swipeLocked]); popup is the default.
     val jumpDirect: Boolean = false,
+    // A70 — rehearsal notes. `notes` is the raw per-concert index the host loaded (persisted off-device);
+    // the live/orphan split and per-song counts are DERIVED from it against the current pages (below), so
+    // there is one source of truth. The rest are session view state: note mode itself, its pending
+    // confirmation (§3.7 #14), a self-dismissing refusal reason (scroll mode), the current tool/width/colour,
+    // and a revision bumped on every commit so the view re-reads the bitmap. NONE of this enters a bundle.
+    val notes: List<NoteEntry> = emptyList(),
+    val noteMode: Boolean = false,
+    val noteModePending: Boolean = false,
+    val noteModeRefusal: String? = null,
+    val noteTool: NoteTool = NoteTool.PENCIL,
+    val noteWidth: Int = NoteTools.FINE,
+    val noteColour: Long = NoteTools.BLACK,
+    val noteRevision: Int = 0,
+    // §3.8 — the note layer is DEFAULT ON for a song that has a live note; this is the opt-OUT set of songs
+    // the performer toggled it off for this session (an opt-in map couldn't express "on by default"). The
+    // reserved `~notes` id is used only for the bake-layer guard (§4.6), not for storing this choice.
+    val notesOffBySong: Set<String> = emptySet(),
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)
@@ -345,6 +369,24 @@ data class StageState(
     /** The song index the current page belongs to (for highlighting the picker), or -1 if none. */
     val currentSong: Int
         get() = songs.indexOfLast { it.firstPage <= current }
+
+    // A70 — the note key of each page currently in the bundle (§3.3), and the live/orphan split of the
+    // stored notes against them. Derived, so a page turn / re-bake never leaves a stale count behind.
+    private val presentNoteKeys: Set<NoteKey>
+        get() = pages.mapTo(HashSet()) { NoteKey(it.songId, it.rasterHash) }
+    val attachedNotes: AttachedNotes get() = NoteIndex.attach(notes, presentNoteKeys)
+    /** Live note count per song (an orphan has no live page, so it does not count here — §3.8). */
+    val noteCountsBySong: Map<String, Int> get() = attachedNotes.countsBySong
+    val orphanedNoteCount: Int get() = attachedNotes.orphaned.size
+    /** §3.4 — the `Notes ⚠` tab state across all stored notes. */
+    val notesWarning: NotesWarning get() = NoteIndex.warning(notes)
+
+    /** §3.8 — this song has at least one LIVE note (so it gets the `~notes` layer row + ✎ badge). */
+    fun hasLiveNote(songId: String): Boolean = (noteCountsBySong[songId] ?: 0) > 0
+    /** §3.8 — the note layer is drawn for [songId]: it has a live note AND the performer hasn't hidden it. */
+    fun noteVisibleFor(songId: String): Boolean = hasLiveNote(songId) && songId !in notesOffBySong
+    /** The stored note (if any) for a page's key — the bitmap the view loads and draws. */
+    fun noteForPage(page: StagePage): NoteEntry? = NoteIndex.forPage(notes, NoteKey(page.songId, page.rasterHash))
 
     /**
      * The visible layer ids for [songId] (A1 per-song visibility). Mandatory layers are unioned in HERE,
