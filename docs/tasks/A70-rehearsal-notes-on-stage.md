@@ -84,7 +84,7 @@ then you recopy manually in annotation layers the notes you took)."*
   `transformOverlayPixel(argb, scheme)` (`AnnotationColor.kt:255`) once per (overlay, size, scheme) and are
   drawn with `colorFilter = null`. Achromatic ink inverts with the paper; chromatic ink keeps its hue and
   only its lightness is remapped for contrast. A note is ink and follows the same rule — which is what
-  makes a red note stay red in NIGHT and a white (paper) stroke stay paper-coloured in every scheme.
+  makes a red note stay red in NIGHT and a black stroke invert with the paper, in every scheme.
 - **`rasterHash` is a per-page content hash** (`PageImages.rasterHash`, sha256 of the raster bytes) already
   used by `StageViewModel.remapCurrent` to keep the viewport across a re-bake. There is **no page id**
   anywhere; a page is its index in `BakedSong.pages[]`. VLL's *"file hash"* is exactly this value, per page.
@@ -204,11 +204,12 @@ On `applyUpdate` and on import of a newer bundle:
 - **Three widths**, in note px: `FINE = 3` (writing), `MEDIUM = 9` (circling), `WIDE = 40` (redacting) —
   the executor tunes on the tablet and reports the numbers. The eraser uses the selected width ×3, never
   below `MEDIUM`.
-- **Four colours** (architect's proposal, overrulable): **black `#111111`**, **red `#E53935`**,
-  **blue `#1E63D6`**, and **paper white `#FFFFFF`**. White is the fourth on purpose: with a wide stroke it
-  is correction fluid — redact a line you no longer play — and because it is achromatic it inverts with
-  the paper under A64's rule, so it stays paper-coloured in NIGHT and AMBER. Black also redacts, as a
-  marker does. If VLL prefers a green over white, one constant changes.
+- **Four colours** (VLL, 2026-09-10): **black `#111111`**, **red `#E53935`**, **blue `#1E63D6`**,
+  **green `#2E8B3A`**. The architect first proposed paper white as a correction fluid; VLL rejected it —
+  *"redacting in paper color means you don't really see it (to avoid)"* — a redaction must stay visible
+  as a redaction, so it is done with a wide black stroke. All four are either achromatic (black inverts
+  with the paper) or chromatic (hue kept, lightness remapped) under A64's rule, so each reads the same
+  way in every scheme.
 - Last tool, width and colour are remembered per device (`stage.note.tool/width/colour`).
 - **No undo, no clear, no opacity, no highlighter, no shapes, no text.**
 - **Wet/dry in miniature:** while the finger is down the stroke is a `Path` drawn by a Compose `Canvas` in
@@ -336,7 +337,7 @@ sabotage receipt (a break that silently fails to apply has bitten twice this mon
 | `noteSize` keeps the decoded aspect within 1 px for 2× and 4× downsampled rasters | nominal bundle size |
 | `NoteIndex.attach`: same `(songId, rasterHash)` → live; same hash under another song → **not** matched; missing hash → orphaned, kept, never re-placed by index. Teeth: a fixture whose page 1 and 2 swapped rasters must orphan both, never swap them | keying by `(songId, pageInSong)` |
 | `bumpBakes`: increments unsent notes, leaves sent ones; the nag predicate is true at 3 and false at 2 | a global counter |
-| A64 for the palette: each of the four colours through `transformOverlayPixel` in NIGHT and AMBER keeps hue (chromatic) or inverts (black, white), and white maps to the scheme's paper within ΔE 5 | drawing through the page matrix |
+| A64 for the palette: each of the four colours through `transformOverlayPixel` in NIGHT and AMBER keeps its hue within 10° (red, blue, green) or inverts (black), and every one clears 4.5:1 against the scheme's paper | drawing through the page matrix |
 | `NoteFlushPolicy`: 1999 ms → not due, 2000 ms → due, `force()` → due, no-dirty → no-op | a flush per stroke |
 | `StageViewModel`: `enterNoteMode` refused in scroll mode with a reason, accepted in FIT_PAGE and FIT_WIDTH, never changes `state.current`, forces `~notes` visible; `applyUpdate` leaves note mode, bumps bakes, reports orphans; the `~notes` row is absent for a song with no note | — |
 | Loader rejects a bake layer id starting with `~` (`androidUnitTest`, torture fixture) | — |
@@ -347,8 +348,8 @@ sabotage receipt (a break that silently fails to apply has bitten twice this mon
 
 - Draw, exit, kill the app, relaunch: the stroke is on the same words (crop + diff).
 - Draw a line, erase across it: crossing pixels alpha 0, the rest intact (PIL numbers in the entry).
-- A wide white stroke over a lyric line in NORMAL hides it; in NIGHT the same stroke is dark and still
-  hides it (A64 inversion); a red stroke is red in both.
+- A wide black stroke over a lyric line in NORMAL hides it and reads as a redaction; in NIGHT the same
+  stroke is light and still hides it (A64 inversion); a red stroke is red in both, a green one green.
 - The note draws **above** a baked overlay (a red note across a cue glyph covers it).
 - Two-up: a stroke from the left page stops at the gutter; the right page's PNG is untouched.
 - FIT_WIDTH: a stroke lands on the visible band at the right note rows after the page was scrolled
