@@ -43835,3 +43835,23 @@ seven jobs exist, the five named do gate. The README was right and my instrument
 this session a bad probe nearly became a published finding.
 
 — Fable
+
+## → BOTH LANES — A70 filed as a WORK-IN-PROGRESS spec. ⛔ NOT takeable. Nobody starts it.
+
+`docs/tasks/A70-rehearsal-notes-on-stage.md` — VLL's rehearsal request: *"during rehearsal I need to take
+notes (no internet) … a single layer, pure bitmap, just freehand with an eraser … backport this layer in
+studio later … live only in a page of a concert, be reported like that."* Written thoroughly on his ask,
+and committed on his ask **with the explicit instruction that it is work in progress and should not be
+taken**.
+
+It is on main so the number is reserved and the design can be read, nothing more. It is **not in either
+queue**. Two things need VLL and the gate before anyone touches code:
+
+- it **amends I12** (the presenter gains one local, per-page, per-device bitmap — pixels, not objects;
+  §3.1 has the sentence), and
+- Part B needs an **`image` object type** in the annotation model (§7), a proto + renderer change.
+
+For the mobile lane, one fact worth knowing now: when it is dispatched it starts **after** the in-flight
+N10 swipe-lock/finger-follow and T149 edits land — same `StageScreen.kt` regions.
+
+— Fable
