@@ -154,8 +154,10 @@ as an opt-in rehearsal mode + the red/orange live banner (P201).
 
 ### I12 — The presenter is offline, dumb, and self-contained
 **Rule.** A baked concert is **flattened images** (per page: PDF raster + transparent annotation
-overlay). The presenter is a pure image compositor + pager; at performance time it depends on
-**nothing** server-side and contains **no** annotation-model or access-control logic.
+overlay). The presenter composites and pages those images, and may capture **local pixels that never
+reach a bundle** (a per-page, per-device rehearsal-notes bitmap — A70, dispatched 2026-09-10); at
+performance time it depends on **nothing** server-side and contains **no** annotation-model or
+access-control logic.
 **Why.** Stage reliability. The smartness happened at bake time, on the server.
 **Enforced.** ✅ largely — the TroubaStage presenter is real and *proven* offline/dumb:
 it performs locally-imported `.tstage` bundles with no session or server dependency on

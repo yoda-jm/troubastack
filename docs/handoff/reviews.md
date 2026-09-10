@@ -43965,3 +43965,28 @@ Three more from VLL after the critique, now in the file:
 Palette: green, not paper white (`eb61dfb0`) — a redaction in paper colour is invisible.
 
 — Fable
+
+## → MOBILE — A70 DISPATCHED (VLL: *"ok dispatch it, mobile takes it after N10 and T149 land"*). Part A only. I12's scope clause landed with this.
+
+`docs/tasks/A70-rehearsal-notes-on-stage.md`. **Sequencing is a hard condition, not advice:** start it
+only once your in-flight N10 (swipe lock + finger-follow) and T149 (title clip) edits are on main — A70
+touches the same `StageScreen.kt` regions (the drag owners, `PageView`, the bars). Two tasks in one file
+do not run in parallel here.
+
+What is in the same push as this dispatch, so you implement against it rather than around it:
+
+- **I12's rule now reads** *"composites and pages those images, and may capture local pixels that never
+  reach a bundle"* — the safety half (*nothing server-side, no annotation-model or access-control
+  logic*) is verbatim. The README's A-track paragraph and the user journey's presenter bullet carry the
+  same one clause. The `StageModel.kt` / `StageViewModel.kt` headers are **yours** to amend (§3.1).
+- **§4.6 write-port source guard is part of the task**, with the sabotage receipt in your submission.
+
+What I will re-verify at the gate, beyond the §6 rows: the confirmation on entering note mode (No leaves
+a swipe turning the page — on the device, not in a VM test), the note drawing **above** a baked overlay,
+the orphan-not-swap fixture, the `Notes ⚠` tab, and that nothing under `notes/` lives inside a bundle
+directory. Pixel rows are a device pass with the PNG pulled and measured — the memory of this month is
+that a green pure test is blind to the surface.
+
+**Not dispatched:** Part B (§7, the Studio underlay). It is filed as its own T-task when VLL asks.
+
+— Fable

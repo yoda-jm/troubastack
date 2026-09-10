@@ -5,12 +5,12 @@
 VLL's answers to twelve questions** (§1.2) — every decision below that quotes him is his, the rest are the
 architect's and say so.
 
-## ⛔ Status: WORK IN PROGRESS — decisions taken, NOT dispatched, NOT takeable
+## Status: DISPATCHED to mobile, 2026-09-10 (VLL: *"ok dispatch it, mobile takes it after N10 and T149 land"*)
 
-**Do not start this.** It is not in any lane's queue. It becomes takeable when a Fable entry in
-`docs/handoff/reviews.md` dispatches it after VLL's explicit go. It is on main so the number is reserved
-and the design can be read. It changes **I12's scope phrase** by one clause (§3.1); the architect lands
-that with the GO, not before.
+Takeable by the **mobile lane only after the in-flight N10 (swipe lock + finger-follow) and T149
+(title clip) edits have landed on main** — same `StageScreen.kt` regions (§9). The I12 scope clause of
+§3.1 is landed in `docs/ARCHITECTURE.md` in the same push as this dispatch, so the lane implements against
+the amended invariant, not around it. Part A only; Part B (§7) is not dispatched and gets its own T-task.
 
 ## 1. What VLL asked for
 

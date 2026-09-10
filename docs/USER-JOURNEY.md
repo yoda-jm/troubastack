@@ -169,7 +169,9 @@ offer the download.
 surprises: page turns, role-appropriate layers, and nothing else.
 
 **Validated today (the strongest part of the stack):**
-- **Offline, login-free, read-only presenter** (I12 — flipped ✅ this weekend):
+- **Offline, login-free, read-only presenter** (I12 — flipped ✅ this weekend; A70,
+  dispatched 2026-09-10, adds one local rehearsal-notes bitmap per page that never
+  reaches a bundle — the only write Stage makes):
   performs locally-imported bundles with zero server dependency, never-crash loader
   contract (torture-fixture tested), missing blob ⇒ placeholder page not a crash.
 - Screen **stays awake** on both platforms (Android `FLAG_KEEP_SCREEN_ON`, iOS IOS04).

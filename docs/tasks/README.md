@@ -187,8 +187,10 @@ The A-series turned it into a working Android app (all landed), and the IOS-trac
 filled the iOS actuals (InkOverlay still `TODO`, A07-gated). The design remains
 **TroubaStage-first**: the presenter is the product's stage-time face and its contract
 is *resilient and read-only* — it must never crash mid-performance, and its only
-user-changeable state is reading behavior (navigation, display fit, layer visibility),
-never writes. It is also **offline and login-free** (I12): no account, session, or
+user-changeable state is reading behavior (navigation, display fit, layer visibility)
+plus one local scratch surface — the A70 rehearsal-notes bitmap, pixels that never
+reach a bundle (I12 as amended 2026-09-10); nothing else is written. It is also
+**offline and login-free** (I12): no account, session, or
 unlock stands between app launch and performing a locally-stored bake; the viewer's
 role (for layer default visibility) is a local preference, not an identity. Auth exists
 only in the Studio webview (A06) and the future downloader. See A04 for the full
