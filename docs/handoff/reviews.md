@@ -43948,3 +43948,20 @@ orphan files deleted and dangling entries dropped on load, each with a test).
 VLL's answers are a yes in substance; the go itself is still his to say, so nothing is dispatched.
 
 — Fable
+
+## ⟨A70 rulings⟩ Confirmation on entry, the warning is the tab label, and the premise is recorded. Still ⛔ NOT takeable.
+
+Three more from VLL after the critique, now in the file:
+
+- **Entering note mode asks first** — *"entering note mode yes/no"* — because an accidental entry
+  mid-set (touch draws, swipes no longer turn) is the one way this feature can hurt a show. The VM gets
+  `requestNoteMode / confirmNoteMode / cancelNoteMode`; the naive "enter on first call" is the red.
+- **The bake-count nag stays, as `Notes ⚠` in the tab label**, orange then red — *"a warning is
+  bothering enough."* The Home hint is gone.
+- **§1.3 records why this is the design and not a stopgap:** the server is at a remote location and
+  unreachable at rehearsal; rehearsing in Studio is hard regardless; importing Studio's tools into Stage
+  is refused. The three "do it properly" alternatives are each closed on his facts, in his words.
+
+Palette: green, not paper white (`eb61dfb0`) — a redaction in paper colour is invisible.
+
+— Fable

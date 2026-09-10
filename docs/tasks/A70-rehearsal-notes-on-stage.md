@@ -71,6 +71,24 @@ then you recopy manually in annotation layers the notes you took)."*
     'notes' tabs in Stage."*
 13. **The bar:** *"I have the feeling that the bottom feels more natural, but no strong opinion."* →
     bottom (§3.7).
+14. **Entering the mode** (after the architect's critique that an accidental entry mid-set is the one
+    real stage risk): *"we should have a confirmation when entering note mode — 'entering note mode
+    yes/no' or something like that."*
+15. **The warning** (after the architect proposed dropping the nag): *"the number of bakes is what I
+    thought, a warning is bothering enough — in the tab name 'Notes ⚠' if at least one note is old, with
+    the warning in orange or red."*
+
+### 1.3 Why this is the design and not a stopgap (VLL, 2026-09-10)
+
+The architect asked whether the server was reachable at rehearsal, because if it were, a one-tap
+"annotate this page in Studio" would produce real annotations and need no second store. VLL: *"no, the
+server is really not reachable because it is at a remote location, and the problem is rehearsing in
+Studio is hard, and I don't want to import all the features into Stage — it would be too painful."*
+
+So the three alternatives are each closed on his facts: Studio at rehearsal (no server); offline Studio
+(rehearsing in Studio is hard regardless of connectivity); Studio's tools inside Stage (refused, and it is
+exactly what I12 protects against). Rehearsal notes as pixels on Stage is the deliberate answer, not a
+placeholder for one of those. Anyone proposing to "do it properly" later starts from this paragraph.
 
 ## 2. What exists today (verified 2026-09-10 in the mobile checkout: `origin/main` at `49c9bd9f` plus the lane's uncommitted N10/T149 edits to `StageScreen.kt`, so `StageScreen.kt` numbers will shift when those land)
 
@@ -182,9 +200,12 @@ On `applyUpdate` and on import of a newer bundle:
 3. a note whose page is gone is **orphaned**: kept, labelled with its song title and last-known page and
    rev (*"just seeing it associated with the name of the song might be enough"*), viewable over plain
    paper, deletable, sendable;
-4. `bakesSinceTouched` increments for every note not sent since its last save; at **`NAG_BAKES = 3`** the
-   Notes tab row and the Home hint carry VLL's warning: *"This note only exists on this device. Have
-   you sent it to Studio? Delete it?"* with **Yes / No** — never inside the performing surface;
+4. `bakesSinceTouched` increments for every note not sent since its last save; at **`NAG_BAKES = 3`** a
+   note is **old**. When at least one note is old, the Stage section's tab reads **`Notes ⚠`** with the
+   glyph in the warning colour (orange, red once any note is past `2 × NAG_BAKES`), and the old note's
+   row carries VLL's words: *"This note only exists on this device. Have you sent it to Studio? Delete
+   it?"* with **Yes / No**. That tab label is the whole warning (#15: *"a warning is bothering enough"*);
+   nothing on Home, nothing inside the performing surface;
 5. the T143 update notice gains *"· N pages of notes are from the previous bake"* when N > 0.
 
 **Never re-place a note on a page whose raster changed.**
@@ -228,7 +249,11 @@ On `applyUpdate` and on import of a newer bundle:
 - **Available in FIT_PAGE (single and two-up) and FIT_WIDTH.** Scroll mode: the entry item is disabled
   with *"Notes: switch to page mode"*.
 - **Entered from a pencil item in the top bar next to ⚙**, labelled *"Notes"* (the `:672-675` ruling on
-  mystery-dot FABs stands). Session-only: off on every entry to Stage.
+  mystery-dot FABs stands), **behind a confirmation** (#14): *"Enter note mode? Touch will draw, not turn
+  pages."* — **Yes / No**, default focus on No. This is the one dialog the feature has, and it exists
+  because an accidental entry mid-set is the one way this feature can hurt a show: in note mode a swipe
+  no longer turns the page. `stageHoldsKeyFocus` already handles a dialog's focus (A50); the pedal keeps
+  working through it. Session-only: off on every entry to Stage.
 - **The note bar sits at the bottom** and replaces the `‹ ›` FABs while in note mode:
   `[Pencil] [Eraser] · ○ ○ ○ (widths) · ■ ■ ■ ■ (colours) · [Exit]`. The chrome does not auto-hide in
   note mode (Exit must be reachable); the top bar stays with the title and `Notes · this page only`.
@@ -267,9 +292,10 @@ Entering note mode forces it on for that song.
 
 - `StageState` gains `noteMode`, `noteTool`, `noteWidth`, `noteColour`, `noteRevision` (bumped per
   commit), `noteCounts: Map<songId, Int>`, `orphanedNotes: Int`.
-- `StageViewModel`: `enterNoteMode(): Boolean` (refused in scroll mode with a reason; never moves the
-  page; forces `~notes` visible for the song), `exitNoteMode()`, `setNoteTool/Width/Colour`,
-  `noteVisible(songId)`. `applyUpdate` calls `exitNoteMode()` first, re-attaches the index, bumps
+- `StageViewModel`: `requestNoteMode(): Boolean` (refused in scroll mode with a reason; otherwise only
+  sets `noteModePending`), `confirmNoteMode()` (enters; forces `~notes` visible for the song),
+  `cancelNoteMode()`, `exitNoteMode()`, `setNoteTool/Width/Colour`, `noteVisible(songId)`,
+  `notesTabWarning(): None | Orange | Red`. None of them ever moves the page. `applyUpdate` calls `exitNoteMode()` first, re-attaches the index, bumps
   `bakesSinceTouched`, and carries the orphan count into the T143 notice.
 - Headers updated per §3.1.
 
@@ -318,7 +344,8 @@ import to one `stage/` file, watch the guard go red, revert, and put the receipt
    *"sent <date>"* or *"not sent"*, the §3.4 nag when due; actions **See** (the PNG over plain
    `schemePaper`, or over the page raster when the page is still live), **Delete**, **Send to Studio**
    (Part B; disabled with *"sign in to send"* when offline or signed out).
-4. **On Home**, on the Stage tile: *"N notes not sent to Studio"* when N > 0.
+4. **The tab label is the warning**: `Notes ⚠` in orange or red when a note is old (§3.4). **No Home
+   hint** — VLL: one warning is bothering enough.
 5. **On the library row:** the T143 subtitle gains *"· notes on N pages"* — in both intents; it is
    information, not a control.
 
@@ -339,7 +366,8 @@ sabotage receipt (a break that silently fails to apply has bitten twice this mon
 | `bumpBakes`: increments unsent notes, leaves sent ones; the nag predicate is true at 3 and false at 2 | a global counter |
 | A64 for the palette: each of the four colours through `transformOverlayPixel` in NIGHT and AMBER keeps its hue within 10° (red, blue, green) or inverts (black), and every one clears 4.5:1 against the scheme's paper | drawing through the page matrix |
 | `NoteFlushPolicy`: 1999 ms → not due, 2000 ms → due, `force()` → due, no-dirty → no-op | a flush per stroke |
-| `StageViewModel`: `enterNoteMode` refused in scroll mode with a reason, accepted in FIT_PAGE and FIT_WIDTH, never changes `state.current`, forces `~notes` visible; `applyUpdate` leaves note mode, bumps bakes, reports orphans; the `~notes` row is absent for a song with no note | — |
+| `StageViewModel`: `requestNoteMode` refused in scroll mode with a reason, otherwise sets `noteModePending` (the dialog) and **nothing else**; `confirmNoteMode` enters, `cancelNoteMode` does not; neither ever changes `state.current`; entering forces `~notes` visible; `applyUpdate` leaves note mode, bumps bakes, reports orphans; the `~notes` row is absent for a song with no note | entering on the first call (no confirmation) |
+| Tab warning predicate: false with no old note; `⚠` orange at one note at `NAG_BAKES`; red at one past `2 × NAG_BAKES`; sent notes never count | counting sent notes |
 | Loader rejects a bake layer id starting with `~` (`androidUnitTest`, torture fixture) | — |
 | `RehearsalNotes` contract (`androidUnitTest`, fake bitmap): save → row; all-transparent save → row and file gone; `deleteAll` empties; `markSent` sets `sentAt` and the nag stops | — |
 | Reconciliation on load: a PNG with no entry is deleted; an entry with no PNG is dropped; a matching pair is untouched (§3.3) | trusting either side alone |
@@ -356,7 +384,9 @@ sabotage receipt (a break that silently fails to apply has bitten twice this mon
   before entering note mode.
 - Re-bake with one song changed: unchanged pages keep their notes; the changed page's note is listed as
   orphaned with rev and song; the update notice names the count; after three more bakes the nag shows.
-- The Notes tab: See, Delete; Home shows *"N notes not sent"*.
+- Tapping *Notes* shows the confirmation; *No* leaves everything as it was and a swipe still turns the
+  page; *Yes* enters and a swipe draws.
+- The Notes tab: See, Delete; after three re-bakes with an unsent note the tab reads `Notes ⚠` in orange.
 
 ### 6.3 Source guards (`androidUnitTest`)
 
