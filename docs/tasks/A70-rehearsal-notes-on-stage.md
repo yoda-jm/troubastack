@@ -90,6 +90,23 @@ So the three alternatives are each closed on his facts: Studio at rehearsal (no 
 exactly what I12 protects against). Rehearsal notes as pixels on Stage is the deliberate answer, not a
 placeholder for one of those. Anyone proposing to "do it properly" later starts from this paragraph.
 
+### 1.4 The limits are the message (VLL, 2026-09-10)
+
+*"My problem with notes is that they cannot apply if I change the lyrics of a song, and then they are not
+attached anymore. So I want to encourage people to recopy them: warning, not applying when changing the
+hash, scoped to a tablet (cannot share them)…"*
+
+So the three things that make a note second-class are **deliberate, and stay deliberate**:
+
+- **it does not follow a changed page** — the hash key orphans it the moment the lyrics change (§3.4);
+- **it cannot be shared** — it lives on one tablet, under one Stage identity, and never enters a bundle;
+- **it nags** — `Notes ⚠` after a few bakes (§3.4).
+
+Every one of these is an argument for recopying the note into a real annotation while it still means
+something. A future task that "fixes" one of them — re-placing across a reflow, syncing notes between
+devices, silencing the warning — is removing the reason the note is a bitmap. That task needs this
+paragraph overruled first, by VLL.
+
 ## 2. What exists today (verified 2026-09-10 in the mobile checkout: `origin/main` at `49c9bd9f` plus the lane's uncommitted N10/T149 edits to `StageScreen.kt`, so `StageScreen.kt` numbers will shift when those land)
 
 - **Pages are raster only.** `PageImages.pageRasterRef` is the PDF raster, `overlays[]` one transparent
