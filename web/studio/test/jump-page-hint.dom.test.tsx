@@ -53,7 +53,9 @@ describe("jumpPageHints (P206 cross-page direction)", () => {
     expect(chip.textContent).toBe("→ p.7");
     expect(chip.getAttribute("data-uuid")).toBe("src");
     expect(parseFloat(chip.style.left)).toBeCloseTo(30, 6); // the mark's right edge
-    expect(parseFloat(chip.style.top)).toBeCloseTo(40, 6);  // …and its top
+    // …and its BOTTOM: the chip hangs below the mark, because the selection toolbar overhangs the
+    // space above it (d70fdb14). Asserting the top is what went red when that fix landed.
+    expect(parseFloat(chip.style.top)).toBeCloseTo(50, 6);
   });
 
   it("renders the incoming direction on the destination", () => {

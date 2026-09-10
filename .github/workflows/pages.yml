@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # qrencode draws the repo QR; librsvg rasterises the og:image card.
       # build.sh warns and continues without either, so a packaging change
       # degrades the page instead of breaking the deploy.

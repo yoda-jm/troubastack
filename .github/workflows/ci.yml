@@ -45,6 +45,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
+          # The module lives in core/, so setup-go's cache key lookup misses at the repo root and
+          # logs "Restore cache failed: Dependencies file is not found" — every Go job re-downloaded
+          # its modules. Point it at the real sum file.
+          cache-dependency-path: core/go.sum
       # poppler-utils provides pdftoppm, which the bake orchestrator (B02) shells
       # out to for PDF page rasters; the bake rasterizer test runs it.
       - name: install poppler-utils
@@ -187,6 +191,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
+          # The module lives in core/, so setup-go's cache key lookup misses at the repo root and
+          # logs "Restore cache failed: Dependencies file is not found" — every Go job re-downloaded
+          # its modules. Point it at the real sum file.
+          cache-dependency-path: core/go.sum
       - name: bake overlay real-CLI proofs (must RUN, not skip)
         working-directory: core
         shell: bash
@@ -348,6 +356,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
+          # The module lives in core/, so setup-go's cache key lookup misses at the repo root and
+          # logs "Restore cache failed: Dependencies file is not found" — every Go job re-downloaded
+          # its modules. Point it at the real sum file.
+          cache-dependency-path: core/go.sum
       - uses: actions/setup-node@v6
         with:
           node-version: 24
