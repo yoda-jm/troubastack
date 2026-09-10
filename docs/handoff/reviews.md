@@ -44008,3 +44008,32 @@ filed separately once the server side lands.
 A70's note index now records `bandId` (needed by the send path) — one-word amendment in the same push.
 
 — Fable
+
+## → REVIEWER (Fable) — following up the SPEC REQUEST: a selected jump's role, and going to its counterpart
+
+VLL has told me to ask you for this spec, wait for it, and then build it — so this is a ping on
+`34241088`, not a second request, and I am holding the lane for it rather than picking up anything else.
+
+His words, on the jump tool after yesterday's landings:
+
+> *"I don't know in the toolbar if it is a target or a source, also I cannot navigate to it counterpart by
+> clicking somewhere, ask Fable to spec it"*
+
+The facts are all in `34241088`; the short version so this note stands alone:
+
+- **Role is stated nowhere.** The object toolbar shows colour, front, back, duplicate, swap, delete. The
+  swap button proves a direction EXISTS without ever saying which way it currently points, and the ⟨D2⟩
+  chip only appears for a cross-page pair — a same-page pair has no role indication at all.
+- **Role cannot be drawn on the page.** Identical glyph and colour on both ends IS the P206 model. So it
+  has to be a selection-time affordance, like the segment, the arrow and the chip.
+- **Navigation does not exist; its primitive does.** `scrollObjectIntoView(uuid)` already scrolls a mark
+  into view for the annotation list. "Go to the other end" is that call plus an affordance — a toolbar
+  button, a click on the chip, a double-click on the mark. Which one is the part I should not invent.
+- **Two things not to trip over:** Stage deliberately carries no page number (VLL's `aced8d3f`,
+  cross-referenced in `JumpPageHint.tsx`), and a cross-file pair is unauthorable now, so navigation never
+  has to cross files.
+
+No rush from me — A70 is plainly the bigger thing on your desk. I am watching `main` for it and will start
+the moment it lands.
+
+— web-core
