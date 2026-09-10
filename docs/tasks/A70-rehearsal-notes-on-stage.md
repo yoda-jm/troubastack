@@ -1,51 +1,76 @@
-# A70 — Rehearsal notes on Stage: one bitmap per page, pen and eraser, nothing else
+# A70 — Rehearsal notes on Stage: one bitmap per page, pencil and eraser, nothing else
 
-**Lane:** mobile (Part A). Part B is core + studio + bake + app, to be filed as its own T-task.
-**Size:** L (Part A). **Filed:** 2026-09-10, by the architect, from VLL's request.
+**Lane:** mobile (Part A). Part B is core + studio + app, to be filed as its own T-task.
+**Size:** L (Part A). **Filed:** 2026-09-10 by the architect from VLL's request; **revised the same day with
+VLL's answers to twelve questions** (§1.2) — every decision below that quotes him is his, the rest are the
+architect's and say so.
 
-## ⛔ Status: WORK IN PROGRESS — a spec draft, NOT takeable
+## ⛔ Status: WORK IN PROGRESS — decisions taken, NOT dispatched, NOT takeable
 
-**Do not start this.** It is not in any lane's queue and no gate entry dispatches it. It is committed so
-the design is reviewable and so the number is reserved, nothing more. VLL asked for it to be written
-thoroughly and to be marked exactly this way: *"commit it but say it is work in progress and should not be
-taken."* It becomes takeable only when a Fable entry in `docs/handoff/reviews.md` dispatches it, after
-VLL has read the decisions in §3 and either accepted or overruled them.
+**Do not start this.** It is not in any lane's queue. It becomes takeable when a Fable entry in
+`docs/handoff/reviews.md` dispatches it after VLL's explicit go. It is on main so the number is reserved
+and the design can be read. It changes **I12's scope phrase** by one clause (§3.1); the architect lands
+that with the GO, not before.
 
-Two things this draft deliberately leaves to that reading:
+## 1. What VLL asked for
 
-- **It amends I12.** The presenter has been "no writes" since A04, and the file headers say so
-  (`StageModel.kt:1-4`: *"No annotation model, no access-control, NO network, NO writes"*). §3.1 states
-  the narrowest exception that does the job and the sentence that goes into `docs/ARCHITECTURE.md`.
-  That sentence is the architect's to land, not the lane's — and only once VLL confirms the carve-out.
-- **Part B needs a new object type in the annotation model** (`image`, §7). That is a proto change and a
-  renderer change; it is sketched here so Part A's on-disk format provably serves it, but it is decided
-  at its own gate.
-
-## 1. What VLL asked for, clause by clause
+### 1.1 The request, clause by clause
 
 *"I know we said stage should just be a stage, but during rehearsal I need to take notes (no internet), my
 idea is a single layer, pure bitmap, just freehand with an eraser also, and then we can backport this
 layer in studio later to integrate the note in normal layers, it should not be long live (live only in a
 page of a concert, be reported like that) so there is no confusion."*
 
-| clause | what it fixes in this spec |
-|---|---|
-| *"stage should just be a stage"* — acknowledged as a departure | I12 carve-out is explicit and minimal (§3.1); the presenter still has no annotation model |
-| *"during rehearsal … (no internet)"* | Stage side is fully offline; nothing in `stage/` touches the network; the only network step is Part B and it lives outside `stage/` |
-| *"a single layer"* | exactly one note per page; no layer list, no ordering, no per-layer visibility |
-| *"pure bitmap"* | the note IS a transparent bitmap; no stroke model, no objects, no vector sidecar (§3.2 explains why the tempting stroke log is rejected) |
-| *"just freehand with an eraser also"* | two tools, pen and eraser, one colour, one width each; no undo, no shapes, no text |
-| *"backport this layer in studio later"* | Part B: the bitmap travels to core and becomes an object on a normal layer, on the page it was drawn on (§7) |
-| *"integrate the note in normal layers"* | the backported note is a real annotation object on a real layer, so it bakes, syncs and deletes like any other |
-| *"should not be long lived (live only in a page of a concert …)"* | the note's identity is (concert, song, page raster); it does not follow the song across concerts and it never becomes a layer of the song by itself |
-| *"… be reported like that"* | wherever the note shows, the UI says what it is: a badge on the page, a count on the library row, a sheet that lists pages and orphans (§5) |
-| *"so there is no confusion"* | one fixed pencil colour distinct from any baked overlay, a persistent badge, and never silently re-placed on a page that changed (§3.4) |
+And the clarification that fixes what "backport" means: *"the bitmap is especially done in order to be
+sure it is not mixed for an annotation, the fact that you cannot directly import it as a layer that you
+can do something is precisely for that (for example you print it between the pdf and the other layers and
+then you recopy manually in annotation layers the notes you took)."*
 
-"Not long lived" is read as **scope**, not as a timer: the note lives exactly as long as the page it was
-drawn on is the page on the device. Nothing expires on a date. A note dies with the bake it belongs to,
-with an explicit discard, or with the page's raster changing under it — and in that last case it is
-reported as orphaned rather than deleted (§3.4). If VLL meant a time limit as well, that is one sentence
-to add at the gate.
+| clause | what it fixes here |
+|---|---|
+| *"stage should just be a stage"* — acknowledged departure | I12's scope phrase gains one clause; its safety half is untouched and the presenter still has no annotation model (§3.1) |
+| *"during rehearsal … (no internet)"* | everything in `stage/` is offline; the only network step is the explicit send in Part B, outside `stage/` |
+| *"a single layer"* | one note per page; on Stage it is one extra layer row, present only when something was drawn (§3.8) |
+| *"pure bitmap"* | the note IS a transparent bitmap; no strokes, no objects, no sidecar (§3.2) |
+| *"just freehand with an eraser"* | pencil and eraser, 4 colours, 3 widths, opaque; no undo, no clear, no opacity, no highlighter (§3.6) |
+| *"not mixed for an annotation … cannot directly import it as a layer"* | in Studio the bitmap is a **reference underlay between the PDF and the layers**, never an object; the musician recopies by hand (§7) |
+| *"live only in a page of a concert, be reported like that"* | keyed by (song, page raster); reported on the page, in the layer list, in a Notes tab and on Home (§5) |
+| *"so there is no confusion"* | never silently re-placed on a page that changed (§3.4); on Stage the note draws on top because *"you naturally draw on top of what you see"* |
+
+### 1.2 VLL's answers (2026-09-10), recorded so nobody re-decides them
+
+1. **Opacity:** *"no opacity control, you draw opaque."*
+2. **Palette:** *"4 colors, 3 width (one really line where we can write, 1 medium when you can circle
+   informations, 1 wide enough to redact stuffs)."*
+3. **Page turns in the editor:** *"I don't see how we can page turn with the editor in, all press and
+   movements will be drawing or erasing, except if we add another tool 'move 2D'."* → no touch turning in
+   note mode; a move tool is a follow-up, not v1.
+4. **Reading modes:** *"page + width, scroll is for the moment out of scope."*
+5. **Input:** *"I have a stylus but it is passive, so it probably just emulates a finger."* → yes; there
+   is no pen/finger distinction to build on.
+6. **Across bakes:** *"I would like it to stay if the pdf page is the same (like song + file + page? or
+   just the file hash?). If it is lost we can maybe keep it (just seeing it associated with the name of
+   the song might be enough)."* → keep by (song, page raster hash); keep orphans, labelled by song (§3.4).
+7. **Lifetime:** *"no time limit, it can probably stay between bakes but maybe warn after a few bakes:
+   this annotation only exists on this device, have you backported it? can we delete it? yes / no."*
+8. **Where notes are managed:** *"in stage native part a third tab with the bitmap layers: band + song +
+   page where we can choose 'see' 'delete' and send to studio. In the home page a hint: '3 layers not
+   sent to studio'. Layers depend on the performers they belong to, who send them (manage conflict when
+   you are connected with an account that is not who you perform and took notes)."* Then, on being
+   told the Stage section has no tabs: *"it is studio with tabs, so it is a second tab in stage, do the
+   same kind of tab as in studio (of course with the right color) … first tab being the 'bakes'."*
+9. **Studio side:** *"yes done remove. … for sure you know if it was already 'uploaded', the action on
+   the tablet decides if it was sent, not the existence server side; if there is already a bitmap for
+   this song/page it asks to overwrite."*
+10. **Visibility:** *"this is indeed an extra layer, activated if there is something (no bitmap layer if
+    there was nothing done) but it can be disabled."*
+11. **Stacking on Stage:** *"On stage I think it should sit on top, or else it is strange to draw … for
+    studio it is different as it is a reference."* And on covering baked marks: *"you can redact stuffs
+    in the bitmap, it is sad but physically you wrote on top of something so at least it is natural."*
+12. **Undo/clear:** *"no undo, no clear, to undo you use eraser, to clear page you remove it from the
+    'notes' tabs in Stage."*
+13. **The bar:** *"I have the feeling that the bottom feels more natural, but no strong opinion."* →
+    bottom (§3.7).
 
 ## 2. What exists today (verified 2026-09-10 in the mobile checkout: `origin/main` at `49c9bd9f` plus the lane's uncommitted N10/T149 edits to `StageScreen.kt`, so `StageScreen.kt` numbers will shift when those land)
 
@@ -53,345 +78,331 @@ to add at the gate.
   image per layer per page (`proto/troubastack/v1/bundle.proto`, mirrored in `BundleModel.kt:21-40`).
   No vector reaches the device. The presenter is a compositor + pager (I12).
 - **An overlay registers with its page only because it is drawn by a sibling `Image` with the identical
-  modifier and `contentScale`** — `PageView` (`StageScreen.kt`, the raster then the overlays with the same
-  `ContentScale.Fit`) and `ScrollPage` (same, `FillWidth`). There is no page-to-screen matrix anywhere, and
-  no pan or zoom at all. That is the registration mechanism this feature must reuse, not reinvent.
+  modifier and `contentScale`** (`PageView` and `ScrollPage` in `StageScreen.kt`). There is no
+  page-to-screen matrix and no pan or zoom. That is the registration mechanism to reuse.
 - **Ink colour on dark grounds is a per-pixel rule, not the page matrix** (A64): overlays go through
   `transformOverlayPixel(argb, scheme)` (`AnnotationColor.kt:255`) once per (overlay, size, scheme) and are
-  drawn with `colorFilter = null`. Achromatic ink (Lab chroma < 20) inverts with the paper; chromatic ink
-  keeps its hue. A note bitmap is ink, so it follows the same rule.
-- **`rasterHash` is a per-page content hash** (`PageImages.rasterHash`, sha256 of the raster bytes,
-  `core/internal/bake/bundle.go`) and the app already uses it to keep the viewport across a re-bake
-  (`StageViewModel.remapCurrent`: hash → (songId, pageInSong) → nearest → clamp). There is **no page id**
-  anywhere in the system; a page is its index in `BakedSong.pages[]`.
-- **The T145 lesson.** A mark stored against `(page index, x, y)` of one render was silently re-pointed
-  by a reflow; nine hours of bakes on one side of a step change, ten on the other, every mark plausible
-  and wrong. Anything keyed by page index alone repeats that. A bitmap covering the whole page has no
-  text run to anchor to, so it cannot use T145's `SourceAnchor`; the only honest key it has is the raster
-  hash — and the honest behaviour on a mismatch is to *say so*, never to guess.
-- **Bundle install is destructive.** `BundleImporter` replaces `bundlesDir/<concertId>` wholesale on
-  every update. Anything stored inside it is lost on the next auto-update — so notes live beside it, not
-  in it.
-- **The gesture stack** (`Performing`): drawer gesture disabled unless open; `stageTaps` (every tap
-  toggles the chrome, N3); `pointerInputSwipe` for page/width turns; scroll mode's `HorizontalPager` and
-  per-song `LazyColumn`; `PageView`'s own `verticalScroll` in FIT_WIDTH. **The working tree's N10
-  `swipeLocked` is the exact precedent**: one boolean read at every place a drag is owned. Note mode is
-  the same shape with one more owner (taps).
-- **Persistence today is tiny strings through the Storage seam** (`Storage.getSecret/putSecret`,
-  EncryptedSharedPreferences) written by the host, not by `stage/`: `onPositionChange` →
-  `stage.pos.$concertId` (`MainActivity.kt:714`), chrono likewise. `stage/` itself writes nothing. The
-  image decoder is plain DI (`ImageDecoder`, `StageScreen.kt:142-144`; `AndroidImageDecoder(root: File)`
-  resolves refs against the bundle dir).
-- **Colour-transform expect/actuals outside the three seams already exist** (`OverlayTransform.kt`,
-  Android via `Bitmap.getPixels`, iOS via Skia) — precedent that a pixel-level platform function is not a
-  fourth seam under I15.
-- **The library surface** (T143): `BundleRow` (`app/shared/.../distribution/BundleRow.kt`) shows title +
-  rev + date; `BundleAction { Freeze, Unfreeze, Pin, Unpin, Delete }` in the ⋮, with a hand-maintained
-  `when` for labels in `MainActivity` (the enumeration the gate warned about on the re-bake item). The
-  perform surface is `lean` and carries no management controls.
-- **Tests:** `commonTest` (pure model / VM, synthetic `ConcertBundle`, no mocks), `androidUnitTest` (JVM;
-  source-guard greps, shared vectors), **no Compose UI tests and no instrumented tests**. Pixel claims are
-  therefore verified on the emulator or the tablet, with the artefact pulled and measured.
-- **Studio has no image object and no eraser.** `ObjectType` stops at `icon`; removal is a `delete`
-  tombstone; the ink registry adds a type in three steps (`web/studio/src/annotations/README.md`); the Go
-  core treats types opaquely. The app POSTs only identity and bake-kick calls (`HttpTransport.kt`), never
-  content. Uploads exist only for song files (`POST …/songs/{s}/files`, multipart, `image/*` accepted,
-  32 MiB cap) — a PNG uploaded there would become a **chart page**, which is not what a note is.
+  drawn with `colorFilter = null`. Achromatic ink inverts with the paper; chromatic ink keeps its hue and
+  only its lightness is remapped for contrast. A note is ink and follows the same rule — which is what
+  makes a red note stay red in NIGHT and a white (paper) stroke stay paper-coloured in every scheme.
+- **`rasterHash` is a per-page content hash** (`PageImages.rasterHash`, sha256 of the raster bytes) already
+  used by `StageViewModel.remapCurrent` to keep the viewport across a re-bake. There is **no page id**
+  anywhere; a page is its index in `BakedSong.pages[]`. VLL's *"file hash"* is exactly this value, per page.
+- **The T145 lesson.** A mark keyed by page index was silently re-pointed by a reflow. A bitmap has no
+  text run to anchor to, so its only honest key is the raster hash, and the honest behaviour on a mismatch
+  is to say so.
+- **Bundle install is destructive.** `BundleImporter` replaces `bundlesDir/<concertId>` on every update, so
+  notes live beside it, not in it.
+- **The gesture stack** (`Performing`): drawer gesture off unless open; `stageTaps` (every tap toggles the
+  chrome); `pointerInputSwipe` (page turns); `PageView`'s `verticalScroll` in FIT_WIDTH; scroll mode's
+  pager and columns. The working tree's N10 `swipeLocked` is the precedent: one boolean read at every
+  drag owner.
+- **Layer visibility is per song** (`StageState.visibleBySong`, `visibleFor(songId)` unions mandatory),
+  toggled in `LayersDialog`; `PersonalTag` is the existing "only your view" badge.
+- **Persistence today is small strings through the Storage seam**, written by the host on callbacks
+  (`onPositionChange` → `stage.pos.$concertId`, `MainActivity.kt:714`). The Stage identity is
+  `identity.$concertId` (a roster member id, the *Who are you?* picker). The image decoder is plain DI
+  (`ImageDecoder`, `StageScreen.kt:142-144`). Pixel-level expect/actuals outside the three seams exist
+  (`OverlayTransform.kt`) — precedent under I15.
+- **The Stage section of the app has no tabs**: it is a **Concerts** list grouped by band (T143 accordion)
+  with `‹ Home`, `Edit`, `Import`, and `Connect`/`Sign out` in its header (`MainActivity.kt` ~`:800`);
+  rows carry title + rev + date and a ⋮ with `BundleAction { Freeze, Unfreeze, Pin, Unpin, Delete }`
+  (`distribution/BundleRow.kt`), labelled by a hand-maintained `when` in `MainActivity`. Home is two
+  tiles, Stage and Studio (`home/HomeScreen.kt`). **The Studio section does have tabs**:
+  `StudioBrowseScreen.kt:82-95`, a Material3 `TabRow` whose `SecondaryIndicator` and selected text take
+  the Studio accent (the default indicator is `colorScheme.primary`, which the comment there rejects),
+  tabs *Concerts* and *Bands*. VLL's ruling: the Stage section gets **the same component with the Stage
+  accent** (`LocalBrandAccents.current.stage`), first tab **Bakes** (today's concerts list, unchanged),
+  second tab **Notes** (§5.3).
+- **Tests:** `commonTest` (pure model/VM over a synthetic `ConcertBundle`), `androidUnitTest` (JVM;
+  source-guard greps, shared vectors). No Compose UI tests, no instrumented tests: pixel claims are an
+  emulator/tablet pass with the artefact pulled and measured.
+- **Studio has no image object, no eraser, no underlay concept.** `web/ink` renders the dry layer over
+  the PDF canvas; the app POSTs only identity and bake-kick calls (`HttpTransport.kt`); song-file upload
+  accepts `image/*` but a PNG uploaded there becomes a chart page.
 
-## 3. Decisions (each named, with the reason; overrule at the gate, not in code)
+## 3. Decisions
 
-### 3.1 The I12 carve-out, stated as narrowly as it can be
+### 3.1 What actually changes in I12 (architect; corrected by the gate's first read, `41f5b48f`)
 
-**Rule to add under I12:** *The presenter may hold one local, per-page, per-device bitmap of rehearsal
-notes (A70). It is pixels, not objects: the presenter still contains no annotation model, no layer
-model and no access-control logic, and it still performs with nothing server-side. The notes never
-enter a bundle and are never read by the bake; they leave the device only through an explicit, separate
-action outside `stage/` (Part B).*
+The first draft said "this amends I12" and paraphrased I12 as *no writes*. **I12 does not say that.** Its
+rule is: *the presenter is a pure image compositor + pager; at performance time it depends on nothing
+server-side and contains no annotation-model or access-control logic.* "No writes" lives in the file
+headers (`StageModel.kt:1-4`) and the README's A-track paragraph, not in the constitution.
 
-Why this shape: the reason I12 exists is *stage reliability* — the smartness happened at bake time. A
-bitmap the size of the page has no smartness in it. What would violate the spirit is a stroke model, a
-sync client or a layer list inside `stage/`; none of those is added. `stage/` does the drawing into
-memory and hands a bitmap to a port; the port (host-implemented, like `ImageDecoder`) does the file I/O.
-The file headers of `StageModel.kt` / `StageViewModel.kt` change from *"NO writes"* to *"no writes except
-the rehearsal-notes port (A70)"*, so the next reader is not lied to.
+So a local per-page bitmap does not touch "nothing server-side" (offline by construction) and does not add
+an annotation model or access-control logic (it is pixels). It contradicts only **"pure image compositor +
+pager"**, which is a statement of **scope**, not a safety property. The narrower question VLL is being
+asked is: *may the presenter accept pen input into its own local scratch surface?* — and his answers in
+§1.2 say yes; the gate records the go.
 
-### 3.2 Pure bitmap, and no stroke sidecar
+**The amendment is to that phrase, not a clause naming this feature** (a carve-out that names one feature
+dates at once): I12's rule becomes *"the presenter composites and pages flattened images, and may capture
+local pixels that never reach a bundle; at performance time it depends on nothing server-side and contains
+no annotation-model or access-control logic"* — the safety half verbatim. The architect lands it with the
+GO.
 
-The tempting design is to also log the strokes as polylines at pen-up — it is nearly free at capture
-time and would let Part B import editable `freehand` objects. **Rejected for v1**, for three reasons:
-(1) VLL said *pure bitmap* and the eraser makes a stroke log inexact the moment it is used (a partially
-erased stroke has no vector form); (2) two representations of one drawing is the paired-state trap this
-repo has hit twice — they must share a lifetime and they will drift; (3) Part B works from the bitmap
-alone (§7). If VLL later wants editable imports, a sidecar can be added as its own decision, with the
-bitmap still the truth.
+`stage/` draws into memory and hands bitmaps to a host-implemented port; the port does the file I/O. The
+headers of `StageModel.kt` / `StageViewModel.kt` change from *"NO writes"* to *"no writes except through
+the rehearsal-notes port (A70)"*, and **that port is the only I/O `stage/` may reference — guarded, not
+promised** (§4.6).
 
-### 3.3 One note per page; the page is `(concertId, songId, rasterHash)`
+### 3.2 Pure bitmap, no stroke sidecar (VLL's *"pure bitmap"*, architect's reasoning)
 
-- **Key:** `(songId, rasterHash)` inside the concert's notes directory. `songId` is in the key because two
-  songs can share a byte-identical raster (an intermission poster, a blank page) and a note on one must
-  not appear on the other. Page index is **recorded** (for display and for Part B) but is **never** used
-  to find a note.
-- **Why not `concertRev`:** the same page in rev 9 and rev 10 has the same raster hash when it did not
-  change, and a musician's notes should survive the bake that only touched another song. The hash
-  expresses "the page under my pen is the same page"; the rev does not.
-- **Storage location:** `<filesDir>/notes/<concertId>/` — beside `bundles/`, never inside a bundle
-  directory (install replaces it). A new `Storage.notesDir()` on the existing seam (Android: `filesDir/notes`;
-  iOS: the sibling of `bundlesDir()`), following IOS01's precedent of extending the seam rather than
-  adding one.
-- **Files:** `index.json` (the truth about what exists) + one PNG per note, named by the first 16 hex of
-  `sha256(songId + "\n" + rasterHash)` so no sanitising of ids is needed. `index.json` entries:
-  `{ songId, rasterHash, file, pageInSong, songTitle, concertRev, width, height, updatedAt }` — `pageInSong`,
-  `songTitle` and `concertRev` are *as of the last save*, for labels and for Part B's placement; they are
-  not keys.
-- **Deletion:** T143's Delete on a bundle removes `notes/<concertId>/` with it — the note's life is the
-  bake's life. Discarding one note removes its file and entry. A save of a fully transparent bitmap
-  **deletes** the note (an empty note is not a note; the badge disappears).
+No polyline log. The eraser makes it inexact the moment it is used; two representations of one drawing
+must share a lifetime and will drift; and Part B does not need it — the underlay is the bitmap.
 
-### 3.4 Across a bake update: carry by hash, orphan the rest, and say so
+### 3.3 One note per page; the page is `(songId, rasterHash)` (VLL #6)
 
-On `applyUpdate` (auto-update at rehearsal is exactly when this fires):
+- `songId` is in the key because two songs can share a byte-identical raster (an intermission poster).
+  Page index is **recorded** for labels and for Part B's placement, **never** used to find a note.
+- Not `concertRev`: the same page in rev 9 and 10 has the same hash when it did not change, and VLL wants
+  the note to *"stay if the pdf page is the same"*.
+- **Location:** `<filesDir>/notes/<concertId>/` — beside `bundles/`. New `Storage.notesDir()` on the
+  existing seam (IOS01's precedent of extending it).
+- **Files:** `index.json` + one PNG per note named by the first 16 hex of `sha256(songId + "\n" +
+  rasterHash)`. Entry:
+  `{ songId, rasterHash, file, pageInSong, songTitle, bandName, concertRev, takenAs, width, height,
+  updatedAt, sentAt?, bakesSinceTouched }`. `takenAs` is the Stage identity at save time (#8).
+- **Deletion:** the Notes tab's Delete (#12: that IS "clear page"); T143's bundle Delete removes
+  `notes/<concertId>/`. A save of an all-transparent bitmap deletes the note (#10: *"no bitmap layer if
+  there was nothing done"*).
+- **When `index.json` and the PNGs disagree** (raised at the gate, `41f5b48f`): the **index is the truth
+  about what exists** — a PNG's name is an irreversible hash, so a file without an entry is unaddressable
+  garbage and is deleted on load; an entry without a file is dropped from the index on load (there is
+  nothing to show). Write order makes the first case the only one a crash can produce: PNG first, index
+  last, both `tmp` + rename. A test covers each direction (§6.1).
 
-1. flush the note being drawn (§4.5), leave note mode;
-2. every note whose `(songId, rasterHash)` still exists in the new bundle is simply still there — no
-   copy, no move, it was never keyed by index;
-3. every note whose page is gone is **orphaned**: kept on disk, listed in the sheet (§5.3) with its
-   last-known song, page and rev, viewable over plain paper, discardable, and sent by Part B with its rev
-   so Studio can still place it;
-4. the T143 update notice gains a suffix when the orphan count is non-zero: *"… · 2 pages of notes are
-   from the previous bake"*. Never a dialog, never steals the page.
+### 3.4 Across a bake update: keep by hash, keep orphans, count bakes (VLL #6, #7)
 
-**Never re-place a note on a page whose raster changed.** That is the T145 bug in bitmap form, and a
-bitmap has no anchor to re-project from. Orphaning loudly is the correct behaviour, not a limitation.
+On `applyUpdate` and on import of a newer bundle:
 
-### 3.5 Resolution and registration
+1. flush the note being drawn, leave note mode;
+2. a note whose `(songId, rasterHash)` still exists is simply still there;
+3. a note whose page is gone is **orphaned**: kept, labelled with its song title and last-known page and
+   rev (*"just seeing it associated with the name of the song might be enough"*), viewable over plain
+   paper, deletable, sendable;
+4. `bakesSinceTouched` increments for every note not sent since its last save; at **`NAG_BAKES = 3`** the
+   Notes tab row and the Home hint carry VLL's warning: *"This note only exists on this device. Have
+   you sent it to Studio? Delete it?"* with **Yes / No** — never inside the performing surface;
+5. the T143 update notice gains *"· N pages of notes are from the previous bake"* when N > 0.
 
-- The note bitmap has a **fixed canonical width `NOTE_W = 1600`** and height
-  `round(NOTE_W * rasterH / rasterW)` from the **decoded** raster's dimensions (the decoder downsamples by a
-  power of two; using the decoded aspect keeps the two `Fit` rectangles within a pixel of each other).
-  1600 px across a page is comfortably above the tablet's fitted page width in two-up and below it in
-  single-page portrait; notes are pencil, not engraving. A 1600×2100 ARGB bitmap is ~13 MB; only the
-  page(s) on screen in note mode hold a mutable one.
-- It is **drawn as one more sibling `Image` with the same modifier and `contentScale` as the raster**, so
-  registration is the same mechanism overlays use. A source-guard test pins this (§6.3).
-- **Touch → note pixels** is one pure function: given the page box `(wPx, hPx)`, the note `(w, h)` and a
-  touch offset, compute the `Fit` rectangle (scale = min(wPx/w, hPx/h), centred) and map into note
-  pixels; `null` when the touch is outside the page. Tested with vectors (§6.1). A stroke that leaves the
-  page is **cut at the edge**, not clamped to it.
+**Never re-place a note on a page whose raster changed.**
 
-### 3.6 Tools, colour, width
+### 3.5 Resolution and registration (architect)
 
-- **Pen:** one colour, `PENCIL = #3A3A3A`, fully opaque, round caps and joins, width `PEN_W = 4` note px.
-  Achromatic on purpose: A64's rule 1 inverts it with the paper in NIGHT/AMBER exactly like printed text,
-  so a note reads as handwriting in every scheme, and it is visibly not any baked overlay colour (the
-  palette's ink is `#111827`; cue and note colours are chromatic).
-- **Eraser:** `BlendMode.Clear` (destination-out) with a round brush, `ERASER_W = 40` note px. The eraser
-  affects **only the note bitmap** — it cannot touch the page raster or a baked overlay, which is the
-  reason it needs no confirmation.
-- **No pressure, no width choice, no colour choice, no undo.** "Clear page" exists (two taps: the button,
-  then an inline *Really clear?* in the same bar — never a dialog, dialogs steal key focus, A50). Undo on a
-  pure bitmap means one full-page copy per stroke; deferred, and the eraser is the undo a pencil has.
-- **Live stroke vs committed pixels** (design/03's wet/dry split, in miniature): while the pen is down,
-  the current stroke is drawn as a `Path` by a Compose `Canvas` in screen space over the page; at pen-up it
-  is committed into the bitmap in one draw and the `Image` invalidates once. The eraser, whose preview
-  cannot be painted over, applies to the bitmap on every move. Input-to-photon latency is whatever
-  Compose pointer input gives; if it feels laggy on the tablet that is A07's territory, not this task's.
+- Fixed canonical width `NOTE_W = 1600`, height `round(NOTE_W * rasterH / rasterW)` from the **decoded**
+  raster. ~13 MB ARGB per page; only the page(s) on screen in note mode hold a mutable bitmap.
+- Drawn as one more sibling `Image` with the raster's modifier and `contentScale`, **above every baked
+  overlay** (#11).
+- Touch → note pixels is one pure function over the `Fit` (FIT_PAGE) or `FillWidth` (FIT_WIDTH)
+  rectangle; `null` outside the page; a stroke leaving the page is cut at the edge.
+
+### 3.6 Tools (VLL #1, #2, #12)
+
+- **Pencil** and **eraser**, two buttons. Opaque always.
+- **Three widths**, in note px: `FINE = 3` (writing), `MEDIUM = 9` (circling), `WIDE = 40` (redacting) —
+  the executor tunes on the tablet and reports the numbers. The eraser uses the selected width ×3, never
+  below `MEDIUM`.
+- **Four colours** (architect's proposal, overrulable): **black `#111111`**, **red `#E53935`**,
+  **blue `#1E63D6`**, and **paper white `#FFFFFF`**. White is the fourth on purpose: with a wide stroke it
+  is correction fluid — redact a line you no longer play — and because it is achromatic it inverts with
+  the paper under A64's rule, so it stays paper-coloured in NIGHT and AMBER. Black also redacts, as a
+  marker does. If VLL prefers a green over white, one constant changes.
+- Last tool, width and colour are remembered per device (`stage.note.tool/width/colour`).
+- **No undo, no clear, no opacity, no highlighter, no shapes, no text.**
+- **Wet/dry in miniature:** while the finger is down the stroke is a `Path` drawn by a Compose `Canvas` in
+  screen space; at pen-up it is committed into the bitmap in one draw. The eraser applies to the bitmap on
+  every move (its preview cannot be painted over). Latency is whatever Compose gives; a passive stylus is
+  a finger (#5), so there is no palm rejection to build — the first pointer draws, extra pointers are
+  ignored.
 - **Colour on dark grounds:** outside note mode the note goes through `transformOverlayBitmap` like any
-  overlay, cached under a scheme-augmented key that also carries `updatedAt`. Inside note mode the live
-  bitmap is drawn through the **page `ColorFilter`** (per-frame per-pixel transform is too slow for a
-  mutable bitmap). These two paths must agree for `PENCIL` — a pure test asserts
-  `transformOverlayPixel(PENCIL, scheme) == pageMatrix(scheme) · PENCIL` for all four schemes (§6.1); if a
-  scheme's legibility clamp moves the grey, pick a `PENCIL` for which the two coincide rather than
-  special-casing.
+  overlay (scheme-augmented cache key carrying `updatedAt`). Inside note mode the committed bitmap is
+  kept as a **display copy** transformed incrementally (the stroke's bounding box only) at each commit,
+  and the wet stroke is drawn in `transformOverlayPixel(colour, scheme)`. The stored PNG is always the
+  neutral colours.
 
-### 3.7 Note mode: where it is allowed, how it is entered, what it disarms
+### 3.7 Note mode (VLL #3, #4, #13)
 
-- **Available in FIT_PAGE only** (single and two-up). FIT_WIDTH scrolls inside the page and scroll mode
-  scrolls a column; "one finger draws, one finger scrolls" is the stylus/finger routing question that
-  A07's tablet session has not answered, and guessing it produces a note that scrolls the page or a
-  scroll that draws. In those modes the Notes chip is disabled with the reason *"Notes: switch to page
-  mode"*. Follow-up, not v1.
-- **Entered from a labelled chip "Notes" in the top bar** (the chrome auto-hides, so it never sits over the
-  music; the ruling at `StageScreen.kt:672-675` that a bare glyph FAB "reads as a mystery dot" is why it
-  is labelled). No server gate: rehearsal is offline. Not persisted: **note mode is session-only and off
-  on every entry to Stage**, in the spirit of I13's transient auto-update.
-- **In note mode the top bar becomes the note bar:** `[Pen] [Eraser]` · *"Notes · this page only"* ·
-  `[Clear page] [Done]`. The chrome **does not auto-hide** while in note mode (Done must be reachable).
-  The bottom `‹ ›` FABs, hardware keys and the pedal keep turning pages — a pedal is not a finger — and
-  note mode **stays on across a turn**; the page under the pen is always the page under the touch.
-- **Disarmed while in note mode:** `pointerInputSwipe` (not attached, as `swipeLocked` does), `stageTaps`
-  (a tap is a dot, not a chrome toggle), and the drawer gesture (already off). Two-up: each `PageView`
-  owns its own note and its own pointer input; a stroke never crosses the gutter.
-- **Stylus and palm:** the pen-seen idiom from `WetCanvas.tsx`: once a `PointerType.Stylus` event has been
-  seen in this Stage session, finger touches do not draw (they do nothing in note mode). Without a stylus,
-  one finger draws. Multi-touch: the first pointer draws, extra pointers are ignored.
-- **Exit:** Done, leaving Stage, or `applyUpdate`. Every exit flushes (§4.5).
+- **Available in FIT_PAGE (single and two-up) and FIT_WIDTH.** Scroll mode: the entry item is disabled
+  with *"Notes: switch to page mode"*.
+- **Entered from a pencil item in the top bar next to ⚙**, labelled *"Notes"* (the `:672-675` ruling on
+  mystery-dot FABs stands). Session-only: off on every entry to Stage.
+- **The note bar sits at the bottom** and replaces the `‹ ›` FABs while in note mode:
+  `[Pencil] [Eraser] · ○ ○ ○ (widths) · ■ ■ ■ ■ (colours) · [Exit]`. The chrome does not auto-hide in
+  note mode (Exit must be reachable); the top bar stays with the title and `Notes · this page only`.
+- **All touch is drawing or erasing** (#3): `stageTaps`, `pointerInputSwipe`, FIT_WIDTH's
+  `verticalScroll` and the drawer gesture are not attached. Consequence in FIT_WIDTH, stated plainly:
+  only the visible part of the page is drawable; to reach the rest, Exit, scroll, re-enter. The **move
+  tool** that fixes this is the named follow-up.
+- **Hardware keys and the pedal still turn pages** (a pedal is not on the glass), and note mode stays on
+  across such a turn; the page under the finger is always the page under the touch. Two-up: each
+  `PageView` owns its note and its pointer input; a stroke never crosses the gutter.
+- **Exit:** the Exit button, leaving Stage, `applyUpdate`. Every exit flushes (§4.5).
 
-### 3.8 Visibility
+### 3.8 The note as a layer row (VLL #10)
 
-A global persisted preference **"Show rehearsal notes"** (Settings sheet, beside "Show clock", default
-on) so a performer can hide every note for a show without discarding anything. Independent of note mode:
-entering note mode forces the current page's note visible.
+`LayersDialog` lists **`Rehearsal notes · this device`** for the current song **only when the song has at
+least one note**, default on, toggleable per song like any layer, stored in `visibleBySong` under the
+reserved id `~notes` (no bake layer id starts with `~`; a source guard pins that the loader rejects one).
+Entering note mode forces it on for that song.
 
 ## 4. Exact changes — Part A (mobile lane)
 
-### 4.1 `app/shared/src/commonMain/.../stage/notes/` (new package, pure where it can be)
+### 4.1 `app/shared/src/commonMain/.../stage/notes/` (new package)
 
-- `NoteKey(songId, rasterHash)`; `NoteEntry` (the `index.json` row, §3.3); `NoteIndex` — pure:
-  `attach(bundle)` partitions entries into *live* (page exists in this bundle) and *orphaned*, counts per
-  song, `forPage(songId, rasterHash)`. Serialised with the kotlinx-serialization setup `BundleModel.kt`
-  already uses (`ignoreUnknownKeys`, defaults for every field).
-- `NoteGeometry` — pure: `noteSize(rasterW, rasterH)` and `touchToNote(box, note, offset): Offset?` (§3.5).
-- `NoteFlushPolicy` — pure state machine with an injectable clock (the T147 pattern): `dirty(now)`,
-  `due(now)` (true `IDLE_FLUSH_MS = 2000` after the last stroke), `force()`. No sleeping in tests.
-- `RehearsalNotes` **port** (a `fun interface`-style DI object, like `ImageDecoder`, **not** a seam):
-  `index(concertId)`, `load(concertId, key): ImageBitmap?`, `save(concertId, key, entry, bitmap)`,
-  `delete(concertId, key)`, `deleteAll(concertId)`. `save` encodes **a copy** (never the live bitmap) off
-  the main thread, writes `tmp` then renames (A05's atomic pattern), rewrites `index.json` last, and
-  **deletes** instead when the bitmap has no pixel with alpha > 0.
-- `PENCIL`, `PEN_W`, `ERASER_W`, `NOTE_W`, `IDLE_FLUSH_MS` are named constants in this package.
+- `NoteKey(songId, rasterHash)`, `NoteEntry` (§3.3), `NoteIndex` — pure: `attach(bundle)` partitions
+  live/orphaned and returns per-song counts; `forPage`; `bumpBakes(exceptSent)`.
+- `NoteGeometry` — pure: `noteSize(rasterW, rasterH)`, `touchToNote(box, note, contentScale, offset): Offset?`.
+- `NoteFlushPolicy` — pure, injectable clock (T147 pattern): `dirty(now)`, `due(now)` at
+  `IDLE_FLUSH_MS = 2000`, `force()`.
+- `NoteTools` — the constants: widths, the four colours, `NOTE_W`, `NAG_BAKES`, the reserved `~notes` id.
+- `RehearsalNotes` **port** (DI like `ImageDecoder`, not a seam): `index(concertId)`,
+  `load(concertId, key): ImageBitmap?`, `save(concertId, key, entry, bitmap)`, `delete`, `deleteAll`,
+  `markSent(concertId, key, at)`. `save` encodes a **copy** off the main thread, writes `tmp` then renames,
+  rewrites `index.json` last, and deletes instead when no pixel has alpha > 0.
 
 ### 4.2 `StageModel.kt` / `StageViewModel.kt`
 
-- `StageState` gains `noteMode: Boolean = false`, `noteTool: NoteTool = PEN`, `notesVisible: Boolean = true`,
-  `noteRevision: Int` (bumped on commit so the `Image` recomposes), `noteCounts: Map<songId, Int>` and
-  `orphanedNotes: Int` (from `NoteIndex.attach`, for the badge/labels).
-- `StageViewModel`: `enterNoteMode(): Boolean` (refused with a reason outside FIT_PAGE; never moves the
-  page), `exitNoteMode()`, `setNoteTool`, `clearPageNote`, `setNotesVisible`. `applyUpdate` calls
-  `exitNoteMode()` **first**, then re-attaches the index and carries the orphan count into the T143 notice.
-- Header comments updated per §3.1.
+- `StageState` gains `noteMode`, `noteTool`, `noteWidth`, `noteColour`, `noteRevision` (bumped per
+  commit), `noteCounts: Map<songId, Int>`, `orphanedNotes: Int`.
+- `StageViewModel`: `enterNoteMode(): Boolean` (refused in scroll mode with a reason; never moves the
+  page; forces `~notes` visible for the song), `exitNoteMode()`, `setNoteTool/Width/Colour`,
+  `noteVisible(songId)`. `applyUpdate` calls `exitNoteMode()` first, re-attaches the index, bumps
+  `bakesSinceTouched`, and carries the orphan count into the T143 notice.
+- Headers updated per §3.1.
 
 ### 4.3 `StageScreen.kt`
 
-- `PageView` gets the note sibling `Image` (same modifier + `contentScale` as the raster), the wet-stroke
-  `Canvas`, and — only when `state.noteMode` — the drawing `pointerInput` placed **inside** the page box so
-  hit-testing is per page. `stageTaps` and `pointerInputSwipe` are not attached in note mode (extend the
-  N10 condition). Auto-hide is suspended in note mode (`overlayOpen`-style gate).
-- The note bar replaces the top bar's contents in note mode; the `Notes` chip sits between the title and
-  the metronome capsule; a small persistent **badge** *"✎ notes"* in the page's top-left corner whenever
-  the page has a note, in every mode, chrome hidden or not (it is the "be reported like that").
-- Settings sheet: the "Show rehearsal notes" switch (§3.8).
-- Decoding a stored note for display goes through `decodeOverlayCached` with a `RehearsalNotes`-backed
-  decode, so it inherits the LRU, the pinning and the A64 transform; the cache key carries `updatedAt`
-  and the scheme.
+- `PageView`: note sibling `Image` above the overlays; wet-stroke `Canvas`; the drawing `pointerInput`
+  only when `state.noteMode`, inside the page box. `stageTaps`, `pointerInputSwipe`, `verticalScroll`
+  gated off in note mode (extend the N10 condition). Auto-hide suspended in note mode.
+- Top bar: the *Notes* pencil item beside ⚙. Bottom: the note bar replaces the FAB row in note mode.
+- A small persistent badge *"✎ notes"* top-left of a page that has a note, in every mode, chrome hidden
+  or not.
+- `LayersDialog`: the `~notes` row (§3.8).
+- Stored notes decode through `decodeOverlayCached` with a port-backed decode (LRU, pinning and the A64
+  transform come for free).
 
 ### 4.4 Host wiring (`androidApp`, `iosMain`)
 
-- `AndroidRehearsalNotes(notesDir)` implements the port: `asAndroidBitmap().compress(PNG)` for save,
-  `BitmapFactory` for load, `getPixels` alpha scan for the empty check. iOS: Skia `encodeToData` /
-  `Image.makeFromEncoded`. Both live where `AndroidImageDecoder` / `IosImageDecoder` live.
-- `Storage.notesDir()` added to the seam (both actuals).
-- `MainActivity`: persists `stage.notesVisible` like `stage.clockVisible`; **Stage host `onStop` flushes**
-  (a note lost because the tablet slept is the T147 failure in a worse form); T143's Delete calls
-  `deleteAll(concertId)`.
+- `AndroidRehearsalNotes(notesDir)`: `asAndroidBitmap().compress(PNG)`, `BitmapFactory`, `getPixels` alpha
+  scan. iOS: Skia `encodeToData` / `Image.makeFromEncoded`. Beside the image decoders.
+- `Storage.notesDir()` on both actuals.
+- `MainActivity`: persists tool/width/colour like `stage.clockVisible`; Stage host `onStop` flushes;
+  T143's Delete calls `deleteAll(concertId)`; the Stage identity is passed in as `takenAs`.
 
-### 4.5 Flush points (all of them, and a test for each)
+### 4.5 Flush points (each with a test)
 
-Pen-up after `IDLE_FLUSH_MS` idle · leaving the page (turn) · `exitNoteMode` · `applyUpdate` · leaving Stage ·
-host `onStop`. A flush of an unchanged bitmap is a no-op (the policy's `dirty` flag, not a pixel compare).
+Pen-up + `IDLE_FLUSH_MS` idle · turning the page by key/pedal · `exitNoteMode` · `applyUpdate` · leaving
+Stage · host `onStop`. A flush with no `dirty` is a no-op.
 
-### 4.6 The library surface (§5)
+### 4.6 The write-port source guard (required by the gate, `41f5b48f` — part of this task, not a follow-up)
 
-## 5. Reporting — "be reported like that"
+A70 adds the **first** write port to `stage/`, which widens exactly the surface I12's residual worries
+about (*"no automated check forbids a server dependency creeping into the presenter"*). So, in
+`androidUnitTest`, in the shape of `NoRawChromeSurfaceTest`: every file under `stage/` may import the
+`RehearsalNotes` port and **nothing else that does I/O** — no `java.io`, `java.nio.file`, `okio`,
+`java.net`, `io.ktor`, `android.*` file or network APIs. **Teeth-check at the gate:** add a forbidden
+import to one `stage/` file, watch the guard go red, revert, and put the receipt in the entry.
 
-1. **On the page:** the *"✎ notes"* badge (§4.3). In note mode the bar says *"Notes · this page only"*.
-2. **On the library row** (`BundleRow`): the T143 subtitle gains *"· notes on N pages"* when N > 0, and
-   *"· M from an earlier bake"* when orphans exist. Perform intent (`lean`) shows the same subtitle — it is
+## 5. Reporting — "be reported like that" (VLL #8, #10, #12)
+
+1. **On the page:** the *"✎ notes"* badge; in note mode the top bar says *"Notes · this page only"*.
+2. **In the layer list:** the `Rehearsal notes · this device` row, only when there is something.
+3. **The Notes tab** — the Stage section becomes two tabs, **Bakes** | **Notes**, using the Studio
+   section's `TabRow` pattern with the Stage accent (§2). *Bakes* is today's list untouched. *Notes* is
+   grouped **band → song → page**, one row per note:
+   *"page P of Q · rev R · taken as <member> · <date>"*, *"page changed in rev R'"* for orphans,
+   *"sent <date>"* or *"not sent"*, the §3.4 nag when due; actions **See** (the PNG over plain
+   `schemePaper`, or over the page raster when the page is still live), **Delete**, **Send to Studio**
+   (Part B; disabled with *"sign in to send"* when offline or signed out).
+4. **On Home**, on the Stage tile: *"N notes not sent to Studio"* when N > 0.
+5. **On the library row:** the T143 subtitle gains *"· notes on N pages"* — in both intents; it is
    information, not a control.
-3. **In the ⋮:** `BundleAction.Notes` → a **Rehearsal notes sheet**: one row per note — song number in
-   the running order, *"page P of Q"*, date, *"from rev R (page changed)"* for orphans — each with a
-   thumbnail and **Discard**; **Discard all** at the bottom; an orphan row opens the PNG over plain paper
-   (`schemePaper`) full-screen since its raster is gone. Part B adds **Send to Studio** to this sheet.
-   The `when` in `MainActivity` learns the new member; make it exhaustive if it is not.
 
 ## 6. Acceptance — RED FIRST, every row
 
-Run from `app/`: `./gradlew :shared:check` for the pure suites; the pixel rows are an emulator/tablet
-pass with the artefact pulled by `adb exec-out 'run-as com.troubastack.app cat files/notes/<id>/<file>'`
-and measured with PIL. A test must be **seen failing** against the naive implementation named in its row.
+Pure suites: `cd app && ./gradlew :shared:check`. Pixel rows: emulator or tablet, the PNG pulled with
+`adb exec-out 'run-as com.troubastack.app cat files/notes/<id>/<file>'` and measured with PIL. Each test
+is **seen failing** against the naive implementation named in its row, and the gate entry carries the
+sabotage receipt (a break that silently fails to apply has bitten twice this month).
 
-### 6.1 Pure (`commonTest`)
+### 6.1 Pure (`commonTest` unless noted)
 
-| assertion | fails today / against |
+| assertion | fails against |
 |---|---|
-| `touchToNote`: portrait page in a landscape box maps the page's four corners to the bitmap's four corners and a touch in the letterbox to `null`; two-up half boxes likewise; a 1-px-off aspect still maps corners within 1 px | a naive `offset * (noteW / boxW)` (ignores centring) |
-| `noteSize` keeps the decoded aspect within 1 px for a 2× and a 4× downsampled raster | using the bundle's nominal size |
-| `NoteIndex.attach`: a note whose `(songId, rasterHash)` is in the bundle is live; same hash under another song is **not** matched; a missing hash is orphaned, not dropped, not re-placed by page index | keying by `(songId, pageInSong)` — the teeth: a fixture whose page 1 swapped raster with page 2 must orphan both, never swap them |
-| `transformOverlayPixel(PENCIL, s) == pageMatrix(s)·PENCIL` for all four schemes | a chromatic pencil |
-| `NoteFlushPolicy`: dirty then idle 1999 ms → not due; 2000 ms → due; `force()` → due immediately; a flush with no dirty is a no-op | a tick counter / a flush-on-every-stroke |
-| `StageViewModel`: `enterNoteMode` refused in FIT_WIDTH and scroll mode with a reason, accepted in FIT_PAGE, and **never changes `state.current`**; `applyUpdate` leaves note mode and reports the orphan count; `exitNoteMode` requests a flush | — |
-| `RehearsalNotes` contract test (androidUnitTest, a fake bitmap): save → index has the row; save of an all-transparent bitmap → row and file gone; `deleteAll` empties the directory | — |
+| `touchToNote` (Fit): portrait page in a landscape box maps the four page corners to the four bitmap corners and a letterbox touch to `null`; two-up halves likewise; (FillWidth): a touch below the visible band maps to the right note row | `offset * (noteW / boxW)` (ignores centring) |
+| `noteSize` keeps the decoded aspect within 1 px for 2× and 4× downsampled rasters | nominal bundle size |
+| `NoteIndex.attach`: same `(songId, rasterHash)` → live; same hash under another song → **not** matched; missing hash → orphaned, kept, never re-placed by index. Teeth: a fixture whose page 1 and 2 swapped rasters must orphan both, never swap them | keying by `(songId, pageInSong)` |
+| `bumpBakes`: increments unsent notes, leaves sent ones; the nag predicate is true at 3 and false at 2 | a global counter |
+| A64 for the palette: each of the four colours through `transformOverlayPixel` in NIGHT and AMBER keeps hue (chromatic) or inverts (black, white), and white maps to the scheme's paper within ΔE 5 | drawing through the page matrix |
+| `NoteFlushPolicy`: 1999 ms → not due, 2000 ms → due, `force()` → due, no-dirty → no-op | a flush per stroke |
+| `StageViewModel`: `enterNoteMode` refused in scroll mode with a reason, accepted in FIT_PAGE and FIT_WIDTH, never changes `state.current`, forces `~notes` visible; `applyUpdate` leaves note mode, bumps bakes, reports orphans; the `~notes` row is absent for a song with no note | — |
+| Loader rejects a bake layer id starting with `~` (`androidUnitTest`, torture fixture) | — |
+| `RehearsalNotes` contract (`androidUnitTest`, fake bitmap): save → row; all-transparent save → row and file gone; `deleteAll` empties; `markSent` sets `sentAt` and the nag stops | — |
+| Reconciliation on load: a PNG with no entry is deleted; an entry with no PNG is dropped; a matching pair is untouched (§3.3) | trusting either side alone |
 
-### 6.2 Pixels (emulator or tablet — this is a gate, not a nicety)
+### 6.2 Pixels (emulator or tablet — a gate)
 
-- Draw a stroke across a page, exit note mode, kill the app, relaunch: the stroke is there, on the same
-  words (screenshot before/after, cropped and diffed).
-- Draw a line, erase across it: in the pulled PNG the crossing pixels have alpha 0 and the rest of the
-  line does not (PIL assertion, numbers in the gate entry).
-- NIGHT: the note reads light on dark and the page raster's own text reads the same way; the badge is
-  visible with the chrome hidden.
-- Two-up: a stroke started on the left page ends at the gutter; the right page's PNG is untouched.
-- Re-bake with one song changed: notes on unchanged pages are still there; the changed page's note is
-  listed as orphaned with its rev, and the update notice names the count.
+- Draw, exit, kill the app, relaunch: the stroke is on the same words (crop + diff).
+- Draw a line, erase across it: crossing pixels alpha 0, the rest intact (PIL numbers in the entry).
+- A wide white stroke over a lyric line in NORMAL hides it; in NIGHT the same stroke is dark and still
+  hides it (A64 inversion); a red stroke is red in both.
+- The note draws **above** a baked overlay (a red note across a cue glyph covers it).
+- Two-up: a stroke from the left page stops at the gutter; the right page's PNG is untouched.
+- FIT_WIDTH: a stroke lands on the visible band at the right note rows after the page was scrolled
+  before entering note mode.
+- Re-bake with one song changed: unchanged pages keep their notes; the changed page's note is listed as
+  orphaned with rev and song; the update notice names the count; after three more bakes the nag shows.
+- The Notes tab: See, Delete; Home shows *"N notes not sent"*.
 
-### 6.3 Source guards (`androidUnitTest`, the pattern of `NoRawChromeSurfaceTest`)
+### 6.3 Source guards (`androidUnitTest`)
 
-- The note `Image` in `PageView` uses the same `contentScale` expression as the raster `Image` (state the
-  property; the executor picks the grep).
-- Every drag owner disarmed by `swipeLocked` is also disarmed by `noteMode`, and `stageTaps` is.
-- `stage/` imports nothing from `java.io` / `okio` / networking: the write stays behind the port.
+- The note `Image` uses the raster `Image`'s `contentScale` expression and sits after the overlays in the
+  same box (state the property; the executor picks the grep).
+- Every drag owner disarmed by `swipeLocked` is also disarmed by `noteMode`; `stageTaps` and FIT_WIDTH's
+  `verticalScroll` too.
+- The write-port guard of §4.6, with its sabotage receipt.
 
-### 6.4 Sabotage receipts
+## 7. Part B — the underlay in Studio (VLL #8, #9; to be filed as its own T-task)
 
-For each guard, the gate entry shows the sabotage that was applied (diff or grep), the red, and the green
-after revert — a sabotage that silently fails to apply has bitten twice this month.
+**The bitmap is never an annotation.** In Studio it is printed **between the PDF and the layers**, at
+full opacity, as a reference the musician recopies from by hand, then removes. Nothing about it enters
+the annotation model, the object types, the ink renderer or the bake.
 
-## 7. Part B — the backport (sketch to be filed as its own T-task; decisions that Part A's format must honour)
-
-**Path:** tablet → core → Studio → a normal layer → the next bake.
-
-1. **Transfer — explicit, from the library, outside `stage/`.** The Rehearsal notes sheet gains **Send to
-   Studio** (needs a session and the network, like the re-bake kick). It POSTs every note of the concert,
-   orphans included, to a new `POST /api/bands/{b}/songs/{s}/rehearsal-notes` (multipart: the PNG +
-   `{ concertId, concertRev, pageInSong, rasterHash, width, height, capturedAt }`). Content-addressed by
-   the PNG's sha256, so re-sending is idempotent. `Content-Length` derives from the bytes written (T141).
-   Sending does **not** delete the note on the device; the row shows *"sent"*.
-2. **Core** stores the bytes in the existing blob store and a `RehearsalNote` record per (song, sha256),
-   served by `GET …/songs/{s}/rehearsal-notes` and `GET …/rehearsal-notes/{id}` (bytes). It also reports,
-   per note, whether the song's **current** bake has a page with that `rasterHash` — the honest
-   "the page has (not) changed since you drew" signal Studio needs.
-3. **Studio** lists the song's notes in the editor (thumbnails, page, rev, date, changed/unchanged) with
-   **Place on layer…** → creates an object `{ type: "image", points: [(0,0),(1,1)], page: pageInSong,
-   text: <note id>, style: {opacity: 1} }` on the chosen layer (personal by default). The whole-page box
-   is the placement because the bitmap *is* the page-sized overlay; the user then draws over it or deletes
-   it like any object. **A note whose page changed is placed with a warning and a side-by-side preview**,
-   never silently.
-4. **Model:** `OBJECT_TYPE_IMAGE = 8` in `object.proto` (additive; `buf breaking` passes), the Go mirror
-   regenerated, `web/ink` gains `drawImage` in the registry (image fetched by `text` id through a
-   resolver the host provides: Studio via the GET, bake via bytes core passes in the batch request), so
-   the editor and the bake render it through the one renderer (I8) and the parity test covers it.
-5. **Anchoring:** an image object has no `SourceAnchor` (nothing to anchor a page-sized bitmap to);
-   `Points` are authoritative, like a mark on an uploaded PDF. T145's reflow-orphan guard still applies
-   at bake: if the page index no longer exists the bake fails loudly.
-6. **After the backport** the note is a normal object on a normal layer: it bakes into that layer's
-   overlay, it syncs, it deletes. The device-side note is then redundant; it stays until the bake it
-   belongs to is deleted or the user discards it, per §3.3. Whether "sent and now baked" should
-   auto-discard is a Part B decision for VLL.
-
-Rejected for B: vectorising the bitmap (lossy, and the eraser has no vector form); a tracing underlay
-without an object (cannot bake, so it never "integrates into normal layers"); uploading the PNG as a
-song file (it would become a chart page).
+1. **Send** — from the Notes tab (Part A), signed in. `PUT
+   /api/bands/{b}/songs/{s}/rehearsal-notes/{pageInSong}` (multipart: the PNG +
+   `{ rasterHash, concertId, concertRev, takenAs, width, height, capturedAt }`). One note per
+   **(owner, song, pageInSong)** server-side; the PUT returns **409** when one exists, the tablet asks
+   *"A note already exists in Studio for this song/page. Overwrite?"* and retries with `?overwrite=1` (#9).
+   On 2xx the tablet sets `sentAt` — **the tablet's action decides "sent", not the server's state** (#9).
+   `Content-Length` derives from the bytes written (T141).
+2. **Identity conflict** (#8): a note carries `takenAs` (the Stage identity). Sending is always as the
+   signed-in user, who becomes the owner. When the signed-in member ≠ `takenAs`, the tablet asks
+   *"Taken as X · you are signed in as Y. Send as Y?"* — Send / Cancel. No silent re-attribution.
+3. **Core** stores the PNG in the blob store and a `RehearsalNote` row `{ id, bandId, songId, ownerUserId,
+   pageInSong, rasterHash, concertId, concertRev, takenAs, blobHash, width, height, capturedAt,
+   uploadedAt }`; `GET …/rehearsal-notes` (owner's list), `GET …/rehearsal-notes/{page}` (bytes),
+   `DELETE …/rehearsal-notes/{page}`. **Owner-only**: nobody else lists or fetches them. Each row also
+   reports whether the song's **current** bake still has a page with that `rasterHash`.
+4. **Studio**: when the signed-in user has notes for the open song, a chip *"Rehearsal notes (N)"* in the
+   editor toggles the **underlay** — each page's PNG drawn under the dry layer, over the PDF, at the page
+   index it was taken on, tagged *"page changed since"* when the hash no longer matches (the user judges;
+   nothing is re-placed). Per page: **Done, remove** → `DELETE` (#9). Removal in Studio never reaches the
+   tablet; the tablet's copy lives until deleted there or with its bake.
+5. **Nothing else.** No object type, no proto change, no bake change, no renderer change.
 
 ## 8. Out of scope (v1)
 
-Note mode in FIT_WIDTH and scroll mode (§3.7) · undo · colours, widths, pressure · text or shapes · a
-per-layer or per-member note · any sync from `stage/` · anything in a bundle or the bake · Part B itself.
+Scroll mode · a **move 2D** tool (the named follow-up that makes FIT_WIDTH comfortable and could allow
+touch turns in note mode) · undo, clear, opacity, highlighter, shapes, text · pressure · any sync from
+`stage/` · anything in a bundle or the bake · Part B itself.
 
 ## 9. Sequencing and conflicts
 
-- **Starts only after the in-flight N10 swipe-lock + finger-follow and T149 title-clip changes land** —
-  they edit the same `StageScreen.kt` regions (the drag owners, `PageView`, `ScrollPage`), and two tasks
-  in one file do not run in parallel here.
-- Touches `shared` → compile the iOS targets before landing
-  (`./gradlew :shared:compileKotlinIosSimulatorArm64`).
+- Starts only after the in-flight N10 swipe-lock/finger-follow and T149 edits land — same
+  `StageScreen.kt` regions.
+- Touches `shared` → compile iOS before landing (`./gradlew :shared:compileKotlinIosSimulatorArm64`).
 - The I12 sentence (§3.1), the README's A-track paragraph (*"never writes"*) and `USER-JOURNEY.md`'s
-  presenter bullet are the architect's edits, landed with the GO, not before.
+  presenter bullet are the architect's edits, landed with the GO.

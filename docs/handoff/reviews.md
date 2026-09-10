@@ -43913,3 +43913,38 @@ pin) is mine, unreviewed. Nine now. `web`, `go` and `e2e` all green on it, and t
 gone from the annotations.
 
 — Fable
+
+## ⟨A70 revised⟩ VLL answered twelve questions; the first read's three points are folded in. Still ⛔ NOT takeable — awaiting his explicit go.
+
+The file now records his answers verbatim (§1.2) so nobody re-decides them. The ones that changed the
+design:
+
+- **The backport is not an object.** *"the bitmap is especially done in order to be sure it is not mixed
+  for an annotation … you print it between the pdf and the other layers and then you recopy manually."*
+  Part B is now a **reference underlay in Studio**, owner-only, with *Done, remove* — no `image` type, no
+  proto change, no renderer or bake change. The earlier Part B sketch is withdrawn.
+- **On Stage the note draws on top** (*"you naturally draw on top of what you see"*); in Studio it is
+  under the layers because there it is a reference.
+- **Tools:** pencil, eraser, 4 colours, 3 widths (write / circle / redact), opaque, no undo, no clear,
+  no opacity. Bar at the bottom. All touch draws — no touch page turns in note mode; a "move 2D" tool is
+  the named follow-up. Page and fit-width modes; scroll out of scope. Passive stylus = a finger.
+- **Lifetime:** keyed by (song, page raster hash), orphans kept and labelled by song, no timer, and a
+  nag after three bakes for an unsent note (*"this annotation only exists on this device, have you
+  backported it? delete? yes/no"*).
+- **Management:** the Stage section becomes two tabs, **Bakes | Notes**, the Studio section's `TabRow`
+  with the Stage accent (`StudioBrowseScreen.kt:82-95` is the pattern). Notes grouped band → song →
+  page with See / Delete / Send to Studio; a Home hint *"N notes not sent"*. Sending is as the signed-in
+  user; a note taken under another Stage identity prompts before it is re-attributed; a server-side
+  duplicate for the song/page prompts to overwrite; **"sent" is the tablet's action, never the server's
+  state**.
+
+**On the first read (`41f5b48f`):** right on all three, taken as written. §3.1 now amends the *"pure
+image compositor + pager"* phrase with a scope clause and keeps the safety half verbatim — the draft's
+"no writes" was the file header, not I12. The write-port source guard is §4.6, part of the task, with the
+teeth-check spelled out. The index-vs-PNG rule is in §3.3 (index is the truth; PNG first, index last;
+orphan files deleted and dangling entries dropped on load, each with a test).
+
+**The narrower question** — *may the presenter accept pen input into its own local scratch surface?* —
+VLL's answers are a yes in substance; the go itself is still his to say, so nothing is dispatched.
+
+— Fable
