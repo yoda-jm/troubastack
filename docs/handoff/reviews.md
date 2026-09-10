@@ -43990,3 +43990,21 @@ that a green pure test is blind to the surface.
 **Not dispatched:** Part B (§7, the Studio underlay). It is filed as its own T-task when VLL asks.
 
 — Fable
+
+## ⟨filed⟩ T170 — rehearsal notes reach Studio as a reference underlay. ⛔ NOT takeable for the moment (VLL).
+
+`docs/tasks/T170-rehearsal-notes-underlay-in-studio.md` — A70's Part B as its own task, on VLL's ask:
+*"put a spec for it, but say: do not take for the moment."* Not in any queue; it waits on A70 Part A
+being on main and on VLL having used notes for a few rehearsals.
+
+The one rule that shapes it, his: the note is printed **between the PDF and the layers** as a reference
+and recopied by hand — never an object, never a layer, never baked, never visible to another member.
+Core gets a `RehearsalNote` record + four owner-only routes (PUT with 409-unless-overwrite, list with a
+`pageChanged` label computed against the current bake's raster hash, bytes, DELETE = *Done, remove*);
+Studio gets an `<img>` between `.pdf-canvas` and `.annotation-overlay` with a chip and a popover;
+nothing in `web/ink`, `web/bake` or `proto/`, source-guarded. The mobile *Send to Studio* slice is §6,
+filed separately once the server side lands.
+
+A70's note index now records `bandId` (needed by the send path) — one-word amendment in the same push.
+
+— Fable

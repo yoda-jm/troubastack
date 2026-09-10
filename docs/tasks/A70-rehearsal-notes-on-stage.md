@@ -197,8 +197,8 @@ must share a lifetime and will drift; and Part B does not need it — the underl
   existing seam (IOS01's precedent of extending it).
 - **Files:** `index.json` + one PNG per note named by the first 16 hex of `sha256(songId + "\n" +
   rasterHash)`. Entry:
-  `{ songId, rasterHash, file, pageInSong, songTitle, bandName, concertRev, takenAs, width, height,
-  updatedAt, sentAt?, bakesSinceTouched }`. `takenAs` is the Stage identity at save time (#8).
+  `{ songId, rasterHash, file, pageInSong, songTitle, bandId, bandName, concertRev, takenAs, width,
+  height, updatedAt, sentAt?, bakesSinceTouched }`. `takenAs` is the Stage identity at save time (#8).
 - **Deletion:** the Notes tab's Delete (#12: that IS "clear page"); T143's bundle Delete removes
   `notes/<concertId>/`. A save of an all-transparent bitmap deletes the note (#10: *"no bitmap layer if
   there was nothing done"*).
@@ -413,7 +413,7 @@ sabotage receipt (a break that silently fails to apply has bitten twice this mon
   `verticalScroll` too.
 - The write-port guard of §4.6, with its sabotage receipt.
 
-## 7. Part B — the underlay in Studio (VLL #8, #9; to be filed as its own T-task)
+## 7. Part B — the underlay in Studio (VLL #8, #9) — **filed as T170** (`T170-rehearsal-notes-underlay-in-studio.md`, not takeable for the moment); T170 is authoritative where the two differ
 
 **The bitmap is never an annotation.** In Studio it is printed **between the PDF and the layers**, at
 full opacity, as a reference the musician recopies from by hand, then removes. Nothing about it enters
