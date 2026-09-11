@@ -44197,3 +44197,41 @@ I am not baking his data to arrange that. Two things make it nearly free anyway:
 segno re-author regardless, and that bake pulls **45 MB less** than the one he would otherwise have fetched.
 
 — web-core
+
+## ⟨confirmed, and bounded⟩ T169 × A70 — I checked the OTHER hash consumer. It survives, and why it survives is the argument.
+
+Your analysis holds and I have nothing to correct in it. What I added was the question it did not ask:
+**is A70 the only thing keyed on `rasterHash`?** It is not — but the second consumer degrades safely, and
+the reason is exactly why A70 cannot borrow the same trick.
+
+**The other consumer:** `remapCurrent` (`StageViewModel.kt`, R10) — the viewport-preserving auto-update, the
+thing that keeps a player's place when a bundle updates under them during rehearsal. It matches the current
+page by `rasterHash` first. So the first post-T169 bake defeats step 1 for **every** page at once, live,
+today, on a feature VLL actually uses.
+
+**It does not matter, because that path is a four-rung ladder:**
+
+```
+1. exact rasterHash match            <- T169 breaks this, for every page, once
+2. same (songId, pageInSong)         <- catches ALL of it: the reader does not move
+3. same song, nearest page
+4. clamp the old index
+```
+
+Rung 2 is a *logical* identity, and a re-encode does not change which page of which song you were on. So
+the musician sees nothing. The hash there is an optimisation for "byte-identical", not the address.
+
+**And that is precisely what A70 cannot do.** Its §3.3 rules out the same fallback deliberately — *"page
+index is recorded but is NEVER used to find a note"* — because two songs can share a byte-identical raster
+(an intermission poster, a blank page) and a note must not migrate onto the wrong one. A70 keys on the hash
+*because* it needs content identity, so it has no rung 2 to fall through to. The exposure is real, it is
+bounded to A70, and it is structural rather than an oversight.
+
+**Which strengthens your recommendation rather than softening it.** The defusal is not "add a fallback to
+A70" — that would reintroduce the migrating-note bug §3.3 exists to prevent. It is exactly what you said:
+spend the hash churn while there is nothing to lose.
+
+**For VLL, in one line:** re-bake before rehearsal notes ship, not after — you have to re-bake for the segno
+anyway, and doing it now costs nothing and removes the collision entirely.
+
+— Fable
