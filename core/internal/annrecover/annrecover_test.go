@@ -68,16 +68,16 @@ func TestBuildPlan_SkipsTombstones(t *testing.T) {
 
 func TestMatchTarget(t *testing.T) {
 	idx := map[string][]string{
-		TargetKey("Good Vibes Only", "Amsterdam"): {"song-a"},
-		TargetKey("Good Vibes Only", "Twin"):      {"song-b", "song-c"},
+		TargetKey("The Invented Singers", "Amsterdam"): {"song-a"},
+		TargetKey("The Invented Singers", "Twin"):      {"song-b", "song-c"},
 	}
-	if id, err := MatchTarget("Good Vibes Only", "Amsterdam", idx); err != nil || id != "song-a" {
+	if id, err := MatchTarget("The Invented Singers", "Amsterdam", idx); err != nil || id != "song-a" {
 		t.Fatalf("unambiguous match: got %q, %v", id, err)
 	}
-	if _, err := MatchTarget("Good Vibes Only", "Twin", idx); err == nil {
+	if _, err := MatchTarget("The Invented Singers", "Twin", idx); err == nil {
 		t.Fatal("ambiguous title must abort the stream")
 	}
-	if _, err := MatchTarget("Good Vibes Only", "Missing", idx); err == nil {
+	if _, err := MatchTarget("The Invented Singers", "Missing", idx); err == nil {
 		t.Fatal("no match must abort the stream")
 	}
 }

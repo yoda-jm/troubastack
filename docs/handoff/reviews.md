@@ -10321,7 +10321,7 @@ EXCEPT `cmd/seed/main.go`, which carries B13's committed +89/-18 *and* the band'
   when `band` is set. Old hardcoded `<shortname>` target removed.
 
 **Local data (gitignored, NOT for review):** the band = 5 members (Vincent/admin bass+drums; a member
-drums+vocals; a member guitar+vocals; Fred melodica+small-drums+vocals; a member autoharp+small-
+drums+vocals; a member guitar+vocals; a member melodica+small-drums+vocals; a member autoharp+small-
 drums+vocals). 42 songs — 35 with real lyrics (lyrics.ovh/azlyrics/hand-paste → normalized to the
 chart dialect with heuristic verse/chorus detection), 7 originals as placeholders. Live now via
 `make band=<shortname>`.

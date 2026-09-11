@@ -107,7 +107,7 @@ rev bumps, and record it here.
 **Update (2026-08-25, after Fable pressed with the A42① precedent):** still NOT RUN — and it costs more
 than the ~15 min Fable budgeted, so per her explicit out I'm not forcing it. There is no annotation-free
 concert on the rig and no cheap one to borrow: marie admins only the annotated "Sat @ The Anchor" (fails
-at the overlay step), and the T100 local band `good-vibes-only` both excludes marie (so she couldn't
+at the overlay step), and the T100 local band `<a real local band>` both excludes marie (so she couldn't
 re-bake it) and carries its own annotations. Any real run means authoring a new object-free song + setlist
 server-side (uncertain payloads) AND a device download→open→re-bake cycle. **Structural argument that this
 is lower-risk than A42①:** A42①'s deadlock was a success that stayed `InFlight` because the row relied on a
