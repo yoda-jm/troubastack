@@ -6,6 +6,8 @@
 package memrepo
 
 import (
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -31,6 +33,7 @@ type Repo struct {
 	songCues       map[string]app.SongCues      // userID|songID -> personal cues (T50)
 	setlists       map[string]app.Setlist       // id -> setlist
 	setlistItems   map[string]app.SetlistItem   // id -> setlist item
+	rehearsalNotes map[string]app.RehearsalNote // ownerID|songID|page -> note (T170)
 }
 
 // New returns an empty in-memory Repo.
@@ -50,6 +53,7 @@ func New() *Repo {
 		songCues:       map[string]app.SongCues{},
 		setlists:       map[string]app.Setlist{},
 		setlistItems:   map[string]app.SetlistItem{},
+		rehearsalNotes: map[string]app.RehearsalNote{},
 	}
 }
 
@@ -645,6 +649,63 @@ func (r *Repo) DeleteSongCues(userID, songID string) error {
 	defer r.mu.Unlock()
 	delete(r.songCues, selectionKey(userID, songID))
 	return nil
+}
+
+// ---- rehearsal notes (T170) ----
+
+// noteKey is the (owner, song, page) unique key — the third segment is always present so
+// it can never collide with selectionKey's two-field shape.
+func noteKey(ownerUserID, songID string, pageInSong int) string {
+	return ownerUserID + "|" + songID + "|" + strconv.Itoa(pageInSong)
+}
+
+func (r *Repo) CreateOrReplaceRehearsalNote(n app.RehearsalNote) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rehearsalNotes[noteKey(n.OwnerUserID, n.SongID, n.PageInSong)] = n
+	return nil
+}
+
+func (r *Repo) GetRehearsalNote(ownerUserID, songID string, pageInSong int) (app.RehearsalNote, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	n, ok := r.rehearsalNotes[noteKey(ownerUserID, songID, pageInSong)]
+	if !ok {
+		return app.RehearsalNote{}, app.ErrNotFound
+	}
+	return n, nil
+}
+
+func (r *Repo) ListRehearsalNotes(ownerUserID, songID string) ([]app.RehearsalNote, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []app.RehearsalNote
+	for _, n := range r.rehearsalNotes {
+		if n.OwnerUserID == ownerUserID && n.SongID == songID {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].PageInSong < out[j].PageInSong })
+	return out, nil
+}
+
+func (r *Repo) DeleteRehearsalNote(ownerUserID, songID string, pageInSong int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.rehearsalNotes, noteKey(ownerUserID, songID, pageInSong))
+	return nil
+}
+
+func (r *Repo) CountRehearsalNotesByBlob(blobHash string) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	n := 0
+	for _, note := range r.rehearsalNotes {
+		if note.BlobHash == blobHash {
+			n++
+		}
+	}
+	return n, nil
 }
 
 // ---- setlists ----

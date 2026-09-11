@@ -36,6 +36,12 @@ import {
   type UndoEntry,
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
+import {
+  RehearsalNotesChip,
+  RehearsalUnderlay,
+  noteForPage,
+  useRehearsalNotes,
+} from "./RehearsalNotes";
 import { IconGlyphPalette } from "./IconGlyphPalette";
 import { EditCanvas } from "./WetCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
@@ -142,6 +148,11 @@ export function Viewer({
   // through setDoc/setVisible.
   const { doc, setDoc, visible, setVisible, connStatus, rejectNotice, syncRef } =
     useSongSync(bandId, songId, myUserId);
+
+  // T170 — the signed-in user's rehearsal notes for this song, and whether the underlay is on.
+  // Default ON: they sent the notes in order to look at them. Per song, in session only.
+  const { notes: rehearsalNotes, remove: removeRehearsalNote } = useRehearsalNotes(bandId, songId);
+  const [underlayOn, setUnderlayOn] = useState(true);
 
   // T30 — "no silent ink": while the realtime connection is down, ink cannot land,
   // so the editor presents READ-ONLY up-front (draw tools grayed via canDraw, wet
@@ -1445,6 +1456,15 @@ export function Viewer({
 
         <span className="tb-divider" aria-hidden="true" />
 
+        {/* T170 — only ever present when this user actually has notes on this song; a chip that
+            is always there, greyed, would advertise a feature to everyone who does not use it. */}
+        <RehearsalNotesChip
+          notes={rehearsalNotes}
+          shown={underlayOn}
+          onToggle={() => setUnderlayOn((v) => !v)}
+          onRemove={removeRehearsalNote}
+        />
+
         {/* T105 — for a generated text chart the source IS the file, so offer to edit it from where you
             are reading it, without opening the files panel. Navigates to the dedicated editor route.
             Absent on PDFs (nothing to edit) — the type-awareness mirrors T104's row control. */}
@@ -1601,6 +1621,17 @@ export function Viewer({
                   }}
                   className="pdf-canvas"
                 />
+                {/* T170 — the rehearsal note sits ABOVE the chart raster and BELOW every
+                    annotation layer: a reference to copy from, never a mark. That position in
+                    the stack is the whole feature; moving it above .annotation-overlay would
+                    hide the musician's own work behind their scribble. */}
+                {underlayOn &&
+                  (() => {
+                    const rn = noteForPage(rehearsalNotes, i);
+                    return rn ? (
+                      <RehearsalUnderlay note={rn} bandId={bandId} songId={songId} />
+                    ) : null;
+                  })()}
                 <canvas
                   ref={(el) => {
                     overlayRefs.current[i] = el;
@@ -1650,6 +1681,13 @@ export function Viewer({
                 alt={selectedFile.filename}
                 onLoad={layoutImageOverlay}
               />
+              {underlayOn &&
+                (() => {
+                  const rn = noteForPage(rehearsalNotes, 0);
+                  return rn ? (
+                    <RehearsalUnderlay note={rn} bandId={bandId} songId={songId} />
+                  ) : null;
+                })()}
               <canvas
                 ref={imgOverlayRef}
                 className="annotation-overlay"

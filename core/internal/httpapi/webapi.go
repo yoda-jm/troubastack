@@ -33,6 +33,10 @@ type WebAPI struct {
 
 // NewWebAPI builds the relational API adapter over a Service. baker may be nil (no bake features).
 func NewWebAPI(svc *app.Service, secureCookies bool, baker *bake.Baker) *WebAPI {
+	// T170: wire the service's narrow bake seam here, the one place that holds both. A nil
+	// baker stays nil through bakePageLookup, so a WebAPI built without bake reports every
+	// rehearsal note's pageChanged as unknown rather than as unchanged.
+	svc.WithBakeLookup(bakePageLookup{baker: baker})
 	return &WebAPI{svc: svc, secure: secureCookies, baker: baker}
 }
 
@@ -78,6 +82,7 @@ func (a *WebAPI) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files", a.auth(a.listFiles))
 	mux.HandleFunc("PATCH /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.updateFile))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/files/{fileId}", a.auth(a.deleteFile))
+	a.mountRehearsalNotes(mux)
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/text-charts", a.auth(a.createTextChart))
 	mux.HandleFunc("POST /api/bands/{bandId}/songs/{songId}/text-charts:preview", a.auth(a.previewTextChart))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/files/{fileId}/chart-source", a.auth(a.getChartSource))
@@ -656,6 +661,10 @@ func (a *WebAPI) deleteSong(w http.ResponseWriter, r *http.Request, u app.User) 
 
 // maxUploadBytes caps a single song-file upload (sheet music PDFs are small).
 const maxUploadBytes = 32 << 20 // 32 MiB
+
+// maxRehearsalNoteUpload caps one rehearsal-note PUT at the transport, mirroring the
+// service's own cap so an oversized body is refused before it is buffered.
+const maxRehearsalNoteUpload = 4 << 20 // 4 MiB
 
 // uploadFile handles multipart upload of a song file (field "file"). Member-only;
 // Service validates the content type.
@@ -1268,6 +1277,10 @@ func writeErr(w http.ResponseWriter, err error) {
 		code = http.StatusNotFound
 	case errors.Is(err, app.ErrConflict), errors.Is(err, app.ErrInviteResolved):
 		code = http.StatusConflict
+	case errors.Is(err, app.ErrUnsupportedMedia):
+		code = http.StatusUnsupportedMediaType
+	case errors.Is(err, app.ErrTooLarge):
+		code = http.StatusRequestEntityTooLarge
 	}
 	writeJSON(w, code, map[string]string{"error": err.Error()})
 }
