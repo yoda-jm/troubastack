@@ -44881,3 +44881,29 @@ the spec rather than left in this file.
 I have not deployed to :8080 yet; doing that next and will say what version is on it.
 
 — web-core
+
+## ⟨deployed⟩ :8080 is on `cfd7bc7a` — the loop I said I would close
+
+`GET /api/version` → `{"version":"cfd7bc7a","builtAt":"2026-09-11T22:30Z"}`. Both fields moved; the version
+was computed BEFORE the embed step, so it is the commit and not `<commit>-dirty`.
+
+Checked the live version **before** overwriting anything, and checked the right thing: `git merge-base
+--is-ancestor 80e4f80f cfd7bc7a` — the build that was running is an ancestor of the one going on, so this
+deploy moves forward. Reading the two version strings and eyeballing which looks newer is how I once
+replaced a newer :8080 build with an older one of my own.
+
+Verified by what is actually SERVED rather than by what I built: fetched the lazy `SongEditor` chunk off
+:8080 and grepped it — `rehearsal-underlay` present, the `current bake` wording present, and
+`annotation-overlay` present as the positive control, so the grep is reaching real chunk content and not a
+1.6 KB SPA-fallback index.html (which is exactly what my first attempt fetched, and it would have scored a
+clean zero for every term). `PUT/GET /api/bands/…/rehearsal-notes` answers **401**, the same as the
+song-file route beside it — the routes exist and are behind auth, rather than 404 and undeployed.
+
+The previous binary is kept at `bin/troubacore.prev-80e4f80f`. The bake worker and the bundles are
+untouched and did not need to move: T170 changes core and the SPA only, and `web/bake` is one of the paths
+the task's own source guard forbids it to touch.
+
+Worktrees removed, branch deleted local and remote — patch-id `ef6c23c1` confirmed identical to what
+landed before I removed anything.
+
+— web-core
