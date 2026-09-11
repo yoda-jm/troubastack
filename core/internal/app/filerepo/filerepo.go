@@ -12,6 +12,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -34,6 +37,7 @@ type dataset struct {
 	SongCues       map[string]app.SongCues      `json:"songCues"`
 	Setlists       map[string]app.Setlist       `json:"setlists"`
 	SetlistItems   map[string]app.SetlistItem   `json:"setlistItems"`
+	RehearsalNotes map[string]app.RehearsalNote `json:"rehearsalNotes"`
 }
 
 // storedUser is the on-disk user record: app.User's API-visible fields PLUS the
@@ -78,7 +82,25 @@ func (d *dataset) UnmarshalJSON(b []byte) error {
 	for id, su := range aux.Users {
 		d.Users[id] = su.toUser()
 	}
+	d.reseedNilMaps()
 	return nil
+}
+
+// reseedNilMaps puts an empty map back wherever the document carried an explicit null.
+//
+// The emptyDataset() above covers a field that is ABSENT (an older app.json that predates it);
+// it does not cover one present as `null`, which unmarshals over the seed and leaves nil — and
+// the first write to a nil map panics, on an upgrade, in production, never in a fresh-dir test.
+// This used to be a stanza-per-field list in load(); a list that mirrors a struct rots, and it
+// had in fact rotted (five of the fourteen maps were never in it). Walking the struct cannot.
+func (d *dataset) reseedNilMaps() {
+	v := reflect.ValueOf(d).Elem()
+	empty := reflect.ValueOf(emptyDataset())
+	for i := 0; i < v.NumField(); i++ {
+		if f := v.Field(i); f.Kind() == reflect.Map && f.IsNil() {
+			f.Set(empty.Field(i))
+		}
+	}
 }
 
 // Repo persists the dataset to <dir>/app.json on every write.
@@ -136,6 +158,7 @@ func emptyDataset() dataset {
 		SongCues:       map[string]app.SongCues{},
 		Setlists:       map[string]app.Setlist{},
 		SetlistItems:   map[string]app.SetlistItem{},
+		RehearsalNotes: map[string]app.RehearsalNote{},
 	}
 }
 
@@ -153,42 +176,9 @@ func (r *Repo) load() error {
 	if err := json.Unmarshal(b, &r.d); err != nil {
 		return fmt.Errorf("filerepo: parse: %w", err)
 	}
-	// Guard against nil maps from a partial file.
-	if r.d.Users == nil {
-		r.d = emptyDataset()
-	}
-	// Files was added after the first releases; an older file lacks the key.
-	if r.d.Files == nil {
-		r.d.Files = map[string]app.SongFile{}
-	}
-	// Setlists + items were added later still; nil-guard for backward compatibility
-	// with older app.json files that predate them.
-	if r.d.Setlists == nil {
-		r.d.Setlists = map[string]app.Setlist{}
-	}
-	if r.d.SetlistItems == nil {
-		r.d.SetlistItems = map[string]app.SetlistItem{}
-	}
-	// Per-member file selections were added later still; nil-guard for older files.
-	if r.d.Selections == nil {
-		r.d.Selections = map[string]app.FileSelection{}
-	}
-	// Per-member song cues (T50) were added later still; nil-guard for older files.
-	if r.d.SongCues == nil {
-		r.d.SongCues = map[string]app.SongCues{}
-	}
-	// Invite links were added later still; nil-guard for older files.
-	if r.d.InviteLinks == nil {
-		r.d.InviteLinks = map[string]app.InviteLink{}
-	}
-	// Password resets (T21) were added later still; nil-guard for older files.
-	if r.d.PasswordResets == nil {
-		r.d.PasswordResets = map[string]app.PasswordReset{}
-	}
-	// Chart sources (T19) were added later still; nil-guard for older files.
-	if r.d.ChartSources == nil {
-		r.d.ChartSources = map[string]string{}
-	}
+	// Nil maps are handled in UnmarshalJSON (reseedNilMaps) for BOTH shapes a document can take
+	// them in — absent and explicitly null — by walking the struct, so nothing to enumerate here.
+
 	// T160: drop session husks — records that authenticate nobody. Before T160 the
 	// UserID was json:"-", so every persisted session reloaded as {} (empty UserID)
 	// and accumulated forever (DeleteSession runs only on explicit logout). Prune
@@ -824,6 +814,67 @@ func (r *Repo) DeleteSongCues(userID, songID string) error {
 	}
 	delete(r.d.SongCues, k)
 	return r.flush()
+}
+
+// ---- rehearsal notes (T170) ----
+
+// noteKey is the (owner, song, page) unique key. It must not collide with selectionKey's
+// two-field shape, hence the third segment is always present even for page 0.
+func noteKey(ownerUserID, songID string, pageInSong int) string {
+	return ownerUserID + "|" + songID + "|" + strconv.Itoa(pageInSong)
+}
+
+func (r *Repo) CreateOrReplaceRehearsalNote(n app.RehearsalNote) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.d.RehearsalNotes[noteKey(n.OwnerUserID, n.SongID, n.PageInSong)] = n
+	return r.flush()
+}
+
+func (r *Repo) GetRehearsalNote(ownerUserID, songID string, pageInSong int) (app.RehearsalNote, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n, ok := r.d.RehearsalNotes[noteKey(ownerUserID, songID, pageInSong)]
+	if !ok {
+		return app.RehearsalNote{}, app.ErrNotFound
+	}
+	return n, nil
+}
+
+func (r *Repo) ListRehearsalNotes(ownerUserID, songID string) ([]app.RehearsalNote, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []app.RehearsalNote
+	for _, n := range r.d.RehearsalNotes {
+		if n.OwnerUserID == ownerUserID && n.SongID == songID {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].PageInSong < out[j].PageInSong })
+	return out, nil
+}
+
+func (r *Repo) DeleteRehearsalNote(ownerUserID, songID string, pageInSong int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	k := noteKey(ownerUserID, songID, pageInSong)
+	if _, ok := r.d.RehearsalNotes[k]; !ok {
+		return nil // idempotent
+	}
+	delete(r.d.RehearsalNotes, k)
+	return r.flush()
+}
+
+func (r *Repo) CountRehearsalNotesByBlob(blobHash string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, note := range r.d.RehearsalNotes {
+		if note.BlobHash == blobHash {
+			n++
+		}
+	}
+	return n, nil
 }
 
 // ---- setlists ----

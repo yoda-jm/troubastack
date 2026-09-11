@@ -728,6 +728,45 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   pointer-events: none;
 }
 
+/* ---- T170: the rehearsal-note underlay. Same box as .annotation-overlay, one step lower in
+   the stack (DOM order puts it there; no z-index is involved, and none should be added — an
+   index would let a later rule float it above the musician's own marks).
+   No opacity rule, on purpose: VLL asked for no transparency, and the PNG is itself ~99.9%
+   transparent, so the chart reads through it anyway. Never hit-testable — a note is not a
+   thing you can pick up, so a click on its ink must reach what is underneath. ---- */
+.rehearsal-underlay {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.rehearsal-chip-wrap { display: inline-flex; align-items: center; gap: .15rem; position: relative; }
+.rehearsal-chip-more { padding-inline: .45rem; }
+.rehearsal-popover {
+  position: absolute; z-index: 8; top: calc(100% + .35rem); right: 0;
+  min-width: 20rem; max-width: min(28rem, calc(100vw - 1.5rem));
+  padding: .4rem; border-radius: .6rem;
+  background: var(--surface, #1b1b1f); color: inherit;
+  border: 1px solid var(--border, rgba(255,255,255,.14));
+  box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.35);
+}
+.rehearsal-note-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .3rem .35rem; font-size: .8rem;
+}
+.rehearsal-note-what { flex: 1 1 auto; min-width: 0; }
+.rehearsal-note-changed {
+  flex: 0 0 auto; padding: .05rem .35rem; border-radius: .4rem;
+  background: rgba(229,57,53,.18); color: #ff9c98; white-space: nowrap;
+}
+.rehearsal-note-done {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  padding: .15rem .5rem; border-radius: .4rem;
+  border: 1px solid var(--border, rgba(255,255,255,.2));
+  background: transparent; color: inherit; font: inherit; font-size: .78rem;
+}
+
 /* ---- On-demand right DRAWER (Layers | Annotations): one tabbed glass dropdown,
    absolute over the canvas so opening/closing never resizes the score (zero-shift).
    Scrolls internally. ---- */

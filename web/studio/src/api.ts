@@ -144,6 +144,32 @@ export type SongFile = {
   revision?: number;
 };
 
+/**
+ * A rehearsal note (T170 / A70 Part B): a bitmap the musician drew on Stage over one page,
+ * sent here to be LOOKED AT while they recopy it into real annotations. It is not an object,
+ * not a layer, and nothing in the editor may make it selectable, movable or bakeable.
+ *
+ * `pageChanged` is deliberately three-valued: `null` means nobody could check (no bake on the
+ * server for that concert), and it must never be shown as "unchanged".
+ */
+export type RehearsalNote = {
+  id: string;
+  bandId: string;
+  songId: string;
+  pageInSong: number;
+  rasterHash: string;
+  concertId: string;
+  concertRev: number;
+  takenAs: string;
+  blobHash: string;
+  width: number;
+  height: number;
+  /** When it was drawn. Absent/zero when the tablet had no wall clock to send (§2.1). */
+  capturedAt?: string;
+  uploadedAt: string;
+  pageChanged: boolean | null;
+};
+
 export type SongPatch = {
   title?: string;
   artist?: string;
@@ -601,6 +627,25 @@ export const api = {
 
   deleteFile: (bandId: string, songId: string, fileId: string) =>
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/files/${fileId}`),
+
+  // ---- rehearsal notes (T170) — a REFERENCE underlay, never an annotation ----
+  // These are the signed-in user's own notes and nobody else's; the server keys every one of
+  // these paths on the caller, so there is no band-wide list to filter client-side.
+  listRehearsalNotes: (bandId: string, songId: string) =>
+    request<{ notes: RehearsalNote[] }>(
+      "GET",
+      `/api/bands/${bandId}/songs/${songId}/rehearsal-notes`,
+    ).then((r) => r.notes ?? []),
+
+  // The URL is keyed by page, and the bytes behind it change when the note is re-sent — so it
+  // carries the blob hash as a cache-buster the way fileUrl carries a revision. Callers pass
+  // the hash from the listing; without it the browser can keep showing a removed note.
+  rehearsalNoteUrl: (bandId: string, songId: string, page: number, blobHash?: string) =>
+    `/api/bands/${bandId}/songs/${songId}/rehearsal-notes/${page}` +
+    (blobHash ? `?v=${blobHash}` : ""),
+
+  deleteRehearsalNote: (bandId: string, songId: string, page: number) =>
+    request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/rehearsal-notes/${page}`),
 
   // T67 — a re-rendered chart keeps the same file id but bumps `revision`. Pinning the
   // revision in the URL makes "new render = new URL", so the browser can't serve the stale
