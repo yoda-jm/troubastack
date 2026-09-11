@@ -9,6 +9,7 @@ package com.troubastack.shared.stage.notes
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 
 /** §3.3 — a note's identity: the OWNING song plus the page's raster content hash. Page INDEX is never part
@@ -24,6 +25,7 @@ enum class NoteTool { PENCIL, ERASER }
  * save time (#8). `sentAt` is set by the tablet's send action, not the server's state (#9). `bakesSinceTouched`
  * drives the `Notes ⚠` nag (§3.4). Page/rev/titles are snapshots for labels and orphan display, never keys.
  */
+@Serializable
 data class NoteEntry(
     val songId: String,
     val rasterHash: String,

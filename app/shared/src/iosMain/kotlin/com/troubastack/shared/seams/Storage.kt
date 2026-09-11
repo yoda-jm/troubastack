@@ -75,6 +75,13 @@ actual class Storage {
         return dir
     }
 
+    // A70 — rehearsal notes beside bundles/ (iOS has no notes host yet; provided so the seam compiles).
+    actual fun notesDir(): String {
+        val dir = "${documentsDir()}/notes"
+        NSFileManager.defaultManager.createDirectoryAtPath(dir, true, null, null)
+        return dir
+    }
+
     actual fun getSecret(key: String): String? = memScoped {
         val result = alloc<CFTypeRefVar>()
         val query = keychainQuery(key)

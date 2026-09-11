@@ -9,11 +9,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -38,7 +38,7 @@ import com.troubastack.shared.stage.notes.NoteTool
 import com.troubastack.shared.stage.notes.NoteTools
 import com.troubastack.shared.stage.notes.RehearsalNotes
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Metadata the note bitmap does not carry, snapshotted at save time for labels + Part B placement (§3.3). */
@@ -125,13 +125,13 @@ fun NoteLayer(
         display = withContext(Dispatchers.Default) { transformOverlayBitmap(n, scheme) }
     }
 
-    // Persistence flush: pen-up marks dirty; save after IDLE_FLUSH_MS of quiet or on leave (§4.5). Saving an
-    // all-transparent bitmap deletes the note (the port's job). After a save, refresh the index so counts and
-    // the ✎ badge update.
-    val flush = remember(key) { com.troubastack.shared.stage.notes.NoteFlushPolicy() }
-    var dirtyTick by remember(key) { mutableStateOf(0) }
+    // Persistence: each pen-up commits the stroke to the bitmap then SAVES through the port (§4.5). Saving
+    // eagerly (not on an idle timer) means leaving Stage right after a stroke never loses it. An all-
+    // transparent bitmap deletes the note (the port's job). After a save, refresh the index so the counts +
+    // ✎ badge update. Runs on the composition scope, which survives note-mode exit (the page still shows).
+    val scope = rememberCoroutineScope()
     val latestNeutral = rememberUpdatedState(neutral)
-    suspend fun persist() {
+    fun persist() {
         val n = latestNeutral.value ?: return
         val entry = NoteEntry(
             songId = page.songId, rasterHash = page.rasterHash,
@@ -140,16 +140,13 @@ fun NoteLayer(
             concertRev = meta.concertRev, takenAs = meta.takenAs,
             width = n.width, height = n.height, updatedAt = monotonicNow(),
         )
-        withContext(Dispatchers.Default) { notes.save(concertId, entry, n) }
-        onIndexChanged(withContext(Dispatchers.Default) { notes.index(concertId) })
-    }
-    LaunchedEffect(dirtyTick, key) {
-        if (dirtyTick == 0) return@LaunchedEffect
-        delay(NoteTools.IDLE_FLUSH_MS)
-        if (flush.due(monotonicNow())) { persist(); flush.cleared() }
-    }
-    DisposableEffect(key) {
-        onDispose { /* force flush handled by the host onStop / exit; a compose dispose cannot suspend */ }
+        scope.launch(Dispatchers.Default) {
+            notes.save(concertId, entry, n)
+            val idx = notes.index(concertId)
+            // Refresh the index (counts + ✎ badge). NOT a revision bump — the in-memory bitmap is already
+            // current, so re-keying it would blank+reload the note mid-stroke.
+            withContext(Dispatchers.Main) { onIndexChanged(idx) }
+        }
     }
 
     // Draw the committed note (scheme-transformed), and — while editing — the wet stroke on top.
@@ -174,21 +171,22 @@ fun NoteLayer(
                             val p = NoteGeometry.touchToNote(change.position.x, change.position.y, size.width, size.height, n.width, n.height, fillWidth) ?: return@detectDragGestures
                             eraseInto(n, p, NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W)
                             display = transformOverlayBitmap(n, scheme)
-                            flush.dirty(monotonicNow()); dirtyTick++
                         } else {
                             wet = wet + change.position
                         }
                     },
                     onDragEnd = {
                         val n = latestNeutral.value
-                        if (tool == NoteTool.PENCIL && n != null && wet.size >= 1) {
-                            // Commit the wet stroke into the NEUTRAL bitmap in note space, in one draw (§3.6).
-                            val pts = wet.mapNotNull { NoteGeometry.touchToNote(it.x, it.y, size.width, size.height, n.width, n.height, fillWidth) }
-                            if (pts.isNotEmpty()) {
-                                strokeInto(n, pts, penColour, penWidth.toFloat() * n.width / NoteTools.NOTE_W)
-                                display = transformOverlayBitmap(n, scheme)
-                                flush.dirty(monotonicNow()); dirtyTick++
+                        if (n != null) {
+                            if (tool == NoteTool.PENCIL && wet.isNotEmpty()) {
+                                // Commit the wet stroke into the NEUTRAL bitmap in note space, in one draw (§3.6).
+                                val pts = wet.mapNotNull { NoteGeometry.touchToNote(it.x, it.y, size.width, size.height, n.width, n.height, fillWidth) }
+                                if (pts.isNotEmpty()) {
+                                    strokeInto(n, pts, penColour, penWidth.toFloat() * n.width / NoteTools.NOTE_W)
+                                    display = transformOverlayBitmap(n, scheme)
+                                }
                             }
+                            persist() // pencil stroke committed OR eraser dabs applied live → save either way
                         }
                         wet = emptyList()
                     },

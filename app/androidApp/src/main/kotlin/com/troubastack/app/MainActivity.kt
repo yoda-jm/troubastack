@@ -106,6 +106,9 @@ private const val COLOR_MODE_KEY = "stage.colorMode"
 private const val FIT_MODE_KEY = "stage.fitMode" // A14: persisted reading mode (page/width/scroll)
 private const val STAGE_CLOCK_KEY = "stage.clockVisible" // T147: persisted bottom-right clock preference
 private const val STAGE_CLOCK_STYLE_KEY = "stage.clockStyle" // T147: persisted analog/digital clock face
+private const val NOTE_TOOL_KEY = "stage.note.tool" // A70: last note tool/width/colour, per device
+private const val NOTE_WIDTH_KEY = "stage.note.width"
+private const val NOTE_COLOUR_KEY = "stage.note.colour"
 private const val LAST_CONCERT_KEY = "home.lastConcertDir" // A27: resume-last from the Home landing
 // A38: the persisted server address (written by ConnectScreen on connect; survives signOut). Its
 // presence is how Home tells "Guest, server known → Sign in" apart from "nothing set up → Connect".
@@ -630,6 +633,9 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     }
     val ctx = LocalContext.current
 
+    // A70 — the rehearsal-notes host port (bitmaps beside bundles/), and the concert's note index seeded
+    // into the VM so counts/badges are right from the first frame.
+    val notesPort = remember { AndroidRehearsalNotes(storage.notesDir()) }
     val opened = remember(dir, identity) {
         OpenedBundle(
             // A14: seed the persisted reading mode (page/width/scroll) into the VM (A10 pattern).
@@ -647,6 +653,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                 initialChrono = initialChrono,
                 initialClockVisible = storage.getSecret(STAGE_CLOCK_KEY) == "true",
                 initialClockStyle = ClockStyle.parse(storage.getSecret(STAGE_CLOCK_STYLE_KEY)), // T157: restore by name (BOTH survives)
+                initialNotes = if (concertId.isEmpty()) emptyList() else notesPort.index(concertId),
+                initialNoteTool = if (storage.getSecret(NOTE_TOOL_KEY) == "ERASER") com.troubastack.shared.stage.notes.NoteTool.ERASER else com.troubastack.shared.stage.notes.NoteTool.PENCIL,
+                initialNoteWidth = storage.getSecret(NOTE_WIDTH_KEY)?.toIntOrNull() ?: com.troubastack.shared.stage.notes.NoteTools.FINE,
+                initialNoteColour = storage.getSecret(NOTE_COLOUR_KEY)?.toLongOrNull() ?: com.troubastack.shared.stage.notes.NoteTools.BLACK,
             ),
             AndroidImageDecoder(File(dir)),
         )
@@ -693,6 +703,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     LaunchedEffect(stageState.clockStyle) {
         storage.putSecret(STAGE_CLOCK_STYLE_KEY, stageState.clockStyle.name)
     }
+    // A70 — persist the note tool/width/colour as they change (per device, §3.6).
+    LaunchedEffect(stageState.noteTool) { storage.putSecret(NOTE_TOOL_KEY, stageState.noteTool.name) }
+    LaunchedEffect(stageState.noteWidth) { storage.putSecret(NOTE_WIDTH_KEY, stageState.noteWidth.toString()) }
+    LaunchedEffect(stageState.noteColour) { storage.putSecret(NOTE_COLOUR_KEY, stageState.noteColour.toString()) }
 
     // A36: concert mode keeps its own performance look + A34's tuned amber/aqua beat — the brand
     // theme stops at Stage's door (VLL: "don't interact with the concert mode, ok as-is"). Restore
@@ -719,6 +733,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                         val cal = java.util.Calendar.getInstance()
                         Triple(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), cal.get(java.util.Calendar.SECOND))
                     },
+                    // A70 — rehearsal notes: the host bitmap port + the concert + a monotonic save clock.
+                    notes = notesPort,
+                    concertId = concertId,
+                    noteNow = { SystemClock.elapsedRealtime() },
                 )
             }
         }
@@ -853,7 +871,8 @@ private fun ConcertsScreen(
                             ConcertRow(
                                 entry, // A31/T143: this is the PICKER (a library), so the ⋮ shows whichever door you came through
                                 onOpen = { if (!entry.damaged) onOpen(entry.dir) },
-                                onDelete = { File(entry.dir).deleteRecursively(); refresh++ },
+                                // A70 §3.3: deleting a bundle removes its rehearsal notes too (they live beside it).
+                                onDelete = { File(entry.dir).deleteRecursively(); AndroidRehearsalNotes(storage.notesDir()).deleteAll(entry.concertId); refresh++ },
                                 onFreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.FROZEN); refresh++ },
                                 onUnfreeze = { updates.setPolicy(entry.concertId, UpdatePolicy.PROMPT); refresh++ },
                                 onPin = { updates.setFreeze(entry.concertId, Freeze.LocalPin(entry.concertRev)); refresh++ },

@@ -21,6 +21,9 @@ actual class Storage(private val context: Context) {
 
     actual fun tempDir(): String = context.cacheDir.path
 
+    // A70 — rehearsal notes live BESIDE bundles/, never inside a bundle (a re-import destroys bundles/<id>).
+    actual fun notesDir(): String = File(context.filesDir, "notes").apply { mkdirs() }.path
+
     // Secrets: EncryptedSharedPreferences (androidx.security.crypto) — hardened for B03, which is the
     // first to store an auth session cookie here (A05 flagged this as due before any token lands).
     // Keys are AES256-SIV, values AES256-GCM, under a MasterKey in the Android Keystore. This is a
