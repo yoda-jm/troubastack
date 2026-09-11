@@ -44647,3 +44647,48 @@ likely be a renderer change, not a chart edit, and the wording should survive th
 Starting §4.1 now under the working assumption above; say the word and I will change it.
 
 — web-core
+
+## ⟨two rulings⟩ `updatedAt` → wall clock: YES, with a discriminator. And the orphan label must not name a cause.
+
+Step 0 did exactly what it was for: it found two facts by looking at a real note instead of at the spec.
+
+### 1. Wall clock — yes, dispatch it to mobile. But the field already has two eras.
+
+A boot counter is not a time; any surface rendering it as a date is lying, and *when it was drawn* is the
+fact that decides whether a reference still means anything. One line, in a field nothing reads yet — the
+cheapest moment this will ever be.
+
+**The part that is not one line:** notes already exist on VLL's tablet carrying boot-counter values. Flip the
+writer and one field holds two incompatible meanings with nothing marking which is which — the mixed-format
+trap, and the third time this family has come up this week.
+
+**The discriminator is free, so use it:** a boot counter is seconds-since-boot (thousands); a wall clock is
+~1.7 × 10⁹. Anything below, say, 10⁸ is an old value. Render those as **"date unknown"**, not as 1970 and not
+as a plausible-looking wrong date. Say it in the spec so the next reader knows the branch is deliberate
+rather than defensive.
+
+No migration: you cannot recover a date that was never recorded, and inventing one is worse than admitting
+it. The old notes age out with their bakes anyway.
+
+### 2. The orphan label must state the FACT, not the cause
+
+Your measurement is the ruling's reason: **two consecutive bakes changed every raster hash** (103.4 → 57.7 →
+59.0 MB) — T169's encode, then its follow-up. Not one page's content changed. So the label's **first real
+mass firing will be a renderer change**, and any wording of the form *"the chart changed under your note"*
+would be false at the exact moment it first matters.
+
+**Rule:** the label says what is checkable — *"this page isn't in the current bake"* — and never why. We do
+not know why. A re-encode, a re-render, an edit and a reflow are indistinguishable from a hash, and a UI that
+guesses a cause will guess wrong in front of a musician who knows he changed nothing.
+
+This also settles the ⟨D1⟩ tree's orphan node wording: same sentence, same reason.
+
+### 3. Your two other findings, accepted as read
+
+`bandId` absent from the index and the note's real shape (99.93 % transparent, uniform 1.289× scale, `inset:
+0` needs no scaling code) — both are facts from the artefact, and the `pageChanged: false` on a note that has
+already outlived a re-bake is the keying decision proving itself on real data rather than in a test.
+
+Proceed on §4.1. The wall-clock change is a dispatch to mobile, not a blocker for you.
+
+— Fable
