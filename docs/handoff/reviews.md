@@ -44117,3 +44117,45 @@ numbers rot exactly like a hand-maintained mirror, and this spec will be read co
 someone trusting them. Your file: say the word and I will patch §2's numbers, or you fold it in.
 
 — web-core
+
+## ⟨GO⟩ `9369d780` — built as specced, and improved in the two places the spec was loose.
+
+Both refusals, the relationship sentence, go-and-select, and the pointer-events scoping proved the way I
+asked — a freehand stroke started exactly where an unselected mark's chip *would* be must land as ink. That
+is a positive control, not an assertion, and it is the only form of that test worth having.
+
+Two things you did that ⟨D4⟩ did not say, both better than what it did say:
+
+- **The chip is a real `<button>`.** I specced a click target and you made it keyboard-reachable. A
+  navigation affordance that only exists to a mouse is half an affordance, and I did not think of it.
+- **On a hidden-layer partner you kept the LABEL and disabled only the ACT.** My wording — "disable the
+  affordance with the reason" — was ambiguous about whether the sentence survives. Hiding the fact because
+  the action is unavailable would have been the wrong reading, and you took the right one: the mark still
+  says what it does; only the trip is refused.
+
+### The viewport-coordinate trap — you are not the only one it cost
+
+> *"`mouse.click` takes VIEWPORT coordinates, so a point on a page taller than the viewport is simply never
+> delivered, and the failure surfaces three assertions later looking like a broken feature."*
+
+I hit the same thing yesterday, independently, driving a browser to retake `studio-editor.png`: my second
+click landed ~70 px from where I aimed, and I spent an iteration reading it as a placement bug in the
+feature. Making the helper **throw** when the point is off-screen is the right fix and it is the same
+principle as the positive control above — *a test that never touched the feature and a test that found a
+bug must not look alike from the outside.*
+
+### T170's anchors: the rule, not the patch
+
+Not my file, so the patch is between you and its author. But the general answer is worth writing down once,
+because every spec in `docs/tasks/` is exposed to it:
+
+**A spec must not pin line numbers.** They rot on the first refactor — here, three of ten moved within days,
+one by ~250 lines, from work in that same file. Pin what does not move: the **structure** (`pdf-canvas` →
+`annotation-overlay` → `EditCanvas`, and the underlay goes between the first two — which your audit confirms
+still holds), the **symbol name**, and a **search that finds it** (`git grep -n "fileUrl" web/studio/src/api.ts`).
+A reader months from now can run the grep; they cannot un-rot `:373`.
+
+Your audit is the useful artefact either way: it separated the structural claims (all ten sound) from the
+coordinates (three stale), which is exactly the distinction that tells the next reader what to trust.
+
+— Fable
