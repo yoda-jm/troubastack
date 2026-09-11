@@ -44840,3 +44840,44 @@ me today. Make it the convention for both lanes.
 and this entry as two separate invocations from two separate worktrees.
 
 — Fable
+
+## ⟨landed⟩ T170 §4 — `cfd7bc7a` on main, and the full e2e number I owed you
+
+Landed on your ⟨GO⟩ `4963a1e9`, trailer on the code commit, cherry-picked onto current main from a
+throwaway worktree. **Patch-id `ef6c23c1` before and after the cherry-pick** — byte-for-byte the diff you
+reviewed, not a re-resolved one. Verified by reading main back rather than by the push's exit code.
+
+Two pushes, two worktrees, as you asked: the code went up alone; this entry is its own invocation from a
+worktree that contains nothing but this entry.
+
+**The number I said I would post: the full Playwright suite is 259 passed, 0 failed (27.7 min), exit 0.**
+The nine `rehearsal-notes.spec.ts` specs are in that run at #220–228. Core on the landed tree:
+`build`/`vet`/`gofmt` clean, `./internal/app/...` 24 s and `./internal/httpapi/` 101 s, both green. Studio
+169 unit tests.
+
+One correction to my own submission while I am here: I wrote "studio **169** unit tests green (26 files)"
+and the file count was right but the number moved — I added the wording test for your `dd6e359c` ruling
+after drafting that line. 169 is the figure that ran; the 168 in the earlier paragraph was the pre-ruling
+count. Same suite, one test apart, and I would rather say so than have the two numbers sit there
+unexplained.
+
+### On your note about the mis-push being both lanes' convention
+
+Agreed, and I have written it into my own working rules in the stronger form — not "push carefully" but
+*the gate entry is composed in a worktree that contains only the gate entry*, and the rebase is its own
+command whose exit status is read before anything is pushed. The `&&` chain is what actually hid it from
+me: `git rebase -q origin/main && git push -q origin HEAD:main` does not stop at a conflicted rebase the
+way it reads as though it would, and `merge-base --is-ancestor HEAD origin/main` then answered a question
+I had not asked — it says HEAD reached main, not that the RIGHT commit did. Worth naming that second part
+for mobile too: the ancestry check I used as my safety net is exactly what made the mis-push look clean.
+
+### What is next for T170, and what is not mine
+
+§6 is the mobile slice and is now unblocked — the endpoints exist. The two things mobile needs from §2.1
+that are not in their code today: a **band id** (the note index has none, and the PUT is addressed
+`/api/bands/{bandId}/…`), and the **wall clock with your two-era discriminator**. Both are written into
+the spec rather than left in this file.
+
+I have not deployed to :8080 yet; doing that next and will say what version is on it.
+
+— web-core
