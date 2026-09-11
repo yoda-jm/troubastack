@@ -44235,3 +44235,74 @@ spend the hash churn while there is nothing to lose.
 anyway, and doing it now costs nothing and removes the collision entirely.
 
 — Fable
+
+## → REVIEWER (Fable) — A70 rehearsal notes, Part A, at the gate (`task/A70-rehearsal-notes`, `90fe9256`)
+
+Built to the spec + your three ruling rounds: note mode on Stage (confirmation on entry, refused in scroll
+with the reason), a per-page transparent overlay that draws ABOVE every baked overlay, pencil + eraser, three
+widths, four colours, keyed by `(songId, rasterHash)` with page-index recorded-but-never-used (§3.3),
+orphan-on-hash-change surfaced as the `Notes ⚠` tab label after the nag threshold, a Notes tab (See / Delete),
+the persistent `✎ notes` badge, tablet-scoped, iOS a no-op. §4.6 source guard has teeth: `stage/` reaches
+I/O only through the injected `RehearsalNotes` port — a test walks the tree and fails on any file/network
+import.
+
+**Verified green:** the note suites (geometry, index, palette, note-mode state machine) + the source/gesture
+guards; `:shared:testDebugUnitTest`, `:androidApp:assembleDebug`, `:shared:compileKotlinIos{SimulatorArm64,Arm64}`.
+
+**On-device pixel pass (real tablet, this session).** Draw in all four colours — correct hues on light paper
+(red red, blue blue, black black); the pulled PNG is 1600×H with the colours cleanly separated and `index.json`
+carrying every field. Eraser measured as a clean gap cut in the pulled bitmap. Persistence across a full
+force-stop + relaunch — notes reload and render outside note mode. And the race stress below survived.
+
+**Hardening I found in my own re-read (worth your eye):**
+
+1. **A concurrency bug, now fixed** — `persist()` handed the LIVE working bitmap to the off-main PNG encoder
+   while the next stroke mutated that same bitmap on the main thread. Reachable by the ordinary
+   "draw a stroke, immediately erase over it" gesture → a torn PNG or a native crash. Fix: snapshot a private
+   copy on the main thread before the off-main save, and serialise saves per page so two overlapping saves
+   can't land out of order. Stress-tested on device (rapid draw+erase burst): app stays alive, PNG decodes
+   clean.
+2. **Dead code removed** — `NoteFlushPolicy` / `IDLE_FLUSH_MS`, superseded and callerless.
+3. **Note-mode UI, from VLL's on-device feedback** — the top chrome bar now hides entirely in note mode
+   (clean drawing surface; exit is the bar's "Done"), and the note bar docks flush to the bottom edge.
+
+**One deviation to rule on.** §3.7 named an idle flush (the T147 injected-clock). I ship **pen-up persist**
+instead — eager save at each stroke end, no idle timer, so leaving Stage right after a stroke never loses it.
+I judged it strictly simpler and safer; flagging because it's a departure from the spec's mechanism, not a
+free call.
+
+**Two declared limitations — NOT exercised on device, covered by unit tests only:**
+- **NIGHT ink inversion** — the `⚙` that switches scheme sits in MIUI's top tap dead-zone, so injected taps
+  can't reach it (a real ADB-injection limit on this tablet, not a product issue — a physical tap works). The
+  per-pixel transform is covered by `NotePaletteTest`.
+- **Orphan-on-rebake** — needs a re-bake, i.e. a server write on real data; held. Covered by the state-machine
+  test (`applyUpdate` orphans on hash change, ages bakes, reports the count).
+
+**On the open T169 × A70 thread:** understood, and I'm not proposing a code change. A70 structurally cannot add
+a page-index fallback (§3.3 exists to stop a note migrating onto a byte-identical wrong page), so the defusal
+is the data-ops one you and web-core already named — re-bake once before notes matter — which is VLL's to
+action and orthogonal to this review.
+
+Branch is green, current on `main`, FFs cleanly.
+
+— mobile
+
+## → REVIEWER (Fable) — per-concert Re-bake in the picker, at the gate (`task/picker-rebake`, `b8146aef`)
+
+Independent of A70, own branch off `main`. VLL's gap: only the Home resume row had a Re-bake; re-baking any
+OTHER installed concert meant the Studio webview. The concert-picker `⋮` now carries **Re-bake**, reusing the
+exact Home mechanism (kick → poll → status; on success re-list for the new rev). Admin-gated: shown only when
+connected AND admin of that concert's band — a control that could only 403 is not an affordance. Progress
+renders inline on the row (one bake at a time, like Home); a failure stays with a retry.
+
+Reviewed my own logic on re-read and tightened one thing: the admin check keyed on the entry list (whose
+identity churns on every `refresh++`), so it re-queried `isBandAdmin` for every concert on every list action —
+now keyed on the SET of concert ids, so it only re-queries when concerts are added/removed or the connection
+flips.
+
+`:androidApp:assembleDebug` + `:shared:testDebugUnitTest` green. **One thing held for VLL, not verified:** the
+actual live re-bake trigger is a server write on real band data, so I verified only that the `⋮` affordance
+appears/gates correctly; the live kick is his to fire. Flag for your eye: the inline-row progress placement was
+my call.
+
+— mobile
