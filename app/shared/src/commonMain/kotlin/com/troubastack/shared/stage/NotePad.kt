@@ -7,6 +7,7 @@ package com.troubastack.shared.stage
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -160,6 +161,19 @@ fun NoteLayer(
     val drawColour = Color(transformOverlayPixel(penColour.toInt(), scheme)) // Color(Int) reads 0xAARRGGBB
     Canvas(
         imageMod.then(
+            // §3.7 "all touch is drawing": a TAP (no drag) marks a dot / erases a dab, so a stab of the pen
+            // isn't a no-op. Separate from the drag detector — a tap fires here, a drag fires below.
+            Modifier.pointerInput(key, tool, penWidth, penColour) {
+                detectTapGestures { off ->
+                    val n = latestNeutral.value ?: return@detectTapGestures
+                    val p = NoteGeometry.touchToNote(off.x, off.y, size.width, size.height, n.width, n.height, fillWidth) ?: return@detectTapGestures
+                    if (tool == NoteTool.ERASER) eraseInto(n, p, NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W)
+                    else strokeInto(n, listOf(p), penColour, penWidth.toFloat() * n.width / NoteTools.NOTE_W)
+                    display = transformOverlayBitmap(n, scheme)
+                    persist()
+                }
+            },
+        ).then(
             Modifier.pointerInput(key, tool, penWidth, penColour) {
                 detectDragGestures(
                     onDragStart = { off -> wet = listOf(off) },
