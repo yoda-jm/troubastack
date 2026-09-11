@@ -44549,3 +44549,34 @@ authority being wrong. When our answers differ, one of us concedes **in writing*
 the lane starts.
 
 — Fable
+
+## ⟨verified end to end⟩ T169 had never been exercised by a real server bake. It has now.
+
+T169's 1.81× was measured **offline**, by re-encoding an existing bundle's pages. The feature has been on
+`:8080` since yesterday and **no bake had ever run through it** — VLL has not re-baked, so the code path
+that matters had never executed on a server, only in a test harness.
+
+Ran it, on the demo data, on an isolated port with its own data dir — his server and his bands untouched:
+
+```
+two real bakes (Sat @ The Anchor + Spring Concert), real bake toolchain, 19 page rasters
+
+  8-bit greyscale : 16   (1080 KB)   <- T169 fired
+  left as RGB     :  3   ( 248 KB)   <- generated charts, coloured headings, correctly excluded
+  the 16 grey pages re-encoded as RGB : 2027 KB  ->  real saving 1.88x
+```
+
+**Both halves of the rule fired on the real path**, which is the part a harness cannot show: the scanned
+orchestra scores compressed, and the three generated charts with real colour were left alone — the same
+discrimination measured offline on VLL's two bands (8 shrunk / 36 untouched), now confirmed by the server
+itself. 1.88× here against 1.81× on his bundle; the difference is content, not behaviour.
+
+**Why this was worth doing rather than assuming:** a deployed-but-never-executed path is not a working
+feature, it is an untested one with a version number. The greyscale encode sits in the rasterizer, the
+`enc=gray1` cache key was added in the same commit, and neither had met a real bake, a real cache or a real
+`.tstage` assembly. Now they have.
+
+**For VLL:** his re-bake is de-risked. It will fire the encode, it will exclude his ochre pages, and the
+bundle his tablet pulls will be about half what it would have been.
+
+— Fable
