@@ -33,6 +33,15 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Surface
+import androidx.compose.foundation.Image
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import com.troubastack.shared.stage.notes.NoteIndex
+import com.troubastack.shared.stage.notes.NotesWarning
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -764,6 +773,8 @@ private fun ConcertsScreen(
     var syncing by remember { mutableStateOf(false) }
     var offers by remember { mutableStateOf<List<Availability>>(emptyList()) }
     var names by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // A70 §5.3 — the Stage section is two tabs: Bakes (today's list) | Notes (rehearsal-note management).
+    var stageTab by remember { mutableStateOf(0) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -838,6 +849,25 @@ private fun ConcertsScreen(
                     }
                 }
             }
+            // A70 §5.3 — Bakes | Notes tabs, Stage accent (Stage section only, not Manage). The Notes tab
+            // label carries the whole nag: `Notes ⚠` in orange/red when any note is old.
+            val stageAccent = LocalBrandAccents.current.stage
+            if (!manage) {
+                val notesWarn = remember(refresh) { allNotesWarning(storage) }
+                TabRow(
+                    selectedTabIndex = stageTab, contentColor = stageAccent,
+                    indicator = { pos -> TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(pos[stageTab]), color = stageAccent) },
+                ) {
+                    Tab(selected = stageTab == 0, onClick = { stageTab = 0 }, text = { Text("Bakes") }, selectedContentColor = stageAccent, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Tab(
+                        selected = stageTab == 1, onClick = { stageTab = 1 },
+                        text = { Text(if (notesWarn == NotesWarning.NONE) "Notes" else "Notes ⚠") },
+                        selectedContentColor = when (notesWarn) { NotesWarning.RED -> Color(0xFFD32F2F); NotesWarning.ORANGE -> Color(0xFFF57C00); else -> stageAccent },
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (manage || stageTab == 0) {
             if (manage && syncing) Text("Syncing…", style = MaterialTheme.typography.bodySmall)
             message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
@@ -882,7 +912,75 @@ private fun ConcertsScreen(
                     }
                 }
             }
+            } // A70: close the Bakes-tab wrapper (manage || stageTab == 0)
+            if (!manage && stageTab == 1) NotesTab(storage, connected)
         }
+    }
+}
+
+// A70 §5 — every stored rehearsal note across all installed concerts, paired with its concert id.
+private fun allNoteEntries(storage: Storage): List<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>> {
+    val port = AndroidRehearsalNotes(storage.notesDir())
+    return listConcerts(storage).flatMap { c -> port.index(c.concertId).map { c.concertId to it } }
+}
+
+private fun allNotesWarning(storage: Storage): NotesWarning =
+    NoteIndex.warning(allNoteEntries(storage).map { it.second })
+
+/**
+ * A70 §5.3 — the Notes tab: every rehearsal note grouped band → song → page, each with See / Delete /
+ * Send. Send is Part B (disabled here). The tab LABEL carries the `⚠` nag (computed by the caller); each
+ * old note also spells it out (VLL's words). This is the only place a note can be deleted or viewed off
+ * the page.
+ */
+@Composable
+private fun NotesTab(storage: Storage, connected: Boolean) {
+    var refresh by remember { mutableStateOf(0) }
+    val notes = remember(refresh) { allNoteEntries(storage) }
+    val port = remember { AndroidRehearsalNotes(storage.notesDir()) }
+    var see by remember { mutableStateOf<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>?>(null) }
+    if (notes.isEmpty()) {
+        Text("No rehearsal notes yet. Open a concert and tap ✎ to take one.", style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        notes.groupBy { it.second.bandName }.forEach { (band, bandNotes) ->
+            item(key = "band:$band") { Text(band.ifEmpty { "Notes" }, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp)) }
+            bandNotes.sortedWith(compareBy({ it.second.songTitle }, { it.second.pageInSong })).forEach { (cid, n) ->
+                item(key = "${cid}:${n.file}") {
+                    ElevatedCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("${n.songTitle.ifEmpty { "Untitled" }} · page ${n.pageInSong + 1}", style = MaterialTheme.typography.bodyMedium)
+                            val old = NoteIndex.isOld(n)
+                            val meta = buildString {
+                                append("rev ${n.concertRev}")
+                                if (n.takenAs.isNotEmpty()) append(" · taken as ${n.takenAs}")
+                                append(if (n.sentAt != null) " · sent" else " · not sent")
+                            }
+                            Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (old) Text("This note only exists on this device. Have you sent it to Studio? Delete it?", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { see = cid to n }) { Text("See") }
+                                TextButton(onClick = { port.delete(cid, n.key); refresh++ }) { Text("Delete") }
+                                TextButton(onClick = {}, enabled = false) { Text(if (connected) "Send to Studio" else "Sign in to send") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    see?.let { (cid, n) ->
+        val bmp = remember(cid, n.file) { port.load(cid, n.key) }
+        AlertDialog(
+            onDismissRequest = { see = null },
+            confirmButton = { TextButton(onClick = { see = null }) { Text("Close") } },
+            title = { Text("${n.songTitle.ifEmpty { "Untitled" }} · page ${n.pageInSong + 1}") },
+            text = {
+                if (bmp != null) Image(BitmapPainter(bmp), contentDescription = null, modifier = Modifier.fillMaxWidth(), colorFilter = null)
+                else Text("Couldn't load this note.")
+            },
+        )
     }
 }
 
