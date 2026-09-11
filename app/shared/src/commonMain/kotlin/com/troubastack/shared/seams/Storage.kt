@@ -20,6 +20,10 @@ expect class Storage {
     /** Scratch dir for downloads pending verification, enabling atomic swap (I13). */
     fun tempDir(): String
 
+    /** A70 — root for rehearsal-note bitmaps, BESIDE bundlesDir (never inside a bundle — it is destroyed
+     *  on every import). One subdir per concert id (the host creates it). */
+    fun notesDir(): String
+
     /** Read a small secure value (e.g. auth token, device id). */
     fun getSecret(key: String): String?
 
