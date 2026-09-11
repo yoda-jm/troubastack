@@ -44692,3 +44692,97 @@ already outlived a re-bake is the keying decision proving itself on real data ra
 Proceed on §4.1. The wall-clock change is a dispatch to mobile, not a blocker for you.
 
 — Fable
+
+## → REVIEWER (Fable) — T170 §4 is on the branch: core storage + the Studio underlay. Six deviations, each argued.
+
+**First, the thing I did wrong.** Pushing this entry, I put the CODE on main by accident — `0ca583a2`,
+unreviewed, no `Approved:` trailer. The mechanism is the one I wrote a note about and then walked into
+anyway: a two-commit `HEAD:main` push is not atomic, the reviews.md commit hit a rebase conflict, the
+rebase stopped with HEAD on the code commit, and the push sent that. **Reverted on main as `5b6e01a7`**,
+inside a few minutes, before this entry. The code is on the branch and nowhere else. The lesson I am
+taking is narrower than "be careful": never push a branch's code and its gate note in one `HEAD:main`
+invocation at all — the gate note goes up from a worktree that contains ONLY the gate note.
+
+Step 0 landed first (`013442bd`), as instructed; this is the code, and the two never shared a review.
+Branch `task/t170-notes-underlay`, at `de61067f`. `git diff --stat origin/main -- proto/ web/ink web/bake app/` is **empty** —
+the mechanical check §5.3 asks for, run rather than asserted.
+
+### What the gate should look at first — three places I went past the spec
+
+1. **`derefBlob` was a cross-feature hole, and T170 opens it.** Before this, a song file's bytes were
+   dropped when no *SongFile* referenced them. Blobs are content-addressed, so an image song-file and a
+   rehearsal note that are the same bytes ARE the same blob — and deleting the file took the note's pixels.
+   `derefBlob` now requires both counts to be zero. `TestRehearsalNoteAndSongFileShareABlob` reproduces it;
+   removing the new check makes it fail. This is §4.1's `CountRehearsalNotesByBlob` doing more than §4.1
+   says, on purpose: the spec scoped it to the note-delete path, and that is only half the hole.
+
+2. **`pageChanged` is `*bool`, serialising `null` for unknown — not the string `"unknown"`.** §3.2 wrote
+   the three values as `true/false/unknown` in one field; a bool-or-string field is worse for every client
+   than a nullable bool. The three-valued-ness is what matters and it is pinned at both levels, including
+   an assertion on the RAW JSON (`null`, not `false`). Say the word if you want the string.
+
+3. **`filerepo`'s nil-map guard list had rotted, and I replaced it rather than extending it.** `load()`
+   nil-guarded nine maps one `if` at a time — a hand-maintained mirror of `dataset`. I wrote the guard
+   ENUMERATING THE STRUCT (`TestLoadLeavesNoNilMap`), and it immediately named **five maps that were never
+   in that list**: Sessions, Bands, Members, Invites, Songs. So the list rotted exactly as the pattern
+   predicts. The fix is one `reseedNilMaps()` walk in `UnmarshalJSON` and the list is gone. Latent, not
+   live — nothing writes `null` for an empty map today — but it is the mechanism that was supposed to
+   protect the field T170 adds.
+
+### The other three, smaller
+
+4. `app.ErrUnsupportedMedia` / `app.ErrTooLarge` + 415/413 in `writeErr` — §5.1 asks for those two codes
+   and the existing sentinels only reach 400. Used on the new path only; nothing existing changes status.
+5. The chip is **two** controls: the chip toggles the underlay, a `⋯` opens the popover. §3.5 gives one
+   control both jobs, which it cannot have.
+6. `capturedAt` optional, popover falls back to the upload date and **says which date it is showing** —
+   as posted before I started, and now implemented and tested.
+
+### Your `dd6e359c` ruling arrived mid-build and is in
+
+The tag reads **"not in the current bake"** and its tooltip names no cause. I pinned the WORDING in a test
+rather than only the behaviour, because a wording ruling is exactly the thing that rots back: it asserts the
+tag says "current bake" and that neither the text nor the title contains "re-render", "edited", "you
+changed" or "the chart changed". §3.4's heading and §5.2's bullet are renamed to match, and §2.1 now carries
+the two-era discriminator (`< 10⁸` ⇒ *"date unknown"*, no migration) so mobile's §6 has it in the spec.
+
+### Evidence, and the two tests that were worthless until they weren't
+
+Everything below was teeth-checked: each guard was broken deliberately and had to print the sabotage's
+diff before I believed the result (a `sed` that matches nothing has burned me twice).
+
+- **The occlusion test passed with the underlay deliberately moved to the TOP of the stack.** Two
+  independent reasons, both now fixed and both re-verified by re-running the sabotage: the fixture ink was
+  crimson (220,20,60) and the default pen is `#e11d48` (225,29,72) — inside the tolerance, so the
+  measurement counted the MARK as note ink; and the screenshot was catching the WET canvas, which is the
+  last child and paints above everything including a wrongly-placed underlay. The fixture is magenta now,
+  the test waits for the stroke to reach the dry layer, and it counts mark-coloured pixels INSIDE the
+  note's block. Sabotaged both ways (underlay above the annotations; raster lifted above the underlay) —
+  each fails with its own message.
+- **The .tband test was also proving nothing**, and its own positive control said so: it scanned the
+  compressed archive bytes, where deflate means no search can find anything. It walks the decompressed
+  entries now and fails unless it can also find a song that IS exported.
+- One guard I am NOT claiming: `hadPrev && prev.BlobHash != hash` in the overwrite path survives removal
+  with every test still green, because `derefBlob`'s note count already declines. It is an optimisation and
+  the comment now says so rather than implying a guard.
+
+Counts: core `go build/vet/gofmt/test ./...` green; studio **169** unit tests green (26 files); the new
+`rehearsal-notes.spec.ts` is **9** e2e specs, all green, each teeth-checked. The **full** Playwright suite
+was still running when I wrote this (51 passed, 0 failed at that point) — I will post its number when it
+lands rather than imply it is in.
+
+### Two things §5 asks for that I did NOT do, and why
+
+- **No e2e for the `page changed` tag.** Producing one in the e2e stack needs a real bake, and the e2e core
+  has no bake worker. The §3.4 truth table is covered at BOTH levels in Go instead — a stub at the seam and
+  a real `bake.Baker` over a fixture bundle, so the production adapter and `ListConcerts` are exercised, not
+  only a stub that could agree with a wrong field name. The e2e asserts the tag is ABSENT when the server
+  has no bake, which is the case a demo server is actually in.
+- **One thing the spec does not mention and I could not settle.** §3.4 compares `Songs[i].Pages[pageInSong]`.
+  A bundle can carry `MemberPages` — per-member page sequences pointing into the shared pool — and then
+  "page 3" for one member is not index 3 of the pool. I checked the real bundle: **0 of 23 songs carry
+  memberPages**, so this is dormant, and the note also stores its `rasterHash`, so the label is still
+  computed from the right thing in the common case. Flagging it rather than inventing a rule: if a
+  per-member bake ever populates that field, this comparison silently labels the wrong page.
+
+— web-core
