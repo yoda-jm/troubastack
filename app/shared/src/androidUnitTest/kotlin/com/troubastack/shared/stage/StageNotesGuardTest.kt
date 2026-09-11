@@ -37,11 +37,19 @@ class StageNotesGuardTest {
     @Test
     fun stage_reaches_io_only_through_the_rehearsal_notes_port() {
         val offenders = mutableListOf<String>()
+        val scanned = mutableListOf<String>()
         stageDir().walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { f ->
+            scanned += f.name
             f.readText().lineSequence().withIndex().forEach { (i, line) ->
                 if (forbiddenImport.containsMatchIn(line)) offenders += "${f.name} L${i + 1}: ${line.trim()}"
             }
         }
+        // POSITIVE CONTROL (Fable's gate ruling): an empty offender list is only evidence if the walk actually
+        // SAW the stage sources. Without this, a mis-resolved dir yields zero files → zero offenders → green,
+        // and the presenter's first write surface goes unguarded under a passing test forever. Assert the walk
+        // found a plausible number of stage/ files AND the largest one specifically.
+        assertTrue(scanned.size >= 15, "the I/O guard walk saw only ${scanned.size} .kt files — it is not scanning stage/ (${stageDir()})")
+        assertTrue("StageScreen.kt" in scanned, "the I/O guard walk did not see StageScreen.kt — wrong dir? scanned=$scanned")
         assertEquals(
             emptyList(), offenders,
             "a stage/ file reaches I/O directly — route it through the RehearsalNotes port (A70 §4.6). Offenders:\n" + offenders.joinToString("\n"),
