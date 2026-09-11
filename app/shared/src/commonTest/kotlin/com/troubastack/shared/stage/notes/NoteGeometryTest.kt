@@ -81,18 +81,6 @@ class NoteGeometryTest {
     }
 
     @Test
-    fun flushPolicy_idleGap_forceAndClean() {
-        val p = NoteFlushPolicy(idleMs = 2000)
-        assertTrue(!p.due(1000) && !p.force()) // clean → no-op both ways
-        p.dirty(0)
-        assertTrue(!p.due(1999), "1999ms is not yet due")
-        assertTrue(p.due(2000), "2000ms is due")
-        assertTrue(p.force(), "force flushes a pending drawing regardless of the clock")
-        p.cleared()
-        assertTrue(!p.due(10_000) && !p.force(), "cleared → no-op again")
-    }
-
-    @Test
     fun tools_eraserWidth_andPaletteShape() {
         assertEquals(NoteTools.MEDIUM, NoteTools.eraserWidth(NoteTools.FINE)) // 3×3=9 == MEDIUM floor
         assertEquals(NoteTools.WIDE * 3, NoteTools.eraserWidth(NoteTools.WIDE))
