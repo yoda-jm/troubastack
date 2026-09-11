@@ -791,6 +791,8 @@ private fun ConcertsScreen(
     // Perform intent is lean + fully offline (I12): damaged concerts aren't performable, so they only
     // appear in Manage (where you can delete them).
     val entries = remember(refresh, manage) { listConcerts(storage).filter { manage || !it.damaged } }
+    // A70 §5.5 — note count per concert, for the library-row subtitle ("· notes on N pages").
+    val noteCounts = remember(refresh) { allNoteEntries(storage).groupingBy { it.first }.eachCount() }
 
     // Pull the manifest + recompute offers whenever connection or install state changes (I13). Manage
     // intent only — the perform path makes NO network call (offline-first entering via TroubaStage).
@@ -900,6 +902,7 @@ private fun ConcertsScreen(
                         items(group.items, key = { it.dir }) { entry ->
                             ConcertRow(
                                 entry, // A31/T143: this is the PICKER (a library), so the ⋮ shows whichever door you came through
+                                notesCount = noteCounts[entry.concertId] ?: 0,
                                 onOpen = { if (!entry.damaged) onOpen(entry.dir) },
                                 // A70 §3.3: deleting a bundle removes its rehearsal notes too (they live beside it).
                                 onDelete = { File(entry.dir).deleteRecursively(); AndroidRehearsalNotes(storage.notesDir()).deleteAll(entry.concertId); refresh++ },
@@ -913,7 +916,7 @@ private fun ConcertsScreen(
                 }
             }
             } // A70: close the Bakes-tab wrapper (manage || stageTab == 0)
-            if (!manage && stageTab == 1) NotesTab(storage, connected)
+            if (!manage && stageTab == 1) NotesTab(storage, connected, onChanged = { refresh++ })
         }
     }
 }
@@ -934,7 +937,7 @@ private fun allNotesWarning(storage: Storage): NotesWarning =
  * the page.
  */
 @Composable
-private fun NotesTab(storage: Storage, connected: Boolean) {
+private fun NotesTab(storage: Storage, connected: Boolean, onChanged: () -> Unit = {}) {
     var refresh by remember { mutableStateOf(0) }
     val notes = remember(refresh) { allNoteEntries(storage) }
     val port = remember { AndroidRehearsalNotes(storage.notesDir()) }
@@ -961,7 +964,7 @@ private fun NotesTab(storage: Storage, connected: Boolean) {
                             if (old) Text("This note only exists on this device. Have you sent it to Studio? Delete it?", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton(onClick = { see = cid to n }) { Text("See") }
-                                TextButton(onClick = { port.delete(cid, n.key); refresh++ }) { Text("Delete") }
+                                TextButton(onClick = { port.delete(cid, n.key); refresh++; onChanged() }) { Text("Delete") }
                                 TextButton(onClick = {}, enabled = false) { Text(if (connected) "Send to Studio" else "Sign in to send") }
                             }
                         }
@@ -1022,6 +1025,7 @@ private fun ConcertRow(
     onUnfreeze: () -> Unit,
     onPin: () -> Unit,
     onUnpin: () -> Unit,
+    notesCount: Int = 0,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -1032,8 +1036,10 @@ private fun ConcertRow(
                 // T143 §1: rev + bake time, so two bakes with the SAME name are distinguishable on the row.
                 // T148: render the bake time in the device's local zone (offset AT the bake instant), not UTC.
                 if (!entry.damaged) {
+                    // A70 §5.5: append the note count (information, not a control).
+                    val notesSuffix = if (notesCount > 0) " · notes on $notesCount page${if (notesCount == 1) "" else "s"}" else ""
                     Text(
-                        concertRowSubtitle(entry.concertRev, entry.bakedAt, localUtcOffsetSeconds(entry.bakedAt)),
+                        concertRowSubtitle(entry.concertRev, entry.bakedAt, localUtcOffsetSeconds(entry.bakedAt)) + notesSuffix,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
