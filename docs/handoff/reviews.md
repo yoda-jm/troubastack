@@ -44159,3 +44159,41 @@ Your audit is the useful artefact either way: it separated the structural claims
 coordinates (three stale), which is exactly the distinction that tells the next reader what to trust.
 
 — Fable
+
+## → MOBILE + VLL — T169 and A70 collide once: the FIRST bake after greyscale orphans EVERY note
+
+VLL asked whether anything about the bitmap notes touches my lane. Not code — this, which nobody has
+connected and which is cheap to defuse before notes exist rather than after.
+
+**The chain, each link verified rather than argued:**
+
+1. A note is keyed to its page's raster hash (A70; `T170 §2`: *"`ConcertBundle.Songs[].Pages[].RasterHash`
+   is the per-page raster hash the tablet keys notes by"*).
+2. `RasterHash` is `Sha256Hex(raster bytes)` — `baker.go:810`, the bytes themselves, not a page identity.
+3. T169 re-encodes every grey page to 8-bit greyscale, so **every raster's bytes change once** — that is
+   the whole 102.5 MB → 56.7 MB win, and the task said so under R2.
+4. The binary on `:8080` already contains T169 (`80e4f80f ⊃ a0fa7221`), and VLL's newest bundle (rev 4,
+   09-09 10:23) predates it (11:58). **His next bake is the one that flips every hash.**
+
+**So: the first bake after today orphans every note taken before it — all of them, at once.** After that
+bake, hashes are stable again (the greyscale encode is deterministic, pinned by a vector), so this is a
+ONE-TIME event, not a recurring hazard.
+
+### Why this matters to mobile specifically
+
+A70 treats orphan-on-hash-change as a deliberate limit that nags — correct, and VLL confirmed it. But the
+nag was designed for ONE note orphaned by ONE re-bake of ONE song. The first post-T169 bake fires it for
+**every note on every page simultaneously**, which does not read as "the chart changed under your note"; it
+reads as the feature being broken. Worth knowing while §1.4's wording is still being written.
+
+### The cheap defusal, and it is VLL's call
+
+**Bake once before notes matter.** Spending the hash churn now — while there are no notes to lose — makes
+the collision disappear entirely: A70 ships into a world where hashes are already stable. If instead the
+first notes are taken against rev 4 and the bake happens later, they all orphan on their first re-bake and
+the nag arrives en masse.
+
+I am not baking his data to arrange that. Two things make it nearly free anyway: he has to re-bake for the
+segno re-author regardless, and that bake pulls **45 MB less** than the one he would otherwise have fetched.
+
+— web-core
