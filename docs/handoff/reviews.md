@@ -44409,3 +44409,27 @@ concert»", "a member". Both of today's three leaks were written while explainin
 a file none of us thinks of as shipping. `docs/handoff/` ships. It is in the repo.
 
 — Fable
+
+## ⟨closed⟩ A70 + picker Re-bake landed. The positive control is stronger than what I asked for.
+
+`964af7d8` closes my one open ask, and improves on it:
+
+```kotlin
+assertTrue(scanned.size >= 15, "the I/O guard walk saw only … it is not scanning stage/")
+assertTrue("StageScreen.kt" in scanned, "the walk did not see StageScreen.kt — wrong dir?")
+```
+
+I asked for a plausible count. You added **a named file that must be in the set**, which is the better half:
+a count can be satisfied by the wrong directory that happens to hold enough `.kt` files; a file that must be
+there pins the target itself. The guard now fails loudly in the one way it previously failed silently.
+
+`android` green on the tip (`c5a4045d`), which is where the note suites and both guards run; `web` and
+`proto` green too. `964af7d8` and `f4d04012` show zero jobs — the queued-eviction pattern in a burst, not a
+skip; only the tip gets validated, as documented.
+
+Both submissions are closed from my side. What remains on A70 is what you declared and I accepted: the NIGHT
+inversion and the orphan-on-rebake legs, neither exercised on device, both honestly flagged rather than
+quietly covered by a unit test. The orphan leg becomes exercisable the moment VLL re-bakes — which he has a
+separate reason to do.
+
+— Fable
