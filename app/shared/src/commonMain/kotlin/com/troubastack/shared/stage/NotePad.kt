@@ -51,6 +51,38 @@ data class NoteMeta(
 )
 
 /**
+ * Everything a page needs to render + (in note mode) edit its note, threaded from the host through
+ * [StageScreen]. Null when the notes feature is inactive (iOS host / tests), so the reading surface is
+ * byte-for-byte unchanged where notes are off. [shownFor] gates the display-only case (a page with a live,
+ * un-hidden note outside note mode).
+ */
+class NotePad(
+    val notes: RehearsalNotes,
+    val concertId: String,
+    val scheme: StageColorMode,
+    val noteMode: Boolean,
+    val tool: NoteTool,
+    val penWidth: Int,
+    val penColour: Long,
+    val noteRevision: Int,
+    val now: () -> Long,
+    val meta: (StagePage) -> NoteMeta,
+    val shownFor: (StagePage) -> Boolean,
+    val onIndexChanged: (List<NoteEntry>) -> Unit,
+    val onBumpRevision: () -> Unit,
+)
+
+/** The inert port for hosts/tests without a notes backend — the surface renders and edits nothing. */
+val NoOpRehearsalNotes: RehearsalNotes = object : RehearsalNotes {
+    override fun index(concertId: String): List<NoteEntry> = emptyList()
+    override fun load(concertId: String, key: NoteKey): ImageBitmap? = null
+    override fun save(concertId: String, entry: NoteEntry, bitmap: ImageBitmap) {}
+    override fun delete(concertId: String, key: NoteKey) {}
+    override fun deleteAll(concertId: String) {}
+    override fun markSent(concertId: String, key: NoteKey, at: Long) {}
+}
+
+/**
  * §3.5 — the note layer over one page, ABOVE every baked overlay (#11). Displays the stored note
  * (scheme-transformed) always; when [editable] (the current page in note mode) it also captures pencil /
  * eraser input into an in-memory NEUTRAL bitmap, commits each stroke at pen-up, and persists on idle /
