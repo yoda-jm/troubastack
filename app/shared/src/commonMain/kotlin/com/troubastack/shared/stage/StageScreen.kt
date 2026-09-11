@@ -750,8 +750,10 @@ private fun Performing(
         // A2: TOP chrome — ☰ song drawer · centered title+position card · [● Live] · ✕ exit. Fades and
         // slides in on reveal; the A08 meta strip rides inside it (score stays clean when hidden). In
         // scroll mode the strip is inline in the column (ScrollReader), so it's omitted here.
+        // A70 (VLL): note mode hides the top bar entirely — a clean drawing surface with only the docked
+        // note bar below; exit is the note bar's "Done", so the ✕/⚙ chrome would only distract/mis-fire.
         AnimatedVisibility(
-            visible = chromeVisible,
+            visible = chromeVisible && !state.noteMode,
             enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { -it },
             exit = fadeOut(tween(250)) + slideOutVertically(tween(250)) { -it },
             modifier = Modifier.align(Alignment.TopCenter),
@@ -860,14 +862,18 @@ private fun Performing(
                 // ‹ › page-turn FABs at the thumb corners (reference-app). Extra bottom clearance keeps
                 // them above MIUI's bottom gesture zone as much as possible; page turns also work via
                 // edge-tap/swipe/pedals, so these are a convenience, not the only path.
-                Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 48.dp),
+                // A70 (VLL): in note mode the note bar docks FLUSH to the bottom edge (no side/bottom gap),
+                // so it reads as a real bottom toolbar and gives the page the most room; only the system nav
+                // inset is kept.
+                if (state.noteMode) Modifier.fillMaxWidth().navigationBarsPadding()
+                else Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 48.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // A70 §3.7 — in note mode the ‹ › turn FABs are REPLACED by the note tool bar; keys/pedal
                 // still turn. Otherwise the usual page-turn corners.
                 if (state.noteMode) {
-                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth())
+                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth(), docked = true)
                 } else {
                     // A60 P5: on-screen ‹ › cross SONGS in scroll mode (like the horizontal swipe) — you can
                     // see and touch the screen, so a deliberately coarse control is right. Hardware stays
@@ -1878,9 +1884,12 @@ private fun PageView(
  * session tool state.
  */
 @Composable
-private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColorMode, modifier: Modifier = Modifier) {
+private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColorMode, modifier: Modifier = Modifier, docked: Boolean = false) {
     val chrome = stageChrome(colorMode)
-    Surface(modifier, color = chrome.surface, contentColor = chrome.onSurface, shape = MaterialTheme.shapes.large, tonalElevation = 6.dp) {
+    // A70 (VLL): docked = flush bottom bar — square the bottom corners against the screen edge, round only
+    // the top; the floating variant keeps the fully-rounded pill.
+    val shape = if (docked) RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp) else MaterialTheme.shapes.large
+    Surface(modifier, color = chrome.surface, contentColor = chrome.onSurface, shape = shape, tonalElevation = 6.dp) {
         Row(
             Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
