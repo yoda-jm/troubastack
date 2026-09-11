@@ -28,32 +28,39 @@ reference**. It does not create an object, an object type, a layer, or anything 
 musician has recopied, they remove the underlay. **If an implementation of this task makes the note
 selectable, movable, bakeable, or visible to another member, it has implemented the wrong feature.**
 
-## 2. What exists today (verified 2026-09-10 against `origin/main` at `12676231`)
+## 2. What exists today (re-verified 2026-09-11 against `origin/main` at `75c4e2f6`)
+
+> **Line numbers are a HINT; the SYMBOL is the address.** Every anchor below names what to grep for, because
+> numbers rot the way a hand-maintained mirror does — between 2026-09-10 and 2026-09-11 four of these moved,
+> one by ~250 lines, from ⟨D2⟩/⟨D4⟩ work in that same file. If a number does not land, grep the name.
 
 - **Routing style:** `core/internal/httpapi/webapi.go:43-85` — `mux.HandleFunc("METHOD /path",
   a.auth(handler))`; song-file upload is `POST /api/bands/{bandId}/songs/{songId}/files` (`:77`) handled by
-  `uploadFile` (`:662`), multipart field `"file"`, capped by `maxUploadBytes = 32 << 20` (`:657-658`)
+  `uploadFile` (`func (a *WebAPI) uploadFile`, `:662`), multipart field `"file"`, capped by
+  `maxUploadBytes = 32 << 20` (`:657`)
   three ways (`MaxBytesReader`, `LimitReader`, a `len` check). **T141's rule** for any binary path:
   `Content-Length` on the way out is `len(data)`, never a stored field.
-- **Blob store:** `app.Service` holds a `blob.Store` (`core/internal/app/service.go:38-45`,
-  `WithBlobStore`); `s.blobs.Put(data)` returns the sha256 (`:1083`), `s.blobs.Get(hash)` (`:1541`),
+- **Blob store:** `app.Service` holds a `blob.Store` (field at `core/internal/app/service.go:29`,
+  `WithBlobStore` `:45`); `s.blobs.Put(data)` returns the sha256 (`:1083`), `s.blobs.Get(hash)` (`:1541`),
   `s.blobs.Delete(hash)` (`:1044`). Content-addressed: the same PNG twice is one blob.
 - **Records:** `app.Repo` interface (`core/internal/app/app.go:388`) with two implementations —
   `filerepo` (one JSON document of maps, e.g. `Files map[string]app.SongFile` at `filerepo.go:32`,
   `CreateSongFile` `:695`) and `memrepo`. A new record type touches the interface and both repos; the
   `storetest`-style parametrised suite is the pattern for testing both.
-- **"Which bake is current":** `bake.Baker.ListConcerts()` (`core/internal/bake/baker.go:929-957`) reads
+- **"Which bake is current":** `bake.Baker.ListConcerts()` (`core/internal/bake/baker.go:960-987`) reads
   `<bakesDir>/<concertId>/<latestRev>/bundle.json`; `ConcertBundle.Songs[].Pages[].RasterHash` is the
   per-page raster hash the tablet keys notes by. `concertId == setlistId`.
-- **Studio page stack:** `web/studio/src/pages/song-editor/Viewer.tsx:1353-1362` — per `.pdf-page`: a
-  `<canvas className="pdf-canvas">` (the PDF raster), then `<canvas className="annotation-overlay">` (the
-  dry layer), then `<EditCanvas>` (wet + hit-testing). Image files: `:1401-1410`, an `<img
-  className="pdf-canvas image-page">` then the same two. **The underlay goes between the first and the
-  second.**
-- **Studio API helpers:** `web/studio/src/api.ts` — `upload<T>(path, FormData)` (`:339`) and the
-  `api.uploadFile` / `api.fileUrl` shapes (`:578`, `:373`).
+- **Studio page stack:** `web/studio/src/pages/song-editor/Viewer.tsx` — grep `className="pdf-canvas"`
+  (`:1602`) — per `.pdf-page`: a `<canvas className="pdf-canvas">` (the PDF raster), then
+  `<canvas className="annotation-overlay">` (the dry layer, `:1608`), then `<EditCanvas>` (wet +
+  hit-testing, `:1611`). Image files: grep `image-page` (`:1648`), an `<img className="pdf-canvas
+  image-page">` then the same two. **The underlay goes between the first and the second.** That ORDER is the
+  durable claim; the three elements have kept it through every change to this file.
+- **Studio API helpers:** `web/studio/src/api.ts` — `upload<T>(path, FormData)` (`:343`) and the
+  `api.uploadFile` / `api.fileUrl` shapes (`:582`, `:609`).
 - **The app talks to core only through `HttpTransport.kt`** (`app/androidApp/.../HttpTransport.kt`):
-  `suspend fun` helpers, session cookie, `reBake` (`:456`) is the POST precedent. There is no multipart
+  `suspend fun` helpers, session cookie, `reBake` (`:456`, path
+  `app/androidApp/src/main/kotlin/com/troubastack/app/HttpTransport.kt`) is the POST precedent. There is no multipart
   helper today.
 - **A70's note index entry** carries `{ songId, rasterHash, file, pageInSong, songTitle, bandName,
   bandId, concertRev, takenAs, width, height, updatedAt, sentAt?, bakesSinceTouched }` (`bandId` added
