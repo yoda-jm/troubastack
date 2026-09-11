@@ -28,44 +28,75 @@ reference**. It does not create an object, an object type, a layer, or anything 
 musician has recopied, they remove the underlay. **If an implementation of this task makes the note
 selectable, movable, bakeable, or visible to another member, it has implemented the wrong feature.**
 
-## 2. What exists today (re-verified 2026-09-11 against `origin/main` at `75c4e2f6`)
+## 2. What exists today
 
-> **Line numbers are a HINT; the SYMBOL is the address.** Every anchor below names what to grep for, because
-> numbers rot the way a hand-maintained mirror does — between 2026-09-10 and 2026-09-11 four of these moved,
-> one by ~250 lines, from ⟨D2⟩/⟨D4⟩ work in that same file. If a number does not land, grep the name.
+> **Every anchor below is a grep, not a line number.** Numbers rot: four of these moved in a single day
+> (2026-09-10 → 09-11), one by ~250 lines, from ⟨D2⟩/⟨D4⟩ work in the same file, and a wrong hint costs a
+> wrong jump plus doubt about every other line. Run the grep; it is a second and it never rots. What is
+> load-bearing here is the STRUCTURE each anchor describes — if a grep finds nothing, the symbol was
+> renamed and you want the new name, but if the *structure* is gone, stop and post it at the gate (Fable,
+> `80ce7cca`).
 
-- **Routing style:** `core/internal/httpapi/webapi.go:43-85` — `mux.HandleFunc("METHOD /path",
-  a.auth(handler))`; song-file upload is `POST /api/bands/{bandId}/songs/{songId}/files` (`:77`) handled by
-  `uploadFile` (`func (a *WebAPI) uploadFile`, `:662`), multipart field `"file"`, capped by
-  `maxUploadBytes = 32 << 20` (`:657`)
-  three ways (`MaxBytesReader`, `LimitReader`, a `len` check). **T141's rule** for any binary path:
-  `Content-Length` on the way out is `len(data)`, never a stored field.
-- **Blob store:** `app.Service` holds a `blob.Store` (field at `core/internal/app/service.go:29`,
-  `WithBlobStore` `:45`); `s.blobs.Put(data)` returns the sha256 (`:1083`), `s.blobs.Get(hash)` (`:1541`),
-  `s.blobs.Delete(hash)` (`:1044`). Content-addressed: the same PNG twice is one blob.
-- **Records:** `app.Repo` interface (`core/internal/app/app.go:388`) with two implementations —
-  `filerepo` (one JSON document of maps, e.g. `Files map[string]app.SongFile` at `filerepo.go:32`,
-  `CreateSongFile` `:695`) and `memrepo`. A new record type touches the interface and both repos; the
-  `storetest`-style parametrised suite is the pattern for testing both.
-- **"Which bake is current":** `bake.Baker.ListConcerts()` (`core/internal/bake/baker.go:960-987`) reads
-  `<bakesDir>/<concertId>/<latestRev>/bundle.json`; `ConcertBundle.Songs[].Pages[].RasterHash` is the
-  per-page raster hash the tablet keys notes by. `concertId == setlistId`.
-- **Studio page stack:** `web/studio/src/pages/song-editor/Viewer.tsx` — grep `className="pdf-canvas"`
-  (`:1602`) — per `.pdf-page`: a `<canvas className="pdf-canvas">` (the PDF raster), then
-  `<canvas className="annotation-overlay">` (the dry layer, `:1608`), then `<EditCanvas>` (wet +
-  hit-testing, `:1611`). Image files: grep `image-page` (`:1648`), an `<img className="pdf-canvas
-  image-page">` then the same two. **The underlay goes between the first and the second.** That ORDER is the
-  durable claim; the three elements have kept it through every change to this file.
-- **Studio API helpers:** `web/studio/src/api.ts` — `upload<T>(path, FormData)` (`:343`) and the
-  `api.uploadFile` / `api.fileUrl` shapes (`:582`, `:609`).
-- **The app talks to core only through `HttpTransport.kt`** (`app/androidApp/.../HttpTransport.kt`):
-  `suspend fun` helpers, session cookie, `reBake` (`:456`, path
-  `app/androidApp/src/main/kotlin/com/troubastack/app/HttpTransport.kt`) is the POST precedent. There is no multipart
-  helper today.
-- **A70's note index entry** carries `{ songId, rasterHash, file, pageInSong, songTitle, bandName,
-  bandId, concertRev, takenAs, width, height, updatedAt, sentAt?, bakesSinceTouched }` (`bandId` added
-  for this task, 2026-09-10). `takenAs` is the Stage identity (a roster member id); `sentAt` is **set by
-  the tablet on its own successful send**, never derived from the server.
+- **Routing style** — one line per route, `mux.HandleFunc("METHOD /path", a.auth(handler))`. The song-file
+  routes are the shape to copy, and the new ones go beside them:
+  `git grep -n 'songs/{songId}/files' core/internal/httpapi/webapi.go`
+- **The upload precedent** — multipart field `"file"`, member-only, guarded three ways
+  (`http.MaxBytesReader`, `io.LimitReader`, a `len` check) against one `const` cap of 32 MiB:
+  `git grep -n 'func (a \*WebAPI) uploadFile\|maxUploadBytes' core/internal/httpapi/webapi.go`
+  **T141's rule** for any binary path: `Content-Length` on the way out is `len(data)`, never a stored field.
+- **Blob store** — `app.Service` holds a `blob.Store`; `Put` returns the sha256, `Get`/`Delete` take it.
+  Content-addressed, so the same PNG twice is one blob:
+  `git grep -n 'blob.Store\|s.blobs.\(Put\|Get\|Delete\)' core/internal/app/service.go`
+- **Records** — the `app.Repo` interface with **two** implementations, each a `Repo` type in its own
+  package; a new record type touches the interface and both:
+  `git grep -n 'type Repo interface' core/internal/app/app.go` ·
+  `git grep -n 'func (r \*Repo) CreateSongFile' core/internal/app/filerepo core/internal/app/memrepo`
+  `filerepo` persists one JSON document of maps (`Files map[string]app.SongFile` and its siblings) —
+  `git grep -n 'map\[string\]app\.' core/internal/app/filerepo/filerepo.go`. The `storetest`-style
+  parametrised suite is the pattern for testing both.
+- **"Which bake is current"** — reads `<bakesDir>/<concertId>/<latestRev>/bundle.json` and returns the
+  latest `ConcertBundle` per concert; `ConcertBundle.Songs[].Pages[].RasterHash` is the per-page hash the
+  tablet keys notes by, and `concertId == setlistId`:
+  `git grep -n 'func (b \*Baker) ListConcerts' core/internal/bake/baker.go`
+- **Studio page stack — the load-bearing structural claim.** Inside each `.pdf-page`, in DOM order: the PDF
+  raster (`<canvas className="pdf-canvas">`, or `<img className="pdf-canvas image-page">` for image files),
+  then `<canvas className="annotation-overlay">` (the dry layer), then `<EditCanvas>` (wet + hit-testing).
+  **The underlay goes between the first and the second**, in *both* stacks:
+  `git grep -n 'pdf-page\|pdf-canvas\|annotation-overlay\|<EditCanvas' web/studio/src/pages/song-editor/Viewer.tsx`
+  That ORDER has survived every change to this file; the two occurrences of the stack have not.
+- **Studio API helpers** — a shared `upload<T>(path, FormData)` plus the `api.uploadFile` / `api.fileUrl`
+  shapes to mirror: `git grep -n 'function upload<\|uploadFile:\|fileUrl:' web/studio/src/api.ts`
+- **The app talks to core only through `HttpTransport.kt`** — `suspend fun` helpers over a session cookie;
+  `reBake` is the POST precedent and there is **no multipart helper today**:
+  `git grep -n 'suspend fun reBake' app/androidApp/src/main/kotlin/com/troubastack/app/HttpTransport.kt`
+- **A70's note index entry** — the `NoteEntry` data class, mirrored verbatim into each concert's
+  `files/notes/<concertId>/index.json` on the tablet:
+  `git grep -n -A 14 'data class NoteEntry' app/shared/src/commonMain/kotlin/com/troubastack/shared/stage/notes/NoteModel.kt`
+  It carries `{ songId, rasterHash, file, pageInSong, songTitle, bandName, concertRev, takenAs, width,
+  height, updatedAt, sentAt?, bakesSinceTouched }`. `takenAs` is the Stage identity (a roster member id);
+  `sentAt` is **set by the tablet on its own successful send**, never derived from the server. Two things
+  this task must not assume (both checked against a real note on VLL's tablet, 2026-09-11 — see §2.1):
+  there is **no `bandId`** and **no `concertId`** field, and `updatedAt` is **not a wall clock**.
+
+### 2.1 Two facts from the real artefact, not from the model
+
+A note VLL drew on 2026-09-11 (`files/notes/<concertId>/index.json` + one PNG), read off the tablet:
+
+- **`updatedAt` is `SystemClock.elapsedRealtime()`** — boot-relative milliseconds, wired at
+  `git grep -n 'monotonicNow = ' app/androidApp/src/main/kotlin/com/troubastack/app/MainActivity.kt` and
+  consumed at `git grep -n 'updatedAt = monotonicNow' app/shared/src/commonMain/kotlin/com/troubastack/shared/stage/NotePad.kt`.
+  The real note's value was `4564568383` — 52.8 days of uptime, not a date. It is **write-only today**
+  (nothing on the tablet sorts or renders it; the nag counts bakes, not time), so no A70 behaviour depends
+  on it — but §3.1's `CapturedAt`, §3.2's `capturedAt` field and §3.5's *"<date>"* have no true value to
+  carry until §6 makes the tablet send a wall clock. See §3.2's note on the field.
+- **`bandId` is absent.** An earlier draft of this section said it had been "added for this task,
+  2026-09-10"; it was not, and is not on `main`. §6's PUT is addressed `/api/bands/{bandId}/…`, so the
+  mobile slice has to obtain a band id (add the field, or resolve it from the concert) — it cannot read one
+  out of the index. `concertId` is likewise not a field: it is the **directory name** the index lives under.
+- Shape of the artefact, for §3.2's cap and §3.5's compositing: **1600×2261, 8-bit RGBA, 22,664 bytes**,
+  **99.93 % fully transparent** (ink bbox 158×195 px). The matching page raster in the bake is 1241×1754
+  greyscale — a uniform 1.289× scale, so §3.5's "absolutely positioned to the page box exactly as the
+  overlay canvas is" needs no scaling code, and the alpha means the underlay shows the chart through it.
 
 ## 3. Decisions
 
@@ -85,7 +116,7 @@ type RehearsalNote struct {
     TakenAs     string    // the Stage identity on the tablet (roster member id), for the label only
     BlobHash    string    // content-addressed PNG
     Width, Height int
-    CapturedAt  time.Time // the note's updatedAt on the tablet
+    CapturedAt  time.Time // when it was drawn — ZERO until §6 sends a wall clock (§2.1)
     UploadedAt  time.Time
 }
 ```
@@ -98,7 +129,7 @@ asks to overwrite"* (VLL). Page **index**, not raster hash, is the key on purpos
 
 | method | path | behaviour |
 |---|---|---|
-| `PUT` | `/api/bands/{b}/songs/{s}/rehearsal-notes/{page}` | multipart: `file` (PNG) + fields `rasterHash, concertId, concertRev, takenAs, width, height, capturedAt`. **409** if a note exists for (me, song, page) and `?overwrite=1` is absent. Sniff the bytes: `image/png` only. Cap **4 MiB** (a 1600-wide transparent PNG of handwriting is tens of KB; 4 MiB is generous and stops a mistake). |
+| `PUT` | `/api/bands/{b}/songs/{s}/rehearsal-notes/{page}` | multipart: `file` (PNG) + fields `rasterHash, concertId, concertRev, takenAs, width, height, capturedAt`. `capturedAt` is **optional** and, when present, RFC 3339 — the tablet has no wall clock for a note today (§2.1), so core stores the zero time and §3.5 shows the **upload** date until §6 provides one; it must never render a boot-relative number as a date. **409** if a note exists for (me, song, page) and `?overwrite=1` is absent. Sniff the bytes: `image/png` only. Cap **4 MiB** (a 1600-wide transparent PNG of handwriting is tens of KB; 4 MiB is generous and stops a mistake). |
 | `GET` | `/api/bands/{b}/songs/{s}/rehearsal-notes` | **my** notes for the song, each with `pageChanged: true/false/unknown` (§3.4) |
 | `GET` | `/api/bands/{b}/songs/{s}/rehearsal-notes/{page}` | the PNG bytes; `Content-Length = len(data)` (T141) |
 | `DELETE` | `/api/bands/{b}/songs/{s}/rehearsal-notes/{page}` | *Done, remove*. Deletes the record; the blob is deleted only if no other note references the hash. |
@@ -126,11 +157,12 @@ of it — that would be the T145 bug in a new coat.
   signed-in user. Toggles the underlay; the toggle is per song, in session, default **on** the first time
   notes exist (the musician sent them to see them).
 - The underlay is an `<img className="rehearsal-underlay">` inserted **between `.pdf-canvas` and
-  `.annotation-overlay`** in the page's stack (`Viewer.tsx:1353-1362` and `:1401-1410`), absolutely
+  `.annotation-overlay`** in the page's stack (both stacks — §2's `Viewer.tsx` grep finds them), absolutely
   positioned to the page box exactly as the overlay canvas is, `pointer-events: none`, full opacity
   (VLL: no transparency), drawn at page `PageInSong`. A note whose page index exceeds the current page
   count is listed but not drawn (nowhere to draw it).
-- Each note in the chip's popover: *"page P · from rev R · taken as X · <date>"*, a **`page changed`**
+- Each note in the chip's popover: *"page P · from rev R · taken as X · <date>"*, where <date> is
+  `capturedAt` when it is non-zero and the **upload** date otherwise, labelled as such (§2.1), a **`page changed`**
   tag when §3.4 says so, and **Done, remove** → `DELETE` → the underlay disappears. No undo: it was a
   reference, and the tablet still has the original.
 - **Nothing in `web/ink`, nothing in `web/bake`, no `ObjectType`, no proto change.** A source guard
@@ -156,7 +188,7 @@ part of any GC root. Sizes are small; no quota beyond the per-file cap.
   `ErrConflict` when exists and `!overwrite`; `ListRehearsalNotes` decorated with `pageChanged` through a
   narrow `bake` lookup interface injected like the anchorer is (`httpapi/anchorer.go` is the shape);
   `GetRehearsalNoteBytes`; `DeleteRehearsalNote` with the shared-blob rule.
-- `httpapi`: the four routes (§3.2) beside the file routes (`webapi.go:77-85`); JSON view `{ page,
+- `httpapi`: the four routes (§3.2) beside the file routes (§2's `webapi.go` grep); JSON view `{ page,
   rasterHash, concertId, concertRev, takenAs, width, height, capturedAt, uploadedAt, pageChanged }`.
 - `gofmt -l .` clean; `go vet`; the `-race` gate.
 
