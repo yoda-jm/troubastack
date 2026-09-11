@@ -953,7 +953,7 @@ private fun ConcertsScreen(
                 }
             }
             } // A70: close the Bakes-tab wrapper (manage || stageTab == 0)
-            if (!manage && stageTab == 1) NotesTab(storage, connected, onChanged = { refresh++ })
+            if (!manage && stageTab == 1) NotesTab(storage, onChanged = { refresh++ })
         }
     }
 }
@@ -974,7 +974,7 @@ private fun allNotesWarning(storage: Storage): NotesWarning =
  * the page.
  */
 @Composable
-private fun NotesTab(storage: Storage, connected: Boolean, onChanged: () -> Unit = {}) {
+private fun NotesTab(storage: Storage, onChanged: () -> Unit = {}) {
     var refresh by remember { mutableStateOf(0) }
     val notes = remember(refresh) { allNoteEntries(storage) }
     val port = remember { AndroidRehearsalNotes(storage.notesDir()) }
@@ -998,11 +998,13 @@ private fun NotesTab(storage: Storage, connected: Boolean, onChanged: () -> Unit
                                 append(if (n.sentAt != null) " · sent" else " · not sent")
                             }
                             Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (old) Text("This note only exists on this device. Have you sent it to Studio? Delete it?", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
+                            if (old) Text("This note lives only on this device — sending to Studio comes later. Delete it?", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton(onClick = { see = cid to n }) { Text("See") }
                                 TextButton(onClick = { port.delete(cid, n.key); refresh++; onChanged() }) { Text("Delete") }
-                                TextButton(onClick = {}, enabled = false) { Text(if (connected) "Send to Studio" else "Sign in to send") }
+                                // A70 Part B / T170 wires the real send (and re-enables this by connection); until
+                                // then it is a visible "not yet", not a broken control.
+                                TextButton(onClick = {}, enabled = false) { Text("Send to Studio — coming soon") }
                             }
                         }
                     }
