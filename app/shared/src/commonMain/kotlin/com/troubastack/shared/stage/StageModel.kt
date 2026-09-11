@@ -362,6 +362,9 @@ data class StageState(
     // the performer toggled it off for this session (an opt-in map couldn't express "on by default"). The
     // reserved `~notes` id is used only for the bake-layer guard (§4.6), not for storing this choice.
     val notesOffBySong: Set<String> = emptySet(),
+    // A70 — snapshot band + rev for note metadata (§3.3) and the Notes-tab labels (§5).
+    val bandName: String = "",
+    val concertRev: Long = 0,
 ) {
     val pageCount: Int get() = pages.size
     val currentPage: StagePage? get() = pages.getOrNull(current)
@@ -576,6 +579,7 @@ private fun buildLoaded(bundle: ConcertBundle, issues: List<BundleIssue>, role: 
     return StageState(
         pages = pages, songs = songs, layers = layers, visibleBySong = visibleBySong,
         role = role, roster = bundle.roster, identity = identity,
+        bandName = bundle.bandName, concertRev = bundle.concertRev.toLong(),
     )
 }
 

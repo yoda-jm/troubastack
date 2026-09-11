@@ -235,6 +235,12 @@ fun StageScreen(
     // T147: local (hour 0-23, minute, second) for the ANALOG clock face (the default). Host-provided for
     // the same reason. Default midnight ⇒ tests/iOS-host render a static face; Android supplies live time.
     nowLocalHms: () -> Triple<Int, Int, Int> = { Triple(0, 0, 0) },
+    // A70 — the rehearsal-notes host port (bitmap I/O) + the concert being performed + a monotonic clock for
+    // save timestamps. Default NoOp ⇒ the notes feature is off (iOS host / tests) and the reading surface is
+    // byte-for-byte unchanged.
+    notes: com.troubastack.shared.stage.notes.RehearsalNotes = NoOpRehearsalNotes,
+    concertId: String = "",
+    noteNow: () -> Long = { 0L },
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -249,7 +255,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow)
         }
     }
 }
@@ -269,6 +275,9 @@ private fun Performing(
     onPositionChange: (songId: String, pageInSong: Int) -> Unit = { _, _ -> },
     nowClockText: () -> String = { "" },
     nowLocalHms: () -> Triple<Int, Int, Int> = { Triple(0, 0, 0) },
+    notes: com.troubastack.shared.stage.notes.RehearsalNotes = NoOpRehearsalNotes,
+    concertId: String = "",
+    noteNow: () -> Long = { 0L },
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
@@ -325,10 +334,13 @@ private fun Performing(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     // Auto-hide the chrome while nothing modal is open; any re-reveal or opened surface restarts it.
-    val overlayOpen = drawerState.isOpen || showSettings || showLayers || showRole
+    // A70 §3.7: note mode holds the chrome open (the note bar's Exit must stay reachable).
+    val overlayOpen = drawerState.isOpen || showSettings || showLayers || showRole || state.noteMode
     LaunchedEffect(chromeVisible, overlayOpen) {
         if (chromeVisible && !overlayOpen) autoHideChrome(CHROME_AUTO_HIDE_MS) { chromeVisible = false }
     }
+    // A70 §3.7: force the chrome visible on entering note mode (so the top bar + note bar are shown).
+    LaunchedEffect(state.noteMode) { if (state.noteMode) chromeVisible = true }
     // N1 + N7 share ONE transient center-overlay layer (latest-wins): the N1 song-boundary card and the
     // N7 blocked-turn glyph are mutually exclusive per action, so each trigger CLEARS the other and bumps
     // [cueEpoch]; a single timeout keyed on the epoch restarts on every trigger (rapid pedal-at-the-wall
@@ -555,6 +567,25 @@ private fun Performing(
             } else false
         }
 
+        // A70 — the note context threaded into each FIT_PAGE/FIT_WIDTH PageView (null when the host has no
+        // notes port, so the reading surface is unchanged). A fresh holder per recomposition is fine: NoteLayer
+        // keys its own state on the page + noteRevision, not this object.
+        val notePad: NotePad? = if (notes === NoOpRehearsalNotes) null else NotePad(
+            notes = notes, concertId = concertId, scheme = colorMode,
+            noteMode = state.noteMode, tool = state.noteTool, penWidth = state.noteWidth, penColour = state.noteColour,
+            noteRevision = state.noteRevision, now = noteNow,
+            meta = { page ->
+                NoteMeta(
+                    songTitle = state.songs.firstOrNull { it.songId == page.songId }?.name ?: "",
+                    bandName = state.bandName, concertRev = state.concertRev, takenAs = state.identity,
+                    pageInSong = page.pageInSong,
+                )
+            },
+            shownFor = { page -> state.noteVisibleFor(page.songId) && state.noteForPage(page) != null },
+            onIndexChanged = { vm.setNotes(it) },
+            onBumpRevision = { vm.bumpNoteRevision() },
+        )
+
         Box(
             Modifier
                 .fillMaxSize()
@@ -581,12 +612,14 @@ private fun Performing(
                 // fitted poster's letterbox and a trimmed scroll page's surround are SEAMLESS with the card's
                 // own paper (VLL: pagePlaceholder left a "two blacks" seam — its #1A1A1A vs the card's #000).
                 .background(colorMode.schemePaper())
-                .stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible }
+                // A70 §3.7: in note mode ALL touch is drawing/erasing — the tap-to-toggle-chrome and the
+                // turn-swipe are both detached (the note bar's Exit stays reachable; keys/pedal still turn).
+                .then(if (state.noteMode) Modifier else Modifier.stageTaps(state.pageCount to (twoUp to scrollMode)) { chromeVisible = !chromeVisible })
                 .then(
                     // N10: in scroll mode the HorizontalPager owns horizontal drag (locked via its
                     // userScrollEnabled below); in page/width the turn-swipe is dropped when the swipe is
                     // locked. Either way ‹ ›, a pedal and the keys/volume still navigate.
-                    if (scrollMode || state.swipeLocked) Modifier
+                    if (scrollMode || state.swipeLocked || state.noteMode) Modifier
                     else Modifier.pointerInputSwipe(twoUp, latestPrev, latestNext)
                 ),
         ) {
@@ -671,12 +704,12 @@ private fun Performing(
                         // A lone last page (spread of 1) fills the row; ContentScale.Fit centres it.
                         Row(Modifier.fillMaxSize()) {
                             spreadPages(cur, songStarts, state.pageCount).forEach { idx ->
-                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible })
+                                PageView(state.pages[idx], state.visibleFor(state.pages[idx].songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.weight(1f).fillMaxHeight(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad)
                             }
                         }
                     } else {
                         state.pages.getOrNull(cur)?.let { p ->
-                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible })
+                            PageView(p, state.visibleFor(p.songId), state.fitMode, decoder, cache, colorMode, placeholder, Modifier.fillMaxSize(), onJumpTap = onJumpTap, onToggleChrome = { chromeVisible = !chromeVisible }, notePad = notePad)
                         }
                     }
                 }
@@ -741,6 +774,9 @@ private fun Performing(
                         // next to the metronome (VLL). It lives only in the ⚙ sheet, clearly labeled.
                         // Settings lives in the TOP bar, not the bottom: MIUI's bottom gesture zone
                         // intercepts taps flush to the screen bottom, making a bottom ⚙ hard to hit.
+                        // A70 §3.7 — the Notes entry (pencil), beside ⚙. Hidden once in note mode (the note
+                        // bar takes over). requestNoteMode raises the confirmation, or the scroll-mode refusal.
+                        if (notePad != null && !state.noteMode) StageFab("✎") { vm.requestNoteMode() }
                         StageFab("⚙") { showSettings = true }
                         StageFab("✕", container = Color(0xCCB3261E)) { onExit() }
                     }
@@ -828,14 +864,20 @@ private fun Performing(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // A60 P5: on-screen ‹ › cross SONGS in scroll mode (like the horizontal swipe) — you can
-                // see and touch the screen, so a deliberately coarse control is right. Hardware stays
-                // fine-grained: a BT pedal / keys (turnNext) and the volume registrar scroll within the
-                // column and cross only at its end, because hands-free you cannot correct a wrong jump
-                // mid-piece. Page/width modes: scrollMode is false, so both fall through to turnPrev/
-                // turnNext unchanged.
-                StageFab("‹", size = 64.dp) { if (scrollMode) scrollSwipePrev() else turnPrev() }
-                StageFab("›", size = 64.dp) { if (scrollMode) scrollSwipeNext() else turnNext() }
+                // A70 §3.7 — in note mode the ‹ › turn FABs are REPLACED by the note tool bar; keys/pedal
+                // still turn. Otherwise the usual page-turn corners.
+                if (state.noteMode) {
+                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth())
+                } else {
+                    // A60 P5: on-screen ‹ › cross SONGS in scroll mode (like the horizontal swipe) — you can
+                    // see and touch the screen, so a deliberately coarse control is right. Hardware stays
+                    // fine-grained: a BT pedal / keys (turnNext) and the volume registrar scroll within the
+                    // column and cross only at its end, because hands-free you cannot correct a wrong jump
+                    // mid-piece. Page/width modes: scrollMode is false, so both fall through to turnPrev/
+                    // turnNext unchanged.
+                    StageFab("‹", size = 64.dp) { if (scrollMode) scrollSwipePrev() else turnPrev() }
+                    StageFab("›", size = 64.dp) { if (scrollMode) scrollSwipeNext() else turnNext() }
+                }
             }
         }
 
@@ -932,6 +974,26 @@ private fun Performing(
             onPick = { m -> vm.setIdentity(m); onIdentityChange(m); switchIdentity = false; pickDismissed = false },
             onDismiss = { switchIdentity = false; pickDismissed = true },
         )
+    }
+    // A70 §3.7 #14 — the one dialog the feature has: confirm entering note mode (default focus on No). An
+    // accidental entry mid-set is the only way this can hurt a show — in note mode a swipe no longer turns.
+    if (state.noteModePending) {
+        AlertDialog(
+            onDismissRequest = { vm.cancelNoteMode() },
+            title = { Text("Enter note mode?") },
+            text = { Text("Touch will draw, not turn pages. Pages still turn with a pedal or the volume keys.") },
+            confirmButton = { TextButton(onClick = { vm.confirmNoteMode() }) { Text("Enter") } },
+            dismissButton = { TextButton(onClick = { vm.cancelNoteMode() }) { Text("No") } },
+        )
+    }
+    // A70 §3.7 — the scroll-mode refusal, brief and self-dismissing (a bottom toast).
+    state.noteModeRefusal?.let { msg ->
+        LaunchedEffect(msg) { delay(2200); vm.clearNoteModeRefusal() }
+        Box(Modifier.fillMaxSize().padding(bottom = 120.dp), contentAlignment = Alignment.BottomCenter) {
+            Surface(color = Color(0xE0333333), contentColor = Color.White, shape = MaterialTheme.shapes.small) {
+                Text(msg, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 
@@ -1710,6 +1772,7 @@ private fun PageView(
     // keep non-reading callers (none today) inert.
     onJumpTap: (StagePage, Int, Int) -> Boolean = { _, _, _ -> false },
     onToggleChrome: () -> Unit = {},
+    notePad: NotePad? = null, // A70 §3.5: the rehearsal-note layer (null ⇒ notes off; scroll never passes one)
 ) {
     if (page.status == PageStatus.UNAVAILABLE) {
         PlaceholderCard(modifier, colorMode)
@@ -1752,8 +1815,10 @@ private fun PageView(
             else -> {
                 val aspect = bitmaps.raster.width.toFloat() / bitmaps.raster.height.toFloat()
                 val scroll = rememberScrollState()
+                // A70 §3.7: FIT_WIDTH's vertical scroll is DISABLED in note mode (touch draws) — only the
+                // visible band is drawable, the stated cost until the move-tool follow-up.
                 val container =
-                    if (fitMode == FitMode.FIT_WIDTH) Modifier.fillMaxSize().verticalScroll(scroll)
+                    if (fitMode == FitMode.FIT_WIDTH && notePad?.noteMode != true) Modifier.fillMaxSize().verticalScroll(scroll)
                     else Modifier.fillMaxSize()
                 val imageMod =
                     if (fitMode == FitMode.FIT_WIDTH) Modifier.fillMaxWidth().aspectRatio(aspect)
@@ -1768,7 +1833,8 @@ private fun PageView(
                 // the bake ships marks) keeps the EXACT existing tap behaviour (stageTaps toggles chrome), so
                 // this change is inert on the live reading surface and the gesture path only matters where a
                 // mark exists (verifiable once the bake produces one).
-                val rasterTapMod = if (page.jumps.isEmpty()) imageMod else imageMod.pointerInput(page, onJumpTap) {
+                // A70: in note mode the raster takes no jump/chrome tap — NoteLayer above owns all touch.
+                val rasterTapMod = if (page.jumps.isEmpty() || notePad?.noteMode == true) imageMod else imageMod.pointerInput(page, onJumpTap) {
                     detectTapGestures { off ->
                         val c = tapToPagePermille(off.x.toInt(), off.y.toInt(), size.width, size.height, aspect.toDouble(), fitMode == FitMode.FIT_PAGE)
                         if (!(c != null && onJumpTap(page, c.first, c.second))) onToggleChrome()
@@ -1780,10 +1846,92 @@ private fun PageView(
                         // A64 part 2: transform baked into the overlay pixels → NO colour filter.
                         Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = scale, colorFilter = null)
                     }
+                    // A70 §3.5 — the rehearsal note sits ABOVE every baked overlay (#11). Editable only while
+                    // this song's page is in note mode; otherwise it draws the stored note when it is visible.
+                    notePad?.let { np ->
+                        val editable = np.noteMode
+                        if (editable || np.shownFor(page)) {
+                            val nd = com.troubastack.shared.stage.notes.NoteGeometry.noteSize(bitmaps.raster.width, bitmaps.raster.height)
+                            NoteLayer(
+                                page = page,
+                                noteDim = androidx.compose.ui.unit.IntSize(nd.width, nd.height),
+                                concertId = np.concertId, notes = np.notes, scheme = colorMode,
+                                editable = editable, tool = np.tool, penWidth = np.penWidth, penColour = np.penColour,
+                                imageMod = imageMod, fillWidth = fitMode == FitMode.FIT_WIDTH,
+                                noteRevision = np.noteRevision, meta = np.meta(page), monotonicNow = np.now,
+                                onIndexChanged = np.onIndexChanged, onBumpRevision = np.onBumpRevision,
+                            )
+                        }
+                    }
                 }
                 MissingLayersBadge(bitmaps.missingOverlays, Modifier.align(Alignment.TopEnd))
+                // A70 §5.1 — the persistent "✎ notes" badge on a page that has a (visible) note, in any mode.
+                if (notePad?.shownFor(page) == true) NoteBadge(Modifier.align(Alignment.TopStart), colorMode)
             }
         }
+    }
+}
+
+/**
+ * A70 §3.7 — the note tool bar (replaces the ‹ › turn FABs in note mode): pencil · eraser · three widths ·
+ * four colours · Done. Opaque; no undo/clear/opacity (§3.6 — undo IS the eraser). Reads/writes the VM's
+ * session tool state.
+ */
+@Composable
+private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColorMode, modifier: Modifier = Modifier) {
+    val chrome = stageChrome(colorMode)
+    Surface(modifier, color = chrome.surface, contentColor = chrome.onSurface, shape = MaterialTheme.shapes.large, tonalElevation = 6.dp) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NoteChip("✎", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.PENCIL, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.PENCIL) }
+            NoteChip("⌫", selected = state.noteTool == com.troubastack.shared.stage.notes.NoteTool.ERASER, chrome = chrome) { vm.setNoteTool(com.troubastack.shared.stage.notes.NoteTool.ERASER) }
+            Spacer(Modifier.width(8.dp))
+            // three widths: a small, medium, large filled dot
+            listOf(6.dp to com.troubastack.shared.stage.notes.NoteTools.FINE, 11.dp to com.troubastack.shared.stage.notes.NoteTools.MEDIUM, 18.dp to com.troubastack.shared.stage.notes.NoteTools.WIDE).forEach { (dot, w) ->
+                val sel = state.noteWidth == w
+                Box(
+                    Modifier.size(34.dp).clip(CircleShape)
+                        .background(if (sel) chrome.onSurface.copy(alpha = 0.14f) else Color.Transparent)
+                        .clickable { vm.setNoteWidth(w) },
+                    contentAlignment = Alignment.Center,
+                ) { Box(Modifier.size(dot).clip(CircleShape).background(chrome.onSurface)) }
+            }
+            Spacer(Modifier.width(8.dp))
+            // four colours (shown as the NEUTRAL swatch; on dark schemes the ink is remapped when drawn)
+            com.troubastack.shared.stage.notes.NoteTools.COLOURS.forEach { c ->
+                val sel = state.noteColour == c
+                Box(
+                    Modifier.size(34.dp).clip(CircleShape)
+                        .background(if (sel) chrome.onSurface.copy(alpha = 0.18f) else Color.Transparent)
+                        .clickable { vm.setNoteColour(c) },
+                    contentAlignment = Alignment.Center,
+                ) { Box(Modifier.size(22.dp).clip(CircleShape).background(Color(c))) }
+            }
+            Spacer(Modifier.weight(1f))
+            Button(onClick = { vm.exitNoteMode() }) { Text("Done") }
+        }
+    }
+}
+
+@Composable
+private fun NoteChip(label: String, selected: Boolean, chrome: ChromeColors, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = if (selected) chrome.onSurface.copy(alpha = 0.14f) else Color.Transparent,
+        contentColor = chrome.onSurface,
+        shape = MaterialTheme.shapes.small,
+    ) { Text(label, Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium) }
+}
+
+/** A70 §5.1 — the persistent "✎ notes" badge on a page that carries a rehearsal note, in every mode. */
+@Composable
+private fun NoteBadge(modifier: Modifier = Modifier, colorMode: StageColorMode) {
+    val chrome = stageChrome(colorMode)
+    Surface(modifier.padding(8.dp), color = chrome.surface, contentColor = chrome.onSurface, shape = MaterialTheme.shapes.small, tonalElevation = 3.dp) {
+        Text("✎ notes", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -2001,6 +2149,17 @@ private fun LayersDialog(state: StageState, vm: StageViewModel, colorMode: Stage
                             onCheckedChange = { vm.setLayerVisible(layer.layerId, it) },
                         )
                         Text(label + if (layer.mandatory) " (required)" else "")
+                    }
+                }
+                // A70 §3.8 — the rehearsal-note layer row, shown ONLY when this song has a live note. Toggles
+                // like any layer (default on); it is this device's, so it wears the PersonalTag intent.
+                if (state.hasLiveNote(songId)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = state.noteVisibleFor(songId),
+                            onCheckedChange = { vm.setNoteLayerVisible(it) },
+                        )
+                        Text("Rehearsal notes · this device")
                     }
                 }
             }
