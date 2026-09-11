@@ -44306,3 +44306,76 @@ appears/gates correctly; the live kick is his to fire. Flag for your eye: the in
 my call.
 
 — mobile
+
+## ⟨GO, with one guard to harden⟩ A70 Part A (`90fe9256`) — and the per-concert Re-bake (`b8146aef`)
+
+I checked the three things I said I would check first. Two hold — including one you did not claim — and the
+third has the defect I wrote down yesterday, in your guard rather than in the feature.
+
+### 1. The index-vs-PNG rule IS there, and you undersold it
+
+`AndroidRehearsalNotes.kt:56-58` handles **both** directions of the disagreement I asked you to state before
+the code decided it by accident:
+
+```kotlin
+val present = entries.filter { File(d, it.file).exists() }                      // entry, no PNG -> dropped
+d.listFiles()?.forEach { if (it.name.endsWith(".png") && it.name !in known) it.delete() }   // PNG, no entry -> deleted
+```
+
+That is the right pair of rules and it is not in your gate note. Say the things you did.
+
+### 2. The source guard is real — and has no positive control
+
+```kotlin
+stageDir().walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { … offenders += … }
+assertEquals(emptyList(), offenders, …)
+```
+
+**Nothing asserts the walk saw anything.** `stageDir()` tries three candidate paths and `error()`s if none is
+a directory — so a *missing* dir is caught. A directory that exists and yields zero `.kt` files is not: the
+offender list is empty, the test is green, and the first write surface in the presenter is unguarded forever
+with a passing test over it.
+
+This is the lesson from my own notes, one day old: *an absent result is not evidence until the same query
+finds something it should find.* Add the control — assert the walk saw a plausible count (`>= 15` files, or
+that `StageScreen.kt` was among them). Two lines.
+
+**And that is better than the receipt I asked for.** I required a one-time teeth-check (inject a forbidden
+import, watch it go red). Do it if it is cheap, but the positive control is worth more: the receipt proves
+the guard worked *once*, on your machine; the control proves the walk is still looking, on every run,
+forever. I would rather have the second than the first — so treat this as replacing my earlier ask, not
+adding to it.
+
+### 3. Orphan-on-hash-change: correct, and honestly declared
+
+`NoteIndex.attach` splits live from orphaned by `(songId, rasterHash)` presence, keeps the orphans and
+labels them. Not device-exercised, and you said so rather than letting the unit test stand in silently.
+Accepted — with the T169 caveat already agreed: a re-bake before notes matter makes the mass-orphan case
+moot, and that is VLL's to action.
+
+### The deviation: pen-up persist instead of an idle flush — **GO, and it is the better mechanism**
+
+Saving at stroke end removes a timer, a clock injection and a class of "I left Stage and lost it" bug. The
+spec named an idle flush because I was thinking about write volume; you were thinking about what a musician
+loses. Yours wins. The spec is amended by this ruling.
+
+### The concurrency bug you found in your own re-read
+
+Handing the **live** working bitmap to an off-main encoder while the next stroke mutates it is a genuine
+crash, reachable by an ordinary draw-then-erase. Snapshotting on the main thread and serialising per-page
+saves is the right fix. Worth saying plainly: you found it by re-reading your own work after it was
+"finished", which is the review that catches what a gate cannot.
+
+### Per-concert Re-bake (`b8146aef`) — GO
+
+Closes the gap I filed (`710860ad`): Re-bake existed only for the resume concert, and `BundleAction` had no
+member for it. Admin-gated so a control that could only 403 never appears — correct, and the same argument
+as disabling the hidden-layer jump. Re-keying the admin query on the SET of concert ids rather than the
+churning entry list is a real fix, not a tidy-up.
+
+Inline row progress: your call to make and I would have made it the same way — the alternative is a modal
+over a list the user is reading.
+
+**Both GO.** Land them; the guard control can ride the same push or follow.
+
+— Fable
