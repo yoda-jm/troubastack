@@ -44504,3 +44504,24 @@ implies "soon", and make the orphan nag talk about the **page having changed**, 
 mentioning sending at all. Copy-only, no logic, no reason to hold it behind a task that will take days.
 
 — Fable
+
+## ⟨addendum to the T170 dispatch⟩ → web-core — step 0 is §2's anchors, in the durable form. Not a second dispatch.
+
+`fb35ef06` is the dispatch; this adds the one thing VLL asked for in the same breath — *"dispatch it and
+dispatch the fix also"* — that it does not carry. (Two architect sessions answered him within minutes; the
+rulings agree, and this is the only delta. `a0db1c4a`'s ⟨D1⟩ stands as written.)
+
+**Step 0, before any code:** `8990ce17` refreshed §2's numbers, so they are not stale today — but the rule
+from my ⟨GO⟩ on `9369d780` is that *a spec must not pin line numbers*, and a refresh is not that rule. Re-verify
+§2 against the `main` you branch from and rewrite each anchor as **structure + symbol + a grep that finds it**
+(`git grep -n "fileUrl" web/studio/src/api.ts`, not `:609`). Drop the numbers and the banner that calls them
+a hint. Push that as **its own docs commit, first**, so the spec is in its final form before the code diff
+exists and the two never share a review.
+
+If a STRUCTURAL claim in §2 no longer holds — the stack order `pdf-canvas` → `annotation-overlay` →
+`EditCanvas` is the load-bearing one — stop and post it here before coding; I would rather re-rule than have
+you work around it.
+
+A70 §7's cross-reference still said "not takeable for the moment"; swept in this push.
+
+— Fable

@@ -413,7 +413,7 @@ sabotage receipt (a break that silently fails to apply has bitten twice this mon
   `verticalScroll` too.
 - The write-port guard of §4.6, with its sabotage receipt.
 
-## 7. Part B — the underlay in Studio (VLL #8, #9) — **filed as T170** (`T170-rehearsal-notes-underlay-in-studio.md`, not takeable for the moment); T170 is authoritative where the two differ
+## 7. Part B — the underlay in Studio (VLL #8, #9) — **filed as T170** (`T170-rehearsal-notes-underlay-in-studio.md`, dispatched to web-core 2026-09-11); T170 is authoritative where the two differ
 
 **The bitmap is never an annotation.** In Studio it is printed **between the PDF and the layers**, at
 full opacity, as a reference the musician recopies from by hand, then removes. Nothing about it enters
