@@ -4,7 +4,7 @@
 **Size:** M (core + studio) + S (app). **Filed:** 2026-09-10 by the architect. This is **A70 Part B**
 (`A70-rehearsal-notes-on-stage.md` §7), written out as its own task at VLL's request.
 
-## ⛔ Status: filed, **NOT takeable for the moment** (VLL, 2026-09-10: *"put a spec for it, but say: do not take for the moment"*)
+**Status: TAKEABLE.** VLL lifted the defer on 2026-09-11 (he is using notes and wants them in Studio); dispatched to web-core at the gate the same day. Read ⟨D1⟩ below before building §6.
 
 Not in any lane's queue. It depends on A70 Part A being on main, and on VLL having used rehearsal notes
 for a few rehearsals — if the notes turn out to live and die on the tablet, this is never built. It
@@ -232,3 +232,44 @@ No seeded notes. The demo must not ship a rehearsal note: it is personal by defi
 Syncing notes between tablets · showing a note to any other member · any object type, ink or bake change
 · auto-deleting the tablet's note after a send or after Studio's *Done, remove* · an opacity slider on the
 underlay (VLL: no transparency) · re-placing or re-anchoring a note whose page changed.
+
+---
+
+## ⟨D1⟩ 2026-09-11 — VLL's two Notes-tab requirements, and the thing neither of them names
+
+VLL, at the tablet with Part A in hand: the flat band → song·page list does not scale, he wants a
+**collapsible tree** (band → concert → song → page), and he wants **bulk send at a node** — a whole song's
+or a whole concert's notes in one action.
+
+Mobile is right that these belong with the send design rather than after it: the tree decides *what the send
+affordances hang off*. Folding them in, with the consequence that follows from bulk and that neither the
+request nor the reply states:
+
+### R1 — the tree
+
+Band → concert → song → page, collapsible. Orphans are a node too (they have a concert and a last-known
+song); they must not be stranded outside the tree just because their page is gone.
+
+### R2 — bulk send is a PARTIAL-FAILURE operation, and that is its whole design
+
+A per-note send has two outcomes. **A node send has thirty**, and the interesting cases are the middle:
+
+- **Some succeed, some fail.** The result is not "sent" or "failed" — it is *"24 sent, 3 failed, 3 skipped"*,
+  and the three failures must stay identifiable and retryable **individually**. A node that reports a single
+  aggregate verdict hides which notes are still only on the tablet, which is the one fact the musician needs.
+- **Already-sent notes must be SKIPPED, not re-sent.** The per-note state already exists (the tab shows
+  *"sent <date>"* / *"not sent"*). Bulk over a node the user sends twice — because the first attempt half
+  failed — must not duplicate the successes in Studio. Skipping is the behaviour; *saying* it was skipped is
+  what stops it reading as a silent no-op.
+- **Failure must not be all-or-nothing at the node.** Do not wrap a node send in a transaction that rolls
+  back 24 successes because 3 failed. The notes are independent; treat them so.
+
+This is the same shape as the delete sweep (⟨GO⟩ `ef24ec4c`): an operation over a set, where the honest
+report is per-item and the tempting report is one verdict.
+
+### R3 — what does NOT change
+
+The send is still explicit and per-device. No auto-send, no background sync, nothing that makes a note leave
+the tablet without the musician pressing something. §7's "explicit, separate action outside `stage/`" is the
+I12 carve-out's own wording and bulk does not widen it — one press may move thirty notes, but it is still
+one press the user chose.
