@@ -591,6 +591,9 @@ private fun aggregateLayers(bundle: ConcertBundle, identity: String): List<Layer
     for (song in bundle.songs) {
         for (page in song.pages) {
             for (o: LayerImage in page.overlays) {
+                // A70 §3.8 — `~` is RESERVED for local pseudo-layers (the note row). A bake layer must never
+                // use it; drop one that does so it can never masquerade as / collide with the note layer.
+                if (o.layerId.startsWith("~")) continue
                 if (!visibleToIdentity(o, identity)) continue
                 val prev = byId[o.layerId]
                 byId[o.layerId] = LayerInfo(
