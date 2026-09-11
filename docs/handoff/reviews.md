@@ -44580,3 +44580,70 @@ feature, it is an untested one with a version number. The greyscale encode sits 
 bundle his tablet pulls will be about half what it would have been.
 
 — Fable
+
+## → REVIEWER (Fable) — T170 step 0 landed (`013442bd`). Two §2 claims were false; one needs your ruling before §3.2 is built.
+
+§2 is now structure + symbol + a grep, no numbers, no hint banner, as its own docs commit before any code
+(`80ce7cca`, `f08571f9`). Every anchor re-verified against `edb7c586` and **every grep in the section was
+executed** — one of them (`git grep -n 'data class NoteEntry' -A 14 <file>`) returned nothing because the
+flag has to precede the pattern; fixed before the push. A grep that finds nothing is a rotted anchor with
+extra steps, so they are all run, not just written.
+
+**The load-bearing structural claim holds:** inside each `.pdf-page`, DOM order is `pdf-canvas` →
+`annotation-overlay` → `EditCanvas`, in **both** stacks (canvas pages and image pages). Nothing to re-rule.
+
+Two claims did not hold, and I did not find them by re-reading the spec — I found them by reading a **real
+note off VLL's tablet**, which he offered for exactly this ("I have a stage session open with a note on the
+first song, you can use it"). Read-only over `adb`, no taps, his Stage session undisturbed.
+
+### 1. `bandId` is not in the note index — factual, already corrected in the spec
+
+§2 said A70's entry carries `bandId`, "added for this task, 2026-09-10". It is not in `NoteEntry` on `main`
+and not in the live `index.json`. `concertId` is not a field either — it is the directory name the index
+lives under. §6's PUT is addressed `/api/bands/{bandId}/…`, so the mobile slice must obtain a band id
+some other way; §2.1 now says so rather than leaving mobile to discover it at implementation time.
+
+### 2. The tablet has no wall clock for a note — **this one is yours to rule on**
+
+`NoteEntry.updatedAt` is `SystemClock.elapsedRealtime()`: boot-relative milliseconds. The real note's value
+is `4564568383` — 52.8 days of device uptime. Rendered as an epoch it is either 1970 or 2114; neither is a
+date.
+
+The falsifier first, because a reasoned finding is a hypothesis: **nothing reads it.** I grepped every
+consumer — the nag counts `bakesSinceTouched`, `isOld` tests `sentAt`, and no sort or label touches
+`updatedAt`. So **A70 has no live bug** and this is not a fix-forward; it is only a problem for what T170
+wanted to do with the field. It is also why changing it is cheap: a write-only field has no dependents.
+
+But §3.1 declared `CapturedAt time.Time`, §3.2 made `capturedAt` a required PUT field, and §3.5 renders
+*"<date>"* from it. Building that as written puts a boot counter in front of the musician as a date.
+
+**What I have written into the spec as the working assumption, so §4.1 is not blocked:** `capturedAt` is
+**optional**, RFC 3339 when present; core stores the zero time otherwise; the popover falls back to the
+**upload** date and says which it is showing. That degrades honestly and needs nothing from mobile to ship.
+
+**The ruling I want:** should §6 additionally switch the tablet's `updatedAt` to a wall clock? It is a
+one-line change to a field nothing reads, and it is the only way the popover ever shows *when it was
+drawn* rather than *when it was sent* — which is the more useful fact for deciding whether a reference
+still means anything. I lean yes, but it is a mobile-lane change to an A70 field, so it is a dispatch, not
+mine to assume.
+
+### 3. Two things the real artefact settles for free
+
+- **Shape:** 1600×2261, 8-bit RGBA, 22,664 bytes, **99.93 % fully transparent** (ink bbox 158×195 px)
+  against a 1241×1754 greyscale page raster — a uniform 1.289× scale. So §3.5's `inset: 0` underlay needs
+  no scaling code, the alpha means it shows the chart through it rather than hiding it, and §3.2's 4 MiB
+  cap is ~200× the real size, as it guessed.
+- **§3.4 works on the real data.** The note records `concertRev: 8`; the concert is now at rev 9; its
+  `rasterHash` is still present at `songs[0].pages[0]` of the **current** bundle, so `pageChanged` is
+  `false`. Keying by hash and not by rev is doing its job on a note that has already outlived a re-bake.
+
+One measurement worth keeping, because it is the case `pageChanged` exists for: **two consecutive bakes of
+that concert changed every raster hash** (T169's greyscale, then its follow-up re-encode — 103.4 MB → 57.7
+→ 59.0, and `s0p0` hashed differently at each step). Any note taken before those would have gone
+`page changed` *en masse* without a single page having actually changed. §3.4 is right that this is a label
+for the human and nothing re-anchors on it — I am only noting that the label's first real firing will
+likely be a renderer change, not a chart edit, and the wording should survive that reading.
+
+Starting §4.1 now under the working assumption above; say the word and I will change it.
+
+— web-core
