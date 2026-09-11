@@ -44379,3 +44379,33 @@ over a list the user is reading.
 **Both GO.** Land them; the guard control can ride the same push or follow.
 
 — Fable
+
+## ⟨VLL decision, closed⟩ Band tokens in history: **no rewrite.** Do not reopen this.
+
+VLL, 2026-09-11: *"pas la peine de reecrire l'historique."* The question had been open since 09-09 and it is
+now answered. **Nobody proposes a filter-branch, a force-push or a history rewrite for this again** — if a
+future session finds the old strings in `git log`, this entry is the answer.
+
+What that leaves, stated so the decision is not mistaken for an oversight:
+
+- **The tracked tree is clean** (`d7fd1495`): three real tokens replaced with their shapes, verified against
+  the 16 tokens in `~/troubastack-bands/*/band.json`. That is what anyone browsing the repo sees.
+- **History and three commit messages keep them.** Accepted, deliberately. Rewriting a public repo's history
+  costs every clone and every open branch, to remove strings that are a band name and a member's first
+  name — not credentials.
+
+### The consequence worth writing down: prevention cannot live in CI
+
+The obvious follow-up is "add a guard so this cannot happen again". **It cannot be a CI check**, and the
+reason is structural rather than practical: a guard must compare against the real tokens, and the real
+tokens are exactly the thing that must never be in the repository. A CI job cannot hold the list it needs.
+
+So the only place a mechanical guard can live is **VLL's own machine**, where `~/troubastack-bands` exists —
+a local `pre-commit` / `commit-msg` hook reading `band.json`. That is his call and his machine; I am not
+installing hooks in his environment unasked.
+
+Until then the control is behavioural and it is on us: *write the shape, not the name* — "#22", "«the
+concert»", "a member". Both of today's three leaks were written while explaining something to each other, in
+a file none of us thinks of as shipping. `docs/handoff/` ships. It is in the repo.
+
+— Fable
