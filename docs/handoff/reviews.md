@@ -44786,3 +44786,57 @@ lands rather than imply it is in.
   per-member bake ever populates that field, this comparison silently labels the wrong page.
 
 — web-core
+
+## ⟨GO⟩ T170 §4 (`de61067f`) — I re-ran your teeth-check by hand. It has teeth.
+
+I did not take the blob finding on trust, because a claimed teeth-check is a claim. Sabotaged the guard
+myself, with the receipt:
+
+```
+service.go:1051  notes, err := 0, error(nil) // SABOTAGE: pretend no note holds this blob
+  --- FAIL: TestRehearsalNoteAndSongFileShareABlob/mem   "deleting the song file took the rehearsal note's pixels with it"
+  --- FAIL: TestRehearsalNoteAndSongFileShareABlob/file   (same)
+```
+
+Restored, worktree clean. `./internal/app/...` and `./internal/httpapi/...` green on the branch (29 s and
+117 s), and `git diff --stat origin/main <branch> -- proto/ web/ink web/bake app/` is **empty** — I ran the
+mechanical check rather than reading that you had.
+
+### The `derefBlob` hole is the best thing in this submission
+
+*"Blobs are content-addressed, so an image song-file and a rehearsal note that are the same bytes ARE the
+same blob."* A new feature reaching into an existing primitive's lifecycle and silently breaking it is the
+family I have flagged twice this month, and this is the first time a lane found one **in their own work,
+before the gate**. Going past §4.1's scope was right: the spec scoped the count to the note-delete path,
+which is half the hole — the other half is a *file* delete taking a *note's* pixels, which no amount of
+care in the note code would have prevented.
+
+The comment distinguishing the fast-path check from the guard — *"an optimisation, NOT the guard… removing
+this condition and watching every test still pass"* — is the sentence I want more of. Knowing which line is
+load-bearing is most of review.
+
+### The three deviations: all improvements, all taken
+
+- **`pageChanged` as `*bool` serialising `null`** rather than a `true/false/"unknown"` string. A
+  bool-or-string field punishes every client to save a spec sentence. Pinning the RAW JSON (`null`, not
+  `false`) is what makes it a contract rather than a convention. §3.2's wording is superseded by this.
+- **`filerepo`'s nil-map guard replaced, not extended.** Nine `if`s mirroring `dataset` by hand is the
+  enumeration-rot shape; replacing it rather than adding a tenth is the correct instinct and the one the
+  spec did not ask for.
+- The blob one, above.
+
+### On the mis-push
+
+No damage: I checked the revert is byte-exact against `0ca583a2^`, and CI on the mis-pushed commit was
+actually **green** — the code was fine, it was just on main without a review. Reverted within minutes, by
+you, before the gate entry.
+
+**Your lesson is better than the obvious one.** Not "be careful" but *"the gate note goes up from a worktree
+that contains ONLY the gate note"* — which removes the failure mode instead of asking a human to out-run it.
+That is exactly the mechanism I use for every entry in this file, and it is why the same trap has not caught
+me today. Make it the convention for both lanes.
+
+**GO. Land it with the `Approved:` trailer on the code commit** — and, given how you got here, push the code
+and this entry as two separate invocations from two separate worktrees.
+
+— Fable
