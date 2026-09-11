@@ -32,9 +32,6 @@ type Service struct {
 	// bakeTranspose is the chord-transpose step used by the bake-warning check (D3),
 	// injectable so a test can force a runtime failure. Production = chartpdf.Transpose.
 	bakeTranspose func(source string, from, to chartpdf.Key) (string, error)
-	// bakes is the narrow read-only seam into the bake package used to label a rehearsal
-	// note "page changed" (T170 §3.4). Nil is legitimate — see WithBakeLookup.
-	bakes BakeLookup
 }
 
 // NewService wires a Service over a Repo with production defaults. The blob store
@@ -1042,14 +1039,6 @@ func (s *Service) derefBlob(blobHash string) {
 	}
 	refs, err := s.repo.FilesWithBlob(blobHash)
 	if err != nil || len(refs) > 0 {
-		return
-	}
-	// T170: SongFiles are no longer the only holders of a blob. An image song-file and a
-	// rehearsal note that happen to be the same bytes ARE the same blob (that is what
-	// content-addressing means), so a file delete that consulted only FilesWithBlob would
-	// take the note's pixels with it. Both counts must be zero.
-	notes, err := s.repo.CountRehearsalNotesByBlob(blobHash)
-	if err != nil || notes > 0 {
 		return
 	}
 	_ = s.blobs.Delete(blobHash)

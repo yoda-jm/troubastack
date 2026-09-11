@@ -30,10 +30,6 @@ var (
 	ErrUnauthorized   = errors.New("app: unauthorized")  // no/invalid session
 	ErrInvalidInput   = errors.New("app: invalid input") // 400-class
 	ErrInviteResolved = errors.New("app: invite already resolved")
-	// T170: a binary upload can fail in two ways a 400 does not describe. Kept separate from
-	// ErrInvalidInput so the caller learns WHICH rule it broke without parsing the message.
-	ErrUnsupportedMedia = errors.New("app: unsupported media type") // 415
-	ErrTooLarge         = errors.New("app: payload too large")      // 413
 )
 
 // Role is a member's role within a band. The band owner is always admin.
@@ -294,37 +290,6 @@ type SongCues struct {
 	Cues   []SongCue `json:"cues"`
 }
 
-// RehearsalNote is a bitmap a musician drew on Stage over one page of one song, sent to
-// Studio to be looked at while they recopy it by hand into real annotations (T170, A70
-// Part B). It is a REFERENCE IMAGE and deliberately nothing more: not a domain.Object, not
-// a layer, not an ObjectType, invisible to the bake and to every other member. The friction
-// is the feature — a note cannot follow a lyric change and cannot be shared, which is the
-// argument for recopying it while it still means something.
-//
-// Unique per (OwnerUserID, SongID, PageInSong). The key is the page INDEX, not RasterHash,
-// on purpose: the musician thinks "page 2 of this song", so two sends after a reflow must
-// collide and ask rather than quietly accumulate two notes for one page.
-type RehearsalNote struct {
-	ID          string `json:"id"`
-	BandID      string `json:"bandId"`
-	SongID      string `json:"songId"`
-	OwnerUserID string `json:"ownerUserId"` // the sender; the ONLY reader (§3.3)
-	PageInSong  int    `json:"pageInSong"`  // 0-based, in the bake it was drawn on
-	RasterHash  string `json:"rasterHash"`  // that page's raster hash in that bake
-	ConcertID   string `json:"concertId"`
-	ConcertRev  uint64 `json:"concertRev"`
-	TakenAs     string `json:"takenAs"` // the Stage identity (roster member id) — label only
-	BlobHash    string `json:"blobHash"`
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
-	// CapturedAt is when the note was DRAWN. It is the zero time whenever the tablet could not
-	// say: A70's NoteEntry.updatedAt is SystemClock.elapsedRealtime(), a boot-relative counter,
-	// so there is no wall clock to send until the mobile slice supplies one. Readers must show
-	// UploadedAt (and say so) rather than render a zero or a boot counter as a date.
-	CapturedAt time.Time `json:"capturedAt,omitempty"`
-	UploadedAt time.Time `json:"uploadedAt"`
-}
-
 // Setlist is a band-scoped, ordered program of songs for an event. Items hold the
 // ordering and per-performance overrides; the songs themselves live independently.
 type Setlist struct {
@@ -514,21 +479,6 @@ type Repo interface {
 	SetSongCues(sc SongCues) error
 	// DeleteSongCues clears a member's cues. Idempotent.
 	DeleteSongCues(userID, songID string) error
-
-	// Per-owner, per-song, per-page rehearsal notes (T170; personal, never shared).
-	// The unique key is (OwnerUserID, SongID, PageInSong); CreateOrReplace is the only
-	// writer, so the conflict decision lives in the service and not in three backends.
-	CreateOrReplaceRehearsalNote(n RehearsalNote) error
-	// GetRehearsalNote returns one note; ErrNotFound when that owner has none on that page.
-	GetRehearsalNote(ownerUserID, songID string, pageInSong int) (RehearsalNote, error)
-	// ListRehearsalNotes returns one owner's notes for one song, ordered by PageInSong.
-	ListRehearsalNotes(ownerUserID, songID string) ([]RehearsalNote, error)
-	// DeleteRehearsalNote removes one note. Idempotent: deleting an absent note is not an error.
-	DeleteRehearsalNote(ownerUserID, songID string, pageInSong int) error
-	// CountRehearsalNotesByBlob counts notes (across all owners) still pointing at blobHash.
-	// Content-addressing means two members sending the same PNG share one blob, so the bytes
-	// may only be dropped when this reaches zero — AND no SongFile references them either.
-	CountRehearsalNotesByBlob(blobHash string) (int, error)
 
 	// Setlists + items.
 	CreateSetlist(sl Setlist) error

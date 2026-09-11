@@ -89,12 +89,6 @@ A note VLL drew on 2026-09-11 (`files/notes/<concertId>/index.json` + one PNG), 
   (nothing on the tablet sorts or renders it; the nag counts bakes, not time), so no A70 behaviour depends
   on it — but §3.1's `CapturedAt`, §3.2's `capturedAt` field and §3.5's *"<date>"* have no true value to
   carry until §6 makes the tablet send a wall clock. See §3.2's note on the field.
-  **Ruled** (Fable, `dd6e359c`): mobile switches it to a wall clock — but the field then holds **two eras**,
-  because notes already on the tablet carry boot counters and nothing marks which is which. The
-  discriminator is free and must be used: a boot counter is thousands of seconds, a wall clock ~1.7 × 10⁹,
-  so a value below ~10⁸ is an old one and renders as **"date unknown"** — never as 1970, never as a
-  plausible-looking wrong date. No migration: a date that was never recorded cannot be recovered, and
-  inventing one is worse than admitting it. This branch is deliberate, not defensive.
 - **`bandId` is absent.** An earlier draft of this section said it had been "added for this task,
   2026-09-10"; it was not, and is not on `main`. §6's PUT is addressed `/api/bands/{bandId}/…`, so the
   mobile slice has to obtain a band id (add the field, or resolve it from the concert) — it cannot read one
@@ -148,7 +142,7 @@ The tablet sends as the signed-in user; that user becomes `OwnerUserID`. `TakenA
 label only. The **prompt** when they differ lives on the tablet (§6), before the request is made. The
 server does not try to map a roster member id to a user; it stores what it was told.
 
-### 3.4 "This page isn't in the current bake"
+### 3.4 "The page changed since you drew this"
 
 For each note, compare `RasterHash` against the **current** bake of `ConcertID` (`Baker.ListConcerts()`
 or a narrower `latest(concertID)` helper — add one rather than listing everything): the song's page at
@@ -168,14 +162,9 @@ of it — that would be the T145 bug in a new coat.
   (VLL: no transparency), drawn at page `PageInSong`. A note whose page index exceeds the current page
   count is listed but not drawn (nowhere to draw it).
 - Each note in the chip's popover: *"page P · from rev R · taken as X · <date>"*, where <date> is
-  `capturedAt` when it is non-zero and the **upload** date otherwise, labelled as such (§2.1), a
-  **`not in the current bake`** tag when §3.4 says so, and **Done, remove** → `DELETE` → the underlay
-  disappears. No undo: it was a reference, and the tablet still has the original.
-  The tag states the FACT and never the cause (Fable, `dd6e359c`): a re-encode, a re-render, an edit and a
-  reflow are indistinguishable from a hash, and the label's first real mass firing was a RENDERER change —
-  two consecutive bakes of one concert moved **every** raster hash (103.4 → 57.7 → 59.0 MB, T169 and its
-  follow-up) without one page's content changing. *"The chart changed under your note"* would have been
-  false at the exact moment it first mattered.
+  `capturedAt` when it is non-zero and the **upload** date otherwise, labelled as such (§2.1), a **`page changed`**
+  tag when §3.4 says so, and **Done, remove** → `DELETE` → the underlay disappears. No undo: it was a
+  reference, and the tablet still has the original.
 - **Nothing in `web/ink`, nothing in `web/bake`, no `ObjectType`, no proto change.** A source guard
   (§5.3) pins that.
 
@@ -243,7 +232,7 @@ No seeded notes. The demo must not ship a rehearsal note: it is personal by defi
   opaque beneath it — the mark is above; and a pixel of the rendered page where only the underlay has ink
   shows the underlay's colour — it is above the PDF.
 - The underlay is **not** hit-testable: clicking on underlay ink where no object is selects nothing.
-- the `not in the current bake` tag shows for a note whose fixture hash differs; **Done, remove** deletes and the row
+- `page changed` tag shows for a note whose fixture hash differs; **Done, remove** deletes and the row
   and underlay are gone after reload.
 - A second user signed in on the same song sees **no** chip.
 
