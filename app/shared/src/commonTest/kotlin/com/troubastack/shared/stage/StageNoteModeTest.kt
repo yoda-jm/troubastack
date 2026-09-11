@@ -2,6 +2,7 @@ package com.troubastack.shared.stage
 
 import com.troubastack.shared.bundle.BakedSong
 import com.troubastack.shared.bundle.ConcertBundle
+import com.troubastack.shared.bundle.LayerImage
 import com.troubastack.shared.bundle.LoadResult
 import com.troubastack.shared.bundle.PageImages
 import com.troubastack.shared.stage.notes.NoteEntry
@@ -135,6 +136,33 @@ class StageNoteModeTest {
         vm.applyUpdate(loaded(h1 = "h1")) // same hash → still live
         assertEquals(0, vm.state.value.orphanedNoteCount)
         assertTrue(vm.state.value.hasLiveNote("song-1"))
+    }
+
+    @Test
+    fun loader_rejects_a_bake_layer_id_starting_with_tilde() {
+        // §3.8 torture fixture: a bundle tries to smuggle a `~notes` (or any `~`) bake layer. It must never
+        // reach state.layers (it would masquerade as / collide with the local note pseudo-layer).
+        val bundle = ConcertBundle(
+            concertId = "c1", concertRev = 1uL,
+            songs = listOf(
+                BakedSong(
+                    songId = "song-1",
+                    pages = listOf(
+                        PageImages(
+                            pageRasterRef = "s1p1", rasterHash = "h1",
+                            overlays = listOf(
+                                LayerImage(layerId = "~notes", imageRef = "evil.png"),
+                                LayerImage(layerId = "real", imageRef = "ok.png"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val vm = StageViewModel(LoadResult.Loaded(bundle, emptyList()))
+        val ids = vm.state.value.layers.map { it.layerId }
+        assertTrue("~notes" !in ids, "a ~-prefixed bake layer must be dropped, was $ids")
+        assertTrue("real" in ids, "an ordinary layer is unaffected")
     }
 
     @Test
