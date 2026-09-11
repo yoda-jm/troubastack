@@ -40,6 +40,8 @@ import com.troubastack.shared.stage.notes.NoteTools
 import com.troubastack.shared.stage.notes.RehearsalNotes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Metadata the note bitmap does not carry, snapshotted at save time for labels + Part B placement (§3.3). */
@@ -86,8 +88,8 @@ val NoOpRehearsalNotes: RehearsalNotes = object : RehearsalNotes {
 /**
  * §3.5 — the note layer over one page, ABOVE every baked overlay (#11). Displays the stored note
  * (scheme-transformed) always; when [editable] (the current page in note mode) it also captures pencil /
- * eraser input into an in-memory NEUTRAL bitmap, commits each stroke at pen-up, and persists on idle /
- * dispose through the [notes] port. [imageMod] MUST be the raster Image's modifier so the note registers
+ * eraser input into an in-memory NEUTRAL bitmap, commits each stroke at pen-up, and persists it (a private
+ * copy) through the [notes] port. [imageMod] MUST be the raster Image's modifier so the note registers
  * with the page (§2 — the sibling-Image registration mechanism), and [fillWidth] its ContentScale.
  */
 @Composable
@@ -127,26 +129,36 @@ fun NoteLayer(
     }
 
     // Persistence: each pen-up commits the stroke to the bitmap then SAVES through the port (§4.5). Saving
-    // eagerly (not on an idle timer) means leaving Stage right after a stroke never loses it. An all-
-    // transparent bitmap deletes the note (the port's job). After a save, refresh the index so the counts +
-    // ✎ badge update. Runs on the composition scope, which survives note-mode exit (the page still shows).
+    // eagerly (at pen-up, not on an idle timer) means leaving Stage right after a stroke never loses it. An
+    // all-transparent bitmap deletes the note (the port's job). After a save, refresh the index so the
+    // counts + ✎ badge update. Runs on the composition scope, which survives note-mode exit (page still shows).
     val scope = rememberCoroutineScope()
     val latestNeutral = rememberUpdatedState(neutral)
+    // Saves are serialized per page so two overlapping saves can't finish out of order and leave an older
+    // snapshot as the file on disk.
+    val saveMutex = remember(key) { Mutex() }
     fun persist() {
         val n = latestNeutral.value ?: return
+        // Snapshot the bitmap on THIS (main) thread before handing it to the off-main encoder. The next
+        // stroke mutates `neutral` in place on the main thread, and Android's compress() would otherwise
+        // read that same bitmap concurrently → a torn PNG or a native crash. The copy is cheap next to a
+        // stroke and happens once per pen-up, so the encoder always sees a stable, private image.
+        val snapshot = copyBitmap(n)
         val entry = NoteEntry(
             songId = page.songId, rasterHash = page.rasterHash,
             file = "", // the port names the file from the key
             pageInSong = meta.pageInSong, songTitle = meta.songTitle, bandName = meta.bandName,
             concertRev = meta.concertRev, takenAs = meta.takenAs,
-            width = n.width, height = n.height, updatedAt = monotonicNow(),
+            width = snapshot.width, height = snapshot.height, updatedAt = monotonicNow(),
         )
         scope.launch(Dispatchers.Default) {
-            notes.save(concertId, entry, n)
-            val idx = notes.index(concertId)
-            // Refresh the index (counts + ✎ badge). NOT a revision bump — the in-memory bitmap is already
-            // current, so re-keying it would blank+reload the note mid-stroke.
-            withContext(Dispatchers.Main) { onIndexChanged(idx) }
+            saveMutex.withLock {
+                notes.save(concertId, entry, snapshot)
+                val idx = notes.index(concertId)
+                // Refresh the index (counts + ✎ badge). NOT a revision bump — the in-memory bitmap is already
+                // current, so re-keying it would blank+reload the note mid-stroke.
+                withContext(Dispatchers.Main) { onIndexChanged(idx) }
+            }
         }
     }
 
@@ -219,6 +231,14 @@ fun NoteLayer(
             drawPath(path, drawColour, style = Stroke(width = maxOf(screenW, 1.5f), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
+}
+
+/** Copy [src] on the calling (main) thread so an off-main PNG encode can't race the next stroke's in-place
+ *  mutation of the working bitmap (§4.5). */
+private fun copyBitmap(src: ImageBitmap): ImageBitmap {
+    val copy = ImageBitmap(src.width, src.height)
+    GraphicsCanvas(copy).drawImage(src, Offset.Zero, Paint())
+    return copy
 }
 
 /** Draw a polyline stroke into [bmp] at [noteColour] (opaque), round cap/join (§3.6). Note-space coords. */

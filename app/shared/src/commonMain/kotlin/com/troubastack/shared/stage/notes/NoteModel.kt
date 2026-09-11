@@ -70,9 +70,6 @@ object NoteTools {
     /** §3.4 — a note is "old" (nags) once this many bakes have passed since it was last touched/sent. */
     const val NAG_BAKES = 3
 
-    /** §3.7 — flush a wet drawing after this idle gap (ms), the T147 injected-clock pattern. */
-    const val IDLE_FLUSH_MS = 2000L
-
     /** §3.8 — the reserved per-song layer id for the note row. No bake layer id starts with `~` (guarded). */
     const val RESERVED_LAYER_ID = "~notes"
 }
@@ -132,22 +129,6 @@ object NoteGeometry {
         if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) return null
         return Offset((u * noteW).toFloat(), (v * noteH).toFloat())
     }
-}
-
-/**
- * §3.7 / §4.1 — when to commit a wet drawing to the bitmap. Pure, with an injected clock (T147 pattern):
- * [dirty] on each draw records the touch time; [due] is true once [IDLE_FLUSH_MS] of idle has passed;
- * [force] flushes immediately if anything is pending (page-turn / exit / applyUpdate / onStop); [cleared]
- * after a flush. A flush with nothing pending is a no-op.
- */
-class NoteFlushPolicy(private val idleMs: Long = NoteTools.IDLE_FLUSH_MS) {
-    private var dirtyAt: Long? = null
-
-    fun dirty(now: Long) { dirtyAt = now }
-    fun due(now: Long): Boolean = dirtyAt?.let { now - it >= idleMs } ?: false
-    fun force(): Boolean = dirtyAt != null
-    fun cleared() { dirtyAt = null }
-    val pending: Boolean get() = dirtyAt != null
 }
 
 /**
