@@ -69,6 +69,7 @@ import com.troubastack.shared.home.updateSummary
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.bundle.BundleImporter
@@ -794,6 +795,35 @@ private fun ConcertsScreen(
     // A70 §5.5 — note count per concert, for the library-row subtitle ("· notes on N pages").
     val noteCounts = remember(refresh) { allNoteEntries(storage).groupingBy { it.first }.eachCount() }
 
+    // A42②-follow-up (VLL): re-bake ANY concert from its ⋮, not only the Home resume row. Only when
+    // connected AND admin of that concert's band — a control that could only 403 is not an affordance.
+    var adminCids by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(connected, entries) {
+        adminCids = if (!connected) emptySet()
+        else entries.mapNotNull { e -> e.concertId.takeIf { it.isNotEmpty() && runCatching { transport.isBandAdmin(it) }.getOrDefault(false) } }.toSet()
+    }
+    // One bake at a time (like the Home row). bakeCid stays set on failure so THAT row shows the error +
+    // offers a retry; it clears on success, then a re-list surfaces the new rev.
+    var bakeCid by remember { mutableStateOf<String?>(null) }
+    var bakeStatus by remember { mutableStateOf<BakeStatus>(BakeStatus.Hidden) }
+    fun reBakeConcert(cid: String) {
+        if (bakeCid != null && bakeStatus is BakeStatus.Baking) return // a bake is already running
+        bakeCid = cid
+        bakeStatus = BakeStatus.Baking(bakeLabel(null))
+        scope.launch {
+            val bakeId = java.util.UUID.randomUUID().toString()
+            val kickErr = runCatching { transport.reBake(cid, bakeId) }.getOrElse { "Couldn't reach the server" }
+            if (kickErr != null) { bakeStatus = BakeStatus.Failed(kickErr); return@launch }
+            var step = bakePollStep(null); var polls = 0
+            while (!step.done && isActive && polls < 600) { // ~10 min backstop; real bakes end far sooner
+                delay(1000); polls++
+                step = bakePollStep(runCatching { transport.bakeProgress(cid, bakeId) }.getOrNull())
+                bakeStatus = step.status
+            }
+            if (step.status !is BakeStatus.Failed) { bakeCid = null; bakeStatus = BakeStatus.Hidden; refresh++ }
+        }
+    }
+
     // Pull the manifest + recompute offers whenever connection or install state changes (I13). Manage
     // intent only — the perform path makes NO network call (offline-first entering via TroubaStage).
     LaunchedEffect(connected, refresh, manage) {
@@ -903,6 +933,9 @@ private fun ConcertsScreen(
                             ConcertRow(
                                 entry, // A31/T143: this is the PICKER (a library), so the ⋮ shows whichever door you came through
                                 notesCount = noteCounts[entry.concertId] ?: 0,
+                                canReBake = entry.concertId in adminCids,
+                                bakeStatus = if (bakeCid == entry.concertId) bakeStatus else BakeStatus.Hidden,
+                                onReBake = { reBakeConcert(entry.concertId) },
                                 onOpen = { if (!entry.damaged) onOpen(entry.dir) },
                                 // A70 §3.3: deleting a bundle removes its rehearsal notes too (they live beside it).
                                 onDelete = { File(entry.dir).deleteRecursively(); AndroidRehearsalNotes(storage.notesDir()).deleteAll(entry.concertId); refresh++ },
@@ -1026,9 +1059,15 @@ private fun ConcertRow(
     onPin: () -> Unit,
     onUnpin: () -> Unit,
     notesCount: Int = 0,
+    // A42②-follow-up (VLL): re-bake ANY concert from the picker, not only the Home resume row. Admin-gated
+    // by the caller (canReBake); progress shows inline on the row while baking.
+    canReBake: Boolean = false,
+    bakeStatus: BakeStatus = BakeStatus.Hidden,
+    onReBake: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val baking = bakeStatus is BakeStatus.Baking
     Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -1043,6 +1082,12 @@ private fun ConcertRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                // The live bake line while THIS concert is re-baking (T99-style), or the failure + retry.
+                when (val s = bakeStatus) {
+                    is BakeStatus.Baking -> Text(s.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    is BakeStatus.Failed -> Text(s.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    BakeStatus.Hidden -> {}
                 }
             }
             // T143: this row is the PICKER (a library) — it offers the ⋮ (Delete + setlist id, plus
@@ -1062,6 +1107,15 @@ private fun ConcertRow(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                        HorizontalDivider()
+                    }
+                    // A42②-follow-up: Re-bake this concert (admin + connected only, so it can't just 403).
+                    if (canReBake) {
+                        DropdownMenuItem(
+                            text = { Text(if (baking) "Re-baking…" else "Re-bake") },
+                            enabled = !baking,
+                            onClick = { menuOpen = false; onReBake() },
                         )
                         HorizontalDivider()
                     }
