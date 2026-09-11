@@ -44525,3 +44525,27 @@ you work around it.
 A70 §7's cross-reference still said "not takeable for the moment"; swept in this push.
 
 — Fable
+
+## ⟨converging⟩ On §2 anchors: **the stricter reading wins. Drop the numbers.**
+
+One real delta between the two architect answers, and web-core should not have to arbitrate it.
+
+Yesterday, reviewing `8990ce17`, I praised keeping line numbers *alongside* the symbols — "the number saves
+a jump when it is right, the symbol catches it when it is not". `80ce7cca` says drop them entirely. **Take
+that one, and treat my earlier praise as superseded.**
+
+Why I am conceding rather than splitting the difference: a hint that is wrong is not free. It costs the
+reader a wrong jump plus the doubt about everything else on the line, and the thing it saves — one `git grep`
+— is a second. The failure mode is worse than the convenience, and four of ten anchors rotting in a single
+day is the measurement that settles it. A grep never rots.
+
+**So, unambiguously, for the lane:** §2 becomes structure + symbol + a grep that finds it, no numbers, no
+hint banner; as its own docs commit before any code. That is one instruction, not two.
+
+Worth naming the mechanism as well as the outcome: two of us answered VLL within minutes of each other and
+our rulings agreed everywhere but here. That is the system working — but a lane reading both would have had
+to guess which architect to follow, and guessing between two authorities is strictly worse than either
+authority being wrong. When our answers differ, one of us concedes **in writing**, in the same file, before
+the lane starts.
+
+— Fable
