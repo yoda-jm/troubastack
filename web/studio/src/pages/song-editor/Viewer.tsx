@@ -1047,6 +1047,20 @@ export function Viewer({
   // and the old one is cleared — two updates, one meaning. Deliberately records NO undo entry: a swap is
   // its own inverse, so the undo of it is the button itself, and an entry would only add a second way to
   // do the same thing (with the worse failure mode of undoing something else if pressed later).
+  // P206 ⟨D4⟩ R3: "go to the other end" scrolls the partner into view AND SELECTS it. The selection is the
+  // point, not a convenience: landing on the other end, the toolbar offers the trip back, so a musician can
+  // bounce between the two ends to check the jump reads — which is exactly what VLL was doing when he asked
+  // for this. It does not touch his selection ruling ("if one is selected the other is not selected"): that
+  // governs what a PICK does, and this is an explicit command the user pressed.
+  const goToMark = useCallback(
+    (uuid: string) => {
+      if (!doc.objects.some((o) => o.uuid === uuid)) return;
+      selectOnly([uuid]);
+      scrollObjectIntoView(uuid);
+    },
+    [doc.objects, selectOnly, scrollObjectIntoView],
+  );
+
   const swapJumpDirection = useCallback(
     (uuid: string) => {
       if (!syncRef.current) return;
@@ -1616,6 +1630,7 @@ export function Viewer({
                   onReorder={reorderSelected}
                   onDuplicate={duplicateSelected}
                   onSwapJump={swapJumpDirection}
+                  onGoToMark={goToMark}
                   onSetColor={setObjectColor}
                   onDelete={deleteSelected}
                   beginGesture={beginGesture}
@@ -1662,6 +1677,7 @@ export function Viewer({
                 onReorder={reorderSelected}
                 onDuplicate={duplicateSelected}
                 onSwapJump={swapJumpDirection}
+                onGoToMark={goToMark}
                 onSetColor={setObjectColor}
                 onDelete={deleteSelected}
                 beginGesture={beginGesture}

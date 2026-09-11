@@ -898,6 +898,7 @@ export function SelectionToolbar({
   onDuplicate,
   onDelete,
   onSwapJump,
+  jumpRelation,
 }: {
   color: string;
   onColor: (c: string) => void;
@@ -907,6 +908,8 @@ export function SelectionToolbar({
   onDelete: () => void;
   /** P206: present only when the selected mark is one end of a jump — swaps which end is the source. */
   onSwapJump?: () => void;
+  /** P206 ⟨D4⟩: what this mark does ("Jumps to p.7"), and going there. Absent for a non-jump. */
+  jumpRelation?: { label: string; disabledReason?: string; onGo: () => void };
 }) {
   return (
     <div
@@ -926,6 +929,31 @@ export function SelectionToolbar({
           aria-label="Colour"
         />
       </label>
+      {jumpRelation && (
+        // ⟨D4⟩ R2: the LABEL IS THE BUTTON. VLL asked to "navigate to its counterpart by clicking
+        // somewhere" — the somewhere a person tries is whatever names the other end, and after R1 this
+        // sentence is the only thing that does in every case. A second icon in a bar already carrying six
+        // controls would buy nothing and cost a slot.
+        <button
+          type="button"
+          className="sel-jump-rel"
+          data-testid="sel-jump-relation"
+          disabled={jumpRelation.disabledReason != null}
+          title={
+            jumpRelation.disabledReason
+              ? `Can't go there — ${jumpRelation.disabledReason}`
+              : `${jumpRelation.label} — click to go there`
+          }
+          aria-label={
+            jumpRelation.disabledReason
+              ? `${jumpRelation.label}. Can't go there — ${jumpRelation.disabledReason}`
+              : `${jumpRelation.label}. Go to the other end`
+          }
+          onClick={jumpRelation.onGo}
+        >
+          {jumpRelation.label}
+        </button>
+      )}
       {onSwapJump && (
         // P206 (VLL, 2026-09-09): getting the direction wrong used to mean deleting the pair (and since
         // "a jump deletes as ONE thing", that means both ends) and placing it again. One click now. It is

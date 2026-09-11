@@ -25,11 +25,15 @@ describe("jumpPageHints (P206 cross-page direction)", () => {
   const dest = mark("dest", { page: 6 });
 
   it("tells the SOURCE which page it jumps to, counting pages as a reader does", () => {
-    expect(jumpPageHints([src], [src, dest], 4)).toEqual([{ uuid: "src", outgoing: true, page: 7 }]);
+    expect(jumpPageHints([src], [src, dest], 4)).toEqual([
+      { uuid: "src", partnerUuid: "dest", outgoing: true, page: 7 },
+    ]);
   });
 
   it("tells the DESTINATION where the jump comes FROM — the arrow reverses", () => {
-    expect(jumpPageHints([dest], [src, dest], 6)).toEqual([{ uuid: "dest", outgoing: false, page: 5 }]);
+    expect(jumpPageHints([dest], [src, dest], 6)).toEqual([
+      { uuid: "dest", partnerUuid: "src", outgoing: false, page: 5 },
+    ]);
   });
 
   it("says nothing when the pair is co-visible — that case has the segment", () => {
@@ -61,5 +65,24 @@ describe("jumpPageHints (P206 cross-page direction)", () => {
   it("renders the incoming direction on the destination", () => {
     render(<JumpPageHints objects={[dest]} hints={jumpPageHints([dest], [src, dest], 6)} />);
     expect(screen.getByTestId("jump-page-hint").textContent).toBe("← p.5");
+  });
+});
+
+// ⟨D4⟩ R2: the chip is the other thing that names the counterpart, so clicking it goes there — and it
+// carries WHICH mark to go to, not merely which page, so the caller never has to re-derive the pair.
+describe("the chip as an affordance (⟨D4⟩)", () => {
+  it("clicking it asks to go to the PARTNER, not to itself", () => {
+    const src = mark("src", { page: 4, jumpTo: "dest" });
+    const dest = mark("dest", { page: 6 });
+    const went: string[] = [];
+    render(<JumpPageHints objects={[src]} hints={jumpPageHints([src], [src, dest], 4)} onGo={(u) => went.push(u)} />);
+    screen.getByTestId("jump-page-hint").click();
+    expect(went).toEqual(["dest"]);
+  });
+
+  it("is a real button, so it is reachable by keyboard and not just by pointer", () => {
+    const src = mark("src", { page: 4, jumpTo: "dest" });
+    render(<JumpPageHints objects={[src]} hints={jumpPageHints([src], [src, mark("dest", { page: 6 })], 4)} />);
+    expect(screen.getByTestId("jump-page-hint").tagName).toBe("BUTTON");
   });
 });

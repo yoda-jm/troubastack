@@ -34,6 +34,7 @@ import { buildWet, budgetedRasterDpr, compareObjectZ, measureTextWidth, toInkObj
 import { SelectionToolbar } from "./Toolbar";
 import { JumpFlags } from "./JumpFlags";
 import { JumpPageHints, jumpPageHints } from "./JumpPageHint";
+import { jumpRelation } from "./jumpRelation";
 
 /** Capture a pointer id, best-effort (T34). Exotic/synthetic pointer ids (e.g. an e2e-
  *  dispatched PointerEvent) can't be captured and throw NotFoundError; capture is a
@@ -76,6 +77,7 @@ export function EditCanvas({
   onReorder,
   onDuplicate,
   onSwapJump,
+  onGoToMark,
   onSetColor,
   onDelete,
   beginGesture,
@@ -118,6 +120,8 @@ export function EditCanvas({
   onDuplicate: (uuid: string) => void;
   /** P206: swap which end of this jump is the source. Offered only for a mark that IS one end of a pair. */
   onSwapJump: (uuid: string) => void;
+  /** P206 ⟨D4⟩: scroll the given mark into view AND select it — "go to the other end". */
+  onGoToMark: (uuid: string) => void;
   onSetColor: (uuid: string, color: string) => void;
   onDelete: () => void;
   // Two-finger pinch/pan pipeline (T27 stage 4) — from usePdfDocument. beginGesture
@@ -998,6 +1002,7 @@ export function EditCanvas({
         <JumpPageHints
           objects={pageObjects}
           hints={jumpPageHints(selectedOnPage, objects, page)}
+          onGo={onGoToMark}
           measure={pageBoxPx ? { pageW: pageBoxPx.w, pageH: pageBoxPx.h, widthPx: measureTextWidth } : undefined}
         />
         {(() => {
@@ -1186,6 +1191,12 @@ export function EditCanvas({
               onSendToBack={() => onReorder(selectedSingle.uuid, "back")}
               onDuplicate={() => onDuplicate(selectedSingle.uuid)}
               onDelete={onDelete}
+              jumpRelation={(() => {
+                // ⟨D4⟩: the sentence + where it leads, for the mark actually selected. Scoped to THIS
+                // FILE's objects, the same scope the pair itself lives in.
+                const rel = jumpRelation(selectedSingle, objects, layersById, visible);
+                return rel ? { ...rel, onGo: () => onGoToMark(rel.partnerUuid) } : undefined;
+              })()}
               onSwapJump={
                 // Only for a mark that is actually one end of a pair — a lone landmark has no direction.
                 objects.some(

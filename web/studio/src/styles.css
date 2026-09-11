@@ -1201,7 +1201,16 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   padding: 1px 5px; border-radius: 999px;
   font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap;
   background: var(--brand); color: var(--on-brand);
-  pointer-events: none; opacity: .92;
+  opacity: .92;
+  /* ⟨D4⟩ R2: the chip goes to the other end, so it must take a click — and its container
+     (.selection-overlay) is pointer-events:none precisely so the overlay never eats a canvas gesture.
+     Re-enabling it HERE and nowhere else keeps that: the chip is the only pointer target in the overlay,
+     it renders only for a SELECTED mark, and the rest of the overlay stays transparent to the pointer.
+     A drawing gesture that starts where an unselected mark's chip WOULD be is unaffected, because there
+     is no chip — proved by a test rather than by this comment. */
+  pointer-events: auto;
+  cursor: pointer;
+  border: 0; font-family: inherit;
 }
 .jump-segment { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .jump-segment line { stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: .85; }
@@ -1403,6 +1412,14 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   color: var(--fg); cursor: pointer;
 }
 .sel-toolbar button:hover { background: var(--surface-2); }
+/* P206 ⟨D4⟩: the relationship sentence, which is also the button that goes to the other end. Text, not an
+   icon — it has to be readable at a glance and it is the thing a person clicks. Disabled when the partner
+   is on a hidden layer: offered, refused, with the reason in the title. */
+.sel-toolbar .sel-jump-rel {
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+  padding: 0 .4rem; max-width: 14rem; overflow: hidden; text-overflow: ellipsis;
+}
+.sel-toolbar .sel-jump-rel:disabled { opacity: .5; cursor: not-allowed; }
 .sel-toolbar button.danger:hover { background: color-mix(in srgb, #ef4444 18%, var(--surface)); color: #ef4444; }
 .sel-toolbar .sel-color { display: inline-flex; width: 26px; height: 26px; }
 .sel-toolbar .sel-color input[type="color"] {

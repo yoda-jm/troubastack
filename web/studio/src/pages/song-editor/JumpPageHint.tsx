@@ -22,6 +22,8 @@ import type { AnnotationObject } from "../../api";
 
 export interface JumpPageHintItem {
   uuid: string;
+  /** The other end — what a click on this chip goes to (⟨D4⟩ R2). */
+  partnerUuid: string;
   /** true when the SELECTED mark carries the pointer (it jumps away), false when it is the target. */
   outgoing: boolean;
   /** 1-based page of the partner, as a reader counts pages. */
@@ -41,7 +43,12 @@ export function jumpPageHints(
       (o) => o.uuid !== sel.uuid && (o.uuid === sel.jumpTo || o.jumpTo === sel.uuid),
     );
     if (!partner || partner.page === thisPage) continue; // co-visible pairs get the segment instead
-    out.push({ uuid: sel.uuid, outgoing: sel.jumpTo === partner.uuid, page: partner.page + 1 });
+    out.push({
+      uuid: sel.uuid,
+      partnerUuid: partner.uuid,
+      outgoing: sel.jumpTo === partner.uuid,
+      page: partner.page + 1,
+    });
   }
   return out;
 }
@@ -50,11 +57,14 @@ export function JumpPageHints({
   objects,
   hints,
   measure,
+  onGo,
 }: {
   /** The objects on THIS page (for placing each hint on its mark). */
   objects: AnnotationObject[];
   hints: JumpPageHintItem[];
   measure?: TextMeasure;
+  /** ⟨D4⟩ R2: the chip is the other thing that names the counterpart, so it goes there too. */
+  onGo?: (uuid: string) => void;
 }) {
   return (
     <>
@@ -63,11 +73,14 @@ export function JumpPageHints({
         if (!o) return null;
         const b = objectBBox(o, measure);
         return (
-          <div
+          <button
+            type="button"
             key={`hint-${h.uuid}`}
             className="jump-page-hint"
             data-testid="jump-page-hint"
             data-uuid={h.uuid}
+            title={`${h.outgoing ? "Jumps to" : "Jumped to from"} page ${h.page} — click to go there`}
+            onClick={() => onGo?.(h.partnerUuid)}
             // BELOW the mark, not above it (VLL: "the chip on the selected jumpmark is still hidden by
             // the toolbar"). The selection toolbar is `bottom:100%; left:50%` on the same box and is far
             // wider than a landmark — ~200px of buttons over a ~65px mark — so it overhangs both sides by
@@ -75,7 +88,7 @@ export function JumpPageHints({
             style={{ left: `${b.maxX * 100}%`, top: `${b.maxY * 100}%` }}
           >
             {h.outgoing ? `→ p.${h.page}` : `← p.${h.page}`}
-          </div>
+          </button>
         );
       })}
     </>

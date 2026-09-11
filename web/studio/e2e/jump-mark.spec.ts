@@ -435,3 +435,100 @@ test("a cross-page pair shows the direction and the target page on each end (VLL
   await page.getByTestId("sel-swap-jump").click();
   await expect(page.getByTestId("jump-page-hint")).toHaveText("→ p.1");
 });
+
+// P206 ⟨D4⟩ — VLL: "I don't know in the toolbar if it is a target or a source, also I cannot navigate to
+// its counterpart by clicking somewhere". The toolbar states the RELATIONSHIP (not a role noun), and that
+// sentence IS the button that goes there.
+test("the toolbar says what the mark does, and the label goes to the other end (⟨D4⟩)", async ({ page }) => {
+  await openEditorReady(page);
+  const pages = page.getByTestId("edit-canvas");
+  const clickOnPage = async (idx: number, fx: number, fy: number) => {
+    const c = pages.nth(idx);
+    await c.evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await page.waitForTimeout(150);
+    const b = (await c.boundingBox())!;
+    await page.mouse.click(b.x + b.width * fx, b.y + b.height * fy);
+  };
+
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickOnPage(0, 0.4, 0.12); // source, page 1
+  await clickOnPage(1, 0.4, 0.12); // destination, page 2
+  await page.getByTestId("tool-select").click();
+
+  // The SOURCE says where it goes…
+  await clickOnPage(0, 0.4, 0.12);
+  await expect(page.getByTestId("sel-jump-relation")).toHaveText("Jumps to p.2");
+
+  // …and clicking that sentence goes there AND selects the other end, so the toolbar now offers the trip
+  // back. That round trip is the property: a musician bounces between the ends to check the jump reads.
+  await page.getByTestId("sel-jump-relation").click();
+  await expect(page.getByTestId("sel-jump-relation")).toHaveText("Jumped to from p.1");
+  await expect(page.getByTestId("selected-bbox")).toHaveCount(1);
+
+  // Back again — the action is its own inverse.
+  await page.getByTestId("sel-jump-relation").click();
+  await expect(page.getByTestId("sel-jump-relation")).toHaveText("Jumps to p.2");
+});
+
+// ⟨D4⟩ R2, the part the spec says to PROVE: the chip takes a click now, and its container is
+// pointer-events:none precisely so the overlay never eats a canvas gesture. A drawing gesture that starts
+// where an unselected mark's chip WOULD be must still draw.
+test("the chip navigates when selected, and eats no gesture when nothing is (⟨D4⟩)", async ({ page }) => {
+  await openEditorReady(page);
+  const pages = page.getByTestId("edit-canvas");
+  // Coordinates are derived AT CLICK TIME, never captured and reused: aligning another page scrolls this
+  // one, so a point measured earlier lands somewhere else entirely (it selected the wrong end first time).
+  const pointOn = async (idx: number, fx: number, fy: number) => {
+    const c = pages.nth(idx);
+    await c.evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await page.waitForTimeout(150);
+    const b = (await c.boundingBox())!;
+    const p = { x: b.x + b.width * fx, y: b.y + b.height * fy };
+    // The page is taller than the viewport even aligned to its top, and mouse.click takes VIEWPORT
+    // coordinates: a point below the fold is simply never delivered, and the test then fails on whatever
+    // it expected that click to change. Fail HERE instead, where the cause is legible.
+    const vp = page.viewportSize()!;
+    if (p.y < 0 || p.y > vp.height) throw new Error(`point (${fx},${fy}) on page ${idx} is off-screen at y=${p.y}`);
+    return p;
+  };
+  const clickOn = async (idx: number, fx: number, fy: number) => {
+    const p = await pointOn(idx, fx, fy);
+    await page.mouse.click(p.x, p.y);
+  };
+
+  await page.getByTestId("tool-jump").click();
+  await page.getByTestId("jump-palette").getByRole("button", { name: "segno" }).click();
+  await clickOn(0, 0.4, 0.12); // source, page 1
+  await clickOn(1, 0.4, 0.12); // destination, page 2
+  await page.getByTestId("tool-select").click();
+
+  // Selected: the chip is there and it navigates.
+  await clickOn(0, 0.4, 0.12);
+  await expect(page.getByTestId("jump-page-hint")).toHaveText("→ p.2");
+  await page.getByTestId("jump-page-hint").click();
+  await expect(page.getByTestId("sel-jump-relation")).toHaveText("Jumped to from p.1");
+
+  // Deselect: no chip, so the space it occupied is plain canvas again.
+  await clickOn(0, 0.8, 0.3);
+  await expect(page.getByTestId("jump-page-hint")).toHaveCount(0);
+
+  // Draw a freehand stroke STARTING where the chip would have been. It must land as ink — the overlay
+  // stays transparent to the pointer, which is what `pointer-events: auto` on the chip alone buys.
+  await page.getByTestId("tool-freehand").click();
+  const spot = await pointOn(0, 0.4, 0.135); // just below the mark — where the chip sits when selected
+  await page.mouse.move(spot.x, spot.y);
+  await page.mouse.down();
+  await page.mouse.move(spot.x + 90, spot.y + 30, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(async () =>
+      page.evaluate(async () => {
+        const m = location.pathname.match(/\/bands\/([^/]+)\/songs\/([^/]+)/)!;
+        const doc = await (await fetch(`/api/bands/${m[1]}/songs/${m[2]}/annotations`, { credentials: "same-origin" })).json();
+        return (doc.objects ?? []).filter((o: { type: string }) => o.type === "freehand").length;
+      }),
+    )
+    .toBe(1);
+  await expect.poll(async () => (await readIcons(page)).length).toBe(2); // the pair is untouched
+});
