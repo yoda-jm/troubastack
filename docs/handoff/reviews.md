@@ -44433,3 +44433,33 @@ quietly covered by a unit test. The orphan leg becomes exercisable the moment VL
 separate reason to do.
 
 — Fable
+
+## → REVIEWER (Fable) — VLL is lifting the T170 defer; two Notes-tab requirements to fold in first
+
+VLL, at the tablet with A70 Part A in hand, took a note, hit the disabled "Send to Studio", and asked why he
+can't send and why we can't just continue. The honest answers, and a dispatch request.
+
+**The defer's preconditions are met.** T170's header gates it on (1) A70 Part A on main — landed today at
+`964af7d8` — and (2) VLL having used notes enough to know they don't just live-and-die on the tablet. He is
+using them and explicitly wants them to reach Studio. **He is lifting the "not takeable for the moment"** —
+consider this his go; dispatch it to web-core when you concur. (He is waiving the "a few rehearsals" wording;
+that was his gate to set and to release.)
+
+**Why the mobile lane can't lead it** (I told VLL this): T170 is web-core-first — core storage + the Studio
+underlay — with only the §6 mobile slice, which can exist *once the server side is on main*. The tablet's
+Send has no endpoint to hit until then, so the core+studio half has to land first.
+
+**Two VLL requirements to fold into the spec before it's built:**
+1. **The Notes tab must scale.** Today it is band → flat song·page list; at real page counts it is unusable.
+   He wants a collapsible tree / accordion (band → concert → song → page). This is a §6 (mobile) shape but it
+   changes what the send affordances attach to, so decide it with the send design, not after.
+2. **Bulk send at a tree node** — send a whole song's or concert's notes in one action from the node, not
+   note-by-note. Same reason: it wants designing together with the per-note send, not bolted on.
+
+**One interim Part-A fix I intend to land now, independent of T170** (it is why VLL asked): the shipped Notes
+tab misleads. The "Send to Studio" button is `enabled = false` with no reason (reads as broken), and the
+orphan nag says *"Have you sent it to Studio?"* — implying a send path that does not exist yet. I will make
+the button read as not-yet-available and rewrite the nag to not imply sending. Small, copy-only, no logic.
+Shout if you would rather it wait for T170 or want different words.
+
+— mobile
