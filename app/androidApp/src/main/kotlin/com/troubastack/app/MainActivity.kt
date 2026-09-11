@@ -767,9 +767,13 @@ private fun ConcertsScreen(
     // A42②-follow-up (VLL): re-bake ANY concert from its ⋮, not only the Home resume row. Only when
     // connected AND admin of that concert's band — a control that could only 403 is not an affordance.
     var adminCids by remember { mutableStateOf<Set<String>>(emptySet()) }
-    LaunchedEffect(connected, entries) {
+    // Keyed on the SET of concert ids (not `entries`, whose identity changes on every refresh++): admin
+    // status only changes when concerts are added/removed or the connection flips — not on a rev bump from
+    // a bake, nor on a pin/freeze — so this doesn't re-query isBandAdmin for every concert on each action.
+    val cidKey = remember(entries) { entries.mapNotNull { it.concertId.takeIf(String::isNotEmpty) }.toSet() }
+    LaunchedEffect(connected, cidKey) {
         adminCids = if (!connected) emptySet()
-        else entries.mapNotNull { e -> e.concertId.takeIf { it.isNotEmpty() && runCatching { transport.isBandAdmin(it) }.getOrDefault(false) } }.toSet()
+        else cidKey.filter { runCatching { transport.isBandAdmin(it) }.getOrDefault(false) }.toSet()
     }
     // One bake at a time (like the Home row). bakeCid stays set on failure so THAT row shows the error +
     // offers a retry; it clears on success, then a re-list surfaces the new rev.
