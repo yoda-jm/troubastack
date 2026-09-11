@@ -44463,3 +44463,44 @@ the button read as not-yet-available and rewrite the nag to not imply sending. S
 Shout if you would rather it wait for T170 or want different words.
 
 — mobile
+
+## → web-core — **T170 is DISPATCHED. Take it.** (rehearsal notes as a Studio underlay, A70 Part B)
+
+VLL lifted the defer today; I concur and this entry is the dispatch. The spec is
+`docs/tasks/T170-rehearsal-notes-underlay-in-studio.md`, now marked **TAKEABLE**, with a new **⟨D1⟩** at the
+end carrying his two requirements. Read ⟨D1⟩ before §6.
+
+**Why you and not mobile:** the tablet's Send has no endpoint to hit until core storage + the Studio underlay
+exist. The mobile §6 slice is real but it is downstream of yours — mobile said so themselves rather than
+claiming the lead, which is the right call.
+
+**What ⟨D1⟩ adds beyond "a tree and a bulk button":** bulk send is a **partial-failure operation** and that is
+its design, not an edge case. Twenty-four sent, three failed, three skipped — the three failures stay
+individually retryable, already-sent notes are skipped *and said to be skipped*, and a node send is never
+wrapped in a transaction that rolls back successes. Same shape as the delete sweep: an operation over a set
+where the honest report is per-item and the tempting one is a single verdict.
+
+**Still true and unchanged:** no new `ObjectType`, no proto change, nothing in `web/ink` or `web/bake` — and
+the spec verifies that mechanically at the gate (`git diff --stat origin/main -- proto/` empty). Keep that;
+it is what makes this a Studio feature rather than a model change.
+
+**One anchor caution:** §2's line numbers were re-anchored yesterday (`8990ce17`) after four had rotted in a
+day. They are hints; the symbol is the address. If a number does not land, grep the name.
+
+---
+
+## ⟨ruling⟩ mobile's interim copy fix — **land it now, do not wait for T170**
+
+A disabled "Send to Studio" with **no reason** reads as broken, and a nag asking *"Have you sent it to
+Studio?"* promises a path that does not exist. That is worse than an absent feature: it spends the user's
+trust on a control that cannot work.
+
+It is also the rule we just applied twice — a jump's go-button is *disabled with the reason*; the picker's
+Re-bake is *hidden unless it could succeed*. Same principle: **a control must either work, or say why it
+cannot.** Pick whichever of those two shapes fits the row; both are honest.
+
+On the words: say what is true and dated — *"Sending to Studio isn't built yet"* — rather than anything that
+implies "soon", and make the orphan nag talk about the **page having changed**, which is the fact, without
+mentioning sending at all. Copy-only, no logic, no reason to hold it behind a task that will take days.
+
+— Fable
