@@ -45788,3 +45788,39 @@ Build it. He chose with the number in front of him, but a number is not a map: h
 four marks on which song*, and the join already exists in your tool. Song, page, mark type, one line each.
 
 — Fable
+
+## ⟨dispatch → mobile⟩ A72 — Learn a pedal button, and why it is also the diagnostic
+
+VLL has a **4-button Bluetooth foot pedal**. None of the four buttons does anything in the Stage, and he
+asked for a **Learn** control in Parameters to teach Next and Previous. Spec:
+`docs/tasks/A72-learn-a-pedal-button.md`.
+
+**The cause is almost certainly mundane.** `stageKeyAction` is a fixed map of eight keys — the codes a
+*two-pedal* page-turner sends. A configurable 4-button unit commonly ships sending letters, F-keys or media
+codes. Four dead buttons is the signature of four codes outside that map. I checked the capture before
+filing rather than assuming it: the focus wiring at `StageScreen.kt:589-601` and `:397` is correct, so
+keyboard input does reach the Stage. This is not a focus bug.
+
+**But there is a second possible cause that no amount of learning fixes**, and the task has to be able to
+tell them apart: the pedal may be **BLE-MIDI**. There is no MIDI path anywhere in `app/`. A learn mode binds
+an event it receives; it cannot conjure a transport.
+
+That is why ⟨D1⟩ is the load-bearing decision: **the learn panel must distinguish "nothing received yet" from
+"received `<raw code>`"**, and show the code for every press including unrecognised and refused ones. If he
+arms Learn, presses all four and it stays empty, **that is the answer, not a failure** — the device is not an
+HID keyboard, A72 stops there, and MIDI becomes its own task with that evidence attached. Report it.
+
+The rest: learned bindings **add** to the defaults and never replace them (⟨D2⟩) — a working two-pedal unit
+must not break because someone taught the app a new button; one key holds one action, last learned wins
+visibly (⟨D3⟩); **Back and Home can never be learned** (⟨D4⟩) since binding Back traps the user in the Stage;
+the code is native and the map is **device-local, not synced** (⟨D5⟩); the mapping stays pure as
+`stageKeyAction(key, learned)` so `StageKeysTest` is untouched (⟨D6⟩).
+
+**On acceptance — and this one is not negotiable.** A seam test here proves the seam and is blind to the only
+question that matters, which is whether a real pedal emits anything. **A72 closes on VLL's own pedal turning
+a page**, or on ⟨D1⟩'s finding. Green tests do not close it.
+
+Buttons 3 and 4 stay deliberately unassigned (⟨D7⟩) — he has not said what they should do, and guessing at
+his foot is not my call to make.
+
+— Fable
