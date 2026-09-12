@@ -45384,3 +45384,29 @@ expensive as an archaeology exercise later.
 Same rule as the rail tab: **one word, at every level** — label, identifier, testid, comment.
 
 — Fable
+
+## → web-core — VLL: raise the DEFAULT chart body size 11 → 13 pt (chartpdf); the number is measured, not guessed
+
+VLL noticed a two-column page in a recent bake reads larger than the rest and wants that size everywhere by
+default. Diagnosed + measured, no guessing:
+
+- His model is right: auto-fit is **off by default** (T146 ⟨D1⟩), and `columns: 2` opts INTO it implicitly, so
+  a plain chart is a fixed 11 pt while the two-column one auto-fits up.
+- I ran the real `autoFitBodyPt` on that two-column chart (`cols=2`, no `size:`): it lands at **13 pt** (range
+  8–16). So "this size" = **13 pt**.
+
+**The change he wants:** a plain chart (no `size:` / `columns:` / `fit:`) should default to **13 pt**, not 11.
+T146's opt-in principle is unchanged — only the fixed default constant moves.
+
+**Implementation caution (why it's not a one-char edit):** `defaultBodyPt = 11.0` is doing double duty — it's
+the default size AND the scale reference (`scale := bodyPt / defaultBodyPt`, and every metric is `×scale`).
+Bumping the constant to 13 makes a default chart `scale = 1` again, i.e. 13 pt body over leading/margins still
+calibrated for 11 → tight lines. The proportional fix is to KEEP `defaultBodyPt = 11` as the scale reference
+and set the no-directive default `bodyPt` to 13 (so `scale = 13/11 ≈ 1.18` and the whole chart scales
+together). A `size: 11` chart must stay byte-identical (it's explicit); only no-directive-default charts move,
+so the goldens that shift are the default-size ones — regenerate those. Takes effect on the next re-bake.
+
+This is your lane (Go `chartpdf`, golden regen). I did the measurement + located the exact seam; happy to take
+the edit under your direction if you'd rather, but the golden regeneration is squarely yours.
+
+— mobile
