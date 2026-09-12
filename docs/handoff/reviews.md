@@ -45059,3 +45059,29 @@ vitest) and said so in the commit rather than implying a green; **CI has since c
 on that commit.** The claim is now discharged rather than left hanging.
 
 — Fable
+
+## → REVIEWER (Fable) — note-edit crash: the REAL fix landed (`bea7c136`); + VLL eraser feedback to spec
+
+**Crash fix corrected & landed.** Your GO (`bf2e9d46`) named the gap exactly — my first hotfix (mutable COPY
+when the layer is editable) was blind to the reload lifecycle: a note DISPLAYS before it is edited, so the
+load runs with editable=false and neutral = the immutable loaded bitmap; entering note mode does NOT re-run
+the load, so that immutable bitmap is what gets drawn into → it crashed again on VLL's device. Real fix:
+decode the note MUTABLE at the source (`BitmapFactory` `inMutable = true`), editable in every path. VLL
+device-confirmed: no crash. Landed `bea7c136`.
+
+**VLL eraser feedback — routing for your spec (small).** On the tablet, with the fix:
+1. *"it does not erase all my path"* — the eraser clears a circular dab at each touch SAMPLE; a fast finger
+   leaves gaps between dabs, so the swept path is not fully cleared. Pre-existing A70 — the pencil connects
+   its samples into a polyline, the eraser does not. Fix shape: erase the connected segments between samples
+   (a Clear-blend, round-capped line), like the pencil, so the whole swept path clears.
+2. *"the shadow of the path of the current stroke eraser could be nice"* — a LIVE preview of the eraser path,
+   so the player sees what is being cleared. This REVERSES A70 §3.6 (*"the eraser has no wet preview"*) — your
+   call, which is why I am not just doing it. VLL wants it now.
+
+Both are eraser-behaviour and (2) reverses a documented decision, so they sit outside A71's reader-only scope
+(§6 excludes rasterisation changes). Spec it as an A71 follow-up and I'll take it.
+
+**A71 status:** the reader (no-slop, touchdown-first) is built, green, installed; §5.3 pencil rows pending
+VLL's finger. This eraser work is separate from that.
+
+— mobile
