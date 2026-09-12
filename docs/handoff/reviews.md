@@ -45229,3 +45229,50 @@ Nothing for me to build here. §6 is still yours, and the two things it needs fr
 wall clock with the two-era discriminator) are in the spec rather than in this file.
 
 — web-core
+
+## → REVIEWER (Fable) — A71 + A70 ⟨D5⟩ + ⟨D6⟩ at the gate (`task/A71-stroke-reader`, `6eff152a`); one design call for you
+
+VLL drove all of this live on the tablet in one session; the branch bundles the three you dispatched (they
+share `NotePad.kt`/`StageScreen.kt` and could not be built in isolation). Each maps to labelled commits.
+
+**Built, and VLL device-confirmed:**
+- **A71** — the pure `StrokeReader` (no slop, touchdown IS the first point, first-pointer-wins, a tap is a
+  one-point stroke, consume what you read). Small strokes are real strokes now; VLL draws them fine. Pure
+  `StrokeReaderTest` §5.1 incl. the sub-slop discriminator; source guard §5.2 (no scroll detectors + a
+  StrokeReader positive control).
+- **⟨D5⟩ R1** — eraser clears the connected segments; VLL's parallel-lines test now clears fully.
+- **⟨D5⟩ R2** — eraser shadow: translucent grey trail with a dark outline, chrome above the note, cleared at
+  pen-up, never reaching the bitmap/PNG. Width now matches the actual erased footprint. (Two-scheme colour
+  check: reads on both in my checks; happy to tune the greys if you want a number.)
+- **⟨D6⟩ R2** — no-lag erase: clears the display copy in place over the swept segment + a redraw tick, no
+  per-move full re-transform. VLL: "way more reactive, nice." Full transform kept for a pencil commit.
+- **⟨D6⟩ R4** — "Erase note" / "Erase this note?" confirm, deleting via the §3.3 path (file + index gone),
+  never by painting transparent pixels.
+- **Crash fix already landed** (`bea7c136`) — decode notes `inMutable` (the reload-lifecycle you named).
+
+**⟨D6⟩ R1 — where I got to, and the call I'm handing you:**
+- Candidate (a), rule divergence, is **ruled out** — the Android `transformOverlayBitmap` is a pure per-pixel
+  map of the unit-tested `transformOverlayPixel`; now locked by a source guard.
+- Candidate (b), geometry: the **width** half is fixed — the wet stroke and eraser trail used
+  `size.width/NOTE_W`, right only in FIT_WIDTH; a letterboxed FIT_PAGE is height-bound. Now they use the true
+  note→screen fit scale, so preview width == committed width == erased width. VLL confirmed the "draws wider,
+  lands thinner" is gone.
+- **The residual:** on a FAST stroke the committed line still runs a hair past the wet preview. Measured/
+  reasoned cause: the final motion + pen-up land in the SAME frame, so the preview never paints that last
+  flick before the commit renders the complete stroke. **The committed note is exactly what was drawn** — it
+  is the preview that is a frame short, not the commit that is long. Historical-sample feeding (denser fast
+  curves) does not touch a frame boundary, so it persists.
+
+**The design call (VLL asked me to put it to you):** the clean fix is to draw the **pencil live** — commit
+each segment into the note as the finger moves, exactly as ⟨D6⟩ R2 now does for the eraser — with **no
+separate wet-preview→commit swap**. That removes the overshoot AND the last of the wet/dry resettle by
+construction (what you see IS the commit), and it would feel as reactive as the eraser VLL just praised. But
+it **reverses A70 §3.6's "wet preview then commit" model for the pencil**, so — per your own D5 R2 reasoning
+that a documented decision deserves its reason read before it's set aside — it's yours to rule, not mine to
+take. VLL's stance: the overshoot is "really small, the rest works super nice", so accepting it is viable; he
+wants your ruling on whether the live-pencil rework is worth reversing §3.6.
+
+Branch green (tests + APK + both iOS), current on `main`, FFs cleanly. §5.3 finger rows confirmed by VLL's
+extensive live use rather than staged 2 mm/1 cm shots — say the word if you want the staged captures before a GO.
+
+— mobile
