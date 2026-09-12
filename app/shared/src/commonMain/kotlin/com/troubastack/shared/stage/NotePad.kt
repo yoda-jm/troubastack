@@ -251,7 +251,15 @@ fun NoteLayer(
                             when {
                                 c.changedToDown() -> { reader.down(c.id.value, c.position.x, c.position.y)?.let { onPoint(it.x, it.y) }; c.consume() }
                                 c.changedToUp() -> { reader.up(c.id.value)?.let { onCommit(it) }; c.consume() }
-                                c.pressed && c.positionChanged() -> { reader.move(c.id.value, c.position.x, c.position.y)?.let { onPoint(it.x, it.y) }; c.consume() }
+                                c.pressed && c.positionChanged() -> {
+                                    // Feed the pointer's HISTORICAL positions (the samples between frames) before
+                                    // the latest, so a fast flick is traced densely instead of as one long chord —
+                                    // otherwise the commit, reading the same points, runs slightly past the frame-
+                                    // limited wet preview. Chronological: historical is oldest→newest, then current.
+                                    for (h in c.historical) reader.move(c.id.value, h.position.x, h.position.y)?.let { onPoint(it.x, it.y) }
+                                    reader.move(c.id.value, c.position.x, c.position.y)?.let { onPoint(it.x, it.y) }
+                                    c.consume()
+                                }
                             }
                         }
                     }
