@@ -70,7 +70,7 @@ export async function openDrawer(page: Page, tab: "layers" | "annotations" = "la
   const railPill = page.getByTestId("sidebar-toggle");
   if ((await railPill.getAttribute("aria-pressed")) !== "true") await railPill.click();
   await expect(page.getByTestId("viewer-drawer")).toBeVisible();
-  const tabBtn = page.getByTestId(tab === "layers" ? "drawer-layers" : "drawer-notes");
+  const tabBtn = page.getByTestId(tab === "layers" ? "drawer-layers" : "drawer-annotations");
   if ((await tabBtn.getAttribute("aria-pressed")) !== "true") await tabBtn.click();
   // T94 §3.1b — ASSERT we landed on the requested tab. Without this, a helper that ignored `tab`
   // would make every openDrawer(page,"annotations") silently exercise Layers and ~20 specs' annotation

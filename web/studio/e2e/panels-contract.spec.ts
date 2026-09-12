@@ -1,7 +1,7 @@
 /**
  * T94 — Layers/Notes/Details: two honest classes, one dismissal contract.
  *  - The rail (file inspector) is opened by ONE pill (`sidebar-toggle`); Layers ↔ Notes switch on the
- *    tabs INSIDE it (`drawer-layers` / `drawer-notes`), and it remembers the last tab for the session.
+ *    tabs INSIDE it (`drawer-layers` / `drawer-annotations`), and it remembers the last tab for the session.
  *  - Details (`my-files-edit`) is the song's properties and is mutually exclusive with the rail.
  *  - Both close by ✕ / Escape / outside-click, and both cede Escape + outside clicks to an open
  *    [data-portal] overlay — a delete-layer confirm (T83) opened from the rail closes on Escape and
@@ -52,7 +52,7 @@ test("one pill opens the rail; Layers/Notes are tabs inside; it remembers the la
   await expect(rail).toBeVisible();
   await expect(page.getByTestId("layers-panel")).toBeVisible(); // defaults to Layers
 
-  await page.getByTestId("drawer-notes").click(); // switch tab inside the rail (does not close it)
+  await page.getByTestId("drawer-annotations").click(); // switch tab inside the rail (does not close it)
   await expect(rail).toBeVisible();
   await expect(page.getByTestId("annotation-list")).toBeVisible();
   await expect(page.getByTestId("layers-panel")).toHaveCount(0);

@@ -184,6 +184,12 @@ The internal `drawerTab === "annotations"` identifier and `AnnotationList` may s
 add a one-line comment at the state declaration recording that "annotations" is the code name for
 what the UI calls Notes, so the next reader doesn't take the mismatch for a bug.
 
+> **REVERSED 2026-09-12 (VLL).** The tab is now **Annotations**, matching the code name,
+> the testid and `AnnotationList` — there is no mismatch left to explain. T170 brought REHEARSAL
+> NOTES into the same screen, and one screen cannot hold two meanings of "note": the rail tab meant
+> *the annotations of the focused layer*, the new underlay means *a bitmap drawn on the tablet*.
+> VLL chose to rename the incumbent rather than the newcomer, which also restores code/UI agreement.
+
 ## 4. Mobile
 
 Below **760px** the rail already goes full-width (`styles.css:667`) and Details already shrinks via

@@ -269,9 +269,10 @@ export function Viewer({
   // picks the Layers vs Annotations face. Toggled from the top-bar pills. Starts
   // closed so the canvas owns the viewport (mockup default).
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // T94 §3.5: "annotations" is the CODE name for the tab the UI calls "Notes". The identifier and
-  // AnnotationList stay; only the user-facing word is Notes. drawerTab persists for the editing
-  // session, so reopening the rail returns to the last tab (§3.1).
+  // The rail tab is "Annotations" — matching the code name, the testid and AnnotationList.
+  // T94 §3.5 had called it "Notes"; VLL reversed that on 2026-09-12 because T170 brought REHEARSAL
+  // NOTES into the same screen and one screen cannot hold two meanings of "note". drawerTab persists
+  // for the editing session, so reopening the rail returns to the last tab (§3.1).
   const [drawerTab, setDrawerTab] = useState<"layers" | "annotations">("layers");
   const railRef = useRef<HTMLElement>(null);
   // T94 §3.4 — at most one of {rail, Details} is open. Opening either closes the other; there is no
@@ -1488,7 +1489,7 @@ export function Viewer({
         {/* T94 §3.1 — ONE pill opens/closes the file rail; Layers ↔ Notes switch on the tab row inside
             it (that row is unavoidable once the rail is open, so a second top-bar pill was redundant).
             "This file" names the SCOPE — the rail inspects the file you are viewing. `sidebar-toggle`
-            keeps its testid here; `drawer-notes` moves to the Notes tab inside the rail. */}
+            keeps its testid here; `drawer-annotations` moves to the Notes tab inside the rail. */}
         <button
           type="button"
           className={`pill-btn${sidebarOpen ? " active" : ""}`}
@@ -1749,11 +1750,11 @@ export function Viewer({
               <button
                 type="button"
                 className={`drawer-tab${drawerTab === "annotations" ? " active" : ""}`}
-                data-testid="drawer-notes"
+                data-testid="drawer-annotations"
                 aria-pressed={drawerTab === "annotations"}
                 onClick={() => setDrawerTab("annotations")}
               >
-                Notes
+                Annotations
               </button>
               <button
                 type="button"
