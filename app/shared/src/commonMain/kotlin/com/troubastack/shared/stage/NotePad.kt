@@ -259,21 +259,27 @@ fun NoteLayer(
             },
         ),
     ) {
+        // note→screen scale, matching how the committed bitmap is displayed (FillWidth vs Fit/contain), so the
+        // wet stroke and the eraser trail are drawn at the SAME on-screen width as what actually lands / gets
+        // erased (⟨D6⟩ R1 geometry: on a letterboxed FIT_PAGE, size.width/NOTE_W overshoots — the true scale
+        // is height-bound). Committed note width is penWidth·nW/NOTE_W; on screen that is ×scale.
+        val nW = (latestNeutral.value?.width ?: NoteTools.NOTE_W).toFloat()
+        val nH = (latestNeutral.value?.height ?: NoteTools.NOTE_W).toFloat()
+        val note2screen = if (fillWidth) size.width / nW else minOf(size.width / nW, size.height / nH)
         if (tool == NoteTool.PENCIL && wet.size >= 2) {
             val path = Path().apply {
                 moveTo(wet[0].x, wet[0].y)
                 for (i in 1 until wet.size) lineTo(wet[i].x, wet[i].y)
             }
-            // The wet stroke is in SCREEN px; scale the pen width from note px (NOTE_W wide) to screen px by
-            // the box width (approximate on a letterboxed FIT_PAGE — the COMMITTED stroke is exact).
-            val screenW = penWidth.toFloat() * size.width / NoteTools.NOTE_W
+            val screenW = penWidth.toFloat() * (nW / NoteTools.NOTE_W) * note2screen
             drawPath(path, drawColour, style = Stroke(width = maxOf(screenW, 1.5f), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
         if (tool == NoteTool.ERASER && wet.isNotEmpty()) {
             // ⟨D5⟩ R2 — a translucent grey TRAIL of the swept path: chrome above the note, never ink, cleared
             // at pen-up. The erasure underneath stays immediate (§3.6). A dark outline keeps it visible over
             // light paper, dark paper and all four inks; the exact greys get a two-scheme check on the tablet.
-            val ew = maxOf(NoteTools.eraserWidth(penWidth).toFloat() * size.width / NoteTools.NOTE_W, 6f)
+            // Width is the ACTUAL erased footprint on screen (eraserWidth·nW/NOTE_W ×scale), not an approximation.
+            val ew = maxOf(NoteTools.eraserWidth(penWidth).toFloat() * (nW / NoteTools.NOTE_W) * note2screen, 6f)
             val fill = Color(0x66BBBBBB)
             val outline = Color(0x66222222)
             if (wet.size == 1) {
