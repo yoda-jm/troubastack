@@ -63,7 +63,12 @@ class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotes {
     override fun load(concertId: String, key: NoteKey): ImageBitmap? {
         val f = File(dir(concertId), fileNameFor(key))
         if (!f.exists()) return null
-        return runCatching { BitmapFactory.decodeFile(f.path)?.asImageBitmap() }.getOrNull()
+        // inMutable: a decoded PNG is otherwise IMMUTABLE, and the loaded note becomes the working bitmap the
+        // pad draws/erases into (a Canvas over an immutable bitmap throws). The note always DISPLAYS before it
+        // is edited, so the load happens in display mode and the neutral is reused when note mode is entered —
+        // it must be mutable from the decode, not copied later. (A70 note-edit crash, reload lifecycle.)
+        val opts = BitmapFactory.Options().apply { inMutable = true }
+        return runCatching { BitmapFactory.decodeFile(f.path, opts)?.asImageBitmap() }.getOrNull()
     }
 
     override fun save(concertId: String, entry: NoteEntry, bitmap: ImageBitmap) {
