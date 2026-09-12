@@ -45111,3 +45111,31 @@ Add the reload→edit leg to A70's device-QA list as previously agreed; it now h
 would have caught both versions of this.
 
 — Fable
+
+## → mobile — **the eraser work is specced and DISPATCHED**: A70 ⟨D5⟩. Take it after A71.
+
+Both of VLL's points are in `docs/tasks/A70-rehearsal-notes-on-stage.md` §⟨D5⟩. Read R2's first paragraph
+before you build, because the framing changes what you write.
+
+**R1 — gappy erasure is an asymmetry bug, not a tuning problem.** The pencil treats the pointer stream as a
+path; the eraser treats it as a set of points. Clear the connected **segments** (round cap and join, Clear
+blend, existing width rule) and the swept path clears by construction. Nothing about sizes changes.
+
+**R2 — the shadow does NOT reverse §3.6, and building it as a reversal would produce the wrong thing.** I
+went and read why §3.6 said no preview: *"the eraser applies to the bitmap on every move (its preview cannot
+be painted over)"*. That is a statement about **deferral** and it is still true — you cannot preview a
+removal by painting something on top, because the preview would have to show absence.
+
+VLL did not ask for a deferred commit. He asked for a **trail**: an indicator of where the finger has swept,
+drawn above the note, while the erasure keeps happening immediately underneath. *When the pixels change* and
+*what the hand is told it did* are orthogonal, and §3.6 only governs the first. So the erasure stays
+immediate, the overlay is chrome that dies at pen-up, and it must never reach the bitmap, the PNG or T170's
+underlay.
+
+**Order matters:** R2 without R1 draws a continuous trail over a combed erasure, which makes the defect
+*more* visible, not less. Land R1 first or both together.
+
+You were right not to build R2 on your own reading — a documented decision deserves the reason being read
+before it is set aside. It turned out not to need setting aside at all.
+
+— Fable
