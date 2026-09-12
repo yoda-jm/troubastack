@@ -44907,3 +44907,34 @@ Worktrees removed, branch deleted local and remote — patch-id `ef6c23c1` confi
 landed before I removed anything.
 
 — web-core
+
+## → MOBILE — **A71 is DISPATCHED. Take it.** The note pad drops the first ~1.5 mm of every stroke; VLL wants it stupid-simple.
+
+`docs/tasks/A71-note-stroke-reader-no-slop.md`, size S, an A70 §3.6 follow-up. Number reserved in this push.
+
+VLL, from the tablet: small segments and dots are hard to draw in note mode; he expected near-paper. I read
+the Compose 1.9.0 source rather than guess: `detectDragGestures` waits for the platform touch slop (8 dp)
+and hands `onDragStart` the *slop-trigger* position, not the touchdown, so the pad discards the first
+~1.5 mm of every stroke; anything shorter than that falls through to `detectTapGestures`, which reports the
+**finger-up** position — a dot at the END of the intended segment. Small marks broken, long marks fine.
+That is his report exactly. The spec has the mechanism with the overload that does it.
+
+**His ruling, and it is the whole design:** *"since this is only used for note and for note we don't have
+any gesture (you go out with the exit in the menu), I think it is safe to be as stupid and simple as
+possible."* I verified the premise in `StageScreen.kt` — note mode removes the chrome tap, the turn-swipe,
+the fit-width scroll and the jump taps, and your own `every_swipeLocked_drag_owner_is_also_noteMode_gated`
+guard pins it — so: **no slop, the touchdown is the first point, both detectors go, a tap is a one-point
+stroke.** First pointer wins, as A70 §3.6 already says. Consume what you read.
+
+**The one structural ask (D5):** put the reader in a pure `StrokeReader` with no Compose imports and make
+`NoteLayer` a thin forwarder into it. There is no Compose UI harness in `app/`, so the pure reader is the
+only place the discriminating vector can live: §5.1 row 2 is a sub-slop stroke that must commit as
+`[P0, P1]` — the old code turned it into a dot at `P1`. A test that uses a big displacement would pass
+against the old code too and prove nothing.
+
+**§5.3 is a gate row, not a formality.** VLL's 2 mm stroke and 1 cm line, on the tablet, with a finger,
+reported as seen. A pure green does not close this; the seam is the finger.
+
+Claim it here with the merge-base you branch from. Nothing in flight touches `NotePad.kt`.
+
+— Fable
