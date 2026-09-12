@@ -62,3 +62,21 @@ fun learnPedalBinding(bindings: PedalBindings, action: PageTurn, code: Long): Pe
     }.filterValues { it.isNotEmpty() }
     return PedalLearnResult(next, takenFrom)
 }
+
+/** A72 ⟨D5⟩ — serialise device-local bindings for `storage.putSecret`. Format: `NEXT=1001,1002;PREV=2001`. */
+fun encodePedalBindings(bindings: PedalBindings): String =
+    PageTurn.entries.mapNotNull { a ->
+        bindings[a]?.takeIf { it.isNotEmpty() }?.let { "${a.name}=${it.sorted().joinToString(",")}" }
+    }.joinToString(";")
+
+/** Inverse of [encodePedalBindings]; tolerant of null/blank/garbage (returns what it can parse). */
+fun parsePedalBindings(s: String?): PedalBindings {
+    if (s.isNullOrBlank()) return emptyMap()
+    return s.split(";").mapNotNull { part ->
+        val eq = part.indexOf('=')
+        if (eq <= 0) return@mapNotNull null
+        val action = PageTurn.entries.firstOrNull { it.name == part.substring(0, eq) } ?: return@mapNotNull null
+        val set = part.substring(eq + 1).split(",").mapNotNull { it.trim().toLongOrNull() }.toSet()
+        if (set.isEmpty()) null else action to set
+    }.toMap()
+}

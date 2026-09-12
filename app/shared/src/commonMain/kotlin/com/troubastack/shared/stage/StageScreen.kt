@@ -241,6 +241,9 @@ fun StageScreen(
     notes: com.troubastack.shared.stage.notes.RehearsalNotes = NoOpRehearsalNotes,
     concertId: String = "",
     noteNow: () -> Long = { 0L },
+    // A72 — device-local learned pedal bindings, read from storage at Stage entry by the host. Empty ⇒ only
+    // the eight built-in keys turn pages.
+    pedalBindings: PedalBindings = emptyMap(),
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -255,7 +258,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings)
         }
     }
 }
@@ -278,6 +281,7 @@ private fun Performing(
     notes: com.troubastack.shared.stage.notes.RehearsalNotes = NoOpRehearsalNotes,
     concertId: String = "",
     noteNow: () -> Long = { 0L },
+    pedalBindings: PedalBindings = emptyMap(),
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
@@ -593,7 +597,7 @@ private fun Performing(
                 .focusable()
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when (stageKeyAction(e.key)) {
+                    when (stageKeyAction(e.key, pedalBindings)) {
                         PageTurn.NEXT -> { turnNext(); true }
                         PageTurn.PREV -> { turnPrev(); true }
                         null -> false

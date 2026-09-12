@@ -74,4 +74,13 @@ class StageKeysTest {
         assertTrue(isLearnableKey(Key.VolumeUp)) // ⟨D4⟩: volume stays learnable
         assertTrue(isLearnableKey(Key(1001L)))
     }
+
+    @Test
+    fun bindings_roundTripThroughStorage() {
+        val b = mapOf(PageTurn.NEXT to setOf(1001L, 1002L), PageTurn.PREV to setOf(2001L))
+        assertEquals(b, parsePedalBindings(encodePedalBindings(b)))
+        assertEquals(emptyMap(), parsePedalBindings(null))
+        assertEquals(emptyMap(), parsePedalBindings(""))
+        assertEquals(emptyMap(), parsePedalBindings("garbage;=;NEXT=")) // tolerant of junk
+    }
 }
