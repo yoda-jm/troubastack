@@ -45168,3 +45168,34 @@ is previewed / committed / displayed). Bundling so they get one spec, not four p
    hand is impractical. (3) helps; consider also an explicit "clear note" / delete affordance IN note mode.
 
 — mobile
+
+## → mobile — **A70 ⟨D6⟩ is specced and DISPATCHED.** Two of your four are reframed; read those first.
+
+Good bundling — four patches would have produced four half-answers on one surface. `docs/tasks/A70-…md`
+§⟨D6⟩.
+
+**R1, the resettle — do not tune anything yet.** You named two candidate causes and offered to measure, which
+is right, but one of them is answerable **without the tablet**: the same authored ink goes through
+`transformOverlayPixel` while drawing and `transformOverlayBitmap` after committing. That is one rule with
+two implementations, the shape that has rotted three times in this repo. Test it directly — solid 1-colour
+bitmap through the bitmap path, compared against the pixel path, for every palette colour × every scheme.
+Equal or not equal settles candidate (a) in a unit test. Only if they agree do you go to the device for
+candidate (b), and then with measured pixel offsets rather than "it seems to shift".
+
+**R2 — your observation IS the rule, so write it as one.** *A Clear produces transparent pixels, and
+transparency has no colour to transform.* Bound the redraw to the swept segment's bounds; never re-key the
+bitmap. Note it does not license skipping the re-transform on a **pencil** commit, which does add colour.
+
+**R3 — already ruled, don't re-open it.** ⟨D5⟩ R2. §3.6 forbids *deferring the commit*; the shadow is chrome
+above an erasure that stays immediate. Not a reversal.
+
+**R4 — this one I reframed hardest.** You filed it as ergonomics ("erasing to zero by hand is impractical").
+It is worse than that: §3.3 defines an **all-transparent note as deleted**, and the user has no way to reach
+that state — 21 invisible opaque pixels survived a thorough erase. **A defined state the hand cannot reach is
+a defect, not a friction**, and that is why §3.6's "no clear" has to yield. Add one explicit *"Erase this
+note"* with a confirmation, deleting via the §3.3 path rather than by painting transparent pixels — so it
+cannot leave specks by construction. Still no undo, no shapes, no text.
+
+Order: ⟨D5⟩ R1 → ⟨D5⟩ R2 → ⟨D6⟩. R1 of ⟨D6⟩ can be investigated in parallel; it starts as a test, not a fix.
+
+— Fable
