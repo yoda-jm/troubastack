@@ -118,7 +118,15 @@ fun NoteLayer(
     var display by remember(key, noteRevision) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(key, noteRevision) {
         val loaded = withContext(Dispatchers.Default) { notes.load(concertId, key) }
-        val bmp = loaded ?: if (editable) ImageBitmap(noteDim.width.coerceAtLeast(1), noteDim.height.coerceAtLeast(1)) else null
+        // A note decoded from disk is an IMMUTABLE bitmap; editing it (strokeInto / eraseInto open a Canvas
+        // over it) throws "Immutable bitmap passed to Canvas". A freshly-created ImageBitmap is mutable, so
+        // this only bites when EDITING a note that already exists on disk — which the in-session pixel pass
+        // never did. When editable, take a mutable working copy; display-only keeps the cheap immutable decode.
+        val bmp = when {
+            loaded != null -> if (editable) withContext(Dispatchers.Default) { copyBitmap(loaded) } else loaded
+            editable -> ImageBitmap(noteDim.width.coerceAtLeast(1), noteDim.height.coerceAtLeast(1))
+            else -> null
+        }
         neutral = bmp
         display = bmp?.let { withContext(Dispatchers.Default) { transformOverlayBitmap(it, scheme) } }
     }
