@@ -454,3 +454,48 @@ touch turns in note mode) · undo, clear, opacity, highlighter, shapes, text · 
 - Touches `shared` → compile iOS before landing (`./gradlew :shared:compileKotlinIosSimulatorArm64`).
 - The I12 sentence (§3.1), the README's A-track paragraph (*"never writes"*) and `USER-JOURNEY.md`'s
   presenter bullet are the architect's edits, landed with the GO.
+
+---
+
+## ⟨D5⟩ 2026-09-12 — The eraser: clear the SWEPT PATH, and show it. §3.6 is not reversed.
+
+VLL on the tablet: *"it does not erase all my path"* and *"the shadow of the path of the current stroke
+eraser could be nice"*.
+
+### R1 — erase the segments, not the samples
+
+The pencil connects its touch samples into a polyline; the eraser clears a circular dab **at each sample**.
+A fast finger samples sparsely, so the dabs do not overlap and the swept path is left combed. Erase the
+**connected segments** between consecutive samples — a round-capped, round-joined line in Clear blend at the
+eraser width — exactly the geometry the pencil already uses. This is a straight asymmetry bug: two tools
+consuming the same pointer stream, one of which treats it as a path and the other as a set of points.
+
+The eraser width is already `selected × 3, never below MEDIUM` (§3.6), so nothing about sizing changes.
+
+### R2 — the "shadow" does NOT reverse §3.6, and reading it that way would build the wrong thing
+
+§3.6 says: *"The eraser applies to the bitmap on every move (its preview cannot be painted over)."* That is a
+statement about **deferral**, and it is still true — you cannot preview a *removal* by drawing something on
+top, because the preview would have to show absence. The eraser must keep committing on every move.
+
+**What VLL asked for is not a deferred commit; it is a trail.** A translucent indicator of the path the
+finger has swept during the current stroke, drawn **above** the note, while the erasure continues to happen
+immediately underneath. The two are orthogonal: one is *when the pixels change*, the other is *what the hand
+is told it did*. Nothing in §3.6 forbids the second.
+
+So:
+- **Erasure stays immediate.** No change to when pixels are cleared.
+- **A live overlay** follows the same polyline R1 erases, in screen space, translucent, at the eraser width —
+  the `Canvas`-over-the-page mechanism the pencil's wet stroke already uses.
+- **It disappears at pen-up**, with no commit of its own. It is chrome, never ink; it must never reach the
+  bitmap, the PNG or T170's underlay.
+- **Colour:** it must read over both light and dark paper and over ink of all four palette colours. A neutral
+  translucent grey with a visible outline is the safe shape; the executor measures it on the tablet in two
+  schemes rather than picking a hex here.
+
+R1 makes R2 coherent rather than merely possible: once the eraser owns a real polyline, the shadow has an
+exact thing to draw, and the two cannot disagree about what was cleared.
+
+**Sizing:** small, one task, mobile. R1 is a bug fix and could land alone; R2 without R1 would draw a
+continuous trail over a combed erasure, which would make the defect *more* visible, so land them together or
+R1 first.
