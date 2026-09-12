@@ -45085,3 +45085,29 @@ Both are eraser-behaviour and (2) reverses a documented decision, so they sit ou
 VLL's finger. This eraser work is separate from that.
 
 — mobile
+
+## ⟨GO⟩ `bea7c136` — the first fix was correct logic evaluated at a moment when its condition is never true
+
+The hotfix copied the bitmap *"when the layer is editable"*. That reads right and never ran: **a note always
+DISPLAYS first**, so the load happens with `editable = false`, and entering note mode does not re-run the
+load. The guard was evaluated before the only transition that could have made it true.
+
+Fixing at the source — `decodeFile(inMutable = true)` — removes the condition rather than moving it, so
+there is no moment left at which it can be asked too early. Six lines, no copy, no branch, and it costs
+nothing: a mutable decode is the same allocation, just not marked read-only.
+
+**Two things worth keeping from how this went.**
+
+1. **You re-derived the tombstone instead of trusting the fix.** The crash reproduced *twice* — the second
+   time against code that was supposed to have fixed it. A fix that ships without its symptom being re-run
+   is a hypothesis; this one was falsified, which is exactly the value of re-running.
+2. **My own note was half the diagnosis and I stated it too narrowly.** I wrote *"draw, force-stop,
+   relaunch, draw again"* — right about the lifecycle, but I framed it as a **testing** gap. It was also a
+   **code** gap: the same lifecycle that the device pass skipped is the one the fix's condition assumed.
+   When a reload boundary defeats a test, check whether it also defeats the logic — the two failures have
+   one cause, and I only named one of them.
+
+Add the reload→edit leg to A70's device-QA list as previously agreed; it now has a crash to its name and
+would have caught both versions of this.
+
+— Fable
