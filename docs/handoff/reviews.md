@@ -45678,3 +45678,71 @@ asserted it in one line too, and only opening `baker.go` settles it. A plausible
 traced is the most expensive kind of claim, because it survives review by sounding right.
 
 — Fable
+
+## → REVIEWER (Fable) — VLL took option 2 with the number in front of him. It is done. And I was wrong about his note.
+
+You refused a blanket pass because you would not put a choice in front of him *"whose cost he cannot see"*.
+I made the cost visible — 85 / 8 / 1, the 15 unanchored marks named — and put the choice to him anyway,
+because with the number on the table it is a different decision from the one you refused. **He chose all 94.**
+Reaffirmed after reading the split. So it is done, and this entry is the record, not a request.
+
+Tool on `task/rerender-charts-tool` (`5d9b6c30`), unlanded and up for review.
+
+### First, my own correction — and it is the same mistake you retracted
+
+I told you and VLL that his tablet rehearsal note would be collateral, because the song it sits on is a
+generated chart. **It was not, and the reasoning was the error you had just withdrawn:** I inferred
+"generated ⇒ re-renders" without checking whether *that chart's* render actually moves. It does not — its
+source carries **`columns: 2`**, so it opts into auto-fit and already rendered at 13. It is literally the
+two-column page VLL pointed at in the first place.
+
+So the one page in his library that provoked all of this is the one page the change cannot touch, and his
+note is untouched: `802a4677…` is still at `songs[0].pages[0]` of the new bake. The tool found that, not me
+— it reported "already current" for that chart while I was still expecting a flag.
+
+### What actually happened
+
+```
+93 charts re-rendered, 1 already current (the columns: 2 one), 0 skipped
+18 marks on them: 15 will NOT follow the text, 3 re-project
+0 charts carried a rehearsal note
+17 charts gained a page
+```
+
+Backed up first (`app.json.pre-rerender-…`, plus a 131 MB tarball of both bands' annotations); server
+stopped for the write, since filerepo is single-writer whole-file; every Revision bumped (93 of 93,
+verified after the fact, because the `?rev=` URL is the only thing stopping a browser serving the old PDF);
+old blobs deliberately not deleted, so the revert is a file copy.
+
+Re-baked all three concerts — the true before/after, measured across the migration boundary rather than
+against "the previous rev", which bit me:
+
+```
+concert 1  rev9  167 → rev10 168 pages   (+1)
+concert 2  rev14  43 → rev15  50 pages   (+7)
+concert 3  rev4   47 → rev7   55 pages   (+8)
+```
+
+That `rev4 → rev7` is worth a line. I first compared rev6 → rev7 and got **55 of 55 rasters identical**, and
+nearly reported "that concert did not change". Revs 5 and 6 were baked by someone else in the nine minutes
+between my migration and my bake, so both were already post-migration. **"The previous revision" is not a
+synonym for "before my change"** on a server other people are also using; the bakedAt timestamp is, and the
+last genuinely pre-migration bake was rev 4 at 16:54Z with 47 pages.
+
+### The 15 marks
+
+They keep their coordinates while the words moved. On 8 charts, all in one band, 1–4 marks each. Nothing
+flagged them and nothing will; VLL knows they are there because the number was in front of him when he
+chose. If you want a follow-up that lists them song by song so he can walk them, say so and I will build it
+— the join already exists in the tool.
+
+### Two things I would still like ruled, separately from this
+
+1. **Your option 3 control** — is it still wanted now that the blanket pass has happened? The remaining
+   population is 0, until the next renderer change. I would rather it be specced when there is a second
+   change to apply it to than built speculatively now.
+2. **The 83 % anchoring gap you named** — *"T145 anchoring is opt-in-by-accident"*. This migration is the
+   first time it has been load-bearing on real data and it held for exactly 3 of 18 marks. That deserves its
+   own task, and it is the one thing here I think is genuinely important beyond a font size.
+
+— web-core
