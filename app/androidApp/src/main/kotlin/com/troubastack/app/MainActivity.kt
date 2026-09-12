@@ -118,6 +118,7 @@ import java.util.UUID
 private const val POLICIES_KEY = "trouba.update.policies"
 private const val COLOR_MODE_KEY = "stage.colorMode"
 private const val FIT_MODE_KEY = "stage.fitMode" // A14: persisted reading mode (page/width/scroll)
+private const val PEDAL_BINDINGS_KEY = "stage.pedalBindings" // A72: device-local learned pedal key codes
 private const val STAGE_CLOCK_KEY = "stage.clockVisible" // T147: persisted bottom-right clock preference
 private const val STAGE_CLOCK_STYLE_KEY = "stage.clockStyle" // T147: persisted analog/digital clock face
 private const val NOTE_TOOL_KEY = "stage.note.tool" // A70: last note tool/width/colour, per device
@@ -291,6 +292,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         // default the next Stage open reads (VLL: keep them in concert mode too — both edit one value).
         var fitSel by remember { mutableStateOf(FitMode.parse(storage.getSecret(FIT_MODE_KEY))) }
         var colorSel by remember { mutableStateOf(StageColorMode.parse(storage.getSecret(COLOR_MODE_KEY))) }
+        var pedalSel by remember { mutableStateOf(com.troubastack.shared.stage.parsePedalBindings(storage.getSecret(PEDAL_BINDINGS_KEY))) }
         SettingsScreen(
             themePref = themePref,
             onThemePref = onThemePref,
@@ -298,6 +300,14 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             onFitMode = { fitSel = it; storage.putSecret(FIT_MODE_KEY, it.name) },
             colorMode = colorSel,
             onColorMode = { colorSel = it; storage.putSecret(COLOR_MODE_KEY, it.name) },
+            pedalBindings = pedalSel,
+            onLearnPedal = { action, code ->
+                val r = com.troubastack.shared.stage.learnPedalBinding(pedalSel, action, code)
+                pedalSel = r.bindings
+                storage.putSecret(PEDAL_BINDINGS_KEY, com.troubastack.shared.stage.encodePedalBindings(r.bindings))
+                r.takenFrom
+            },
+            onForgetPedals = { pedalSel = emptyMap(); storage.putSecret(PEDAL_BINDINGS_KEY, "") },
             onBack = { settings = false },
         )
         BackHandler { settings = false }
@@ -754,6 +764,8 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     // — elapsedRealtime restarts at every reboot, so a note saved yesterday could outrank one
                     // saved today. (The chrono's monotonicNow above is a separate, correct monotonic source.)
                     noteNow = { System.currentTimeMillis() },
+                    // A72 — device-local learned pedal bindings, read at Stage entry (Parameters writes them).
+                    pedalBindings = com.troubastack.shared.stage.parsePedalBindings(storage.getSecret(PEDAL_BINDINGS_KEY)),
                 )
             }
         }

@@ -1,13 +1,18 @@
 package com.troubastack.shared.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -15,12 +20,26 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.stage.FitMode
+import com.troubastack.shared.stage.PageTurn
+import com.troubastack.shared.stage.PedalBindings
 import com.troubastack.shared.stage.StageColorMode
+import com.troubastack.shared.stage.isLearnableKey
 
 /**
  * A36 — the native Parameters hub (VLL: the app was "missing a parameters native content, for
@@ -44,11 +63,20 @@ fun SettingsScreen(
     onFitMode: (FitMode) -> Unit,
     colorMode: StageColorMode,
     onColorMode: (StageColorMode) -> Unit,
+    // A72 — device-local pedal bindings + learn/forget. onLearnPedal returns the action the code used to
+    // drive (if any), for the "that button was …" notice; the host does the learn + the persist.
+    pedalBindings: PedalBindings = emptyMap(),
+    onLearnPedal: (PageTurn, Long) -> PageTurn? = { _, _ -> null },
+    onForgetPedals: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            // A72/VLL: pad for the status + nav bars (edge-to-edge), so in portrait the header clears the
+            // status bar and the last section clears the nav bar — otherwise the bottom hides and there's
+            // nothing to scroll to. Inside verticalScroll, so the clearance is part of the scroll range.
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.systemBars).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -81,6 +109,10 @@ fun SettingsScreen(
                     selected = colorMode,
                     onSelect = onColorMode,
                 )
+            }
+
+            Section("Foot pedal", subtitle = "Teach a Bluetooth pedal button to turn pages. A press shows its code below; if pressing a pedal shows nothing, it isn't sending keyboard keys.") {
+                PedalLearnSection(pedalBindings, onLearnPedal, onForgetPedals)
             }
         }
     }
@@ -130,6 +162,81 @@ private fun <T> ChoiceRow(label: String, options: List<Pair<String, T>>, selecte
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * A72 — the Learn panel, and per ⟨D1⟩ it is also the diagnostic. Arm one action, press a button: the panel
+ * shows the RAW code of EVERY press (recognised, unrecognised, or refused). If pressing the pedals shows
+ * "nothing received yet", that is the finding — the pedal is not an HID keyboard. Back/Home are refused with
+ * the reason (⟨D4⟩) but still shown. The learn + persist is the host's (onLearn); this owns only the capture.
+ */
+@Composable
+private fun PedalLearnSection(bindings: PedalBindings, onLearn: (PageTurn, Long) -> PageTurn?, onForget: () -> Unit) {
+    var armed by remember { mutableStateOf<PageTurn?>(null) }
+    var lastCode by remember { mutableStateOf<Long?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val capture = remember { FocusRequester() }
+    LaunchedEffect(armed) { if (armed != null) runCatching { capture.requestFocus() } }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        for (action in PageTurn.entries) {
+            val codes = bindings[action].orEmpty()
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (action == PageTurn.NEXT) "Next page" else "Previous page", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        if (codes.isEmpty()) "no learned button" else "learned: " + codes.sorted().joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = { notice = null; lastCode = null; armed = action }) {
+                    Text(if (armed == action) "Press a button…" else "Learn")
+                }
+            }
+        }
+
+        val armedNow = armed
+        if (armedNow != null) {
+            Surface(
+                Modifier.fillMaxWidth()
+                    .focusRequester(capture)
+                    .focusable()
+                    .onPreviewKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        lastCode = e.key.keyCode // ⟨D1⟩: show EVERY press, always
+                        if (!isLearnableKey(e.key)) {
+                            notice = "That key can't be learned — Back and Home would trap you in the Stage."
+                        } else {
+                            val from = onLearn(armedNow, e.key.keyCode)
+                            notice = when (from) {
+                                PageTurn.NEXT -> "Learned. (That button was Next — moved to Previous.)"
+                                PageTurn.PREV -> "Learned. (That button was Previous — moved to Next.)"
+                                null -> "Learned."
+                            }
+                            armed = null
+                        }
+                        true // never let a press escape while learning (⟨D4⟩) and so the code always shows
+                    },
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Learning ${if (armedNow == PageTurn.NEXT) "Next page" else "Previous page"} — press the pedal button.", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        if (lastCode == null) "nothing received yet" else "received: $lastCode",
+                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
+                    )
+                    TextButton(onClick = { armed = null }) { Text("Cancel") }
+                }
+            }
+        }
+
+        notice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (bindings.isNotEmpty()) {
+            TextButton(onClick = { onForget(); notice = "Learned buttons cleared." }) { Text("Forget learned buttons") }
         }
     }
 }
