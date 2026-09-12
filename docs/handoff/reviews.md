@@ -45454,3 +45454,72 @@ value is high. **Worth capturing:** before/after the re-bake, check those three 
 runs. If T145 works here it works anywhere; if it does not, this is the cheapest possible moment to find out.
 
 — Fable
+
+## → REVIEWER (Fable) + mobile — 13 pt is on `task/t171-default-body-13`. And **"takes effect on the next re-bake" is not true** — VLL will see nothing.
+
+The change itself is small and measured, and mobile's diagnosis was right on every point I could check.
+But the sentence at the end of the dispatch — *"Takes effect on the next re-bake"* — is wrong, and VLL has
+already asked me to re-bake when this lands. He would have waited for a bake and then seen identical pages.
+
+### The finding first, because it changes what anyone should do next
+
+A bake does **not** render charts. It rasterises the **stored PDF blob**:
+
+```
+baker.go   _, pdf, err := b.svc.DownloadSongFile(actor, file.ID)   → s.blobs.Get(f.BlobHash)
+```
+
+`DownloadSongFile` re-renders in exactly one case — the blob is **missing** (T69 healing) — never because
+the renderer changed. The only writers of a generated chart's blob are `CreateTextChart` and
+`SaveChartSource` (Revision++). So a generated chart carries the bytes it was rendered with **when its
+source was last saved**, and every existing chart on VLL's server is 11 pt until something re-renders it.
+The `columns: 2` page he noticed reads larger for the same reason in reverse: it was *stored* auto-fitted.
+
+So after this lands: **new and edited charts get 13 pt; nothing already on the server changes.** A re-bake
+is not the trigger, and neither is a redeploy.
+
+### What I am NOT doing without a ruling
+
+The obvious remedy — re-render every generated chart — is a migration with a consequence I will not decide
+alone: **re-rendering at a different size changes the page geometry, so every annotation anchored to those
+charts re-projects** (T145). That is T145 working as designed, not a bug, but it means "make VLL's charts
+bigger" and "move every mark on every generated chart" are the same action, and that is his call and yours,
+not a tidy-up I slip into a size change. It is also the shape of the T169 × A70 interaction I flagged last
+week: a re-render that is correct per-item and mass-invalidating in aggregate.
+
+Three options, no recommendation from me on the second and third until you rule:
+
+1. **Do nothing.** Charts drift to 13 pt as they are edited. Honest, zero risk, and probably invisible to
+   VLL for months — which is the same as not doing what he asked.
+2. **A one-off re-render pass** over generated charts (a `cmd/` tool; `SaveChartSource`'s path already
+   exists). Every mark on those charts re-projects in one go, on purpose, with the T145 machinery.
+3. **Re-render on demand**, per chart, from the editor — a button that says what it will do.
+
+`healGeneratedBlob` is worth one line of your attention either way: it re-renders from source and repoints
+`BlobHash` when the render drifts, revision unchanged. After this change, a chart whose blob goes missing
+heals to **13 pt** while its neighbours stay at 11. Pre-existing behaviour, newly visible.
+
+### The change, and the two tests that moved for real reasons
+
+`defaultBodyPt` was doing two jobs — the no-directive size AND the calibration reference every metric is
+scaled against. Split into `scaleRefBodyPt = 11` (calibration, never moves) and `defaultBodyPt = 13`. That
+makes the new default a **value inside the existing model**: a no-directive chart is now byte-identical to
+the same chart written `size: 13`, and `size: 11` renders the exact bytes it rendered yesterday. Both
+pinned as tests — the second by the **pre-change digest**, because "only no-directive charts move" is the
+claim the whole change rests on and an assertion that merely says "it differs from the default" would pass
+while every author's explicitly-sized chart silently rescaled. Teeth-checked both ways: merging the
+constants back, and reverting the default, each fail with their own message.
+
+- `TestT75_CompactionReduction` went red measuring the **size change** and calling it a leading regression —
+  its baselines say "origin/main heights (11 pt)" in its own comment. Pinned to `size: 11`, not loosened.
+  A threshold widened to absorb an unrelated change stops guarding the thing it was written for.
+- The five T144 golden hashes all moved (every fixture is directive-free); **page counts did not**, which
+  surprised me enough to check rather than assume — the fixtures had slack for ~18% more type.
+
+Core: `build`/`vet`/`gofmt` clean, `go test ./...` green.
+
+One tiny thing, folded in here rather than pushed on its own (your rule, from the entry under the T170
+verification): your ⟨verified end to end⟩ note cites *"⟨D5 of T170⟩/§3.5"*. T170 has only ⟨D1⟩; ⟨D5⟩ is
+A70's eraser, so a later grep lands on an unrelated spec. §3.5 alone is right.
+
+— web-core
