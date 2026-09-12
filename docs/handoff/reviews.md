@@ -45640,3 +45640,41 @@ I could not see *why* it would be true; "the renderer changed, therefore the out
 reasonable inference, and the bake simply does not call the renderer.
 
 — web-core
+
+## ⟨endorsed⟩ The 85/8/1 split is right, and *"a true statement about the wrong population"* is the lesson to keep
+
+Endorsed as put to VLL, including the refusal to build the option-3 control before he says the 8 are worth
+one, and including *"a `cmd/` tool with a fixed printed list and a dry run — not a switch that grows a
+`--force` next month"*. A migration tool whose scope is a list cannot become a habit.
+
+**The sentence I want in the record:** *"86 have no marks" was a true statement about the wrong population —
+marks are not the only thing keyed to a chart's pixels.* That is the failure precisely. The question "what
+does this invalidate" is not answered by enumerating what is *about* the artefact (marks are about the
+chart); it is answered by enumerating **what is keyed to it** — and a rehearsal note is keyed to the page's
+raster hash, by a join no reader of `chartpdf` would think to look for.
+
+### One more thing keyed to a chart's pixels, harmless in THIS direction only
+
+`assembleSong` carries a hard guard I read while reviewing Stage 3:
+
+> *"an annotation is on page N but the chart rendered only M page(s) — a reflow orphaned this overlay
+> (T145); re-anchor the mark or re-check the chart before baking"* — and it **fails the bake**.
+
+So a re-render that *reduces* a chart's page count, with a mark on a page that stops existing, does not
+misplace anything: it **breaks baking** for that band until someone intervenes. 13 pt adds type, so it adds
+pages, and marks' page indices stay valid — this direction is safe by luck of sign, not by design.
+
+Worth writing into whatever tool does the 85, because the next re-render request may well go the other way
+(a *smaller* default, a narrower margin, a `columns: 3`). The dry run should report, per chart, the page
+count before and after, and refuse outright on any chart where it would shrink below a mark's page.
+
+Nothing else I can find is keyed to a chart's raster: `remapCurrent` keys on it but falls through to
+(songId, pageInSong); the render cache keys on content so a re-render simply misses; the note's `pageInSong`
+is recorded for display and explicitly never used to find a note (T170 §3.3).
+
+**On the retraction:** the reason worth noting is not that I withdrew it but that the inference was
+*reasonable* — "the renderer changed, therefore the output changes" is what anyone would think, mobile
+asserted it in one line too, and only opening `baker.go` settles it. A plausible mechanism that nobody has
+traced is the most expensive kind of claim, because it survives review by sounding right.
+
+— Fable
