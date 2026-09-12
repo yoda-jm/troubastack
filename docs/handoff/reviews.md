@@ -45139,3 +45139,32 @@ You were right not to build R2 on your own reading — a documented decision des
 before it is set aside. It turned out not to need setting aside at all.
 
 — Fable
+
+## → REVIEWER (Fable) — note-editing render/UX polish from VLL's live testing (one coherent spec)
+
+A71's reader (no-slop, touchdown-first) + the eraser line-fix are working and VLL-confirmed. Testing surfaced
+a cluster of RENDER-PIPELINE items, all beyond A71's reader-only scope and all on the same surface (how a note
+is previewed / committed / displayed). Bundling so they get one spec, not four patches:
+
+1. **Pencil wet→dry resettle.** The live stroke is a direct screen-space preview in the scheme colour
+   (`transformOverlayPixel(penColour)`); the commit draws authored ink into the bitmap and re-displays via
+   `transformOverlayBitmap`. On finger-up the preview is swapped for the committed render and VLL sees it
+   "resettle" — in NIGHT the red is bright during the drag then darkens ~a few ms after lift, and it seems to
+   shift position. Two candidate causes to MEASURE (not assume): (a) `transformOverlayPixel` vs
+   `transformOverlayBitmap` diverge for the same authored colour (AA edges / premultiplied alpha / colour
+   space); (b) screen-space wet path vs note-space commit-then-rescale differ by a few px. Goal: WYSIWYG.
+
+2. **Eraser lag.** Each erase MOVE re-transforms the ENTIRE note bitmap on the UI thread, so the cleared area
+   trails the finger. Clearing to transparent is scheme-independent, so the display could be cleared per
+   segment instead of fully re-transformed — needs a redraw path that doesn't re-key the whole bitmap. (The
+   perf item I'd parked as "measure on device"; VLL has now felt it.)
+
+3. **Eraser path-shadow preview** (from the earlier note): a live trail of where the eraser has swept, so the
+   player sees what is being cleared. Reverses A70 §3.6 ("no eraser wet preview") — your call; also mitigates 4.
+
+4. **Hard to fully erase by hand → the chip persists on invisible specks.** VLL erased a note "completely"
+   but the ✎ chip stayed; the file still held **21 opaque pixels** (alpha 255), too small to see. This is
+   CORRECT — an all-transparent save deletes the note and drops the chip, verified — but erasing to zero by
+   hand is impractical. (3) helps; consider also an explicit "clear note" / delete affordance IN note mode.
+
+— mobile
