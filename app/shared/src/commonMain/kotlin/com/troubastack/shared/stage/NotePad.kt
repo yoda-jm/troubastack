@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -121,6 +122,10 @@ fun NoteLayer(
     // fresh transparent bitmap when there is nothing on disk yet. Editing mutates it in place.
     var neutral by remember(key, noteRevision) { mutableStateOf<ImageBitmap?>(null) }
     var display by remember(key, noteRevision) { mutableStateOf<ImageBitmap?>(null) }
+    // A70 ⟨D6⟩ R2 — bumped on each eraser move so the in-place-cleared display bitmap redraws WITHOUT a full
+    // re-transform: a Clear produces transparent pixels, and transparency has no colour to transform, so the
+    // per-move UI-thread transformOverlayBitmap (the erase lag) is unnecessary.
+    var eraseTick by remember(key, noteRevision) { mutableStateOf(0) }
     LaunchedEffect(key, noteRevision) {
         val loaded = withContext(Dispatchers.Default) { notes.load(concertId, key) }
         // A note decoded from disk is an IMMUTABLE bitmap; editing it (strokeInto / eraseInto open a Canvas
@@ -175,8 +180,12 @@ fun NoteLayer(
         }
     }
 
-    // Draw the committed note (scheme-transformed), and — while editing — the wet stroke on top.
-    display?.let { Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = if (fillWidth) ContentScale.FillWidth else ContentScale.Fit, colorFilter = null) }
+    // Draw the committed note (scheme-transformed), and — while editing — the wet stroke on top. key(eraseTick)
+    // re-runs the Image when the eraser clears the display bitmap in place, so the removal shows immediately
+    // without re-transforming the whole bitmap (⟨D6⟩ R2).
+    key(eraseTick) {
+        display?.let { Image(BitmapPainter(it), contentDescription = null, modifier = imageMod, contentScale = if (fillWidth) ContentScale.FillWidth else ContentScale.Fit, colorFilter = null) }
+    }
 
     if (!editable) return
 
@@ -203,11 +212,19 @@ fun NoteLayer(
                         val cur = NoteGeometry.touchToNote(x, y, size.width, size.height, n.width, n.height, fillWidth) ?: return
                         val pts = reader.current
                         val prev = if (pts.size >= 2) NoteGeometry.touchToNote(pts[pts.size - 2].x, pts[pts.size - 2].y, size.width, size.height, n.width, n.height, fillWidth) else null
-                        if (prev != null) eraseSegment(n, prev, cur, ew) else eraseInto(n, cur, ew)
-                        display = transformOverlayBitmap(n, scheme)
-                    } else {
-                        wet = reader.current.map { Offset(it.x, it.y) }
+                        // ⟨D6⟩ R2 — clear the working bitmap AND the display copy over the same segment (display
+                        // is note-space, same coords), then bump eraseTick to redraw. No transformOverlayBitmap:
+                        // the cleared pixels are transparent, which transforms to itself in every scheme.
+                        if (prev != null) {
+                            eraseSegment(n, prev, cur, ew); display?.let { eraseSegment(it, prev, cur, ew) }
+                        } else {
+                            eraseInto(n, cur, ew); display?.let { eraseInto(it, cur, ew) }
+                        }
+                        eraseTick++
                     }
+                    // Both tools grow the wet list — the pencil's coloured preview and the eraser's grey shadow
+                    // trail (⟨D5⟩ R2) both draw from it, and both are cleared at pen-up.
+                    wet = reader.current.map { Offset(it.x, it.y) }
                 }
                 fun onCommit(points: List<StrokePoint>) {
                     val n = latestNeutral.value
@@ -251,6 +268,22 @@ fun NoteLayer(
             // the box width (approximate on a letterboxed FIT_PAGE — the COMMITTED stroke is exact).
             val screenW = penWidth.toFloat() * size.width / NoteTools.NOTE_W
             drawPath(path, drawColour, style = Stroke(width = maxOf(screenW, 1.5f), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+        if (tool == NoteTool.ERASER && wet.isNotEmpty()) {
+            // ⟨D5⟩ R2 — a translucent grey TRAIL of the swept path: chrome above the note, never ink, cleared
+            // at pen-up. The erasure underneath stays immediate (§3.6). A dark outline keeps it visible over
+            // light paper, dark paper and all four inks; the exact greys get a two-scheme check on the tablet.
+            val ew = maxOf(NoteTools.eraserWidth(penWidth).toFloat() * size.width / NoteTools.NOTE_W, 6f)
+            val fill = Color(0x66BBBBBB)
+            val outline = Color(0x66222222)
+            if (wet.size == 1) {
+                drawCircle(outline, radius = ew / 2f + 1.5f, center = wet[0])
+                drawCircle(fill, radius = ew / 2f, center = wet[0])
+            } else {
+                val path = Path().apply { moveTo(wet[0].x, wet[0].y); for (i in 1 until wet.size) lineTo(wet[i].x, wet[i].y) }
+                drawPath(path, outline, style = Stroke(width = ew + 3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(path, fill, style = Stroke(width = ew, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
         }
     }
 }
