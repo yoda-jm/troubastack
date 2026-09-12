@@ -271,7 +271,7 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 	if !sizeSet && (autoFit || cols > 1) {
 		bodyPt = autoFitBodyPt(lines, subtitle, skip, cols) // T76: largest size that keeps every segment on its page/columns
 	}
-	scale := bodyPt / defaultBodyPt
+	scale := bodyPt / scaleRefBodyPt
 	pdf, tr := newDoc(firstTitle(lines))
 	var anchors []Anchor
 	var rec recFn
@@ -298,7 +298,7 @@ func renderChart(source string, collect bool) (*fpdf.Fpdf, []Anchor, float64, er
 func measure(source string) float64 {
 	lines := chartLines(source)
 	subtitle, _, bodyPt, _, _, _, skip := parseHeader(lines)
-	scale := bodyPt / defaultBodyPt
+	scale := bodyPt / scaleRefBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true})
 }
 
@@ -309,7 +309,7 @@ func measure(source string) float64 {
 func contentHeight(source string) float64 {
 	lines := chartLines(source)
 	subtitle, _, bodyPt, _, _, _, skip := parseHeader(lines)
-	scale := bodyPt / defaultBodyPt
+	scale := bodyPt / scaleRefBodyPt
 	return layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: false})
 }
 
@@ -335,7 +335,7 @@ func autoFitBodyPt(lines []string, subtitle string, skip map[int]bool, cols int)
 // real layout — not a raw height compare — means orphan control and the never-split-a-pair rule are
 // honoured exactly as they will be drawn, so a size fits here iff it renders on its segments' pages.
 func fitsAt(lines []string, subtitle string, skip map[int]bool, bodyPt float64, cols int) bool {
-	scale := bodyPt / defaultBodyPt
+	scale := bodyPt / scaleRefBodyPt
 	auto := 0
 	// In two-column mode a column break is NOT an automatic page break — "fits" means the content fits on
 	// ONE page across its columns, so autoBreaks (page crossings only) staying zero is the right test.
@@ -869,7 +869,25 @@ func header(pdf *fpdf.Fpdf, tr func(string) string, title, subtitle string, scal
 // section/`#` line or a chord row, and the line after it is blank / a `##` section / EOF. A blank
 // line after the title means the body has started, so nothing is lifted out of it — this makes it
 // impossible to swallow a body lyric separated from the title by a blank line.
-const defaultBodyPt = 11.0
+// scaleRefBodyPt is the size every OTHER metric is calibrated at — leading, margins, header sizes and
+// the rule positions are all authored as "the value at this body size" and multiplied by
+// `bodyPt / scaleRefBodyPt`. It is a calibration constant, NOT a default, and moving it rescales every
+// explicitly-sized chart in the opposite direction (a `size: 11` chart would stop being scale 1). It has
+// no reason to move again.
+const scaleRefBodyPt = 11.0
+
+// defaultBodyPt is the body size of a chart that asks for nothing — no `size:`, no `fit:`, no `columns:`.
+//
+// VLL, 2026-09-12: he saw a two-column page in a bake reading larger than the rest and wanted THAT size
+// everywhere. Mobile measured it — `autoFitBodyPt` on that chart lands at 13 — so 13 is the size he
+// actually pointed at, not a round number somebody liked. The two constants were one until then, which
+// hid the fact that raising the default and rescaling the metrics are different changes; they are split
+// so that this one can move again without dragging the calibration with it.
+//
+// A chart with no directive now renders byte-identically to the same chart with `size: 13` — the default
+// is a value inside the existing model, not a new behaviour. T146 ⟨D1⟩'s opt-in principle is untouched:
+// auto-fit is still off unless asked for, and a no-directive chart still paginates rather than shrinking.
+const defaultBodyPt = 13.0
 
 // T74/T76 body-size range: the manual `size:` bounds AND auto-fit's search range — one bounded range
 // for the dialect, so a manual `size:` and an auto-fit size can never disagree about what is legal.

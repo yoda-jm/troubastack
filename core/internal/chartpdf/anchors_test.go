@@ -82,7 +82,7 @@ func TestAnchors_boxSpansItsTextAtItsPosition(t *testing.T) {
 	}
 	lines := chartLines(anchorFixture)
 	subtitle, _, _, _, _, _, skip := parseHeader(lines)
-	scale := autoFitBodyPt(lines, subtitle, skip, 1) / defaultBodyPt
+	scale := autoFitBodyPt(lines, subtitle, skip, 1) / scaleRefBodyPt
 
 	fontOf := func(text string) (fam, style string, ptmm float64) {
 		switch {

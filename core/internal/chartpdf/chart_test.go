@@ -252,9 +252,11 @@ func TestRender_AnnotationsAndAccents(t *testing.T) {
 
 func TestParseHeaderDirectives(t *testing.T) {
 	cases := []struct {
-		name        string
-		src         string
-		wantSub     string
+		name    string
+		src     string
+		wantSub string
+		// wantPt names defaultBodyPt rather than a literal wherever the case is ABOUT the default, so
+		// moving the default is one edit in chart.go and not a scavenger hunt through expectations.
 		wantPt      float64
 		wantSizeSet bool // T76: a `size:` directive (in range or not) disables auto-fit
 		wantSkip    []int
@@ -262,10 +264,10 @@ func TestParseHeaderDirectives(t *testing.T) {
 		{"size then artist", "# S\nsize: 13\nThe Artist\n\n## V\nx", "The Artist", 13, true, []int{1, 2}},
 		{"artist then size", "# S\nThe Artist\nsize: 13\n\n## V\nx", "The Artist", 13, true, []int{1, 2}},
 		{"case-insensitive, no space", "# S\nSize:14\n\n## V\nx", "", 14, true, []int{1}},
-		{"out of range: ignored but consumed, still disables auto-fit", "# S\nsize: 99\nThe Artist\n\n## V", "The Artist", 11, true, []int{1, 2}},
-		{"malformed: not a directive, stays subtitle, auto-fit stays on", "# S\nsize: abc\n\n## V", "size: abc", 11, false, []int{1}},
-		{"plain artist, no directive", "# S\nThe Artist\n\n## V", "The Artist", 11, false, []int{1}},
-		{"blank after title: no header", "# S\n\n## V\nx", "", 11, false, nil},
+		{"out of range: ignored but consumed, still disables auto-fit", "# S\nsize: 99\nThe Artist\n\n## V", "The Artist", defaultBodyPt, true, []int{1, 2}},
+		{"malformed: not a directive, stays subtitle, auto-fit stays on", "# S\nsize: abc\n\n## V", "size: abc", defaultBodyPt, false, []int{1}},
+		{"plain artist, no directive", "# S\nThe Artist\n\n## V", "The Artist", defaultBodyPt, false, []int{1}},
+		{"blank after title: no header", "# S\n\n## V\nx", "", defaultBodyPt, false, nil},
 	}
 	for _, c := range cases {
 		sub, _, pt, sizeSet, _, _, skip := parseHeader(strings.Split(c.src, "\n"))
@@ -329,7 +331,7 @@ func TestSizeDirective_SmallerFitsMore(t *testing.T) {
 // T75 — a chord/section row's advance must clear the previous line's type so rows never overlap;
 // scale-invariant (all advances scale together, so this holds at 8/11/16 pt alike).
 func TestT75_NoRowOverlap(t *testing.T) {
-	const typeMM = defaultBodyPt * 25.4 / 72 // ~3.88 mm of type at 11 pt
+	const typeMM = scaleRefBodyPt * 25.4 / 72 // ~3.88 mm of type at the 11 pt calibration size
 	checks := []struct {
 		name       string
 		gap, floor float64
@@ -348,6 +350,13 @@ func TestT75_NoRowOverlap(t *testing.T) {
 }
 
 // T75 — compaction reclaims ≥15% of body height at the SAME font size, versus origin/main.
+//
+// "At the same font size" is the whole comparison, and the baselines below were measured at 11 pt. When
+// the no-directive default moved 11 → 13 (2026-09-12) this test went red for a reason that has nothing to
+// do with compaction: a 13 pt chart is ~18% taller than the same chart at 11 pt, so it was measuring the
+// size change and calling it a leading regression. The fix is to measure at the size the baseline was
+// taken at, NOT to relax the 15% — a threshold loosened to absorb an unrelated change stops guarding the
+// thing it was written for. `size:` is explicit, so it also pins the chart at exactly scale 1 for good.
 func TestT75_CompactionReduction(t *testing.T) {
 	// origin/main heights (11 pt), measured with the pre-T75 advances (see the handoff).
 	baseline := map[string]float64{
@@ -360,11 +369,27 @@ func TestT75_CompactionReduction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := contentHeight(string(b)) // continuous height — measure() now paginates (T77)
+		got := contentHeight(atBodyPt(t, string(b), 11)) // continuous height — measure() now paginates (T77)
 		if got > old*0.85 {
 			t.Errorf("%s: %.1f mm, want ≤ %.1f mm (≥15%% shorter than %.1f)", name, got, old*0.85, old)
 		}
 	}
+}
+
+// atBodyPt pins a chart to an explicit body size by inserting a `size:` directive into its header block
+// (the lines between `# Title` and the first blank). Used where a test's baseline was measured at a
+// specific size and must stay comparable when the DEFAULT size moves.
+func atBodyPt(t *testing.T, src string, pt int) string {
+	t.Helper()
+	lines := strings.Split(src, "\n")
+	for i, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "# ") {
+			out := append(append([]string{}, lines[:i+1]...), fmt.Sprintf("size: %d", pt))
+			return strings.Join(append(out, lines[i+1:]...), "\n")
+		}
+	}
+	t.Fatalf("chart has no `# Title` line to anchor a size directive to")
+	return ""
 }
 
 // T75 — measure() is the single source of the per-row advances: for a one-page chart the pure
@@ -396,7 +421,7 @@ func TestT75_MeasureMatchesRender(t *testing.T) {
 func traceOf(src string) []placed {
 	lines := chartLines(src)
 	subtitle, _, bodyPt, _, _, _, skip := parseHeader(lines)
-	scale := bodyPt / defaultBodyPt
+	scale := bodyPt / scaleRefBodyPt
 	var tr []placed
 	layout(lines, scale, skip, headerBodyStart(subtitle, scale), layoutOpts{paginate: true, trace: &tr})
 	return tr

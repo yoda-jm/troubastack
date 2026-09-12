@@ -43,6 +43,10 @@ func goldenLayout(t *testing.T, src string) (pages int, hash string) {
 	return len(goldenPageRe.FindAll(pdf, -1)), hex.EncodeToString(sum[:])
 }
 
+// 2026-09-12: all five hashes moved together, page counts unchanged, when the no-directive default body
+// size went 11 → 13 pt (VLL). Every fixture here is directive-free, so every one of them re-rendered;
+// that the PAGE COUNTS held is the interesting part and is asserted separately below — the fixtures had
+// enough slack to absorb ~18% more type without spilling.
 func TestGoldenLayout(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -53,22 +57,22 @@ func TestGoldenLayout(t *testing.T) {
 		{
 			"short",
 			"# Short Song\n## Demo\n\n## Verse\nC       G       Am      F\nthe kettle hums a quiet tune\nF       C       G\nbeneath a paper moon\n",
-			1, "895165961daa64c28c582a88231b713ddb5835b3f3d42ebbfb9c964de417a5e4",
+			1, "8a0adae3d7a5d1cbe89066704f90f62ebc6d6ba68e40af581b9cc7b01fbba8f4",
 		},
 		{
 			"boundary",
 			fx(11, "# Boundary Song\n## Demo\n\n", "## Verse\nC       G       Am      F\nthe river folds the evening light\nF       C       G\nand carries it from sight\n\n"),
-			2, "f59b42f7b0437f3aaf6115cbf8d750ef1edee0259f994d1f9e01da45cbfcdb67",
+			2, "2a974ac1fb669d9b654a972ceeb69177b312e3584cc1cd27ad9ef593b3f0ff6e",
 		},
 		{
 			"long",
 			fx(30, "# Long Song\n## Demo\n\n", "## Section\nC       G       Am      F\na longer wandering verse that keeps on going\nF       C       G       Am\nwith chords above the words still showing\n\n"),
-			4, "7a4d3244e413fddc2dcaa9a75ba29c95f2886514b87a680b4ce329d788db04df",
+			4, "557c0b98cca66ef5e0164aab85caff11438f71ef2c17a7cb46fde440ee5289cd",
 		},
 		{
 			"tab",
 			"# Tab Song\n## Demo\n\n## Riff\n{start_of_tab}\ne|-----0-----3-----|\nB|---1-----1-----1-|\nG|-0-----0-----0---|\n{end_of_tab}\n\n## Verse\nC       G\nthe intro rings and fades\n",
-			1, "34458f2b3c32fb09b6fcab435f2dbe3d85e58291d194216dccb8a4e5b7953ac3",
+			1, "a5eba47671494a7de0a97fb23f1ae0bcff3e1eb792c51f7f73a60e798c1ba2d5",
 		},
 		{
 			// lyric-ONLY lines (no chord rows) so the lyric-line leading is exercised — the chord+lyric
@@ -76,7 +80,7 @@ func TestGoldenLayout(t *testing.T) {
 			// them otherwise.
 			"lyriconly",
 			"# A Spoken Verse\n## Demo\n\nthe lantern sways above the quiet lane\nand every shadow learns your name again\nwe count the sparks that drift across the dark\nuntil the morning lifts them one by one\nand carries every ember toward the sun\nthe kettle cools, the window pales to grey\n",
-			1, "7f11888c4948e8537effbe463772f817e453443cfc30e4460640f2cf30c322d0",
+			1, "974764bf14e1e7d9b1cf6c99ee7c4db131c700e35ca5e00368f6f505befaca58",
 		},
 	}
 	for _, c := range cases {
