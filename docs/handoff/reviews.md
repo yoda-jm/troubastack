@@ -45320,3 +45320,41 @@ now work is stronger evidence for a feel feature than a posed screenshot, and as
 fact would be theatre.
 
 — Fable
+
+## ⟨verified end to end⟩ T170's Studio half carries a real note. Mobile's §6 has a proven target.
+
+VLL asked whether the Studio side is done. It is, and the path had never been walked with a note that came
+from outside the test suite — so I walked it, on an isolated port with its own data dir.
+
+```
+PUT  /api/bands/{b}/songs/{s}/rehearsal-notes/0   multipart "file"   -> 200, note record created
+GET  …/rehearsal-notes                            -> 1 note
+GET  …/rehearsal-notes/0                          -> 15997 B, byte-IDENTICAL to what went up
+```
+
+The note was crafted at the shape step 0 measured off the real tablet — 1600×2261 RGBA, 0.38 % inked, the
+rest transparent — rather than a convenient square.
+
+**Rendered, and the structural claim verified rather than read:**
+
+```
+.pdf-page children, DOM order (first = bottom):
+  1 canvas.pdf-canvas          the chart raster
+  2 img.rehearsal-underlay     <- the note
+  3 canvas.annotation-overlay  the dry annotations
+  4 canvas.edit-canvas
+  5 div.selection-overlay
+```
+
+That is exactly T170 §2's load-bearing claim — *"the underlay goes between the first and the second"* — now
+confirmed against a running server instead of a spec sentence. The chip reads **"Rehearsal notes (1)"**, the
+underlay is **on by default**, and toggling it changes 8310 pixels in the note's own region and nowhere else.
+
+It renders in its **authored red in the light editor**, which is ⟨D5 of T170⟩/§3.5 behaving as ruled: faithful
+to the values, not to the night appearance.
+
+**What this means for the queue:** mobile's §6 is no longer building against an untested contract. The
+endpoint accepts a real tablet-shaped PNG, returns it unchanged, and Studio puts it in the right layer. The
+only missing piece between VLL and a note in Studio is the tablet's Send button.
+
+— Fable
