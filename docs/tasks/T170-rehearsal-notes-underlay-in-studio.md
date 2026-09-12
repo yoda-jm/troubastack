@@ -167,6 +167,15 @@ of it — that would be the T145 bug in a new coat.
   positioned to the page box exactly as the overlay canvas is, `pointer-events: none`, full opacity
   (VLL: no transparency), drawn at page `PageInSong`. A note whose page index exceeds the current page
   count is listed but not drawn (nowhere to draw it).
+- **The PNG renders AS-IS, in its authored colours — no scheme transform, ever.** The stored bitmap is the
+  neutral, authored-colour image; A64's paper-darkening and per-pixel lift are a **display-only** step the
+  tablet applies at render time and never writes into the file (mobile, verified on device). So a note drawn
+  in NIGHT *looks different* in the light editor, and that is correct, not a defect: §1's "faithful
+  reference of what the player actually drew" is faithful to the **values**, not to the appearance at the
+  moment of drawing — the same rule every baked overlay has always followed. The real risk is closed
+  upstream: all four note colours are checked at 4.5:1 against both grounds, so "different" never becomes
+  "unreadable". Written down so the first person who draws at night and opens Studio does not file it as a
+  bug (Fable, ⟨precision⟩).
 - Each note in the chip's popover: *"page P · from rev R · taken as X · <date>"*, where <date> is
   `capturedAt` when it is non-zero and the **upload** date otherwise, labelled as such (§2.1), a
   **`not in the current bake`** tag when §3.4 says so, and **Done, remove** → `DELETE` → the underlay
