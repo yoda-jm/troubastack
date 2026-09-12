@@ -57,6 +57,17 @@ class StageNotesGuardTest {
     }
 
     @Test
+    fun note_pad_reads_the_finger_directly_not_via_the_scroll_detectors() {
+        // A71 §5.2 — the pad must not use Compose's slop-based drag/tap detectors (they discard the first
+        // ~1.5 mm and report a stab at finger-up). POSITIVE CONTROL: assert the file we read actually contains
+        // StrokeReader — an empty "no detector" result from the wrong/empty file is not evidence.
+        val src = stageFile("NotePad.kt")
+        assertTrue("StrokeReader" in src, "read the wrong NotePad.kt — it does not mention StrokeReader (positive control)")
+        assertTrue("detectDragGestures" !in src, "NotePad.kt still uses detectDragGestures — it eats the touch slop (A71 §3)")
+        assertTrue("detectTapGestures" !in src, "NotePad.kt still uses detectTapGestures — a stab reports the finger-up point (A71 §3)")
+    }
+
+    @Test
     fun every_swipeLocked_drag_owner_is_also_noteMode_gated() {
         val src = stageFile("StageScreen.kt")
         // The turn-swipe condition names both swipeLocked and noteMode.
