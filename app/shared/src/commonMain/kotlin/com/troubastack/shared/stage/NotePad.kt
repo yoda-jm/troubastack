@@ -6,8 +6,8 @@ package com.troubastack.shared.stage
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,7 +30,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import com.troubastack.shared.stage.notes.NoteEntry
 import com.troubastack.shared.stage.notes.NoteGeometry
@@ -38,6 +41,8 @@ import com.troubastack.shared.stage.notes.NoteKey
 import com.troubastack.shared.stage.notes.NoteTool
 import com.troubastack.shared.stage.notes.NoteTools
 import com.troubastack.shared.stage.notes.RehearsalNotes
+import com.troubastack.shared.stage.notes.StrokePoint
+import com.troubastack.shared.stage.notes.StrokeReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -181,50 +186,54 @@ fun NoteLayer(
     val drawColour = Color(transformOverlayPixel(penColour.toInt(), scheme)) // Color(Int) reads 0xAARRGGBB
     Canvas(
         imageMod.then(
-            // §3.7 "all touch is drawing": a TAP (no drag) marks a dot / erases a dab, so a stab of the pen
-            // isn't a no-op. Separate from the drag detector — a tap fires here, a drag fires below.
+            // A71 §3/§4 — read the finger DIRECTLY: no slop, the touchdown is the first point. Note mode owns
+            // the touch (§2: chrome tap, turn-swipe, fit-width scroll and jump taps are all off in note mode),
+            // so there is nothing to disambiguate and no reason for the scroll-oriented detectors that discard
+            // the first ~1.5 mm and report a stab at finger-up. One StrokeReader, both tools, first pointer wins.
             Modifier.pointerInput(key, tool, penWidth, penColour) {
-                detectTapGestures { off ->
-                    val n = latestNeutral.value ?: return@detectTapGestures
-                    val p = NoteGeometry.touchToNote(off.x, off.y, size.width, size.height, n.width, n.height, fillWidth) ?: return@detectTapGestures
-                    if (tool == NoteTool.ERASER) eraseInto(n, p, NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W)
-                    else strokeInto(n, listOf(p), penColour, penWidth.toFloat() * n.width / NoteTools.NOTE_W)
-                    display = transformOverlayBitmap(n, scheme)
-                    persist()
+                val reader = StrokeReader()
+                // Eraser: apply a dab at each point immediately (no wet preview can be painted over — §3.6).
+                // Pencil: grow the wet preview from the reader's own point list (which includes the touchdown).
+                fun onPoint(x: Float, y: Float) {
+                    if (tool == NoteTool.ERASER) {
+                        val n = latestNeutral.value ?: return
+                        val p = NoteGeometry.touchToNote(x, y, size.width, size.height, n.width, n.height, fillWidth) ?: return
+                        eraseInto(n, p, NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W)
+                        display = transformOverlayBitmap(n, scheme)
+                    } else {
+                        wet = reader.current.map { Offset(it.x, it.y) }
+                    }
                 }
-            },
-        ).then(
-            Modifier.pointerInput(key, tool, penWidth, penColour) {
-                detectDragGestures(
-                    onDragStart = { off -> wet = listOf(off) },
-                    onDrag = { change, _ ->
-                        change.consume()
-                        val n = latestNeutral.value ?: return@detectDragGestures
-                        if (tool == NoteTool.ERASER) {
-                            // Erase applies immediately to the bitmap (no wet preview can be painted over).
-                            val p = NoteGeometry.touchToNote(change.position.x, change.position.y, size.width, size.height, n.width, n.height, fillWidth) ?: return@detectDragGestures
-                            eraseInto(n, p, NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W)
-                            display = transformOverlayBitmap(n, scheme)
-                        } else {
-                            wet = wet + change.position
-                        }
-                    },
-                    onDragEnd = {
-                        val n = latestNeutral.value
-                        if (n != null) {
-                            if (tool == NoteTool.PENCIL && wet.isNotEmpty()) {
-                                // Commit the wet stroke into the NEUTRAL bitmap in note space, in one draw (§3.6).
-                                val pts = wet.mapNotNull { NoteGeometry.touchToNote(it.x, it.y, size.width, size.height, n.width, n.height, fillWidth) }
-                                if (pts.isNotEmpty()) {
-                                    strokeInto(n, pts, penColour, penWidth.toFloat() * n.width / NoteTools.NOTE_W)
-                                    display = transformOverlayBitmap(n, scheme)
-                                }
+                fun onCommit(points: List<StrokePoint>) {
+                    val n = latestNeutral.value
+                    if (n != null) {
+                        if (tool == NoteTool.PENCIL) {
+                            // Commit the whole stroke — touchdown included — into the NEUTRAL bitmap, note space.
+                            val pts = points.mapNotNull { NoteGeometry.touchToNote(it.x, it.y, size.width, size.height, n.width, n.height, fillWidth) }
+                            if (pts.isNotEmpty()) {
+                                strokeInto(n, pts, penColour, penWidth.toFloat() * n.width / NoteTools.NOTE_W)
+                                display = transformOverlayBitmap(n, scheme)
                             }
-                            persist() // pencil stroke committed OR eraser dabs applied live → save either way
                         }
-                        wet = emptyList()
-                    },
-                )
+                        persist() // pencil committed OR eraser dabs applied live → save either way
+                    }
+                    wet = emptyList()
+                }
+                awaitEachGesture {
+                    val first = awaitFirstDown(requireUnconsumed = false)
+                    reader.down(first.id.value, first.position.x, first.position.y)?.let { onPoint(it.x, it.y) }
+                    first.consume() // D4: consume what we read
+                    while (reader.drawing) {
+                        val event = awaitPointerEvent()
+                        for (c in event.changes) {
+                            when {
+                                c.changedToDown() -> { reader.down(c.id.value, c.position.x, c.position.y)?.let { onPoint(it.x, it.y) }; c.consume() }
+                                c.changedToUp() -> { reader.up(c.id.value)?.let { onCommit(it) }; c.consume() }
+                                c.pressed && c.positionChanged() -> { reader.move(c.id.value, c.position.x, c.position.y)?.let { onPoint(it.x, it.y) }; c.consume() }
+                            }
+                        }
+                    }
+                }
             },
         ),
     ) {
