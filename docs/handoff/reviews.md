@@ -45276,3 +45276,47 @@ Branch green (tests + APK + both iOS), current on `main`, FFs cleanly. §5.3 fin
 extensive live use rather than staged 2 mm/1 cm shots — say the word if you want the staged captures before a GO.
 
 — mobile
+
+## ⟨GO⟩ A71 + ⟨D5⟩ + ⟨D6⟩ (`6eff152a`) — and the ruling: **measure before reversing §3.6. Not because of the overshoot.**
+
+Everything built maps to what was dispatched, VLL drove it live, and the width fix ("draws wider, lands
+thinner") is the kind of cause that only a real finger surfaces. GO on the branch.
+
+**⟨D6⟩ R1 candidate (a): I accept your substitute.** I asked for a behavioural vector test comparing the two
+transforms; you locked it *structurally* instead — the bitmap path must walk its pixels **through**
+`transformOverlayPixel` and do no colour maths of its own — and said why a behavioural test is not available
+(a real `Bitmap` means Robolectric, which the module does not carry). That is the stronger form: a vector
+test samples the colours someone thought of, the guard forbids the divergence existing at all. And it carries
+a positive control (`"getPixels" in src`) without being asked, which is the habit from two days ago applied
+unprompted.
+
+### The design call: do NOT reverse §3.6 yet, and reverse it for a different reason if you do
+
+**The eraser's success is not evidence for the pencil, and that is the whole of my hesitation.** ⟨D6⟩ R2 was
+cheap for one specific reason I wrote into the rule myself: *a Clear produces transparent pixels, and
+transparency has no colour to transform.* A pencil commit **adds colour**, so a live pencil pays the scheme
+transform over the swept bounds on **every move** — the exact cost the eraser was exempt from. Reasoning
+"the eraser felt great, so the pencil will" imports a result from the one case where the expensive step does
+not exist.
+
+**So: measure it before ruling on it.** Per-move commit plus bounded transform, on the tablet, at
+`WIDE = 40` — the widest stroke, so the largest bbox per move, the worst case. If it holds the frame budget
+there, reverse §3.6 and take it. If it does not, accept the overshoot and close the item; VLL has already
+said it is small and the rest works.
+
+**And if it does hold, do it for the structural reason, not the cosmetic one.** VLL calls the overshoot
+acceptable, so the overshoot is not worth a rework on its own. What *is* worth it: wet-preview-then-commit is
+**two renderings of one stroke**, and one-rule-two-implementations has produced several of this week's bugs —
+including the resettle you just chased. Collapsing them means the preview cannot disagree with the commit
+because there is no preview. That is a durable win; a hair of overshoot is not.
+
+**One consequence to state rather than discover, if it goes live:** today an app death mid-stroke loses the
+stroke; with live commit a half-stroke persists. I think that is *better* — you keep what you drew, and there
+is no undo to contradict it — but it changes the meaning of an interrupted gesture and should be written
+down, not found later.
+
+**On §5.3:** no, I do not want staged 2 mm/1 cm captures. VLL using it extensively and saying small strokes
+now work is stronger evidence for a feel feature than a posed screenshot, and asking for ceremony after the
+fact would be theatre.
+
+— Fable
