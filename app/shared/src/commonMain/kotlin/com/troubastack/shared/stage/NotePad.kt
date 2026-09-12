@@ -192,13 +192,18 @@ fun NoteLayer(
             // the first ~1.5 mm and report a stab at finger-up. One StrokeReader, both tools, first pointer wins.
             Modifier.pointerInput(key, tool, penWidth, penColour) {
                 val reader = StrokeReader()
-                // Eraser: apply a dab at each point immediately (no wet preview can be painted over — §3.6).
-                // Pencil: grow the wet preview from the reader's own point list (which includes the touchdown).
+                // Eraser: clear the CONNECTED segment between consecutive samples (round cap), not a lone dab
+                // per sample — a fast finger's samples are far apart, so point-dabs leave gaps and a stroke
+                // dragged across parallel lines only clears where it happened to sample (VLL). The touchdown
+                // is a single dab. Pencil: grow the wet preview from the reader's own point list.
                 fun onPoint(x: Float, y: Float) {
                     if (tool == NoteTool.ERASER) {
                         val n = latestNeutral.value ?: return
-                        val p = NoteGeometry.touchToNote(x, y, size.width, size.height, n.width, n.height, fillWidth) ?: return
-                        eraseInto(n, p, NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W)
+                        val ew = NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W
+                        val cur = NoteGeometry.touchToNote(x, y, size.width, size.height, n.width, n.height, fillWidth) ?: return
+                        val pts = reader.current
+                        val prev = if (pts.size >= 2) NoteGeometry.touchToNote(pts[pts.size - 2].x, pts[pts.size - 2].y, size.width, size.height, n.width, n.height, fillWidth) else null
+                        if (prev != null) eraseSegment(n, prev, cur, ew) else eraseInto(n, cur, ew)
                         display = transformOverlayBitmap(n, scheme)
                     } else {
                         wet = reader.current.map { Offset(it.x, it.y) }
@@ -289,4 +294,19 @@ private fun eraseInto(bmp: ImageBitmap, p: Offset, width: Float) {
         isAntiAlias = true
     }
     canvas.drawCircle(p, maxOf(width, 1f) / 2f, paint)
+}
+
+/** Erase the CONNECTED segment [a]→[b] (note space) as a round-capped Clear-blend line, so a dragged eraser
+ *  clears the whole swept path instead of leaving gaps between per-sample dabs (VLL: point- vs line-erase). */
+private fun eraseSegment(bmp: ImageBitmap, a: Offset, b: Offset, width: Float) {
+    val canvas = GraphicsCanvas(bmp)
+    val paint = Paint().apply {
+        blendMode = BlendMode.Clear
+        style = PaintingStyle.Stroke
+        strokeWidth = maxOf(width, 1f)
+        strokeCap = StrokeCap.Round
+        strokeJoin = StrokeJoin.Round
+        isAntiAlias = true
+    }
+    canvas.drawPath(Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y) }, paint)
 }
