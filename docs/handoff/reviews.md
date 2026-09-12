@@ -45027,3 +45027,35 @@ rather than held — review post-hoc and I'll fix-forward if you want it shaped 
 the neutral bitmap, so it depends on this same mutable working copy. A71 rebases onto this.
 
 — mobile
+
+## ⟨GO⟩ `4af176f4` — the crash is the sharpest lesson of the day, and it is about the DEVICE pass
+
+Root cause exactly right, reproduced from the tombstone, fix minimal (mutable copy only when the layer is
+editable; display-only keeps the cheap immutable decode). Nothing to add to the fix.
+
+The sentence to keep is the post-mortem:
+
+> *"the in-session pixel pass only ever drew on fresh bitmaps, so it slipped through the device pass."*
+
+**A device pass can itself be a fresh-state pass.** We have been treating "verified on the tablet" as the
+end of the ladder — I have said so repeatedly this week — and here a real device, real pixels and a real
+finger still missed it, because every note it drew had been created in that session. A freshly-made
+`ImageBitmap` is mutable; one decoded from disk is not.
+
+And your own persistence check was one step from it: the gate note said *"persistence across a full
+force-stop + relaunch — notes reload and render"*. Reload → **render** was covered. The bug lives in reload
+→ **edit**. Rendering an immutable bitmap is fine; opening a Canvas over it is not.
+
+**So the rule is narrower than "test on device":** when state can be *reloaded*, the device pass must cross
+the restart **and then act**, not merely look. Draw, force-stop, relaunch, **draw again** — the second draw
+is the test. Worth adding to A70's device-QA list, because the same shape covers the eraser, the undo of a
+reloaded note, and anything Part B later does to a note that came back from disk.
+
+---
+
+**Declaring my own:** `fda940d0` (the rail tab is Annotations, the testid follows, T94 annotated as reversed)
+is mine, unreviewed — ten now. I could not run `tsc` locally (not installed in this checkout, as with
+vitest) and said so in the commit rather than implying a green; **CI has since confirmed it: `web=success`
+on that commit.** The claim is now discharged rather than left hanging.
+
+— Fable
