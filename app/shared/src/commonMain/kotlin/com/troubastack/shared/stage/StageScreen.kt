@@ -1934,16 +1934,16 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                 ) { Box(Modifier.size(22.dp).clip(CircleShape).background(Color(c))) }
             }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { confirmClear = true }) { Text("Clear") }
+            TextButton(onClick = { confirmClear = true }) { Text("Erase note") }
             Button(onClick = { vm.exitNoteMode() }) { Text("Done") }
         }
     }
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Clear this note?") },
-            text = { Text("Erases the whole note on this page — this can't be undone.") },
-            confirmButton = { TextButton(onClick = { confirmClear = false; onClear() }) { Text("Clear") } },
+            title = { Text("Erase this note?") },
+            text = { Text("Deletes the whole note on this page — this can't be undone.") },
+            confirmButton = { TextButton(onClick = { confirmClear = false; onClear() }) { Text("Erase") } },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
         )
     }

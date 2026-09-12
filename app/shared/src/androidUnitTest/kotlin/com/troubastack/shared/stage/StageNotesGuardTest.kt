@@ -99,4 +99,25 @@ class StageNotesGuardTest {
             "the note layer must reuse the raster image's modifier so it registers with the page (§2)",
         )
     }
+
+    @Test
+    fun overlay_transform_actual_maps_the_shared_pixel_rule() {
+        // A70 ⟨D6⟩ R1: the wet preview uses transformOverlayPixel(colour); the committed note uses
+        // transformOverlayBitmap(pixels). They must be ONE rule with two implementations, or a note's colour
+        // "resettles" on commit (the shape that has rotted here before). Candidate (a) — rule divergence — is
+        // ruled out only while the bitmap path walks its pixels THROUGH transformOverlayPixel and does no
+        // colour maths of its own. Lock that so a third caller can't reintroduce it. (transformOverlayPixel
+        // itself is unit-tested in commonTest; a behavioural equality test would need a real Bitmap i.e.
+        // Robolectric, which the module does not carry — this guard captures the same invariant structurally.)
+        val cwd = System.getProperty("user.dir")
+        val rel = "src/androidMain/kotlin/com/troubastack/shared/stage/OverlayTransform.android.kt"
+        val src = listOf(rel, "shared/$rel", "app/shared/$rel").map { File(cwd, it) }.firstOrNull { it.isFile }?.readText()
+            ?: error("could not locate OverlayTransform.android.kt under $cwd")
+        assertTrue("getPixels" in src, "the Android overlay transform must read the bitmap's pixels (positive control)")
+        assertTrue(
+            Regex("""=\s*transformOverlayPixel\(""").containsMatchIn(src),
+            "the Android overlay transform must map transformOverlayPixel over its pixels — one rule, so the " +
+                "wet preview and the committed note cannot diverge on colour (A70 ⟨D6⟩ R1)",
+        )
+    }
 }
