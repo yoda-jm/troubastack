@@ -978,33 +978,33 @@ private fun NotesTab(storage: Storage, onChanged: () -> Unit = {}) {
     var refresh by remember { mutableStateOf(0) }
     val notes = remember(refresh) { allNoteEntries(storage) }
     val port = remember { AndroidRehearsalNotes(storage.notesDir()) }
+    val labels = remember(refresh) { listConcerts(storage).associate { it.concertId to it.label } }
     var see by remember { mutableStateOf<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>?>(null) }
+    // A70 §5 (VLL): a collapsible band → concert → song → page tree, so a page-heavy concert folds away in one
+    // tap instead of a flat wall of cards. A key in [collapsed] is folded; default is everything expanded.
+    var collapsed by remember { mutableStateOf(emptySet<String>()) }
+    fun toggle(k: String) { collapsed = if (k in collapsed) collapsed - k else collapsed + k }
     if (notes.isEmpty()) {
         Text("No rehearsal notes yet. Open a concert and tap ✎ to take one.", style = MaterialTheme.typography.bodyMedium)
         return
     }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         notes.groupBy { it.second.bandName }.forEach { (band, bandNotes) ->
-            item(key = "band:$band") { Text(band.ifEmpty { "Notes" }, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp)) }
-            bandNotes.sortedWith(compareBy({ it.second.songTitle }, { it.second.pageInSong })).forEach { (cid, n) ->
-                item(key = "${cid}:${n.file}") {
-                    ElevatedCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("${n.songTitle.ifEmpty { "Untitled" }} · page ${n.pageInSong + 1}", style = MaterialTheme.typography.bodyMedium)
-                            val old = NoteIndex.isOld(n)
-                            val meta = buildString {
-                                append("rev ${n.concertRev}")
-                                if (n.takenAs.isNotEmpty()) append(" · taken as ${n.takenAs}")
-                                append(if (n.sentAt != null) " · sent" else " · not sent")
+            val bandKey = "band:$band"
+            item(key = bandKey) { BandHeader(band.ifEmpty { "Notes" }, bandNotes.size, collapsed = bandKey in collapsed) { toggle(bandKey) } }
+            if (bandKey !in collapsed) {
+                bandNotes.groupBy { it.first }.forEach { (cid, concertNotes) ->
+                    val concertKey = "c:$band:$cid"
+                    item(key = concertKey) { NoteTreeHeader(labels[cid] ?: "Concert", concertNotes.size, collapsed = concertKey in collapsed, indent = 20.dp) { toggle(concertKey) } }
+                    if (concertKey !in collapsed) {
+                        concertNotes.groupBy { it.second.songTitle }.entries.sortedBy { it.key }.forEach { (song, songNotes) ->
+                            item(key = "s:$concertKey:$song") {
+                                Text(song.ifEmpty { "Untitled" }, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 40.dp, top = 6.dp, bottom = 2.dp))
                             }
-                            Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (old) Text("This note lives only on this device — sending to Studio comes later. Delete it?", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { see = cid to n }) { Text("See") }
-                                TextButton(onClick = { port.delete(cid, n.key); refresh++; onChanged() }) { Text("Delete") }
-                                // A70 Part B / T170 wires the real send (and re-enables this by connection); until
-                                // then it is a visible "not yet", not a broken control.
-                                TextButton(onClick = {}, enabled = false) { Text("Send to Studio — coming soon") }
+                            songNotes.sortedBy { it.second.pageInSong }.forEach { (cid2, n) ->
+                                item(key = "$cid2:${n.file}") {
+                                    NoteCard(n, onSee = { see = cid2 to n }, onDelete = { port.delete(cid2, n.key); refresh++; onChanged() })
+                                }
                             }
                         }
                     }
@@ -1023,6 +1023,44 @@ private fun NotesTab(storage: Storage, onChanged: () -> Unit = {}) {
                 else Text("Couldn't load this note.")
             },
         )
+    }
+}
+
+/** A70 §5 — an indented, collapsible concert header inside the Notes tree (band → CONCERT → song → page). */
+@Composable
+private fun NoteTreeHeader(label: String, count: Int, collapsed: Boolean, indent: androidx.compose.ui.unit.Dp, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = indent, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(if (collapsed) "▸" else "▾", style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text("$count", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** A70 §5 — one rehearsal-note leaf (page N) under its song, with See / Delete / (Send, Part B). */
+@Composable
+private fun NoteCard(n: com.troubastack.shared.stage.notes.NoteEntry, onSee: () -> Unit, onDelete: () -> Unit) {
+    ElevatedCard(Modifier.fillMaxWidth().padding(start = 40.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("page ${n.pageInSong + 1}", style = MaterialTheme.typography.bodyMedium)
+            val old = NoteIndex.isOld(n)
+            val meta = buildString {
+                append("rev ${n.concertRev}")
+                if (n.takenAs.isNotEmpty()) append(" · taken as ${n.takenAs}")
+                append(if (n.sentAt != null) " · sent" else " · not sent")
+            }
+            Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (old) Text("This note lives only on this device — sending to Studio comes later. Delete it?", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onSee) { Text("See") }
+                TextButton(onClick = onDelete) { Text("Delete") }
+                // A70 Part B / T170 wires the real send; until then a visible "not yet", not a broken control.
+                TextButton(onClick = {}, enabled = false) { Text("Send to Studio — coming soon") }
+            }
+        }
     }
 }
 
