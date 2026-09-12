@@ -45795,7 +45795,7 @@ VLL has a **4-button Bluetooth foot pedal**. None of the four buttons does anyth
 asked for a **Learn** control in Parameters to teach Next and Previous. Spec:
 `docs/tasks/A72-learn-a-pedal-button.md`.
 
-**The cause is almost certainly mundane.** `stageKeyAction` is a fixed map of eight keys — the codes a
+**The cause is almost certainly mundane.** `stageKeyAction` is a fixed map of nine keys — the codes a
 *two-pedal* page-turner sends. A configurable 4-button unit commonly ships sending letters, F-keys or media
 codes. Four dead buttons is the signature of four codes outside that map. I checked the capture before
 filing rather than assuming it: the focus wiring at `StageScreen.kt:589-601` and `:397` is correct, so
@@ -45822,5 +45822,63 @@ a page**, or on ⟨D1⟩'s finding. Green tests do not close it.
 
 Buttons 3 and 4 stay deliberately unassigned (⟨D7⟩) — he has not said what they should do, and guessing at
 his foot is not my call to make.
+
+— Fable
+
+## ⟨review⟩ The rebuilt glossary — three of five spot-checks clean, D21 is mis-stated, and my own key count was wrong
+
+`22ca2fb3`. This is the most useful doc landed in weeks: the overload table alone (⚠ role, identity,
+revision, anchor, layer, cue, note, kind, blob, overlay, pin) names collisions that have cost real rework,
+and giving each divergence an **owner** is what turns a vocabulary list into work. Data hygiene is clean —
+I probed it for real repertoire tokens with a positive control, nothing.
+
+**I did not take it on trust.** I picked five falsifiable divergences and went to the files.
+
+- **D25 confirmed** — `jump-mark.spec.ts:1-4` does say the destination is placed first; ⟨D3⟩ says source.
+- **D16 confirmed** — `WetCanvas.tsx:58` exports `EditCanvas`.
+- **D1 confirmed** — `Dockerfile:85` still names `troubashare.apk`.
+- **D15 over-counts** — "handlers" plural. Only `webapi.go:847` is stale. `service.go:1642` and
+  `myfiles_test.go:74` both say *"this used to be all pool files"*: they describe the history correctly and
+  must not be swept. Minor, but the prescription is what a lane acts on.
+
+### D21 does not reproduce, and the sweep it prescribes would do damage
+
+D21: *"five comments in `Viewer.tsx` still say Notes → sweep → web-core"*. I checked because that rename was
+mine. Eight comment lines match `notes`; **at most two are stale** (`:322`, the chrome strip still listing
+"Layers/Notes/Details", and arguably `:1492`). The rest are correct and load-bearing: `:113` is the song
+**metadata** `notes` field, `:152-153` are **rehearsal** notes, `:273-274` is the comment I wrote recording
+VLL's reversal — and **`:728` is "GoodNotes"**, a product name a sweep would mangle.
+
+A count taken from a grep without reading the matches. The failure is not the number, it is that the
+prescription says *sweep* on a set that is mostly correct usage — the lane either edits right comments or
+finds nothing matching the description and files a retraction. **Re-scope D21 to `:322` (and `:1492`), by
+line.**
+
+### The finding underneath it, which is the one that matters
+
+While reading those matches: **`Viewer.tsx:637` creates the personal layer with the default name
+`"My notes"`** — not a comment, a live user-facing string. VLL's stated reason for the rename was that *"one
+screen cannot hold two meanings of note"*. That screen now shows rehearsal notes, a metadata **notes** field,
+and a layer literally called **My notes**. D21 filed the cosmetic half and missed the substantive one. This
+is a **product word, so VLL's**, and it belongs beside the two free-text "Notes" fields already waiting on
+him — not in a comment sweep.
+
+### §8 "pedal" is already contradicted by a task that landed before this file
+
+The entry reads *"**pedal** | a Bluetooth page-turner presenting as a keyboard"* — stated as fact. VLL's
+4-button pedal does **not**: none of the four buttons does anything, which is why **A72** (`cd2ace22`,
+landed before this rebuild) exists. The definition should record that the map is fixed and that whether such
+a device presents as a keyboard **at all** is the open question A72 measures. A glossary that asserts the
+transport is solved will stop the next reader from asking.
+
+### And my own error, in the spec this file should have contradicted
+
+A72 says `stageKeyAction` is a **fixed map of eight keys**. It is **nine** — five NEXT (PageDown, Right,
+Down, Space, VolumeDown), four PREV (PageUp, Left, Up, VolumeUp). My own prose enumerated nine items and
+then wrote "eight". Corrected in this commit in both places it appeared, the spec and my dispatch entry
+above, rather than patching the one I happened to look at.
+
+**Verdict: keep it, it is authoritative.** Two edits: re-scope D21 by line, and make §8 pedal record the
+open question instead of asserting the answer.
 
 — Fable

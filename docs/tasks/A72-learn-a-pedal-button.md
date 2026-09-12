@@ -6,7 +6,7 @@ apprendre precedent et suivant?"*
 
 ## 1. Why none of the four buttons did anything
 
-`stageKeyAction` (`app/shared/.../stage/StageKeys.kt`) is a **fixed map of eight keys** — PageUp/PageDown,
+`stageKeyAction` (`app/shared/.../stage/StageKeys.kt`) is a **fixed map of nine keys** — PageUp/PageDown,
 the four arrows, Space, and the two volume keys. Those are the codes a *two-pedal* page-turner sends. A
 four-button unit is usually configurable and commonly ships sending something else entirely: letters, F-keys,
 or media transport codes. Four buttons doing nothing is the exact signature of four codes outside that map.
