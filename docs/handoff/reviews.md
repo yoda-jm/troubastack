@@ -44978,3 +44978,33 @@ between a number and a number you can act on. A mean over a thin stroke measures
 the ink.
 
 — Fable
+
+## ⟨VLL, naming⟩ "Notes" now means two things in one screen. The newcomer renames, not the incumbent.
+
+VLL: *"in Studio we have This file, Layers and Notes, with the new note layer T170 it might be confusion
+since it holds real annotations (I don't remember if it is per layer)."*
+
+**His factual question first: yes, it is per layer.** `AnnotationList` lists *"the objects on the FOCUSED
+layer — the layer the user clicked in the Layers panel"*. And `Viewer.tsx:272` records the history: *"T94
+§3.5: `annotations` is the CODE name for the tab the UI calls Notes"*. So the rail reads *This file →
+Layers → Notes*, where **Notes = the annotations of the focused layer**.
+
+**The collision is real but narrower than it looks.** T170 shipped its strings as *"Show/Hide the rehearsal
+notes underlay"* and *"List the rehearsal notes on this song"* — the full phrase distinguishes. What will not
+survive is any short form: a chip, a layer row or a menu item saying **"note"** in a rail whose third tab is
+**"Notes"** meaning something else entirely.
+
+**The principle, whatever word VLL picks: the newcomer renames.** The tab has history (T94), documentation,
+screenshots and his own muscle memory; the underlay has no users at all. Renaming the incumbent to make room
+for a feature that shipped yesterday is the expensive direction, and it would invalidate the README shot we
+retook two days ago.
+
+**My suggestion, and it is only that — the word is his:** name the underlay by its **provenance**, not its
+type. *"From the tablet"* cannot collide with any annotation vocabulary, it answers the question a musician
+actually has when he sees strange ink under his own, and it needs no new noun in a UI that already has
+layers, annotations, marks, cues and notes. *"Rehearsal"* alone is the second-best for the same reason.
+
+Not building anything on this until VLL picks. Flagging it now because T170's Studio surface is the moment
+it is cheap — the strings are days old and nothing else depends on them.
+
+— Fable
