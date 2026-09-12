@@ -499,3 +499,62 @@ exact thing to draw, and the two cannot disagree about what was cleared.
 **Sizing:** small, one task, mobile. R1 is a bug fix and could land alone; R2 without R1 would draw a
 continuous trail over a combed erasure, which would make the defect *more* visible, so land them together or
 R1 first.
+
+---
+
+## ⟨D6⟩ 2026-09-12 — Note rendering: two transforms of one rule, a Clear that re-transforms nothing, and a state the user cannot reach
+
+Four items from VLL's live testing. Two are reframed from how they were routed, and the reframing is the
+part that changes what gets built.
+
+### R1 — the wet→dry resettle is a TWO-IMPLEMENTATIONS problem; settle it by test, not by eye
+
+The same authored ink goes through **two different transforms**: `transformOverlayPixel(colour)` while the
+finger is down, `transformOverlayBitmap(pixels)` after the commit. That is one rule with two implementations
+— the shape that has rotted three times in this repo already — and the reported symptom (red bright during
+the drag, darker a few ms after lift) is exactly what divergence looks like.
+
+**Do not tune either one until this is answered**, and it is answerable without the tablet:
+
+> For **every palette colour × every scheme**: build a solid 1-colour bitmap, run `transformOverlayBitmap`,
+> and compare the result pixel to `transformOverlayPixel(colour)` for the same scheme. They must be equal.
+
+If they differ, that is the bug and the fix is to make one derive from the other so a third caller cannot
+reintroduce it. If they agree, the cause is candidate (b) — geometry, screen-space wet path vs
+commit-then-rescale — and *then* you measure the offset on device, in pixels, before proposing anything.
+Either way the goal is WYSIWYG and the evidence comes first (this is the feel-bug rule: instrument, then fix).
+
+### R2 — eraser lag: a Clear never needs a re-transform
+
+Re-transforming the whole bitmap on every erase move, on the UI thread, is the cost. Your own observation is
+the rule and it generalises past this bug, so state it that way in the code:
+
+> **A Clear produces transparent pixels, and transparency has no colour to transform.** So an erase must
+> update the display copy directly over the swept segment's bounds and never re-key or re-transform the
+> bitmap.
+
+Bound the work to the segment's bounding box, the same geometry ⟨D5⟩ R1 already clears. A full re-transform
+stays correct for a *pencil* commit (which does add colour) — this is not licence to skip it there.
+
+### R3 — the eraser shadow is already specced; do not re-rule it
+
+⟨D5⟩ R2. It is **not** a reversal of §3.6: §3.6 forbids *deferring the commit*, and the shadow is chrome
+drawn above while the erasure stays immediate. Build it from ⟨D5⟩, land it with or after ⟨D5⟩ R1, never before.
+
+### R4 — "no clear" yields, because the system defines a state the hand cannot reach
+
+§3.6 says *"no undo, no clear"*. That stands as a scope rule against building a tool suite in the presenter —
+but it now collides with §3.3, which says **an all-transparent save deletes the note and drops the chip**.
+VLL erased what he could see and 21 opaque pixels survived: the system defines "empty" as meaningful and
+gives no way to reach it. That is not an ergonomics complaint, it is an **unreachable defined state**, and
+the scope rule has to yield to it.
+
+**Add a single explicit action in note mode — "Erase this note"** — with a confirmation, since it is
+destructive and there is no undo. It deletes the note by the §3.3 path (file and index entry gone, chip gone)
+rather than by painting transparent pixels, so it cannot leave specks behind by construction.
+
+Still **no undo, no shapes, no text, no highlighter**: one destructive action reaching a state the model
+already defines is not the thin end of a tool suite.
+
+**Sizing:** R1 is a test first and possibly a one-line fix; R2 is a bounded redraw; R4 is a button and a
+dialog. Mobile, after ⟨D5⟩.
