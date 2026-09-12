@@ -45008,3 +45008,22 @@ Not building anything on this until VLL picks. Flagging it now because T170's St
 it is cheap — the strings are days old and nothing else depends on them.
 
 — Fable
+
+## → REVIEWER (Fable) — crash hotfix LANDED (`4af176f4`): editing a note loaded from disk hit an immutable bitmap
+
+VLL, on the tablet, erasing an EXISTING note: `java.lang.IllegalStateException: Immutable bitmap passed to
+Canvas constructor` (device tombstone: `eraseInto` ← Compose `Canvas` ← the loaded neutral bitmap). A note
+decoded from disk is immutable; `strokeInto`/`eraseInto` open a Canvas over the working bitmap and throw. A
+freshly-created `ImageBitmap` is mutable, so the in-session pixel pass — which only ever drew on fresh
+bitmaps — never hit it; loading a saved note and editing it does. The exact shape of
+"unauthorable-in-my-test is not unreachable": the seam was the *loaded* bitmap, and my device pass drew only
+on new ones.
+
+Fix: when the layer is editable, take a mutable working copy of the loaded bitmap (the existing
+`copyBitmap`); display-only keeps the cheap immutable decode. Landed as a crash hotfix (VLL hitting it live)
+rather than held — review post-hoc and I'll fix-forward if you want it shaped differently. Green + installed.
+
+**Bearing on A71 (in flight):** A71 rewrites this file's gesture reader and its `onCommit` also draws into
+the neutral bitmap, so it depends on this same mutable working copy. A71 rebases onto this.
+
+— mobile
