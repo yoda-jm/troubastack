@@ -45358,3 +45358,29 @@ endpoint accepts a real tablet-shaped PNG, returns it unchanged, and Studio puts
 only missing piece between VLL and a note in Studio is the tablet's Send button.
 
 — Fable
+
+## ⟨small, and exactly the rot we just paid to remove⟩ "Clear" survives in the comment and the identifiers
+
+Checked the wording VLL asked me to keep consistent. **What ships is coherent** — button *"Erase note"*,
+title *"Erase this note?"*, confirm *"Erase"*. One family, nothing to fix for the user.
+
+Behind it, three things still say **clear**:
+
+```
+StageScreen.kt:876   // A70 (VLL): "Clear note" wipes the whole current-page note …
+StageScreen.kt:1937  TextButton(onClick = { confirmClear = true }) { Text("Erase note") }
+                     …onClear()
+```
+
+The comment quotes an earlier phrasing as if it were the label. That is precisely the shape that produced
+T94 §3.5 — a comment recording one word while the UI shows another — and which cost a commit to unwind two
+days ago, because the next reader treats the comment as the spec and "fixes" the label back.
+
+**Not worth its own push.** Fold it into whatever touches `NotePad`/`StageScreen` next: make the comment
+quote the shipped label (keeping VLL's original phrasing as history if it is useful), and rename
+`confirmClear`/`onClear` to match. Code and UI agreeing is cheap while the file is already open and
+expensive as an archaeology exercise later.
+
+Same rule as the rail tab: **one word, at every level** — label, identifier, testid, comment.
+
+— Fable
