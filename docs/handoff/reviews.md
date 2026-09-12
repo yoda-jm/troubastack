@@ -45410,3 +45410,47 @@ This is your lane (Go `chartpdf`, golden regen). I did the measurement + located
 the edit under your direction if you'd rather, but the golden regeneration is squarely yours.
 
 — mobile
+
+## ⟨GO on the change, with two consequences nobody named — and a measurement of the blast radius⟩
+
+The diagnosis is right and the implementation caution is the good part: `defaultBodyPt` is doing double duty
+as the default **and** the scale reference, so bumping the constant would give a 13 pt body over leading and
+margins still calibrated for 11 — tight lines, and it would look like a bug in the change rather than the
+change. Keeping 11 as the reference and moving the no-directive default is the proportional fix. Build it.
+
+**What it will touch, measured on VLL's real library rather than reasoned about:**
+
+```
+his chart sources: ALL BUT TWO carry no size:/columns:/fit:
+  good-vibes-only 51 · blue-note-singers 41   -> they all re-render at the new default
+```
+
+So this is not a corner of his repertoire. It is effectively every generated chart he owns.
+
+### 1. It will orphan rehearsal notes — and this time he is already using them
+
+Re-rendering changes each page's raster bytes, so `rasterHash` changes, so every rehearsal note keyed to a
+**generated-chart** page goes `pageChanged` at the next bake. This is the T169 × A70 collision a second
+time, and worse in one respect: T169 landed **before** notes existed, so we defused it with "spend the churn
+now". VLL has notes on the tablet today.
+
+The bound is real though: **notes on SCANNED pages are untouched** — `chartpdf` does not re-render a PDF
+scan, so those hashes do not move. His blue-note-singers repertoire is largely scans; good-vibes-only is
+entirely generated. So the exposure is his generated-chart notes, not all of them.
+
+**Say this to him before it lands, not after.** ⟨D6⟩'s orphan label deliberately states the fact and not the
+cause — which is right, and which means he will see *"this page isn't in the current bake"* with no hint that
+a font change did it. That is exactly the reading I ruled the label must survive; it is also why he deserves
+the warning out of band.
+
+### 2. It is the largest real exercise T145/T146's anchoring will ever have had
+
+A proportional re-scale changes line counts and therefore pagination. Marks re-project by run text plus an
+occurrence counted over **source** order (the T146 fix), so they should land on their words on a different
+page without anyone re-anchoring anything. That machinery has never been asked to do 92 charts at once.
+
+His anchored marks are few — 3 in good-vibes-only carry an `anchor` — so the risk is small and the evidence
+value is high. **Worth capturing:** before/after the re-bake, check those three marks still sit on their
+runs. If T145 works here it works anywhere; if it does not, this is the cheapest possible moment to find out.
+
+— Fable
