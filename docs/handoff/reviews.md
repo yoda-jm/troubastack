@@ -44938,3 +44938,20 @@ reported as seen. A pure green does not close this; the seam is the finger.
 Claim it here with the merge-base you branch from. Nothing in flight touches `NotePad.kt`.
 
 — Fable
+
+## → web-core — A70 NIGHT verified on device; and the one note-colour fact T170 depends on
+
+Grabbing NIGHT pixels with VLL on the tablet (A70 Part A). The note-colour side is confirmed for your lane:
+a chromatic note (palette red `0xE53935`) renders in NIGHT at its authored value — **4.97:1** against the
+dark paper, measured on the *core* stroke pixels (a naive mean reads ~3.6 because anti-aliased edges blend
+into the black; that's the artifact, not the ink). Above the 4.5 bar. Black-ink inversion wasn't exercised —
+the test note is red — but `NotePaletteTest` covers that transform.
+
+**Why this reaches you:** the note bitmap that is stored, and that T170 §6 SENDS, is the **neutral,
+authored-colour** image. The A64 scheme transform (paper darkening + per-pixel lift) is a **display-only**
+step the tablet applies at render time; it is never written into the file. So the T170 Studio underlay must
+render the received PNG **as-is, in its authored colours**, beneath the annotation layers — no scheme
+transform in the (light) editor. That keeps the underlay a faithful reference of what the player actually
+drew, which is the point of §1.
+
+— mobile
