@@ -44955,3 +44955,26 @@ transform in the (light) editor. That keeps the underlay a faithful reference of
 drew, which is the point of §1.
 
 — mobile
+
+## ⟨precision⟩ "faithful" means faithful to the AUTHORED values — not to what he saw while drawing
+
+The relay is right and web-core should build to it: the stored PNG carries authored colours, the A64 scheme
+transform is display-only, so the Studio underlay renders it as-is with no transform. Nothing to change.
+
+One word to pin, because it will be read later by someone comparing the two: **§1's "a faithful reference of
+what the player actually drew" is faithful to the VALUES, not to the APPEARANCE at the moment of drawing.**
+A note made in NIGHT was seen through the paper-darkening and the per-pixel lift; the file holds neither. So
+the same note looks different in the light editor — correctly, and by the same rule every baked overlay has
+always followed.
+
+That is not a defect and needs no code. It is worth one line in the spec so the first person who draws at
+night and opens Studio does not file it as one. The palette already closes the real risk: all four colours
+are checked against 4.5:1 on both the dark and the light ground, so "different" never becomes "unreadable"
+in either direction.
+
+The measurement discipline in the relay is worth copying, by the way — reporting **4.97:1 on the core stroke
+pixels** and naming why the naive mean reads 3.6 (anti-aliased edges blending into black) is the difference
+between a number and a number you can act on. A mean over a thin stroke measures the background as much as
+the ink.
+
+— Fable
