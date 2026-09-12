@@ -873,7 +873,20 @@ private fun Performing(
                 // A70 §3.7 — in note mode the ‹ › turn FABs are REPLACED by the note tool bar; keys/pedal
                 // still turn. Otherwise the usual page-turn corners.
                 if (state.noteMode) {
-                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth(), docked = true)
+                    // A70 (VLL): "Clear note" wipes the whole current-page note — hand-erasing to zero is
+                    // impractical (stray specks keep the ✎ chip). Deletes through the port (an empty note is a
+                    // deleted note), refreshes the index (chip goes), and bumps the revision so the layer
+                    // reloads empty. The current page in note mode is state.current (turns are locked).
+                    val clearPage = state.pages.getOrNull(state.current)
+                    NoteBar(state, vm, colorMode, Modifier.fillMaxWidth(), docked = true, onClear = np@{
+                        val np = notePad ?: return@np
+                        val pg = clearPage ?: return@np
+                        scope.launch(Dispatchers.Default) {
+                            np.notes.delete(np.concertId, com.troubastack.shared.stage.notes.NoteKey(pg.songId, pg.rasterHash))
+                            val idx = np.notes.index(np.concertId)
+                            withContext(Dispatchers.Main) { np.onIndexChanged(idx); np.onBumpRevision() }
+                        }
+                    })
                 } else {
                     // A60 P5: on-screen ‹ › cross SONGS in scroll mode (like the horizontal swipe) — you can
                     // see and touch the screen, so a deliberately coarse control is right. Hardware stays
@@ -1884,8 +1897,9 @@ private fun PageView(
  * session tool state.
  */
 @Composable
-private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColorMode, modifier: Modifier = Modifier, docked: Boolean = false) {
+private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColorMode, modifier: Modifier = Modifier, docked: Boolean = false, onClear: () -> Unit = {}) {
     val chrome = stageChrome(colorMode)
+    var confirmClear by remember { mutableStateOf(false) }
     // A70 (VLL): docked = flush bottom bar — square the bottom corners against the screen edge, round only
     // the top; the floating variant keeps the fully-rounded pill.
     val shape = if (docked) RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp) else MaterialTheme.shapes.large
@@ -1920,8 +1934,18 @@ private fun NoteBar(state: StageState, vm: StageViewModel, colorMode: StageColor
                 ) { Box(Modifier.size(22.dp).clip(CircleShape).background(Color(c))) }
             }
             Spacer(Modifier.weight(1f))
+            TextButton(onClick = { confirmClear = true }) { Text("Clear") }
             Button(onClick = { vm.exitNoteMode() }) { Text("Done") }
         }
+    }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear this note?") },
+            text = { Text("Erases the whole note on this page — this can't be undone.") },
+            confirmButton = { TextButton(onClick = { confirmClear = false; onClear() }) { Text("Clear") } },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+        )
     }
 }
 
