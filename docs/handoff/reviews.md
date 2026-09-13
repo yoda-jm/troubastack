@@ -46058,3 +46058,69 @@ the score, and that sentence is the only thing that says what actually disappear
 and keeps naming the scope. A rewording that drops it comes back through the gate.
 
 — Fable
+
+## ⟨rulings⟩ T170 §6 adjudicated, both proposals validated as T173 + A74 — and a clock I nearly built a rule on
+
+VLL asked whether anything was waiting on me. It was: two filed proposals, and web-core's review of T170 §6
+explicitly declined to rule on blocker-vs-deferral and routed that here. web-core was right not to treat a
+filed proposal as a queue entry.
+
+### 1. web-core's three findings are all correct — I checked each, not the summary
+
+- **#1 unconditional `overwrite=1`** — confirmed. `HttpTransport.kt:497` hardcodes it in the URL; one call
+  site. VLL's rule (*"if there is already a bitmap for this song/page it asks to overwrite"*) is unreachable
+  from the only client that exists.
+- **#2 identity prompt absent** — confirmed, and their probe is sound: the scan finds `takenAs` in seven
+  files, so it was looking in the right place; the comparison genuinely is not there.
+- **#3 the R2 quote is accurate word for word** (spec `:312`), and R2's own example names three numbers —
+  *"24 sent, 3 failed, 3 skipped"*. The missing third number is the spec's, not an invention.
+
+**Ruling: #1 blocks, #2 and #3 land with it in the same pass.** #1 is not a missing nicety — it silently
+replaces what is in Studio, and it is the one of the three that destroys something.
+
+**#1's fix is not "stop overwriting".** Send **without** the flag, let the 409 fire, prompt, and let
+`overwrite=1` carry *the musician's answer*. An explicit **Re-send** may carry it directly, because the user
+has already chosen. That makes the server check reachable instead of removing it.
+
+### 2. I nearly prescribed a fix that was both unnecessary and broken
+
+I was about to rule that the skip predicate had to be `sentAt != null && updatedAt <= sentAt`, on the
+reasoning that a note edited *after* sending would otherwise be skipped forever with Studio holding stale
+pixels. **Both halves were wrong, and reading the code is what caught it.**
+
+- **Unnecessary:** `AndroidRehearsalNotes.save` sets `sentAt = null` on every save (`:87`). An edit
+  *invalidates* the marker instead of being compared against it — which is the better shape, and the one my
+  own note about paired state recommends. `sentAt != null` is already correct; §6 simply never consults it.
+- **Broken:** `updatedAt` is `SystemClock.elapsedRealtime()` — **milliseconds since boot** — and it is
+  persisted. My comparison would have been between a monotonic value and a wall-clock one, and wrong across
+  any reboot besides.
+
+So: **skip on `sentAt != null`, add the third number, nothing else.**
+
+### 3. The latent defect that fell out of it — filed as A74 ⟨D6⟩
+
+`NoteEntry.updatedAt` is a persisted monotonic counter. After a reboot it restarts, so an older note can hold
+a *larger* value than a newer one. **Harmless today only because nothing reads it** — the single occurrence
+is the write. A loaded gun, not a wound: the name invites precisely the comparison that is invalid, and the
+proof is that I reached for it within a minute of seeing the field.
+
+### 4. Both proposals validated, and they are two halves of one loop
+
+**T173 (web-core)** — the song-list badge. Band **library** list, not the setlist page (recopying is editing
+work, not performance prep). **Badge + sort-first now; the filter deferred, not refused** — VLL offered them
+as alternatives (*"or maybe"*) and his reason picks the winner: *"the goal is to remove them"*, and sorting
+puts the work under your nose where a filter is a mode you must choose to enter. One aggregate call per band.
+Read-only, always.
+
+**A74 (mobile)** — **call it "Sent", not a recycle bin.** A bin means deleted and recoverable; these are
+neither deleted nor done, and "empty the bin" would read as finishing work that is still outstanding.
+Dimmed under a header, **not collapsed** — he wrote *"still displayed probably"*. **No bulk clear**: the
+tablet cannot know whether Studio recopied, so a sweep would destroy the stage-readable copy on a guess.
+
+**And the through-line that makes them one design rather than two features:** membership of "Sent" is
+`sentAt != null` — the *same* predicate as §6's skip, so the list and the send can never disagree about what
+is outstanding. `NoteIndex.isOld` already excludes sent notes, so the nag agrees too. Stated once, for both
+specs: **the tablet nags what is unsent; Studio surfaces what is unrecopied.** Each surface nags only what
+its own user can do something about.
+
+— Fable
