@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -1052,9 +1053,13 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
         Text("No rehearsal notes yet. Open a concert and tap ✎ to take one.", style = MaterialTheme.typography.bodyMedium)
         return
     }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        status?.let { s -> item(key = "status") { Text(s, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp)) } }
-        if (!connected) item(key = "offline") { Text("Connect (Bakes tab) to send notes to Studio.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp)) }
+    // Status + offline hint live ABOVE the list (a plain composable, not a lazy item — a conditional
+    // item() driven by a coroutine-written state didn't reliably re-emit, so the "already sent"/"Sent ✓"
+    // line — which ⟨D1⟩ R2 requires be SAID — never showed).
+    Column(Modifier.fillMaxSize()) {
+    status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp)) }
+    if (!connected) Text("Connect (Bakes tab) to send notes to Studio.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         notes.groupBy { it.second.bandName }.forEach { (band, bandNotes) ->
             val bandKey = "band:$band"
             item(key = bandKey) { BandHeader(band.ifEmpty { "Notes" }, bandNotes.size, collapsed = bandKey in collapsed) { toggle(bandKey) } }
@@ -1071,7 +1076,7 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
                     if (concertKey !in collapsed) {
                         concertNotes.groupBy { it.second.songTitle }.entries.sortedBy { it.key }.forEach { (song, songNotes) ->
                             item(key = "s:$concertKey:$song") {
-                                Text(song.ifEmpty { "Untitled" }, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 40.dp, top = 6.dp, bottom = 2.dp))
+                                Text(song.ifEmpty { "Untitled" }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 40.dp, top = 4.dp))
                             }
                             songNotes.sortedBy { it.second.pageInSong }.forEach { (cid2, n) ->
                                 item(key = "$cid2:${n.file}") {
@@ -1087,6 +1092,7 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
                 }
             }
         }
+    }
     }
     see?.let { (cid, n) ->
         val bmp = remember(cid, n.file) { port.load(cid, n.key) }
@@ -1147,31 +1153,33 @@ private fun NoteTreeHeader(
     }
 }
 
-/** A70 §5 / T170 §6 — one rehearsal-note leaf (page N) under its song, with See / Delete / Send. Send uploads
- *  the note's PNG to Studio as a reference underlay; a note already sent offers "Re-send". */
+/** A70 §5 / T170 §6 — one rehearsal-note leaf, a COMPACT single row (VLL: the old card fit only ~2 notes on
+ *  screen). Page + status on the left, See / Delete / Send inline on the right; the "old note" nudge only
+ *  appears when it applies. Send uploads the PNG to Studio as a reference underlay; a sent note offers Re-send. */
 @Composable
 private fun NoteCard(
-    n: com.troubastack.shared.stage.notes.NoteEntry, connected: Boolean, sending: Boolean,
+    n: NoteEntry, connected: Boolean, sending: Boolean,
     onSee: () -> Unit, onSend: () -> Unit, onDelete: () -> Unit,
 ) {
-    ElevatedCard(Modifier.fillMaxWidth().padding(start = 40.dp)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("page ${n.pageInSong + 1}", style = MaterialTheme.typography.bodyMedium)
-            val old = NoteIndex.isOld(n)
-            val meta = buildString {
-                append("rev ${n.concertRev}")
-                if (n.takenAs.isNotEmpty()) append(" · taken as ${n.takenAs}")
-                append(if (n.sentAt != null) " · sent" else " · not sent")
-            }
-            Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (old) Text("This note is older than the current bake — recopy it into an annotation in Studio, then delete it.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onSee) { Text("See") }
-                TextButton(onClick = onDelete) { Text("Delete") }
-                val sendLabel = if (sending) "Sending…" else if (n.sentAt != null) "Re-send" else "Send to Studio"
-                TextButton(onClick = onSend, enabled = connected && !sending) { Text(sendLabel) }
-            }
+    val compact = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+    Column(Modifier.fillMaxWidth().padding(start = 40.dp, end = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "page ${n.pageInSong + 1}  ·  ${if (n.sentAt != null) "sent" else "not sent"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (n.sentAt != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onSee, contentPadding = compact) { Text("See", style = MaterialTheme.typography.labelMedium) }
+            TextButton(onClick = onDelete, contentPadding = compact) { Text("Delete", style = MaterialTheme.typography.labelMedium) }
+            val sendLabel = if (sending) "Sending…" else if (n.sentAt != null) "Re-send" else "Send"
+            TextButton(onClick = onSend, enabled = connected && !sending, contentPadding = compact) { Text(sendLabel, style = MaterialTheme.typography.labelMedium) }
         }
+        if (NoteIndex.isOld(n)) Text(
+            "Older than the current bake — recopy it in Studio, then delete.",
+            style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00),
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
     }
 }
 
