@@ -46124,3 +46124,62 @@ specs: **the tablet nags what is unsent; Studio surfaces what is unrecopied.** E
 its own user can do something about.
 
 — Fable
+
+## ⟨GO — both lanes⟩ VLL: *"les deux lanes peuvent commencer"* — here is the order, and why it is this order
+
+Queued by **dependency**, not by size. Take them top-down; if you are blocked, skip to the next rather than
+waiting.
+
+### mobile
+
+1. **T170 §6 — the three findings on `0ba4f50c`.** Finish what is already at the gate before opening anything
+   new, and A74 sits directly on the Notes tab this built. Recap of the ruling: the unconditional
+   `overwrite=1` **blocks** — send *without* the flag, let the 409 fire, prompt, and let the flag carry the
+   answer (explicit **Re-send** may carry it directly). Skip on **`sentAt != null`** and nothing more; add the
+   third number to the status line. Add the identity prompt when `takenAs` ≠ signed-in.
+2. **A72 — the pedal Learn panel.** Second because VLL has hardware in his hands that does nothing, and
+   ⟨D1⟩ is *also the measurement* that tells us whether a MIDI stack is needed at all — the sooner it runs,
+   the sooner that question is answered instead of estimated. Touches `SettingsScreen`/`StageKeys`, so it
+   does not collide with #1.
+3. **A73 — the note bar.** Small, but it edits `NoteBar` in `StageScreen.kt`; sequence it after #1 rather
+   than in parallel. **⟨D4⟩ is STRUCK — rename nothing to "erase".** See the amendment below.
+4. **A74 — the "Sent" section**, which needs #1 landed. Fold in ⟨D6⟩, the persisted monotonic `updatedAt`,
+   while you are in that file.
+
+### web-core
+
+1. **The list of 15 unanchored marks, song by song.** First because it is small and because it is the
+   *input to a VLL decision* — he chose the re-render with a count in front of him and will want the map
+   before deciding anything about existing marks. Do not bundle it with T172.
+2. **T172 — nearest-run + offset.** The important one: 15 of 18 marks on real data carry no anchor, and
+   adjacency is simply not recorded. Explicitly **not** a migration.
+3. **T173 — the song-list note badge** (just validated from your proposal). Band library list, badge with a
+   count, **sort-first; the filter is deferred not refused**. One aggregate call per band, read-only always.
+4. **The glossary sweeps, as one batch**: D2, D4, D6, D7, D11, D14, D15 (`webapi.go:847` **only** — the other
+   two matches describe history correctly), D16, D17, **D21 re-scoped to `:322` and `:1492` by line**, D25.
+   Lowest priority, but batching them is what stops the same confusion being rediscovered a third time.
+
+**Still VLL's, do not implement:** the **`"My notes"` layer name** (`Viewer.tsx:637`), the segno proportion,
+and whether recolouring one end of a jump pair recolours both.
+
+### Amendment — A73 ⟨D5⟩ is a RESTORATION, and the churn is worth reading once
+
+I offered "Clear page" to VLL as the option that *reintroduced a retired word*. The history says the reverse,
+and I had it backwards:
+
+- **A70 item 12, VLL verbatim:** *"no undo, no clear, to undo you use eraser, **to clear page** you remove it
+  from the 'notes' tabs in Stage"* — and A70's own prose glosses the Notes-tab delete as *that IS "clear
+  page"*. **It is the spec's original word for this exact action.**
+- `d796a475` added the button at his direction as **"Clear note"**.
+- `efa9d814` renamed it to **"Erase note"** inside A70 ⟨D5⟩/⟨D6⟩ — **a label change no spec asked for**,
+  carried in a commit about eraser *behaviour*. A70 §3.7's bar sketch contains no such button, and ⟨D5⟩ is
+  about the swept path and the shadow.
+- That rename created the collision with the ⌫ eraser *tool*, which the glossary then filed as D23: an open
+  question put back to VLL about a word he had already chosen.
+
+So this is not a change of mind — we drifted off his word twice and then asked him to adjudicate the result.
+**The rule to carry forward: a label is a product word, and it does not ride in on a behaviour commit.**
+While you are there, A70 §3.7 also specifies the exit as `[Exit]`; it shipped as "Done" and is now becoming a
+checkmark. Same class, smaller stakes.
+
+— Fable

@@ -49,9 +49,25 @@ doc comment, which still lists "Done" (see ⟨D1⟩).
 ## 5b. ⟨D5⟩ The destructive button becomes "Clear page" (VLL, 2026-09-14)
 
 Glossary D23 resolved. The full-note delete sitting beside the ⌫ eraser *tool* becomes **"Clear page"**.
-VLL chose it with the tension named in front of him — that the UI had previously moved *away* from "clear" —
-so this is settled, not an oversight. Consequence: ⟨D4⟩ reverses (above), and the confirmation dialog must
-follow the button:
+
+**And this is a restoration, not a preference.** I offered it as the option that reintroduced a retired word;
+the history says the opposite. A70 item 12 is VLL verbatim: *"no undo, no clear, to undo you use eraser, **to
+clear page** you remove it from the 'notes' tabs in Stage"* — and A70's own prose glosses the Notes-tab
+delete as *that IS "clear page"*. **"Clear page" is the spec's original word for exactly this action.** What
+happened since:
+
+1. `d796a475` added the button at VLL's direction, labelled **"Clear note"**.
+2. `efa9d814` renamed it to **"Erase note"** while implementing A70 ⟨D5⟩/⟨D6⟩ — **a label change no spec asked
+   for**, riding along in a commit about eraser *behaviour*. A70 §3.7's bar sketch has no such button at all,
+   and ⟨D5⟩ is about the swept path and the shadow, nothing else.
+3. That rename put the word on the same strip as the ⌫ eraser *tool*, which is the collision the glossary
+   then filed as D23 — an open question put back to VLL about a word he had already chosen.
+
+So the decision is not "VLL changed his mind": we drifted off his word twice and asked him to adjudicate the
+result. Treat ⟨D5⟩ as authoritative and restored, and note the lesson for any future strip: **a label is a
+product word — it does not ride in on a behaviour commit.**
+
+Consequence: ⟨D4⟩ reverses (above), and the confirmation dialog must follow the button:
 
 - title `"Erase this note?"` → **"Clear this page?"**
 - confirm `"Erase"` → **"Clear"**
