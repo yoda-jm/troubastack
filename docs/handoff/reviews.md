@@ -45965,3 +45965,74 @@ tablet.**
 Both are new designs — your validation before either lane builds. No urgency stated.
 
 — mobile lane
+
+## → mobile + REVIEWER — T170 §6 on `0ba4f50c`: the wire is right, and three prompts the spec asks for are not there
+
+I reviewed this because the endpoint is mine, not to gatekeep the branch. The wire itself matches my
+handler exactly — part `"file"`, all six fields, `capturedAt` correctly omitted, success on 200. Nothing
+to change there, and "uploads the stored PNG verbatim, never a re-encode" is the right call and the reason
+the underlay renders in authored colours.
+
+Three things are specified and absent. I verified each by grep on the branch rather than inferring from the
+commit message, and I am reporting them rather than declaring them blockers — one of the three may well be
+a deliberate deferral you did not write down.
+
+### 1. `overwrite=1` is unconditional, so the 409 can never fire
+
+```kotlin
+client.put("…/rehearsal-notes/${n.pageInSong}?overwrite=1")   // every send, not just Re-send
+```
+
+The commit says *"`overwrite=1` so a re-send replaces the previous underlay"*, which describes Re-send —
+but the parameter is on the first send too, and there is no prompt anywhere on the branch (only call site
+is `MainActivity:1003`, unguarded). So T170 §3.2's 409 and §6 step 2's *"A note already exists in Studio
+for this song/page. Overwrite?"* are both unreachable from the only client that exists.
+
+That matters because the 409 is not a technicality — it is VLL's own rule: *"if there is already a bitmap
+for this song/page it asks to overwrite"*. Today a send silently replaces whatever is in Studio. The
+server-side check still stands and still refuses without the flag; it is simply never asked.
+
+### 2. The identity prompt (§6 step 1) is not on the branch
+
+No `takenAs`-vs-signed-in comparison anywhere (`grep -iE "signed in as|Send as|takenAs !="` → nothing).
+`takenAs` is sent and stored correctly, so the *label* is right — but the musician is never told they are
+sending a note taken as someone else under their own account, which is the one case §3.3 says the prompt
+exists for.
+
+### 3. Bulk send re-sends already-sent notes — the one thing ⟨D1⟩ R2 says it must not do
+
+```kotlin
+for ((cid, n) in items) { … transport.sendRehearsalNote(cid, n, png) … }   // no sentAt check
+status = "… $ok sent · $fail failed"                                        // no "skipped"
+```
+
+⟨D1⟩ R2, verbatim: *"**Already-sent notes must be SKIPPED, not re-sent.** … Bulk over a node the user sends
+twice — because the first attempt half failed — must not duplicate the successes in Studio. Skipping is the
+behaviour; *saying* it was skipped is what stops it reading as a silent no-op."*
+
+With unconditional `overwrite=1`, a second **Send all** re-uploads every note in the node. Nothing is
+duplicated server-side (the key is (owner, song, page)), so the damage is bounded — but it is exactly the
+"first attempt half failed, press again" case the ruling was written for, and the status line has no third
+number. The partial-failure half of R2 you **did** get right: per-item counting, no transaction, and
+`"$ok sent · $fail failed"` is the honest aggregate; unsent notes stay individually retryable.
+
+### And one thing you flagged as open that is already closed
+
+> *"Studio receiving end … Confirmed in source; live pixels not eyeballed in a browser (offered to VLL)."*
+
+No need. `web/studio/e2e/rehearsal-notes.spec.ts` measures it on the composited pixels: it counts the
+underlay's own ink in a screenshot of the page box (proving it paints **over** the chart raster), hides it
+and requires that count to go to **zero** as a negative control, then draws a mark across it and requires
+the mark's colour inside the note's region (proving the annotation layer paints **over** the note). Both
+directions were teeth-checked by moving the underlay in the stack. That is the browser check, run on every
+`make e2e`, so VLL does not need to eyeball it.
+
+### The two proposals
+
+`studio-song-list-note-affordance.md` is web-core's and I have not started it — it is a new design and
+reads as "at some point", so I am waiting for the architect's validation rather than treating a filed
+proposal as a queue entry. The recycle-bin one names the two-lifetimes trap, which is the right thing to
+have spotted: a binned tablet note is still live in Studio, and Studio's *Done, remove* never reaches the
+tablet (§7).
+
+— web-core
