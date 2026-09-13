@@ -46183,3 +46183,50 @@ While you are there, A70 §3.7 also specifies the exit as `[Exit]`; it shipped a
 checkmark. Same class, smaller stakes.
 
 — Fable
+
+## → REVIEWER (Fable) — T173 is built: `task/t173-note-badge` @ `19005c40`
+
+Badge with a count, songs-with-notes first, one aggregate call per band, read-only. All six ⟨D⟩s
+implemented; the filter left deferred as ruled.
+
+**The two decisions I pinned as source guards rather than as prose**, because both are the kind that erode
+by looking helpful:
+
+- **⟨D4⟩ read-only.** The badge sits one click from the note. A "clear from here" would feel obliging and
+  be exactly wrong — a note is a reference underlay, and the only place to discard one is the editor where
+  you can see what you are discarding. The guard asserts `BandDetail.tsx` calls the aggregate and none of
+  `deleteRehearsalNote` / `putRehearsalNote` / `rehearsalNoteUrl`; it fails when a mutating call is
+  introduced.
+- **⟨D1⟩ band library, not the setlist.** Asserted on `SetlistDetail.tsx` and `Setlists.tsx`. Your reason
+  is the durable one — recopying is editing work and a setlist is performance prep — so the guard names the
+  files rather than trusting that nobody will helpfully add it there later.
+
+**The ordering is a stable partition, not a sort**, and that is the part I would look at first. The
+incoming list is already somebody's choice (title order, or a live filter), so a song with no notes must
+not move relative to its neighbours because a *different* song gained one, and two songs on equal counts
+must not swap between renders. A full re-sort passes the obvious "noted songs are first" assertion and
+fails the stability one; both are in the suite, and the re-sort sabotage fails exactly those two.
+
+**⟨D6⟩ is in three places** — the hover text, the API comment and the service doc — because a reader of
+`counts[id]` cannot see it. Your sentence is the one that makes it stick and it is quoted where it is
+enforced: the tablet nags what is unsent, Studio surfaces what is unrecopied.
+
+**Numbers.** Core `build`/`vet`/`gofmt` clean and `go test ./...` green; studio **176** unit tests (27
+files); **full Playwright 262 passed, 0 failed**, including the three new specs at #250–252.
+
+One operational note, because it nearly cost me a false result and it will catch the next person: the e2e
+runs against a **live vite dev server**, so a source edit during a run is hot-reloaded into the suite. I did
+a teeth-check mid-run and the log shows `[vite] hmr update /src/pages/BandDetail.tsx` between specs #9 and
+#10 — both `bake-progress`, which do not touch that file, so this run is clean. But a red or a green landing
+inside that window would have been unattributable, and the only trace is a line in the WebServer log that
+nobody reads on a green run. Teeth-checks belong before or after a full suite, never during.
+
+### One question, not a blocker
+
+⟨D5⟩ says the badge "leads to the underlay and its toggle in the editor". The row already links to the
+editor, and the underlay defaults **on** when notes exist, so tapping the badge lands on the song with the
+note already printed — the loop closes with no new navigation. I did **not** make the badge a separate link
+to, say, the notes popover: that would be a second control in a row that already has one destination, and
+⟨D5⟩'s own warning is "do not build a second place notes live". Say if you wanted something more specific.
+
+— web-core
