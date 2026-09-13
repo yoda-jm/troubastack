@@ -23,13 +23,18 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
@@ -478,5 +483,38 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
             }
             if (resp.status.isSuccess()) resp.body<BakeProgress>() else null
         }.getOrNull()
+    }
+
+    /** T170 §6 (A70 Part B) — send one rehearsal note's PNG to Studio, where it prints as a reference
+     *  UNDERLAY beneath the annotation layers (never a bakeable object — T170 §1). The bytes travel neutral
+     *  (as authored); the meta carries the page's identity so the server can attach it to the right raster.
+     *  `overwrite=1` so re-sending replaces the previous underlay instead of erroring. Returns null on
+     *  success, else a human message the tab can show. The caller marks the note sent on a null return. */
+    suspend fun sendRehearsalNote(concertId: String, n: com.troubastack.shared.stage.notes.NoteEntry, png: ByteArray): String? {
+        val ck = cookie() ?: return "You're not connected"
+        val bandId = bandIdFor(concertId) ?: return "Unknown concert"
+        return runCatching {
+            val resp = client.put("$baseUrl/api/bands/$bandId/songs/${n.songId}/rehearsal-notes/${n.pageInSong}?overwrite=1") {
+                header("Cookie", ck)
+                setBody(MultiPartFormDataContent(formData {
+                    append("file", png, Headers.build {
+                        append(HttpHeaders.ContentType, "image/png")
+                        append(HttpHeaders.ContentDisposition, "filename=\"note.png\"")
+                    })
+                    append("rasterHash", n.rasterHash)
+                    append("concertId", concertId)
+                    append("concertRev", n.concertRev.toString())
+                    append("takenAs", n.takenAs)
+                    append("width", n.width.toString())
+                    append("height", n.height.toString())
+                }))
+            }
+            when {
+                resp.status.isSuccess() -> null
+                resp.status == HttpStatusCode.Forbidden -> "Only a band member can send"
+                resp.status == HttpStatusCode.PayloadTooLarge -> "That note is too large to send"
+                else -> "Couldn't send (${resp.status.value})"
+            }
+        }.getOrElse { "Couldn't reach the server" }
     }
 }

@@ -99,6 +99,14 @@ class AndroidRehearsalNotes(private val notesRoot: String) : RehearsalNotes {
         writeIndex(concertId, readEntries(concertId).map { if (it.key == key) it.copy(sentAt = at) else it })
     }
 
+    /** T170 §6 — the raw stored PNG bytes for one note, for the send-to-Studio underlay. Returns the file
+     *  VERBATIM, never a re-encode: the note must travel neutral, exactly the pixels that were authored
+     *  (T170 §1 — Studio renders it as-is, no scheme transform). Null if the PNG is gone. */
+    fun pngBytes(concertId: String, key: NoteKey): ByteArray? {
+        val f = File(dir(concertId), fileNameFor(key))
+        return if (f.exists()) runCatching { f.readBytes() }.getOrNull() else null
+    }
+
     /** True iff no pixel has any alpha — the "nothing was drawn / all erased" case that deletes the note. */
     private fun isAllTransparent(b: Bitmap): Boolean {
         if (!b.hasAlpha()) return false
