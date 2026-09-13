@@ -552,3 +552,111 @@ func TestRehearsalNote_CapturedAtWhenSent(t *testing.T) {
 		t.Fatalf("a boot counter was accepted as capturedAt = %v", n.CapturedAt)
 	}
 }
+
+// ---- T173: the band-wide aggregate behind the song list badge -------------------------
+
+// TestBandRehearsalNoteCounts_IsPerOwnerAndPerBand is the whole contract of ⟨D3⟩'s one call: it counts
+// the CALLER's notes, in ONE band, keyed by song — and it must not leak either axis. A count that
+// included another member's notes would put a badge on a song the viewer has nothing to do; one that
+// crossed bands would nag about a library they are not looking at.
+func TestBandRehearsalNoteCounts_IsPerOwnerAndPerBand(t *testing.T) {
+	for _, be := range backends() {
+		t.Run(be.name, func(t *testing.T) {
+			repo := be.make(t)
+			alice := newClient(t, repo)
+			bandA, songA1 := bandSong(t, alice, "alice")
+
+			// a second song in the same band, and a second band with its own song
+			_, body := alice.do(http.MethodPost, "/api/bands/"+bandA+"/songs", map[string]string{"title": "S2"})
+			var song2 app.Song
+			unmarshalField(t, body, "song", &song2)
+			_, body = alice.do(http.MethodPost, "/api/bands", map[string]string{"name": "Other"})
+			var bandB app.Band
+			unmarshalField(t, body, "band", &bandB)
+			_, body = alice.do(http.MethodPost, "/api/bands/"+bandB.ID+"/songs", map[string]string{"title": "S3"})
+			var song3 app.Song
+			unmarshalField(t, body, "song", &song3)
+
+			counts := func(c *client, band string) map[string]int {
+				t.Helper()
+				resp, b := c.do(http.MethodGet, "/api/bands/"+band+"/rehearsal-notes", nil)
+				mustStatus(t, resp, http.StatusOK)
+				var out map[string]int
+				unmarshalField(t, b, "counts", &out)
+				return out
+			}
+
+			if got := counts(alice, bandA); len(got) != 0 {
+				t.Fatalf("a band with no notes returns %v, want an empty object", got)
+			}
+
+			// two notes on one song, one on another, one in the OTHER band
+			for _, page := range []string{"0", "1"} {
+				resp, _ := alice.putNote(notesBase(bandA, songA1)+"/"+page, "n.png", notePNG(t, 1), noteFields("h", "c"))
+				mustStatus(t, resp, http.StatusOK)
+			}
+			resp, _ := alice.putNote(notesBase(bandA, song2.ID)+"/0", "n.png", notePNG(t, 2), noteFields("h", "c"))
+			mustStatus(t, resp, http.StatusOK)
+			resp, _ = alice.putNote(notesBase(bandB.ID, song3.ID)+"/0", "n.png", notePNG(t, 3), noteFields("h", "c"))
+			mustStatus(t, resp, http.StatusOK)
+
+			got := counts(alice, bandA)
+			want := map[string]int{songA1: 2, song2.ID: 1}
+			if len(got) != len(want) {
+				t.Fatalf("band A counts = %v, want %v — the other band's note leaked in", got, want)
+			}
+			for k, v := range want {
+				if got[k] != v {
+					t.Errorf("song %s counted %d, want %d", k, got[k], v)
+				}
+			}
+			if b := counts(alice, bandB.ID); len(b) != 1 || b[song3.ID] != 1 {
+				t.Errorf("band B counts = %v, want exactly one note on its own song", b)
+			}
+
+			// a second member of band A sees THEIR OWN zero, not alice's two
+			_, body = alice.do(http.MethodPost, "/api/bands/"+bandA+"/invite-links", map[string]any{"role": "member"})
+			var token string
+			unmarshalField(t, body, "token", &token)
+			bob := &client{t: t, srv: alice.srv}
+			bob.registerLogin("bob", "pw123456")
+			resp, _ = bob.do(http.MethodPost, "/api/invite-links/"+token+"/accept", nil)
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+				t.Fatalf("bob could not join: %d", resp.StatusCode)
+			}
+			if got := counts(bob, bandA); len(got) != 0 {
+				t.Fatalf("bob sees %v — another member's notes are not his to clear, or even to know about", got)
+			}
+		})
+	}
+}
+
+// TestBandRehearsalNoteCounts_NonMemberIsForbidden — the band rule, unchanged, on the new surface.
+func TestBandRehearsalNoteCounts_NonMemberIsForbidden(t *testing.T) {
+	alice := newClient(t, backends()[0].make(t))
+	bandID, _ := bandSong(t, alice, "alice")
+	stranger := &client{t: t, srv: alice.srv}
+	stranger.registerLogin("mallory", "pw123456")
+	resp, _ := stranger.do(http.MethodGet, "/api/bands/"+bandID+"/rehearsal-notes", nil)
+	mustStatus(t, resp, http.StatusForbidden)
+}
+
+// TestBandRehearsalNoteCounts_DropToZeroOnRemove: ⟨D6⟩'s first half, as behaviour. "Done, remove" clears
+// the badge — the song leaves the map entirely rather than sitting at zero, so the client never has to
+// tell absent from 0.
+func TestBandRehearsalNoteCounts_DropToZeroOnRemove(t *testing.T) {
+	c := newClient(t, backends()[0].make(t))
+	bandID, songID := bandSong(t, c, "alice")
+	resp, _ := c.putNote(notesBase(bandID, songID)+"/0", "n.png", notePNG(t, 1), noteFields("h", "c"))
+	mustStatus(t, resp, http.StatusOK)
+	resp, _ = c.do(http.MethodDelete, notesBase(bandID, songID)+"/0", nil)
+	mustStatus(t, resp, http.StatusNoContent)
+
+	resp, body := c.do(http.MethodGet, "/api/bands/"+bandID+"/rehearsal-notes", nil)
+	mustStatus(t, resp, http.StatusOK)
+	var out map[string]int
+	unmarshalField(t, body, "counts", &out)
+	if len(out) != 0 {
+		t.Fatalf("after Done-remove the aggregate still reports %v", out)
+	}
+}

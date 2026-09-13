@@ -741,6 +741,17 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   user-select: none;
 }
 
+/* T173 — the song list's "a rehearsal note is waiting here" badge. A POINTER into the editor where the
+   underlay already lives, never a control: nothing on this surface may mutate a note. Sized to sit
+   inside the row without changing its height, so a library that gains a badge does not reflow. */
+.song-note-badge {
+  display: inline-flex; align-items: center; gap: .2rem;
+  margin-left: .45rem; padding: .05rem .4rem;
+  border-radius: .5rem; font-size: .72rem; line-height: 1.5;
+  background: rgba(225, 29, 72, .14); color: var(--brand-accent, #e11d48);
+  white-space: nowrap; vertical-align: baseline;
+}
+
 .rehearsal-chip-wrap { display: inline-flex; align-items: center; gap: .15rem; position: relative; }
 .rehearsal-chip-more { padding-inline: .45rem; }
 .rehearsal-popover {

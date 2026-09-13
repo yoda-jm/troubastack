@@ -696,6 +696,18 @@ func (r *Repo) DeleteRehearsalNote(ownerUserID, songID string, pageInSong int) e
 	return nil
 }
 
+func (r *Repo) CountRehearsalNotesByBand(ownerUserID, bandID string) (map[string]int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := map[string]int{}
+	for _, n := range r.rehearsalNotes {
+		if n.OwnerUserID == ownerUserID && n.BandID == bandID {
+			out[n.SongID]++
+		}
+	}
+	return out, nil
+}
+
 func (r *Repo) CountRehearsalNotesByBlob(blobHash string) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

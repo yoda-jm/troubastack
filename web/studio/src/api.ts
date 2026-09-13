@@ -644,6 +644,17 @@ export const api = {
     `/api/bands/${bandId}/songs/${songId}/rehearsal-notes/${page}` +
     (blobHash ? `?v=${blobHash}` : ""),
 
+  // T173 ⟨D3⟩ — ONE call per band behind the song list's badge, never one per song. Songs with no
+  // notes are omitted, so `counts[songId] ?? 0` is the only read a caller needs.
+  //
+  // ⟨D6⟩: this counts notes SITTING IN STUDIO. A note the tablet has not sent is invisible here, and
+  // "Done, remove" clears the badge while the tablet still holds its copy — removal never travels back
+  // (T170 §7). An empty result means "nothing waiting in Studio", never "nobody has notes".
+  bandRehearsalNoteCounts: (bandId: string) =>
+    request<{ counts: Record<string, number> }>("GET", `/api/bands/${bandId}/rehearsal-notes`).then(
+      (r) => r.counts ?? {},
+    ),
+
   deleteRehearsalNote: (bandId: string, songId: string, page: number) =>
     request<void>("DELETE", `/api/bands/${bandId}/songs/${songId}/rehearsal-notes/${page}`),
 

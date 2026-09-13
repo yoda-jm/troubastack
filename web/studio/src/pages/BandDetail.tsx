@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { badgeTitle, noteCount, withNotesFirst } from "./song-editor/noteBadge";
 import { Link, useLocation } from "react-router-dom";
 import QRCode from "qrcode";
 import {
@@ -317,6 +318,36 @@ function Songs({ bandId }: { bandId: string }) {
     void load();
   }, [load]);
 
+  // T173 — which of MY songs have a rehearsal note waiting in Studio. One call for the whole band
+  // (⟨D3⟩), and a failure degrades to "no badges" rather than to an error banner: the song list must
+  // open whether or not this answered, because nothing here is the reason the user came.
+  //
+  // But the degrade has to stay LEGIBLE. Without the third state, "nobody has notes" and "the request
+  // failed" render identically as an unbadged list, and a musician reading a clean list concludes there
+  // is no work to do — the exact misreading ⟨D6⟩ exists to prevent, and the badge tooltip cannot correct
+  // it because in that state there is no badge to hover. So the outcome is tracked, not just the data.
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  const [noteFetch, setNoteFetch] = useState<"loading" | "ready" | "failed">("loading");
+  useEffect(() => {
+    let live = true;
+    setNoteFetch("loading");
+    api
+      .bandRehearsalNoteCounts(bandId)
+      .then((c) => {
+        if (!live) return;
+        setNoteCounts(c);
+        setNoteFetch("ready");
+      })
+      .catch(() => {
+        if (!live) return;
+        setNoteCounts({});
+        setNoteFetch("failed");
+      });
+    return () => {
+      live = false;
+    };
+  }, [bandId]);
+
   async function onCreate(e: FormEvent): Promise<boolean> {
     e.preventDefault();
     setError(null);
@@ -336,7 +367,10 @@ function Songs({ bandId }: { bandId: string }) {
   }
 
   const q = foldText(query.trim());
-  const filtered = q ? songs.filter((s) => foldText(`${s.title} ${s.artist ?? ""}`).includes(q)) : songs;
+  const matched = q ? songs.filter((s) => foldText(`${s.title} ${s.artist ?? ""}`).includes(q)) : songs;
+  // ⟨D2⟩ — songs carrying notes come first, so the work to clear them is under the reader's nose
+  // instead of behind a filter they have to choose to enter. Ordering only; nothing is hidden.
+  const filtered = withNotesFirst(matched, noteCounts);
   const shown = filtered.slice(0, limit);
 
   return (
@@ -405,12 +439,43 @@ function Songs({ bandId }: { bandId: string }) {
               </p>
             ) : (
               <>
+                {/* ⟨D6⟩ — absence must be legible. A list with no badges is three different states
+                    (nothing waiting / not sent from a tablet / we could not check) and they are not
+                    interchangeable: only the first means there is no work. The tooltip carries this
+                    text when a badge exists; this line carries it when none does. */}
+                {noteFetch !== "loading" && (
+                  <p className="muted note-scope-note" data-testid="note-scope-note">
+                    {noteFetch === "failed"
+                      ? "Couldn’t check for rehearsal notes — this list may be missing badges."
+                      : noteCount(noteCounts) === 0
+                        ? "No rehearsal notes waiting in Studio. A note still on a tablet isn’t counted here."
+                        : "Rehearsal notes waiting in Studio are marked ✎. A note still on a tablet isn’t counted here."}
+                  </p>
+                )}
                 <ul className="list song-list" data-testid="songs-list">
                   {shown.map((s) => (
                     <li key={s.id}>
                       <Link to={`/bands/${bandId}/songs/${s.id}`} data-testid="song-link">
                         <span className="song-link-title">{s.title}</span>
                         {s.artist ? <span className="muted"> — {s.artist}</span> : null}
+                        {/* ⟨D5⟩ the badge is a POINTER, not a second place notes live: the row already
+                            leads to the editor, where the underlay and its toggle are. Nothing here
+                            mutates a note (⟨D4⟩) — no clear, no bulk delete on this surface. */}
+                        {(noteCounts[s.id] ?? 0) > 0 && (
+                          <span
+                            className="song-note-badge"
+                            data-testid="song-note-badge"
+                            // role="img" is what makes the label reach a screen reader: an aria-label on
+                            // a roleless <span> is a generic element's accessible name and assistive tech
+                            // may drop it entirely. Without this the ⟨D6⟩ text had two channels and both
+                            // were conditional — hover-only, and maybe-announced.
+                            role="img"
+                            title={badgeTitle(noteCounts[s.id])}
+                            aria-label={badgeTitle(noteCounts[s.id])}
+                          >
+                            ✎ {noteCounts[s.id]}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   ))}

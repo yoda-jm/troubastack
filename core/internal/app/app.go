@@ -525,6 +525,10 @@ type Repo interface {
 	ListRehearsalNotes(ownerUserID, songID string) ([]RehearsalNote, error)
 	// DeleteRehearsalNote removes one note. Idempotent: deleting an absent note is not an error.
 	DeleteRehearsalNote(ownerUserID, songID string, pageInSong int) error
+	// CountRehearsalNotesByBand returns, for ONE owner, how many notes they have per song across a
+	// whole band — the T173 ⟨D3⟩ aggregate, so the song list costs one call and not one per song.
+	// Songs with no notes are absent rather than present with a zero.
+	CountRehearsalNotesByBand(ownerUserID, bandID string) (map[string]int, error)
 	// CountRehearsalNotesByBlob counts notes (across all owners) still pointing at blobHash.
 	// Content-addressing means two members sending the same PNG share one blob, so the bytes
 	// may only be dropped when this reaches zero — AND no SongFile references them either.

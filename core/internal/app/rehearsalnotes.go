@@ -178,6 +178,23 @@ func (s *Service) pageChanged(n RehearsalNote) *bool {
 	return &changed
 }
 
+// PendingRehearsalNotes answers the ONE question the band's song list asks: which of my songs have a
+// rehearsal note sitting in Studio, and how many? T173 ⟨D3⟩ — one call per band, never one per song.
+//
+// ⟨D6⟩, and it belongs in the code as much as in the UI copy: this counts notes IN STUDIO and nothing
+// else. A note the tablet has not sent is invisible here (the tablet is the only surface that knows it
+// exists, and the only one that can act on it), and a note removed with "Done, remove" disappears from
+// this count while the tablet still holds its copy — removal never travels back (T170 §7). So an empty
+// result means "nothing waiting in Studio", never "nobody has notes".
+//
+// Read-only by construction: it returns counts and no ids to act on (⟨D4⟩).
+func (s *Service) PendingRehearsalNotes(caller User, bandID string) (map[string]int, error) {
+	if _, _, err := s.GetBand(caller, bandID); err != nil {
+		return nil, err
+	}
+	return s.repo.CountRehearsalNotesByBand(caller.ID, bandID)
+}
+
 // RehearsalNoteBytes returns one of the caller's own notes and its PNG. A note belonging to
 // someone else is ErrNotFound, NOT ErrForbidden: whether another member has drawn on a page
 // is not information a non-owner is entitled to, and a 403 would leak exactly that.

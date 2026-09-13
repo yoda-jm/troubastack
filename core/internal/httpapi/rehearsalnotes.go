@@ -18,6 +18,9 @@ import (
 func (a *WebAPI) mountRehearsalNotes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/bands/{bandId}/songs/{songId}/rehearsal-notes/{page}", a.auth(a.putRehearsalNote))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/rehearsal-notes", a.auth(a.listRehearsalNotes))
+	// T173 ⟨D3⟩ — the band-wide aggregate behind the song list's badge. Deliberately NOT under
+	// /songs/: it is a property of the band's library, not of any one song.
+	mux.HandleFunc("GET /api/bands/{bandId}/rehearsal-notes", a.auth(a.bandRehearsalNoteCounts))
 	mux.HandleFunc("GET /api/bands/{bandId}/songs/{songId}/rehearsal-notes/{page}", a.auth(a.getRehearsalNote))
 	mux.HandleFunc("DELETE /api/bands/{bandId}/songs/{songId}/rehearsal-notes/{page}", a.auth(a.deleteRehearsalNote))
 }
@@ -92,6 +95,21 @@ func (a *WebAPI) listRehearsalNotes(w http.ResponseWriter, r *http.Request, u ap
 		notes = []app.RehearsalNoteView{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"notes": notes})
+}
+
+// bandRehearsalNoteCounts serves { songId: count } for the CALLER's own notes in one band. Songs with
+// no notes are omitted, so an empty object is the ordinary "nothing waiting" answer and the client never
+// has to distinguish absent from zero.
+func (a *WebAPI) bandRehearsalNoteCounts(w http.ResponseWriter, r *http.Request, u app.User) {
+	counts, err := a.svc.PendingRehearsalNotes(u, r.PathValue("bandId"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if counts == nil {
+		counts = map[string]int{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"counts": counts})
 }
 
 func (a *WebAPI) getRehearsalNote(w http.ResponseWriter, r *http.Request, u app.User) {
