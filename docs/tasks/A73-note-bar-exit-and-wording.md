@@ -39,15 +39,28 @@ that locates this button by the string "Done"** rather than deleting the asserti
 `fitMode == FitMode.SCROLL`, so notes are allowed in **Page and Width** both; the string names one and
 lowercases it besides. Use **"Notes: switch to Page or Width"**. Verified against the guard, not the prose.
 
-## 5. ⟨D4⟩ Fold in the Clear → Erase alignment
+## 5. ⟨D4⟩ — **STRUCK 2026-09-14 by ⟨D5⟩. Do not do this.**
 
-The UI settled on **Erase**; the code still says clear — `onClear`, `confirmClear` (`:881`, `:1900`, `:1902`,
-`:1941-1946`) and the doc comment at `:1896` still lists "Done". Rename to match the words on screen and
-refresh the comment. Mechanical, but this is the touch it was queued for.
+It read: *the UI settled on Erase, so rename the code's `clear` to match.* ⟨D5⟩ moved the UI the other way,
+which makes `onClear`/`confirmClear` the **correct** names. **Keep them.** Kept here as the record of why the
+rename was queued and why it is not happening — the only thing still owed from it is refreshing the `:1896`
+doc comment, which still lists "Done" (see ⟨D1⟩).
 
-**Not in scope: the "Erase note" button's own wording** (glossary D23 — the destructive full-note delete
-sitting next to the ⌫ eraser *tool*). That is a product word and VLL's call; if his answer arrives before
-this starts, fold it in, otherwise leave the string exactly as it is.
+## 5b. ⟨D5⟩ The destructive button becomes "Clear page" (VLL, 2026-09-14)
+
+Glossary D23 resolved. The full-note delete sitting beside the ⌫ eraser *tool* becomes **"Clear page"**.
+VLL chose it with the tension named in front of him — that the UI had previously moved *away* from "clear" —
+so this is settled, not an oversight. Consequence: ⟨D4⟩ reverses (above), and the confirmation dialog must
+follow the button:
+
+- title `"Erase this note?"` → **"Clear this page?"**
+- confirm `"Erase"` → **"Clear"**
+- **body text stays exactly as it is**: *"Deletes the whole note on this page — this can't be undone."*
+
+That last line is not cosmetic and must not be "aligned" along with the rest. On Stage a **page** is a page
+of music. "Clear page" on its own can be read as clearing the score; the body sentence is the only thing that
+says what actually goes away, so it keeps the word **note** and keeps naming the scope. Any rewording that
+drops "the whole note on this page" needs to come back through the gate.
 
 ## 6. Acceptance
 
@@ -56,4 +69,6 @@ this starts, fold it in, otherwise leave the string exactly as it is.
   the new glyph** — no adb, no back gesture. A seam test proves the click handler and is blind to whether a
   performer recognises the mark, which is the entire question ⟨D1⟩ turns on. Report it as seen.
 - The refusal string appears in Scroll and names both working modes.
-- No occurrence of `clear` left in the note-bar code path; no test still matching on "Done".
+- The destructive button reads "Clear page"; its dialog says "Clear this page?" / "Clear", and its body still
+  says "Deletes the whole note on this page". The code keeps `onClear`/`confirmClear` (⟨D4⟩ struck).
+- No test still matching on "Done" or on "Erase note".

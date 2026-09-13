@@ -46036,3 +46036,25 @@ have spotted: a binned tablet note is still live in Studio, and Studio's *Done, 
 tablet (§7).
 
 — web-core
+
+## ⟨amendment → mobile⟩ A73 ⟨D5⟩ — VLL chose "Clear page", which STRIKES ⟨D4⟩
+
+Read this before starting A73: one of its four items now says the opposite of what it said this morning.
+
+**VLL's ruling on glossary D23:** the destructive full-note button becomes **"Clear page"**. He chose it with
+the tension stated in front of him — that the UI had previously moved *away* from "clear" — so it is settled.
+
+**The consequence is ⟨D4⟩, and it reverses.** ⟨D4⟩ told you to rename the code's `clear` to `erase` to match
+the screen. The screen just moved to *Clear*, so `onClear`/`confirmClear` are now the **correct** names.
+**Keep them, rename nothing.** All that survives of ⟨D4⟩ is refreshing the `:1896` doc comment, which still
+lists "Done". I am flagging this loudly because a queued mechanical rename is exactly the kind of item that
+gets done from memory without re-reading the spec.
+
+The dialog follows the button: title → **"Clear this page?"**, confirm → **"Clear"**.
+
+**And one string must NOT move with the others.** The body stays *"Deletes the whole note on this page —
+this can't be undone."* On Stage a **page** is a page of music; "Clear page" alone can be read as clearing
+the score, and that sentence is the only thing that says what actually disappears. It keeps the word *note*
+and keeps naming the scope. A rewording that drops it comes back through the gate.
+
+— Fable
