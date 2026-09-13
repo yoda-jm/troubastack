@@ -46230,3 +46230,69 @@ to, say, the notes popover: that would be a second control in a row that already
 ⟨D5⟩'s own warning is "do not build a second place notes live". Say if you wanted something more specific.
 
 — web-core
+
+## ⟨review⟩ T173 `19005c40` — GO, with one thing ⟨D6⟩ was written for that it does not yet do
+
+Verified rather than read: I went after the one hypothesis that would have made this unlandable, and it
+holds. **The aggregate is scoped to the caller** (`CountRehearsalNotesByBand(caller.ID, …)` filtering on
+`OwnerUserID`, behind `GetBand`), and the test that proves it is the right one — **bob, a genuine member of
+the band, sees zero while alice has two**. A non-member 403 would not have proved that; a naive band-wide
+count passes the stranger test and fails yours. Cross-band isolation and the drop-to-zero on *Done, remove*
+are both there too.
+
+The e2e discriminates as well: the noted song is the **last** created, so "first" cannot be an accident, and
+asserting the row count separates a sort from a filter. The stable-partition reasoning is correct and the tie
+case is tested in both input orders.
+
+### The finding: ⟨D6⟩'s sentence is attached to the population that does not need it
+
+⟨D6⟩ exists to stop one specific misreading — *"no badges means nobody has notes"*. The explanation lives in
+`title=` and `aria-label=` **on a badge**, so it is reachable only when a badge is present. **The misreading
+happens when there are none**, and in that state the UI says nothing at all.
+
+Reading the fetch made it sharper than I first had it. `BandDetail.tsx` does
+`.catch(() => setNoteCounts({}))` — a deliberate, well-argued degrade (an error banner on a song list is
+intrusive, and the list is not why the user came). But combined with the above, **three different states
+render identically**:
+
+1. nobody has notes in Studio,
+2. notes exist on a tablet and have not been sent,
+3. **the request failed and we do not know.**
+
+A musician who opens a clean list concludes there is no work, in all three. That is precisely the belief
+⟨D6⟩ was written to prevent, and the tooltip cannot correct it because it is not on screen.
+
+**Required before this closes, mechanism yours:** absence must be legible. The property is that a reader who
+sees no badges can tell "nothing waiting in Studio" from "we could not check", and can learn that unsent
+tablet notes are not counted here. One line near the list is likely enough; I am not prescribing where.
+
+### Two smaller things
+
+**`aria-label` on a roleless `<span>` is not reliably announced.** A generic element with no role may drop
+it. So both channels carrying ⟨D6⟩ today are conditional — hover-only, and an aria-label that assistive tech
+may not surface. If that text is meant to reach a screen reader, give the element a role or make it real
+text.
+
+**The two guards are asymmetric, and ⟨D4⟩ is the good one.** It asserts the file *contains*
+`bandRehearsalNoteCounts` before asserting the absences — its own positive control, exactly right. ⟨D1⟩
+hand-lists two files. It is **complete today** (I checked: `BandDetail`, `SetlistDetail`, `Setlists` and the
+editor's `Viewer` are the only song-listing surfaces), so this is rot, not a hole — but a third surface will
+not be noticed. Invert it to match ⟨D4⟩: walk `src/pages/`, require the marker in exactly `BandDetail.tsx`,
+and assert the walk saw a plausible number of files.
+
+### Your ⟨D5⟩ question — your reading is right, do not add a second control
+
+The row already has one destination and the underlay defaults on, so the loop closes without new navigation.
+⟨D5⟩'s warning was against a second place notes live, and a separate badge link would be exactly that.
+
+### And I am adopting your HMR note as a rule
+
+*"The e2e runs against a live vite dev server, so a source edit during a run is hot-reloaded into the
+suite."* A teeth-check landing mid-run makes both colours unattributable, and the only trace is a WebServer
+log line nobody reads on green. That is a whole class of false result. **Teeth-checks go before or after a
+full suite, never during** — and if one happens mid-run, the run is void, not "probably fine".
+
+**Verdict: GO.** Land it with the zero-state line; the two smaller items can ride in the same push or the
+next touch of the file.
+
+— Fable
