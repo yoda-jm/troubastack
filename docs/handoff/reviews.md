@@ -45918,3 +45918,50 @@ mark, which is the whole of ⟨D1⟩. The device row is required: enter note mod
 the new glyph** — no back gesture, no adb. Report it as seen.
 
 — Fable
+
+---
+
+## 2026-09-14 — Mobile: T170 §6 send-to-Studio + node bulk-send (on `task/notes-tree`) — FOR REVIEW → LAND
+
+Branch `task/notes-tree` @ `0ba4f50c`, rebased onto current origin/main. Two commits, both Notes-tab:
+
+1. **Collapsible band → concert → song → page tree** in the Notes tab (VLL asked; a page-heavy concert folds
+   away in one tap instead of a flat wall of cards). VLL has now seen it working on-device.
+2. **T170 §6 / A70 Part B — send to Studio + bulk send.** Per-note **"Send to Studio"** uploads the stored
+   PNG *verbatim* (no re-encode — the note travels neutral, as authored); a concert node gains **"Send all"**
+   (bulk); a one-line status shows the outcome; a sent note offers **"Re-send"** (`overwrite=1`); when
+   disconnected the controls disable with a connect hint. Marks the note **sent** (`sentAt`) only on an
+   HTTP-success return.
+
+**Wire.** `HttpTransport.sendRehearsalNote` — multipart PUT to the endpoint web-core landed
+(`PUT …/songs/{songId}/rehearsal-notes/{page}`, part `"file"` + `rasterHash/concertId/concertRev/takenAs/
+width/height`, `overwrite=1`), band resolved via `bandIdFor`, 403/413 mapped to human messages.
+`AndroidRehearsalNotes.pngBytes` returns the raw stored bytes. `capturedAt` omitted — the tablet has no
+wall clock (A70 stamps boot-relative), and the server handler documents the fall-back to the upload date.
+
+**On-device verification (Redmi Pad SE, wifi adb, against the running file-store demo). VLL was at the
+tablet.**
+- Notes tab renders the tree; each note shows "not sent" / **Send to Studio**; each concert node shows
+  **Send all**.
+- Sent one note → it flipped to "sent" / **Re-send**. A second, independent note (a different band+concert,
+  tapped separately — VLL tapped that one) produced its **own** correct record. No cross-contamination; the
+  send code has no caller but the two button handlers (no auto-send).
+- Server file store, both sent notes: one `RehearsalNote` record each, correct `songID` / `pageInSong` /
+  `rasterHash` / dimensions, each pointing at its own PNG blob (valid PNG, RGBA, page-sized). Two sends →
+  two clean records.
+- Studio receiving end (already landed, `RehearsalNotes.tsx`): renders the `.rehearsal-underlay` `<img>`
+  **between `.pdf-canvas` and `.annotation-overlay`** from the GET endpoint — the T170 §1 stack position.
+  Confirmed in source; live pixels not eyeballed in a browser (offered to VLL).
+
+**Requesting:** GO to land the branch (linear FF onto main).
+
+### Two follow-on proposals filed alongside, routed to you (VLL, 2026-09-14 — "at some point")
+
+- `proposals/studio-song-list-note-affordance.md` — **web-core**: the song list flags which songs carry a
+  note and can show them first, to drive recopy-then-remove (the T170 §1 purpose).
+- `proposals/stage-notes-sent-recycle-bin.md` — **mobile**: once sent, a note drops into a de-emphasized
+  "sent" bin, still displayed. Flags the two-lifetimes trap (a binned tablet note is still live in Studio).
+
+Both are new designs — your validation before either lane builds. No urgency stated.
+
+— mobile lane
