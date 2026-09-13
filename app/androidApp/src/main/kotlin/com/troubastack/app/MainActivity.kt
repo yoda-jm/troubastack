@@ -63,6 +63,7 @@ import com.troubastack.shared.ui.ThemePref
 import com.troubastack.shared.ui.TroubaTheme
 import com.troubastack.shared.home.HomeState
 import com.troubastack.shared.home.Identity
+import com.troubastack.shared.stage.notes.NoteEntry
 import com.troubastack.shared.home.UpdateStatus
 import com.troubastack.shared.home.updateOutcomeStatus
 import com.troubastack.shared.home.updateSummary
@@ -986,32 +987,66 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
     var collapsed by remember { mutableStateOf(emptySet<String>()) }
     fun toggle(k: String) { collapsed = if (k in collapsed) collapsed - k else collapsed + k }
     // T170 §6 — send state. [busy] holds the ids of notes currently uploading (per-note spinner + disable
-    // + a concert node's "Sending…"); [status] is the one-line outcome shown at the top of the tab.
+    // + a concert node's "Sending…"); [status] is the one-line outcome. [myId] is the signed-in user, for
+    // the identity prompt; [owAsk]/[idAsk] are the two confirmations the spec requires before a send.
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(emptySet<String>()) }
     var status by remember { mutableStateOf<String?>(null) }
-    fun noteId(cid: String, n: com.troubastack.shared.stage.notes.NoteEntry) = "$cid:${n.file}"
-    fun send(items: List<Pair<String, com.troubastack.shared.stage.notes.NoteEntry>>) {
-        if (!connected || items.isEmpty()) return
-        val ids = items.map { (c, n) -> noteId(c, n) }.toSet()
-        busy = busy + ids
-        status = if (items.size == 1) "Sending…" else "Sending ${items.size} notes…"
+    var myId by remember { mutableStateOf<String?>(null) }
+    var owAsk by remember { mutableStateOf<Pair<String, NoteEntry>?>(null) }
+    // idAsk: the items to send once the "under your account" identity prompt is confirmed, + whether it was a
+    // bulk request (so the confirm resumes the right path). §6 step 1.
+    var idAsk by remember { mutableStateOf<Pair<List<Pair<String, NoteEntry>>, Boolean>?>(null) }
+    LaunchedEffect(connected) { if (connected) myId = transport.myUserId() }
+    fun noteId(cid: String, n: NoteEntry) = "$cid:${n.file}"
+    // §3.3: a note whose taker isn't the signed-in user. Unknown id (offline/failed /api/me) ⇒ no prompt.
+    fun isForeign(n: NoteEntry) = myId?.let { n.takenAs.isNotEmpty() && n.takenAs != it } ?: false
+
+    // One note. [overwrite] off for a first send so a 409 surfaces the overwrite prompt; a Re-send passes it.
+    fun launchSend(cid: String, n: NoteEntry, overwrite: Boolean) {
+        val id = noteId(cid, n); busy = busy + id; status = "Sending…"
         scope.launch {
-            var ok = 0; var fail = 0
+            val png = port.pngBytes(cid, n.key)
+            val res = if (png == null) NoteSendResult.Failed("Couldn't read the note") else transport.sendRehearsalNote(cid, n, png, overwrite)
+            busy = busy - id
+            when (res) {
+                NoteSendResult.Ok -> { port.markSent(cid, n.key, System.currentTimeMillis()); status = "Sent to Studio ✓"; refresh++; onChanged() }
+                NoteSendResult.Exists -> { status = null; owAsk = cid to n } // §3.2 409 → ask before clobbering
+                is NoteSendResult.Failed -> status = res.message
+            }
+        }
+    }
+
+    // A whole node. ⟨D1⟩ R2: already-sent notes are SKIPPED (never re-sent) and the skip is REPORTED; a 409
+    // means it's already in Studio, so mark it sent locally and count it skipped rather than overwrite.
+    fun launchBulk(items: List<Pair<String, NoteEntry>>) {
+        val ids = items.map { (c, n) -> noteId(c, n) }.toSet(); busy = busy + ids; status = "Sending…"
+        scope.launch {
+            var ok = 0; var skipped = 0; var fail = 0
             for ((cid, n) in items) {
+                if (n.sentAt != null) { skipped++; continue }
                 val png = port.pngBytes(cid, n.key)
-                val err = if (png == null) "missing file" else transport.sendRehearsalNote(cid, n, png)
-                if (err == null) { port.markSent(cid, n.key, System.currentTimeMillis()); ok++ } else fail++
+                when (if (png == null) NoteSendResult.Failed("x") else transport.sendRehearsalNote(cid, n, png, overwrite = false)) {
+                    NoteSendResult.Ok -> { port.markSent(cid, n.key, System.currentTimeMillis()); ok++ }
+                    NoteSendResult.Exists -> { port.markSent(cid, n.key, System.currentTimeMillis()); skipped++ }
+                    is NoteSendResult.Failed -> fail++
+                }
             }
             busy = busy - ids
-            status = when {
-                fail == 0 && ok == 1 -> "Sent to Studio ✓"
-                fail == 0 -> "Sent $ok notes to Studio ✓"
-                ok == 0 -> "Couldn't send — check your connection"
-                else -> "$ok sent · $fail failed"
-            }
+            val parts = buildList { if (ok > 0) add("$ok sent"); if (skipped > 0) add("$skipped already sent"); if (fail > 0) add("$fail failed") }
+            status = if (parts.isEmpty()) "Nothing to send" else parts.joinToString(" · ") + if (fail == 0) " ✓" else ""
             refresh++; onChanged()
         }
+    }
+
+    // Entry points — gate each on the identity prompt first (§6 step 1), then run.
+    fun onSendTap(cid: String, n: NoteEntry) {
+        if (!connected) return
+        if (isForeign(n)) idAsk = listOf(cid to n) to false else launchSend(cid, n, overwrite = n.sentAt != null)
+    }
+    fun onSendAll(items: List<Pair<String, NoteEntry>>) {
+        if (!connected || items.isEmpty()) return
+        if (items.any { (_, n) -> isForeign(n) }) idAsk = items to true else launchBulk(items)
     }
     if (notes.isEmpty()) {
         Text("No rehearsal notes yet. Open a concert and tap ✎ to take one.", style = MaterialTheme.typography.bodyMedium)
@@ -1030,7 +1065,7 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
                     item(key = concertKey) {
                         NoteTreeHeader(
                             labels[cid] ?: "Concert", concertNotes.size, collapsed = concertKey in collapsed, indent = 20.dp,
-                            onSendAll = if (connected) ({ send(concertNotes) }) else null, sendingAll = concertBusy,
+                            onSendAll = if (connected) ({ onSendAll(concertNotes) }) else null, sendingAll = concertBusy,
                         ) { toggle(concertKey) }
                     }
                     if (concertKey !in collapsed) {
@@ -1042,7 +1077,7 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
                                 item(key = "$cid2:${n.file}") {
                                     NoteCard(
                                         n, connected = connected, sending = noteId(cid2, n) in busy,
-                                        onSee = { see = cid2 to n }, onSend = { send(listOf(cid2 to n)) },
+                                        onSee = { see = cid2 to n }, onSend = { onSendTap(cid2, n) },
                                         onDelete = { port.delete(cid2, n.key); refresh++; onChanged() },
                                     )
                                 }
@@ -1063,6 +1098,31 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
                 if (bmp != null) Image(BitmapPainter(bmp), contentDescription = null, modifier = Modifier.fillMaxWidth(), colorFilter = null)
                 else Text("Couldn't load this note.")
             },
+        )
+    }
+    // T170 §3.2 — a first send hit a 409: a note is already in Studio for this page. Ask before clobbering it.
+    owAsk?.let { (cid, n) ->
+        AlertDialog(
+            onDismissRequest = { owAsk = null },
+            title = { Text("Overwrite the note in Studio?") },
+            text = { Text("A note for page ${n.pageInSong + 1} of “${n.songTitle.ifEmpty { "this song" }}” is already in Studio. Replace it with this one?") },
+            confirmButton = { TextButton(onClick = { owAsk = null; launchSend(cid, n, overwrite = true) }) { Text("Overwrite") } },
+            dismissButton = { TextButton(onClick = { owAsk = null; status = "Left the note in Studio unchanged" }) { Text("Cancel") } },
+        )
+    }
+    // T170 §6 step 1 — the note was taken under another member's name; confirm before sending it as yours.
+    idAsk?.let { (items, bulk) ->
+        AlertDialog(
+            onDismissRequest = { idAsk = null },
+            title = { Text("Send under your account?") },
+            text = { Text(if (bulk) "Some of these notes were taken as another member. Send them to Studio under your account?" else "This note was taken as another member. Send it to Studio under your account?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    idAsk = null
+                    if (bulk) launchBulk(items) else items.first().let { (c, n) -> launchSend(c, n, overwrite = n.sentAt != null) }
+                }) { Text("Send") }
+            },
+            dismissButton = { TextButton(onClick = { idAsk = null }) { Text("Cancel") } },
         )
     }
 }

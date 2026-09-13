@@ -485,16 +485,31 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
         }.getOrNull()
     }
 
+    /** The signed-in user's id, for the T170 §6 identity prompt (does this note's `takenAs` match me?).
+     *  Null if not connected or the round-trip fails — the caller then skips the prompt rather than guess. */
+    suspend fun myUserId(): String? {
+        val ck = cookie() ?: return null
+        return runCatching {
+            val me = client.get("$baseUrl/api/me") { header("Cookie", ck) }
+            if (me.status.isSuccess()) me.body<MeResp>().user.id.ifEmpty { null } else null
+        }.getOrNull()
+    }
+
     /** T170 §6 (A70 Part B) — send one rehearsal note's PNG to Studio, where it prints as a reference
      *  UNDERLAY beneath the annotation layers (never a bakeable object — T170 §1). The bytes travel neutral
      *  (as authored); the meta carries the page's identity so the server can attach it to the right raster.
-     *  `overwrite=1` so re-sending replaces the previous underlay instead of erroring. Returns null on
-     *  success, else a human message the tab can show. The caller marks the note sent on a null return. */
-    suspend fun sendRehearsalNote(concertId: String, n: com.troubastack.shared.stage.notes.NoteEntry, png: ByteArray): String? {
-        val ck = cookie() ?: return "You're not connected"
-        val bandId = bandIdFor(concertId) ?: return "Unknown concert"
+     *
+     *  [overwrite] is OFF for a first send so the server's 409 (T170 §3.2) can fire and the caller can ask
+     *  "a note already exists for this page — overwrite?" — only an explicit Re-send passes it on. The result
+     *  distinguishes that 409 ([Exists]) from a plain failure so the tab knows to prompt vs. report. */
+    suspend fun sendRehearsalNote(
+        concertId: String, n: com.troubastack.shared.stage.notes.NoteEntry, png: ByteArray, overwrite: Boolean,
+    ): NoteSendResult {
+        val ck = cookie() ?: return NoteSendResult.Failed("You're not connected")
+        val bandId = bandIdFor(concertId) ?: return NoteSendResult.Failed("Unknown concert")
+        val q = if (overwrite) "?overwrite=1" else ""
         return runCatching {
-            val resp = client.put("$baseUrl/api/bands/$bandId/songs/${n.songId}/rehearsal-notes/${n.pageInSong}?overwrite=1") {
+            val resp = client.put("$baseUrl/api/bands/$bandId/songs/${n.songId}/rehearsal-notes/${n.pageInSong}$q") {
                 header("Cookie", ck)
                 setBody(MultiPartFormDataContent(formData {
                     append("file", png, Headers.build {
@@ -510,11 +525,20 @@ class HttpTransport(private val storage: Storage) : ManifestTransport {
                 }))
             }
             when {
-                resp.status.isSuccess() -> null
-                resp.status == HttpStatusCode.Forbidden -> "Only a band member can send"
-                resp.status == HttpStatusCode.PayloadTooLarge -> "That note is too large to send"
-                else -> "Couldn't send (${resp.status.value})"
+                resp.status.isSuccess() -> NoteSendResult.Ok
+                resp.status == HttpStatusCode.Conflict -> NoteSendResult.Exists
+                resp.status == HttpStatusCode.Forbidden -> NoteSendResult.Failed("Only a band member can send")
+                resp.status == HttpStatusCode.PayloadTooLarge -> NoteSendResult.Failed("That note is too large to send")
+                else -> NoteSendResult.Failed("Couldn't send (${resp.status.value})")
             }
-        }.getOrElse { "Couldn't reach the server" }
+        }.getOrElse { NoteSendResult.Failed("Couldn't reach the server") }
     }
+}
+
+/** T170 §6 — the outcome of a send. [Exists] is the server's 409 (a note is already in Studio for this
+ *  page and overwrite was not asked) — the caller prompts to overwrite; [Failed] carries a human message. */
+sealed interface NoteSendResult {
+    data object Ok : NoteSendResult
+    data object Exists : NoteSendResult
+    data class Failed(val message: String) : NoteSendResult
 }
