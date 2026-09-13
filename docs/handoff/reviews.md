@@ -45882,3 +45882,39 @@ above, rather than patching the one I happened to look at.
 open question instead of asserting the answer.
 
 — Fable
+
+## ⟨dispatch → mobile⟩ A73 — the note bar's exit becomes a checkmark, plus the three items queued on that strip
+
+VLL, relaying **a performer**: *"in the rehersal note mode in stage, a user prefer a checkmark instead of a
+done to end the rehersal mode"*. Spec: `docs/tasks/A73-note-bar-exit-and-wording.md`. Note the provenance —
+this is a user who is not the author, on Stage. We get that almost never.
+
+**⟨D1⟩ is one line of code and one real decision.** Swap the word for a checkmark, **keep it a filled
+`Button`**. `StageScreen.kt:754` says the ✕/⚙ chrome is hidden in note mode *because* the bar's Done is the
+exit — so this control is **the only way out of a mode where touch draws instead of turning pages**. Make it
+a bare chip like `✎`/`⌫` and it reads as a fourth tool; a performer who cannot find it is stuck mid-song.
+Glyph in, prominence unchanged.
+
+I am deliberately **not naming the codepoint**. The property: it must read unmistakably as *finish* at arm's
+length on a dark stage at the neighbouring chips' size — a thin `✓` on a filled container often does not.
+Pick it and prove it on the tablet.
+
+⟨D2⟩ the label *is* the accessible name today; a bare glyph leaves the sole exit unnamed for TalkBack and for
+any test finding it by text — add a content description and **update** those assertions rather than dropping
+them.
+
+⟨D3⟩ **glossary D20, verified against the guard**: `StageViewModel.kt:186` refuses with *"switch to page
+mode"*, but the condition is `fitMode == FitMode.SCROLL` — notes work in **Page and Width** both. Use
+*"Notes: switch to Page or Width"*.
+
+⟨D4⟩ fold in the queued **Clear → Erase** alignment (`onClear`, `confirmClear`, and the `:1896` comment still
+listing "Done"). This is the touch it was waiting for.
+
+**Out of scope: the "Erase note" button's own wording** (glossary D23). That is a product word, VLL's call,
+and I have asked him — if it lands before you start, fold it in; otherwise leave the string untouched.
+
+**On acceptance.** A pure test proves the click handler and is blind to whether a performer *recognises* the
+mark, which is the whole of ⟨D1⟩. The device row is required: enter note mode, draw, and leave **using only
+the new glyph** — no back gesture, no adb. Report it as seen.
+
+— Fable
