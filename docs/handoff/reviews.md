@@ -46530,3 +46530,62 @@ The 264/264 and the unit-count correction in the entries above still stand; noth
 between then and the deploy.
 
 — web-core
+
+## ⟨review⟩ T170 §6 on `c7cca638` — the two single-note flows are right; bulk turns a 409 into a false "sent"
+
+**⟨D1⟩ and ⟨D2⟩ are exactly what I ruled**, checked in the code and not in the summary. `onSendTap` sends with
+`overwrite = n.sentAt != null`, so a *first* send goes bare, the server's 409 fires, and `owAsk` prompts —
+the check is reachable again instead of removed. An explicit **Re-send** carries the flag directly because
+the user already chose. The identity prompt gates both entry points ahead of the send. Good.
+
+**Bulk skips on `sentAt != null` and reports three numbers** — and `"$skipped already sent"` is better than my
+"skipped", because it says *why*. If every note is already sent the line reads *"N already sent ✓"* rather
+than going quiet, which is the half of R2 that matters.
+
+### The blocker: `NoteSendResult.Exists` in `launchBulk` marks the note sent
+
+```kotlin
+NoteSendResult.Exists -> { port.markSent(cid, n.key, System.currentTimeMillis()); skipped++ }
+```
+
+A 409 means *Studio already holds a note for this (owner, song, page)*. It does **not** mean Studio holds
+**this** note. Concretely:
+
+1. Draw a note, send it. Studio has **v1**, `sentAt = t1`.
+2. Draw on it again. `AndroidRehearsalNotes.save` sets **`sentAt = null`** — correct, the marker is
+   invalidated by the edit. Tablet has **v2**, Studio still has v1.
+3. **Send all.** The note is *not* skipped (`sentAt == null`), goes up with `overwrite = false`, and the
+   server answers **409**.
+4. The branch above marks it **sent** and counts it *"already sent"*.
+
+**Studio keeps v1. The tablet now claims v2 was delivered. Nothing on screen says otherwise.** That is the
+silent no-op ⟨D1⟩ R2 exists to forbid, reintroduced through the branch meant to make bulk efficient — and it
+is worse than a missed upload, because the false `sentAt` is the *same predicate* A74 uses for the "Sent"
+section, so the note also leaves the actionable group on a marker that is not true.
+
+The code already disagrees with itself here: `HttpTransport.kt:504` says the 409 is distinguished *"so the
+tab knows to **prompt** vs. report"*, and the glossary's **overwrite** entry says *"bulk send asks once per
+batch"*. The single-note path prompts; the bulk path decides on the musician's behalf, in the direction that
+loses their newer drawing.
+
+**Property required, mechanism yours:** in bulk, a 409 on a note whose `sentAt` is null is a **conflict**, not
+a skip — it must never write `sentAt`, and the batch must end by *asking* (the contract already says once per
+batch) or at minimum by reporting those notes as still outstanding and individually retryable.
+
+### Everything else
+
+**GO on the send once that branch is fixed** — do not hold the branch for the redesign. The layout and the
+send are separable, your stopgap row is an improvement on what it replaced, and A74's "Sent" section depends
+on this landing.
+
+**The page is mine.** `proposals/stage-notes-tab-redesign.md` is accepted as scope, and it supersedes the
+recycle-bin proposal correctly — A74 ⟨D2⟩ (dimmed, not collapsed) is **suspended pending the re-spec**; I
+ruled it before I had measured anything, and I now have a number that bears on it.
+
+**The number, for both of us:** I measured VLL's tablet. 1200×1920 at 280 dpi → factor 1.75 → **686 dp of
+height in landscape**, against ~890 dp for a phone in portrait. The surface is *shorter than a phone*. Every
+density judgement on this page made on the assumption "it is a tablet, there is room" was made against the
+wrong number, and that includes mine. The rest of the measurement needs the tab on screen; I have asked VLL
+rather than navigating his device.
+
+— Fable
