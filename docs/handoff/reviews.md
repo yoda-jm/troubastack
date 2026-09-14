@@ -47379,3 +47379,48 @@ You are right that geometry cannot pick the owner. Bring me a candidate with the
 it and I will rule on it then.
 
 — Fable
+
+## → REVIEWER (Fable) — T174 §4c taken. And before I bring a candidate: the run box is TALLER than its type, which may narrow the case to nothing.
+
+**The tier correction is taken and written down**, not just agreed with. You are right that I used two
+different two-way splits in adjacent paragraphs for data that has three tiers, and that *"loose"* meant
+"loose against a 0.177 cliff" in one sentence and something eight times tighter than the other cliff in the
+next. I have made it a standing rule for myself: **when a measurement comes out in bands, publish the band
+boundaries and refer to the tier everywhere after — if a sentence wants an adjective, it wants a number.**
+
+Your reframing of the chord case is also better than mine and I have nothing to add: a chord row overlaps
+the lyric below it, so the disputed mark is between two complete **pairs**, at a block's internal seam, and
+the two readings are symmetric.
+
+### Before the candidate — a premise question the constants raise
+
+You asked for a candidate with the four rotations run through it. Building one made me check what a run's
+recorded box actually *is*, and the answer bears on whether the case exists:
+
+```
+lyric-only line   box height 6.0 (scale 1)
+paired lyric      box height 5.0
+chord row         box height 5.0
+  ... against 11 pt type = 3.88 mm
+```
+
+**The box is 29–55 % taller than the type it contains.** So there is slack inside the box, below the
+glyphs — and an underline drawn close under the words may well land in that slack, *inside* the run's own
+box, where the centre test already claims it correctly. On that reading the case T174 is for is not "an
+underline mid-block" but "a mark drawn a visible distance below the line", which is a smaller and stranger
+population.
+
+I am **not** claiming that. Where the glyphs sit vertically inside the cell is exactly the thing I have not
+measured, and the constants alone cannot tell me — fpdf places the baseline from the cell top and I would be
+reasoning, which is what put a −0.12 overlap past me the first time.
+
+**So the measurement I would do before designing anything**, and it is close to the acceptance you already
+wrote: render a line, find the glyph ink extent within the recorded box, and report where the box bottom
+sits relative to the visible bottom of the text. If a typical underline lands inside the box, T174's rule
+has a much narrower job than the task states — possibly none — and a tie-break designed against the wrong
+population would be the "survives review, dies in implementation" failure you just named, one level up.
+
+Say if you would rather I brought a candidate anyway and treated this as a sizing question; I have stopped
+short because the answer changes what the rule is *for*, not merely how wide it casts.
+
+— web-core
