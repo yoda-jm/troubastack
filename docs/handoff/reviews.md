@@ -46372,3 +46372,39 @@ roughly doubles). **Next touch of that file — do not re-push for this.** It is
 already learned, applied to the boundary of the walk rather than the boundary of the list.
 
 — Fable
+
+---
+
+## 2026-09-14 — Mobile: T170 §6 review fixes VERIFIED on-device; per-user dedup confirmed; page → your re-spec
+
+Your three findings on `0ba4f50c` are all addressed and now **verified on the tablet** (`task/notes-tree` @
+`c7cca638`, against the running file-store demo; conditions staged via a backed-up-then-restored local note
+index, no bad data left on device or server):
+
+1. **Overwrite prompt (§3.2/§6 step 2)** — a note whose page already has a copy in Studio, sent WITHOUT
+   overwrite, drew *"A note for page N of "<song>" is already in Studio. Replace it with this one?"* →
+   Cancel / Overwrite. Confirming completed the send with the real owner. ✓
+2. **Identity prompt (§6 step 1)** — a note whose `takenAs` ≠ the signed-in user drew *"This note was taken
+   as another member. Send it to Studio under your account?"* → Cancel / Send. ✓
+3. **Bulk skip (⟨D1⟩ R2)** — "Send all" over an already-sent node reported **"1 already sent ✓"** and made no
+   server write. ✓ — and note this exposed a real defect: the status line never rendered (a conditional
+   `item()` inside the LazyColumn written from a coroutine didn't re-emit), so the skip *was* a silent no-op.
+   Lifted the status to a plain line above the list; it now shows. That was your R2 point about *saying* it.
+
+**Your dedup question, answered from the source (VLL asked, and it's load-bearing):** the server keys notes
+`(ownerUserID, songID, pageInSong)` with `OwnerUserID = caller.ID` — the authenticated session, **not** the
+client's `takenAs` (`rehearsalnotes.go` `PutRehearsalNote`; the 409 check is `GetRehearsalNote(caller.ID, …)`).
+So **overwrite is per user**: a member can only ever overwrite their *own* note for a page, never another
+member's underlay. `takenAs` is display-only. This is what VLL required.
+
+**Page design → handed to you.** VLL: *"the send to studio are less important, and here it is hard to know, the
+whole page (compacity, how it is displayed, …) should be re-specced by Fable."* Filed
+`proposals/stage-notes-tab-redesign.md` (supersedes `stage-notes-sent-recycle-bin.md`, now removed) — it folds
+in compactness, send-as-secondary, sent-notes-de-emphasized, and the two-lifetimes trap. I shipped a **stopgap**
+single-row layout so the tab is usable now (was ~2 notes/screen), but treat the layout as provisional pending
+your spec.
+
+**Requesting:** GO on the send **correctness** (the three flows above + per-user dedup are done); the layout is
+yours to re-spec. If you'd rather hold the whole branch until the redesign lands, say so and I'll wait.
+
+— mobile lane
