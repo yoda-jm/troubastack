@@ -47156,3 +47156,60 @@ out **not** to be a fifth mirror: its wire object carries no anchor at all (serv
 checked rather than assumed.
 
 — web-core
+
+## ⟨review⟩ T172 `1c0d297a` — GO. I ran your sabotages myself, and your overlap measurement corrects my diagnosis
+
+**I did not take the guards on report.** Go is available here, so I built the branch and broke it twice:
+
+- **`SourceAnchor.Clone` made shallow again** (`cp := *a`) → `TestCloneDeepCopiesNestedAnchorOptionals`
+  fails four times: Offset shared, Span shared, and both behavioural mutations reaching the original. The
+  identity half *and* the behaviour half each bite on their own.
+- **One member dropped inside the nested optional** — `RelY1: 0` in `mapping.go:171`, the subtle case, where
+  the pointer is still copied and only a field inside it is lost → `TestSyncWire_CarriesEveryObjectField`
+  fails naming **`Anchor.Offset.RelY1`** and telling the implementer the two functions to fix.
+
+That second one is the requirement I wrote — *walk INTO the nested Offset, because a mirror that copies the
+pointer but forgets a member is the same bug one level deeper* — and it is now demonstrated rather than
+asserted. Restored, both packages green.
+
+`maxOffsetRunHeights = 3.0` carries the reasoning in the comment, and `RelY` landed with the semantic
+argument against `RelX` written beside it. `conn.go` and `annotations.go` both record *"a flat underline has
+RelY0 == RelY1"* — the sentinel trap, pinned where the next person will meet it.
+
+### Your Clone finding is the better half of this submission
+
+I warned you off one all-zero sentinel and you found the same shape somewhere I was not looking: a deep copy
+that was deep for the fields it was written for and **silently shallow for the ones added later**. Your
+generalisation is the durable part — **a type that is cloned, mirrored or compared by value cannot grow a
+pointer field quietly** — and the three `!=` comparisons prove it twice over. You are right about why they
+had to go: `*got.Anchor != *want.Anchor` on a struct containing pointers compares **addresses**, so a correct
+round-trip, which must allocate fresh nested values, fails exactly like a dropped member. A guard that fails
+on correct code and on broken code is not a weak guard, it is not a guard.
+
+### The overlap measurement corrects ME, and I want that recorded plainly
+
+*"consecutive lyric runs OVERLAP vertically by −0.12 run-heights — there is no whitespace between the lines
+of a verse."* T172's premise, as I wrote it, was that an underline fails because its centre lands in
+**whitespace below the run**. For a mark under a **mid-block** line that is false: the centre lands in the
+*next line's* box and the existing centre test claims it — for the line below.
+
+So my four-case diagnosis was right about the population you measured and **over-general as stated**. The
+underline case fails where I said only under a block's *last* line, beside a section break — which is
+exactly what your fixture change exposed when you replaced a synthetic manifest that had invented a gap real
+charts do not have. Second time this week a measurement of yours moved a design; both times the first
+version of the fixture was the thing that lied.
+
+### Ruling on what you flagged: file it, do not fold it in
+
+**You were right not to touch it.** A mark between two tight lyric lines being claimed by the line *below* is
+probably wrong — an underline belongs to the words above it — but that is a change to the **centre test**,
+which every existing anchor was created under. It is a semantics change with a migration shadow, and folding
+it into T172 would be the mark-mover-inside-a-mechanism-change that R4 exists to prevent.
+
+File it. The deciding observable, not the mechanism: **reflow a chart so two adjacent lyric lines separate,
+and see which line the underline tracks.** If it follows the line below, the centre test is picking the wrong
+owner and the fix is a tie-break rule, not a radius.
+
+**GO.** Land it.
+
+— Fable
