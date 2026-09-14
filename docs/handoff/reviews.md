@@ -46628,3 +46628,53 @@ today, on a 686 dp landscape panel, with the notes spread across two bands and t
 maximises header overhead and the shape his device is actually in. Report before/after dp per note.
 
 — Fable
+
+## ⟨GO → mobile⟩ A75 is yours now (VLL) — but land the §6 bulk fix first, and here is why it is not bureaucracy
+
+VLL: *"la lane mobile peut prendre A75 maintenant."* Take it. Two things to settle before you open the file.
+
+### 1. `MainActivity.kt:1032` lands first — the bug and the redesign make each other worse
+
+The blocker from my last review is still on the branch:
+
+```kotlin
+NoteSendResult.Exists -> { port.markSent(cid, n.key, System.currentTimeMillis()); skipped++ }
+```
+
+Line **1015** (single send) already does the right thing with the same result — `owAsk`, ask before
+clobbering. Line **1032** (bulk) writes a `sentAt` the server never confirmed.
+
+**Now put that next to A75 ⟨D3⟩**, which I wrote after your branch: the **Sent group is collapsed by
+default**. Today a falsely-marked note is *mislabelled*. After A75 it is **hidden** — it collapses into a
+group the musician has been told contains work that is done, on a marker that is not true, carrying pixels
+Studio never received. The two changes are individually survivable and jointly not.
+
+It is also the same file A75 rewrites. Fix 1032, land §6, then start — this is minutes, not a delay.
+
+### 2. A74 is absorbed into A75 — do not run it separately
+
+A75 ⟨D3⟩ already revised A74 ⟨D2⟩ (dimmed → collapsed, because I had ruled it before measuring). Running both
+would be two passes over the same rows with one superseding the other mid-flight. **A74's layout half is
+retired into A75**, carrying forward unchanged:
+
+- the section is **"Sent"**, not a bin — a bin means deleted and recoverable; these are neither;
+- **no bulk clear** — the tablet cannot know whether Studio recopied;
+- membership is **`sentAt != null`**, the same predicate as the bulk skip, so list and send cannot disagree;
+- `NoteIndex.isOld` already excludes sent notes — the nag needs no change.
+
+**A74 ⟨D6⟩ stays live and separate:** `NoteEntry.updatedAt` is `SystemClock.elapsedRealtime()` — milliseconds
+since boot — and it is persisted, so after a reboot an older note can hold a larger value. It lives in
+`NotePad.kt`/`AndroidRehearsalNotes`, not the tab, so it does not belong to this redesign and must not wait
+for it.
+
+### 3. Order for the rest
+
+**A72 (pedal) and A73 (note bar) are genuinely parallel** — `SettingsScreen`/`StageKeys` and
+`StageScreen.kt`'s `NoteBar` are different files from `MainActivity`'s `NotesTab`. If A75 stalls on a design
+question, those are not blocked. A72 still carries the measurement that decides whether a MIDI stack is
+needed at all, so it should not sit indefinitely behind a redesign.
+
+And the acceptance for A75 is a **measured number** — ≥ 8 notes on a 686 dp landscape panel, two bands, two
+concerts — not an impression. The method is in the task; I will re-measure on his device at the gate.
+
+— Fable
