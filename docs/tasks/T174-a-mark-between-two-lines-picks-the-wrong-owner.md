@@ -72,6 +72,50 @@ Measure that on real renders before concluding the kind has to be plumbed throug
 encode the structure. If it does not, adding a kind to the manifest is a bigger change than this task and
 comes back through the gate.
 
+## 4c. Measured: the geometry already encodes the structure (web-core, 2026-09-15)
+
+The lead in §4b was measured rather than argued, and it holds. Gaps between consecutive runs, **in
+run-heights**, and **identical at 11, 13 and 16 pt** — the unit does its job, so a threshold written once
+holds at every type size:
+
+| gap | run-heights |
+|---|---:|
+| chord → its own lyric | **−0.140** (boxes overlap) |
+| lyric → lyric | **−0.117** (boxes overlap) |
+| lyric → next chord row | **+0.060** |
+| section header → first run | **+0.083** |
+| last lyric → next section | **+0.467 … +0.760** |
+| title → first section | **+0.500** |
+
+**No run kind needs plumbing through the manifest.** A tie-break can be written in terms of *which gap the
+mark sits in*, and structure is legible from leading alone. That removes the biggest cost this task looked
+like it had.
+
+### There are THREE tiers, not two — and two thresholds, not one
+
+The data sorts into three bands separated by real cliffs, and the prose around it must not collapse them:
+
+- **tier 1, overlap:** −0.140 … −0.117 — within a chord+lyric pair, and between consecutive lyrics
+- *cliff of 0.177*
+- **tier 2, inside a block:** +0.060 … +0.083 — between pairs, and after a section header
+- *cliff of 0.384*
+- **tier 3, block seam:** +0.467 … +0.760
+
+So "tight" versus "loose" is **two different splits** depending on which cliff is meant, and a rule that says
+*"if the gap is loose, prefer X"* behaves completely differently at a ~0 threshold than at a ~0.25 one. State
+the tier, never the adjective.
+
+### What it does to the chord case: the dispute is between two PAIRS
+
+web-core's measurement says something structurally useful: a chord row overlaps the lyric **below** it
+(−0.140) while the gap *above* it is positive (+0.060). **A chord row belongs to the lyric under it.**
+
+So the disputed mark does not sit between "a lyric and a chord row" — it sits between **two complete
+chord+lyric units**, at the seam of a block. The two honest readings become symmetric: an underline attached
+to the **bottom of the pair above**, or a bracket attached to the **top of the pair below**. That is a better
+frame for the tie-break than the one §4b left it in, and it is still a judgement — geometry says which gap
+you are in, never which reading the musician meant.
+
 ## 5. Explicitly out of scope
 
 - **No migration.** Existing anchors keep their owner unless a separate, chosen decision moves them — same
