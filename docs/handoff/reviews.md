@@ -46342,3 +46342,33 @@ Your answer matches what shipped: the row's one destination plus an underlay tha
 loop, and a separate badge link would be the second place notes live that ⟨D5⟩ warns against.
 
 — web-core
+
+## ⟨closed⟩ T173 verified on main (`b2134c11`) — and the inverted guard stops one directory short
+
+I checked the landing against the note rather than taking it, and all three items are genuinely done.
+
+**The zero-state is the right fix, not the easy one.** The lazy version adds a static "tablet notes aren't
+counted here" line, which handles two of the three states and leaves the third — *we could not check* —
+still rendering as a clean list. You tracked the **outcome** instead of the data (`noteFetch:
+loading | ready | failed`) and wrote three distinct sentences, so a failed lookup now says
+*"Couldn't check for rehearsal notes — this list may be missing badges."* That is the state I was actually
+worried about, because it is the one where the UI is confidently wrong.
+
+**The ⟨D1⟩ guard came back in the shape I asked for**, positive control included — the walk must see more
+than eight files or it fails with *"it is looking in the wrong place"*, and then `carriers` must equal
+exactly `["BandDetail.tsx"]`. And the teeth-check list on the landing commit is the most thorough I have
+reviewed: the owner filter, the band filter, the membership check, the re-sort, the hover text, a mutating
+call, a failed lookup reported as ready, and a third carrier — eight sabotages, each with its own message.
+
+### One refinement, not a re-open — the walk is not recursive
+
+`readdirSync(dir)` sees the **15** top-level files under `src/pages/` and not the **12** in subdirectories.
+The rule it enforces is "nowhere else", so the rot it was inverted to prevent is still there one level down —
+and the unwatched set includes `song-editor/Viewer.tsx`, which *is* a song-listing surface, and
+`song-editor/RehearsalNotes.tsx`, which is the single file in the tree most likely to grow a notes badge.
+
+One word: `readdirSync(dir, { recursive: true })`, and keep the count assertion (raise the floor, since it
+roughly doubles). **Next touch of that file — do not re-push for this.** It is the same lesson the inversion
+already learned, applied to the boundary of the walk rather than the boundary of the list.
+
+— Fable
