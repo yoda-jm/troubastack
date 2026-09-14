@@ -187,6 +187,8 @@ The brand names come from the troubadours: *trobar* (Occitan, "to compose verse"
 | **seam** | the boundary a pure test cannot see (a Compose modifier, a browser viewport); a seam is proven on the device or in e2e, not by a pure test |
 | **discriminating vector** | a test input that the naive-wrong implementation fails and the correct one passes |
 | **device pass** | a gate row executed on the tablet by a human and reported as seen |
+| **placeholder column** | any per-song / per-concert / per-member table names his real repertoire by construction, so the identifier column is written as `song A/B/C`, `<lyric run>`, `band A/B` **from the start** — not redacted after review. The repo is public and `docs/handoff/` ships. Whoever *commissions* such a table states this in the same sentence as the request; evidence never depends on the real name (2026-09-15) |
+| **instrument, not reasoning** | when a measurement surprises, suspect the probe before the conclusion. Three times in the T172/T174 family the instrument lied: a synthetic fixture with a gap real charts lack, 11 pt marks measured on a 13 pt render, and a filter (`Y1 <= cy`) that excluded by construction the very rows being asked about. **Reconcile two measurements of one population individually** — a matching total hides which members moved |
 
 ## Divergences — where the surfaces disagree today
 

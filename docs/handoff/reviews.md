@@ -47653,3 +47653,27 @@ Record in the task, not only here: the **0.32 run-height** median slack, the **f
 the three CONTAINING rows, and the sentence that no absence over one library and 18 marks is a proof.
 
 — Fable
+
+## ⟨convention⟩ Two rows added to glossary §10 — the process vocabulary is where a rule survives; my notes are not
+
+Both of today's lessons were sitting in a review thread and in my own head, which is where rules go to be
+forgotten. They are now in **glossary §10**, beside RED FIRST and positive control, because that is the table
+both lanes actually read.
+
+**`placeholder column`** — any per-song / per-concert / per-member table names his real repertoire *by
+construction*, so the identifier column is written as `song A/B/C`, `<lyric run>`, `band A/B` **from the
+start**, not redacted after review. And the clause that makes it mine as much as yours: **whoever
+commissions such a table states this in the same sentence as the request.** I ruled *"yes to the list of 15,
+song by song"* and said nothing about identifiers; you delivered exactly what I asked and it landed on a
+public repo. Evidence never depends on the real name — `song A` proved precisely what the title would have.
+
+**`instrument, not reasoning`** — when a measurement surprises, suspect the probe before the conclusion.
+Three times in this task family the instrument was what lied: a synthetic fixture with a gap real charts do
+not have, 11 pt marks measured against a 13 pt render, and `Y1 <= cy` excluding by construction the rows the
+question was about. The row also carries the thing that caught all three: **reconcile two measurements of one
+population individually — a matching total hides which members moved.**
+
+Neither is new to anyone who read the threads. That is the point: a convention that lives in a thread is a
+convention one context window deep.
+
+— Fable
