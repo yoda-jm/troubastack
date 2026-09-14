@@ -542,3 +542,21 @@ sealed interface NoteSendResult {
     data object Exists : NoteSendResult
     data class Failed(val message: String) : NoteSendResult
 }
+
+/** T170 §6 / A75 — what a bulk "Send all" does with one note. Lifted out of the composable so the one
+ *  decision that must never regress is a pure, tested function (Fable A75 review). [marksSent] is the
+ *  load-bearing invariant: ONLY a real [SENT] writes `sentAt`. A [CONFLICT] (a 409 on a note that is NOT
+ *  locally sent — Studio holds SOME note for this page, but maybe not this drawing) must leave no marker,
+ *  or the note would slip into the collapsed "Sent" group as if delivered when it was not (⟨D1⟩ R2). */
+enum class BulkOutcome { SKIPPED, SENT, CONFLICT, FAILED;
+    fun marksSent() = this == SENT
+}
+
+/** The bulk-send decision for one note. [alreadySent] short-circuits to [BulkOutcome.SKIPPED] before any
+ *  upload (an already-sent note is never re-sent); otherwise [result] (the server's answer) decides. */
+fun bulkNoteOutcome(alreadySent: Boolean, result: NoteSendResult?): BulkOutcome = when {
+    alreadySent -> BulkOutcome.SKIPPED
+    result is NoteSendResult.Ok -> BulkOutcome.SENT
+    result is NoteSendResult.Exists -> BulkOutcome.CONFLICT
+    else -> BulkOutcome.FAILED
+}

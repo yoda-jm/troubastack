@@ -1037,12 +1037,18 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
         scope.launch {
             var ok = 0; var skipped = 0; var conflict = 0; var fail = 0
             for ((cid, n) in items) {
-                if (n.sentAt != null) { skipped++; continue }
-                val png = port.pngBytes(cid, n.key)
-                when (if (png == null) NoteSendResult.Failed("x") else transport.sendRehearsalNote(cid, n, png, overwrite = false)) {
-                    NoteSendResult.Ok -> { port.markSent(cid, n.key, System.currentTimeMillis()); ok++ }
-                    NoteSendResult.Exists -> conflict++ // 409 on an unsent note — do NOT markSent; leave it outstanding
-                    is NoteSendResult.Failed -> fail++
+                val already = n.sentAt != null
+                // Never upload an already-sent note; otherwise ask the server. The result → outcome mapping is
+                // the pure, tested [bulkNoteOutcome] — the one place the "409 ⇒ conflict, no marker" rule lives.
+                val result = if (already) null else {
+                    val png = port.pngBytes(cid, n.key)
+                    if (png == null) NoteSendResult.Failed("Couldn't read the note") else transport.sendRehearsalNote(cid, n, png, overwrite = false)
+                }
+                when (bulkNoteOutcome(already, result)) {
+                    BulkOutcome.SKIPPED -> skipped++
+                    BulkOutcome.SENT -> { port.markSent(cid, n.key, System.currentTimeMillis()); ok++ }
+                    BulkOutcome.CONFLICT -> conflict++ // no markSent — the note stays outstanding + retryable
+                    BulkOutcome.FAILED -> fail++
                 }
             }
             busy = busy - ids
