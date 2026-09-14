@@ -68,10 +68,10 @@ func TestBuildPlan_SkipsTombstones(t *testing.T) {
 
 func TestMatchTarget(t *testing.T) {
 	idx := map[string][]string{
-		TargetKey("The Invented Singers", "Amsterdam"): {"song-a"},
-		TargetKey("The Invented Singers", "Twin"):      {"song-b", "song-c"},
+		TargetKey("The Invented Singers", "Paper Moon"): {"song-a"},
+		TargetKey("The Invented Singers", "Twin"):       {"song-b", "song-c"},
 	}
-	if id, err := MatchTarget("The Invented Singers", "Amsterdam", idx); err != nil || id != "song-a" {
+	if id, err := MatchTarget("The Invented Singers", "Paper Moon", idx); err != nil || id != "song-a" {
 		t.Fatalf("unambiguous match: got %q, %v", id, err)
 	}
 	if _, err := MatchTarget("The Invented Singers", "Twin", idx); err == nil {

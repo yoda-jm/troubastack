@@ -277,21 +277,26 @@ func writeFile(t *testing.T, path, body string) {
 
 // TestScorePriority: the full score outranks a single-instrument part or a lyrics/translation
 // sheet, in both English and French, so the song's default file is the whole arrangement.
+// The filenames here are INVENTED. They mirror the SHAPES the scorer keys on — an arranger suffix, a
+// parenthetical artist, a .docx export, a French lyrics sheet, instrument words in three languages, a
+// BASS_<id> part prefix — and nothing about the scorer depends on the titles, which key on nothing. They
+// were real repertoire until 2026-09-15; this repo is public and a per-song fixture names somebody's
+// library by construction.
 func TestScorePriority(t *testing.T) {
 	cases := []struct {
 		name string
 		want int
 	}{
-		{"Faith arr Mark Bryner.pdf", 0},
-		{"Bewitched.pdf", 0},
-		{"Africa(Toto).pdf", 0},
-		{"Africa.docx.pdf", 1},                  // a doc exported to PDF, not the score
-		{"Hymne à l amour avec paroles.pdf", 1}, // lyrics sheet
-		{"Dear Heart (pour flûte).pdf", 2},
-		{"BASS_690383-faith.pdf", 2},
-		{"Mr Sandman percussion.pdf", 2},
-		{"Jingle Bells-basse-resolution.pdf", 2}, // "basse" wins over "resolution"
-		{"All That Jazz (Piano)-Partition musicien.pdf", 2},
+		{"Paper Moon arr A Arranger.pdf", 0},
+		{"Winter Light.pdf", 0},
+		{"Open Road(The Invented Band).pdf", 0},
+		{"Open Road.docx.pdf", 1},                    // a doc exported to PDF, not the score
+		{"Chanson à l ancienne avec paroles.pdf", 1}, // lyrics sheet
+		{"Quiet Tune (pour flûte).pdf", 2},
+		{"BASS_690383-paper-moon.pdf", 2},
+		{"Lantern Lane percussion.pdf", 2},
+		{"Morning Room-basse-resolution.pdf", 2}, // "basse" wins over "resolution"
+		{"Shadow Door (Piano)-Partition musicien.pdf", 2},
 	}
 	for _, c := range cases {
 		if got := scorePriority(c.name); got != c.want {
@@ -305,12 +310,12 @@ func TestScorePriority(t *testing.T) {
 func TestLoadRepertoire_FullScoreFirst(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "repertoire.json"),
-		[]byte(`{"songs":[{"slug":"faith","title":"Faith","artist":"Stevie Wonder"}]}`), 0o644); err != nil {
+		[]byte(`{"songs":[{"slug":"paper-moon","title":"Paper Moon","artist":"An Invented Artist"}]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	bd := filepath.Join(dir, "faith")
+	bd := filepath.Join(dir, "paper-moon")
 	os.MkdirAll(bd, 0o755)
-	for _, f := range []string{"BASS_690383-faith.pdf", "DRUMS_690383-faith.pdf", "Faith arr Mark Bryner.pdf", "Faith avec paroles.pdf"} {
+	for _, f := range []string{"BASS_690383-paper-moon.pdf", "DRUMS_690383-paper-moon.pdf", "Paper Moon arr A Arranger.pdf", "Paper Moon avec paroles.pdf"} {
 		if err := os.WriteFile(filepath.Join(bd, f), []byte("%PDF-1.4\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -322,12 +327,12 @@ func TestLoadRepertoire_FullScoreFirst(t *testing.T) {
 	if len(songs) != 1 || len(songs[0].files) != 4 {
 		t.Fatalf("got %d songs / %d files, want 1 / 4", len(songs), len(songs[0].files))
 	}
-	if songs[0].files[0].docTitle != "Faith arr Mark Bryner" {
-		t.Errorf("first file = %q, want the full score \"Faith arr Mark Bryner\"", songs[0].files[0].docTitle)
+	if songs[0].files[0].docTitle != "Paper Moon arr A Arranger" {
+		t.Errorf("first file = %q, want the full score \"Paper Moon arr A Arranger\"", songs[0].files[0].docTitle)
 	}
 	// the two instrument parts must land last, after score and lyrics
 	last := songs[0].files[3].docTitle
-	if last != "BASS_690383-faith" && last != "DRUMS_690383-faith" {
+	if last != "BASS_690383-paper-moon" && last != "DRUMS_690383-paper-moon" {
 		t.Errorf("last file = %q, want an instrument part", last)
 	}
 }
