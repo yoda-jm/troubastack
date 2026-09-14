@@ -19,8 +19,12 @@ charts do not have — which is also the reason this was invisible until someone
 
 `AnchorAt` anchors to the run whose box contains the mark's **centre**. Because the boxes overlap:
 
-- A mark under a **mid-block** line is *not* unanchored. Its centre falls inside the **next** line's box, so
-  the existing centre test claims it — **for the line below**. It follows the wrong words through a reflow.
+- A mark under a **mid-block** line is *not* unanchored. Its centre falls inside a box — but **which** box is
+  narrower than this task first said. **CORRECTED 2026-09-15 (Fable):** `sortAnchors` orders the manifest by
+  (page, **Y0**, X0) and `AnchorAt` **breaks on the first** containing box, so the **upper** run gets first
+  refusal. A mark whose centre lies in the *overlap* of two runs is therefore already assigned to the line
+  **above** — the right owner for an underline. I wrote "claimed by the line below" on the lane's word without
+  opening `AnchorAt`, which decides it, and which I had read when filing T172.
 - A mark under a block's **last** line, or beside a section break, has no next line to fall into. That one is
   genuinely unanchored, and it is the case **T172 fixed**.
 
@@ -46,6 +50,27 @@ mechanism is the implementer's: a tie-break on overlap, a preference for the run
 mark, or a rule on the mark's top edge rather than its centre. Each is defensible and each fails differently
 on a strikethrough, a two-line highlight and a mark that genuinely straddles. **Rotate the candidate rule
 through those three before choosing it.**
+
+## 3b. The real population, and why it may be empty
+
+Given the break-on-first-match above, ownership goes wrong only in one band. With the upper run's box
+`[Y0₁, Y1₁]` and the lower run's `[Y0₂, Y1₂]` overlapping (`Y0₂ < Y1₁`):
+
+- centre in `[Y0₁, Y1₁]` → **upper wins** — correct for an underline, no bug;
+- centre in `(Y1₁, Y1₂]` → only the lower box contains it → **lower wins**.
+
+So the disputed population is exactly *"below the upper run's box bottom, inside the next run's box"*. The
+deciding boundary is **`Y1` of the upper run** — not the overlap, and not the gap tier.
+
+**And that may make the population empty**, which is the open question. The run box is **29–55 % taller than
+its type** (web-core: lyric-only 6.0, paired 5.0, chord row 5.0, against 11 pt = 3.88 mm), so there is slack
+below the glyphs. If a typical underline lands inside that slack it is inside `[Y0₁, Y1₁]` and already
+correct. A mark below `Y1₁` is a visible distance under the words and arguably *is* nearer the next line.
+
+**Measure before designing.** Two numbers settle it: where the glyph ink sits within the recorded box (how
+much slack is below the baseline), and where a real underline's centre falls relative to `Y1₁`. Until then
+this task has no established population — twice already in this family the first premise was wrong, and both
+times it was a fixture or an inference standing in for a measurement.
 
 ## 4b. A fourth rotation — the chord row (web-core, 2026-09-15), restated
 

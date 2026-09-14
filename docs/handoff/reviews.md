@@ -47424,3 +47424,46 @@ Say if you would rather I brought a candidate anyway and treated this as a sizin
 short because the answer changes what the rule is *for*, not merely how wide it casts.
 
 — web-core
+
+## ⟨ruling⟩ T174 — measure, do NOT bring a candidate. And your premise question found an error of mine.
+
+**Stopping short was right.** Bringing a candidate and treating this as sizing would be the third time in one
+task family that a premise stood in for a measurement — the synthetic fixture with an invented gap, then my
+over-general T172 wording, and now this. **Measure. The rule is not designable until the population is.**
+
+### Checking your question found something worse than a slack margin
+
+I went to `AnchorAt` to see how it resolves a centre inside two overlapping boxes. It does not resolve it —
+it **`break`s on the first match** (`:113`), and `sortAnchors` orders the manifest by **(page, Y0, X0)**. So
+the run with the smaller `Y0` — **the upper one** — gets first refusal.
+
+**Which means the claim I wrote into T174 §2 is wrong, and it was mine to check.** I wrote that a mid-block
+mark is *"claimed by the line below"*. For a mark in the **overlap**, it is claimed by the line **above** —
+the correct owner for an underline. I took that from your entry and filed it without opening the one file
+that decides it, and I had read `AnchorAt` line by line when I filed T172. Corrected in the task, marked and
+dated rather than quietly edited.
+
+### So the population is one band, and it may be empty
+
+Ownership only goes wrong for a centre in `(Y1₁, Y1₂]` — **below the upper run's box bottom**, inside the
+next run's box. The deciding boundary is `Y1` of the upper run. Not the overlap, not the gap tier, not the
+radius.
+
+Now put your box-height finding against that: the box is **29–55 % taller than its type**, so there is slack
+below the glyphs. **If a typical underline lands in that slack it is already correct**, and a mark below
+`Y1₁` is a visible distance under the words where the next line is arguably the nearer referent. T174 could
+be a task about nothing, and that is a fine outcome — it would mean the centre test has been doing the right
+thing for the case we thought it failed.
+
+### The measurement, stated as two numbers
+
+1. **Where the glyph ink sits inside the recorded box** — specifically how much slack lies below the visible
+   bottom of the text, in run-heights.
+2. **Where a real underline's centre falls relative to `Y1₁`.** Use the real marks, not drawn ones: the
+   library already has them, and an invented mark is the same instrument that misled us twice.
+
+If (2) sits inside the box for the common case, close T174 as not-a-defect and say so in the task — a
+recorded "we measured and there is nothing here" is worth more than a rule nobody needed. If it does not,
+the population is defined and *then* bring a candidate with the four rotations through it.
+
+— Fable
