@@ -333,3 +333,95 @@ test("another member of the same band sees no chip and no underlay", async ({ pa
   expect(bytes.status(), "someone else's note must be 404 — a 403 would confirm it exists").toBe(404);
   await ctx.close();
 });
+
+test("the notes chip does not collide with the rest of the top bar", async ({ page }) => {
+  // A GENERATED chart and NOTHING else, so it is the selected file — "Edit chart" renders only for
+  // a generated file, and it is the pill the chip was printing over. The first version of this test
+  // reused the plain PDF fixture: the bar was never crowded, and it passed with the fix REMOVED. A
+  // probe that does not reproduce the failing condition proves nothing, however carefully it measures.
+  const who = stamp();
+  await register(page, `collide${who}`);
+  const band = await createBandAndOpen(page, `Band ${who}`);
+  const songId = await createSongAndOpen(page, `A Song With A Fairly Long Title ${who}`);
+  const bandId = band.id;
+  const panel = page.getByTestId("details-panel");
+  await page.getByTestId("my-files-edit").click();
+  await panel.getByTestId("new-text-chart").click();
+  await panel.getByTestId("chart-source").fill("# A Chart\n\n## Verse\ninvented words for the bar\n");
+  await panel.getByTestId("chart-save").click();
+  await expect(panel.getByTestId("file-row")).toHaveCount(1);
+  await page.getByTestId("my-files-edit").click();
+  await expect(page.getByTestId("pdf-page").first()).toBeVisible();
+  await expect(page.getByTestId("viewer-edit-chart")).toBeVisible(); // the crowding is real now
+
+  expect((await putNote(page, bandId, songId, 0)).status()).toBe(200);
+  await page.reload();
+  await expect(page.getByTestId("rehearsal-notes-chip")).toBeVisible();
+  await expect(page.getByTestId("viewer-edit-chart")).toBeVisible();
+
+  // The chip was the ONLY shrinkable item in that flex row — every other pill declares
+  // `flex: 0 0 auto` — so when space got tight it was compressed below its content width and its
+  // "⋯" button printed on top of the pill to its right: "⋯chart" where "Edit chart" belongs.
+  //
+  // The assertion is deliberately about EVERY pair, not about the pair that broke. Checking
+  // "⋯ does not overlap Edit chart" would go green the day a different pill starts overlapping,
+  // which is the same bug with different neighbours. `toBeVisible()` cannot see any of this: both
+  // elements were visible the whole time, one was simply printed over the other.
+  // Widths matter, and 1024+ is not enough. The pill is `width: min(1080px, 100% - 1.75rem)`, so on a
+  // wide screen it is capped at 1080 and the question is only whether the CONTENT exceeds it. VLL's bar
+  // does (a long title, the full tool cluster, zoom, the chip, Edit chart, This file, Details); this
+  // fixture's is ~50px narrower and fits, which is why the first two versions of this test passed with
+  // the fix removed. 820 and 900 put the bar below its content while staying above the ≤600px phone
+  // block, where `.tb-scroll` becomes a real scroll region and overflow is the intended behaviour.
+  for (const width of [820, 900, 1024, 1280, 1600]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.waitForTimeout(150);
+    const worst = await page.evaluate(() => {
+      const bar = document.querySelector('[data-testid="viewer-chrome"]')!;
+      // Compare the CONTROLS, not the row's direct children. The button that was printing over
+      // "Edit chart" lives INSIDE the chip wrapper, so a comparison between top-level boxes sees a
+      // 119px-wide wrapper sitting neatly beside its neighbour and reports no overlap — which is
+      // exactly what the first version of this detector did, while the wrapper's own child spilled
+      // 29px past its right edge. What the user sees overlapping is controls, so measure controls.
+      // A control that has been SCROLLED OUT of an overflow container is clipped, not overlapping:
+      // the tool cluster is a scroll row by design (T65), and its scrolled-away buttons still report
+      // their unclipped geometry, which reads as a collision with whatever sits after the row. Ignore
+      // anything lying outside its own scroll container; a genuinely mispositioned control is inside
+      // its container and still on top of a neighbour, which is the case this is here to catch.
+      const clipped = (e: Element) => {
+        for (let p = e.parentElement; p && p !== bar.parentElement; p = p.parentElement) {
+          const ox = getComputedStyle(p).overflowX;
+          if (ox === "auto" || ox === "scroll" || ox === "hidden") {
+            const pr = p.getBoundingClientRect();
+            const er = e.getBoundingClientRect();
+            if (er.right > pr.right + 1 || er.left < pr.left - 1) return true;
+          }
+        }
+        return false;
+      };
+      const controls = [...bar.querySelectorAll("button, a, select, input")].filter(
+        (e) => !e.closest(".rehearsal-popover") && !clipped(e), // popover overlays by design when open
+      );
+      let worst = 0;
+      let pair = "";
+      const name = (e: Element) =>
+        (e as HTMLElement).dataset?.testid || (e.textContent || "").trim().slice(0, 14) || e.tagName;
+      for (let i = 0; i < controls.length; i++) {
+        for (let j = i + 1; j < controls.length; j++) {
+          const a = controls[i].getBoundingClientRect();
+          const b = controls[j].getBoundingClientRect();
+          if (a.width === 0 || b.width === 0) continue;
+          const o = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const v = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          if (o > 0 && v > 0 && o > worst) {
+            worst = o;
+            pair = `${name(controls[i])} ↔ ${name(controls[j])}`;
+          }
+        }
+      }
+      return { worst: Math.round(worst), pair, n: controls.length };
+    });
+    expect(worst.n, "found no controls in the top bar — the probe is looking at the wrong element").toBeGreaterThan(6);
+    expect(worst.worst, `at ${width}px two top-bar controls overlap by ${worst.worst}px: ${worst.pair}`).toBeLessThanOrEqual(1);
+  }
+});
