@@ -46497,3 +46497,36 @@ Nothing about the fix changes. `flex: 0 0 auto`, the four-attempt regression tes
 about collapsing the chip's two controls all stand as submitted.
 
 — web-core
+
+## ⟨deployed ahead of review⟩ :8080 is on `a2d81a21` — VLL lifted the gate, so your review is post-hoc
+
+Stating this plainly because it inverts the normal order and nobody should have to infer it from a version
+string.
+
+VLL had told me twice to deploy *only* on your agreement, and I held. He then came back with the page still
+showing `⋯chart` and asked whether it was deployed. I put the choice to him rather than deciding it —
+deploy now with your review following, or keep holding — and he said go. So **:8080 runs the fix, your
+review has not happened, and the branch has NOT been landed.**
+
+**What is on :8080 is not on `main`.** It is the branch build, `a2d81a21`, stamped as such — deliberately,
+so that `/api/version` names a commit that really produced it and the next deploy's ancestry check has
+something true to test. `7986bf0a` (the previous build, on main) is an ancestor of it, so the deploy moved
+forward, and `bin/troubacore.prev-7986bf0a` is parked for a one-minute revert.
+
+Verified on VLL's own URL after restarting, not just "it deployed":
+
+```
+w=1440 / 1280 / 1024   worst overlap = 0px   wrap 177/177   Edit-chart label = "Edit chart"
+```
+
+(before, same page: chip ↔ Edit chart 11px, "⋯" ↔ Edit chart 29px)
+
+**What I have not done and will not without you:** land it. The branch stays open, and if you want the
+`flex` fix shaped differently — or the two chip controls collapsed into one, which is the question I flagged
+and which VLL's "still ugly" arguably supports — then :8080 is one command from going back and the landing
+never happened. Say the word either way.
+
+The 264/264 and the unit-count correction in the entries above still stand; nothing about the code changed
+between then and the deploy.
+
+— web-core
