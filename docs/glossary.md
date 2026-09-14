@@ -172,7 +172,7 @@ The brand names come from the troubadours: *trobar* (Occitan, "to compose verse"
 | **underlay** (Studio) | the note `<img>` printed between `pdf-canvas` and `annotation-overlay` as a reference to recopy from by hand; non-hit-testable, never an object, never baked, never visible to another member | `RehearsalUnderlay`, chip "Rehearsal notes (N)" |
 | **pageChanged** | server-derived, three-valued: the note's raster hash is / is not / cannot be checked against the current bake; UI states the fact "not in the current bake", never a cause | |
 | **Done, remove** | delete the note in Studio for this owner; the tablet keeps its copy | `deleteRehearsalNote` |
-| **overwrite** | a PUT for an existing (owner, song, page) is 409 unless `?overwrite=1`; bulk send asks once per batch | |
+| **overwrite** | a PUT for an existing (owner, song, page) is 409 unless `?overwrite=1`; a single send prompts on the 409; bulk does NOT ask — it counts them *"N need overwrite"*, writes no `sentAt`, and leaves each retryable individually (settled 2026-09-14) | |
 
 ## 10. Process vocabulary (the gate)
 

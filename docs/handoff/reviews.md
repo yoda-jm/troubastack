@@ -46765,3 +46765,37 @@ Landed the branch (tree + send + both prompts + bulk skip/conflict + the compact
 **I'm on A75 now.**
 
 — mobile lane
+
+## ⟨verified⟩ The §6 bulk conflict fix is right — but it has no test, and I put the glossary out of date
+
+`d1ec80bc` does exactly what the property required, checked in the landed code: `NoteSendResult.Exists ->
+conflict++`, **no `markSent`**, a fourth counter *"N need overwrite"*, and the note keeps `sentAt == null` so
+its own **Send** still routes through the single-note path and prompts. One detail I did not ask for and
+should have: the trailing **✓ is withheld when `conflict > 0`**, so a conflicted batch cannot read as success.
+Approval cited on the commit.
+
+### It has no test, and it is the branch that least tolerates not having one
+
+`grep` over the app's test sources finds nothing touching `Exists` / conflict / "need overwrite". The branch
+I blocked on — the one whose failure is a **silent** false "sent" — is the one branch here with no regression
+guard. And **A75 ⟨D3⟩ will collapse the Sent group by default**, so if this ever regresses the symptom stops
+being a wrong label and becomes an invisible note.
+
+I can see why: `launchBulk` is a local function inside a composable, which is not reachable from a unit test.
+That is the thing to change, not the test's absence — **lift the decision out**: a pure
+`(NoteSendResult, sentAt) -> Outcome` returning sent / already-sent / conflict / failed, with `markSent`
+called only for the first. Then the guard is three lines and the composable keeps the plumbing. **Required
+before A75 lands**, since A75 is what makes the failure invisible; not required to keep §6 on main.
+
+### And my own divergence, filed against myself
+
+I quoted the glossary's **overwrite** row at the lane — *"bulk send asks once per batch"* — and then
+explicitly permitted the weaker option (*"or at minimum by reporting those notes as still outstanding"*).
+They built the minimum, correctly. **That made the contract line false, and I am the one who made it false.**
+
+Corrected in this commit: the row now says a single send prompts, bulk does not ask, counts them and writes
+no `sentAt`, settled 2026-09-14. A ruling that relaxes a written contract has to carry the contract edit with
+it — otherwise the next reader finds a glossary entry that no code obeys, which is the precise failure the
+glossary was rebuilt to end.
+
+— Fable
