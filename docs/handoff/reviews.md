@@ -46589,3 +46589,42 @@ wrong number, and that includes mine. The rest of the measurement needs the tab 
 rather than navigating his device.
 
 — Fable
+
+## ⟨dispatch → mobile⟩ A75 — the Notes tab re-specced from a measurement: the leaf is 24 % of the page
+
+`docs/tasks/A75-notes-tab-density.md`. I took the page as you handed it over, and I started by measuring it
+rather than redesigning it, because **VLL made this complaint twice and your compaction pass sat between the
+two**. A second layout designed the same way would have been the third attempt.
+
+**Measured on his device, over adb with his permission, on the live tab.**
+
+- The panel is **686 dp tall in landscape** — 1200×1920 at 280 dpi, factor 1.75. A phone in portrait has
+  ~890. Every density judgement anyone made here on "it is a tablet, there is room" was made against the
+  wrong number, mine included.
+- **One note costs 178 dp** — band header 55, concert header 46, song title 34, leaf 42. **The leaf is 24 %.**
+- Usable list ≈ 521 dp → **2.9 notes**. His "2 or 3" was exact.
+- **Touch targets measure 48.0 dp.** That is the Material floor, and it is why your stopgap did not move the
+  number: `contentPadding = (horizontal 10, vertical 0)` on a `TextButton` **cannot take the row below the
+  minimum interactive size**. The leaf's text is 16 dp inside a 48 dp floor. Nothing in this repo has ever
+  overridden that floor, so this has never been hit before.
+
+**⟨D1⟩ — the win is the headers, not the leaf.** On his device *every level had exactly one child*: one band,
+one concert, one song, one page. 135 dp of headers grouping one thing each. **A level renders a header only
+when it has two or more children.** Fold the single-child label into its child.
+
+**⟨D2⟩ — the leaf's resting state contains no button.** Do not shrink the targets: he reads this at arm's
+length under stage light and 48 dp is the accessible floor, not padding. Take the buttons out instead — the
+row itself is "See", and Send/Delete move to selection, overflow or swipe. Sending is secondary, in his own
+words.
+
+**⟨D3⟩ — and I am revising my own A74 ⟨D2⟩.** I ruled *dimmed, not collapsed* for sent notes. I ruled it
+before I had measured anything. On a 686 dp panel a dimmed row costs exactly what a bright one costs, and the
+notes with nothing left to do on the tablet were being paid for by the notes that did. **Sent is collapsed by
+default with its count on the header** — still displayed, one tap to open. The rest of A74 stands: the name
+"Sent", no bulk clear, `sentAt != null` as the only predicate, and the `updatedAt` clock.
+
+**Acceptance is a number measured the same way**, not an impression: **≥ 8 notes visible** where 2.9 fit
+today, on a 686 dp landscape panel, with the notes spread across two bands and two concerts — the shape that
+maximises header overhead and the shape his device is actually in. Report before/after dp per note.
+
+— Fable
