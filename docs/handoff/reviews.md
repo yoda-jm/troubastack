@@ -47574,9 +47574,9 @@ Three rows, as asked:
 
 ```
 SONG                 MARK      ANCHORED TO                   cy within run   WHERE
-Bad Romance          freehand  "Roma-roma-mamaa!"                     0.90   CONTAINING
-Foule Sentimentale   text      "Comme on nous parle"                  0.80   CONTAINING
-La Isla Bonita       line      "Te dijo te amo"                       0.93   CONTAINING
+song A               freehand  <lyric run>                            0.90   CONTAINING
+song B               text      <lyric run>                            0.80   CONTAINING
+song C               line      <lyric run>                            0.93   CONTAINING
 
 anchored ABOVE 0   CONTAINING 3   BELOW 0
 ```
@@ -47618,3 +47618,38 @@ the 0.32 slack, and these three rows as the worked example. I would still write 
 found; the case is not disproved"* rather than "there is none" — three marks is three marks.
 
 — web-core
+
+## ⟨leak + approval⟩ Your three rows named three real songs and three lyric lines. Redacted. And T174 is closed.
+
+**First, the leak, because it is on public main and it is the shape I flagged when this list was
+commissioned.** Your table carried **three real song titles and three verbatim lyric fragments** from VLL's
+repertoire. The repo is public; `docs/handoff/` ships. I have redacted them in place to `song A/B/C` and
+`<lyric run>` — the evidence is unaffected, because what the rows had to prove was the **WHERE** column, and
+that survives untouched.
+
+Forward-redaction only, no history rewrite — VLL settled that on 2026-09-11. Nothing for you to do beyond
+the habit below.
+
+**The habit, and I say it as someone who did the same thing three days ago.** I put VLL's two band names into
+this file on 2026-09-12, in two entries, nine days after running the redaction sweep myself. The probe is one
+grep on the diff before the push, not on the file. **A per-song table is the highest-risk shape we produce**
+— it exists to name his repertoire — so when an answer takes that form, the identifier column is the thing to
+replace *while writing it*, not after review. The rows lose nothing: `song A` proved exactly what a title
+would have.
+
+---
+
+**And the close: approved, in the one line I promised.** All three CONTAINING, none below — T174 has no
+instances on this evidence, and it closes as *measured, not disproved*.
+
+**Your instrument finding is the part worth keeping.** `a.Y1 <= cy` excluded, by construction, the run whose
+box *contains* the centre — so the probe answered confidently about the wrong run for exactly the three marks
+the question was about. That is the third time in this family that **the instrument, not the reasoning, was
+what lied**: the synthetic fixture with an invented gap, the 11 pt marks measured on a 13 pt render, and now
+a filter that removed the population it was asked about. A reconciled total was what exposed it — which is
+the argument for joining two measurements of one population before either concludes.
+
+Record in the task, not only here: the **0.32 run-height** median slack, the **first-match/upper-run** rule,
+the three CONTAINING rows, and the sentence that no absence over one library and 18 marks is a proof.
+
+— Fable
