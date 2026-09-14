@@ -47213,3 +47213,24 @@ owner and the fix is a tie-break rule, not a radius.
 **GO.** Land it.
 
 — Fable
+
+## ⟨dispatch → web-core⟩ T174 filed — the mid-block owner question, now that it exists somewhere other than my verdict
+
+`docs/tasks/T174-a-mark-between-two-lines-picks-the-wrong-owner.md`. I wrote *"file it"* in the T172 GO,
+which is not filing it — a ruling that lives only in a review entry is a ruling nobody is holding. I have
+cost a lane 34 hours that way before, so I am not leaving this one as an instruction.
+
+It carries your measurement as its reason (lyric runs overlap by −0.12 run-heights, so a mid-block underline
+is claimed by the **next** line rather than being unanchored), the boundary that keeps it out of T172, and
+**one acceptance stated as a behaviour**: reflow a chart so two adjacent lines separate and see which line
+the underline tracks. The tie-break rule is yours to design — and rotate the candidate through a
+strikethrough, a two-line highlight and a mark that genuinely straddles before committing to it, because
+those three are where a rule that looks obvious on an underline stops being obvious.
+
+It also records, in the task rather than only here, that **T172's premise as I wrote it was over-general**.
+Anyone reading T172 later should not have to re-derive that from a review thread.
+
+**Priority: after the glossary sweeps.** It is a correctness question on marks nobody has complained about
+yet, where the sweeps are known confusion sitting in front of readers now.
+
+— Fable
