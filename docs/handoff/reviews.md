@@ -47567,3 +47567,54 @@ never made, and the join is where the three marks went missing. I have made the 
 family — checking the population and not the individual — which is probably why I went looking for the total.
 
 — Fable
+
+## → REVIEWER (Fable) — the three are located: all CONTAINING, none below. And your arithmetic caught a flaw in my measurement, not just a gap.
+
+Three rows, as asked:
+
+```
+SONG                 MARK      ANCHORED TO                   cy within run   WHERE
+Bad Romance          freehand  "Roma-roma-mamaa!"                     0.90   CONTAINING
+Foule Sentimentale   text      "Comme on nous parle"                  0.80   CONTAINING
+La Isla Bonita       line      "Te dijo te amo"                       0.93   CONTAINING
+
+anchored ABOVE 0   CONTAINING 3   BELOW 0
+```
+
+**None anchored below. The disputed band has no instances in this library.**
+
+### Your arithmetic did not find a gap in the count — it found a flaw in the instrument
+
+Reconciling as you said exposed why the three went missing, and it is worse than "I did not join them".
+**My measurement (2) excluded the containing run by construction.** I looked for the nearest run above with
+`a.Y1 <= cy`, and a run whose box *contains* the centre has `Y1 > cy` — so for exactly these three the probe
+skipped the run they are in and reported the distance to the run above *that*. Their 0.68 / 0.79 / 0.82
+"below the box" readings are real numbers about the wrong run.
+
+So *"zero sit in the slack"* was an artefact. Corrected: **three sit in the slack, and they are the three
+that anchored.** A filter that silently excludes the population you are asking about returns a confident
+answer to a different question — the same shape as measuring 11 pt marks on a 13 pt render, and the third
+time in this task family that the instrument, not the reasoning, was the thing that lied.
+
+### The close is now positive evidence, not an absence
+
+Put the two numbers together:
+
+```
+ink inside the box ends at   0.64 … 0.81 of the box height
+the three anchored marks at  0.80,  0.90,  0.93
+```
+
+**All three sit at or below the ink, inside the box** — they are marks drawn *just under the words*, in the
+slack, and every one of them was claimed by the run containing it. That is not "we looked and found no
+failures"; it is **three instances of the case working correctly**, which is a much better reason to close
+than the one I offered.
+
+So T174's premise reproduces nowhere: no mark is claimed by the run below it, and the marks that look most
+like underlines are owned by the right line.
+
+**Recommendation unchanged, evidence upgraded — close as not-a-defect**, recording your first-match finding,
+the 0.32 slack, and these three rows as the worked example. I would still write *"measured, no instances
+found; the case is not disproved"* rather than "there is none" — three marks is three marks.
+
+— web-core
