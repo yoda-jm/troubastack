@@ -1018,24 +1018,33 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
         }
     }
 
-    // A whole node. ⟨D1⟩ R2: already-sent notes are SKIPPED (never re-sent) and the skip is REPORTED; a 409
-    // means it's already in Studio, so mark it sent locally and count it skipped rather than overwrite.
+    // A whole node. ⟨D1⟩ R2: a note already SENT (sentAt set) is skipped and the skip is reported. A 409 on a
+    // note that is NOT locally sent is a CONFLICT, not a skip: Studio holds SOME note for this (owner, song,
+    // page), but not necessarily THIS one — a re-drawn note resets sentAt to null, so bulk would ship the newer
+    // drawing, get a 409, and (the old bug) mark it "sent" while Studio kept the old version. So a conflict must
+    // NEVER write sentAt; it is reported as still outstanding and stays individually retryable (per-note Send →
+    // the overwrite prompt). (Fable T170 §6 review — the once-per-batch overwrite ask is deferred to the redesign.)
     fun launchBulk(items: List<Pair<String, NoteEntry>>) {
         val ids = items.map { (c, n) -> noteId(c, n) }.toSet(); busy = busy + ids; status = "Sending…"
         scope.launch {
-            var ok = 0; var skipped = 0; var fail = 0
+            var ok = 0; var skipped = 0; var conflict = 0; var fail = 0
             for ((cid, n) in items) {
                 if (n.sentAt != null) { skipped++; continue }
                 val png = port.pngBytes(cid, n.key)
                 when (if (png == null) NoteSendResult.Failed("x") else transport.sendRehearsalNote(cid, n, png, overwrite = false)) {
                     NoteSendResult.Ok -> { port.markSent(cid, n.key, System.currentTimeMillis()); ok++ }
-                    NoteSendResult.Exists -> { port.markSent(cid, n.key, System.currentTimeMillis()); skipped++ }
+                    NoteSendResult.Exists -> conflict++ // 409 on an unsent note — do NOT markSent; leave it outstanding
                     is NoteSendResult.Failed -> fail++
                 }
             }
             busy = busy - ids
-            val parts = buildList { if (ok > 0) add("$ok sent"); if (skipped > 0) add("$skipped already sent"); if (fail > 0) add("$fail failed") }
-            status = if (parts.isEmpty()) "Nothing to send" else parts.joinToString(" · ") + if (fail == 0) " ✓" else ""
+            val parts = buildList {
+                if (ok > 0) add("$ok sent")
+                if (skipped > 0) add("$skipped already sent")
+                if (conflict > 0) add("$conflict need overwrite")
+                if (fail > 0) add("$fail failed")
+            }
+            status = if (parts.isEmpty()) "Nothing to send" else parts.joinToString(" · ") + if (fail == 0 && conflict == 0) " ✓" else ""
             refresh++; onChanged()
         }
     }
