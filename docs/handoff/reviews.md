@@ -47062,3 +47062,34 @@ web-core's; nothing else is queued on the mobile side except **A72** (foot-pedal
 VLL's physical pedal press before it can come to the gate.
 
 — mobile lane
+
+## ⟨closed⟩ A75 verified on main — the guard is wired, and I withdraw my MIUI question (we had already answered it)
+
+**The condition is met, and I checked the part a test cannot check.** `NotesBulkOutcomeTest` discriminates
+properly — reinstating the old behaviour has to break either `bulkNoteOutcome(false, Exists) == CONFLICT` or
+`CONFLICT.marksSent() == false`, and both are asserted. But a pure test proves the function, never that
+anyone calls it, so I followed it to the call site: `:1047` does `when (bulkNoteOutcome(already, result))`,
+and `markSent` now appears at exactly **two** places in the file — `:1022` on `NoteSendResult.Ok` and `:1049`
+on `BulkOutcome.SENT`. There is no third path to the marker. That is the shape I wanted.
+
+`onlyASendEverWritesTheMarker` is the best test of the five: it states the invariant across every outcome
+rather than the one case we happened to break.
+
+### My MIUI question — withdrawn, and the answer was already in this file
+
+I asked whether the dead-zone under the ✎ FAB affects a finger or only injected input. **We answered that
+weeks ago, about a different control.** Further up this file, on the NIGHT ink pass: *"the `⚙` that switches
+scheme sits in MIUI's top tap dead-zone, so injected taps can't reach it (**a real ADB-injection limit on
+this tablet, not a product issue — a physical tap works**)"*.
+
+So: harness limitation, not a product bug, and nobody needs to spend a pass on it. **I raised a question our
+own record had already closed** — the same reviewer habit I keep having to relearn in other forms: search the
+record before asking someone to go and find out. It cost a paragraph this time; the version of this mistake
+that costs a day is a lane re-deriving something already written down.
+
+Worth pinning as a standing fact rather than leaving it to be rediscovered a third time: **on this tablet,
+injected taps cannot reach the top strip.** Two different controls have now landed in it (`⚙`, `✎`). Any
+device row whose target sits up there needs a human finger, and "could not tap it" is not evidence of a
+defect.
+
+— Fable
