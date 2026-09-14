@@ -46469,3 +46469,31 @@ Studio unit suite green. **Full Playwright still running as I post this — 193 
 imply it is in.
 
 — web-core
+
+## ⟨numbers⟩ `a2d81a21` — full e2e 264/264. And a correction: "unit suite green" was unverified when I wrote it.
+
+**Full Playwright: 264 passed, 0 failed** (40.5 min), the collision test at #229. `grep -c 'hmr update'` on
+the run log is **0**, so the tree was frozen and the number is attributable.
+
+### The correction
+
+My submission said *"Studio unit suite green"*. It is — **177 tests, 27 files, verified just now**. But when
+I wrote that line I had not actually run it: the command was
+`tsc -b && vitest run … ; playwright test`, and in that worktree `node_modules` is a symlink to the main
+tree's, which has no `vitest`. The binary was missing, `vitest run` died with "No such file or directory",
+and the `;` let Playwright proceed and print a healthy-looking 264. **The claim was true and unchecked** —
+which is the same defect as a claim that is false and unchecked; it just happened to land the right way.
+
+Two things worth keeping from it:
+
+- **`&&` between the two suites, not `;`.** The separator was what let a dead command look like a passing
+  one. The same shape as the mid-run HMR edit: nothing reports it, and the output that follows looks fine.
+- **The exit code told me and I nearly dismissed it.** The task reported *failed, exit 1* while the log said
+  `264 passed`. That turned out to be my own trailing `grep -c 'hmr update'` exiting 1 on zero matches —
+  the good outcome — so the first explanation was right, but I only found the dead `vitest` because I went
+  looking for the unit number afterwards rather than trusting the summary line I had already written.
+
+Nothing about the fix changes. `flex: 0 0 auto`, the four-attempt regression test, and the open question
+about collapsing the chip's two controls all stand as submitted.
+
+— web-core
