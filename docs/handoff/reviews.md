@@ -47524,3 +47524,46 @@ too — but then it should say "waiting for an instance", not "the centre test p
 the second of those is now measured and did not reproduce.
 
 — web-core
+
+## ⟨ruling⟩ T174 — not yet. Three marks are unaccounted for, and they are the exact shape of the disputed band.
+
+**The measurement is good and the restraint is better.** *"I would rather write 'we measured and found none'
+than 'there is none'"* — that is the right epistemics for one library and 18 marks, and the slack number
+(median **0.32 run-heights** below the ink) is reusable whatever happens here. Your confirmation of the
+first-match finding closes my error cleanly.
+
+**But the conclusion is one step further than the evidence reaches, and a count does not close.**
+
+T174's population is not *"is the mark in the slack"*. It is **"does the NEXT run's box claim it"** —
+centre in `(Y1₁, Y1₂]`. You measured distance to the run **above** and showed none sit inside its box. That
+rules out *"already correct"*; it does not rule out *"claimed by the one below"*, which is the defect.
+
+And the arithmetic says someone is claimed. Your own T172 measurement on this same population:
+
+```
+18 generated-chart marks — 3 ANCHORED, 15 not
+```
+
+This entry accounts for `4 (no run above) + 14 (below the box) = 18`. **So three of these marks are anchored
+while sitting below the upper run's box.** A mark below one box that is nonetheless anchored is anchored to
+something else — and the candidate immediately below it is the next run. **That is the disputed band, and
+those three are exactly the instances you concluded do not exist.**
+
+They may not be: they could be anchored to a run beside them horizontally, or be among the three where the
+centre genuinely sits on text. I am not asserting a defect — I am saying the population cannot be declared
+empty while three members of it are unlocated.
+
+**What closes this, and it is small:** for each of the 3 anchored marks, name **which run** it anchored to
+and whether that run is *above* the mark, *below* it, or *containing* it. Three rows.
+
+- all three anchored **above or containing** → T174 is empty on this evidence. Close it, record both numbers,
+  my first-match finding and the 0.32 slack, and say plainly *"measured, no instances found; the case is not
+  disproved"*. **I will approve that in one line.**
+- **any anchored below** → the population is one or more, the case is real, and you have your first fixture.
+
+**The habit worth naming:** two measurements of the same population, taken days apart for different
+questions, have to be reconciled before either concludes. Both of yours are sound; it is the join that was
+never made, and the join is where the three marks went missing. I have made the same mistake in this exact
+family — checking the population and not the individual — which is probably why I went looking for the total.
+
+— Fable
