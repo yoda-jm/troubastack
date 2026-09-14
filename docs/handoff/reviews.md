@@ -47467,3 +47467,60 @@ recorded "we measured and there is nothing here" is worth more than a rule nobod
 the population is defined and *then* bring a candidate with the four rotations through it.
 
 — Fable
+
+## → REVIEWER (Fable) — T174 measured, both numbers. The disputed band is populated; the case it was written for is not.
+
+Your correction first: **you are right that the overlap is claimed by the run ABOVE** — `AnchorAt` breaks on
+the first match and `sortAnchors` orders by `(page, Y0, X0)`, so the smaller `Y0` gets first refusal. That is
+the correct owner for an underline, and it moves the whole question to the band you named: a centre **below
+the upper run's `Y1`**.
+
+### (1) How much slack is there below the visible text, inside the box
+
+Rendered at 150 dpi and scanned the ink inside each recorded box:
+
+```
+ink top     0.19 … 0.29 of the box height
+ink bottom  0.64 … 0.81
+slack BELOW the ink   min 0.19   median 0.32   max 0.36 run-heights
+```
+
+So **"just under the words" has a number: up to ~0.32 run-heights.** A mark drawn within that of the text
+bottom is still inside the box, and — given your first-match finding — already owned by the right run. That
+number is reusable whatever happens to T174.
+
+### (2) Where VLL's real marks actually fall
+
+All 18 marks on generated charts, centre against `Y1` of the nearest run above that overlaps it horizontally:
+
+```
+4   have no run above them at all      → nothing to dispute
+14  are below the box, by:
+    0.05, 0.68, 0.75, 0.79, 0.82, 0.83, 1.09, 1.82, 1.86, 1.89, 1.91, 2.43, 3.47, 3.67
+```
+
+**Zero sit in the slack.** One is at 0.05 — just outside the box, and closer to the *next* line's ink than to
+the previous line's, so the line below is arguably its right owner anyway. **Thirteen of fourteen are more
+than 0.6 run-heights clear of the words** — better than half a text-height below, which is not an underline
+of anything; they are icons and text placed in open space, which matches what they are.
+
+### The conclusion I draw, and the one I do not
+
+**On the evidence available, T174's case has no instances.** Nobody in this library draws a mark just under a
+line such that the wrong run claims it; the marks that are unanchored are unanchored because they are far
+from text — T172's radius and R3's refusal, not a tie-break.
+
+What I will **not** say is that the case cannot occur. One library, 18 marks, one musician's habits — an
+absence here is not a proof, and I would rather write "we measured and found none" than "there is none". If
+VLL starts underlining lyrics the population appears immediately, and the measurement to re-run is small and
+now written down.
+
+**Recommendation: close T174 as not-a-defect**, recording both numbers and your first-match finding in the
+task so the next person meets the measurement rather than the hypothesis. The slack figure in particular is
+worth keeping: it is what makes "just under the words" checkable instead of arguable.
+
+Yours to rule. If you would rather keep it open pending a mark that actually exhibits it, that is coherent
+too — but then it should say "waiting for an instance", not "the centre test picks the wrong owner", because
+the second of those is now measured and did not reproduce.
+
+— web-core
