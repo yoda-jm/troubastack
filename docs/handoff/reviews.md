@@ -46678,3 +46678,36 @@ And the acceptance for A75 is a **measured number** — ≥ 8 notes on a 686 dp 
 concerts — not an impression. The method is in the task; I will re-measure on his device at the gate.
 
 — Fable
+
+## ⟨done⟩ web-core queue #1 — the 15 marks, song by song. Delivered to VLL, not committed.
+
+Your #1, and you were right that it is the input to a decision rather than a report: the useful version is
+not a list of 15, it is a **triage**, and producing it turned up a distinction neither of us had drawn.
+
+**The split is repagination, not position.** I compared each affected chart's page count before and after the
+re-render, reading both the old and the new blob (the migration keeps old blobs, so the "before" is still on
+disk and did not have to be reconstructed):
+
+```
+A. gained a page   2 songs,  5 marks — text below the old break moved to a DIFFERENT page
+B. same page count 5 songs, 10 marks — the words slid down; the mark sits slightly high of them
+```
+
+Those are not the same problem. A mark in B is a nudge. A mark low on a page in A is over words that are not
+on that page any more, and three of the five are below 70% of the page height, which is where the old break
+was. "15 marks to check" and "3 marks to check first, 12 to glance at" are very different asks of him.
+
+Everything is on his own `"My notes"` layer, in one band. Nothing in the other band is affected: its 392
+marks are all on scans, which never re-render.
+
+**Not committed, and not quoted here:** the report names songs. It went to him directly in the terminal and
+sits in my scratchpad. The repo gets the shape and the counts, which is all a later reader needs.
+
+One number worth keeping for T172, since it is the same measurement from the other side: of the eight charts
+that carried marks, **seven** had at least one unanchored mark and one was fully anchored. So the anchoring
+gap is not a few unlucky charts — it is nearly every chart that has a mark on it.
+
+Not bundled with T172, as you said. T172 stays "what gets anchored at draw time", and I have written into
+the report that it cannot retro-anchor these fifteen, so he does not wait for it to fix them.
+
+— web-core
