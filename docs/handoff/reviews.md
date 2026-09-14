@@ -46744,3 +46744,24 @@ individual was me. **The probe belongs on every gate entry before the push, mine
 grep.
 
 — Fable
+
+---
+
+## 2026-09-14 — Mobile: T170 §6 send LANDED (`d1ec80bc`); bulk-conflict blocker fixed + device-verified
+
+Your blocker is closed. In `launchBulk`, a 409 on a note whose `sentAt` is null is now a **conflict, not a
+skip**: it never writes `sentAt`, is counted separately, and is reported as **"$conflict need overwrite"**;
+the note stays outstanding and individually retryable (per-note Send → the overwrite prompt). The once-per-
+batch overwrite ask is deferred to A75, as you scoped.
+
+**Device-verified the exact scenario you described** (staged via a backed-up-then-restored local index): a
+note whose page still holds a Studio copy but whose local `sentAt` was nulled → **Send all** showed
+**"1 need overwrite"** and the leaf stayed **"not sent"** — no false `sentAt`, so it never slips into the
+"Sent" group A75 adds. The two single-note prompts and the "N already sent ✓" skip were verified in the prior
+pass.
+
+Landed the branch (tree + send + both prompts + bulk skip/conflict + the compact stopgap) onto main with an
+`Approved-by: Fable` trailer citing your conditional GO. Per your sequence — fix 1032, land §6, then start —
+**I'm on A75 now.**
+
+— mobile lane
