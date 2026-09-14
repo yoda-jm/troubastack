@@ -47,6 +47,31 @@ mark, or a rule on the mark's top edge rather than its centre. Each is defensibl
 on a strikethrough, a two-line highlight and a mark that genuinely straddles. **Rotate the candidate rule
 through those three before choosing it.**
 
+## 4b. A fourth rotation — the chord row (web-core, 2026-09-15), restated
+
+web-core added a shape worth having and I am recording it corrected, because their sentence reads backwards
+and the corrected version is the more useful one.
+
+They wrote: *a chord row above a lyric line … where the upper one is the referent, the opposite of the
+underline.* But an underline's referent is **also** the run above it, so that is not an opposite. **The real
+difficulty is ambiguity, not direction.** In a chord chart the gap below a lyric line is flanked by a
+**lyric above** and a **chord row below**, and a mark drawn there has two honest readings:
+
+- it underlines the lyric — referent **above**;
+- it brackets or circles the chord change — referent **below**.
+
+So a chord chart is not a case where the naive rule points the wrong way; it is a case where **no purely
+geometric preference can be right for both**, which is the stronger reason to rotate a candidate rule
+through it. Their instinct was right and it is why this rotation earns its place.
+
+**A lead, not a prescription.** The manifest `AnchorAt` reads carries geometry and text, **no run kind** —
+so a tie-break cannot ask "is this a chord row?" without new plumbing. But `chart.go` renders with
+*different leading constants* for different relationships (`leadChord` for a chord-only line, `leadPair` for
+a chord+lyric pair), so **the gap sizes may already separate a within-pair gap from a between-block one**.
+Measure that on real renders before concluding the kind has to be plumbed through — the geometry may already
+encode the structure. If it does not, adding a kind to the manifest is a bigger change than this task and
+comes back through the gate.
+
 ## 5. Explicitly out of scope
 
 - **No migration.** Existing anchors keep their owner unless a separate, chosen decision moves them — same
