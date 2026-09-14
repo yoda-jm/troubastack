@@ -113,6 +113,24 @@ type anchorJSON struct {
 	Occurrence int    `json:"occurrence"`
 	CharStart  int    `json:"charStart"`
 	CharEnd    int    `json:"charEnd"`
+
+	// T172 — nested + optional, so absence is structural. See offsetJSON.
+	Offset *offsetJSON `json:"offset,omitempty"`
+	Span   *spanJSON   `json:"span,omitempty"`
+}
+
+// offsetJSON / spanJSON mirror domain.AnchorOffset and domain.AnchorSpan (T172). They are separate
+// messages, not flattened fields, because their PRESENCE is the meaning: absent = the mark sits on its
+// run, which is every anchor written before T172. Flattening them into the parent would need a sentinel,
+// and the obvious one ("all zero") is a legitimate value — a flat underline has RelY0 == RelY1.
+type offsetJSON struct {
+	RelY0 float64 `json:"relY0"`
+	RelY1 float64 `json:"relY1"`
+}
+
+type spanJSON struct {
+	RunText    string `json:"runText"`
+	Occurrence int    `json:"occurrence"`
 }
 
 // ---- connection ----

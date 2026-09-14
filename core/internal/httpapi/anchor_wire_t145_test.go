@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"troubastack/core/internal/domain"
+	"troubastack/core/internal/testutil"
 )
 
 // TestObjectJSON_AnchorRoundTrip (T145): the source-scoped anchor + the projected-cache render hash must
@@ -20,7 +21,8 @@ func TestObjectJSON_AnchorRoundTrip(t *testing.T) {
 	if got.Anchor == nil {
 		t.Fatal("anchor lost in the domain<->wire round-trip")
 	}
-	if *got.Anchor != *o.Anchor {
+	// see the note in wire_object_fields_test.go: `!=` would compare the nested optionals by pointer.
+	if d := testutil.DiffFields(*o.Anchor, *got.Anchor, nil); len(d) > 0 {
 		t.Fatalf("anchor changed: %+v vs %+v", *got.Anchor, *o.Anchor)
 	}
 	if got.PointsRenderHash != o.PointsRenderHash {

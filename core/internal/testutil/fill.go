@@ -72,17 +72,58 @@ func fillStruct(t testing.TB, v reflect.Value, seed int) {
 // DiffFields reports the fields of two values of the same struct type that differ, skipping `skip` (whose
 // values are the REASONS a field legitimately does not survive — a skip list whose entries had to be
 // written down is the opposite of an omission that looks like nothing at all).
+//
+// It descends into nested structs and into pointers-to-structs, reporting a DOTTED PATH
+// (`Anchor.Offset.RelY0`) rather than the outermost field name. That matters once a mirrored type grows a
+// nested optional: `reflect.DeepEqual` at the top level does notice that `Anchor` differs, but "Anchor"
+// is not an actionable message when the anchor has six members across two nested messages, and the fix is
+// a single line in one of four hand-written mirrors. A guard should name the member that was dropped
+// (Fable, T172: "walk INTO the nested Offset, not merely notice that an Offset field exists").
+//
+// Presence itself is reported rather than descended through: one side nil and the other not is the whole
+// finding, and recursing would only produce noise about every member of the side that exists.
 func DiffFields(want, got any, skip map[string]string) []string {
-	wv, gv := reflect.ValueOf(want), reflect.ValueOf(got)
+	return diffAt("", reflect.ValueOf(want), reflect.ValueOf(got), skip)
+}
+
+func diffAt(prefix string, wv, gv reflect.Value, skip map[string]string) []string {
 	ty := wv.Type()
 	var out []string
 	for i := 0; i < ty.NumField(); i++ {
 		name := ty.Field(i).Name
-		if _, s := skip[name]; s {
+		path := name
+		if prefix != "" {
+			path = prefix + "." + name
+		}
+		if _, s := skip[path]; s {
 			continue
 		}
-		if !reflect.DeepEqual(wv.Field(i).Interface(), gv.Field(i).Interface()) {
-			out = append(out, name)
+		if _, s := skip[name]; s && prefix == "" {
+			continue
+		}
+		w, g := wv.Field(i), gv.Field(i)
+		if !w.CanInterface() {
+			continue
+		}
+		if reflect.DeepEqual(w.Interface(), g.Interface()) {
+			continue
+		}
+		switch w.Kind() {
+		case reflect.Ptr:
+			// Presence is the finding when the two sides disagree about it; otherwise descend.
+			if w.IsNil() != g.IsNil() {
+				out = append(out, path)
+				continue
+			}
+			if !w.IsNil() && w.Elem().Kind() == reflect.Struct {
+				out = append(out, diffAt(path, w.Elem(), g.Elem(), skip)...)
+				continue
+			}
+			out = append(out, path)
+		case reflect.Struct:
+			out = append(out, diffAt(path, w, g, skip)...)
+		default:
+			out = append(out, path)
 		}
 	}
 	return out

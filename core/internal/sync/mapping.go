@@ -166,14 +166,28 @@ func anchorToJSON(a *domain.SourceAnchor) *anchorJSON {
 	if a == nil {
 		return nil
 	}
-	return &anchorJSON{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+	out := &anchorJSON{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+	if o := a.Offset; o != nil {
+		out.Offset = &offsetJSON{RelY0: o.RelY0, RelY1: o.RelY1}
+	}
+	if sp := a.Span; sp != nil {
+		out.Span = &spanJSON{RunText: sp.RunText, Occurrence: sp.Occurrence}
+	}
+	return out
 }
 
 func anchorFromJSON(a *anchorJSON) *domain.SourceAnchor {
 	if a == nil {
 		return nil
 	}
-	return &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+	out := &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+	if o := a.Offset; o != nil {
+		out.Offset = &domain.AnchorOffset{RelY0: o.RelY0, RelY1: o.RelY1}
+	}
+	if sp := a.Span; sp != nil {
+		out.Span = &domain.AnchorSpan{RunText: sp.RunText, Occurrence: sp.Occurrence}
+	}
+	return out
 }
 
 func objectFromJSON(j objectJSON) domain.Object {

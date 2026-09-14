@@ -134,6 +134,64 @@ type SourceAnchor struct {
 	Occurrence int // 1-based, document-wide (source order)
 	CharStart  int // rune index within the run
 	CharEnd    int
+
+	// Offset (T172) records that the mark sits BESIDE its run rather than on it — an underline under a
+	// line, a bracket above a section. Absent means "on the run", which is every anchor written before
+	// T172 and every mark whose centre lands inside a run, so an absent Offset reads exactly as it did.
+	//
+	// Presence is STRUCTURAL, not a sentinel. The obvious alternative — "all-zero means absent", since an
+	// on-run mark spans 0..1 of the run's height — is wrong: a flat underline (TypeLine) has y0 == y1, so
+	// a zero-height mark at a run's top edge encodes as all zeros legitimately (Fable, T172 rulings). The
+	// discriminator and the payload being the same object is what makes them unable to disagree.
+	Offset *AnchorOffset
+
+	// Span (T172 R2) extends the anchor to a RANGE of runs — a bracket or a highlight covering several
+	// lines relates to runs N..M, not to one. Absent means a single run, which is what every anchor
+	// before T172 is. Same structural-presence rule as Offset.
+	Span *AnchorSpan
+}
+
+// AnchorOffset is the mark's vertical extent expressed in the RUN'S OWN HEIGHTS, measured from the run's
+// top edge: 0..1 is exactly over the run, 1.2..1.4 is just under it, -0.4..-0.1 just above.
+//
+// Run-heights, because the point is to survive a type-size change: a mark 0.3 run-heights under a line is
+// 0.3 run-heights under it at 11 pt and at 13 pt, where "4 mm under" would not be.
+//
+// There is deliberately NO horizontal twin. CharStart/CharEnd already say which CHARACTERS the mark covers
+// — a semantic fact that survives a reflow, a font change and a re-render — and a RelX would be the same
+// fact in geometry, which survives none of them. Carrying both would mean carrying the weaker answer and
+// writing a rule for when it wins (Fable, T172 rulings). A mark with no horizontal overlap at all is beside
+// a BLOCK, not a run, and stays un-anchorable.
+type AnchorOffset struct {
+	RelY0 float64 // mark top, in run-heights from the run's top edge
+	RelY1 float64 // mark bottom, same frame
+}
+
+// Clone deep-copies a SourceAnchor INCLUDING its nested optionals. `*a` alone would copy the Offset and
+// Span POINTERS, so a clone would share them with the stored object and a caller could mutate state
+// through a copy — the precise bug Object.Clone's anchor copy exists to prevent, one level down. Adding a
+// pointer field to a type that is cloned by value is how that reappears.
+func (a *SourceAnchor) Clone() *SourceAnchor {
+	if a == nil {
+		return nil
+	}
+	cp := *a
+	if a.Offset != nil {
+		o := *a.Offset
+		cp.Offset = &o
+	}
+	if a.Span != nil {
+		s := *a.Span
+		cp.Span = &s
+	}
+	return &cp
+}
+
+// AnchorSpan names the LAST run of a multi-run anchor; the first is the SourceAnchor's own
+// RunText/Occurrence. Both are resolved in source order, so a re-layout cannot renumber either end.
+type AnchorSpan struct {
+	RunText    string
+	Occurrence int // 1-based, document-wide (source order), like SourceAnchor.Occurrence
 }
 
 // Object is an annotation identified by a client-generated UUID (I2). Applying the
@@ -182,8 +240,7 @@ func (o Object) Clone() Object {
 		copy(cp.Points, o.Points)
 	}
 	if o.Anchor != nil { // deep-copy so callers cannot mutate stored state through the pointer
-		a := *o.Anchor
-		cp.Anchor = &a
+		cp.Anchor = o.Anchor.Clone()
 	}
 	return cp
 }

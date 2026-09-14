@@ -6,6 +6,7 @@ import (
 
 	"troubastack/core/internal/app"
 	"troubastack/core/internal/domain"
+	"troubastack/core/internal/testutil"
 )
 
 // The v2 band folder writes and reads `domain.Object` FIELD BY FIELD (v2Object, both directions). That
@@ -122,18 +123,14 @@ func TestBandFolder_RoundTripsEveryObjectField(t *testing.T) {
 		t.Fatalf("the object did not survive the round-trip at all")
 	}
 
-	wv, gv := reflect.ValueOf(want), reflect.ValueOf(*got)
-	ty := wv.Type()
-	for i := 0; i < ty.NumField(); i++ {
-		name := ty.Field(i).Name
-		if _, skip := notCarried[name]; skip {
-			continue
-		}
-		if !reflect.DeepEqual(wv.Field(i).Interface(), gv.Field(i).Interface()) {
-			t.Errorf("domain.Object.%s did not survive the band-folder round-trip:\n  wrote %#v\n  read  %#v\n"+
-				"Either carry it in v2Object (both directions), or add it to notCarried with the reason.",
-				name, wv.Field(i).Interface(), gv.Field(i).Interface())
-		}
+	// testutil.DiffFields rather than a hand-rolled field walk: it descends into nested structs and
+	// pointers, so a member lost inside domain.SourceAnchor.Offset is named as `Anchor.Offset.RelY0`
+	// instead of reported as "Anchor did not survive" followed by two pointer addresses — which is what
+	// this loop printed when the anchor grew nested optionals in T172, and is not a message anybody can
+	// act on when four hand-written mirrors each copy six members.
+	for _, path := range testutil.DiffFields(want, *got, notCarried) {
+		t.Errorf("domain.Object.%s did not survive the band-folder round-trip.\n"+
+			"Either carry it in v2Object (both directions), or add it to notCarried with the reason.", path)
 	}
 	// OwnerID is remapped, not copied — but it must still name somebody.
 	if got.OwnerID == "" {

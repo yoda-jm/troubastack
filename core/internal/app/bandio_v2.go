@@ -193,6 +193,22 @@ type v2Anchor struct {
 	Occurrence int    `json:"occurrence"`
 	CharStart  int    `json:"charStart"`
 	CharEnd    int    `json:"charEnd"`
+
+	// T172 — nested + optional so absence is structural: absent means the mark sits on its run, which is
+	// every anchor written before T172. A flattened field would need a sentinel, and "all zero" is a
+	// legitimate value (a flat underline has RelY0 == RelY1).
+	Offset *v2AnchorOffset `json:"offset,omitempty"`
+	Span   *v2AnchorSpan   `json:"span,omitempty"`
+}
+
+type v2AnchorOffset struct {
+	RelY0 float64 `json:"relY0"`
+	RelY1 float64 `json:"relY1"`
+}
+
+type v2AnchorSpan struct {
+	RunText    string `json:"runText"`
+	Occurrence int    `json:"occurrence"`
 }
 
 type v2Point struct {
@@ -337,6 +353,12 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 			}
 			if a := o.Anchor; a != nil {
 				vo.Anchor = &v2Anchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+				if o := a.Offset; o != nil {
+					vo.Anchor.Offset = &v2AnchorOffset{RelY0: o.RelY0, RelY1: o.RelY1}
+				}
+				if sp := a.Span; sp != nil {
+					vo.Anchor.Span = &v2AnchorSpan{RunText: sp.RunText, Occurrence: sp.Occurrence}
+				}
 			}
 			for _, p := range o.Points {
 				vo.Points = append(vo.Points, v2Point{X: p.X, Y: p.Y, Pressure: p.Pressure})
@@ -580,6 +602,12 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 			}
 			if a := vo.Anchor; a != nil {
 				o.Anchor = &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
+				if off := a.Offset; off != nil {
+					o.Anchor.Offset = &domain.AnchorOffset{RelY0: off.RelY0, RelY1: off.RelY1}
+				}
+				if sp := a.Span; sp != nil {
+					o.Anchor.Span = &domain.AnchorSpan{RunText: sp.RunText, Occurrence: sp.Occurrence}
+				}
 			}
 			for _, p := range vo.Points {
 				o.Points = append(o.Points, domain.Point{X: p.X, Y: p.Y, Pressure: p.Pressure})

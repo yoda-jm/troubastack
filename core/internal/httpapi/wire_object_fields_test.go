@@ -34,7 +34,10 @@ func TestAnnotationsDTO_CarriesEveryObjectField(t *testing.T) {
 			"Either carry each in annotations.go (objectToJSON AND objectFromJSON), or add it to objectNotInTheDTO with the reason.",
 			diff, want, got)
 	}
-	if got.Anchor == nil || *got.Anchor != *want.Anchor {
+	// NOT `*got.Anchor != *want.Anchor`: since T172 the anchor holds nested optionals, and `!=` on a
+	// struct containing pointers compares pointer IDENTITY — a correct round-trip allocates fresh ones
+	// and would fail, a dropped member would fail identically, so the check could not tell them apart.
+	if d := testutil.DiffFields(*want.Anchor, *got.Anchor, nil); got.Anchor == nil || len(d) > 0 {
 		t.Fatalf("the T145 anchor did not survive: wrote %+v, read %+v", want.Anchor, got.Anchor)
 	}
 }

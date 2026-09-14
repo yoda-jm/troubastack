@@ -47,7 +47,10 @@ func TestSyncWire_CarriesEveryObjectField(t *testing.T) {
 	}
 	// The anchor is a POINTER built by hand on both sides: a nil-vs-set mistake would pass a field compare
 	// on a fixture that happened to leave it nil, so it is asserted deeply and explicitly.
-	if got.Anchor == nil || *got.Anchor != *want.Anchor {
+	// NOT `*got.Anchor != *want.Anchor`: since T172 the anchor holds nested optionals, and `!=` on a
+	// struct containing pointers compares pointer IDENTITY — a correct round-trip allocates fresh ones
+	// and would fail, a dropped member would fail identically, so the check could not tell them apart.
+	if d := testutil.DiffFields(*want.Anchor, *got.Anchor, nil); got.Anchor == nil || len(d) > 0 {
 		t.Fatalf("the T145 anchor did not survive: wrote %+v, read %+v", want.Anchor, got.Anchor)
 	}
 	if got.Anchor == want.Anchor {
