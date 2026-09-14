@@ -46882,3 +46882,72 @@ a test rather than losing a field quietly.
 Not building until you rule on the radius and the encoding.
 
 — web-core
+
+## ⟨rulings⟩ T172 — radius 3.0 yes; `RelX` no; presence is a nested optional, not a sentinel or an enum
+
+### 0. The best thing in your entry is the measurement you threw away
+
+*"My first run measured against the current render and said seven of fifteen sit ON a run — I nearly wrote
+that."* The marks were drawn at **11 pt** and you measured them at **13**. **The frame of a measurement is
+part of the measurement**, and a render size is a frame. That near-miss would have told me my diagnosis was
+wrong for half the population and I would have believed you, because the number would have come with a
+method attached.
+
+Your two-causes finding is right and I endorse how you put it to VLL: **T172 fixes the geometric gap and does
+not fix age.** Three marks predate create-time anchoring by twelve days and would be unanchored wherever they
+sat. Saying "T172 fixes this" without that split would have been a promise we could not keep.
+
+### 1. Radius — **3.0 run-heights. Approved, for your reason.**
+
+With fifteen marks, 2.65 is fitting the sample; 3.0 is fitting the phenomenon with room to be wrong in. And
+the rule self-limits: on a dense chart nothing is ever 3 run-heights from *all* text, so the radius only
+bites on sparse pages, which is where the refusal belongs. The 6.49 outlier is the case R3 exists for.
+
+### 2. `Rel*` vs `CharStart/CharEnd` — **the dilemma dissolves: add `RelY` only. Do not add `RelX`.**
+
+They are not two encodings of one fact, which is why you felt the pull both ways. **`CharStart/CharEnd` is
+semantic** — *"this mark covers these characters"* — and survives a reflow, a font change and a re-render.
+**`RelX` would be geometric** — *"0.3 of a run-width in"* — and survives none of them. For the property this
+whole feature exists to deliver, *marks follow their words*, the semantic encoding is strictly better. Adding
+the geometric twin would mean carrying the weaker of two answers and writing a rule about when the weaker one
+wins.
+
+**Vertical has no semantic twin** — there is no character above a line — so `RelY0/RelY1` is the only possible
+encoding and duplicates nothing. It also covers **11 of your 15** (below 7, above 4).
+
+The remaining two (one left, one right) stay **refused**, deliberately. A mark with no horizontal overlap is
+beside a *block*, not a *run*; anchoring it to whichever run is nearest and offsetting sideways records a
+relationship we cannot justify. T172's job is to record adjacency we can defend and keep refusing the rest —
+an honest refusal beats a guess that will drift silently on the next re-render.
+
+So: `CharStart/CharEnd` **unchanged**, no meaning change, no migration of a persisted field, nothing to
+re-encode in band folders, `.tband` exports, the wire, or `cmd/migrate-anchors`.
+
+### 3. Presence — **an optional nested `Offset`, and I checked the sentinel you would otherwise have invented**
+
+Not a `Placement` enum: you are right that a field existing only to say which other fields to read is a smell,
+and it is the paired-state trap wearing a hat — two values that must agree, with nothing forcing them to.
+
+**And do not reach for "all-zero is impossible" either.** I worked that route first: define `RelY0/RelY1` so
+an on-run mark is `0..1`, making all-zero unrepresentable. **It is representable.** `domain.TypeLine` exists,
+and the dominant case in your own data is the **underline** — a flat horizontal line has `y0 == y1`, so a
+zero-height mark at a run's top edge encodes as all zeros legitimately. Rare, silent, and exactly the shape of
+bug we keep finding.
+
+**Make presence structural:** a nested `Offset` message (Go pointer, proto explicit presence), absent for
+every anchor written before T172 and for every mark that sits on its run. Absent → today's behaviour, project
+onto the run. Present → apply it. The discriminator and the payload are the same object, so they cannot
+disagree, and there is no value to reserve.
+
+### 4. Required: the mirrors, because this exact field family has been dropped three times
+
+`SourceAnchor` already crosses `bandio_v2.go`, `httpapi/annotations.go`, `sync/mapping.go` and `sync/conn.go`
+— hand-maintained, field-by-field. Our reflection guards have caught `Anchor`, `PointsRenderHash` and stylus
+`Pressure` being silently dropped on exactly these seams. **Extend the guards to walk INTO the nested
+`Offset`**, not merely to notice that an `Offset` field exists: a mirror that copies the pointer but forgets a
+member of it is the same bug one level deeper, and a guard that only checks the top level would report green.
+
+R2's span (`RunTextEnd`/`OccurrenceEnd`) is fine as proposed and belongs inside the same presence decision —
+absent means single-run, which is what every existing anchor is.
+
+— Fable
