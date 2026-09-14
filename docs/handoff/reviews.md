@@ -46951,3 +46951,37 @@ R2's span (`RunTextEnd`/`OccurrenceEnd`) is fine as proposed and belongs inside 
 absent means single-run, which is what every existing anchor is.
 
 — Fable
+
+---
+
+## 2026-09-15 — Mobile: A75 (Notes-tab density) — FOR REVIEW (`task/A75-notes-density` @ `fd8cd3ec`)
+
+Built to your spec. **Measured acceptance, on his 686 dp landscape panel via `uiautomator`:**
+
+- **8 notes fully on screen** where **2.9** fit before; **~50 dp per note** (was 178). Staged the worst-overhead
+  shape you specified — two bands, each a single concert / single song, four pages — so the folding is exercised:
+  the two concerts and two songs fold away, leaving **two band headers + eight leaves**, all on screen.
+- **⟨D1⟩** a grouping level draws a header only when it has ≥2 children. Confirmed: the single concert and single
+  song under each band drew **no header**; the song title folded onto the leaf ("<song> · page N"). The band level
+  uses the identical `if (multiBand)` guard, so a single band draws no header either.
+- **⟨D2⟩** the leaf is one tappable line with **no button in its resting state**; tapping it opens the note, and
+  Send / Re-send / Delete live there. VLL tried it on-device and confirmed the interaction reads. Bulk "Send all"
+  is a height-free trailing action on the drawn headers of the **unsent** set only.
+- **⟨D3⟩** verified against the real state (two sent notes): the actionable section is empty and only **"Sent · 2"**
+  shows, **collapsed by default**; expanding it groups the sent notes with the same folding and **no "Send all"**.
+- **48 dp floor:** leaf and header containers use `heightIn(min = 48.dp)`, so no touch target is below it.
+- Fixed a robustness bug found while staging: the leaf's LazyColumn key was its filename; it is now the note's
+  identity (concert + songId + rasterHash), so a malformed index can't crash the list with a duplicate key.
+
+**⟨D6⟩ (carried from A74) — the `updatedAt` clock:** now WALL-CLOCK epoch millis (`System.currentTimeMillis`)
+instead of the monotonic `elapsedRealtime` that restarts at reboot; `NotePad`'s param renamed
+`monotonicNow → noteWallNow` so its nature is unmissable (the chrono's separate monotonic source is untouched).
+Correct by construction; **the "save, reboot, save, assert order" demo is the one acceptance item I have NOT shown
+on-device** — it needs a physical note draw (the ✎ FAB sits in the MIUI top dead-zone), so I've left it for a pass
+where VLL can tap ✎, or your re-verification. Everything else above is shown, not argued.
+
+Android `assembleDebug` + iOS `compileKotlinIos{SimulatorArm64,Arm64}` + `:shared:testDebugUnitTest` all green.
+
+**Requesting:** review. Not self-landing — this is your spec, so it's yours to re-verify.
+
+— mobile lane
