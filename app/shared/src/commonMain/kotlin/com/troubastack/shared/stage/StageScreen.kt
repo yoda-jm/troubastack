@@ -1877,7 +1877,7 @@ private fun PageView(
                                 concertId = np.concertId, notes = np.notes, scheme = colorMode,
                                 editable = editable, tool = np.tool, penWidth = np.penWidth, penColour = np.penColour,
                                 imageMod = imageMod, fillWidth = fitMode == FitMode.FIT_WIDTH,
-                                noteRevision = np.noteRevision, meta = np.meta(page), monotonicNow = np.now,
+                                noteRevision = np.noteRevision, meta = np.meta(page), noteWallNow = np.now,
                                 onIndexChanged = np.onIndexChanged, onBumpRevision = np.onBumpRevision,
                             )
                         }

@@ -113,7 +113,7 @@ fun NoteLayer(
     fillWidth: Boolean,
     noteRevision: Int,
     meta: NoteMeta,
-    monotonicNow: () -> Long,
+    noteWallNow: () -> Long, // A74 ⟨D6⟩: WALL-CLOCK epoch millis for the persisted updatedAt — NOT a monotonic source (elapsedRealtime resets at reboot).
     onIndexChanged: (List<NoteEntry>) -> Unit,
     onBumpRevision: () -> Unit,
 ) {
@@ -167,7 +167,7 @@ fun NoteLayer(
             file = "", // the port names the file from the key
             pageInSong = meta.pageInSong, songTitle = meta.songTitle, bandName = meta.bandName,
             concertRev = meta.concertRev, takenAs = meta.takenAs,
-            width = snapshot.width, height = snapshot.height, updatedAt = monotonicNow(),
+            width = snapshot.width, height = snapshot.height, updatedAt = noteWallNow(),
         )
         scope.launch(Dispatchers.Default) {
             saveMutex.withLock {

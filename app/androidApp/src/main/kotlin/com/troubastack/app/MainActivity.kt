@@ -19,10 +19,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -748,7 +750,10 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     // A70 — rehearsal notes: the host bitmap port + the concert + a monotonic save clock.
                     notes = notesPort,
                     concertId = concertId,
-                    noteNow = { SystemClock.elapsedRealtime() },
+                    // A74 ⟨D6⟩: a note's updatedAt is PERSISTED metadata, so it must be WALL-CLOCK epoch millis
+                    // — elapsedRealtime restarts at every reboot, so a note saved yesterday could outrank one
+                    // saved today. (The chrono's monotonicNow above is a separate, correct monotonic source.)
+                    noteNow = { System.currentTimeMillis() },
                 )
             }
         }
@@ -987,6 +992,9 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
     // tap instead of a flat wall of cards. A key in [collapsed] is folded; default is everything expanded.
     var collapsed by remember { mutableStateOf(emptySet<String>()) }
     fun toggle(k: String) { collapsed = if (k in collapsed) collapsed - k else collapsed + k }
+    // A75 ⟨D3⟩: sent notes step back into a "Sent (N)" group, COLLAPSED by default (revises A74 ⟨D2⟩'s
+    // "dimmed" — on a 686 dp panel a dimmed row costs the same as a bright one).
+    var sentCollapsed by remember { mutableStateOf(true) }
     // T170 §6 — send state. [busy] holds the ids of notes currently uploading (per-note spinner + disable
     // + a concert node's "Sending…"); [status] is the one-line outcome. [myId] is the signed-in user, for
     // the identity prompt; [owAsk]/[idAsk] are the two confirmations the spec requires before a send.
@@ -1062,38 +1070,46 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
         Text("No rehearsal notes yet. Open a concert and tap ✎ to take one.", style = MaterialTheme.typography.bodyMedium)
         return
     }
-    // Status + offline hint live ABOVE the list (a plain composable, not a lazy item — a conditional
-    // item() driven by a coroutine-written state didn't reliably re-emit, so the "already sent"/"Sent ✓"
-    // line — which ⟨D1⟩ R2 requires be SAID — never showed).
-    Column(Modifier.fillMaxSize()) {
-    status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp)) }
-    if (!connected) Text("Connect (Bakes tab) to send notes to Studio.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        notes.groupBy { it.second.bandName }.forEach { (band, bandNotes) ->
-            val bandKey = "band:$band"
-            item(key = bandKey) { BandHeader(band.ifEmpty { "Notes" }, bandNotes.size, collapsed = bandKey in collapsed) { toggle(bandKey) } }
-            if (bandKey !in collapsed) {
-                bandNotes.groupBy { it.first }.forEach { (cid, concertNotes) ->
-                    val concertKey = "c:$band:$cid"
-                    val concertBusy = concertNotes.any { (c, n) -> noteId(c, n) in busy }
-                    item(key = concertKey) {
-                        NoteTreeHeader(
-                            labels[cid] ?: "Concert", concertNotes.size, collapsed = concertKey in collapsed, indent = 20.dp,
-                            onSendAll = if (connected) ({ onSendAll(concertNotes) }) else null, sendingAll = concertBusy,
-                        ) { toggle(concertKey) }
+    // A75 — render one set (unsent, or the Sent group) as a folded tree. ⟨D1⟩: a grouping level draws a
+    // header ONLY when it has 2+ children; a single-child level is folded away (its label rides on the leaf
+    // for the song). Headers that ARE drawn stay collapsible. [allowBulk] puts a height-free "Send all" on
+    // the drawn headers of the unsent set only (sent notes are re-sent per-note from the See dialog).
+    fun renderSection(ls: LazyListScope, items: List<Pair<String, NoteEntry>>, kp: String, allowBulk: Boolean) {
+        val byBand = items.groupBy { it.second.bandName }
+        val multiBand = byBand.size >= 2
+        byBand.forEach { (band, bandItems) ->
+            val bandKey = "$kp:band:$band"
+            if (multiBand) ls.item(key = bandKey) {
+                GroupHeader(band.ifEmpty { "Notes" }, bandItems.size, indent = 4.dp, collapsed = bandKey in collapsed,
+                    onSendAll = if (allowBulk && connected) ({ onSendAll(bandItems) }) else null,
+                    sendingAll = bandItems.any { (c, n) -> noteId(c, n) in busy }) { toggle(bandKey) }
+            }
+            if (!multiBand || bandKey !in collapsed) {
+                val byConcert = bandItems.groupBy { it.first }
+                val multiConcert = byConcert.size >= 2
+                byConcert.forEach { (cid, concertItems) ->
+                    val concertKey = "$kp:c:$band:$cid"
+                    if (multiConcert) ls.item(key = concertKey) {
+                        GroupHeader(labels[cid] ?: "Concert", concertItems.size, indent = 20.dp, collapsed = concertKey in collapsed,
+                            onSendAll = if (allowBulk && connected) ({ onSendAll(concertItems) }) else null,
+                            sendingAll = concertItems.any { (c, n) -> noteId(c, n) in busy }) { toggle(concertKey) }
                     }
-                    if (concertKey !in collapsed) {
-                        concertNotes.groupBy { it.second.songTitle }.entries.sortedBy { it.key }.forEach { (song, songNotes) ->
-                            item(key = "s:$concertKey:$song") {
-                                Text(song.ifEmpty { "Untitled" }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 40.dp, top = 4.dp))
+                    if (!multiConcert || concertKey !in collapsed) {
+                        val bySong = concertItems.groupBy { it.second.songTitle }
+                        val multiSong = bySong.size >= 2
+                        val leafIndent = when { multiSong -> 44.dp; multiConcert -> 32.dp; multiBand -> 20.dp; else -> 8.dp }
+                        bySong.entries.sortedBy { it.key }.forEach { (song, songItems) ->
+                            if (multiSong) ls.item(key = "$kp:s:$concertKey:$song") {
+                                Text(song.ifEmpty { "Untitled" }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 32.dp, top = 4.dp))
                             }
-                            songNotes.sortedBy { it.second.pageInSong }.forEach { (cid2, n) ->
-                                item(key = "$cid2:${n.file}") {
-                                    NoteCard(
-                                        n, connected = connected, sending = noteId(cid2, n) in busy,
-                                        onSee = { see = cid2 to n }, onSend = { onSendTap(cid2, n) },
-                                        onDelete = { port.delete(cid2, n.key); refresh++; onChanged() },
-                                    )
+                            songItems.sortedBy { it.second.pageInSong }.forEach { (cid2, n) ->
+                                // Key on the note's IDENTITY (concert + songId + rasterHash), not its file —
+                                // a robust unique key even if two entries ever share a filename (a malformed
+                                // index must not crash the list with a duplicate LazyColumn key).
+                                ls.item(key = "$kp:$cid2:${n.songId}:${n.rasterHash}") {
+                                    // ⟨D1⟩: fold the song title into the leaf when there is no song header above it.
+                                    val lbl = if (multiSong) "page ${n.pageInSong + 1}" else "${n.songTitle.ifEmpty { "Untitled" }} · page ${n.pageInSong + 1}"
+                                    NoteLeaf(lbl, old = NoteIndex.isOld(n), indent = leafIndent) { see = cid2 to n }
                                 }
                             }
                         }
@@ -1102,16 +1118,46 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
             }
         }
     }
+    val unsent = notes.filter { it.second.sentAt == null }
+    val sent = notes.filter { it.second.sentAt != null }
+    // Status + offline hint live ABOVE the list (a plain composable, not a lazy item — a conditional
+    // item() driven by a coroutine-written state didn't reliably re-emit, so the "already sent"/"Sent ✓"
+    // line — which ⟨D1⟩ R2 requires be SAID — never showed).
+    Column(Modifier.fillMaxSize()) {
+        status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp)) }
+        if (!connected) Text("Connect (Bakes tab) to send notes to Studio.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            renderSection(this, unsent, "u", allowBulk = true)
+            // ⟨D3⟩ — the Sent group, collapsed by default; ⟨D1⟩ applies (no header when there are no sent notes).
+            if (sent.isNotEmpty()) {
+                item(key = "sent-header") {
+                    GroupHeader("Sent", sent.size, indent = 4.dp, collapsed = sentCollapsed, onSendAll = null, sendingAll = false) { sentCollapsed = !sentCollapsed }
+                }
+                if (!sentCollapsed) renderSection(this, sent, "s", allowBulk = false)
+            }
+        }
     }
+    // A75 ⟨D2⟩ — the leaf's resting state has no button; tapping it opens this view, which is where Send /
+    // Re-send / Delete live. Looking at the note is the ordinary act; the actions are one level in.
     see?.let { (cid, n) ->
         val bmp = remember(cid, n.file) { port.load(cid, n.key) }
+        val sending = noteId(cid, n) in busy
         AlertDialog(
             onDismissRequest = { see = null },
-            confirmButton = { TextButton(onClick = { see = null }) { Text("Close") } },
             title = { Text("${n.songTitle.ifEmpty { "Untitled" }} · page ${n.pageInSong + 1}") },
             text = {
                 if (bmp != null) Image(BitmapPainter(bmp), contentDescription = null, modifier = Modifier.fillMaxWidth(), colorFilter = null)
                 else Text("Couldn't load this note.")
+            },
+            confirmButton = {
+                val label = if (sending) "Sending…" else if (n.sentAt != null) "Re-send" else "Send"
+                TextButton(onClick = { see = null; onSendTap(cid, n) }, enabled = connected && !sending) { Text(label) }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { see = null; port.delete(cid, n.key); refresh++; onChanged() }) { Text("Delete") }
+                    TextButton(onClick = { see = null }) { Text("Close") }
+                }
             },
         )
     }
@@ -1142,53 +1188,39 @@ private fun NotesTab(storage: Storage, transport: HttpTransport, connected: Bool
     }
 }
 
-/** A70 §5 / T170 §6 — an indented, collapsible concert header inside the Notes tree (band → CONCERT → song
- *  → page). When connected, [onSendAll] bulk-sends every note under this concert; it reads "Sending…" while
- *  any of them is in flight. */
+/** A75 — a collapsible grouping header (band or concert, or the "Sent" group). It is a clickable row, so it
+ *  holds the 48 dp touch floor. [onSendAll], when present, is a height-free trailing bulk-send that lives
+ *  inside the header row (never on a leaf). */
 @Composable
-private fun NoteTreeHeader(
-    label: String, count: Int, collapsed: Boolean, indent: androidx.compose.ui.unit.Dp,
-    onSendAll: (() -> Unit)? = null, sendingAll: Boolean = false, onToggle: () -> Unit,
+private fun GroupHeader(
+    label: String, count: Int, indent: androidx.compose.ui.unit.Dp, collapsed: Boolean,
+    onSendAll: (() -> Unit)?, sendingAll: Boolean, onToggle: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = indent, top = 6.dp, bottom = 6.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onToggle).padding(start = indent, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(if (collapsed) "▸" else "▾", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.width(8.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        if (onSendAll != null) TextButton(onClick = onSendAll, enabled = !sendingAll) { Text(if (sendingAll) "Sending…" else "Send all") }
+        Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        if (onSendAll != null) TextButton(onClick = onSendAll, enabled = !sendingAll, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Text(if (sendingAll) "Sending…" else "Send all", style = MaterialTheme.typography.labelMedium)
+        }
         Text("$count", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** A70 §5 / T170 §6 — one rehearsal-note leaf, a COMPACT single row (VLL: the old card fit only ~2 notes on
- *  screen). Page + status on the left, See / Delete / Send inline on the right; the "old note" nudge only
- *  appears when it applies. Send uploads the PNG to Studio as a reference underlay; a sent note offers Re-send. */
+/** A75 ⟨D2⟩ — a rehearsal-note leaf: a single tappable line (tap = See; Send / Delete live in that dialog),
+ *  so the RESTING row holds no button. Clickable, so it meets the 48 dp touch floor. The unsent "older than
+ *  the bake" nag rides under it (⟨D5⟩ keeps the nag scoped to unsent notes). */
 @Composable
-private fun NoteCard(
-    n: NoteEntry, connected: Boolean, sending: Boolean,
-    onSee: () -> Unit, onSend: () -> Unit, onDelete: () -> Unit,
-) {
-    val compact = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
-    Column(Modifier.fillMaxWidth().padding(start = 40.dp, end = 4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "page ${n.pageInSong + 1}  ·  ${if (n.sentAt != null) "sent" else "not sent"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (n.sentAt != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onSee, contentPadding = compact) { Text("See", style = MaterialTheme.typography.labelMedium) }
-            TextButton(onClick = onDelete, contentPadding = compact) { Text("Delete", style = MaterialTheme.typography.labelMedium) }
-            val sendLabel = if (sending) "Sending…" else if (n.sentAt != null) "Re-send" else "Send"
-            TextButton(onClick = onSend, enabled = connected && !sending, contentPadding = compact) { Text(sendLabel, style = MaterialTheme.typography.labelMedium) }
-        }
-        if (NoteIndex.isOld(n)) Text(
-            "Older than the current bake — recopy it in Studio, then delete.",
-            style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00),
-            modifier = Modifier.padding(bottom = 2.dp),
-        )
+private fun NoteLeaf(label: String, old: Boolean, indent: androidx.compose.ui.unit.Dp, onTap: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onTap).padding(start = indent, end = 8.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        if (old) Text("Older than the current bake — recopy in Studio, then delete.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF57C00))
     }
 }
 
