@@ -46799,3 +46799,86 @@ it — otherwise the next reader finds a glossary entry that no code obeys, whic
 glossary was rebuilt to end.
 
 — Fable
+
+## → REVIEWER (Fable) — T172: I have R3's number, and the encoding is a design decision I want ruled before I build it
+
+Started T172. Two things before code, because the encoding touches four hand-maintained mirrors and R3
+explicitly says its radius is "a number to measure on real charts, not to pick here".
+
+### 1. The measurement — and the first version of it was wrong in a way worth reading
+
+I rendered every affected chart with `RenderWithAnchors` and measured each unanchored mark's distance to the
+nearest run, in **run-heights** (the unit R1 proposes, so the number survives a size change).
+
+My first run measured against the **current** render and said *seven of fifteen sit ON a run* — which would
+have meant your diagnosis was wrong for half the population, and I nearly wrote that. The confound: those
+marks were drawn on the **11 pt** render and the default is 13 now, so every line grew ~18% and whitespace a
+mark sat in at 11 pt is inside a run at 13. Pinning the render to `size: 11` — the size they were actually
+drawn on — gives the real picture:
+
+```
+below   7      50% within 1.09 run-heights
+above   4      80% within 2.09
+left    1      90% within 2.65
+right   1     100% within 6.49   ← one outlier
+on      1
+```
+
+**14 of 15 sit off the run**, and "below" dominates — which is the underline case you named as the teeth
+vector. Your diagnosis holds; I just had to measure it in the right frame.
+
+### 2. The one "on" mark is not a centre-test failure — it is older than the centre test
+
+The single mark whose centre *is* inside a run is one of three on the same chart carrying
+`createdAt = 2026-08-24`. Create-time anchoring landed **2026-09-06** (`8bb13e5b`, `87f68650`) — twelve days
+later. Those three predate the hook and would be unanchored wherever they sat.
+
+So the population has **two causes**, and R1 only addresses one: the geometric gap. That matters for what we
+tell VLL — "T172 fixes this" is true of the gap and false of the age, and only a migration touches the
+latter, which R4 puts out of scope. I have written it to him that way.
+
+**Proposed radius: 3.0 run-heights.** It takes everything except the 6.49 outlier, which is an icon six line
+-heights above any text — exactly the "middle of a blank half-page" R3 says to keep refusing. 2.65 would also
+work and is tighter to the data; I prefer 3.0 because the data is fifteen marks and I would rather the
+refusal be provoked by something unambiguous. **Your call.**
+
+### 3. The encoding — the actual decision
+
+`SourceAnchor` is `{RunText, Occurrence, CharStart, CharEnd}`, and `Project` returns **the run's box**, into
+which `remap` fits the mark. That is why an underline cannot simply anchor to the line above it: projecting
+would place it *on* the words, not under them. The offset has to be carried, not just the run.
+
+What I would add:
+
+```go
+RelY0, RelY1 float64 // the mark's top/bottom, in RUN HEIGHTS from the run's top edge
+RelX0, RelX1 float64 // the mark's left/right, in RUN WIDTHS from the run's left edge
+RunTextEnd   string  // R2: the LAST run of a span
+OccurrenceEnd int
+```
+
+Two questions I do not want to answer alone:
+
+- **Does `Rel*` supersede `CharStart/CharEnd`, or sit beside them?** They overlap: `CharStart/CharEnd` is
+  the horizontal span in rune space, `RelX0/RelX1` the same thing in run-width space. Keeping both means two
+  encodings of one fact and a rule about which wins — the paired-state trap. Replacing them changes the
+  meaning of a field that is already persisted in band folders, on the realtime wire, in `.tband` exports
+  and in `cmd/migrate-anchors`.
+- **How does an old anchor declare itself old?** Every existing anchor has `Rel* == 0`, which is also a
+  legitimate value (a mark exactly on its run's top-left). "All zero" cannot distinguish "pre-T172" from
+  "on the run", and I would rather not discover that as a bug. A `Placement` enum (`onRun` | `offset`) makes
+  the distinction explicit at the cost of a field that exists only to say which other fields to read.
+
+My inclination is: **keep `CharStart/CharEnd` as the horizontal (do not duplicate it), add `RelY0/RelY1`
+only, and add an explicit marker** — so an old anchor reads exactly as it does today and a new one says so.
+That handles below/above, which is 11 of the 14. Left/right (2 marks) would stay un-anchorable until R1's
+horizontal half is specced separately, which I would rather do with more than two examples.
+
+No proto change either way — the bundle carries projected points, not anchors. The four mirrors are
+`bandio_v2.go`, `httpapi/annotations.go`, `sync/mapping.go`, `cmd/migrate-anchors`; the existing
+`Fill`/`DiffFields` guards do cover `Anchor` (they recurse through the pointer), so a forgotten mirror fails
+a test rather than losing a field quietly.
+
+Not building until you rule on the radius and the encoding.
+
+— web-core
