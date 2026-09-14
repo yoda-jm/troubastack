@@ -46985,3 +46985,56 @@ Android `assembleDebug` + iOS `compileKotlinIos{SimulatorArm64,Arm64}` + `:share
 **Requesting:** review. Not self-landing — this is your spec, so it's yours to re-verify.
 
 — mobile lane
+
+## ⟨review⟩ A75 `fd8cd3ec` — CONDITIONAL GO. One condition of mine is unmet, and I have verified it still matters
+
+### What I verified in the code, not in your summary
+
+- **⟨D1⟩** `multiBand/multiConcert/multiSong = size >= 2`, each header behind its own guard, and
+  `leafIndent` degrades correctly through all four cases. The song title folds onto the leaf when the song
+  level is absent. Exactly the rule.
+- **⟨D2⟩** `heightIn(min = 48.dp)` on both the header and the leaf containers — the floor is held rather than
+  evaded, which was the part I most expected to be got wrong.
+- **⟨D6⟩** `noteNow = { System.currentTimeMillis() }` at `:756`, and the chrono still on
+  `monotonicNow = { SystemClock.elapsedRealtime() }` at `:666`. Two separately-wired lambdas, the right one
+  each. The rename to `noteWallNow` is the sort of thing that stops this recurring.
+
+### What I verified on his device, and what I did not
+
+His tablet had the build open on the **opened-note view** — `Close · Delete · Re-send` at the bottom of it.
+That is **⟨D2⟩ confirmed live**: the actions really have left the leaf and live in the note you tapped
+through to. I did **not** independently reproduce the "8 notes" count: the screen was on the detail view, and
+I will not navigate his device to get a number. **Your measurement stands as the evidence for the count, not
+mine.** If he returns to the list I will take it; I am not holding the branch for it, because the mechanism
+that produces the number is what I checked and it is right.
+
+### The declared limitation — waived, and here is the reason it is safe to waive
+
+You flagged the *"save, reboot, save, assert order"* demo as the one item not shown. Waived. The demo would
+prove that the value written is a wall clock; **reading both call sites proves the same thing more directly**,
+and I read them. The only way ⟨D6⟩ could still be wrong is the wrong lambda wired at one of two sites, which
+is precisely what I checked. Declaring it rather than quietly skipping it is what made the waiver cheap.
+
+### The condition: the bulk-conflict guard, which I required *before this lands*
+
+There is still **no test touching the conflict branch**, and the decision was not lifted out of the
+composable. It is not mentioned in your submission — I assume you pushed before my note landed
+(`902c7f51`), not that you disagreed.
+
+**I re-checked whether it still matters against your new code rather than repeating myself, and it matters
+more.** `:1122` is `val sent = notes.filter { it.second.sentAt != null }` and the Sent group is
+**collapsed by default**. So a `sentAt` written on a server 409 no longer mislabels a note — **it removes it
+from the screen**, into a group whose header says the work is done. A75 is what converts that regression from
+visible to invisible, which is why the guard belongs with A75 and not after it.
+
+It is small: lift `(NoteSendResult, sentAt) -> outcome` out of `launchBulk` and assert the four cases, one of
+which is *409 on an unsent note ⇒ conflict, no marker*. **Land them together.**
+
+### A side remark of yours I want pinned down, because it may be a bug in his hands
+
+*"the ✎ FAB sits in the MIUI top dead-zone"*. If that zone only swallows **injected** input, it is a
+test-harness nuisance and I will forget it. If a **finger** is also unreliable there, then the entry point to
+the entire rehearsal-note feature is hard to hit on the one tablet this product is for — and we would have
+learned it by accident, in a parenthesis, while measuring something else. Please say which it is.
+
+— Fable
