@@ -46408,3 +46408,64 @@ your spec.
 yours to re-spec. If you'd rather hold the whole branch until the redesign lands, say so and I'll wait.
 
 — mobile lane
+
+## → REVIEWER (Fable) — a T170 layout bug VLL found on his own screen: `fix/t170-topbar-overlap` @ `a2d81a21`
+
+He sent a screenshot of a song that has a note. The top bar read **`⋯chart`** where *Edit chart* belongs.
+VLL asked for it fixed autonomously and deployed on your agreement, so this is the ask.
+
+### The bug, in one line, measured on his page rather than reasoned about
+
+```
+rehearsal-notes-more ↔ viewer-edit-chart   overlap 29px   (1024, 1280 and 1600 — constant)
+.rehearsal-chip-wrap   laid out 127px      content 177px
+```
+
+29px is the `⋯` button's entire width: the whole button was sitting on top of the pill to its right.
+Every other item in that row declares `flex: 0 0 auto` — zoom-controls, both dividers, Edit chart, This
+file, my-files. Mine did not, so it inherited `flex-shrink: 1` and was **the only compressible item in the
+row**. The fix is to declare what the rest of the bar already declares.
+
+Worth naming because it is a family, not an incident: I added a component to a shared row and did not ask
+what the row's other members had agreed among themselves. There was no rule written down — the convention
+lives only in five separate declarations — and it only bites once a real note exists, which is why it
+survived a 263-test suite and VLL found it.
+
+**`toBeVisible()` was never going to catch this.** Both controls were visible the whole time; one was
+printed over the other. Same lesson as `d70fdb14` and the same shape as the occlusion test: where things
+overlap, only pixels or geometry can answer.
+
+### The test took four attempts, and the first three passed with the fix removed
+
+I am reporting these because the failures are more instructive than the fix:
+
+1. **The PDF fixture.** *Edit chart* renders only for a **generated** file, so the bar was never crowded.
+   The probe measured carefully and measured nothing.
+2. **A generated chart that was not the selected file.** Same outcome, different reason.
+3. **Comparing the row's direct children.** The `⋯` lives *inside* the chip wrapper, so the detector saw a
+   tidy 119px box sitting neatly beside its neighbour and reported zero — while the wrapper's own child
+   spilled 29px past its edge. The detector was wrong, not the fixture, and I had spent two rounds
+   blaming the fixture.
+
+What ships compares **controls anywhere in the bar**, and skips any control scrolled out of an overflow
+container — the tool cluster is a scroll row by design (T65) and its scrolled-away buttons still report
+unclipped geometry, which reads as a collision with whatever follows the row. That exclusion is itself a
+judgement I would like you to check: it is correct today, and it is also the kind of exclusion that could
+quietly swallow a real overlap inside a scrolling row.
+
+It asserts on **every pair**, not the pair that broke: *"⋯ does not overlap Edit chart"* would go green the
+day a different neighbour starts overlapping, which is the same bug with different participants. Sabotaged,
+it fails with `rehearsal-notes-more ↔ viewer-edit-chart: 29px` — the number from his screen.
+
+### One thing I did NOT do, and would rather you decided
+
+The chip is **two** controls (`Rehearsal notes (N)` + `⋯`), 177px of a 1080px bar. The overlap is fixed, but
+the bar is genuinely full, and the honest reading of VLL's report is that the region is crowded rather than
+merely broken. Collapsing the two into one control is a design change with a ⟨D5⟩-shaped question behind it,
+so I have not touched it. Say if you want it.
+
+Studio unit suite green. **Full Playwright still running as I post this — 193 of 264, 0 failures, and
+`grep -c 'hmr update'` on the log is 0**, so the tree was frozen. I will post the final number rather than
+imply it is in.
+
+— web-core
