@@ -43,7 +43,7 @@ import {
   useRehearsalNotes,
 } from "./RehearsalNotes";
 import { IconGlyphPalette } from "./IconGlyphPalette";
-import { EditCanvas } from "./WetCanvas";
+import { EditCanvas } from "./EditCanvas";
 import { MyFilesEditor } from "./MyFilesEditor";
 import { MyCuesEditor } from "./MyCuesEditor";
 import { LayersPanel, AnnotationList, DeleteLayerDialog } from "./SidePanels";
@@ -156,7 +156,7 @@ export function Viewer({
 
   // T30 — "no silent ink": while the realtime connection is down, ink cannot land,
   // so the editor presents READ-ONLY up-front (draw tools grayed via canDraw, wet
-  // gestures blocked via WetCanvas drawLocked, and an explanatory chip in the
+  // gestures blocked via EditCanvas drawLocked, and an explanatory chip in the
   // chrome) instead of letting strokes silently evaporate. Presentation only —
   // the sync client's reconnect semantics are untouched.
   const offline = connStatus !== "open";
@@ -319,7 +319,7 @@ export function Viewer({
   // panel's top all clear it. Constant across tool changes (stable style-row
   // footprint) → no canvas shift.
   const chromeRef = useRef<HTMLDivElement | null>(null);
-  // T66: the phone chrome's single horizontal-scroll region (tools · zoom · Layers/Notes/
+  // T66: the phone chrome's single horizontal-scroll region (tools · zoom · Layers/Annotations/
   // Details). An edge fade (.of-start/.of-end) shows only when it actually overflows.
   const tbScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -753,7 +753,7 @@ export function Viewer({
       const layerId = ensureActiveLayer();
       if (!layerId || !syncRef.current) {
         // T30: never swallow a gesture silently — say why it didn't land. (The wet
-        // stroke is already cleared by WetCanvas after every gesture.)
+        // stroke is already cleared by EditCanvas after every gesture.)
         setLocalNotice("Couldn't place the annotation — no layer to draw on.");
         return;
       }
@@ -879,7 +879,7 @@ export function Viewer({
   // P206 (VLL, 2026-09-08, overruling the reading Fable and I had settled on): "if one is selected the
   // other is not selected, but we see the link; if both are really selected they move together." So a pick
   // selects exactly what you picked — the pair is never auto-expanded — and the DASHED SEGMENT is what
-  // shows the relationship (drawn from a selected end to its partner, WetCanvas). Two ends that are
+  // shows the relationship (drawn from a selected end to its partner, EditCanvas). Two ends that are
   // genuinely both selected (a marquee) are an ordinary multi-selection and group-move like any other.
   // Nothing here special-cases a jump any more; that is the point.
   const selectOnly = useCallback((uuids: string[]) => setSelectedUuids(uuids), []);
@@ -1321,7 +1321,7 @@ export function Viewer({
   // fit → zoom IN to 2× at the point; zoomed in → back to fit), so it can never desync into
   // a bare re-centre the way a private boolean did (VLL: double-tap-at-fit only re-centred).
   // Scoped to Move so it never collides with object editing in Select/draw. (Touch double-tap
-  // and the browser's synthesized dblclick are de-duped in WetCanvas by pointer type, so this
+  // and the browser's synthesized dblclick are de-duped in EditCanvas by pointer type, so this
   // runs exactly once per gesture.)
   const onDoubleTapZoom = (clientX: number, clientY: number) => {
     if (tool !== "move") return;
@@ -1486,10 +1486,10 @@ export function Viewer({
           </Link>
         )}
 
-        {/* T94 §3.1 — ONE pill opens/closes the file rail; Layers ↔ Notes switch on the tab row inside
+        {/* T94 §3.1 — ONE pill opens/closes the file rail; Layers ↔ Annotations switch on the tab row inside
             it (that row is unavoidable once the rail is open, so a second top-bar pill was redundant).
             "This file" names the SCOPE — the rail inspects the file you are viewing. `sidebar-toggle`
-            keeps its testid here; `drawer-annotations` moves to the Notes tab inside the rail. */}
+            keeps its testid here; `drawer-annotations` is the Annotations tab inside the rail. */}
         <button
           type="button"
           className={`pill-btn${sidebarOpen ? " active" : ""}`}

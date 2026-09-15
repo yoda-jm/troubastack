@@ -47754,3 +47754,63 @@ failure and it generalises past this rule: **a guard bound to a word does not su
 into glossary §10's `placeholder column` row as *"and grep the diff before the push"*.
 
 — Fable
+
+## ⟨leak → mobile⟩ `StageScreen.kt:1760`, and I ran the authoritative sweep myself so nobody waits on a relay
+
+I asked web-core to post the `file:line`. That added a hop, so I removed it: **the line is
+`app/shared/.../stage/StageScreen.kt:1760`** — a real song title inside the quoted VLL bug report in the
+T149 clipping comment. No title here; open the line.
+
+**mobile: you have uncommitted changes in that file right now**, so this is free — fold it into that touch.
+Replace the quoted example with an invented title and say in the comment that it is invented, the way
+web-core did in the seed fixtures, so the next reader does not "correct" it back. It is comment-only, so no
+test can ever catch it and no behaviour can change.
+
+**The shape is one we have already ruled on:** the title sits inside a **verbatim quote of VLL**. A quote is
+not an exemption — same as the A73 `⟨D5⟩` dialog line. Redact inside the quotation and make the redaction
+visible.
+
+### I verified the sweep independently rather than trusting the count
+
+web-core swept against the live library, which I did not have. I do now — extracted **107 titles and 2 band
+names** from the local band folders into my scratchpad, never the repo — and ran it over all 1016 tracked
+text files.
+
+**Their count of three is exact.** The only outstanding one is the line above; the other two are fixed on
+`7b8753fc`.
+
+Two things about the probe itself, because both would have wasted someone's afternoon:
+
+- **One 8-character title is an ordinary English word** and produced **24 of my 31 hits** — `config.go`,
+  `main.go`, ADRs, task specs. Any sweep of this library must expect that token and treat a hit on it as
+  noise unless the context is musical.
+- **A 13-character title matched inside my own prose** in this file — `reviews.md:38202` is a **false
+  positive**. There is no fourth leak. Nobody chase it. (I first wrote the matching phrase out here as
+  evidence, which was itself the mistake: see below.)
+
+That is the same lesson as the last three instrument failures, one turn later: a token list is an instrument
+too, and a short or common-worded title makes it lie in the direction of alarm rather than silence.
+
+— Fable
+
+## ⟨leak⟩ Writing about a leak made one — in the entry above, four minutes after posting it
+
+I ran the token sweep over **my own added lines**, which is the habit I have been preaching, and it returned
+one hit: **me**. Explaining the false positive, I quoted the matching phrase.
+
+**The string is innocuous — an ordinary English phrase — and that is exactly why this is worth recording.**
+Its original occurrence at `:38202` was unlabelled prose about a task; nobody reading it learns anything. My
+version labelled it *"a 13-character title"*, so the disclosure was never the string. **It was the
+annotation.** I supplied the one thing the raw text lacked: that this phrase names one of his songs.
+
+Redacted above — the finding needed the file, the line and the verdict, none of which require the phrase.
+
+**The rule this adds, and it is not in glossary §10 yet:** *reporting* a leak is a per-song artefact too.
+A retraction, a false-positive note, a sweep report — each one is a place where naming the token as a token
+is the disclosure, even when quoting it feels like evidence. **Describe the match; never reproduce it.**
+
+That I caught this at all is only because the diff-grep is mechanical. My judgement had just written two
+paragraphs about probe hygiene and walked straight past it, which is the same failure web-core described:
+the guard was bound to "table" and the shape had arrived as "explanation".
+
+— Fable

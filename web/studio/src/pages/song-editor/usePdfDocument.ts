@@ -545,7 +545,7 @@ export function usePdfDocument(args: {
   // ---- Two-finger pinch/pan gesture API (T27 stage 4) ----
   // Drives the SAME burst pipeline as the wheel zoom above: a live CSS transform on
   // the content wrapper during the gesture, then ONE crisp re-raster committed on
-  // gesture end. WetCanvas detects the two-pointer gesture and calls these.
+  // gesture end. EditCanvas detects the two-pointer gesture and calls these.
   const beginGesture = useCallback(
     (clientX: number, clientY: number): boolean => {
       if (!isPdf) return false;
@@ -707,7 +707,7 @@ export function usePdfDocument(args: {
     onZoomSelect,
     renderOverlays,
     layoutImageOverlay,
-    // Two-finger pinch/pan gesture API (T27 stage 4) — WetCanvas drives these.
+    // Two-finger pinch/pan gesture API (T27 stage 4) — EditCanvas drives these.
     beginGesture,
     updateGesture,
     endGesture,

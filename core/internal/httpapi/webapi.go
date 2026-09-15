@@ -843,8 +843,9 @@ func (a *WebAPI) transposeChartSource(w http.ResponseWriter, r *http.Request, u 
 	writeJSON(w, http.StatusOK, map[string]any{"file": f, "source": source})
 }
 
-// getMyFiles returns the caller's personal ordered view of a song's file pool. If
-// they have no saved selection it defaults to all pool files in displayOrder.
+// getMyFiles returns the caller's personal ordered view of a song's file pool. With no saved
+// selection it returns the SHARED DEFAULT FILE alone — the same one the stage takes — not the whole
+// pool (T138 changed that; the comment said "all pool files in displayOrder" until 2026-09-15).
 func (a *WebAPI) getMyFiles(w http.ResponseWriter, r *http.Request, u app.User) {
 	files, customized, err := a.svc.MyFileSelection(u, r.PathValue("bandId"), r.PathValue("songId"))
 	if err != nil {
