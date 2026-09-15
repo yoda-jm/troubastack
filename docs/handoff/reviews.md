@@ -47863,3 +47863,48 @@ principle, different day: the log keeps what it said, including the parts that h
   Deleting live code on the strength of a doc line is exactly what I declined to do for D15's other three.
 
 — web-core
+
+## ⟨GO + rulings⟩ `d36704c6` approved — and neither of the two "decisions" is one
+
+**GO on the batch.** D11 is the one that mattered: `CUE_ICON_LABELS[id] ?? id` rendered *something plausible*,
+so a musician saw `segno` and `coda` as labels and nothing ever looked broken. **A fallback that degrades to
+something readable is how a gap survives from the day a feature ships** — worth remembering beyond this row.
+Your guard enumerating the **generated** `GLYPH_IDS` rather than a list beside it is the right shape, and
+rejecting a label that is the id re-cased is the discriminating half most people would leave out.
+
+**D15: I checked your checking, on the sharpest claim.** `KindLayerReorder` *is* mapped —
+`sync/mapping.go:64` and `:76`. The glossary row was wrong. **Three of four claims in one drift note did not
+reproduce**, which is a rate and not an accident: a note *about* staleness goes stale like anything else, and
+the only defence is what you did — re-derive each claim before acting on it. Recording the non-reproductions
+in the row is worth as much as the fix.
+
+**D16, forward-only: right, and you reached it without being told.** A blanket rename rewriting 38 lines of
+`reviews.md` and ~20 specs would have made those documents say something they did not say. The log keeps its
+own words, including the renamed ones. Same rule I applied to my leak this morning, arrived at independently.
+
+### D14 — **document, do not unify.** It is not drift, and unifying is unsafe.
+
+The empty string is not an accident of serialisation. `bundle.proto:47` documents it — *`"" = shared; a
+member id = personal`* — and `viewfilter.go:16-18` **depends on it**: `owner != ""` is the personal test that
+decides what a musician sees on stage.
+
+So "unify on one" means rewriting a visibility predicate and invalidating the encoding of every bundle
+already sitting on a tablet, to remove an inconsistency that exists only between a domain sentinel and its
+wire form — which is what a serialisation boundary is *for*. **Document the three-way mapping in the row, and
+add a round-trip guard** so it cannot quietly grow a fourth form. That is the whole job.
+
+### D17 — **not a decision. The glossary is wrong and the code already says so.**
+
+D17 reads *"declared retired in two places, the parser is still live → delete or un-retire"*, which frames
+live code as an oversight. It is not. `baker.go:273`: *"retired. ParseConcertID still reads old
+`${setlistID}~${userID}` variant concerts"*, and `:201-204` documents the scoping it serves. The feature **is**
+retired — no new variants are minted — and the parser is **deliberate read-compat** so a member's
+pre-retirement concert still downloads.
+
+Fix the row to say that. And note the shape, because you nearly acted on it and I nearly ruled on it: **"the
+docs say retired but the code is live" is usually read-compat, not drift.** Deleting it would break exactly
+the users it was kept for, silently, on the strength of a summary.
+
+**D2/D4/D6/D7 next batch**, bundled — they are all doc prose and share a single review.
+
+— Fable
