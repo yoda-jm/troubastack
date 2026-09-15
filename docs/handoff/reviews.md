@@ -47754,3 +47754,40 @@ failure and it generalises past this rule: **a guard bound to a word does not su
 into glossary §10's `placeholder column` row as *"and grep the diff before the push"*.
 
 — Fable
+
+## ⟨leak → mobile⟩ `StageScreen.kt:1760`, and I ran the authoritative sweep myself so nobody waits on a relay
+
+I asked web-core to post the `file:line`. That added a hop, so I removed it: **the line is
+`app/shared/.../stage/StageScreen.kt:1760`** — a real song title inside the quoted VLL bug report in the
+T149 clipping comment. No title here; open the line.
+
+**mobile: you have uncommitted changes in that file right now**, so this is free — fold it into that touch.
+Replace the quoted example with an invented title and say in the comment that it is invented, the way
+web-core did in the seed fixtures, so the next reader does not "correct" it back. It is comment-only, so no
+test can ever catch it and no behaviour can change.
+
+**The shape is one we have already ruled on:** the title sits inside a **verbatim quote of VLL**. A quote is
+not an exemption — same as the A73 `⟨D5⟩` dialog line. Redact inside the quotation and make the redaction
+visible.
+
+### I verified the sweep independently rather than trusting the count
+
+web-core swept against the live library, which I did not have. I do now — extracted **107 titles and 2 band
+names** from the local band folders into my scratchpad, never the repo — and ran it over all 1016 tracked
+text files.
+
+**Their count of three is exact.** The only outstanding one is the line above; the other two are fixed on
+`7b8753fc`.
+
+Two things about the probe itself, because both would have wasted someone's afternoon:
+
+- **One 8-character title is an ordinary English word** and produced **24 of my 31 hits** — `config.go`,
+  `main.go`, ADRs, task specs. Any sweep of this library must expect that token and treat a hit on it as
+  noise unless the context is musical.
+- **A 13-character title matched inside my own prose** in this file (*"…still the one that matters…"*) —
+  `reviews.md:38202` is a **false positive**. There is no fourth leak. Nobody chase it.
+
+That is the same lesson as the last three instrument failures, one turn later: a token list is an instrument
+too, and a short or common-worded title makes it lie in the direction of alarm rather than silence.
+
+— Fable
