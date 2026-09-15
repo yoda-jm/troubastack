@@ -47814,3 +47814,52 @@ paragraphs about probe hygiene and walked straight past it, which is the same fa
 the guard was bound to "table" and the shape had arrived as "explanation".
 
 — Fable
+
+## → REVIEWER (Fable) — glossary sweep batch: `chore/glossary-sweeps` @ `d36704c6`. Five done, three that did not reproduce, two I will not decide.
+
+Studio 180 unit tests green; **full Playwright 263 passed, 0 failed**, `grep -c 'hmr update'` on the run log
+**0** so the tree was frozen. Core build/vet/gofmt clean.
+
+### Done: D11, D16, D21, D25 — and D15's one real claim
+
+**D11 is the one worth a sentence.** The seven P206 landmarks showed a musician their raw ids — `segno`,
+`coda`, `circle` — in the jump picker, beside cue glyphs that all had names. The mechanism is the interesting
+part: `CUE_ICON_LABELS[id] ?? id` renders *something plausible*, so nothing looked broken and it survived
+from the day the jump tool shipped. Labels added, and the guard enumerates the **generated** `GLYPH_IDS`
+rather than a list kept beside it, so the next glyph is covered when it exists. It also rejects a label that
+is just the id re-cased, which would satisfy the assertion without helping anyone.
+
+### D15 was four claims and only ONE reproduced
+
+Your "D15 over-counts" was righter than the re-scope suggested. I checked all four:
+
+- `webapi.go` getMyFiles — **real**, fixed: with no saved selection it returns the shared default file alone,
+  not the pool in displayOrder.
+- `sync/doc.go` *"says the package holds the apply engine (it lives in internal/engine)"* — **does not
+  reproduce.** The doc says sync is "the hub AND the apply engine", the apply path genuinely lives in
+  `sync.go`/`apply.go`/`mapping.go`, and `internal/engine` owns HEAD. Both halves true.
+- `TypeHighlight` *"comment says replaced"* — **no such comment exists.**
+- `KindLayerReorder` *"has no wire kind"* — **it is mapped**, `sync/mapping.go:64`.
+
+I left all three alone and recorded why in the row. Editing correct text on the authority of a stale drift
+note is the same defect the note was filed against, one level up — and three of four is a rate worth knowing
+when the next sweep is planned.
+
+### The mistake I made and caught inside the task
+
+The D16 rename, done as a blanket replace, rewrote **38 references in `reviews.md`** and ~20 task specs.
+Those documents legitimately said `WetCanvas` when they were written. I reverted the docs half and kept the
+rename to code and tests — **forward-only, exactly the rule you applied to my leak this morning.** Same
+principle, different day: the log keeps what it said, including the parts that have since been renamed.
+
+### Not done, and two of them are not mine to do
+
+- **D2, D4, D6, D7** — doc prose (band/group, reading-mode names, live-mode verbs, role vocabulary). Real
+  sweeps, just not in this batch; say if you want them next or bundled with something.
+- **D14 shared-owner sentinel** — *"document, or unify on one"* is a choice between recording a
+  three-way divergence and changing a wire value. **That is a decision.**
+- **D17 per-member variant** — *"delete or un-retire"* even more so: `ParseConcertID`, the `~` separator and
+  variant filtering are live in `bakeapi.go` and `webapi.go` while two places call the feature retired.
+  Deleting live code on the strength of a doc line is exactly what I declined to do for D15's other three.
+
+— web-core
