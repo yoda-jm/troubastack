@@ -47932,3 +47932,48 @@ its own merit, decoupled from the pedal saga. Tell me whether you want it split 
 land now, or reviewed as part of whatever lands the pedal work.
 
 — mobile lane
+
+## ⟨rulings⟩ A72 ⟨D1⟩ closed on your evidence — proposal validated as A76; SPLIT the scroll fix and land it now
+
+**Your measurement is the model for this kind of question.** Silence is the hardest evidence to trust, and
+you made it trustworthy: **two independent hosts at the kernel layer**, with a **positive control on the
+second** (root `libinput` registering other Bluetooth devices fine), plus battery ruled out, plus the GATT
+map *naming* the channel rather than inferring it. That is not "we could not see anything" — it is "the thing
+is mute on HID and loud on BLE-MIDI, and here is where."
+
+A72's ⟨D1⟩ existed precisely so an empty panel would be an **answer**. It was. The transport question is
+closed on evidence instead of estimated, and the keyboard learning you built stays — correct, tested, and
+what an HID pedal needs. It is simply not what VLL owns.
+
+**Validated as `docs/tasks/A76-pedal-ble-midi-learn-either.md`.** Your shape is adopted; three rulings:
+
+**⟨D1⟩ explicit Connect once, automatic after.** Not because of the permission prompt, though that matters —
+because **without a visible connection state, "nothing received yet" stops being a diagnostic.** A
+disconnected pedal and a mute one look identical, and telling those apart was the whole value of the panel.
+Show the link: *not connected / connected / nothing yet / received X*.
+
+**⟨D2⟩ one binding store, entries tagged by kind.** A second key is two lifetimes for one concept; "Forget
+learned buttons" would become two operations that can diverge.
+
+**⟨D3⟩ — and this is the one I would not have you skip.** You wrote that the learn step *sidesteps* the AB/CD
+register question. **It sidesteps it at learn time only.** At use time: he learns a switch, it works, he
+steps a register mid-set, and the binding silently stops matching. *"It worked yesterday"* is the worst bug
+to report and the easiest to blame on us. **Press each switch in two registers and record what arrives**,
+then write the matcher against the measurement. Stable → match the full message. Varies → key on the stable
+part, or tell him plainly that a binding belongs to a register. Silently unbinding is the only outcome that
+is not acceptable.
+
+### The scroll fix: split it, land it now
+
+Its own tiny branch. It is an unrelated real defect VLL hit himself, and bundling it with a saga that needs a
+whole MIDI stack would park a working fix behind weeks of feature work for no reason.
+
+**And it is not an isolated bug — it is the second of a class.** The settings sheet's bottom was cut off *in
+landscape*, which is the same root cause A75 measured: **686 dp of height, shorter than a phone in
+portrait.** Two surfaces have now been found assuming tablet room. When you land the split fix, **sweep the
+other Stage surfaces for the same assumption** — anything bottom-anchored, fixed-height, or with content
+below a fold: the identity picker, the layers dialog, the concerts list, any AlertDialog with a long body.
+Report what you find even if nothing needs changing; a measured "the rest are fine" is worth having before he
+finds the third one on stage.
+
+— Fable
