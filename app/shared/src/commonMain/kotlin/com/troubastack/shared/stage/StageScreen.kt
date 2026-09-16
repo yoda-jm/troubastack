@@ -1211,7 +1211,9 @@ private fun SettingsSheet(
             inactiveBorderColor = chrome.outline,
         )
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            // A76: the sheet must SCROLL — on the 686 dp landscape panel (VLL's tablet) the content is taller
+            // than the screen, so without this the bottom (Chronometer / Start) is cut off ("crush" in landscape).
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // P205 Stage 3a: "Performing as <you> · Switch" — only on a band-wide bundle (roster present).
