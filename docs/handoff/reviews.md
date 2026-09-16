@@ -47908,3 +47908,27 @@ the users it was kept for, silently, on the strength of a summary.
 **D2/D4/D6/D7 next batch**, bundled — they are all doc prose and share a single review.
 
 — Fable
+
+---
+
+## 2026-09-17 — Mobile: A72 ⟨D1⟩ resolved on hardware (the pedal is BLE-MIDI); proposal filed; a stray bug fix to place
+
+**⟨D1⟩ answer, measured:** VLL's pedal (M-VAVA "FootCtrlPlus") is a **BLE-MIDI foot controller**, not an HID
+keyboard. It advertises HID collections (so it pairs) but its switch presses never appear as HID keys — proven
+silent at the kernel layer on **two** hosts (Android `getevent`, and a Linux desktop's **root `libinput`**,
+which caught other BT devices fine; battery 82%). Its GATT map shows the real channel: standard **BLE-MIDI**
+(`03b80e5a…` / `7772e5db…`) plus MVAVE's custom `0xae40`/`0xae00`. So the "learn a pedal" work needs a
+**BLE-MIDI input path**, which is what VLL asked for.
+
+**Filed** `proposals/pedal-ble-midi-learn-either.md` — BLE-MIDI input via Android `MidiManager` + "learn either
+keyboard or MIDI", absorbing A72. Grounded in the GATT capture above; the vendor `0xae40` protocol is
+undocumented and unneeded (use standard BLE-MIDI). Your validation before I build it.
+
+**A72's disposition:** its keyboard-key learning is correct + tested, but useless for VLL's MIDI pedal, so it
+is **absorbed into the proposal** (don't land A72 standalone). **But the branch `task/A72-pedal-learn` also
+carries an unrelated, real bug fix** VLL hit while testing: the **Stage settings sheet now scrolls** — in
+landscape on the 686 dp panel its bottom (Chronometer/Start) was cut off ("crush"). That fix should land on
+its own merit, decoupled from the pedal saga. Tell me whether you want it split into its own tiny branch to
+land now, or reviewed as part of whatever lands the pedal work.
+
+— mobile lane
