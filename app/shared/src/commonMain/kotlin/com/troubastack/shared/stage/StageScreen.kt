@@ -1759,8 +1759,9 @@ private fun ScrollPage(
                 // stays visible: the baker measured it into contentBottom). No raster altered.
                 // T149 defect (VLL, 2026-09-07): the original `Box { Box(requiredHeight(full)) }` rendered
                 // the page CENTERED in the trimmed box (Compose Box centres an oversized child regardless of
-                // Top alignment), clipping the SONG TITLE off the top of every trimmed page ("Toxicity top is
-                // cut"). A custom Layout measures the page at full height and PLACES it at y=0, reporting
+                // Top alignment), clipping the SONG TITLE off the top of every trimmed page ("Paper Moon
+                // top is cut" — the title is INVENTED here, not real repertoire: this file is public).
+                // A custom Layout measures the page at full height and PLACES it at y=0, reporting
                 // only the trimmed height, so the clip can only ever remove the bottom tail.
                 Layout(
                     modifier = Modifier.fillMaxWidth().clipToBounds(),
