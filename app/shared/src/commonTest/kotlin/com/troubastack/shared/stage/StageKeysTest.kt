@@ -7,7 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** A09 — the hardware key → page-turn map (pedals/keyboards/volume). */
+/** A09 / A72 / A76 — the hardware page-turn map (keys + learned KEY/MIDI tokens) and the learn/persist logic. */
 class StageKeysTest {
 
     @Test
@@ -31,39 +31,59 @@ class StageKeysTest {
         }
     }
 
-    // ── A72: learned pedal bindings ────────────────────────────────────────────────────────────────
+    // ── A72: learned keyboard tokens ────────────────────────────────────────────────────────────────
 
     @Test
-    fun learnedCode_mapsToItsAction() {
-        val learned = mapOf(PageTurn.NEXT to setOf(1001L))
+    fun learnedKey_mapsToItsAction() {
+        val learned = mapOf(PageTurn.NEXT to setOf(keyToken(1001L)))
         assertEquals(PageTurn.NEXT, stageKeyAction(Key(1001L), learned))
     }
 
     @Test
     fun defaults_alwaysWin_evenIfLearnedTriesToReplaceThem() {
-        // ⟨D2⟩: a built-in is never replaced by a learned binding — a working two-pedal unit can't break.
-        val learned = mapOf(PageTurn.PREV to setOf(Key.PageDown.keyCode))
+        // A72 ⟨D2⟩: a built-in is never replaced by a learned binding — a working two-pedal unit can't break.
+        val learned = mapOf(PageTurn.PREV to setOf(keyToken(Key.PageDown.keyCode)))
         assertEquals(PageTurn.NEXT, stageKeyAction(Key.PageDown, learned))
     }
 
     @Test
-    fun unknownCode_isNull_evenWithLearnedPresent() {
-        assertNull(stageKeyAction(Key(9999L), mapOf(PageTurn.NEXT to setOf(1001L))))
+    fun unknownKey_isNull_evenWithLearnedPresent() {
+        assertNull(stageKeyAction(Key(9999L), mapOf(PageTurn.NEXT to setOf(keyToken(1001L)))))
+    }
+
+    // ── A76: learned MIDI tokens ────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun learnedMidi_mapsToItsAction() {
+        // Program Change 3 on channel 1 (status 0xC0=192) taught to NEXT.
+        val learned = mapOf(PageTurn.NEXT to setOf(midiToken(192, 3)))
+        assertEquals(PageTurn.NEXT, stageMidiAction(192, 3, learned))
+        assertNull(stageMidiAction(192, 4, learned), "a different program must not match")
+        assertNull(stageMidiAction(176, 3, learned), "a different status must not match")
     }
 
     @Test
-    fun learn_lastLearnedWins_removesTheOldBinding() {
-        // ⟨D3⟩: teaching a code already on NEXT to PREV moves it — one key never drives two.
-        val r = learnPedalBinding(mapOf(PageTurn.NEXT to setOf(1001L)), PageTurn.PREV, 1001L)
-        assertEquals(mapOf(PageTurn.PREV to setOf(1001L)), r.bindings)
+    fun midi_andKey_liveInTheOneStore() {
+        // A76 ⟨D2⟩: one store, tagged. A key and a MIDI message on the same action both resolve.
+        val learned = mapOf(PageTurn.NEXT to setOf(keyToken(1001L), midiToken(192, 3)))
+        assertEquals(PageTurn.NEXT, stageKeyAction(Key(1001L), learned))
+        assertEquals(PageTurn.NEXT, stageMidiAction(192, 3, learned))
+    }
+
+    // ── learn (A72 ⟨D3⟩), token-agnostic ────────────────────────────────────────────────────────────
+
+    @Test
+    fun learn_lastLearnedWins_movesTheToken() {
+        val r = learnPedalBinding(mapOf(PageTurn.NEXT to setOf(midiToken(192, 3))), PageTurn.PREV, midiToken(192, 3))
+        assertEquals(mapOf(PageTurn.PREV to setOf(midiToken(192, 3))), r.bindings)
         assertEquals(PageTurn.NEXT, r.takenFrom)
-        assertEquals(PageTurn.PREV, stageKeyAction(Key(1001L), r.bindings))
+        assertEquals(PageTurn.PREV, stageMidiAction(192, 3, r.bindings))
     }
 
     @Test
     fun learn_sameAction_addsWithoutTakenFrom() {
-        val r = learnPedalBinding(mapOf(PageTurn.NEXT to setOf(1001L)), PageTurn.NEXT, 1002L)
-        assertEquals(setOf(1001L, 1002L), r.bindings[PageTurn.NEXT])
+        val r = learnPedalBinding(mapOf(PageTurn.NEXT to setOf(keyToken(1001L))), PageTurn.NEXT, midiToken(176, 64))
+        assertEquals(setOf(keyToken(1001L), midiToken(176, 64)), r.bindings[PageTurn.NEXT])
         assertNull(r.takenFrom)
     }
 
@@ -71,13 +91,16 @@ class StageKeysTest {
     fun learnable_refusesBackAndHome_allowsTheRest() {
         assertFalse(isLearnableKey(Key.Back))
         assertFalse(isLearnableKey(Key.Home))
-        assertTrue(isLearnableKey(Key.VolumeUp)) // ⟨D4⟩: volume stays learnable
+        assertTrue(isLearnableKey(Key.VolumeUp))
         assertTrue(isLearnableKey(Key(1001L)))
     }
 
     @Test
-    fun bindings_roundTripThroughStorage() {
-        val b = mapOf(PageTurn.NEXT to setOf(1001L, 1002L), PageTurn.PREV to setOf(2001L))
+    fun bindings_roundTripThroughStorage_keyAndMidi() {
+        val b = mapOf(
+            PageTurn.NEXT to setOf(keyToken(1001L), midiToken(192, 3)),
+            PageTurn.PREV to setOf(midiToken(176, 64)),
+        )
         assertEquals(b, parsePedalBindings(encodePedalBindings(b)))
         assertEquals(emptyMap(), parsePedalBindings(null))
         assertEquals(emptyMap(), parsePedalBindings(""))

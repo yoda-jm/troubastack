@@ -244,6 +244,7 @@ fun StageScreen(
     // A72 — device-local learned pedal bindings, read from storage at Stage entry by the host. Empty ⇒ only
     // the eight built-in keys turn pages.
     pedalBindings: PedalBindings = emptyMap(),
+    midiSignal: MidiSignal? = null, // A76 — the latest BLE-MIDI press (seq-stamped) to act on
 ) {
     val state by vm.state.collectAsState()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -258,7 +259,7 @@ fun StageScreen(
                 body = "This concert has no pages.",
                 onExit = onExit,
             )
-            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings)
+            else -> Performing(state, vm, decoder, onExit, initialColorMode, onColorModeChange, onFitModeChange, canAutoUpdate, onIdentityChange, onPositionChange, nowClockText, nowLocalHms, notes, concertId, noteNow, pedalBindings, midiSignal)
         }
     }
 }
@@ -282,6 +283,7 @@ private fun Performing(
     concertId: String = "",
     noteNow: () -> Long = { 0L },
     pedalBindings: PedalBindings = emptyMap(),
+    midiSignal: MidiSignal? = null, // A76 — the latest BLE-MIDI press (seq-stamped) to act on
 ) {
     var colorMode by remember { mutableStateOf(initialColorMode) }
     // A46 (A33 drill 2): persist the reading position on every move, so a process death / exit reopens
@@ -527,6 +529,20 @@ private fun Performing(
         DisposableEffect(volumeTurnRegistrar) {
             volumeTurnRegistrar { pt -> if (pt == PageTurn.NEXT) latestNext.value() else latestPrev.value() }
             onDispose { volumeTurnRegistrar(null) }
+        }
+        // A76 — a BLE-MIDI press turns the page via the SAME turnNext/turnPrev the keys use. lastMidiSeq is
+        // seeded to the current signal so entering Stage with a stale press doesn't fire a spurious turn; a
+        // press whose token matches no binding is ignored (there are no built-in MIDI messages).
+        var lastMidiSeq by remember { mutableStateOf(midiSignal?.seq ?: -1L) }
+        LaunchedEffect(midiSignal?.seq) {
+            val sig = midiSignal ?: return@LaunchedEffect
+            if (sig.seq == lastMidiSeq) return@LaunchedEffect
+            lastMidiSeq = sig.seq
+            when (tokenAction(sig.token, pedalBindings)) {
+                PageTurn.NEXT -> latestNext.value()
+                PageTurn.PREV -> latestPrev.value()
+                null -> {}
+            }
         }
 
         // P206 §4.1/§4.2/§4.3 — jump-mark activation. A tap that lands in a visible mark (jumpAt) either

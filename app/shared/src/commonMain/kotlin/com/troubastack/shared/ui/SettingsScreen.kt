@@ -36,10 +36,13 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.troubastack.shared.stage.FitMode
+import com.troubastack.shared.stage.MidiSignal
 import com.troubastack.shared.stage.PageTurn
 import com.troubastack.shared.stage.PedalBindings
+import com.troubastack.shared.stage.PedalLinkState
 import com.troubastack.shared.stage.StageColorMode
 import com.troubastack.shared.stage.isLearnableKey
+import com.troubastack.shared.stage.keyToken
 
 /**
  * A36 — the native Parameters hub (VLL: the app was "missing a parameters native content, for
@@ -63,11 +66,16 @@ fun SettingsScreen(
     onFitMode: (FitMode) -> Unit,
     colorMode: StageColorMode,
     onColorMode: (StageColorMode) -> Unit,
-    // A72 — device-local pedal bindings + learn/forget. onLearnPedal returns the action the code used to
-    // drive (if any), for the "that button was …" notice; the host does the learn + the persist.
+    // A72/A76 — device-local pedal bindings + learn/forget. onLearnPedal takes a KIND-TAGGED token (KEY:/MIDI:)
+    // and returns the action it used to drive (if any), for the "that button was …" notice; the host learns +
+    // persists. A76 adds the BLE-MIDI link: its state, an explicit Connect, and the stream of MIDI presses so
+    // Learn takes either kind.
     pedalBindings: PedalBindings = emptyMap(),
-    onLearnPedal: (PageTurn, Long) -> PageTurn? = { _, _ -> null },
+    onLearnPedal: (PageTurn, String) -> PageTurn? = { _, _ -> null },
     onForgetPedals: () -> Unit = {},
+    midiState: PedalLinkState = PedalLinkState.NOT_CONNECTED,
+    onConnectPedal: () -> Unit = {},
+    midiSignal: MidiSignal? = null,
     onBack: () -> Unit,
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -111,8 +119,8 @@ fun SettingsScreen(
                 )
             }
 
-            Section("Foot pedal", subtitle = "Teach a Bluetooth pedal button to turn pages. A press shows its code below; if pressing a pedal shows nothing, it isn't sending keyboard keys.") {
-                PedalLearnSection(pedalBindings, onLearnPedal, onForgetPedals)
+            Section("Foot pedal", subtitle = "Turn pages with a Bluetooth pedal — a keyboard/HID pedal, or a BLE-MIDI controller. For a MIDI pedal, Connect first; then Learn a button. The panel shows every press, so an empty panel is the answer, not a failure.") {
+                PedalLearnSection(pedalBindings, onLearnPedal, onForgetPedals, midiState, onConnectPedal, midiSignal)
             }
         }
     }
@@ -173,26 +181,74 @@ private fun <T> ChoiceRow(label: String, options: List<Pair<String, T>>, selecte
  * the reason (⟨D4⟩) but still shown. The learn + persist is the host's (onLearn); this owns only the capture.
  */
 @Composable
-private fun PedalLearnSection(bindings: PedalBindings, onLearn: (PageTurn, Long) -> PageTurn?, onForget: () -> Unit) {
+private fun PedalLearnSection(
+    bindings: PedalBindings,
+    onLearn: (PageTurn, String) -> PageTurn?,
+    onForget: () -> Unit,
+    midiState: PedalLinkState,
+    onConnect: () -> Unit,
+    midiSignal: MidiSignal?,
+) {
     var armed by remember { mutableStateOf<PageTurn?>(null) }
-    var lastCode by remember { mutableStateOf<Long?>(null) }
+    var lastReceived by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
+    var lastMidiSeq by remember { mutableStateOf(-1L) }
     val capture = remember { FocusRequester() }
     LaunchedEffect(armed) { if (armed != null) runCatching { capture.requestFocus() } }
 
+    // learn a KEY: or MIDI: token — the one place both paths converge (⟨D2⟩ one store, one learn).
+    fun learn(token: String, label: String) {
+        lastReceived = label
+        val a = armed ?: return
+        notice = when (onLearn(a, token)) {
+            PageTurn.NEXT -> "Learned. (That was Next — moved to Previous.)"
+            PageTurn.PREV -> "Learned. (That was Previous — moved to Next.)"
+            null -> "Learned."
+        }
+        armed = null
+    }
+
+    // A76 ⟨D1⟩: a MIDI press always updates the "received" line (the diagnostic); while armed it also learns.
+    LaunchedEffect(midiSignal?.seq) {
+        val sig = midiSignal ?: return@LaunchedEffect
+        if (sig.seq == lastMidiSeq) return@LaunchedEffect
+        lastMidiSeq = sig.seq
+        lastReceived = sig.label
+        if (armed != null) learn(sig.token, sig.label)
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // ⟨D1⟩ — the link state, so "nothing received yet" means mute, not disconnected. Explicit Connect.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                when (midiState) {
+                    PedalLinkState.CONNECTED -> "MIDI pedal: connected"
+                    PedalLinkState.SCANNING -> "MIDI pedal: searching…"
+                    PedalLinkState.NOT_CONNECTED -> "MIDI pedal: not connected"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (midiState == PedalLinkState.CONNECTED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (midiState != PedalLinkState.CONNECTED) {
+                TextButton(onClick = onConnect, enabled = midiState != PedalLinkState.SCANNING) {
+                    Text(if (midiState == PedalLinkState.SCANNING) "Searching…" else "Connect")
+                }
+            }
+        }
+
         for (action in PageTurn.entries) {
-            val codes = bindings[action].orEmpty()
+            val toks = bindings[action].orEmpty()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f)) {
                     Text(if (action == PageTurn.NEXT) "Next page" else "Previous page", style = MaterialTheme.typography.labelLarge)
                     Text(
-                        if (codes.isEmpty()) "no learned button" else "learned: " + codes.sorted().joinToString(", "),
+                        if (toks.isEmpty()) "no learned button" else "learned: " + toks.sorted().joinToString(", "),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                TextButton(onClick = { notice = null; lastCode = null; armed = action }) {
-                    Text(if (armed == action) "Press a button…" else "Learn")
+                TextButton(onClick = { notice = null; lastReceived = null; armed = action }) {
+                    Text(if (armed == action) "Press…" else "Learn")
                 }
             }
         }
@@ -205,30 +261,27 @@ private fun PedalLearnSection(bindings: PedalBindings, onLearn: (PageTurn, Long)
                     .focusable()
                     .onPreviewKeyEvent { e ->
                         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        lastCode = e.key.keyCode // ⟨D1⟩: show EVERY press, always
+                        lastReceived = "key ${e.key.keyCode}" // ⟨D1⟩: show EVERY press
                         if (!isLearnableKey(e.key)) {
                             notice = "That key can't be learned — Back and Home would trap you in the Stage."
                         } else {
-                            val from = onLearn(armedNow, e.key.keyCode)
-                            notice = when (from) {
-                                PageTurn.NEXT -> "Learned. (That button was Next — moved to Previous.)"
-                                PageTurn.PREV -> "Learned. (That button was Previous — moved to Next.)"
-                                null -> "Learned."
-                            }
-                            armed = null
+                            learn(keyToken(e.key.keyCode), "key ${e.key.keyCode}")
                         }
-                        true // never let a press escape while learning (⟨D4⟩) and so the code always shows
+                        true // never let a press escape while learning
                     },
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
             ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Learning ${if (armedNow == PageTurn.NEXT) "Next page" else "Previous page"} — press the pedal button.", style = MaterialTheme.typography.bodyMedium)
+                    Text("Learning ${if (armedNow == PageTurn.NEXT) "Next page" else "Previous page"} — press a pedal button.", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        if (lastCode == null) "nothing received yet" else "received: $lastCode",
+                        lastReceived?.let { "received: $it" } ?: "nothing received yet",
                         style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
                     )
+                    if (midiState != PedalLinkState.CONNECTED) {
+                        Text("For a MIDI pedal, tap Connect above first.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     TextButton(onClick = { armed = null }) { Text("Cancel") }
                 }
             }
