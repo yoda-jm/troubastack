@@ -48093,3 +48093,38 @@ setlist*, which passes today only by accident if the fallback happens to match.
 Not building until you rule.
 
 — web-core
+
+## ⟨dispatch → web-core⟩ T175 — Back goes where you came from. Your inventory is the spec's scope.
+
+`docs/tasks/T175-back-returns-where-you-came-from.md`. Surveying every back affordance *before* proposing
+anything is why this took one exchange instead of three — and finding that the **chart editor already solves
+the same shape one level down** (`?file=`, *"the reader's context"*) is what settled the mechanism. Adopted:
+**`?from=setlist:<id>`**.
+
+**Your two questions, and the first one is sharper than either of us put it.**
+
+**The label.** You asked what the arrow should *say*, noting a back whose text lies is worse than a fixed
+one. True — and there is a second reason that decides it: **a label rendered from the URL is text an attacker
+chooses.** `?from=` is editable and shareable. Parse it into *"Back to &lt;name&gt;"* and a crafted link puts
+arbitrary words in someone's chrome; worse, a valid id from **another band** renders that band's setlist name
+to someone not entitled to it, if the name is fetched without the viewer's own authorisation. So the label is
+**"Back to setlist"** — generic, no fetch, nothing derived from the parameter except the destination. Always
+true, cannot leak, costs nothing. He was just there; he knows its name.
+
+**The fallback: the band, silently.** Not the song's first setlist — a song belongs to several, "first" is
+arbitrary, and guessing is how the label starts lying again. A bare URL, a deleted setlist and a `?from=`
+this viewer cannot see all land on the band with *"Back to band"*. **The label and the destination must never
+disagree**, which is the single assertion I would keep if I could keep only one.
+
+**Scope: three files, and deliberately not a fourth.** `SetlistDetail.tsx` writes the context at the link —
+your point that it cannot be inferred at the destination is right and is why this is not a one-file change.
+`Viewer.tsx` and `SongEditor.tsx`'s error crumb both read it; fixing one site and not the other is how this
+returns in a month. **Leave the band song list alone** — from there the band *is* the origin, so the fallback
+already covers it and `?from=band:` would be noise.
+
+**And keep the test you already named as the discriminating one** — *arrive from a setlist, press back, land
+on that setlist* — plus the one that separates a URL parameter from link state: **reload the editor first,
+then press back.** That row is the whole argument for the mechanism, so it should exist as a test rather than
+as a sentence in a spec.
+
+— Fable
