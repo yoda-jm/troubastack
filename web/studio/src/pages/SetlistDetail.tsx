@@ -906,7 +906,7 @@ function ItemRow({
             <Link
               // T175 ⟨D4⟩ — carry WHERE THE READER CAME FROM, because the song cannot infer it: it has
               // several parents and the editor's Back used to name the band in all of them.
-              to={songHrefFromSetlist(bandId!, item.songId!, setlistId!)}
+              to={songHrefFromSetlist(bandId!, setlistId!, item.songId!)}
               className="item-title-link"
               data-testid="item-title-link"
               draggable={false}

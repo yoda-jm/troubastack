@@ -49,6 +49,14 @@ export function App() {
         </Route>
         <Route path="/bands/:bandId/setlists/:setlistId" element={<SetlistDetail />} />
         <Route path="/bands/:bandId/songs/:songId" element={<SongEditor />} />
+        {/* T175 ⟨D5⟩ — the SAME editor, addressed through the setlist the reader came from, so Back is
+            the path minus its last two segments rather than something resolved at runtime. The flat
+            route above stays permanently: it is the song's canonical address, it is what the band list
+            links to, and it is in every existing bookmark. Two routes, one component, on purpose. */}
+        <Route
+          path="/bands/:bandId/setlists/:setlistId/songs/:songId"
+          element={<SongEditor />}
+        />
         {/* T105: the dedicated full-page chart editor, reachable from the viewer and linkable. */}
         <Route path="/bands/:bandId/songs/:songId/chart/:fileId" element={<ChartEditorPage />} />
         <Route path="/invites" element={<Invites />} />

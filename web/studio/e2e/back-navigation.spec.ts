@@ -36,7 +36,7 @@ test("arriving from a setlist, Back returns to that setlist — not the band", a
   const { setlistUrl, setlistId } = await bandWithSetlist(page);
 
   await page.getByTestId("item-title-link").click();
-  await expect(page).toHaveURL(new RegExp(`from=setlist:${setlistId}`));
+  await expect(page).toHaveURL(new RegExp(`/setlists/${setlistId}/songs/`));
   await expect(page.getByTestId("pdf-page").first().or(page.getByTestId("viewer-chrome"))).toBeVisible();
 
   const back = page.getByTestId("tb-back");
@@ -52,8 +52,9 @@ test("reloading first does not lose the origin — the row that rules out link s
   await page.getByTestId("item-title-link").click();
   await expect(page.getByTestId("tb-back")).toHaveAttribute("title", "Back to setlist");
 
-  // Router link state dies here; a URL parameter survives. This is the whole argument for ⟨D1⟩, so it
-  // exists as a test rather than as a sentence in the spec.
+  // Router link state dies here; an address survives. The row is nearly trivial now that the origin is
+  // in the route — which is the point, and why it stays: it documents WHY the mechanism is an address
+  // rather than something carried alongside one.
   await page.reload();
   const back = page.getByTestId("tb-back");
   await expect(back).toHaveAttribute("title", "Back to setlist");
@@ -87,7 +88,7 @@ test("a bare song URL falls back to the band, with no error", async ({ page }) =
   await expect(page).toHaveURL(band.url);
 });
 
-test("a ?from= this viewer cannot resolve falls back to the band, silently and consistently", async ({
+test("a setlist that is gone takes you there anyway — the page says so, the arrow does not hide it", async ({
   page,
 }) => {
   const who = stamp();
@@ -95,17 +96,18 @@ test("a ?from= this viewer cannot resolve falls back to the band, silently and c
   const band = await createBandAndOpen(page, `Band ${who}`);
   const songId = await createSongAndOpen(page, `Song ${who}`);
 
-  // a well-formed id that is simply not a setlist this viewer has — the other-band / deleted case
-  await page.goto(`/bands/${band.id}/songs/${songId}?from=setlist:11111111-2222-3333-4444-555555555555`);
+  // ⟨D3⟩ as corrected: NOT silently retargeted to the band. The reader was in that setlist minutes ago;
+  // quietly landing them elsewhere hides that something they were using is gone, and the setlist page
+  // already owns its own not-found and its own authorisation.
+  const ghost = "11111111-2222-3333-4444-555555555555";
+  await page.goto(`/bands/${band.id}/setlists/${ghost}/songs/${songId}`);
   const back = page.getByTestId("tb-back");
-  await expect(back).toHaveAttribute("title", "Back to band");
-  await expect(page.getByTestId("error-banner")).toHaveCount(0);
+  await expect(back).toHaveAttribute("title", "Back to setlist");
   await back.click();
-  await expect(page).toHaveURL(band.url);
+  await expect(page).toHaveURL(`${band.url}/setlists/${ghost}`);
 
-  // and a hostile value is refused by shape before it can reach the router
-  await page.goto(`/bands/${band.id}/songs/${songId}?from=setlist:../../bands/elsewhere`);
-  await expect(page.getByTestId("tb-back")).toHaveAttribute("title", "Back to band");
-  await page.getByTestId("tb-back").click();
-  await expect(page).toHaveURL(band.url);
+  // and the hostile input is not validated away — it cannot be expressed. A path segment holds no "/",
+  // so this is simply a different (unmatched) route and never a setlist id.
+  await page.goto(`/bands/${band.id}/setlists/..%2F..%2Fbands%2Felsewhere/songs/${songId}`);
+  await expect(page.getByTestId("tb-back")).toHaveCount(0);
 });
