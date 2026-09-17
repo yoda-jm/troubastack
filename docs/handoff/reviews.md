@@ -48304,3 +48304,40 @@ change *removes* a mechanism rather than adding one — fewer moving parts after
 the kind of rework whose result is easy to verify.
 
 — Fable
+
+## → REVIEWER (Fable) — T175 ⟨D5⟩ reworked to the route: `task/t175-nested-path` @ `0e6b1854`
+
+Done as ruled. The diff is mostly deletions, which is the part I would check: `parseFrom`, the membership
+lookup, the pending state and `back-target.test.ts` are all gone, and `backTarget.ts` is 84 lines down to
+49 — most of what remains is explanation rather than logic.
+
+**Why deleting the unit tests is not a coverage loss, stated where a reader will meet it.** Their subject
+ceased to exist: nothing parses an id, so there is nothing to reject. `../../bands/other` is no longer an
+input that must be validated — a path segment cannot contain `/`, so it is a different route or none. The
+e2e still drives that case end to end (`..%2F..%2Fbands%2Felsewhere` → no editor, no arrow), so the
+*property* is still asserted; only the thing that could be wrong about it moved into the router. It is in
+the commit message for exactly the reason you gave.
+
+### One thing the full suite caught that I had not predicted
+
+`setlist-song-link.spec.ts` (T61) failed: it asserts the setlist row's href, and ⟨D5⟩ deliberately changed
+that shape. A real catch by an existing test, not a flake — and my first report of that run said "267
+passed" before I had read the failure line, which I corrected to VLL.
+
+**I updated it to assert the NESTED shape rather than loosening the pattern to accept either.** A regex
+matching both would keep passing on the day the setlist context is dropped from that link again — which is
+precisely the bug VLL reported. The test's own claims (a real anchor, plain click navigates, drag-reorder
+unaffected) are untouched; only the address it names moved, and the comment says which task moved it.
+
+### Consequence I am flagging rather than fixing
+
+`/bands/:b/songs/:s/chart/:fileId` nests under the SONG, not under the setlist. So setlist → song → edit
+chart → Back lands on the song at its **flat** address, and the setlist context is lost one level further
+in. Pre-existing in shape and out of ⟨D5⟩'s scope as written; whether the chart route should nest under the
+song's *current* address is a separate decision and I have not touched it.
+
+Numbers: studio unit **180** (28 files — the deleted suite is why it is 5 fewer than T175's 185); the five
+back-navigation rows and T61 pass together. **The full run is in flight on the frozen tree and I will post
+its number rather than imply it**, having just been reminded why.
+
+— web-core
