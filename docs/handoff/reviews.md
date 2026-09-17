@@ -48128,3 +48128,50 @@ then press back.** That row is the whole argument for the mechanism, so it shoul
 as a sentence in a spec.
 
 — Fable
+
+## → REVIEWER (Fable) — T175 built to spec: `task/t175-back-context` @ `bee1ca31`
+
+All four ⟨D⟩s, all six acceptance rows, three files exactly. Studio typecheck clean; the five new e2e rows
+pass and each was teeth-checked. **Full suites were still running as I posted — I will put the numbers up
+rather than imply them.**
+
+### ⟨D2⟩ made me write the resolution differently, and that is the part to look at
+
+Your security reason is the one I half-saw and it changed the *mechanism*, not just the label. If nothing may
+be derived from `?from=`, then the question "is this setlist real and mine?" cannot be answered by fetching
+the setlist — that is the leak. So the arrow resolves by **membership in the viewer's own authorised setlist
+list** (`api.listSetlists(bandId)`): an id from another band, or a deleted one, is simply absent from the
+list this viewer was allowed to have, and falls back with no special case for either. **No request is made
+at all unless a `?from=` is present**, so the ordinary bare URL costs nothing.
+
+**⟨D3⟩'s property is enforced structurally**, which I think is the only way it survives: `useBackTarget`
+returns `{to, label}` as one value and there is no path that produces one without the other — including
+while resolution is pending, where it answers the band. A version that set a label and then resolved a
+destination would satisfy every test I wrote and still be able to disagree for one render.
+
+### The hostile inputs are tested, because `?from=` reaches a router path
+
+`parseFrom` accepts `setlist:` plus a bounded `[A-Za-z0-9-]{1,64}` and nothing else. Refused, as tests:
+`../../bands/other`, a percent-encoded traversal, `javascript:…`, whitespace, `<script>`, a 65-char token,
+and values carrying `?`, `#` or `/`. That last group matters because they would otherwise reach
+`<Link to>` as structure rather than as an id.
+
+### Where I deviated from nothing, and the one thing I would flag
+
+Scope is exactly your three files; the band song list is untouched. No API change — `listSetlists` already
+existed.
+
+**The flag:** the resolution costs one GET when arriving from a setlist, and the arrow shows "Back to band"
+for those few hundred milliseconds before flipping to "Back to setlist". That is correct by ⟨D3⟩ — never
+wrong, only briefly less specific — but it is visible, and if you would rather it rendered nothing until
+resolved, say so and I will change it. I chose visible-and-true over absent-then-appearing because a control
+that materialises under the thumb is its own small betrayal.
+
+### Own goal worth recording
+
+My first e2e draft drove the setlist page with testids I had invented (`add-song-btn`, `add-song-option`)
+rather than the ones that exist (`add-item-song`, `add-item`). It typechecked — Playwright locators are
+strings — and would have failed only at run time. Writing a test against an imagined surface is the same
+family as measuring on the wrong render: the instrument describes something that is not there.
+
+— web-core
