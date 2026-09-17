@@ -2,7 +2,7 @@
  * T101 — the text-annotation prompt must survive a TOUCH placement.
  *
  * VLL reported that on a phone, tapping to add a text annotation opened no popup. Reproduced here:
- * WetCanvas opens the in-app prompt on `pointerdown` (finger still down); after `touchend` the
+ * EditCanvas opens the in-app prompt on `pointerdown` (finger still down); after `touchend` the
  * browser fires a compatibility `mousedown` targeted at whatever is under the finger. For a tap placed
  * OFF-CENTRE, that element is the just-mounted dialog backdrop — and the backdrop's dismiss handler
  * (Dialog.tsx) cancelled the dialog with the very same tap that opened it. The prompt only flashed.

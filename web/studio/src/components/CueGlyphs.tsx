@@ -36,6 +36,19 @@ export const CUE_ICON_LABELS: Record<string, string> = {
   mic: "Microphone",
   warning: "Warning",
   note: "Note",
+
+  // P206 landmarks. These were missing, so the jump picker showed a musician raw ids — "segno",
+  // "coda", "circle" — where every cue glyph beside them had a name (glossary D11). The two musical
+  // ones keep their musical names, which is what the notation calls them; the five shapes are named
+  // as shapes, because that is all they are and a musician picking "the square one" is picking a
+  // shape, not a symbol with a meaning.
+  segno: "Segno",
+  coda: "Coda",
+  circle: "Circle",
+  square: "Square",
+  triangle: "Triangle",
+  diamond: "Diamond",
+  star: "Star",
 };
 
 /** Resolve an icon id to a known glyph, falling back to `note` for unknowns. */

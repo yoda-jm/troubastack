@@ -24,7 +24,7 @@ async function touchDrag(cdp: CDPSession, x0: number, y0: number, x1: number, y1
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 // A real finger DOUBLE-TAP: two taps at ~the same point, close in time (the browser fires no
-// dblclick on touch — WetCanvas detects it in onPointerUp). Each tap carries a few px of
+// dblclick on touch — EditCanvas detects it in onPointerUp). Each tap carries a few px of
 // jitter (a real finger never lands perfectly still) — this must NOT pan the view.
 async function touchDoubleTap(cdp: CDPSession, x: number, y: number) {
   for (let i = 0; i < 2; i++) {

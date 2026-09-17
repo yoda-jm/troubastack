@@ -1,6 +1,7 @@
 /**
- * P206 — the Jump mark authoring tool (first cut). A jump is a PAIR of matching icon landmarks (same
- * glyph + colour): the destination is placed first, then the source, which carries jumpTo = the
+ * P206 — the Jump mark authoring tool. A jump is a PAIR of matching icon landmarks (same glyph +
+ * colour): the SOURCE is placed first — VLL, "change to source first (it is more natural)" — and waits
+ * (`pendingJumpSrc`) until the destination is placed, at which point the source gains jumpTo = the
  * destination's uuid. Reuses OBJECT_TYPE_ICON (no new type); the tool offers only landmark glyphs.
  */
 import { test, expect, type Page } from "@playwright/test";

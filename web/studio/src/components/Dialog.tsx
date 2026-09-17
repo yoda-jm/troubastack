@@ -151,7 +151,7 @@ function DialogView({
         // then lands outside as a real outside-click that collapses the Details panel. Cancelling on
         // mousedown keeps the shield and the original timing.
         //
-        // Why the `pressStartedOnBackdrop` gate: on a phone, WetCanvas opens the text prompt on
+        // Why the `pressStartedOnBackdrop` gate: on a phone, EditCanvas opens the text prompt on
         // pointerdown (finger still down); after `touchend` the browser fires a compatibility mousedown
         // targeted at whatever is under the finger — the just-mounted backdrop, for a tap placed
         // off-centre. That compat mousedown has no preceding pointerdown on the backdrop, so it would
