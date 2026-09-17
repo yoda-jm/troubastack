@@ -49,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -228,6 +229,45 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
         )
     }
 
+    // A76 — the BLE-MIDI pedal, app-scoped so Parameters (learn a button) and Stage (turn pages) share ONE
+    // link. Each press becomes a MidiSignal both screens observe: Parameters shows it (⟨D1⟩ diagnostic) and
+    // learns it if armed; Stage matches it to a page turn. The link State drives the panel's diagnostic.
+    val midiPedal = remember { MidiPedal(context) }
+    var midiState by remember { mutableStateOf(com.troubastack.shared.stage.PedalLinkState.NOT_CONNECTED) }
+    var midiSignal by remember { mutableStateOf<com.troubastack.shared.stage.MidiSignal?>(null) }
+    var midiSeq by remember { mutableStateOf(0L) }
+    var pedalEverConnected by remember { mutableStateOf(false) } // A76 ⟨D1⟩: gates auto-reconnect on Stage entry
+    DisposableEffect(midiPedal) {
+        midiPedal.setListeners(
+            onStateChange = { s ->
+                if (s == MidiPedal.State.CONNECTED) pedalEverConnected = true
+                midiState = when (s) {
+                    MidiPedal.State.CONNECTED -> com.troubastack.shared.stage.PedalLinkState.CONNECTED
+                    MidiPedal.State.SCANNING -> com.troubastack.shared.stage.PedalLinkState.SCANNING
+                    MidiPedal.State.NOT_CONNECTED -> com.troubastack.shared.stage.PedalLinkState.NOT_CONNECTED
+                }
+            },
+            onPressReceived = { p ->
+                midiSeq += 1
+                midiSignal = com.troubastack.shared.stage.MidiSignal(
+                    midiSeq,
+                    com.troubastack.shared.stage.midiToken(p.status, p.data1),
+                    com.troubastack.shared.stage.midiLabel(p.status, p.data1),
+                )
+            },
+        )
+        onDispose { midiPedal.close() }
+    }
+    // A76 ⟨D1⟩ — explicit Connect: request the BLE permissions (Android 12+) then scan+connect; already
+    // granted → connect straight away. Reconnect on Stage entry is automatic once connected once (below).
+    val midiPerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result.values.all { it }) midiPedal.connect()
+    }
+    val connectPedal: () -> Unit = {
+        if (midiPedal.hasPermissions()) midiPedal.connect()
+        else midiPerms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT))
+    }
+
     // P205 Stage 3a: the logged-in member (id → roster auto-match on concert open; name/band → Home
     // line). A31: SET FROM THE LIVE PROBE below — a single source of truth. The old
     // LaunchedEffect(transport.isConnected) went stale when a session expired server-side while the
@@ -240,6 +280,9 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
     // (A31: the diagnosed "cold-start onto Connect" glitch), so it is plain remember.
     var atHome by rememberSaveable { mutableStateOf(true) } // cold start lands on Home, not the concert list
     var selectedDir by rememberSaveable { mutableStateOf<String?>(null) }
+    // A76 ⟨D1⟩ — the pedal drops the link aggressively, so reconnect on entering a concert (Stage) — but only
+    // after a first successful connect, so a stand with no pedal never scans on open. connect() is idempotent.
+    LaunchedEffect(selectedDir) { if (selectedDir != null && pedalEverConnected) midiPedal.connect() }
     var editing by rememberSaveable { mutableStateOf(false) }
     // A31: the concert list is ONE screen with two intents — entered via TroubaStage (perform: lean,
     // offline, tap-to-perform) or via TroubaStudio (manage: import/update/edit affordances).
@@ -301,13 +344,16 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
             colorMode = colorSel,
             onColorMode = { colorSel = it; storage.putSecret(COLOR_MODE_KEY, it.name) },
             pedalBindings = pedalSel,
-            onLearnPedal = { action, code ->
-                val r = com.troubastack.shared.stage.learnPedalBinding(pedalSel, action, code)
+            onLearnPedal = { action, token ->
+                val r = com.troubastack.shared.stage.learnPedalBinding(pedalSel, action, token)
                 pedalSel = r.bindings
                 storage.putSecret(PEDAL_BINDINGS_KEY, com.troubastack.shared.stage.encodePedalBindings(r.bindings))
                 r.takenFrom
             },
             onForgetPedals = { pedalSel = emptyMap(); storage.putSecret(PEDAL_BINDINGS_KEY, "") },
+            midiState = midiState,
+            onConnectPedal = connectPedal,
+            midiSignal = midiSignal,
             onBack = { settings = false },
         )
         BackHandler { settings = false }
@@ -766,6 +812,7 @@ private fun App(themePref: ThemePref, onThemePref: (ThemePref) -> Unit) {
                     noteNow = { System.currentTimeMillis() },
                     // A72 — device-local learned pedal bindings, read at Stage entry (Parameters writes them).
                     pedalBindings = com.troubastack.shared.stage.parsePedalBindings(storage.getSecret(PEDAL_BINDINGS_KEY)),
+                    midiSignal = midiSignal, // A76 — BLE-MIDI presses turn pages in Stage
                 )
             }
         }

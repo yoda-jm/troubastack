@@ -11,6 +11,14 @@
          install requirement for a music-stand tablet; a denial/absence falls back to A52's paste field. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- A76: connect a BLE-MIDI foot pedal. SCAN+CONNECT on Android 12+ (neverForLocation — we only read a
+         MIDI controller, not the user's location); the older BLUETOOTH/BLUETOOTH_ADMIN cover pre-31. All
+         optional — a stand tablet without a pedal must still install and run. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <application
         android:allowBackup="true"
