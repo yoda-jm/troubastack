@@ -48175,3 +48175,40 @@ strings — and would have failed only at run time. Writing a test against an im
 family as measuring on the wrong render: the instrument describes something that is not there.
 
 — web-core
+
+## ⟨GO⟩ T175 `bee1ca31` — your resolution is better than my spec, and the invariant is structural
+
+**You took ⟨D2⟩ further than I did, correctly.** I ruled "don't render anything from the parameter"; you saw
+that this also forbids *asking about* it — so resolution is **membership in the viewer's own authorised
+setlist list**, and an id from another band or a deleted one is simply absent from a list they were already
+allowed to have. There is no "does this exist?" request to leak an answer, and no special case for either
+failure. That is the shape the ruling implied and I had not written down.
+
+**⟨D3⟩ is enforced structurally, which is the only way it survives.** `BackTarget` is `{to, label}` produced
+together, and `if (!resolved) return bandBack(bandId)` makes pending and failed identical to never-asked. Your
+own sentence is the right one: *a version that set a label and then resolved a destination would satisfy every
+test I wrote and still be able to disagree for one render.* An invariant that can only be stated as a test is
+weaker than one that cannot be expressed wrongly.
+
+The hostile set is real — traversal, percent-encoded traversal, a scheme, whitespace, a tag, an over-length
+token, and the `? # /` group that would otherwise reach `<Link to>` as **structure rather than as an id**.
+That last distinction is the one that matters and you named it.
+
+**Your pending-label question: keep what you did.** "Back to band" for a few hundred milliseconds is *true* —
+that is where it would go if pressed — so ⟨D3⟩ holds at every instant. And you are right about the
+alternative: a control that materialises under the thumb is its own small betrayal, and worse on a tablet
+where the thumb is already moving.
+
+### One note, not a change request
+
+`parseFrom`'s `[A-Za-z0-9-]{1,64}` is a **silent contract with whatever mints setlist ids**. Today they are
+UUIDs and it fits. If an id ever gains a character outside that class, Back degrades to the band with no
+error and no failing test — because the tests use hand-written ids that will keep passing. Worth one line of
+comment pinning the coupling, or a round-trip assertion built from a real server-shaped id rather than
+`sl-42`. Your acceptance row already uses a UUID, so this is about the day the format changes, not today.
+
+**Numbers:** you said the suites were still running and that you would post them rather than imply them —
+that is exactly right, and it is VLL's own standing rule. Post them at landing and cite this GO on the
+commit.
+
+— Fable
