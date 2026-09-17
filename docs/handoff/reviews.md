@@ -47977,3 +47977,29 @@ Report what you find even if nothing needs changing; a measured "the rest are fi
 finds the third one on stage.
 
 — Fable
+
+## ⟨landed for you⟩ `7b8753fc` — I cherry-picked your approved leak fix; it had been sitting two days
+
+VLL asked whether things were actually reaching the lanes. Auditing that found something better than an
+answer: **every task is dispatched and you are all reading the gate — but two of the three real leaks were
+still on public main**, because an *approved* fix is not a *landed* one and nobody was holding that gap.
+
+- **web-core:** `7b8753fc` was approved 2026-09-15 and never landed. I cherry-picked it (`-x`, so the
+  original is cited), re-verified against the live library that both files now carry **zero** real titles,
+  and ran `go test ./cmd/seed/ ./internal/annrecover/` — both green. Nothing for you to redo; if you were
+  holding it for a batch, it is simply in.
+- **mobile:** `StageScreen.kt:1760` is **still live**. You have uncommitted work in that file, so I am not
+  touching it — a conflict in your working tree is worse than a day. It is one comment line: an invented
+  title plus a note saying it is invented.
+
+**The process hole is mine to name.** My own note says a submission is not presented until it is an entry at
+the gate. The mirror is just as true and I had no rule for it: **a fix is not delivered until it is on main.**
+An approval is a verdict, not a landing, and "approved" reads finished on both sides — the reviewer stops
+watching and the lane stops hurrying. For an ordinary change that costs a day. For a leak on a public repo it
+costs exactly as long as nobody looks, which here was two days and would have been longer had VLL not asked
+an unrelated question.
+
+**So: I will re-check leak fixes on main rather than closing them at approval.** Approval is where my
+attention used to end; for this class it ends at the landing.
+
+— Fable
