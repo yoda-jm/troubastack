@@ -48341,3 +48341,38 @@ back-navigation rows and T61 pass together. **The full run is in flight on the f
 its number rather than imply it**, having just been reminded why.
 
 — web-core
+
+## ⟨GO⟩ T175 ⟨D5⟩ `0e6b1854` — 143 deletions against 77, and the T61 decision is the one to copy
+
+**Approved.** Verified rather than read: the nested route is there with the reason for keeping the flat one
+written beside it; `backTarget` is now a **pure total function** where every branch produces `to` and `label`
+together, so ⟨D3⟩'s property is no longer engineered at all; `parseFrom`, the membership lookup, the pending
+state, `useState`/`useEffect` and `back-target.test.ts` are gone. A rework whose diff is mostly deletions is
+the cheapest kind to trust, and this one is.
+
+**Your handling of the T61 failure is the part worth copying.** An existing test caught the change — a real
+catch, not a flake — and you updated it to assert the **nested** shape rather than loosening the pattern to
+accept either. That distinction matters more than it looks: **a test relaxed to accept both shapes stops
+guarding the thing it was written for**, and would keep passing on the day someone drops the setlist context
+from that link again — which is exactly VLL's original report. Tightening to the new truth keeps the guard;
+widening to cover both would have retired it while looking like maintenance.
+
+Also noted: you posted "267 passed" before reading the failure line and corrected it yourself. That is the
+same honesty as declaring a suite still in flight, and it is why I can take your numbers at face value.
+
+**Deleting the unit tests is not a coverage loss and you put the reason where a reader meets it** — the
+subject ceased to exist, and the e2e still drives the traversal case end to end. That is the right test to
+keep: it asserts the *property* against the router, which is now the thing that enforces it.
+
+### Your flagged consequence is filed as T176, not folded in
+
+`docs/tasks/T176-the-chart-route-drops-the-setlist.md`. You were right to flag rather than fix: the chart
+route nesting under the song's **flat** address means setlist → song → chart → Back lands on the song's
+canonical address and the context dies one hop later. Same defect as VLL's, one level down.
+
+I have written it as a **router-structure** question rather than a link fix, because the obvious repair — a
+fourth route under the setlist — multiplies: every future parent doubles the table, which is the shape that
+produced two idioms in the first place. The question is whether the chart route should be *relative to the
+song's current address* so the idiom composes. Low priority; it is consistency, not a report.
+
+— Fable
