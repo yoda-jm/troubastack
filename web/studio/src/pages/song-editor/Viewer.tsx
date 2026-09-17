@@ -36,6 +36,7 @@ import {
   type UndoEntry,
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
+import { useBackTarget } from "./backTarget";
 import {
   RehearsalNotesChip,
   RehearsalUnderlay,
@@ -135,6 +136,8 @@ export function Viewer({
   // snapping to the first file. Seed from the URL on mount; the initial-load pick validates it
   // against my pool before use (a stale/foreign id degrades gracefully to the first PDF).
   const [searchParams, setSearchParams] = useSearchParams();
+  // T175 — resolved once per (band, from); a bare URL costs no request at all.
+  const back = useBackTarget(bandId, searchParams.get("from"));
   const initialFileParamRef = useRef<string | null>(searchParams.get("file"));
   const [selectedFileId, setSelectedFileId] = useState<string | null>(() =>
     searchParams.get("file"),
@@ -1350,11 +1353,17 @@ export function Viewer({
             everything else in a single horizontal-scroll region (.tb-scroll) with the T65
             fade. Both wrappers are display:contents on desktop, so its layout is unchanged. */}
         <div className="tb-nav">
+          {/* T175 — Back returns where the reader CAME FROM. The destination and the words are produced
+              together (`useBackTarget`) and never separately: ⟨D3⟩'s one inviolable property is that they
+              cannot disagree, including while the origin is still being resolved. The label is generic by
+              ruling (⟨D2⟩) — `?from=` is text somebody else may have written, so nothing is rendered from
+              it and no name can be leaked across bands. */}
           <Link
             className="tb-back"
-            to={`/bands/${bandId}`}
-            aria-label="Back to band"
-            title="Back to band"
+            to={back.to}
+            aria-label={back.label}
+            title={back.label}
+            data-testid="tb-back"
           >
             &larr;
           </Link>
