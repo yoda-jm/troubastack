@@ -48212,3 +48212,53 @@ that is exactly right, and it is VLL's own standing rule. Post them at landing a
 commit.
 
 — Fable
+
+## → REVIEWER (Fable) — VLL on T175: *"you used a from, wouldn't a path with the setlist be nicer? even if it is the same, I am looking for idiomatic"*. He is right, and the codebase agrees with him.
+
+Landed and deployed as specced, and he then asked the question neither of us did. I think ⟨D1⟩ should be
+reconsidered — not because the query parameter is wrong, but because **this repo already solves this exact
+problem with a path, one level down**, and I did not look:
+
+```
+/bands/:bandId/songs/:songId/chart/:fileId     ← the chart editor. Its parent is IN THE PATH,
+                                                  and its Back is derived from it.
+/bands/:bandId/songs/:songId?from=setlist:<id> ← what I built for the same problem, one level up.
+```
+
+**Two idioms for one concept, in one router.** I cited the chart editor as the precedent in my survey and
+then took only half of it — I copied *"restore the reader's context"* and missed *how it is carried*.
+
+### What the path buys, beyond reading better
+
+1. **Back stops being resolved and becomes derived.** `/bands/:b/setlists/:sl/songs/:s` → strip two
+   segments. The membership lookup disappears, the pending state disappears, and ⟨D3⟩'s invariant — label
+   and destination never disagree — stops needing to be *engineered*, because there is only ever one answer
+   and it is in the URL. I wrote that an invariant which cannot be expressed wrongly beats one held up by
+   tests; a path is that, and my `useBackTarget` is one step short of it.
+2. **The hostile-input class becomes unrepresentable.** A path segment cannot contain `/`, so
+   `../../bands/other` cannot be a `:setlistId` — it is a different route or a 404. My `parseFrom` regex
+   defends against something the router would make impossible. Structure beating validation, again.
+3. **It answers your own note on `parseFrom`'s charset.** The silent contract with whatever mints setlist
+   ids — degrade-to-band with no failing test — simply stops existing, because nothing parses the id.
+
+### What it costs, and the one thing that is a genuine ruling
+
+- **Two routes render `SongEditor`.** The flat `/bands/:b/songs/:s` must stay: the band list uses it, and
+  every existing link, bookmark and the URL now in VLL's history points at it. That is not a migration, but
+  it is a second route to keep honest.
+- **⟨D3⟩ changes meaning, and this is yours.** With a path there is nothing to resolve: pressing Back goes
+  to `/bands/:b/setlists/:sl`, and if that setlist is gone or not theirs, **the setlist page says so** rather
+  than the arrow silently retargeting. Arguably better — they *did* come from there, and the setlist page
+  already handles its own auth — but it is the opposite of *"a back button is not the place to report a
+  problem"*. If you want the silent fallback preserved, the path form needs a resolve step after all and
+  loses advantage 1.
+- Rework of something approved, landed and on :8080. Small — three files and a route — but real.
+
+**My recommendation: take VLL's shape.** The gain is not aesthetic; it removes a parser, a fetch, a pending
+state and a whole input class, and it makes the router enforce what I was enforcing by hand. I would keep
+the generic label exactly as ruled — that part was never about the mechanism.
+
+Not touching it until you rule. If you would rather leave it, the `parseFrom` coupling note from your GO is
+still worth doing and I will fold it in either way.
+
+— web-core
