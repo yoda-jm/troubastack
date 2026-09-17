@@ -35,12 +35,18 @@ test("setlist item title links to the song editor; reorder still works (T61)", a
   const setlistUrl = page.url();
 
   // The title is a REAL anchor to the song editor route (middle/ctrl-click work).
+  //
+  // T175 ⟨D5⟩ changed the ADDRESS, not the behaviour this test is about: a song opened from a setlist is
+  // now `/bands/:b/setlists/:sl/songs/:s`, so the editor's Back is the path minus its last two segments
+  // instead of something resolved at runtime. Asserted in the nested form rather than loosened to match
+  // both — the specific shape is the claim, and a regex that accepted either would stop noticing if the
+  // context were dropped again.
   const firstLink = page.getByTestId("item-row").first().getByTestId("item-title-link");
-  await expect(firstLink).toHaveAttribute("href", /\/bands\/[^/]+\/songs\/[^/]+$/);
+  await expect(firstLink).toHaveAttribute("href", /\/bands\/[^/]+\/setlists\/[^/]+\/songs\/[^/]+$/);
 
   // Plain click navigates to that song's editor.
   await firstLink.click();
-  await expect(page).toHaveURL(/\/bands\/[^/]+\/songs\/[^/]+$/);
+  await expect(page).toHaveURL(/\/bands\/[^/]+\/setlists\/[^/]+\/songs\/[^/]+$/);
 
   // Reorder (grip drag) still works with the link present: drag row 2 onto row 1.
   await page.goto(setlistUrl);

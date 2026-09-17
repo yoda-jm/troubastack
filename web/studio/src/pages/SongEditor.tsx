@@ -15,17 +15,16 @@
  * data-testids are unchanged.
  */
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api, type Role, type Song } from "../api";
 import { Viewer } from "./song-editor/Viewer";
-import { useBackTarget } from "./song-editor/backTarget";
+import { backTarget } from "./song-editor/backTarget";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
 
 export function SongEditor() {
-  const { bandId, songId } = useParams<{ bandId: string; songId: string }>();
-  const [searchParams] = useSearchParams();
-  const back = useBackTarget(bandId, searchParams.get("from"));
+  const { bandId, songId, setlistId } = useParams<{ bandId: string; songId: string; setlistId?: string }>();
+  const back = backTarget(bandId, setlistId);
   const navigate = useNavigate();
   const { user } = useAuth();
   const [song, setSong] = useState<Song | null>(null);

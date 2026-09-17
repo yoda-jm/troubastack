@@ -5,7 +5,7 @@
  * data-testids unchanged.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   api,
   type AnnotationLayer,
@@ -36,7 +36,7 @@ import {
   type UndoEntry,
 } from "../../editor";
 import { EditorToolbar } from "./Toolbar";
-import { useBackTarget } from "./backTarget";
+import { backTarget } from "./backTarget";
 import {
   RehearsalNotesChip,
   RehearsalUnderlay,
@@ -136,8 +136,10 @@ export function Viewer({
   // snapping to the first file. Seed from the URL on mount; the initial-load pick validates it
   // against my pool before use (a stale/foreign id degrades gracefully to the first PDF).
   const [searchParams, setSearchParams] = useSearchParams();
-  // T175 — resolved once per (band, from); a bare URL costs no request at all.
-  const back = useBackTarget(bandId, searchParams.get("from"));
+  const routeParams = useParams<{ setlistId?: string }>();
+  // T175 ⟨D5⟩ — derived from the route: `setlistId` exists only when the reader came through a setlist,
+  // because that is a different route. No lookup, no pending state, nothing to get wrong.
+  const back = backTarget(bandId, routeParams.setlistId);
   const initialFileParamRef = useRef<string | null>(searchParams.get("file"));
   const [selectedFileId, setSelectedFileId] = useState<string | null>(() =>
     searchParams.get("file"),
