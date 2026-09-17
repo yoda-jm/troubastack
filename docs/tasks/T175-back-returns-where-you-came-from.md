@@ -15,7 +15,13 @@ row, a bare URL — and the arrow claims one of them in all three cases.
 The setlist detail's own crumbs are correct (it has a single parent), and the **chart editor already solves
 this exact shape one level down**, returning to the song with `?file=` restored — *"the reader's context"*.
 
-## 2. ⟨D1⟩ Carry the origin in the URL: `?from=setlist:<id>`
+## 2. ⟨D1⟩ — **SUPERSEDED 2026-09-17 by ⟨D5⟩. The origin goes in the PATH.**
+
+Kept as the record of why. It ruled `?from=setlist:<id>`, citing the chart editor as precedent — and took
+only half of that precedent: *restore the reader's context*, while missing **how the chart editor carries
+it**. See ⟨D5⟩.
+
+## 2b. ⟨D1-original⟩ Carry the origin in the query: `?from=setlist:<id>`
 
 Not `navigate(-1)`: a deep link or a reload has no history, and after switching files inside the editor it
 walks back through the reader's own edits. Not router link state: it is silently lost on reload, which is
@@ -33,10 +39,46 @@ entitled to it if the name is fetched without the viewer's own authorisation.
 So: **"Back to setlist"**, generic, no fetch, nothing derived from the parameter except the destination. It
 is always true, it cannot leak, and it costs nothing. The name adds little — he was just there.
 
-## 4. ⟨D3⟩ Unknown or unresolvable origin falls back to the band, silently
+## 3b. ⟨D5⟩ The origin is a path segment: `/bands/:bandId/setlists/:setlistId/songs/:songId`
 
-A bare URL, a deleted setlist, a `?from=` pointing somewhere this viewer cannot see: **the arrow reverts to
-the band and says "Back to band"**. No error, no toast — a back button is not the place to report a problem.
+**VLL:** *"you used a from, wouldn't a path with the setlist be nicer? even if it is the same, I am looking
+for idiomatic"* — and the router already agrees with him. `App.tsx:53` routes the chart editor as
+`/bands/:bandId/songs/:songId/chart/:fileId`: **its parent is in the path and its Back is derived from it.**
+Two idioms for one concept in one router is a divergence that costs someone a reading later, and the one
+already there is the better of the two:
+
+1. **Back stops being resolved and becomes derived.** Strip the segments. The membership fetch, the pending
+   state and the whole `useBackTarget` mechanism disappear — the answer is in the URL and there is only ever
+   one. My own GO on `bee1ca31` said an invariant that cannot be expressed wrongly beats one held up by
+   tests; the query form was one step short of my own standard.
+2. **The hostile-input class becomes unrepresentable.** A path segment cannot contain `/`, so
+   `../../bands/other` is a different route or a 404, not a `:setlistId`. `parseFrom` defends against
+   something the router makes impossible.
+3. **The charset contract disappears.** Nothing parses the id, so nothing silently degrades the day the id
+   format changes.
+
+**Delete** `parseFrom`, `useBackTarget` and their unit tests. That is not lost coverage — the coverage moves
+into the router, where it cannot be bypassed. Say so in the commit, because deleting tests reads as a
+regression unless the reason is written down.
+
+**The flat `/bands/:bandId/songs/:songId` route stays, permanently.** It is the song's canonical address,
+the band list uses it, and every existing link and bookmark points at it. Two routes render the editor; that
+is a fact to keep honest, not a migration.
+
+## 4. ⟨D3⟩ — restated under ⟨D5⟩: the arrow's job ends at the destination
+
+**Bare URL → the band, saying "Back to band".** Unchanged: the flat route has no origin, so there is nothing
+to name.
+
+**A deleted or foreign setlist in the path → go there anyway.** ⟨D3⟩ as first written conflated two things:
+*the label must not lie about where the arrow goes* (the real property, and now structural — the label says
+setlist, the arrow goes to the setlist route, they cannot disagree) and *the reader must not meet an error*,
+which was never the arrow's business. The setlist page already owns its own not-found and its own auth;
+duplicating that judgement inside a back button is a second copy of a truth that will drift from the first.
+
+And silently retargeting is not neutral: it hides from him that something he was just using is gone. He
+**did** come from there. If it has been deleted in another tab, the honest answer is the setlist page saying
+so — not the band page appearing for reasons he cannot see.
 
 **Not** the song's first setlist: a song belongs to several, "first" is arbitrary, and guessing is how the
 label starts lying again. The band is the song's one unambiguous owner.

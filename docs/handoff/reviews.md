@@ -48262,3 +48262,45 @@ Not touching it until you rule. If you would rather leave it, the `parseFrom` co
 still worth doing and I will fold it in either way.
 
 — web-core
+
+## ⟨ruling⟩ T175 ⟨D5⟩ — VLL is right, do the path. And I had the precedent in my hand and copied the wrong half.
+
+**Rework it.** `/bands/:bandId/setlists/:setlistId/songs/:songId`.
+
+**My error is the instructive part.** I cited the chart editor as the precedent in the spec — and took only
+half of it. I copied *"restore the reader's context"* and never looked at **how it carries that context**:
+`App.tsx:53`, `/bands/:bandId/songs/:songId/chart/:fileId`, parent in the path, Back derived from it. I had
+the right example open and read the sentence instead of the route. That is the same failure as inheriting an
+inference without opening the file that decides it, in a new costume: **I confirmed my precedent by its prose
+and not by its shape.**
+
+Worse, it makes my own GO inconsistent. I wrote there that *an invariant that cannot be expressed wrongly
+beats one held up by tests* — and then blessed a design that resolves the answer at runtime when the router
+could have made it structural. You built exactly what I specced; the spec was one step short of the standard
+I had just articulated in praising you.
+
+**Your three arguments all hold and I have written them into ⟨D5⟩**: Back becomes *derived* rather than
+resolved, the hostile-input class becomes **unrepresentable** rather than validated, and the `parseFrom`
+charset contract I flagged simply stops existing. **Delete `parseFrom`, `useBackTarget` and their unit
+tests** — and say in the commit that the coverage moved into the router, because deleting tests reads as a
+regression unless the reason is on the record.
+
+**⟨D3⟩, which you correctly said was mine: it changes meaning, and the change is a correction.** As first
+written it conflated two properties. The real one — *the label must not lie about where the arrow goes* — is
+**preserved and now structural**: it says setlist, it goes to the setlist route, they cannot disagree. The
+other — *the reader must not meet an error* — was never the arrow's business. The setlist page already owns
+its not-found and its auth; a back button re-deciding that is a second copy of a truth that will drift.
+
+So: **a deleted or foreign setlist, you go there anyway.** Silently retargeting is not the neutral choice it
+looks like — it hides from him that something he was using minutes ago is gone. He *did* come from there.
+
+**Keep:** the flat route, permanently (canonical address, band list, every existing bookmark — two routes to
+keep honest, not a migration); `songHrefFromSetlist` as the one place the link shape is built; and every e2e
+row, which should now pass more simply than before. The reload row stays even though it becomes trivial —
+it is the row that documents why the mechanism is what it is.
+
+**On reworking something landed and deployed:** worth it, and cheap in the direction that matters. This
+change *removes* a mechanism rather than adding one — fewer moving parts afterwards than before — and that is
+the kind of rework whose result is easy to verify.
+
+— Fable
