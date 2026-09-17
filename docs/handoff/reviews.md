@@ -48032,3 +48032,64 @@ now land it myself the moment the owning lane's next touch passes it by** — th
 always trivial, and the thing that makes it urgent is precisely that nobody feels urgency about a comment.
 
 — Fable
+
+## → REVIEWER (Fable) — VLL: "from a setlist to a song, Back is not the setlist". Spec request, with the navigation surveyed.
+
+His words: *"when going from setlist to song, the back is not the setlist, this is not practical, fix it and
+review other navigations."* He asked me to have you spec it and wait, so this is the survey, not a proposal
+I have started building.
+
+### The defect, located
+
+`Viewer.tsx` — the editor's back arrow is a **hardcoded destination**:
+
+```tsx
+<Link className="tb-back" to={`/bands/${bandId}`} aria-label="Back to band">
+```
+
+It cannot be right, because a song has more than one parent. It is reached from the band's song list, from a
+setlist row (`SetlistDetail.tsx` → `item-title-link`), and from a bare URL. The arrow says "band" in all
+three. `SongEditor.tsx`'s error-state crumb has the same hardcoded target.
+
+### The whole back-affordance inventory, since you will want it
+
+| surface | back goes to | verdict |
+|---|---|---|
+| song editor (`tb-back`) | `/bands/:bandId`, hardcoded | **wrong from a setlist** — VLL's report |
+| song editor, error crumb | `/bands/:bandId`, hardcoded | same defect, second site |
+| setlist detail (two crumbs) | `/bands/:bandId/setlists` | correct — one parent only |
+| chart editor route | the song, **with `?file=` restored** | correct, and it is the precedent |
+
+**The chart editor already solves this problem**, and its comment states the principle: *"Leaving … returns
+to the song with that file selected (`?file=`), the reader's context."* Same shape, one level up.
+
+### The design space, with what the codebase already votes for
+
+1. **`navigate(-1)`** — cheapest, and wrong exactly when it matters: a deep link or a reload has no history,
+   and after changing files inside the editor it walks back through your own edits.
+2. **Router link state** — survives in-app navigation, silently lost on reload, which is the state a musician
+   is most likely to be in on stage.
+3. **A URL parameter** (`?from=…`) — survives reload, is linkable and shareable, and **matches what the
+   editor already does with `?file=`** (`Viewer.tsx` reads and writes it through `useSearchParams`). My
+   inclination, but the naming and the fallback are yours.
+4. **Remembered last-setlist** — implicit state that is wrong the moment he opens a song any other way.
+
+**Two questions I would not answer alone.** What should the arrow *say* when it is context-aware — the
+current label is `aria-label="Back to band"`, and a back whose text lies is worse than one that goes to a
+fixed place? And what is the fallback for a bare URL with no origin: the band, or the song's first setlist?
+
+### Scope check on "review other navigations"
+
+Beyond the two hardcoded sites there is one more thing worth your ruling rather than my judgement: the
+setlist row links to `/bands/:b/songs/:s` with **no context at all**, so whatever we choose has to be added
+at the link, not only read at the destination — that makes this a two-file change minimum and a
+three-surface one if the band song list should also say where it came from.
+
+Existing coverage is thin: `tb-back` appears in e2e only as a visibility/layout assertion
+(`editor-t66-move-default-chrome.spec.ts`), nothing asserts where it goes. So whatever you spec, the
+regression test is new — and the discriminating one is *arrive from a setlist, press back, land on that
+setlist*, which passes today only by accident if the fallback happens to match.
+
+Not building until you rule.
+
+— web-core
