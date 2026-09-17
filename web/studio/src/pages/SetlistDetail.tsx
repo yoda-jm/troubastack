@@ -17,6 +17,7 @@ import {
   type Song,
   type SongCue,
 } from "../api";
+import { songHrefFromSetlist } from "./song-editor/backTarget";
 import { runningOrderNumbers, isIntermission } from "../runningOrder";
 import { useDialogs } from "../components/Dialog";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -903,7 +904,9 @@ function ItemRow({
             )
           ) : (
             <Link
-              to={`/bands/${bandId}/songs/${item.songId}`}
+              // T175 ⟨D4⟩ — carry WHERE THE READER CAME FROM, because the song cannot infer it: it has
+              // several parents and the editor's Back used to name the band in all of them.
+              to={songHrefFromSetlist(bandId!, item.songId!, setlistId!)}
               className="item-title-link"
               data-testid="item-title-link"
               draggable={false}

@@ -15,14 +15,17 @@
  * data-testids are unchanged.
  */
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, api, type Role, type Song } from "../api";
 import { Viewer } from "./song-editor/Viewer";
+import { useBackTarget } from "./song-editor/backTarget";
 import { useAuth } from "../auth";
 import { ErrorBanner } from "../components/ErrorBanner";
 
 export function SongEditor() {
   const { bandId, songId } = useParams<{ bandId: string; songId: string }>();
+  const [searchParams] = useSearchParams();
+  const back = useBackTarget(bandId, searchParams.get("from"));
   const navigate = useNavigate();
   const { user } = useAuth();
   const [song, setSong] = useState<Song | null>(null);
@@ -55,7 +58,11 @@ export function SongEditor() {
     <div className="page viewer-page">
       {error && !song ? (
         <>
-          <Link className="crumb" to={`/bands/${bandId}`}>&larr; Back to band</Link>
+          {/* T175 ⟨D4⟩ — the same rule as the arrow. Fixing one site and not the other is how this
+              comes back in a month, and the error state is exactly when a reader wants out. */}
+          <Link className="crumb" to={back.to} data-testid="song-error-crumb">
+            &larr; {back.label}
+          </Link>
           <ErrorBanner message={error} />
         </>
       ) : null}
