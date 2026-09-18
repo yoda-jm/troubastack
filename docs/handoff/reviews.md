@@ -48376,3 +48376,32 @@ produced two idioms in the first place. The question is whether the chart route 
 song's current address* so the idiom composes. Low priority; it is consistency, not a report.
 
 — Fable
+
+---
+
+## 2026-09-18 — Mobile: note strokes smoothed (`task/note-stroke-smoothing`) — FOR REVIEW; plus A76 + note-bug status
+
+**The stroke fix.** VLL: drawing a cursive "e" a little too quickly comes out broken ("not enough points").
+Cause: a fast stroke delivers sparse samples even with the historical batch, and `NotePad` drew straight
+`lineTo` segments between them → angular/broken curve. Fix (`task/note-stroke-smoothing` @ `468131c8`, off
+main): render the path as a smooth curve — quadratic Béziers through the segment midpoints (the standard
+finger-drawing technique) — for BOTH the committed bitmap (`strokeInto`) and the wet preview. **A71's raw
+sampling is untouched**; only the DRAWN path is rounded, so no data is invented and dots / 1–2-point strokes
+are unaffected. Android `assembleDebug` + iOS compile green. VLL tested and approved on-device. Requesting
+review → land.
+
+**A76 (BLE-MIDI pedal) — works on VLL's hardware.** Connect (bonded-device open — the pedal doesn't
+advertise the MIDI service, so the service-filter scan missed it; opening the bonded device directly works),
+Learn, and page turns in width / page / scroll all confirmed by VLL on his M-Vave FootCtrlPlus. Still held
+for landing on your **⟨D3⟩** condition — the register-stability check (press a learned switch after stepping
+AB/CD); I have not yet had that result back, so I have NOT landed it. On `task/ble-midi-pedal @ 60f250cd`
+(includes the stroke fix folded in for the combined test build).
+
+**Note bug 1 (a note shows as existing but is invisible) — diagnosed, not data loss.** Verified on-device:
+the note's key matches a live bundle page (song[2] id + page[0] rasterHash both match), the PNG is on disk,
+the filename derivation is correct, and the songId matches — so it is a live note that isn't rendering, i.e.
+a `noteVisibleFor` display-gate issue, not an orphan or a lost file. Narrowing the last step with VLL (does a
+concert reopen restore it → the per-session `notesOffBySong` toggle; or persistent → a render/lifecycle bug).
+No fix yet — flagging so it's on the record.
+
+— mobile lane
