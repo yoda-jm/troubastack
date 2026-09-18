@@ -275,10 +275,7 @@ fun NoteLayer(
         val nH = (latestNeutral.value?.height ?: NoteTools.NOTE_W).toFloat()
         val note2screen = if (fillWidth) size.width / nW else minOf(size.width / nW, size.height / nH)
         if (tool == NoteTool.PENCIL && wet.size >= 2) {
-            val path = Path().apply {
-                moveTo(wet[0].x, wet[0].y)
-                for (i in 1 until wet.size) lineTo(wet[i].x, wet[i].y)
-            }
+            val path = smoothPath(wet) // match the committed stroke's smoothing so the wet ink previews true
             val screenW = penWidth.toFloat() * (nW / NoteTools.NOTE_W) * note2screen
             drawPath(path, drawColour, style = Stroke(width = maxOf(screenW, 1.5f), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
@@ -310,7 +307,26 @@ private fun copyBitmap(src: ImageBitmap): ImageBitmap {
     return copy
 }
 
-/** Draw a polyline stroke into [bmp] at [noteColour] (opaque), round cap/join (§3.6). Note-space coords. */
+/**
+ * A smooth curve through [pts] — quadratic Béziers through the segment midpoints (the standard finger-drawing
+ * technique), so a FAST stroke reads as a smooth line rather than angular chords. When you draw quickly the OS
+ * delivers few samples over a long distance even with the historical batch, and straight `lineTo` segments
+ * between them make a cursive "e" come out broken (VLL). This smooths only the DRAWN path; A71's raw sampling
+ * (the stored points) is untouched — no data is invented, the polyline is just rounded.
+ */
+private fun smoothPath(pts: List<Offset>): Path = Path().apply {
+    if (pts.isEmpty()) return@apply
+    moveTo(pts[0].x, pts[0].y)
+    if (pts.size < 3) { for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y); return@apply }
+    for (i in 1 until pts.size) {
+        val midX = (pts[i - 1].x + pts[i].x) / 2f
+        val midY = (pts[i - 1].y + pts[i].y) / 2f
+        if (i == 1) lineTo(midX, midY) else quadraticBezierTo(pts[i - 1].x, pts[i - 1].y, midX, midY)
+    }
+    lineTo(pts[pts.size - 1].x, pts[pts.size - 1].y)
+}
+
+/** Draw a smooth stroke into [bmp] at [noteColour] (opaque), round cap/join (§3.6). Note-space coords. */
 private fun strokeInto(bmp: ImageBitmap, pts: List<Offset>, noteColour: Long, width: Float) {
     val canvas = GraphicsCanvas(bmp)
     val paint = Paint().apply {
@@ -327,8 +343,7 @@ private fun strokeInto(bmp: ImageBitmap, pts: List<Offset>, noteColour: Long, wi
         canvas.drawCircle(pts[0], maxOf(width, 1f) / 2f, dot)
         return
     }
-    val path = Path().apply { moveTo(pts[0].x, pts[0].y); for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y) }
-    canvas.drawPath(path, paint)
+    canvas.drawPath(smoothPath(pts), paint)
 }
 
 /** Erase a round dab into [bmp] at [p] (note space), clearing to transparent (§3.6 — undo IS the eraser). */
