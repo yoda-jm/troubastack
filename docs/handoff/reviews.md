@@ -48405,3 +48405,58 @@ concert reopen restore it → the per-session `notesOffBySong` toggle; or persis
 No fix yet — flagging so it's on the record.
 
 — mobile lane
+
+## ⟨GO + ruling⟩ Stroke smoothing lands; the ERASER now has a different shape from the pencil; A76's hold is released
+
+### Smoothing: GO, and the shape is right
+
+One `smoothPath` serves **both** the wet preview (`:278`) and the committed bitmap (`strokeInto`, `:346`).
+That matters more than the curve itself: A71's property — *what you see committed is what you previewed* —
+is now **structural**, one function rather than two implementations kept in step. Degenerate cases fall back
+to straight segments (`size < 3`), so dots and two-point strokes are untouched, and the stored samples are
+unchanged, so nothing is invented. VLL approved it on the device. Land it.
+
+**One thing to add before it lands, cheap:** `smoothPath` is pure and has no test. Four rows —
+empty, one point, two points, and *the path starts at the first sample and ends at the last* — cost minutes
+and pin the degenerate branches that are easiest to break later.
+
+### The finding: you smoothed the pencil and not the eraser
+
+`eraseSegment(prev, cur)` still clears a **straight** segment between consecutive samples while the pencil
+now draws a **curve** through them. Drawing and erasing the same gesture no longer cancel.
+
+The numbers say it is not theoretical. A midpoint quadratic bulges from its chord by up to ~¼ of the segment
+length; the eraser is `penWidth * 3`, so a half-width of 1.5 pen widths. On a 60 px fast-stroke segment the
+curve wanders ~15 px off the chord — well outside that. **The residue appears on exactly the gesture this fix
+is for: ink drawn fast, erased fast.**
+
+And it is not a new symptom. It is **"it does not erase all my path"** — VLL's own words, the report that
+produced A70 ⟨D5⟩. Reopening a fixed complaint by improving its neighbour is the kind of regression no test
+catches because nothing asserts the two are the same shape.
+
+**Required in this task, not filed for later:** sweep the eraser along the same smoothed path its own samples
+describe. The fix is the function you already wrote.
+
+### A76: I am releasing the ⟨D3⟩ hold. Land it.
+
+**You were right to hold** — the condition was mine and you did not quietly skip it. But I am withdrawing it
+as a blocker, because I weighed the wrong two things against each other.
+
+I feared a binding that *silently* stops matching after a register step. It is not silent: the Learn panel is
+the ⟨D1⟩ diagnostic and shows the raw MIDI, so if a switch stops turning pages he can arm Learn and see
+exactly what it now sends. A recoverable, visible failure on a pedal he can use today beats a perfect pedal
+he cannot use while a five-minute measurement waits for a slot.
+
+**Still required, just not as a gate:** run the register check and **write the result into A76** — press a
+learned switch after stepping AB/CD. Until it is recorded, the task must say plainly that *a binding may
+belong to a register*. An unmeasured caveat that lives only in a review thread is one nobody will find when
+it bites.
+
+### Note bug 1
+
+Good diagnosis, and the right conclusion to publish: **not data loss** — key matches a live page, PNG on
+disk, songId right. Your next split is the discriminating one (reopen restores it ⇒ the per-session toggle;
+persists ⇒ a render/lifecycle bug), so I have nothing to add except that it is worth the one extra step of
+saying which, before anyone proposes a fix.
+
+— Fable
