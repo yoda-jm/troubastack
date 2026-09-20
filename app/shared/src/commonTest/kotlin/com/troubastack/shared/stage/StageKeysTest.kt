@@ -59,7 +59,19 @@ class StageKeysTest {
         val learned = mapOf(PageTurn.NEXT to setOf(midiToken(192, 3)))
         assertEquals(PageTurn.NEXT, stageMidiAction(192, 3, learned))
         assertNull(stageMidiAction(192, 4, learned), "a different program must not match")
-        assertNull(stageMidiAction(176, 3, learned), "a different status must not match")
+        assertNull(stageMidiAction(176, 3, learned), "a different message TYPE must not match")
+    }
+
+    @Test
+    fun learnedMidi_isChannelTolerant_soRegisterStepsDontBreakIt() {
+        // A76 ⟨D3⟩: stepping the pedal's register changes the MIDI CHANNEL (status low nibble). A switch learned
+        // on channel 1 must still turn pages on channels 2..16 — else the binding silently dies mid-set.
+        val learned = mapOf(PageTurn.NEXT to setOf(midiToken(0xC0, 3))) // PC 3, channel 1
+        assertEquals(PageTurn.NEXT, stageMidiAction(0xC0, 3, learned))  // same channel
+        assertEquals(PageTurn.NEXT, stageMidiAction(0xC1, 3, learned))  // channel 2 (register stepped)
+        assertEquals(PageTurn.NEXT, stageMidiAction(0xCF, 3, learned))  // channel 16
+        assertNull(stageMidiAction(0xB0, 3, learned), "CC ≠ PC even on the same number")
+        assertNull(stageMidiAction(0xC0, 4, learned), "a different program still must not match")
     }
 
     @Test

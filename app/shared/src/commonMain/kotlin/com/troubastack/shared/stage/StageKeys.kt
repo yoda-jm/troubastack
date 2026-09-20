@@ -24,9 +24,15 @@ typealias PedalBindings = Map<PageTurn, Set<String>>
 /** The tagged token for a keyboard key code. */
 fun keyToken(keyCode: Long): String = "KEY:$keyCode"
 
-/** The tagged token for a MIDI message, keyed on (status, data1) — the "which control" identity, ignoring
- *  the value byte so a press and its release map to the same token (the receiver forwards presses only). */
-fun midiToken(status: Int, data1: Int): String = "MIDI:$status,$data1"
+/**
+ * The tagged token for a MIDI message. A76 ⟨D3⟩: keyed on the message TYPE (`status and 0xF0`) + `data1`,
+ * deliberately dropping the **channel** (the low status nibble). VLL's pedal steps "registers" by changing
+ * the MIDI channel it transmits on, so a full-status match would silently stop working after a register step
+ * — the exact failure ⟨D3⟩ forbids. Keying on the stable part (type + number, channel-agnostic) makes a
+ * learned switch turn pages in every register. The value byte is also dropped (a press and its release share
+ * type+data1; only presses reach here). Both learn and match go through this, so they always agree.
+ */
+fun midiToken(status: Int, data1: Int): String = "MIDI:${status and 0xF0},$data1"
 
 /**
  * Map a hardware key to a page turn (A09) — Bluetooth pedals present as keyboards sending PageUp/Down or
