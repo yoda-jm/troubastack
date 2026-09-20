@@ -209,18 +209,18 @@ fun NoteLayer(
                     if (tool == NoteTool.ERASER) {
                         val n = latestNeutral.value ?: return
                         val ew = NoteTools.eraserWidth(penWidth).toFloat() * n.width / NoteTools.NOTE_W
-                        val cur = NoteGeometry.touchToNote(x, y, size.width, size.height, n.width, n.height, fillWidth) ?: return
-                        val pts = reader.current
-                        val prev = if (pts.size >= 2) NoteGeometry.touchToNote(pts[pts.size - 2].x, pts[pts.size - 2].y, size.width, size.height, n.width, n.height, fillWidth) else null
-                        // ⟨D6⟩ R2 — clear the working bitmap AND the display copy over the same segment (display
-                        // is note-space, same coords), then bump eraseTick to redraw. No transformOverlayBitmap:
-                        // the cleared pixels are transparent, which transforms to itself in every scheme.
-                        if (prev != null) {
-                            eraseSegment(n, prev, cur, ew); display?.let { eraseSegment(it, prev, cur, ew) }
-                        } else {
-                            eraseInto(n, cur, ew); display?.let { eraseInto(it, cur, ew) }
+                        // A76 (Fable) — clear along the SAME smoothed path the pencil draws, not straight chords:
+                        // a fast stroke's curve bulges off its chord, so a straight-chord eraser missed it and
+                        // reopened "it does not erase all my path" (A70 ⟨D5⟩). Clearing is idempotent, so sweeping
+                        // the whole smoothed path each move keeps the erase immediate (§3.6) and always cancels the
+                        // pencil. Clears the working bitmap AND the note-space display copy, then bumps eraseTick.
+                        val notePts = reader.current.mapNotNull {
+                            NoteGeometry.touchToNote(it.x, it.y, size.width, size.height, n.width, n.height, fillWidth)
                         }
-                        eraseTick++
+                        if (notePts.isNotEmpty()) {
+                            eraseSmoothPath(n, notePts, ew); display?.let { eraseSmoothPath(it, notePts, ew) }
+                            eraseTick++
+                        }
                     }
                     // Both tools grow the wet list — the pencil's coloured preview and the eraser's grey shadow
                     // trail (⟨D5⟩ R2) both draw from it, and both are cleared at pen-up.
@@ -291,7 +291,7 @@ fun NoteLayer(
                 drawCircle(outline, radius = ew / 2f + 1.5f, center = wet[0])
                 drawCircle(fill, radius = ew / 2f, center = wet[0])
             } else {
-                val path = Path().apply { moveTo(wet[0].x, wet[0].y); for (i in 1 until wet.size) lineTo(wet[i].x, wet[i].y) }
+                val path = smoothPath(wet) // A76: the trail follows the SAME curve the erase clears, not chords
                 drawPath(path, outline, style = Stroke(width = ew + 3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 drawPath(path, fill, style = Stroke(width = ew, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
@@ -307,23 +307,47 @@ private fun copyBitmap(src: ImageBitmap): ImageBitmap {
     return copy
 }
 
+/** One verb of a smoothed stroke. Pure + returnable so [smoothStroke]'s geometry is unit-testable off a Compose
+ *  [Path] (which exposes no anchors in commonTest); [smoothPath] is the thin Compose adapter over it. */
+sealed interface StrokeVerb {
+    data class Move(val to: Offset) : StrokeVerb
+    data class Line(val to: Offset) : StrokeVerb
+    data class Quad(val ctrl: Offset, val to: Offset) : StrokeVerb
+}
+
 /**
  * A smooth curve through [pts] — quadratic Béziers through the segment midpoints (the standard finger-drawing
  * technique), so a FAST stroke reads as a smooth line rather than angular chords. When you draw quickly the OS
  * delivers few samples over a long distance even with the historical batch, and straight `lineTo` segments
  * between them make a cursive "e" come out broken (VLL). This smooths only the DRAWN path; A71's raw sampling
  * (the stored points) is untouched — no data is invented, the polyline is just rounded.
+ *
+ * Pure: the path ALWAYS starts at `pts.first()` and ends at `pts.last()` (the eraser relies on this to sweep
+ * the exact curve the pencil drew, A76). Empty → no verbs; the Compose build in [smoothPath] then no-ops.
  */
-private fun smoothPath(pts: List<Offset>): Path = Path().apply {
-    if (pts.isEmpty()) return@apply
-    moveTo(pts[0].x, pts[0].y)
-    if (pts.size < 3) { for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y); return@apply }
-    for (i in 1 until pts.size) {
-        val midX = (pts[i - 1].x + pts[i].x) / 2f
-        val midY = (pts[i - 1].y + pts[i].y) / 2f
-        if (i == 1) lineTo(midX, midY) else quadraticBezierTo(pts[i - 1].x, pts[i - 1].y, midX, midY)
+fun smoothStroke(pts: List<Offset>): List<StrokeVerb> {
+    if (pts.isEmpty()) return emptyList()
+    val out = ArrayList<StrokeVerb>(pts.size + 1)
+    out += StrokeVerb.Move(pts[0])
+    if (pts.size < 3) {
+        for (i in 1 until pts.size) out += StrokeVerb.Line(pts[i])
+        return out
     }
-    lineTo(pts[pts.size - 1].x, pts[pts.size - 1].y)
+    for (i in 1 until pts.size) {
+        val mid = Offset((pts[i - 1].x + pts[i].x) / 2f, (pts[i - 1].y + pts[i].y) / 2f)
+        out += if (i == 1) StrokeVerb.Line(mid) else StrokeVerb.Quad(pts[i - 1], mid)
+    }
+    out += StrokeVerb.Line(pts[pts.size - 1])
+    return out
+}
+
+/** The Compose adapter over [smoothStroke] — replays its verbs onto a [Path]. */
+private fun smoothPath(pts: List<Offset>): Path = Path().apply {
+    for (v in smoothStroke(pts)) when (v) {
+        is StrokeVerb.Move -> moveTo(v.to.x, v.to.y)
+        is StrokeVerb.Line -> lineTo(v.to.x, v.to.y)
+        is StrokeVerb.Quad -> quadraticBezierTo(v.ctrl.x, v.ctrl.y, v.to.x, v.to.y)
+    }
 }
 
 /** Draw a smooth stroke into [bmp] at [noteColour] (opaque), round cap/join (§3.6). Note-space coords. */
@@ -346,29 +370,26 @@ private fun strokeInto(bmp: ImageBitmap, pts: List<Offset>, noteColour: Long, wi
     canvas.drawPath(smoothPath(pts), paint)
 }
 
-/** Erase a round dab into [bmp] at [p] (note space), clearing to transparent (§3.6 — undo IS the eraser). */
-private fun eraseInto(bmp: ImageBitmap, p: Offset, width: Float) {
+/** Clear along the SMOOTHED stroke path [pts] (note space) at [width] — the eraser's counterpart to
+ *  [strokeInto], using the SAME [smoothPath] so a curve drawn fast is a curve erased fast (Fable A76): a
+ *  straight-chord eraser missed the curve's bulge and reopened VLL's "it does not erase all my path"
+ *  (A70 ⟨D5⟩). One point clears a round dab. Clearing is idempotent, so re-sweeping the whole path is fine. */
+private fun eraseSmoothPath(bmp: ImageBitmap, pts: List<Offset>, width: Float) {
+    if (pts.isEmpty()) return
     val canvas = GraphicsCanvas(bmp)
-    val paint = Paint().apply {
-        blendMode = BlendMode.Clear
-        style = PaintingStyle.Fill
-        color = Color.Transparent
-        isAntiAlias = true
+    val w = maxOf(width, 1f)
+    if (pts.size == 1) {
+        val dab = Paint().apply { blendMode = BlendMode.Clear; style = PaintingStyle.Fill; color = Color.Transparent; isAntiAlias = true }
+        canvas.drawCircle(pts[0], w / 2f, dab)
+        return
     }
-    canvas.drawCircle(p, maxOf(width, 1f) / 2f, paint)
-}
-
-/** Erase the CONNECTED segment [a]→[b] (note space) as a round-capped Clear-blend line, so a dragged eraser
- *  clears the whole swept path instead of leaving gaps between per-sample dabs (VLL: point- vs line-erase). */
-private fun eraseSegment(bmp: ImageBitmap, a: Offset, b: Offset, width: Float) {
-    val canvas = GraphicsCanvas(bmp)
     val paint = Paint().apply {
         blendMode = BlendMode.Clear
         style = PaintingStyle.Stroke
-        strokeWidth = maxOf(width, 1f)
+        strokeWidth = w
         strokeCap = StrokeCap.Round
         strokeJoin = StrokeJoin.Round
         isAntiAlias = true
     }
-    canvas.drawPath(Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y) }, paint)
+    canvas.drawPath(smoothPath(pts), paint)
 }
