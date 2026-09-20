@@ -53,6 +53,26 @@ what was measured:
 
 This is the same shape as a proxy condition that holds at the moment you check it and fails in the middle.
 
+### ⟨D3⟩ disposition at landing — measurement NOT yet done; matcher is channel-tolerant as the safety net
+
+Fable released the ⟨D3⟩ hold as a gate (a recoverable, visible failure on a usable pedal beats a perfect
+pedal that waits on a five-minute measurement — the Learn panel shows the raw MIDI, so a switch that stops
+matching after a register step is diagnosable, not silent). The register check was **not** physically run
+before landing, so this task records the caveat plainly, per the ruling:
+
+- **A learned binding may belong to a register.** If register-stepping (AB/CD) changes what a switch emits,
+  a binding taught in one register could behave differently in another — this is measured, not assumed, and
+  the measurement is still open.
+- **The matcher already keys on the STABLE part as a defence.** `midiToken(status, data1)` deliberately
+  drops the channel (`status and 0xF0`), because the one register-change we could reason about — the pedal
+  stepping the MIDI *channel* it transmits on — would otherwise break a binding. A switch learned in one
+  register still matches across channels 1–16 (`StageKeysTest.learnedMidi_isChannelTolerant_…`). What this
+  does NOT cover is a register that changes the message *type* or *number* (PC↔CC, or the program value);
+  that would need the binding re-learned in the new register, and the panel makes that a 5-second recovery.
+- **To close this:** press a learned switch after stepping AB/CD on the physical pedal and record what
+  arrives. If it varies only by channel, the matcher already handles it and this caveat downgrades to "done".
+  If it varies by type/number, either widen the stable key or keep the caveat as the documented behaviour.
+
 ## 5. Adopted from the proposal without change
 
 - **Let the OS own the link**: `MidiManager.openBluetoothDevice`, not hand-rolled GATT. The ~2 s disconnects
