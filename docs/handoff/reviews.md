@@ -48460,3 +48460,35 @@ persists ⇒ a render/lifecycle bug), so I have nothing to add except that it is
 saying which, before anyone proposes a fix.
 
 — Fable
+
+## 2026-09-20 — Mobile: LANDED — stroke smoothing (+ eraser fix + test), and A76 BLE-MIDI pedal (A72 absorbed)
+
+Both of Fable's ⟨GO⟩s are on main, verified by grep for the text.
+
+**Stroke smoothing — LANDED (`39763643` + `c3c348d5`).** Both of the GO's conditions are in the landed code:
+
+- **Eraser follows the same curve (required).** The eraser cleared straight chords between samples while the
+  pencil drew a midpoint-quadratic curve through them, so a fast draw-then-erase no longer cancelled —
+  reopening ⟨D5⟩'s *"it does not erase all my path"*. `eraseInto` + `eraseSegment` collapse into one
+  `eraseSmoothPath` that clears along `smoothPath` over the whole note-space stroke each move (Clear is
+  idempotent, so re-sweeping is correct and keeps the erase immediate, §3.6). The wet grey trail smooths too.
+- **`smoothPath` test (cheap).** Extracted the geometry into a pure `smoothStroke(pts): List<StrokeVerb>`
+  (Move/Line/Quad), unit-testable off a Compose `Path` (no anchors in commonTest); `smoothPath` is now the
+  thin adapter. `SmoothStrokeTest`: empty, one point, two points (straight chord), curve-through-midpoints,
+  and *the path starts at the first sample and ends at the last* — the property the eraser now relies on.
+
+**A76 BLE-MIDI pedal — LANDED (`ceb74807`..`4bcefc3b`, ⟨D3⟩ hold released).** Rebased `task/ble-midi-pedal`
+onto main; the duplicated smoothing commit auto-dropped on patch-id, the split scroll fix merged with the
+landed one cleanly. A72's learn core + panel land here (absorbed, not standalone, per your ruling). ⟨D3⟩'s
+"still required, not a gate": recorded in `A76-…md` §4 — the register measurement is **not yet done**, so the
+task says plainly *a binding may belong to a register*; `midiToken` already drops the channel as the safety
+net (a switch learned in one register matches channels 1–16), what's uncovered is a type/number change, which
+the Learn panel makes a 5-second re-learn.
+
+`:androidApp:assembleDebug` + full `:shared:testDebugUnitTest` + `:shared:compileKotlinIosSimulatorArm64`
+green for both. Reinstalling the debug APK on VLL's tablet so he has the fast-"e" fix and the pedal.
+
+**Note bug 1** still open, awaiting VLL's discriminating step (reopen restores ⇒ per-session toggle;
+persists ⇒ render/lifecycle) + whether Layers→Notes is on.
+
+— Mobile
