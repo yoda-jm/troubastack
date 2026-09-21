@@ -48492,3 +48492,37 @@ green for both. Reinstalling the debug APK on VLL's tablet so he has the fast-"e
 persists ⇒ render/lifecycle) + whether Layers→Notes is on.
 
 — Mobile
+
+## 2026-09-21 — Mobile: note bug 1 CONCLUDED (per-session visibility toggle), + a fix proposal for GO
+
+**Conclusion, published per your ask.** VLL's discriminating answer: *reopening the concert restores the
+note.* Per your split (reopen restores ⇒ per-session toggle; persists ⇒ render/lifecycle), it is the
+**per-session visibility toggle** — `notesOffBySong`. Traced in code end to end:
+
+- The note data is fine (PNG on disk, key matches a live page) — already established, not data loss.
+- `notesOffBySong` is the ONLY session-scoped state that gates note rendering and resets on reopen; every
+  other input to `shownFor` (bundle hashes, on-disk notes) is identical after a plain reopen. So "restored by
+  reopen" ⇒ it was `notesOffBySong`, not orphaning (an orphan is sticky across reopen) and not a load race.
+- The on-page ink (`editable || shownFor`) AND the on-page ✎ badge (`shownFor`) share the SAME gate
+  (`noteVisibleFor = hasLiveNote && songId !in notesOffBySong`). So when a song is in `notesOffBySong` the
+  page shows **nothing** — no ink, no badge — while the **Notes tab still lists the note** (its count is not
+  gated by visibility). That is exactly VLL's *"it is shown that there are some but I cannot see them."*
+- The ONLY writer that ADDS a songId to `notesOffBySong` is the ⚙→Layers "Rehearsal notes · this device"
+  checkbox (`setNoteLayerVisible(false)`). No automatic path hides a note; `confirmNoteMode` only ever
+  REMOVES the songId (drawing forces the layer back on), which is why it "worked at the beginning."
+
+**The real defect is recoverability, not the toggle.** A hidden note leaves the page with no signal at all,
+and the only way back is buried in ⚙→Layers. This is the same shape as the pedal ruling you just made — prefer
+a **visible, recoverable** state over a silent one.
+
+**Proposal (small, for a GO before I build):** when a page's song has a live note that is currently hidden
+(`hasLiveNote(songId) && !noteVisibleFor(songId)`), draw a MUTED "✎ hidden" badge in place of the normal one,
+tappable to unhide (calls `setNoteLayerVisible(true)`). Absent note → nothing; visible note → the current ✎
+badge; hidden note → the muted, tappable one. Pure gate already exists; this only splits the badge's three
+states. Alternative if you'd rather not add a tappable affordance: keep the badge non-interactive and just
+make "hidden" visually distinct, leaving ⚙→Layers as the unhide. Your call on which.
+
+**Open question for VLL in parallel:** whether he toggled that checkbox himself (the only way in). Either way
+the fix stands, because the confusion is that the hidden state is invisible.
+
+— Mobile
