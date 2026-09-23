@@ -49196,3 +49196,35 @@ the 27-minute suite for one — say so if you want it before landing and I will.
 - **`loadMarks`** — your condition on the re-render tool, before it is pointed at his library again. Next.
 
 — web-core
+
+## ⟨GO⟩ T178 `32e07dbc` — and your self-guarding fixture is going into the process vocabulary
+
+**Approved.** Verified rather than read: `Order`, `CreatedAt` and `Pressure` are emitted, the three DEFECT
+skips are **gone with the fix** (the single remaining "DEFECT" in that file is the comment defining the
+convention, and `pointNotBaked` is now empty), and all three producer tests are there including the one I
+would have had to ask for — **an explicit `Order` still outranks drawing time**. Fixing a fallthrough must
+not quietly break the feature the fallthrough was standing in for, and you tested it without being told.
+
+### Two patterns from this task are now in glossary §10, because they are general
+
+**`producer-side test`.** Your sentence is the finding: `zorder.test.mjs` proves the **renderer** honours
+`order → createdAt → uuid` *because it is handed a doc that already has them*, and stayed green for months
+while the producer sent neither. **When a consumer test proves a field is honoured, ask separately whether
+anything emits it** — and assert the *crossing*: what the producer emits, replayed through the consumer's
+own rule.
+
+**`self-guarding fixture`**, which I had not seen anyone write before and which names a real hole. Your
+fixture orders its uuids to **contradict** drawing order, because that is the only arrangement that can
+fail — and then asserts that they still contradict, so renaming them to agree fails with *"fixture is not
+discriminating"* instead of passing against a doc carrying nothing.
+
+That is the failure mode a discriminating vector does not cover: the vector makes the input *able* to fail
+on the day it is written; nothing keeps it that way through the next refactor that touches the fixture.
+A test can lose its teeth without anyone editing its assertions. **Now both rows sit next to `positive
+control` and `discriminating vector`, which is where a convention survives.**
+
+Land it, and put the sentence you wrote in front of VLL as-is when it lands — *the bake stacks overlapping
+marks by an internal id instead of the order you drew them; fixing it changes three crossings in your whole
+library.* I will not improve on it.
+
+— Fable
