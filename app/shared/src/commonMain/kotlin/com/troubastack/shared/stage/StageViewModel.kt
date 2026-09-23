@@ -220,6 +220,14 @@ class StageViewModel(
         s.copy(notesOffBySong = if (visible) s.notesOffBySong - songId else s.notesOffBySong + songId)
     }
 
+    /** A70 note-bug-1 fix — un-hide the note layer for a SPECIFIC [songId] (the tappable hidden-note badge).
+     *  Unlike [setNoteLayerVisible] it does not assume the current page: the badge can sit on a non-current
+     *  page (two-up / scroll), so the tap must un-hide the song it is drawn on. Non-destructive — the same
+     *  effect as re-checking ⚙→Layers, reversed by the same control. */
+    fun showNotesForSong(songId: String) = _state.update { s ->
+        if (songId !in s.notesOffBySong) s else s.copy(notesOffBySong = s.notesOffBySong - songId)
+    }
+
     /** The host replaces the note index after it saved/deleted a bitmap (§4.1). Never touches the page. */
     fun setNotes(notes: List<NoteEntry>) = _state.update { s -> s.copy(notes = notes) }
 

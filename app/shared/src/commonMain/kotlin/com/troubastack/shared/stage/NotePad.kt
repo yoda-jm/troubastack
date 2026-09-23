@@ -77,6 +77,9 @@ class NotePad(
     val now: () -> Long,
     val meta: (StagePage) -> NoteMeta,
     val shownFor: (StagePage) -> Boolean,
+    // A70 note-bug-1 fix — this page carries a note that is HIDDEN for its song, and the tap that un-hides it.
+    val hiddenFor: (StagePage) -> Boolean,
+    val onUnhide: (String) -> Unit,
     val onIndexChanged: (List<NoteEntry>) -> Unit,
     val onBumpRevision: () -> Unit,
 )

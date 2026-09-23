@@ -390,6 +390,14 @@ data class StageState(
     fun noteVisibleFor(songId: String): Boolean = hasLiveNote(songId) && songId !in notesOffBySong
     /** The stored note (if any) for a page's key — the bitmap the view loads and draws. */
     fun noteForPage(page: StagePage): NoteEntry? = NoteIndex.forPage(notes, NoteKey(page.songId, page.rasterHash))
+    /**
+     * A70 note-bug-1 fix — this page CARRIES a note but the layer is hidden for its song (`notesOffBySong`).
+     * The render gate hides both the ink and the ✎ badge, so the page shows nothing while the Notes tab still
+     * counts the note ("shown that there are some but I cannot see them"). This drives the muted, tappable
+     * "hidden" badge — a visible, recoverable state instead of a silent one. Mutually exclusive with the page
+     * being drawn (`noteForPage != null && noteVisibleFor`): both require a note on THIS page.
+     */
+    fun noteHiddenOnPage(page: StagePage): Boolean = noteForPage(page) != null && !noteVisibleFor(page.songId)
 
     /**
      * The visible layer ids for [songId] (A1 per-song visibility). Mandatory layers are unioned in HERE,

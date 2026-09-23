@@ -106,6 +106,40 @@ class StageNoteModeTest {
         assertTrue(vm.state.value.noteVisibleFor("song-1")) // entering forces it back on
     }
 
+    // ── note-bug-1 fix: the muted, tappable "hidden" badge ──────────────────────────────────────────────
+
+    @Test
+    fun noteHiddenOnPage_trueOnlyWhenThePageCarriesANoteThatIsHidden() {
+        val vm = StageViewModel(loaded(), initialNotes = listOf(note("song-1", "h1")))
+        val s0 = vm.state.value
+        val page1 = s0.pages.first { it.songId == "song-1" }
+        val page2 = s0.pages.first { it.songId == "song-2" }
+        // A VISIBLE note is owned by the normal badge/ink path, not the "hidden" one.
+        assertFalse(s0.noteHiddenOnPage(page1))
+        // A page with NO note is never "hidden" — even though noteVisibleFor(song-2) is false by default.
+        assertFalse(s0.noteHiddenOnPage(page2))
+        // Hide song-1 → its page now reports hidden (this drives the muted, tappable badge).
+        vm.setNoteLayerVisible(false)
+        val s1 = vm.state.value
+        assertTrue(s1.noteHiddenOnPage(page1))
+        assertFalse(s1.noteHiddenOnPage(page2)) // still no note on song-2, so still not "hidden"
+    }
+
+    @Test
+    fun showNotesForSong_unhidesThatSongOnly_andIsIdempotent() {
+        val vm = StageViewModel(loaded(), initialNotes = listOf(note("song-1", "h1")))
+        vm.setNoteLayerVisible(false) // song-1 hidden (the current song)
+        assertFalse(vm.state.value.noteVisibleFor("song-1"))
+        // Un-hiding a DIFFERENT song must not touch song-1 (the badge un-hides the song it sits on).
+        vm.showNotesForSong("song-2")
+        assertFalse(vm.state.value.noteVisibleFor("song-1"))
+        // Un-hiding song-1 restores it; a second call is a no-op.
+        vm.showNotesForSong("song-1")
+        assertTrue(vm.state.value.noteVisibleFor("song-1"))
+        vm.showNotesForSong("song-1")
+        assertTrue(vm.state.value.noteVisibleFor("song-1"))
+    }
+
     @Test
     fun setToolWidthColour() {
         val vm = StageViewModel(loaded())

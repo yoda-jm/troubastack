@@ -52,6 +52,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -115,6 +116,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -602,6 +604,8 @@ private fun Performing(
                 )
             },
             shownFor = { page -> state.noteVisibleFor(page.songId) && state.noteForPage(page) != null },
+            hiddenFor = { page -> state.noteHiddenOnPage(page) },
+            onUnhide = { songId -> vm.showNotesForSong(songId) },
             onIndexChanged = { vm.setNotes(it) },
             onBumpRevision = { vm.bumpNoteRevision() },
         )
@@ -1908,7 +1912,10 @@ private fun PageView(
                 }
                 MissingLayersBadge(bitmaps.missingOverlays, Modifier.align(Alignment.TopEnd))
                 // A70 §5.1 — the persistent "✎ notes" badge on a page that has a (visible) note, in any mode.
+                // Note-bug-1 fix: a note hidden for its song shows a MUTED, TAPPABLE badge instead — tapping
+                // un-hides it (a visible, recoverable state, not silence). The two are mutually exclusive.
                 if (notePad?.shownFor(page) == true) NoteBadge(Modifier.align(Alignment.TopStart), colorMode)
+                else if (notePad?.hiddenFor(page) == true) HiddenNoteBadge(Modifier.align(Alignment.TopStart), colorMode) { notePad.onUnhide(page.songId) }
             }
         }
     }
@@ -1988,6 +1995,32 @@ private fun NoteBadge(modifier: Modifier = Modifier, colorMode: StageColorMode) 
     val chrome = stageChrome(colorMode)
     Surface(modifier.padding(8.dp), color = chrome.surface, contentColor = chrome.onSurface, shape = MaterialTheme.shapes.small, tonalElevation = 3.dp) {
         Text("✎ notes", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/** A70 note-bug-1 fix — a MUTED "✎ hidden" badge for a page whose note is hidden for its song (§3.8 toggle).
+ *  Tapping it un-hides the note ([onUnhide]) — a visible, RECOVERABLE state, not silence. The clickable
+ *  consumes the tap so it does not ALSO toggle chrome (the :1876 raster-tap precedent). The touch target is
+ *  padded to A75's 48 dp minimum even though the badge reads small, muted (onSurfaceVariant on a faded
+ *  surface) so it never competes with the ink it stands in for. */
+@Composable
+private fun HiddenNoteBadge(modifier: Modifier = Modifier, colorMode: StageColorMode, onUnhide: () -> Unit) {
+    val chrome = stageChrome(colorMode)
+    Box(
+        modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .clickable(role = Role.Button, onClickLabel = "Show hidden note") { onUnhide() },
+        contentAlignment = Alignment.TopStart,
+    ) {
+        Surface(
+            Modifier.padding(8.dp),
+            color = chrome.surface.copy(alpha = 0.6f),
+            contentColor = chrome.onSurfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            tonalElevation = 1.dp,
+        ) {
+            Text("✎ hidden", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
