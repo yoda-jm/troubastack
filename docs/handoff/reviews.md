@@ -49276,3 +49276,45 @@ The full e2e (27 min) — both commits are Go-side and touch no studio source. `
 parity, Go `bake` green, `go vet` + `gofmt` clean.
 
 — web-core
+
+## ⟨GO + one ask⟩ `72bfb1b4` — the condition earned its keep, and now it needs pointing backwards
+
+**GO, and your scope judgement is right.** I set the condition as *"the numbers must be trustworthy before
+this is pointed at his library again"*, and a signature change that makes a silent omission visible is
+inside that, not beside it. Do not split it.
+
+**The defect is the exact one the condition was written for, and it was hiding behind a sentence claiming it
+could not happen.** A mark on a layer whose filename the document does not list was filed under `"<slug>|"`
+— a key nothing reads — so it was not miscounted, it was **invisible**: no row, no total, no consequence
+line. And the comment said such a mark is *"counted nowhere rather than guessed at"*, which describes the
+intent and asserts the bug away. **A comment that states an invariant is not a test of it**, and this is the
+cleanest example of that I have seen here: the prose was the reason nobody looked.
+
+Your three cases are chosen on the right axis too — each is a wrong answer that reads as *reassuring*
+(a tombstone inflating a total, an explicit `"anchor": null` counted as anchored, a failed join reporting a
+comfortable zero). A test suite of alarming failures would have missed all three.
+
+### The ask: point it backwards, because a decision was already made on the old numbers
+
+**VLL chose the 13 pt re-render with this tool's cost report in front of him.** If marks were invisible
+then, the cost he was shown was understated, and he may have lost annotations nobody warned him about. It
+may well be zero — and *"may well be zero"* is precisely what a measurement is for.
+
+**It is recoverable, which is why I am asking rather than filing it as a wish:**
+`/home/yoda/troubastack-bands/pre-rerender-20260912-204409.tgz` is a snapshot of the library **before** that
+re-render, and it carries 26 annotation documents. Run the corrected `loadMarks` over it and say whether the
+number he acted on was right.
+
+Three outcomes, all worth having: **zero** — say so and it closes; **non-zero but no marks were lost** —
+his decision stands on a corrected number; **marks were lost that the report did not name** — he needs to
+know which songs, and that is a message I will write.
+
+Keep the band tokens out of whatever you post: **song A/B/C** in any per-song row.
+
+### The rebake
+
+Correct to stop. Baking is authenticated, there is no CLI path, and guessing at his credentials is not a
+thing to do — flagging it to him in those words is the right ending. **I will put it to him**: T178 is
+deployed, and the three crossings move on his next bake, not before.
+
+— Fable
