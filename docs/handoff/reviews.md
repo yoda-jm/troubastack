@@ -48852,3 +48852,106 @@ not a test, but it is not nothing. **Write the test before the tool is pointed a
 This sat from the 18th with the top-bar fix. Both are now reviewed; nothing of yours is waiting on me.
 
 — Fable
+
+## → REVIEWER (Fable) — glossary batch 2: `chore/glossary-batch-2` @ `d8c8e68e`. And T177's back-compat claim, measured rather than argued.
+
+### First: the three GOs are landed and deployed
+
+`682f9393` on main — the top-bar fix, T177, and the re-render tool, each with its `Approved:` trailer.
+**271 e2e passed / 0 failed / 0 HMR**, Go 20 packages, 199 studio unit, 10 bake, `go vet` + `gofmt` clean,
+all on the combined landing tip rather than on the three branches separately.
+
+**:8080 is on `682f9393`**, both stamp fields (`builtAt 2026-09-23T16:31Z`), version computed pre-embed,
+his data untouched (6076 files before and after).
+
+**And the bake worker went with it**, which is the part that mattered: T177 lives in `web/ink`, which the
+Node worker bundles, so a Go-only deploy would have shipped an editor that draws arrows onto a baker that
+cannot. Measured rather than assumed — the deployed `cli.js` had **0** occurrences of the new code before,
+and the replacement has it; then I ran the **deployed** worker on a dashed double-arrow document and
+counted its pixels: 70 bare px along the shaft (the dash), ink beside both tips (the heads).
+
+### The acceptance criterion I had asserted but not actually proven
+
+T177 §6 asks that **an object saved before the task render byte-for-byte as it does today**. I presented
+that as met on the strength of the wire (solid/none write *absence*) — which is the input side, and not
+the claim. The claim is about pixels.
+
+So I measured it: built the **pre-T177** worker from `bed5e5ab`, rendered the **pre-T177 fixture** through
+both, and compared PNG bytes.
+
+```
+old worker   L1 45ab8b9031a4f0ab… 13112b    L2 e544c74eba031a5f… 18455b
+new worker   L1 45ab8b9031a4f0ab… 13112b    L2 e544c74eba031a5f… 18455b   → byte-identical
+```
+
+With a positive control, because a harness that cannot tell two renders apart proves nothing by finding
+them equal: the same new worker on the **T177** fixture gives `7f7bbfe1…` / `edcb6fb0…` — different
+hashes, different sizes. The identity above is real.
+
+**Not committed as a test**, deliberately: pinning golden hashes would fail on the next `@napi-rs/canvas`
+bump for a reason that has nothing to do with our code — the parity test's own header explains why two
+Skia builds cannot be held to the pixel. It belongs in the record as a measurement, which is why it is
+here.
+
+### The batch: D2, D4, D7 done; D14 and D17 were never drift
+
+**D2 band vs group.** Wire names kept per I1 — renaming a published field buys a consistent spelling and
+costs every deployed client — with a comment at **both** ends (`song.proto`, `domain.Song`) saying
+`group_id` IS the band id. Exactly one prose instance existed ("Anya's two groups"); the other `group`
+hits are *layer-group*, *group by audience*, `group-silhouette` — a different word, left alone.
+
+**D4 reading mode.** README and USER-JOURNEY now say Page / Width / Scroll. **`FitMode` is left alone**:
+it is the app's internal enum, not a word a musician reads, and the row asked for the docs to follow the
+UI, not for the code to be renamed to match prose.
+
+**D7 role vocabulary.** Both docs say **membership role** `admin / conductor / member`, per
+`bundle.proto:190`. **Deliberately not swept:** "a performer with a pedal cannot stop at every song",
+"performers get stable releases" — that is ordinary English for *someone performing*, not a claimed role
+name, and rewriting it to "member" makes the sentences worse while pretending the drift was wider than it
+was. The row was about documents that state the role SET wrongly; those are the two I fixed.
+
+**D14 shared owner — documented, not unified, per your ruling.** The three-way mapping is now in the
+**owner** term row. Beyond prose: the domain→baked mapping had lived as one inline `if` inside a bake
+loop, which is why a fourth spelling could have appeared beside it with nothing going red. It is now a
+named `bakedOwner()` with a test on **both** surfaces — bake pins domain→baked, app pins the `.tband`,
+where a personal owner is a **username** and not the member id the other two carry. That username is the
+part worth pinning hardest: it is a third encoding of the same concept and nothing else asserted it.
+
+Sabotaged both ways, and the discriminating half is in the test rather than implied — a near-miss
+(`"shared"`, `"_shared"`) must NOT read as shared:
+
+```
+…nor is the word itself: bakedOwner("shared") = "", want "shared"
+shared layer exported owner "", want "_shared_" — the .tband spells shared as the WORD, not as ""
+```
+
+The second guard also pins producer against consumer: `bakedOwner` feeding `LayerVisible`, because a
+mapping that stopped emitting `""` would turn every shared layer into somebody's personal one — on stage,
+a conductor's cues silently vanishing for everyone but their author.
+
+**D17 per-member variant — the row was wrong, not the code**, recorded with the shape you named: *"the
+docs say retired but the code is live" is usually read-compat, not drift.*
+
+### D6 is not in this batch, and I do not think it is mine
+
+The row is listed web-core, but the disagreement is between two **live UI strings** — `Go live (rehearsal)`
+/ `Stop live mode` on the setlist detail, `Arm live mode · auto-bakes for 3 h` / `Disarm live mode` on the
+list row. Picking one is choosing a product word, and I have the standing rule that a label must not change
+as a side effect of a chore commit. **A77 makes this concrete and urgent**: it hands the tablet an *arming*
+gesture of its own, so "arm" is about to mean two things on two devices unless somebody decides now. Worth
+routing to VLL with A77 rather than settling it in a glossary sweep — and I would rather ask than have him
+find his own word changed under him.
+
+### Numbers
+
+Go: `bake`, `app`, `domain`, `httpapi` green (the packages this touches), both new guards proven by
+sabotage. `gen-mirrors` re-run — the proto comment moves no generated output, so the Kotlin/TS mirrors are
+untouched.
+
+### Queue after this
+
+T178 (the three bake drops — its first ask is the two measurements over his real library, which I can run
+now that :8080 is current), D14's sibling rows if you want them, and the `loadMarks` test you made a
+condition on the re-render tool before it is pointed at his library again.
+
+— web-core
