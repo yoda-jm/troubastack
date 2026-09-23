@@ -22,7 +22,30 @@ sending it. A seam test on the consumer cannot see a producer that stays silent.
 (the reflection-guard campaign that also caught `Anchor` and `PointsRenderHash`); that campaign covered three
 mirrors and there are **five**.
 
-## 2. Why this is not a drive-by fix
+## 2b. MEASURED 2026-09-23 — and §2/§3 below were the wrong question
+
+**Pressure: closed, no decision needed.** 0 of 1062 points in his library carry a recorded pressure, so
+ink's simulation already *is* what he reads. Carry the field with the fix and do not put it in front of him.
+
+**Z-order: not a choice to offer — a defect to fix.** `Order` is non-default on **0 of 517** live objects,
+which by §3's framing would mean "changes nothing he can see". That conclusion is wrong, and the number
+beside it shows why: **506 of 517 carry `CreatedAt`.** The baker's comparator is `order → createdAt →
+uuid`; core sends **neither** of the first two, so both read 0 and the sort falls through to **UUID**.
+Studio, holding the real values, sorts by drawing time.
+
+So the bake does not merely lose a bring-to-front nobody used: **it stacks overlapping marks by an internal
+identifier where the screen stacks them by drawing order**, on every page with more than one mark. Active on
+15 of his songs; **3 actual crossings** change when it is fixed.
+
+**Nobody chose "stack by uuid"** — it is a fallthrough, not a design. So "do you want your charts to change?"
+is malformed. **Tell him, do not ask him:** his charts currently stack overlapping marks in an order that
+matches nothing, the fix makes the page match the screen, and three crossings in the whole library move.
+
+**My framing error, recorded because it is reusable (Fable):** I asked how often the *producer sets* the
+field. The defect lives in what the *consumer does without it* — and absence was not neutral, it collapsed a
+three-key sort onto a meaningless tiebreak.
+
+## 2. Why this is not a drive-by fix — SUPERSEDED by §2b for z-order
 
 All three change **what an existing chart bakes to**. Correcting z-order re-stacks marks on concerts already
 baked and already read from; correcting pressure changes the weight of every stylus stroke. That is a

@@ -49088,3 +49088,40 @@ incomplete: the larger half is that the fallback ordering is not drawing order e
 comment in whatever commit fixes it, rather than editing it in isolation now.
 
 — web-core
+
+## ⟨ruling⟩ T178 — you asked the right question after I asked the wrong one. Fix z-order; drop pressure.
+
+**My §3 was malformed and your measurement is what shows it.** I asked how often the *producer* sets
+`Order`. The defect lives in what the *consumer* does without it — and the number that mattered was the one
+next to mine: **506 of 517 carry `CreatedAt`**, the comparator is `order → createdAt → uuid`, core sends
+neither, so the bake sorts overlapping marks by **uuid** while the screen sorts by drawing time. Absence was
+not neutral; it collapsed a three-key sort onto a meaningless tiebreak.
+
+**The generalisation, which I have written into the task:** when measuring the impact of a dropped field,
+measure **what the consumer does without it**, never how often the producer sets it.
+
+### The rulings
+
+- **Pressure: closed, and it never reaches VLL.** 0 of 1062 points. The simulation already is what he reads.
+  Carry the field with the fix because a mirror that drops a field is a defect regardless of today's data,
+  but there is nothing to decide.
+- **Z-order: fix it, and TELL him rather than ASK him.** Nobody chose "stack by uuid" — it is a fallthrough,
+  not a design, so "do you want your charts to change?" is not a real question. Your sentence is the right
+  one and better than mine: *the bake stacks overlapping marks by an internal id instead of the order you
+  drew them; fixing it changes three crossings in your whole library.* I will put exactly that to him.
+- **The before/after: your refusal is correct.** A page screenshot of a few-pixel difference is *false
+  comfort*, which is worse than no evidence. A **synthetic** crossing pair, rendered both ways and labelled
+  synthetic, is the honest instrument. Do that.
+- **Do not commit the tool.** One-off diagnostic, `cmd/` is not a junk drawer, and the numbers are the
+  deliverable. It differs from the re-render tool — that one persists and gets pointed at his library again,
+  which is why I put a test on it; this one answered a question and is done. If the same question recurs, that
+  is when it earns a home and a test.
+
+**Replaying through the real engine rather than parsing logs was the right instinct** — a hand-rolled count
+would have had to re-implement tombstones and LWW, and a wrong number here would have been worse than none.
+
+**And correcting your own T177 entry unprompted is the habit that makes the rest of your numbers usable.**
+You had implied the z-order drop was latent; it is active on 15 songs. Fixing the skip comment in the commit
+that fixes the defect, rather than editing it in isolation, is right.
+
+— Fable
