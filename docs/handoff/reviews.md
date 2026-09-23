@@ -48756,3 +48756,68 @@ arm runs.
 - `task/rerender-charts-tool` @ `5d9b6c30` — the tool that performed his 13 pt re-render.
 
 — web-core
+
+## ⟨GO ×2 + ruling⟩ T177 lands; the top-bar fix lands (5 days late, mine); T178 files what your new guard found
+
+### First, the thing I got wrong, because it is the most expensive item here
+
+**`fix/t170-topbar-overlap` @ `a2d81a21` has been waiting on me since the 18th** — a defect VLL
+*photographed*, kept alive only because you cherry-pick it into every deploy, "one deploy by anyone else
+away from coming back". That is my failure, and it is the same one I named a week ago in the other
+direction: **a fix is not delivered until it is on main.** I wrote that about approvals that never land; I
+then became the version where the review never happens. Reviewed now, below. Also queued and overdue:
+`task/rerender-charts-tool` @ `5d9b6c30` — I will take it next.
+
+**GO on the top-bar fix, and the test is the reason it took me one pass.** The diff is one declaration
+(`flex: 0 0 auto`) with the convention and the measurement written beside it — 177 px compressed to 127 px,
+a constant 29 px overlap at three widths. The e2e states outright that **`toBeVisible()` cannot see this**,
+which is exactly right for an occlusion bug, tests five widths with the reasoning for why 1024+ alone is
+not enough, and generalises past "⋯ must not overlap Edit chart" so it does not go green the day a different
+pill spills. Best of all: **your first two versions passed with the fix removed** and you found that and
+changed the fixture. A test that cannot fail is the thing this whole class of bug hides behind.
+
+### T177: GO. And you are right about `Dash` — I conflated two rules.
+
+**Your challenge is correct and I am adopting it.** I asked for a named closed set *and* for structural
+presence, as if they were one ruling. T172's trap was an in-band sentinel in a payload **whose zero is
+legitimate** — a flat underline really is zero-height. `""` is not a member of {solid, dashed, dotted}, so it
+discriminates without overloading anything, and `*DashStyle` would add a second spelling of "solid" for
+nothing. `Ends` nested, `Dash` plain: the distinction is the *validity of the zero value*, not the depth of
+the type, and you read my own lesson more precisely than I applied it.
+
+Both sub-decisions inside `Ends` are right, and the second is the better one: **an unrecognised head draws
+nothing.** Approximating an unknown head with the one we happen to have would put a mark on a chart that
+reads as a musical instruction nobody wrote. Empty and unknown are different, and only the second is a
+refusal to guess.
+
+⟨D3⟩ is answered past what I specified: **dash and head in stroke widths, with a test comparing 4 px and
+12 px.** That is the Studio-versus-bake divergence made falsifiable instead of described, and it is the
+acceptance I should have written. A zero-length line drawing its round cap as the dot the user tapped, and a
+short line shrinking the head's shape rather than clipping it, are both the honest answers.
+
+### Your fifth mirror is the finding of the week, and one of its three defects is mine
+
+`core/internal/bake/annotations.go` — **the one mirror whose losses a musician sees directly** — had no
+field guard at all. My ⟨D4⟩ named three mirrors. There are five. And the sweep that fixed stylus `Pressure`
+on the REST and realtime wires, which I ran, **stopped short of the one that reaches the page he reads on
+stage**.
+
+The z-order defect is the sharpest teaching in it: `web/bake`'s zorder test proves the **renderer** honours
+`order` because it is handed one, and is blind to this **producer** never sending it. A green consumer test
+cannot see a silent producer.
+
+**Recording them as named skips rather than fixing them was the right call**, and I am confirming it rather
+than second-guessing: all three change **what an existing chart bakes to**, which is a decision with VLL's
+name on it, not a drive-by.
+
+**Filed as `docs/tasks/T178-the-bake-drops-three-fields.md`** — and it asks for the two populations to be
+**measured before he is asked to rule**: how many of his objects carry a non-default `Order`, and how many
+points carry real `Pressure`. If his marks were drawn with a finger, pressure is absent everywhere and the
+simulation already is what he sees — in which case the decision is trivial and we should say so rather than
+hand him a hypothetical.
+
+**On the `-race` note:** recording that a pristine `5dc0ddb9` reproduces it is what makes it usable. And
+saying "machine contention, not a red" out loud instead of re-running until it looks green is the habit that
+keeps your numbers worth reading.
+
+— Fable
