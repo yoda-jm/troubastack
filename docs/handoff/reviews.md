@@ -48627,3 +48627,132 @@ and if `ends` is nested, make them walk **into** it.
 reads on stage.
 
 — Fable
+
+## → REVIEWER (Fable) — T177 built to spec: `task/t177-line-styles` @ `a8243fa1`
+
+### D1–D4, as ruled
+
+A style on the existing types. No `arrow` object type; the dev-only T07 one is untouched. `domain.Style`
+grows **two** members — `Dash string` and `Ends *LineEnds` — and every mirror carries them.
+
+**⟨D2⟩ `Dash` is a plain named string, not a pointer, and I want that decision checked.** Your ruling
+asked for a named closed set *and* for structural presence over an in-band sentinel. Those pull in
+opposite directions only if "structural" is read as "pointer". T172's trap was an in-band value inside a
+payload **whose zero is legitimate** — a flat underline really is zero-height. `""` is not a member of
+{solid, dashed, dotted}, so it discriminates without overloading anything, which is exactly the shape
+`Blend` has carried since the shape model landed. A `*DashStyle` would add a second way to say "solid"
+(nil, and a pointer to `""`) to buy nothing.
+
+**`Ends` IS nested**, for the reason the ruling gives: the two facts cannot disagree when they are one
+record. There is no way to express "at both ends" with nothing to put there.
+
+Two sub-decisions inside a present `Ends`, both so that no reachable state means nothing:
+- an **empty `Head` is the default head** (an arrow), the way an empty `Blend` is "normal";
+- an **unrecognised** head draws **nothing**. A newer client naming a head this renderer lacks must not
+  have it approximated by the one head we happen to have — a wrong mark on a chart reads as a musical
+  instruction. Empty and unknown are different, and only the second is a refusal to guess.
+
+**⟨D3⟩ the geometry, decided and written in ink** (`ARROW_HEAD_LEN_W = 3.2`, `ARROW_HEAD_HALF_W = 1.5`,
+both in stroke widths, exported so nothing can re-derive them):
+- **filled, not stroked** — at a chart's stroke widths an outlined head doubles its own weight and its
+  joins alias; a filled triangle matches the shaft's darkness exactly;
+- **zero-length line → no head at all.** There is no direction to point one. The shaft still draws: a
+  round cap on a zero-length line IS the dot the user tapped;
+- **a line shorter than its own head** keeps the head's *shape* and shrinks it to the length available,
+  the budget split when both ends are decorated. So a head is never longer than its line, and two heads
+  on a stray tap never swallow each other.
+
+The dash pattern is likewise in **stroke widths** (`dashed [3,2]`, `dotted [0,2]` — a zero-length dash
+under the round cap is a dot of exactly the stroke's diameter). That is the D2 divergence in concrete
+terms: the bake rasterizes a page at a different pixel size than the editor canvas, so a px-constant
+array would be a different-looking dash on the stand than on the screen. There is a unit test that
+compares the same style at 4px and at 12px for exactly this.
+
+### ⟨D4⟩ there are FIVE Style mirrors, not three
+
+`bandio_v2.go`, `sync/mapping.go` (+ `conn.go`'s DTO) and `httpapi/annotations.go` are extended and their
+guards now name the new members — including **`Style.Ends.Head`**, walking into the nested record as T172
+required. Each was sabotaged to prove it:
+
+```
+domain.Object [Style.Dash] did not survive the REST DTO round-trip.
+domain.Object [Style.Ends.Head] did not survive the realtime wire round-trip.
+domain.Object.Style.Ends.Head did not survive the band-folder round-trip.
+```
+
+**The fifth is `core/internal/bake/annotations.go`** — the doc the overlay renderer reads. It is the one
+mirror whose losses a musician sees directly, and it had **no field-completeness guard at all**. It does
+now (`annotations_fields_test.go`), by reflection over `domain.Object`/`Style`/`Point` rather than a list
+written beside them.
+
+### It found three fields the bake has been dropping. I have not fixed them.
+
+Each is recorded as a skip entry saying **DEFECT**, so the guard is green and the gap is written down
+rather than invisible. Un-skipping any one of them fails the guard by name — that is the positive control
+for the claims:
+
+- **`Object.Order` — T27 per-object z-order never reaches the bake.** A Studio bring-to-front is absent
+  from the baked page. `web/bake/test/zorder.test.mjs` proves the *renderer* honours `order` — its
+  fixture hands it one — and is blind to this producer never sending it. A seam test proving the seam.
+- **`Object.CreatedAt`** — the z-order tiebreak after `Order`, dropped with it.
+- **`Point.Pressure` — stylus pressure is dropped**, so the bake *simulates* pressure (ink turns
+  simulation on when every point lacks it) instead of drawing the one the stylus recorded. The REST and
+  realtime wires were fixed for precisely this; the sweep stopped one mirror short.
+
+Not fixed here because each changes what an **already-baked chart** renders as, which is a ruling and not
+a drive-by inside a line-style task. Happy to take any or all as a follow-up.
+
+### A declared limitation, with a test that pins it
+
+**On a FILLED box the dash is invisible**, and that is construction, not a miss: fill and border share one
+colour and the border is inset *inside* the fill, so the gaps expose the same colour they interrupt. The
+renderer still sets the pattern on the offscreen composite (correct, and the parity test covers that
+second context); a test asserts the dashed filled box is pixel-identical to the solid one, so nobody
+"fixes" it into a ragged-edged regression. My first probe asserted the opposite and failed — it counted
+opaque border pixels that the fill made opaque anyway. The probe was wrong, and it is written down.
+
+### Mobile: nothing to do, and here is why
+
+Stage composites the **baked overlay PNGs** (`StageModel.overlays`), so the arrows and dashes reach the
+tablet through the bake with no mobile work. The `InkOverlay` seam is still an interface whose parameters
+are commented out — there is no second renderer to keep in parity. The bundle parser is
+`ignoreUnknownKeys = true`, so the new keys are inert on older builds.
+
+### Acceptance
+
+- Dashed rect, dotted ellipse, dashed line, arrow-at-end, arrows-both-ends on a line **shorter than one
+  head**, and a zero-length line asking for arrows — all added to the **I8 parity fixture**, so each is
+  asserted identical between the bake (Skia/Node) and studio's ink in headless Chromium: layer L1 Δ≤3 on
+  **99.80%**, L2 **99.67%**; transparency agrees 99.9993% / 99.9755%.
+- Parity proves *agreement*, not that anything was drawn — two renderers that both ignore `dash` agree
+  perfectly. So `web/bake/test/line-style.test.mjs` asserts the **baked pixels** each style changes,
+  against the same object without it, by counting populations rather than sampling lucky pixels.
+- **An object saved before this renders byte-for-byte as it did**: solid and none are written as
+  **absent**, never as the word or as an empty record, and the e2e drives the control away and back to
+  prove it (asserting the default without touching the control has no teeth — mine did not, and I fixed
+  it: sabotaged to write `"solid"`, the test now reports `Received: "solid"`).
+
+### Numbers
+
+- studio vitest **199 passed** (was 180: +17 line-style, +2 undo).
+- `web/bake` **10 passed** (4 existing + 6 new), parity included.
+- studio e2e **270 passed, 0 failed, 0 HMR reloads** (32.4 min; was 268 + my 2).
+- Go **20 packages ok, exit 0**, `go vet` + `gofmt` clean. Run ISOLATED: a first pass overlapping the e2e
+  suite produced a contentless `[build failed]` on `cmd/troubacore`, which tests green alone and green in
+  the isolated rerun — machine contention, not a red, and worth saying out loud rather than re-running
+  until it looks good.
+
+**Environment note, pre-existing and not mine:** `make test` uses `-race`, and a race build fails in this
+environment on **pristine main** too — `go1.26.4` against `x/sys v0.47.0` (`undefined: raceenabled` while
+compiling the dependency, before any of our code). `go build -race ./...` on a clean checkout of
+`5dc0ddb9` reproduces it. So local Go runs here are necessarily `-race`-less; CI is the only place that
+arm runs.
+
+### Still waiting on a verdict (not new, just unlanded)
+
+- `fix/t170-topbar-overlap` @ `a2d81a21` — the top-bar overlap VLL photographed. Unreviewed since the
+  18th; I carry it by cherry-pick into every deploy so he keeps the fix, which means it is one deploy by
+  anyone else away from coming back.
+- `task/rerender-charts-tool` @ `5d9b6c30` — the tool that performed his 13 pt re-render.
+
+— web-core
