@@ -22,6 +22,14 @@ import com.troubastack.shared.stage.notes.NotesWarning
 import kotlin.math.roundToInt
 
 /**
+ * A77 ⟨D1⟩ — the armed auto-upload window, in milliseconds. The SAME length as live mode's, because both
+ * answer "how long is a rehearsal": Go `app.LiveModeWindow = 3 * time.Hour` (core/internal/app/app.go, whose
+ * Studio row reads "auto-bakes for 3 h"). ONE concept, two copies — whoever changes one MUST change the
+ * other. Measured on the MONOTONIC clock (deep-sleep-safe), so a rehearsal that pauses does not burn it.
+ */
+const val ARMED_UPLOAD_WINDOW_MS: Long = 3L * 60L * 60L * 1000L
+
+/**
  * The reading mode, cycled on the single Stage toggle (A14). FIT_PAGE shows the whole page (and is
  * the only mode that goes two-up in landscape, A12); FIT_WIDTH fills width and scrolls one page
  * vertically; SCROLL is a continuous vertical column of every page at fit-width.
@@ -329,6 +337,11 @@ data class StageState(
     // the bake when it silently swapped). Set by applyUpdate, cleared by the view after it's shown; it
     // NEVER moves the page (the R10 remap already preserves position) — it only says a word.
     val updateNotice: String? = null,
+    // A77 — the armed auto-upload deadline (MONOTONIC millis; 0 = not armed). While armed the tablet mirrors
+    // its notes to Studio (§7) and a cleared live page clears there too (§5). Two independent expiries keep
+    // "I forgot" nearly unreachable (⟨D1⟩): the window lapses on its own (checked against this deadline) and
+    // leaving Stage disarms. NOT preserved across applyUpdate — a bake disarms it visibly (⟨D4⟩).
+    val armedUntil: Long = 0L,
     // T147: the rehearsal chronometer — a pure state machine (start instant + accumulated, not a tick
     // counter) so it survives screen-off/process death. It times the SESSION, so it must be PRESERVED
     // across song navigation, setIdentity and applyUpdate — never rebuilt to a fresh Chrono().
@@ -398,6 +411,18 @@ data class StageState(
      * being drawn (`noteForPage != null && noteVisibleFor`): both require a note on THIS page.
      */
     fun noteHiddenOnPage(page: StagePage): Boolean = noteForPage(page) != null && !noteVisibleFor(page.songId)
+
+    /** A77 — armed at [now] (monotonic millis): the deadline is set AND not yet passed. Time-derived, so the
+     *  caller supplies the clock (the VM injects it, tests advance it) rather than the state reading a clock. */
+    fun armed(now: Long): Boolean = armedUntil != 0L && now < armedUntil
+
+    /**
+     * A77 ⟨D5⟩ — clearing [page] should ALSO remove the Studio copy: only while armed, and only for a LIVE
+     * page. A page with no live note (`noteForPage == null`) is an orphan or note-less page — outside the
+     * mirror, so its local clear never reaches the server. Decided BEFORE the local delete, while the entry
+     * still resolves.
+     */
+    fun shouldMirrorClear(page: StagePage, now: Long): Boolean = armed(now) && noteForPage(page) != null
 
     /**
      * The visible layer ids for [songId] (A1 per-song visibility). Mandatory layers are unioned in HERE,

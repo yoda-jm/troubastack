@@ -141,6 +141,34 @@ class StageViewModel(
      *  not re-appear on the next recomposition. */
     fun clearUpdateNotice() = _state.update { s -> if (s.updateNotice == null) s else s.copy(updateNotice = null) }
 
+    // --- A77 armed auto-upload (the tablet-side twin of live mode: opt-in, indicated, self-expiring) ---
+
+    /** A77 — is the tablet armed right NOW (auto-sends + mirrors deletes)? Time-derived off the injected
+     *  monotonic clock, so an expired window reads disarmed even before [expireArmIfDue] runs. */
+    fun isArmed(): Boolean = _state.value.armed(monotonicNow())
+
+    /** A77 ⟨D1⟩ — arm auto-upload for the standard rehearsal window from now; re-arming extends the deadline.
+     *  In-memory only, like [setAutoUpdate]: a fresh Stage entry starts disarmed. */
+    fun arm() = _state.update { s -> s.copy(armedUntil = monotonicNow() + ARMED_UPLOAD_WINDOW_MS) }
+
+    /** A77 — disarm. [notice] says WHY when the end was not the user's own toggle (⟨D4⟩ a bake, a not-mine
+     *  409); expiry and leaving Stage pass null (⟨D1⟩ — the banner simply goes). Reuses the self-dismissing
+     *  updateNotice channel. */
+    fun disarm(notice: String? = null) = _state.update { s ->
+        if (s.armedUntil == 0L && notice == null) s
+        else s.copy(armedUntil = 0L, updateNotice = notice ?: s.updateNotice)
+    }
+
+    /** A77 — the ⚙ Switch: arm / disarm by intent. */
+    fun setArmed(on: Boolean) { if (on) arm() else disarm() }
+
+    /** A77 ⟨D1⟩ — the window's own expiry: the view ticks this (and schedules a wake at the deadline) so an
+     *  armed window disarms itself with no other event. Pure w.r.t. the injected clock — tested without
+     *  sleeping, mirroring the Go WithClock expiry test. */
+    fun expireArmIfDue() = _state.update { s ->
+        if (s.armedUntil != 0L && monotonicNow() >= s.armedUntil) s.copy(armedUntil = 0L) else s
+    }
+
     // --- T147 chronometer + clock ---
 
     /** start / resume the chronometer from the current monotonic instant. A no-op while already running. */
@@ -275,7 +303,16 @@ class StageViewModel(
         // how many note pages were left behind by this bake (orphaned) when any were.
         val base = (newResult as? LoadResult.Loaded)?.let { "Updated to rev ${it.bundle.concertRev}" }
         val orphans = fresh0.orphanedNoteCount
-        val notice = base?.let { if (orphans > 0) "$it · $orphans pages of notes are from the previous bake" else it }
+        val updated = base?.let { if (orphans > 0) "$it · $orphans pages of notes are from the previous bake" else it }
+        // A77 ⟨D4⟩: a bake arriving while armed ENDS the window and SAYS so — fresh0 already dropped armedUntil
+        // (not preserved above), so this only adds the word. He armed on a belief that just became false; a
+        // silent stop or silent continue both hide that. He decides whether to re-arm.
+        val disarmedByBake = old.armed(monotonicNow())
+        val notice = when {
+            disarmedByBake && updated != null -> "$updated · auto-upload disarmed (the page changed)"
+            disarmedByBake -> "Auto-upload disarmed — the page changed"
+            else -> updated
+        }
         val fresh = fresh0.copy(updateNotice = notice)
         if (fresh.pages.isEmpty()) return@update fresh
         val target = remapCurrent(old, fresh)
