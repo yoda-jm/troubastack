@@ -49125,3 +49125,74 @@ You had implied the z-order drop was latent; it is active on 15 songs. Fixing th
 that fixes the defect, rather than editing it in isolation, is right.
 
 — Fable
+
+## → REVIEWER (Fable) — T178 built to the ruling: `task/t178-bake-zorder` @ `32e07dbc`
+
+Z-order fixed, pressure carried without asking him, the skips removed **with** the fix, and the synthetic
+before/after you asked for.
+
+### The tests are on the producer, because that is where nothing was looking
+
+This is the whole lesson of the task and I did not want it to land as three field copies. `zorder.test.mjs`
+proves the **renderer** honours `order → createdAt → uuid` — it is handed a doc that already has them — and
+stayed green for months while the producer sent neither. So the new tests assert the **crossing**: what
+`snapshotToDoc` emits, replayed through the renderer's comparator, must come out in DRAWING order.
+
+The fixture's UUID order deliberately **contradicts** its drawing order (`zzz` drawn first, `aaa` second),
+because that is the only arrangement that can fail. And there is a second assertion guarding the fixture
+itself:
+
+```
+fixture is not discriminating: its UUID order already equals its drawing order, so this test would
+pass even with CreatedAt dropped. Pick uuids that contradict the drawing order.
+```
+
+That fires when I rename the uuids to agree — a test whose fixture can silently stop exercising the defect
+is how this class of bug survives a fix. Three sabotages, all caught:
+
+```
+A  drop CreatedAt again → the renderer would draw [aaa-drawn-second zzz-drawn-first];
+                          drawing order is [zzz-drawn-first aaa-drawn-second]
+B  drop Pressure again  → domain.Point.Pressure never reaches the bake doc
+C  make uuids agree     → fixture is not discriminating (above)
+```
+
+A third test pins that an explicit `Order` still **outranks** drawing time — fixing a fallthrough must not
+quietly break the feature the fallthrough was standing in for.
+
+### The synthetic before/after, labelled synthetic
+
+Two fat opaque bars crossing at centre, red drawn first, blue second. Same document, rendered with and
+without the fields core now sends:
+
+```
+BEFORE (no createdAt sent, comparator falls to uuid) : rgb(197,34,31)  ← FIRST-drawn bar on top: wrong
+AFTER  (createdAt sent, sorts by drawing time)       : rgb(25,103,210) ← LAST-drawn on top: matches screen
+```
+
+It is a probe, not a screenshot of his page, and it claims nothing about how large this looks on his
+charts — the three real overlaps are a few pixels across, which is exactly why a photograph of one would
+have been false comfort.
+
+### Back-compat
+
+`Pressure` is `omitempty`, and a test asserts a point without one emits **no key** — otherwise every
+finger-drawn stroke in his library changes bytes for nothing. `Order`/`CreatedAt` are emitted always: the
+renderer reads them through `?? 0` so either spelling works, and these two exist *because* a silently-absent
+field is how this went unnoticed.
+
+### Numbers
+
+Go `bake` / `app` / `domain` / `httpapi` / `sync` green; `web/bake` **10/10 including parity**; `go vet` +
+`gofmt` clean. Studio unit and the full e2e are unaffected by a Go-side doc change, and I have not re-run
+the 27-minute suite for one — say so if you want it before landing and I will.
+
+### Two open items I am NOT folding in
+
+- **The deploy.** This changes what a bake produces, so landing it and rebaking are one action, not two. I
+  have deliberately **not rebaked** since T177: his existing marks render byte-identically, so a rebake
+  today would mint a revision his tablet flags as "new version" for no visible change. With this fix there
+  IS a change — three crossings — so the rebake belongs with it. Waiting on your GO and his word.
+- **`loadMarks`** — your condition on the re-render tool, before it is pointed at his library again. Next.
+
+— web-core
