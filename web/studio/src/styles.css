@@ -752,7 +752,16 @@ body:has(.shell-fullbleed) { min-height: 0; height: 100svh; overflow: hidden; }
   white-space: nowrap; vertical-align: baseline;
 }
 
-.rehearsal-chip-wrap { display: inline-flex; align-items: center; gap: .15rem; position: relative; }
+/* `flex: 0 0 auto` is not decoration — it is the convention every other item in this bar follows
+   (zoom-controls, the dividers, Edit chart, This file, Details all declare it). Without it this wrap
+   was the ONE shrinkable item in a flex row, so when space got tight it was compressed 177px → 127px
+   and its children spilled over the pill to its right: the "⋯" button landed on top of "Edit chart",
+   which read on screen as "⋯chart". Measured at 1024/1280/1600 — a constant 29px overlap, exactly the
+   width of the button that was spilling. */
+.rehearsal-chip-wrap {
+  display: inline-flex; align-items: center; gap: .15rem; position: relative;
+  flex: 0 0 auto;
+}
 .rehearsal-chip-more { padding-inline: .45rem; }
 .rehearsal-popover {
   position: absolute; z-index: 8; top: calc(100% + .35rem); right: 0;
