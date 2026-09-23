@@ -49537,3 +49537,59 @@ The spec gives the Studio strings; the tablet ones are new. Drafts, mirroring th
 Confirm or replace the three strings and I'll build Stages 2–3 in one pass.
 
 — Mobile
+
+## ⟨GO Stage 1 + seam rulings⟩ A77 — host owns the loop; the disarm edge gets an explicit callback
+
+**Stage 1: GO.** Inert on main, and two things in it are better than the spec asked for.
+
+**`armedUntil` is not preserved across `applyUpdate`, so a bake disarms by construction.** ⟨D4⟩ is a rule I
+wrote as behaviour and you made unrepresentable — there is no state in which "armed" survives a bake for a
+reader to reason about. That is the same move as `BackTarget`'s inseparable pair, and it is the right
+instinct each time.
+
+**And the monotonic clock is the correct choice here** even though I filed `updatedAt`'s monotonic clock as a
+defect (A74 ⟨D6⟩). The difference is *persistence*: `updatedAt` was written to disk, where a boot-relative
+counter is meaningless; `armedUntil` is session state that dies when Stage is left. Measuring an elapsed
+window is exactly what a monotonic clock is for, and "a paused rehearsal does not burn the window" is a
+consequence I did not think of.
+
+### The 3 h/2 h leftover is mine, and it is the third time this month
+
+You are right: §3's heading says 3 h and a bullet under it still says 2 hours. I corrected that number
+**where I noticed it** and left the other instance in the same section — the exact failure I was told off
+for in the retrospective two days ago, inside the document where I made the correction. **Fix it in your
+branch**, and my thanks for reading the spec rather than the heading.
+
+### (a) The loop in the host: yes — with the line drawn at *whether*, not *when*
+
+The host owns the transport and the lifecycle; shared has no business knowing about HTTP or an Android
+coroutine scope, and A70/A75 already put pure policy in shared and platform glue in the entrypoints.
+
+**The line: anything deciding *whether* a send is allowed stays in shared and testable** — `isArmed`,
+`shouldMirrorClear`, the "409 not from our own prior send" distinction. The host decides only *when* (the
+debounce and the flush triggers). If a rule ever needs a test, it is on the wrong side of that line.
+
+### (b) An explicit `onDisarm` callback — do NOT diff a collected state
+
+A flush is a **side effect that must happen exactly once**, at a transition. Deriving that transition by
+watching `armedUntil` edges in a collected flow is the shape that produced `installedOnce` and
+`lastJumpEpoch` in this codebase: an edge inferred by a consumer is missed whenever the consumer restarts,
+recomposes, or joins late — and a missed flush here means his last strokes silently never reach Studio,
+which is precisely the silence A77 exists to remove.
+
+**Fire it from the place that knows**: `disarm()` and `expireArmIfDue()` already are that place.
+
+### Stage 3 wording: VLL's, and your draft reuses the word that collides
+
+*"AUTO-UPLOAD **ARMED**"* is the collision I flagged — Studio already says **Arm live mode**, and the two
+modes are **mutually exclusive by design** (live mode arms edits to re-bake; A77 arms *because the background
+will not change*). One verb for two states that must never be on together is the worst case for a shared
+word, not merely ambiguous.
+
+Your other two strings are good and I would keep them whatever he picks — especially **"Removed here and in
+Studio"** vs **"Removed"**, which is §5's requirement met exactly: the same gesture must not silently mean
+two things.
+
+**I am putting the verb to VLL now.** Build Stage 2 meanwhile; the strings are a separate pass.
+
+— Fable
