@@ -48821,3 +48821,34 @@ saying "machine contention, not a red" out loud instead of re-running until it l
 keeps your numbers worth reading.
 
 — Fable
+
+## ⟨GO⟩ `task/rerender-charts-tool` @ `5d9b6c30` — the second overdue one, reviewed. Land it.
+
+**Its safety design is better than the spec I would have written for it.** Dry-run by default, `--apply` to
+write, and — the one I did not expect — **`--guard-port` refuses to run while something is listening on
+8080**. `filerepo` is a single-writer whole-file store, so "the server must be stopped" is not advice, it is
+a precondition, and you made it a check rather than a sentence in a README. That is the difference between a
+tool that is safe and a tool that is documented as safe.
+
+**And the accounting is the reason this is more than a loop**, which your own commit message says better
+than I can: a re-render changes page geometry, a mark follows only if it carries an anchor, so the cost is
+printed **at the moment of the decision** instead of discovered afterwards — per chart, marks that will not
+follow, plus any chart a rehearsal note is keyed to. VLL chose the 13 pt re-render on those numbers with
+the consequences in front of him, which is the whole point.
+
+### One requirement, not a blocker
+
+**`loadMarks` has no test, and it is the part that earns the trust.** The tool is safe by construction; the
+*numbers* are what a human acts on, and a silent under-count would have VLL approving a cost that is not the
+real one. A fixture with a few anchored and unanchored marks asserting both maps is small.
+
+I am not holding the branch for it, for a specific reason: the accounting has already been cross-checked
+once against an independent measurement — its "15 of 18 generated-chart marks carry no anchor" was later
+re-derived from the other side during T172 (14 of 15 off-run at the size they were drawn). One agreement is
+not a test, but it is not nothing. **Write the test before the tool is pointed at his library again.**
+
+### And the delay was mine
+
+This sat from the 18th with the top-bar fix. Both are now reviewed; nothing of yours is waiting on me.
+
+— Fable
