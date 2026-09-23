@@ -13,6 +13,10 @@ import (
 type docPoint struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
+	// T178: stylus pressure drives ink's variable freehand width. Without it the renderer SIMULATES
+	// pressure (it simulates when every point lacks it), so a stroke drawn with a stylus baked with an
+	// invented weight instead of the recorded one. omitempty — a finger-drawn stroke stays byte-identical.
+	Pressure float64 `json:"pressure,omitempty"`
 }
 
 type docStyle struct {
@@ -42,6 +46,22 @@ type docObject struct {
 	Page    int        `json:"page"`
 	Text    string     `json:"text"`
 	Style   docStyle   `json:"style"`
+	// T178 — the z-order pair, and the reason the bake stacked marks wrongly.
+	//
+	// The renderer sorts `order -> createdAt -> uuid` (render.ts objectZ), mirroring studio's
+	// compareObjectZ contract. It was sent NEITHER of the first two, so both read 0 and the comparator
+	// fell all the way through to UUID: the baked page stacked overlapping marks by an internal id while
+	// the screen stacked them by drawing time. Absence was not neutral — it collapsed a three-key sort
+	// onto a meaningless tiebreak (Fable, T178 ruling).
+	//
+	// Measured on VLL's library at the time of the fix: 114 (layer,page) groups across 15 songs were
+	// re-stacked, 3 of them involving marks that actually overlap.
+	//
+	// NOT omitempty: the renderer distinguishes absent from zero via `?? 0`, so either spelling works —
+	// but emitting them always keeps the doc honest about what it carries, and these two exist precisely
+	// because a silently-absent field is how this went unnoticed.
+	Order     int   `json:"order"`
+	CreatedAt int64 `json:"createdAt"`
 	// P206: on a jump SOURCE, the destination landmark's uuid. The overlay renderer ignores it (a jump
 	// end draws as the icon it is); it is carried here so Stage 3 resolves jumps from the SAME
 	// reprojected objects the renderer drew (T145) rather than from a second, differently-anchored read
@@ -127,16 +147,18 @@ func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Ancho
 		}
 		pts := make([]docPoint, len(o.Points))
 		for i, p := range o.Points {
-			pts[i] = docPoint{X: p.X, Y: p.Y}
+			pts[i] = docPoint{X: p.X, Y: p.Y, Pressure: p.Pressure}
 		}
 		doc.Objects = append(doc.Objects, docObject{
-			UUID:    o.UUID,
-			LayerID: o.LayerID,
-			Type:    domain.ObjectTypeToString(o.Type),
-			Points:  pts,
-			Page:    o.Page,
-			Text:    o.Text,
-			JumpTo:  o.JumpTo,
+			UUID:      o.UUID,
+			LayerID:   o.LayerID,
+			Type:      domain.ObjectTypeToString(o.Type),
+			Points:    pts,
+			Page:      o.Page,
+			Text:      o.Text,
+			JumpTo:    o.JumpTo,
+			Order:     o.Order,
+			CreatedAt: o.CreatedAt,
 			Style: docStyle{
 				Color:    o.Style.Color,
 				Opacity:  o.Style.Opacity,

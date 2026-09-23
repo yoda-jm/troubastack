@@ -32,17 +32,11 @@ var objectNotBaked = map[string]string{
 	"Scope":            "layer-level, same as OwnerID",
 	"Anchor":           "consumed BEFORE this point: T145 reprojection rewrites Points, so the doc carries the resolved coordinates and the anchor has done its work",
 	"PointsRenderHash": "same — it says whether Points needed reprojecting, which has already happened",
-
-	// --- Defects, found by this guard on the day it was written (T177). Not fixed here: both change
-	// what an EXISTING chart bakes to, which is a ruling, not a drive-by.
-	"Order":     "DEFECT: T27 per-object z-order is dropped, so a Studio bring-to-front is absent from the bake. web/bake's zorder test proves the RENDERER honours `order` — it is fed one by hand — and is blind to this producer never sending it.",
-	"CreatedAt": "DEFECT: the z-order tiebreak after Order, dropped with it",
 }
 
-// Point fields that do not reach the doc.
-var pointNotBaked = map[string]string{
-	"Pressure": "DEFECT: stylus pressure is dropped, so the bake SIMULATES pressure (ink turns simulation on when every point lacks it) instead of drawing the one the stylus recorded. The REST and realtime wires were fixed for exactly this and the sweep stopped short of this mirror.",
-}
+// Point fields that do not reach the doc. Empty since T178 — a point member the renderer understands and
+// never receives is a stroke drawn with invented weight.
+var pointNotBaked = map[string]string{}
 
 // Style fields that do not reach the doc. Empty today — a style field that does not reach the renderer is
 // a style the musician does not see.
