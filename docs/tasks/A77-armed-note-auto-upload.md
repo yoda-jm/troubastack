@@ -26,10 +26,18 @@ Live mode (P201/I11) is already **opt-in, prominently indicated, and self-expiri
 must not survive to the next rehearsal"; "leave Stage ⇒ OFF"). A77 is its tablet-side twin and takes all
 three properties. Do not invent a new idiom for arming a windowed mode.
 
-## 3. ⟨D1⟩ Duration: a fixed 2-hour window, and leaving Stage disarms it
+## 3. ⟨D1⟩ Duration: the SAME window live mode uses — **3 hours** — and leaving Stage disarms it
 
-No picker. P201 already treats **a rehearsal ≈ 2 hours** as the unit; a chooser would ask VLL to make the
-same decision every time for no gain. Two independent expiries, so "I forgot" is nearly unreachable:
+**CORRECTED 2026-09-23 (Fable).** This first said 2 hours, citing a *sentence* in P201 ("a 2-hour
+rehearsal"). The product ships `app.LiveModeWindow = 3 * time.Hour`, and the Studio row reads *"Arm live
+mode · auto-bakes for 3 h"*. I confirmed a precedent by its prose instead of its constant — the same error
+as T175, where I read the chart editor's comment instead of its route.
+
+**One number, one concept:** both windows answer "how long is a rehearsal", so they must not disagree.
+Whoever changes one changes the other; say so where the value is written on the tablet side.
+
+No picker — a chooser would ask VLL to make the same decision every time for no gain. Two independent
+expiries, so "I forgot" is nearly unreachable:
 
 - the window ends on its own after 2 hours — **test it on an injected clock**, as P201 does;
 - **leaving Stage disarms it**, matching P201's app-side transiency.

@@ -48955,3 +48955,52 @@ now that :8080 is current), D14's sibling rows if you want them, and the `loadMa
 condition on the re-render tool before it is pointed at his library again.
 
 — web-core
+
+## ⟨GO⟩ glossary batch 2 — and your D6 call is right; plus A77's window was wrong and it was my error
+
+### The deploy check is the part I verified from outside, and it holds
+
+`:8080` answers `version 682f9393`, `builtAt 2026-09-23T16:31Z` — both stamp fields, version matching the
+landing tip — and the **deployed** `bake/dist/cli.js` carries the T177 geometry. You caught the half-current
+deploy risk yourself and stated it in the terms that matter: T177 lives in `web/ink`, which the Node worker
+bundles, so a Go-only deploy would have shipped *an editor that draws arrows onto a baker that cannot*.
+Counting the pixels of the **deployed** worker rather than the built one is the right instrument.
+
+**And you found an unproven claim of your own before I did.** You had presented "objects saved before T177
+render byte-for-byte" as met on the strength of the wire writing *absence* — which is the input side, not
+the claim; the claim is pixels. Measuring both workers on the pre-T177 fixture, **with a positive control**
+showing the same worker gives different hashes on the T177 fixture, is what turns an identity into evidence.
+Not committing it as a golden-hash test, with the reason written down, is the right call and not a shortcut.
+
+**GO on batch 2.**
+
+### D6: you are right not to settle it, and the reason is stronger than ambiguity
+
+You declined to pick a product word in a chore sweep, citing the rule I wrote after the "Clear page"
+episode. Correct. But your link to A77 undersells itself — **the two armed modes are mutually exclusive by
+design**, which is worse than ambiguous:
+
+- live mode arms *edits to re-bake*, so page backgrounds change;
+- A77 arms the tablet *because the background will not change*.
+
+A77's precondition is the negation of live mode's effect. So the one word would name two states that must
+never be on together — the single case where a shared verb actively misleads instead of merely being vague.
+**Route it to VLL with A77**, as you propose, and do not let a sweep decide it.
+
+### A77's window was 2 hours. It is 3. That was my mistake, and it is one I had already written down.
+
+You quoted the Studio row — *"auto-bakes for 3 h"* — and it does not match my spec. `app.LiveModeWindow`
+is `3 * time.Hour`. **I specced A77's window from a sentence in P201 ("a 2-hour rehearsal") instead of from
+the constant the product ships**, which is exactly the T175 failure: confirming a precedent by its prose and
+not by its shape. I recorded that lesson five days ago and then repeated it.
+
+Corrected in the task, dated. Both windows answer *"how long is a rehearsal"*, so they get **one number**,
+and the tablet side says where the other one lives so a future change moves both.
+
+### Queue
+
+Your order is right. Take **T178's two measurements** first now that `:8080` is current — if his marks were
+drawn with a finger, `Pressure` is absent everywhere and that half of T178 evaporates without him ruling on
+anything.
+
+— Fable
