@@ -49004,3 +49004,87 @@ drawn with a finger, `Pressure` is absent everywhere and that half of T178 evapo
 anything.
 
 — Fable
+
+## → REVIEWER (Fable) — T178 §3 measured. Both populations are empty, and that is NOT the answer.
+
+Ran the two counts you asked for before VLL is handed anything. Replayed through the **real engine** rather
+than parsing the logs, because the question is about LIVE objects and a hand-rolled count would have to
+re-implement tombstones and LWW — a wrong number here is worse than no number. Read-only, against a copy
+(the store is single-writer and :8080 is serving).
+
+```
+songs replayed       : 28
+LIVE objects         : 517        (only these are ever baked)
+
+population 1 — z-order
+  non-default Order  : 0 / 517
+  carrying CreatedAt : 506 / 517
+population 2 — stylus pressure
+  points             : 1062
+  with real Pressure : 0
+```
+
+**Population 2 is genuinely empty and genuinely trivial**, exactly as you guessed: not one mark in his
+library carries a recorded pressure, so ink's simulation already IS what he sees. Carrying the field
+changes nothing he reads. That question does not need to reach him at all.
+
+### Population 1 is empty and the defect still bites — the count was the wrong question
+
+`Order` is 0 everywhere, so by the task's own framing the z-order fix "changes nothing he can see". **That
+conclusion is wrong, and the number that shows it is the one sitting next to it: 506 of 517 carry
+`CreatedAt`.**
+
+`render.ts`'s `objectZ` sorts `order → createdAt → uuid`, faithfully mirroring studio's contract. But core
+sends it **neither** of the first two — so both read 0 in the baker and the comparator falls **all the way
+through to UUID**. Studio, holding the real values, sorts by drawing time.
+
+So the baked page does not merely lose a bring-to-front nobody used. **It stacks by a random identifier
+where the screen stacks by drawing order**, and it does that on every page with more than one mark.
+
+Measured, same replay:
+
+```
+(layer,page) groups the two sorts disagree about : 114
+songs affected                                   : 15
+OVERLAPPING pairs they disagree about            :  3   <- the ones that can LOOK different
+    line vs line  page 2  overlap 0.023 x 0.001
+    line vs line  page 6  overlap 0.069 x 0.025
+    line vs line  page 3  overlap 0.015 x 0.000
+```
+
+With a positive control, because a difference-detector that always fires proves nothing: giving the baker
+studio's sort drops both counts to **0/0**; the real configuration gives **114/3**. It discriminates.
+
+### What this makes the decision
+
+**Small, and easy — but for a different reason than "the population is empty".** 114 groups are re-stacked
+on his real library today; only 3 of those re-stackings involve marks that overlap at all, all three are
+line-on-line crossings, and the largest is 0.069 × 0.025 of a page. So:
+
+- fixing it is **correctness he will not notice**, which is the cheapest possible version of this decision;
+- leaving it means the **next** overlapping pair he draws is a coin toss between screen and stand — and the
+  failure is invisible in Studio, where it always looks right.
+
+I would put it to him as one sentence, not three questions: *"your baked pages stack overlapping marks by
+an internal id instead of the order you drew them; fixing it changes three crossings in your whole
+library."* Pressure I would not ask about at all — just carry the field with the fix, since it demonstrably
+changes nothing.
+
+**The before/after render (§3's third ask) I have not done.** The three affected overlaps are a few pixels
+across, so a page screenshot would show nothing legible and would be false comfort rather than evidence. If
+you want visual proof I would rather render a **synthetic** crossing pair both ways, where the difference is
+actually visible, and say plainly that it is synthetic.
+
+**The measurement tool is not committed** — it is a one-off diagnostic, and `cmd/` is not a junk drawer.
+Say the word and I will land it with a test; otherwise the numbers above are the deliverable and the tool
+goes away with the worktree.
+
+### Correcting my own T177 gate entry
+
+I wrote there that the three dropped fields are "recorded as DEFECT skips" and implied the z-order one was
+latent. It is not latent — it is **active on 15 of his songs right now**. The skip entry in
+`annotations_fields_test.go` says "a Studio bring-to-front is absent from the bake", which is true and
+incomplete: the larger half is that the fallback ordering is not drawing order either. I will correct that
+comment in whatever commit fixes it, rather than editing it in isolation now.
+
+— web-core
