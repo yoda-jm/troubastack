@@ -121,6 +121,57 @@ type Style struct {
 	Fill     *bool  // paint interior (rect/ellipse); nil = infer from type
 	Stroke   *bool  // draw border (rect/ellipse); nil = infer from type
 	Blend    string // "" | "normal" | "multiply"
+
+	// Dash (T177) is the line PATTERN: it applies to a line, and to the BORDER of a rect/ellipse
+	// wherever Stroke is on. A small NAMED set, not a dash-array — a musician picks a look, and an open
+	// numeric array is a migration surface and a place for the editor and the baker to differ (Fable,
+	// T177 D2). "" means solid, which is exactly what every object drawn before T177 renders as.
+	//
+	// A plain string rather than a pointer, and that is not the T172 sentinel trap: the trap is an
+	// IN-BAND value ("0 = none") inside a payload whose zero is legitimate. "" is not a member of this
+	// set, so it discriminates without overloading anything — the same shape as Blend above.
+	Dash string // "" | "solid" | "dashed" | "dotted"
+
+	// Ends (T177) decorates a straight LINE's extremities. Absent = an undecorated line, which is every
+	// line drawn before T177. Presence is STRUCTURAL (T172's rule), and the two facts live in ONE record
+	// precisely so they cannot disagree: there is no way to express "at both ends" with nothing to put
+	// there, or "an arrow" with no side to put it on.
+	Ends *LineEnds
+}
+
+// LineEnds is the decoration on a straight line's ends: WHAT is drawn and WHERE.
+//
+// A present LineEnds always decorates something — an empty Head means the DEFAULT head (an arrow), the
+// way an empty Blend means "normal". An UNRECOGNISED head is different and renders nothing: a newer
+// client naming a head this renderer does not have should draw no head rather than silently draw an
+// arrow, because a wrong mark on a chart reads as a musical instruction.
+//
+// The geometry is NOT here. How big an arrowhead is, and what it does on a line shorter than itself, is
+// a renderer fact that must be identical in the editor and in the bake, so it is pinned once in
+// web/ink (T177 D3) and every consumer inherits it.
+type LineEnds struct {
+	Head string // "" | "arrow" ("" = arrow, the default head)
+	Side string // "" | "start" | "end" | "both" ("" = end)
+}
+
+// Clone deep-copies a Style INCLUDING its pointer members, so a copy cannot be used to mutate stored
+// state. Fill/Stroke have been aliased by every `cp := o` since they were added; nothing mutates through
+// them today, which is exactly why it went unnoticed, and Ends makes the hole one member wider.
+func (s Style) Clone() Style {
+	cp := s
+	if s.Fill != nil {
+		f := *s.Fill
+		cp.Fill = &f
+	}
+	if s.Stroke != nil {
+		st := *s.Stroke
+		cp.Stroke = &st
+	}
+	if s.Ends != nil {
+		e := *s.Ends
+		cp.Ends = &e
+	}
+	return cp
 }
 
 // SourceAnchor pins an annotation to the SOURCE text it was drawn on, not to one render's coordinates
@@ -242,6 +293,7 @@ func (o Object) Clone() Object {
 	if o.Anchor != nil { // deep-copy so callers cannot mutate stored state through the pointer
 		cp.Anchor = o.Anchor.Clone()
 	}
+	cp.Style = o.Style.Clone() // Style carries pointers too (Fill/Stroke, and T177's Ends)
 	return cp
 }
 

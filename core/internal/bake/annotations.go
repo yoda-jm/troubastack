@@ -23,6 +23,15 @@ type docStyle struct {
 	Fill     *bool   `json:"fill,omitempty"`
 	Stroke   *bool   `json:"stroke,omitempty"`
 	Blend    string  `json:"blend,omitempty"`
+	// T177. The bake doc is the FIFTH hand-written Style mirror and the one the musician actually
+	// reads: whatever is dropped here is missing from the page on the stand, not from a wire.
+	Dash string   `json:"dash,omitempty"`
+	Ends *docEnds `json:"ends,omitempty"`
+}
+
+type docEnds struct {
+	Head string `json:"head,omitempty"`
+	Side string `json:"side,omitempty"`
 }
 
 type docObject struct {
@@ -136,8 +145,17 @@ func snapshotToDoc(snap domain.Snapshot, fileID string, anchors []chartpdf.Ancho
 				Fill:     o.Style.Fill,
 				Stroke:   o.Style.Stroke,
 				Blend:    o.Style.Blend,
+				Dash:     o.Style.Dash,
+				Ends:     docEndsOf(o.Style.Ends),
 			},
 		})
 	}
 	return doc
+}
+
+func docEndsOf(e *domain.LineEnds) *docEnds {
+	if e == nil {
+		return nil
+	}
+	return &docEnds{Head: e.Head, Side: e.Side}
 }

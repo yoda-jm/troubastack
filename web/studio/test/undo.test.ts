@@ -46,6 +46,41 @@ describe("objectContentEqual", () => {
     expect(objectContentEqual(obj(), obj({ points: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.9 }] }))).toBe(false);
     expect(objectContentEqual(obj(), obj({ style: { color: "#000", opacity: 1, width: 0.004, fontSize: 16 } }))).toBe(false);
   });
+
+  // T177. The style comparison is a hand-written field list, and a field missing from it does not read as
+  // "equal by accident" — it makes a real restyle INVISIBLE: undo coalesces it away, and the rule-2 guard
+  // below says a bandmate's dash change never happened.
+  it("sees a dash-only restyle", () => {
+    const base = obj();
+    expect(objectContentEqual(base, obj({ style: { ...base.style, dash: "dashed" } }))).toBe(false);
+    expect(
+      objectContentEqual(
+        obj({ style: { ...base.style, dash: "dashed" } }),
+        obj({ style: { ...base.style, dash: "dotted" } }),
+      ),
+    ).toBe(false);
+  });
+
+  it("sees an ends-only restyle, and compares the record by VALUE not identity", () => {
+    const base = obj({ type: "line" });
+    const arrowEnd = { ...base.style, ends: { head: "arrow" as const, side: "end" as const } };
+    expect(objectContentEqual(base, obj({ type: "line", style: arrowEnd }))).toBe(false);
+    // Same decoration, a different object: a `===` on the nested record would call these different and
+    // every reload would look like a bandmate's edit.
+    expect(
+      objectContentEqual(
+        obj({ type: "line", style: arrowEnd }),
+        obj({ type: "line", style: { ...base.style, ends: { head: "arrow", side: "end" } } }),
+      ),
+    ).toBe(true);
+    // Moving the head from one end to the other IS a change.
+    expect(
+      objectContentEqual(
+        obj({ type: "line", style: arrowEnd }),
+        obj({ type: "line", style: { ...base.style, ends: { head: "arrow", side: "start" } } }),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("planUndo — create", () => {

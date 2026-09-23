@@ -80,17 +80,24 @@ const PRESET_BUTTONS: { id: PresetId; label: string; title: string; testid: stri
  * `style-fill` / `style-stroke` / `style-blend` / `style-color-value` testids moved
  * here unchanged. Shape-only controls are gated by `showShape` (hidden for text/none),
  * mirroring the inline slots' reserve-then-hide.
+ *
+ * T177 adds Line (dash) and Ends (arrowhead) on the same terms: a dash belongs to
+ * anything with a border, an end decoration only to a straight line.
  */
 function StyleMore({
   style,
   onStyle,
   disabled,
   showShape,
+  showDash,
+  showEnds,
 }: {
   style: AnnotationStyle;
   onStyle: (s: AnnotationStyle) => void;
   disabled: boolean;
   showShape: boolean;
+  showDash: boolean;
+  showEnds: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // The popover is `position: fixed` with JS-measured coords: the ctx bar's
@@ -142,7 +149,7 @@ function StyleMore({
         data-testid="style-more"
         aria-label="More style options"
         aria-expanded={open}
-        title="Fill, border, blend, hex"
+        title="Fill, border, blend, line, ends, hex"
         disabled={disabled}
         ref={btnRef}
         onClick={() => setOpen((o) => !o)}
@@ -194,6 +201,53 @@ function StyleMore({
                 </select>
               </label>
             </>
+          )}
+          {showDash && (
+            <label className="style-field">
+              <span>Line</span>
+              <select
+                data-testid="style-dash"
+                value={style.dash ?? "solid"}
+                disabled={disabled}
+                onChange={(e) => {
+                  const d = e.target.value as "solid" | "dashed" | "dotted";
+                  // Solid is written as ABSENT, not as the word: an object nobody has
+                  // restyled must stay byte-identical to what it was before T177.
+                  const next = { ...style };
+                  if (d === "solid") delete next.dash;
+                  else next.dash = d;
+                  onStyle(next);
+                }}
+              >
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+              </select>
+            </label>
+          )}
+          {showEnds && (
+            <label className="style-field">
+              <span>Ends</span>
+              <select
+                data-testid="style-ends"
+                value={style.ends ? (style.ends.side ?? "end") : "none"}
+                disabled={disabled}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const next = { ...style };
+                  // "None" is the ABSENT record, never a present one with nothing in it:
+                  // a decoration that exists and decorates nothing is a state to not have.
+                  if (v === "none") delete next.ends;
+                  else next.ends = { head: "arrow", side: v as "start" | "end" | "both" };
+                  onStyle(next);
+                }}
+              >
+                <option value="none">None</option>
+                <option value="start">Arrow at start</option>
+                <option value="end">Arrow at end</option>
+                <option value="both">Arrows both ends</option>
+              </select>
+            </label>
           )}
           <label className="style-field">
             <span>Hex</span>
@@ -621,6 +675,12 @@ export function EditorToolbar({
       const showWidth = neutral || controls.includes("width");
       const showShape = neutral || controls.includes("shapePreset");
       const showFont = neutral || controls.includes("textSize");
+      // T177. NOT `neutral || …`: the neutral baseline shows every slot so that picking up
+      // a selection only ever hides slots — but these two live inside the ⋯ popover, which
+      // has no fixed footprint to protect, and offering "Arrow at start" with no line in
+      // hand is an offer that does nothing.
+      const showDash = controls.includes("dash");
+      const showEnds = controls.includes("lineEnds");
       const slot = (on: boolean) => `style-field${on ? "" : " style-slot-off"}`;
       return (
       <div
@@ -790,7 +850,14 @@ export function EditorToolbar({
         </label>
         {/* ⋯ overflow: fill / border / blend / hex (#5). Always present (fixed
             footprint → no shift); shape-only controls gated inside by showShape. */}
-        <StyleMore style={style} onStyle={onStyle} disabled={disabled} showShape={showShape} />
+        <StyleMore
+          style={style}
+          onStyle={onStyle}
+          disabled={disabled}
+          showShape={showShape}
+          showDash={showDash}
+          showEnds={showEnds}
+        />
       </div>
       );
       })();

@@ -35,7 +35,11 @@ export type StyleControl =
   | "shapePreset"
   | "fillBorder"
   | "blend"
-  | "textSize";
+  | "textSize"
+  // T177: "dash" is the line PATTERN (a line, and a rect/ellipse border); "lineEnds" is the
+  // arrowhead, which only a straight line can carry.
+  | "dash"
+  | "lineEnds";
 
 /** Toolbar presence for a drawable type. Absent → render-only (legacy highlight). */
 export interface ToolDef {

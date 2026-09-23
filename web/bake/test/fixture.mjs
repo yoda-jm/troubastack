@@ -1,6 +1,12 @@
 // The I8 parity fixture: one page whose two layers exercise every built-in
 // annotation type — freehand (with pressure), line, rect+fill (the fill+stroke
 // "box" composite path), ellipse (stroke-only), text, and legacy highlight.
+//
+// T177 adds the line STYLES, and they belong here rather than in a test of their own: a dash is a
+// pattern the two Skia builds each lay out themselves, and an arrowhead is geometry each computes from
+// the stroke width, so "the same in the editor and in the bake" is exactly the claim this file's test
+// makes and nothing weaker proves. Both the DIRECT stroke path and the fill+stroke offscreen composite
+// are covered, because the dash is set on two different contexts and only one of them is obvious.
 // All coordinates are page-relative [0,1] (I3); this is the exact shape the
 // annotations API returns and studio consumes.
 
@@ -57,6 +63,86 @@ export const fixture = {
         page: 0,
         points: [{ x: 0.1, y: 0.62 }, { x: 0.5, y: 0.66 }],
         style: { color: "#fbbc04", opacity: 0.5, width: 0, fontSize: 0 },
+      },
+      // T177 — dashed border, stroke-only (the direct paint path)
+      {
+        type: "rect",
+        layerId: "L1",
+        page: 0,
+        points: [{ x: 0.06, y: 0.74 }, { x: 0.40, y: 0.80 }],
+        style: { color: "#0b8043", opacity: 1, width: 0.005, fontSize: 0, dash: "dashed" },
+      },
+      // T177 — a dashed border on a FILLED box. The dash is invisible here by construction (fill and
+      // border share one colour and the border is inset inside the fill — see line-style.test.mjs), so
+      // this is not here to show a pattern: it is here because the fill+stroke path composites on a
+      // SECOND, offscreen context, and the two builds must still agree pixel-for-pixel on it.
+      {
+        type: "rect",
+        layerId: "L1",
+        page: 0,
+        points: [{ x: 0.44, y: 0.74 }, { x: 0.58, y: 0.80 }],
+        style: {
+          color: "#3f51b5",
+          opacity: 0.8,
+          width: 0.006,
+          fontSize: 0,
+          fill: true,
+          stroke: true,
+          dash: "dashed",
+        },
+      },
+      // T177 — dotted ellipse (a zero-length dash + the round cap = a round dot)
+      {
+        type: "ellipse",
+        layerId: "L2",
+        page: 0,
+        points: [{ x: 0.62, y: 0.73 }, { x: 0.92, y: 0.86 }],
+        style: { color: "#c5221f", opacity: 1, width: 0.006, fontSize: 0, dash: "dotted" },
+      },
+      // T177 — a dashed line with an arrowhead at its far end
+      {
+        type: "line",
+        layerId: "L1",
+        page: 0,
+        points: [{ x: 0.08, y: 0.91 }, { x: 0.52, y: 0.91 }],
+        style: {
+          color: "#e8710a",
+          opacity: 1,
+          width: 0.006,
+          fontSize: 0,
+          dash: "dashed",
+          ends: { head: "arrow", side: "end" },
+        },
+      },
+      // T177 — arrows at BOTH ends, on a line SHORTER than one nominal head: the clamp must produce
+      // the same two small arrows in both renderers, not one renderer's overshoot.
+      {
+        type: "line",
+        layerId: "L2",
+        page: 0,
+        points: [{ x: 0.60, y: 0.91 }, { x: 0.62, y: 0.91 }],
+        style: {
+          color: "#1967d2",
+          opacity: 1,
+          width: 0.006,
+          fontSize: 0,
+          ends: { head: "arrow", side: "both" },
+        },
+      },
+      // T177 — a ZERO-LENGTH line with ends asked for: no direction, so no head. It must draw the dot
+      // the tap made and raise nothing, in both renderers.
+      {
+        type: "line",
+        layerId: "L2",
+        page: 0,
+        points: [{ x: 0.70, y: 0.91 }, { x: 0.70, y: 0.91 }],
+        style: {
+          color: "#5f6368",
+          opacity: 1,
+          width: 0.008,
+          fontSize: 0,
+          ends: { head: "arrow", side: "both" },
+        },
       },
       // text
       {

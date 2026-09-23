@@ -297,6 +297,12 @@ export type AnnotationStyle = {
   fill?: boolean;
   stroke?: boolean;
   blend?: "normal" | "multiply";
+  // T177 line style. `dash` applies to a line and to a rect/ellipse BORDER; `ends`
+  // decorates a straight line's extremities and is absent on everything else. Both
+  // absent = exactly what was drawn before T177. The renderer's view of these lives in
+  // ink (InkDash/InkEnds) — this is the wire's.
+  dash?: "solid" | "dashed" | "dotted";
+  ends?: { head?: "arrow"; side?: "start" | "end" | "both" };
 };
 
 export type AnnotationObject = {

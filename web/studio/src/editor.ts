@@ -865,8 +865,19 @@ function styleEqual(a: AnnotationStyle, b: AnnotationStyle): boolean {
     a.fontSize === b.fontSize &&
     (a.fill ?? undefined) === (b.fill ?? undefined) &&
     (a.stroke ?? undefined) === (b.stroke ?? undefined) &&
-    (a.blend ?? undefined) === (b.blend ?? undefined)
+    (a.blend ?? undefined) === (b.blend ?? undefined) &&
+    // T177: without these two, a dash- or arrow-only restyle reads as "nothing changed" —
+    // it would coalesce away in undo and pass the T161 "did a bandmate touch this?" guard.
+    (a.dash ?? undefined) === (b.dash ?? undefined) &&
+    endsEqual(a.ends, b.ends)
   );
+}
+
+/** T177 end decorations compare by VALUE: they are a nested optional, so `===` would
+ *  compare object identity and call every round-tripped style different. */
+function endsEqual(a: AnnotationStyle["ends"], b: AnnotationStyle["ends"]): boolean {
+  if (!a || !b) return !a === !b;
+  return (a.head ?? "") === (b.head ?? "") && (a.side ?? "") === (b.side ?? "");
 }
 
 /** Compare the USER-controlled content of two objects — everything the inverse would restore, and nothing

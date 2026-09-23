@@ -225,6 +225,15 @@ type v2Style struct {
 	Fill     *bool   `json:"fill,omitempty"`
 	Stroke   *bool   `json:"stroke,omitempty"`
 	Blend    string  `json:"blend,omitempty"`
+	// T177. A .tband written before this carries neither key, and reads back as a solid,
+	// undecorated object — which is what it was.
+	Dash string  `json:"dash,omitempty"`
+	Ends *v2Ends `json:"ends,omitempty"`
+}
+
+type v2Ends struct {
+	Head string `json:"head,omitempty"`
+	Side string `json:"side,omitempty"`
 }
 
 type v2CuesFile struct {
@@ -349,7 +358,11 @@ func marshalV2(man bandManifest, getBlob func(string) ([]byte, error)) (map[stri
 				Style: v2Style{
 					Color: o.Style.Color, Opacity: o.Style.Opacity, Width: o.Style.Width,
 					FontSize: o.Style.FontSize, Fill: o.Style.Fill, Stroke: o.Style.Stroke, Blend: o.Style.Blend,
+					Dash: o.Style.Dash,
 				},
+			}
+			if e := o.Style.Ends; e != nil {
+				vo.Style.Ends = &v2Ends{Head: e.Head, Side: e.Side}
 			}
 			if a := o.Anchor; a != nil {
 				vo.Anchor = &v2Anchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}
@@ -598,7 +611,11 @@ func parseV2(entries map[string][]byte) (bandManifest, map[string][]byte, error)
 				Style: domain.Style{
 					Color: vo.Style.Color, Opacity: vo.Style.Opacity, Width: vo.Style.Width,
 					FontSize: vo.Style.FontSize, Fill: vo.Style.Fill, Stroke: vo.Style.Stroke, Blend: vo.Style.Blend,
+					Dash: vo.Style.Dash,
 				},
+			}
+			if e := vo.Style.Ends; e != nil {
+				o.Style.Ends = &domain.LineEnds{Head: e.Head, Side: e.Side}
 			}
 			if a := vo.Anchor; a != nil {
 				o.Anchor = &domain.SourceAnchor{RunText: a.RunText, Occurrence: a.Occurrence, CharStart: a.CharStart, CharEnd: a.CharEnd}

@@ -18,7 +18,7 @@ export const lineDescriptor: AnnotationTypeDescriptor = {
   type: "line",
   tool: { id: "line", label: "Line", icon, cursorClass: "tool-line" },
   draw: drawLine,
-  styleControls: ["color", "opacity", "width"],
+  styleControls: ["color", "opacity", "width", "dash", "lineEnds"],
   pointsForGesture: pointsStartEnd,
   isMeaningfulGesture: meaningfulSpan,
   bbox: (obj) => genericBBox(obj),

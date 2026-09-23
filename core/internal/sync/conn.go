@@ -76,6 +76,15 @@ type styleJSON struct {
 	Fill     *bool   `json:"fill,omitempty"`
 	Stroke   *bool   `json:"stroke,omitempty"`
 	Blend    string  `json:"blend,omitempty"`
+	// T177 line style. Same shape as the REST DTO: a named dash, and a nested optional for the
+	// line-end decoration so "what" and "where" cannot arrive apart.
+	Dash string    `json:"dash,omitempty"`
+	Ends *endsJSON `json:"ends,omitempty"`
+}
+
+type endsJSON struct {
+	Head string `json:"head,omitempty"`
+	Side string `json:"side,omitempty"`
 }
 
 type layerJSON struct {

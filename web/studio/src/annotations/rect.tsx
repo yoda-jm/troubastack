@@ -18,7 +18,7 @@ export const rectDescriptor: AnnotationTypeDescriptor = {
   type: "rect",
   tool: { id: "rect", label: "Rect", icon, cursorClass: "tool-rect" },
   draw: drawRect,
-  styleControls: ["color", "opacity", "width", "shapePreset", "fillBorder", "blend"],
+  styleControls: ["color", "opacity", "width", "shapePreset", "fillBorder", "blend", "dash"],
   pointsForGesture: pointsStartEnd,
   isMeaningfulGesture: meaningfulSpan,
   bbox: (obj) => genericBBox(obj),

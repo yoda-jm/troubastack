@@ -57,6 +57,15 @@ type styleJSON struct {
 	Fill     *bool   `json:"fill,omitempty"`   // rect/ellipse interior; absent = infer
 	Stroke   *bool   `json:"stroke,omitempty"` // rect/ellipse border; absent = infer
 	Blend    string  `json:"blend,omitempty"`  // ""|"normal"|"multiply"
+	// T177. dash: ""|"solid"|"dashed"|"dotted" — omitempty keeps a solid object byte-identical to
+	// before. ends: the line-end decoration, a nested optional so its two members cannot disagree.
+	Dash string    `json:"dash,omitempty"`
+	Ends *endsJSON `json:"ends,omitempty"`
+}
+
+type endsJSON struct {
+	Head string `json:"head,omitempty"` // ""|"arrow"
+	Side string `json:"side,omitempty"` // ""|"start"|"end"|"both"
 }
 
 type layerJSON struct {
@@ -391,11 +400,27 @@ func objectToJSON(o domain.Object) objectJSON {
 			Fill:     o.Style.Fill,
 			Stroke:   o.Style.Stroke,
 			Blend:    o.Style.Blend,
+			Dash:     o.Style.Dash,
+			Ends:     endsToJSON(o.Style.Ends),
 		},
 		Anchor:           anchorToJSON(o.Anchor),
 		PointsRenderHash: o.PointsRenderHash,
 		JumpTo:           o.JumpTo,
 	}
+}
+
+func endsToJSON(e *domain.LineEnds) *endsJSON {
+	if e == nil {
+		return nil
+	}
+	return &endsJSON{Head: e.Head, Side: e.Side}
+}
+
+func endsFromJSON(e *endsJSON) *domain.LineEnds {
+	if e == nil {
+		return nil
+	}
+	return &domain.LineEnds{Head: e.Head, Side: e.Side}
 }
 
 func anchorToJSON(a *domain.SourceAnchor) *anchorJSON {
@@ -448,6 +473,8 @@ func objectFromJSON(j objectJSON) domain.Object {
 			Fill:     j.Style.Fill,
 			Stroke:   j.Style.Stroke,
 			Blend:    j.Style.Blend,
+			Dash:     j.Style.Dash,
+			Ends:     endsFromJSON(j.Style.Ends),
 		},
 		Anchor:           anchorFromJSON(j.Anchor),
 		PointsRenderHash: j.PointsRenderHash,

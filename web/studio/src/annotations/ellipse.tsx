@@ -18,7 +18,7 @@ export const ellipseDescriptor: AnnotationTypeDescriptor = {
   type: "ellipse",
   tool: { id: "ellipse", label: "Ellipse", icon, cursorClass: "tool-ellipse" },
   draw: drawEllipse,
-  styleControls: ["color", "opacity", "width", "shapePreset", "fillBorder", "blend"],
+  styleControls: ["color", "opacity", "width", "shapePreset", "fillBorder", "blend", "dash"],
   pointsForGesture: pointsStartEnd,
   isMeaningfulGesture: meaningfulSpan,
   bbox: (obj) => genericBBox(obj),

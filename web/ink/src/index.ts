@@ -55,6 +55,26 @@ export interface InkStyle {
   stroke?: boolean;
   /** Compositing for the fill: "multiply" blends like a highlighter. */
   blend?: "normal" | "multiply";
+  /** T177 line pattern: applies to a `line` and to the BORDER of a rect/ellipse.
+   *  Absent (or "solid") is exactly what every object drawn before T177 renders as. */
+  dash?: InkDash;
+  /** T177 end decoration — straight `line` only. Absent = an undecorated line. */
+  ends?: InkEnds;
+}
+
+/** The closed set of line patterns (T177 D2). Deliberately NOT a dash-array: the
+ *  editor and the baker rasterize at different pixel sizes, and an open numeric array
+ *  is where the two would start to differ. */
+export type InkDash = "solid" | "dashed" | "dotted";
+
+/** The decoration on a straight line's ends: WHAT and WHERE, in one record so they
+ *  cannot disagree. An empty `head` means the default head (an arrow), the way an
+ *  empty blend means "normal"; an UNRECOGNISED head draws nothing (a newer client's
+ *  head must not silently render as an arrow — a wrong mark on a chart reads as a
+ *  musical instruction). */
+export interface InkEnds {
+  head?: string;
+  side?: "start" | "end" | "both";
 }
 
 // The wire object-type set is GENERATED from proto ObjectType (objecttype.gen.ts, T09)
@@ -116,6 +136,113 @@ export function toPx(p: InkPoint, page: PageRect): [number, number] {
 export function strokePx(style: InkStyle, page: PageRect): number {
   // Guard a sane minimum so a hairline never disappears.
   return Math.max(0.5, style.width * page.w);
+}
+
+// ---------------------------------------------------------------------------
+// T177 — line pattern + end decorations
+//
+// Both are expressed in STROKE WIDTHS, never in page units or raw pixels. The bake
+// rasterizes a page at a different pixel size from the editor's canvas, so a dash
+// measured in px would be a different-looking dash on the stand than on the screen —
+// and an arrowhead measured against the page would grow when the page did. Widths are
+// the one frame both renderers already agree on (D3: pin it here, once).
+// ---------------------------------------------------------------------------
+
+/** Dash period in stroke widths: [on, off]. Round caps (set by renderObject) turn the
+ *  zero-length "on" of a dot into a round dot of exactly the stroke's diameter. */
+const DASH_UNITS: Record<InkDash, number[]> = {
+  solid: [],
+  dashed: [3, 2],
+  dotted: [0, 2],
+};
+
+/** Arrowhead length along the shaft, in stroke widths. */
+export const ARROW_HEAD_LEN_W = 3.2;
+/** Arrowhead half-width across the shaft, in stroke widths (≈50° included angle). */
+export const ARROW_HEAD_HALF_W = 1.5;
+
+/** The dash this style asks for, normalized. An unknown name reads as solid — the
+ *  same "draw what you understand, nothing more" rule the heads follow. */
+export function dashKind(style: InkStyle): InkDash {
+  const d = style.dash;
+  return d === "dashed" || d === "dotted" ? d : "solid";
+}
+
+/** The `setLineDash` array in device px for a style, given its stroke width.
+ *  Empty = solid. Pure; exported for unit tests. */
+export function dashArray(style: InkStyle, widthPx: number): number[] {
+  return DASH_UNITS[dashKind(style)].map((u) => u * widthPx);
+}
+
+/** The end decoration to draw, or null for none. Null when there is no `ends`, when the
+ *  head is one this renderer does not know, or when the object is not a straight line —
+ *  `ends` on a rect has no meaning and must not invent one. */
+export function endsSpec(obj: InkObject): { side: "start" | "end" | "both" } | null {
+  const e = obj.style.ends;
+  if (!e || obj.type !== "line") return null;
+  const head = e.head ?? "";
+  if (head !== "" && head !== "arrow") return null; // a head from a newer client
+  const side = e.side ?? "end";
+  if (side !== "start" && side !== "end" && side !== "both") return null;
+  return { side };
+}
+
+/** One arrowhead as the triangle to fill: the tip, and the two base corners. */
+export type ArrowHead = { tip: [number, number]; left: [number, number]; right: [number, number] };
+
+/**
+ * The arrowhead triangles for a line, in device px. PURE — this is the geometry D3 asks
+ * to be pinned once, so studio, the bake and any future consumer inherit the same answer,
+ * including at the two degenerate ends of the range:
+ *
+ *  - A ZERO-LENGTH line has no direction, so it gets no head at all. (The shaft still
+ *    draws: a round cap on a zero-length line is the dot the user tapped.)
+ *  - A line SHORTER than its own head — what a stray tap makes — keeps the head's shape
+ *    but shrinks it to the length available, splitting that budget when both ends are
+ *    decorated. So a head is never longer than the line carrying it, and two heads on a
+ *    short line never swallow each other.
+ */
+export function arrowHeads(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  widthPx: number,
+  side: "start" | "end" | "both",
+): ArrowHead[] {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return []; // no direction → no head
+  const ux = dx / len;
+  const uy = dy / len;
+
+  const count = side === "both" ? 2 : 1;
+  const nominal = ARROW_HEAD_LEN_W * widthPx;
+  const headLen = Math.min(nominal, len / count);
+  // Shrink the head as a WHOLE (length and width together) so a clamped head is a
+  // smaller arrow, not a needle.
+  const shrink = nominal === 0 ? 0 : headLen / nominal;
+  const half = ARROW_HEAD_HALF_W * widthPx * shrink;
+
+  const head = (tipX: number, tipY: number, dirX: number, dirY: number): ArrowHead => {
+    // Base centre is `headLen` back along the shaft from the tip; the corners sit
+    // `half` either side, perpendicular.
+    const cx = tipX - dirX * headLen;
+    const cy = tipY - dirY * headLen;
+    const px = -dirY;
+    const py = dirX;
+    return {
+      tip: [tipX, tipY],
+      left: [cx + px * half, cy + py * half],
+      right: [cx - px * half, cy - py * half],
+    };
+  };
+
+  const out: ArrowHead[] = [];
+  if (side === "end" || side === "both") out.push(head(bx, by, ux, uy));
+  if (side === "start" || side === "both") out.push(head(ax, ay, -ux, -uy));
+  return out;
 }
 
 /** Font size in device px: style.fontSize is a fraction of the page height. */
@@ -221,12 +348,32 @@ export function drawLine(ctx: Ctx2D, obj: InkObject, page: PageRect): void {
   if (!a || !b) return;
   const [ax, ay] = toPx(a, page);
   const [bx, by] = toPx(b, page);
+  const w = strokePx(obj.style, page);
+
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   ctx.lineTo(bx, by);
-  ctx.lineWidth = strokePx(obj.style, page);
+  ctx.lineWidth = w;
   ctx.strokeStyle = obj.style.color;
+  ctx.setLineDash(dashArray(obj.style, w));
   ctx.stroke();
+
+  const ends = endsSpec(obj);
+  if (!ends) return;
+  // The head is FILLED, not stroked: at a chart's stroke widths an outlined head
+  // doubles its own weight and its joins alias, while a filled triangle matches the
+  // shaft's darkness exactly. It is also drawn undashed — a dashed arrowhead is a
+  // pattern artifact, not a look anyone picks.
+  ctx.setLineDash([]);
+  ctx.fillStyle = obj.style.color;
+  for (const h of arrowHeads(ax, ay, bx, by, w, ends.side)) {
+    ctx.beginPath();
+    ctx.moveTo(h.tip[0], h.tip[1]);
+    ctx.lineTo(h.left[0], h.left[1]);
+    ctx.lineTo(h.right[0], h.right[1]);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
 /** Normalize a two-point bbox into top-left + width/height (handles any order). */
@@ -403,6 +550,7 @@ function paintShape(ctx: Ctx2D, obj: InkObject, page: PageRect, geom: ShapeGeom)
       o.fill();
       o.lineWidth = lineWidth;
       o.strokeStyle = color;
+      o.setLineDash(dashArray(obj.style, lineWidth));
       geom.strokePath(o, lineWidth);
       o.stroke();
       o.restore();
@@ -433,6 +581,7 @@ function paintShape(ctx: Ctx2D, obj: InkObject, page: PageRect, geom: ShapeGeom)
   if (stroke) {
     ctx.lineWidth = lineWidth;
     ctx.strokeStyle = color;
+    ctx.setLineDash(dashArray(obj.style, lineWidth));
     // Inset the border so the centered stroke stays inside the bbox.
     geom.strokePath(ctx, lineWidth);
     ctx.stroke();
