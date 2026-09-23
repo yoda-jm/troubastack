@@ -361,7 +361,9 @@ type Pin struct {
 
 // Song has one linear, append-only history; Head is the latest revision number.
 type Song struct {
-	ID      string
+	ID string
+	// GroupID is the BAND id, spelled as the proto field it mirrors (`group_id`, frozen by I1). Every
+	// surface a person reads says "band"; only the wire and this mirror of it say "group" (glossary D2).
 	GroupID string
 	Title   string
 	Head    uint64

@@ -38,12 +38,12 @@ sets up the server, makes accounts happen, and gets everyone in.
 **Validated today:**
 - Register / login / logout / password change — `POST /api/auth/*`, `/api/me/password`
   (session cookies; hardened storage on mobile since B03).
-- Create the band; **role model** (admin/member) with real teeth — admin gates on
+- Create the band; **membership role** (admin / conductor / member) with real teeth — admin gates on
   import (T08), bake (B02), verified by endpoint auth tests.
 - **Invites both ways**: direct invites (create/list/delete/accept/decline) and
   shareable **invite links** — the realistic "paste it in the band WhatsApp" path.
 - Full member lifecycle: list, role change (`PATCH members/{userId}`), removal
-  (`DELETE`), voluntary leave. Multi-band per user works (Anya's two groups, seeded
+  (`DELETE`), voluntary leave. Multi-band per user works (Anya's two bands, seeded
   and exercised daily by the demo).
 
 **Gaps:**
@@ -175,7 +175,7 @@ surprises: page turns, role-appropriate layers, and nothing else.
   performs locally-imported bundles with zero server dependency, never-crash loader
   contract (torture-fixture tested), missing blob ⇒ placeholder page not a crash.
 - Screen **stays awake** on both platforms (Android `FLAG_KEEP_SCREEN_ON`, iOS IOS04).
-- Role-based layer defaults + manual Layers toggles; fit page/width; song-jump; the
+- Role-based layer defaults + manual Layers toggles; reading mode Page / Width; song-jump; the
   4-song demo performing on a **portrait Pixel Tablet** is pixel-documented in the
   README.
 - Works on **iOS** too — simulator-proven with real Stage pixels (IOS02); real-device

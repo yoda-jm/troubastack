@@ -19,6 +19,8 @@ message Revision {
 
 message Song {
   string id = 1;
+  // group_id IS the band id. The wire name predates the word "band" and is frozen by I1 — renaming a
+  // field on a published wire buys a consistent spelling and costs every deployed client (glossary D2).
   string group_id = 2;
   string title = 3;
   uint64 head = 4;            // latest revision number (always retained, I7)
@@ -33,7 +35,7 @@ message SetlistPin {
 
 message Setlist {
   string id = 1;
-  string group_id = 2;
+  string group_id = 2;   // the band id; see Song.group_id (glossary D2)
   string name = 3;
   repeated string ordered_song_ids = 4; // structure (order)
   repeated SetlistPin pins = 5;

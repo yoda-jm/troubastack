@@ -726,8 +726,8 @@ func (b *Baker) stageFile(ctx context.Context, si, fi int, bandID string, actor 
 	ownerByLayer := map[string]string{}
 	for _, l := range snap.Layers {
 		nameByLayer[l.ID] = l.Name
-		if l.OwnerID != domain.SharedOwner { // "" = band/shared; a member id = personal
-			ownerByLayer[l.ID] = l.OwnerID
+		if o := bakedOwner(l); o != "" {
+			ownerByLayer[l.ID] = o
 		}
 	}
 	sf := stagedFile{fileID: file.ID, rasters: rasters, nameByLayer: nameByLayer, ownerByLayer: ownerByLayer}

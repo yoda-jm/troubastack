@@ -212,7 +212,7 @@ adb push docs/demo/demo-concert.tstage /sdcard/Download/
 
 …or just share the file to the device (mail, messenger, USB). Then in the app:
 **Import** → pick `demo-concert.tstage` → open **Sat @ The Anchor** — and page through it
-in airplane mode. Navigation (tap/swipe/song jump), fit modes and per-layer visibility
+in airplane mode. Navigation (tap/swipe/song jump), reading modes (Page / Width / Scroll) and per-layer visibility
 all work offline; the screen stays awake and the system bars hide while performing. Try
 **Role → `conductor`**: the red conductor cues appear (role-targeted layers default off
 for everyone else, and the mandatory section-markings layer can never be hidden).

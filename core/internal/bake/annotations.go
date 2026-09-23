@@ -159,3 +159,25 @@ func docEndsOf(e *domain.LineEnds) *docEnds {
 	}
 	return &docEnds{Head: e.Head, Side: e.Side}
 }
+
+// bakedOwner is the ONE place a domain layer's owner becomes the baked one, and it exists as a named
+// function so that the mapping has somewhere to be tested (glossary D14).
+//
+// "Shared" is spelled three ways, one per surface, and that is deliberate — a serialisation boundary is
+// exactly where a domain sentinel and its wire form are allowed to differ:
+//
+//	domain        OwnerID == domain.SharedOwner ("_shared_")   — and "" is tolerated as the same thing
+//	baked bundle  LayerImage.Owner == ""                       — `owner != ""` IS the personal test
+//	                                                             (viewfilter.go), documented in
+//	                                                             bundle.proto:47
+//	.tband export owner: "_shared_"                            — a personal owner is a USERNAME here,
+//	                                                             not the member id the other two carry
+//
+// Unifying them would mean rewriting that visibility predicate and invalidating the encoding of every
+// bundle already sitting on a tablet (Fable, ⟨GO⟩ d36704c6). So the mapping is pinned instead.
+func bakedOwner(l domain.Layer) string {
+	if l.OwnerID == domain.SharedOwner {
+		return ""
+	}
+	return l.OwnerID
+}
